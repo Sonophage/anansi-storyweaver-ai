@@ -86,7 +86,10 @@ export const budgetFor = (story: any, slot: Slot, maxTokens = 900) => {
   // The reserve tracks the reply length in force rather than a constant 600. The guard only
   // counts the PROMPT, so a longer reply used to push prompt+output past the slot with the
   // guard still green — and llama.cpp returns that as a passage truncated mid-sentence.
-  return cap - Math.max(600, maxTokens) - Math.floor(cap * 0.06);
+  // Clamped at zero. A story capped below the reply reserve produced a NEGATIVE budget, which
+  // the surface rendered as "Context -168%" and "406 / -242". The guard still refuses; it just
+  // no longer refuses with nonsense on screen.
+  return Math.max(0, cap - Math.max(600, maxTokens) - Math.floor(cap * 0.06));
 };
 
 // F14 arm B, read ONCE at module load so assemble stays a pure function of its arguments.

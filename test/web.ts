@@ -79,6 +79,31 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   ok(`${actions.size} click actions, ${state.size} look attributes, no name used as both`);
 }
 
+// Every button must be clickable. The send button — the app's primary action — carried no action
+// attribute and no listener, so the delegated handler matched nothing: mouse-unreachable, and on
+// a phone unreachable at all because there is no ⌘↵. Third bug in that family, hence a lint.
+// Verified red-capable by removing data-send: it names that button and nothing else.
+{
+  const js = read('web/app.js');
+  const html = read('app.html');
+  const acts = new Set([...(js.match(/const ACTIONS = \[([\s\S]*?)\]\.map/)?.[1] ?? '')
+    .matchAll(/'([a-z-]+)'/g)].map((m) => m[1].replace(/-/g, '')));
+  assert.ok(acts.size > 30, `only ${acts.size} actions parsed`);
+
+  const tags = [...js.matchAll(/<button\b[^>]*>/g), ...html.matchAll(/<button\b[^>]*>/g)].map((m) => m[0]);
+  assert.ok(tags.length > 30, `only ${tags.length} buttons found`);
+
+  const dead = tags.filter((b) => {
+    const data = [...b.matchAll(/data-([a-zA-Z-]+)=/g)].map((m) => m[1].toLowerCase().replace(/-/g, ''));
+    if (data.some((d) => acts.has(d))) return false;
+    const ids = [...b.matchAll(/id="([\w-]+)"/g)].map((m) => m[1]);
+    return !ids.some((i) => new RegExp(`\\$\\('${i}'\\)|getElementById\\('${i}'\\)`).test(js));
+  });
+  assert.deepStrictEqual(dead.map((d) => d.slice(0, 70)), [],
+    'these buttons carry no action attribute and no listener, so clicking them does nothing');
+  ok(`${tags.length} buttons, every one reachable by click`);
+}
+
 // Every api method must have a caller, or be listed here with a reason. Deleting desk.js took
 // the only UI for five features BUILD-STATE calls "Done" — progressions, pins, entry-field
 // revert, export and arcs — and nothing noticed, because the engine and the routes were all

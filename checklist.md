@@ -241,6 +241,18 @@ Worth a look because they were real:
       reply — and your line is not re-recorded as an instruction.
 - [ ] **The composer stayed tall after a long directive.** Clearing the text left the box's grown
       height behind.
+- [ ] **Setting a low context cap showed "Context -168%".** If you set a story's context cap
+      below the space reserved for the reply, the budget went negative and the surface printed
+      nonsense: *406 / -242*. The engine was refusing correctly the whole time; only the display
+      was wrong, and the message blamed SPINE when the real problem was the cap.
+
+      Now the header says **No room**, and Context explains it: the cap leaves nothing after the
+      reply, raise the cap or lower Max tokens. Try it — Story & chapter has no cap field yet, so
+      you would have to set it through the API; it is on the list.
+- [ ] **Hostile text is safe.** Not a bug found, a class checked: a story title, entry, passage
+      and spice note each carrying `<script>`, an `onerror` image and a quote-breaking attribute.
+      Nothing executed anywhere, the text renders literally, and a name with real quotes and curly
+      apostrophes — *The "Bell" — it's Aldis's, isn't it?* — round-trips intact.
 - [ ] **A small surprise while testing:** the type and activation chips in the entry editor do
       save immediately and do not wipe the body or keywords. I had this down as broken for four
       runs before working out my own test was reading the entry id after the click, by which

@@ -391,8 +391,13 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // broken silently while the app reports success.
     const first = ORDER.map((k) => blocks.find((b) => b.kind === k && b.state === 'included'))
                        .find(Boolean);
-    overflowReason = `over budget by ${used - budget} tokens; the server would drop ` +
-                     `${first?.kind}/${first?.id} from the head first`;
+    // A budget of zero means the story's own context cap is smaller than the space reserved for
+    // the reply. Blaming SPINE there is misleading: nothing would fit, whatever was dropped.
+    overflowReason = budget <= 0
+      ? `this story's context cap leaves no room for a prompt — the reply alone is reserved ` +
+        `${input.budget === 0 ? 'more than the cap' : 'most of it'}. Raise the cap, or lower the reply length.`
+      : `over budget by ${used - budget} tokens; the server would drop ` +
+        `${first?.kind}/${first?.id} from the head first`;
   }
 
   blocks.sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));

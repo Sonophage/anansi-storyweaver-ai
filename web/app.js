@@ -137,7 +137,11 @@ function drawRail() {
 // ---------- header ----------
 function drawBar() {
   const inStory = S.place === 'story' && V;
-  const pct = MANI ? Math.round(MANI.totals.used / MANI.totals.budget * 100) : null;
+  // A zero budget is a state, not a number. Dividing by it gave "Context Infinity%", the way
+  // the un-clamped version gave "Context -168%".
+  const pct = MANI && MANI.totals.budget > 0
+    ? Math.round(MANI.totals.used / MANI.totals.budget * 100) : null;
+  const noRoom = !!MANI && MANI.totals.budget <= 0;
   const words = inStory ? V.passages.reduce((n, p) => n + (String(p.body).match(/\S+/g) || []).length, 0) : 0;
   const [title, sub] = inStory
     ? [V.story.title, V.currentChapter.title || `Chapter ${V.currentChapter.index}`]
@@ -155,7 +159,10 @@ function drawBar() {
       <button class="pill" data-reroll="1" ${S.busy ? 'disabled style="opacity:.5"' : ''}
         title="Re-roll the last passage, keeping the old take">${S.busy ? '…' : '↻'}<span
         class="deskonly" style="display:inline; margin-left:7px">Regenerate</span></button>
-      ${pct == null ? '' : `<button class="pill deskonly" data-panel="inspector">Context ${pct}%</button>`}
+      ${noRoom
+        ? `<button class="pill deskonly" data-panel="inspector"
+            style="border-color:#C8705A; color:#C8705A">No room</button>`
+        : pct == null ? '' : `<button class="pill deskonly" data-panel="inspector">Context ${pct}%</button>`}
       <button class="pill" data-appearance="1" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
       <button class="pill deskonly" data-panel="inspector" aria-pressed="${S.panel === 'inspector'}">Inspector</button>
@@ -308,7 +315,23 @@ const PANELS = {
     const inc = MANI.blocks.filter((b) => b.state === 'included');
     const agg = {};
     for (const b of inc) agg[b.kind] = (agg[b.kind] ?? 0) + b.tokens;
-    const budget = MANI.totals.budget || 1;
+    if (MANI.totals.budget <= 0) {
+      // `budget || 1` used to make this render as "406 / 1" with a meter drawn against nothing.
+      return `<div style="display:flex; flex-direction:column">
+        ${ctxTabs()}
+        <div style="display:flex; align-items:flex-start; gap:12px; padding:12px 0">
+          <span style="width:8px; height:8px; border-radius:50%; background:var(--bad); margin-top:5px; flex:0 0 auto"></span>
+          <span style="flex:1; display:flex; flex-direction:column; gap:5px">
+            <span style="font-size:13.5px; color:#EAE3D6">There is no room for a prompt</span>
+            <span class="hint" style="margin:0">${esc(MANI.overflowReason
+              ?? "This story's context cap leaves nothing after the space reserved for the reply.")}</span></span></div>
+        <div class="row"><span style="color:#EAE3D6">Assembled anyway</span>
+          <span class="tnum" style="margin-left:auto; color:#78726A">${MANI.totals.used.toLocaleString()} tokens</span></div>
+        <div class="row"><span style="color:#EAE3D6">Room for it</span>
+          <span class="tnum" style="margin-left:auto; color:var(--bad)">none</span></div>
+        <div class="hint">Raise the cap in Story &amp; chapter, or lower Max tokens under Storyteller.</div></div>`;
+    }
+    const budget = MANI.totals.budget;
     return `<div style="display:flex; flex-direction:column; gap:2px">
       ${ctxTabs()}
       <div style="display:flex; align-items:baseline; gap:10px; font-size:12.5px; color:#8A8478">
