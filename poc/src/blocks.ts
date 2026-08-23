@@ -9,6 +9,11 @@ export type Kind =
   | 'SPINE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED' | 'LORE' | 'RECALL'
   | 'EARLIER' | 'PROSE' | 'DIRECTIVE' | 'CANON-REPEAT' | 'TAIL' | 'MODE';
 
+// ponytail: RECALL is declared here, ordered, tagged in render.ts and ranked first for eviction
+// — and nothing anywhere calls add('RECALL', ...). It is the seat reserved for PLAN-02 P5's
+// memory collect-versus-inject, which needs vector recall, which needs pgvector, which needs the
+// Postgres port. Until then it is a block that can never hold anything. Left rather than deleted
+// because the eviction order below is correct as written and would have to be rewritten twice.
 export const ORDER: Kind[] = [
   'SPINE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'LORE', 'RECALL',
   'EARLIER', 'PROSE', 'DIRECTIVE', 'CANON-REPEAT', 'TAIL', 'MODE',

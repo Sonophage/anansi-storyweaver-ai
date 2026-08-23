@@ -83,21 +83,41 @@ Nothing in this list is a surprise; the point is that adding to it requires writ
 
 ---
 
-## 3. Not started
+## 3. The plan's own phases, against the code
 
-**From the design canvas** — D9 chapter close as its own screen, D10 flags, D14 first run; and on
-the phone: Progression (27), Extraction queue (28), Canon flags (30), Summaries (29) as a screen.
+PLAN-02 §9 sets each phase by an exit criterion. Audited against the source, not the phase order —
+which is why the picture is lopsided.
 
-**From the engine spec** —
-canon violation checking (§8.4); extraction into the ledger (the prompt is written in
-`src/prompts.ts` and has no route); activation beyond plain keyword — secondary keys, `key_logic`,
-proximity, exclusion, regex, sticky, POV force-include; the budget engine's trim ladder,
-reservation, eviction and `partial` states; vector recall; universes.
+**P3 — "Two people write different books at the same time without noticing each other." 20-30h.**
+**This is the hole.** Multi-story works and the story `status` field carries draft/finished. Missing:
+the second tenant's whole path, the status strip, advisory locks on two writers in one chapter, and
+the character wizard. Everything P3 needs *underneath* is built and tested — ownership, scoping,
+export — so this is the last structural gap and it is gated on a device, not on design.
 
-**From the plan's infrastructure** — Postgres, RLS, Tailscale identity, the allowlist, the second
-tenant, `pg_dump` backups, dev/prod split, the status strip, the no-op service worker.
+**P4 — "A fact pinned in chapter one reaches chapter twenty on its own." 20-30h. Substantially done.**
+Entries, keywords, always-on versus triggered, interiority notes, POV force-include, sticky, the live
+fire preview (`desk.js` shows the keyword that fired and what it cost), chapter pins — all built.
+Missing: full-text search. The FTS5 table that nothing populated was dropped rather than left looking
+like a feature; search is a `LIKE` scan.
 
----
+**P5 — "The ledger fills itself and I trust what it did." 30-45h. Substantially done.**
+Extraction under §7.4, the ledger-as-queue with diffs, summary staleness, canon violation checking —
+all built. Missing: **memory collect-versus-inject**, which is vector recall. `RECALL` exists as a
+block kind, is ordered, tagged and ranked first for eviction, and nothing ever adds to it. It is a
+reserved seat, now marked as one in `blocks.ts`.
+
+**P6 — "The book is longer than the window and it still holds." 40-60h. Correctly waiting.**
+The meter, the 45% canon cap and the EARLIER ceiling were built ahead of the phase. The budget engine
+itself — reservation, trim ladder, eviction, `partial` states, `priority` — is not built, and §7.2's
+trigger has not fired: nothing has overflowed since the chapter window landed. F13 doubled the slot to
+50,048, which pushes the trigger further out rather than closer.
+
+**P7 — Interop and polish. 12-20h. Substantially done.**
+PWA manifest installs. Character-card and lorebook import built, plus AI Dungeon and Anansi's own
+export format. Progressions built. Adventure **dropped** by Seth, not deferred. Missing: the service
+worker for offline reading, which PLAN-02 itself gated on "only if someone asks".
+
+**Never scheduled:** universes, and Postgres/pgvector/RLS — the last of which P5's recall depends on.
 
 ## 4. What got built out of order, and what that cost
 
