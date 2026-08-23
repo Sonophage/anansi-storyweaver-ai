@@ -16,7 +16,7 @@ import { join, dirname } from 'node:path';
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
 // shape so the port is mechanical. Port when the second writer arrives or vectors are wanted.
-const FILE = process.env.ANANSI_DB ?? new URL('../anansi.db', import.meta.url).pathname;
+export const FILE = process.env.ANANSI_DB ?? new URL('../anansi.db', import.meta.url).pathname;
 export const db = new DatabaseSync(FILE);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 // A second process on the same file gets SQLITE_BUSY immediately without this; bench scripts

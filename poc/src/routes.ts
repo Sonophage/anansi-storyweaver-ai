@@ -3,6 +3,7 @@ import { count, chat, structured, structuredRetry, model } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema } from './prompts.ts';
 import * as db from './db.ts';
+import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean } from './story.ts';
 import { resolveBody } from './context.ts';
 import type { Slot } from './story.ts';
@@ -27,6 +28,7 @@ export const OPEN_ROUTES = new Set([
   // owner-scoped in SQL — gating it by story made every search return 400, which is the
   // security fix breaking the feature it was protecting.
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'GET /api/search',
+  'POST /api/import',
 ]);
 
 /** The story a request is about, wherever it names it. */
@@ -253,6 +255,17 @@ export const routes: Record<string, Handler> = {
   // evict everyone's snapshots.
   'POST /api/backup':      () => db.backup(),
   'POST /api/export':      (c: Ctx) => db.exportStory(c.body.storyId, c.owner),
+  // Creates a story, so it names no existing one and cannot be gated on ownership — it is
+  // open for the same reason POST /api/stories is, and the new story is owned by the caller.
+  'POST /api/import': (c: Ctx) => {
+    const name = String(c.body.name ?? '');
+    if (/\.db$/i.test(name)) return imp.absorb(c.owner, imp.fromExport(imp.safePath(name)));
+    const data = String(c.body.data ?? '');
+    if (!data) throw Object.assign(new Error('send the file as base64 in `data`'), { code: 400 });
+    const buf = Buffer.from(data, 'base64');
+    if (buf.length > 20_000_000) throw Object.assign(new Error('that file is over 20MB'), { code: 400 });
+    return imp.absorb(c.owner, imp.parse(name, buf));
+  },
 
   // ---- prose ----
   'POST /api/write':   (c) => {
