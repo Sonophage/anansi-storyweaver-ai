@@ -22,6 +22,11 @@ export const CAPS: Partial<Record<Kind, number>> = { SPINE: 400, DIRECTIVE: 250 
 // with no ceiling (COUNCIL-03 K5). It gets its own.
 export const EARLIER_CEILING_FRAC = 0.25;
 
+// Recent prose gets a ceiling too, so pulling an old chapter back trades against the recent
+// window instead of overflowing. SPEC §7.3 gives layer 6 a 75% ceiling and a 30% floor; TAIL
+// is never evicted, because it is the sentence the model has to continue from.
+export const PROSE_CEILING_FRAC = 0.6;
+
 // Canon proper. EARLIER is deliberately NOT in this set; it has its own ceiling above.
 export const CANON_KINDS: Kind[] = ['CANON-ALWAYS', 'CANON-TRIGGERED', 'LORE', 'RECALL'];
 export const CANON_CAP_FRAC = 0.45;

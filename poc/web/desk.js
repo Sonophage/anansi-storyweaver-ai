@@ -533,6 +533,14 @@ function storyPanel() {
     <label>This chapter must end with</label><textarea id="c-b">${esc(c.authorsNote ?? '')}</textarea>
     <p class="hint">Rides the style directive near the end of the prompt, where instructions land hardest.</p>
     <button class="btn" id="sv">Save</button>
+    <label>Keep this chapter whole</label>
+    <select id="c-kw">
+      <option value="" ${c.keepWhole ? '' : 'selected'}>Compact it — send the summary</option>
+      <option value="1" ${c.keepWhole ? 'selected' : ''}>Pull it back — send the prose</option>
+    </select>
+    <p class="hint">A summary records what happened and drops how it read. Pull a chapter back
+    when you are writing against its voice; the recent window shrinks to pay for it.</p>
+
     <div class="grp">Close the chapter</div>
     <label>Break note</label><input id="c-n" placeholder="Three weeks later">
     <label>Next chapter title</label><input id="c-x" placeholder="Chapter ${c.index + 1}">
@@ -555,7 +563,8 @@ function storyPanel() {
       const s = { ...st, spice: +$('s-spice').value };
       for (const f of STORY_FIELDS) if (f.k !== 'direction') s[f.k] = $(`s-${f.k}`).value;
       V = await api.saveStory(storyId, s);
-      V = await api.saveChapter(storyId, c.id, { title: $('c-t').value, authorsNote: $('c-b').value });
+      V = await api.saveChapter(storyId, c.id,
+        { title: $('c-t').value, authorsNote: $('c-b').value, keepWhole: $('c-kw').value === '1' });
       refresh(); storyPanel(); };
     $('sum').onclick = async () => { $('sum').textContent = 'summarising…'; $('sum').disabled = true;
       const r = await api.summarize(storyId, c.id);

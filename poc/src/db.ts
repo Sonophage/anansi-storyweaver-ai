@@ -34,6 +34,7 @@ function migrate() {
     catch { /* table not created yet on a fresh database; the CREATE below covers it */ }
   };
   add('stories', 'active_branch', 'TEXT');
+  add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
   // The dedupe index used to cover every row, so a subject once accepted or rejected could
   // never be proposed again. Scoped to open proposals now.
@@ -79,6 +80,10 @@ CREATE TABLE IF NOT EXISTS chapters (
   idx INTEGER NOT NULL, title TEXT, authors_note TEXT,
   summary TEXT, summary_tokens TEXT, summary_covers_through INTEGER, summary_hash TEXT,
   status TEXT DEFAULT 'open',          -- open | closed
+  -- Pull a compacted chapter's full prose back into context on demand. A summary is a record
+  -- of what happened: it carries plot through compaction and throws tone away. Writing a
+  -- callback to a scene twenty chapters back, you want the rain, not the minutes.
+  keep_whole INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS chapters_idx ON chapters(story_id, branch_id, idx);
 -- Parent keys for the composite foreign keys on chapter_pins.
@@ -440,8 +445,8 @@ export function updateStory(id: string, s: any) {
       s.stripPatterns ?? null, now(), id);
 }
 export const updateChapter = (storyId: string, id: string, c: any) =>
-  q('UPDATE chapters SET title=?, authors_note=? WHERE id=? AND story_id=?')
-    .run(c.title, c.authorsNote ?? null, id, storyId);
+  q('UPDATE chapters SET title=?, authors_note=?, keep_whole=? WHERE id=? AND story_id=?')
+    .run(c.title, c.authorsNote ?? null, c.keepWhole ? 1 : 0, id, storyId);
 export const delStory = (id: string, ownerId?: string) => ownerId
   ? q('DELETE FROM stories WHERE id = ? AND owner_id = ?').run(id, ownerId)
   : q('DELETE FROM stories WHERE id = ?').run(id);

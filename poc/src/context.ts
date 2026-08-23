@@ -1,7 +1,7 @@
 // buildContext — pure. Plain objects in, a manifest out. No database, no network.
 // Token counting is injected, which is what keeps it pure and testable with no model.
 
-import { ORDER, CAPS, CANON_KINDS, CANON_CAP_FRAC, EARLIER_CEILING_FRAC } from './blocks.ts';
+import { ORDER, CAPS, CANON_KINDS, CANON_CAP_FRAC, EARLIER_CEILING_FRAC, PROSE_CEILING_FRAC } from './blocks.ts';
 import type { Block, Kind } from './blocks.ts';
 
 export interface EntryState {
@@ -23,6 +23,7 @@ export interface Entry {
 export interface Chapter {
   id: string; index: number; title: string; summary?: string; authorsNote?: string;
   summaryStale?: boolean;   // covered prose changed since it was written — excluded, not trusted
+  keepWhole?: boolean;      // pulled back in full: send this chapter's prose, not its summary
 }
 export interface Passage {
   id: string; ordinal: number; body: string; isBreak?: boolean;
@@ -263,6 +264,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
 
   for (const c of chapters) {
     if (c.index >= wholeFrom || !c.summary) continue;
+    if (c.keepWhole) continue;   // its prose is being sent; a summary too would duplicate it
     if (covered(c.index)) continue;
     // SPEC §5: on hash mismatch a summary is flagged stale, excluded, and re-run. Left in,
     // it contradicts the prose it no longer describes in every later call, forever.
@@ -280,7 +282,9 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // generation, permanently. A summary that does not replace the prose it summarises is
   // not compression, it is duplication.
   const byId = new Map(chapters.map((c) => [c.id, c.index]));
+  const pulled = new Set(chapters.filter((c) => c.keepWhole).map((c) => c.id));
   const whole = passages.filter((p) => {
+    if (p.chapterId && pulled.has(p.chapterId)) return true;   // pulled back in full
     const idx = p.chapterId ? byId.get(p.chapterId) : undefined;
     return idx == null || idx >= wholeFrom;      // unknown chapter: keep it rather than lose it
   });
@@ -293,7 +297,8 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     tail.unshift(whole[i]); acc += t;
   }
   const head = whole.slice(0, whole.length - tail.length);
-  for (const p of head) add('PROSE', p.id, p.body, 'recent prose');
+  for (const p of head)
+    add('PROSE', p.id, p.body, p.chapterId && pulled.has(p.chapterId) ? 'pulled back' : 'recent prose');
 
   addAnchor('DIRECTIVE', 'directive', [
     { text: `[Writing: ${story.pov}]`, keep: true },
@@ -334,9 +339,13 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // an arc covering thirty chapters is the densest thing in the block and the last that
     // should go. `CANON_KINDS.indexOf` returned -1 for EARLIER, so the sort was a no-op and
     // eviction followed insertion order, which dropped the arcs first.
-    const cands = blocks.filter((b) => kinds.includes(b.kind) && b.state === 'included')
+    const cands = blocks
+      // A chapter you asked for back is not a candidate. Evicting it first made the pull
+      // silently do nothing, which is worse than refusing.
+      .filter((b) => kinds.includes(b.kind) && b.state === 'included' && b.reason !== 'pulled back')
       .sort((a, b) => {
         if (a.kind !== b.kind) return CANON_KINDS.indexOf(b.kind) - CANON_KINDS.indexOf(a.kind);
+        if (a.kind === 'PROSE') return 0;   // insertion order is already oldest-first
         if (a.kind !== 'EARLIER') return 0;
         const arc = (x: typeof a) => (x.reason === 'arc' ? 1 : 0);   // arcs last
         return arc(a) - arc(b) || a.id.localeCompare(b.id);
@@ -348,6 +357,11 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   };
   evict(CANON_KINDS, Math.floor(budget * CANON_CAP_FRAC), 'canon 45%');
   evict(['EARLIER'], Math.floor(budget * EARLIER_CEILING_FRAC), 'EARLIER 25%');
+  // Prose oldest-first. This is what lets a pulled-back chapter cost something rather than
+  // overflow: the oldest passage in the recent window drops to make room, and the writer
+  // gets the scene they asked for instead of a refusal. TAIL is excluded — the model has to
+  // continue from something.
+  evict(['PROSE'], Math.floor(budget * PROSE_CEILING_FRAC), 'prose 60%');
 
   const used = blocks.filter((b) => b.state === 'included').reduce((n, b) => n + b.tokens, 0);
   const over = used > budget;

@@ -431,6 +431,12 @@ function openChapter() {
     <label>Title</label><input id="c-title" value="${esc(c.title)}">
     <label>This chapter must end with</label><textarea id="c-beat">${esc(c.authorsNote ?? '')}</textarea>
     <p class="note">Rides the style directive near the end of the prompt, where instructions land hardest.</p>
+    <label>Keep this chapter whole</label>
+    <select id="c-kw">
+      <option value="" ${c.keepWhole ? '' : 'selected'}>Compact it — send the summary</option>
+      <option value="1" ${c.keepWhole ? 'selected' : ''}>Pull it back — send the prose</option>
+    </select>
+    <p class="note">A summary records what happened and drops how it read.</p>
     <button class="big" id="csave">Save</button>
     <div class="grp">End this chapter</div>
     <label>Break note (optional)</label><input id="c-note" placeholder="Three weeks later">

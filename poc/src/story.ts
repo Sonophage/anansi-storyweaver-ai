@@ -25,6 +25,7 @@ const toChapter = (c: any) => ({
   id: c.id, index: c.idx, title: c.title, summary: c.summary,
   authorsNote: c.authors_note, status: c.status, coversThrough: c.summary_covers_through,
   summaryStale: db.summaryStale(c),
+  keepWhole: !!c.keep_whole,
 });
 
 /** Everything a surface needs to render one story. */

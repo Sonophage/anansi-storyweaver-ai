@@ -173,6 +173,41 @@ ok('a long writing sample shortens the anchor, it does not delete it', () => {
   assert.match(out, /must be forced/, 'the chapter beat survives');
 });
 
+ok('a compacted chapter can be pulled back in full, and it costs the recent window', () => {
+  // A summary carries plot through compaction and throws tone away. Writing a callback to a
+  // scene twenty chapters back, you want the prose. Pulling it must TRADE — refusing is a
+  // bad answer to "give me that scene".
+  const mk = (pull: number[]) => {
+    const i = base();
+    const n = 12;
+    i.chapters = Array.from({ length: n }, (_, k) => ({
+      id: `c${k + 1}`, index: k + 1, title: `Ch${k + 1}`,
+      summary: `Summary ${k + 1}.`, keepWhole: pull.includes(k + 1) }));
+    i.currentChapter = { id: 'cur', index: n + 1, title: 'now' };
+    i.passages = Array.from({ length: n * 2 }, (_, k) => ({
+      id: `p${k + 1}`, ordinal: k + 1, body: `Ch${Math.floor(k / 2) + 1} prose ${'x'.repeat(1200)}`,
+      chapterId: `c${Math.floor(k / 2) + 1}` }));
+    i.budget = 4000; i.directive = '';
+    const m = buildContext(i, count);
+    return {
+      m, chapters: [...new Set(m.blocks
+        .filter((b) => (b.kind === 'PROSE' || b.kind === 'TAIL') && b.state === 'included')
+        .map((b) => Number(/^Ch(\d+)/.exec(b.text)![1])))].sort((a, b) => a - b),
+    };
+  };
+
+  const plain = mk([]);
+  assert.ok(!plain.chapters.includes(3), 'chapter 3 is compacted by default');
+  assert.strictEqual(plain.m.overflowed, false);
+
+  const pulled = mk([3]);
+  assert.ok(pulled.chapters.includes(3), 'pulling chapter 3 puts its prose back');
+  assert.strictEqual(pulled.m.overflowed, false, 'and it must not overflow — it trades');
+  const summaries = pulled.m.blocks.filter((b) => b.kind === 'EARLIER' && b.state === 'included');
+  assert.ok(!summaries.some((b) => b.text.includes('Summary 3.')),
+    'a pulled chapter must not send its summary as well — that is the duplication we removed');
+});
+
 // --- the act tier ---
 ok('an arc replaces the chapters it covers, instead of joining them', () => {
   const i = base();
