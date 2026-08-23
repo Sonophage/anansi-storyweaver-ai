@@ -187,6 +187,9 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // DIRECTIVE loses point of view, register and the chapter's ending — and the app's own
   // hint ("paste a few hundred words of your own prose") guarantees the cap is exceeded.
   addAnchor('SPINE', 'spine', [
+    // The title stays. F12: dropping it was measured at n=30 per arm and made no difference
+    // (96% vs 93% on the passages that named the key, CI [-15, +8]) — and neither arm
+    // reproduced F9's actual failure once in sixty generations.
     { text: `${story.title} — ${story.genre}`, keep: true },
     { text: story.premise, keep: false },
     { text: `Setting: ${story.setting}`, keep: true },

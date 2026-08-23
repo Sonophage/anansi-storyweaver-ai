@@ -32,10 +32,10 @@ Rules:
 - Match the established voice. Do not escalate register on your own.
 `;
 
-// ponytail: F9 is a measured, unfixed defect in the one promise. The story title sits in SPINE
-// on every call and beats a triggered canon entry roughly 10-20% of the time. F10 records a prompt
-// clause that made it worse. Two untested candidates in PLAN-03: move canon below the spine, or
-// restate always-on canon near the tail. Decide with bench/compliance.ts, not by argument.
+// F9 is retired, not fixed by design: dropping the title was measured at n=30 per arm and made
+// no difference, and the failure it described did not occur once in sixty generations (F12). The
+// likely cause was an arbitration clause that keyed on a [pinned] tag every entry carried. If
+// canon drift returns, bench/compliance.ts is the harness and that clause is the first suspect.
 export function render(m: Manifest): string {
   const parts: string[] = [SYSTEM];
   let open: string | null = null;

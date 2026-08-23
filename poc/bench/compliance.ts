@@ -7,8 +7,12 @@ const j = (u: string, b?: unknown) => fetch(B + u, b ? { method: 'POST',
 
 const { stories } = await j('/api/stories');
 const story = stories.find((s: any) => s.title === 'The Silver Key') ?? stories[0];
+// Two denominators. The overall rate counts every generation, and most passages never
+// mention the key at all — so a title-vs-canon failure is diluted by trials that could
+// never have shown one, which is why F10's n=20 could not decide anything.
+// The targeted rate counts only passages whose NARRATION actually names the key.
 const tally: Record<string, number> = {};
-let clean = 0, n = 0;
+let clean = 0, n = 0, mentioned = 0, mentionedBad = 0;
 
 for (let i = 0; i < N; i++) {
   const r = await j('/api/generate', { storyId: story.id, mode: 'direct',
@@ -25,9 +29,12 @@ for (let i = 0; i < N; i++) {
   if (/(brass, not silver|ex-watch sergeant|eleven crowns owed)/i.test(narr)) bad.push('restated canon verbatim');
   if (/\bI \b|\bmy \b/i.test(narr)) bad.push('broke third person');
   if (bad.length === 0) clean++;
+  if (/\bkeys?\b/i.test(narr)) { mentioned++; if (bad.length) mentionedBad++; }
   for (const b of bad) tally[b] = (tally[b] ?? 0) + 1;
   process.stdout.write(bad.length ? `  ${i + 1}: ${bad.join('; ')}\n` : `  ${i + 1}: clean\n`);
 }
 console.log(`\n${clean}/${n} passages contradicted nothing (${(clean / n * 100).toFixed(0)}%)`);
+console.log(`  of the ${mentioned} that actually named the key, ${mentioned - mentionedBad} were clean` +
+  (mentioned ? ` (${((mentioned - mentionedBad) / mentioned * 100).toFixed(0)}%)` : ''));
 for (const [k, v] of Object.entries(tally).sort((a, b) => b[1] - a[1]))
   console.log(`  ${String(v).padStart(2)}× ${k}`);

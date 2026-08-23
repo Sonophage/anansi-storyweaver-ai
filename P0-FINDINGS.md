@@ -241,3 +241,44 @@ entailment checker, and all four pass:
 weak spot and worth a targeted rule later.
 
 Together with F10 this is the pattern: **prompt instructions did not fix either problem; code did.**
+
+## F12 — Dropping the title changed nothing, and F9 no longer reproduces
+
+`poc/bench/compliance.ts`, thirty generations per arm, same fixture, same directive, minutes
+apart on identical code with one variable.
+
+| | overall clean | of those that named the key |
+|---|---|---|
+| title in the prompt | 29/30 (97%) | **26/27 (96%)** |
+| title removed from SPINE | 28/30 (93%) | **27/29 (93%)** |
+
+Difference on the targeted arm: **−3.2 points, 95% CI [−15, +8]**. Indistinguishable. The title
+went back in and the experiment switch was deleted.
+
+**The more useful result is what neither arm produced.** F9's actual failure — the narration
+calling the object *silver* against canon saying brass — occurred **zero times in sixty
+generations**. F9 measured it at 1 in 10; F10 at 3 in 20. It does not reproduce today.
+
+**What changed, and the honest limits on saying so.** Between F10 and this run the system block's
+arbitration rule was rewritten twice. It had said *"canon marked [pinned] always wins… canon not
+marked [pinned] yields to the prose"* — and since `last_editor` defaulted to human for spark
+characters, accepted proposals and hand edits alike, **every entry carried [pinned]**, so that
+clause described a branch that never fired while muddying the one that did. It now reads: *the
+canon wins and you write to it.* That is the most likely cause and it is not proven: several other
+things moved in the same window, including how prose is windowed, which changes the context
+entirely.
+
+Three caveats that matter more than the numbers:
+
+1. **The harness improved between F9/F10 and here.** Those runs scored every generation, most of
+   which never mention the key, so a title-vs-canon failure was diluted by trials that could not
+   have shown one. Part of the gap is instrumentation, not the model.
+2. **Nothing sets a seed.** llama.cpp randomises per request, so F9, F10 and F12 are each
+   unreproducible. Only the A/B within F12 is controlled, because both arms ran minutes apart on
+   the same code.
+3. **n=30 per arm decides very little.** It can rule out a large effect and nothing smaller.
+
+**What this retires.** PLAN-03's two untested F9 candidates — moving canon below the spine, and
+restating always-on canon near the tail — are no longer worth running against a failure that does
+not occur. The `ponytail:` marker in `render.ts` comes out. If the failure returns, the harness is
+here and the first thing to check is the arbitration rule.
