@@ -508,12 +508,12 @@ function ledgerBooks() {
 function searchHits() {
   if (HITS === null) return '';
   if (!HITS.length) return '<div class="hint">Nothing matched.</div>';
-  return HITS.map((r) => `<button data-hit="${esc(r.storyId ?? r.story ?? '')}" style="display:flex;
+  return HITS.map((r) => `<button data-hit="${esc(r.storyId ?? '')}" style="display:flex;
     flex-direction:column; gap:5px; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.04); width:100%">
     <span style="display:flex; align-items:center; gap:10px; width:100%">
       <span class="kind" style="font-size:9.5px">${esc(r.kind ?? 'Prose')}</span>
-      <span style="margin-left:auto; font-size:11px; color:#6E6961">${esc(r.where ?? r.storyTitle ?? '')}</span></span>
-    <span style="font-size:13.5px; line-height:1.5; color:#EAE3D6">${esc(r.body ?? r.snippet ?? '')}</span></button>`).join('');
+      <span style="margin-left:auto; font-size:11px; color:#6E6961">${esc(r.where ?? '')}</span></span>
+    <span style="font-size:13.5px; line-height:1.5; color:#EAE3D6">${esc((r.body ?? '').slice(0, 260))}</span></button>`).join('');
 }
 
 function ctxTabs() {

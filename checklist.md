@@ -205,6 +205,14 @@ Worth a look because they were real:
       Fixed. Close a chapter, open the queue, accept something, and confirm it appears in Worlds &
       lorebooks. Note that accepting a **changed** proposal updates an existing entry rather than
       adding one — the count will not move, and that is correct.
+- [ ] **Search inside a story was broken three ways.** Clicking a result said *"no such story"*,
+      because a result carried the story's **title** where the code wanted its **id**. The
+      location line under each result was always blank. And the panel claimed it searched
+      *"prose, entries and summaries"* while searching prose only.
+
+      All three fixed, and the claim made true rather than downgraded: search now covers prose,
+      ledger entries and chapter summaries, each labelled, each saying which story and chapter it
+      came from. Try searching a character's name — you should get the entry and the passages.
 - [ ] **A small surprise while testing:** the type and activation chips in the entry editor do
       save immediately and do not wipe the body or keywords. I had this down as broken for four
       runs before working out my own test was reading the entry id after the click, by which

@@ -465,11 +465,27 @@ const touch = (id: string) => q('UPDATE stories SET updated_at = ? WHERE id = ?'
 // ponytail: LIKE scan over every selected passage. Fine at this size, linear at chapter 40.
 // Upgrade to FTS5 when it is measurably slow — an earlier revision created the table and never
 // populated it, which was worse than not having it.
-export const search = (o: string, term: string) => q(`
-  SELECT p.id, p.body, p.story_id, s.title AS story, c.idx AS chapter
-  FROM passages p JOIN stories s ON s.id = p.story_id JOIN chapters c ON c.id = p.chapter_id
-  WHERE s.owner_id = ? AND p.selected = 1 AND p.body LIKE ? ORDER BY p.ordinal LIMIT 40`)
-  .all(o, `%${term}%`) as any[];
+/** Prose, entries and chapter summaries. The surface said it searched all three and it searched
+ *  passages only — and a result carried `story`, which is a TITLE, where the client wanted an id,
+ *  so clicking a hit tried to open a story called "The Silver Key". Both fixed here: one shape,
+ *  with the id and the title as separate columns that cannot be confused for each other. */
+export const search = (o: string, term: string) => {
+  const like = `%${term}%`;
+  return q(`
+    SELECT 'Prose' AS kind, p.story_id AS story_id, s.title AS story_title,
+           'ch ' || c.idx AS loc, p.body AS body, p.id AS id
+      FROM passages p JOIN stories s ON s.id = p.story_id JOIN chapters c ON c.id = p.chapter_id
+     WHERE s.owner_id = ? AND p.selected = 1 AND p.body LIKE ?
+    UNION ALL
+    SELECT 'Entry', e.story_id, s.title, e.title, e.body, e.id
+      FROM entries e JOIN stories s ON s.id = e.story_id
+     WHERE s.owner_id = ? AND (e.title LIKE ? OR e.body LIKE ?)
+    UNION ALL
+    SELECT 'Summary', c.story_id, s.title, 'ch ' || c.idx, c.summary, c.id
+      FROM chapters c JOIN stories s ON s.id = c.story_id
+     WHERE s.owner_id = ? AND c.summary IS NOT NULL AND c.summary LIKE ?
+     LIMIT 60`).all(o, like, o, like, like, o, like) as any[];
+};
 
 // ---- history & revert ----
 export const passageHistory = (storyId: string, id: string) => q(

@@ -470,7 +470,12 @@ export const routes: Record<string, Handler> = {
     };
   },
 
-  'GET /api/search':    (c) => ({ results: db.search(c.owner, c.query.get('q') ?? '') }),
+  // Mapped to the shape the client renders, so `storyId` and the story's title cannot be
+  // mistaken for each other again.
+  'GET /api/search':    (c) => ({ results: db.search(c.owner, c.query.get('q') ?? '').map((x: any) => ({
+    kind: x.kind, id: x.id, storyId: x.story_id, story: x.story_title,
+    where: `${x.story_title} · ${x.loc}`, body: x.body,
+  })) }),
   // Gated deliberately. `gen` is one process-wide object, so an open route means one writer's
   // sampler lands on another's next generation — including `thinking: true`, which measured
   // as returning no prose at all (F5). Naming a story at least proves you are a tenant.
