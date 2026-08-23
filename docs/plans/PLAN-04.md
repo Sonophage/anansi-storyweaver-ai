@@ -1,9 +1,21 @@
 # Plan 04 — characters and chapters
 
-> **STATUS: PROPOSAL, not agreed.** Written for the design conversation on 2026-08-23 against
-> `bugs.md`. Nothing here is built. Where it recommends measuring before building, that is not
-> hedging — F10 shipped a plausible prompt fix that made things worse, and F12 declared a defect
-> fixed on a small-sample zero.
+> **STATUS: AGREED 2026-08-23, not yet built.** Four decisions taken; they are recorded in
+> §0 and the sections below are corrected to match. Where this plan says measure before building,
+> that is not hedging — F10 shipped a plausible prompt fix that made things worse, and F12
+> declared a defect fixed on a small-sample zero.
+
+## 0. Decisions
+
+| question | Seth's answer |
+|---|---|
+| Costume shape | **Named outfits you switch between.** Not the single "right now" line I recommended. |
+| Interiority | **Reaches the model, but measure the leak first.** |
+| Chapter setup page | **Skippable, with a visible "not set".** |
+| Direct mode | **Leave it as it is.** The instruction steers one passage and is not kept. |
+
+The costume answer overrides §3's recommendation. §3 is rewritten below rather than left standing
+with a recommendation that was not taken.
 
 Six things from `bugs.md`: a character-creation skill, a reroller, costumes, interiority and
 threads, the end-chapter ritual, and the new-chapter setup page.
@@ -70,58 +82,62 @@ that chapter, whether or not anyone names them. At the current slot that is affo
 capped at 45% of 46,146 tokens and the fixture uses about 300. On a forty-entry ledger it will not
 be, and the honest answer then is that the budget engine (P6) exists for exactly this.
 
-**Skippable or mandatory?** I would make it skippable with a visible "not set yet" state. A blank
-author's note is a real choice — some chapters are written to find out what happens.
+**Skippable — agreed.** With a visible "not set yet" state. A blank author's note is a real
+choice: some chapters are written to find out what happens.
 
 ---
 
-## 3. Costume, and what it really is
+## 3. Outfits — agreed shape
 
-You said: *"a costume and a selector for it so that way things like armor can be taken on or off
-without it being an issue when prompting."*
+Named outfits, switchable. Chosen over the single "right now" line, so the design below is the
+one to build.
 
-The issue is precise. A character entry holds permanent facts. If it says *wears plate armour*
-then that is true on every call, including the scene where she is in a shift — and canon fighting
-the scene is the one failure mode this project has actually measured. F9 put it at 4% of passages
-that mention the thing in question.
+**Why it is not `entry_states`.** States are anchored to a chapter — `from_chapter`, with
+`hide`/`hint` before it. That is the right axis for *the debt transfers in chapter seven* and the
+wrong axis for *she puts the plate on and takes it off again*. Outfits need a switch, not a
+timeline.
 
-SPEC §7.1 already argues that a permanent body must not hold temporal facts. Costume is that
-argument arriving in practice.
+**Schema.** One table, following the patterns already in `db.ts` — story-scoped for the ownership
+gate, a partial unique index so exactly one outfit per character can be active:
 
-**Two shapes, and they are genuinely different:**
+```sql
+CREATE TABLE outfits (
+  id TEXT PRIMARY KEY,
+  entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,             -- "Plate", "Court dress", "Travelling"
+  body TEXT NOT NULL,             -- what the model reads when it is worn
+  active INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL);
+CREATE UNIQUE INDEX outfits_one_active ON outfits(entry_id) WHERE active = 1;
+```
 
-**A. One "right now" line per character.** The entry keeps permanent traits; a second short line
-holds what is currently true, and you change it when it changes.
+**How it reaches the model.** The active outfit is a second bracket on the character, present only
+while worn:
 
 ```
 [Ilva Marren: 34, envoy without a house, limps on the left]
-[Ilva, right now: in the plate she took from the hall. Bare-headed.]
+[Ilva wears: the plate she took from the hall. Bare-headed.]
 ```
 
-Cheap — one column, one field, one more rendered line. It generalises past clothing to anything
-temporary: wounded, drunk, disguised, carrying the key. And it is the spec's own permanent-versus-
-temporal split, implemented.
+It rides with the entry, so it obeys the entry's own activation — always-on characters carry it on
+every call, triggered ones only when they fire. `buildContext` stays pure: the active outfit
+arrives on the `Entry` in the `Input`, like every other fact.
 
-Its weakness: nothing reminds you to change it, and a stale "right now" is worse than none.
-Mitigation: show it on the story screen where you can see it while writing, and surface it in the
-chapter ritual for review.
+**Where you switch it.** On the story screen, not buried in the editor — that is the whole point
+of a selector. A row of outfit chips under the cast, one click to change.
 
-**B. Named outfits you switch between.** "Court dress", "Travelling leathers", "Plate". Each is a
-stored body; a selector picks the active one.
+**The one-off case, which you named as this shape's weakness.** "Soaked through", "wearing Marek's
+coat" — not recurring, not worth a named outfit. Two honest options and I do not want to guess:
 
-More machinery — a table, or states keyed on something other than chapter. Better if you have
-recurring, named looks you switch back and forth. Worse if the temporary state is usually
-one-off ("soaked through", "wearing Marek's coat").
+- **Edit the active outfit's body in place.** No new mechanism; the cost is that a one-off
+  pollutes a named look you will wear again.
+- **A scratch line on the character**, which is shape A from the original proposal, living
+  alongside outfits.
 
-**My recommendation: A.** It is a third of the work, covers more than costume, and matches an
-argument the spec already makes. B is the right answer only if you actually think in named
-outfits — which is a question about how you write, not about the engine.
-
-**Not to be modelled at all:** whether the armour is *on* in this paragraph. That is prose, and
-F17 measured the model tracking a physical state across 17 informative generations without one
-violation, when the state was in canon. Give it the state; do not give it a wardrobe.
-
----
+I would rather build outfits, use them, and see whether the one-off actually bites. It may not:
+prose carries most of it, and F17 measured the model tracking a physical state across seventeen
+informative generations without a violation once the state was in canon.
 
 ## 4. Interiority and threads
 
@@ -136,7 +152,7 @@ already does — and marked as interior so it is not narrated:
 [Ilva, interior: believes the debt is hers to pay. Has not said so.]
 ```
 
-**This one needs measuring before it ships.** The whole risk is the model taking an interior note
+**Agreed: it reaches the model, and the leak is measured before it ships.** The whole risk is the model taking an interior note
 and writing it as narration — *"Ilva believed the debt was hers to pay"* — which turns a private
 thought into exposition and ruins the effect you want it for. F17's harness tests exactly this
 shape of thing: put an interior fact in canon, generate thirty times, and count how often the
@@ -188,14 +204,9 @@ variants, which you already use. No new storage.
 
 ---
 
-## What I need from you
+## Still open, and small
 
-1. **Costume: shape A or B?** One "right now" line, or named outfits you switch between? This is a
-   question about how you write, and it changes the schema.
-2. **Is the chapter setup page skippable?** I would make it skippable. Say if it should block.
-3. **Should interiority reach the model at all**, or is it a note for you? If it reaches the model
-   it needs the leak measurement first.
-4. **Direct mode.** You wrote that it *"should be a prompt where whatever is entered is used for
-   the ai to write it into cannon as a prompt."* Today it writes prose from your instruction and
-   the instruction is not kept. Did you mean the instruction should become a canon entry, or that
-   it should be recorded against the passage? I did not change it on a guess.
+- **The one-off costume case** — edit the active outfit, or a scratch line beside it. Deferred
+  until outfits have been used in anger.
+- **Threads** stay a text field. SPEC §15.2's edge table stays deferred; it earns its place when a
+  transitive pull is wanted, and nothing described needs one.
