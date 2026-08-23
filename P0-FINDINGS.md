@@ -379,3 +379,71 @@ session, so treat 1.6 as "real but not pinned."
 The throughput is the smaller half of the win. Running both A/B arms **simultaneously** removes
 F12's remaining confound, which was stated there in as many words: *both arms ran minutes apart.*
 Concurrent arms share thermals, cache and machine state exactly.
+
+## F15 — Restating canon near the generation point: right direction, not proven
+
+300 generations per arm, run **simultaneously** on two servers against one router, so both arms
+shared thermals, cache and machine state. Arm A is the shipped prompt. Arm B restates every canon
+entry that fired, below the directive and above the tail prose.
+
+| | named the key | contradicted canon | called it silver |
+|---|---|---|---|
+| A — shipped | 282 | 20 (7.1%) | 12 (4.0%) |
+| B — canon restated | 289 | 14 (4.8%) | 5 (1.7%) |
+
+| | difference (A − B) | 95% CI | Fisher |
+|---|---|---|---|
+| contradiction rate | +2.2 points | [−1.6, +6.1] | p = 0.291 |
+| silver rate | +2.3 points | [−0.3, +5.0] | p = 0.138 |
+
+**Neither is significant. Do not report this as a fix.**
+
+Three things make it more interesting than a null:
+
+1. **Both metrics move the same way**, and the silver rate more than halves.
+2. **The gain is concentrated in the failure it targets.** Broken out: silver 12 → 5, *warm* 4 → 4,
+   *restated canon verbatim* 4 → 4, *iron or steel* 0 → 1. A general improvement would have lifted
+   everything; this moved one mode and left the rest flat, which is what a real effect on that mode
+   looks like.
+3. **The predicted side effect did not appear.** The worry was that canon adjacent to the
+   generation point would be written as exposition — the *restated canon verbatim* count. It is 4
+   in both arms. Placing the repeat below the directive rather than last appears to have been
+   enough.
+
+**Why it was underpowered.** n=300 was sized against F14's assumption of a ~5-8% base rate. The
+measured control rate is 4.0% on silver. Detecting 4.0% vs 1.7% at 80% power needs roughly **850
+per arm**, not 300. That is about 100 minutes unattended with the two-arm harness.
+
+**Cost of arm B if shipped:** ~200 extra prompt tokens on a 9k prompt. Not the reason to hesitate.
+
+**The reason to hesitate is F12.** That finding declared a defect gone on the strength of an
+underpowered zero. Shipping arm B now on the strength of an underpowered *positive* is the same
+error with the sign flipped.
+
+## F16 — There is no cache thrash to fix
+
+Two tenants, three stories each, six stories with deliberately distinct text so no two share a
+prefix. ~9,200 tokens per prompt. Two arms: each tenant stays on one story, versus each tenant
+cycling all three. Metric is llama.cpp's own `timings.prompt_n` — tokens it actually processed,
+which excludes anything served from cache.
+
+| | requests after the first | median tokens processed | of prompt | median prefill |
+|---|---|---|---|---|
+| sticky | 8 | 4 | 9,224 | 323 ms |
+| rotate | 8 | 4 | 9,684 | 326 ms |
+
+**Identical.** Rotating between three stories costs four tokens of reprocessing and three
+milliseconds. The hypothesis is dead.
+
+**The mechanism.** `llama-server --cache-ram` defaults to **8192 MiB** of RAM prompt cache. Six
+9k-token states fit with room to spare, so nothing evicts anything. The platform already does what
+a per-story `--slot-save-path` session would have done, without being asked.
+
+**Retired:** per-story llama sessions. Not deferred — there is nothing to defer to.
+
+**The limit of this result.** It proves no thrash *at this working set*. It does not locate the
+ceiling: bytes-per-token of KV was never measured, so the number of stories that fit in 8 GB is
+unknown. Two things would change the answer — many more stories in flight, or much longer ones —
+and `--cache-ram` is tunable if they ever do. The test also reused identical prompts; real use
+appends passages, which extends a prefix rather than replacing it, and prefix reuse is the case
+caching is best at.
