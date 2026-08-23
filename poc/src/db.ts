@@ -512,6 +512,32 @@ export function backup(dir = join(dirname(FILE), 'backups'), keep = 12) {
   return { file: out, bytes: statSync(out).size, pruned: old.length };
 }
 
+/** One story as a standalone database, safe to hand to someone else.
+ *
+ *  Copies the whole file and then deletes everything that is not this story, rather than
+ *  listing the fourteen tables to copy. The schema's own ON DELETE CASCADE does the pruning,
+ *  so a table added later is handled without touching this function — and the three history
+ *  tables carry no story_id, so a hand-written list would have been the thing that silently
+ *  leaked them. Stories go before users: stories.owner_id has no CASCADE, so deleting the
+ *  other users first would fail the constraint. */
+export function exportStory(storyId: string, ownerId: string, dir = join(dirname(FILE), 'exports')) {
+  if (!ownsStory(storyId, ownerId)) throw new Error('no such story');
+  const story = q('SELECT title FROM stories WHERE id = ?').get(storyId) as any;
+  mkdirSync(dir, { recursive: true });
+  const slug = String(story.title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'story';
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const out = join(dir, `${slug}-${stamp}.db`);
+  db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`);
+  const copy = new DatabaseSync(out);
+  try {
+    copy.exec('PRAGMA foreign_keys = ON;');
+    copy.prepare('DELETE FROM stories WHERE id != ?').run(storyId);
+    copy.prepare('DELETE FROM users WHERE id != ?').run(ownerId);
+    copy.exec('VACUUM;');
+  } finally { copy.close(); }
+  return { file: out, bytes: statSync(out).size, title: story.title };
+}
+
 // ---- branches: copy-on-write ----
 /** Fork the story at an ordinal.
  *

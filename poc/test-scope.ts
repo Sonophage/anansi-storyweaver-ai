@@ -81,4 +81,37 @@ db.delStory(aStory.id, bob);
 assert.ok(db.getStory(aStory.id), "bob must not delete alice's story");
 ok('a story cannot be deleted by someone who does not own it');
 
+// Export. A story handed to someone else must carry that story and nothing else — the point
+// of the feature is that the file is safe to send, so a leak here is the whole bug. Runs last,
+// so what gets exported is a database that has been through every mutation above.
+{
+  const bPassage = db.addPassage({ ...bStory, storyId: bStory.id, body: 'Bob wrote this.' });
+  const bEntry = db.upsertEntry(bStory.id, bob, { title: "Bob's secret", body: '[bob spoiler]' });
+  const { file } = db.exportStory(aStory.id, alice, '/tmp/anansi-export-test');
+  const { DatabaseSync } = await import('node:sqlite');
+  const out = new DatabaseSync(file);
+  const one = (sql: string, ...a: any[]) => (out.prepare(sql).get(...a) as any);
+  assert.strictEqual(one('SELECT COUNT(*) c FROM stories').c, 1, 'export must hold exactly one story');
+  assert.strictEqual(one('SELECT id FROM stories').id, aStory.id, "and it must be alice's");
+  assert.strictEqual(one('SELECT COUNT(*) c FROM users').c, 1, 'and exactly one user');
+  assert.strictEqual(one('SELECT id FROM users').id, alice, 'and it must be alice');
+  // The story's own contents survive. An export that isolates by deleting everything is
+  // isolated and useless.
+  assert.strictEqual(one('SELECT COUNT(*) c FROM passages WHERE id = ?', aPassage).c, 1, "alice's prose must survive");
+  assert.strictEqual(one('SELECT COUNT(*) c FROM entries WHERE id = ?', aEntry).c, 1, "alice's canon must survive");
+  // Bob is gone, including from the three tables that carry no story_id and would have been
+  // exactly what a hand-written list of tables to copy leaked.
+  assert.strictEqual(one('SELECT COUNT(*) c FROM passages WHERE id = ?', bPassage).c, 0, "bob's prose must not ship");
+  assert.strictEqual(one('SELECT COUNT(*) c FROM entries WHERE id = ?', bEntry).c, 0, "bob's canon must not ship");
+  assert.strictEqual(one('SELECT COUNT(*) c FROM entry_revisions').c,
+    one('SELECT COUNT(*) c FROM entry_revisions r JOIN entries e ON e.id = r.entry_id').c,
+    'no orphaned history rows may survive');
+  assert.strictEqual(one('SELECT COUNT(*) c FROM passage_revisions').c,
+    one('SELECT COUNT(*) c FROM passage_revisions r JOIN passages x ON x.id = r.passage_id').c,
+    'no orphaned prose history may survive');
+  out.close();
+  assert.throws(() => db.exportStory(bStory.id, alice), /no such story/, "alice must not export bob's story");
+  ok('export carries one story, its history, and nobody else');
+}
+
 console.log(`\n${n} checks passed`);

@@ -252,6 +252,7 @@ export const routes: Record<string, Handler> = {
   // Gated: it copies every tenant's book and returns the host path, and twelve presses
   // evict everyone's snapshots.
   'POST /api/backup':      () => db.backup(),
+  'POST /api/export':      (c: Ctx) => db.exportStory(c.body.storyId, c.owner),
 
   // ---- prose ----
   'POST /api/write':   (c) => {
