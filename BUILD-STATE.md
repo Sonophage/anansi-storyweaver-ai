@@ -1,4 +1,4 @@
-# Build state — 2026-08-23 (second pass)
+# Build state — 2026-08-23 (third pass)
 
 Audited from the code, not from memory. Three categories: **done**, **half-built** (the dangerous
 one — it looks finished from the UI), and **not started**.
@@ -20,6 +20,8 @@ one — it looks finished from the UI), and **not started**.
 | Both surfaces on one engine, one API, one field schema | `web/api.js`, `web/model.js` |
 | `generations` logged on every call, including failures | `db.logGeneration` |
 | 11 engine tests that run with no model up | `poc/test.ts` |
+| Per-story export to a standalone database | `db.exportStory` |
+| Import: Anansi exports, AI Dungeon, character cards V1/V2/V3 | `src/import.ts` |
 
 ---
 
@@ -44,7 +46,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | 46 across three suites, plus two model evals (`bench/compliance.ts`, `bench/checker.ts`) | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
+| **Tests** | **88 across five suites** (33 engine, 25 db, 13 scope, 7 import, 10 web), plus the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
 
 ---
 
@@ -57,12 +59,12 @@ from the code rather than remembered:
 grep -rn "ponytail:" poc/src poc/web poc/*.ts poc/*.html
 ```
 
-Fifteen markers as of 2026-08-23. Each names what is missing, why it was left, and the upgrade path.
+**Ten markers as of 2026-08-23.** Each names what is missing, why it was left, and the upgrade path.
 Nothing in this list is a surprise; the point is that adding to it requires writing down the ceiling.
 
 | Where | What is unfinished |
 |---|---|
-| `render.ts` | **F9** — the title in SPINE beats a triggered entry 10-20% of the time. Measured, unfixed. |
+| ~~`render.ts`~~ | **F9 retired as stated.** Dropping the title made no difference (F12). At n=300 per arm the true rate is 4.0%, not 10-20%, and restating canon near the generation point halves it — directionally, not significantly (F15). Open as a low-rate defect; the harness is `bench/ab.ts`. |
 | `prompts.ts` | The checker misses numeric contradictions. One case in twelve. |
 | `context.ts` | Word folding, sticky windows, proper-noun exemption and POV force-include are **done**. Still missing: secondary keys, `key_logic`, proximity bound, exclusion keys, regex keys — all of which address multi-word false-firing. |
 | `context.ts` | No budget engine — ceilings and a hard refusal only. No reservation, trim ladder, eviction, or `partial` state. |
@@ -70,6 +72,7 @@ Nothing in this list is a surprise; the point is that adding to it requires writ
 | ~~`db.ts`~~ | **Done.** Copy-on-write forking, branch switching, discard. Every read follows the active branch. |
 | ~~`db.ts`~~ | **Done.** `arcs` collapse a run of chapters into one act-level summary; covered chapters stop being sent. |
 | ~~`db.ts`~~ | **Done.** `notes` is editable on both surfaces and unrenderable by construction — the engine's `Entry` type has no such field. |
+| — | **Per-story llama sessions retired, not deferred (F16).** `--cache-ram` defaults to 8 GB; rotating six stories costs four tokens. Nothing to build. |
 | `db.ts` | `priority` is still stored and ignored — it needs the budget engine to mean anything. `sticky_for` and `proper_nouns` are now used. |
 | `db.ts` | Search is a LIKE scan. |
 | ~~`routes.ts`~~ | **Done.** `GET /api/activity` reads it; Preferences shows prefill seconds and rate per call, which is PLAN-02 §7.2's trigger made observable. |
@@ -123,15 +126,38 @@ things that criterion forces in are still missing: revert, backups, and export.
 
 ---
 
-## 5. Suggested order from here
+## 5. Where it actually stands, and what is next
 
-1. **Close P2 properly.** Revert UI over the revision tables, `pg_dump`-equivalent backup, export,
-   and the summary-staleness comparison. Roughly a day, and it makes the thing safe to write in.
-2. **Auto-summary on chapter close**, so §7.1's context bound actually holds without discipline.
-3. **Extraction + the queue** (design screen 28). The prompt exists; it needs a route, the
-   new-entries-only rule from §7.4, and the ledger badge.
-4. **Progressions** (design screen 27). Lens 5's ONE THING, and it gets harder after placement exists.
-5. ~~Chapter pins~~ — done. Note the correction in PLAN-03: they do *not* address F9.
-6. **The second tenant**, or **activation depth** — see PLAN-03. ← next
-6. Then P3 (identity, allowlist, second tenant) or P4 (activation depth) depending on whether the
-   second writer is waiting.
+**P2 is closed.** Its exit criterion was *"Seth writes chapter one of a real novel in it, for a
+week, and it is all still there afterwards"*, and the three things that criterion forced in —
+revert, backups, export — are all built. Export is now stronger than the criterion asked: a story
+leaves as a standalone database, and comes back through `src/import.ts`.
+
+**What is measured and settled**
+
+- The slot is 50,048 tokens per writer, doubled from 25,024 (F13). Two concurrent writers at full
+  budget fit with a 5,720-token margin, measured at the real worst case.
+- Prose is bounded by the chapter window; 200,000 words fits.
+- There is no cache thrash and no per-story session work to do (F16).
+- F9 is real but rare — 4.0%, not the 10-20% first measured.
+
+**What is next, in the order it should happen**
+
+1. **The second tenant.** Tailscale identity, allowlist, one owner per request instead of the
+   hardcoded one in `serve.ts:13`. This is the last structural thing, it gates P3 entirely, and
+   every isolation mechanism it needs is already built and tested (13 checks in `test-scope.ts`,
+   plus export proving a story can be handed over cleanly). Needs Seth's second device.
+2. **The F15 confirmation run** — 850 generations per arm, ~100 minutes unattended on the harness
+   that now exists. Either it settles canon repetition or it retires it. Cheap, and the alternative
+   is shipping on evidence F12 already proved is not enough.
+3. **Activation depth** — secondary keys, `key_logic`, proximity, exclusion, regex. PLAN-03 notes
+   this does *not* address F9, since the entry already fires. It addresses multi-word false-firing,
+   which is a different and real problem.
+4. **The budget engine** — reservation, trim ladder, eviction, `partial` states. Still gated on the
+   trigger in PLAN-02 §7.2, which has not fired: nothing has overflowed since the chapter window
+   landed. `priority` stays stored and ignored until this exists.
+5. **The remaining surfaces** — design screens D9, D10, D14, and the service worker for offline
+   read.
+
+**The one thing with no ticket.** `poc/anansi.db` on one machine is still the only copy of anything
+written. `backup()` and `exportStory` both exist; nothing calls either on a schedule.
