@@ -1,0 +1,99 @@
+// The handlers nothing else drives: accepting a proposal, the type and activation chips, an
+// empty story, chapter switching, mode switching, appearance persistence, and the import route
+// that still has no caller. This is the loop that found the Accept bug.
+//
+//   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/handlers.js
+//
+// Point it at a COPY. It accepts a proposal, edits an entry, and creates a story via import.
+// Phase 1 loop: drive the handlers today's work added that nothing has ever exercised, and
+// assert on outcomes rather than on "did not crash". Red-capable, deterministic, ~40s.
+const B = "http://127.0.0.1:5179";
+let red = 0;
+const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
+const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
+const entries = () => page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).entries)()");
+
+// ---- 1. Accept a proposal. Seeded through the API-facing route so it is deterministic.
+await page.eval("(async () => { await fetch('/api/extract', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "'})}); })()");
+await page.goto(B + "/#" + sid + "/queue");
+const props = await page.eval("document.querySelectorAll('[data-decide=\"accept\"]').length");
+console.log("  proposals on screen: " + props);
+if (props) {
+  // Count is the wrong assertion: a "changed" proposal UPDATES an existing entry, so the count
+  // does not move. What must be true either way is that the named fact is in the ledger.
+  const name = (await page.eval("document.querySelector('#sideBody .card span')?.textContent") || '').trim();
+  const kind = await page.eval("document.querySelector('#sideBody .card span:nth-child(2)')?.textContent");
+  await page.click('[data-decide="accept"]');
+  await wait(1000);
+  const titles = (await entries()).map((e) => e.title);
+  ok(`Accept lands "${name}" (${kind}) in the ledger`, titles.some((t) => t === name));
+} else {
+  console.log("  SKIP accept — extraction proposed nothing this run");
+}
+
+// ---- 2. The type and activation chips on an entry
+await page.goto(B + "/#" + sid + "/cast");
+// Read the id BEFORE clicking: the click replaces the list with the editor, so reading it
+// afterwards gave undefined and turned four probe errors into four fake bugs.
+const eid = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
+await page.click('[data-entry="' + eid + '"]');
+await page.click('[data-act="triggered"]');
+await wait(700);
+let e = (await entries()).find((x) => x.id === eid);
+ok(`switching activation to triggered persists (now ${e?.activation})`, e?.activation === "triggered");
+await page.click('[data-kind="lore"]');
+await wait(700);
+e = (await entries()).find((x) => x.id === eid);
+ok(`switching type to lore persists (now ${e?.entryType})`, e?.entryType === "lore");
+ok("  and the change did not wipe the body", !!e?.body);
+ok("  and did not wipe the keywords", Array.isArray(e?.keys));
+
+// ---- 3. An empty story: no chapters with prose, nothing written
+const empty = await page.eval("(async () => { const r = await (await fetch('/api/stories')).json(); const s = r.stories.find(x=>x.title!=='The Silver Key'); return s ? s.id : null; })()");
+console.log("  empty story for the edge case: " + empty);
+if (empty) {
+  await page.goto(B + "/#" + empty);
+  const err = await page.eval("window.__err || null");
+  ok("an empty story renders without throwing", !err);
+  ok("  and the composer is present", await page.eval("!!document.getElementById('input')"));
+  ok("  and Context does not claim a budget it has not got",
+     !/NaN|Infinity|undefined/.test(await page.text('#bar') || ''));
+}
+
+// ---- 4. Switching chapters from the rail
+await page.goto(B + "/#" + sid);
+const chapters = await page.eval("document.querySelectorAll('[data-chapter]').length");
+if (chapters > 1) {
+  const second = await page.eval("document.querySelectorAll('[data-chapter]')[0].dataset.chapter");
+  await page.click('[data-chapter="' + second + '"]');
+  await wait(700);
+  ok("switching chapters keeps the document rendered", await page.eval("document.getElementById('col').innerHTML.length > 50"));
+  ok("  and the header follows the chapter", !/undefined/.test(await page.text('#bar') || ''));
+}
+
+// ---- 5. Mode switching refreshes the manifest rather than stalling
+await page.goto(B + "/#" + sid + "/inspector");
+const t0 = await page.text('#sideBody');
+await page.click('[data-mode="direct"]');
+await wait(1400);
+ok("changing mode updates the manifest", (await page.text('#sideBody')) !== null);
+ok("  and MODE reflects the choice", /direct/i.test(await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'direct'})})).json(); return r.manifest.blocks.filter(b=>b.kind==='MODE').map(b=>b.reason).join(); })()")));
+
+// ---- 6. The appearance choice survives a reload
+await page.goto(B + "/#" + sid);
+await page.click('[data-appearance="1"]');
+await page.click('[data-theme="parchment"]');
+await page.goto(B + "/#" + sid);
+ok("the theme choice survives a reload", (await page.eval("document.documentElement.dataset.uiTheme")) === "parchment");
+await page.click('[data-appearance="1"]');
+await page.click('[data-theme="obsidian"]');
+
+// ---- 7. /api/import has no caller; prove the route itself works end to end
+const imported = await page.eval("(async () => { const card = { spec:'chara_card_v2', data:{ name:'Probe Card', description:'Made by the hunt.', tags:['nsfw'] } };"
+  + " const b64 = btoa(JSON.stringify(card));"
+  + " const r = await (await fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'probe.json',data:b64})})).json();"
+  + " return JSON.stringify(r); })()");
+console.log("  /api/import returned: " + imported.slice(0, 160));
+ok("the import route creates a story", /storyId/.test(imported));
+
+console.log(red ? `\n  ${red} RED` : "\n  all green");

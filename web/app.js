@@ -23,7 +23,7 @@ function applyLook() {
 // ---------- state ----------
 const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'cowrite',
-  rail: !overlay(), storyId: null, busy: false, pending: null, appearance: false, query: '',
+  rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   entryId: null, historyOf: null, models: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
@@ -124,7 +124,7 @@ function drawRail() {
     <div class="scroll" style="padding:0 16px; display:flex; flex-direction:column">${rows.map(item).join('')}${tail}</div>
     <div style="margin-top:auto; padding:14px 20px; border-top:1px solid var(--line); display:flex;
       align-items:center; gap:12px; white-space:nowrap; overflow:hidden">
-      <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${SRV.slot ? '#7FB083' : '#C99356'}"></span>
+      <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${SRV.slot ? 'var(--good)' : 'var(--warn)'}"></span>
       <span class="txt" style="display:flex; flex-direction:column; gap:2px">
         <span style="font-size:13px; color:#EAE3D6">${esc(SRV.model || 'no model')}</span>
         <span style="font-size:11px; color:#6E6961">${SRV.slot
@@ -194,7 +194,7 @@ function drawAppearance() {
 }
 
 // ---------- the document ----------
-function passageHTML(p, pending) {
+function passageHTML(p) {
   if (p.isBreak) return `<div class="scenebreak"><i></i><span class="up" style="font-size:10px;
     color:var(--label); opacity:.8">${esc(p.body || 'Scene')}</span><i></i></div>`;
   const mine = p.author === 'human';
@@ -202,7 +202,7 @@ function passageHTML(p, pending) {
   const flags = (V.violations ?? []).filter((f) => f.passageId === p.id);
   const v = p.variants ?? [];
   const at = v.findIndex((x) => x.selected) + 1;
-  const acts = pending ? '' : `<button class="more" data-more="${p.id}" aria-label="Actions">⋯</button>
+  const acts = `<button class="more" data-more="${p.id}" aria-label="Actions">⋯</button>
     <div class="acts">
     ${v.length > 1 ? `<span style="display:flex; align-items:center; gap:4px; padding:8px 6px; font-size:12px; color:#78726A">
       <button data-vp="${p.id}">‹</button>${at}/${v.length}<button data-vn="${p.id}">›</button></span>` : ''}
@@ -210,6 +210,7 @@ function passageHTML(p, pending) {
     <button data-ed="${p.id}"><span class="serif" style="color:#D9B26A">✎</span><span class="lbl-txt">Edit</span></button>
     <button data-hi="${p.id}"><span class="serif" style="color:#D9B26A">⌂</span><span class="lbl-txt">History</span></button>
     <button data-del="${p.id}" style="color:#C8705A"><span class="serif">✕</span><span class="lbl-txt">Delete</span></button></div>`;
+
   const body = spoken
     ? `<div class="who">${mine ? `You · ${esc(V.story.persona || 'you')}` : esc(p.speaker || V.story.title)}</div>
        <div class="said" contenteditable="plaintext-only" data-edit="${p.id}">${esc(p.body)}</div>`
@@ -222,7 +223,7 @@ function passageHTML(p, pending) {
       <span style="width:5px; height:5px; border-radius:50%; background:#C8705A; flex:0 0 auto; margin-top:6px"></span>
       <span>Contradiction · ${esc(e?.title ?? 'canon')}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>`;
   }).join('');
-  const cls = `block${pending ? ' pending' : mine ? ' you' : spoken ? ' speak' : ''}`;
+  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}`;
   return `<div class="${cls}">${body}${acts}${flagged}</div>`;
 }
 
@@ -240,7 +241,7 @@ function drawDoc() {
       letter-spacing:.28em; text-transform:uppercase; color:var(--label)">
       <span>${esc(c.title || `Chapter ${c.index}`)}</span>
       ${w ? `<span style="margin-left:auto; letter-spacing:.1em; text-transform:none; opacity:.7">${w.toLocaleString()} words</span>` : ''}</div>`;
-    html += ps.map((p) => passageHTML(p, false)).join('');
+    html += ps.map(passageHTML).join('');
   }
   col.innerHTML = html || `<div class="narr" style="opacity:.6">Nothing written yet. The composer is below.</div>`;
   if (tip) read.scrollTop = read.scrollHeight;
@@ -407,7 +408,7 @@ const PANELS = {
     return `<div style="display:flex; flex-direction:column; gap:9px">
       <div style="font-size:12.5px; line-height:1.55; color:#8A8478">Nothing here is canon until you accept it.</div>
       ${ps.map((p) => {
-        const tone = p.kind === 'new' ? '#7FB083' : p.kind === 'conflict' ? '#C8705A' : '#C99356';
+        const tone = p.kind === 'new' ? 'var(--good)' : p.kind === 'conflict' ? '#C8705A' : 'var(--warn)';
         return `<div class="card" style="gap:8px">
           <div style="display:flex; align-items:center; gap:8px">
             <span style="font-size:14.5px; color:#F3ECE0">${esc(p.title)}</span>
@@ -723,7 +724,7 @@ const WPAGES = {
         <div class="lbl">llama-server</div>
         <div class="field" style="font-family:ui-monospace,monospace">http://127.0.0.1:8080</div>
         <div style="display:flex; align-items:center; gap:9px; margin-top:10px">
-          <span style="width:8px; height:8px; border-radius:50%; background:${slot ? '#7FB083' : '#C99356'}"></span>
+          <span style="width:8px; height:8px; border-radius:50%; background:${slot ? 'var(--good)' : 'var(--warn)'}"></span>
           <span style="font-size:12px; color:#78726A">${slot ? 'Up' : 'Asleep or unreachable'}</span></div>
         <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Model</div>
         ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
@@ -731,7 +732,7 @@ const WPAGES = {
           : S.models.map((m) => `<button data-pickmodel="${esc(m.id)}" class="row"
               style="width:100%; text-align:left">
               <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${
-                m.id === SRV.model ? '#D9B26A' : m.status === 'unloaded' ? '#3A372F' : '#7FB083'}"></span>
+                m.id === SRV.model ? '#D9B26A' : m.status === 'unloaded' ? '#3A372F' : 'var(--good)'}"></span>
               <span style="color:${m.id === SRV.model ? '#EAE3D6' : '#8A8478'}; font-family:ui-monospace,monospace;
                 font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(m.id)}</span>
               <span style="margin-left:auto; font-size:10.5px; color:#6E6961">${esc(m.status)}</span></button>`).join('')}
@@ -1019,8 +1020,15 @@ document.addEventListener('click', async (e) => {
   if (d.extract) { toast('Reading the chapter…'); const r = await api.extract(S.storyId, V.currentChapter.id);
     if (r.error) return toast(r.error); V = await api.story(S.storyId); paint();
     toast(`${r.added ?? 0} proposed.`); return; }
-  if (d.decide) { await api.decide({ storyId: S.storyId, id: d.id, decision: d.decide });
-    V = await api.story(S.storyId); paint(); return; }
+  if (d.decide) {
+    // The route branches on `accept`, not on a verb. Sending `decision: 'accept'` left
+    // c.body.accept undefined, so Accept took the reject path and threw the fact away.
+    const r = await api.decide({ storyId: S.storyId, id: d.id, accept: d.decide === 'accept' });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint(); refreshManifest();
+    toast(d.decide === 'accept' ? 'Accepted into the ledger.' : 'Dropped.');
+    return;
+  }
   if (d.branch) { const r = await api.switchBranch(S.storyId, d.branch); if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); return; }
 

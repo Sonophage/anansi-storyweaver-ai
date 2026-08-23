@@ -79,6 +79,22 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   ok(`${actions.size} click actions, ${state.size} look attributes, no name used as both`);
 }
 
+// POST /api/proposal branches on `body.accept` and app.js was sending `decision: 'accept'`, so
+// `c.body.accept` was undefined, upsertEntry was skipped, and the proposal was marked rejected.
+// Clicking Accept discarded the fact. Narrow on purpose: a generic payload-contract check was
+// built (bench/contracts.py) and flagged three false positives for every real one, because routes
+// delegate to helpers and spread the body — not test-worthy, so this locks the one that bit.
+{
+  const js = read('web/app.js');
+  const call = js.match(/api\.decide\(\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.ok(call, 'app.js no longer calls api.decide — retire this check with it');
+  assert.match(call, /\baccept\s*:/,
+    'api.decide must send `accept`, which is the key POST /api/proposal reads. Sending anything '
+    + 'else makes Accept silently reject the proposal.');
+  assert.ok(!/\bdecision\s*:/.test(call), 'the route never reads `decision`');
+  ok('Accept sends the key the proposal route actually reads');
+}
+
 // And the guard that makes it safe even if a name collides again.
 assert.match(read('web/app.js'), /t === root \|\| t === document\.body/,
   'the delegation must refuse <html> and <body> as action targets');

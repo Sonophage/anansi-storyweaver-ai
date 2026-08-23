@@ -197,6 +197,18 @@ Worth a look because they were real:
       words. Shorter is better."
 - [ ] **The two old surfaces are gone.** `desk.html` and `phone.html` are deleted; `/` and
       `/phone` both serve the one responsive page, so an installed home-screen icon still works.
+- [ ] **Accept in "What the chapter added" was throwing the fact away.** ⚠ This one is worth
+      checking on purpose. The route branches on a key called `accept`; the screen was sending one
+      called `decision`, so `accept` was undefined, the entry was never written, and the proposal
+      was marked **rejected**. Clicking Accept discarded exactly what you were accepting.
+
+      Fixed. Close a chapter, open the queue, accept something, and confirm it appears in Worlds &
+      lorebooks. Note that accepting a **changed** proposal updates an existing entry rather than
+      adding one — the count will not move, and that is correct.
+- [ ] **A small surprise while testing:** the type and activation chips in the entry editor do
+      save immediately and do not wipe the body or keywords. I had this down as broken for four
+      runs before working out my own test was reading the entry id after the click, by which
+      point the list had been replaced by the editor.
 - [ ] Deep links work: `#<storyId>` opens a story, `#<storyId>/<panel>` opens it with that panel.
 - [ ] Story cards show real counts now; they were showing an empty progress bar with nothing
       behind it.

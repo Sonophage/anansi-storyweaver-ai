@@ -1,4 +1,6 @@
-// One description of the editable shape. Add a field here and both surfaces get it.
+// One description of the editable shape. Written when there were two surfaces; app.html is the
+// only consumer since desk and phone were deleted on 2026-08-23. It stays a separate module
+// because it is data, not behaviour — the field list, the mode labels, the block colours.
 export const MODES = [
   ['cowrite',  'Speak',     (p) => `Write as ${p || 'yourself'}…`],
   ['direct',   'Direct',    () => 'What happens next…'],

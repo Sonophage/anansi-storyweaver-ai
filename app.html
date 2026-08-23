@@ -20,26 +20,24 @@
    so a repaint does not rewrite every element's inline style.
    --------------------------------------------------------------------------- */
 :root {
-  --gold:#D9B26A; --gold-lit:#E0C48C; --gold-dim:#BCA97F; --gold-deep:#8A6D2E;
+  --gold:#D9B26A; --gold-lit:#E0C48C; --gold-dim:#BCA97F;
   --rail:#0C0C0E; --sheet:#0E0D10; --line:#1A1917; --edge:#23211D; --chip:#2A2721;
-  --field:#141317; --ink:#F3ECE0; --mute:#8A8478; --faint:#78726A; --dim:#6E6961;
-  --good:#7FB083; --warn:#C99356; --bad:#C8705A; --lilac:#8A7BA8;
+  --field:#141317; --mute:#8A8478; --faint:#78726A; --dim:#6E6961;
+  --good:#7FB083; --warn:#C99356; --bad:#C8705A;
   --ease:cubic-bezier(.4,0,.2,1);
   --prose:20px; --bubble:17px; --gap:30px; --col:720px;
 }
 html[data-ui-theme="obsidian"] {
   --doc-bg:#0A0A0C;
   --doc-wash:radial-gradient(50% 40% at 25% 0%, rgba(150,105,195,.22), transparent 70%), linear-gradient(180deg,#131019,#09090B 45%);
-  --narr:#C9C1B2; --body:#EAE3D6; --label:#8E846F; --rule:rgba(255,255,255,.07);
-  --you-tint:rgba(217,178,106,.08); --you-rule:rgba(217,178,106,.45); --speak-rule:rgba(180,150,220,.5);
+  --narr:#C9C1B2; --body:#EAE3D6; --label:#8E846F; --rule:rgba(255,255,255,.07); --you-rule:rgba(217,178,106,.45); --speak-rule:rgba(180,150,220,.5);
   --dock:linear-gradient(180deg,rgba(9,9,11,0),rgba(9,9,11,.9) 40%);
   --chrome:rgba(10,9,12,.5); --chrome-ink:#F3ECE0; --chrome-dim:#8A8478; --chrome-line:rgba(255,255,255,.05);
 }
 html[data-ui-theme="ink"] {
   --doc-bg:#0B0B0C;
   --doc-wash:linear-gradient(180deg,#0E0E10,#08080A 60%);
-  --narr:#C6C2BA; --body:#E4E0D8; --label:#7E7A72; --rule:rgba(255,255,255,.07);
-  --you-tint:rgba(217,178,106,.07); --you-rule:rgba(217,178,106,.4); --speak-rule:rgba(190,185,175,.34);
+  --narr:#C6C2BA; --body:#E4E0D8; --label:#7E7A72; --rule:rgba(255,255,255,.07); --you-rule:rgba(217,178,106,.4); --speak-rule:rgba(190,185,175,.34);
   --dock:linear-gradient(180deg,rgba(11,11,12,0),rgba(11,11,12,.92) 40%);
   --chrome:rgba(10,10,12,.5); --chrome-ink:#F3ECE0; --chrome-dim:#8A8478; --chrome-line:rgba(255,255,255,.05);
 }
@@ -48,8 +46,7 @@ html[data-ui-theme="ink"] {
 html[data-ui-theme="parchment"] {
   --doc-bg:#EFE7D8;
   --doc-wash:radial-gradient(60% 40% at 25% 0%, rgba(150,105,195,.07), transparent 70%), linear-gradient(180deg,#F3EDE1,#EAE1D0 60%);
-  --narr:#3A342B; --body:#2E2A24; --label:#8A7A5E; --rule:rgba(58,52,43,.14);
-  --you-tint:rgba(160,120,50,.10); --you-rule:rgba(120,90,40,.45); --speak-rule:rgba(110,80,140,.5);
+  --narr:#3A342B; --body:#2E2A24; --label:#8A7A5E; --rule:rgba(58,52,43,.14); --you-rule:rgba(120,90,40,.45); --speak-rule:rgba(110,80,140,.5);
   --dock:linear-gradient(180deg,rgba(239,231,216,0),rgba(239,231,216,.94) 40%);
   --chrome:rgba(239,231,216,.72); --chrome-ink:#3A342B; --chrome-dim:#7A6E5C; --chrome-line:rgba(58,52,43,.12);
 }
@@ -183,8 +180,6 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
 .block { position:relative; display:flex; flex-direction:column; gap:10px; }
 .block.speak { padding-left:16px; border-left:1px solid var(--speak-rule); }
 .block.you { padding-right:16px; border-right:1px solid var(--you-rule); align-items:flex-end; text-align:right; }
-.block.pending { padding-left:16px; border-left:2px solid var(--gold); }
-.block.pending .narr { opacity:.92; }
 /* The actions used to appear on :hover only, which put Edit, Regenerate and History out of
    reach of every touch device — and made them untestable. Each block now carries a handle that
    is always present, and hover stays as a shortcut on a pointer. */
@@ -243,8 +238,6 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 #send:disabled { opacity:.4; }
 @media (max-width:719px) { #send { width:30px; height:30px; } }
 #takeRow { display:flex; align-items:center; gap:20px; }
-#takeRow .act { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--label); white-space:nowrap; }
-#takeRow .act.keep { color:var(--gold); }
 
 /* --- side panel -------------------------------------------------------- */
 #sideHead { display:flex; align-items:center; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--line); flex:0 0 auto; color:#EAE3D6; }
