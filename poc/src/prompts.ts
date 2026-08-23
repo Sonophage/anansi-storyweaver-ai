@@ -1,0 +1,144 @@
+// Prompt text for the non-prose roles. PROMPTS.md §5 is the source; these are the
+// rev-2 wordings the councils asked for.
+export const SUMMARY = (maxWords: number) =>
+`Summarize this chapter for a story bible. ${maxWords} words.
+
+Record only what a later chapter must know: what changed, who decided what, what is now
+true that was not before, and anything a reader would notice if it were contradicted.
+
+Omit atmosphere and description. Present tense. State facts flat. No hedging.
+Output the summary and nothing else.`;
+
+/** JSON schema -> GBNF. llama.cpp constrains the sampler, so malformed output is
+ *  impossible rather than retried. Keys are a bounded list; type is an enum of literals
+ *  because the converter ignores numeric bounds but honours enums. */
+export const EXTRACT_SCHEMA = {
+  type: 'object',
+  properties: {
+    entries: {
+      type: 'array', maxItems: 8,
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          type: { type: 'string', enum: ['character', 'lore', 'item', 'rule'] },
+          body: { type: 'string' },
+          keys: { type: 'array', maxItems: 4, items: { type: 'string' } },
+        },
+        required: ['title', 'type', 'body', 'keys'],
+      },
+    },
+  },
+  required: ['entries'],
+} as const;
+
+/** Spark. One structured call from an idea to a skeleton. Nothing is created here — the
+ *  writer edits every field before accepting, same discipline as extraction.
+ *
+ *  SPEC §8.1: a new story starts with a populated ledger, because nobody fills an empty one. */
+export const SPARK =
+`Turn this idea into a story skeleton.
+
+Return: a title, a premise of two or three sentences, a genre, a setting, a point of view,
+a spice level from 1 to 5, one sentence of writing style in the writer's own voice, and
+between two and five characters with a name, a role, and a one-line description.
+
+Write the premise as a premise, not a blurb. No marketing language, no rhetorical questions.
+Infer the spice level from the idea; use 2 when there is no signal.
+The writing style is a description of prose, not a genre label.`;
+
+export const SPARK_SCHEMA = {
+  type: 'object',
+  properties: {
+    title:   { type: 'string' },
+    premise: { type: 'string' },
+    genre:   { type: 'string' },
+    setting: { type: 'string' },
+    pov:     { type: 'string' },
+    // The GBNF converter ignores numeric minimum/maximum but honours enums, so the range
+    // is spelled out as literals rather than stated as bounds it would drop.
+    spice:   { type: 'integer', enum: [1, 2, 3, 4, 5] },
+    writingStyle: { type: 'string' },
+    characters: {
+      type: 'array', minItems: 2, maxItems: 5,
+      items: {
+        type: 'object',
+        properties: { name: { type: 'string' }, role: { type: 'string' }, description: { type: 'string' } },
+        required: ['name', 'role', 'description'],
+      },
+    },
+  },
+  required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle', 'characters'],
+} as const;
+
+/** The check. Runs on a passage the writer has selected, against the canon entries that
+ *  actually reached the prompt for it.
+ *
+ *  The line about lying and figurative speech is the most important sentence here. The
+ *  dominant false-positive class in fiction is in-fiction falsehood: a character who lies,
+ *  is mistaken, speaks figuratively, or narrates unreliably is not the book contradicting
+ *  itself. Three hand-written versions of this check got that wrong before the model saw it. */
+// ponytail: the checker misses numeric contradictions — "two crowns" against canon's eleven, one
+// case in twelve (P0-FINDINGS F11). A targeted numeric rule is not worth it against that rate;
+// revisit if numbers start mattering in a real book.
+export const CHECK =
+`Below are facts established as canon. You are given a passage from the same story.
+
+Find statements in the passage that CONTRADICT a canon fact — where both cannot be true at
+once. A gap is not a contradiction. An omission is not a contradiction. Something merely
+unmentioned is not a contradiction.
+
+A character lying, being wrong, guessing, speaking figuratively, or hoping is NOT a
+contradiction. Only the narration commits the story to a fact.
+
+For each real contradiction give the canon id, the exact quote from the passage, one
+sentence on why they cannot both hold, and your confidence from 0 to 1.
+
+Report nothing rather than reach. Most passages contradict nothing.`;
+
+/** The id list is built per call from the entries that actually reached this prompt, so an
+ *  id the model invents is not representable. Small integers rather than uuid literals:
+ *  an alternation of forty 32-character strings is a large grammar for one choice. */
+export const checkSchema = (n: number) => ({
+  type: 'object',
+  properties: {
+    contradictions: {
+      type: 'array', maxItems: 6,
+      items: {
+        type: 'object',
+        properties: {
+          canon: { type: 'integer', enum: Array.from({ length: Math.max(n, 1) }, (_, i) => i + 1) },
+          quote: { type: 'string' },
+          why: { type: 'string' },
+          confidence: { type: 'number' },
+        },
+        required: ['canon', 'quote', 'why', 'confidence'],
+      },
+    },
+  },
+  required: ['contradictions'],
+});
+
+/** Roll a run of chapter summaries into one act. The input is already lossy, so this is a
+ *  second compaction and the instruction has to fight for what survives it. */
+export const ARC = (from: number, to: number, maxWords: number) =>
+`Below are the chapter summaries for chapters ${from} to ${to} of a novel, in order.
+
+Write ONE summary of ${maxWords} words covering all of them, for a story bible.
+
+Keep: what changed, who decided what, what is now true that was not before, and anything a
+later chapter would contradict if it got it wrong. Keep names.
+Drop: atmosphere, description, and anything that only mattered inside one chapter.
+
+Present tense. State facts flat. Output the summary and nothing else.`;
+
+export const EXTRACT =
+`Read this chapter and propose entries for the story bible.
+
+Propose only facts that are now permanently true. Skip anything that reads as temporary,
+or as one scene's mood. A character lying or being wrong is not a fact.
+
+For each: title, type (character | lore | item | rule), a body in the bracket format
+[Name: attribute, attribute, relation], and up to 4 keywords.
+
+Propose nothing rather than pad. Zero proposals is a valid answer.`;

@@ -1,0 +1,11 @@
+# The book itself, and its snapshots. Backed up by pg_dump-equivalent, not by git.
+poc/anansi.db
+poc/anansi.db-wal
+poc/anansi.db-shm
+poc/backups/
+
+# Measurement output — reproducible by re-running the bench scripts.
+poc/bench/results.json
+poc/bench/*.log
+
+node_modules/

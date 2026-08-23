@@ -1,0 +1,243 @@
+# P0 — measured, 2026-08-22
+
+Every number here was taken off the machine. Nothing is inherited. Reproduce with the scripts
+named against each finding.
+
+Hardware/software as found: `llama-server` build **b10485-1511ce3bc3**, running as a **multi-model
+router** with 8 models. Working model: **`write-nt-qwen36-h`** —
+`Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-APEX-I-Balanced.gguf`,
+`--ctx-size 100000 --parallel 4 --flash-attn on -ngl 99 --jinja --sleep-idle-seconds 900`.
+
+---
+
+## F1 — The inherited latency figures were wrong, in the project's favour
+
+`poc/bench/measure.py`
+
+| | inherited (COUNCIL-01 L3 → SPEC 10.3 → PLAN-01/02 §9) | measured |
+|---|---|---|
+| bulk prefill | ~400-470 tok/s implied | **~890-906 tok/s**, flat from 3k to 24k |
+| prefill @ 32k | 68 s | **35 s** |
+| prefill @ 100k | 7.8 min @ 188k | **110 s** |
+| decode | not stated | **~64 tok/s** |
+
+COUNCIL-02's local-AI seat was right that the number was unsourced and wrong, and wrong about the
+direction — it guessed 3-6x optimistic; it is ~2x pessimistic. **`max_context_tokens = 32000` was
+justified by a latency ceiling that does not exist.** The real constraint is F2.
+
+## F2 — The real per-slot context is 25,024, and `/props` does not report it
+
+`poc/src/llama.ts:slotContext`
+
+`GET /props?model=X` returns `total_slots: 4` and `default_generation_settings.n_ctx: 100096`.
+That is the **global** value; top-level `n_ctx` is absent. Per-slot is `100096 / 4 = 25024`.
+
+**PLAN-02 §5.1 is wrong as written.** "Read per-slot `n_ctx` from `/props` and make it
+authoritative" budgets 4x the real ceiling. The app must divide. And `max_context_tokens = 32000`
+**already exceeds the slot** on the current configuration — the live instance of the misconfiguration
+every council warned about.
+
+## F3 — The server refuses overflow. It does not silently truncate.
+
+`poc/bench/overflow.py` → `overflow.log`
+
+A 48,130-token prompt returns `HTTP 500 {"message":"Context size has been exceeded."}`. The canary at
+the head was never dropped, because nothing was dropped.
+
+**This overturns COUNCIL-02's C1, a five-seat convergence.** The stated danger — "context-shift drops
+from the head, so the one promise breaks silently while the app reports success" — is **false on this
+build**. Keep the app-side guard: a clean refusal beats burning 28 s of prefill on a doomed call. But
+its severity was overstated by every seat, including the pen. `--no-context-shift` is unnecessary here.
+
+## F4 — Raw `/completion` is the wrong transport for this model
+
+`poc/bench/transports.ts`
+
+PLAN-02 §3 locked native `/completion` for prose on the anti-refusal argument. Measured against a
+reasoning model served with `--jinja`:
+
+| transport | reasoning | usable prose |
+|---|---|---|
+| raw `/completion` | inline `<think>` — strippable | continues the document instead of answering; echoes the instruction back |
+| `/apply-template` → `/completion` | plain prose, *"Here's a thinking process:"* — **no tag to strip** | worse |
+| `/v1/chat/completions` | **split into `reasoning_content`** | clean |
+
+The anti-refusal argument still holds; it is simply outweighed. **Only the chat endpoint has the
+server parse reasoning into a separate field**, which is the difference between strippable and not.
+Cost: no raw-buffer control, so DIRECTIVE-at-depth is bounded by the chat template. Revisit if a
+non-reasoning model is chosen.
+
+## F5 — Chain-of-thought must be disabled, and only one mechanism works
+
+`poc/bench/nothink.ts`
+
+| variant | wall | reasoning | prose |
+|---|---|---|---|
+| baseline `max_tokens: 900` | 15.0 s | 3,514 chars | **0** |
+| **`chat_template_kwargs: {enable_thinking: false}`** | **5.9 s** | 0 | **1,292 chars** |
+| `reasoning_budget: 0` | 14.6 s | 3,487 | 0 |
+| `/no_think` suffix | 16.2 s | 3,499 | 0 |
+
+With thinking on, the model spent the whole budget reasoning and returned **nothing** on 3 of 4 runs.
+Only the template kwarg works; the other two fail silently. **2.5x faster and the difference between
+prose and no prose.** `rp-nt-ornith-h` produced 3,395 chars of reasoning and zero prose even at 900
+tokens — unsuitable as configured.
+
+## F6 — Keyword activation must scan the directive, not just prior prose
+
+`poc/src/context.ts`
+
+Found live on the first end-to-end run. The writer's directive was *"Aldis reaches into his coat."*
+The `Silver Key` entry keys on `key` and `coat`. **It did not fire** — the scan window was the last 8
+passages and none contained either word. The model then invented the key as *"warm"* and *"iron"*,
+against canon that says cold brass.
+
+The instruction is the strongest available signal of what is about to be on the page. Scanning only
+backwards misses it. Fixed; the entry now fires on `coat` and the contradiction disappears.
+
+## F7 — The one promise works
+
+`poc/run.ts` — 8/8 checks, 7.7 s, 624-token prompt.
+
+Four canon entries reached the prose **as story, not exposition**: *"The brass was cold, colder than
+the rain"* (entry: brass, not silver; cold to the touch), *"found the scar on his knee. He limped"*,
+*"eleven crowns"*, and *"the law said the debt survived. It passed to whoever shared his name"*.
+Nothing was restated verbatim. POV and register held.
+
+## F8 — Two checker failures, both instructive
+
+1. **A check that cannot fail is worse than no check.** Six of seven end-to-end checks reported `ok`
+   against **zero** output. Gated on non-empty prose first.
+2. **In-fiction false positives are real and immediate.** `\b(iron|steel)\b` flagged *"the shadow of
+   the Iron Bridge"* — a place name. Scoping the match to the sentence containing the key fixed it.
+   This is the dominant false-positive class COUNCIL-02 predicted for the `check` role (SPEC 8.4),
+   met on day one in a five-line version of it.
+
+---
+
+## What this changes
+
+| Document | Change |
+|---|---|
+| PLAN-02 §3 | Prose transport is `/v1/chat/completions`, not raw `/completion` (F4), with `enable_thinking: false` (F5). |
+| PLAN-02 §5.1 | `/props` reports global `n_ctx`; divide by `total_slots` (F2). |
+| PLAN-02 §5.1 | Drop `--no-context-shift` (F3). |
+| PLAN-02 §6.4 | Keep the guard, downgrade its rationale from "prevents silent corruption" to "fails fast" (F3). |
+| PLAN-02 §7.2 | `max_context_tokens` must be ≤ 25,024, not 32,000 — and the binding reason is slots, not latency (F1, F2). |
+| PLAN-02 §7.2 | Scan window includes the directive (F6). |
+| SPEC §10.3 | Delete the 68 s / 7.8 min figures (F1). |
+| COUNCIL-02 C1 | Overturned by measurement (F3). |
+
+## Still unmeasured
+
+- Two-tenant contention on 4 slots. One writer measured; concurrent behaviour is not.
+- KV footprint against VRAM — `nvidia-smi` not read.
+- The identity topology (`tailscale serve` + `whois`, COUNCIL-03 K3). Needs a second device.
+- Whether `enable_thinking: false` costs prose quality. It should be A/B'd over more than one sample.
+- Chapter-12 and chapter-40 assemblies. The corpus was not built; F7 used a chapter-3 fixture.
+
+---
+
+## F9 — Canon compliance is ~90%, and the failure is the title fighting the ledger
+
+`poc/bench/compliance.ts` — 10 generations, same fixture, same directive.
+
+**9 of 10 passages contradicted nothing.** The one failure called the object *"the silver key"*,
+against a canon entry that says **brass, not silver**.
+
+That is not a random slip. `The Silver Key` is the story's **title**, and the title sits in SPINE at
+the top of every single call. So the prompt states the wrong fact once per call in a position of
+high attention, and the correcting fact sits in a triggered entry that only fires when a keyword
+appears. The spine and the ledger can disagree, and the spine wins by repetition.
+
+Three consequences:
+
+1. A ~10% violation rate on a **four-entry** ledger is the floor, not the ceiling — this is the
+   easiest possible case.
+2. SPEC §8.4's post-generation checker has something real to catch. The councils argued over whether
+   0.88/0.55 precision transfers; this says the base rate is high enough to be worth checking.
+3. The measurement is cheap and repeatable, so it can be a regression: change a prompt, re-run,
+   compare. That makes SPEC §15 gap 1 — "roughly fifteen tuned constants are guesses" — falsifiable
+   for the first time.
+
+**Method note.** Every check runs against **narration only**; quoted spans are stripped first. Three
+earlier versions of these checks were wrong about that and produced false positives: `the Iron
+Bridge` read as the key being iron, a proposal whose *trigger keywords* named another character read
+as being that character, and `"I have until dusk," Aldis said.` read as a first-person POV break.
+In fiction, a character may lie, be wrong, or speak in first person; none of it is the narrator
+contradicting canon. That is the dominant false-positive class COUNCIL-02 predicted for the `check`
+role, met three times before the checker itself exists.
+
+## F10 — A prompt fix for F9 was measured, failed, and was reverted
+
+The obvious response to F9 was one clause in the system block: *"The title is a title. It may be
+figurative, ironic, or plainly wrong about the thing it names. Canon outranks it."*
+
+Measured with `poc/bench/compliance.ts`, twenty generations before and after, same fixture, same
+directive:
+
+| | clean | "called the key silver" |
+|---|---|---|
+| before | 16/20 (80%) | 1× |
+| after | 15/20 (75%) | **3×** |
+
+**No improvement, and the specific failure the clause targeted got more frequent.** At n=20 the
+difference in the overall rate is not significant; the tripling of the targeted failure is not proof
+either, but there is certainly no evidence the clause helped. Reverted.
+
+The likely mechanism is the one COUNCIL-02's chatbot seat named without measuring it: *"Seven of
+eight system_block rules are prohibitions, which primes what they forbid."* Naming the title in an
+instruction about the title makes the title more salient, not less.
+
+Two things worth keeping from this:
+
+1. **This is what the harness is for.** Without it, a plausible one-line prompt fix would have
+   shipped as a fix, and the thing it was supposed to improve would have quietly got worse. SPEC §15
+   gap 1 called roughly fifteen tuned constants "guesses that happen to be written down"; they can
+   now be argued about with numbers.
+2. **The remedy for F9 is probably not a prompt clause at all.** A fact stated once per call in a
+   high-attention position will sometimes beat a fact that fires on a keyword, and no amount of
+   instruction reliably fixes that. Catching it after the fact — SPEC §8.4's violation checker — is
+   the mechanism that matches the shape of the problem. The base rate measured here (~10-20% on a
+   four-entry ledger) is high enough to justify it.
+
+## F11 — The canon checker measures F1 0.89, and the false positives were fixed in code, not prompt
+
+`poc/bench/checker.ts` — twelve labelled passages against the fixture's five canon facts.
+
+| | |
+|---|---|
+| **Recall** | **80%** — 4 of 5 planted contradictions caught, all at confidence 1.0 with exact quotes |
+| **Precision** | **100%** — 0 false alarms on 7 clean passages |
+| **F1** | **0.89** |
+
+SPEC §8.4 borrowed 0.88 precision / 0.55 recall from published staged-judge work, and COUNCIL-02's
+chatbot seat was right to say the figure would not transfer — it is a frontier-model number on short
+premise–hypothesis pairs. It does not transfer. It is beaten, on this task, by a local 35B, because
+this task is easier: the canon facts are short bracketed attribute lists, not arbitrary premises.
+
+**The clean set is the part that matters.** It includes the four cases that make fiction hard for an
+entailment checker, and all four pass:
+
+- a character *lying* about canon
+- a character being simply *wrong*
+- *figurative* language ("the debt was a stone in his shoe")
+- *hope* stated as possibility, not fact
+
+**Two fixes got it there, and neither was a prompt change.**
+
+1. **A dialogue filter in code.** The prompt says plainly that lying and figurative speech are not
+   contradictions. The model flagged a lie anyway — its own stated reason acknowledged the character
+   was lying and it flagged it regardless. Dropping any flag whose quote falls inside a quoted span
+   took the lie case from 1 flag to 0. Only narration commits the story to a fact, and that is now
+   enforced deterministically rather than requested.
+2. **One retry.** The first real check call returned unparseable JSON. A grammar constrains the token
+   stream but does not guarantee termination, so running into `max_tokens` mid-object truncates —
+   a *mechanical* failure, and the exact case a retry fixes. The retry had been removed on the
+   argument that retries only address semantic failure. COUNCIL-03's local-AI seat made precisely
+   this objection and was right.
+
+**The miss** was a numeric contradiction — "two crowns" against canon's eleven. Numbers are a known
+weak spot and worth a targeted rule later.
+
+Together with F10 this is the pattern: **prompt instructions did not fix either problem; code did.**

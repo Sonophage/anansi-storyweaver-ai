@@ -1,0 +1,192 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Anansi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0A0C; --rail:#0C0C0E; --edge:#1A1917; --line:#23211D; --rule:#2A2721;
+  --ink:#F3ECE0; --body:#EAE3D6; --narr:#C9C1B2; --dim:#8A8478; --faint:#78726A; --mute:#6E6961;   /* was #4E4A44 — about 2.2:1, and it carries every label and hint */
+  --gold:#D9B26A; --gold-soft:#E0C48C; --gold-dim:#BCA97F; --on-gold:#100D08; --warn:#C8705A;
+  --sans:'IBM Plex Sans',system-ui,sans-serif; --serif:'Instrument Serif',Georgia,serif;
+}
+*{box-sizing:border-box}
+body{margin:0;height:100vh;overflow:hidden;background:var(--bg);color:var(--body);
+  font-family:var(--sans);font-size:14px;display:flex}
+button{font-family:var(--sans);cursor:pointer}
+/* ---------- rail ---------- */
+.rail{width:248px;flex:0 0 auto;border-right:1px solid var(--edge);background:var(--rail);
+  display:flex;flex-direction:column;padding:26px 16px;overflow-y:auto;scrollbar-width:thin}
+.wordmark{font-family:var(--serif);font-size:26px;color:var(--ink);padding:0 10px 26px}
+.nav{display:flex;align-items:center;gap:13px;padding:11px 12px;border-radius:11px;margin-bottom:3px;
+  background:0;border:1px solid transparent;width:100%;text-align:left;color:var(--dim);font-size:14px}
+.nav .g{font-family:var(--serif);font-size:15px;width:16px;color:var(--faint)}
+.nav:hover{color:var(--body)}
+.nav.on{background:rgba(217,178,106,.08);border-color:rgba(217,178,106,.22);color:var(--ink)}
+.nav.on .g{color:var(--gold)}
+.rlabel{padding:26px 12px 10px;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--mute)}
+.chap{display:block;width:100%;text-align:left;background:0;border:0;padding:8px 12px;
+  font-size:13px;color:var(--faint);border-radius:8px}
+.chap:hover{color:var(--body)}
+.chap.on{color:var(--gold-soft)}
+/* ---------- main ---------- */
+.main{flex:1;position:relative;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.wash{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(50% 40% at 25% 0%,rgba(150,105,195,.22),transparent 70%),
+             linear-gradient(180deg,#131019,#09090B 45%)}
+.head{position:relative;display:flex;align-items:center;gap:18px;padding:18px 40px;
+  border-bottom:1px solid rgba(255,255,255,.05);background:rgba(10,9,12,.5);backdrop-filter:blur(18px)}
+.head .t{font-family:var(--serif);font-size:23px;line-height:1;color:var(--ink)}
+.eyebrow{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#8E846F;margin-top:3px}
+.hbtns{margin-left:auto;display:flex;align-items:center;gap:10px}
+.hbtn{font-size:12px;color:var(--faint);border:1px solid var(--line);padding:8px 14px;
+  border-radius:10px;background:0}
+.hbtn:hover{color:var(--body);border-color:var(--rule)}
+.hbtn.on{color:var(--on-gold);background:var(--gold);border-color:var(--gold)}
+.scroll{position:relative;flex:1;display:flex;justify-content:center;overflow-y:auto;padding:40px 0 30px;
+  scrollbar-width:thin}
+.col{width:720px;max-width:calc(100% - 60px);display:flex;flex-direction:column;gap:26px}
+/* ---------- prose ---------- */
+.narr{font-family:var(--serif);font-style:italic;font-size:20px;line-height:1.65;color:var(--narr);
+  white-space:pre-wrap;outline:0;border-radius:4px}
+.narr:focus{background:rgba(217,178,106,.06)}
+.turn{display:flex;flex-direction:column;gap:9px;position:relative}
+.turn.you{align-items:flex-end}
+.who{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--gold-dim)}
+.turn.you .who{color:#7E786F}
+.dot{width:24px;height:24px;border-radius:50%;background:linear-gradient(140deg,#6B4E8C,#2A2036)}
+.bub{border-radius:20px 20px 20px 8px;padding:20px 24px;font-size:17px;line-height:1.6;color:var(--body);
+  background:linear-gradient(140deg,rgba(120,88,160,.28),rgba(40,32,54,.5));
+  border:1px solid rgba(217,178,106,.34);max-width:600px;white-space:pre-wrap;outline:0}
+.turn.you .bub{max-width:560px;border-radius:20px 20px 8px 20px;background:rgba(217,178,106,.1);
+  border:1px solid rgba(217,178,106,.26);color:#F0E7D5}
+.pend{opacity:.92}
+.pend .narr,.pend .bub{border-left:2px solid var(--gold)}
+.acts{position:absolute;right:0;top:-22px;display:flex;gap:6px;padding:6px;border-radius:13px;
+  border:1px solid var(--rule);background:rgba(19,18,21,.96);box-shadow:0 20px 50px rgba(0,0,0,.6);
+  opacity:0;pointer-events:none;transition:opacity .12s;z-index:4}
+/* Hover was the only way in: no keyboard, no touch. Focus opens it too now. */
+.blk:hover .acts,.acts:hover,.blk:focus-within .acts{opacity:1;pointer-events:auto}
+.acts button:focus-visible,.tbtn:focus-visible,.mode:focus-visible,.nav:focus-visible,
+.go:focus-visible,.hbtn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.bub:focus{background:color-mix(in srgb,var(--gold) 7%,transparent)}
+.acts button{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:9px;
+  font-size:12.5px;color:#C6BFB2;background:0;border:0}
+.acts button:hover{background:rgba(255,255,255,.05)}
+.acts button .g{font-family:var(--serif);color:var(--gold)}
+.acts .del{color:var(--warn)}
+.vstep{display:flex;align-items:center;gap:4px;padding:0 6px;font-size:12px;color:var(--faint)}
+.flagrow{display:flex;flex-direction:column;gap:5px;margin-top:9px}
+.flag{text-align:left;font:11.5px/1.45 var(--sans);color:var(--warn);background:rgba(200,112,90,.07);
+  border:1px solid rgba(200,112,90,.28);border-radius:9px;padding:7px 11px}
+.flag:hover{background:rgba(200,112,90,.14)}
+.chead{display:flex;align-items:center;gap:16px;margin:56px 0 26px;
+  font-family:var(--serif);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-dim)}
+.chead:first-child{margin-top:0}
+.chead i{flex:1;height:1px;background:var(--rule)}
+.chead .cw{font-family:var(--sans);font-size:10.5px;letter-spacing:.1em;color:var(--mute);text-transform:none}
+.brk{display:flex;align-items:center;gap:14px}
+.brk i{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--rule),transparent)}
+.brk span{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#5E594F}
+/* ---------- composer ---------- */
+.dock{position:relative;display:flex;justify-content:center;padding:0 0 28px;
+  background:linear-gradient(180deg,rgba(9,9,11,0),rgba(9,9,11,.9) 40%)}
+.dockin{width:720px;max-width:calc(100% - 60px);display:flex;flex-direction:column;gap:12px}
+.modes{display:flex;gap:6px}
+.mode{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;padding:7px 16px;border-radius:999px;
+  border:1px solid #2B2823;color:var(--dim);background:0}
+.mode[aria-pressed=true]{background:var(--gold);color:var(--on-gold);border-color:var(--gold);font-weight:500}
+.cbox{display:flex;align-items:flex-end;gap:14px;border:1px solid var(--rule);border-radius:16px;
+  padding:14px 14px 14px 20px;background:rgba(20,19,22,.85)}
+.cbox textarea{flex:1;background:0;border:0;outline:0;resize:none;color:#EDE6D8;
+  font:16px/1.5 var(--sans);max-height:170px}
+.send{width:38px;height:38px;flex:none;border:0;border-radius:50%;background:var(--gold);
+  color:var(--on-gold);font-size:17px}
+.send:disabled{opacity:.4}
+.after{display:flex;gap:8px}
+.after button{flex:1;padding:9px;border-radius:10px;border:1px solid var(--rule);background:0;
+  color:var(--dim);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.after .keep{border-color:var(--gold);color:var(--gold)}
+.telling{display:flex;align-items:center;gap:12px;justify-content:center}
+.telling i{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--rule),transparent)}
+.telling span{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#5E594F}
+.status{font-size:11.5px;color:#5E594F;text-align:center}
+.broke{border:1px solid rgba(200,112,90,.3);border-radius:14px;padding:16px 20px;
+  background:rgba(40,20,18,.4);display:flex;align-items:center;gap:14px}
+.broke b{font-family:var(--serif);font-size:17px;color:var(--warn);font-weight:400;flex:1}
+/* ---------- side panel ---------- */
+.side{width:400px;flex:0 0 auto;border-left:1px solid var(--edge);background:var(--rail);
+  display:none;flex-direction:column;overflow:hidden}
+.side.on{display:flex}
+.sh{display:flex;align-items:center;gap:12px;padding:20px 22px 14px;border-bottom:1px solid var(--edge)}
+.sh b{flex:1;font-family:var(--serif);font-size:20px;font-weight:400;color:var(--ink)}
+.sh button{background:0;border:0;color:var(--gold);font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase}
+.sb{padding:18px 22px 30px;overflow-y:auto;flex:1;scrollbar-width:thin}
+.grp{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--mute);margin:20px 0 8px}
+label{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mute);margin:14px 0 5px}
+input,textarea,select{width:100%;background:#141317;border:1px solid var(--rule);border-radius:11px;
+  padding:10px 13px;color:var(--body);font:13.5px/1.5 var(--sans);outline:0}
+input:focus,textarea:focus,select:focus{border-color:var(--gold-dim)}
+textarea{resize:vertical;min-height:70px}
+.hint{font-size:11.5px;color:var(--mute);line-height:1.5;margin:6px 0 0}
+.btn{width:100%;margin-top:16px;padding:12px;border-radius:999px;background:var(--gold);
+  color:var(--on-gold);border:0;font-size:11px;font-weight:500;letter-spacing:.16em;text-transform:uppercase}
+.btn.ghost{background:0;border:1px solid var(--rule);color:var(--dim)}
+.btn.danger{color:var(--warn);border-color:rgba(200,112,90,.3)}
+.card{border:1px solid var(--rule);border-radius:14px;padding:13px 15px;margin-bottom:9px;background:0;
+  width:100%;text-align:left;color:var(--body)}
+.card:hover{border-color:var(--gold-dim)}
+.card .n{font-size:14.5px;color:var(--ink);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card .k{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-dim);margin-top:4px}
+.card .d{font-size:12.5px;color:var(--dim);margin-top:5px;line-height:1.45}
+.pill{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;padding:2px 8px;border-radius:999px;
+  border:1px solid var(--rule);color:var(--mute)}
+.pill.on{border-color:rgba(217,178,106,.35);color:var(--gold)}
+.bar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--rule);margin:10px 0 6px}
+.bar i{display:block}
+.lrow{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12.5px}
+.lrow .n{margin-left:auto;color:var(--faint);font-variant-numeric:tabular-nums}
+.lrow.off{opacity:.38}
+.why{color:var(--gold)}
+.err{color:var(--warn);font-size:12.5px}
+.keys{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.key{font-size:11.5px;padding:4px 10px;border-radius:999px;border:1px solid rgba(217,178,106,.3);
+  color:var(--gold);display:flex;gap:7px;align-items:center}
+.key button{background:0;border:0;color:var(--gold-dim);padding:0}
+</style></head><body>
+<nav class="rail">
+  <div class="wordmark">Anansi</div>
+  <div id="nav"></div>
+  <div class="rlabel">Chapters</div>
+  <div id="chaps"></div>
+</nav>
+<div class="main">
+  <div class="wash"></div>
+  <div class="head">
+    <div><div class="t" id="title">…</div><div class="eyebrow" id="chap"></div></div>
+    <span class="hbtn" id="branchTag" hidden></span>
+    <div class="hbtns">
+      <span class="hbtn" id="wc" style="border:0;padding-right:0"></span>
+      <button class="hbtn" id="ctxPct" title="open the inspector">Context —</button>
+      <button class="hbtn" id="inspBtn">Inspector</button>
+    </div>
+  </div>
+  <div class="scroll" id="scroll"><div class="col" id="col"></div></div>
+  <div class="dock"><div class="dockin" id="dockin">
+    <div class="modes" id="modes"></div>
+    <div class="cbox"><textarea id="input" rows="1"></textarea><button class="send" id="send">↑</button></div>
+    <div class="after" id="after" hidden>
+      <button class="keep" id="keep">Keep</button>
+      <button id="regen">Regenerate</button>
+      <button id="discard">Discard</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div></div>
+</div>
+<aside class="side" id="side"><div class="sh"><b id="st"></b><button id="sclose">Close</button></div>
+  <div class="sb" id="sb"></div></aside>
+<script type="module" src="./web/desk.js"></script>
+</body></html>
