@@ -31,6 +31,7 @@ const listeners: Record<string, Function[]> = {};
 };
 (globalThis as any).localStorage = { getItem: () => null, setItem() {} };
 (globalThis as any).matchMedia = () => ({ matches: false, addEventListener() {} });
+(globalThis as any).window = { addEventListener() {} };
 (globalThis as any).location = { hash: '', pathname: '/' };
 (globalThis as any).history = { replaceState() {} };
 

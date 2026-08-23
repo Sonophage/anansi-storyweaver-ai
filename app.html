@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="obsidian" data-font="serif" data-size="m">
+<!-- The look lives in data-ui-* so it cannot collide with the data-* names the click
+     delegation treats as actions. data-theme on <html> plus [data-theme] in the
+     delegation meant every click in the app matched <html> and toggled the rail. -->
+<html lang="en" data-ui-theme="obsidian" data-ui-font="serif" data-ui-size="m">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -24,7 +27,7 @@
   --ease:cubic-bezier(.4,0,.2,1);
   --prose:20px; --bubble:17px; --gap:30px; --col:720px;
 }
-html[data-theme="obsidian"] {
+html[data-ui-theme="obsidian"] {
   --doc-bg:#0A0A0C;
   --doc-wash:radial-gradient(50% 40% at 25% 0%, rgba(150,105,195,.22), transparent 70%), linear-gradient(180deg,#131019,#09090B 45%);
   --narr:#C9C1B2; --body:#EAE3D6; --label:#8E846F; --rule:rgba(255,255,255,.07);
@@ -32,7 +35,7 @@ html[data-theme="obsidian"] {
   --dock:linear-gradient(180deg,rgba(9,9,11,0),rgba(9,9,11,.9) 40%);
   --chrome:rgba(10,9,12,.5); --chrome-ink:#F3ECE0; --chrome-dim:#8A8478; --chrome-line:rgba(255,255,255,.05);
 }
-html[data-theme="ink"] {
+html[data-ui-theme="ink"] {
   --doc-bg:#0B0B0C;
   --doc-wash:linear-gradient(180deg,#0E0E10,#08080A 60%);
   --narr:#C6C2BA; --body:#E4E0D8; --label:#7E7A72; --rule:rgba(255,255,255,.07);
@@ -42,7 +45,7 @@ html[data-theme="ink"] {
 }
 /* Parchment is the one light theme, so it restates the chrome and the greys too —
    a token defined only in the dark blocks would render dark text on light ground. */
-html[data-theme="parchment"] {
+html[data-ui-theme="parchment"] {
   --doc-bg:#EFE7D8;
   --doc-wash:radial-gradient(60% 40% at 25% 0%, rgba(150,105,195,.07), transparent 70%), linear-gradient(180deg,#F3EDE1,#EAE1D0 60%);
   --narr:#3A342B; --body:#2E2A24; --label:#8A7A5E; --rule:rgba(58,52,43,.14);
@@ -50,13 +53,13 @@ html[data-theme="parchment"] {
   --dock:linear-gradient(180deg,rgba(239,231,216,0),rgba(239,231,216,.94) 40%);
   --chrome:rgba(239,231,216,.72); --chrome-ink:#3A342B; --chrome-dim:#7A6E5C; --chrome-line:rgba(58,52,43,.12);
 }
-html[data-size="s"] { --prose:18px; --bubble:16px; --gap:26px; --col:660px; }
-html[data-size="m"] { --prose:20px; --bubble:17px; --gap:30px; --col:720px; }
-html[data-size="l"] { --prose:23px; --bubble:19px; --gap:34px; --col:780px; }
+html[data-ui-size="s"] { --prose:18px; --bubble:16px; --gap:26px; --col:660px; }
+html[data-ui-size="m"] { --prose:20px; --bubble:17px; --gap:30px; --col:720px; }
+html[data-ui-size="l"] { --prose:23px; --bubble:19px; --gap:34px; --col:780px; }
 @media (max-width:719px) {
-  html[data-size="s"] { --prose:16px; --bubble:14.5px; --gap:18px; }
-  html[data-size="m"] { --prose:17.5px; --bubble:15.5px; --gap:22px; }
-  html[data-size="l"] { --prose:19.5px; --bubble:17px; --gap:26px; }
+  html[data-ui-size="s"] { --prose:16px; --bubble:14.5px; --gap:18px; }
+  html[data-ui-size="m"] { --prose:17.5px; --bubble:15.5px; --gap:22px; }
+  html[data-ui-size="l"] { --prose:19.5px; --bubble:17px; --gap:26px; }
 }
 
 * { box-sizing:border-box; }
@@ -85,9 +88,9 @@ input, textarea { font:inherit; color:inherit; }
   flex:0 0 auto; width:248px; border-right:1px solid var(--line);
   transition:width .28s var(--ease); position:relative; z-index:30;
 }
-html[data-rail="closed"] #rail { width:76px; }
+html[data-ui-rail="closed"] #rail { width:76px; }
 #rail .txt { opacity:1; transition:opacity .18s ease; white-space:nowrap; overflow:hidden; }
-html[data-rail="closed"] #rail .txt { opacity:0; }
+html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 
 #scrim {
   position:absolute; inset:0; z-index:20; background:rgba(5,5,7,.6); backdrop-filter:blur(3px);
@@ -111,9 +114,9 @@ html[data-rail="closed"] #rail .txt { opacity:0; }
     transform:translateX(0); transition:transform .3s var(--ease);
     box-shadow:40px 0 90px rgba(0,0,0,.6);
   }
-  html[data-rail="closed"] #rail { width:264px; transform:translateX(-100%); box-shadow:none; }
-  html[data-rail="closed"] #rail .txt { opacity:1; }
-  html[data-rail="open"] #scrim { opacity:1; pointer-events:auto; }
+  html[data-ui-rail="closed"] #rail { width:264px; transform:translateX(-100%); box-shadow:none; }
+  html[data-ui-rail="closed"] #rail .txt { opacity:1; }
+  html[data-ui-rail="open"] #scrim { opacity:1; pointer-events:auto; }
   #side {
     position:absolute; top:0; bottom:0; right:0; width:400px;
     transform:translateX(0); transition:transform .3s var(--ease);
@@ -173,8 +176,8 @@ html[data-rail="closed"] #rail .txt { opacity:0; }
 #col { width:100%; max-width:var(--col); height:max-content; display:flex; flex-direction:column; gap:var(--gap); padding-bottom:20px; }
 
 .narr { font-size:var(--prose); line-height:1.7; color:var(--narr); text-wrap:pretty; white-space:pre-wrap; }
-html[data-font="serif"] .narr { font-family:'Instrument Serif',Georgia,serif; font-style:italic; }
-html[data-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="serif"] .narr { font-family:'Instrument Serif',Georgia,serif; font-style:italic; }
+html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-serif; font-style:normal; }
 .said { max-width:600px; font-size:var(--bubble); line-height:1.65; color:var(--body); text-wrap:pretty; white-space:pre-wrap; }
 .who { font-size:10.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--label); }
 .block { position:relative; display:flex; flex-direction:column; gap:10px; }
@@ -209,9 +212,9 @@ html[data-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-serif;
 #modes::-webkit-scrollbar { display:none; }
 #modes button { flex:0 0 auto; font-size:10.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
 #modes button[aria-pressed="true"] { color:var(--gold-lit); border-bottom-color:var(--gold); }
-html[data-theme="parchment"] #modes button[aria-pressed="true"] { color:#6B5220; }
+html[data-ui-theme="parchment"] #modes button[aria-pressed="true"] { color:#6B5220; }
 #inputRow { display:flex; align-items:flex-end; gap:16px; border-bottom:1px solid var(--gold); padding:0 0 14px; }
-html[data-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.28); }
+html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.28); }
 #input {
   flex:1; min-width:0; font-size:17px; line-height:1.55; color:var(--body); background:none; border:0;
   resize:none; max-height:140px; padding:0; font-family:inherit;

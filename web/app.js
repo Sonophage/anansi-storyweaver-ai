@@ -16,7 +16,7 @@ const LOOK = 'anansi.look';
 const look = { theme: 'obsidian', font: 'serif', size: 'm' };
 try { Object.assign(look, JSON.parse(localStorage.getItem(LOOK) || '{}')); } catch { /* no storage */ }
 function applyLook() {
-  root.dataset.theme = look.theme; root.dataset.font = look.font; root.dataset.size = look.size;
+  root.dataset.uiTheme = look.theme; root.dataset.uiFont = look.font; root.dataset.uiSize = look.size;
   try { localStorage.setItem(LOOK, JSON.stringify(look)); } catch { /* no storage */ }
 }
 
@@ -48,6 +48,13 @@ const WTITLES = {
   import: () => ['Import', 'Character cards, Anansi exports, AI Dungeon'],
   prefs: () => ['Preferences', 'llama-server, model, slot'],
 };
+
+// One list, so a new action cannot be added to the markup and forgotten here — and so the
+// names are visible in one place next to the data-ui-* look attributes they must not collide with.
+const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
+  'fontpick', 'sizepick', 'mode', 'take', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
+  'savestory', 'endchapter', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
+  'spark', 'blank', 'backup', 'savegen', 'hit', 'expand'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null;
 function toast(msg) {
@@ -557,7 +564,7 @@ function syncHash() {
 
 function paint() {
   applyLook();
-  root.dataset.rail = S.rail ? 'open' : 'closed';
+  root.dataset.uiRail = S.rail ? 'open' : 'closed';
   drawRail(); drawBar(); drawAppearance(); drawPage(); drawSide();
   if (S.place === 'story' && V) { drawDoc(); drawDock(); } else { $('dock').hidden = true; }
 }
@@ -618,11 +625,10 @@ async function keepTake() {
 
 // ---------- one delegated listener ----------
 document.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-nav],[data-rail],[data-leave],[data-open],[data-chapter],[data-panel],'
-    + '[data-appearance],[data-theme],[data-fontpick],[data-sizepick],[data-mode],[data-take],[data-re],'
-    + '[data-del],[data-ed],[data-hi],[data-vp],[data-vn],[data-flagx],[data-savestory],[data-endchapter],'
-    + '[data-summarize],[data-extract],[data-decide],[data-branch],[data-newentry],[data-entry],'
-    + '[data-spark],[data-blank],[data-backup],[data-savegen],[data-hit],[data-expand]');
+  const t = e.target.closest(ACTIONS);
+  // <html> and <body> can never be an action. They carry the look and the rail state, and a
+  // closest() that walked up to them turned every click in the app into a rail toggle.
+  if (t === root || t === document.body) return;
   if (!t) { if (S.appearance && !e.target.closest('#appearance')) { S.appearance = false; drawAppearance(); drawBar(); } return; }
   const d = t.dataset;
 
@@ -726,10 +732,19 @@ function readHash() {
   return { id, panel: panel && TITLES[panel] ? panel : null };
 }
 
+async function route() {
+  const { id, panel } = readHash();
+  if (id && LIB.some((s) => s.id === id)) {
+    if (panel) S.panel = panel;
+    if (S.storyId === id) { paint(); } else { await openStory(id); }
+  } else { S.place = 'workspace'; S.storyId = null; V = null; paint(); }
+}
+
+// Changing only the hash does not reload, so a pasted deep link into an open tab did nothing.
+window.addEventListener('hashchange', route);
+
 (async () => {
   applyLook();
   await loadLibrary();
-  const { id, panel } = readHash();
-  if (id && LIB.some((s) => s.id === id)) { if (panel) S.panel = panel; await openStory(id); }
-  else paint();
+  await route();
 })();

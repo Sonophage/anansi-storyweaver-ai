@@ -54,4 +54,34 @@ for (const [js, html] of [['web/app.js', 'app.html'], ['web/desk.js', 'desk.html
   ok(`${js} renders every id it reads (${ids.size})`);
 }
 
+
+// The click delegation walks up with closest(), so any data-* name it treats as an ACTION must
+// never also be a state attribute on <html>. It was: data-theme and data-rail were both, so
+// every click in the app matched <html>, toggled the rail, and repainted — which destroyed
+// whatever field was being typed into. Nothing editable, and no test could see it.
+{
+  const js = read('web/app.js');
+  const actions = new Set([...(js.match(/const ACTIONS = \[([\s\S]*?)\]/)?.[1] ?? '')
+    .matchAll(/'([a-z]+)'/g)].map((m) => m[1]));
+  assert.ok(actions.size > 20, `could not read the ACTIONS list (${actions.size} found)`);
+
+  // State attributes: what the page ships on <html>, plus what the code writes to root.dataset.
+  const htmlTag = read('app.html').match(/<html\b[^>]*>/)![0];
+  const onTag = [...htmlTag.matchAll(/\bdata-([a-z-]+)=/g)].map((m) => m[1]);
+  const written = [...js.matchAll(/root\.dataset\.(\w+)/g)].map((m) =>
+    m[1].replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()));
+  const state = new Set([...onTag, ...written]);
+  assert.ok(state.size >= 4, `expected the look attributes on <html> (${[...state]})`);
+
+  const clash = [...state].filter((a) => actions.has(a));
+  assert.deepStrictEqual(clash, [], `data-${clash.join(', data-')} is both a click action and a `
+    + `state attribute on <html>; closest() will match <html> on every click in the app`);
+  ok(`${actions.size} click actions, ${state.size} look attributes, no name used as both`);
+}
+
+// And the guard that makes it safe even if a name collides again.
+assert.match(read('web/app.js'), /t === root \|\| t === document\.body/,
+  'the delegation must refuse <html> and <body> as action targets');
+ok('the delegation refuses html and body outright');
+
 console.log(`\n${n} checks passed`);
