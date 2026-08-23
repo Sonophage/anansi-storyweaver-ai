@@ -184,13 +184,19 @@ Worth a look because they were real:
 - [ ] **On a phone, the whole app was behind an 8px blur.** The bottom sheet sits over the full
       screen and hiding it cleared the background but not the filter.
 - [ ] **A canon flag printed 3,321 characters of the model's reasoning** into the document. Flags
-      now clamp to two lines, expand on click, and dismiss on shift-click. The underlying defect
-      is written up as F18: `check` has no length bound on its reason, and chapter summaries come
-      back at 1,000–1,300 characters where ~180 words was asked for. **The clamp is a plaster, not
-      a fix.**
-- [ ] **Chapter summaries are analytical rather than narrative** — *"This action confirms his
-      intent to leave permanently"*. Same F18. They are what EARLIER feeds the model on every
-      call, so this one matters.
+      clamp to two lines, expand on click, dismiss on shift-click — **and F18 is now fixed
+      underneath**, so the clamp is no longer covering a live defect. The reason is bounded at 240
+      characters in the schema, measured to cost the checker nothing: F1 0.89, exactly as before.
+- [ ] **Chapter summaries were analytical rather than narrative** — *"This action confirms his
+      intent to leave permanently"*. **Fixed and measured.** Close a chapter and check the summary
+      under Trajectory: it should read as what happened, not what it means, and be short when the
+      chapter was short. Mean length went from 1,155 characters to 181 with no facts lost.
+
+      The cause was the word count reading as a **target**: a 160-character chapter came back as
+      1,269 characters of invention because "180 words" has to be hit. It now says "Under 180
+      words. Shorter is better."
+- [ ] **The two old surfaces are gone.** `desk.html` and `phone.html` are deleted; `/` and
+      `/phone` both serve the one responsive page, so an installed home-screen icon still works.
 - [ ] Deep links work: `#<storyId>` opens a story, `#<storyId>/<panel>` opens it with that panel.
 - [ ] Story cards show real counts now; they were showing an empty progress bar with nothing
       behind it.

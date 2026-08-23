@@ -538,5 +538,38 @@ enforces it; a `maxLength` in the schema would.
 summaries show five. That keeps the panels usable and hides a real problem, so it is recorded here
 rather than left to look solved. The prompt-and-schema fix belongs in `src/prompts.ts`.
 
-**Not measured:** whether a bounded `reason` costs the checker any accuracy, or whether a schema
-`maxLength` makes the summary role refuse. Both need a run before either bound ships.
+### Closed 2026-08-23, both halves measured
+
+**`maxLength` on a string IS enforced by the GBNF converter.** Measured directly: a bound of 24
+returned exactly 24 characters, 120 returned exactly 120, and the same prompt unbounded returned
+1,437. `src/prompts.ts` carried a note saying the converter "ignores numeric bounds", which is
+true of numeric minimum/maximum and was wrong for strings; corrected in place. It truncates
+mid-word, so the bound is a backstop and the prompt still has to do the work.
+
+**`check.why` bounded to 240 characters costs the checker nothing.** `bench/checker.ts` rerun on
+the same twelve labelled passages: **recall 80%, precision 100%, F1 0.89** — identical to F11. The
+single miss is the numeric contradiction already carrying its own marker in `prompts.ts`.
+
+**The summary defect was the word count reading as a target.** Two prompts against the same
+chapters in one run, `bench/summary.ts`:
+
+| | mean length | mean words | analytical tells per summary | over the 180-word ask |
+|---|---|---|---|---|
+| shipped — "180 words" | 1,155 chars | 191 | **5.5** | 3 of 4 |
+| candidate — "Under 180 words" + no interpreting | **181 chars** | 35 | **0.5** | 0 of 4 |
+
+**And the mechanism is worse than length.** Chapter two of the fixture is a single passage of 160
+characters. The shipped prompt returned **1,269 characters** for it — eight times the input, all
+invention, because a target has to be hit. The candidate returned 103 characters and lost nothing:
+*"He draws a cold brass key. He descends the steps slowly, favoring his left knee. He does not look
+back."* That is the whole chapter.
+
+So the fix is the ceiling, not the ban on interpretation — though both shipped. `max_tokens` for the
+role went 400 → 280, because 180 words is about 240 tokens and the rest was room to pad in.
+
+**What this retires.** The UI clamps on canon flags and summaries stay, but they are no longer
+covering a live defect. **The clamp was a plaster; this is the fix.**
+
+**Still not measured:** whether a bounded reason changes what the checker *writes* rather than
+whether it finds it — a 240-character why may read as clipped where the old one read as an
+argument. Nobody has judged the wording, only the score.

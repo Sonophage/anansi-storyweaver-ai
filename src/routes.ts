@@ -81,8 +81,9 @@ async function summarise(c: Ctx, storyId: string, chapterId?: string) {
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
   if (!ps.length) return { error: 'nothing to summarise' };
   const bodies = db.passagesOfChapter(ch.id).map((p: any) => p.body);
+  // 280 rather than 400: 180 words is about 240 tokens, and the old headroom was room to pad in.
   const r = await chat(SUMMARY(180), ps.map((p: any) => p.body).join('\n\n'),
-    { temperature: 0.2, max_tokens: 400, chat_template_kwargs: { enable_thinking: false } });
+    { temperature: 0.2, max_tokens: 280, chat_template_kwargs: { enable_thinking: false } });
   const summary = clean(r.prose, v.story.stripPatterns);
   db.setSummary(ch.id, summary, ps.at(-1)!.ordinal, db.proseHash(bodies));
   return { summary, chapterId: ch.id };

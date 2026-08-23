@@ -8,7 +8,7 @@ The one promise: **a fact you write down in chapter one still holds in chapter f
 ## Run it
 
 ```bash
-node --experimental-strip-types serve.ts     # the app on :5174
+node --experimental-strip-types serve.ts     # the app on :5174 (/ and /phone are the same page)
 node --experimental-strip-types test/all.ts  # every suite, no model and no browser needed
 node --experimental-strip-types run.ts       # one generation end to end (server must be up)
 ```
@@ -30,8 +30,7 @@ Nothing else. There is no `package.json` and nothing to install.
 
 ```
 serve.ts        HTTP shell and the central ownership gate
-desk.html       the desktop surface
-phone.html      the phone surface
+app.html        the one surface. Responsive: the side panel becomes a bottom sheet on a phone
 src/            the engine
   context.ts      buildContext — pure, the whole prompt-assembly decision
   blocks.ts       the block order. Named, never numbered

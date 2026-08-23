@@ -1,17 +1,29 @@
 // Prompt text for the non-prose roles. PROMPTS.md §5 is the source; these are the
 // rev-2 wordings the councils asked for.
+/** MEASURED (F18): the word count has to read as a CEILING, not a target. "180 words" made the
+ *  model pad — a 160-character chapter came back as 1,269 characters of invention — and made it
+ *  explain rather than record: "This action confirms his intent to leave permanently." "Under 180
+ *  words" plus a ban on interpretation took the mean from 1,155 characters and 5.5 analytical
+ *  tells to 181 and 0.5, on the same chapters in one run, and lost no facts. EARLIER carries these
+ *  into every later call, so an analytical summary was the most expensive kind of wrong here. */
 export const SUMMARY = (maxWords: number) =>
-`Summarize this chapter for a story bible. ${maxWords} words.
+`Summarize this chapter for a story bible. Under ${maxWords} words. Shorter is better; a short
+chapter gets a short summary.
 
 Record only what a later chapter must know: what changed, who decided what, what is now
 true that was not before, and anything a reader would notice if it were contradicted.
 
+Write what happened, not what it means. Do not interpret, explain, or say what something
+indicates, suggests, confirms, establishes or implies. No sentence may begin with "This".
 Omit atmosphere and description. Present tense. State facts flat. No hedging.
 Output the summary and nothing else.`;
 
 /** JSON schema -> GBNF. llama.cpp constrains the sampler, so malformed output is
  *  impossible rather than retried. Keys are a bounded list; type is an enum of literals
- *  because the converter ignores numeric bounds but honours enums. */
+ *  because the converter ignores numeric bounds but honours enums.
+ *
+ *  Correction, 2026-08-23: `maxLength` on a STRING is honoured — measured, 24 in and exactly
+ *  24 out. The note above holds for numeric minimum/maximum, which is where it came from. */
 export const EXTRACT_SCHEMA = {
   type: 'object',
   properties: {
@@ -109,7 +121,12 @@ export const checkSchema = (n: number) => ({
         properties: {
           canon: { type: 'integer', enum: Array.from({ length: Math.max(n, 1) }, (_, i) => i + 1) },
           quote: { type: 'string' },
-          why: { type: 'string' },
+          // MEASURED 2026-08-23: maxLength on a string IS enforced by the GBNF converter —
+          // 24 became exactly 24 characters and an unbounded field returned 1,437. Without it a
+          // reasoning model wrote 3,321 characters of "Let's re-read Canon 2…" into one flag
+          // (F18). It truncates mid-word, so it is a backstop: the prompt asks for one sentence
+          // and this stops the flood when the prompt is ignored.
+          why: { type: 'string', maxLength: 240 },
           confidence: { type: 'number' },
         },
         required: ['canon', 'quote', 'why', 'confidence'],
