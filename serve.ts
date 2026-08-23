@@ -26,7 +26,9 @@ let gen: Record<string, any> = {
   dry_multiplier: 0, xtc_probability: 0, thinking: false, max_tokens: 900,
 };
 
-const PAGES: Record<string, string> = { '/': 'desk.html', '/phone': 'phone.html' };
+// The overhaul's one responsive surface is the default. desk.html and phone.html are the two it
+// replaces, kept reachable until it is at parity — the branch is the safety net, not a guess.
+const PAGES: Record<string, string> = { '/': 'app.html', '/desk': 'desk.html', '/phone': 'phone.html' };
 const MIME: Record<string, string> = { '.js': 'text/javascript', '.css': 'text/css',
   '.html': 'text/html', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
 

@@ -31,11 +31,11 @@ for (const f of readdirSync(R + 'web').filter((x) => x.endsWith('.js'))) {
 // Pages must reference modules that exist, and every api.* a surface calls must be defined.
 const apiSrc = read('web/api.js');
 const defined = new Set([...apiSrc.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]));
-for (const page of ['desk.html', 'phone.html']) {
+for (const page of ['app.html', 'desk.html', 'phone.html']) {
   const html = read(page);
   for (const m of html.matchAll(/src="\.\/([\w/.-]+)"/g)) { read(m[1]); ok(`${page} → ${m[1]}`); }
 }
-for (const f of ['web/desk.js', 'web/phone.js']) {
+for (const f of ['web/app.js', 'web/desk.js', 'web/phone.js']) {
   const used = new Set([...read(f).matchAll(/\bapi\.(\w+)\(/g)].map((m) => m[1]));
   const missing = [...used].filter((u) => !defined.has(u));
   assert.deepStrictEqual(missing, [], `${f} calls api.${missing.join(', api.')} which api.js does not define`);
@@ -45,7 +45,7 @@ for (const f of ['web/desk.js', 'web/phone.js']) {
 // This is the check that would have caught `f-pin`: Save read an element the desktop never
 // drew, so every entry save threw after the write landed — silently, in an async handler.
 // Council #3 called it "a field with no screen"; Council #4 called it "a screen with no wire".
-for (const [js, html] of [['web/desk.js', 'desk.html'], ['web/phone.js', 'phone.html']]) {
+for (const [js, html] of [['web/app.js', 'app.html'], ['web/desk.js', 'desk.html'], ['web/phone.js', 'phone.html']]) {
   const src = read(js) + read(html);
   const ids = new Set([...read(js).matchAll(/\$\('([\w-]+)'\)/g)].map((m) => m[1]));
   const drawn = new Set([...src.matchAll(/id="([\w-]+)"/g)].map((m) => m[1]));
