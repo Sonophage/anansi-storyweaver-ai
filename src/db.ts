@@ -9,7 +9,7 @@
 // rows that reference it), and the ordinal index is PARTIAL — a full UNIQUE(branch_id, ordinal)
 // makes regenerate fail on insert, because variants share an ordinal and differ by variant_index.
 import { DatabaseSync } from 'node:sqlite';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readdirSync, unlinkSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS stories (
   title TEXT NOT NULL, genre TEXT, premise TEXT, setting TEXT, pov TEXT,
   persona TEXT,              -- who you are in it. The "You · Ilva Marren" byline.
   writing_style TEXT, direction TEXT, spice INTEGER DEFAULT 2,
-  system_block_override TEXT, strip_patterns TEXT, max_context INTEGER,
+ strip_patterns TEXT, max_context INTEGER,
   status TEXT DEFAULT 'in_progress',   -- in_progress | finished | draft
   active_branch TEXT,                  -- which path you are writing on
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS passages (
   author TEXT NOT NULL,                -- human | model
   speaker TEXT,                        -- null = narration. Set = a named voice.
   body TEXT NOT NULL, is_break INTEGER DEFAULT 0,
-  token_counts TEXT, directive TEXT, created_at INTEGER NOT NULL);
+ directive TEXT, created_at INTEGER NOT NULL);
 -- PARTIAL, per Council #3 S2. A full unique here breaks regenerate.
 CREATE UNIQUE INDEX IF NOT EXISTS passages_sel ON passages(branch_id, ordinal) WHERE selected = 1;
 CREATE INDEX IF NOT EXISTS passages_ch ON passages(chapter_id, slot_key);
@@ -214,7 +214,7 @@ CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at
 migrate();
 
 const now = () => Date.now();
-const uid = (p = '') => p + Math.random().toString(36).slice(2, 10);
+const uid = (p = '') => p + randomBytes(4).toString('hex');
 const q = (sql: string) => db.prepare(sql);
 
 export function owner(login = 'sonophage'): string {

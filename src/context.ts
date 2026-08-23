@@ -350,8 +350,8 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     let used = blocks.filter((b) => kinds.includes(b.kind) && b.state === 'included')
                      .reduce((n, b) => n + b.tokens, 0);
     if (used <= ceiling) return;
-    // Lowest value goes first. For canon that is RECALL, then LORE, then triggered, then
-    // always-on. For EARLIER it is chapter summaries before arcs, oldest first within each —
+    // Lowest value goes first. For canon that is triggered before always-on.
+    // For EARLIER it is chapter summaries before arcs, oldest first within each —
     // an arc covering thirty chapters is the densest thing in the block and the last that
     // should go. `CANON_KINDS.indexOf` returned -1 for EARLIER, so the sort was a no-op and
     // eviction followed insertion order, which dropped the arcs first.

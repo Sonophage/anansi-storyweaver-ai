@@ -255,6 +255,9 @@ export const routes: Record<string, Handler> = {
   // evict everyone's snapshots.
   'POST /api/backup':      () => db.backup(),
   'POST /api/export':      (c: Ctx) => db.exportStory(c.body.storyId, c.owner),
+  // ponytail: no client calls this yet — the audit found it as the only route with no caller,
+  // which is this project's own half-built pattern. The importers and their 7 checks are real;
+  // what is missing is a file picker on either surface. Wire it when the import screen exists.
   // Creates a story, so it names no existing one and cannot be gated on ownership — it is
   // open for the same reason POST /api/stories is, and the new story is owned by the caller.
   'POST /api/import': (c: Ctx) => {

@@ -59,7 +59,7 @@ from the code rather than remembered:
 grep -rn "ponytail:" src web bench *.ts *.html
 ```
 
-**Ten markers as of 2026-08-23.** Each names what is missing, why it was left, and the upgrade path.
+**Eight markers as of 2026-08-23**, after a ponytail audit cut two phantom block kinds, two unread columns and a retired harness. One marker was *added*: `/api/import` was the only route in the tree with no caller. Each names what is missing, why it was left, and the upgrade path.
 Nothing in this list is a surprise; the point is that adding to it requires writing down the ceiling.
 
 | Where | What is unfinished |

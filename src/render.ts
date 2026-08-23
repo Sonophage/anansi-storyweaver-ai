@@ -9,7 +9,7 @@ import type { Kind } from './blocks.ts';
 // and invites the model to continue the document with "## Chapter 13".
 const TAG: Partial<Record<Kind, string>> = {
   SPINE: 'story', 'CANON-ALWAYS': 'canon', 'CANON-TRIGGERED': 'canon', 'CANON-REPEAT': 'canon',
-  LORE: 'lore', RECALL: 'recall', EARLIER: 'earlier',
+  EARLIER: 'earlier',
 };
 
 /** Sent first in the raw completion buffer. `/completion` has no system role, so this

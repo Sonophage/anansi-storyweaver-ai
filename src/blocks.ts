@@ -6,16 +6,16 @@
 // If canon renders as one concatenated block, P6 re-granularizes the renderer.
 
 export type Kind =
-  | 'SPINE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED' | 'LORE' | 'RECALL'
+  | 'SPINE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED'
   | 'EARLIER' | 'PROSE' | 'DIRECTIVE' | 'CANON-REPEAT' | 'TAIL' | 'MODE';
 
-// ponytail: RECALL is declared here, ordered, tagged in render.ts and ranked first for eviction
-// — and nothing anywhere calls add('RECALL', ...). It is the seat reserved for PLAN-02 P5's
-// memory collect-versus-inject, which needs vector recall, which needs pgvector, which needs the
-// Postgres port. Until then it is a block that can never hold anything. Left rather than deleted
-// because the eviction order below is correct as written and would have to be rewritten twice.
+// LORE and RECALL were declared here, ordered, tagged and ranked for eviction, and nothing ever
+// added a block of either kind — lore entries render as CANON-* by their activation. They were the
+// reserved seats for PLAN-02 P5's memory collect-versus-inject, which needs vector recall, which
+// needs pgvector, which needs the Postgres port. Add them back with the code that fills them; the
+// eviction sort below ranks by CANON_KINDS index, so re-inserting them changes nothing else.
 export const ORDER: Kind[] = [
-  'SPINE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'LORE', 'RECALL',
+  'SPINE', 'CANON-ALWAYS', 'CANON-TRIGGERED',
   'EARLIER', 'PROSE', 'DIRECTIVE', 'CANON-REPEAT', 'TAIL', 'MODE',
 ];
 // CANON-REPEAT sits BELOW the directive and ABOVE the tail prose, not last. PROMPTS §2 found
@@ -37,7 +37,7 @@ export const EARLIER_CEILING_FRAC = 0.25;
 export const PROSE_CEILING_FRAC = 0.6;
 
 // Canon proper. EARLIER is deliberately NOT in this set; it has its own ceiling above.
-export const CANON_KINDS: Kind[] = ['CANON-ALWAYS', 'CANON-TRIGGERED', 'LORE', 'RECALL'];
+export const CANON_KINDS: Kind[] = ['CANON-ALWAYS', 'CANON-TRIGGERED'];
 export const CANON_CAP_FRAC = 0.45;
 
 export interface Block {
