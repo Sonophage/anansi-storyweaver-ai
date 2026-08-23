@@ -327,3 +327,55 @@ Two honest limits on that:
 max_tokens)` plus 6%. Raising `max_tokens` past ~900, or adding a third concurrent caller, eats it
 — and the failure on the far side is total rather than degraded. The rationale is recorded at the
 `perSlot` return in `src/llama.ts` so the division is not "optimized" away later.
+
+## F14 — F12 over-concluded, and two harnesses is what caught it
+
+Six generations on the F12 fixture, same story, same directive, run only to time a harness
+change. One of them **called the key silver**. That is F9's failure, reproduced on the exact
+experiment F12 used to declare it gone.
+
+**The error is mine and it is a reasoning error, not a measurement one.** F12 observed zero
+failures in sixty generations and I wrote *"It does not reproduce today."* Zero in sixty does not
+establish zero. It bounds the rate below roughly 5% and says nothing more. The correct sentence
+was "the rate is under 5%, which this fixture cannot distinguish from zero."
+
+Everything measured since, under the post-restart config:
+
+| config | generations | failures |
+|---|---|---|
+| `parallel = 4`, slot 25,024 (F12) | 60 | 0 |
+| `parallel = 2`, slot 50,048 | 12 | 1 |
+
+**No causal claim about the restart.** 0/60 and 1/12 are statistically compatible — Fisher exact
+p ≈ 0.17 — so this is not evidence that doubling the slot brought the failure back. It is only
+evidence that F12's zero was a small-sample zero. The larger budget does change which context
+survives eviction, so it remains a live hypothesis; nothing here tests it.
+
+**Reopened:** PLAN-03's two untested F9 candidates, which F12 retired on the strength of a failure
+that "does not occur." They should not have been retired on a zero count. The `ponytail:` marker
+in `render.ts` stays out — the rationale there still reads correctly — but F9 is an open low-rate
+defect again, not a closed one.
+
+**What it would take to actually settle it.** At a ~5-8% base rate, separating "fixed" from
+"rare" needs a few hundred generations per arm, not thirty. That is now affordable: see the
+harness note below.
+
+### Two harnesses
+
+`bench/compliance.ts` is a serial loop, and `/api/generate` persists nothing — it returns prose
+and writes one append-only log row — so two harnesses on one story cannot contaminate each other.
+Both talk to a single-threaded Node process, so the log writes serialize with no SQLite contention.
+
+Six generations, one sample each way:
+
+| | wall |
+|---|---|
+| one harness, serial | 41s |
+| two harnesses, 3 each | 26s |
+
+**≈1.6×, not 2×** — two slots share one GPU. One run per arm, and wall time has been unstable all
+session, so treat 1.6 as "real but not pinned."
+
+The throughput is the smaller half of the win. Running both A/B arms **simultaneously** removes
+F12's remaining confound, which was stated there in as many words: *both arms ran minutes apart.*
+Concurrent arms share thermals, cache and machine state exactly.
