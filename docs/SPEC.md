@@ -19,7 +19,8 @@ A web application for long-form AI-assisted fiction. A writer starts a story fro
 then writes chapters with the model in one of four modes. Facts pinned as canon in chapter 1
 still reach the model in chapter 50.
 
-Choose-Your-Adventure is one of four writing modes. The document editor and the chapter manager
+~~Choose-Your-Adventure is one of four writing modes.~~ **Dropped by Seth, 2026-08-23 — not
+deferred. The four modes are Co-Write, Direct, Full Auto and New Scene.** The document editor and the chapter manager
 are first-class.
 
 **The one promise: long-form coherence.** Section 12 states what this product does and does not
@@ -556,9 +557,12 @@ One pipeline. Only the final instruction block differs. Text in `PROMPTS.md` sec
 | Co-Write | Prose, asks for continuation | Prose | Two passages: human, then model |
 | Direct | An instruction | Prose | One passage, instruction in `directive` |
 | Full Auto | Nothing, or a steer | 1-2 paragraphs | One passage |
-| Adventure | Nothing, then picks | Three options | Three `passage_options` rows |
+| ~~Adventure~~ | — | — | **Dropped 2026-08-23.** `passage_options` was never built. |
 
-Adventure is two calls. The chosen label becomes a Direct directive. Do not mix structured output
+~~Adventure is two calls.~~ Dropped; the paragraph below is kept only because its warning about
+mixing structured output with prose still applies to `spark`, `extract` and `check`.
+
+Adventure was two calls. The chosen label becomes a Direct directive. Do not mix structured output
 and prose in one call.
 
 Regenerate writes a variant into the current slot. `variant 2 of 3`, arrows, keep. Nothing is
@@ -682,7 +686,7 @@ identical manifest.
 **M4 — Writing surface.** Chapter list, editor, Co-Write, Direct, streaming both paths, variants,
 the meter, the toolbar.
 
-**M5 — Adventure, Canon Ledger UI (six fields), progressions UI, pins, extraction proposals,
+**M5 — ~~Adventure~~ (dropped), Canon Ledger UI (six fields), progressions UI, pins, extraction proposals,
 canon violation flags (8.4), export.** Export is roughly four hours and backs claim 5.
 
 Coherence regression test lands here: one golden story fixture with N planted contradictions,

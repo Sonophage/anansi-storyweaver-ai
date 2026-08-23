@@ -119,6 +119,52 @@ worker for offline reading, which PLAN-02 itself gated on "only if someone asks"
 
 **Never scheduled:** universes, and Postgres/pgvector/RLS — the last of which P5's recall depends on.
 
+## 3b. Surface inventory, verified 2026-08-23
+
+Read out of the code, after a regex-based count of the same thing reported ten of eleven desk nav
+buttons as dead. They are not. **Do not audit a surface with a pattern; read the object.**
+
+**Desk — 11 nav panels, all wired**, plus the inspector: My stories, Create a story, Characters,
+Worlds & lorebooks, Import, Search, Story & chapter, Trajectory, What the chapter added, Branches,
+Preferences.
+
+**Phone — 16 sheets**: library, create, onboarding, story, chapter, cast, entry, entry history,
+queue, timeline, context, branches, search, import, settings, story-by-id.
+
+**All four writing modes exercised live** against the real model: Co-Write 1,290 chars, Direct
+1,218, Full Auto 772, New Scene 781, MODE block included in every one.
+
+### The one real conflict: there are two importers
+
+Both surfaces already ship an Import screen. **Neither calls `POST /api/import`** — `web/api.js`
+has no `import` method at all. The screens parse JSON in the browser and call `saveEntry` / `write`
+directly. They predate `src/import.ts`.
+
+| | client screens (shipped) | `src/import.ts` (built 2026-08-23) |
+|---|---|---|
+| character-card JSON | yes | yes |
+| PNG cards, AI Dungeon, Anansi exports | **no** | yes |
+| injection guard on `system_prompt` | **no** | yes |
+| size bounds | **no** | yes |
+| **merges into the current story** | **yes** | **no — always a new story** |
+| tested | no | 7 checks |
+
+Neither is complete, and each has what the other lacks. Resolution deferred by Seth — the shape is
+to make `src/import.ts` the engine, add the merge mode it lacks, then rewire both screens to it,
+deleting two hand-rolled parsers. **Not to be blended.**
+
+### Schema against PLAN-02's P1 list
+
+Substantially complete under shorter names (`idx` for `index`, `summary_hash` for
+`summary_source_hash`, `manifest` for `context_manifest`). Genuinely absent: `engine_config`,
+`model_config`, `writing_mode` (mode is per-request, never stored), tokenizer-keyed `token_counts`
+**maps** (scalars where they exist at all), and `tailscale_login` — there is a `login` column with
+no identity behind it.
+
+`system_block_override` and `token_counts` were removed from the schema by the 2026-08-23 ponytail
+audit as columns nothing read. They were **P1 stubs for planned features**, so the deletion removed
+the stubs, not the features; both remain unbuilt and remain in the plan.
+
 ## 4. What got built out of order, and what that cost
 
 PLAN-02's phases were P0 measure → P1 one writer end to end → P2 a week of real writing → P3 two

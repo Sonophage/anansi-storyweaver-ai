@@ -87,6 +87,12 @@ The destination belongs at chapter scope, where it is true for the window it cov
 schema. It becomes the beat channel explicitly (§6.5). A story-level `direction` exists, is optional,
 and **never reaches a prose call** — it steers `summary` and `extract` only (§8).
 
+> **Superseded 2026-08-23.** `direction` DOES reach every prose call — it is the last line of
+> SPINE, as `Where this is going: …`. COUNCIL-03 S5 overruled this on the grounds that a
+> destination is not a claim about *now*, and Seth confirmed the behaviour is what he wants.
+> See `docs/PROMPTS.md` §3.
+
+
 Optional, because a writer who does not know the ending is not doing it wrong.
 
 **3. The council added roughly thirty items and deleted three. Nobody costed the total.**
@@ -406,6 +412,12 @@ Plus `UNIQUE (id, story_id)` on `chapters` and `canon_entries` — required at P
 and its enforceable form is a composite FK that needs those indexes on tables created here.
 
 `stories.direction` is the optional destination. **It never reaches a prose call** — it steers
+
+> **Superseded 2026-08-23.** `direction` DOES reach every prose call — it is the last line of
+> SPINE, as `Where this is going: …`. COUNCIL-03 S5 overruled this on the grounds that a
+> destination is not a claim about *now*, and Seth confirmed the behaviour is what he wants.
+> See `docs/PROMPTS.md` §3.
+
 `summary` and `extract`.
 
 `chapters.summary_token_counts` is a tokenizer-keyed map like every sibling count, not a scalar int.

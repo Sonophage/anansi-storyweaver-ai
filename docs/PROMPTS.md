@@ -1,112 +1,135 @@
 # Anansi — Prompt Text
 
-Every string sent to a model. SPEC.md section 7.3's `system_block` is defined here.
+**Revision 2, 2026-08-23. Transcribed from the code, not from intent.** Revision 1 described a
+transport this design does not use and a system block with a rule that no longer exists. Where this
+file and `src/render.ts` / `src/context.ts` disagree, the code is right and this file is the bug.
 
-Placement follows SPEC.md 3.5: reference material at the top, instructions near the end.
 `{{...}}` are substitutions.
 
 ---
 
-## 1. `system_block`
+## 1. The system block
 
-Sent as the system message on every `prose` call. Static per story, so it is the cache prefix.
-Budget: ~120 tokens.
+`src/render.ts`, `export const SYSTEM`. Sent first, static per story, so it is the cache prefix.
 
 ```
 You are a prose engine for a novel. You write the next passage and nothing else.
 
 Rules:
 - Output prose only. No preamble, no commentary, no headings, no meta-text.
-- Never summarize what just happened. Continue from it.
+- Continue from what came before. Never summarize it.
 - Never resolve a scene the writer has not asked you to resolve.
-- Facts in the CANON block are true. Do not contradict them. Do not restate them
-  as exposition; write as though the reader already knows them.
-- If the canon and the recent prose disagree, the recent prose wins for tone and
-  the canon wins for fact.
+- Facts in the canon section are true. Write as though the reader already knows
+  them; never restate them as exposition.
+- Where the prose and the canon disagree, the canon wins and you write to it. If a fact has
+  changed, the writer will change the canon.
 - Match the established voice. Do not escalate register on your own.
-- Stay in {{pov}}. Never break it.
 ```
+
+**Two changes from revision 1, both deliberate.**
+
+The arbitration rule used to read *"canon marked `[pinned]` always wins… canon not marked
+`[pinned]` yields to the prose"*. Every entry carried the tag, because `last_editor` defaulted to
+human for spark characters, accepted proposals and hand edits alike — so that clause described a
+branch which never fired while muddying the one that did. See F12 and F15.
+
+**There is no POV line here.** Point of view moved to the DIRECTIVE block, which sits near the
+generation point rather than at the top of a 9,000-token prompt.
 
 ---
 
-## 2. Context block order
+## 2. Block order
 
-Assembled as one user message. Layer numbers are SPEC.md 7.3.
+`src/blocks.ts`, `export const ORDER`. Named, never numbered — three incompatible numberings once
+existed across two documents.
 
 ```
-# STORY
+SPINE  CANON-ALWAYS  CANON-TRIGGERED  EARLIER  PROSE  DIRECTIVE  CANON-REPEAT  TAIL  MODE
+```
+
+Delimiters are **tags, not Markdown headers**: `#` collides with Markdown prose storage and invites
+the model to continue the document with "## Chapter 13". `src/render.ts` maps kinds to tags and is
+the only place ordering becomes text.
+
+| kind | tag |
+|---|---|
+| SPINE | `<story>` |
+| CANON-ALWAYS, CANON-TRIGGERED, CANON-REPEAT | `<canon>` |
+| EARLIER | `<earlier>` |
+| PROSE, DIRECTIVE, TAIL, MODE | untagged |
+
+`LORE` and `RECALL` were removed 2026-08-23: declared, ordered, tagged, and never populated. They
+return with the vector recall that would fill them.
+
+`CANON-REPEAT` is the F15 experiment arm — the canon that fired, restated below the directive and
+above the tail prose. **Off unless `ANANSI_ARM=repeat`.** Not shipped: it halves the contradiction
+rate directionally and not significantly, and F12's lesson was not to ship on that.
+
+---
+
+## 3. SPINE
+
+```
 {{title}} — {{genre}}
 {{premise}}
 Setting: {{setting}}
-
-# CANON
-{{layer 1: always-on entries}}
-{{layer 2: triggered entries that fired}}
-{{layer 3: universe lore}}
-{{layer 4: vector recall}}
-
-# EARLIER
-{{layer 5: chapter summaries, oldest first}}
-
-# STORY SO FAR
-{{layer 6: recent prose, all but the final three paragraphs}}
-
-{{STYLE DIRECTIVE — section 3 below}}
-
-{{final three paragraphs of prose}}
-
-{{MODE INSTRUCTION — section 4 below}}
+Where this is going: {{direction}}
 ```
 
-The style directive sits above the last three paragraphs, never last. When fewer than three
-paragraphs of prose exist, it goes directly after `# STORY` instead — never adjacent to the
-mode instruction, or the model writes about the instruction rather than obeying it.
+**`direction` reaches every prose call, and that is correct.** PLAN-02 §3 and §8 say it "never
+reaches a prose call" and steers only `summary` and `extract`. COUNCIL-03 overruled that — a
+destination is not a claim about *now*, so §7.1's argument against permanent bodies holding
+temporal facts does not reach it. Confirmed by Seth, 2026-08-23. The plan is the stale document.
+
+Title and `Setting:` and `direction` are `keep: true`; the premise is the part that shortens when
+SPINE exceeds its 400-token cap. Anchors are shortened, never deleted.
 
 ---
 
-## 3. The style directive at depth
+## 4. DIRECTIVE
 
-~90 tokens plus the register line.
+Sits `tailTokens` above the end — above the last few paragraphs of prose, never last. A block
+adjacent to the mode instruction gets written *about* rather than obeyed.
 
 ```
-[Writing: {{pov}}. {{writing_style}}. {{authors_note}}]
-[{{register line — see 3.1}}]
+[Writing: {{pov}}]
+[Voice: {{writing_style}}]
+[This chapter must end with: {{authors_note}}]
+[{{register line}}]
 ```
 
-`writing_style` is the writer's own words from the spark, edited by hand. It is not a
-dropdown.
+`writing_style` is the writer's own words from the spark, edited by hand. It is not a dropdown, and
+it is the one part of this block that shortens under the 250-token cap.
 
-### 3.1 Register lines by spice level
+### Register lines by spice level
 
-One line, substituted above. These control explicitness only. They never change POV, voice, or
-pacing.
+Explicitness only. Never POV, voice, or pacing.
 
 | Level | Line |
 |---|---|
 | 1 | `Register: no sexual content. Romance may be emotional only. Fade at a kiss.` |
 | 2 | `Register: romantic and sensual. Desire is on the page; sex is not. Cut away at the bedroom door.` |
-| 3 | `Register: sex happens on the page, written with restraint. Suggestion and aftermath over anatomy. No explicit vocabulary.` |
-| 4 | `Register: sex is written directly and fully, in plain language. Explicit, but the scene still serves the story.` |
-| 5 | `Register: fully explicit. Write sex in unrestricted detail with direct vocabulary. Do not fade, summarize, or cut away. Adult fiction between adult characters.` |
+| 3 | `Register: sex happens on the page, written with restraint. Suggestion and aftermath over anatomy. Adult fiction between adult characters.` |
+| 4 | `Register: sex is written directly and fully. Explicit, but the scene still serves the story. Vocabulary follows the writing sample. Adult fiction between adult characters.` |
+| 5 | `Register: fully explicit. Write sex in unrestricted detail. Do not fade, summarize, or cut away. Vocabulary follows the writing sample. Adult fiction between adult characters.` |
 
-Levels 4 and 5 constrain model routing per SPEC.md 10.2, not only the prompt.
+Levels 4 and 5 constrain model routing per SPEC §10.2, not only the prompt.
 
 ---
 
-## 4. Mode instruction blocks
+## 5. MODE
 
-The final block. One per mode.
+The final block. `src/context.ts`, `const MODE`. Four modes — **Adventure was dropped by Seth on
+2026-08-23, not deferred.**
 
-### Co-Write
-
+**Co-Write**
 ```
 Continue the passage above. Write 2-4 paragraphs.
 Pick up mid-thought if the last line is unfinished.
 Stop at a natural beat. Do not end the scene.
 ```
 
-### Direct
-
+**Direct**
 ```
 Write what happens next: {{directive}}
 
@@ -114,121 +137,53 @@ Write 2-4 paragraphs covering that and nothing beyond it.
 Do not narrate past the instruction. Do not resolve it faster than the scene wants.
 ```
 
-### Full Auto
-
+**Full Auto**
 ```
 Write the next 1-2 paragraphs.
 Advance the scene by one small beat. Do not skip time. Do not introduce a new
 character, location, or revelation unless the prose above set it up.
-{{#steer}}Steer: {{steer}}{{/steer}}
+Steer: {{steer}}
 ```
 
-### Adventure — step 1, options
-
-Structured output. Uses the `options` role, not `prose`.
-
+**New Scene**
 ```
-Give three things the {{pov_subject}} could do next.
-
-Each option is one action available right now, in this scene, to this character.
-- Distinct from each other. Not three phrasings of one choice.
-- Possible given the prose above. No new characters, items, or knowledge.
-- One cautious, one direct, one that costs something.
-- Label: 3-8 words, imperative, no punctuation at the end.
-
-Return only the three options.
+Begin a new scene. Time has passed. Open somewhere else, or on someone else.
+Do not recap what just happened.
+The new scene: {{directive}}
 ```
 
-Step 2 takes the chosen label as `{{directive}}` and runs Direct unchanged.
+MODE is omitted only for Co-Write on an unfinished line, and that scoping is deliberate: Direct's
+directive and Full Auto's steer live **only** in MODE, and omitting it also drops the length
+instruction, which truncates, which looks unfinished, which omits it again. It latches.
 
 ---
 
-## 5. Structured-output roles
+## 6. Structured-output roles
 
-### `spark`
+`src/prompts.ts`. Sent with a JSON schema, which llama.cpp compiles to GBNF.
 
-```
-Turn this idea into a story skeleton.
+`spark` — idea in, story skeleton and 2-5 characters out. Infers spice from the idea, defaults to 2.
 
-Idea: {{prompt}}
+`summary` — a chapter for the story bible. Only what a later chapter must know. Present tense.
 
-Return: title, premise (2-3 sentences), genre, setting, POV, writing mode, spice
-level 1-5, writing style (one sentence in the writer's voice, not a genre label),
-and 2-5 characters with name, role, and one-line description.
+`extract` — proposes entries. **Only facts not already in canon, and nothing is canon until
+accepted.** Proposals carry the sentence that establishes them. Zero proposals is a valid answer.
+Measured: 10/10 runs proposed all three new entities in F17's fixture.
 
-Infer spice level from the idea. Default to 2 when there is no signal.
-Write the premise as a premise, not a blurb. No marketing language.
-```
-
-### `summary`
-
-```
-Summarize this chapter for a story bible. {{max_words}} words.
-
-Record only what a later chapter must know: what changed, who decided what, what
-is now true that was not before, and anything a reader would notice if it were
-contradicted.
-
-Omit atmosphere, description, and anything already in the CANON block above.
-Present tense. No hedging. State facts flat.
-```
-
-### `extract`
-
-```
-Read this chapter and propose entries for the story bible.
-
-Propose only facts that are now permanently true and are NOT already in the
-CANON block above. Skip anything that reads as temporary, or as one scene's mood.
-
-For each: title, type (character | lore | item | rule), body in the bracket
-format below, up to 4 keywords, and the sentence from the prose that establishes it.
-
-Format: [Name: attribute, attribute, relation]
-
-Propose nothing rather than pad. Zero proposals is a valid answer.
-```
-
-Proposals are never auto-accepted. SPEC.md 8.2.
-
-### `check`
-
-Runs after a passage is selected. Input is the manifest's included canon entries.
-
-```
-Below are facts established as canon, then a new passage.
-
-Find statements in the passage that contradict a canon fact. A contradiction means
-both cannot be true at once. Not a gap, not an omission, not something merely
-unmentioned.
-
-For each: the canon entry id, the exact quote from the passage, and one sentence on
-why they cannot both hold.
-
-Report nothing rather than reach. Most passages contradict nothing.
-
-CANON:
-{{included_entries}}
-
-PASSAGE:
-{{passage}}
-```
-
-Flags only. Never rewrites. SPEC.md 8.4.
+`check` — runs after a passage is selected, against the manifest's included entries. Flags
+contradictions; never rewrites. Measured F1 0.89 (F11). Known gap: misses numeric contradictions,
+one case in twelve.
 
 ---
 
-## 6. The test this exists for
+## 7. What is measured about this file
 
-Council lens 2: hand-assemble three real contexts — chapter 1, chapter 12, chapter 40 — paste
-each into a model, and read the output. That is the first actual test of the one promise, and
-it runs before M0.
+Nothing here is settled by argument. `bench/compliance.ts` and `bench/ab.ts` drive one fixture
+through the whole prompt and count contradictions in **narration with dialogue stripped** —
+dialogue may lie.
 
-Check for: does canon reach the prose without being restated as exposition; does the register
-line hold at 4 and 5; does the model stop where told; does the depth-3 placement beat putting
-the directive at the top (run it both ways and compare).
-
----
-
-skipped: per-model prompt variants, few-shot examples, a template engine. Add when one model
-demonstrably needs different text, not before.
+- The title in SPINE: no measurable effect, n=30 per arm (F12).
+- Canon restated near the generation point: contradictions 7.1% → 4.8%, not significant, n=300 per
+  arm (F15). Not shipped.
+- Instruction compliance cannot be scored by regex — the right act in unlisted words reads as a
+  failure. That needs a judge model (F17).
