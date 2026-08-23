@@ -447,3 +447,66 @@ unknown. Two things would change the answer — many more stories in flight, or 
 and `--cache-ram` is tunable if they ever do. The test also reused identical prompts; real use
 appends passages, which extends a prefix rather than replacing it, and prefix reuse is the case
 caching is best at.
+
+## F17 — What the model is actually good at, and where the harness runs out
+
+Five capabilities, `bench/quality.ts` and `bench/extraction.ts`, fixtures in
+`bench/quality-fixture.ts`. Every check is a regex over **narration with dialogue stripped** —
+dialogue may lie, characters may be wrong, only the narrator commits the story.
+
+**Detectors were validated before any result was believed.** 14 synthetic cases for the first four
+probes and 8 for the rewritten one, each asserting both that bad prose flags and that good prose
+does not. All 22 correct, including the hard negatives — "the stump where his left hand had been"
+reads clean, "Corin raised his left hand" flags. A detector that never fires reports perfection,
+and this harness has now earned the right to be believed on the checks it can make.
+
+| capability | opportunity | result |
+|---|---|---|
+| playing a character | 55 spoken lines across 19/20 runs | **0 violations.** Longest line exactly 8 words; canon caps her at 8 |
+| evolving facts | 17/20 touched a hand, ring or handedness | **0 violations** — never restored the amputated hand or the lost ring |
+| established IP | 13/20 named a weapon | **1 bolter against canon's "lasgun, not a bolter"** — 7.7% of informative runs |
+| noticing new things | 10 extractions | **10/10 on all three** new entities, 0.3 other proposals per run |
+| enacting a directive | 20/20 | **20/20 by reading, 18/20 by regex** — see below |
+
+**Character voice is the strongest result.** The eight-word cap is a hard numeric constraint and the
+model held it 55 times without one overrun, median 3 words. It did not drift toward eloquence when
+given room to.
+
+**Progressions work end to end.** The engine resolved the post-injury body — verified in the
+prompt — and the model wrote to it in all 17 informative runs. That is `entry_states` earning its
+place.
+
+**The one failure mode is the one already known.** A bolter for a lasgun is the same shape as silver
+for brass: the setting's own gravity pulling against the ledger. Zero anachronisms — no internet, no
+democracy, no coffee shops. It is not ignoring the world, it is being pulled by it.
+
+### Two honest failures of the instrument, not the model
+
+**The knife check measured nothing, twice, and was unsound to begin with.** The first probe told Roan
+to sit still, so 1 of 20 generations mentioned the knife. Rewritten to put hands on him, **0 of 20**
+did — because covering one beat without escalating is exactly the non-overrun behaviour wanted, and
+it structurally prevents the check from firing. Worse: the canon fact was *"keeps a knife in his boot
+and has never drawn it"*, which is a history, not a prohibition. Drawing it would not have
+contradicted anything. The check was void on its own terms and no amount of rerunning fixes that.
+
+**Regex cannot score enactment.** Two runs were flagged as not enacting the directive. Reading them,
+both did — *"Roan didn't fight the grip"* and *"the sudden, jarring elevation"*. They enacted the haul
+in words the detector did not list. So enactment is 20/20 by reading and 18/20 by regex, and the
+difference is the harness.
+
+**The methodological line this draws, which matters more than any number above:**
+
+- **Canon contradiction is lexically checkable.** The wrong word is literally present — silver,
+  bolter, left hand. Regex is the right instrument and needs no judge.
+- **Instruction compliance is not.** The right act in unlisted words reads as a failure. This needs a
+  judge model, and `agentic-t-tcap27-h` is loaded in the router for exactly that.
+
+Paragraph count (PROMPTS §4's 2-4), POV, and scene-resolution overrun were clean 20/20 — those are
+lexical or countable and the harness can hold them.
+
+### Not measured, and visible in the samples
+
+The story's style directive reads **"Terse."** and the model returned 1,523 characters of *"an
+intimacy of violence"* and *"the metallic tang of iron"*. It obeyed the plot instruction and ignored
+the register. Nothing here catches that: it is compliant, on-canon, and off-voice. Style adherence is
+a third category, separate from canon contradiction and instruction compliance, and it has no probe.
