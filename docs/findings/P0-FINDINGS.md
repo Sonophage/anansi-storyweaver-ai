@@ -515,3 +515,28 @@ The story's style directive reads **"Terse."** and the model returned 1,523 char
 intimacy of violence"* and *"the metallic tang of iron"*. It obeyed the plot instruction and ignored
 the register. Nothing here catches that: it is compliant, on-canon, and off-voice. Style adherence is
 a third category, separate from canon contradiction and instruction compliance, and it has no probe.
+
+## F18 — Structured roles overrun their specified length by three to twenty times
+
+Found by looking at the new surface rather than by measuring: two panels were unreadable because
+the model's structured output is far longer than the prompt asks for.
+
+| role | asked for | measured on the live database |
+|---|---|---|
+| `check` → `reason` | one sentence on why two facts cannot both hold | **3,321 characters** — the model's entire chain of reasoning, including "Let's check Canon 1…", written into a single canon flag |
+| `summary` | *"{{max_words}} words"*, ~180 | **1,000–1,300 characters** each, and analytical rather than narrative: *"This action confirms his intent to leave permanently or for a significant duration"* |
+
+The summaries are worse than long. `PROMPTS.md` §6 asks for *what a later chapter must know*, and
+what came back reads like a critic's notes on the chapter — which is then what EARLIER feeds the
+model on every call.
+
+**Two separate defects.** The `reason` field has no length bound in `checkSchema`, so a reasoning
+model fills it. The `summary` role's word count is stated in prose inside the prompt and nothing
+enforces it; a `maxLength` in the schema would.
+
+**The UI is clamped, and that is not the fix.** Canon flags now show two lines and expand on click;
+summaries show five. That keeps the panels usable and hides a real problem, so it is recorded here
+rather than left to look solved. The prompt-and-schema fix belongs in `src/prompts.ts`.
+
+**Not measured:** whether a bounded `reason` costs the checker any accuracy, or whether a schema
+`maxLength` makes the summary role refuse. Both need a run before either bound ships.

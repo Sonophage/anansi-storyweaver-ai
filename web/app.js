@@ -91,8 +91,9 @@ function drawRail() {
     <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
       <img src="./web/icon.svg" alt="" style="width:24px; height:24px; border-radius:6px; display:block; flex:0 0 auto">
       <span class="serif txt" style="font-size:26px; color:#F3ECE0">Anansi</span>
-      <button data-rail="1" style="margin-left:auto; color:#78726A; font-size:15px" aria-label="Collapse"
-        >${overlay() ? '✕' : (S.rail ? '⟨' : '⟩')}</button>
+      <button data-rail="1" style="margin-left:auto; color:#78726A; font-size:17px; line-height:1;
+        padding:2px 4px" aria-label="${S.rail ? 'Collapse the rail' : 'Expand the rail'}"
+        >${overlay() ? '✕' : (S.rail ? '‹' : '›')}</button>
     </div>
     ${back}
     <div class="scroll" style="padding:0 16px; display:flex; flex-direction:column">${rows.map(item).join('')}${tail}</div>
@@ -129,7 +130,7 @@ function drawBar() {
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
       <button class="pill deskonly" data-panel="inspector" aria-pressed="${S.panel === 'inspector'}">Inspector</button>
       <button class="phoneonly" data-panel="story" style="font-size:19px; color:var(--chrome-dim)" aria-label="Story settings">⚙</button>`
-      : `<button class="pill" data-open="new">New story</button>
+      : `<button class="pill deskonly" data-open="new">New story</button>
          ${LIB.length ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            text-transform:uppercase; color:#100D08; background:var(--gold); padding:9px 18px;
            border-radius:10px; font-weight:500; white-space:nowrap">Resume writing</button>` : ''}`}
@@ -186,9 +187,11 @@ function passageHTML(p, pending) {
     : `<div class="narr" contenteditable="plaintext-only" data-edit="${p.id}">${esc(p.body)}</div>`;
   const flagged = flags.map((f) => {
     const e = V.entries.find((x) => x.id === f.entryId);
-    return `<button class="flag" data-flag="${f.id}" title="Dismiss">
-      <span style="width:5px; height:5px; border-radius:50%; background:#C8705A; flex:0 0 auto"></span>
-      Contradiction · ${esc(e?.title ?? 'canon')}${f.reason ? ` — ${esc(f.reason)}` : ''}</button>`;
+    // The reason is whatever the checker returned, and a reasoning model has put 3,321
+    // characters in one. Clamped in CSS and expandable, never trusted to be a sentence.
+    return `<button class="flag" data-flagx="${f.id}" aria-expanded="false" title="Click to expand · shift-click to dismiss">
+      <span style="width:5px; height:5px; border-radius:50%; background:#C8705A; flex:0 0 auto; margin-top:6px"></span>
+      <span>Contradiction · ${esc(e?.title ?? 'canon')}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>`;
   }).join('');
   const cls = `block${pending ? ' pending' : mine ? ' you' : spoken ? ' speak' : ''}`;
   return `<div class="${cls}">${body}${acts}${flagged}</div>`;
@@ -207,7 +210,7 @@ function drawDoc() {
     html += `<div style="display:flex; align-items:baseline; gap:12px; font-size:10.5px;
       letter-spacing:.28em; text-transform:uppercase; color:var(--label)">
       <span>${esc(c.title || `Chapter ${c.index}`)}</span>
-      <span style="margin-left:auto; letter-spacing:.1em; text-transform:none; opacity:.7">${w.toLocaleString()} words</span></div>`;
+      ${w ? `<span style="margin-left:auto; letter-spacing:.1em; text-transform:none; opacity:.7">${w.toLocaleString()} words</span>` : ''}</div>`;
     html += ps.map((p) => passageHTML(p, false)).join('');
   }
   if (S.pending) html += passageHTML({ ...S.pending, id: 'pending' }, true);
@@ -322,13 +325,14 @@ const PANELS = {
       <div class="hint">Aims the story without disclosing it. Never restated to the reader.</div>
       <button class="btn" data-savestory="1" style="margin-top:14px">Save</button>
       <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Chapter summaries in context</div>
-      ${V.chapters.filter((c) => c.summary).map((c) => `<div class="card" style="margin-bottom:8px">
+      ${V.chapters.filter((c) => c.summary).map((c) => `<button class="card" aria-expanded="false"
+        data-expand="1" style="margin-bottom:8px; text-align:left; width:100%">
         <div style="display:flex; align-items:center; gap:9px">
           <span class="kind">${esc(c.title || `Chapter ${c.index}`)}</span>
           <span style="margin-left:auto; font-size:11px; color:#78726A">covers to ${c.coversThrough ?? '—'}</span></div>
-        <div style="font-size:12.5px; line-height:1.5; color:#8A8478">${esc(c.summary)}</div>
+        <div class="clamp" style="font-size:12.5px; line-height:1.5; color:#8A8478">${esc(c.summary)}</div>
         ${c.summaryStale ? '<div class="hint" style="color:#C8705A">Stale — excluded from the prompt until it is re-run.</div>' : ''}
-      </div>`).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
+      </button>`).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
       <button class="btn ghost" data-summarize="1">Summarise this chapter</button></div>`;
   },
 
@@ -357,7 +361,8 @@ const PANELS = {
       ${(V.branches ?? []).map((b) => `<div class="card" style="gap:6px;
         border-color:${b.active ? 'rgba(217,178,106,.34)' : '#2A2721'}">
         <div style="display:flex; align-items:center; gap:9px">
-          <span class="kind">${esc(b.name)}${b.active ? ' · active' : ''}${b.isPrimary ? ' · main' : ''}</span>
+          <span class="kind">${esc(b.name)}${b.active ? ' · active' : ''}${
+            b.isPrimary && b.name.toLowerCase() !== 'main' ? ' · main' : ''}</span>
           <span style="margin-left:auto; font-size:11px; color:#78726A">${
             b.forkOrdinal ? `from passage ${b.forkOrdinal}` : ''}</span></div>
         ${b.active ? '' : `<button data-branch="${b.id}" class="btn ghost" style="margin-top:4px">Switch to this branch</button>`}</div>`).join('')}
@@ -439,6 +444,7 @@ function drawPage() {
   $('page').innerHTML = (WPAGES[S.wpage] ?? WPAGES.stories)();
 }
 
+const STATUS = { in_progress: 'Writing', draft: 'Draft', finished: 'Finished' };
 const ART = [
   'radial-gradient(70% 90% at 25% 20%, rgba(150,105,195,.55), transparent 70%), linear-gradient(140deg,#221B2E,#0F0D14)',
   'radial-gradient(70% 90% at 30% 30%, rgba(70,150,160,.5), transparent 70%), linear-gradient(140deg,#101E22,#0B0D0F)',
@@ -451,17 +457,18 @@ const WPAGES = {
       <button class="storycard" data-open="${s.id}">
         <span class="art" style="display:block; background:${ART[i % ART.length]}">
           <span class="fade"></span>
-          <span class="tag" style="position:absolute; top:12px; left:14px; background:rgba(10,9,12,.6)">${esc(s.status ?? 'in_progress')}</span>
+          <span class="tag" style="position:absolute; top:12px; left:14px; background:rgba(10,9,12,.6);
+            ${s.status === 'in_progress' ? 'border-color:rgba(217,178,106,.35); color:#D9B26A' : ''}">${STATUS[s.status] ?? 'Writing'}</span>
           <span class="serif" style="position:absolute; bottom:12px; left:16px; right:16px; font-size:23px;
             line-height:1.1; color:#F3ECE0">${esc(s.title)}</span></span>
         <span style="display:block; padding:14px 16px 16px">
           <span style="display:block; font-size:12.5px; line-height:1.5; color:#8A8478; font-style:italic;
-            min-height:19px">${esc((s.last ?? '').slice(0, 110))}</span>
-          <span style="display:flex; align-items:center; gap:11px; margin-top:10px">
-            <span style="flex:1; height:2px; background:#2A2721; border-radius:2px; overflow:hidden">
-              <span style="display:block; width:${Math.min(100, (s.words ?? 0) / 800)}%; height:100%;
-                background:linear-gradient(90deg,#8A6D2E,#E0C48C)"></span></span>
-            <span style="font-size:11px; color:#78726A">${s.updatedAt ? ago(s.updatedAt) : ''}</span></span></span>
+            min-height:19px">${esc((s.premise || 'No premise yet.').slice(0, 110))}</span>
+          <span style="display:flex; align-items:center; gap:11px; margin-top:10px; font-size:11px; color:#78726A">
+            <span>${s.chapters ?? 0} ${s.chapters === 1 ? 'chapter' : 'chapters'}</span>
+            <span style="opacity:.5">·</span>
+            <span>${s.entries ?? 0} in the ledger</span>
+            <span style="margin-left:auto">${s.updated_at ? ago(s.updated_at) : ''}</span></span></span>
       </button>`).join('')}
       <button class="dashed" data-open="new">New story</button></div>`;
   },
@@ -543,6 +550,11 @@ const WPAGES = {
 };
 
 // ---------- actions ----------
+function syncHash() {
+  const want = S.place === 'story' && S.storyId ? `#${S.storyId}${S.panel ? `/${S.panel}` : ''}` : '';
+  if (location.hash !== want) history.replaceState(null, '', want || location.pathname);
+}
+
 function paint() {
   applyLook();
   root.dataset.rail = S.rail ? 'open' : 'closed';
@@ -561,8 +573,9 @@ async function openStory(id) {
   const r = await api.story(id);
   if (r.error) return toast(r.error);
   V = r; S.storyId = id; S.place = 'story';
+  
   SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen };
-  if (!S.panel && !overlay()) S.panel = 'inspector';
+  if (!S.panel && !overlay()) S.panel = 'inspector';   // the hash may already have chosen one
   const a = await api.activity(id);
   ACT = a.error ? null : a;
   paint();
@@ -607,17 +620,18 @@ async function keepTake() {
 document.addEventListener('click', async (e) => {
   const t = e.target.closest('[data-nav],[data-rail],[data-leave],[data-open],[data-chapter],[data-panel],'
     + '[data-appearance],[data-theme],[data-fontpick],[data-sizepick],[data-mode],[data-take],[data-re],'
-    + '[data-del],[data-ed],[data-hi],[data-vp],[data-vn],[data-flag],[data-savestory],[data-endchapter],'
+    + '[data-del],[data-ed],[data-hi],[data-vp],[data-vn],[data-flagx],[data-savestory],[data-endchapter],'
     + '[data-summarize],[data-extract],[data-decide],[data-branch],[data-newentry],[data-entry],'
-    + '[data-spark],[data-blank],[data-backup],[data-savegen],[data-hit]');
+    + '[data-spark],[data-blank],[data-backup],[data-savegen],[data-hit],[data-expand]');
   if (!t) { if (S.appearance && !e.target.closest('#appearance')) { S.appearance = false; drawAppearance(); drawBar(); } return; }
   const d = t.dataset;
 
+  if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
-  if (d.nav) { if (S.place === 'story') S.panel = d.nav; else S.wpage = d.nav;
+  if (d.nav) { if (S.place === 'story') { S.panel = d.nav; syncHash(); } else S.wpage = d.nav;
     if (overlay()) S.rail = false; paint(); if (d.nav === 'search') $('q')?.focus(); return; }
   if (d.leave) { S.place = 'workspace'; S.wpage = 'stories'; S.panel = null; await loadLibrary(); paint(); return; }
-  if (d.panel !== undefined) { S.panel = d.panel || null; paint(); return; }
+  if (d.panel !== undefined) { S.panel = d.panel || null; syncHash(); paint(); return; }
   if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); return; }
   if (d.theme) { look.theme = d.theme; applyLook(); drawAppearance(); return; }
   if (d.fontpick) { look.font = d.fontpick; applyLook(); drawAppearance(); return; }
@@ -642,7 +656,12 @@ document.addEventListener('click', async (e) => {
   if (d.vp || d.vn) { const p = V.passages.find((x) => x.id === (d.vp || d.vn)); const v = p?.variants ?? [];
     const at = v.findIndex((x) => x.selected); const next = v[at + (d.vn ? 1 : -1)];
     if (next) { await api.pickVariant(S.storyId, next.id); V = await api.story(S.storyId); paint(); } return; }
-  if (d.flag) { await api.dismissFlag(S.storyId, d.flag); V = await api.story(S.storyId); paint(); return; }
+  if (d.flagx) {
+    // Expanding is the common intent; dismissing is destructive, so it takes a modifier.
+    if (e.shiftKey) { await api.dismissFlag(S.storyId, d.flagx); V = await api.story(S.storyId); paint(); }
+    else t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
+    return;
+  }
 
   if (d.savestory) {
     const patch = {};
@@ -700,10 +719,17 @@ document.addEventListener('blur', async (e) => {
 matchMedia('(max-width:1099px)').addEventListener('change', () => { S.rail = !overlay(); paint(); });
 
 // ---------- boot ----------
+// #<storyId> opens a story; #<storyId>/<panel> opens it with that panel showing. Deep links
+// are how a panel gets shared, bookmarked, or screenshotted.
+function readHash() {
+  const [id, panel] = location.hash.slice(1).split('/');
+  return { id, panel: panel && TITLES[panel] ? panel : null };
+}
+
 (async () => {
   applyLook();
   await loadLibrary();
-  const hash = location.hash.slice(1);
-  if (hash && LIB.some((s) => s.id === hash)) await openStory(hash);
+  const { id, panel } = readHash();
+  if (id && LIB.some((s) => s.id === id)) { if (panel) S.panel = panel; await openStory(id); }
   else paint();
 })();
