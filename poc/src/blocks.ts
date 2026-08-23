@@ -7,12 +7,16 @@
 
 export type Kind =
   | 'SPINE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED' | 'LORE' | 'RECALL'
-  | 'EARLIER' | 'PROSE' | 'DIRECTIVE' | 'TAIL' | 'MODE';
+  | 'EARLIER' | 'PROSE' | 'DIRECTIVE' | 'CANON-REPEAT' | 'TAIL' | 'MODE';
 
 export const ORDER: Kind[] = [
   'SPINE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'LORE', 'RECALL',
-  'EARLIER', 'PROSE', 'DIRECTIVE', 'TAIL', 'MODE',
+  'EARLIER', 'PROSE', 'DIRECTIVE', 'CANON-REPEAT', 'TAIL', 'MODE',
 ];
+// CANON-REPEAT sits BELOW the directive and ABOVE the tail prose, not last. PROMPTS §2 found
+// that a block adjacent to the mode instruction gets written *about* rather than obeyed, and
+// F9's competing failure mode is canon restated as exposition — putting the repeat last would
+// confound the thing being measured with the thing it might cause. Bench arm only (F14).
 
 // Anchors are never trimmed and are capped at write time (SPEC 7.3).
 export const CAPS: Partial<Record<Kind, number>> = { SPINE: 400, DIRECTIVE: 250 };

@@ -46,6 +46,7 @@ export interface Input {
   currentChapter: Chapter;
   budget: number;          // per-slot context, minus output reserve and margin
   tailTokens?: number;     // DIRECTIVE sits this many tokens above the end. P0 finds it.
+  repeatCanon?: boolean;   // F14 arm B: restate always-on canon near the generation point.
 }
 
 export interface Manifest {
@@ -309,6 +310,18 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     { text: currentChapter.authorsNote ? `[This chapter must end with: ${currentChapter.authorsNote}]` : '', keep: true },
     { text: `[${SPICE[story.spice]}]`, keep: true },
   ], CAPS.DIRECTIVE!);
+
+  // F14 arm B. Repeats every canon entry that FIRED, always-on and triggered alike — not just
+  // the always-on ones PLAN-03's wording named. The fact F9 loses (the key is brass) lives in a
+  // TRIGGERED entry, so repeating only always-on canon would restate three irrelevant facts and
+  // measure nothing. The text is IDENTICAL to the first copy on purpose: the variable under test
+  // is distance to the generation point, and rewording it would confound position with phrasing.
+  // Reads block state before eviction runs, so an entry trimmed later still gets repeated — true
+  // only under a budget tight enough to evict canon, which the bench fixture is nowhere near.
+  // Delete this and the Kind with it when the experiment closes.
+  if (input.repeatCanon)
+    for (const b of blocks.filter((x) => CANON_KINDS.includes(x.kind) && x.state === 'included'))
+      add('CANON-REPEAT', `${b.id}-repeat`, b.text, 'restated near the tail');
 
   for (const p of tail) add('TAIL', p.id, p.body, 'tail prose');
 

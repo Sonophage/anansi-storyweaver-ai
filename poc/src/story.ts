@@ -86,6 +86,11 @@ export const budgetFor = (story: any, slot: Slot, maxTokens = 900) => {
   return cap - Math.max(600, maxTokens) - Math.floor(cap * 0.06);
 };
 
+// F14 arm B, read ONCE at module load so assemble stays a pure function of its arguments.
+// The two arms are two server processes with different environments, not a per-request branch.
+// One line to delete when the experiment closes.
+const REPEAT_CANON = process.env.ANANSI_ARM === 'repeat';
+
 /** Assemble the prompt. Pure from here down — no I/O below this line. */
 export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
                          mode: string, directive?: string, upToOrdinal?: number, maxTokens = 900) {
@@ -102,7 +107,7 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     pins: Object.fromEntries((v.pins ?? [])
       .filter((p: any) => p.chapterId === v.currentChapter.id)
       .map((p: any) => [p.entryId, p.mode])),
-    budget: budgetFor(v.story, slot), tailTokens: 220,
+    budget: budgetFor(v.story, slot), tailTokens: 220, repeatCanon: REPEAT_CANON,
   };
   const manifest = buildContext(inp, estimate);
   return { manifest, prompt: render(manifest) };
