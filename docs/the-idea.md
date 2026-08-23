@@ -1,3 +1,7 @@
+
+> **STATUS: HISTORICAL.** The origin note. Kept because it is the only statement of intent written
+> before any constraint existed.
+
 The idea is to have or create a local clone of Fiction Maker/AI dungeon. 
 I like most of what Fiction Maker has made. It has a spark astory where you feed it a prompt and it feeds the rest of these.
 Title

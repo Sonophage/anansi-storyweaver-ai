@@ -1,5 +1,10 @@
 # Build state — 2026-08-23 (third pass)
 
+> **STATUS: LIVE.** Audited against the code, not from memory — twice this document has been wrong
+> because someone wrote it from recall. If it disagrees with the source, the source wins and this
+> is the bug.
+
+
 Audited from the code, not from memory. Three categories: **done**, **half-built** (the dangerous
 one — it looks finished from the UI), and **not started**.
 

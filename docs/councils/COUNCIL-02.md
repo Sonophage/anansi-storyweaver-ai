@@ -1,5 +1,10 @@
 # Council #2 — PLAN-01, 2026-08-22
 
+> **STATUS: HISTORICAL RECORD.** A review event, not a specification — it captures what eight seats
+> argued on one day. Cited by name from source comments, so it is load-bearing as a record. Nothing
+> here is current guidance; where it conflicts with the code, the code won and this says why.
+
+
 *Convened at Seth's request against `PLAN-01.md`. Eight seats in parallel, none able to see another.
 All eight returned. Roster was Seth's: two users, a local AI engineer, a chatbot engineer, a
 novelist, two developers, a UI specialist. I held the pen; the findings are the seats' own, the

@@ -1,6 +1,11 @@
 # Plan 03 — re-ordered against measurement
 
-PLAN-01 and PLAN-02 were written before anything ran. `P0-FINDINGS.md` now holds ten measurements
+> **STATUS: LIVE.** The re-ordering still stands, but its own count is stale: F9's rate is 4.0%, not
+> the 10-20% cited below (F15), and the two candidates it retires were later reopened and then
+> measured. Read `BUILD-STATE.md` §5 for the current order.
+
+
+PLAN-01 and PLAN-02 were written before anything ran. `P0-FINDINGS.md` now holds seventeen measurements
 off the actual machine and model. This document does one thing: **move the remaining work to where
 the evidence puts it.** Every move cites a finding. Nothing else in PLAN-02 changes.
 

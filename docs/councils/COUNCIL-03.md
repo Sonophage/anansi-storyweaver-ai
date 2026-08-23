@@ -1,5 +1,10 @@
 # Council #3 — PLAN-02, 2026-08-22
 
+> **STATUS: HISTORICAL RECORD.** A review event, not a specification — it captures what eight seats
+> argued on one day. Cited by name from source comments, so it is load-bearing as a record. Nothing
+> here is current guidance; where it conflicts with the code, the code won and this says why.
+
+
 *Convened against `PLAN-02.md`. Same eight seats as Council #2, run in parallel, none able to see
 another. All eight returned. Each carried three charges: mark its own prior findings FIXED /
 COSMETIC / MOVED / IGNORED against the schema and phases rather than the adoption table; attack what

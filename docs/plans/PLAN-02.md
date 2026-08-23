@@ -1,5 +1,10 @@
 # Anansi — Plan 02
 
+> **STATUS: LIVE, except where PLAN-03 moves things and where a measurement overrides it.**
+> `docs/findings/P0-FINDINGS.md` wins on every point of fact — it was written from the machine and
+> this was written before anything ran. Individual superseded claims carry their own notes inline.
+
+
 Supersedes `PLAN-01.md`. Written 2026-08-22 against `COUNCIL-02.md`, which broke PLAN-01 in eight
 seats. `SPEC.md` rev 4 remains the **engine** reference; this document overrides it on host, auth,
 inference, client, prompt shape and build order, and marks the places SPEC itself must be corrected.

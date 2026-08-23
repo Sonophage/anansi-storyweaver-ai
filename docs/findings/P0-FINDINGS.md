@@ -1,5 +1,10 @@
 # P0 — measured, 2026-08-22
 
+> **STATUS: LIVE AND AUTHORITATIVE.** Measured off the actual machine and model. Where this
+> disagrees with SPEC or any plan, this is right and they are stale. Nothing here sets a seed, so
+> no single run reproduces; only A/B arms run simultaneously are controlled.
+
+
 Every number here was taken off the machine. Nothing is inherited. Reproduce with the scripts
 named against each finding.
 

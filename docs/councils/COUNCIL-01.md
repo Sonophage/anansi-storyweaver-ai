@@ -1,5 +1,10 @@
 # Council #1 — the Anansi build spec, 2026-07-29
 
+> **STATUS: HISTORICAL RECORD.** A review event, not a specification — it captures what eight seats
+> argued on one day. Cited by name from source comments, so it is load-bearing as a record. Nothing
+> here is current guidance; where it conflicts with the code, the code won and this says why.
+
+
 *Convened at Seth's request against SPEC.md revision 2. Five lenses in parallel, one seat
 adversarial. Four returned. Lens 5 (prior-art fidelity) died on an API 529 and is unrun.
 Mina held the pen. Findings below are the lenses' own; the converged verdict is mine.*

@@ -38,11 +38,22 @@ bench/          measurement harnesses — the numbers in docs/findings come from
 docs/           spec, prompts, plans, councils, findings
 ```
 
-## Read these first
+## The docs, and which to trust
 
-- `docs/SPEC.md` — the engine reference
-- `docs/findings/P0-FINDINGS.md` — **measured** numbers, which override the plans where they disagree
-- `docs/findings/BUILD-STATE.md` — what is done, half-built, and not started, audited from the code
+Every document carries a status banner. The short version — these are a citation graph, not a pile,
+so superseded documents are kept and marked rather than deleted:
+
+| | status |
+|---|---|
+| `docs/findings/P0-FINDINGS.md` | **authoritative.** Measured off the machine; wins over every other document on any point of fact |
+| `docs/findings/BUILD-STATE.md` | **live.** Done / half-built / not started, audited against source |
+| `docs/SPEC.md` | **live** engine reference, except §13 and §14, which are marked dead in place |
+| `docs/PROMPTS.md` | **live**, revision 2 — transcribed from the code |
+| `docs/plans/PLAN-02.md` | **live** except where PLAN-03 moves things or a finding overrides it |
+| `docs/plans/PLAN-03.md` | **live** re-ordering; its own F9 numbers are superseded by F15 |
+| `docs/plans/PLAN-01.md` | **superseded, do not follow.** Kept because COUNCIL-02 reviews it line by line |
+| `docs/councils/*` | **historical record** of a review event. Cited by name from source comments |
+| `docs/the-idea.md` | **historical.** The origin note |
 
 ## The debt ledger
 

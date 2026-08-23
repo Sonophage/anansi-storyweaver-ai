@@ -1,5 +1,12 @@
 # Anansi — Build Spec
 
+> **STATUS: LIVE engine reference, with two dead sections.** §13 Milestones describes a
+> Postgres/Auth.js build sequence that was abandoned for local SQLite — PLAN-02's phases and
+> `findings/BUILD-STATE.md` replace it. §14 Cost and time is pre-build estimation, recomputed in
+> PLAN-02 §10. Both are kept only because COUNCIL-03 cites them. Everything else here is current
+> unless a finding says otherwise, and `findings/P0-FINDINGS.md` wins on every point of fact.
+
+
 Revision 4. Nothing is implemented yet.
 
 - Idea capture: `the-idea.md`
@@ -659,6 +666,10 @@ Not claimed: cheaper than a subscription, no shutdown risk, or self-hosted.
 
 ## 13. Milestones
 
+> **DEAD SECTION.** M0's `CREATE EXTENSION vector` and Auth.js adapter tables describe a Postgres
+> build abandoned for local SQLite. Sequencing lives in PLAN-02 §9 and `findings/BUILD-STATE.md` §5.
+> Kept because COUNCIL-03 reviews it.
+
 **M0 — Foundations.** Schema complete in one migration: `CREATE EXTENSION vector`, Auth.js
 adapter tables, `user_provider_config`, `model_capabilities`, `passage_revisions`,
 `canon_proposals`, `canon_entry_progressions`, `canon_violations`, `branch_id` everywhere,
@@ -706,6 +717,9 @@ promise that exists, and it costs an evening.
 
 ## 14. Cost and time
 
+> **DEAD SECTION.** Estimated before anything ran, and recomputed in PLAN-02 §10 because this
+> section's calendar and its hours disagreed. No number here was ever checked against the build.
+
 Costed by Council lens 3, adjusted for revision 4. Revision 3 and 4 did not shrink the build;
 they moved hours from wrong work to right work. Cuts saved 37-55h. The browser-side local path,
 progressions, the checker, the manifest inspector, copy-on-write forks and the missing tables
@@ -746,7 +760,8 @@ inside the free tier for a year. Five concurrent writers hit the 100 CU-hour cap
    than recursion was. Deferred, not rejected: at thirty entries it is not yet needed.
 3. **No intra-ledger contradiction check.** Two canon entries that disagree with each other go
    unnoticed. Nobody does this either. It is cheap to add later on the same `check` role.
-4. **Mobile writing** is undecided: reading surface, or real editing?
+4. ~~**Mobile writing** is undecided: reading surface, or real editing?~~ **Resolved:** the phone is
+   a full writing surface — 16 sheets, its own composer, same engine and API as the desk.
 5. **Cost ceiling.** `generations` records enough to enforce a per-user cap. Not built.
 6. **Rate limiting and write concurrency.** Two tabs generating into one chapter need an advisory
    lock.

@@ -1,5 +1,11 @@
 # Anansi — Plan 01
 
+> **STATUS: SUPERSEDED — do not follow.** PLAN-02 replaces this in full; COUNCIL-02 broke it in
+> eight places. Kept because COUNCIL-02 is a line-by-line review *of this document* and thirty-odd
+> references across the plans and findings point here. Read it to understand what was corrected and
+> why. Do not take a single instruction from it.
+
+
 The build plan, rewritten against the decisions made 2026-08-22. `SPEC.md` revision 4 remains the
 engine reference; this document overrides it on host, auth, inference, client and build order.
 
