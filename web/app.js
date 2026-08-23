@@ -24,12 +24,17 @@ function applyLook() {
 const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'cowrite',
   rail: !overlay(), storyId: null, busy: false, pending: null, appearance: false, query: '',
-  entryId: null, historyOf: null, models: null,
+  entryId: null, historyOf: null, models: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
 };
-let LIB = [], V = null, MANI = null, ACT = null, HITS = null;
+let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
 // separate status route, and activity returns only generation rows.
 let SRV = { model: null, slot: null, gen: {} };
+
+// Hardcoded on purpose: point of view is a craft decision with a small set of real answers.
+const POV = ['first person, present tense', 'first person, past tense',
+  'second person, present tense', 'third limited, present tense',
+  'third limited, past tense', 'third omniscient, past tense'];
 
 const SNAV = [
   ['inspector', '◈', 'Context'], ['cast', '☙', 'Characters'],
@@ -48,7 +53,14 @@ TITLES.history = 'History';
 const WTITLES = {
   stories: () => [`My stories`, `${LIB.length} ${LIB.length === 1 ? 'story' : 'stories'}`],
   create: () => ['Create a story', 'Spark a skeleton, or start blank'],
-  canon: () => ['Worlds & lorebooks', V ? `${V.entries.length} entries` : 'Open a story first'],
+  canon: () => {
+    // Counts the whole ledger, not the open story — the page shows every book. It used to say
+    // "open a story first" while listing entries from four of them.
+    const n = LEDGER?.length ?? 0;
+    const books = new Set((LEDGER ?? []).map((e) => e.story)).size;
+    return ['Worlds & lorebooks', LEDGER === null ? 'reading…'
+      : `${n} ${n === 1 ? 'entry' : 'entries'} across ${books} ${books === 1 ? 'lorebook' : 'lorebooks'}`];
+  },
   import: () => ['Import', 'Character cards, Anansi exports, AI Dungeon'],
   prefs: () => ['Preferences', 'llama-server, model, slot'],
 };
@@ -59,9 +71,10 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'fontpick', 'sizepick', 'mode', 'take', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'endchapter', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
-  'kind', 'act', 'pickmodel', 'fork', 'restore', 'more'].map((k) => `[data-${k}]`).join(',');
+  'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock',
+  'reroll'].map((k) => `[data-${k}]`).join(',');
 
-let toastT = null;
+let toastT = null, searchT = null;
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 4200);
@@ -137,6 +150,9 @@ function drawBar() {
     </div>
     <div style="margin-left:auto; display:flex; align-items:center; gap:10px; flex:0 0 auto">
       ${inStory ? `<span class="deskonly" style="font-size:12px; color:var(--chrome-dim)">${words.toLocaleString()} words</span>
+      <button class="pill" data-reroll="1" ${S.busy ? 'disabled style="opacity:.5"' : ''}
+        title="Re-roll the last passage, keeping the old take">${S.busy ? '…' : '↻'}<span
+        class="deskonly" style="display:inline; margin-left:7px">Regenerate</span></button>
       ${pct == null ? '' : `<button class="pill deskonly" data-panel="inspector">Context ${pct}%</button>`}
       <button class="pill" data-appearance="1" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
@@ -226,7 +242,6 @@ function drawDoc() {
       ${w ? `<span style="margin-left:auto; letter-spacing:.1em; text-transform:none; opacity:.7">${w.toLocaleString()} words</span>` : ''}</div>`;
     html += ps.map((p) => passageHTML(p, false)).join('');
   }
-  if (S.pending) html += passageHTML({ ...S.pending, id: 'pending' }, true);
   col.innerHTML = html || `<div class="narr" style="opacity:.6">Nothing written yet. The composer is below.</div>`;
   if (tip) read.scrollTop = read.scrollHeight;
 }
@@ -235,13 +250,7 @@ function drawDock() {
   if (!(S.place === 'story' && V)) { $('dock').hidden = true; return; }
   $('dock').hidden = false;
   const [, , placeholder] = MODES.find((m) => m[0] === S.mode) ?? MODES[0];
-  const take = S.pending
-    ? `<span class="act" data-take="discard">Discard</span>
-       <span class="act" data-take="regen">Regenerate</span>
-       <span class="act keep" data-take="keep">Keep</span>`
-    : `<span class="act" style="opacity:.45">Discard</span>
-       <span class="act" style="opacity:.45">Regenerate</span>
-       <span class="act" style="opacity:.45">Keep</span>`;
+
   $('dockCol').innerHTML = `
     <div id="modes">${MODES.map(([k, label]) => `<button data-mode="${k}" aria-pressed="${k === S.mode}">${label}</button>`).join('')}
       <span class="deskonly up" style="margin-left:auto; font-size:10.5px; letter-spacing:.16em;
@@ -254,8 +263,9 @@ function drawDock() {
     </div>
     <div id="takeRow">
       <span style="font-size:11px; color:var(--label); opacity:.7; white-space:nowrap">${
-        S.busy ? 'Telling…' : S.pending ? 'A take is waiting' : ACT?.last ? `Last take · ${ACT.last}` : 'Ready'}</span>
-      <span style="margin-left:auto; display:flex; align-items:center; gap:20px">${take}</span>
+        S.busy ? 'Telling…' : ACT?.last ? `Last take · ${ACT.last}` : 'Ready'}</span>
+      <span style="margin-left:auto; font-size:11px; color:var(--label); opacity:.55;
+        white-space:nowrap">Each take is kept. Every passage has its own ⋯</span>
     </div>`;
   const ta = $('input');
   ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(140, ta.scrollHeight)}px`; });
@@ -281,30 +291,46 @@ const PANELS = {
   history: historyPanel,
   inspector() {
     if (!MANI) return `<div class="hint">Open the composer once and the manifest appears here.</div>`;
+    if (S.ctxView === 'prompt') {
+      return `<div style="display:flex; flex-direction:column">
+        ${ctxTabs()}
+        <div class="hint" style="margin:0 0 10px">Exactly what the next call will send, in order.
+          Nothing is added between here and the model.</div>
+        <pre style="white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,monospace;
+          font-size:11.5px; line-height:1.55; color:#C6BFB2; background:var(--field);
+          border:1px solid var(--chip); border-radius:11px; padding:12px 13px; margin:0"
+          >${esc(PROMPT || '(assembling…)')}</pre>
+        <div class="hint">${PROMPT ? `${PROMPT.length.toLocaleString()} characters sent` : ''}</div></div>`;
+    }
     const inc = MANI.blocks.filter((b) => b.state === 'included');
     const agg = {};
     for (const b of inc) agg[b.kind] = (agg[b.kind] ?? 0) + b.tokens;
     const budget = MANI.totals.budget || 1;
     return `<div style="display:flex; flex-direction:column; gap:2px">
+      ${ctxTabs()}
       <div style="display:flex; align-items:baseline; gap:10px; font-size:12.5px; color:#8A8478">
         <span>Assembled for the next call</span>
         <span class="tnum" style="margin-left:auto; color:#78726A">${MANI.totals.used.toLocaleString()} / ${budget.toLocaleString()}</span></div>
       <div class="meter">${Object.entries(agg).map(([k, v]) =>
         `<i style="width:${(v / budget * 100).toFixed(2)}%; background:${BLOCK_COLOR[k] ?? '#635E56'}"></i>`).join('')}</div>
       ${Object.entries(agg).map(([k, v]) => {
-        const why = inc.filter((b) => b.kind === k).map((b) => b.firedBy?.join(', ') || b.reason).filter(Boolean)[0] ?? '';
-        return `<div class="row">
+        const rows = inc.filter((b) => b.kind === k);
+        const why = rows.map((b) => b.firedBy?.join(', ') || b.reason).filter(Boolean)[0] ?? '';
+        // Every block came from something editable. This is the way back to it.
+        const to = k.startsWith('CANON') ? `entry:${rows[0]?.id ?? ''}`
+          : k === 'EARLIER' ? 'traj:' : k === 'PROSE' || k === 'TAIL' ? 'doc:' : 'story:';
+        return `<button class="row" data-goblock="${to}" style="width:100%; text-align:left">
           <span style="width:8px; height:8px; border-radius:2px; flex:0 0 auto; background:${BLOCK_COLOR[k] ?? '#635E56'}"></span>
           <span style="color:#EAE3D6">${esc(k)}</span>
           <span style="color:#D9B26A; font-size:11.5px">${esc(why)}</span>
-          <span class="tnum" style="margin-left:auto; color:#78726A">${v.toLocaleString()}</span></div>`;
+          <span class="tnum" style="margin-left:auto; color:#78726A">${v.toLocaleString()}</span></button>`;
       }).join('')}
       ${MANI.blocks.filter((b) => b.state !== 'included').map((b) => `<div class="row" style="opacity:.55">
         <span style="width:8px; height:8px; border-radius:2px; flex:0 0 auto; background:#3A372F"></span>
         <span style="color:#8A8478">${esc(b.kind)}</span>
         <span style="color:#C8705A; font-size:11.5px">${esc(b.reason ?? 'omitted')}</span></div>`).join('')}
       <div class="hint" style="margin-top:14px">Canon is capped at 45% of the slot, earlier chapters at 25%,
-        recent prose at 60%. The tail is never evicted.</div></div>`;
+        recent prose at 60%. The tail is never evicted. Click a row to reach what put it there.</div></div>`;
   },
 
   cast() {
@@ -316,15 +342,39 @@ const PANELS = {
   },
 
   story() {
-    const fields = STORY_FIELDS.filter((f) => f.k !== 'direction');
+    // Setting comes from the lore already written down and You-are from the cast, so neither is
+    // free text drifting away from the ledger. A value the ledger does not hold is kept and
+    // labelled rather than silently dropped.
+    const lore = V.entries.filter((e) => e.entryType === 'lore' || e.entryType === 'item');
+    const cast = V.entries.filter((e) => e.entryType === 'character');
+    const pick = (key, rows, current, blank) => `<select class="field" data-story="${key}">
+      <option value="">${blank}</option>
+      ${rows.map((r) => `<option value="${esc(r)}" ${r === current ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+      ${current && !rows.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)} — not in the ledger</option>` : ''}
+    </select>`;
+    const fields = STORY_FIELDS.filter((f) => !['direction', 'setting', 'pov', 'persona'].includes(f.k));
     return `<div style="display:flex; flex-direction:column">
       ${fields.map((f) => `<label class="lbl">${f.label}</label>
         ${f.area ? `<textarea class="field" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
                  : `<input class="field" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
         ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}`).join('')}
+      <label class="lbl">Setting</label>
+      ${pick('setting', lore.map((e) => e.title), V.story.setting, 'Not set')}
+      <div class="hint">Drawn from the lore and items in this story's ledger.</div>
+      <label class="lbl">Point of view</label>
+      ${pick('pov', POV, V.story.pov, 'Not set')}
+      <label class="lbl">You are</label>
+      ${pick('persona', cast.map((e) => e.title), V.story.persona, 'Nobody — narrate only')}
+      <div class="hint">The character you speak as in Speak mode. Drawn from the cast.</div>
       <label class="lbl">Spice</label>
       <select class="field" data-story="spice">${SPICE.map((l, i) =>
         `<option value="${i + 1}" ${Number(V.story.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}</select>
+      <label class="lbl">Or say the register yourself</label>
+      <textarea class="field" data-story="spiceNote" placeholder="Leave empty to use the level above"
+        >${esc(V.story.spiceNote ?? '')}</textarea>
+      <div class="hint">${V.story.spiceNote?.trim()
+        ? 'This replaces the level entirely — it is the register line the model receives.'
+        : 'Five levels cannot say everything. Write one here and it replaces the level.'}</div>
       <div class="lbl" style="letter-spacing:.26em; margin-top:22px">${esc(V.currentChapter.title || `Chapter ${V.currentChapter.index}`)}</div>
       <input class="field" data-chapter-title="1" value="${esc(V.currentChapter.title ?? '')}">
       <label class="lbl">This chapter must end with</label>
@@ -390,13 +440,7 @@ const PANELS = {
     return `<div style="display:flex; flex-direction:column">
       <input class="field" id="q" value="${esc(S.query)}" placeholder="Search your prose">
       <div class="hint" style="margin-bottom:14px">A LIKE scan over prose, entries and summaries. Fine at this size.</div>
-      ${(HITS ?? []).map((r) => `<button data-hit="${esc(r.storyId ?? '')}" style="display:flex;
-        flex-direction:column; gap:5px; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.04); width:100%">
-        <span style="display:flex; align-items:center; gap:10px; width:100%">
-          <span class="kind" style="font-size:9.5px">${esc(r.kind ?? 'Prose')}</span>
-          <span style="margin-left:auto; font-size:11px; color:#6E6961">${esc(r.where ?? '')}</span></span>
-        <span style="font-size:13.5px; line-height:1.5; color:#EAE3D6">${esc(r.body ?? r.snippet ?? '')}</span></button>`).join('')}
-      ${HITS && !HITS.length ? '<div class="hint">Nothing matched.</div>' : ''}</div>`;
+      <div id="hits">${searchHits()}</div></div>`;
   },
 
   teller() {
@@ -437,6 +481,47 @@ const PANELS = {
       <button class="btn" data-savegen="1" style="margin-top:16px">Save</button></div>`;
   },
 };
+
+/** The grouped, filtered list, kept out of canon() so a keystroke never rewrites the input. */
+function ledgerBooks() {
+  const q = S.ledgerQ.trim().toLowerCase();
+  const kept = (LEDGER ?? []).filter((e) =>
+    (S.ledgerKind === 'all' || e.entryType === S.ledgerKind) &&
+    (!q || `${e.title} ${e.body} ${(e.keys || []).join(' ')}`.toLowerCase().includes(q)));
+  const books = new Map();
+  for (const e of kept) {
+    if (!books.has(e.story)) books.set(e.story, { title: e.storyTitle, rows: [] });
+    books.get(e.story).rows.push(e);
+  }
+  return [...books.entries()].map(([sid, b]) => `<div style="display:flex; flex-direction:column; gap:10px">
+    <div style="display:flex; align-items:baseline; gap:10px">
+      <span class="serif" style="font-size:21px; color:#F3ECE0">${esc(b.title)}</span>
+      <span class="up" style="font-size:10px; color:var(--dim)">${b.rows.length} ${b.rows.length === 1 ? 'entry' : 'entries'}</span>
+      <button data-open="${sid}" style="margin-left:auto; font-size:11px; letter-spacing:.14em;
+        text-transform:uppercase; color:var(--gold)">Open story</button></div>
+    <div class="grid">${b.rows.map(entryCard).join('')}</div></div>`).join('')
+    || `<div class="hint">${q || S.ledgerKind !== 'all' ? 'Nothing matches that.' : 'No entries yet.'}</div>`;
+}
+
+/** Same reason: the search input must survive its own keystrokes. */
+function searchHits() {
+  if (HITS === null) return '';
+  if (!HITS.length) return '<div class="hint">Nothing matched.</div>';
+  return HITS.map((r) => `<button data-hit="${esc(r.storyId ?? r.story ?? '')}" style="display:flex;
+    flex-direction:column; gap:5px; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.04); width:100%">
+    <span style="display:flex; align-items:center; gap:10px; width:100%">
+      <span class="kind" style="font-size:9.5px">${esc(r.kind ?? 'Prose')}</span>
+      <span style="margin-left:auto; font-size:11px; color:#6E6961">${esc(r.where ?? r.storyTitle ?? '')}</span></span>
+    <span style="font-size:13.5px; line-height:1.5; color:#EAE3D6">${esc(r.body ?? r.snippet ?? '')}</span></button>`).join('');
+}
+
+function ctxTabs() {
+  const t = (k, l) => `<button data-ctxview="${k}" style="flex:1; text-align:center; font-size:11.5px;
+    padding:8px 0; border-radius:10px; border:1px solid ${S.ctxView === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+    background:${S.ctxView === k ? 'rgba(217,178,106,.12)' : 'transparent'};
+    color:${S.ctxView === k ? '#E0C48C' : 'var(--mute)'}">${l}</button>`;
+  return `<div style="display:flex; gap:6px; margin-bottom:14px">${t('blocks', 'Blocks')}${t('prompt', 'Prompt sent')}</div>`;
+}
 
 function entryEditor() {
   const e = V?.entries.find((x) => x.id === S.entryId);
@@ -516,6 +601,30 @@ function drawPage() {
 }
 
 const STATUS = { in_progress: 'Writing', draft: 'Draft', finished: 'Finished' };
+// The pill is the genre when there is one, because that is the tag worth seeing on a shelf;
+// status only shows when a story is finished or parked.
+function storyCard(s, i, hero) {
+  const tag = s.genre?.trim() || STATUS[s.status] || 'Writing';
+  const gold = !!s.genre?.trim() || s.status === 'in_progress';
+  return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}">
+    <span class="art" style="display:block; height:${hero ? 190 : 130}px; background:${ART[i % ART.length]}">
+      <span class="fade"></span>
+      <span class="tag" style="position:absolute; top:12px; left:14px; background:rgba(10,9,12,.6);
+        ${gold ? 'border-color:rgba(217,178,106,.35); color:#D9B26A' : ''}">${esc(tag)}</span>
+      ${hero ? '<span class="tag" style="position:absolute; top:12px; right:14px; background:rgba(10,9,12,.6)">Last written</span>' : ''}
+      <span class="serif" style="position:absolute; bottom:12px; left:16px; right:16px;
+        font-size:${hero ? 34 : 23}px; line-height:1.05; color:#F3ECE0">${esc(s.title)}</span></span>
+    <span style="display:block; padding:14px 16px 16px">
+      <span style="display:block; font-size:${hero ? 13.5 : 12.5}px; line-height:1.5; color:#8A8478;
+        font-style:italic; min-height:19px">${esc((s.premise || 'No premise yet.').slice(0, hero ? 200 : 110))}</span>
+      <span style="display:flex; align-items:center; gap:11px; margin-top:10px; font-size:11px; color:#78726A">
+        <span>${s.chapters ?? 0} ${s.chapters === 1 ? 'chapter' : 'chapters'}</span>
+        <span style="opacity:.5">·</span><span>${s.entries ?? 0} in the ledger</span>
+        <span style="opacity:.5">·</span><span>${s.passages ?? 0} passages</span>
+        <span style="margin-left:auto">${s.updated_at ? ago(s.updated_at) : ''}</span></span></span>
+  </button>`;
+}
+
 const ART = [
   'radial-gradient(70% 90% at 25% 20%, rgba(150,105,195,.55), transparent 70%), linear-gradient(140deg,#221B2E,#0F0D14)',
   'radial-gradient(70% 90% at 30% 30%, rgba(70,150,160,.5), transparent 70%), linear-gradient(140deg,#101E22,#0B0D0F)',
@@ -524,24 +633,20 @@ const ART = [
 
 const WPAGES = {
   stories() {
-    return `<div class="grid">${LIB.map((s, i) => `
-      <button class="storycard" data-open="${s.id}">
-        <span class="art" style="display:block; background:${ART[i % ART.length]}">
-          <span class="fade"></span>
-          <span class="tag" style="position:absolute; top:12px; left:14px; background:rgba(10,9,12,.6);
-            ${s.status === 'in_progress' ? 'border-color:rgba(217,178,106,.35); color:#D9B26A' : ''}">${STATUS[s.status] ?? 'Writing'}</span>
-          <span class="serif" style="position:absolute; bottom:12px; left:16px; right:16px; font-size:23px;
-            line-height:1.1; color:#F3ECE0">${esc(s.title)}</span></span>
-        <span style="display:block; padding:14px 16px 16px">
-          <span style="display:block; font-size:12.5px; line-height:1.5; color:#8A8478; font-style:italic;
-            min-height:19px">${esc((s.premise || 'No premise yet.').slice(0, 110))}</span>
-          <span style="display:flex; align-items:center; gap:11px; margin-top:10px; font-size:11px; color:#78726A">
-            <span>${s.chapters ?? 0} ${s.chapters === 1 ? 'chapter' : 'chapters'}</span>
-            <span style="opacity:.5">·</span>
-            <span>${s.entries ?? 0} in the ledger</span>
-            <span style="margin-left:auto">${s.updated_at ? ago(s.updated_at) : ''}</span></span></span>
-      </button>`).join('')}
-      <button class="dashed" data-open="new">New story</button></div>`;
+    if (!LIB.length) return `<div class="split"><div style="flex:1">
+      <div class="serif" style="font-size:30px; color:#F3ECE0">Nothing yet</div>
+      <div class="hint">Start one and it becomes the hero of this page.</div>
+      <button class="btn" data-open="new" style="width:auto; padding:0 28px; height:48px; margin-top:16px">Create a story</button>
+    </div></div>`;
+    // listStories is ordered by updated_at, so the first row is the one written into last. It
+    // gets the hero; adding a story is the next thing on the page, then the rest.
+    const [hero, ...rest] = LIB;
+    return `<div style="display:flex; flex-direction:column; gap:22px">
+      ${storyCard(hero, 0, true)}
+      <div class="grid">
+        <button class="dashed" data-open="new" style="min-height:170px">＋ New story</button>
+        ${rest.map((s, i) => storyCard(s, i + 1, false)).join('')}
+      </div></div>`;
   },
 
   create() {
@@ -566,17 +671,29 @@ const WPAGES = {
   },
 
   canon() {
-    if (!V) return `<div class="hint">Open a story and its ledger appears here.</div>`;
-    // The design puts the editor in the aside beside the grid, so the list stays visible while
-    // one entry is being changed. On a phone the aside stacks under it.
+    if (LEDGER === null) { loadLedger(); return `<div class="hint">Reading the ledger…</div>`; }
+    // Grouped by story, because a story IS the lorebook — entries are story-scoped in the schema
+    // and there is no separate lorebook table. The search spans every story, which is the point:
+    // it is for when you cannot remember which book an entry belongs to.
+    // The filter bar is drawn once. Typing redraws #books only — rewriting the page on every
+    // keystroke destroyed the input and swallowed the query, which is how "brass" found nothing.
+    const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+      background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? '#E0C48C' : 'var(--mute)'}`;
     return `<div class="split" style="gap:28px">
-      <div style="flex:1; min-width:0">
-        <div class="grid">${V.entries.map(entryCard).join('')}
-          <button class="dashed" data-newentry="lore" style="min-height:120px">New entry</button></div>
+      <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+          ${['all', ...KINDS].map((k) => `<button data-lkind="${k}" style="font-size:12px; padding:8px 16px;
+            border-radius:999px; ${chip(k === S.ledgerKind)}">${k === 'all' ? 'Everything' : k[0].toUpperCase() + k.slice(1)}</button>`).join('')}
+          <input class="field" id="lq" value="${esc(S.ledgerQ)}" placeholder="Search every lorebook"
+            style="margin-left:auto; max-width:280px">
+        </div>
+        <div id="books" style="display:flex; flex-direction:column; gap:16px">${ledgerBooks()}</div>
+        ${V ? `<button class="dashed" data-newentry="lore" style="min-height:90px">New entry in ${esc(V.story.title)}</button>` : ''}
       </div>
       <div class="aside" style="border:1px solid var(--edge); border-radius:18px;
         background:var(--rail); padding:20px 22px">
-        ${S.entryId ? entryEditor() : '<div class="hint" style="margin:0">Pick an entry to read or change it.</div>'}
+        ${S.entryId && V ? entryEditor()
+          : '<div class="hint" style="margin:0">Pick an entry to read or change it. Editing needs its story open — use Open story first.</div>'}
       </div></div>`;
   },
 
@@ -651,6 +768,12 @@ function paint() {
   if (S.place === 'story' && V) { drawDoc(); drawDock(); } else { $('dock').hidden = true; }
 }
 
+async function loadLedger() {
+  const r = await api.ledger();
+  LEDGER = r.error ? [] : (r.entries ?? []);
+  if (S.wpage === 'canon') drawPage();
+}
+
 async function loadModels() {
   const r = await api.models();
   S.models = r.error ? [] : (r.models ?? []);
@@ -681,7 +804,8 @@ async function openStory(id) {
 async function refreshManifest() {
   if (!V) return;
   const r = await api.manifest({ storyId: S.storyId, mode: S.mode, directive: $('input')?.value || undefined });
-  if (!r.error) { MANI = r.manifest; drawBar(); if (S.panel === 'inspector') drawSide(); }
+  if (!r.error) { MANI = r.manifest; PROMPT = r.prompt ?? ''; drawBar();
+    if (S.panel === 'inspector') drawSide(); }
 }
 
 async function generate() {
@@ -695,22 +819,40 @@ async function generate() {
   }
   S.busy = true; drawDock();
   const r = await api.generate({ storyId: S.storyId, mode: S.mode, directive: directive || undefined });
-  S.busy = false;
-  if (r.error) { drawDock(); return toast(r.error); }
+  if (r.error) { S.busy = false; drawDock(); return toast(r.error); }
   MANI = r.manifest;
-  S.pending = { body: r.prose, author: 'model', isBreak: false, speaker: null, variants: [] };
+  // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
+  // Regenerate or Delete, and both keep the history, so nothing is lost by committing it.
+  const a2 = await api.accept(S.storyId, { body: r.prose, directive: directive || undefined });
+  S.busy = false;
+  if (a2.error) return toast(a2.error);
+  if ($('input')) $('input').value = '';
   ACT = { ...(ACT ?? {}), last: `${r.seconds}s` };
-  paint();
-}
-
-async function keepTake() {
-  if (!S.pending) return;
-  const r = await api.accept(S.storyId, { body: S.pending.body, directive: $('input')?.value || undefined });
-  if (r.error) return toast(r.error);
-  S.pending = null; $('input') && ($('input').value = '');
   V = await api.story(S.storyId);
   paint(); refreshManifest();
 }
+
+/** Re-roll the last passage, keeping the old take as a variant. */
+async function regenerateLast() {
+  const last = V?.passages.filter((p) => !p.isBreak).at(-1);
+  if (!last) return toast('Nothing to regenerate yet.');
+  await regenerateInto(last.id);
+}
+
+async function regenerateInto(id) {
+  if (S.busy) return;
+  S.busy = true; drawDock(); drawBar();
+  const r = await api.generate({ storyId: S.storyId, mode: S.mode, regenerateOf: id });
+  if (r.error) { S.busy = false; drawDock(); drawBar(); return toast(r.error); }
+  const a2 = await api.accept(S.storyId, { body: r.prose, variantOf: id });
+  S.busy = false;
+  if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
+  V = await api.story(S.storyId);
+  paint(); refreshManifest();
+  toast('New take kept. Use ‹ › on the passage to compare.');
+}
+
+
 
 // ---------- one delegated listener ----------
 document.addEventListener('click', async (e) => {
@@ -739,7 +881,8 @@ document.addEventListener('click', async (e) => {
     if (d.nav === 'prefs' && S.models === null) loadModels();
     return;
   }
-  if (d.leave) { S.place = 'workspace'; S.wpage = 'stories'; S.panel = null; await loadLibrary(); paint(); return; }
+  if (d.leave) { S.place = 'workspace'; S.wpage = 'stories'; S.panel = null; S.entryId = null;
+    LEDGER = null; await loadLibrary(); paint(); return; }
   if (d.panel !== undefined) { S.panel = d.panel || null; syncHash(); paint(); return; }
   if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); return; }
   if (d.theme) { look.theme = d.theme; applyLook(); drawAppearance(); return; }
@@ -751,15 +894,8 @@ document.addEventListener('click', async (e) => {
   if (d.chapter) { const r = await api.story(S.storyId, d.chapter); if (!r.error) { V = r; paint(); } return; }
 
   if (d.mode) { S.mode = d.mode; drawDock(); refreshManifest(); return; }
-  if (d.take === 'discard') { S.pending = null; paint(); return; }
-  if (d.take === 'regen') { S.pending = null; generate(); return; }
-  if (d.take === 'keep') { await keepTake(); return; }
-
-  if (d.re) { S.pending = null; const r = await api.generate({ storyId: S.storyId, mode: S.mode, regenerateOf: d.re });
-    if (r.error) return toast(r.error);
-    const a = await api.accept(S.storyId, { body: r.prose, variantOf: d.re });
-    if (a.error) return toast(a.error);
-    V = await api.story(S.storyId); paint(); return; }
+  if (d.re) { await regenerateInto(d.re); return; }
+  if (d.reroll !== undefined) { await regenerateLast(); return; }
   if (d.del) { const r = await api.delPassage(S.storyId, d.del); if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); return; }
   if (d.vp || d.vn) { const p = V.passages.find((x) => x.id === (d.vp || d.vn)); const v = p?.variants ?? [];
@@ -856,6 +992,17 @@ document.addEventListener('click', async (e) => {
     SRV.model = r.active; paint(); toast(`Now writing with ${r.active}.`); return;
   }
 
+  if (d.lkind) { S.ledgerKind = d.lkind; drawPage(); return; }
+  if (d.ctxview) { S.ctxView = d.ctxview; drawSide(); return; }
+  if (d.goblock !== undefined) {
+    const [kind, id] = d.goblock.split(':');
+    if (kind === 'entry' && id) { S.entryId = id; S.panel = 'entry'; }
+    else if (kind === 'traj') S.panel = 'traj';
+    else if (kind === 'story') S.panel = 'story';
+    else { S.panel = null; }
+    syncHash(); paint(); return;
+  }
+
   if (d.savestory) {
     const patch = {};
     document.querySelectorAll('[data-story]').forEach((el) => { patch[el.dataset.story] = el.value; });
@@ -896,8 +1043,21 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); } }
 });
 document.addEventListener('input', (e) => {
-  if (e.target.id === 'q') { S.query = e.target.value; clearTimeout(toastT);
-    setTimeout(async () => { const r = await api.search(S.query); if (!r.error) { HITS = r.results ?? []; drawSide(); } }, 220); }
+  // Neither branch may redraw its own input. Both write only their results container.
+  if (e.target.id === 'lq') {
+    S.ledgerQ = e.target.value;
+    if ($('books')) $('books').innerHTML = ledgerBooks();
+    return;
+  }
+  if (e.target.id === 'q') {
+    S.query = e.target.value;
+    clearTimeout(searchT);
+    searchT = setTimeout(async () => {
+      const r = await api.search(S.query);
+      HITS = r.error ? [] : (r.results ?? []);
+      if ($('hits')) $('hits').innerHTML = searchHits();
+    }, 220);
+  }
 });
 document.addEventListener('blur', async (e) => {
   const id = e.target?.dataset?.edit;

@@ -33,6 +33,7 @@ export interface Story {
   title: string; genre: string; premise: string; setting: string;
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
   direction?: string;      // the destination. Rides SPINE — see PROMPTS rev 2 §3.
+  spiceNote?: string | null;   // a written-out register, replacing the level's fixed line
 }
 export interface Arc {
   fromChapter: number; toChapter: number; title?: string; summary: string;
@@ -308,7 +309,9 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     { text: `[Writing: ${story.pov}]`, keep: true },
     { text: story.writingStyle ? `[Voice: ${story.writingStyle}]` : '', keep: false },
     { text: currentChapter.authorsNote ? `[This chapter must end with: ${currentChapter.authorsNote}]` : '', keep: true },
-    { text: `[${SPICE[story.spice]}]`, keep: true },
+    // A written-out register replaces the level's fixed line. Five lines cannot say
+    // everything, and a story that needs a sixth should not have to pick the nearest.
+    { text: `[${story.spiceNote?.trim() || SPICE[story.spice]}]`, keep: true },
   ], CAPS.DIRECTIVE!);
 
   // F14 arm B. Repeats every canon entry that FIRED, always-on and triggered alike — not just

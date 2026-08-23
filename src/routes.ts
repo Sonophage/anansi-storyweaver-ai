@@ -29,7 +29,7 @@ export const OPEN_ROUTES = new Set([
   // security fix breaking the feature it was protecting.
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'GET /api/search',
   'POST /api/import',
-  'GET /api/models',
+  'GET /api/models', 'GET /api/ledger',
 ]);
 
 /** The story a request is about, wherever it names it. */
@@ -194,6 +194,13 @@ export const routes: Record<string, Handler> = {
 
   // The router serves several models. Listing is open because it names no story; switching is
   // process-wide and gated, because two tenants share this process and one changes it for both.
+  // Names no story on purpose: it spans them. Owner-scoped in SQL, like search.
+  'GET /api/ledger': (c: Ctx) => ({ entries: db.ledgerOf(c.owner).map((e: any) => ({
+    id: e.id, story: e.story, storyTitle: e.story_title, title: e.title, body: e.body,
+    notes: e.notes ?? '', entryType: e.entry_type, activation: e.activation,
+    keys: JSON.parse(e.keys || '[]'),
+  })) }),
+
   'GET /api/models': async () => {
     try { return { models: await models(), active: model() }; }
     catch (e: any) { return { models: [], active: model(), error: e?.message ?? 'the router did not answer' }; }

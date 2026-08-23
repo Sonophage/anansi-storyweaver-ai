@@ -36,6 +36,9 @@ function migrate() {
   add('stories', 'active_branch', 'TEXT');
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
+  // A spice LEVEL picks one of five fixed lines. This replaces the line outright when a
+  // story needs something the five do not say.
+  add('stories', 'spice_note', 'TEXT');
   // The dedupe index used to cover every row, so a subject once accepted or rejected could
   // never be proposed again. Scoped to open proposals now.
   try {
@@ -270,6 +273,13 @@ export const passagesOf = (id: string) => q(
   'SELECT * FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1 ORDER BY ordinal')
   .all(id, activeBranchOf(id)) as any[];
 export const entriesOf = (id: string) => q('SELECT * FROM entries WHERE story_id = ? ORDER BY rowid').all(id) as any[];
+
+/** Every entry this owner has, with the story it belongs to. The Worlds page groups by story
+ *  and searches across all of them — 'in case we forget what story a certain entry belongs to'. */
+export const ledgerOf = (ownerId: string) => q(`
+  SELECT e.*, s.title AS story_title, s.id AS story
+  FROM entries e JOIN stories s ON s.id = e.story_id
+  WHERE s.owner_id = ? ORDER BY s.updated_at DESC, e.rowid`).all(ownerId) as any[];
 export const branchesOf = (id: string) => q('SELECT * FROM branches WHERE story_id = ? ORDER BY created_at').all(id) as any[];
 
 export function addPassage(p: any) {
@@ -439,9 +449,9 @@ export function endChapter(storyId: string, branchId: string, nextTitle?: string
 
 export function updateStory(id: string, s: any) {
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
-      direction=?,spice=?,max_context=?,status=?,strip_patterns=?,updated_at=? WHERE id=?`)
+      direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,updated_at=? WHERE id=?`)
     .run(s.title, s.genre, s.premise, s.setting, s.pov, s.persona ?? null, s.writingStyle,
-      s.direction ?? null, s.spice, s.maxContext ?? null, s.status ?? 'in_progress',
+      s.direction ?? null, s.spice, s.spiceNote ?? null, s.maxContext ?? null, s.status ?? 'in_progress',
       s.stripPatterns ?? null, now(), id);
 }
 export const updateChapter = (storyId: string, id: string, c: any) =>
