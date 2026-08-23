@@ -13,7 +13,7 @@ const post = async (p: string, b: unknown) => {
   if (!r.ok) throw new Error(`${p} ${r.status} ${(await r.text()).slice(0, 200)}`);
   return r.json();
 };
-const { input } = await import('../poc/fixture.ts').catch(() => import('./../fixture.ts'));
+const { input } = await import('../test/fixture.ts');
 const inp = input as Input; inp.budget = 22923;
 const m = buildContext(inp, (s) => Math.ceil(s.length / 3.6));
 const full = render(m);

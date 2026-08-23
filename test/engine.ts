@@ -1,10 +1,10 @@
 // One runnable check. Fails if the engine's load-bearing behaviour breaks.
-//   node --experimental-strip-types poc/test.ts
+//   node --experimental-strip-types test/engine.ts
 import assert from 'node:assert';
-import { buildContext, resolveBody } from './src/context.ts';
-import type { Input, Entry } from './src/context.ts';
-import { render } from './src/render.ts';
-import { ORDER } from './src/blocks.ts';
+import { buildContext, resolveBody } from '../src/context.ts';
+import type { Input, Entry } from '../src/context.ts';
+import { render } from '../src/render.ts';
+import { ORDER } from '../src/blocks.ts';
 
 // Deterministic stand-in for /tokenize. Keeps the engine testable with no model up.
 const count = (s: string) => Math.ceil(s.length / 4);

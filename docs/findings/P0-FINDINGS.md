@@ -12,7 +12,7 @@ router** with 8 models. Working model: **`write-nt-qwen36-h`** —
 
 ## F1 — The inherited latency figures were wrong, in the project's favour
 
-`poc/bench/measure.py`
+`bench/measure.py`
 
 | | inherited (COUNCIL-01 L3 → SPEC 10.3 → PLAN-01/02 §9) | measured |
 |---|---|---|
@@ -27,7 +27,7 @@ justified by a latency ceiling that does not exist.** The real constraint is F2.
 
 ## F2 — The real per-slot context is 25,024, and `/props` does not report it
 
-`poc/src/llama.ts:slotContext`
+`src/llama.ts:slotContext`
 
 `GET /props?model=X` returns `total_slots: 4` and `default_generation_settings.n_ctx: 100096`.
 That is the **global** value; top-level `n_ctx` is absent. Per-slot is `100096 / 4 = 25024`.
@@ -39,7 +39,7 @@ every council warned about.
 
 ## F3 — The server refuses overflow. It does not silently truncate.
 
-`poc/bench/overflow.py` → `overflow.log`
+`bench/overflow.py` → `overflow.log`
 
 A 48,130-token prompt returns `HTTP 500 {"message":"Context size has been exceeded."}`. The canary at
 the head was never dropped, because nothing was dropped.
@@ -51,7 +51,7 @@ its severity was overstated by every seat, including the pen. `--no-context-shif
 
 ## F4 — Raw `/completion` is the wrong transport for this model
 
-`poc/bench/transports.ts`
+`bench/transports.ts`
 
 PLAN-02 §3 locked native `/completion` for prose on the anti-refusal argument. Measured against a
 reasoning model served with `--jinja`:
@@ -69,7 +69,7 @@ non-reasoning model is chosen.
 
 ## F5 — Chain-of-thought must be disabled, and only one mechanism works
 
-`poc/bench/nothink.ts`
+`bench/nothink.ts`
 
 | variant | wall | reasoning | prose |
 |---|---|---|---|
@@ -85,7 +85,7 @@ tokens — unsuitable as configured.
 
 ## F6 — Keyword activation must scan the directive, not just prior prose
 
-`poc/src/context.ts`
+`src/context.ts`
 
 Found live on the first end-to-end run. The writer's directive was *"Aldis reaches into his coat."*
 The `Silver Key` entry keys on `key` and `coat`. **It did not fire** — the scan window was the last 8
@@ -97,7 +97,7 @@ backwards misses it. Fixed; the entry now fires on `coat` and the contradiction 
 
 ## F7 — The one promise works
 
-`poc/run.ts` — 8/8 checks, 7.7 s, 624-token prompt.
+`run.ts` — 8/8 checks, 7.7 s, 624-token prompt.
 
 Four canon entries reached the prose **as story, not exposition**: *"The brass was cold, colder than
 the rain"* (entry: brass, not silver; cold to the touch), *"found the scar on his knee. He limped"*,
@@ -140,7 +140,7 @@ Nothing was restated verbatim. POV and register held.
 
 ## F9 — Canon compliance is ~90%, and the failure is the title fighting the ledger
 
-`poc/bench/compliance.ts` — 10 generations, same fixture, same directive.
+`bench/compliance.ts` — 10 generations, same fixture, same directive.
 
 **9 of 10 passages contradicted nothing.** The one failure called the object *"the silver key"*,
 against a canon entry that says **brass, not silver**.
@@ -173,7 +173,7 @@ role, met three times before the checker itself exists.
 The obvious response to F9 was one clause in the system block: *"The title is a title. It may be
 figurative, ironic, or plainly wrong about the thing it names. Canon outranks it."*
 
-Measured with `poc/bench/compliance.ts`, twenty generations before and after, same fixture, same
+Measured with `bench/compliance.ts`, twenty generations before and after, same fixture, same
 directive:
 
 | | clean | "called the key silver" |
@@ -203,7 +203,7 @@ Two things worth keeping from this:
 
 ## F11 — The canon checker measures F1 0.89, and the false positives were fixed in code, not prompt
 
-`poc/bench/checker.ts` — twelve labelled passages against the fixture's five canon facts.
+`bench/checker.ts` — twelve labelled passages against the fixture's five canon facts.
 
 | | |
 |---|---|
@@ -244,7 +244,7 @@ Together with F10 this is the pattern: **prompt instructions did not fix either 
 
 ## F12 — Dropping the title changed nothing, and F9 no longer reproduces
 
-`poc/bench/compliance.ts`, thirty generations per arm, same fixture, same directive, minutes
+`bench/compliance.ts`, thirty generations per arm, same fixture, same directive, minutes
 apart on identical code with one variable.
 
 | | overall clean | of those that named the key |

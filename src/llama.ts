@@ -61,7 +61,7 @@ export async function slotContext(): Promise<{ global: number; slots: number; pe
  *  worse: the reasoning arrives as plain prose ("Here's a thinking process:") with no
  *  tag to strip. Only `/v1/chat/completions` has the server parse reasoning into a
  *  separate `reasoning_content` field, which is the difference between strippable and
- *  not. See poc/bench/transports.ts and P0-FINDINGS.md.
+ *  not. See bench/transports.ts and docs/findings/P0-FINDINGS.md.
  *
  *  Cost: no raw buffer control, so DIRECTIVE-at-depth is bounded by the template.
  *  Revisit if a non-reasoning model is chosen. */

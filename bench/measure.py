@@ -4,7 +4,7 @@
 Replaces the inherited 68s / 7.8min figures that travelled COUNCIL-01 -> SPEC 10.3 -> PLAN-01 9
 with no hardware, quant or backend named at any hop (COUNCIL-02 S4).
 
-Usage: python3 poc/bench/measure.py [model] [host]
+Usage: python3 bench/measure.py [model] [host]
 """
 import json, sys, time, urllib.request
 
@@ -72,5 +72,5 @@ if __name__ == "__main__":
         print(f"\nbulk prefill ~{best:.0f} tok/s")
         for ctx in (25000, 32000, 100000):
             print(f"  full prefill at {ctx:>6} tok = {ctx/best:>6.1f}s")
-        json.dump(rows, open("poc/bench/results.json", "w"), indent=2)
-        print("\nwrote poc/bench/results.json")
+        json.dump(rows, open("bench/results.json", "w"), indent=2)
+        print("\nwrote bench/results.json")

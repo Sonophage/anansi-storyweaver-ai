@@ -6,7 +6,7 @@ process.env.ANANSI_DB = '/tmp/anansi-test.db';
 import assert from 'node:assert';
 import { unlinkSync, readFileSync } from 'node:fs';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-test.db' + f); } catch {} }
-const db = await import('./src/db.ts');
+const db = await import('../src/db.ts');
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -14,7 +14,7 @@ const ok = (name: string, fn: () => void) => { fn(); n++; console.log(`  ok  ${n
 ok('the schema literal contains no backtick', () => {
   // Twice now a backtick inside a SQL comment has terminated the template literal holding
   // the schema, which fails as a TypeScript syntax error a long way from the cause.
-  const src = readFileSync(new URL('./src/db.ts', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../src/db.ts', import.meta.url), 'utf8');
   // The schema is the db.exec literal containing CREATE TABLE — not simply the first one,
   // which is a one-line DROP and is what an earlier version of this check matched.
   const lit = [...src.matchAll(/db\.exec\(`([\s\S]*?)`\);/g)]
@@ -89,7 +89,7 @@ ok('backup writes a readable snapshot', () => {
 
 
 // --- regressions for the bugs found in the 2026-08-23 review ---
-const story = await import('./src/story.ts');
+const story = await import('../src/story.ts');
 
 ok('the reserve scales with the budget and with the reply length', () => {
   const slot = { global: 100096, slots: 4, perSlot: 25024 };
@@ -186,7 +186,7 @@ ok('the sweep removes orphans and anything under the confidence floor', () => {
 });
 
 // Entity resolution. Exercised directly because model output is not reproducible.
-const { classifyFor } = await import('./src/routes.ts');
+const { classifyFor } = await import('../src/routes.ts');
 if (classifyFor) {
   const F = (who: string) => JSON.stringify({ title: who, body: who, keys: who });
   const ledger = [

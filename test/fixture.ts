@@ -1,4 +1,4 @@
-import type { Input, Entry } from './src/context.ts';
+import type { Input, Entry } from '../src/context.ts';
 const e = (id: string, body: string, o: Partial<Entry> = {}): Entry => ({
   id, title: id, body, entryType: 'character', activation: 'always_on',
   keys: [], lastEditor: 'human', ...o,

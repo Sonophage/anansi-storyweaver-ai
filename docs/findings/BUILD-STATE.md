@@ -19,7 +19,7 @@ one — it looks finished from the UI), and **not started**.
 | Chapter summaries (manual trigger) | `POST /api/summarize` |
 | Both surfaces on one engine, one API, one field schema | `web/api.js`, `web/model.js` |
 | `generations` logged on every call, including failures | `db.logGeneration` |
-| 11 engine tests that run with no model up | `poc/test.ts` |
+| 11 engine tests that run with no model up | `test/engine.ts` |
 | Per-story export to a standalone database | `db.exportStory` |
 | Import: Anansi exports, AI Dungeon, character cards V1/V2/V3 | `src/import.ts` |
 
@@ -56,7 +56,7 @@ Everything deliberately unfinished carries a `ponytail:` comment at its site, so
 from the code rather than remembered:
 
 ```
-grep -rn "ponytail:" poc/src poc/web poc/*.ts poc/*.html
+grep -rn "ponytail:" src web bench *.ts *.html
 ```
 
 **Ten markers as of 2026-08-23.** Each names what is missing, why it was left, and the upgrade path.
@@ -130,7 +130,7 @@ whole phone surface (which was P7's second-surface work), then the desktop.
 | Skipped in P1 | Consequence |
 |---|---|
 | Identity, allowlist, RLS, Postgres | Single hardcoded user. The second tenant cannot exist yet, and that was P3's entire criterion. |
-| `pg_dump` / backups | `poc/anansi.db` is the only copy of anything written. |
+| `pg_dump` / backups | `anansi.db` is the only copy of anything written. |
 | Status strip | No surface says whether the model is up, busy, or asleep. |
 | Spark | The empty-story problem SPEC §8.1 names is live. |
 
@@ -179,5 +179,12 @@ leaves as a standalone database, and comes back through `src/import.ts`.
 5. **The remaining surfaces** — design screens D9, D10, D14, and the service worker for offline
    read.
 
-**The one thing with no ticket.** `poc/anansi.db` on one machine is still the only copy of anything
-written. `backup()` and `exportStory` both exist; nothing calls either on a schedule.
+**Correction, 2026-08-23.** An earlier pass of this document claimed nothing called `backup()` on a
+schedule. That was wrong — `serve.ts:95` runs `snapshot()` on start and every thirty minutes,
+keeping twelve, and `backups/` holds them. The claim was written from memory instead of from the
+file, which is the exact failure this document's header warns about.
+
+**What is actually true.** Every snapshot lands on the same disk as `anansi.db`. That protects
+against corruption and against a bad edit; it protects against nothing that takes the machine or the
+disk. `exportStory` can now put one story anywhere, and nothing calls it on a schedule — so
+off-machine backup is the open item, not backup itself.

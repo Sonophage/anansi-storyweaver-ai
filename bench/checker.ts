@@ -4,7 +4,7 @@
 // are guesses that happen to be written down". Now at least the checker's own accuracy is
 // measured rather than inherited from a published frontier-model figure.
 //
-//   node --experimental-strip-types poc/bench/checker.ts
+//   node --experimental-strip-types bench/checker.ts
 const B = process.env.ANANSI_URL ?? 'http://127.0.0.1:5174';
 const j = (u: string, b?: unknown, m = 'POST') => fetch(B + u, b ? { method: m,
   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) } : {})

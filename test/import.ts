@@ -5,8 +5,8 @@ import assert from 'node:assert';
 import { unlinkSync, rmSync } from 'node:fs';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-import.db' + f); } catch {} }
 rmSync('/tmp/anansi-import-out', { recursive: true, force: true });
-const db = await import('./src/db.ts');
-const imp = await import('./src/import.ts');
+const db = await import('../src/db.ts');
+const imp = await import('../src/import.ts');
 
 let n = 0;
 const ok = (m: string) => { n++; console.log(`  ok  ${m}`); };

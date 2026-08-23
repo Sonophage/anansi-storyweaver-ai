@@ -1,7 +1,7 @@
 // The one-promise check, headless. Drives the running server rather than re-wiring the
 // engine, which is what it used to do — same assertions, a third of the lines.
-//   node --experimental-strip-types poc/serve.ts &
-//   node --experimental-strip-types poc/run.ts
+//   node --experimental-strip-types serve.ts &
+//   node --experimental-strip-types run.ts
 const B = process.env.ANANSI_URL ?? 'http://127.0.0.1:5174';
 const j = (u: string, b?: unknown) => fetch(B + u, b ? { method: 'POST',
   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) } : {})

@@ -555,7 +555,7 @@ function storyPanel() {
     <a class="btn ghost" style="display:block;text-align:center;text-decoration:none;line-height:1"
        href="${api.exportUrl(storyId, 'json')}" download>Export as JSON</a>
     <button class="btn ghost" id="bk">Back up now</button>
-    <p class="hint" id="bkout">Snapshots run on start and every 30 minutes into <code>poc/backups/</code>.</p>
+    <p class="hint" id="bkout">Snapshots run on start and every 30 minutes into <code>backups/</code>.</p>
     <button class="btn ghost danger" id="del">Delete story</button>`, () => {
     $('bk').onclick = async () => { const b = await api.backup(storyId);
       $('bkout').textContent = `Snapshot written — ${(b.bytes / 1024).toFixed(0)} KB, keeping the newest 12.`; };

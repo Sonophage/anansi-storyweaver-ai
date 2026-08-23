@@ -8,8 +8,8 @@ process.env.ANANSI_DB = '/tmp/anansi-scope.db';
 import assert from 'node:assert';
 import { unlinkSync } from 'node:fs';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-scope.db' + f); } catch {} }
-const db = await import('./src/db.ts');
-const { routes, OPEN_ROUTES, storyIdOf } = await import('./src/routes.ts');
+const db = await import('../src/db.ts');
+const { routes, OPEN_ROUTES, storyIdOf } = await import('../src/routes.ts');
 
 const alice = db.owner('alice'), bob = db.owner('bob');
 const aStory = db.createStory(alice, { title: "Alice's book" });
