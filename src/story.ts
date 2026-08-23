@@ -10,7 +10,9 @@ export interface Slot { global: number; slots: number; perSlot: number }
 const toEntry = (r: any, states: any[] = []): Entry => ({
   id: r.id, title: r.title, body: r.body, entryType: r.entry_type,
   activation: r.activation, keys: JSON.parse(r.keys || '[]'), lastEditor: r.last_editor,
-  states: states.map((s) => ({ fromChapter: s.from_chapter, body: s.body,
+  // `id` is here so a surface can remove one. Without it data-delstate was empty and a
+  // progression could be added and never taken away.
+  states: states.map((s) => ({ id: s.id, fromChapter: s.from_chapter, body: s.body,
     beforeMode: s.before_mode, label: s.label })),
   notes: r.notes ?? '',            // writer-only. Deliberately absent from the Entry the engine sees.
   stickyFor: r.sticky_for ?? undefined,

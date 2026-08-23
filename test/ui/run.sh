@@ -23,7 +23,7 @@ fresh() {
 }
 
 scenarios=${1:-}
-[ -z "$scenarios" ] && scenarios="buttons surfaces handlers search"
+[ -z "$scenarios" ] && scenarios="buttons surfaces handlers search restored"
 fail=0
 for s in $scenarios; do
   fresh

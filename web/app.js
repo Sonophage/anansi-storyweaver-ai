@@ -25,6 +25,7 @@ const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'cowrite',
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   entryId: null, historyOf: null, models: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
+  fieldHistory: null, confirmDelete: false,
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
@@ -72,7 +73,8 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'savestory', 'endchapter', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock',
-  'reroll'].map((k) => `[data-${k}]`).join(',');
+  'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
+  'delstory'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null;
 function toast(msg) {
@@ -381,7 +383,23 @@ const PANELS = {
       <label class="lbl">This chapter must end with</label>
       <textarea class="field" data-chapter-note="1">${esc(V.currentChapter.authorsNote ?? '')}</textarea>
       <button class="btn" data-savestory="1" style="margin-top:16px">Save</button>
-      <button class="btn ghost" data-endchapter="1" style="margin-top:10px">End chapter here</button></div>`;
+      <button class="btn ghost" data-endchapter="1" style="margin-top:10px">End chapter here</button>
+      <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Take it with you</div>
+      <div style="display:flex; gap:7px">
+        <a class="btn ghost" href="${api.exportUrl(S.storyId, 'markdown')}" download
+          style="flex:1; text-decoration:none">Markdown</a>
+        <a class="btn ghost" href="${api.exportUrl(S.storyId, 'json')}" download
+          style="flex:1; text-decoration:none">JSON</a>
+      </div>
+      <button class="btn ghost" data-exportdb="1" style="margin-top:7px">As a standalone database</button>
+      <div class="hint">The database leaves as one file and comes back through Import. Markdown and
+        JSON are for reading elsewhere.</div>
+      <div class="lbl" style="letter-spacing:.26em; margin-top:26px; color:#C8705A">Danger</div>
+      <button class="btn ghost" data-delstory="1" style="color:#C8705A">${
+        S.confirmDelete ? 'Press again to delete this story for good' : 'Delete this story'}</button>
+      <div class="hint">${S.confirmDelete
+        ? 'Every chapter, passage and ledger entry goes with it. Snapshots in backups/ still have it.'
+        : 'Export it first if you might want it back.'}</div></div>`;
   },
 
   traj() {
@@ -553,11 +571,39 @@ function entryEditor() {
     <label class="lbl">Your notes</label>
     <textarea class="field" data-f="notes" style="min-height:64px">${esc(e.notes ?? '')}</textarea>
     <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
-    ${(e.states ?? []).length ? `<div class="lbl" style="letter-spacing:.26em; margin-top:22px">Over time</div>
-      ${e.states.map((st) => `<div class="card" style="margin-bottom:8px">
-        <div class="kind">From chapter ${st.fromChapter}${st.beforeMode ? ` &middot; ${esc(st.beforeMode)} before` : ''}</div>
-        <div style="font-size:12.5px; line-height:1.45; color:#8A8478">${esc(st.body)}</div></div>`).join('')}` : ''}
+    <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Over time</div>
+    <div class="hint" style="margin:0 0 8px">A fact can open at a later chapter. Before it opens it is
+      hidden, or hinted at without saying what it is. Earlier chapters keep the body above.</div>
+    ${(e.states ?? []).map((st) => `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex; align-items:center; gap:9px">
+        <span class="kind">From chapter ${st.fromChapter}</span>
+        <span style="margin-left:auto; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase;
+          color:var(--faint)">${esc(st.beforeMode ?? 'hide')} before</span>
+        <button data-delstate="${st.id ?? ''}" style="color:#C8705A; font-size:12px" aria-label="Remove">✕</button></div>
+      <div style="font-size:12.5px; line-height:1.45; color:#8A8478">${esc(st.body)}</div>
+      ${st.label ? `<div class="hint" style="margin:2px 0 0">hint: ${esc(st.label)}</div>` : ''}</div>`).join('')}
+    <div class="card" style="gap:7px">
+      <div style="display:flex; gap:7px">
+        <input class="field" data-st="fromChapter" type="number" min="1" placeholder="Chapter" style="width:96px">
+        <select class="field" data-st="beforeMode">
+          <option value="hide">hidden before</option>
+          <option value="hint">hinted before</option>
+        </select></div>
+      <textarea class="field" data-st="body" placeholder="What is true from that chapter on" style="min-height:56px"></textarea>
+      <input class="field" data-st="label" placeholder="If hinted, what the reader may sense">
+      <button class="btn ghost" data-addstate="1">Add a change over time</button></div>
+    ${S.fieldHistory ? `<div class="lbl" style="letter-spacing:.26em; margin-top:22px">Field history</div>
+      ${S.fieldHistory.length ? S.fieldHistory.map((h) => `<div class="card" style="margin-bottom:8px">
+        <div style="display:flex; align-items:center; gap:9px">
+          <span class="kind">${esc(h.field)}</span>
+          <span style="margin-left:auto; font-size:11px; color:var(--faint)">${h.replaced_at ? ago(h.replaced_at) : ''}${
+            h.replaced_by ? ` &middot; ${esc(h.replaced_by)}` : ''}</span></div>
+        <div class="clamp" style="font-size:12.5px; line-height:1.45; color:#8A8478">${esc(h.previous_value ?? '')}</div>
+        <button class="btn ghost" data-revertfield="${h.id}" style="margin-top:6px">Put this back</button></div>`).join('')
+        : '<div class="hint">No earlier versions of any field.</div>'}` : ''}
     <button class="btn" data-saveentry="1" style="margin-top:16px">Save</button>
+    <button class="btn ghost" data-fieldhistory="1" style="margin-top:10px">${
+      S.fieldHistory ? 'Hide field history' : 'Field history'}</button>
     <button class="btn ghost" data-delentry="1" style="margin-top:10px; color:#C8705A">Delete this entry</button>
   </div>`;
 }
@@ -909,7 +955,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (d.entry) { S.entryId = d.entry;
+  if (d.entry) { S.entryId = d.entry; S.fieldHistory = null;
     if (S.place === 'story' && S.panel !== 'cast') S.panel = 'entry';
     paint(); return; }
   if (d.backentry) { S.entryId = null; S.historyOf = null;
@@ -1002,6 +1048,47 @@ document.addEventListener('click', async (e) => {
     else if (kind === 'story') S.panel = 'story';
     else { S.panel = null; }
     syncHash(); paint(); return;
+  }
+
+  if (d.addstate) {
+    const get = (f) => document.querySelector(`[data-st="${f}"]`)?.value;
+    const from = Number(get('fromChapter'));
+    if (!from || !String(get('body') ?? '').trim()) return toast('A chapter number and a body, at least.');
+    const r = await api.saveState(S.storyId, S.entryId,
+      { fromChapter: from, body: get('body'), beforeMode: get('beforeMode'), label: get('label') || null });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint(); refreshManifest(); toast('Added.'); return;
+  }
+  if (d.delstate !== undefined) {
+    if (!d.delstate) return toast('That change has no id to remove.');
+    const r = await api.delState(S.storyId, d.delstate);
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint(); refreshManifest(); return;
+  }
+  if (d.fieldhistory) {
+    if (S.fieldHistory) { S.fieldHistory = null; paint(); return; }
+    const r = await api.history({ story: S.storyId, entry: S.entryId });
+    if (r.error) return toast(r.error);
+    S.fieldHistory = r.entry ?? []; paint(); return;
+  }
+  if (d.revertfield) {
+    const r = await api.revertField({ storyId: S.storyId, entryId: S.entryId, revisionId: d.revertfield });
+    if (r.error) return toast(r.error);
+    S.fieldHistory = null; V = await api.story(S.storyId);
+    paint(); refreshManifest(); toast('Put back.'); return;
+  }
+  if (d.exportdb) {
+    const r = await api.exportStoryDb(S.storyId);
+    toast(r.error ?? `Written to ${r.file}`); return;
+  }
+  if (d.delstory) {
+    if (!S.confirmDelete) { S.confirmDelete = true; paint();
+      setTimeout(() => { if (S.confirmDelete) { S.confirmDelete = false; paint(); } }, 6000); return; }
+    const r = await api.deleteStory(S.storyId);
+    if (r.error) return toast(r.error);
+    S.confirmDelete = false; S.place = 'workspace'; S.wpage = 'stories';
+    S.storyId = null; V = null; LEDGER = null;
+    await loadLibrary(); paint(); toast('Deleted.'); return;
   }
 
   if (d.savestory) {

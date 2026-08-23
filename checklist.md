@@ -213,6 +213,17 @@ Worth a look because they were real:
       All three fixed, and the claim made true rather than downgraded: search now covers prose,
       ledger entries and chapter summaries, each labelled, each saying which story and chapter it
       came from. Try searching a character's name — you should get the entry and the passages.
+- [ ] **Five features had quietly lost their screen when I deleted desk and phone.** ⚠ The
+      engine, the routes and the schema were all fine, so every test stayed green — I had checked
+      that the new surface worked, never that it covered the same ground.
+
+      Wired back and driven: **progressions** (a fact that opens at a later chapter — add and
+      remove them in the entry editor, under *Over time*), **entry field history** with a
+      per-field *Put this back*, **export** as Markdown, JSON or a standalone database, and
+      **deleting a story**, which takes two presses.
+
+      Pins and arcs are still without a screen, now on a deferred list *with reasons* rather than
+      silently missing. A test asserts every other engine feature has a caller.
 - [ ] **A small surprise while testing:** the type and activation chips in the entry editor do
       save immediately and do not wipe the body or keywords. I had this down as broken for four
       runs before working out my own test was reading the entry id after the click, by which

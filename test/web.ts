@@ -79,6 +79,30 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   ok(`${actions.size} click actions, ${state.size} look attributes, no name used as both`);
 }
 
+// Every api method must have a caller, or be listed here with a reason. Deleting desk.js took
+// the only UI for five features BUILD-STATE calls "Done" — progressions, pins, entry-field
+// revert, export and arcs — and nothing noticed, because the engine and the routes were all
+// still fine. Parity was asserted from "the new surface works", which is not the same question.
+{
+  const api = read('web/api.js');
+  const app = read('web/app.js');
+  const defined = [...api.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]);
+  assert.ok(defined.length > 30, `only ${defined.length} api methods parsed`);
+
+  // Deferred on purpose, each with the reason it is not wired yet.
+  const DEFERRED: Record<string, string> = {
+    setPin:   'PLAN-04 puts pins on the new-chapter setup page',
+    rollup:   'arcs belong with the budget engine, P6',
+    delArc:   'same as rollup',
+    delBranch: 'forking exists; deleting a branch has no screen yet',
+  };
+  const orphans = defined.filter((d) => !new RegExp(`\\bapi\\.${d}\\b`).test(app) && !(d in DEFERRED));
+  assert.deepStrictEqual(orphans, [],
+    `api.${orphans.join(', api.')} has no caller. Either wire it or add it to DEFERRED with a `
+    + `reason — an engine feature with no surface is the failure mode this project keeps hitting.`);
+  ok(`${defined.length} api methods, ${Object.keys(DEFERRED).length} deferred with reasons, no silent orphans`);
+}
+
 // POST /api/proposal branches on `body.accept` and app.js was sending `decision: 'accept'`, so
 // `c.body.accept` was undefined, upsertEntry was skipped, and the proposal was marked rejected.
 // Clicking Accept discarded the fact. Narrow on purpose: a generic payload-contract check was

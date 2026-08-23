@@ -124,6 +124,29 @@ worker for offline reading, which PLAN-02 itself gated on "only if someone asks"
 
 **Never scheduled:** universes, and Postgres/pgvector/RLS — the last of which P5's recall depends on.
 
+### Correction, 2026-08-23 — five "Done" features had no surface
+
+Deleting `desk.html` and `phone.html` took the only UI for five things this document called
+**Done**, and nothing noticed: the engine, the schema and the routes were all still correct, so
+every test stayed green. Parity was asserted from "the new surface works", which is a different
+question from "the new surface covers the same ground".
+
+Found by asking which `api.js` methods no client calls. Nine did not, five of them here:
+
+| feature | this document said | reality until 2026-08-23 |
+|---|---|---|
+| Canon over time (progressions) | *"Done. Lens 5's ONE THING, with 5 engine tests"* | no way to add or remove one |
+| Entry history, per-field revert | *"Done… on both surfaces"* | both surfaces deleted |
+| Export, Markdown and JSON | *"Done"* | no link anywhere |
+| Chapter pins, force_in/force_out | *"Done"* | no screen; now deferred to PLAN-04 §2 with a reason |
+| Arcs, collapsing chapters | *"Done"* | no screen; deferred to P6 with a reason |
+| Deleting a story | not claimed | no way to |
+
+All except pins and arcs are wired and driven in `test/ui/restored.js`. Both exceptions are now in
+an explicit DEFERRED list in `test/web.ts` **with the reason**, and that test asserts every other
+api method has a caller — so an engine feature losing its surface fails a test rather than going
+quiet. That invariant is the actual fix; the five wirings are the consequence.
+
 ## 3b. Surface inventory, verified 2026-08-23
 
 Read out of the code, after a regex-based count of the same thing reported ten of eleven desk nav

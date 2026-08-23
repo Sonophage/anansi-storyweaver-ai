@@ -51,6 +51,7 @@ export const api = {
   saveState:    (storyId, entryId, state) => j('/api/state', 'POST', { storyId, entryId, state }),
   delState:     (storyId, id)    => j('/api/state', 'DELETE', { storyId, id }),
   setPin:       (storyId, chapterId, entryId, mode) => j('/api/pin', 'POST', { storyId, chapterId, entryId, mode }),
+  exportStoryDb: (storyId)      => j('/api/export', 'POST', { storyId }),
   ledger:       ()               => j('/api/ledger'),
   models:       ()               => j('/api/models'),
   setModel:     (model)          => j('/api/model', 'POST', { model }),
