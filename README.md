@@ -61,6 +61,7 @@ so superseded documents are kept and marked rather than deleted:
 | `docs/PROMPTS.md` | **live**, revision 2 — transcribed from the code |
 | `docs/plans/PLAN-02.md` | **live** except where PLAN-03 moves things or a finding overrides it |
 | `docs/plans/PLAN-03.md` | **live** re-ordering; its own F9 numbers are superseded by F15 |
+| `docs/plans/PLAN-04.md` | **proposal, not agreed.** Characters and chapters, for the design conversation |
 | `docs/plans/PLAN-01.md` | **superseded, do not follow.** Kept because COUNCIL-02 reviews it line by line |
 | `docs/councils/*` | **historical record** of a review event. Cited by name from source comments |
 | `docs/the-idea.md` | **historical.** The origin note |
