@@ -282,3 +282,48 @@ Three caveats that matter more than the numbers:
 restating always-on canon near the tail — are no longer worth running against a failure that does
 not occur. The `ponytail:` marker in `render.ts` comes out. If the failure returns, the harness is
 here and the first thing to check is the arbitration rule.
+
+## F13 — parallel = 2 doubled the slot, and the unified cache fails hard when oversubscribed
+
+Router restarted 2026-08-22 23:41 to apply `parallel = 2` in the `[write-nt-qwen36-h]` stanza.
+It took: `n_slots = 2`, `n_ctx_slot = 100096`, `kv_unified = true`. `/props` reports 100,096
+across 2 slots, so `slotContext()` computes **50,048 per slot, up from 25,024**.
+
+**The pool is shared, not split.** A single 71,423-token prompt generated normally — one request
+really can draw the whole 100,096, so `global / slots` is not the machine's limit. It is a budget.
+
+**Oversubscribing it is not graceful.** Two concurrent 71k requests:
+
+```
+request A: HTTP 500 {"message":"Context size has been exceeded."}  after 150s
+request B: HTTP 500 {"message":"Context size has been exceeded."}  after 150s
+```
+
+Both. The arriving request does not queue behind the running one, it takes it down. Two and a half
+minutes of work lost on each side. Two tenants over Tailscale is the entire deployment, so this is
+the case the budget exists to prevent.
+
+**The safe path was then measured at the real worst case** — both slots at `budgetFor`'s full
+output with `ignore_eos` forcing the replies to run the whole 900 tokens, rather than the 23 the
+model stops at naturally:
+
+| | prompt | generated | total |
+|---|---|---|---|
+| request A | 46,288 | 900 | 47,188 |
+| request B | 46,288 | 900 | 47,188 |
+| | | **combined** | **94,376 / 100,096** |
+
+Both returned 200 in 52s. **Margin: 5,720 tokens, 5.7%.**
+
+Two honest limits on that:
+
+1. **The first version of this test was too weak and passed anyway.** It ran 41,918-token prompts
+   and the model stopped generating at 23 tokens, so it exercised ~84k, not 94k, while appearing
+   to confirm the worst case. Any re-run must force generation, or it proves less than it looks.
+2. **Wall time is not stable.** The same shape of work measured 111s, 110s and 52s across three
+   runs. Nothing here isolates prompt processing from scheduling, so no throughput claim is made.
+
+**The margin is the open edge.** 5.7% holds today because `budgetFor` reserves `max(600,
+max_tokens)` plus 6%. Raising `max_tokens` past ~900, or adding a third concurrent caller, eats it
+— and the failure on the far side is total rather than degraded. The rationale is recorded at the
+`perSlot` return in `src/llama.ts` so the division is not "optimized" away later.

@@ -41,6 +41,14 @@ export async function slotContext(): Promise<{ global: number; slots: number; pe
   // NEGATIVE budget and every generation refused for the life of the process — and
   // bench/overflow.log records exactly that response against this endpoint.
   if (!global || !slots) throw new Error('/props gave no usable context size');
+  // Dividing looks like it wastes half the machine and it does not. kv_unified is on, so the
+  // cache is ONE shared pool: a single request really can draw the whole 100,096 — measured,
+  // a 71,423-token prompt generates fine. But the pool is shared, and oversubscribing it does
+  // not queue or degrade. Two concurrent 71k requests both died on HTTP 500 "Context size has
+  // been exceeded" after 150 seconds — the second request does not wait its turn, it takes the
+  // first one down with it. Two tenants over Tailscale is the whole deployment, so the budget
+  // has to hold when both write at once. global/slots minus budgetFor's reserve is what makes
+  // that true. Raise this only if you also make concurrent generation impossible.
   return { global, slots, perSlot: Math.floor(global / slots) };
 }
 
