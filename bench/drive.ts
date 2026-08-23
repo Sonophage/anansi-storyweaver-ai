@@ -99,6 +99,13 @@ const page = {
     await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x, y: box.y });
     await wait(180);
   },
+  /** In the DOM AND on screen. A querySelector check passes for display:none, which let a
+   *  "the stepper appears" assertion go green while the tray it lives in was shut. */
+  visible(sel: string) {
+    return page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
+      if (!e) return false; const r = e.getBoundingClientRect();
+      return r.width > 0 && r.height > 0; })()`);
+  },
   async type(sel: string, text: string) {
     await page.click(sel);
     for (const ch of text) await send('Input.dispatchKeyEvent', { type: 'char', text: ch });

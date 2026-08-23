@@ -25,7 +25,7 @@ const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'cowrite',
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   entryId: null, historyOf: null, models: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
-  fieldHistory: null, confirmDelete: false,
+  fieldHistory: null, confirmDelete: false, spark: null,
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
@@ -74,7 +74,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
-  'delstory'].map((k) => `[data-${k}]`).join(',');
+  'delstory', 'send', 'accept-spark', 'drop-spark'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null;
 function toast(msg) {
@@ -262,7 +262,7 @@ function drawDock() {
     <div id="inputRow">
       <textarea id="input" rows="1" placeholder="${esc(placeholder(V.story.persona))}"></textarea>
       <span class="deskonly" style="font-size:10.5px; color:var(--label); opacity:.55; padding-bottom:3px">⌘↵</span>
-      <button id="send" ${S.busy ? 'disabled' : ''} aria-label="Send">${S.busy ? '…' : '↑'}</button>
+      <button id="send" data-send="1" ${S.busy ? 'disabled' : ''} aria-label="Send">${S.busy ? '…' : '↑'}</button>
     </div>
     <div id="takeRow">
       <span style="font-size:11px; color:var(--label); opacity:.7; white-space:nowrap">${
@@ -534,6 +534,36 @@ function searchHits() {
     <span style="font-size:13.5px; line-height:1.5; color:#EAE3D6">${esc((r.body ?? '').slice(0, 260))}</span></button>`).join('');
 }
 
+/** The skeleton spark returned, editable, with nothing written until it is accepted. */
+function sparkReview() {
+  const s = S.spark.story ?? {};
+  const cast = S.spark.entries ?? [];
+  const row = (k, label, value) => `<label class="lbl">${label}</label>
+    <input class="field" data-sp="${k}" value="${esc(value ?? '')}">`;
+  return `${row('title', 'Title', s.title)}
+    ${row('genre', 'Genre', s.genre)}
+    <label class="lbl">Premise</label>
+    <textarea class="field" data-sp="premise" style="min-height:70px">${esc(s.premise ?? '')}</textarea>
+    ${row('setting', 'Setting', s.setting)}
+    ${row('pov', 'Point of view', s.pov)}
+    <label class="lbl">Spice</label>
+    <select class="field" data-sp="spice">${SPICE.map((l, i) =>
+      `<option value="${i + 1}" ${Number(s.spice) === i + 1 ? 'selected' : ''}>${i + 1} &middot; ${l}</option>`).join('')}</select>
+    <label class="lbl">Voice of the weave</label>
+    <textarea class="field" data-sp="writingStyle" style="min-height:56px">${esc(s.writingStyle ?? '')}</textarea>
+    <div class="lbl" style="letter-spacing:.26em; margin-top:18px">Cast &mdash; ${cast.length} proposed</div>
+    ${cast.map((e, i) => `<div class="card" style="margin-bottom:7px">
+      <div style="display:flex; align-items:center; gap:8px">
+        <span style="font-size:14px; color:#F3ECE0">${esc(e.title)}</span>
+        <span class="tag" style="margin-left:auto">${esc(e.activation === 'always_on' ? 'Always on' : 'Triggered')}</span></div>
+      <div style="font-size:12.5px; line-height:1.45; color:#8A8478">${esc(e.body ?? '')}</div>
+      <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint); margin-top:4px">
+        <input type="checkbox" data-spcast="${i}" checked> keep this one</label></div>`).join('')}
+    <button class="btn" data-accept-spark="1" style="margin-top:14px">Accept and start writing</button>
+    <button class="btn ghost" data-drop-spark="1" style="margin-top:8px">Throw it back</button>
+    <div class="hint">Nothing has been written yet. Accepting creates the story and its ledger.</div>`;
+}
+
 function ctxTabs() {
   const t = (k, l) => `<button data-ctxview="${k}" style="flex:1; text-align:center; font-size:11.5px;
     padding:8px 0; border-radius:10px; border:1px solid ${S.ctxView === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
@@ -697,6 +727,9 @@ const WPAGES = {
   },
 
   create() {
+    // POST /api/spark returns { story, entries } — a skeleton, not a created story. The page used
+    // to look for r.storyId, find nothing, and repaint: ten seconds of waiting for no visible
+    // result. SPEC 8.1 wants the skeleton editable before anything is written, so it lands here.
     return `<div class="split">
       <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; max-width:640px">
         <div class="serif" style="font-size:30px; line-height:1.08; color:#F3ECE0">Hand him one thread</div>
@@ -711,10 +744,10 @@ const WPAGES = {
       </div>
       <div class="aside" style="border:1px solid var(--edge); border-radius:18px; background:var(--rail); padding:20px 22px">
         <div class="lbl" style="letter-spacing:.26em">What comes back</div>
-        ${['Title', 'Genre', 'Point of view', 'You are', 'Spice', 'Cast'].map((l) => `<div class="row">
+        ${S.spark ? sparkReview() : `${['Title', 'Genre', 'Point of view', 'Spice', 'Cast'].map((l) => `<div class="row">
           <span style="color:#EAE3D6">${l}</span>
-          <span style="margin-left:auto; color:#78726A">—</span></div>`).join('')}
-        <div class="hint" style="margin-top:4px">Nothing is written until you accept it.</div></div></div>`;
+          <span style="margin-left:auto; color:#78726A">&mdash;</span></div>`).join('')}
+        <div class="hint" style="margin-top:4px">Nothing is written until you accept it.</div>`}</div></div>`;
   },
 
   canon() {
@@ -855,25 +888,40 @@ async function refreshManifest() {
     if (S.panel === 'inspector') drawSide(); }
 }
 
+/** Clearing the value leaves the inline height behind, so a box grown by a long directive stayed
+ *  tall and empty. */
+function clearComposer() {
+  const ta = $('input');
+  if (!ta) return;
+  ta.value = '';
+  ta.style.height = '';
+}
+
 async function generate() {
   if (S.busy || !V) return;
   const directive = $('input')?.value.trim() ?? '';
+  // Speak: your line goes down as yours, and then Anansi answers as everyone else. It used to
+  // save the line and stop, so getting a reply took a second press on an empty box.
   if (S.mode === 'cowrite' && directive) {
-    const r = await api.write(S.storyId, { body: directive, author: 'human' });
-    if (r.error) return toast(r.error);
-    $('input').value = '';
-    V = await api.story(S.storyId); paint(); return;
+    const w = await api.write(S.storyId, { body: directive, author: 'human' });
+    if (w.error) return toast(w.error);
+    clearComposer();
+    V = await api.story(S.storyId);
+    paint();
   }
   S.busy = true; drawDock();
-  const r = await api.generate({ storyId: S.storyId, mode: S.mode, directive: directive || undefined });
+  // In Speak the line is already on the page, so the reply is a continuation with no directive.
+  const r = await api.generate({ storyId: S.storyId, mode: S.mode,
+    directive: S.mode === 'cowrite' ? undefined : (directive || undefined) });
   if (r.error) { S.busy = false; drawDock(); return toast(r.error); }
   MANI = r.manifest;
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
   // Regenerate or Delete, and both keep the history, so nothing is lost by committing it.
-  const a2 = await api.accept(S.storyId, { body: r.prose, directive: directive || undefined });
+  const a2 = await api.accept(S.storyId, { body: r.prose,
+    directive: S.mode === 'cowrite' ? undefined : (directive || undefined) });
   S.busy = false;
   if (a2.error) return toast(a2.error);
-  if ($('input')) $('input').value = '';
+  clearComposer();
   ACT = { ...(ACT ?? {}), last: `${r.seconds}s` };
   V = await api.story(S.storyId);
   paint(); refreshManifest();
@@ -943,6 +991,7 @@ document.addEventListener('click', async (e) => {
   if (d.mode) { S.mode = d.mode; drawDock(); refreshManifest(); return; }
   if (d.re) { await regenerateInto(d.re); return; }
   if (d.reroll !== undefined) { await regenerateLast(); return; }
+  if (d.send) { await generate(); return; }   // the button's only path; ⌘↵ is the shortcut
   if (d.del) { const r = await api.delPassage(S.storyId, d.del); if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); return; }
   if (d.vp || d.vn) { const p = V.passages.find((x) => x.id === (d.vp || d.vn)); const v = p?.variants ?? [];
@@ -1119,9 +1168,35 @@ document.addEventListener('click', async (e) => {
   if (d.branch) { const r = await api.switchBranch(S.storyId, d.branch); if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); return; }
 
-  if (d.spark) { const idea = $('idea')?.value.trim(); if (!idea) return toast('Give him a thread first.');
-    toast('Spinning…'); const r = await api.spark(idea); if (r.error) return toast(r.error);
-    await loadLibrary(); if (r.storyId) await openStory(r.storyId); else paint(); return; }
+  if (d.spark) {
+    const idea = $('idea')?.value.trim();
+    if (!idea) return toast('Give him a thread first.');
+    toast('Spinning…');
+    const r = await api.spark(idea);
+    if (r.error) return toast(r.error);
+    // A skeleton, not a story. It goes on screen to be edited or thrown back.
+    S.spark = { story: r.story ?? {}, entries: r.entries ?? [] };
+    paint();
+    toast(`${(r.entries ?? []).length} in the cast. Nothing written yet.`);
+    return;
+  }
+  if (d.dropSpark) { S.spark = null; paint(); return; }
+  if (d.acceptSpark) {
+    const get = (k) => document.querySelector(`[data-sp="${k}"]`)?.value;
+    const keep = [...document.querySelectorAll('[data-spcast]')]
+      .filter((c) => c.checked).map((c) => S.spark.entries[Number(c.dataset.spcast)]).filter(Boolean);
+    const r = await api.createStory({
+      title: get('title') || 'Untitled', genre: get('genre'), premise: get('premise'),
+      setting: get('setting'), pov: get('pov'), spice: Number(get('spice')) || 2,
+      writingStyle: get('writingStyle'), entries: keep,
+    });
+    if (r.error) return toast(r.error);
+    S.spark = null;
+    await loadLibrary();
+    await openStory(r.id);
+    toast(`Created with ${keep.length} in the ledger.`);
+    return;
+  }
   if (d.blank) { const r = await api.createStory({ title: 'Untitled' }); if (r.error) return toast(r.error);
     await loadLibrary(); await openStory(r.id ?? r.storyId); return; }
   if (d.backup) { const r = await api.backup(S.storyId ?? LIB[0]?.id); toast(r.error ?? 'Snapshot written.'); return; }

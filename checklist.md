@@ -224,6 +224,23 @@ Worth a look because they were real:
 
       Pins and arcs are still without a screen, now on a deferred list *with reasons* rather than
       silently missing. A test asserts every other engine feature has a caller.
+- [ ] **The send button did nothing.** ⚠ Worth a deliberate look. `generate()` had exactly one
+      caller — the ⌘↵ shortcut — and the arrow button carried no action, so it was decorative.
+      **On a phone there is no ⌘↵, which made the app's primary action unreachable there entirely.**
+      Fixed and driven: clicking it appends a take.
+- [ ] **Spark produced nothing you could see.** You would type an idea, wait ten seconds, and
+      watch the page do nothing. `/api/spark` returns a *skeleton*, not a story, and the page was
+      looking for a story id that never comes.
+
+      The review step now exists, which is what the design and SPEC §8.1 both ask for: the panel
+      fills with title, genre, premise, setting, point of view, spice and voice, all editable, and
+      each proposed cast member has a **keep this one** tick. *Accept and start writing* is the
+      thing that actually creates it. Nothing is written before that.
+- [ ] **Speak needed two presses to get an answer.** It saved your line and stopped, so you had
+      to press send again on an empty box. One press now writes your line as yours and gets the
+      reply — and your line is not re-recorded as an instruction.
+- [ ] **The composer stayed tall after a long directive.** Clearing the text left the box's grown
+      height behind.
 - [ ] **A small surprise while testing:** the type and activation chips in the entry editor do
       save immediately and do not wipe the body or keywords. I had this down as broken for four
       runs before working out my own test was reading the entry id after the click, by which

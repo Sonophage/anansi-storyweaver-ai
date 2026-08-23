@@ -24,6 +24,8 @@ fresh() {
 
 scenarios=${1:-}
 [ -z "$scenarios" ] && scenarios="buttons surfaces handlers search restored"
+# `model` is excluded from the default set: every step waits on a real generation, so it runs
+# in minutes. Ask for it by name: test/ui/run.sh model
 fail=0
 for s in $scenarios; do
   fresh
