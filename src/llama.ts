@@ -2,7 +2,10 @@
 // so buildContext itself stays pure.
 
 const HOST = process.env.ANANSI_LLAMA ?? 'http://127.0.0.1:8080';
-const MODEL = process.env.ANANSI_MODEL ?? 'write-nt-qwen36-h';
+// Mutable so Preferences can switch it. The router serves several models and every call names
+// one, so switching is just a different string — but it is process-wide, not per story, and two
+// tenants share this process. Whoever changes it changes it for both.
+let MODEL = process.env.ANANSI_MODEL ?? 'write-nt-qwen36-h';
 
 async function post(path: string, body: unknown, ms = 900_000): Promise<any> {
   const res = await fetch(HOST + path, {
@@ -114,4 +117,23 @@ export async function structuredRetry(system: string, body: string, schema: unkn
   return structured(system, body, schema, { ...opts, max_tokens: 2000, temperature: 0.1 });
 }
 
-export const model = MODEL;
+/** The active model. A getter, not a const — a const captured the value at import and every
+ *  caller would have kept reporting the model the server booted with. */
+export const model = () => MODEL;
+
+/** Models the router will serve, with whether each is resident. */
+export async function models(): Promise<{ id: string; status: string }[]> {
+  const r = await fetch(`${HOST}/v1/models`, { signal: AbortSignal.timeout(15_000) });
+  if (!r.ok) throw new Error(`/v1/models answered ${r.status}`);
+  const d = await r.json() as any;
+  return (d.data ?? []).map((m: any) => ({ id: String(m.id), status: m.status?.value ?? 'unknown' }));
+}
+
+/** Switch the active model. Refuses anything the router does not list, so a client cannot
+ *  point the engine at an arbitrary string. */
+export async function setModel(id: string): Promise<string> {
+  const known = await models();
+  if (!known.some((m) => m.id === id)) throw new Error(`the router does not serve "${id}"`);
+  MODEL = id;
+  return MODEL;
+}

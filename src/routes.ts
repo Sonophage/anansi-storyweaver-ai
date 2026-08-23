@@ -1,5 +1,5 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, structured, structuredRetry, model } from './llama.ts';
+import { count, chat, structured, structuredRetry, model, models, setModel } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema } from './prompts.ts';
 import * as db from './db.ts';
@@ -29,6 +29,7 @@ export const OPEN_ROUTES = new Set([
   // security fix breaking the feature it was protecting.
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'GET /api/search',
   'POST /api/import',
+  'GET /api/models',
 ]);
 
 /** The story a request is about, wherever it names it. */
@@ -60,13 +61,13 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
       { ...sampler, chat_template_kwargs: { enable_thinking: !!thinking } });
     const ms = Date.now() - t0;
-    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model, role,
+    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: model(), role,
       params: c.gen, manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     return { prose: clean(r.prose, v.story.stripPatterns), reasoning: r.reasoning.length,
              seconds: +(ms / 1000).toFixed(1), manifest };
   } catch (e: any) {
-    db.logGeneration({ storyId: v.id, model, role, manifest, error: e?.message, latencyMs: Date.now() - t0 });
+    db.logGeneration({ storyId: v.id, model: model(), role, manifest, error: e?.message, latencyMs: Date.now() - t0 });
     return { error: e?.message ?? 'generation failed', manifest };
   }
 }
@@ -189,7 +190,18 @@ async function check(c: Ctx, storyId: string, passageId: string) {
 
 export const routes: Record<string, Handler> = {
   // ---- library ----
-  'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model, slot: c.slot, gen: c.gen }),
+  'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: model(), slot: c.slot, gen: c.gen }),
+
+  // The router serves several models. Listing is open because it names no story; switching is
+  // process-wide and gated, because two tenants share this process and one changes it for both.
+  'GET /api/models': async () => {
+    try { return { models: await models(), active: model() }; }
+    catch (e: any) { return { models: [], active: model(), error: e?.message ?? 'the router did not answer' }; }
+  },
+  'POST /api/model': async (c) => {
+    try { return { active: await setModel(String(c.body.model ?? '')) }; }
+    catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
+  },
   'POST /api/stories':   (c) => {
     const made = db.createStory(c.owner, c.body);
     for (const e of c.body.entries ?? []) db.upsertEntry(made.id, c.owner, e);
@@ -222,7 +234,7 @@ export const routes: Record<string, Handler> = {
   // ---- one story ----
   'GET /api/story':      (c) => {
     const v = viewOf(c.query.get('story')!, c.query.get('chapter') ?? undefined);
-    return { ...v, model, slot: c.slot, gen: c.gen, budget: budgetFor(v.story, c.slot, Number(c.gen.max_tokens) || 900) };
+    return { ...v, model: model(), slot: c.slot, gen: c.gen, budget: budgetFor(v.story, c.slot, Number(c.gen.max_tokens) || 900) };
   },
   'POST /api/story':     (c) => { db.updateStory(c.body.id, c.body.story); return viewOf(c.body.id); },
   'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c.body.storyId); },

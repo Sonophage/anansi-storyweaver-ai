@@ -8,10 +8,20 @@ The one promise: **a fact you write down in chapter one still holds in chapter f
 ## Run it
 
 ```bash
-node --experimental-strip-types serve.ts     # both surfaces: / and /phone
-node --experimental-strip-types test/all.ts  # every suite, 88 checks, no model needed
+node --experimental-strip-types serve.ts     # the app on :5174
+node --experimental-strip-types test/all.ts  # every suite, no model and no browser needed
 node --experimental-strip-types run.ts       # one generation end to end (server must be up)
 ```
+
+To drive the real UI — clicking and typing, in headless chromium, no dependencies:
+
+```bash
+node --experimental-strip-types bench/drive.ts <url> <scenario.js>   # e.g. test/ui/buttons.js
+```
+
+Point it at a **copy** of the database. A screenshot found seven defects the suites could not;
+the driver found an eighth that a screenshot could not, because the page looked right until
+someone tried to type in it.
 
 Needs Node 26+ (native TypeScript stripping, `node:sqlite`) and a `llama-server` on `:8080`.
 Nothing else. There is no `package.json` and nothing to install.

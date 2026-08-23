@@ -185,13 +185,31 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
 .block.you { padding-right:16px; border-right:1px solid var(--you-rule); align-items:flex-end; text-align:right; }
 .block.pending { padding-left:16px; border-left:2px solid var(--gold); }
 .block.pending .narr { opacity:.92; }
+/* The actions used to appear on :hover only, which put Edit, Regenerate and History out of
+   reach of every touch device — and made them untestable. Each block now carries a handle that
+   is always present, and hover stays as a shortcut on a pointer. */
+.more {
+  position:absolute; right:0; top:-20px; z-index:6; padding:2px 8px; border-radius:8px;
+  font-size:14px; line-height:1.2; color:var(--label); opacity:.4; transition:opacity .15s ease;
+}
+.block:hover .more, .block:focus-within .more, .block[aria-expanded="true"] .more { opacity:1; }
 .acts {
   position:absolute; right:0; top:-22px; gap:6px; padding:6px; border-radius:13px;
   border:1px solid var(--chip); background:rgba(19,18,21,.96); box-shadow:0 20px 50px rgba(0,0,0,.6);
-  display:none; z-index:5;
+  display:none; z-index:7;
 }
-.block:hover .acts, .block:focus-within .acts { display:flex; }
-@media (max-width:719px) { .acts { display:none !important; } }
+@media (hover:hover) { .block:hover .acts { display:flex; } }
+.block[aria-expanded="true"] .acts { display:flex; }
+/* On a phone the tray sits in the flow underneath, as icons, rather than floating off the edge. */
+@media (max-width:719px) {
+  .more { top:-6px; opacity:.75; font-size:17px; padding:4px 10px; }
+  .block[aria-expanded="true"] .acts {
+    position:static; top:auto; right:auto; margin-top:8px; flex-wrap:wrap; box-shadow:none;
+  }
+  .acts button { padding:10px 12px; }
+  .acts button span { font-size:15px; }
+  .acts .lbl-txt { display:none; }
+}
 .acts button { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:9px; font-size:12.5px; color:#C6BFB2; white-space:nowrap; }
 .acts button:hover { background:rgba(255,255,255,.05); }
 .flag { display:flex; align-items:flex-start; gap:9px; font-size:11.5px; color:var(--bad);

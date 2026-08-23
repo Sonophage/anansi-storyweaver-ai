@@ -24,6 +24,7 @@ function applyLook() {
 const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'cowrite',
   rail: !overlay(), storyId: null, busy: false, pending: null, appearance: false, query: '',
+  entryId: null, historyOf: null, models: null,
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null;
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
@@ -41,6 +42,9 @@ const WNAV = [
   ['canon', '◈', 'Worlds & lorebooks'], ['import', '↧', 'Import'], ['prefs', '◐', 'Preferences'],
 ];
 const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
+// Two panels the rail does not list: they open by clicking a thing, not a nav row.
+TITLES.entry = 'Ledger entry';
+TITLES.history = 'History';
 const WTITLES = {
   stories: () => [`My stories`, `${LIB.length} ${LIB.length === 1 ? 'story' : 'stories'}`],
   create: () => ['Create a story', 'Spark a skeleton, or start blank'],
@@ -54,7 +58,8 @@ const WTITLES = {
 const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
   'fontpick', 'sizepick', 'mode', 'take', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'endchapter', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
-  'spark', 'blank', 'backup', 'savegen', 'hit', 'expand'].map((k) => `[data-${k}]`).join(',');
+  'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
+  'kind', 'act', 'pickmodel', 'fork', 'restore', 'more'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null;
 function toast(msg) {
@@ -181,13 +186,14 @@ function passageHTML(p, pending) {
   const flags = (V.violations ?? []).filter((f) => f.passageId === p.id);
   const v = p.variants ?? [];
   const at = v.findIndex((x) => x.selected) + 1;
-  const acts = pending ? '' : `<div class="acts">
+  const acts = pending ? '' : `<button class="more" data-more="${p.id}" aria-label="Actions">⋯</button>
+    <div class="acts">
     ${v.length > 1 ? `<span style="display:flex; align-items:center; gap:4px; padding:8px 6px; font-size:12px; color:#78726A">
       <button data-vp="${p.id}">‹</button>${at}/${v.length}<button data-vn="${p.id}">›</button></span>` : ''}
-    <button data-re="${p.id}"><span class="serif" style="color:#D9B26A">↻</span>Regenerate</button>
-    <button data-ed="${p.id}"><span class="serif" style="color:#D9B26A">✎</span>Edit</button>
-    <button data-hi="${p.id}"><span class="serif" style="color:#D9B26A">⌂</span>History</button>
-    <button data-del="${p.id}" style="color:#C8705A">Delete</button></div>`;
+    <button data-re="${p.id}"><span class="serif" style="color:#D9B26A">↻</span><span class="lbl-txt">Regenerate</span></button>
+    <button data-ed="${p.id}"><span class="serif" style="color:#D9B26A">✎</span><span class="lbl-txt">Edit</span></button>
+    <button data-hi="${p.id}"><span class="serif" style="color:#D9B26A">⌂</span><span class="lbl-txt">History</span></button>
+    <button data-del="${p.id}" style="color:#C8705A"><span class="serif">✕</span><span class="lbl-txt">Delete</span></button></div>`;
   const body = spoken
     ? `<div class="who">${mine ? `You · ${esc(V.story.persona || 'you')}` : esc(p.speaker || V.story.title)}</div>
        <div class="said" contenteditable="plaintext-only" data-edit="${p.id}">${esc(p.body)}</div>`
@@ -271,6 +277,8 @@ function drawSide() {
 }
 
 const PANELS = {
+  entry: entryEditor,
+  history: historyPanel,
   inspector() {
     if (!MANI) return `<div class="hint">Open the composer once and the manifest appears here.</div>`;
     const inc = MANI.blocks.filter((b) => b.state === 'included');
@@ -300,6 +308,7 @@ const PANELS = {
   },
 
   cast() {
+    if (S.entryId) return entryEditor();
     const cast = V.entries.filter((e) => e.entryType === 'character');
     return `<div style="display:flex; flex-direction:column; gap:9px">
       ${cast.map((e) => entryCard(e)).join('') || '<div class="hint">No characters yet.</div>'}
@@ -429,6 +438,61 @@ const PANELS = {
   },
 };
 
+function entryEditor() {
+  const e = V?.entries.find((x) => x.id === S.entryId);
+  if (!e) return `<div class="hint">That entry is gone.</div>`;
+  const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+    background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? '#E0C48C' : 'var(--mute)'}`;
+  return `<div style="display:flex; flex-direction:column">
+    <button class="btn ghost" data-backentry="1" style="margin-bottom:14px">&lsaquo; Back</button>
+    <label class="lbl">Name</label>
+    <input class="field" data-f="title" value="${esc(e.title ?? '')}">
+    <label class="lbl">Type</label>
+    <div style="display:flex; gap:6px">${KINDS.map((k) => `<button data-kind="${k}"
+      style="flex:1; text-align:center; font-size:11.5px; padding:8px 0; border-radius:10px;
+      ${chip(k === e.entryType)}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+    <label class="lbl">When it reaches the model</label>
+    <div style="display:flex; gap:6px">${[['always_on', 'Always on'], ['triggered', 'On a keyword']]
+      .map(([k, l]) => `<button data-act="${k}" style="flex:1; text-align:center; font-size:11.5px;
+      padding:8px 0; border-radius:10px; ${chip(k === e.activation)}">${l}</button>`).join('')}</div>
+    <label class="lbl">Info</label>
+    <textarea class="field" data-f="body" style="min-height:96px">${esc(e.body ?? '')}</textarea>
+    <div class="hint">This is what the model reads. Bracket form keeps it short: [Name: trait, trait].</div>
+    <label class="lbl">Trigger words</label>
+    <input class="field" data-f="keys" value="${esc((e.keys ?? []).join(', '))}"
+      ${e.activation === 'always_on' ? 'disabled style="opacity:.5"' : ''}>
+    <div class="hint">${e.activation === 'always_on'
+      ? 'Always-on entries need none — they are sent on every call.'
+      : 'Comma separated, up to ten. A whole word in recent prose or in your directive fires it.'}</div>
+    <label class="lbl">Your notes</label>
+    <textarea class="field" data-f="notes" style="min-height:64px">${esc(e.notes ?? '')}</textarea>
+    <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
+    ${(e.states ?? []).length ? `<div class="lbl" style="letter-spacing:.26em; margin-top:22px">Over time</div>
+      ${e.states.map((st) => `<div class="card" style="margin-bottom:8px">
+        <div class="kind">From chapter ${st.fromChapter}${st.beforeMode ? ` &middot; ${esc(st.beforeMode)} before` : ''}</div>
+        <div style="font-size:12.5px; line-height:1.45; color:#8A8478">${esc(st.body)}</div></div>`).join('')}` : ''}
+    <button class="btn" data-saveentry="1" style="margin-top:16px">Save</button>
+    <button class="btn ghost" data-delentry="1" style="margin-top:10px; color:#C8705A">Delete this entry</button>
+  </div>`;
+}
+
+function historyPanel() {
+  const rows = S.historyOf?.rows ?? [];
+  const pid = S.historyOf?.id;
+  return `<div style="display:flex; flex-direction:column">
+    <button class="btn ghost" data-backentry="1" style="margin-bottom:14px">&lsaquo; Back</button>
+    <div class="hint" style="margin:0 0 14px">Every version of this passage that was replaced.
+      Restoring keeps the current one in the list too, so nothing is lost.</div>
+    ${rows.map((r) => `<div class="card" style="margin-bottom:9px">
+      <div class="kind">${r.replaced_at ? ago(r.replaced_at) : ''}</div>
+      <div class="clamp" style="font-size:12.5px; line-height:1.5; color:#8A8478">${esc(r.body ?? '')}</div>
+      <button class="btn ghost" data-restore="${r.id}" style="margin-top:8px">Restore this version</button>
+    </div>`).join('') || '<div class="hint">No earlier versions &mdash; this passage has not been edited.</div>'}
+    ${pid ? `<button class="btn ghost" data-fork="${pid}" style="margin-top:6px">Branch from this passage</button>
+      <div class="hint">A branch copies the book up to here and leaves the original untouched.</div>` : ''}
+  </div>`;
+}
+
 function entryCard(e) {
   const act = e.activation ?? 'always_on';
   const pill = act === 'always_on' ? 'Always on' : 'Triggered';
@@ -503,8 +567,17 @@ const WPAGES = {
 
   canon() {
     if (!V) return `<div class="hint">Open a story and its ledger appears here.</div>`;
-    return `<div class="grid">${V.entries.map(entryCard).join('')}
-      <button class="dashed" data-newentry="lore" style="min-height:120px">New entry</button></div>`;
+    // The design puts the editor in the aside beside the grid, so the list stays visible while
+    // one entry is being changed. On a phone the aside stacks under it.
+    return `<div class="split" style="gap:28px">
+      <div style="flex:1; min-width:0">
+        <div class="grid">${V.entries.map(entryCard).join('')}
+          <button class="dashed" data-newentry="lore" style="min-height:120px">New entry</button></div>
+      </div>
+      <div class="aside" style="border:1px solid var(--edge); border-radius:18px;
+        background:var(--rail); padding:20px 22px">
+        ${S.entryId ? entryEditor() : '<div class="hint" style="margin:0">Pick an entry to read or change it.</div>'}
+      </div></div>`;
   },
 
   import() {
@@ -536,8 +609,17 @@ const WPAGES = {
           <span style="width:8px; height:8px; border-radius:50%; background:${slot ? '#7FB083' : '#C99356'}"></span>
           <span style="font-size:12px; color:#78726A">${slot ? 'Up' : 'Asleep or unreachable'}</span></div>
         <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Model</div>
-        <div class="row"><span style="color:#EAE3D6">Loaded</span>
-          <span style="margin-left:auto; color:#78726A; font-family:ui-monospace,monospace">${esc(SRV.model ?? '—')}</span></div>
+        ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
+          : S.models.length === 0 ? '<div class="hint" style="margin:0">The router did not answer.</div>'
+          : S.models.map((m) => `<button data-pickmodel="${esc(m.id)}" class="row"
+              style="width:100%; text-align:left">
+              <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${
+                m.id === SRV.model ? '#D9B26A' : m.status === 'unloaded' ? '#3A372F' : '#7FB083'}"></span>
+              <span style="color:${m.id === SRV.model ? '#EAE3D6' : '#8A8478'}; font-family:ui-monospace,monospace;
+                font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(m.id)}</span>
+              <span style="margin-left:auto; font-size:10.5px; color:#6E6961">${esc(m.status)}</span></button>`).join('')}
+        <div class="hint">Switching is process-wide, not per story &mdash; two writers share this server,
+          so it changes for both. A sleeping model wakes on its first call.</div>
         <div class="hint">Sampling, voice and spice belong to each story — they live under Storyteller, inside the story.</div>
       </div>
       <div class="aside">
@@ -567,6 +649,13 @@ function paint() {
   root.dataset.uiRail = S.rail ? 'open' : 'closed';
   drawRail(); drawBar(); drawAppearance(); drawPage(); drawSide();
   if (S.place === 'story' && V) { drawDoc(); drawDock(); } else { $('dock').hidden = true; }
+}
+
+async function loadModels() {
+  const r = await api.models();
+  S.models = r.error ? [] : (r.models ?? []);
+  if (r.active) SRV.model = r.active;
+  if (S.wpage === 'prefs') drawPage();
 }
 
 async function loadLibrary() {
@@ -633,9 +722,23 @@ document.addEventListener('click', async (e) => {
   const d = t.dataset;
 
   if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
+  if (d.more) {
+    const blk = t.closest('.block');
+    const open = blk.getAttribute('aria-expanded') === 'true';
+    for (const b of document.querySelectorAll('.block[aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false');
+    blk.setAttribute('aria-expanded', open ? 'false' : 'true');
+    return;
+  }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
-  if (d.nav) { if (S.place === 'story') { S.panel = d.nav; syncHash(); } else S.wpage = d.nav;
-    if (overlay()) S.rail = false; paint(); if (d.nav === 'search') $('q')?.focus(); return; }
+  if (d.nav) {
+    if (S.place === 'story') { S.panel = d.nav; S.entryId = null; S.historyOf = null; syncHash(); }
+    else S.wpage = d.nav;
+    if (overlay()) S.rail = false;
+    paint();
+    if (d.nav === 'search') $('q')?.focus();
+    if (d.nav === 'prefs' && S.models === null) loadModels();
+    return;
+  }
   if (d.leave) { S.place = 'workspace'; S.wpage = 'stories'; S.panel = null; await loadLibrary(); paint(); return; }
   if (d.panel !== undefined) { S.panel = d.panel || null; syncHash(); paint(); return; }
   if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); return; }
@@ -667,6 +770,90 @@ document.addEventListener('click', async (e) => {
     if (e.shiftKey) { await api.dismissFlag(S.storyId, d.flagx); V = await api.story(S.storyId); paint(); }
     else t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
     return;
+  }
+
+  if (d.entry) { S.entryId = d.entry;
+    if (S.place === 'story' && S.panel !== 'cast') S.panel = 'entry';
+    paint(); return; }
+  if (d.backentry) { S.entryId = null; S.historyOf = null;
+    if (S.panel === 'entry' || S.panel === 'history') S.panel = 'cast';
+    paint(); return; }
+  if (d.newentry) {
+    const r = await api.saveEntry(S.storyId, { id: '', title: 'Untitled',
+      body: '[Untitled: ]', entryType: d.newentry, activation: 'always_on', keys: [] });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId);
+    // saveEntry does not report the new id, so take the newest row of that name.
+    S.entryId = V.entries.filter((x) => x.title === 'Untitled').at(-1)?.id ?? null;
+    if (S.place === 'story' && S.panel !== 'cast') S.panel = 'entry';
+    paint(); return;
+  }
+  if (d.kind || d.act) {
+    // Type and activation are chips, so they save immediately rather than waiting for Save —
+    // the trigger-words field enables and disables on activation and must repaint to show it.
+    const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
+    const patch = { ...e, id: e.id, keys: e.keys ?? [] };
+    if (d.kind) patch.entryType = d.kind; else patch.activation = d.act;
+    const r = await api.saveEntry(S.storyId, patch);
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint(); refreshManifest(); return;
+  }
+  if (d.saveentry) {
+    const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
+    const get = (f) => document.querySelector(`[data-f="${f}"]`)?.value;
+    const keys = String(get('keys') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 10);
+    const r = await api.saveEntry(S.storyId, { ...e, id: e.id, title: get('title') ?? e.title,
+      body: get('body') ?? e.body, notes: get('notes') ?? e.notes, keys });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint(); toast('Saved.'); refreshManifest(); return;
+  }
+  if (d.delentry) {
+    const r = await api.delEntry(S.storyId, S.entryId);
+    if (r.error) return toast(r.error);
+    S.entryId = null; if (S.panel === 'entry') S.panel = 'cast';
+    V = await api.story(S.storyId); paint(); refreshManifest(); return;
+  }
+
+  // --- edit: the passage is already contenteditable and saves on blur. This puts the caret in it.
+  if (d.ed) {
+    const el = document.querySelector(`[data-edit="${d.ed}"]`);
+    if (!el) return;
+    el.focus();
+    const r = document.createRange(); r.selectNodeContents(el);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    toast('Editing. Click away to save.');
+    return;
+  }
+
+  // --- history
+  if (d.hi) {
+    const r = await api.history({ story: S.storyId, passage: d.hi });
+    if (r.error) return toast(r.error);
+    S.historyOf = { id: d.hi, rows: r.passage ?? [] };
+    S.panel = 'history'; paint(); return;
+  }
+  if (d.restore) {
+    const r = await api.revert({ storyId: S.storyId, passageId: S.historyOf?.id, revisionId: d.restore });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); S.panel = 'inspector'; S.historyOf = null;
+    paint(); toast('Restored.'); return;
+  }
+  if (d.fork) {
+    const r = await api.fork(S.storyId, d.fork, `from ${new Date().toLocaleDateString()}`);
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); S.panel = 'branches'; S.historyOf = null;
+    paint(); toast('Branched. You are on the new branch.'); return;
+  }
+
+  // --- a search hit belongs to a story, which may not be the open one
+  if (d.hit !== undefined) { if (d.hit && d.hit !== S.storyId) { await openStory(d.hit); } return; }
+
+  // --- the model is process-wide, so this is a Preferences action
+  if (d.pickmodel) {
+    if (d.pickmodel === SRV.model) return;
+    const r = await api.setModel(d.pickmodel);
+    if (r.error) return toast(r.error);
+    SRV.model = r.active; paint(); toast(`Now writing with ${r.active}.`); return;
   }
 
   if (d.savestory) {

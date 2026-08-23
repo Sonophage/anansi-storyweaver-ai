@@ -74,14 +74,30 @@ const page = {
   /** Click by CSS selector, through a real mouse event at the element's centre — a
    *  dispatched click() would skip the capture-phase and delegation this app relies on. */
   async click(sel: string) {
+    // Scroll it in first. Panels scroll, so a button below the fold reported a y outside the
+    // viewport and the click landed on whatever happened to be there — or on nothing.
     const box = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
-      if (!e) return null; const r = e.getBoundingClientRect();
+      if (!e) return null;
+      e.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const r = e.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return { hidden: true };
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
     if (!box) throw new Error(`click: no element for ${sel}`);
+    if (box.hidden) throw new Error(`click: ${sel} has no box — hidden, or waiting on :hover`);
+    await wait(120);
     for (const type of ['mousePressed', 'mouseReleased']) {
       await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 });
     }
     await wait(220);
+  },
+  /** A real mouse move, so CSS :hover applies. A dispatched mouseover event does not. */
+  async hover(sel: string) {
+    const box = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
+      if (!e) return null; const r = e.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + Math.min(12, r.height / 2) }; })()`);
+    if (!box) throw new Error(`hover: no element for ${sel}`);
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x, y: box.y });
+    await wait(180);
   },
   async type(sel: string, text: string) {
     await page.click(sel);
