@@ -16,7 +16,18 @@ node --experimental-strip-types run.ts       # one generation end to end (server
 To drive the real UI — clicking and typing, in headless chromium, no dependencies:
 
 ```bash
-node --experimental-strip-types bench/drive.ts <url> <scenario.js>   # e.g. test/ui/buttons.js
+test/ui/run.sh                # every scenario, each on a fresh copy of the database
+test/ui/run.sh search         # one of them
+```
+
+The scenarios mutate — they rename entries, accept proposals, create stories — so the runner
+resets the copy between each. Run them by hand against one copy in sequence and they poison each
+other, and the failures look exactly like code regressions.
+
+One scenario directly:
+
+```bash
+node --experimental-strip-types bench/drive.ts <url> <scenario.js>
 ```
 
 Point it at a **copy** of the database. A screenshot found seven defects the suites could not;
