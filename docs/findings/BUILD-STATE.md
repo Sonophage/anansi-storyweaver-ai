@@ -188,7 +188,7 @@ whole phone surface (which was P7's second-surface work), then the desktop.
 | Skipped in P2 | Consequence |
 |---|---|
 | Export | No way to get prose out. |
-| Word count | Dropped in the desktop rewrite; the design does not show one either. |
+| ~~Word count~~ | **Wrong — it exists.** Per chapter at `desk.js:69`, whole-story at `desk.js:77`. Written from memory during the desktop rewrite and never rechecked. |
 | Toolbar (curly quotes, scene divider) | `is_break` exists; nothing types one from the editor. |
 
 **The real cost** is not the skipped items — it is that P2's exit criterion was *"Seth writes chapter
