@@ -31,6 +31,7 @@ const S = {
   searchAll: false,     // inside a story, search that story only unless asked otherwise
   setupQ: '',           // filter over the ledger on the next-chapter setup page
   lore: null,           // the + Lore tray above the composer, when it is open
+  blank: null,          // the Start blank form, when it is open
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
@@ -93,7 +94,8 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
-  'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread'].map((k) => `[data-${k}]`).join(',');
+  'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
+  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -465,7 +467,14 @@ const PANELS = {
     return `<div style="display:flex; flex-direction:column; gap:9px">
       ${shown.map(([k, label]) => `
         <div class="lbl" style="letter-spacing:.26em; margin-top:6px">${label}</div>
-        ${V.entries.filter((e) => e.entryType === k).map((e) => entryCard(e)).join('')}`).join('')}
+        ${V.entries.filter((e) => e.entryType === k).map((e) => entryCard(e)
+          + ((e.outfits ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:5px; margin:-4px 0 10px 2px">
+            ${e.outfits.map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
+              style="cursor:pointer; ${o.active
+                ? 'border-color:rgba(217,178,106,.45); color:#D9B26A' : ''}">${esc(o.name)}</button>`).join('')}
+            ${e.outfits.some((o) => o.active)
+              ? `<button data-wear="${e.id}:" class="tag" style="cursor:pointer; color:#6E6961">nothing</button>` : ''}
+          </div>` : '')).join('')}`).join('')}
       ${shown.length ? '' : '<div class="hint" style="margin:0">Nothing written down yet. Canon is what the model is told and never allowed to contradict.</div>'}
       <div class="lbl" style="letter-spacing:.26em; margin-top:18px">Add</div>
       <div style="display:flex; flex-wrap:wrap; gap:7px">
@@ -848,6 +857,23 @@ function entryEditor() {
     <label class="lbl">Your notes</label>
     <textarea class="field" data-f="notes" style="min-height:64px">${esc(e.notes ?? '')}</textarea>
     <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
+    ${e.entryType === 'character' ? `
+    <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Wardrobe</div>
+    <div class="hint" style="margin:0 0 8px">A named outfit is a second bracket on this character
+      while it is worn, so taking the plate off does not mean rewriting who she is. One at a time —
+      the database enforces that, not the screen. Switch on the Threads panel.</div>
+    ${(e.outfits ?? []).map((o) => `<div class="card" style="margin-bottom:8px;
+      border-color:${o.active ? 'rgba(217,178,106,.34)' : '#2A2721'}">
+      <div style="display:flex; align-items:center; gap:9px">
+        <span class="kind">${esc(o.name)}${o.active ? ' · worn' : ''}</span>
+        <button data-deloutfit="${o.id}" style="margin-left:auto; color:#C8705A; font-size:12px" aria-label="Remove">✕</button></div>
+      <div style="font-size:12.5px; line-height:1.45; color:#8A8478">${esc(o.body)}</div></div>`).join('')}
+    <div class="card" style="gap:7px">
+      <input class="field" data-of="name" placeholder="Plate, court dress, travelling…">
+      <textarea class="field" data-of="body" placeholder="What the model reads while it is worn"
+        style="min-height:52px"></textarea>
+      <button class="btn ghost" data-addoutfit="1">Add an outfit</button></div>` : ''}
+
     <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Over time</div>
     <div class="hint" style="margin:0 0 8px">A fact can open at a later chapter. Before it opens it is
       hidden, or hinted at without saying what it is. Earlier chapters keep the body above.</div>
@@ -1014,6 +1040,47 @@ const WPAGES = {
   },
 
   create() {
+    // Start blank asks for the same things Spark fills in. It used to make `Untitled` and drop you
+    // straight into the editor, which is the one moment you know least about the story and the
+    // worst time to be given a blinking cursor.
+    if (S.blank) {
+      const f = (k, label, hint) => `<label class="lbl">${label}</label>
+        <input class="field" data-bf="${k}" value="${esc(S.blank[k] ?? '')}">
+        ${hint ? `<div class="hint">${hint}</div>` : ''}`;
+      const area = (k, label, hint, ph) => `<label class="lbl">${label}</label>
+        <textarea class="field" data-bf="${k}" placeholder="${esc(ph ?? '')}"
+          style="min-height:88px">${esc(S.blank[k] ?? '')}</textarea>
+        ${hint ? `<div class="hint">${hint}</div>` : ''}`;
+      return `<div style="display:flex; flex-direction:column; gap:0; max-width:640px">
+        <div class="serif" style="font-size:30px; line-height:1.08; color:#F3ECE0">Start it yourself</div>
+        <div style="font-size:14px; line-height:1.65; color:#8A8478; margin:10px 0 6px">Everything here
+          is editable afterwards, and everything here can be left empty. The title is the only one
+          you will miss.</div>
+        ${f('title', 'Title')}
+        ${f('genre', 'Genre', 'Comma separated. Each one becomes its own tag on the shelf.')}
+        ${area('premise', 'Premise', 'One or two sentences. It rides in the spine on every call.',
+               'A broke ex-sergeant owes a moneylender more than he can pay…')}
+        ${f('setting', 'Setting', 'Where it happens. Lore written later can replace this.')}
+        <label class="lbl">Point of view</label>
+        <select class="field" data-bf="pov">${POV.map((p) =>
+          `<option value="${esc(p)}" ${p === S.blank.pov ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
+        ${area('writingStyle', 'Voice of the weave',
+               'Paste a few hundred words of your own prose. A sample beats a description of one.',
+               'Clipped and wet. Short sentences. Weather does the feeling…')}
+        <label class="lbl">Spice</label>
+        <select class="field" data-bf="spice">${SPICE.map((l, i) =>
+          `<option value="${i + 1}" ${Number(S.blank.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}</select>
+        <div class="hint">Changeable per story at any time, and a written-out register can replace
+          the level entirely under Story.</div>
+        <div style="display:flex; gap:10px; margin-top:20px">
+          <button class="btn" data-makeblank="1" style="width:auto; padding:0 28px; height:48px">Create the story</button>
+          <button class="btn ghost" data-dropblank="1" style="width:auto; padding:0 22px; height:48px">Back</button>
+        </div>
+        <div class="hint">You are not asked for <em>who you are</em> or <em>where this is going</em>
+          — both are drawn from things you have not written yet. They are on the Story panel once
+          there is a cast and a ledger to draw from.</div>
+      </div>`;
+    }
     // POST /api/spark returns { story, entries } — a skeleton, not a created story. The page used
     // to look for r.storyId, find nothing, and repaint: ten seconds of waiting for no visible
     // result. SPEC 8.1 wants the skeleton editable before anything is written, so it lands here.
@@ -1420,6 +1487,32 @@ document.addEventListener('click', async (e) => {
     paint();
     return;
   }
+  if (d.addoutfit) {
+    const name = document.querySelector('[data-of="name"]')?.value.trim();
+    const body = document.querySelector('[data-of="body"]')?.value.trim();
+    if (!name || !body) return toast('An outfit needs a name and something to wear.');
+    const r = await api.saveOutfit(S.storyId, S.entryId, { name, body });
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    paint(); refreshManifest(); return;
+  }
+  if (d.deloutfit) {
+    const r = await api.delOutfit(S.storyId, d.deloutfit);
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    paint(); refreshManifest(); return;
+  }
+  if (d.wear !== undefined) {
+    // "entryId:outfitId", with an empty outfit id meaning take it all off. One attribute rather
+    // than two, because the pair only ever travels together.
+    const [entryId, outfitId] = String(d.wear).split(':');
+    const worn = V.entries.find((x) => x.id === entryId)?.outfits?.find((o) => o.id === outfitId);
+    // Clicking the one already worn takes it off, so the chips are a toggle rather than a trap.
+    const r = await api.wear(S.storyId, entryId, worn?.active ? null : (outfitId || null));
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    paint(); refreshManifest(); return;
+  }
   if (d.lorekind) { S.lore = { ...(S.lore ?? {}), kind: d.lorekind }; paint(); return; }
   if (d.loreread) {
     // The ritual's third step, reachable without ending the chapter — "scan what we have".
@@ -1784,8 +1877,33 @@ document.addEventListener('click', async (e) => {
     toast(`Created with ${keep.length} in the ledger.`);
     return;
   }
-  if (d.blank) { const r = await api.createStory({ title: 'Untitled' }); if (r.error) return toast(r.error);
-    await loadLibrary(); await openStory(r.id ?? r.storyId); return; }
+  if (d.blank) {
+    // Was: create `Untitled` and drop you in the editor. Seth: "if were starting blank then the
+    // user needs a screen to fill in all these things themselves". Spark fills these in for you;
+    // starting blank should ask for the same ones rather than for none of them.
+    S.blank = S.blank ?? { title: '', genre: '', premise: '', setting: '',
+                           pov: 'third limited, past tense', writingStyle: '', spice: 2 };
+    S.spark = null;
+    drawPage();
+    document.querySelector('[data-bf="title"]')?.focus();
+    return;
+  }
+  if (d.dropblank) { S.blank = null; drawPage(); return; }
+  if (d.makeblank) {
+    // Read from the DOM here rather than from state on every keystroke: this form is the only
+    // thing on the page, so nothing repaints it while you type and there is nothing to lose.
+    const get = (k) => document.querySelector(`[data-bf="${k}"]`)?.value ?? '';
+    const story = { title: get('title').trim() || 'Untitled', genre: get('genre').trim(),
+      premise: get('premise').trim(), setting: get('setting').trim(),
+      pov: get('pov'), writingStyle: get('writingStyle').trim(),
+      spice: Number(get('spice')) || 2 };
+    const r = await api.createStory(story);
+    if (r.error) return toast(r.error);
+    S.blank = null;
+    await loadLibrary();
+    await openStory(r.id ?? r.storyId);
+    return;
+  }
   if (d.backup) { const r = await api.backup(S.storyId ?? LIB[0]?.id); toast(r.error ?? 'Snapshot written.'); return; }
   if (d.dropimport) { S.imp = { name: null, data: null, preview: null, into: '', busy: false, done: null }; drawPage(); return; }
   if (d.openimported) { await openStory(d.openimported); return; }

@@ -405,6 +405,14 @@ export const routes: Record<string, Handler> = {
   'POST /api/entry':   (c) => { db.upsertEntry(c.body.storyId, c.owner, c.body.entry); return viewOf(c.body.storyId); },
   'DELETE /api/entry': (c) => { db.delEntry(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
 
+  // Outfits. Gated like everything story-scoped; the partial unique index is what guarantees one
+  // worn at a time, so `wear` never has to trust the client about it.
+  'POST /api/outfit':   (c) => { db.upsertOutfit(c.body.storyId, c.body.entryId, c.body.outfit ?? {});
+                                 return viewOf(c.body.storyId); },
+  'DELETE /api/outfit': (c) => { db.delOutfit(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+  'POST /api/wear':     (c) => { db.wearOutfit(c.body.storyId, c.body.entryId, c.body.outfitId ?? null);
+                                 return viewOf(c.body.storyId); },
+
   // Canon over time. The state in force is resolved at assembly, so writing chapter 3
   // cannot see what chapter 7 establishes.
   'POST /api/state':   (c) => { db.upsertState(c.body.storyId, c.body.entryId, c.body.state); return viewOf(c.body.storyId); },

@@ -51,7 +51,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **113 across six suites** (34 engine, 29 db, 18 scope, 9 import, 14 web, 9 app), plus **303 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
+| **Tests** | **118 across six suites** (34 engine, 33 db, 19 scope, 9 import, 14 web, 9 app), plus **321 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
 
 ---
 
@@ -64,7 +64,7 @@ from the code rather than remembered:
 grep -rn "ponytail:" src web bench *.ts *.html
 ```
 
-**Eight markers as of 2026-08-24.** The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. Each remaining marker names what is missing, why it was left, and the upgrade path.
+**Nine markers as of 2026-08-24.** The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. One was added with rejected takes: the flag is recorded and shown but not sent to the model, because feeding a rejected take to the prompt is a prompt change and F20 is what those cost to justify. Each remaining marker names what is missing, why it was left, and the upgrade path.
 Nothing in this list is a surprise; the point is that adding to it requires writing down the ceiling.
 
 | Where | What is unfinished |

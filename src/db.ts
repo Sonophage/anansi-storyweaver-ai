@@ -215,6 +215,22 @@ CREATE TABLE IF NOT EXISTS generations (
 -- generations is the fastest-growing table and recentGenerations sorts it by time.
 CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at);
 
+-- Named outfits, switchable. PLAN-04 04 chose these over a single "right now" line. Deliberately
+-- NOT entry_states: states are anchored to a chapter, which is the right axis for "the debt
+-- transfers in chapter seven" and the wrong one for "she puts the plate on and takes it off".
+-- Story-scoped so the ownership gate reaches it; the partial unique index is what enforces
+-- exactly one worn at a time, in SQL rather than in application code that can be bypassed.
+CREATE TABLE IF NOT EXISTS outfits (
+  id TEXT PRIMARY KEY,
+  entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  body TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS outfits_one_active ON outfits(entry_id) WHERE active = 1;
+CREATE INDEX IF NOT EXISTS outfits_story ON outfits(story_id);
+
 `);
 
 migrate();
@@ -285,13 +301,48 @@ export const ledgerOf = (ownerId: string) => q(`
   WHERE s.owner_id = ? ORDER BY s.updated_at DESC, e.rowid`).all(ownerId) as any[];
 export const branchesOf = (id: string) => q('SELECT * FROM branches WHERE story_id = ? ORDER BY created_at').all(id) as any[];
 
+/** Append a passage to the END OF ITS CHAPTER, not the end of the book.
+ *
+ *  Ordinals are per branch and were assigned from MAX(ordinal) over the whole branch. Writing into
+ *  any chapter but the last therefore placed the new passage after every later chapter, and the
+ *  document and the prompt then disagreed about the order of the book: `drawDoc` groups by chapter
+ *  and showed it inside chapter one, while `passagesOf` orders by ordinal and the model read it
+ *  after chapter two. Regeneration inherited the same fault, since `upTo` filters on ordinal.
+ *
+ *  Focusing an earlier chapter has always made it the chapter you write into — that is deliberate,
+ *  it is how you revise chapter three with chapter three's context — so this was reachable before
+ *  the document was paged. Paging made it one click away.
+ *
+ *  The shift is two statements because `passages_sel` is UNIQUE(branch_id, ordinal) WHERE selected
+ *  and is not deferrable: incrementing in place collides with the row above. Everything after the
+ *  insertion point moves out to a range nothing occupies, then comes back one higher. */
 export function addPassage(p: any) {
   const id = uid('p-');
-  const last = q('SELECT MAX(ordinal) AS m, MAX(slot_key) AS s FROM passages WHERE branch_id = ?')
-    .get(p.branchId) as any;
+  const slot = q('SELECT MAX(slot_key) AS s FROM passages WHERE branch_id = ?').get(p.branchId) as any;
+  const mine = q('SELECT MAX(ordinal) AS m FROM passages WHERE branch_id = ? AND chapter_id = ?')
+    .get(p.branchId, p.chapterId) as any;
+  const branch = q('SELECT MAX(ordinal) AS m FROM passages WHERE branch_id = ?').get(p.branchId) as any;
+  // An empty chapter takes the ordinal after the last passage of the chapter before it, which is
+  // the chapter's own position in the book — not 1, which would collide with the opening.
+  const prior = mine?.m ?? (q(`SELECT MAX(p.ordinal) AS m FROM passages p JOIN chapters c ON c.id = p.chapter_id
+                                WHERE p.branch_id = ? AND c.idx < (SELECT idx FROM chapters WHERE id = ?)`)
+                             .get(p.branchId, p.chapterId) as any)?.m ?? 0;
+  const at = prior + 1;
+  const tail = (branch?.m ?? 0) >= at;
+  if (tail) {
+    db.exec('BEGIN');
+    try {
+      const PARK = 1_000_000;
+      q('UPDATE passages SET ordinal = ordinal + ? WHERE branch_id = ? AND ordinal >= ?')
+        .run(PARK, p.branchId, at);
+      q('UPDATE passages SET ordinal = ordinal - ? WHERE branch_id = ? AND ordinal >= ?')
+        .run(PARK - 1, p.branchId, PARK);
+      db.exec('COMMIT');
+    } catch (e) { db.exec('ROLLBACK'); throw e; }
+  }
   q(`INSERT INTO passages (id,chapter_id,story_id,branch_id,slot_key,ordinal,author,speaker,body,
       is_break,directive,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(id, p.chapterId, p.storyId, p.branchId, (last?.s ?? 0) + 1, (last?.m ?? 0) + 1,
+    .run(id, p.chapterId, p.storyId, p.branchId, (slot?.s ?? 0) + 1, at,
       p.author ?? 'model', p.speaker ?? null, p.body, p.isBreak ? 1 : 0, p.directive ?? null, now());
   touch(p.storyId);
   return id;
@@ -468,6 +519,48 @@ export const canonBehind = (storyId: string, passageId: string): string[] => {
       .map((b: any) => String(b.id ?? '').trim()).filter(Boolean);
   } catch { return []; }
 };
+
+// ---- outfits ----
+
+export const outfitsOf = (storyId: string) =>
+  q('SELECT * FROM outfits WHERE story_id = ? ORDER BY created_at').all(storyId) as any[];
+
+export function upsertOutfit(storyId: string, entryId: string, o: any) {
+  // The composite lookup is the ownership check: an entry id from another story does not resolve
+  // here, so it cannot have an outfit hung off it. Same shape as upsertState.
+  const owns = q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId);
+  if (!owns) return null;
+  const id = o.id || uid('o-');
+  if (o.id && q('SELECT 1 FROM outfits WHERE id = ? AND story_id = ?').get(o.id, storyId)) {
+    q('UPDATE outfits SET name = ?, body = ? WHERE id = ? AND story_id = ?')
+      .run(o.name ?? '', o.body ?? '', o.id, storyId);
+  } else {
+    q('INSERT INTO outfits (id,entry_id,story_id,name,body,active,created_at) VALUES (?,?,?,?,?,0,?)')
+      .run(id, entryId, storyId, o.name ?? 'Untitled', o.body ?? '', now());
+  }
+  touch(storyId);
+  return id;
+}
+
+/** Wear one, or none. The unique index forbids two active on one character, so the unset has to
+ *  happen first — the same write-order rule as selectVariant, and for the same reason: a partial
+ *  unique index is not deferrable. Passing null takes everything off. */
+export function wearOutfit(storyId: string, entryId: string, outfitId: string | null) {
+  const owns = q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId);
+  if (!owns) return null;
+  db.exec('BEGIN');
+  try {
+    q('UPDATE outfits SET active = 0 WHERE entry_id = ? AND story_id = ?').run(entryId, storyId);
+    if (outfitId) q('UPDATE outfits SET active = 1 WHERE id = ? AND entry_id = ? AND story_id = ?')
+      .run(outfitId, entryId, storyId);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  touch(storyId);
+  return outfitId;
+}
+
+export const delOutfit = (storyId: string, id: string) =>
+  q('DELETE FROM outfits WHERE id = ? AND story_id = ?').run(id, storyId);
 
 export const delEntry = (storyId: string, id: string) =>
   q('DELETE FROM entries WHERE id = ? AND story_id = ?').run(id, storyId);

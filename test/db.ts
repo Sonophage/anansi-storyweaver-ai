@@ -360,4 +360,102 @@ ok('writer stats count the right rows', () => {
   assert.strictEqual(db.writerStats(db.owner('stats-nobody')).words, 0);
 });
 
+// Outfits. PLAN-04 04 chose named-and-switchable over a single "right now" line, and chose a
+// partial unique index over application code — so the "one at a time" rule is asserted against
+// the DATABASE, which is the thing that actually enforces it.
+ok('exactly one outfit is worn at a time, enforced in SQL', () => {
+  const o = db.owner('wardrobe');
+  const st = db.createStory(o, { title: 'Wardrobe' });
+  const e = db.upsertEntry(st.id, o, { title: 'Ilva Marren', body: '[Ilva Marren: 34, envoy]' });
+  const plate = db.upsertOutfit(st.id, e, { name: 'Plate', body: 'the plate she took from the hall' });
+  const court = db.upsertOutfit(st.id, e, { name: 'Court dress', body: 'grey silk, no house colours' });
+  const worn = () => db.outfitsOf(st.id).filter((x: any) => x.active);
+  assert.strictEqual(worn().length, 0, 'nothing is worn until something is put on');
+  db.wearOutfit(st.id, e, plate);
+  assert.deepStrictEqual(worn().map((x: any) => x.name), ['Plate']);
+  db.wearOutfit(st.id, e, court);
+  assert.deepStrictEqual(worn().map((x: any) => x.name), ['Court dress'],
+    'switching takes the other one off — the unique index forbids two');
+  assert.strictEqual(worn().length, 1);
+  db.wearOutfit(st.id, e, null);
+  assert.strictEqual(worn().length, 0, 'and null takes everything off');
+  // A second character's outfit is not affected by the first's.
+  const e2 = db.upsertEntry(st.id, o, { title: 'Marek', body: '[Marek: a moneylender]' });
+  const coat = db.upsertOutfit(st.id, e2, { name: 'Coat', body: 'oiled canvas' });
+  db.wearOutfit(st.id, e, plate);
+  db.wearOutfit(st.id, e2, coat);
+  assert.strictEqual(worn().length, 2, 'one each is two — the index is per character, not per story');
+});
+
+ok('an outfit cannot be hung off another story\'s character', () => {
+  const mine = db.owner('wardrobe-mine'), theirs = db.owner('wardrobe-theirs');
+  const a = db.createStory(mine, { title: 'Mine' });
+  const b = db.createStory(theirs, { title: 'Theirs' });
+  const e = db.upsertEntry(a.id, mine, { title: 'Someone', body: '[a person]' });
+  assert.strictEqual(db.upsertOutfit(b.id, e, { name: 'X', body: 'y' }), null,
+    'the composite lookup is the ownership check');
+  assert.strictEqual(db.wearOutfit(b.id, e, 'o-nope'), null);
+  assert.strictEqual(db.outfitsOf(a.id).length, 0);
+});
+
+// The whole point: it reaches the model as a SECOND bracket, and stops when taken off.
+ok('the worn outfit rides with the entry into the prompt', async () => {
+  const o = db.owner('wardrobe-prompt');
+  const st = db.createStory(o, { title: 'Worn' });
+  const e = db.upsertEntry(st.id, o, { title: 'Ilva Marren', body: '[Ilva Marren: 34, envoy]' });
+  const plate = db.upsertOutfit(st.id, e, { name: 'Plate', body: 'the plate she took from the hall.' });
+  const { entryText } = await import('../src/render.ts');
+  const { view } = await import('../src/story.ts');
+  const text = () => entryText(view(st.id)!.entries.find((x: any) => x.id === e) as any);
+  assert.strictEqual(text(), '[Ilva Marren: 34, envoy]', 'nothing worn, nothing added');
+  db.wearOutfit(st.id, e, plate);
+  assert.match(text(), /^\[Ilva Marren: 34, envoy\]\n\[Ilva wears: the plate/,
+    'worn, it is a second bracket under the body — not an edit to it');
+  db.wearOutfit(st.id, e, null);
+  assert.strictEqual(text(), '[Ilva Marren: 34, envoy]', 'taken off, it is gone again');
+});
+
+// Writing into an earlier chapter must land at the end of THAT chapter, not the end of the book.
+// Ordinals are per branch and were taken from MAX(ordinal) over the whole branch, so a line
+// written into chapter one was ordered after every later chapter — and then `drawDoc`, which
+// groups by chapter, showed it inside chapter one while the model, which reads by ordinal, got it
+// after chapter two. The document and the prompt disagreed about the order of the book.
+ok('a passage written into an earlier chapter lands in that chapter, in order', async () => {
+  const o = db.owner('ordinals');
+  const st = db.createStory(o, { title: 'Order' });
+  const { view } = await import('../src/story.ts');
+  db.addPassage({ ...st, storyId: st.id, body: 'one A' });
+  db.addPassage({ ...st, storyId: st.id, body: 'one B' });
+  const ch1 = db.chapters(st.id)[0];
+  const two = db.endChapter(st.id, st.branchId);
+  db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: two.opened, body: 'two A' });
+  db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: two.opened, body: 'two B' });
+  const order = () => db.passagesOf(st.id).map((p: any) => p.body);
+  assert.deepStrictEqual(order(), ['one A', 'one B', 'two A', 'two B'], 'the normal append still appends');
+
+  const v = view(st.id, ch1.id)!;
+  assert.strictEqual(v.currentChapter.index, 1, 'focusing an earlier chapter makes it the one you write into');
+  db.addPassage({ storyId: st.id, branchId: v.branchId!, chapterId: v.currentChapter.id, body: 'one C' });
+  assert.deepStrictEqual(order(), ['one A', 'one B', 'one C', 'two A', 'two B'],
+    'it goes at the end of chapter one, and chapter two shifts up');
+
+  // The two orders must agree, which is the whole point: the reader and the model see one book.
+  const byChapter = db.chapters(st.id).flatMap((c: any) =>
+    db.passagesOf(st.id).filter((p: any) => p.chapter_id === c.id).map((p: any) => p.body));
+  assert.deepStrictEqual(byChapter, order(),
+    'grouping by chapter and ordering by ordinal must produce the same book');
+
+  // Ordinals stay unique and gapless, or the partial unique index would have refused the shift.
+  const ords = db.passagesOf(st.id).map((p: any) => p.ordinal);
+  assert.deepStrictEqual(ords, [1, 2, 3, 4, 5], `ordinals must stay dense, got ${ords}`);
+
+  // And into an empty chapter in the middle: it takes the position the chapter occupies.
+  const three = db.endChapter(st.id, st.branchId);
+  db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: three.opened, body: 'three A' });
+  const v1 = view(st.id, two.opened)!;
+  db.addPassage({ storyId: st.id, branchId: v1.branchId!, chapterId: two.opened, body: 'two C' });
+  assert.deepStrictEqual(order(), ['one A', 'one B', 'one C', 'two A', 'two B', 'two C', 'three A'],
+    'a later write into chapter two still sits before chapter three');
+});
+
 console.log(`\n${n} checks passed`);

@@ -39,6 +39,7 @@ export function view(storyId: string, focusChapterId?: string) {
   const branches = db.branchesOf(storyId);
   const variants = db.variantsBySlot(storyId);
   const states = db.statesForStory(storyId);
+  const outfits = db.outfitsOf(storyId);
   const pins = db.pinsOf(storyId);
   const arcs = db.arcsOf(storyId);
   return {
@@ -56,7 +57,13 @@ export function view(storyId: string, focusChapterId?: string) {
       isBreak: !!p.is_break, chapterId: p.chapter_id, variantIndex: p.variant_index,
       variants: variants.get(`${p.chapter_id}:${p.slot_key}`) ?? [{ id: p.id, selected: true }],
     })),
-    entries: db.entriesOf(storyId).map((e: any) => toEntry(e, states.get(e.id) ?? [])),
+    entries: db.entriesOf(storyId).map((e: any) => ({
+      ...toEntry(e, states.get(e.id) ?? []),
+      outfits: outfits.filter((o: any) => o.entry_id === e.id)
+        .map((o: any) => ({ id: o.id, name: o.name, body: o.body, active: !!o.active })),
+      wearing: outfits.filter((o: any) => o.entry_id === e.id && o.active)
+        .map((o: any) => ({ name: o.name, body: o.body }))[0] ?? null,
+    })),
     pins: pins.map((p: any) => ({ chapterId: p.chapter_id, entryId: p.entry_id, mode: p.mode })),
     arcs: arcs.map((a: any) => ({ id: a.id, fromChapter: a.from_chapter, toChapter: a.to_chapter,
       title: a.title, summary: a.summary })),

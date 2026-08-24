@@ -17,6 +17,9 @@ export interface Entry {
   keys: string[];
   lastEditor: 'human' | 'model';   // decides arbitration (COUNCIL-03 S1)
   states?: EntryState[];           // canon over time — see resolveBody
+  // The outfit being worn, if any. A second bracket rather than an edit to the body, so taking
+  // the plate off does not require rewriting who she is. PLAN-04 04.
+  wearing?: { name: string; body: string } | null;
   stickyFor?: number;              // stays active this many passages after it last fired
   properNouns?: boolean;           // names do not get folded — see fold()
 }

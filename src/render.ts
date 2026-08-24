@@ -58,5 +58,10 @@ export function render(m: Manifest): string {
  *  every entry carried [pinned] and the tag distinguished nothing. Provenance still decides
  *  which extraction proposals are conflicts — that is where it does real work. */
 export function entryText(e: Entry): string {
-  return e.body;
+  // The worn outfit rides WITH the entry, so it obeys the entry's own activation — an always-on
+  // character carries it every call, a triggered one only when they fire. A separate block would
+  // have needed its own budget and its own firing rule for no gain.
+  if (!e.wearing?.body) return e.body;
+  const who = (e.title || '').trim().split(/[\s:,]/)[0] || 'They';
+  return `${e.body}\n[${who} wears: ${e.wearing.body.trim()}]`;
 }

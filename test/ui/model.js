@@ -250,13 +250,9 @@ ok(`spark produces something to look at (library ${libBefore} -> ${libAfter})`,
    libAfter > libBefore || /Accept|Start writing|Title/.test(pageText));
 ok("  and the skeleton's fields are shown, not em-dashes", !/—\s*—\s*—/.test(pageText));
 
-// ---- 7. start blank
-await page.goto(B + "/");
-await page.click('[data-nav="create"]');
-const bBefore = (await lib()).length;
-await page.click('[data-blank="1"]');
-await wait(2500);
-ok(`Start blank creates a story (${bBefore} -> ${(await lib()).length})`, (await lib()).length === bBefore + 1);
-ok("  and opens it", await page.eval("!!document.getElementById('input')"));
+// ---- 7. start blank moved out. It never called the model — it was one click and a count — and
+// it now opens a form to fill in rather than creating `Untitled` outright. test/ui/panels.js 13
+// drives the whole flow deterministically, so keeping a stale copy here only bought a slow
+// scenario one more way to go red for the wrong reason.
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

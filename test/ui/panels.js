@@ -214,4 +214,73 @@ ok(`  with a real count, not a placeholder (${words})`, words > 0);
 ok("  and says which models are allowed, or that all are",
    /allowed for Anansi|Every model the router serves/.test(prefs));
 
+// ---- 13. Start blank asks for the story. It used to create `Untitled` and drop you at a
+// blinking cursor, which is the moment you know least about the book.
+await page.goto(B + "/");
+await page.click('[data-nav="create"]');
+await wait(500);
+const libBefore = (await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.length)()"));
+await page.click('[data-blank="1"]');
+await wait(600);
+ok("Start blank opens a form instead of creating", await page.visible('[data-bf="title"]'));
+ok(`  and writes nothing yet (${libBefore})`,
+   (await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.length)()")) === libBefore);
+for (const f of ['title', 'genre', 'premise', 'setting', 'pov', 'writingStyle', 'spice'])
+  ok(`  it asks for ${f}`, await page.eval(`!!document.querySelector('[data-bf="${f}"]')`));
+// Not asked for: both are drawn from a cast and a ledger that do not exist yet.
+ok("  and does NOT ask who you are or where it is going",
+   await page.eval("!document.querySelector('[data-bf=\"persona\"]') && !document.querySelector('[data-bf=\"direction\"]')"));
+await page.type('[data-bf="title"]', 'A Blank Beginning');
+await page.type('[data-bf="genre"]', 'fantasy, heist');
+await page.click('[data-makeblank="1"]');
+for (let i = 0; i < 40; i++) {
+  if ((await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.length)()")) > libBefore) break;
+  await wait(300);
+}
+const made = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s => s.title === 'A Blank Beginning'))()");
+ok("Create the story makes it with what you typed", !!made);
+ok(`  keeping the genre (${JSON.stringify(made?.genre ?? '')})`, /fantasy/.test(made?.genre ?? ''));
+ok("  and opens it", await page.eval("!!document.getElementById('input')"));
+
+// ---- 14. outfits: written in the editor, switched from Threads. PLAN-04 chose named outfits
+// over a single "right now" line, and a partial unique index over application code.
+const sid3 = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
+const story3 = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid3 + "')).json())()");
+const who = (await story3()).entries.find((e) => e.entryType === 'character');
+await page.eval("(async () => { await fetch('/api/outfit', { method:'POST', headers:{'Content-Type':'application/json'},"
+  + " body: JSON.stringify({ storyId:'" + sid3 + "', entryId:'" + who.id + "',"
+  + " outfit:{ name:'Plate', body:'the plate he took from the hall' } }) });"
+  + " await fetch('/api/outfit', { method:'POST', headers:{'Content-Type':'application/json'},"
+  + " body: JSON.stringify({ storyId:'" + sid3 + "', entryId:'" + who.id + "',"
+  + " outfit:{ name:'Travelling', body:'oiled canvas, hood up' } }) }); })()");
+await page.goto(B + "/#" + sid3 + "/threads");
+await wait(900);
+ok("outfits appear as chips under the character", await page.visible(`[data-wear^="${who.id}:"]`));
+const chips = await page.eval(`[...document.querySelectorAll('[data-wear^="${who.id}:"]')].map(b => b.textContent.trim()).join(',')`);
+console.log("  chips: " + chips);
+ok(`  one per outfit (${chips})`, /Plate/.test(chips) && /Travelling/.test(chips));
+const plateId = (await story3()).entries.find((e) => e.id === who.id).outfits.find((o) => o.name === 'Plate').id;
+await page.click(`[data-wear="${who.id}:${plateId}"]`);
+await wait(900);
+let worn = (await story3()).entries.find((e) => e.id === who.id).outfits.filter((o) => o.active);
+ok(`clicking a chip wears it (${worn.map((o) => o.name).join(',') || 'none'})`, worn.length === 1 && worn[0].name === 'Plate');
+// The whole point: it reaches the model as a second bracket while worn.
+const inPrompt = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+  + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid3 + "',mode:'continue'})})).json();"
+  + " return r.prompt; })()");
+ok("  and it reaches the prompt as a second bracket", /wears: the plate he took/.test(inPrompt));
+const other = (await story3()).entries.find((e) => e.id === who.id).outfits.find((o) => o.name === 'Travelling');
+await page.click(`[data-wear="${who.id}:${other.id}"]`);
+await wait(900);
+worn = (await story3()).entries.find((e) => e.id === who.id).outfits.filter((o) => o.active);
+ok(`switching takes the other off (${worn.map((o) => o.name).join(',')})`, worn.length === 1 && worn[0].name === 'Travelling');
+await page.click(`[data-wear="${who.id}:${other.id}"]`);
+await wait(900);
+worn = (await story3()).entries.find((e) => e.id === who.id).outfits.filter((o) => o.active);
+ok(`  and clicking the worn one takes it off (${worn.length} worn)`, worn.length === 0);
+const bare = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+  + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid3 + "',mode:'continue'})})).json();"
+  + " return r.prompt; })()");
+ok("  and the prompt stops mentioning it", !/wears:/.test(bare));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

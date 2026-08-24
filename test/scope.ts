@@ -63,6 +63,20 @@ ok('an upsert with a foreign entry id does not rewrite it');
 assert.strictEqual(db.upsertState(bStory.id, aEntry, { fromChapter: 2, body: 'x' }), null);
 ok('a state cannot be hung off another story\'s entry');
 
+// Deleting a character takes its wardrobe with it, or outfits outlive the person wearing them.
+{
+  const tmp = db.upsertEntry(aStory.id, alice, { title: 'Temporary', body: '[here briefly]' });
+  db.upsertOutfit(aStory.id, tmp, { name: 'Coat', body: 'oiled canvas' });
+  assert.strictEqual(db.outfitsOf(aStory.id).length, 1);
+  db.delEntry(aStory.id, tmp);
+  assert.strictEqual(db.outfitsOf(aStory.id).length, 0, 'the wardrobe goes with the character');
+}
+
+assert.strictEqual(db.upsertOutfit(bStory.id, aEntry, { name: 'Hijack', body: 'x' }), null);
+assert.strictEqual(db.wearOutfit(bStory.id, aEntry, 'o-anything'), null);
+assert.strictEqual(db.outfitsOf(aStory.id).length, 0, "alice's character has no outfits from bob");
+ok('an outfit cannot be hung off another story\'s entry, nor worn through one');
+
 db.setPin(bStory.id, bStory.chapterId, aEntry, 'force_in');
 assert.strictEqual(db.pinsOf(bStory.id).length, 0, 'the composite FK refused it');
 ok('a pin cannot point at another story\'s entry');
@@ -109,6 +123,26 @@ ok('a story cannot be deleted by someone who does not own it');
   assert.strictEqual(one('SELECT COUNT(*) c FROM passage_revisions').c,
     one('SELECT COUNT(*) c FROM passage_revisions r JOIN passages x ON x.id = r.passage_id').c,
     'no orphaned prose history may survive');
+  // `exportStory` carries no list of tables: it deletes every other story and lets ON DELETE
+  // CASCADE do the rest. So the check that matters is not about any one table — it is that NO
+  // table carrying a story_id has another story's rows left in it. A table added later without a
+  // cascade fails here instead of shipping every writer's work. Verified by adding exactly such a
+  // table: the failure names it.
+  //
+  // (Asserting one table by name is worth little. The first version of this named `outfits` and
+  // could not be made to fail, because outfits also cascade through entries — the story_id
+  // foreign key was never the thing holding it.)
+  const carriers = (out.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as any[])
+    .map((t: any) => t.name)
+    .filter((t: string) => (out.prepare(`PRAGMA table_info(${t})`).all() as any[])
+      .some((c: any) => c.name === 'story_id'));
+  assert.ok(carriers.length >= 5, `expected several story-scoped tables, found ${carriers}`);
+  const leaked = carriers.filter((t: string) =>
+    (out.prepare(`SELECT COUNT(*) c FROM ${t} WHERE story_id != ?`).get(aStory.id) as any).c > 0);
+  assert.deepStrictEqual(leaked, [],
+    `these tables shipped another story's rows in alice's export: ${leaked}`);
+  console.log(`      (${carriers.length} story-scoped tables checked)`);
   out.close();
   assert.throws(() => db.exportStory(bStory.id, alice), /no such story/, "alice must not export bob's story");
   ok('export carries one story, its history, and nobody else');
