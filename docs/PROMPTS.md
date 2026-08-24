@@ -120,17 +120,38 @@ Levels 4 and 5 constrain model routing per SPEC §10.2, not only the prompt.
 
 ## 5. MODE
 
-The final block. `src/context.ts`, `const MODE`. Four modes — **Adventure was dropped by Seth on
-2026-08-23, not deferred.**
+The final block. `src/context.ts`, `const MODE`. **Five modes as of 2026-08-24**, replacing
+Co-Write / Direct / Full Auto / New Scene at Seth's direction. Adventure was dropped on
+2026-08-23, not deferred.
 
-**Co-Write**
+The set is built around one distinction, and blurring it was the bug that forced the change: in
+**Direct** the writer's text is an *instruction* and never reaches the page; in **Speak**, **Act**
+and **Narrate** the writer's text *is* the last passage and the model's job is to answer it.
+Before this, every mode treated typed text as a directive, so dialogue the writer typed vanished
+into the prompt and never appeared in the story.
+
+**Continue** — a button, not a mode. No directive, because there is nowhere to type one.
 ```
-Continue the passage above. Write 2-4 paragraphs.
-Pick up mid-thought if the last line is unfinished.
-Stop at a natural beat. Do not end the scene.
+Write the next 1-2 paragraphs.
+Advance the scene by one small beat. Do not skip time. Do not introduce a new
+character, location, or revelation unless the prose above set it up.
 ```
 
-**Direct**
+**Speak** — the writer's line is already the last passage, tagged with `speaker`.
+```
+The last passage is dialogue the writer has just spoken as {{speaker}}.
+Answer it. Write how everyone and everything else responds — speech, action, the room.
+Do not put further words in {{speaker}}'s mouth. Do not repeat the line back.
+```
+
+**Act** — the same shape, but an action is narration, so the passage carries no `speaker`.
+```
+The last passage is what {{speaker}} has just done.
+Write what follows from it — the consequence, the reaction, the world answering.
+Do not decide what {{speaker}} does next. Do not restate the action.
+```
+
+**Direct** — the only mode whose text is an instruction.
 ```
 Write what happens next: {{directive}}
 
@@ -138,24 +159,25 @@ Write 2-4 paragraphs covering that and nothing beyond it.
 Do not narrate past the instruction. Do not resolve it faster than the scene wants.
 ```
 
-**Full Auto**
+**Narrate** — the writer wrote prose. Saying so is the whole job: without it the model reads a
+paragraph of narration as a request and writes *about* it instead of *from* it.
 ```
-Write the next 1-2 paragraphs.
-Advance the scene by one small beat. Do not skip time. Do not introduce a new
-character, location, or revelation unless the prose above set it up.
-Steer: {{steer}}
-```
-
-**New Scene**
-```
-Begin a new scene. Time has passed. Open somewhere else, or on someone else.
-Do not recap what just happened.
-The new scene: {{directive}}
+The passage above was written by the author, not by you. It is the story itself, not an instruction.
+Continue from where it stops. Pick up mid-thought if the last line is unfinished.
+Do not rewrite it, summarise it, or comment on it. Write 2-4 paragraphs and stop at a natural beat.
 ```
 
-MODE is omitted only for Co-Write on an unfinished line, and that scoping is deliberate: Direct's
-directive and Full Auto's steer live **only** in MODE, and omitting it also drops the length
-instruction, which truncates, which looks unfinished, which omits it again. It latches.
+`{{speaker}}` defaults to the point-of-view character and can be anyone in the cast — the
+`speaker` column on a passage has always supported that; until now nothing could set it.
+
+MODE is omitted only for **Narrate** on an unfinished line, and that scoping is deliberate:
+Direct's directive and speak/act's "whose line is it" live **only** in MODE, and omitting it also
+drops the length instruction, which truncates, which looks unfinished, which omits it again. It
+latches. Narrate inherits the exception from Co-Write because it is the mode where the writer
+deliberately stops mid-sentence for the model to finish.
+
+An unknown mode falls back to Continue rather than throwing — a stale browser tab still sends the
+retired names, and a 500 from an undefined lookup is a worse answer than the neutral mode.
 
 ---
 

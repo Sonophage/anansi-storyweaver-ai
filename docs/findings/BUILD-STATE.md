@@ -51,7 +51,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **105 across six suites** (33 engine, 26 db, 17 scope, 9 import, 11 web, 9 app), plus 118 driven-browser checks across 8 scenarios and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
+| **Tests** | **106 across six suites** (34 engine, 26 db, 17 scope, 9 import, 11 web, 9 app), plus **201 driven-browser checks across 11 scenarios** — nine that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
 
 ---
 
@@ -159,8 +159,16 @@ Preferences.
 **Phone — 16 sheets**: library, create, onboarding, story, chapter, cast, entry, entry history,
 queue, timeline, context, branches, search, import, settings, story-by-id.
 
-**All four writing modes exercised live** against the real model: Co-Write 1,290 chars, Direct
-1,218, Full Auto 772, New Scene 781, MODE block included in every one.
+**The mode set was replaced on 2026-08-24** at Seth's direction: Continue, Speak, Act, Direct,
+Narrate. The measurement above it — all four of Co-Write, Direct, Full Auto and New Scene
+exercised live, 1,290 / 1,218 / 772 / 781 chars, MODE present in every one — was true of the old
+set and is kept as the record of it. **The old numbers do not transfer.**
+
+What forced the change: every mode treated typed text as a *directive*, so dialogue the writer
+typed never reached the page. The new set turns on that distinction — Direct's text is an
+instruction and is never written down; Speak, Act and Narrate put the writer's text on the page
+as theirs and the model answers it. `test/ui/model.js` asserts both halves, including the inverse:
+that a Direct instruction appears nowhere in the prose.
 
 ### The two importers, resolved 2026-08-24
 

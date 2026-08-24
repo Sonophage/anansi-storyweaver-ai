@@ -22,7 +22,7 @@ function applyLook() {
 
 // ---------- state ----------
 const S = {
-  place: 'workspace', wpage: 'stories', panel: null, mode: 'cowrite',
+  place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   entryId: null, historyOf: null, models: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, spark: null, ritual: null, setup: null,
@@ -77,7 +77,8 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
-  'skipsetup', 'doimport', 'dropimport', 'openimported'].map((k) => `[data-${k}]`).join(',');
+  'skipsetup', 'doimport', 'dropimport', 'openimported',
+  'continue'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null;
 function toast(msg) {
@@ -210,7 +211,12 @@ function passageHTML(p) {
   if (p.isBreak) return `<div class="scenebreak"><i></i><span class="up" style="font-size:10px;
     color:var(--label); opacity:.8">${esc(p.body || 'Scene')}</span><i></i></div>`;
   const mine = p.author === 'human';
-  const spoken = mine || p.speaker || isSpeech(p.body);
+  // Authorship is not the same question as whether this is dialogue. It used to be — Speak was
+  // the only way a human passage got written, and a Speak passage is always a line — but Act and
+  // Narrate write human passages that are narration, and styling those as speech with a "You ·"
+  // chip is the opposite of Narrate's whole point. A passage is spoken if it has a named voice
+  // or opens on a quote; who wrote it only decides the label.
+  const spoken = !!p.speaker || isSpeech(p.body);
   const flags = (V.violations ?? []).filter((f) => f.passageId === p.id);
   const v = p.variants ?? [];
   const at = v.findIndex((x) => x.selected) + 1;
@@ -224,7 +230,8 @@ function passageHTML(p) {
     <button data-del="${p.id}" style="color:#C8705A"><span class="serif">✕</span><span class="lbl-txt">Delete</span></button></div>`;
 
   const body = spoken
-    ? `<div class="who">${mine ? `You · ${esc(V.story.persona || 'you')}` : esc(p.speaker || V.story.title)}</div>
+    ? `<div class="who">${p.speaker ? esc(p.speaker)
+         : mine ? `You · ${esc(V.story.persona || 'you')}` : esc(V.story.title)}</div>
        <div class="said" contenteditable="plaintext-only" data-edit="${p.id}">${esc(p.body)}</div>`
     : `<div class="narr" contenteditable="plaintext-only" data-edit="${p.id}">${esc(p.body)}</div>`;
   const flagged = flags.map((f) => {
@@ -263,27 +270,38 @@ function drawDock() {
   if (!(S.place === 'story' && V)) { $('dock').hidden = true; return; }
   $('dock').hidden = false;
   const [, , placeholder] = MODES.find((m) => m[0] === S.mode) ?? MODES[0];
+  // Speak and Act happen AS someone. Everyone else in the story is fair game, which is what the
+  // `speaker` column on a passage has always been for — there was simply no way to set it.
+  const asWhom = S.mode === 'speak' || S.mode === 'act';
+  const cast = V.entries.filter((e) => e.entryType === 'character');
+  const me = V.story.persona || 'you';
+  const who = S.speaker || me;
 
   $('dockCol').innerHTML = `
-    <div id="modes">${MODES.map(([k, label]) => `<button data-mode="${k}" aria-pressed="${k === S.mode}">${label}</button>`).join('')}
-      <span class="deskonly up" style="margin-left:auto; font-size:10.5px; letter-spacing:.16em;
-        color:var(--label); opacity:.6; white-space:nowrap">${
-        ACT?.last ? `Telling · ${ACT.last}` : 'Telling'}</span></div>
-    <div id="inputRow">
-      <textarea id="input" rows="1" placeholder="${esc(placeholder(V.story.persona))}"></textarea>
-      <span class="deskonly" style="font-size:10.5px; color:var(--label); opacity:.55; padding-bottom:3px">⌘↵</span>
-      <button id="send" data-send="1" ${S.busy ? 'disabled' : ''} aria-label="Send">${S.busy ? '…' : '↑'}</button>
+    <div id="modes">
+      <button data-continue="1" ${S.busy ? 'disabled' : ''} title="Carry on with no prompt">Continue</button>
+      ${MODES.map(([k, label]) => `<button data-mode="${k}" aria-pressed="${k === S.mode}">${label}</button>`).join('')}
+      ${asWhom ? `<label class="deskonly" style="margin-left:auto; display:flex; align-items:center; gap:6px;
+        font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--label); opacity:.75">
+        as
+        <select id="asWhom" style="background:none; border:0; color:#D9B26A; font-size:11px;
+          letter-spacing:.06em; text-transform:none; max-width:150px">
+          <option value=""${S.speaker ? '' : ' selected'}>${esc(me)}</option>
+          ${cast.filter((e) => e.title !== me).map((e) => `<option value="${esc(e.title)}"${
+            e.title === S.speaker ? ' selected' : ''}>${esc(e.title)}</option>`).join('')}
+        </select></label>` : ''}
     </div>
-    <div id="takeRow">
-      <span style="font-size:11px; color:var(--label); opacity:.7; white-space:nowrap">${
-        S.busy ? 'Telling…' : ACT?.last ? `Last take · ${ACT.last}` : 'Ready'}</span>
-      <span style="margin-left:auto; font-size:11px; color:var(--label); opacity:.55;
-        white-space:nowrap">Each take is kept. Every passage has its own ⋯</span>
+    <div id="inputRow">
+      <textarea id="input" rows="1" placeholder="${esc(placeholder(who))}"></textarea>
+      <span class="deskonly" style="font-size:10.5px; color:var(--label); opacity:.55; padding-bottom:3px">&crarr;</span>
+      <button id="send" data-send="1" ${S.busy ? 'disabled' : ''} aria-label="Send">${S.busy ? '…' : '↑'}</button>
     </div>`;
   const ta = $('input');
   ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(140, ta.scrollHeight)}px`; });
   ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); generate(); }
+    // Enter sends. It used to need Cmd/Ctrl, which meant the button was the only way to send —
+    // in a box you type one line into, that is the wrong default round.
+    if (e.key === 'Enter' && !e.shiftKey && !e.altKey) { e.preventDefault(); generate(); }
   });
 }
 
@@ -1060,7 +1078,9 @@ async function openStory(id) {
 
 async function refreshManifest() {
   if (!V) return;
-  const r = await api.manifest({ storyId: S.storyId, mode: S.mode, directive: $('input')?.value || undefined });
+  const r = await api.manifest({ storyId: S.storyId, mode: S.mode,
+    directive: $('input')?.value || undefined,
+    speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined });
   if (!r.error) { MANI = r.manifest; PROMPT = r.prompt ?? ''; drawBar();
     if (S.panel === 'inspector') drawSide(); }
 }
@@ -1074,32 +1094,47 @@ function clearComposer() {
   ta.style.height = '';
 }
 
-async function generate() {
+/** Send. `mode` is passed explicitly only by the Continue button, which is not a selected mode.
+ *
+ *  The split that matters: in Direct your text is an INSTRUCTION and is never written down. In
+ *  Speak, Act and Narrate your text IS the next passage — it goes on the page as yours, and then
+ *  the model answers it. Getting that wrong is what made typed dialogue disappear into the
+ *  prompt: whatever mode you were in, your words only ever became a directive. */
+async function generate(mode = S.mode) {
   if (S.busy || !V) return;
-  const directive = $('input')?.value.trim() ?? '';
-  // Speak: your line goes down as yours, and then Anansi answers as everyone else. It used to
-  // save the line and stop, so getting a reply took a second press on an empty box.
-  if (S.mode === 'cowrite' && directive) {
-    const w = await api.write(S.storyId, { body: directive, author: 'human' });
+  const typed = $('input')?.value.trim() ?? '';
+  const YOURS = mode === 'speak' || mode === 'act' || mode === 'narrate';
+  // Who it is, for the prompt. Act does NOT set the passage's speaker column — that column
+  // means "a named voice" and drives speech styling, and an action is narration.
+  const who = mode === 'speak' || mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined;
+
+  if (YOURS) {
+    if (!typed) return toast(mode === 'narrate'
+      ? 'Write the passage first — Narrate puts your own prose on the page.'
+      : 'Type what you want to say first, or press Continue.');
+    const w = await api.write(S.storyId, { body: typed, speaker: mode === 'speak' ? who : null });
     if (w.error) return toast(w.error);
     clearComposer();
     V = await api.story(S.storyId);
     paint();
+  } else if (mode === 'direct' && !typed) {
+    return toast('Say what happens next, or press Continue.');
   }
+
   S.busy = true; drawDock();
-  // In Speak the line is already on the page, so the reply is a continuation with no directive.
-  const r = await api.generate({ storyId: S.storyId, mode: S.mode,
-    directive: S.mode === 'cowrite' ? undefined : (directive || undefined) });
+  // Your text is already on the page in the three modes above, so the model gets no directive —
+  // it gets told whose line it is answering instead.
+  const r = await api.generate({ storyId: S.storyId, mode,
+    directive: YOURS ? undefined : (typed || undefined), speaker: who });
   if (r.error) { S.busy = false; drawDock(); return toast(r.error); }
   MANI = r.manifest;
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
   // Regenerate or Delete, and both keep the history, so nothing is lost by committing it.
   const a2 = await api.accept(S.storyId, { body: r.prose,
-    directive: S.mode === 'cowrite' ? undefined : (directive || undefined) });
+    directive: YOURS ? undefined : (typed || undefined) });
   S.busy = false;
   if (a2.error) return toast(a2.error);
   clearComposer();
-  ACT = { ...(ACT ?? {}), last: `${r.seconds}s` };
   V = await api.story(S.storyId);
   paint(); refreshManifest();
 }
@@ -1144,6 +1179,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
+  if (d.continue) { await generate('continue'); return; }
   if (d.nav) {
     if (S.place === 'story') { S.panel = d.nav; S.entryId = null; S.historyOf = null; syncHash(); }
     else S.wpage = d.nav;
@@ -1165,7 +1201,15 @@ document.addEventListener('click', async (e) => {
   if (d.open) { await openStory(d.open); return; }
   if (d.chapter) { const r = await api.story(S.storyId, d.chapter); if (!r.error) { V = r; paint(); } return; }
 
-  if (d.mode) { S.mode = d.mode; drawDock(); refreshManifest(); return; }
+  if (d.mode) {
+    // Switching mode rebuilds the dock, which rebuilds the textarea. Carry what is typed across:
+    // deciding "this is dialogue, not an instruction" after writing the line is the normal way
+    // round, and losing the line for it is the seventh instance of this same repaint bug.
+    const kept = $('input')?.value ?? '';
+    S.mode = d.mode; drawDock();
+    if (kept && $('input')) { $('input').value = kept; $('input').focus(); }
+    refreshManifest(); return;
+  }
   if (d.re) { await regenerateInto(d.re); return; }
   if (d.reroll !== undefined) { await regenerateLast(); return; }
   if (d.send) { await generate(); return; }   // the button's only path; ⌘↵ is the shortcut
@@ -1473,6 +1517,15 @@ async function readImport(f) {
 }
 
 document.addEventListener('change', (e) => {
+  // Never redraws the dock: the placeholder is the only thing that depends on this, and a
+  // repaint here would empty the line you are part-way through writing.
+  if (e.target.id === 'asWhom') {
+    S.speaker = e.target.value || null;
+    const [, , ph] = MODES.find((m) => m[0] === S.mode) ?? MODES[0];
+    if ($('input')) $('input').placeholder = ph(S.speaker || V?.story.persona || 'you');
+    refreshManifest();
+    return;
+  }
   if (e.target.id === 'impfile') { readImport(e.target.files?.[0]); return; }
   if (e.target.id === 'impinto') { S.imp.into = e.target.value; drawPage(); }
 });

@@ -35,7 +35,7 @@ const base = (): Input => ({
     entry('e-ghost', '[Ghost Wolf: never mentioned anywhere]',
           { activation: 'triggered', keys: ['ghost wolf'], entryType: 'lore' }),
   ],
-  mode: 'cowrite', currentChapter: { id: 'c3', index: 3, title: 'Key' }, budget: 4000,
+  mode: 'narrate', currentChapter: { id: 'c3', index: 3, title: 'Key' }, budget: 4000,
 });
 
 let n = 0;
@@ -100,13 +100,52 @@ ok('canon obeys the 45% cap', () => {
   assert.ok(canon <= 200 * 0.45 + 1, `canon over cap: ${canon}`);
 });
 
-ok('MODE is dropped for Co-Write on an unfinished line, and only there', () => {
+ok('MODE is dropped for Narrate on an unfinished line, and only there', () => {
   const i = base();
   i.passages = [...i.passages, { id: 'p4', ordinal: 4, body: 'He reached for the' }];
   assert.ok(!buildContext(i, count).blocks.some((b) => b.kind === 'MODE'));
   const d = { ...i, mode: 'direct' as const, directive: 'He drops it.' };
   assert.ok(buildContext(d, count).blocks.some((b) => b.kind === 'MODE'),
     'Direct must keep MODE — its directive lives only there');
+  const sp = { ...i, mode: 'speak' as const, speaker: 'Aldis' };
+  assert.ok(buildContext(sp, count).blocks.some((b) => b.kind === 'MODE'),
+    'Speak must keep MODE — whose line it is lives only there');
+});
+
+// The five modes are not five labels on one behaviour. Two things separate them, and a mode set
+// that blurs either one is the bug this replaced: whether the writer's text is an INSTRUCTION
+// (direct) or is already the last PASSAGE (speak, act, narrate), and who it belongs to.
+ok('each mode says the one thing that distinguishes it', () => {
+  const modeText = (o: Partial<ReturnType<typeof base>>) =>
+    buildContext({ ...base(), ...o } as any, count).blocks.find((b) => b.kind === 'MODE')?.text ?? '';
+
+  // Continue takes no directive at all — it is a button, so there is nowhere to type one.
+  const cont = modeText({ mode: 'continue' as any, directive: 'IGNORE ME' });
+  assert.ok(/next 1-2 paragraphs/.test(cont), 'Continue must ask for the next beat');
+  assert.ok(!/IGNORE ME/.test(cont), 'Continue must not carry a directive it cannot be given');
+
+  // Direct's text is an instruction and must appear as one.
+  assert.match(modeText({ mode: 'direct' as any, directive: 'He drops it.' }),
+    /what happens next: He drops it\./);
+
+  // Speak and Act name the speaker, and forbid the two failure modes each has: talking on in
+  // that character's voice, and deciding what they do next.
+  const spk = modeText({ mode: 'speak' as any, speaker: 'Aldis Fen' });
+  assert.match(spk, /dialogue the writer has just spoken as Aldis Fen/);
+  assert.match(spk, /Do not put further words in Aldis Fen's mouth/);
+  const act = modeText({ mode: 'act' as any, speaker: 'Aldis Fen' });
+  assert.match(act, /what Aldis Fen has just done/);
+  assert.match(act, /Do not decide what Aldis Fen does next/);
+  // With nobody named they must still be legible rather than saying "as undefined".
+  assert.ok(!/undefined/.test(modeText({ mode: 'speak' as any })), 'a missing speaker must not print undefined');
+
+  // Narrate is the only mode that tells the model the text above is the author's own prose.
+  // Without that it treats a paragraph of narration as a request and writes ABOUT it.
+  assert.match(modeText({ mode: 'narrate' as any }), /written by the author, not by you/);
+
+  // A stale tab sending a retired name degrades to the neutral mode instead of a 500.
+  assert.ok(/next 1-2 paragraphs/.test(modeText({ mode: 'cowrite' as any })),
+    'an unknown mode must fall back, not throw');
 });
 
 ok('buildContext is pure: same input, same manifest', () => {

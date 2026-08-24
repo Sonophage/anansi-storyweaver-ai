@@ -10,12 +10,19 @@ const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") +
 const lib = () => page.eval("(async () => (await (await fetch('/api/stories')).json()).stories)()");
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 const story = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid + "')).json())()");
+// page.goto returns on load; the app then fetches the library, the story and the manifest before
+// the dock exists at all. Clicking straight after a goto is a race, and it lost.
+const ready = async (sel, n = 40) => {
+  for (let i = 0; i < n; i++) { if (await page.visible(sel)) return true; await wait(250); }
+  throw new Error(`never appeared: ${sel}`);
+};
 
 // ---- 1. the composer: a take is kept as it arrives
+// Continue is the mode with no prompt, so it is the one that needs no setup.
 await page.goto(B + "/#" + sid);
 const n0 = (await story()).passages.length;
-await page.click('[data-mode="fullauto"]');
-await page.click('#send');
+await ready('[data-continue="1"]');
+await page.click('[data-continue="1"]');
 console.log("  generating…");
 for (let i = 0; i < 60 && (await story()).passages.length === n0; i++) await wait(1000);
 const n1 = (await story()).passages.length;
@@ -66,41 +73,117 @@ const edited = (await story()).passages.find((p) => p.id === target.id);
 ok(`editing prose in place saves (${JSON.stringify((edited?.body ?? '').slice(0, 34))})`,
    /EDITED BY THE MODEL SCENARIO/.test(edited?.body ?? ''));
 
-// ---- 5. ending a chapter: closes, opens the next, and summarises the one it closed
-const before = await story();
-const chBefore = before.chapters.length;
-const closing = before.currentChapter;
-await page.goto(B + "/#" + sid + "/story");
-await page.click('[data-endchapter="1"]');
-console.log("  closing the chapter (this summarises)…");
-// Poll for the SUMMARY, not the chapter count. endChapter creates the chapter and then awaits
-// summarise, so a concurrent read sees the new chapter first and the summary a few seconds later.
-for (let i = 0; i < 90; i++) {
-  const v = await story();
-  if (v.chapters.length > chBefore && v.chapters.find((c) => c.id === closing.id)?.summary) break;
-  await wait(1000);
-}
-const after = await story();
-ok(`ending a chapter opens the next (${chBefore} -> ${after.chapters.length})`, after.chapters.length === chBefore + 1);
-ok("  and moves you into it", after.currentChapter.id !== closing.id);
-const closed = after.chapters.find((c) => c.id === closing.id);
-ok(`  and summarises the one it closed (${(closed?.summary ?? '').length} chars)`, !!closed?.summary);
-ok("  with a summary that records rather than explains",
-   !/\b(indicates|suggests|confirms that|this action|establishes)\b/i.test(closed?.summary ?? ''));
+// ---- 5. ending a chapter used to be driven here, against [data-endchapter="1"]. That button
+// no longer exists: the end-of-chapter ritual replaced it, and test/ui/ritual.js drives the
+// whole ritual — close, summarise, extract, set up the next chapter — rather than just the
+// close. This scenario died here for a day without anyone noticing, because it is opt-in and
+// the runner scored "8 ok, 0 red" as green. run.sh now requires a scenario to reach its own
+// verdict line, which is what surfaced it.
 
-// ---- 5b. Speak puts the line down as yours AND gets an answer, in one press
+// ---- 5b. What each mode DOES with what you type. This is the distinction the whole set
+// exists for, and the bug it replaced: whatever mode you were in, your words only ever became
+// a directive, so typed dialogue never reached the page.
+const idle = async (n = 90) => {
+  for (let i = 0; i < n; i++) {
+    if (!(await page.eval("document.getElementById('send')?.disabled"))) return true;
+    await wait(1000);
+  }
+  return false;
+};
+const compose = async (mode, text) => {
+  await ready(`[data-mode="${mode}"]`);
+  await page.click(`[data-mode="${mode}"]`);
+  await page.eval("(() => { document.getElementById('input').value = ''; return 1; })()");
+  await page.type('#input', text);
+  await page.click('#send');
+};
+
 await page.goto(B + "/#" + sid);
-const sBefore = (await story()).passages.length;
-await page.click('[data-mode="cowrite"]');
-await page.type('#input', '"Then say it plainly," he said.');
-await page.click('#send');
-console.log("  speaking…");
-for (let i = 0; i < 60 && (await story()).passages.length < sBefore + 2; i++) await wait(1000);
-const sAfter = (await story()).passages;
-ok(`Speak writes your line and gets a reply (${sBefore} -> ${sAfter.length})`, sAfter.length >= sBefore + 2);
-ok("  and yours is attributed to you", sAfter.some((p) => p.author === 'human' && /say it plainly/.test(p.body)));
-ok("  and the composer is empty again", (await page.eval("document.getElementById('input')?.value")) === '');
-ok("  and back to its own height", !(await page.eval("document.getElementById('input')?.style.height")));
+
+// Speak: your line goes down as YOURS, attributed to a named voice, and the model answers it.
+{
+  const before = (await story()).passages.length;
+  await compose('speak', '"Then say it plainly," he said.');
+  console.log("  speaking…");
+  for (let i = 0; i < 60 && (await story()).passages.length < before + 2; i++) await wait(1000);
+  const after = (await story()).passages;
+  ok(`Speak writes your line and gets a reply (${before} -> ${after.length})`, after.length >= before + 2);
+  const mine = after.find((p) => p.author === 'human' && /say it plainly/.test(p.body));
+  ok("  and yours is on the page, attributed to you", !!mine);
+  // The `speaker` column means "a named voice", so it is recorded only when there is a name to
+  // record: the story's own main character, or whoever you picked in the `as` selector. A story
+  // with no persona and no selection writes null, which is honest rather than inventing "you".
+  const persona = (await story()).story.persona;
+  ok(`  with a named voice, so it renders as speech (${JSON.stringify(mine?.speaker ?? null)}, `
+     + `persona ${JSON.stringify(persona ?? null)})`,
+     persona ? mine?.speaker === persona : mine?.speaker == null);
+  ok("  and the reply is the model's, after yours", after.at(-1)?.author === 'model');
+  ok("  and the composer is empty again", (await page.eval("document.getElementById('input')?.value")) === '');
+  ok("  and back to its own height", !(await page.eval("document.getElementById('input')?.style.height")));
+  await idle();
+}
+
+// Act: the same, except an action is narration — so it must NOT be tagged as a spoken line.
+{
+  const before = (await story()).passages.length;
+  await compose('act', 'He sets the brass key on the table between them.');
+  console.log("  acting…");
+  for (let i = 0; i < 60 && (await story()).passages.length < before + 2; i++) await wait(1000);
+  const after = (await story()).passages;
+  ok(`Act writes what you did and the world answers (${before} -> ${after.length})`, after.length >= before + 2);
+  const mine = after.find((p) => p.author === 'human' && /brass key on the table/.test(p.body));
+  ok("  and yours is on the page", !!mine);
+  ok("  but NOT as a spoken line — an action is narration", !mine?.speaker);
+  await idle();
+}
+
+// Narrate: you write the prose. The model continues FROM it rather than about it.
+{
+  const before = (await story()).passages.length;
+  await compose('narrate', 'The rain had stopped. Aldis heard the bell start up over the water, and counted.');
+  console.log("  narrating…");
+  for (let i = 0; i < 60 && (await story()).passages.length < before + 2; i++) await wait(1000);
+  const after = (await story()).passages;
+  ok(`Narrate puts your prose down and continues from it (${before} -> ${after.length})`, after.length >= before + 2);
+  ok("  and your prose is yours, verbatim",
+     after.some((p) => p.author === 'human' && /counted\.$/.test(p.body.trim())));
+  ok("  and it is not tagged as speech", !after.find((p) => /counted\.$/.test(p.body.trim()))?.speaker);
+  await idle();
+}
+
+// Direct: the inverse assertion, and the one that pins the whole distinction. Your text is an
+// INSTRUCTION. It must produce prose and must never appear on the page itself.
+{
+  const before = (await story()).passages;
+  const INSTRUCTION = 'Marek refuses the key and walks out into the rain.';
+  await compose('direct', INSTRUCTION);
+  console.log("  directing…");
+  for (let i = 0; i < 60 && (await story()).passages.length === before.length; i++) await wait(1000);
+  const after = (await story()).passages;
+  ok(`Direct writes prose (${before.length} -> ${after.length})`, after.length > before.length);
+  ok("  exactly one passage, not two — an instruction is not a passage",
+     after.length === before.length + 1);
+  ok("  and your instruction is NOWHERE on the page",
+     !after.some((p) => p.body.includes(INSTRUCTION)));
+  ok("  the new passage is the model's", after.at(-1)?.author === 'model');
+  // It is kept ON the passage, so you can see later what you asked for.
+  console.log("  directive recorded on the passage: " + JSON.stringify(after.at(-1)?.directive ?? null));
+  await idle();
+}
+
+// Continue takes no text at all: pressing it with something typed must not smuggle it in.
+{
+  const before = (await story()).passages.length;
+  await page.click('[data-mode="direct"]');
+  await page.eval("(() => { document.getElementById('input').value = 'LEAK'; return 1; })()");
+  await page.click('[data-continue="1"]');
+  console.log("  continuing…");
+  for (let i = 0; i < 60 && (await story()).passages.length === before; i++) await wait(1000);
+  const after = (await story()).passages;
+  ok(`Continue writes with no prompt (${before} -> ${after.length})`, after.length === before + 1);
+  ok("  and does not pick up what was left in the box", !after.some((p) => /LEAK/.test(p.body)));
+  await idle();
+}
 
 // ---- 6. spark: an idea in, a skeleton back, and something to accept
 await page.goto(B + "/");

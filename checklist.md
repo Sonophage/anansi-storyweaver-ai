@@ -165,6 +165,56 @@ Branch: `ui-overhaul`. Nothing here has been merged to `main`.
 
 ---
 
+## The composer — five modes
+
+Everything below is on the bar above the input.
+
+- [ ] **The bar reads Continue · Speak · Act · Direct · Narrate.** New scene is gone from it.
+
+- [ ] **Continue takes no prompt.** Press it with the box empty and it writes the next beat.
+      Type something first and press Continue anyway — what you typed must **not** be smuggled
+      into the prompt.
+
+- [ ] **Speak.** Type a line and press **Enter** (Enter alone now — it used to need ⌘). Your line
+      appears in the story as *yours*, attributed to you, and Anansi answers around it.
+
+- [ ] **Speak as someone else.** With Speak selected there is an **as** dropdown on the right of
+      the bar, defaulting to you and listing the cast. Pick someone else and your line goes down
+      as theirs.
+
+- [ ] **Act.** Type what you do. It lands as **narration**, not as a quoted line, and the world
+      answers. This is the difference from Speak worth checking on the page.
+
+- [ ] **Direct.** Type an instruction. Anansi writes prose from it and **your instruction never
+      appears in the story** — that is the whole point of the mode.
+
+- [ ] **Narrate.** Write a paragraph yourself. It goes down as your prose verbatim, and Anansi
+      continues *from* it rather than writing *about* it. Leave a sentence unfinished and it
+      should pick up mid-thought.
+
+- [ ] **Switching mode does not eat what you typed.** Write a line in Direct, then press Speak.
+      The line survives. (Seventh instance of that repaint bug.)
+
+- [ ] **Shift+Enter still makes a newline.**
+
+- [ ] **The two lines below the input are gone** — "Each take is kept" and the last-take timing.
+
+      **What this fixed, and why it was worth a whole pass.** Your note said typed dialogue never
+      reached the story and "the ai prompt seems to be the only thing captured". That was exactly
+      right: whatever mode you were in, your words became a *directive* and were never written
+      down. The five modes turn on that one distinction — Direct's text is an instruction, and
+      Speak / Act / Narrate put your text on the page as yours before the model answers it.
+
+      Driven against the real model, all five, including the inverse check that a Direct
+      instruction appears nowhere in the prose.
+
+- [ ] **A toast no longer blocks the composer.** It sits directly over the input; until now it
+      swallowed clicks for four seconds, so the error telling you to type something was the thing
+      stopping you. I found this because it broke a test. Its *position* is still over the input —
+      say if you want it moved.
+
+---
+
 ## Main story screen
 
 - [ ] **Every passage has a `⋯` handle.** The actions used to appear only on hover, which meant

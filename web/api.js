@@ -7,7 +7,17 @@ const j = async (u, m = 'GET', b) => {
     const r = await fetch(u, m === 'GET' ? {} : {
       method: m, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b ?? {}) });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) return { ...data, error: data.error ?? `the server said ${r.status}` };
+    if (!r.ok) {
+      // A route this server has never heard of, as distinct from a story it will not show you:
+      // serve.ts answers the first with exactly 'not found' and the second with 'no such story'.
+      // This is what a stale server looks like from the browser — the page was reloaded, the
+      // process was not — and "not found" sent someone hunting for a bug in code that was
+      // simply not running. Say which of the two it is.
+      if (r.status === 404 && data.error === 'not found')
+        return { error: `this Anansi server has no ${m} ${u.split('?')[0]} — it is running older `
+          + 'code than this page. Restart it and reload.' };
+      return { ...data, error: data.error ?? `the server said ${r.status}` };
+    }
     return data;
   } catch {
     return { error: 'cannot reach Anansi — is the server still running?' };

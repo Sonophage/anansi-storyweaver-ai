@@ -124,8 +124,28 @@ ok("  and it is specific, not a shrug", /JSON|PNG|export|card|prose/i.test(toast
 ok("  and nothing was written", (await lib()).length === before);
 ok("  and the picker still works afterwards", await page.eval("!!document.getElementById('impfile')"));
 
+// ---- 5b. A stale server is the failure this screen actually hits: the page gets reloaded, the
+// node process does not, and the preview route it needs does not exist yet. api.js turns that
+// into "restart it and reload" instead of "not found" — but only by keying off the server's
+// exact wording, so the contract is pinned here rather than assumed.
+const missing = await page.eval("(async () => { const r = await fetch('/api/does-not-exist', "
+  + "{ method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });"
+  + " return JSON.stringify({ status: r.status, error: (await r.json()).error }); })()");
+console.log("  unknown route: " + missing);
+ok("an unknown route answers 404", JSON.parse(missing).status === 404);
+ok("  with exactly 'not found', which api.js reads as a stale server",
+   JSON.parse(missing).error === 'not found');
+// And the other 404 must stay distinguishable, or every missing story reads as a stale server.
+const nostory = await page.eval("(async () => { const r = await fetch('/api/story?story=s-nope');"
+  + " return JSON.stringify({ status: r.status, error: (await r.json()).error }); })()");
+ok(`  and a story you cannot see says something else (${nostory})`,
+   JSON.parse(nostory).error !== 'not found');
+
 // ---- 6. Open the story goes there
-await page.click('[data-dropimport]');
+// No [data-dropimport] to press here: a refused file leaves the bare picker, because there is no
+// preview left to back out of. This step passed before only by racing the repaint that clears it.
+ok("a refusal leaves the picker ready, with nothing to back out of",
+   (await page.eval("!!document.getElementById('impfile') && !document.querySelector('[data-dropimport]')")));
 await pick(PROSE);
 await page.click('[data-doimport]');
 await wait(2500);

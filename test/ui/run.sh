@@ -35,7 +35,7 @@ fresh() {
 }
 
 scenarios=${1:-}
-[ -z "$scenarios" ] && scenarios="buttons surfaces handlers search restored hostile limits import"
+[ -z "$scenarios" ] && scenarios="buttons surfaces handlers search restored hostile limits import modes"
 # `model` and `ritual` are excluded from the default set: every step waits on a real generation, so it runs
 # in minutes. Ask for it by name: test/ui/run.sh model
 fail=0
@@ -44,9 +44,16 @@ for s in $scenarios; do
   out=$(node --experimental-strip-types bench/drive.ts "http://127.0.0.1:$PORT/" "test/ui/$s.js" 2>&1)
   ok=$(printf '%s' "$out" | grep -c '^  ok')
   red=$(printf '%s' "$out" | grep -c 'RED \|FAIL')
-  # Zero assertions is a dead scenario, not a clean one. This is how six of them sat broken.
-  if [ "$ok" -eq 0 ] && [ "$red" -eq 0 ]; then
-    printf '  %-10s DIED before its first assertion\n' "$s"
+  # Every scenario ends by printing its own verdict. If that line is missing the scenario did
+  # not finish — it threw partway, and the assertions it did reach are not the whole story.
+  # Counting only ok and RED made a scenario that died at assertion 8 of 25 report "8 ok, 0 red",
+  # which is the same false green as the zero case below wearing a different hat.
+  if ! printf '%s' "$out" | grep -q 'all green\|[0-9]* RED'; then
+    if [ "$ok" -eq 0 ] && [ "$red" -eq 0 ]; then
+      printf '  %-10s DIED before its first assertion\n' "$s"
+    else
+      printf '  %-10s DIED after %s ok — did not reach its own verdict\n' "$s" "$ok"
+    fi
     printf '%s\n' "$out" | tail -6 | sed 's/^/       /'
     fail=$((fail+1)); continue
   fi

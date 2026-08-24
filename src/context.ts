@@ -41,8 +41,12 @@ export interface Arc {
 export interface Input {
   story: Story; chapters: Chapter[]; passages: Passage[]; entries: Entry[];
   arcs?: Arc[];                    // act-level summaries, replacing the chapters they cover
-  mode: 'cowrite' | 'direct' | 'fullauto' | 'newscene';
+  mode: 'continue' | 'speak' | 'act' | 'direct' | 'narrate';
   directive?: string;
+  // Who the last passage belongs to, for speak and act. The writer's own line is already on the
+  // page when those two generate, so the model's job is to answer it — and it cannot do that
+  // without being told whose line it is.
+  speaker?: string;
   pins?: Record<string, 'force_in' | 'force_out'>;   // per-chapter overrides, SPEC §7.4 step 7
   currentChapter: Chapter;
   budget: number;          // per-slot context, minus output reserve and margin
@@ -65,11 +69,33 @@ const SPICE: Record<number, string> = {
   5: 'Register: fully explicit. Write sex in unrestricted detail. Do not fade, summarize, or cut away. Vocabulary follows the writing sample. Adult fiction between adult characters.',
 };
 
-const MODE: Record<string, (d?: string) => string> = {
-  cowrite: () => 'Continue the passage above. Write 2-4 paragraphs.\nPick up mid-thought if the last line is unfinished.\nStop at a natural beat. Do not end the scene.',
+/** Five modes, and the distinction that matters runs through all of them: in `direct` the
+ *  writer's text is an INSTRUCTION and never reaches the page; in `speak`, `act` and `narrate`
+ *  the writer's text is already the last passage and the model's job is to answer it. Getting
+ *  that backwards is what made typed dialogue vanish into the prompt. */
+const MODE: Record<string, (d?: string, who?: string) => string> = {
+  // The Continue button. No directive, because there is nowhere to type one — a steer with no
+  // input is a parameter nobody can set.
+  continue: () => 'Write the next 1-2 paragraphs.\nAdvance the scene by one small beat. Do not skip time. Do not introduce a new\ncharacter, location, or revelation unless the prose above set it up.',
+
+  // The writer's line is ALREADY the last passage. The one instruction that earns its tokens is
+  // not to keep talking in that character's voice.
+  speak: (_d, who) => `The last passage is dialogue the writer has just spoken as ${who || 'the point-of-view character'}.\n`
+    + 'Answer it. Write how everyone and everything else responds — speech, action, the room.\n'
+    + `Do not put further words in ${who || 'that character'}'s mouth. Do not repeat the line back.`,
+
+  act: (_d, who) => `The last passage is what ${who || 'the point-of-view character'} has just done.\n`
+    + 'Write what follows from it — the consequence, the reaction, the world answering.\n'
+    + `Do not decide what ${who || 'that character'} does next. Do not restate the action.`,
+
   direct: (d) => `Write what happens next: ${d}\n\nWrite 2-4 paragraphs covering that and nothing beyond it.\nDo not narrate past the instruction. Do not resolve it faster than the scene wants.`,
-  fullauto: (d) => `Write the next 1-2 paragraphs.\nAdvance the scene by one small beat. Do not skip time. Do not introduce a new\ncharacter, location, or revelation unless the prose above set it up.${d ? `\nSteer: ${d}` : ''}`,
-  newscene: (d) => `Begin a new scene. Time has passed. Open somewhere else, or on someone else.\nDo not recap what just happened.${d ? `\nThe new scene: ${d}` : ''}`,
+
+  // The one mode where the text above is the author's own prose rather than a request. Saying so
+  // is the whole job: without it the model treats a paragraph of narration as an instruction and
+  // writes about it instead of from it.
+  narrate: () => 'The passage above was written by the author, not by you. It is the story itself, not an instruction.\n'
+    + 'Continue from where it stops. Pick up mid-thought if the last line is unfinished.\n'
+    + 'Do not rewrite it, summarise it, or comment on it. Write 2-4 paragraphs and stop at a natural beat.',
 };
 
 /** The body as it stands at a given chapter.
@@ -315,14 +341,18 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
 
   for (const p of tail) add('TAIL', p.id, p.body, 'tail prose');
 
-  // MODE. Omitted only for Co-Write on an unfinished line — scoping this to one mode
-  // is deliberate: Direct's directive, Full Auto's steer and Adventure's options live
-  // ONLY in MODE, and omitting it also drops the length instruction, which truncates,
-  // which looks unfinished, which omits it again. It latches (COUNCIL-03 S7).
+  // MODE. Omitted only for Narrate on an unfinished line — scoping this to one mode is
+  // deliberate: Direct's directive and speak/act's "whose line is it" live ONLY in MODE, and
+  // omitting it also drops the length instruction, which truncates, which looks unfinished,
+  // which omits it again. It latches (COUNCIL-03 S7). Narrate inherits the exception because
+  // it is the mode where the writer deliberately stops mid-sentence for the model to finish.
   const last = passages.at(-1)?.body ?? '';
   const unfinished = last.length > 0 && !/[.!?"'”’]\s*$/.test(last.trimEnd());
-  if (!(input.mode === 'cowrite' && unfinished)) {
-    add('MODE', 'mode', MODE[input.mode](input.directive), `mode:${input.mode}`);
+  if (!(input.mode === 'narrate' && unfinished)) {
+    // A stale browser tab still sends the old mode names. Falling back to the neutral mode
+    // beats a 500 from an undefined lookup, which is what a reload would otherwise produce.
+    add('MODE', 'mode', (MODE[input.mode] ?? MODE.continue)(input.directive, input.speaker),
+        `mode:${input.mode}`);
   }
 
   // ponytail: ceilings and a hard refusal, no budget engine. No reservation, no trim ladder, no

@@ -20,7 +20,11 @@ if (db.listStories(me).some((s: any) => s.title === input.story.title)) {
   process.exit(0);
 }
 
-const made = db.createStory(me, input.story);
+// `persona` is a UI-level field the engine fixture does not carry — buildContext never reads a
+// main character's NAME, only the point of view. The surfaces need it: it fills the "You are"
+// control, and it is who Speak and Act default to. Without it the seeded story has no
+// protagonist, which is a legitimate state but not the one most assertions are about.
+const made = db.createStory(me, { ...input.story, persona: 'Aldis Fen' });
 // Chapter one exists already; the fixture's later chapters are opened in order so the summaries
 // land on closed chapters, which is the state the scenarios read.
 let chapterId = made.chapterId;
@@ -41,4 +45,4 @@ for (const e of input.entries) {
     activation: e.activation, keys: e.keys, lastEditor: 'human' });
 }
 console.log(`  seeded ${input.story.title}: ${input.chapters.length} chapters, `
-  + `${input.passages.length} passages, ${input.entries.length} entries`);
+  + `${input.passages.length} passages, ${input.entries.length} entries, persona Aldis Fen`);

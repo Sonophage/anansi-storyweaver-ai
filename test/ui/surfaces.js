@@ -2,7 +2,9 @@
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/surfaces.js
 // Point it at a COPY. It writes a spice override and renames nothing else.
 const B = "http://127.0.0.1:5179";
-const ok = (l, g) => console.log("  " + (g ? "ok  " : "FAIL") + " " + l + (g ? "" : "   <-- broken"));
+let red = 0;
+const ok = (l, g) => { if (!g) red++;
+  console.log("  " + (g ? "ok  " : "FAIL") + " " + l + (g ? "" : "   <-- broken")); };
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 
 // 1. hero first, then new, then the rest
@@ -64,3 +66,5 @@ await page.goto(B + "/#" + sid);
 const dock = (await page.text('#dockCol') || '');
 ok("7. Discard and Keep are gone", !dock.includes('DISCARD') && !/\bKeep\b/.test(dock));
 ok("   Regenerate is on the bar", await page.eval("!!document.querySelector('#bar [data-reroll]')"));
+
+console.log(red ? `\n  ${red} RED` : "\n  all green");

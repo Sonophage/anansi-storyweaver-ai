@@ -57,7 +57,8 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
   const v = viewOf(c.body.storyId);
   const upTo = c.body.regenerateOf
     ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
-  const { manifest, prompt } = assemble(v, c.slot, mode, directive, upTo, Number(c.gen.max_tokens) || 900);
+  const { manifest, prompt } = assemble(v, c.slot, mode, directive, upTo,
+    Number(c.gen.max_tokens) || 900, c.body.speaker || undefined);
   if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
   // The estimate draws the meter; this decides. One /tokenize before a call that costs
@@ -399,7 +400,8 @@ export const routes: Record<string, Handler> = {
     const v = viewOf(c.body.storyId, c.body.chapterId);
     const upTo = c.body.regenerateOf
       ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
-    const { manifest, prompt } = assemble(v, c.slot, c.body.mode ?? 'direct', c.body.directive, upTo, Number(c.gen.max_tokens) || 900);
+    const { manifest, prompt } = assemble(v, c.slot, c.body.mode ?? 'direct', c.body.directive,
+      upTo, Number(c.gen.max_tokens) || 900, c.body.speaker || undefined);
     let exact: number | null = null;
     try { exact = await count(prompt); } catch { /* model asleep */ }
     return { manifest, prompt, exact };

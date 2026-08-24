@@ -94,7 +94,8 @@ export const budgetFor = (story: any, slot: Slot, maxTokens = 900) => {
 
 /** Assemble the prompt. Pure from here down — no I/O below this line. */
 export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
-                         mode: string, directive?: string, upToOrdinal?: number, maxTokens = 900) {
+                         mode: string, directive?: string, upToOrdinal?: number, maxTokens = 900,
+                         speaker?: string) {
   // Regenerating passage 3 of 50 must build the context that existed at passage 3. Sending
   // the whole document meant the "new take" was written with knowledge of the 47 passages
   // that come after it — which is not a regeneration, it is a summary of the future.
@@ -103,7 +104,7 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
   const inp: Input = {
     story: v.story as any, chapters: v.chapters, passages, arcs: v.arcs,
     entries: v.entries.map((e) => ({ ...e, body: entryText(e) })),
-    mode: mode as any, directive, currentChapter: v.currentChapter,
+    mode: mode as any, directive, speaker, currentChapter: v.currentChapter,
     // Pins are per chapter, so only this chapter's apply.
     pins: Object.fromEntries((v.pins ?? [])
       .filter((p: any) => p.chapterId === v.currentChapter.id)

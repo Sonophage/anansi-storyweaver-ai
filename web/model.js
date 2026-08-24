@@ -1,11 +1,17 @@
 // One description of the editable shape. Written when there were two surfaces; app.html is the
 // only consumer since desk and phone were deleted on 2026-08-23. It stays a separate module
 // because it is data, not behaviour — the field list, the mode labels, the block colours.
+// Continue is not in here: it is a button, not a mode. It sends immediately with nothing typed,
+// so it has no placeholder and no selected state to hold.
+//
+// The four that are left differ in what happens to what you type. Speak, Act and Narrate put it
+// on the page as yours and the model answers it. Direct never puts it on the page at all — it is
+// an instruction. That difference is the one people get wrong, so the placeholders say it.
 export const MODES = [
-  ['cowrite',  'Speak',     (p) => `Write as ${p || 'yourself'}…`],
-  ['direct',   'Direct',    () => 'What happens next…'],
-  ['fullauto', 'Continue',  () => 'Steer, or leave blank…'],
-  ['newscene', 'New scene', () => 'Where the new scene opens…'],
+  ['speak',   'Speak',   (p) => `Say it as ${p || 'yourself'}…`],
+  ['act',     'Act',     (p) => `What ${p || 'you'} do…`],
+  ['direct',  'Direct',  () => 'Tell Anansi what happens next…'],
+  ['narrate', 'Narrate', () => 'Write it yourself. Anansi carries on from it…'],
 ];
 
 export const KINDS = ['character', 'lore', 'item', 'rule'];

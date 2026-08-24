@@ -3,7 +3,9 @@
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/buttons.js
 // Point it at a COPY of the database. It renames an entry and creates a character.
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
-const ok = (label, got) => console.log("  " + (got ? "ok  " : "FAIL") + " " + label + (got ? "" : "   <-- broken"));
+let red = 0;
+const ok = (label, got) => { if (!got) red++;
+  console.log("  " + (got ? "ok  " : "FAIL") + " " + label + (got ? "" : "   <-- broken")); };
 
 // ---- 1. clicking an entry in Worlds & lorebooks opens it
 await page.goto("http://127.0.0.1:5179/#" + sid);
@@ -49,3 +51,5 @@ await wait(1200);
 const models = await page.eval("document.querySelectorAll('[data-pickmodel]').length");
 ok("Preferences lists models (" + models + ")", models > 1);
 ok("  and marks the active one", await page.eval("!!document.querySelector('[data-pickmodel]')"));
+
+console.log(red ? `\n  ${red} RED` : "\n  all green");

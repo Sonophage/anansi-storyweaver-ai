@@ -24,7 +24,11 @@ ok(`  and says what would have gone (${JSON.stringify((m.why || '').slice(0, 60)
 
 // the refusal has to reach the writer, not just the JSON
 await page.goto(B + "/#" + sid);
-await page.click('#send');
+// Continue, not #send: Continue is the one mode that needs nothing typed, so it reaches the
+// engine. Pressing send with an empty box is now refused by the composer before the engine
+// sees it, which is right, and would test the wrong refusal.
+for (let i = 0; i < 40 && !(await page.visible('[data-continue]')); i++) await wait(250);
+await page.click('[data-continue="1"]');
 await wait(2500);
 const toast = (await page.text('#toast') || '').trim();
 ok(`the writer is told, in the toast (${JSON.stringify(toast.slice(0, 64))})`, toast.length > 10);

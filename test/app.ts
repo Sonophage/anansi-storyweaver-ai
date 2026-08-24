@@ -58,6 +58,12 @@ const STORY = {
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-2', selected: true }] },
     { id: 'p-3', ordinal: 3, body: '"I came alone because."', author: 'human', speaker: null,
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-3', selected: true }] },
+    // Narrate: the writer's OWN prose. A human passage that is not a line of dialogue.
+    { id: 'p-4', ordinal: 4, body: 'The rain had stopped, and she counted the bells.', author: 'human',
+      speaker: null, isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-4', selected: true }] },
+    // Speak as someone other than the persona — the case the `speaker` column exists for.
+    { id: 'p-5', ordinal: 5, body: 'Get out of the doorway.', author: 'human', speaker: 'Envoy Sereth',
+      isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-5', selected: true }] },
   ],
   entries: [{ id: 'e-1', title: 'Envoy Sereth', body: '[speaks for Kesh]', entryType: 'character',
               activation: 'always_on', keys: [], lastEditor: 'human', states: [], notes: '' }],
@@ -122,11 +128,31 @@ assert.match(html('col'), /You · Ilva Marren/, 'a human passage must be attribu
 assert.match(html('col'), /class="block speak"/, 'quoted prose is a speech block');
 assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you block');
 assert.match(html('col'), /Contradiction · Envoy Sereth/, 'a violation must surface on its passage');
+// Act and Narrate write HUMAN passages that are narration, not dialogue. Before the mode set,
+// author === 'human' was a safe proxy for "this is a line of speech", because Speak was the only
+// way to write one — so the renderer keyed off authorship. It is not a proxy any more, and
+// rendering a paragraph of your own narration as dialogue under a "You ·" chip is the opposite
+// of what Narrate is for.
+assert.match(html('col'), /class="narr"[^>]*data-edit="p-4"/,
+  'a human passage that is not dialogue must render as narration, not as your speech');
+assert.ok(!/You · Ilva Marren<\/div>\s*<div class="said" contenteditable="plaintext-only" data-edit="p-4"/.test(html('col')),
+  'and must carry no "You ·" chip');
+// Speaking AS someone else labels it with their name, not with yours.
+assert.match(html('col'), /Envoy Sereth<\/div>\s*<div class="said"[^>]*data-edit="p-5"/,
+  'a human line spoken as another character is labelled with that character');
 ok('prose renders as narration, speech, the writer\'s own line, and a flag');
 
-assert.match(html('dockCol'), /Speak/); assert.match(html('dockCol'), /New scene/);
-assert.match(html('dockCol'), /Write as Ilva Marren/, 'the composer placeholder follows the mode and persona');
-ok('the composer offers all four modes with the right placeholder');
+for (const label of ['Continue', 'Speak', 'Act', 'Direct', 'Narrate']) {
+  assert.match(html('dockCol'), new RegExp(`>${label}<`), `the composer must offer ${label}`);
+}
+// Continue is a BUTTON, not a mode: it sends with nothing typed, so it must not be selectable
+// and must not carry a placeholder of its own.
+assert.match(html('dockCol'), /data-continue="1"/, 'Continue must act, not select');
+assert.doesNotMatch(html('dockCol'), /data-mode="continue"/, 'Continue is not a selected mode');
+assert.match(html('dockCol'), /Say it as Ilva Marren/, 'the placeholder follows the mode and the persona');
+// Speak happens as someone, and the default is the point-of-view character.
+assert.match(html('dockCol'), /id="asWhom"/, 'Speak must offer who you are speaking as');
+ok('the composer offers all five modes, with Continue as an action');
 
 assert.match(html('bar'), /Chapter|The Envoy/);
 assert.match(html('bar'), /46%|4[0-9]%/, 'the header shows the real context percentage');
