@@ -33,6 +33,31 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   ok('export round-trips, twice, under fresh ids');
 }
 
+// Outfits travel with the character. exportStory carried them already — it deletes other stories
+// and lets the cascade do the rest — but fromExport reads a fixed set of tables, and outfits were
+// missed when the table landed, so a round trip returned everyone naked. The engine half of a
+// feature shipping without the other half is this project's recurring shape.
+{
+  const s = db.createStory(owner, { title: 'Wardrobe trip' });
+  const e = db.upsertEntry(s.id, owner, { title: 'The Murmur', body: '[The Murmur: still and sharp]' });
+  db.upsertOutfit(s.id, e, { name: 'Travelling', body: 'oiled canvas, hood up' });
+  const coat = db.upsertOutfit(s.id, e, { name: 'Coat', body: 'a loose coat, lavender' });
+  db.wearOutfit(s.id, e, coat);
+  const { file } = db.exportStory(s.id, owner, '/tmp/anansi-import-out');
+  const back = imp.absorb(owner, imp.fromExport(file));
+  const outs = db.outfitsOf(back.storyId);
+  assert.deepStrictEqual(outs.map((o: any) => o.name).sort(), ['Coat', 'Travelling'],
+    'both outfits come back');
+  assert.deepStrictEqual(outs.filter((o: any) => o.active).map((o: any) => o.name), ['Coat'],
+    'and the one that was being worn is still on');
+  assert.strictEqual(outs.filter((o: any) => o.active).length, 1, 'exactly one, as the index requires');
+  // Fresh ids, like everything else an import writes, so the same file imports twice.
+  assert.ok(outs.every((o: any) => o.story_id === back.storyId));
+  const twice = imp.absorb(owner, imp.fromExport(file));
+  assert.strictEqual(db.outfitsOf(twice.storyId).length, 2, 'and again, without colliding');
+  ok('a wardrobe survives export and import, still wearing what it wore');
+}
+
 // 2. AI Dungeon. World info is keyword canon; memory is always-on canon.
 {
   const inc = imp.parse('adventure.json', Buffer.from(JSON.stringify({

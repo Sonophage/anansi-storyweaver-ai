@@ -1483,8 +1483,8 @@ document.addEventListener('click', async (e) => {
     // ledger and they belong together: write it down yourself, or have the chapter read for what
     // is already on the page. The second is the ritual's extraction step, on its own.
     S.lore = S.lore ? null : { kind: 'character' };
-    S.panel = S.lore ? 'threads' : S.panel;
-    paint();
+    if (S.lore) { S.entryId = null; S.historyOf = null; S.panel = 'threads'; }
+    syncHash(); paint();
     return;
   }
   if (d.addoutfit) {

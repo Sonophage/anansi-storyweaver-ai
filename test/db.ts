@@ -409,8 +409,17 @@ ok('the worn outfit rides with the entry into the prompt', async () => {
   const text = () => entryText(view(st.id)!.entries.find((x: any) => x.id === e) as any);
   assert.strictEqual(text(), '[Ilva Marren: 34, envoy]', 'nothing worn, nothing added');
   db.wearOutfit(st.id, e, plate);
-  assert.match(text(), /^\[Ilva Marren: 34, envoy\]\n\[Ilva wears: the plate/,
+  assert.match(text(), /^\[Ilva Marren: 34, envoy\]\n\[Ilva Marren wears: the plate/,
     'worn, it is a second bracket under the body — not an edit to it');
+  // The wearer is the entry's OWN title, not its first word. Taking the first word turned
+  // "The Murmur" and "The Rust Choir" — both real entries from an imported AI Dungeon story —
+  // into "[The wears: ...]". The title is what the body already uses, so the two lines agree.
+  const murmur = db.upsertEntry(st.id, o, { title: 'The Murmur', body: '[The Murmur: still and sharp]' });
+  const coat = db.upsertOutfit(st.id, murmur, { name: 'Coat', body: 'a loose coat, lavender.' });
+  db.wearOutfit(st.id, murmur, coat);
+  const line = entryText(view(st.id)!.entries.find((x: any) => x.id === murmur) as any).split('\n')[1];
+  assert.strictEqual(line, '[The Murmur wears: a loose coat, lavender.]',
+    `a name beginning with an article must survive intact, got ${line}`);
   db.wearOutfit(st.id, e, null);
   assert.strictEqual(text(), '[Ilva Marren: 34, envoy]', 'taken off, it is gone again');
 });

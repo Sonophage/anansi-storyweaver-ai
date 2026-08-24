@@ -62,6 +62,6 @@ export function entryText(e: Entry): string {
   // character carries it every call, a triggered one only when they fire. A separate block would
   // have needed its own budget and its own firing rule for no gain.
   if (!e.wearing?.body) return e.body;
-  const who = (e.title || '').trim().split(/[\s:,]/)[0] || 'They';
+  const who = (e.title || '').trim() || 'They';
   return `${e.body}\n[${who} wears: ${e.wearing.body.trim()}]`;
 }

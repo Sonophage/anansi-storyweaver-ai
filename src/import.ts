@@ -55,6 +55,10 @@ export function fromExport(file: string): Incoming {
     if (!story) throw new Error('that file holds no story');
     const branch = src.prepare('SELECT id FROM branches WHERE story_id = ? AND is_primary = 1').get(story.id) as any;
     const entries = src.prepare('SELECT * FROM entries WHERE story_id = ?').all(story.id) as any[];
+    // Outfits travel with the character. `exportStory` carries them already — it deletes other
+    // stories and lets the cascade do the rest — but reading them back was missed when the table
+    // landed, so a round trip quietly returned everyone naked.
+    const outfits = src.prepare('SELECT * FROM outfits WHERE story_id = ?').all(story.id) as any[];
     const passages = src.prepare(
       'SELECT body, author FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1 ORDER BY ordinal')
       .all(story.id, branch?.id) as any[];
@@ -65,7 +69,9 @@ export function fromExport(file: string): Incoming {
         direction: story.direction, spice: story.spice },
       entries: entries.slice(0, MAX_ENTRIES).map((e) => ({ title: e.title, body: clip(e.body),
         notes: clip(e.notes, 2000), entryType: e.entry_type, activation: e.activation,
-        keys: keysOf(e.keys && JSON.parse(e.keys)) })),
+        keys: keysOf(e.keys && JSON.parse(e.keys)),
+        outfits: outfits.filter((o) => o.entry_id === e.id).slice(0, 20)
+          .map((o) => ({ name: clip(o.name, 80), body: clip(o.body, 1000), active: !!o.active })) })),
       passages: passages.slice(0, MAX_PASSAGES).map((p) => ({ body: clip(p.body, 20_000), author: p.author })),
       notes: ['Branches, revision history and generation logs are not carried across — the ' +
               'import is a new story, not the same one.'],
@@ -302,6 +308,19 @@ export function parse(name: string, buf: Buffer): Incoming {
   throw new Error('unrecognised file: no character card fields and no AI Dungeon fields');
 }
 
+/** Recreate a character's wardrobe, and put back on whatever they were wearing. Ids are fresh
+ *  like everything else an import writes, so the same file can be imported twice. */
+function plant(storyId: string, entryId: string | null, outfits?: any[]) {
+  if (!entryId || !Array.isArray(outfits)) return;
+  let worn: string | null = null;
+  for (const o of outfits.slice(0, 20)) {
+    if (!clip(o?.name, 80) || !clip(o?.body, 1000)) continue;
+    const id = db.upsertOutfit(storyId, entryId, { name: clip(o.name, 80), body: clip(o.body, 1000) });
+    if (o.active && id) worn = id;
+  }
+  if (worn) db.wearOutfit(storyId, entryId, worn);
+}
+
 /** Insert an Incoming as a NEW story owned by `owner`. Ids are always fresh, so importing
  *  the same file twice gives two stories rather than a primary-key collision — an import
  *  that can fail on its second run is an import people stop trusting. */
@@ -310,7 +329,8 @@ export function absorb(owner: string, inc: Incoming) {
   let entries = 0, passages = 0;
   for (const e of inc.entries.slice(0, MAX_ENTRIES)) {
     if (!clip(e.body)) continue;
-    db.upsertEntry(story.id, owner, { ...e, body: clip(e.body), lastEditor: 'human' });
+    const id = db.upsertEntry(story.id, owner, { ...e, body: clip(e.body), lastEditor: 'human' });
+    plant(story.id, id, e.outfits);
     entries++;
   }
   for (const p of inc.passages.slice(0, MAX_PASSAGES)) {
@@ -342,7 +362,8 @@ export function merge(owner: string, storyId: string, inc: Incoming) {
   for (const e of inc.entries.slice(0, MAX_ENTRIES)) {
     if (!clip(e.body)) continue;
     const hit = byTitle.get(String(e.title ?? '').toLowerCase());
-    db.upsertEntry(storyId, owner, { ...e, id: hit ?? '', body: clip(e.body), lastEditor: 'human' });
+    const id = db.upsertEntry(storyId, owner, { ...e, id: hit ?? '', body: clip(e.body), lastEditor: 'human' });
+    plant(storyId, id, e.outfits);
     if (hit) updated++; else entries++;
   }
   for (const p of inc.passages.slice(0, MAX_PASSAGES)) {

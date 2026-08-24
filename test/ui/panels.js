@@ -197,6 +197,20 @@ ok("  scanning the chapter is offered without ending it", await page.visible('[d
 await page.click('[data-newlore="1"]');
 await wait(400);
 ok("  and it closes again", !/Write it down/.test(await page.text('#sideBody') || ''));
+// threads() returns the entry editor before it looks at S.lore, so with an entry open the tray
+// set its state and the editor rendered anyway — the button did nothing you could see.
+const anyEntry = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
+if (anyEntry) {
+  await page.click(`[data-entry="${anyEntry}"]`);
+  await wait(500);
+  ok("  (an entry editor opens)", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
+  await page.click('[data-newlore="1"]');
+  await wait(600);
+  ok("+ Lore works with an entry already open", /Write it down/.test(await page.text('#sideBody') || ''));
+  ok("  and it leaves the entry editor", await page.eval("!document.querySelector('[data-f=\"title\"]')"));
+  await page.click('[data-newlore="1"]');
+  await wait(300);
+} else { ok("there is an entry to open", false); }
 
 // ---- 12. the writing dashboard, drawn from rows that already existed
 await page.goto(B + "/");

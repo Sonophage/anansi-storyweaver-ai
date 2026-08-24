@@ -51,7 +51,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **118 across six suites** (34 engine, 33 db, 19 scope, 9 import, 14 web, 9 app), plus **321 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
+| **Tests** | **119 across six suites** (34 engine, 33 db, 19 scope, 10 import, 14 web, 9 app), plus **324 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
 
 ---
 
