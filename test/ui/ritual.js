@@ -59,26 +59,39 @@ await page.eval("(() => { for (const k of ['title','note']) document.querySelect
 await page.type('[data-setup="title"]', 'The Stair');
 await page.type('[data-setup="note"]', 'It has to end with Aldis handing the key over.');
 
-// who is in it -> a force_in pin
+// Who is in it. One control, two mechanisms — and which one depends on how the entry already
+// reaches the prompt, so the assertion has to branch the same way the app does.
+//
+// This block used to be guarded by `if (castBtn)` and SILENTLY SKIPPED: the setup page offered
+// only triggered entries, the fixture's characters are all always-on, so the selector matched
+// nothing and two assertions never ran. Always-on entries are offered now, which is what
+// surfaced it.
 const castBtn = await page.eval("document.querySelector('[data-pin]')?.dataset.pin");
+ok("the setup page offers at least one character to tick", !!castBtn);
 if (castBtn) {
+  const before = await story();
+  const ent = before.entries.find((e) => e.id === castBtn);
+  const always = ent?.activation === 'always_on';
+  console.log(`  ticking ${JSON.stringify(ent?.title)} (${ent?.activation})`);
   await page.click('[data-pin="' + castBtn + '"]');
   await wait(900);
   const v = await story();
   const pin = (v.pins ?? []).find((p) => p.entryId === castBtn && p.chapterId === v.currentChapter.id);
-  ok(`ticking a character pins them into the chapter (${pin?.mode})`, pin?.mode === 'force_in');
-  // Always-on entries are not offered: context.ts honours force_in in a branch they never reach,
-  // because they are already sent every call. Only a triggered entry can show 'pinned in'.
-  ok("  and the pin reaches the prompt as canon",
-     /pinned in/.test(await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
-       + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'direct'})})).json();"
-       + " return r.manifest.blocks.map(b=>b.reason).join(','); })()")));
+  // An always-on entry is already sent, so the only move is to hold it OUT. A triggered one is
+  // pushed IN. context.ts applies force_out first, before the always-on branch, so both land.
+  ok(`ticking a character writes the right kind of pin (${pin?.mode})`,
+     pin?.mode === (always ? 'force_out' : 'force_in'));
+  const reasons = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+    + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'continue'})})).json();"
+    + " return r.manifest.blocks.filter(b => b.id === '" + castBtn + "').map(b => b.state + ':' + b.reason).join(','); })()");
+  ok(`  and the prompt obeys it (${JSON.stringify(reasons)})`,
+     always ? /omitted:pinned out/.test(reasons) : /included:pinned in/.test(reasons));
   await page.click('[data-pin="' + castBtn + '"]');
   await wait(900);
   const v2 = await story();
-  ok("  and clicking again unpins", !(v2.pins ?? []).some((p) => p.entryId === castBtn && p.chapterId === v2.currentChapter.id));
-  await page.click('[data-pin="' + castBtn + '"]');
-  await wait(700);
+  ok("  and clicking again clears it", !(v2.pins ?? []).some((p) => p.entryId === castBtn && p.chapterId === v2.currentChapter.id));
+  // Leave it as the fixture had it, so later assertions read a story nobody has quietly changed.
+  if (!always) { await page.click('[data-pin="' + castBtn + '"]'); await wait(700); }
 }
 
 // where -> the same mechanism on a lore entry

@@ -527,7 +527,11 @@ export const routes: Record<string, Handler> = {
 
   // Mapped to the shape the client renders, so `storyId` and the story's title cannot be
   // mistaken for each other again.
-  'GET /api/search':    (c) => ({ results: db.search(c.owner, c.query.get('q') ?? '').map((x: any) => ({
+  // `story` narrows it to one book. Still OPEN, because db.search is owner-scoped in SQL on every
+  // branch — gating it by story once made every search 400, which was the security fix breaking
+  // the feature it protected.
+  'GET /api/search':    (c) => ({ results: db.search(c.owner, c.query.get('q') ?? '',
+    c.query.get('story') || undefined).map((x: any) => ({
     kind: x.kind, id: x.id, storyId: x.story_id, story: x.story_title,
     where: `${x.story_title} · ${x.loc}`, body: x.body,
   })) }),

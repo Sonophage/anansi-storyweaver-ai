@@ -28,6 +28,8 @@ const S = {
   fieldHistory: null, confirmDelete: false, spark: null, ritual: null, setup: null,
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
   found: null,          // the passage a search result sent you to, marked until you move on
+  searchAll: false,     // inside a story, search that story only unless asked otherwise
+  setupQ: '',           // filter over the ledger on the next-chapter setup page
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
@@ -260,20 +262,36 @@ function passageHTML(p) {
 function drawDoc() {
   const read = $('read'), col = $('col');
   const tip = read.scrollHeight - read.scrollTop - read.clientHeight < 140;
-  const byChapter = new Map(V.chapters.map((c) => [c.id, []]));
-  for (const p of V.passages) (byChapter.get(p.chapterId) ?? byChapter.set(p.chapterId, []).get(p.chapterId)).push(p);
-  let html = '';
-  for (const c of V.chapters) {
-    const ps = byChapter.get(c.id) ?? [];
-    if (!ps.length && c.id !== V.currentChapter.id) continue;
-    const w = ps.reduce((n, p) => n + (String(p.body).match(/\S+/g) || []).length, 0);
-    html += `<div style="display:flex; align-items:baseline; gap:12px; font-size:10.5px;
+  // ONE chapter at a time. Every chapter in one scroll was fine at three passages and is not at
+  // 358: you cannot jump to a chapter, and the browser holds the whole book in the DOM. The
+  // engine has focused a chapter since it was written — view(storyId, focusChapterId) — and the
+  // rail already sets it. Only this function had never used it.
+  const ch = V.currentChapter;
+  const ps = V.passages.filter((p) => p.chapterId === ch.id);
+  const at = V.chapters.findIndex((c) => c.id === ch.id);
+  const prev = V.chapters[at - 1], next = V.chapters[at + 1];
+  const words = ps.reduce((n, p) => n + (String(p.body).match(/\S+/g) || []).length, 0);
+  const step = (c, label, side) => c
+    ? `<button data-chapter="${c.id}" style="font-size:11px; letter-spacing:.14em;
+        text-transform:uppercase; color:var(--gold); white-space:nowrap; max-width:44%;
+        overflow:hidden; text-overflow:ellipsis">${side === 'l' ? '&lsaquo; ' : ''}${
+        esc(c.title || `Chapter ${c.index}`)}${side === 'r' ? ' &rsaquo;' : ''}</button>`
+    : `<span style="font-size:11px; color:var(--faint); letter-spacing:.14em; text-transform:uppercase">${label}</span>`;
+
+  col.innerHTML = `
+    <div style="display:flex; align-items:baseline; gap:12px; font-size:10.5px;
       letter-spacing:.28em; text-transform:uppercase; color:var(--label)">
-      <span>${esc(c.title || `Chapter ${c.index}`)}</span>
-      ${w ? `<span style="margin-left:auto; letter-spacing:.1em; text-transform:none; opacity:.7">${w.toLocaleString()} words</span>` : ''}</div>`;
-    html += ps.map(passageHTML).join('');
-  }
-  col.innerHTML = html || `<div class="narr" style="opacity:.6">Nothing written yet. The composer is below.</div>`;
+      <span>${esc(ch.title || `Chapter ${ch.index}`)}</span>
+      <span style="letter-spacing:.1em; text-transform:none; opacity:.7">chapter ${at + 1} of ${V.chapters.length}</span>
+      ${words ? `<span style="margin-left:auto; letter-spacing:.1em; text-transform:none; opacity:.7">${words.toLocaleString()} words</span>` : ''}
+    </div>
+    ${ps.map(passageHTML).join('') || `<div class="narr" style="opacity:.6">${
+      V.chapters.length > 1 ? 'Nothing in this chapter yet.' : 'Nothing written yet. The composer is below.'}</div>`}
+    ${V.chapters.length > 1 ? `<div style="display:flex; align-items:center; gap:14px; padding:26px 0 4px;
+      border-top:1px solid rgba(255,255,255,.05); margin-top:18px">
+      ${step(prev, 'the beginning', 'l')}
+      <span style="margin-left:auto"></span>
+      ${step(next, 'the end', 'r')}</div>` : ''}`;
   if (tip) read.scrollTop = read.scrollHeight;
 }
 
@@ -372,6 +390,20 @@ const PANELS = {
         <span class="tnum" style="margin-left:auto; color:#78726A">${MANI.totals.used.toLocaleString()} / ${budget.toLocaleString()}</span></div>
       <div class="meter">${Object.entries(agg).map(([k, v]) =>
         `<i style="width:${(v / budget * 100).toFixed(2)}%; background:${BLOCK_COLOR[k] ?? '#635E56'}"></i>`).join('')}</div>
+      ${(() => {
+        // Compact now, where the number that makes you want it is. Summarising is what actually
+        // shrinks a long book — the open chapter's prose collapses into a few lines and the
+        // PROSE block stops carrying it — and it was only reachable from the Chapter panel,
+        // which is not where you are when you notice the meter filling up.
+        const prose = (agg.PROSE ?? 0) + (agg.TAIL ?? 0);
+        const pct = Math.round(MANI.totals.used / budget * 100);
+        if (!prose) return '';
+        return `<button class="btn ghost" data-summarize="1" style="margin:10px 0 2px">Compact now</button>
+          <div class="hint" style="margin:0 0 8px">Summarises the open chapter, so its prose stops
+            being sent line by line. Prose is ${prose.toLocaleString()} of the
+            ${MANI.totals.used.toLocaleString()} tokens here${pct >= 70
+              ? ' — and you are at ' + pct + '% of the budget.' : '.'}</div>`;
+      })()}
       ${Object.entries(agg).map(([k, v]) => {
         const rows = inc.filter((b) => b.kind === k);
         const why = rows.map((b) => b.firedBy?.join(', ') || b.reason).filter(Boolean)[0] ?? '';
@@ -541,8 +573,15 @@ const PANELS = {
 
 
   search() {
+    // Inside a story, this searches THAT story. It used to span every book you own, which is the
+    // wrong default in the one place you already know where you are — and it is how "add to the
+    // lore book" could quietly put an entry in a different story's ledger.
     return `<div style="display:flex; flex-direction:column">
-      <input class="field" id="q" value="${esc(S.query)}" placeholder="Search your prose">
+      <input class="field" id="q" value="${esc(S.query)}" placeholder="Search ${
+        S.searchAll ? 'every story' : esc(V?.story.title ?? 'this story')}">
+      <label style="display:flex; align-items:center; gap:8px; margin:10px 0 4px; font-size:12px; color:#8A8478">
+        <input type="checkbox" id="searchAll" ${S.searchAll ? 'checked' : ''}>
+        Look in my other stories too</label>
       <div class="hint" style="margin-bottom:14px">A LIKE scan over prose, entries and summaries. Fine at this size.</div>
       <div id="hits">${searchHits()}</div></div>`;
   },
@@ -672,15 +711,31 @@ function sparkReview() {
 function setupPanel() {
   const ch = V?.currentChapter;
   if (!ch) return '<div class="hint">No chapter open.</div>';
-  const pinned = new Set((V.pins ?? []).filter((p) => p.chapterId === ch.id && p.mode === 'force_in')
-    .map((p) => p.entryId));
-  // Only TRIGGERED entries are worth pinning. context.ts honours force_in in the branch an
-  // always-on entry never reaches, because it is already sent on every call — so ticking one
-  // did nothing while looking like it did something.
-  const pinnable = (e) => e.activation !== 'always_on';
-  const cast = V.entries.filter((e) => e.entryType === 'character');
-  const places = V.entries.filter((e) => e.entryType === 'lore' || e.entryType === 'item');
-  const alwaysOn = V.entries.filter((e) => !pinnable(e));
+  const pin = new Map((V.pins ?? []).filter((p) => p.chapterId === ch.id).map((p) => [p.entryId, p.mode]));
+  // In this chapter or not, for every entry — including always-on ones. `force_out` is applied
+  // FIRST in context.ts, before the always-on branch, so turning one off has always worked in the
+  // engine; the panel simply never offered it and listed them as "no ticking needed" instead.
+  const on = (e) => pin.get(e.id) === 'force_out' ? false
+    : e.activation === 'always_on' ? true : pin.get(e.id) === 'force_in';
+  const why = (e) => pin.get(e.id) === 'force_out' ? 'held back'
+    : e.activation === 'always_on' ? 'always on' : pin.get(e.id) === 'force_in' ? 'pinned in'
+    : 'on its keywords';
+
+  const q = (S.setupQ ?? '').trim().toLowerCase();
+  const match = (e) => !q || `${e.title} ${e.body} ${(e.keys ?? []).join(' ')}`.toLowerCase().includes(q);
+  const row = (e, act) => `<button ${act === 'place' ? `data-place="${e.id}"` : `data-pin="${e.id}"`}
+    style="display:flex; align-items:center;
+    gap:10px; width:100%; padding:9px 11px; border-radius:11px; margin-bottom:5px; text-align:left;
+    border:1px solid ${on(e) ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+    background:${on(e) ? 'rgba(217,178,106,.10)' : 'transparent'}">
+    <span style="width:14px; flex:0 0 auto; color:${on(e) ? 'var(--gold)' : 'var(--faint)'}">${on(e) ? '✓' : '·'}</span>
+    <span style="flex:1; min-width:0; font-size:13px; color:${on(e) ? '#EAE3D6' : 'var(--mute)'};
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(e.title)}</span>
+    <span style="flex:0 0 auto; font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+      color:var(--label); opacity:.7">${why(e)}</span></button>`;
+
+  const cast = V.entries.filter((e) => e.entryType === 'character' && match(e));
+  const places = V.entries.filter((e) => (e.entryType === 'lore' || e.entryType === 'item') && match(e));
   const done = V.ritualDone;
   // Rendered from state, not from the DOM. Ticking a character repaints this panel, and reading
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
@@ -703,31 +758,22 @@ function setupPanel() {
     <div class="hint">${form.note.trim() ? 'Rides near the generation point on every call.'
       : '<strong>Not set.</strong> Rides near the generation point when it is.'}</div>
 
-    <label class="lbl">Who is in it</label>
-    ${alwaysOn.filter((e) => e.entryType === 'character').length ? `<div class="hint" style="margin:0 0 8px">
-      Always sent, no ticking needed: ${alwaysOn.filter((e) => e.entryType === 'character')
-        .map((e) => esc(e.title)).join(', ')}.</div>` : ''}
-    ${cast.filter(pinnable).length ? cast.filter(pinnable).map((e) => `<button data-pin="${e.id}" style="display:flex; align-items:center;
-      gap:10px; width:100%; padding:9px 11px; border-radius:11px; margin-bottom:5px; text-align:left;
-      border:1px solid ${pinned.has(e.id) ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-      background:${pinned.has(e.id) ? 'rgba(217,178,106,.10)' : 'transparent'}">
-      <span style="width:14px; flex:0 0 auto; color:${pinned.has(e.id) ? 'var(--gold)' : 'var(--faint)'}"
-        >${pinned.has(e.id) ? '✓' : '·'}</span>
-      <span style="flex:1; font-size:13px; color:${pinned.has(e.id) ? '#EAE3D6' : 'var(--mute)'}">${esc(e.title)}</span>
-      </button>`).join('') : '<div class="hint" style="margin:0">Everyone in the cast is already always-on.</div>'}
-    <div class="hint">Ticking sends a character for this chapter even when nobody says their name.
-      It costs their canon on every call, so tick who is actually in the room.</div>
+    <label class="lbl">In this chapter</label>
+    <input class="field" id="setupQ" value="${esc(S.setupQ ?? '')}"
+      placeholder="Find someone or something in this story's ledger">
 
-    <label class="lbl">Where</label>
-    ${places.filter(pinnable).length ? places.filter(pinnable).map((e) => `<button data-place="${e.id}" style="display:flex; align-items:center;
-      gap:10px; width:100%; padding:9px 11px; border-radius:11px; margin-bottom:5px; text-align:left;
-      border:1px solid ${pinned.has(e.id) ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-      background:${pinned.has(e.id) ? 'rgba(217,178,106,.10)' : 'transparent'}">
-      <span style="width:14px; flex:0 0 auto; color:${pinned.has(e.id) ? 'var(--gold)' : 'var(--faint)'}"
-        >${pinned.has(e.id) ? '✓' : '·'}</span>
-      <span style="flex:1; font-size:13px; color:${pinned.has(e.id) ? '#EAE3D6' : 'var(--mute)'}">${esc(e.title)}</span>
-      </button>`).join('') : '<div class="hint" style="margin:0">Nothing triggered in the ledger to pin.</div>'}
-    <div class="hint">Or leave it: the story's setting is in the spine on every call
+    <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Who</div>
+    ${cast.length ? cast.map((e) => row(e, 'pin')).join('')
+      : `<div class="hint" style="margin:0">${q ? 'Nobody matches that.' : 'No characters yet.'}</div>`}
+
+    <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Where, and what</div>
+    ${places.length ? places.map((e) => row(e, 'place')).join('')
+      : `<div class="hint" style="margin:0">${q ? 'Nothing matches that.' : 'Nothing in the ledger yet.'}</div>`}
+
+    <div class="hint">Ticked means it is sent for this chapter whether or not anyone says its name.
+      Unticking an always-on entry holds it back for this chapter only. Both cost or save their
+      canon on every call, so tick what is actually in the room.</div>
+    <div class="hint">The story's setting is in the spine on every call regardless
       &mdash; ${esc(V.story.setting || 'not set')}.</div>
 
     <button class="btn" data-savesetup="1" style="margin-top:16px">Save and write</button>
@@ -1165,6 +1211,29 @@ async function openStory(id) {
   refreshManifest();
 }
 
+/** The History panel holds its own copy of the passage's takes and edits, fetched when it was
+ *  opened. Anything that changes the passage after that — a regenerate, an accept, an edit, a
+ *  delete — left it showing what was true when you opened it. Edits appeared to update because
+ *  reopening the panel refetches; takes did not, because you regenerate with the panel already
+ *  open. The id survives: selecting another take flips `selected` but does not delete the row. */
+/** Show that a call is in flight, and which one. A generation is 20-40 seconds against a local
+ *  model; a composer that just goes quiet reads as a hung page. `kind` colours the bar, because
+ *  the five actions do different things and the wait is long enough to forget which you pressed. */
+function working(kind) {
+  const el = $('working');
+  if (!el) return;
+  if (kind) { el.dataset.work = kind; el.hidden = false; }
+  else { el.hidden = true; delete el.dataset.work; }
+}
+
+async function refreshHistory() {
+  if (S.panel !== 'history' || !S.historyOf?.id) return;
+  const h = await api.history({ story: S.storyId, passage: S.historyOf.id });
+  if (h.error) return;
+  S.historyOf = { ...S.historyOf, rows: h.passage ?? [], takes: h.takes ?? [] };
+  drawSide();
+}
+
 async function refreshManifest() {
   if (!V) return;
   const r = await api.manifest({ storyId: S.storyId, mode: S.mode,
@@ -1210,22 +1279,22 @@ async function generate(mode = S.mode) {
     return toast('Say what happens next, or press Continue.');
   }
 
-  S.busy = true; drawDock();
+  S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
   const r = await api.generate({ storyId: S.storyId, mode,
     directive: YOURS ? undefined : (typed || undefined), speaker: who });
-  if (r.error) { S.busy = false; drawDock(); return toast(r.error); }
+  if (r.error) { S.busy = false; drawDock(); working(null); return toast(r.error); }
   MANI = r.manifest;
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
   // Regenerate or Delete, and both keep the history, so nothing is lost by committing it.
   const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId,
     directive: YOURS ? undefined : (typed || undefined) });
-  S.busy = false;
+  S.busy = false; working(null);
   if (a2.error) return toast(a2.error);
   clearComposer();
   V = await api.story(S.storyId);
-  paint(); refreshManifest();
+  paint(); refreshManifest(); refreshHistory();
 }
 
 /** Re-roll the last passage, keeping the old take as a variant. */
@@ -1237,15 +1306,15 @@ async function regenerateLast() {
 
 async function regenerateInto(id) {
   if (S.busy) return;
-  S.busy = true; drawDock(); drawBar();
+  S.busy = true; drawDock(); drawBar(); working('reroll');
   const r = await api.generate({ storyId: S.storyId, mode: S.mode, regenerateOf: id,
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined });
-  if (r.error) { S.busy = false; drawDock(); drawBar(); return toast(r.error); }
+  if (r.error) { S.busy = false; drawDock(); drawBar(); working(null); return toast(r.error); }
   const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id });
-  S.busy = false;
+  S.busy = false; working(null);
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
   V = await api.story(S.storyId);
-  paint(); refreshManifest();
+  paint(); refreshManifest(); refreshHistory();
   toast('New take kept. Both are in History, with the canon each was written against.');
 }
 
@@ -1304,10 +1373,13 @@ document.addEventListener('click', async (e) => {
   if (d.reroll !== undefined) { await regenerateLast(); return; }
   if (d.send) { await generate(); return; }   // the button's only path; ⌘↵ is the shortcut
   if (d.del) { const r = await api.delPassage(S.storyId, d.del); if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); paint(); return; }
+    // The panel may be showing the very passage that just went.
+    if (S.historyOf?.id === d.del) { S.historyOf = null; S.panel = 'context'; }
+    V = await api.story(S.storyId); paint(); refreshHistory(); return; }
   if (d.vp || d.vn) { const p = V.passages.find((x) => x.id === (d.vp || d.vn)); const v = p?.variants ?? [];
     const at = v.findIndex((x) => x.selected); const next = v[at + (d.vn ? 1 : -1)];
-    if (next) { await api.pickVariant(S.storyId, next.id); V = await api.story(S.storyId); paint(); } return; }
+    if (next) { await api.pickVariant(S.storyId, next.id); V = await api.story(S.storyId);
+      paint(); refreshHistory(); } return; }
   if (d.flagx) {
     // Expanding is the common intent; dismissing is destructive, so it takes a modifier.
     if (e.shiftKey) { await api.dismissFlag(S.storyId, d.flagx); V = await api.story(S.storyId); paint(); }
@@ -1379,10 +1451,9 @@ document.addEventListener('click', async (e) => {
     const r = await api.pickVariant(S.storyId, d.usetake);
     if (r.error) return toast(r.error);
     V = r.passages ? r : await api.story(S.storyId);
-    // Re-read the takes: selecting one moves `selected`, and the panel shows which is in the story.
-    const h = await api.history({ story: S.storyId, passage: d.usetake });
-    S.historyOf = { id: d.usetake, rows: h.passage ?? [], takes: h.takes ?? [] };
-    paint(); toast('That take is in the story now.'); return;
+    S.historyOf = { ...S.historyOf, id: d.usetake };
+    paint(); await refreshHistory();
+    toast('That take is in the story now.'); return;
   }
   if (d.restore) {
     const r = await api.revert({ storyId: S.storyId, passageId: S.historyOf?.id, revisionId: d.restore });
@@ -1407,6 +1478,13 @@ document.addEventListener('click', async (e) => {
     // Prose. Mark it, redraw the document so the mark lands, then bring it into view. The mark
     // clears itself: a permanent highlight on whatever you last searched for becomes furniture.
     S.found = id;
+    // The document shows one chapter now, so a hit in another one is not on the page at all.
+    // Focus its chapter first, or the mark is drawn into a chapter you are not looking at.
+    const hit = (V.passages ?? []).find((p) => p.id === id);
+    if (hit && hit.chapterId !== V.currentChapter.id) {
+      const r = await api.story(S.storyId, hit.chapterId);
+      if (!r.error) V = r;
+    }
     S.panel = null; syncHash(); paint();
     const el = document.querySelector(`.block.found`);
     if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -1496,9 +1574,16 @@ document.addEventListener('click', async (e) => {
 
   if (d.pin !== undefined || d.place !== undefined) {
     const id = d.pin ?? d.place;
-    const on = (V.pins ?? []).some((p) => p.chapterId === V.currentChapter.id
-      && p.entryId === id && p.mode === 'force_in');
-    const r = await api.setPin(S.storyId, V.currentChapter.id, id, on ? null : 'force_in');
+    const e = V.entries.find((x) => x.id === id);
+    const mode = (V.pins ?? []).find((p) => p.chapterId === V.currentChapter.id && p.entryId === id)?.mode;
+    // One control, two mechanisms, because "in this chapter" means different things depending on
+    // how the entry reaches the prompt. A triggered entry is pushed IN with force_in; an always-on
+    // one is already in, so the only move is to hold it OUT with force_out. context.ts applies
+    // force_out before the always-on branch, so this has always worked — nothing offered it.
+    const next = e?.activation === 'always_on'
+      ? (mode === 'force_out' ? null : 'force_out')
+      : (mode === 'force_in' ? null : 'force_in');
+    const r = await api.setPin(S.storyId, V.currentChapter.id, id, next);
     if (r.error) return toast(r.error);
     const done = V.ritualDone;
     V = await api.story(S.storyId); V.ritualDone = done;
@@ -1532,12 +1617,13 @@ document.addEventListener('click', async (e) => {
   }
   if (d.ritual) {
     if (S.ritual) return;                       // already running
+    working('reroll');
     const closing = V.currentChapter;
     // Step 1 and 2 are one call: the route summarises on close by itself, deliberately —
     // "on close rather than on a button nobody remembers".
     S.ritual = 'Closing and summarising…'; paint();
     const r = await api.endChapter(S.storyId, {});
-    if (r.error) { S.ritual = null; paint(); return toast(r.error); }
+    if (r.error) { S.ritual = null; working(null); paint(); return toast(r.error); }
     V = await api.story(S.storyId);
     const summary = V.chapters.find((c) => c.id === closing.id)?.summary;
     const steps = [summary ? `Summarised ${closing.title || 'the chapter'} in ${summary.split(/\s+/).length} words`
@@ -1553,7 +1639,7 @@ document.addEventListener('click', async (e) => {
     // Step 4: the next chapter's setup, skippable.
     V = await api.story(S.storyId);
     V.ritualDone = steps;
-    S.ritual = null;
+    S.ritual = null; working(null);
     S.panel = 'setup';
     syncHash(); paint(); refreshManifest();
     return;
@@ -1662,6 +1748,14 @@ document.addEventListener('change', (e) => {
   }
   // Never redraws the dock: the placeholder is the only thing that depends on this, and a
   // repaint here would empty the line you are part-way through writing.
+  if (e.target.id === 'searchAll') {
+    S.searchAll = e.target.checked;
+    const q = $('q');
+    if (q) q.placeholder = `Search ${S.searchAll ? 'every story' : (V?.story.title ?? 'this story')}`;
+    if (S.query.trim()) api.search(S.query, S.searchAll ? undefined : S.storyId)
+      .then((r) => { HITS = r.error ? [] : (r.results ?? []); if ($('hits')) $('hits').innerHTML = searchHits(); });
+    return;
+  }
   if (e.target.id === 'asWhom') {
     S.speaker = e.target.value || null;
     const [, , ph] = MODES.find((m) => m[0] === S.mode) ?? MODES[0];
@@ -1683,6 +1777,16 @@ document.addEventListener('drop', (e) => {
 
 document.addEventListener('input', (e) => {
   // Neither branch may redraw its own input. Both write only their results container.
+  if (e.target.id === 'setupQ') {
+    S.setupQ = e.target.value;
+    // drawSide rebuilds the whole panel including this box, so restore the caret rather than
+    // repainting blind — the eighth instance of this same repaint-eats-input fault.
+    const at = e.target.selectionStart;
+    drawSide();
+    const box = $('setupQ');
+    if (box) { box.focus(); box.setSelectionRange(at, at); }
+    return;
+  }
   if (e.target.dataset?.setup) {
     S.setup = { title: document.querySelector('[data-setup="title"]')?.value ?? '',
                 note: document.querySelector('[data-setup="note"]')?.value ?? '' };
@@ -1697,7 +1801,7 @@ document.addEventListener('input', (e) => {
     S.query = e.target.value;
     clearTimeout(searchT);
     searchT = setTimeout(async () => {
-      const r = await api.search(S.query);
+      const r = await api.search(S.query, S.searchAll ? undefined : S.storyId);
       HITS = r.error ? [] : (r.results ?? []);
       if ($('hits')) $('hits').innerHTML = searchHits();
     }, 220);
@@ -1712,6 +1816,7 @@ document.addEventListener('blur', async (e) => {
   const r = await api.editPassage(S.storyId, id, body);
   if (r.error) return toast(r.error);
   V = await api.story(S.storyId);
+  refreshHistory();
 }, true);
 matchMedia('(max-width:1099px)').addEventListener('change', () => { S.rail = !overlay(); paint(); });
 

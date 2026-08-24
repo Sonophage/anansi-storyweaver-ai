@@ -234,6 +234,32 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
 #modes button { flex:0 0 auto; font-size:10.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
 #modes button[aria-pressed="true"] { color:var(--gold-lit); border-bottom-color:var(--gold); }
 html[data-ui-theme="parchment"] #modes button[aria-pressed="true"] { color:#6B5220; }
+/* Continue is an action, not a mode — it sends on the press. Given the same underline as the four
+   selectable modes it read as a fifth thing you pick, which is the one thing it is not. */
+#modes button[data-continue] { border:1px solid var(--chip); border-radius:999px; padding:5px 13px;
+  color:var(--gold-dim); letter-spacing:.2em; }
+#modes button[data-continue]:hover:not(:disabled) { border-color:rgba(217,178,106,.42); color:var(--gold-lit); }
+#modes button[data-continue]:disabled { opacity:.45; }
+
+/* Something is happening. A generation is 20-40 seconds against a local model, and a composer
+   that simply goes quiet reads as a hung page — which is what it was reported as. The bar under
+   the document animates for the whole call, and its colour says WHICH action is running, because
+   the five do different things and the wait is long enough to forget which you pressed. */
+#working { height:2px; width:100%; overflow:hidden; background:transparent; flex:0 0 auto; }
+#working[hidden] { display:none; }
+#working i { display:block; height:100%; width:38%; border-radius:2px;
+  background:linear-gradient(90deg, transparent, var(--work, var(--gold)), transparent);
+  animation:working 1.15s ease-in-out infinite; }
+@keyframes working { 0% { transform:translateX(-100%); } 100% { transform:translateX(320%); } }
+#working[data-work="continue"] i { --work:#8FA9C4; }
+#working[data-work="speak"]    i { --work:#D9B26A; }
+#working[data-work="act"]      i { --work:#C39A76; }
+#working[data-work="direct"]   i { --work:#A88FC4; }
+#working[data-work="narrate"]  i { --work:#8FBFA5; }
+#working[data-work="reroll"]   i { --work:#C8705A; }
+@media (prefers-reduced-motion: reduce) {
+  #working i { animation:none; width:100%; opacity:.5; }
+}
 #inputRow { display:flex; align-items:flex-end; gap:16px; border-bottom:1px solid var(--gold); padding:0 0 14px; }
 html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.28); }
 #input {
@@ -311,7 +337,8 @@ textarea.field { resize:vertical; min-height:70px; }
     <div id="appearance" hidden></div>
     <div id="read" class="scroll"><div id="col"></div></div>
     <div id="page" class="scroll" hidden></div>
-    <div id="dock"><div id="dockCol"></div></div>
+    <div id="dock"><div id="working" hidden><i></i></div>
+<div id="dockCol"></div></div>
   </main>
 
   <aside id="side" hidden>

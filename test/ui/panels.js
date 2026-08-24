@@ -107,4 +107,73 @@ for (const [old, now] of [['inspector', 'Context'], ['cast', 'Threads'],
      got === now);
 }
 
+// ---- 9. one chapter at a time. Every chapter in one scroll was fine at three passages; at 358
+// there was no way to jump to a chapter and the whole book sat in the DOM.
+await page.goto(B + "/#" + sid);
+for (let i = 0; i < 40 && !(await page.visible('#col')); i++) await wait(250);
+const v = await story();
+const shown = await page.eval("document.querySelectorAll('#col .block').length");
+const inCh = v.passages.filter((p) => p.chapterId === v.currentChapter.id).length;
+const total = v.passages.length;
+console.log(`  chapters ${v.chapters.length}, showing ${shown} of ${total} passages`);
+ok(`the document shows one chapter, not the book (${shown} shown, ${inCh} in this chapter, ${total} in all)`,
+   shown === inCh);
+ok("  and says which chapter you are on", /chapter \d+ of \d+/i.test(await page.text('#col') || ''));
+if (v.chapters.length > 1) {
+  ok("  with a pager to the neighbouring chapters", await page.visible('#col [data-chapter]'));
+  // Which chapter you are reading lives in CLIENT state — view(storyId, focusChapterId). Asking
+  // /api/story again without &chapter= answers with the last chapter every time, so a fresh fetch
+  // cannot see the focus at all. Read the document, which is the thing under test anyway.
+  const heading = () => page.eval("document.querySelector('#col > div')?.textContent ?? ''");
+  const to = await page.eval("document.querySelector('#col [data-chapter]')?.dataset.chapter ?? ''");
+  const want = v.chapters.find((c) => c.id === to);
+  await page.click('#col [data-chapter]');
+  await wait(1200);
+  const head = (await heading()).replace(/\s+/g, ' ').trim();
+  console.log(`  paged to: ${JSON.stringify(head.slice(0, 60))}`);
+  ok(`  and it moves you to ${JSON.stringify(want?.title ?? '')}`,
+     head.toLowerCase().includes((want?.title ?? '').toLowerCase()));
+  const shown2 = await page.eval("document.querySelectorAll('#col .block').length");
+  const wantN = v.passages.filter((p) => p.chapterId === to).length;
+  ok(`  showing that chapter's passages (${shown2}, expected ${wantN})`, shown2 === wantN);
+} else { console.log("  SKIP pager — this story has one chapter"); }
+
+// ---- 10. the setup page: everything toggles, including always-on entries. force_out is applied
+// FIRST in context.ts, before the always-on branch, so holding one back has always worked in the
+// engine — the panel listed them as "no ticking needed" and offered no control.
+await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
+  + " const e = v.entries.find(x => x.activation === 'always_on');"
+  + " await fetch('/api/pin', { method:'POST', headers:{'Content-Type':'application/json'},"
+  + " body: JSON.stringify({ storyId:'" + sid + "', chapterId: v.currentChapter.id, entryId: e.id, mode: null }) }); })()");
+await page.goto(B + "/#" + sid + "/setup");
+await wait(900);
+if (await page.visible('[data-setup="title"]')) {
+  const always = await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
+    + " return v.entries.find(e => e.activation === 'always_on' && e.entryType === 'character')?.id ?? ''; })()");
+  ok("the setup page offers a filter over the ledger", await page.visible('#setupQ'));
+  if (always) {
+    ok("  and an always-on character is listed as a control, not as a note",
+       await page.visible(`[data-pin="${always}"]`));
+    await page.click(`[data-pin="${always}"]`);
+    await wait(1000);
+    const pins = (await story()).pins ?? [];
+    const held = pins.find((p) => p.entryId === always);
+    ok(`  unticking an always-on entry holds it back (${held?.mode ?? 'no pin'})`, held?.mode === 'force_out');
+    // And the engine has to honour it, or the control is theatre.
+    const reasons = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+      + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'continue'})})).json();"
+      + " return r.manifest.blocks.filter(b => b.id === '" + always + "').map(b => b.state + ':' + b.reason).join(','); })()");
+    ok(`  and the prompt drops it (${JSON.stringify(reasons)})`, /omitted:pinned out/.test(reasons));
+    await page.click(`[data-pin="${always}"]`);
+    await wait(1000);
+    ok("  ticking again puts it back", !((await story()).pins ?? []).some((p) => p.entryId === always));
+  } else { console.log("  SKIP always-on toggle — no always-on character in this story"); }
+  // The filter must not eat its own keystrokes, which is how the other seven boxes broke.
+  await page.type('#setupQ', 'Aldis');
+  await wait(600);
+  ok(`the filter keeps what you type (${JSON.stringify(await page.eval("document.getElementById('setupQ')?.value"))})`,
+     (await page.eval("document.getElementById('setupQ')?.value")) === 'Aldis');
+  ok("  and narrows the list", (await page.eval("document.querySelectorAll('[data-pin]').length")) <= 2);
+} else { ok("the setup page opens", false); }
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

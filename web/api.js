@@ -46,7 +46,8 @@ export const api = {
   manifest:     (o)              => j('/api/manifest', 'POST', o),
   generate:     (o)              => j('/api/generate', 'POST', o),
   summarize:    (storyId, chapterId) => j('/api/summarize', 'POST', { storyId, chapterId }),
-  search:       (q)              => j(`/api/search?q=${encodeURIComponent(q)}`),
+  search:       (q, story)       => j(`/api/search?q=${encodeURIComponent(q)}`
+    + (story ? `&story=${encodeURIComponent(story)}` : '')),
   activity:     (storyId)        => j(`/api/activity?story=${storyId}`),
   rollup:       (storyId, from, to) => j('/api/rollup', 'POST', { storyId, from, to }),
   delArc:       (storyId, id)    => j('/api/arc', 'DELETE', { storyId, id }),

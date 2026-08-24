@@ -138,6 +138,17 @@ ok('a story cannot be deleted by someone who does not own it');
     `bob should match all three kinds of his own, got ${[...kinds]}`);
   ok('search spans prose, entries and summaries — and never another writer\'s');
 
+  // Narrowing to one story is a filter ON TOP of the owner filter, never instead of it. Naming
+  // someone else's story must return nothing rather than that story's contents.
+  assert.deepStrictEqual(db.search(alice, 'peregrine', bStory.id), [],
+    "alice narrowed her search to bob's story and got rows back");
+  const narrowed = db.search(bob, 'peregrine', bStory.id);
+  assert.ok(narrowed.length > 0, 'bob can narrow to his own story');
+  assert.ok(narrowed.every((h: any) => h.story_id === bStory.id), 'and gets only that story');
+  assert.ok(db.search(bob, 'peregrine').length >= narrowed.length,
+    'unnarrowed is the wider set, not a different one');
+  ok('narrowing search to one story is a filter on top of the owner check, not instead of it');
+
   const aLedger = db.ledgerOf(alice);
   assert.ok(aLedger.length > 0, 'alice must see her own ledger');
   assert.deepStrictEqual(aLedger.filter((e: any) => e.story_id === bStory.id), [],

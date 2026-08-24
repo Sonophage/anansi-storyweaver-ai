@@ -96,4 +96,40 @@ const imported = await page.eval("(async () => { const card = { spec:'chara_card
 console.log("  /api/import returned: " + imported.slice(0, 160));
 ok("the import route creates a story", /storyId/.test(imported));
 
+// ---- History must not go stale WHILE IT IS OPEN. Reported as "takes doesnt update, edits did":
+// the panel keeps its own copy, fetched when you opened it. Edits looked fine because you reopen
+// the panel to look at an edit; you do not reopen it to regenerate.
+//
+// The panel must NOT be closed and reopened anywhere below, or this tests refetching — which
+// always worked — instead of refreshing. Editing in place is the deterministic path through
+// refreshHistory; the same thing after a real regeneration is asserted in model.js.
+const sid2 = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
+const story2 = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid2 + "')).json())()");
+await page.goto(B + "/#" + sid2);
+for (let i = 0; i < 40 && !(await page.visible('#col')); i++) await wait(250);
+const target = (await story2()).passages.filter((p) => !p.isBreak).at(-1);
+await page.click(`[data-more="${target.id}"]`);
+await wait(400);
+await page.click(`[data-hi="${target.id}"]`);
+await wait(900);
+const openBody = (await page.text('#sideBody') || '');
+ok("History opens with a Takes section and an Edits section",
+   /Takes/.test(openBody) && /Edits/.test(openBody));
+ok(`  and one take is a line, not a numbered card (${(openBody.match(/Take \d+/g) ?? []).length} numbered)`,
+   (openBody.match(/Take \d+/g) ?? []).length === 0 && /One take/.test(openBody));
+const editsBefore = await page.eval("document.querySelectorAll('[data-restore]').length");
+
+// Edit the passage in the document, with History still open beside it.
+await page.eval("(() => { const e = document.querySelector('[data-edit=\"" + target.id + "\"]');"
+  + " e.focus(); e.textContent = 'EDITED WHILE HISTORY WAS OPEN.'; e.blur(); return 1; })()");
+for (let i = 0; i < 30; i++) {
+  if ((await page.eval("document.querySelectorAll('[data-restore]').length")) > editsBefore) break;
+  await wait(300);
+}
+const editsAfter = await page.eval("document.querySelectorAll('[data-restore]').length");
+ok(`the open panel picks up the edit without being reopened (${editsBefore} -> ${editsAfter})`,
+   editsAfter > editsBefore);
+ok("  and the panel is still History, not something else",
+   /Takes/.test(await page.text('#sideBody') || ''));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

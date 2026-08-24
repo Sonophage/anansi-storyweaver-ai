@@ -36,7 +36,7 @@ Run it before and after. It needs no llama-server, so there is no excuse for ski
 
 ## Hard-won rules about measurement
 
-This project's findings are its most valuable asset. Four rules, each bought with a wrong answer:
+This project's findings are its most valuable asset. Five rules, each bought with a wrong answer:
 
 - **Validate the detector before believing the result.** A check that never fires reports
   perfection. F17's probes ship with 22 synthetic cases asserting both that bad input flags and
@@ -48,6 +48,11 @@ This project's findings are its most valuable asset. Four rules, each bought wit
   canon-per-take chain whose check asked "does any take carry canon" when only the second take was
   broken. Both were true before the change and true after. Break the code on purpose and watch the
   specific assertion go red, or it is decorative.
+- **A guarded assertion can stop running and still report green.** `if (thing) { ...checks... }`
+  with no `else` is invisible to a count-based harness. On 2026-08-24 four blocks were found inert
+  this way — `ritual.js` had two that never ran because the setup page offered no entry its
+  selector could match, and the comment above them explained exactly why without anyone reading it
+  as "so this does not run". Assert the guard itself, or put a failing `else` on it.
 - **A zero is not an absence.** F12 declared a defect gone on zero-in-sixty. Zero in sixty bounds
   the rate under ~5%; the true rate was 4%. Say "under X%", never "fixed".
 

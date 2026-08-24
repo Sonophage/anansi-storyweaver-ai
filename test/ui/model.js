@@ -84,6 +84,21 @@ ok("  and offers to swap to the other", await page.visible('[data-usetake]'));
 const against = (hist.match(/Written against/g) ?? []).length;
 ok(`  and EACH take records the canon its own prompt carried (${against} of ${takes} takes)`,
    against >= 2);
+// The reported case, exactly: regenerate with History ALREADY OPEN. The panel holds its own copy
+// fetched when it was opened, and nothing refreshed it — so takes never updated while edits
+// appeared to, because you reopen the panel to look at an edit and do not reopen it to
+// regenerate. Do not close the panel anywhere in here.
+const takesOpen = ((await page.text('#sideBody') || '').match(/Take \d+/g) ?? []).length;
+await page.click('#bar [data-reroll]');
+console.log("  regenerating with History open…");
+for (let i = 0; i < 90; i++) {
+  if (((await page.text('#sideBody') || '').match(/Take \d+/g) ?? []).length > takesOpen) break;
+  await wait(1000);
+}
+const takesNow = ((await page.text('#sideBody') || '').match(/Take \d+/g) ?? []).length;
+ok(`the open panel picks up a new take without being reopened (${takesOpen} -> ${takesNow})`,
+   takesNow > takesOpen);
+
 // Swapping from History must actually change what is in the document.
 const beforeSwap = (await story()).passages.at(-1)?.id;
 await page.click('[data-usetake]');

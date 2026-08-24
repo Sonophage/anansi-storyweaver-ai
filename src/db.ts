@@ -502,22 +502,33 @@ const touch = (id: string) => q('UPDATE stories SET updated_at = ? WHERE id = ?'
  *  passages only — and a result carried `story`, which is a TITLE, where the client wanted an id,
  *  so clicking a hit tried to open a story called "The Silver Key". Both fixed here: one shape,
  *  with the id and the title as separate columns that cannot be confused for each other. */
-export const search = (o: string, term: string) => {
+/** `storyId` narrows it to one book. Searching inside a story returned hits from every other
+ *  story by default, which is the wrong default in the one place you already know where you are —
+ *  and it is how "add to the lore book" could put an entry in a different story's ledger. The
+ *  owner filter is on EVERY branch regardless: each one needs its own, or a missing one leaks
+ *  that kind only. test/scope.ts asserts all three. */
+export const search = (o: string, term: string, storyId?: string) => {
   const like = `%${term}%`;
+  const scope = (alias: string) => (storyId ? `AND ${alias}.story_id = ?` : '');
+  const args: any[] = [];
+  const push = (...a: any[]) => { args.push(...a); if (storyId) args.push(storyId); };
+  push(o, like);            // prose
+  push(o, like, like);      // entries
+  push(o, like);            // summaries
   return q(`
     SELECT 'Prose' AS kind, p.story_id AS story_id, s.title AS story_title,
            'ch ' || c.idx AS loc, p.body AS body, p.id AS id
       FROM passages p JOIN stories s ON s.id = p.story_id JOIN chapters c ON c.id = p.chapter_id
-     WHERE s.owner_id = ? AND p.selected = 1 AND p.body LIKE ?
+     WHERE s.owner_id = ? AND p.selected = 1 AND p.body LIKE ? ${scope('p')}
     UNION ALL
     SELECT 'Entry', e.story_id, s.title, e.title, e.body, e.id
       FROM entries e JOIN stories s ON s.id = e.story_id
-     WHERE s.owner_id = ? AND (e.title LIKE ? OR e.body LIKE ?)
+     WHERE s.owner_id = ? AND (e.title LIKE ? OR e.body LIKE ?) ${scope('e')}
     UNION ALL
     SELECT 'Summary', c.story_id, s.title, 'ch ' || c.idx, c.summary, c.id
       FROM chapters c JOIN stories s ON s.id = c.story_id
-     WHERE s.owner_id = ? AND c.summary IS NOT NULL AND c.summary LIKE ?
-     LIMIT 60`).all(o, like, o, like, like, o, like) as any[];
+     WHERE s.owner_id = ? AND c.summary IS NOT NULL AND c.summary LIKE ? ${scope('c')}
+     LIMIT 60`).all(...args) as any[];
 };
 
 // ---- history & revert ----
