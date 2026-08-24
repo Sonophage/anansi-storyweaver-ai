@@ -264,6 +264,16 @@ Worth a look because they were real:
       the three routes that bypass the ownership gate by design — their only protection is the SQL,
       and nothing tested it. Now tested with two owners, both directions. Search unions prose,
       entries and summaries, and each branch needs its own filter; all three are there.
+- [ ] **End of chapter is a ritual now.** Story & chapter → **End this chapter**. It closes the
+      chapter, summarises it, reads it for new facts, and opens the next chapter's setup — reporting
+      each step as it goes. **Nothing is accepted into the ledger automatically**; the proposals wait
+      in *What the chapter added*.
+- [ ] **The next chapter has a setup page.** A title, what has to happen ("the beat"), who is in it,
+      and where. All of it optional — a blank beat is a real choice, and the page says so. Ticking a
+      character sends them for that chapter even when nobody says their name; the page lists the
+      always-on ones separately, because ticking those would do nothing.
+
+      Check the beat lands: set one, save, then Context → Prompt sent and find it near the bottom.
 - [ ] **A small surprise while testing:** the type and activation chips in the entry editor do
       save immediately and do not wipe the body or keywords. I had this down as broken for four
       runs before working out my own test was reading the entry id after the click, by which

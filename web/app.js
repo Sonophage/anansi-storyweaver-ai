@@ -25,7 +25,7 @@ const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'cowrite',
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   entryId: null, historyOf: null, models: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
-  fieldHistory: null, confirmDelete: false, spark: null,
+  fieldHistory: null, confirmDelete: false, spark: null, ritual: null, setup: null,
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
@@ -51,6 +51,7 @@ const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
 // Two panels the rail does not list: they open by clicking a thing, not a nav row.
 TITLES.entry = 'Ledger entry';
 TITLES.history = 'History';
+TITLES.setup = 'The next chapter';
 const WTITLES = {
   stories: () => [`My stories`, `${LIB.length} ${LIB.length === 1 ? 'story' : 'stories'}`],
   create: () => ['Create a story', 'Spark a skeleton, or start blank'],
@@ -70,11 +71,12 @@ const WTITLES = {
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
 const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
   'fontpick', 'sizepick', 'mode', 'take', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
-  'savestory', 'endchapter', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
+  'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
-  'delstory', 'send', 'accept-spark', 'drop-spark'].map((k) => `[data-${k}]`).join(',');
+  'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
+  'skipsetup'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null;
 function toast(msg) {
@@ -298,6 +300,7 @@ function drawSide() {
 
 const PANELS = {
   entry: entryEditor,
+  setup: setupPanel,
   history: historyPanel,
   inspector() {
     if (!MANI) return `<div class="hint">Open the composer once and the manifest appears here.</div>`;
@@ -406,7 +409,9 @@ const PANELS = {
       <label class="lbl">This chapter must end with</label>
       <textarea class="field" data-chapter-note="1">${esc(V.currentChapter.authorsNote ?? '')}</textarea>
       <button class="btn" data-savestory="1" style="margin-top:16px">Save</button>
-      <button class="btn ghost" data-endchapter="1" style="margin-top:10px">End chapter here</button>
+      <button class="btn ghost" data-ritual="1" style="margin-top:10px">${
+        S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
+      <div class="hint">Closes it, summarises it, reads it for new facts, and opens the next.</div>
       <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
         <a class="btn ghost" href="${api.exportUrl(S.storyId, 'markdown')}" download
@@ -591,6 +596,77 @@ function sparkReview() {
     <button class="btn" data-accept-spark="1" style="margin-top:14px">Accept and start writing</button>
     <button class="btn ghost" data-drop-spark="1" style="margin-top:8px">Throw it back</button>
     <div class="hint">Nothing has been written yet. Accepting creates the story and its ledger.</div>`;
+}
+
+/** The new chapter's setup. Three fields, none of them new machinery: the beat is the chapter's
+ *  author's note and already rides in DIRECTIVE; who is present is a force_in pin, which is what
+ *  pins are actually for — "a fact that matters in a scene where nobody says its keyword"; and
+ *  where is a pinned lore entry or the story's own setting. Skippable on purpose: a blank beat is
+ *  a real choice, and some chapters are written to find out what happens. */
+function setupPanel() {
+  const ch = V?.currentChapter;
+  if (!ch) return '<div class="hint">No chapter open.</div>';
+  const pinned = new Set((V.pins ?? []).filter((p) => p.chapterId === ch.id && p.mode === 'force_in')
+    .map((p) => p.entryId));
+  // Only TRIGGERED entries are worth pinning. context.ts honours force_in in the branch an
+  // always-on entry never reaches, because it is already sent on every call — so ticking one
+  // did nothing while looking like it did something.
+  const pinnable = (e) => e.activation !== 'always_on';
+  const cast = V.entries.filter((e) => e.entryType === 'character');
+  const places = V.entries.filter((e) => e.entryType === 'lore' || e.entryType === 'item');
+  const alwaysOn = V.entries.filter((e) => !pinnable(e));
+  const done = V.ritualDone;
+  // Rendered from state, not from the DOM. Ticking a character repaints this panel, and reading
+  // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
+  // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
+  const form = S.setup ?? { title: ch.title ?? '', note: ch.authorsNote ?? '' };
+  return `<div style="display:flex; flex-direction:column">
+    ${done ? `<div style="display:flex; flex-direction:column; gap:6px; padding-bottom:16px">
+      ${done.map((line) => `<div style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:#8A8478">
+        <span style="width:6px; height:6px; border-radius:50%; background:var(--good); flex:0 0 auto"></span>
+        ${esc(line)}</div>`).join('')}</div>` : ''}
+    <div class="serif" style="font-size:21px; color:#F3ECE0">${esc(ch.title || `Chapter ${ch.index}`)}</div>
+    <div class="hint" style="margin:6px 0 0">Nothing here is required. Leave it and write.</div>
+
+    <label class="lbl">Title</label>
+    <input class="field" data-setup="title" value="${esc(form.title)}" placeholder="Untitled">
+
+    <label class="lbl">What happens next</label>
+    <textarea class="field" data-setup="note" style="min-height:80px"
+      placeholder="Where this chapter has to end up">${esc(form.note)}</textarea>
+    <div class="hint">${form.note.trim() ? 'Rides near the generation point on every call.'
+      : '<strong>Not set.</strong> Rides near the generation point when it is.'}</div>
+
+    <label class="lbl">Who is in it</label>
+    ${alwaysOn.filter((e) => e.entryType === 'character').length ? `<div class="hint" style="margin:0 0 8px">
+      Always sent, no ticking needed: ${alwaysOn.filter((e) => e.entryType === 'character')
+        .map((e) => esc(e.title)).join(', ')}.</div>` : ''}
+    ${cast.filter(pinnable).length ? cast.filter(pinnable).map((e) => `<button data-pin="${e.id}" style="display:flex; align-items:center;
+      gap:10px; width:100%; padding:9px 11px; border-radius:11px; margin-bottom:5px; text-align:left;
+      border:1px solid ${pinned.has(e.id) ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+      background:${pinned.has(e.id) ? 'rgba(217,178,106,.10)' : 'transparent'}">
+      <span style="width:14px; flex:0 0 auto; color:${pinned.has(e.id) ? 'var(--gold)' : 'var(--faint)'}"
+        >${pinned.has(e.id) ? '✓' : '·'}</span>
+      <span style="flex:1; font-size:13px; color:${pinned.has(e.id) ? '#EAE3D6' : 'var(--mute)'}">${esc(e.title)}</span>
+      </button>`).join('') : '<div class="hint" style="margin:0">Everyone in the cast is already always-on.</div>'}
+    <div class="hint">Ticking sends a character for this chapter even when nobody says their name.
+      It costs their canon on every call, so tick who is actually in the room.</div>
+
+    <label class="lbl">Where</label>
+    ${places.filter(pinnable).length ? places.filter(pinnable).map((e) => `<button data-place="${e.id}" style="display:flex; align-items:center;
+      gap:10px; width:100%; padding:9px 11px; border-radius:11px; margin-bottom:5px; text-align:left;
+      border:1px solid ${pinned.has(e.id) ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+      background:${pinned.has(e.id) ? 'rgba(217,178,106,.10)' : 'transparent'}">
+      <span style="width:14px; flex:0 0 auto; color:${pinned.has(e.id) ? 'var(--gold)' : 'var(--faint)'}"
+        >${pinned.has(e.id) ? '✓' : '·'}</span>
+      <span style="flex:1; font-size:13px; color:${pinned.has(e.id) ? '#EAE3D6' : 'var(--mute)'}">${esc(e.title)}</span>
+      </button>`).join('') : '<div class="hint" style="margin:0">Nothing triggered in the ledger to pin.</div>'}
+    <div class="hint">Or leave it: the story's setting is in the spine on every call
+      &mdash; ${esc(V.story.setting || 'not set')}.</div>
+
+    <button class="btn" data-savesetup="1" style="margin-top:16px">Save and write</button>
+    <button class="btn ghost" data-skipsetup="1" style="margin-top:8px">Skip &mdash; just write</button>
+  </div>`;
 }
 
 function ctxTabs() {
@@ -1169,6 +1245,28 @@ document.addEventListener('click', async (e) => {
     await loadLibrary(); paint(); toast('Deleted.'); return;
   }
 
+  if (d.pin !== undefined || d.place !== undefined) {
+    const id = d.pin ?? d.place;
+    const on = (V.pins ?? []).some((p) => p.chapterId === V.currentChapter.id
+      && p.entryId === id && p.mode === 'force_in');
+    const r = await api.setPin(S.storyId, V.currentChapter.id, id, on ? null : 'force_in');
+    if (r.error) return toast(r.error);
+    const done = V.ritualDone;
+    V = await api.story(S.storyId); V.ritualDone = done;
+    paint(); refreshManifest(); return;
+  }
+  if (d.savesetup) {
+    const title = S.setup?.title ?? document.querySelector('[data-setup="title"]')?.value ?? '';
+    const note = S.setup?.note ?? document.querySelector('[data-setup="note"]')?.value ?? '';
+    const r = await api.saveChapter(S.storyId, V.currentChapter.id, { title, authorsNote: note });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId);
+    S.setup = null; S.panel = 'inspector'; syncHash(); paint(); refreshManifest();
+    toast(note.trim() ? 'Set. Write when ready.' : 'Saved. No beat set, which is fine.');
+    return;
+  }
+  if (d.skipsetup) { S.setup = null; S.panel = 'inspector'; syncHash(); paint(); return; }
+
   if (d.savestory) {
     const patch = {};
     document.querySelectorAll('[data-story]').forEach((el) => { patch[el.dataset.story] = el.value; });
@@ -1178,8 +1276,34 @@ document.addEventListener('click', async (e) => {
     if (ct) await api.saveChapter(S.storyId, V.currentChapter.id, { title: ct.value, authorsNote: cn?.value ?? '' });
     V = await api.story(S.storyId); paint(); toast('Saved.'); refreshManifest(); return;
   }
-  if (d.endchapter) { const r = await api.endChapter(S.storyId, {}); if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); paint(); toast('Chapter closed.'); return; }
+  if (d.ritual) {
+    if (S.ritual) return;                       // already running
+    const closing = V.currentChapter;
+    // Step 1 and 2 are one call: the route summarises on close by itself, deliberately —
+    // "on close rather than on a button nobody remembers".
+    S.ritual = 'Closing and summarising…'; paint();
+    const r = await api.endChapter(S.storyId, {});
+    if (r.error) { S.ritual = null; paint(); return toast(r.error); }
+    V = await api.story(S.storyId);
+    const summary = V.chapters.find((c) => c.id === closing.id)?.summary;
+    const steps = [summary ? `Summarised ${closing.title || 'the chapter'} in ${summary.split(/\s+/).length} words`
+                           : 'Closed, but the summary did not come back'];
+
+    // Step 3: read it for facts. Nothing is accepted — SPEC 8.2, and it is the rule that makes
+    // the ledger worth trusting.
+    S.ritual = 'Reading it for new facts…'; paint();
+    const x = await api.extract(S.storyId, closing.id);
+    steps.push(x.error ? `Could not read it for facts: ${x.error}`
+      : `${x.added ?? 0} proposed for the ledger — nothing accepted yet`);
+
+    // Step 4: the next chapter's setup, skippable.
+    V = await api.story(S.storyId);
+    V.ritualDone = steps;
+    S.ritual = null;
+    S.panel = 'setup';
+    syncHash(); paint(); refreshManifest();
+    return;
+  }
   if (d.summarize) { toast('Summarising…'); const r = await api.summarize(S.storyId, V.currentChapter.id);
     if (r.error) return toast(r.error); V = await api.story(S.storyId); paint(); return; }
   if (d.extract) { toast('Reading the chapter…'); const r = await api.extract(S.storyId, V.currentChapter.id);
@@ -1243,6 +1367,11 @@ document.addEventListener('keydown', (e) => {
 });
 document.addEventListener('input', (e) => {
   // Neither branch may redraw its own input. Both write only their results container.
+  if (e.target.dataset?.setup) {
+    S.setup = { title: document.querySelector('[data-setup="title"]')?.value ?? '',
+                note: document.querySelector('[data-setup="note"]')?.value ?? '' };
+    return;
+  }
   if (e.target.id === 'lq') {
     S.ledgerQ = e.target.value;
     if ($('books')) $('books').innerHTML = ledgerBooks();

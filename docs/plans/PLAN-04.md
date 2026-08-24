@@ -1,6 +1,8 @@
 # Plan 04 — characters and chapters
 
-> **STATUS: AGREED 2026-08-23, not yet built.** Four decisions taken; they are recorded in
+> **STATUS: §1 and §2 BUILT 2026-08-23. The rest agreed, not yet built.** The ritual and the
+> setup page are in and driven by `test/ui/ritual.js`. Outfits, interiority, character-by-prompt
+> and threads remain as designed below. Four decisions taken; they are recorded in
 > §0 and the sections below are corrected to match. Where this plan says measure before building,
 > that is not hedging — F10 shipped a plausible prompt fix that made things worse, and F12
 > declared a defect fixed on a small-sample zero.
@@ -41,7 +43,7 @@ structured role.
 
 ---
 
-## 1. End-chapter ritual
+## 1. End-chapter ritual — BUILT
 
 Today: `End chapter here` closes the chapter and opens the next. Summarise and extraction are
 separate buttons you have to remember.
@@ -74,7 +76,7 @@ bug.**
 
 ---
 
-## 2. New-chapter setup page
+## 2. New-chapter setup page — BUILT
 
 Three fields, all writing to things that exist:
 

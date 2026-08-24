@@ -116,7 +116,6 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
 
   // Deferred on purpose, each with the reason it is not wired yet.
   const DEFERRED: Record<string, string> = {
-    setPin:   'PLAN-04 puts pins on the new-chapter setup page',
     rollup:   'arcs belong with the budget engine, P6',
     delArc:   'same as rollup',
     delBranch: 'forking exists; deleting a branch has no screen yet',
