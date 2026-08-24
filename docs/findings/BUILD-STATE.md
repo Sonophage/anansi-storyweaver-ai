@@ -95,8 +95,8 @@ which is why the picture is lopsided.
 
 **P3 — "Two people write different books at the same time without noticing each other." 20-30h.**
 **This is the hole.** Multi-story works and the story `status` field carries draft/finished. Missing:
-the second tenant's whole path, the status strip, advisory locks on two writers in one chapter, and
-the character wizard. Everything P3 needs *underneath* is built and tested — ownership, scoping,
+the second tenant's whole path, the status strip, and the character wizard. Advisory locks are
+retired, not missing — see F19. Everything P3 needs *underneath* is built and tested — ownership, scoping,
 export — so this is the last structural gap and it is gated on a device, not on design.
 
 **P4 — "A fact pinned in chapter one reaches chapter twenty on its own." 20-30h. Substantially done.**

@@ -496,8 +496,14 @@ const PANELS = {
           value="${value}" style="width:100%; accent-color:#D9B26A">
         ${hint ? `<div class="hint">${hint}</div>` : ''}</div>`;
     return `<div style="display:flex; flex-direction:column">
-      <div style="font-size:12.5px; line-height:1.55; color:#8A8478">These belong to this story. Change them
-        mid-chapter and only what comes next is affected.</div>
+      <div style="display:flex; align-items:flex-start; gap:12px; padding:0 0 4px">
+        <span style="width:8px; height:8px; border-radius:50%; background:var(--warn); margin-top:5px; flex:0 0 auto"></span>
+        <span style="flex:1; display:flex; flex-direction:column; gap:4px">
+          <span style="font-size:13.5px; color:#EAE3D6">These are shared, not per story</span>
+          <span class="hint" style="margin:0">The sampler is one object for the whole server, so changing
+            temperature here changes it for every story and every writer on this machine. The route
+            takes a story id, which makes it look per-story; it is not. Per-story sampling needs
+            PLAN-02's <code>engine_config</code>, which was never built.</span></span></div>
       <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Sampling</div>
       ${slider('Temperature', 'temperature', g.temperature ?? 0.85, 2,
         'Prose only. Structured roles run pinned at 0.2 — a loose sampler under a tight grammar writes valid JSON that says nothing.')}

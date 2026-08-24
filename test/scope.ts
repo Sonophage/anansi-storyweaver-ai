@@ -114,4 +114,43 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('export carries one story, its history, and nobody else');
 }
 
+// The OPEN routes bypass the gate, so their only protection is the SQL. Nothing asserted that.
+// It matters more now than when they were written: each writer gets their own stories and their
+// own lore, so "sandboxed" is the promise, and these three routes are the ones that span stories.
+{
+  // Give bob prose, a ledger entry and a chapter summary, each containing a word alice will search.
+  const bCh = db.chapters(bStory.id)[0];
+  db.addPassage({ ...bStory, storyId: bStory.id, body: 'Bob wrote the word peregrine here.' });
+  db.upsertEntry(bStory.id, bob, { title: 'Peregrine of Bob', body: '[a peregrine only bob knows]' });
+  db.setSummary(bCh.id, 'Bob summarised a peregrine.', 1, 'hash-b');
+  // And alice something that must survive being found.
+  db.addPassage({ ...aStory, storyId: aStory.id, body: 'Alice also wrote peregrine.' });
+
+  const aHits = db.search(alice, 'peregrine');
+  assert.ok(aHits.length > 0, 'alice must find her own prose');
+  const leaked = aHits.filter((h: any) => h.story_id === bStory.id);
+  assert.deepStrictEqual(leaked, [],
+    'search leaked bob\'s rows to alice. It unions prose, entries and summaries, and EVERY branch '
+    + 'needs its own owner filter — a missing one on any single branch leaks that kind only.');
+  // Each branch separately, because one missing filter would hide behind two good ones.
+  const kinds = new Set(db.search(bob, 'peregrine').map((h: any) => h.kind));
+  assert.deepStrictEqual([...kinds].sort(), ['Entry', 'Prose', 'Summary'],
+    `bob should match all three kinds of his own, got ${[...kinds]}`);
+  ok('search spans prose, entries and summaries — and never another writer\'s');
+
+  const aLedger = db.ledgerOf(alice);
+  assert.ok(aLedger.length > 0, 'alice must see her own ledger');
+  assert.deepStrictEqual(aLedger.filter((e: any) => e.story_id === bStory.id), [],
+    'the cross-story ledger leaked bob\'s entries to alice');
+  assert.ok(db.ledgerOf(bob).some((e: any) => e.title === 'Peregrine of Bob'), 'bob sees his own');
+  ok('the cross-story ledger stops at the writer who owns it');
+
+  // Import is open because it names no existing story. The story it makes must be the caller's.
+  const imp = await import('../src/import.ts');
+  const made = imp.absorb(bob, imp.fromCard({ name: 'Bob\'s import', description: 'his alone' }));
+  assert.ok(db.ownsStory(made.storyId, bob));
+  assert.ok(!db.ownsStory(made.storyId, alice), 'an import must not land in another writer\'s library');
+  ok('an import belongs to whoever called it, and to nobody else');
+}
+
 console.log(`\n${n} checks passed`);

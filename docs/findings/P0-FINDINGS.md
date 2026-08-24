@@ -573,3 +573,41 @@ covering a live defect. **The clamp was a plaster; this is the fix.**
 **Still not measured:** whether a bounded reason changes what the checker *writes* rather than
 whether it finds it — a 240-character why may read as clipped where the old one read as an
 argument. Nobody has judged the wording, only the score.
+
+## F19 — Two writers are sandboxed, except for the two things that are not
+
+Seth, 2026-08-23: *"each writer will have its own lore own story i.e. itll be sandboxed."* That
+settles one open question and exposes two things that do not honour it.
+
+**The sandbox itself holds, and is now asserted.** `test/scope.ts` counted the OPEN routes and
+never tested one. An open route bypasses the ownership gate by design, so its only protection is
+the SQL — and three of them span stories. Now tested with two owners:
+
+- `search` unions prose, entries and summaries, and **every branch needs its own owner filter**. A
+  missing one on any single branch would leak that kind only, hidden behind two good branches. All
+  three present; both directions checked.
+- `ledgerOf` stops at the writer who owns it.
+- `import` creates for whoever called it.
+
+**The advisory lock is retired, not deferred.** SPEC §15.6 and PLAN-02's P3 both want one for
+"two tabs generating into one chapter". Two writers can no longer be in one chapter at all. What
+survives is one writer on two devices, and that is safe by construction: `node:sqlite` is
+synchronous and Node is single-threaded, so one server serialises every write. Measured — two
+appends with no await between them, the interleaving two devices produce, took ordinals 7 and 8
+with no error and no duplicate. `passages_sel`, a partial unique index on `(branch_id, ordinal)
+WHERE selected = 1`, is the backstop if that ever stops being true.
+
+**What does NOT honour the sandbox:**
+
+| | scope | the surface said |
+|---|---|---|
+| sampler settings (`gen`) | **one object for the whole process** — `serve.ts:24` | *"These belong to this story"* |
+| the active model | **process-wide** — `llama.ts` | said so plainly, correctly |
+
+The sampler is the bad one. `POST /api/settings` is gated by story id, so the API *shape* implies
+per-story scoping that does not exist, and the panel's copy asserted it. One writer raising
+temperature raises it for the other, mid-sentence. Corrected to say so; the copy was mine, and it
+contradicted a comment in the route it was calling.
+
+**The real fix is PLAN-02's `engine_config` on the story row**, listed in P1 and never built — the
+schema anticipated exactly this. Until then the panel is honest about being shared.

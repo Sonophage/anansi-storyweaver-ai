@@ -763,6 +763,9 @@ inside the free tier for a year. Five concurrent writers hit the 100 CU-hour cap
 4. ~~**Mobile writing** is undecided: reading surface, or real editing?~~ **Resolved:** the phone is
    a full writing surface — 16 sheets, its own composer, same engine and API as the desk.
 5. **Cost ceiling.** `generations` records enough to enforce a per-user cap. Not built.
-6. **Rate limiting and write concurrency.** Two tabs generating into one chapter need an advisory
-   lock.
+6. ~~**Rate limiting and write concurrency.** Two tabs generating into one chapter need an
+   advisory lock.~~ **Retired 2026-08-23 (F19).** Each writer has their own stories, so two
+   writers are never in one chapter. One writer on two devices is safe by construction: one
+   single-threaded server serialises every write, measured, with a partial unique index on
+   `(branch_id, ordinal)` as the backstop.
 7. **No resumable streams** (10.3). Reload loses the in-flight passage.

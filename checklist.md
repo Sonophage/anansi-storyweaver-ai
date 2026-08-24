@@ -253,6 +253,17 @@ Worth a look because they were real:
       and spice note each carrying `<script>`, an `onerror` image and a quote-breaking attribute.
       Nothing executed anywhere, the text renders literally, and a name with real quotes and curly
       apostrophes — *The "Bell" — it's Aldis's, isn't it?* — round-trips intact.
+- [ ] **Storyteller was telling you something untrue.** ⚠ It said *"These belong to this story.
+      Change them mid-chapter and only what comes next is affected."* The sampler is **one object
+      for the whole server** — `serve.ts:24` — so changing temperature changed it for every story
+      and every writer. The route takes a story id, which makes it look per-story; it is not.
+
+      The panel says so now. The real fix is PLAN-02's `engine_config` on the story row, which was
+      listed in P1 and never built. Say if you want per-story sampling and I will build it.
+- [ ] **Your sandbox holds, and is now asserted.** Search, the cross-story ledger and import were
+      the three routes that bypass the ownership gate by design — their only protection is the SQL,
+      and nothing tested it. Now tested with two owners, both directions. Search unions prose,
+      entries and summaries, and each branch needs its own filter; all three are there.
 - [ ] **A small surprise while testing:** the type and activation chips in the entry editor do
       save immediately and do not wipe the body or keywords. I had this down as broken for four
       runs before working out my own test was reading the entry id after the click, by which
