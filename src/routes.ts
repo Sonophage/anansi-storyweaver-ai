@@ -1,5 +1,5 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, structured, structuredRetry, model, models, setModel } from './llama.ts';
+import { count, chat, structured, structuredRetry, model, models, setModel, allowList } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema } from './prompts.ts';
 import * as db from './db.ts';
@@ -30,7 +30,7 @@ export const OPEN_ROUTES = new Set([
   // security fix breaking the feature it was protecting.
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
-  'GET /api/models', 'GET /api/ledger',
+  'GET /api/models', 'GET /api/ledger', 'GET /api/stats',
 ]);
 
 /** What the import screen shows before anything is written. Bodies are counted, not sent: the
@@ -221,9 +221,15 @@ export const routes: Record<string, Handler> = {
     keys: JSON.parse(e.keys || '[]'),
   })) }),
 
+  // Names no story on purpose: it spans them. Owner-scoped in SQL, like search and the ledger.
+  'GET /api/stats': (c: Ctx) => db.writerStats(c.owner),
+
   'GET /api/models': async () => {
-    try { return { models: await models(), active: model() }; }
-    catch (e: any) { return { models: [], active: model(), error: e?.message ?? 'the router did not answer' }; }
+    // `allowList` is reported so the screen can say WHY only three of eight are listed. A short
+    // list with no explanation reads as the router being down.
+    try { return { models: await models(), active: model(), allow: allowList() }; }
+    catch (e: any) { return { models: [], active: model(), allow: allowList(),
+      error: e?.message ?? 'the router did not answer' }; }
   },
   'POST /api/model': async (c) => {
     try { return { active: await setModel(String(c.body.model ?? '')) }; }
@@ -359,6 +365,8 @@ export const routes: Record<string, Handler> = {
     // Tie the take to the call that produced it, so History can say what canon it was written
     // against. Two takes in one slot come from two different prompts, and nothing recorded which.
     if (id && c.body.genId) db.tieGeneration(String(c.body.genId), String(id));
+    // Regenerating away from a take is a judgement about it, not just a replacement.
+    if (c.body.variantOf && c.body.rejected) db.rejectTake(v.id, String(c.body.variantOf));
     // SPEC §8.4: check on SELECT, not on every variant. Detached — a flag is not worth
     // making the writer wait, and it appears on the next refresh.
     if (id && c.body.check !== false) void check(c, v.id, id).catch(() => {});

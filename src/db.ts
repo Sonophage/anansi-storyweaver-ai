@@ -39,6 +39,9 @@ function migrate() {
   // A spice LEVEL picks one of five fixed lines. This replaces the line outright when a
   // story needs something the five do not say.
   add('stories', 'spice_note', 'TEXT');
+  // A take you regenerated away from. Recorded, not yet fed to the model — see the ponytail
+  // marker on `rejectTake`.
+  add('passages', 'rejected', 'INTEGER DEFAULT 0');
   // The dedupe index used to cover every row, so a subject once accepted or rejected could
   // never be proposed again. Scoped to open proposals now.
   try {
@@ -432,6 +435,17 @@ export function upsertEntry(storyId: string, o: string, e: any) {
       JSON.stringify(e.keys), e.lastEditor, born, t, t);
   touch(storyId); return id;
 }
+/** Mark a take as one the writer regenerated away from. Regenerating already keeps the old take;
+ *  this records that it was not merely superseded but rejected, which is a different fact.
+ *
+ *  ponytail: recorded and shown, NOT sent to the model. The obvious next step — putting "not like
+ *  this" and the rejected text into the prompt — is a prompt change, and this project measures
+ *  those rather than assuming them: F20 spent 850 runs per arm proving that restating canon does
+ *  nothing at all. Feeding a rejected take is the same shape of claim and deserves the same bar.
+ *  Until then the flag is for the writer's eyes, and History says which takes were passed over. */
+export const rejectTake = (storyId: string, id: string) =>
+  q('UPDATE passages SET rejected = 1 WHERE id = ? AND story_id = ?').run(id, storyId);
+
 /** Tie a take to the call that made it. The manifest is logged at generation time, when no
  *  passage exists yet — so `passage_id` was always null and nothing connected a take to the canon
  *  it was written against. Regenerating makes this matter: two takes in one slot were written
@@ -543,7 +557,7 @@ export const passageTakes = (storyId: string, id: string) => {
   const cur = q('SELECT chapter_id, slot_key FROM passages WHERE id = ? AND story_id = ?')
     .get(id, storyId) as any;
   if (!cur) return [];
-  return q(`SELECT id, body, author, variant_index, selected, created_at
+  return q(`SELECT id, body, author, variant_index, selected, rejected, created_at
               FROM passages WHERE story_id = ? AND chapter_id = ? AND slot_key = ?
              ORDER BY variant_index`).all(storyId, cur.chapter_id, cur.slot_key) as any[];
 };
@@ -832,6 +846,46 @@ export const setProposalStatus = (storyId: string, id: string, status: string) =
 
 /** What the model has actually been doing. PLAN-02 §7.2's budget-engine trigger is stated in
  *  terms of prefill time and prefix churn, and neither is knowable until something reads this. */
+/** What this writer has actually done. Every number here was already in the database — the
+ *  dashboard needed counting, not new bookkeeping. Words are counted in SQL over selected
+ *  passages only, so unchosen takes are not credited as writing you did. */
+export function writerStats(o: string) {
+  const one = (sql: string, ...a: any[]) => (q(sql).get(o, ...a) as any) ?? {};
+  const words = one(`SELECT COALESCE(SUM(LENGTH(p.body) - LENGTH(REPLACE(p.body,' ','')) + 1), 0) AS n
+                       FROM passages p JOIN stories s ON s.id = p.story_id
+                      WHERE s.owner_id = ? AND p.selected = 1 AND p.is_break = 0`).n;
+  const byAuthor = q(`SELECT p.author, COUNT(*) AS n
+                        FROM passages p JOIN stories s ON s.id = p.story_id
+                       WHERE s.owner_id = ? AND p.selected = 1 AND p.is_break = 0
+                       GROUP BY p.author`).all(o) as any[];
+  const gen = one(`SELECT COUNT(*) AS calls,
+                          COALESCE(SUM(g.completion_tokens),0) AS out,
+                          COALESCE(SUM(g.latency_ms),0) AS ms,
+                          COALESCE(SUM(CASE WHEN g.error IS NOT NULL THEN 1 ELSE 0 END),0) AS failed
+                     FROM generations g JOIN stories s ON s.id = g.story_id WHERE s.owner_id = ?`);
+  const days = q(`SELECT DATE(p.created_at/1000,'unixepoch') AS d, COUNT(*) AS n
+                    FROM passages p JOIN stories s ON s.id = p.story_id
+                   WHERE s.owner_id = ? AND p.selected = 1 AND p.is_break = 0
+                   GROUP BY d ORDER BY d DESC LIMIT 30`).all(o) as any[];
+  return {
+    stories: one('SELECT COUNT(*) AS n FROM stories WHERE owner_id = ?').n,
+    chapters: one(`SELECT COUNT(*) AS n FROM chapters c JOIN stories s ON s.id = c.story_id
+                    WHERE s.owner_id = ?`).n,
+    entries: one(`SELECT COUNT(*) AS n FROM entries e JOIN stories s ON s.id = e.story_id
+                   WHERE s.owner_id = ?`).n,
+    passages: byAuthor.reduce((n, r) => n + r.n, 0),
+    words,
+    yours: byAuthor.find((r) => r.author === 'human')?.n ?? 0,
+    anansi: byAuthor.find((r) => r.author === 'model')?.n ?? 0,
+    // Takes that were written and not chosen. The measure of how much re-rolling it took.
+    unchosen: one(`SELECT COUNT(*) AS n FROM passages p JOIN stories s ON s.id = p.story_id
+                    WHERE s.owner_id = ? AND p.selected = 0`).n,
+    calls: gen.calls, tokensOut: gen.out, failed: gen.failed,
+    minutes: Math.round(gen.ms / 60000),
+    days: days.reverse(),
+  };
+}
+
 export const recentGenerations = (storyId: string, limit = 40) => q(
   `SELECT id, role, model, prompt_tokens, completion_tokens, latency_ms, timings, error, created_at
    FROM generations WHERE story_id = ? ORDER BY created_at DESC LIMIT ?`).all(storyId, limit) as any[];

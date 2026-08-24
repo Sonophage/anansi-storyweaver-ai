@@ -65,6 +65,7 @@ export const api = {
   exportStoryDb: (storyId)      => j('/api/export', 'POST', { storyId }),
   ledger:       ()               => j('/api/ledger'),
   models:       ()               => j('/api/models'),
+  stats:        ()               => j('/api/stats'),
   setModel:     (model)          => j('/api/model', 'POST', { model }),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
   runImport:    (name, data, into) => j('/api/import', 'POST', { name, data, into: into || undefined }),

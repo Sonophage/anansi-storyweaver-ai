@@ -144,6 +144,17 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     assert.ok(reachable.has(m[1]), `${old} maps to ${m[1]}, which nothing opens`);
   }
   ok('five retired panel names still map to a panel that exists');
+
+  // The allowlist is an operator's decision about the box, so it must NOT be reachable from a
+  // client route — a writer who could set it in Preferences could set it back.
+  const llama = readFileSync(new URL('../src/llama.ts', import.meta.url), 'utf8');
+  assert.match(llama, /ANANSI_MODELS/, 'the allowlist reads an env var');
+  assert.match(llama, /export const allowed\b/, 'and exposes a predicate the routes can use');
+  assert.match(llama, /if \(!allowed\(id\)\)/, 'setModel refuses anything off the list');
+  const routes = readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
+  assert.ok(!/POST \/api\/(models|allow)/.test(routes),
+    'nothing may write the allowlist over HTTP');
+  ok('the model allowlist is set on the box, not over the wire');
 }
 
 // Every api method must have a caller, or be listed here with a reason. Deleting desk.js took

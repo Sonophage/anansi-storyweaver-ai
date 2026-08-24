@@ -24,12 +24,13 @@ function applyLook() {
 const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
-  entryId: null, historyOf: null, models: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
+  entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, spark: null, ritual: null, setup: null,
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
   found: null,          // the passage a search result sent you to, marked until you move on
   searchAll: false,     // inside a story, search that story only unless asked otherwise
   setupQ: '',           // filter over the ledger on the next-chapter setup page
+  lore: null,           // the + Lore tray above the composer, when it is open
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
@@ -92,7 +93,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
-  'continue', 'tolore', 'usetake'].map((k) => `[data-${k}]`).join(',');
+  'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -310,6 +311,8 @@ function drawDock() {
     <div id="modes">
       <button data-continue="1" ${S.busy ? 'disabled' : ''} title="Carry on with no prompt">Continue</button>
       ${MODES.map(([k, label]) => `<button data-mode="${k}" aria-pressed="${k === S.mode}">${label}</button>`).join('')}
+      <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
+        style="flex:0 0 auto">+ Lore</button>
       ${asWhom ? `<label class="deskonly" style="margin-left:auto; display:flex; align-items:center; gap:6px;
         font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--label); opacity:.75">
         as
@@ -429,6 +432,33 @@ const PANELS = {
   // lists them across every story, which is a different question.
   threads() {
     if (S.entryId) return entryEditor();
+    // The + Lore tray. Two ways a fact gets into canon and they belong next to each other: write
+    // it yourself, or have the chapter read for what is already on the page. The second is the
+    // ritual's extraction step on its own — "scan what we have" — without ending the chapter.
+    if (S.lore) {
+      const KIND_LABEL = { character: 'a character', lore: 'a place or a fact',
+                           item: 'an object', rule: 'a rule of this world' };
+      return `<div style="display:flex; flex-direction:column">
+        <button class="btn ghost" data-newlore="1" style="margin-bottom:14px">&lsaquo; Back</button>
+        <div class="lbl" style="letter-spacing:.26em; margin-top:0">Write it down</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px">
+          ${KINDS.map((k) => `<button data-lorekind="${k}" style="flex:1 1 44%; text-align:center;
+            font-size:11.5px; padding:8px 0; border-radius:10px;
+            border:1px solid ${S.lore.kind === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+            background:${S.lore.kind === k ? 'rgba(217,178,106,.12)' : 'transparent'};
+            color:${S.lore.kind === k ? '#E0C48C' : 'var(--mute)'}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}
+        </div>
+        <button class="btn" data-newentry="${esc(S.lore.kind)}">New ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}</button>
+        <div class="hint">Opens an empty entry for you to fill in. Nothing reaches the model until
+          it has a body.</div>
+
+        <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Or read the chapter</div>
+        <button class="btn ghost" data-loreread="1">Scan ${esc(V.currentChapter.title || `chapter ${V.currentChapter.index}`)} for facts</button>
+        <div class="hint">Reads what is already on the page and proposes entries for it. Nothing is
+          accepted automatically — proposals wait for you under Chapter. This is the ritual's third
+          step, on its own, without ending the chapter.</div>
+      </div>`;
+    }
     const groups = [['character', 'Characters', 'character'], ['lore', 'Lore', 'lore'],
                     ['item', 'Items', 'item'], ['rule', 'Rules', 'rule']];
     const shown = groups.filter(([k]) => V.entries.some((e) => e.entryType === k));
@@ -869,9 +899,10 @@ function historyPanel() {
     <div class="lbl" style="letter-spacing:.26em; margin-top:0">${takes.length > 1
       ? `${takes.length} takes` : 'Takes'}</div>
     ${takes.length > 1 ? takes.map((t, i) => `<div class="card" style="margin-bottom:9px;
-      border-color:${t.selected ? 'rgba(217,178,106,.34)' : '#2A2721'}">
+      border-color:${t.selected ? 'rgba(217,178,106,.34)' : '#2A2721'};
+      opacity:${!t.selected && t.rejected ? '.62' : '1'}">
       <div style="display:flex; align-items:center; gap:9px">
-        <span class="kind">Take ${i + 1}${t.selected ? ' · in the story' : ''}</span>
+        <span class="kind">Take ${i + 1}${t.selected ? ' · in the story' : t.rejected ? ' · passed over' : ''}</span>
         <span style="margin-left:auto; font-size:11px; color:#78726A">${
           t.author === 'human' ? 'yours' : 'Anansi'}${t.created_at ? ` · ${ago(t.created_at)}` : ''}</span></div>
       <div class="clamp" style="font-size:12.5px; line-height:1.5; color:#8A8478">${esc(t.body ?? '')}</div>
@@ -1147,7 +1178,40 @@ const WPAGES = {
               <span style="margin-left:auto; font-size:10.5px; color:#6E6961">${esc(m.status)}</span></button>`).join('')}
         <div class="hint">Switching is process-wide, not per story &mdash; two writers share this server,
           so it changes for both. A sleeping model wakes on its first call.</div>
+        ${S.allow?.length ? `<div class="hint">${S.allow.length} of the router's models
+          ${S.allow.length === 1 ? 'is' : 'are'} allowed for Anansi:
+          ${S.allow.map((a) => `<code>${esc(a)}</code>`).join(', ')}. Set with
+          <code>ANANSI_MODELS</code> when the server starts — it is an operator's decision about
+          the box, so it is not editable from here.</div>`
+        : '<div class="hint">Every model the router serves is offered. Narrow it with <code>ANANSI_MODELS</code> — a comma-separated list of ids, <code>prefix*</code> allowed — when you start the server.</div>'}
         <div class="hint">Sampling, voice and spice belong to each story — they live under Storyteller, inside the story.</div>
+
+        <div class="lbl" style="letter-spacing:.26em; margin-top:30px">What you have written</div>
+        ${(() => {
+          const t = S.stats;
+          if (!t) return '<div class="hint" style="margin:0">Counting&hellip;</div>';
+          const n = (v) => Number(v ?? 0).toLocaleString();
+          const row = (l, v, sub) => `<div class="row"><span style="color:#EAE3D6">${l}</span>
+            ${sub ? `<span style="font-size:11px; color:#6E6961">${sub}</span>` : ''}
+            <span class="tnum" style="margin-left:auto; color:#78726A">${v}</span></div>`;
+          // Thirty days of passages, drawn from the same rows. A sparkline rather than a number,
+          // because "have I written this week" is a shape question.
+          const max = Math.max(1, ...t.days.map((d) => d.n));
+          const spark = t.days.length > 1 ? `<div style="display:flex; align-items:flex-end; gap:2px;
+            height:34px; margin:10px 0 4px">${t.days.map((d) => `<span title="${esc(d.d)}: ${d.n}"
+            style="flex:1; min-width:2px; height:${Math.max(6, d.n / max * 100)}%;
+            background:${d.n ? 'var(--gold)' : 'var(--chip)'}; opacity:${d.n ? .75 : .35}; border-radius:1px"></span>`).join('')}</div>
+            <div class="hint" style="margin:0 0 8px">Passages a day, most recent on the right.</div>` : '';
+          return `${row('Words', n(t.words), 'in passages that are in the story')}
+            ${row('Passages', n(t.passages), `${n(t.yours)} yours · ${n(t.anansi)} Anansi`)}
+            ${row('Stories', n(t.stories), `${n(t.chapters)} chapters`)}
+            ${row('In the ledgers', n(t.entries), 'characters, lore, items, rules')}
+            ${row('Takes not chosen', n(t.unchosen), 'kept, and not in the story')}
+            ${row('Calls to the model', n(t.calls), t.failed ? `${n(t.failed)} failed` : 'none failed')}
+            ${row('Time spent generating', t.minutes >= 60
+              ? `${Math.floor(t.minutes / 60)}h ${t.minutes % 60}m` : `${t.minutes}m`)}
+            ${spark}`;
+        })()}
       </div>
       <div class="aside">
         <div class="lbl" style="letter-spacing:.26em">Slot</div>
@@ -1184,11 +1248,19 @@ async function loadLedger() {
   if (S.wpage === 'canon') drawPage();
 }
 
+async function loadStats() {
+  const r = await api.stats();
+  S.stats = r.error ? null : r;
+  if (S.wpage === 'prefs') drawPage();
+}
+
 async function loadModels() {
   const r = await api.models();
   S.models = r.error ? [] : (r.models ?? []);
+  S.allow = r.allow ?? [];
   if (r.active) SRV.model = r.active;
   if (S.wpage === 'prefs') drawPage();
+  loadStats();
 }
 
 async function loadLibrary() {
@@ -1310,7 +1382,7 @@ async function regenerateInto(id) {
   const r = await api.generate({ storyId: S.storyId, mode: S.mode, regenerateOf: id,
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined });
   if (r.error) { S.busy = false; drawDock(); drawBar(); working(null); return toast(r.error); }
-  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id });
+  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id, rejected: true });
   S.busy = false; working(null);
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
   V = await api.story(S.storyId);
@@ -1339,6 +1411,28 @@ document.addEventListener('click', async (e) => {
   }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
   if (d.continue) { await generate('continue'); return; }
+  if (d.newlore) {
+    // Replaces New scene, which was removed with the mode set. Two ways to get a fact into the
+    // ledger and they belong together: write it down yourself, or have the chapter read for what
+    // is already on the page. The second is the ritual's extraction step, on its own.
+    S.lore = S.lore ? null : { kind: 'character' };
+    S.panel = S.lore ? 'threads' : S.panel;
+    paint();
+    return;
+  }
+  if (d.lorekind) { S.lore = { ...(S.lore ?? {}), kind: d.lorekind }; paint(); return; }
+  if (d.loreread) {
+    // The ritual's third step, reachable without ending the chapter — "scan what we have".
+    working('reroll');
+    toast('Reading this chapter for facts…');
+    const x = await api.extract(S.storyId, V.currentChapter.id);
+    working(null);
+    if (x.error) return toast(x.error);
+    V = await api.story(S.storyId);
+    S.lore = null; S.panel = 'chapter'; syncHash(); paint();
+    toast(`${x.added ?? 0} proposed for the ledger — nothing accepted yet.`);
+    return;
+  }
   if (d.nav) {
     if (S.place === 'story') { S.panel = PANEL_WAS[d.nav] ?? d.nav; S.entryId = null; S.historyOf = null; syncHash(); }
     else S.wpage = d.nav;

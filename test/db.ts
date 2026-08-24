@@ -309,4 +309,55 @@ ok('a partial story save keeps every field it did not mention', () => {
   assert.strictEqual(db.getStory(st.id).title, 'Kept', 'and clearing one field keeps the others');
 });
 
+// Regenerating away from a take is a judgement about it, not just a replacement. Recorded and
+// shown; deliberately NOT sent to the model — see the ponytail marker on rejectTake.
+ok('a rejected take is marked, kept, and still steppable', () => {
+  const o = db.owner('rejects');
+  const st = db.createStory(o, { title: 'Takes' });
+  const p1 = db.addPassage({ ...st, storyId: st.id, body: 'The first take.' });
+  db.addVariant(st.id, p1, 'The second take.');
+  db.rejectTake(st.id, p1);
+  const takes = db.passageTakes(st.id, p1);
+  assert.strictEqual(takes.length, 2, 'both takes stay in the slot');
+  const first = takes.find((t: any) => t.id === p1);
+  assert.strictEqual(first.rejected, 1, 'the one regenerated away from is marked');
+  assert.strictEqual(first.selected, 0, 'and is not the one in the story');
+  assert.strictEqual(takes.find((t: any) => t.id !== p1).rejected, 0, 'the new one is not marked');
+  // Rejecting must not delete: SPEC 9 keeps every take, and "passed over" is a label, not a bin.
+  assert.strictEqual(first.body, 'The first take.', 'and its text is untouched');
+  // Another story's id cannot reach it.
+  const other = db.createStory(db.owner('someone'), { title: 'Not yours' });
+  db.rejectTake(other.id, takes[1].id);
+  assert.strictEqual(db.passageTakes(st.id, p1).find((t: any) => t.id !== p1).rejected, 0,
+    'a foreign story id must not mark another story\'s take');
+});
+
+// Every number on the dashboard was already in the database. This asserts they COUNT the right
+// rows — words over selected passages only, so takes you did not choose are not credited as
+// writing you did, and breaks are not counted as prose.
+ok('writer stats count the right rows', () => {
+  const o = db.owner('stats-writer');
+  const st = db.createStory(o, { title: 'Counted' });
+  db.addPassage({ ...st, storyId: st.id, body: 'one two three four five', author: 'model' });
+  db.addPassage({ ...st, storyId: st.id, body: 'six seven', author: 'human' });
+  db.addPassage({ ...st, storyId: st.id, body: 'SCENE', author: 'human', isBreak: true });
+  const p = db.addPassage({ ...st, storyId: st.id, body: 'eight nine ten', author: 'model' });
+  db.addVariant(st.id, p, 'seven words that were chosen instead here');   // 7 words
+  db.upsertEntry(st.id, o, { title: 'Someone', body: '[a person]' });
+  const t = db.writerStats(o);
+  assert.strictEqual(t.stories, 1);
+  assert.strictEqual(t.entries, 1);
+  // addVariant selects the NEW take, so 'eight nine ten' is the one that lost.
+  assert.strictEqual(t.passages, 3, 'two prose plus the winning take; the break is excluded');
+  assert.strictEqual(t.yours, 1, 'the break is not counted as yours');
+  assert.strictEqual(t.anansi, 2);
+  assert.strictEqual(t.unchosen, 1, 'the take that lost is kept and counted separately');
+  // 5 + 2 + 7 = 14. The losing take's three words must NOT be in here, or the dashboard credits
+  // you with writing you threw away.
+  assert.strictEqual(t.words, 14, `words over selected non-break passages only, got ${t.words}`);
+  assert.ok(Array.isArray(t.days), 'and a per-day series to draw');
+  // Another writer's work is not yours.
+  assert.strictEqual(db.writerStats(db.owner('stats-nobody')).words, 0);
+});
+
 console.log(`\n${n} checks passed`);

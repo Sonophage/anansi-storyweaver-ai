@@ -122,16 +122,32 @@ export async function structuredRetry(system: string, body: string, schema: unkn
 export const model = () => MODEL;
 
 /** Models the router will serve, with whether each is resident. */
+/** The allowlist. The router serves everything in presets.ini — coding models, vision models,
+ *  a 27B thinker — and most of them have no business writing fiction. ANANSI_MODELS is a
+ *  comma-separated list of ids or prefixes; unset means every model the router offers.
+ *
+ *  It is an env var rather than a setting in the database on purpose: "which models may this app
+ *  use" is an operator's decision about the box, and a writer who could edit it in Preferences
+ *  could edit it back. Set it beside ANANSI_PORT when you start the server. */
+const ALLOW = (process.env.ANANSI_MODELS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+export const allowed = (id: string) =>
+  !ALLOW.length || ALLOW.some((a) => id === a || (a.endsWith('*') && id.startsWith(a.slice(0, -1))));
+export const allowList = () => [...ALLOW];
+
 export async function models(): Promise<{ id: string; status: string }[]> {
   const r = await fetch(`${HOST}/v1/models`, { signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`/v1/models answered ${r.status}`);
   const d = await r.json() as any;
-  return (d.data ?? []).map((m: any) => ({ id: String(m.id), status: m.status?.value ?? 'unknown' }));
+  return (d.data ?? []).map((m: any) => ({ id: String(m.id), status: m.status?.value ?? 'unknown' }))
+    .filter((m: any) => allowed(m.id));
 }
 
 /** Switch the active model. Refuses anything the router does not list, so a client cannot
  *  point the engine at an arbitrary string. */
 export async function setModel(id: string): Promise<string> {
+  // `models()` is already filtered, so this refuses anything off the allowlist as well as
+  // anything the router does not serve — one check, and the two failures read differently.
+  if (!allowed(id)) throw new Error(`"${id}" is not on this app's model allowlist`);
   const known = await models();
   if (!known.some((m) => m.id === id)) throw new Error(`the router does not serve "${id}"`);
   MODEL = id;

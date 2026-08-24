@@ -652,3 +652,102 @@ shipped — the canon checker, F1 0.89, which flags it after the fact rather tha
 
 **Base rates held across the two runs** — 7.1% and 4.0% at F15, 6.8% and 3.65% here — which says
 the fixture growing between them did not move the thing being measured.
+
+---
+
+## F21 — Interiority in canon comes back out as narration about half the time. But the model already narrates interiority anyway.
+
+PLAN-04 put a character's inner state behind a measurement rather than building it, on the
+suspicion that the model would not *use* it but *repeat* it. Measured, and the suspicion was
+right — with a second result that matters more.
+
+**120 generations per arm, both arms live at once** against two stories identical except for one
+line on the protagonist's canon entry:
+
+```
+[Inside: He is certain the key is a forgery, and has never dared test it.]
+```
+
+Same directive, same everything else. Two things counted, on **narration only** — a character
+*saying* "I'm certain it's a forgery" is the scene working, not a leak.
+
+| | arm A, control | arm B, interiority |
+|---|---|---|
+| runs / errors | 120 / 0 | 120 / 0 |
+| mentions him (the denominator) | 120 | 120 |
+| mean narration | 1,135 chars | 1,144 chars |
+| **the inner fact appears in narration** | **0/120 — 0%** [0–3] | **57/120 — 47.5%** [39–56] |
+| **narrator states ANY inner state of his** | 99/120 — 82.5% [75–88] | 103/120 — 85.8% [78–91] |
+
+**1. The fact leaks, at 47.5% [39–56].** Written into canon as a fact about who he is, it is
+returned as the narrator asserting it: *"He was certain the key was a forgery."* Told, not shown,
+in the narrator's voice. Arm A leaked **0 of 120**, which is the detector confirming in the live
+setting what its 10 synthetic cases assert — it does not fire on prose that was never told the
+fact.
+
+**2. And it changes nothing about how much interiority the narration carries.** 82.5% against
+85.8%, **+3.3 points, z = +0.71** — noise. The model already narrates the protagonist's inner
+state in **more than four generations in five** with *no interiority in canon at all*.
+
+The second number is the larger finding, and it was not what the measurement was aimed at.
+Told-not-shown is a property of this model and these prompts, not something the feature would
+introduce. Anyone building interiority to "add depth" would be adding a fact to a prompt that is
+already producing interior narration 82.5% of the time.
+
+**What this settles for PLAN-04.** Interiority as *plain canon* is the wrong shape: canon is for
+facts the prose must not contradict, and this one gets restated instead of honoured. Either give
+it its own block with an instruction that distinguishes knowing from saying, or do not build it.
+It should not be one more line in the entry body.
+
+**What it opens.** 82.5% is a big target and nothing has aimed at it. Whether an instruction
+against telling actually moves it is the natural next measurement — and F20 is the warning
+attached to that hope: 850 runs per arm to prove that a plausible prompt change did *nothing*.
+
+Detector: `bench/interiority-verdict.ts`, 10 cases asserting both directions, including the same
+words spoken rather than narrated. It caught two of its own gaps before the run — an auxiliary
+("had known") and the fact arriving in different words ("did not dare test" for "never dared test").
+Harness: `bench/interiority.ts`, run against a snapshot so the live library was untouched.
+
+---
+
+## F22 — Two models resident is not tight. Per-story models are not VRAM-blocked.
+
+Seth asked whether two harnesses could each have their own model. I answered "tight but not
+obviously impossible" from memory of the capacity table in `presets.ini`, which was **wrong and too
+pessimistic**. Measured from GGUF headers with `probe/fits.sh` — no load, no VRAM, ~50 ms each —
+at each preset's full 100,000-token context:
+
+| preset | weights | KV | compute | total |
+|---|---|---|---|---|
+| `write-nt-qwen36-h` (loaded) | 23,753 | 2,211 | 522 | **26,486 MiB · 25.9 GiB** |
+| `agentic-t-tcap27-h` | 15,088 | 6,870 | 505 | **22,463 MiB · 21.9 GiB** |
+| `agentic-t-qwen38-h` | 28,158 | 6,870 | 505 | **35,533 MiB · 34.7 GiB** |
+| `rp-nt-ornith-h` | 34,667 | 2,211 | 522 | **37,400 MiB · 36.5 GiB** |
+
+Against 98,304 MiB, with ~1,174 MiB idle baseline:
+
+- **any two fit.** The worst pair — Ornith + Qwen3.8 — is 72,933 MiB, leaving ~24 GiB spare.
+- the current writer plus any other is 48,949–63,886 MiB. Comfortable.
+- **three fit** in several combinations: qwen36 + tcap27 + qwen38 is 84,482 MiB.
+- all four do not: 121,849 MiB.
+
+**Why the earlier answer was wrong.** The capacity table lists `glm-steam` at 62,844 MiB of weights
+and `qwen-next` at 65,409, and "two 35B-class models" anchored on those. The writer actually in use
+is a 35B-**A3B** — a mixture of experts with 3B active — and its weights are 23,753 MiB. The
+parameter count in the name says almost nothing about what it occupies.
+
+**So per-story models are not blocked by the hardware.** They are blocked by `MODEL` being a single
+module-level global in `src/llama.ts`. Every request already names its model, and the router runs a
+separate `llama-server` process per preset.
+
+**The caveat.** This is header arithmetic, not two models measured resident together.
+`presets.ini` records `llama-fit-params` checked against this box's own measured table on
+2026-08-01 with a worst error of 1.4%, so the numbers are trustworthy — but the untested question
+is not capacity, it is whether the router evicts on its own policy before VRAM pressure. That is a
+five-minute check with two models deliberately loaded, and it was not run because it would have
+disturbed a box that was in use.
+
+**An allowlist landed with this** (`ANANSI_MODELS`, `src/llama.ts`): the router serves eight
+presets and most have no business writing fiction. It is an env var rather than a setting, because
+which models an app may use is an operator's decision about the box — `test/web.ts` asserts no
+route can write it.

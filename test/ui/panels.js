@@ -176,4 +176,42 @@ if (await page.visible('[data-setup="title"]')) {
   ok("  and narrows the list", (await page.eval("document.querySelectorAll('[data-pin]').length")) <= 2);
 } else { ok("the setup page opens", false); }
 
+// ---- 11. + Lore replaces New scene. Two ways a fact reaches canon, and they belong together:
+// write it down yourself, or have the chapter read for what is already on the page.
+await page.goto(B + "/#" + sid);
+for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
+ok("+ Lore is on the composer bar", await page.visible('[data-newlore]'));
+ok("  and New scene is not", !/New scene/.test(await page.text('#modes') || ''));
+await page.click('[data-newlore="1"]');
+await wait(700);
+const lore = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
+ok("  it opens a tray with both ways in", /Write it down/.test(lore) && /read the chapter/i.test(lore));
+ok("  offering every kind of card",
+   (await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind).sort().join(',')"))
+     === 'character,item,lore,rule');
+await page.click('[data-lorekind="item"]');
+await wait(400);
+ok("  and picking a kind changes what New would make",
+   /New an object/.test(await page.text('#sideBody') || ''));
+ok("  scanning the chapter is offered without ending it", await page.visible('[data-loreread]'));
+await page.click('[data-newlore="1"]');
+await wait(400);
+ok("  and it closes again", !/Write it down/.test(await page.text('#sideBody') || ''));
+
+// ---- 12. the writing dashboard, drawn from rows that already existed
+await page.goto(B + "/");
+await page.click('[data-nav="prefs"]');
+for (let i = 0; i < 60 && !/What you have written/.test(await page.text('#page') || ''); i++) await wait(250);
+const prefs = (await page.text('#page') || '').replace(/\s+/g, ' ');
+ok("Preferences reports what you have written", /What you have written/.test(prefs));
+for (const label of ['Words', 'Passages', 'Stories', 'In the ledgers', 'Takes not chosen', 'Calls to the model'])
+  ok(`  ${label}`, new RegExp(label).test(prefs));
+ok(`  and splits passages between you and Anansi (${JSON.stringify((prefs.match(/Passages[^A-Z]{0,40}/) ?? [""])[0].trim())})`,
+   /yours/.test(prefs) && /Anansi/.test(prefs));
+const words = Number((prefs.match(/Words[^\d]*([\d,]+)/) ?? [, '0'])[1].replace(/,/g, ''));
+console.log("  words reported: " + words);
+ok(`  with a real count, not a placeholder (${words})`, words > 0);
+ok("  and says which models are allowed, or that all are",
+   /allowed for Anansi|Every model the router serves/.test(prefs));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
