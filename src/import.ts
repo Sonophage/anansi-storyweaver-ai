@@ -14,6 +14,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { join, dirname, basename, sep } from 'node:path';
 import * as db from './db.ts';
+import { view } from './story.ts';
 
 /** Imports are read from one folder and nowhere else. The filename is reduced to its basename
  *  first, so `../../etc/passwd` becomes `passwd` and lands inside the folder rather than
@@ -116,6 +117,71 @@ export function fromAiDungeon(j: any): Incoming {
   };
 }
 
+/** AI Dungeon's *current* export is two files, not one. The "story cards" button writes a bare
+ *  JSON array — one object per card, no adventure around it — and the adventure text comes out
+ *  separately as markdown. Neither is the whole-adventure JSON above, which is why a real export
+ *  used to be rejected as unrecognised. Both are handled; importing both into one story is what
+ *  `merge` is for. */
+export function fromAiDungeonCards(arr: any[]): Incoming {
+  // AI Dungeon's own vocabulary, and it writes the same type in mixed case ("Item", "character").
+  // Anything it invents that we have no shelf for is lore, which is the shelf that means "canon".
+  const AS: Record<string, string> = { character: 'character', race: 'character', class: 'character',
+    item: 'item', faction: 'lore', location: 'lore', place: 'lore' };
+  let spoilers = 0;
+  const entries = arr.slice(0, MAX_ENTRIES).map((c: any) => {
+    const body = clip(c.value ?? c.entry);
+    // `description` is AI Dungeon's edit log for the card — dated revisions of the same text.
+    // Worth reading, noise in a prompt, so it goes to notes. Unless there is nothing else.
+    const desc = clip(c.description, 2000);
+    if (c.isSpoiler) spoilers++;
+    return {
+      title: clip(c.title ?? keysOf(c.keys)[0] ?? 'Untitled', 120) || 'Untitled',
+      body: body || desc,
+      notes: body ? desc : '',
+      entryType: AS[String(c.type ?? '').trim().toLowerCase()] ?? 'lore',
+      activation: keysOf(c.keys).length ? 'triggered' : 'always_on',
+      keys: keysOf(c.keys),
+    };
+  }).filter((e) => e.body);
+
+  const notes = ['Story cards carry no prose. Export the adventure text too and import it into ' +
+                 'this story to bring the writing across.'];
+  if (spoilers) notes.push(`${spoilers} card${spoilers > 1 ? 's were' : ' was'} marked a spoiler in ` +
+    'AI Dungeon. That flag has no equivalent here, so they came in as ordinary canon — put them ' +
+    'behind a progression if they should stay hidden until a later chapter.');
+  return {
+    source: 'AI Dungeon story cards',
+    story: { title: 'Imported story cards', pov: 'second person, present tense' },
+    entries, passages: [], notes,
+  };
+}
+
+/** An adventure exported as markdown: one `# Title`, then the story in blank-line-separated
+ *  blocks. Lines beginning `>` are the player's own turns — measured against a real 107KB
+ *  export: 40 of 358 blocks, every one of them standalone — so authorship survives the trip
+ *  instead of the whole adventure arriving as if the model wrote it. */
+export function fromAiDungeonMarkdown(text: string): Incoming {
+  const src = String(text ?? '').replace(/\r\n/g, '\n');
+  const h = src.match(/^#[ \t]+(.+)$/m);
+  const rest = h ? src.slice(src.indexOf(h[0]) + h[0].length) : src;
+  const passages = rest.split(/\n[ \t]*\n/).map((b) => b.trim()).filter(Boolean)
+    .slice(0, MAX_PASSAGES)
+    .map((b) => b.startsWith('>')
+      ? { body: clip(b.replace(/^>[ \t]?/gm, '').trim(), 20_000), author: 'human' }
+      : { body: clip(b, 20_000), author: 'model' })
+    .filter((p) => p.body);
+  const mine = passages.filter((p) => p.author === 'human').length;
+  return {
+    source: 'AI Dungeon adventure',
+    story: { title: clip(h?.[1], 200) || 'Imported adventure', pov: 'second person, present tense' },
+    entries: [],
+    passages,
+    notes: [`${passages.length} passages, ${mine} of them yours — the lines the export marks with ` +
+            '">". Everything else is attributed to the model.',
+            'Chapters are not in the export, so all of it lands in chapter one. Split it where you want.'],
+  };
+}
+
 // ---- 3. character cards (SillyTavern / Tavo, V1 V2 V3) ----
 
 /** tEXt chunks out of a PNG, without a dependency. Cards hide their JSON in one keyed
@@ -205,14 +271,34 @@ export function fromCard(j: any): Incoming {
 export function parse(name: string, buf: Buffer): Incoming {
   if (/\.db$/i.test(name)) throw new Error('a .db import must go through fromExport with a path');
   if (buf.length >= 8 && buf.readUInt32BE(0) === 0x89504e47) return fromCard(cardFromPng(buf));
+  const text = buf.toString('utf8');
   let j: any;
-  try { j = JSON.parse(buf.toString('utf8')); }
-  catch { throw new Error('that file is not JSON, a PNG card, or an Anansi export'); }
+  try { j = JSON.parse(text); }
+  catch {
+    // Not JSON. An adventure exported as markdown is the other half of an AI Dungeon export,
+    // so a text file is read as prose. The EXTENSION decides, not the content: a .json that
+    // fails to parse is a broken export and saying so is more use than silently importing the
+    // error message as chapter one.
+    if (!/\.(md|markdown|txt|text)$/i.test(name))
+      throw new Error('that file is not JSON, a PNG card, or an Anansi export');
+    if (text.includes('\u0000')) throw new Error('that file is not text — it has NUL bytes in it');
+    const inc = fromAiDungeonMarkdown(text);
+    if (!inc.passages.length) throw new Error('that file has no prose in it');
+    return inc;
+  }
+  // A bare array is the story-cards export. Cards are objects with a body under `value`.
+  if (Array.isArray(j)) {
+    if (!j.length) throw new Error('that export is an empty list');
+    if (j.some((c) => c && typeof c === 'object' && ('value' in c || 'keys' in c || 'title' in c)))
+      return fromAiDungeonCards(j);
+    throw new Error('that file is a list, but not of story cards');
+  }
   if (j?.spec === 'chara_card_v2' || j?.spec === 'chara_card_v3' || j?.data?.name || j?.char_name || j?.first_mes)
     return fromCard(j);
   if (j?.worldInfo || j?.worldInfoList || j?.actions || j?.historyList || j?.memory !== undefined)
     return fromAiDungeon(j);
-  if (j?.name || j?.description) return fromCard(j);   // a bare V1 card
+  if (j?.storyCards) return fromAiDungeonCards(j.storyCards);   // the same list, wrapped
+  if (j?.name || j?.description) return fromCard(j);            // a bare V1 card
   throw new Error('unrecognised file: no character card fields and no AI Dungeon fields');
 }
 
@@ -238,4 +324,32 @@ export function absorb(owner: string, inc: Incoming) {
     db.updateChapter(story.id, story.chapterId,
       { title: 'Chapter One', authorsNote: clip(inc.story.chapterAuthorsNote, 500) });
   return { storyId: story.id, source: inc.source, entries, passages, notes: inc.notes };
+}
+
+/** Add an Incoming to a story that already exists. AI Dungeon exports one adventure as two
+ *  files — cards and prose — and neither is worth a story of its own, so the second one merges
+ *  rather than founding a second library entry. Entries go in by title: re-importing a card
+ *  after editing it updates that card instead of leaving two of it. Prose only ever appends. */
+export function merge(owner: string, storyId: string, inc: Incoming) {
+  // Import is on the OPEN list because it usually names no story — so the request gate never
+  // runs, and this is the only ownership check there is. Without it, `into` would be a way to
+  // write prose into another writer's story through the one route that skips the gate.
+  if (!db.ownsStory(storyId, owner)) throw Object.assign(new Error('no such story'), { code: 404 });
+  const v = view(storyId);
+  if (!v) throw Object.assign(new Error('no such story'), { code: 404 });
+  const byTitle = new Map(v.entries.map((e: any) => [String(e.title).toLowerCase(), e.id]));
+  let entries = 0, updated = 0, passages = 0;
+  for (const e of inc.entries.slice(0, MAX_ENTRIES)) {
+    if (!clip(e.body)) continue;
+    const hit = byTitle.get(String(e.title ?? '').toLowerCase());
+    db.upsertEntry(storyId, owner, { ...e, id: hit ?? '', body: clip(e.body), lastEditor: 'human' });
+    if (hit) updated++; else entries++;
+  }
+  for (const p of inc.passages.slice(0, MAX_PASSAGES)) {
+    if (!clip(p.body, 20_000)) continue;
+    db.addPassage({ storyId, branchId: v.branchId!, chapterId: v.currentChapter.id,
+      body: clip(p.body, 20_000), author: p.author ?? 'model' });
+    passages++;
+  }
+  return { storyId, source: inc.source, entries, updated, passages, notes: inc.notes };
 }

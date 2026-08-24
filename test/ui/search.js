@@ -34,10 +34,13 @@ console.log("  kinds for 'key': " + kinds);
 ok("results cover entries as well as prose", kinds.includes("entry"));
 
 // Summaries need a term that is actually in one — asserting "key" hits a summary demanded
-// something the fixture cannot satisfy, which is a bad test, not a bug.
-const summaryKinds = await page.eval("(async () => { const r = await (await fetch('/api/search?q=' + encodeURIComponent('debt'))).json();"
+// something the fixture cannot satisfy, which is a bad test, not a bug. 'debt' was the second
+// version of that same mistake: it is in an entry body and in the story's direction, never in
+// a summary, so it proved the entry branch twice. 'waterline' appears in chapter two's summary
+// and nowhere else, which is the only kind of term that can prove this union branch at all.
+const summaryKinds = await page.eval("(async () => { const r = await (await fetch('/api/search?q=' + encodeURIComponent('waterline'))).json();"
   + " return [...new Set((r.results||[]).map(x => String(x.kind).toLowerCase()))].sort().join(','); })()");
-console.log("  kinds for 'debt': " + summaryKinds);
+console.log("  kinds for 'waterline': " + summaryKinds);
 ok("  and chapter summaries are searchable", summaryKinds.includes("summary"));
 
 // and clicking one must actually land somewhere

@@ -151,6 +151,16 @@ ok('a story cannot be deleted by someone who does not own it');
   assert.ok(db.ownsStory(made.storyId, bob));
   assert.ok(!db.ownsStory(made.storyId, alice), 'an import must not land in another writer\'s library');
   ok('an import belongs to whoever called it, and to nobody else');
+
+  // `into` merges into an EXISTING story, so import — the one route on the open list that now
+  // names a story — is the only place a cross-writer write could get through. The gate does not
+  // run here, so merge's own check is the whole defence and is asserted rather than assumed.
+  const prose = imp.fromAiDungeonMarkdown('# Whose\n\nA line of prose.');
+  assert.throws(() => imp.merge(alice, made.storyId, prose), /no such story/,
+    'alice merged prose into bob\'s story through the open import route');
+  assert.strictEqual(db.passagesOf(made.storyId).length, 0, "and nothing landed in bob's story");
+  assert.strictEqual(imp.merge(bob, made.storyId, prose).passages, 1, 'bob can merge into his own');
+  ok('merging into an existing story stops at the writer who owns it');
 }
 
 console.log(`\n${n} checks passed`);

@@ -55,5 +55,7 @@ export const api = {
   ledger:       ()               => j('/api/ledger'),
   models:       ()               => j('/api/models'),
   setModel:     (model)          => j('/api/model', 'POST', { model }),
+  importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
+  runImport:    (name, data, into) => j('/api/import', 'POST', { name, data, into: into || undefined }),
   exportUrl:    (id, format)     => `/api/export?story=${id}&format=${format}`,
 };

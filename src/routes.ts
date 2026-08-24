@@ -6,6 +6,7 @@ import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean } from './story.ts';
 import { resolveBody } from './context.ts';
+import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
 export interface Ctx {
@@ -28,13 +29,28 @@ export const OPEN_ROUTES = new Set([
   // owner-scoped in SQL — gating it by story made every search return 400, which is the
   // security fix breaking the feature it was protecting.
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'GET /api/search',
-  'POST /api/import',
+  'POST /api/import', 'POST /api/import/preview',
   'GET /api/models', 'GET /api/ledger',
 ]);
 
+/** What the import screen shows before anything is written. Bodies are counted, not sent: the
+ *  point is to see the SHAPE of a stranger's file, and shipping the prose back would just be
+ *  the file again. */
+const previewOf = (inc: imp.Incoming) => ({
+  source: inc.source, story: inc.story, notes: inc.notes,
+  entries: inc.entries.map((e) => ({ title: e.title, entryType: e.entryType,
+    activation: e.activation, keys: e.keys, chars: (e.body ?? '').length })),
+  passages: inc.passages.length,
+  human: inc.passages.filter((p) => p.author === 'human').length,
+  opening: (inc.passages[0]?.body ?? '').slice(0, 400),
+});
+
 /** The story a request is about, wherever it names it. */
 export function storyIdOf(body: any, query: URLSearchParams): string | null {
-  return body?.storyId ?? body?.id ?? query.get('story') ?? null;
+  // `into` is how import names an existing story. Import itself is on the OPEN list, so this
+  // branch is not what protects it — `imp.merge` checks ownership directly — but the gate is
+  // what catches the next route to borrow the name.
+  return body?.storyId ?? body?.id ?? body?.into ?? query.get('story') ?? null;
 }
 
 async function generate(c: Ctx, mode: string, directive: string | undefined, role = 'prose') {
@@ -275,19 +291,44 @@ export const routes: Record<string, Handler> = {
   // evict everyone's snapshots.
   'POST /api/backup':      () => db.backup(),
   'POST /api/export':      (c: Ctx) => db.exportStory(c.body.storyId, c.owner),
-  // ponytail: no client calls this yet — the audit found it as the only route with no caller,
-  // which is this project's own half-built pattern. The importers and their 7 checks are real;
-  // what is missing is a file picker on either surface. Wire it when the import screen exists.
-  // Creates a story, so it names no existing one and cannot be gated on ownership — it is
-  // open for the same reason POST /api/stories is, and the new story is owned by the caller.
+  // Creates a story, so it usually names no existing one and cannot be gated on ownership — it
+  // is open for the same reason POST /api/stories is, and the new story is owned by the caller.
+  // `into` is the exception: it names a story, the gate does not run here, so imp.merge checks
+  // ownership itself. test/scope.ts asserts that, because this is the one open write path.
   'POST /api/import': (c: Ctx) => {
     const name = String(c.body.name ?? '');
-    if (/\.db$/i.test(name)) return imp.absorb(c.owner, imp.fromExport(imp.safePath(name)));
     const data = String(c.body.data ?? '');
+    // A .db has to be a file on disk before node:sqlite will open it. Sent from the browser it
+    // arrives as bytes like everything else, so it is written into the imports folder first —
+    // which is also the only folder safePath will name. Without this the Anansi-export card on
+    // the import screen could only be used by dropping a file in by hand.
+    if (/\.db$/i.test(name)) {
+      const at = imp.safePath(name);
+      if (data) writeFileSync(at, Buffer.from(data, 'base64'));
+      return imp.absorb(c.owner, imp.fromExport(at));
+    }
     if (!data) throw Object.assign(new Error('send the file as base64 in `data`'), { code: 400 });
     const buf = Buffer.from(data, 'base64');
     if (buf.length > 20_000_000) throw Object.assign(new Error('that file is over 20MB'), { code: 400 });
-    return imp.absorb(c.owner, imp.parse(name, buf));
+    const inc = imp.parse(name, buf);
+    // `into` merges rather than founding a story. AI Dungeon exports one adventure as two
+    // files — the cards and the prose — and each on its own makes half a story.
+    return c.body.into ? imp.merge(c.owner, String(c.body.into), inc) : imp.absorb(c.owner, inc);
+  },
+
+  // What a file WOULD become, without writing anything. The import screen shows this first so
+  // nobody finds out what a stranger's file did to their library after the fact.
+  'POST /api/import/preview': (c: Ctx) => {
+    const name = String(c.body.name ?? '');
+    if (/\.db$/i.test(name)) {
+      const at = imp.safePath(name);
+      if (c.body.data) writeFileSync(at, Buffer.from(String(c.body.data), 'base64'));
+      return previewOf(imp.fromExport(at));
+    }
+    const buf = Buffer.from(String(c.body.data ?? ''), 'base64');
+    if (!buf.length) throw Object.assign(new Error('send the file as base64 in `data`'), { code: 400 });
+    if (buf.length > 20_000_000) throw Object.assign(new Error('that file is over 20MB'), { code: 400 });
+    return previewOf(imp.parse(name, buf));
   },
 
   // ---- prose ----

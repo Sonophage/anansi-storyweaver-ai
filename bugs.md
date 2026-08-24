@@ -1,3 +1,37 @@
+# Checklist Bugs
+## Story and Chapter
+- Story and Chapter should be split, trajectory tab, chapter name, this chapter must end with, end this chapter should all be in one thing. what this chapter added branches all should be in one menu. 
+## menu order
+story
+chapter
+threads this would be characters and lore and all those cards for the current story
+context this should house the context and the inspector and it should be removed from the top
+search
+storyteller
+# editor
+history doesnt show if i had a regeneration. it only shows nmothing i do see the versions through the hover toggle. but it should be in the history tab instead.
+when i writed dialogue it doesnt show it in story. the ai prompt seems to be the only thing captured.
+speaking doesnt allow me to speak or act as other characters.
+continue should only be a continue button no entry. 
+remove the new scene button from the rail menu above the editor.pressing enter doesnt send the text, just pressing the button.
+the buttons above the editor should be continue, speak, act, direct, narrate. continue only as a button to allow the story to continue with no user prompt. speak and act should default to the main character but have the option to act as anyone in the scene. direct should be an prompt of what happens next that the ai takes and writes. narrarate bypasses the ai and the user just writes as if editing the document, that gets passed and then the ai uses that to continue the scene forward.
+where it says each take is kept can go away. and the last take and how long it took below the message input can go away.  
+# search
+in search clicking the result should take me to that passage and highlight it. also it may be smart to add an, add to lore book, bookmark option to those. 
+# the tags should be comma seperated and each pill:hould house only one
+
+# create a story works beautifully.
+
+the importer may work for you but its not hooked up on my end. in 
+/home/sonophage/Downloads/
+i have ai dungeon import and the png  is from chub ai, ai dungeon is the more important one. and its from the same story so do with that what you may to test but hook it up to the frontend too. 
+model selector, is ther anyway around that? two harneses think how pi and prime agent are two harnesses the same idea would star here. 
+## story and chapter the spice written override. let it only show up if the custom option is selected otherwise its noise. 
+for the model selector could i as admin turn on and off what models are available for this app ?
+yes regenerate should have what is cannon recorded.
+themes make sure the theme is easy to build upon. but the way it works now is good. well be adding other text selections _s well as other themes later 
+
+# Original Bugs
 # homepage
 currently missing no way for me to see the homepage if im already logged in.
 cant test  the login page 

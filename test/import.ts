@@ -136,7 +136,62 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.ok(inc.entries.length <= 200, 'a lorebook cannot exceed the entry cap');
   assert.throws(() => imp.parse('junk.json', Buffer.from('not json at all')), /not JSON/);
   assert.throws(() => imp.parse('empty.json', Buffer.from('{"unrelated":1}')), /unrecognised/);
+  assert.throws(() => imp.parse('empty.md', Buffer.from('   \n\n  ')), /no prose/);
+  assert.throws(() => imp.parse('bin.md', Buffer.from('text\u0000more')), /NUL/);
   ok('oversized and unrecognised files are refused or clipped, not passed through');
+}
+
+// 8. AI Dungeon's CURRENT export, which is two files. The whole-adventure JSON in test 2 is a
+// different, older thing; a real export from the app in 2026 is a bare array of story cards
+// plus the adventure as markdown, and both of those were rejected as unrecognised until now.
+// Shapes below are copied from a genuine export, not invented.
+{
+  const cards = imp.parse('adventure--Ws97-story-cards-5.json', Buffer.from(JSON.stringify([
+    { isSpoiler: false, showInStoryCards: true, keys: 'Sliver', value: 'Name: The Sliver\nIt unfolds flesh into memory.',
+      type: 'Item', title: 'Sliver', description: '', useForCharacterCreation: false },
+    { isSpoiler: false, keys: 'Lavender, The Murmur , Vel', value: 'Name: The Murmur\nStill and sharp.',
+      type: 'character', title: 'The Murmur', description: '\n\n---\n05/30/2025, 02:56 AM\nName: The Murmur' },
+    { isSpoiler: true, keys: 'The Rust , The Choir', value: 'A faction that sings.', type: 'faction', title: 'The Rust Choir' },
+  ])));
+  assert.strictEqual(cards.source, 'AI Dungeon story cards');
+  assert.strictEqual(cards.entries.length, 3);
+  // AI Dungeon writes its own type in mixed case and invents types we have no shelf for.
+  assert.deepStrictEqual(cards.entries.map((e) => e.entryType), ['item', 'character', 'lore'],
+    'card types must map case-insensitively, and an unknown type becomes lore rather than being dropped');
+  assert.deepStrictEqual(cards.entries[1].keys, ['Lavender', 'The Murmur', 'Vel'],
+    'keys arrive as one comma-separated string and must be split and trimmed');
+  assert.strictEqual(cards.entries[1].activation, 'triggered', 'a card with keys is keyword canon');
+  // `description` is AI Dungeon's dated edit log for the card. In the body it would be sent to
+  // the model as if it were canon, twice over.
+  assert.ok(!cards.entries[1].body.includes('05/30/2025'), 'the card edit log must not reach the body');
+  assert.ok(cards.entries[1].notes.includes('05/30/2025'), 'but it is kept for the writer to read');
+  assert.ok(cards.notes.some((t) => /spoiler/.test(t)), 'a spoiler card must be reported, not silently normalised');
+  assert.strictEqual(cards.passages.length, 0, 'story cards carry no prose');
+
+  const md = imp.parse('sutera-remembers.md', Buffer.from(
+    '# Sutera: Remembers\n\nSutera.\nA city built into the ribcage of a god.\n\n'
+    + '> You say "Any work?"\n\nThe man looks up.\n\n> You take the weapon.\n'));
+  assert.strictEqual(md.story.title, 'Sutera: Remembers', 'the heading is the title');
+  assert.strictEqual(md.passages.length, 4);
+  assert.ok(!md.passages[0].body.startsWith('#'), 'the heading must not also be prose');
+  // Authorship is the whole point. AI Dungeon marks the player's own turns with '>'; losing
+  // that makes the entire adventure read as if the model wrote it.
+  assert.deepStrictEqual(md.passages.map((p) => p.author), ['model', 'human', 'model', 'human']);
+  assert.strictEqual(md.passages[1].body, 'You say "Any work?"', "the '>' marker is not prose");
+  ok('AI Dungeon story cards and a markdown adventure both import, with authorship intact');
+
+  // The two halves are one adventure, so the second file merges into the story the first made.
+  const s = imp.absorb(owner, md);
+  const m = imp.merge(owner, s.storyId, cards);
+  assert.strictEqual(m.entries, 3, 'the cards join the story the prose founded');
+  assert.strictEqual(m.passages, 0);
+  assert.strictEqual(db.passagesOf(s.storyId).length, 4, 'and the prose is still there, once');
+  // Re-importing after editing a card in AI Dungeon must not leave two of it.
+  const again = imp.merge(owner, s.storyId, cards);
+  assert.strictEqual(again.entries, 0, 'a second import of the same cards adds none');
+  assert.strictEqual(again.updated, 3, 'it updates them by title instead');
+  assert.strictEqual(db.entriesOf(s.storyId).length, 3, 'so the ledger holds three, not six');
+  ok('the two halves of one export merge into one story, and re-importing updates in place');
 }
 
 // 7. An import belongs to whoever imported it.

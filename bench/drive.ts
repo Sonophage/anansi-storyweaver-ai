@@ -116,6 +116,16 @@ const page = {
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key, windowsVirtualKeyCode: code, modifiers: mods });
     await wait(200);
   },
+  // Hand a real file to a real <input type="file">. The alternative is calling the API from
+  // page.eval, which tests the route and leaves the picker — the part that was never wired —
+  // untested. `hidden` inputs work: setFileInputFiles goes through the DOM, not the mouse.
+  async file(sel: string, paths: string[]) {
+    const { root } = await send('DOM.getDocument', { depth: 1 });
+    const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: sel });
+    if (!nodeId) throw new Error(`no file input at ${sel}`);
+    await send('DOM.setFileInputFiles', { nodeId, files: paths });
+    await wait(300);
+  },
   async shot(path: string, size?: [number, number]) {
     if (size) await send('Emulation.setDeviceMetricsOverride',
       { width: size[0], height: size[1], deviceScaleFactor: 1, mobile: size[0] < 720 });

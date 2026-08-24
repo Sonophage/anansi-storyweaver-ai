@@ -82,18 +82,32 @@ Branch: `ui-overhaul`. Nothing here has been merged to `main`.
 
 ## The importer
 
-- [ ] Nothing to check. ❌ **Still unverified, and you are right to be sceptical.**
+- [ ] **Import a real AI Dungeon export.** Import &rarr; pick `sutera-remembers.md`. It should
+      preview as an *AI Dungeon adventure*, titled **Sutera: Remembers**, 357 passages, **40 of
+      them yours** — and say nothing has been written yet.
 
-      The parsers are real and have 7 passing tests — character cards V1/V2/V3, PNG or JSON, AI
-      Dungeon exports, Anansi's own exports, with a guard that refuses to feed a card's
-      `system_prompt` into the model. But **every one of those tests runs against a fixture I
-      wrote**, so they prove my reading of the spec, not that a real file works.
-      **Drop one real character card and one real AI Dungeon export into the repo and I will
-      verify against the genuine article.**
+- [ ] **Then bring the cards into that same story.** *Pick a different file* &rarr;
+      `adventure--Ws97mWzhCST-story-cards-5.json`. Set *Where it goes* to **Into Sutera:
+      Remembers**. The button should change to *Add to Sutera: Remembers*. Five cards join it;
+      **no second story appears** in the library.
 
-      Also: the shipped Import screen and `src/import.ts` are **two different importers** that do
-      not know about each other. Written up in `docs/findings/BUILD-STATE.md` §3b. Deliberately
-      not blended.
+- [ ] **Import the same cards again.** It should say **0 new, 5 updated** — not ten cards.
+
+- [ ] **The chub.ai PNG.** `main_althiel-saelith-25cba0d4_spec_v2.png` should preview as a
+      *character card (chara_card_v2)* and import as its own story.
+
+      **What was wrong, since you were right to be sceptical.** Your AI Dungeon export was being
+      *rejected outright*. The parser expected the old whole-adventure JSON; the app now exports
+      two files — a bare array of story cards, and the adventure as markdown with your own turns
+      on lines beginning `>` — and neither matched. Every test I had ran against a fixture I wrote
+      myself, which is exactly the failure mode those tests could not catch.
+
+      Now measured on your files: 357 passages, 40 yours, 5 cards merged into one story, and the
+      prompt assembles at 28,100 of 46,146 tokens with the imported canon firing from its keys.
+
+- [ ] **One importer now, not two.** The client has no parser at all: it sends the bytes and
+      renders what `src/import.ts` made of them. The §3b conflict is closed.
+
 
 ---
 

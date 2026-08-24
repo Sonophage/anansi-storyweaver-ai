@@ -26,6 +26,7 @@ const S = {
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   entryId: null, historyOf: null, models: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, spark: null, ritual: null, setup: null,
+  imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
@@ -76,7 +77,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
-  'skipsetup'].map((k) => `[data-${k}]`).join(',');
+  'skipsetup', 'doimport', 'dropimport', 'openimported'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null;
 function toast(msg) {
@@ -883,22 +884,93 @@ const WPAGES = {
   },
 
   import() {
-    // ponytail: this page describes the importers in src/import.ts, which no client calls yet —
-    // BUILD-STATE 3b records the two-importer conflict. Wiring it is deliberately not part of
-    // the UI overhaul; the resolution is to make src/import.ts the engine first.
+    const I = S.imp, P = I.preview;
+    const KINDS_IN = [['❐', 'Character card', 'V1, V2 and V3 cards, PNG or JSON'],
+      ['❋', 'Anansi export', 'A story that left as a standalone .db'],
+      ['↧', 'AI Dungeon', 'Story cards, or an adventure exported as markdown']];
+
+    if (I.done) {
+      const d = I.done;
+      return `<div style="display:flex; flex-direction:column; gap:18px; max-width:640px">
+        <div class="lbl" style="letter-spacing:.26em">Imported</div>
+        <div class="serif" style="font-size:26px; color:#EAE3D6">${esc(d.source)}</div>
+        <div class="row"><span style="color:#8A8478">Canon entries</span>
+          <span class="tnum" style="margin-left:auto; color:#EAE3D6">${d.entries}${
+            d.updated ? ` new, ${d.updated} updated` : ''}</span></div>
+        <div class="row"><span style="color:#8A8478">Passages</span>
+          <span class="tnum" style="margin-left:auto; color:#EAE3D6">${d.passages}</span></div>
+        ${(d.notes ?? []).map((n) => `<div class="hint">${esc(n)}</div>`).join('')}
+        <div style="display:flex; gap:10px; margin-top:6px">
+          <button data-openimported="${esc(d.storyId)}" class="btn primary">Open the story</button>
+          <button data-dropimport="1" class="btn">Import another</button></div></div>`;
+    }
+
+    if (P) {
+      // Everything shown here comes from src/import.ts, which is the only parser. The screen
+      // used to read files itself, so what it promised and what an import did were two
+      // different programs — BUILD-STATE 3b.
+      const into = LIB.find((x) => x.id === I.into);
+      return `<div style="display:flex; flex-direction:column; gap:20px; max-width:900px">
+        <div>
+          <div class="lbl" style="letter-spacing:.26em">Read as</div>
+          <div class="serif" style="font-size:26px; color:#EAE3D6">${esc(P.source)}</div>
+          <div class="hint" style="margin-top:4px">${esc(I.name)} &mdash; nothing has been written yet.</div>
+        </div>
+        <div class="split" style="gap:26px">
+          <div style="flex:1; min-width:0">
+            <div class="lbl">${P.entries.length} canon ${P.entries.length === 1 ? 'entry' : 'entries'}</div>
+            ${P.entries.length ? P.entries.map((e) => `<div class="row">
+                <span style="color:#EAE3D6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(e.title)}</span>
+                <span class="chip" style="flex:0 0 auto">${esc(e.entryType)}</span>
+                <span style="font-size:10.5px; color:#6E6961; flex:0 0 auto">${
+                  e.activation === 'always_on' ? 'always' : esc(e.keys.join(' · ')) || 'no keys'}</span>
+                <span class="tnum" style="margin-left:auto; font-size:10.5px; color:#6E6961; flex:0 0 auto">${e.chars}c</span>
+              </div>`).join('')
+              : '<div class="hint" style="margin:0">None in this file.</div>'}
+          </div>
+          <div class="aside">
+            <div class="lbl" style="letter-spacing:.26em">Prose</div>
+            <div class="row"><span style="color:#EAE3D6">Passages</span>
+              <span class="tnum" style="margin-left:auto; color:#78726A">${P.passages}</span></div>
+            ${P.passages ? `<div class="row"><span style="color:#EAE3D6">Yours</span>
+              <span class="tnum" style="margin-left:auto; color:#78726A">${P.human}</span></div>` : ''}
+            ${P.opening ? `<div class="lbl" style="margin-top:18px">Opens with</div>
+              <div style="font-size:12.5px; line-height:1.6; color:#8A8478">${esc(P.opening)}&hellip;</div>` : ''}
+          </div>
+        </div>
+        ${(P.notes ?? []).map((n) => `<div class="hint">${esc(n)}</div>`).join('')}
+        <div>
+          <div class="lbl">Where it goes</div>
+          <select id="impinto" class="field" style="max-width:460px">
+            <option value=""${I.into ? '' : ' selected'}>A new story &mdash; ${esc(P.story?.title ?? 'untitled')}</option>
+            ${LIB.map((x) => `<option value="${esc(x.id)}"${x.id === I.into ? ' selected' : ''}
+              >Into ${esc(x.title)}</option>`).join('')}
+          </select>
+          <div class="hint">AI Dungeon exports one adventure as two files &mdash; the story cards and
+            the prose. Bring the second one into the story the first one made, rather than ending up
+            with two halves in the library. Entries match by title, so re-importing an edited card
+            updates it instead of leaving two.</div>
+        </div>
+        <div style="display:flex; gap:10px">
+          <button data-doimport="1" class="btn primary" ${I.busy ? 'disabled' : ''}>${
+            I.busy ? 'Importing&hellip;' : into ? `Add to ${esc(into.title)}` : 'Create the story'}</button>
+          <button data-dropimport="1" class="btn">Pick a different file</button></div></div>`;
+    }
+
     return `<div style="display:flex; flex-direction:column; gap:22px; max-width:900px">
-      <div class="grid">${[['❐', 'Character card', 'V1, V2 and V3 cards, PNG or JSON'],
-        ['❋', 'Anansi export', 'A story that left as a standalone database'],
-        ['↧', 'AI Dungeon', 'Adventures and world info']].map(([g, l, m]) => `
+      <div class="grid">${KINDS_IN.map(([g, l, m]) => `
         <div style="border:1px solid var(--chip); border-radius:18px; padding:22px 20px;
           background:var(--rail); display:flex; flex-direction:column; gap:11px">
           <span class="serif" style="font-size:20px; color:#D9B26A">${g}</span>
           <span style="font-size:15px; color:#F3ECE0">${l}</span>
           <span style="font-size:12.5px; line-height:1.5; color:#8A8478">${m}</span></div>`).join('')}</div>
-      <div class="dashed" style="min-height:0; padding:44px; flex-direction:column; gap:8px; text-align:center">
-        <span class="serif" style="font-size:22px; color:#EAE3D6">Not wired yet</span>
-        <span style="font-size:12.5px; color:#78726A">The parsers exist and are tested. The screen that
-          feeds them is the next piece.</span></div></div>`;
+      <label id="impdrop" class="dashed" style="min-height:0; padding:44px; flex-direction:column;
+        gap:8px; text-align:center; cursor:pointer">
+        <input type="file" id="impfile" accept=".json,.png,.md,.markdown,.txt,.db" hidden>
+        <span class="serif" style="font-size:22px; color:#EAE3D6">${
+          I.busy ? 'Reading&hellip;' : 'Choose a file, or drop one here'}</span>
+        <span style="font-size:12.5px; color:#78726A">You see what it would become before anything
+          is written.</span></label></div>`;
   },
 
   prefs() {
@@ -1353,6 +1425,21 @@ document.addEventListener('click', async (e) => {
   if (d.blank) { const r = await api.createStory({ title: 'Untitled' }); if (r.error) return toast(r.error);
     await loadLibrary(); await openStory(r.id ?? r.storyId); return; }
   if (d.backup) { const r = await api.backup(S.storyId ?? LIB[0]?.id); toast(r.error ?? 'Snapshot written.'); return; }
+  if (d.dropimport) { S.imp = { name: null, data: null, preview: null, into: '', busy: false, done: null }; drawPage(); return; }
+  if (d.openimported) { await openStory(d.openimported); return; }
+  if (d.doimport) {
+    if (!S.imp.data || S.imp.busy) return;
+    S.imp.busy = true; drawPage();
+    const r = await api.runImport(S.imp.name, S.imp.data, S.imp.into);
+    S.imp.busy = false;
+    if (r.error) { drawPage(); return toast(r.error); }
+    await loadLibrary();
+    // The bytes are dropped here. Holding a 1.6MB base64 string in state after it has been
+    // written is the kind of thing that makes a long session feel haunted.
+    S.imp = { ...S.imp, done: r, preview: null, data: null };
+    drawPage();
+    return;
+  }
   if (d.savegen) {
     const gen = {};
     document.querySelectorAll('[data-gen]').forEach((el) => { gen[el.dataset.gen] = Number(el.value); });
@@ -1365,6 +1452,39 @@ $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); } }
 });
+// A picked file is read here and parsed on the SERVER. The client deliberately has no parser
+// of its own: two importers was the conflict BUILD-STATE 3b recorded, and the tested one wins.
+async function readImport(f) {
+  if (!f) return;
+  S.imp = { name: f.name, data: null, preview: null, into: '', busy: true, done: null };
+  drawPage();
+  const data = await new Promise((res) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1] ?? '');
+    r.onerror = () => res(null);
+    r.readAsDataURL(f);
+  });
+  S.imp.busy = false;
+  if (!data) { drawPage(); return toast('could not read that file'); }
+  const p = await api.importPreview(f.name, data);
+  if (p.error) { drawPage(); return toast(p.error); }
+  S.imp = { ...S.imp, data, preview: p };
+  drawPage();
+}
+
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'impfile') { readImport(e.target.files?.[0]); return; }
+  if (e.target.id === 'impinto') { S.imp.into = e.target.value; drawPage(); }
+});
+// The drop target is dashed and says "drop one here", so it accepts drops. dragover must be
+// prevented or the browser navigates to the file instead of handing it over.
+document.addEventListener('dragover', (e) => { if (e.target.closest?.('#impdrop')) e.preventDefault(); });
+document.addEventListener('drop', (e) => {
+  if (!e.target.closest?.('#impdrop')) return;
+  e.preventDefault();
+  readImport(e.dataTransfer?.files?.[0]);
+});
+
 document.addEventListener('input', (e) => {
   // Neither branch may redraw its own input. Both write only their results container.
   if (e.target.dataset?.setup) {

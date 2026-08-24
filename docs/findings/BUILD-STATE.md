@@ -26,7 +26,7 @@ one — it looks finished from the UI), and **not started**.
 | `generations` logged on every call, including failures | `db.logGeneration` |
 | 11 engine tests that run with no model up | `test/engine.ts` |
 | Per-story export to a standalone database | `db.exportStory` |
-| Import: Anansi exports, AI Dungeon, character cards V1/V2/V3 | `src/import.ts` |
+| Import: Anansi exports, AI Dungeon (both halves of a real export), character cards V1/V2/V3 | `src/import.ts`, wired to the Import screen |
 
 ---
 
@@ -51,7 +51,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **88 across five suites** (33 engine, 25 db, 13 scope, 7 import, 10 web), plus the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
+| **Tests** | **105 across six suites** (33 engine, 26 db, 17 scope, 9 import, 11 web, 9 app), plus 118 driven-browser checks across 8 scenarios and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
 
 ---
 
@@ -64,7 +64,7 @@ from the code rather than remembered:
 grep -rn "ponytail:" src web bench *.ts *.html
 ```
 
-**Eight markers as of 2026-08-23**, after a ponytail audit cut two phantom block kinds, two unread columns and a retired harness. One marker was *added*: `/api/import` was the only route in the tree with no caller. Each names what is missing, why it was left, and the upgrade path.
+**Eight markers as of 2026-08-24.** The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. Each remaining marker names what is missing, why it was left, and the upgrade path.
 Nothing in this list is a surprise; the point is that adding to it requires writing down the ceiling.
 
 | Where | What is unfinished |
@@ -162,24 +162,36 @@ queue, timeline, context, branches, search, import, settings, story-by-id.
 **All four writing modes exercised live** against the real model: Co-Write 1,290 chars, Direct
 1,218, Full Auto 772, New Scene 781, MODE block included in every one.
 
-### The one real conflict: there are two importers
+### The two importers, resolved 2026-08-24
 
-Both surfaces already ship an Import screen. **Neither calls `POST /api/import`** — `web/api.js`
-has no `import` method at all. The screens parse JSON in the browser and call `saveEntry` / `write`
-directly. They predate `src/import.ts`.
+`src/import.ts` is now the only parser. The client has none: it reads the picked file, sends the
+bytes, and renders what the server made of them. The screen that said "Not wired yet" is wired.
 
-| | client screens (shipped) | `src/import.ts` (built 2026-08-23) |
+What changed to make that possible, and what it cost:
+
+| | before | now |
 |---|---|---|
-| character-card JSON | yes | yes |
-| PNG cards, AI Dungeon, Anansi exports | **no** | yes |
-| injection guard on `system_prompt` | **no** | yes |
-| size bounds | **no** | yes |
-| **merges into the current story** | **yes** | **no — always a new story** |
-| tested | no | 7 checks |
+| client-side parsing | two hand-rolled parsers | none — one engine, `src/import.ts` |
+| merges into an existing story | client only | `imp.merge`, by entry title |
+| AI Dungeon's *current* export | **rejected as unrecognised** | both halves parse |
+| a `.db` picked in the browser | impossible (path-only) | written to `imports/`, then read |
+| preview before writing | none | `POST /api/import/preview` |
+| tested | 7 checks | 9 suite checks + 30 driven UI checks |
 
-Neither is complete, and each has what the other lacks. Resolution deferred by Seth — the shape is
-to make `src/import.ts` the engine, add the merge mode it lacks, then rewire both screens to it,
-deleting two hand-rolled parsers. **Not to be blended.**
+**The AI Dungeon parser had never seen a real export.** Measured against genuine files on
+2026-08-24: the app now exports one adventure as *two* files — a bare JSON array of story cards
+(`keys` as one comma-separated string, `type` in mixed case) and the adventure as markdown with
+the player's own turns on lines beginning `>`. Neither is the whole-adventure JSON `fromAiDungeon`
+was written for; both were refused. Both now parse, and the `>` marker is what keeps 40 of 357
+passages attributed to the writer instead of the model.
+
+Verified end-to-end through the file picker, on the real files: 357 passages (40 the writer's),
+5 story cards merged into that same story, prompt assembles at 28,100 of 46,146 tokens with the
+imported canon firing from its keys. A chub.ai `spec_v2` PNG imports as its own story.
+
+Two things the merge deliberately does not do: it matches entries by **title** (so re-importing
+an edited card updates it rather than leaving two), and it never merges prose by identity —
+prose only ever appends. Importing the same adventure twice gives you the prose twice.
 
 ### Schema against PLAN-02's P1 list
 
