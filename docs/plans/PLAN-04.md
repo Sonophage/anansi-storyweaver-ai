@@ -48,7 +48,16 @@ separate buttons you have to remember.
 
 Proposed: one action that runs the three steps in order and shows each one.
 
-1. **Summarise the chapter.** Already built. Feeds EARLIER on every later call.
+1. **Summarise the chapter.** Already built — and **already automatic**. `POST /api/chapter/end`
+   calls `summarise` itself unless `summarise: false` is passed, with the comment *"on close rather
+   than on a button nobody remembers. Summaries are what bound the context without the budget
+   engine; leaving it manual leaves the bound optional."* So this step is not work; it is already
+   happening on every close.
+
+   That also means F18 mattered more than its own writeup credited: every chapter close was
+   already writing an analytical 1,000-plus character summary into EARLIER, unprompted, and EARLIER
+   reaches every later call. Fixed 2026-08-23 — a close now yields 177-423 characters that record
+   rather than explain.
 2. **Read it for facts.** Already built — extraction proposes new, changed and conflicting
    entries. **Nothing is accepted automatically**, and that stays true: SPEC §8.2, and it is the
    rule that makes the ledger trustworthy.

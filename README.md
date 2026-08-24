@@ -10,8 +10,13 @@ The one promise: **a fact you write down in chapter one still holds in chapter f
 ```bash
 node --experimental-strip-types serve.ts     # the app on :5174 (/ and /phone are the same page)
 node --experimental-strip-types test/all.ts  # every suite, no model and no browser needed
+test/ui/run.sh                               # seven browser scenarios, each on a fresh copy
 node --experimental-strip-types run.ts       # one generation end to end (server must be up)
 ```
+
+`test/all.ts` needs neither a model nor a browser, so there is no excuse for skipping it. The
+scenarios need chromium and a copy of the database. `test/ui/run.sh model` is separate because
+every step in it waits on a real generation.
 
 To drive the real UI — clicking and typing, in headless chromium, no dependencies:
 
@@ -53,8 +58,9 @@ src/            the engine
   import.ts       Anansi exports, AI Dungeon, character cards
   prompts.ts      every structured-role prompt
 web/            client modules, shipped straight to the browser
-test/           all.ts runs the five suites
-bench/          measurement harnesses — the numbers in docs/findings come from here
+test/           all.ts runs the six suites; ui/ holds browser scenarios and run.sh
+bench/          measurement harnesses — the numbers in docs/findings come from here,
+                plus drive.ts, a headless browser that clicks and types
 docs/           spec, prompts, plans, councils, findings
 ```
 

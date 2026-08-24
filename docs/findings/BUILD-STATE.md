@@ -193,6 +193,40 @@ no identity behind it.
 audit as columns nothing read. They were **P1 stubs for planned features**, so the deletion removed
 the stubs, not the features; both remain unbuilt and remain in the plan.
 
+## 3c. The UI overhaul, 2026-08-23
+
+`desk.html` and `phone.html` are **deleted**. One responsive surface, `app.html` + `web/app.js`,
+serves `/` and `/phone` — the second mapping kept so an installed home-screen icon still works.
+Built from `Anansi App.dc.html` in Seth's Claude Design project, which the repo does not contain.
+
+**Nineteen bugs found and fixed on that surface in one day**, none of which the existing suites
+could see. The ones worth remembering as classes:
+
+| class | example | why nothing caught it |
+|---|---|---|
+| a name doing two jobs | `data-theme` was both the look on `<html>` and a click action, so **every click toggled the rail and repainted** — nothing was editable | the page looked right until you used it |
+| guessing a field instead of reading it | Accept sent `decision` to a route reading `accept`, so accepting **rejected**; search read `storyId` from a row carrying `story_id` | the request succeeds and the wrong branch runs |
+| a button with no way to be clicked | `#send`, the app's primary action, had no action attribute — mouse-unreachable, and on a phone unreachable at all | nothing throws |
+| an engine feature with no surface | deleting desk.js took the only UI for five features this document called Done | the engine, schema and routes were all still correct |
+| a repaint eating input | typing in either search box redrew the region and destroyed the input | "brass" simply found nothing |
+| the surface asserting what the code denies | Storyteller said sampling was per-story; `gen` is one process-wide object | copy is not tested |
+
+**Each class now has a test rather than a fix.** `test/web.ts` asserts the action names and the
+`<html>` state attributes are disjoint, that every button is clickable, and that every api method
+has a caller or a written reason for not having one. `test/scope.ts` tests the three OPEN routes
+with two owners, since an open route's only protection is its SQL.
+
+**The harness that found them.** `bench/drive.ts` — headless chromium over the DevTools protocol,
+no dependencies, that clicks and types. `test/ui/run.sh` runs seven scenarios, each against a fresh
+copy of the database because they mutate and poison each other otherwise. An eighth, `model.js`, is
+opt-in: every step waits on a real generation.
+
+Honest note on the ratio: across the day the driver produced roughly as many false alarms as real
+bugs, and every false alarm was the probe's fault — following an id through `addVariant`, which
+moves it; polling a count for a value written after it; `querySelector` returning the first of
+several elements, in a tray that was shut. `visible()` exists because a DOM-presence check passing
+while the element is `display:none` is how a green assertion lies.
+
 ## 4. What got built out of order, and what that cost
 
 PLAN-02's phases were P0 measure → P1 one writer end to end → P2 a week of real writing → P3 two
