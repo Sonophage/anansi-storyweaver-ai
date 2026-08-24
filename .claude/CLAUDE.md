@@ -36,13 +36,18 @@ Run it before and after. It needs no llama-server, so there is no excuse for ski
 
 ## Hard-won rules about measurement
 
-This project's findings are its most valuable asset. Three rules, each bought with a wrong answer:
+This project's findings are its most valuable asset. Four rules, each bought with a wrong answer:
 
 - **Validate the detector before believing the result.** A check that never fires reports
   perfection. F17's probes ship with 22 synthetic cases asserting both that bad input flags and
   that good input does not.
 - **Report the informative denominator, not the total.** F10 could not decide anything because most
   of its trials never mentioned the thing under test. Always say how many runs *could* have failed.
+- **Falsify the test, not just the code.** Twice on 2026-08-24 a change shipped green because the
+  assertion could not see it: a tag-splitting fix whose fixture had no comma in it, and a
+  canon-per-take chain whose check asked "does any take carry canon" when only the second take was
+  broken. Both were true before the change and true after. Break the code on purpose and watch the
+  specific assertion go red, or it is decorative.
 - **A zero is not an absence.** F12 declared a defect gone on zero-in-sixty. Zero in sixty bounds
   the rate under ~5%; the true rate was 4%. Say "under X%", never "fixed".
 

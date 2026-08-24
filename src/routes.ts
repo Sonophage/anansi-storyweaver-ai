@@ -78,11 +78,13 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
       { ...sampler, chat_template_kwargs: { enable_thinking: !!thinking } });
     const ms = Date.now() - t0;
-    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: model(), role,
+    const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: model(), role,
       params: c.gen, manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
+    // Handed back so `accept` can tie the take to this call. The manifest is logged here, before
+    // any passage exists, so nothing connected a take to the canon it was written against.
     return { prose: clean(r.prose, v.story.stripPatterns), reasoning: r.reasoning.length,
-             seconds: +(ms / 1000).toFixed(1), manifest };
+             seconds: +(ms / 1000).toFixed(1), manifest, genId };
   } catch (e: any) {
     db.logGeneration({ storyId: v.id, model: model(), role, manifest, error: e?.message, latencyMs: Date.now() - t0 });
     return { error: e?.message ?? 'generation failed', manifest };
@@ -279,8 +281,15 @@ export const routes: Record<string, Handler> = {
   },
 
   // ---- history & revert. §7.4's safety argument is "you can revert" — this is the revert. ----
+  // Two different histories, and conflating them is what hid regenerations. `passage` is the
+  // edit trail — text that was replaced. `takes` is every variant in the slot, which is what a
+  // re-roll produces and what the History panel was silent about.
   'GET /api/history':      (c) => ({
     passage: c.query.get('passage') ? db.passageHistory(c.query.get('story')!, c.query.get('passage')!) : [],
+    takes:   c.query.get('passage')
+      ? db.passageTakes(c.query.get('story')!, c.query.get('passage')!)
+          .map((t: any) => ({ ...t, canon: db.canonBehind(c.query.get('story')!, t.id) }))
+      : [],
     entry:   c.query.get('entry')   ? db.entryHistory(c.query.get('story')!, c.query.get('entry')!)     : [],
   }),
   'POST /api/revert':      (c) => {
@@ -347,6 +356,9 @@ export const routes: Record<string, Handler> = {
       : db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
           body: c.body.body, author: 'model', speaker: c.body.speaker ?? null,
           directive: c.body.directive ?? null });
+    // Tie the take to the call that produced it, so History can say what canon it was written
+    // against. Two takes in one slot come from two different prompts, and nothing recorded which.
+    if (id && c.body.genId) db.tieGeneration(String(c.body.genId), String(id));
     // SPEC §8.4: check on SELECT, not on every variant. Detached — a flag is not worth
     // making the writer wait, and it appears on the next refresh.
     if (id && c.body.check !== false) void check(c, v.id, id).catch(() => {});

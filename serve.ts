@@ -82,8 +82,7 @@ createServer(async (req, res) => {
   }
 }).listen(PORT, '127.0.0.1', () => {
   const n = db.listStories(OWNER).length;
-  console.log(`\n  Anansi        http://127.0.0.1:${PORT}         desk`);
-  console.log(`                http://127.0.0.1:${PORT}/phone   phone`);
+  console.log(`\n  Anansi        http://127.0.0.1:${PORT}`);
   console.log(`  model         ${model()}`);
   console.log(`  context       ${slot.global} / ${slot.slots} slots = ${slot.perSlot} per slot`);
   console.log(`  library       ${n} ${n === 1 ? 'story' : 'stories'}`);

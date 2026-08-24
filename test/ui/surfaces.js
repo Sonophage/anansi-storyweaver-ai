@@ -15,8 +15,28 @@ const order = await page.eval("[...document.querySelectorAll('#page .storycard, 
 console.log("   order: " + order);
 ok("   new story comes before the rest", order.startsWith('HERO > NEW'));
 
-// 2. the pill is the genre
+// 2. the pill is the genre — and genre is comma-separated, so it is pillS. An AI Dungeon import
+// writes its whole tag list into this field, which is how a card came to read "horror, nsfw"
+// inside a single pill.
 ok("2. the card pill shows the genre", (await page.text('.storycard.hero') || '').toLowerCase().includes('noir'));
+await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
+  + " await fetch('/api/story', { method:'POST', headers:{'Content-Type':'application/json'},"
+  + " body: JSON.stringify({ id:'" + sid + "', story: { genre: 'fantasy, noir, heist' } }) }); })()");
+await page.goto(B + "/");
+await wait(600);
+const pills = await page.eval("(() => { const card = [...document.querySelectorAll('.storycard')]"
+  + ".find(c => c.textContent.includes('Silver Key'));"
+  + " return card ? [...card.querySelectorAll('.tag')].map(t => t.textContent.trim()).join('|') : ''; })()");
+console.log("   tag pills: " + JSON.stringify(pills));
+ok(`   a comma-separated genre is one tag per pill (${JSON.stringify(pills)})`,
+   pills.split('|').filter(Boolean).length >= 3 && pills.includes('fantasy') && pills.includes('heist'));
+ok("   and no pill holds two of them", !pills.split('|').some((t) => t.includes(',')));
+// Put it back, or every later assertion about this story's genre is reading the test's own edit.
+await page.eval("(async () => { await fetch('/api/story', { method:'POST',"
+  + " headers:{'Content-Type':'application/json'},"
+  + " body: JSON.stringify({ id:'" + sid + "', story: { genre: 'fantasy noir' } }) }); })()");
+await page.goto(B + "/");
+await wait(400);
 
 // 3. worlds: grouped by story, type filter, search across books
 await page.click('[data-nav="canon"]');
@@ -51,15 +71,43 @@ ok("   Point of view is a dropdown", await page.eval("document.querySelector('[d
 ok("   You are is a dropdown", await page.eval("document.querySelector('[data-story=\"persona\"]')?.tagName === 'SELECT'"));
 ok("   the cast fills You are", await page.eval("[...document.querySelector('[data-story=\"persona\"]').options].some(o => o.text.includes('Aldis'))"));
 ok("   the ledger fills Setting", await page.eval("[...document.querySelector('[data-story=\"setting\"]').options].length > 1"));
-ok("6. a spice override field exists", await page.eval("!!document.querySelector('[data-story=\"spiceNote\"]')"));
+// 6. Spice is a level OR a written register, never both, and the sixth option is the switch.
+// The written box used to sit on screen always, which made it noise on every story that does
+// not use one.
+const spiceOpts = await page.eval("[...document.querySelectorAll('[data-story=\"spice\"] option')].map(o => o.value).join(',')");
+console.log("   spice options: " + spiceOpts);
+ok("6. spice offers a custom option alongside the levels", spiceOpts.endsWith(',custom'));
+ok("   and the written box is hidden until it is chosen",
+   await page.eval("document.getElementById('spiceCustom')?.hidden === true"));
+await page.eval("(() => { const el = document.querySelector('[data-story=\"spice\"]');"
+  + " el.value = 'custom'; el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()");
+await wait(400);
+ok("   choosing custom reveals it", await page.eval("document.getElementById('spiceCustom')?.hidden === false"));
 await page.eval("document.querySelector('[data-story=\"spiceNote\"]').value = 'Register: written by the test.'");
 await page.click('[data-savestory="1"]');
-await wait(700);
+await wait(900);
 ok("   it saves", await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).story.spiceNote === 'Register: written by the test.')()"));
 await page.click('[data-panel=""]');
 await page.click('[data-panel="context"]');
 await page.click('[data-ctxview="prompt"]');
 ok("   and it replaces the level in the prompt", (await page.text('#sideBody pre') || '').includes('written by the test'));
+
+// Going back to a level must CLEAR the written line, or it goes on silently overriding the
+// level the writer just picked — which is the whole reason the two cannot both be on screen.
+await page.click('[data-nav="story"]');
+await wait(500);
+ok("   and reopening shows custom still selected",
+   await page.eval("document.querySelector('[data-story=\"spice\"]')?.value === 'custom'"));
+await page.eval("(() => { const el = document.querySelector('[data-story=\"spice\"]');"
+  + " el.value = '2'; el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()");
+await wait(300);
+await page.click('[data-savestory="1"]');
+await wait(900);
+const back = await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
+  + " return JSON.stringify({ spice: v.story.spice, note: v.story.spiceNote }); })()");
+console.log("   after choosing a level again: " + back);
+ok("   picking a level clears the written register", !JSON.parse(back).note);
+ok("   and the level is what was picked", Number(JSON.parse(back).spice) === 2);
 
 // 7. composer: no Discard/Keep, Regenerate on the bar
 await page.goto(B + "/#" + sid);

@@ -27,6 +27,7 @@ const S = {
   entryId: null, historyOf: null, models: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, spark: null, ritual: null, setup: null,
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
+  found: null,          // the passage a search result sent you to, marked until you move on
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
@@ -89,9 +90,9 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
-  'continue'].map((k) => `[data-${k}]`).join(',');
+  'continue', 'tolore', 'usetake'].map((k) => `[data-${k}]`).join(',');
 
-let toastT = null, searchT = null;
+let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 4200);
@@ -252,7 +253,7 @@ function passageHTML(p) {
       <span style="width:5px; height:5px; border-radius:50%; background:#C8705A; flex:0 0 auto; margin-top:6px"></span>
       <span>Contradiction · ${esc(e?.title ?? 'canon')}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>`;
   }).join('');
-  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}`;
+  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.id === S.found ? ' found' : ''}`;
   return `<div class="${cls}">${body}${acts}${flagged}</div>`;
 }
 
@@ -437,14 +438,22 @@ const PANELS = {
       ${pick('persona', cast.map((e) => e.title), V.story.persona, 'Nobody — narrate only')}
       <div class="hint">The character you speak as in Speak mode. Drawn from the cast.</div>
       <label class="lbl">Spice</label>
-      <select class="field" data-story="spice">${SPICE.map((l, i) =>
-        `<option value="${i + 1}" ${Number(V.story.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}</select>
-      <label class="lbl">Or say the register yourself</label>
-      <textarea class="field" data-story="spiceNote" placeholder="Leave empty to use the level above"
-        >${esc(V.story.spiceNote ?? '')}</textarea>
-      <div class="hint">${V.story.spiceNote?.trim()
-        ? 'This replaces the level entirely — it is the register line the model receives.'
-        : 'Five levels cannot say everything. Write one here and it replaces the level.'}</div>
+      ${(() => {
+        // Six options, not five plus a box. The written override was on screen always, which made
+        // it noise on every story that does not use it. A story is on a level OR on a written
+        // register, never both, so the sixth option IS the switch.
+        const custom = !!V.story.spiceNote?.trim();
+        return `<select class="field" data-story="spice">${SPICE.map((l, i) =>
+          `<option value="${i + 1}" ${!custom && Number(V.story.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}
+          <option value="custom" ${custom ? 'selected' : ''}>Custom — say it yourself</option></select>
+        <div id="spiceCustom" ${custom ? '' : 'hidden'}>
+          <label class="lbl">The register, in your words</label>
+          <textarea class="field" data-story="spiceNote"
+            placeholder="e.g. explicit, but never coy about it — the vocabulary of the writing sample"
+            >${esc(V.story.spiceNote ?? '')}</textarea>
+          <div class="hint">This replaces the level entirely — it is the register line the model receives.</div>
+        </div>`;
+      })()}
       <button class="btn" data-savestory="1" style="margin-top:16px">Save</button>
       <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
@@ -608,12 +617,21 @@ function ledgerBooks() {
 function searchHits() {
   if (HITS === null) return '';
   if (!HITS.length) return '<div class="hint">Nothing matched.</div>';
-  return HITS.map((r) => `<button data-hit="${esc(r.storyId ?? '')}" style="display:flex;
-    flex-direction:column; gap:5px; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.04); width:100%">
-    <span style="display:flex; align-items:center; gap:10px; width:100%">
-      <span class="kind" style="font-size:9.5px">${esc(r.kind ?? 'Prose')}</span>
-      <span style="margin-left:auto; font-size:11px; color:#6E6961">${esc(r.where ?? '')}</span></span>
-    <span style="font-size:13.5px; line-height:1.5; color:#EAE3D6">${esc((r.body ?? '').slice(0, 260))}</span></button>`).join('');
+  // A hit knows what it IS, not just which story it is in: the id and the kind decide where
+  // clicking lands you. Before, every result did the same thing — opened the story — so finding
+  // the passage was the reader's job again.
+  return HITS.map((r, i) => `<div style="display:flex; flex-direction:column; gap:5px; padding:11px 0;
+    border-bottom:1px solid rgba(255,255,255,.04)">
+    <button data-hit="${esc(r.storyId ?? '')}" data-hitid="${esc(r.id ?? '')}"
+      data-hitkind="${esc(r.kind ?? 'Prose')}" style="display:flex; flex-direction:column; gap:5px;
+      width:100%; text-align:left">
+      <span style="display:flex; align-items:center; gap:10px; width:100%">
+        <span class="kind" style="font-size:9.5px">${esc(r.kind ?? 'Prose')}</span>
+        <span style="margin-left:auto; font-size:11px; color:#6E6961">${esc(r.where ?? '')}</span></span>
+      <span style="font-size:13.5px; line-height:1.5; color:#EAE3D6">${esc((r.body ?? '').slice(0, 260))}</span></button>
+    ${r.kind === 'Entry' ? '' : `<button data-tolore="${i}" style="align-self:flex-start; font-size:10.5px;
+      letter-spacing:.14em; text-transform:uppercase; color:var(--gold); padding:2px 0">＋ Add to the lore book</button>`}
+  </div>`).join('');
 }
 
 /** The skeleton spark returned, editable, with nothing written until it is accepted. */
@@ -793,17 +811,52 @@ function entryEditor() {
 
 function historyPanel() {
   const rows = S.historyOf?.rows ?? [];
+  const takes = S.historyOf?.takes ?? [];
   const pid = S.historyOf?.id;
+  // Two histories, and only one of them used to be here. Regenerating writes a NEW take into the
+  // slot; editing replaces text and writes a revision. This panel showed revisions only, so a
+  // passage re-rolled five times reported "not been edited" and the takes were reachable only
+  // through a stepper inside a hover tray.
   return `<div style="display:flex; flex-direction:column">
     <button class="btn ghost" data-backentry="1" style="margin-bottom:14px">&lsaquo; Back</button>
-    <div class="hint" style="margin:0 0 14px">Every version of this passage that was replaced.
-      Restoring keeps the current one in the list too, so nothing is lost.</div>
+
+    <div class="lbl" style="letter-spacing:.26em; margin-top:0">${takes.length > 1
+      ? `${takes.length} takes` : 'Takes'}</div>
+    ${takes.length > 1 ? takes.map((t, i) => `<div class="card" style="margin-bottom:9px;
+      border-color:${t.selected ? 'rgba(217,178,106,.34)' : '#2A2721'}">
+      <div style="display:flex; align-items:center; gap:9px">
+        <span class="kind">Take ${i + 1}${t.selected ? ' · in the story' : ''}</span>
+        <span style="margin-left:auto; font-size:11px; color:#78726A">${
+          t.author === 'human' ? 'yours' : 'Anansi'}${t.created_at ? ` · ${ago(t.created_at)}` : ''}</span></div>
+      <div class="clamp" style="font-size:12.5px; line-height:1.5; color:#8A8478">${esc(t.body ?? '')}</div>
+      ${(() => {
+        // What canon was in the prompt that produced THIS take. Two takes in one slot came from
+        // two different prompts — a keyword that fired for one and not the other changes what the
+        // model knew — and nothing recorded which. Named from the current ledger, so renaming an
+        // entry does not leave an old name frozen in a log.
+        const names = (t.canon ?? []).map((id) => V.entries.find((e) => e.id === id)?.title)
+          .filter(Boolean);
+        if (!(t.canon ?? []).length) return '';
+        return `<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:7px">
+          <span style="font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+            color:var(--label); opacity:.7; align-self:center">Written against</span>
+          ${names.map((nm) => `<span class="tag">${esc(nm)}</span>`).join('')
+            || `<span class="tag">${t.canon.length} entries since removed</span>`}</div>`;
+      })()}
+      ${t.selected ? '' : `<button class="btn ghost" data-usetake="${t.id}" style="margin-top:8px">Put this one in the story</button>`}
+    </div>`).join('')
+      : '<div class="hint">One take. Regenerate on a passage keeps the old one and both appear here.</div>'}
+
+    <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Edits</div>
+    <div class="hint" style="margin:0 0 10px">Text that was replaced by hand. Restoring keeps the
+      current version in the list too, so nothing is lost.</div>
     ${rows.map((r) => `<div class="card" style="margin-bottom:9px">
       <div class="kind">${r.replaced_at ? ago(r.replaced_at) : ''}</div>
       <div class="clamp" style="font-size:12.5px; line-height:1.5; color:#8A8478">${esc(r.body ?? '')}</div>
       <button class="btn ghost" data-restore="${r.id}" style="margin-top:8px">Restore this version</button>
-    </div>`).join('') || '<div class="hint">No earlier versions &mdash; this passage has not been edited.</div>'}
-    ${pid ? `<button class="btn ghost" data-fork="${pid}" style="margin-top:6px">Branch from this passage</button>
+    </div>`).join('') || '<div class="hint">No edits &mdash; this passage has not been changed by hand.</div>'}
+
+    ${pid ? `<button class="btn ghost" data-fork="${pid}" style="margin-top:14px">Branch from this passage</button>
       <div class="hint">A branch copies the book up to here and leaves the original untouched.</div>` : ''}
   </div>`;
 }
@@ -834,13 +887,17 @@ const STATUS = { in_progress: 'Writing', draft: 'Draft', finished: 'Finished' };
 // The pill is the genre when there is one, because that is the tag worth seeing on a shelf;
 // status only shows when a story is finished or parked.
 function storyCard(s, i, hero) {
-  const tag = s.genre?.trim() || STATUS[s.status] || 'Writing';
-  const gold = !!s.genre?.trim() || s.status === 'in_progress';
+  // Genre is comma-separated and always has been — an AI Dungeon import writes its tag list
+  // straight into it, so a card read "horror, nsfw" inside a single pill. One tag per pill.
+  const tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
+  const gold = !!tags.length || s.status === 'in_progress';
+  if (!tags.length) tags.push(STATUS[s.status] || 'Writing');
   return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}">
     <span class="art" style="display:block; height:${hero ? 190 : 130}px; background:${ART[i % ART.length]}">
       <span class="fade"></span>
-      <span class="tag" style="position:absolute; top:12px; left:14px; background:rgba(10,9,12,.6);
-        ${gold ? 'border-color:rgba(217,178,106,.35); color:#D9B26A' : ''}">${esc(tag)}</span>
+      <span style="position:absolute; top:12px; left:14px; display:flex; gap:5px; flex-wrap:wrap;
+        max-width:70%">${tags.map((t) => `<span class="tag" style="background:rgba(10,9,12,.6);
+        ${gold ? 'border-color:rgba(217,178,106,.35); color:#D9B26A' : ''}">${esc(t)}</span>`).join('')}</span>
       ${hero ? '<span class="tag" style="position:absolute; top:12px; right:14px; background:rgba(10,9,12,.6)">Last written</span>' : ''}
       <span class="serif" style="position:absolute; bottom:12px; left:16px; right:16px;
         font-size:${hero ? 34 : 23}px; line-height:1.05; color:#F3ECE0">${esc(s.title)}</span></span>
@@ -969,8 +1026,11 @@ const WPAGES = {
             ${P.entries.length ? P.entries.map((e) => `<div class="row">
                 <span style="color:#EAE3D6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(e.title)}</span>
                 <span class="chip" style="flex:0 0 auto">${esc(e.entryType)}</span>
-                <span style="font-size:10.5px; color:#6E6961; flex:0 0 auto">${
-                  e.activation === 'always_on' ? 'always' : esc(e.keys.join(' · ')) || 'no keys'}</span>
+                <span style="display:flex; gap:4px; flex-wrap:wrap; flex:0 1 auto">${
+                  e.activation === 'always_on'
+                    ? '<span style="font-size:10.5px; color:#6E6961">always</span>'
+                    : e.keys.length ? e.keys.map((k) => `<span class="tag">${esc(k)}</span>`).join('')
+                    : '<span style="font-size:10.5px; color:#6E6961">no keys</span>'}</span>
                 <span class="tnum" style="margin-left:auto; font-size:10.5px; color:#6E6961; flex:0 0 auto">${e.chars}c</span>
               </div>`).join('')
               : '<div class="hint" style="margin:0">None in this file.</div>'}
@@ -1159,7 +1219,7 @@ async function generate(mode = S.mode) {
   MANI = r.manifest;
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
   // Regenerate or Delete, and both keep the history, so nothing is lost by committing it.
-  const a2 = await api.accept(S.storyId, { body: r.prose,
+  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId,
     directive: YOURS ? undefined : (typed || undefined) });
   S.busy = false;
   if (a2.error) return toast(a2.error);
@@ -1178,14 +1238,15 @@ async function regenerateLast() {
 async function regenerateInto(id) {
   if (S.busy) return;
   S.busy = true; drawDock(); drawBar();
-  const r = await api.generate({ storyId: S.storyId, mode: S.mode, regenerateOf: id });
+  const r = await api.generate({ storyId: S.storyId, mode: S.mode, regenerateOf: id,
+    speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined });
   if (r.error) { S.busy = false; drawDock(); drawBar(); return toast(r.error); }
-  const a2 = await api.accept(S.storyId, { body: r.prose, variantOf: id });
+  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id });
   S.busy = false;
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
   V = await api.story(S.storyId);
   paint(); refreshManifest();
-  toast('New take kept. Use ‹ › on the passage to compare.');
+  toast('New take kept. Both are in History, with the canon each was written against.');
 }
 
 
@@ -1311,8 +1372,17 @@ document.addEventListener('click', async (e) => {
   if (d.hi) {
     const r = await api.history({ story: S.storyId, passage: d.hi });
     if (r.error) return toast(r.error);
-    S.historyOf = { id: d.hi, rows: r.passage ?? [] };
+    S.historyOf = { id: d.hi, rows: r.passage ?? [], takes: r.takes ?? [] };
     S.panel = 'history'; paint(); return;
+  }
+  if (d.usetake) {
+    const r = await api.pickVariant(S.storyId, d.usetake);
+    if (r.error) return toast(r.error);
+    V = r.passages ? r : await api.story(S.storyId);
+    // Re-read the takes: selecting one moves `selected`, and the panel shows which is in the story.
+    const h = await api.history({ story: S.storyId, passage: d.usetake });
+    S.historyOf = { id: d.usetake, rows: h.passage ?? [], takes: h.takes ?? [] };
+    paint(); toast('That take is in the story now.'); return;
   }
   if (d.restore) {
     const r = await api.revert({ storyId: S.storyId, passageId: S.historyOf?.id, revisionId: d.restore });
@@ -1328,7 +1398,41 @@ document.addEventListener('click', async (e) => {
   }
 
   // --- a search hit belongs to a story, which may not be the open one
-  if (d.hit !== undefined) { if (d.hit && d.hit !== S.storyId) { await openStory(d.hit); } return; }
+  if (d.hit !== undefined) {
+    const id = t.dataset.hitid || '', kind = (t.dataset.hitkind || 'Prose').toLowerCase();
+    if (d.hit && d.hit !== S.storyId) await openStory(d.hit);
+    if (!id) return;
+    if (kind === 'entry') { S.entryId = id; S.panel = 'threads'; syncHash(); paint(); return; }
+    if (kind === 'summary') { S.panel = 'chapter'; syncHash(); paint(); return; }
+    // Prose. Mark it, redraw the document so the mark lands, then bring it into view. The mark
+    // clears itself: a permanent highlight on whatever you last searched for becomes furniture.
+    S.found = id;
+    S.panel = null; syncHash(); paint();
+    const el = document.querySelector(`.block.found`);
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    else toast('That passage is on another branch.');
+    clearTimeout(foundT);
+    foundT = setTimeout(() => { S.found = null; if (V) drawDoc(); }, 6000);
+    return;
+  }
+  if (d.tolore !== undefined) {
+    const r = (HITS ?? [])[Number(d.tolore)];
+    if (!r) return;
+    if (r.storyId !== S.storyId) await openStory(r.storyId);
+    // Named from the text so it is findable, and opened straight away so it gets finished. It
+    // lands as triggered-with-no-keys deliberately: an always-on entry made from a highlight
+    // would quietly cost tokens on every call from now on, before anyone had looked at it.
+    const body = String(r.body ?? '').trim().slice(0, 600);
+    const title = (body.split(/[.!?\n]/)[0] || body).trim().slice(0, 48) || 'Untitled';
+    const res = await api.saveEntry(S.storyId, { id: '', title, body, entryType: 'lore',
+      activation: 'triggered', keys: [], lastEditor: 'human' });
+    if (res.error) return toast(res.error);
+    V = res.entries ? res : await api.story(S.storyId);
+    const made = [...(V.entries ?? [])].reverse().find((e) => e.title === title);
+    S.entryId = made?.id ?? null; S.panel = 'threads'; syncHash(); paint();
+    toast('Added to the lore book. Give it trigger words so it fires.');
+    return;
+  }
 
   // --- the model is process-wide, so this is a Preferences action
   if (d.pickmodel) {
@@ -1415,6 +1519,11 @@ document.addEventListener('click', async (e) => {
   if (d.savestory) {
     const patch = {};
     document.querySelectorAll('[data-story]').forEach((el) => { patch[el.dataset.story] = el.value; });
+    // The sixth spice option is a switch, not a level. On `custom` the stored level is left alone
+    // and the written line is what the engine reads; on a level the written line is cleared, or it
+    // would go on silently overriding the level the writer just chose.
+    if (patch.spice === 'custom') delete patch.spice;
+    else if (patch.spice !== undefined) patch.spiceNote = '';
     const r = await api.saveStory(S.storyId, patch);
     if (r.error) return toast(r.error);
     const ct = document.querySelector('[data-chapter-title]'), cn = document.querySelector('[data-chapter-note]');
@@ -1546,6 +1655,11 @@ async function readImport(f) {
 }
 
 document.addEventListener('change', (e) => {
+  if (e.target.dataset?.story === 'spice') {
+    const box = $('spiceCustom');
+    if (box) box.hidden = e.target.value !== 'custom';
+    return;
+  }
   // Never redraws the dock: the placeholder is the only thing that depends on this, and a
   // repaint here would empty the line you are part-way through writing.
   if (e.target.id === 'asWhom') {

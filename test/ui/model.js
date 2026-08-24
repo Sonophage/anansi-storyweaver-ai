@@ -63,6 +63,36 @@ if (await page.visible(OPEN + '[data-vp]')) {
   console.log("  SKIP stepper — no variants to step between");
 }
 
+// ---- 3b. History is where the takes belong. Regenerating writes a VARIANT; editing writes a
+// REVISION; the panel read revisions only, so a re-rolled passage reported "has not been edited"
+// and the takes lived in a hover tray. This is the only place a REAL regeneration reaches it.
+// Re-read the tail: stepping in section 3 selected the OTHER take, and passagesOf returns only
+// the selected one, so the id captured back in section 2 is no longer on the page. And the
+// History button lives in the ⋯ tray, which has to be open before it can be clicked at all.
+const cur = (await story()).passages.at(-1);
+await page.click(`[data-more="${cur.id}"]`);
+await wait(400);
+await page.click(`[data-hi="${cur.id}"]`);
+await wait(1200);
+const hist = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
+const takes = (hist.match(/Take \d+/g) ?? []).length;
+ok(`History shows the takes, not just the edits (${takes})`, /Take 1/.test(hist) && /Take 2/.test(hist));
+ok("  and says which one is in the story", /in the story/.test(hist));
+ok("  and offers to swap to the other", await page.visible('[data-usetake]'));
+// Each take records the canon its own prompt carried. The manifest was already logged per
+// generation, with passage_id NULL — nothing tied a take to the prompt behind it.
+const against = (hist.match(/Written against/g) ?? []).length;
+ok(`  and EACH take records the canon its own prompt carried (${against} of ${takes} takes)`,
+   against >= 2);
+// Swapping from History must actually change what is in the document.
+const beforeSwap = (await story()).passages.at(-1)?.id;
+await page.click('[data-usetake]');
+await wait(1500);
+ok(`  and swapping from History changes the story (${beforeSwap === (await story()).passages.at(-1)?.id ? 'unchanged' : 'changed'})`,
+   (await story()).passages.at(-1)?.id !== beforeSwap);
+await page.goto(B + "/#" + sid);
+await wait(800);
+
 // ---- 4. editing prose in place saves on blur
 const target = (await story()).passages.find((p) => !p.isBreak);
 await page.goto(B + "/#" + sid);

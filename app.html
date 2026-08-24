@@ -180,6 +180,14 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
 .block { position:relative; display:flex; flex-direction:column; gap:10px; }
 .block.speak { padding-left:16px; border-left:1px solid var(--speak-rule); }
 .block.you { padding-right:16px; border-right:1px solid var(--you-rule); align-items:flex-end; text-align:right; }
+/* Where a search result put you. Fades on its own after a few seconds — a permanent mark on
+   whatever you last looked for turns into furniture you stop seeing. */
+.block.found { animation: found 6s ease-out forwards; border-radius:10px; }
+@keyframes found {
+  0%, 60% { background:rgba(217,178,106,.14); box-shadow:0 0 0 8px rgba(217,178,106,.14); }
+  100%    { background:transparent; box-shadow:0 0 0 8px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .block.found { animation:none; background:rgba(217,178,106,.12); } }
 /* The actions used to appear on :hover only, which put Edit, Regenerate and History out of
    reach of every touch device — and made them untestable. Each block now carries a handle that
    is always present, and hover stays as a shortcut on a pointer. */

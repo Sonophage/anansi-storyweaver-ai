@@ -165,6 +165,44 @@ Branch: `ui-overhaul`. Nothing here has been merged to `main`.
 
 ---
 
+## The five small ones
+
+- [ ] **Spice.** Story panel. The dropdown has a sixth option, *Custom — say it yourself*, and the
+      written box only exists when it is chosen. Pick a level again and the written line is
+      **cleared** — a story is on a level or on a written register, never both, so leaving it
+      would go on silently overriding the level you just picked.
+
+- [ ] **Tags, one per pill.** Set a story's genre to `fantasy, noir, heist` and look at the
+      library: three pills, not one pill reading "fantasy, noir, heist". That is what an AI
+      Dungeon import writes into that field, so it was the normal case for an imported story.
+
+- [ ] **Search: click a prose result.** It jumps to that passage, marks it, scrolls it to the
+      middle and gets the panel out of the way. The mark fades after a few seconds on purpose.
+
+- [ ] **Search: click an entry result** — it opens that entry's editor. **A summary result**
+      opens Chapter.
+
+- [ ] **Search: Add to the lore book.** Under each result. It writes the entry, names it from the
+      text, and opens it. It arrives as *triggered with no trigger words*, so it does **not** fire
+      yet — an always-on entry made from a highlight would cost tokens on every call from then on,
+      before you had looked at it. The toast says so.
+
+- [ ] **History shows regenerations.** Open a passage's ⋯ → History. Two sections now: **Takes**
+      and **Edits**. Regenerate a passage first, then look — both takes are listed, and you can
+      put either one into the story from there.
+
+      **You were exactly right about why.** Regenerating writes a *variant*; editing writes a
+      *revision*; the panel only ever read revisions. So a passage re-rolled five times reported
+      "has not been edited", and the takes were reachable only through the stepper in the hover
+      tray.
+
+- [ ] **Each take says what canon it was written against.** On a re-rolled passage, each take
+      lists the entries that were in its prompt. This matters most on a re-roll: two takes in one
+      slot came from two different prompts — a keyword that fired for one and not the other
+      changes what the model knew — and nothing recorded which.
+
+---
+
 ## The six menus
 
 - [ ] **The rail inside a story reads: Story · Chapter · Threads · Context · Search · Storyteller.**

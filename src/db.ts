@@ -432,6 +432,29 @@ export function upsertEntry(storyId: string, o: string, e: any) {
       JSON.stringify(e.keys), e.lastEditor, born, t, t);
   touch(storyId); return id;
 }
+/** Tie a take to the call that made it. The manifest is logged at generation time, when no
+ *  passage exists yet — so `passage_id` was always null and nothing connected a take to the canon
+ *  it was written against. Regenerating makes this matter: two takes in one slot were written
+ *  against different prompts, and there was no way to see which. */
+export const tieGeneration = (genId: string, passageId: string) =>
+  q('UPDATE generations SET passage_id = ? WHERE id = ? AND passage_id IS NULL').run(passageId, genId);
+
+/** What canon was in the prompt that produced this take, newest call wins. Reads the stored
+ *  manifest rather than recomputing: the point is what WAS sent, not what would be sent now. */
+export const canonBehind = (storyId: string, passageId: string): string[] => {
+  const row = q(`SELECT manifest FROM generations WHERE passage_id = ? AND story_id = ?
+                 ORDER BY created_at DESC LIMIT 1`).get(passageId, storyId) as any;
+  if (!row?.manifest) return [];
+  try {
+    const m = JSON.parse(row.manifest);
+    // Entry IDS, not titles: the client names them from its own ledger, so renaming an entry
+    // does not leave an old name frozen in a log. Kinds are CANON-ALWAYS and CANON-TRIGGERED.
+    return (m.blocks ?? [])
+      .filter((b: any) => b.state === 'included' && String(b.kind).startsWith('CANON'))
+      .map((b: any) => String(b.id ?? '').trim()).filter(Boolean);
+  } catch { return []; }
+};
+
 export const delEntry = (storyId: string, id: string) =>
   q('DELETE FROM entries WHERE id = ? AND story_id = ?').run(id, storyId);
 
@@ -501,6 +524,18 @@ export const search = (o: string, term: string) => {
 export const passageHistory = (storyId: string, id: string) => q(
   `SELECT r.id, r.body, r.replaced_at FROM passage_revisions r JOIN passages p ON p.id = r.passage_id
    WHERE r.passage_id = ? AND p.story_id = ? ORDER BY r.replaced_at DESC`).all(id, storyId) as any[];
+/** Every take in this passage's slot, newest last, with the text. Regenerating writes a NEW
+ *  variant rather than a revision, so the History panel — which reads passage_revisions — showed
+ *  "this passage has not been edited" for a passage that had been re-rolled five times. The takes
+ *  were only ever reachable through a stepper in a hover tray. */
+export const passageTakes = (storyId: string, id: string) => {
+  const cur = q('SELECT chapter_id, slot_key FROM passages WHERE id = ? AND story_id = ?')
+    .get(id, storyId) as any;
+  if (!cur) return [];
+  return q(`SELECT id, body, author, variant_index, selected, created_at
+              FROM passages WHERE story_id = ? AND chapter_id = ? AND slot_key = ?
+             ORDER BY variant_index`).all(storyId, cur.chapter_id, cur.slot_key) as any[];
+};
 export const entryHistory = (storyId: string, id: string) => q(
   `SELECT r.id, r.field, r.previous_value, r.replaced_at, r.replaced_by
    FROM entry_revisions r JOIN entries e ON e.id = r.entry_id
@@ -791,17 +826,20 @@ export const recentGenerations = (storyId: string, limit = 40) => q(
    FROM generations WHERE story_id = ? ORDER BY created_at DESC LIMIT ?`).all(storyId, limit) as any[];
 
 export function logGeneration(g: any) {
+  const gid = uid('g-');
   q(`INSERT INTO generations (id,story_id,chapter_id,passage_id,model,role,params,manifest,
       prompt_tokens,completion_tokens,timings,latency_ms,error,created_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(uid('g-'), g.storyId ?? null, g.chapterId ?? null, g.passageId ?? null, g.model ?? null,
+    .run(gid, g.storyId ?? null, g.chapterId ?? null, g.passageId ?? null, g.model ?? null,
       g.role ?? 'prose', JSON.stringify(g.params ?? {}), JSON.stringify(g.manifest ?? {}),
       g.promptTokens ?? null, g.completionTokens ?? null, JSON.stringify(g.timings ?? {}),
       g.latencyMs ?? null, g.error ?? null, now());
   // SPEC §11 keeps the row and drops the manifest after 90 days. Same idea, simpler: the
   // manifest is only useful while debugging a recent call, so keep the newest 200 and null
   // the rest. Each manifest is ~3 KB, so unbounded is a slow leak, not a fast one.
+  // (The id is returned below so the take this produced can be tied to it.)
   q(`UPDATE generations SET manifest = NULL WHERE id IN (
        SELECT id FROM generations WHERE manifest IS NOT NULL
        ORDER BY created_at DESC LIMIT -1 OFFSET 200)`).run();
+  return gid;
 }
