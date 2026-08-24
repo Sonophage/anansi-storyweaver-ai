@@ -110,6 +110,58 @@ node --experimental-strip-types bench/prompts.ts <story-id> --full   # the whole
 
 ---
 
+## New since you left — worth a look when you walk it
+
+- [ ] **Preferences → What you have written.** Words, passages split between you and Anansi,
+      takes not chosen, calls to the model, and thirty days of writing as a sparkline. All off
+      rows that already existed.
+
+- [ ] **Preferences says which models are allowed.** Narrow the list with
+      `ANANSI_MODELS="write-nt-qwen36-h,rp-nt-ornith-h"` when you start the server — ids or
+      `prefix*`. Unset means everything the router serves.
+
+- [ ] **+ Lore** on the composer bar, where New scene was. Pick a kind and write a card yourself,
+      or **scan this chapter for facts** — the ritual's extraction step on its own, without ending
+      the chapter.
+
+- [ ] **Regenerate marks the take you left.** History shows it as *passed over* and dims it. It is
+      not fed to the model — that is a prompt change, and F20 is what those cost to justify.
+
+---
+
+## Two measurements ran while you were out
+
+Both are written up in `docs/findings/P0-FINDINGS.md`. The short versions:
+
+**F21 — interiority.** A character's inner state written into canon comes back as the narrator
+stating it **47.5%** of the time. And it changes nothing about how much interiority the narration
+carries: the model already narrates the protagonist's inner state in **82.5%** of generations with
+nothing in canon at all. That second number is the bigger finding, and nothing has ever aimed at
+it. It also settles *threads between characters* by implication — same shape, so I stopped before
+building it.
+
+**F22 — two models resident.** I told you two 35B-class models would be tight at 96 GiB. **That was
+wrong.** Your writer is a 35B-**A3B** and takes 25.9 GiB at full context; the largest preset is
+36.5 GiB. Any two fit with room; three fit in several combinations. Per-story models are not
+VRAM-blocked — the blocker is one module-level global in `src/llama.ts`.
+
+---
+
+## Six decisions are waiting for you
+
+`docs/plans/DECISIONS.md` — options, my recommendation, and why, for each of:
+
+1. Interiority's shape, now that it is measured (and threads with it)
+2. Whether you want the 82.5% told-not-shown rate lower
+3. Per-account prompt overrides — where they live, how they compose, what a bad one does
+4. Character by prompt, and what "reroll" re-rolls
+5. The composer writing into the chapter you are reading
+6. The verbiage pass — threads / story / weaving
+
+A line each is enough, and "none of these" is a real answer.
+
+---
+
 ## Still open
 
 ### Editing the prompts per account — needs a decision from you
