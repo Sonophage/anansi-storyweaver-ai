@@ -16,7 +16,10 @@ trap 'kill $(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP "pid=\K[0-9]+" | 
 fresh() {
   local pid; pid=$(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
   [ -n "$pid" ] && kill "$pid" 2>/dev/null
-  sleep 1; rm -f "$WORK"/db*; cp anansi.db "$WORK/db"
+  sleep 1; rm -f "$WORK"/db*
+  # VACUUM INTO, not cp: in WAL mode recent writes sit in anansi.db-wal and a plain copy of the
+  # main file loses them without saying so. See db.snapshot().
+  node --experimental-strip-types -e "import('./src/db.ts').then(d => d.snapshot('$WORK/db'))"
   ANANSI_PORT=$PORT ANANSI_DB="$WORK/db" nohup node --experimental-strip-types serve.ts >"$WORK/serve.log" 2>&1 &
   local n=0
   until curl -sf -o /dev/null -m 2 "http://127.0.0.1:$PORT/"; do sleep 1; n=$((n+1)); [ $n -gt 30 ] && { echo "server never came up"; cat "$WORK/serve.log"; exit 1; }; done

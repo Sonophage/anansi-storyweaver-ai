@@ -611,3 +611,44 @@ contradicted a comment in the route it was calling.
 
 **The real fix is PLAN-02's `engine_config` on the story row**, listed in P1 and never built — the
 schema anticipated exactly this. Until then the panel is honest about being shared.
+
+## F20 — Restating canon near the generation point does nothing. F15 was noise.
+
+The confirmation run F15 asked for. **850 generations per arm**, both arms live at once against
+identical snapshots, one variable: whether the canon that fired is restated below the directive.
+
+| | named the key | contradicted canon | called it silver |
+|---|---|---|---|
+| control | 803 | 55 (6.8%) | 31 (3.65%) |
+| canon restated | 771 | 53 (6.9%) | 29 (3.41%) |
+
+| | difference | 95% CI | Fisher |
+|---|---|---|---|
+| contradiction rate | **−0.02 points** | [−2.5, +2.5] | p = 1.000 |
+| silver rate | **+0.24 points** | [−1.5, +2.0] | p = 0.896 |
+
+**F15 measured +2.2 and +2.3 at n=300. At the sample size calculated to detect exactly that, the
+effect is zero.** Not "smaller than hoped" — the point estimate is nil on one metric and a
+quarter-point on the other, either side of nothing.
+
+Stated precisely, because the difference matters: this run does not *exclude* an effect as large as
+F15's — +2.2 sits inside [−2.5, +2.5]. It fails to find one, with the best estimate at zero, at the
+n that was chosen to find it. F15's apparent effect was sampling noise in a 300-generation arm.
+
+**The predicted side effect does appear.** *Restated canon verbatim* went 1 → 5, Fisher p = 0.218.
+Suggestive rather than significant, and F15's n could not have seen it — but it is the exposition
+cost I argued for when choosing where to place the block, and it points the way F15 said it did not.
+
+**Retired, and the code deleted.** Arm B cost 145 tokens on every call for no measurable benefit and
+a hint of harm. `CANON-REPEAT`, its `Kind`, its place in `ORDER`, its tag, and the `ANANSI_ARM`
+switch are all gone. PLAN-03's two F9 candidates are now both closed: F12 killed the title, F20
+kills repetition.
+
+**What this leaves F9 as.** A real, unfixed defect at **3.65% of generations** — narration calling
+the object silver against canon saying brass. Two prompt-level fixes have now been measured and
+both failed: F10 made it worse, F20 did nothing. The working mitigation is the one already
+shipped — the canon checker, F1 0.89, which flags it after the fact rather than preventing it.
+**Prompt wording is not the lever here, and that is now measured twice rather than assumed.**
+
+**Base rates held across the two runs** — 7.1% and 4.0% at F15, 6.8% and 3.65% here — which says
+the fixture growing between them did not move the thing being measured.

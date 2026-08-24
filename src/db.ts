@@ -526,13 +526,33 @@ export function revertEntryField(storyId: string, entryId: string, revisionId: s
 }
 
 // ---- backup ----
-/** VACUUM INTO writes a clean, consistent snapshot in one statement — no lock dance,
- *  no partial file. Keeps the newest `keep` and prunes the rest. */
+/** A consistent copy of the whole database at one path.
+ *
+ *  **Never `cp` a database in WAL mode.** Recent writes live in the `-wal` file until a
+ *  checkpoint, so copying the main file alone silently loses them — and silently is the problem.
+ *  It cost an A/B run: one arm was seeded with prose while a server held the file open, the other
+ *  arm was `cp`-ed from it, and that arm generated with no prose in context at all. The manifests
+ *  differed by a whole block and it looked like an engine bug for twenty minutes.
+ *
+ *  VACUUM INTO writes the lot in one statement — no lock dance, no partial file. */
+export function snapshot(path: string) {
+  // VACUUM INTO refuses an existing target, which is a feature — it will not clobber a database.
+  // Its own message is "output file already exists", which says nothing about which file.
+  try { db.exec(`VACUUM INTO '${path.replace(/'/g, "''")}'`); }
+  catch (e: any) {
+    throw new Error(/already exists/i.test(e?.message ?? '')
+      ? `${path} already exists; VACUUM INTO will not overwrite a database. Delete it first.`
+      : e?.message ?? String(e));
+  }
+  return { file: path, bytes: statSync(path).size };
+}
+
+/** A timestamped snapshot in `dir`, keeping the newest `keep` and pruning the rest. */
 export function backup(dir = join(dirname(FILE), 'backups'), keep = 12) {
   mkdirSync(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const out = join(dir, `anansi-${stamp}.db`);
-  db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`);
+  snapshot(out);
   const old = readdirSync(dir).filter((f) => f.endsWith('.db')).sort().reverse().slice(keep);
   for (const f of old) { try { unlinkSync(join(dir, f)); } catch { /* already gone */ } }
   return { file: out, bytes: statSync(out).size, pruned: old.length };
@@ -553,7 +573,7 @@ export function exportStory(storyId: string, ownerId: string, dir = join(dirname
   const slug = String(story.title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'story';
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const out = join(dir, `${slug}-${stamp}.db`);
-  db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`);
+  snapshot(out);
   const copy = new DatabaseSync(out);
   try {
     copy.exec('PRAGMA foreign_keys = ON;');

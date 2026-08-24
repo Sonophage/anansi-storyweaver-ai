@@ -7,7 +7,7 @@
 
 export type Kind =
   | 'SPINE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED'
-  | 'EARLIER' | 'PROSE' | 'DIRECTIVE' | 'CANON-REPEAT' | 'TAIL' | 'MODE';
+  | 'EARLIER' | 'PROSE' | 'DIRECTIVE' | 'TAIL' | 'MODE';
 
 // LORE and RECALL were declared here, ordered, tagged and ranked for eviction, and nothing ever
 // added a block of either kind — lore entries render as CANON-* by their activation. They were the
@@ -16,12 +16,12 @@ export type Kind =
 // eviction sort below ranks by CANON_KINDS index, so re-inserting them changes nothing else.
 export const ORDER: Kind[] = [
   'SPINE', 'CANON-ALWAYS', 'CANON-TRIGGERED',
-  'EARLIER', 'PROSE', 'DIRECTIVE', 'CANON-REPEAT', 'TAIL', 'MODE',
+  'EARLIER', 'PROSE', 'DIRECTIVE', 'TAIL', 'MODE',
 ];
-// CANON-REPEAT sits BELOW the directive and ABOVE the tail prose, not last. PROMPTS §2 found
-// that a block adjacent to the mode instruction gets written *about* rather than obeyed, and
-// F9's competing failure mode is canon restated as exposition — putting the repeat last would
-// confound the thing being measured with the thing it might cause. Bench arm only (F14).
+// CANON-REPEAT lived here between DIRECTIVE and TAIL from F15 until F20 measured it at 850
+// generations per arm and found nothing: -0.02 points on contradictions, +0.24 on the silver
+// rate, and a hint of the exposition cost it was placed to avoid. Deleted rather than left
+// switched off — a 145-token block on every call needs a reason, and it has none.
 
 // Anchors are never trimmed and are capped at write time (SPEC 7.3).
 export const CAPS: Partial<Record<Kind, number>> = { SPINE: 400, DIRECTIVE: 250 };

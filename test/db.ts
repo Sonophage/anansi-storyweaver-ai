@@ -256,4 +256,32 @@ ok('the first path cannot be deleted, a fork can', () => {
   db.delStory(s8.id);
 });
 
+// A snapshot must include writes still sitting in the -wal. `cp` of the main file does not, and
+// silently: it cost an A/B run where one arm was seeded and the other cp-ed from it, so that arm
+// generated with no prose in context and the manifests differed by a whole block. Measured
+// directly — cp saw none of the new rows, snapshot saw them all.
+const { execSync } = await import('node:child_process');
+const { DatabaseSync } = await import('node:sqlite');
+const marker = `WAL-INVARIANT-${Date.now()}`;
+// Its own story: the tests above this one delete theirs, so `s` no longer exists by here.
+const walStory = db.createStory(o, { title: 'WAL' });
+db.upsertEntry(walStory.id, o, { title: marker, body: '[in the wal]', entryType: 'lore',
+  activation: 'triggered', keys: ['walinvariant'] });
+for (const f of ['/tmp/anansi-wal-snapshot.db', '/tmp/anansi-wal-cp.db']) {
+  try { unlinkSync(f); } catch { /* first run */ }
+}
+db.snapshot('/tmp/anansi-wal-snapshot.db');
+execSync('cp /tmp/anansi-test.db /tmp/anansi-wal-cp.db');
+const seenIn = (f: string) => {
+  const q = new DatabaseSync(f, { readOnly: true });
+  const c = (q.prepare('SELECT COUNT(*) c FROM entries WHERE title = ?').get(marker) as any).c;
+  q.close(); return c;
+};
+ok('snapshot() carries a write still in the -wal, which cp does not', () => {
+  assert.strictEqual(seenIn('/tmp/anansi-wal-snapshot.db'), 1,
+    'snapshot() must capture a WAL-resident write — that is the whole reason it exists');
+  // cp is not asserted at 0: a checkpoint may have landed between. The point is that snapshot()
+  // never depends on one having landed.
+});
+
 console.log(`\n${n} checks passed`);

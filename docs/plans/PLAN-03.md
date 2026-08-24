@@ -1,8 +1,9 @@
 # Plan 03 — re-ordered against measurement
 
-> **STATUS: LIVE.** The re-ordering still stands, but its own count is stale: F9's rate is 4.0%, not
-> the 10-20% cited below (F15), and the two candidates it retires were later reopened and then
-> measured. Read `BUILD-STATE.md` §5 for the current order.
+> **STATUS: LIVE, with both F9 candidates now closed.** The re-ordering stands. Its own numbers are
+> stale: F9's rate is 3.65%, not the 10-20% cited below. Both candidates this document names have
+> since been measured and both failed — F12 killed the title, F20 killed repetition at n=850 per
+> arm. F9 is a real defect that prompt wording does not fix; the checker is the mitigation. Read `BUILD-STATE.md` §5 for the current order.
 
 
 PLAN-01 and PLAN-02 were written before anything ran. `P0-FINDINGS.md` now holds seventeen measurements

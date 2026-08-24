@@ -61,9 +61,10 @@ the only place ordering becomes text.
 `LORE` and `RECALL` were removed 2026-08-23: declared, ordered, tagged, and never populated. They
 return with the vector recall that would fill them.
 
-`CANON-REPEAT` is the F15 experiment arm — the canon that fired, restated below the directive and
-above the tail prose. **Off unless `ANANSI_ARM=repeat`.** Not shipped: it halves the contradiction
-rate directionally and not significantly, and F12's lesson was not to ship on that.
+`CANON-REPEAT` was the F15 experiment arm — the canon that fired, restated below the directive.
+**Deleted after F20**, which ran it at 850 generations per arm and measured no effect: −0.02 points
+on contradictions, +0.24 on the silver rate, and a hint of the exposition cost it was placed to
+avoid. F15's apparent halving at n=300 was noise.
 
 ---
 
@@ -183,7 +184,8 @@ through the whole prompt and count contradictions in **narration with dialogue s
 dialogue may lie.
 
 - The title in SPINE: no measurable effect, n=30 per arm (F12).
-- Canon restated near the generation point: contradictions 7.1% → 4.8%, not significant, n=300 per
-  arm (F15). Not shipped.
+- Canon restated near the generation point: **no effect**, n=850 per arm (F20). F15's 7.1% → 4.8%
+  at n=300 did not replicate; the code is deleted. Prompt wording is not the lever for F9 — that is
+  now measured twice, F10 having made it worse.
 - Instruction compliance cannot be scored by regex — the right act in unlisted words reads as a
   failure. That needs a judge model (F17).
