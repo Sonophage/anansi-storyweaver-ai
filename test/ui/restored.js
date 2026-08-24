@@ -9,7 +9,7 @@ const sid = await page.eval("(async () => (await (await fetch('/api/stories')).j
 const story = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid + "')).json())()");
 
 // ---- progressions: canon anchored to a chapter, "Lens 5's ONE THING"
-await page.goto(B + "/#" + sid + "/cast");
+await page.goto(B + "/#" + sid + "/threads");
 const eid = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
 await page.click('[data-entry="' + eid + '"]');
 ok("the entry editor offers a progression form", await page.eval("!!document.querySelector('[data-st=\"body\"]')"));

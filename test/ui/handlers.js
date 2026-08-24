@@ -32,7 +32,7 @@ if (props) {
 }
 
 // ---- 2. The type and activation chips on an entry
-await page.goto(B + "/#" + sid + "/cast");
+await page.goto(B + "/#" + sid + "/threads");
 // Read the id BEFORE clicking: the click replaces the list with the editor, so reading it
 // afterwards gave undefined and turned four probe errors into four fake bugs.
 const eid = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
@@ -72,7 +72,7 @@ if (chapters > 1) {
 }
 
 // ---- 5. Mode switching refreshes the manifest rather than stalling
-await page.goto(B + "/#" + sid + "/inspector");
+await page.goto(B + "/#" + sid + "/context");
 const t0 = await page.text('#sideBody');
 await page.click('[data-mode="direct"]');
 await wait(1400);

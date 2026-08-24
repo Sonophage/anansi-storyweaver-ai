@@ -34,7 +34,7 @@ const hits = await page.eval("document.querySelectorAll('#page [data-entry]').le
 ok("   search narrows it too (" + hits + " for 'brass')", hits > 0 && hits < all);
 
 // 4. context: a readable prompt, and rows that jump
-await page.goto(B + "/#" + sid + "/inspector");
+await page.goto(B + "/#" + sid + "/context");
 ok("4. the Context panel offers a prompt view", await page.eval("!!document.querySelector('[data-ctxview=\"prompt\"]')"));
 await page.click('[data-ctxview="prompt"]');
 const promptLen = await page.eval("(document.querySelector('#sideBody pre')?.textContent || '').length");
@@ -57,7 +57,7 @@ await page.click('[data-savestory="1"]');
 await wait(700);
 ok("   it saves", await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).story.spiceNote === 'Register: written by the test.')()"));
 await page.click('[data-panel=""]');
-await page.click('[data-panel="inspector"]');
+await page.click('[data-panel="context"]');
 await page.click('[data-ctxview="prompt"]');
 ok("   and it replaces the level in the prompt", (await page.text('#sideBody pre') || '').includes('written by the test'));
 

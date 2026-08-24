@@ -51,7 +51,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **106 across six suites** (34 engine, 26 db, 17 scope, 9 import, 11 web, 9 app), plus **201 driven-browser checks across 11 scenarios** — nine that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
+| **Tests** | **109 across six suites** (34 engine, 27 db, 17 scope, 9 import, 13 web, 9 app), plus **242 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
 
 ---
 
@@ -147,17 +147,39 @@ an explicit DEFERRED list in `test/web.ts` **with the reason**, and that test as
 api method has a caller — so an engine feature losing its surface fails a test rather than going
 quiet. That invariant is the actual fix; the five wirings are the consequence.
 
-## 3b. Surface inventory, verified 2026-08-23
+## 3b. Surface inventory, verified 2026-08-24
 
-Read out of the code, after a regex-based count of the same thing reported ten of eleven desk nav
-buttons as dead. They are not. **Do not audit a surface with a pattern; read the object.**
+Read out of the code, after a regex-based count of the same thing once reported ten of eleven desk
+nav buttons as dead. They were not. **Do not audit a surface with a pattern; read the object.**
 
-**Desk — 11 nav panels, all wired**, plus the inspector: My stories, Create a story, Characters,
-Worlds & lorebooks, Import, Search, Story & chapter, Trajectory, What the chapter added, Branches,
-Preferences.
+The desk and phone surfaces are gone — one responsive `app.html` replaced both.
 
-**Phone — 16 sheets**: library, create, onboarding, story, chapter, cast, entry, entry history,
-queue, timeline, context, branches, search, import, settings, story-by-id.
+**Inside a story — six panels**, rearranged 2026-08-24 at Seth's direction:
+
+| | holds |
+|---|---|
+| **Story** | the book: title, genre, premise, setting, point of view, who you are, style, register, export, delete |
+| **Chapter** | the one you are writing: its name, how it must end, where the story is going, what it proposed for the ledger, the summaries in context, its branches, and closing it |
+| **Threads** | every card in this story, grouped by kind — characters, lore, items, rules |
+| **Context** | what the model is about to be sent, and why each block is in or out |
+| **Search** | prose, entries and summaries |
+| **Storyteller** | sampling, activity, the model |
+
+This replaced eight rows in which the chapter's business was spread across four — Story & chapter,
+Trajectory, What the chapter added, Branches — and lore had no home inside a story at all, because
+`cast` showed characters only and the Worlds page answers a different question (every story at
+once). The Inspector button came off the top bar: it opened the panel the nav row already opens.
+The context reading stays there, because nothing else shows it and "No room" is a refusal the
+writer has to see.
+
+Retired names still resolve. `#<story>/inspector|cast|traj|queue|branches` map to the panel that
+absorbed them, in `readHash` — **before** the validity check, not after, which is where the first
+attempt put it: the check is against the current titles, so a retired name was dropped to null and
+silently replaced by the default panel, and the alias was dead code for the one case it existed for.
+
+**Two panels are not nav rows** and open by clicking a thing: the ledger entry editor, and history.
+
+**Outside a story — five pages**: My stories, Create a story, Worlds & lorebooks, Import, Preferences.
 
 **The mode set was replaced on 2026-08-24** at Seth's direction: Continue, Speak, Act, Direct,
 Narrate. The measurement above it — all four of Co-Write, Direct, Full Auto and New Scene

@@ -102,6 +102,48 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   assert.deepStrictEqual(dead.map((d) => d.slice(0, 70)), [],
     'these buttons carry no action attribute and no listener, so clicking them does nothing');
   ok(`${tags.length} buttons, every one reachable by click`);
+
+  // Every panel must be reachable. This repo's recurring failure is the half-built one: a feature
+  // that exists, is tested, and has nothing that opens it — deleting desk.js once orphaned nine
+  // api methods, five of which BUILD-STATE called "Done". Rearranging eight panels into six is the
+  // same hazard: rename a panel and the nav row points at nothing, or retire a nav row and the
+  // panel it opened becomes unreachable code that still passes its own tests.
+  const panelNames = [...js.matchAll(/^  ([a-z]+)\(\) \{$/gm)].map((m) => m[1]);
+  const navRows = (name: string) => {
+    const at = js.indexOf(`const ${name} = [`);
+    assert.ok(at > 0, `${name} must exist`);
+    // Slice to the closing `];` at column 0 — SNAV carries comments and nested brackets, so
+    // stopping at the first ] finds one row and calls the rest orphans.
+    const body = js.slice(at, js.indexOf('\n];', at));
+    return [...body.matchAll(/\['([a-z]+)',/g)].map((m) => m[1]);
+  };
+  const snav = navRows('SNAV'), wnav = navRows('WNAV');
+  assert.strictEqual(snav.length, 6, `SNAV should hold six rows, found ${snav.length}: ${snav}`);
+  assert.deepStrictEqual(snav, ['story', 'chapter', 'threads', 'context', 'search', 'teller'],
+    'the six panels, in the order Seth asked for');
+
+  // Opened by clicking a thing rather than by a nav row. Each is asserted to have a real opener,
+  // so this list cannot become a dumping ground for panels nothing reaches.
+  const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/, setup: /S\.panel = 'setup'/ };
+  for (const [name, opens] of Object.entries(byClick)) {
+    assert.ok(opens.test(js), `the ${name} panel is not in the rail, so something must set S.panel to it`);
+  }
+  const reachable = new Set([...snav, ...wnav, ...Object.keys(byClick)]);
+  assert.deepStrictEqual(panelNames.filter((n) => !reachable.has(n)), [],
+    'these panels exist but nothing opens them');
+  // And the other way round: a nav row pointing at a panel that is not there renders an empty tray.
+  assert.deepStrictEqual([...snav, ...wnav].filter((n) => !panelNames.includes(n)), [],
+    'these nav rows point at a panel that does not exist');
+  ok(`${panelNames.length} panels, ${snav.length} in the story rail and ${wnav.length} outside, none orphaned`);
+
+  // Retired panel names still have to resolve, or every bookmark and open tab breaks.
+  const was = js.slice(js.indexOf('const PANEL_WAS ='), js.indexOf('};', js.indexOf('const PANEL_WAS =')));
+  for (const old of ['inspector', 'cast', 'traj', 'queue', 'branches']) {
+    const m = new RegExp(`${old}: '([a-z]+)'`).exec(was);
+    assert.ok(m, `the retired name ${old} must map somewhere`);
+    assert.ok(reachable.has(m[1]), `${old} maps to ${m[1]}, which nothing opens`);
+  }
+  ok('five retired panel names still map to a panel that exists');
 }
 
 // Every api method must have a caller, or be listed here with a reason. Deleting desk.js took

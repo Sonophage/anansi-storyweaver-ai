@@ -38,12 +38,23 @@ const POV = ['first person, present tense', 'first person, past tense',
   'second person, present tense', 'third limited, present tense',
   'third limited, past tense', 'third omniscient, past tense'];
 
+// Six rows, in this order, at Seth's direction. What used to be eight had Story and Chapter in
+// one panel and then three more panels — Trajectory, What the chapter added, Branches — that are
+// all chapter-scoped, so the chapter's business was spread across four rows.
+//
+//   story     the book: what it is, who is in it, how it reads, and taking it with you
+//   chapter   the one you are writing: its name, its ending, where this is going, what it
+//             added, its branches, and closing it
+//   threads   every card in this story — characters, lore, items, rules
+//   context   what the model is about to be sent, and why
 const SNAV = [
-  ['inspector', '◈', 'Context'], ['cast', '☙', 'Characters'],
-  ['story', '⚙', 'Story & chapter'], ['traj', '→', 'Trajectory'],
-  ['queue', '⚖', 'What the chapter added'], ['branches', '⑂', 'Branches'],
+  ['story', '⚙', 'Story'], ['chapter', '❧', 'Chapter'],
+  ['threads', '☙', 'Threads'], ['context', '◈', 'Context'],
   ['search', '⌕', 'Search'], ['teller', '◐', 'Storyteller'],
 ];
+// Deep links and bookmarks still carry the old names, and so does a browser tab left open across
+// the change. Cheaper to map them than to serve a blank panel.
+const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
 const WNAV = [
   ['stories', '❋', 'My stories'], ['create', '✎', 'Create a story'],
   ['canon', '◈', 'Worlds & lorebooks'], ['import', '↧', 'Import'], ['prefs', '◐', 'Preferences'],
@@ -164,13 +175,12 @@ function drawBar() {
         title="Re-roll the last passage, keeping the old take">${S.busy ? '…' : '↻'}<span
         class="deskonly" style="display:inline; margin-left:7px">Regenerate</span></button>
       ${noRoom
-        ? `<button class="pill deskonly" data-panel="inspector"
+        ? `<button class="pill deskonly" data-panel="context"
             style="border-color:#C8705A; color:#C8705A">No room</button>`
-        : pct == null ? '' : `<button class="pill deskonly" data-panel="inspector">Context ${pct}%</button>`}
+        : pct == null ? '' : `<button class="pill deskonly" data-panel="context">Context ${pct}%</button>`}
       <button class="pill" data-appearance="1" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
-      <button class="pill deskonly" data-panel="inspector" aria-pressed="${S.panel === 'inspector'}">Inspector</button>
-      <button class="phoneonly" data-panel="story" style="font-size:19px; color:var(--chrome-dim)" aria-label="Story settings">⚙</button>`
+      <button class="phoneonly" data-panel="chapter" style="font-size:19px; color:var(--chrome-dim)" aria-label="This chapter">⚙</button>`
       : `<button class="pill deskonly" data-open="new">New story</button>
          ${LIB.length ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            text-transform:uppercase; color:#100D08; background:var(--gold); padding:9px 18px;
@@ -321,7 +331,7 @@ const PANELS = {
   entry: entryEditor,
   setup: setupPanel,
   history: historyPanel,
-  inspector() {
+  context() {
     if (!MANI) return `<div class="hint">Open the composer once and the manifest appears here.</div>`;
     if (S.ctxView === 'prompt') {
       return `<div style="display:flex; flex-direction:column">
@@ -381,12 +391,24 @@ const PANELS = {
         recent prose at 60%. The tail is never evicted. Click a row to reach what put it there.</div></div>`;
   },
 
-  cast() {
+  // Every card in this story, grouped by what kind of thing it is. This was `cast` and showed
+  // characters only, so lore, items and rules had no home inside a story at all — the Worlds page
+  // lists them across every story, which is a different question.
+  threads() {
     if (S.entryId) return entryEditor();
-    const cast = V.entries.filter((e) => e.entryType === 'character');
+    const groups = [['character', 'Characters', 'character'], ['lore', 'Lore', 'lore'],
+                    ['item', 'Items', 'item'], ['rule', 'Rules', 'rule']];
+    const shown = groups.filter(([k]) => V.entries.some((e) => e.entryType === k));
     return `<div style="display:flex; flex-direction:column; gap:9px">
-      ${cast.map((e) => entryCard(e)).join('') || '<div class="hint">No characters yet.</div>'}
-      <button class="btn ghost" data-newentry="character" style="margin-top:8px">New character</button></div>`;
+      ${shown.map(([k, label]) => `
+        <div class="lbl" style="letter-spacing:.26em; margin-top:6px">${label}</div>
+        ${V.entries.filter((e) => e.entryType === k).map((e) => entryCard(e)).join('')}`).join('')}
+      ${shown.length ? '' : '<div class="hint" style="margin:0">Nothing written down yet. Canon is what the model is told and never allowed to contradict.</div>'}
+      <div class="lbl" style="letter-spacing:.26em; margin-top:18px">Add</div>
+      <div style="display:flex; flex-wrap:wrap; gap:7px">
+        ${groups.map(([k, , one]) => `<button class="btn ghost" data-newentry="${k}"
+          style="flex:1 1 44%; white-space:nowrap">New ${one}</button>`).join('')}
+      </div></div>`;
   },
 
   story() {
@@ -423,14 +445,7 @@ const PANELS = {
       <div class="hint">${V.story.spiceNote?.trim()
         ? 'This replaces the level entirely — it is the register line the model receives.'
         : 'Five levels cannot say everything. Write one here and it replaces the level.'}</div>
-      <div class="lbl" style="letter-spacing:.26em; margin-top:22px">${esc(V.currentChapter.title || `Chapter ${V.currentChapter.index}`)}</div>
-      <input class="field" data-chapter-title="1" value="${esc(V.currentChapter.title ?? '')}">
-      <label class="lbl">This chapter must end with</label>
-      <textarea class="field" data-chapter-note="1">${esc(V.currentChapter.authorsNote ?? '')}</textarea>
       <button class="btn" data-savestory="1" style="margin-top:16px">Save</button>
-      <button class="btn ghost" data-ritual="1" style="margin-top:10px">${
-        S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
-      <div class="hint">Closes it, summarises it, reads it for new facts, and opens the next.</div>
       <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
         <a class="btn ghost" href="${api.exportUrl(S.storyId, 'markdown')}" download
@@ -449,29 +464,30 @@ const PANELS = {
         : 'Export it first if you might want it back.'}</div></div>`;
   },
 
-  traj() {
+  // The chapter you are writing, whole: its name, how it has to end, where the story is going,
+  // what it proposed for the ledger, its branches, and closing it. Four rows became one.
+  chapter() {
+    const ch = V.currentChapter;
+    const ps = V.proposals ?? [];
     return `<div style="display:flex; flex-direction:column">
+      <label class="lbl">Name</label>
+      <input class="field" data-chapter-title="1" value="${esc(ch.title ?? '')}"
+        placeholder="Chapter ${ch.index}">
+      <label class="lbl">This chapter must end with</label>
+      <textarea class="field" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
+      <div class="hint">Reaches the model as the chapter's brief. It is not shown to the reader.</div>
       <label class="lbl">Where this is going</label>
       <textarea class="field serif" data-story="direction" style="font-style:italic; font-size:15.5px;
-        min-height:110px; line-height:1.6">${esc(V.story.direction ?? '')}</textarea>
+        min-height:96px; line-height:1.6">${esc(V.story.direction ?? '')}</textarea>
       <div class="hint">Aims the story without disclosing it. Never restated to the reader.</div>
       <button class="btn" data-savestory="1" style="margin-top:14px">Save</button>
-      <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Chapter summaries in context</div>
-      ${V.chapters.filter((c) => c.summary).map((c) => `<button class="card" aria-expanded="false"
-        data-expand="1" style="margin-bottom:8px; text-align:left; width:100%">
-        <div style="display:flex; align-items:center; gap:9px">
-          <span class="kind">${esc(c.title || `Chapter ${c.index}`)}</span>
-          <span style="margin-left:auto; font-size:11px; color:#78726A">covers to ${c.coversThrough ?? '—'}</span></div>
-        <div class="clamp" style="font-size:12.5px; line-height:1.5; color:#8A8478">${esc(c.summary)}</div>
-        ${c.summaryStale ? '<div class="hint" style="color:#C8705A">Stale — excluded from the prompt until it is re-run.</div>' : ''}
-      </button>`).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
-      <button class="btn ghost" data-summarize="1">Summarise this chapter</button></div>`;
-  },
+      <button class="btn ghost" data-ritual="1" style="margin-top:10px">${
+        S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
+      <div class="hint">Closes it, summarises it, reads it for new facts, and opens the next.</div>
 
-  queue() {
-    const ps = V.proposals ?? [];
-    return `<div style="display:flex; flex-direction:column; gap:9px">
-      <div style="font-size:12.5px; line-height:1.55; color:#8A8478">Nothing here is canon until you accept it.</div>
+      <div class="lbl" style="letter-spacing:.26em; margin-top:26px">What this chapter added</div>
+      <div style="font-size:12.5px; line-height:1.55; color:#8A8478; margin-bottom:9px">Nothing here is canon until you accept it.</div>
+      <div style="display:flex; flex-direction:column; gap:9px">
       ${ps.map((p) => {
         const tone = p.kind === 'new' ? 'var(--good)' : p.kind === 'conflict' ? '#C8705A' : 'var(--warn)';
         return `<div class="card" style="gap:8px">
@@ -484,12 +500,22 @@ const PANELS = {
               border-radius:9px; background:#D9B26A; color:#100D08; font-size:11.5px; font-weight:500">Accept</button>
             <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
               border-radius:9px; border:1px solid #2A2721; color:#78726A; font-size:11.5px">✕</button></div></div>`;
-      }).join('') || '<div class="hint">Nothing proposed. Closing a chapter reads it for new facts.</div>'}
-      <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this chapter for facts</button></div>`;
-  },
+      }).join('') || '<div class="hint" style="margin:0">Nothing proposed. Closing a chapter reads it for new facts.</div>'}
+      <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this chapter for facts</button></div>
 
-  branches() {
-    return `<div style="display:flex; flex-direction:column; gap:9px">
+      <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Summaries in context</div>
+      ${V.chapters.filter((c) => c.summary).map((c) => `<button class="card" aria-expanded="false"
+        data-expand="1" style="margin-bottom:8px; text-align:left; width:100%">
+        <div style="display:flex; align-items:center; gap:9px">
+          <span class="kind">${esc(c.title || `Chapter ${c.index}`)}</span>
+          <span style="margin-left:auto; font-size:11px; color:#78726A">covers to ${c.coversThrough ?? '—'}</span></div>
+        <div class="clamp" style="font-size:12.5px; line-height:1.5; color:#8A8478">${esc(c.summary)}</div>
+        ${c.summaryStale ? '<div class="hint" style="color:#C8705A">Stale — excluded from the prompt until it is re-run.</div>' : ''}
+      </button>`).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
+      <button class="btn ghost" data-summarize="1">Summarise this chapter</button>
+
+      <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Branches</div>
+      <div style="display:flex; flex-direction:column; gap:9px">
       ${(V.branches ?? []).map((b) => `<div class="card" style="gap:6px;
         border-color:${b.active ? 'rgba(217,178,106,.34)' : '#2A2721'}">
         <div style="display:flex; align-items:center; gap:9px">
@@ -498,9 +524,12 @@ const PANELS = {
           <span style="margin-left:auto; font-size:11px; color:#78726A">${
             b.forkOrdinal ? `from passage ${b.forkOrdinal}` : ''}</span></div>
         ${b.active ? '' : `<button data-branch="${b.id}" class="btn ghost" style="margin-top:4px">Switch to this branch</button>`}</div>`).join('')}
-      <div class="hint">Branch rows are real and every read follows the active branch. Forking from a
-        passage is on the passage's own menu.</div></div>`;
+      </div>
+      <div class="hint">Every read follows the active branch. Forking from a passage is on the
+        passage's own menu.</div></div>`;
   },
+
+
 
   search() {
     return `<div style="display:flex; flex-direction:column">
@@ -1069,7 +1098,7 @@ async function openStory(id) {
   V = r; S.storyId = id; S.place = 'story';
   
   SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen };
-  if (!S.panel && !overlay()) S.panel = 'inspector';   // the hash may already have chosen one
+  if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
   const a = await api.activity(id);
   ACT = a.error ? null : a;
   paint();
@@ -1082,7 +1111,7 @@ async function refreshManifest() {
     directive: $('input')?.value || undefined,
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined });
   if (!r.error) { MANI = r.manifest; PROMPT = r.prompt ?? ''; drawBar();
-    if (S.panel === 'inspector') drawSide(); }
+    if (S.panel === 'context') drawSide(); }
 }
 
 /** Clearing the value leaves the inline height behind, so a box grown by a long directive stayed
@@ -1181,7 +1210,7 @@ document.addEventListener('click', async (e) => {
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
   if (d.continue) { await generate('continue'); return; }
   if (d.nav) {
-    if (S.place === 'story') { S.panel = d.nav; S.entryId = null; S.historyOf = null; syncHash(); }
+    if (S.place === 'story') { S.panel = PANEL_WAS[d.nav] ?? d.nav; S.entryId = null; S.historyOf = null; syncHash(); }
     else S.wpage = d.nav;
     if (overlay()) S.rail = false;
     paint();
@@ -1226,10 +1255,10 @@ document.addEventListener('click', async (e) => {
   }
 
   if (d.entry) { S.entryId = d.entry; S.fieldHistory = null;
-    if (S.place === 'story' && S.panel !== 'cast') S.panel = 'entry';
+    if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     paint(); return; }
   if (d.backentry) { S.entryId = null; S.historyOf = null;
-    if (S.panel === 'entry' || S.panel === 'history') S.panel = 'cast';
+    if (S.panel === 'entry' || S.panel === 'history') S.panel = 'threads';
     paint(); return; }
   if (d.newentry) {
     const r = await api.saveEntry(S.storyId, { id: '', title: 'Untitled',
@@ -1238,7 +1267,7 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId);
     // saveEntry does not report the new id, so take the newest row of that name.
     S.entryId = V.entries.filter((x) => x.title === 'Untitled').at(-1)?.id ?? null;
-    if (S.place === 'story' && S.panel !== 'cast') S.panel = 'entry';
+    if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     paint(); return;
   }
   if (d.kind || d.act) {
@@ -1263,7 +1292,7 @@ document.addEventListener('click', async (e) => {
   if (d.delentry) {
     const r = await api.delEntry(S.storyId, S.entryId);
     if (r.error) return toast(r.error);
-    S.entryId = null; if (S.panel === 'entry') S.panel = 'cast';
+    S.entryId = null; if (S.panel === 'entry') S.panel = 'threads';
     V = await api.story(S.storyId); paint(); refreshManifest(); return;
   }
 
@@ -1288,13 +1317,13 @@ document.addEventListener('click', async (e) => {
   if (d.restore) {
     const r = await api.revert({ storyId: S.storyId, passageId: S.historyOf?.id, revisionId: d.restore });
     if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); S.panel = 'inspector'; S.historyOf = null;
+    V = await api.story(S.storyId); S.panel = 'context'; S.historyOf = null;
     paint(); toast('Restored.'); return;
   }
   if (d.fork) {
     const r = await api.fork(S.storyId, d.fork, `from ${new Date().toLocaleDateString()}`);
     if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); S.panel = 'branches'; S.historyOf = null;
+    V = await api.story(S.storyId); S.panel = 'chapter'; S.historyOf = null;
     paint(); toast('Branched. You are on the new branch.'); return;
   }
 
@@ -1314,7 +1343,7 @@ document.addEventListener('click', async (e) => {
   if (d.goblock !== undefined) {
     const [kind, id] = d.goblock.split(':');
     if (kind === 'entry' && id) { S.entryId = id; S.panel = 'entry'; }
-    else if (kind === 'traj') S.panel = 'traj';
+    else if (kind === 'traj') S.panel = 'chapter';
     else if (kind === 'story') S.panel = 'story';
     else { S.panel = null; }
     syncHash(); paint(); return;
@@ -1377,11 +1406,11 @@ document.addEventListener('click', async (e) => {
     const r = await api.saveChapter(S.storyId, V.currentChapter.id, { title, authorsNote: note });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId);
-    S.setup = null; S.panel = 'inspector'; syncHash(); paint(); refreshManifest();
+    S.setup = null; S.panel = 'context'; syncHash(); paint(); refreshManifest();
     toast(note.trim() ? 'Set. Write when ready.' : 'Saved. No beat set, which is fine.');
     return;
   }
-  if (d.skipsetup) { S.setup = null; S.panel = 'inspector'; syncHash(); paint(); return; }
+  if (d.skipsetup) { S.setup = null; S.panel = 'context'; syncHash(); paint(); return; }
 
   if (d.savestory) {
     const patch = {};
@@ -1577,13 +1606,17 @@ matchMedia('(max-width:1099px)').addEventListener('change', () => { S.rail = !ov
 // are how a panel gets shared, bookmarked, or screenshotted.
 function readHash() {
   const [id, panel] = location.hash.slice(1).split('/');
-  return { id, panel: panel && TITLES[panel] ? panel : null };
+  // The old name is mapped BEFORE the validity check, not after. The check is against the current
+  // TITLES, so a retired name was dropped to null here and then quietly replaced by the default
+  // panel — which made the alias downstream dead code for the one case it exists for.
+  const to = panel && (PANEL_WAS[panel] ?? panel);
+  return { id, panel: to && TITLES[to] ? to : null };
 }
 
 async function route() {
   const { id, panel } = readHash();
   if (id && LIB.some((s) => s.id === id)) {
-    if (panel) S.panel = panel;
+    if (panel) S.panel = panel;   // readHash has already mapped any retired name
     if (S.storyId === id) { paint(); } else { await openStory(id); }
   } else { S.place = 'workspace'; S.storyId = null; V = null; paint(); }
 }

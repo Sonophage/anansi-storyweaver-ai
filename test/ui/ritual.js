@@ -21,7 +21,10 @@ const before = await story();
 const closing = before.currentChapter;
 const chBefore = before.chapters.length;
 
-await page.goto(B + "/#" + sid + "/story");
+// End this chapter lives on the Chapter panel now, not on Story — the two were one panel until
+// the six-panel rearrangement, and closing a chapter is the chapter's business.
+await page.goto(B + "/#" + sid + "/chapter");
+for (let i = 0; i < 40 && !(await page.visible('[data-ritual="1"]')); i++) await wait(250);
 await page.click('[data-ritual="1"]');
 console.log("  ritual running (summarise, then extraction)…");
 for (let i = 0; i < 120; i++) {

@@ -284,4 +284,29 @@ ok('snapshot() carries a write still in the -wal, which cp does not', () => {
   // never depends on one having landed.
 });
 
+// updateStory is PARTIAL. The client has always sent only the fields on screen — `savestory`
+// collects the [data-story] elements that are rendered — and a full-row UPDATE bound undefined to
+// every column the panel did not show. That made the Trajectory panel's Save, whose only field is
+// `direction`, answer 500. Splitting Story and Chapter into separate panels would have spread it.
+ok('a partial story save keeps every field it did not mention', () => {
+  const o = db.owner('partial-save');
+  const st = db.createStory(o, { title: 'Kept', genre: 'noir', premise: 'A test.',
+    setting: 'Vantic', pov: 'third limited', persona: 'Aldis', writingStyle: 'clipped', spice: 3,
+    direction: 'He keeps the debt.' });
+  db.updateStory(st.id, { direction: 'He gives it up.' });
+  const a = db.getStory(st.id);
+  assert.strictEqual(a.direction, 'He gives it up.', 'the field sent must land');
+  for (const [col, want] of [['title', 'Kept'], ['genre', 'noir'], ['setting', 'Vantic'],
+                             ['persona', 'Aldis'], ['writing_style', 'clipped']] as const) {
+    assert.strictEqual(a[col], want, `${col} must survive a save that did not mention it`);
+  }
+  assert.strictEqual(a.spice, 3, 'spice must survive too');
+  // An explicit null is not the same as an absent key, or nothing could ever be cleared.
+  db.updateStory(st.id, { maxContext: 700 });
+  assert.strictEqual(db.getStory(st.id).max_context, 700);
+  db.updateStory(st.id, { maxContext: null });
+  assert.strictEqual(db.getStory(st.id).max_context, null, 'an explicit null must still clear');
+  assert.strictEqual(db.getStory(st.id).title, 'Kept', 'and clearing one field keeps the others');
+});
+
 console.log(`\n${n} checks passed`);

@@ -447,12 +447,22 @@ export function endChapter(storyId: string, branchId: string, nextTitle?: string
   return { closed: cur?.id, opened: id, idx };
 }
 
+/** PARTIAL by design. A panel that shows three fields sends three fields, which is what the
+ *  client has always done — `savestory` collects the `[data-story]` elements that are on screen.
+ *  This was a full-row UPDATE, so saving from a panel holding one field bound `undefined` to
+ *  every other column and threw: the Trajectory panel's Save, whose only field is `direction`,
+ *  answered 500. Absent keys now keep what is already stored; an explicit null still clears. */
 export function updateStory(id: string, s: any) {
+  const cur = getStory(id);
+  if (!cur) return;
+  const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,updated_at=? WHERE id=?`)
-    .run(s.title, s.genre, s.premise, s.setting, s.pov, s.persona ?? null, s.writingStyle,
-      s.direction ?? null, s.spice, s.spiceNote ?? null, s.maxContext ?? null, s.status ?? 'in_progress',
-      s.stripPatterns ?? null, now(), id);
+    .run(p('title', 'title'), p('genre', 'genre'), p('premise', 'premise'), p('setting', 'setting'),
+      p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
+      p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
+      p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
+      p('stripPatterns', 'strip_patterns') ?? null, now(), id);
 }
 export const updateChapter = (storyId: string, id: string, c: any) =>
   q('UPDATE chapters SET title=?, authors_note=?, keep_whole=? WHERE id=? AND story_id=?')

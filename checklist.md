@@ -165,6 +165,42 @@ Branch: `ui-overhaul`. Nothing here has been merged to `main`.
 
 ---
 
+## The six menus
+
+- [ ] **The rail inside a story reads: Story · Chapter · Threads · Context · Search · Storyteller.**
+      Trajectory, What the chapter added and Branches are no longer rows of their own.
+
+- [ ] **Chapter holds everything about the one you are writing** — its name, "this chapter must end
+      with", where the story is going, what the chapter added, the summaries in context, its
+      branches, and End this chapter. Seven things that were spread across four rows.
+
+- [ ] **Save on the Chapter panel does not blank your story.** Change "Where this is going", press
+      Save, then open Story: title, genre, premise, setting, point of view and register are all
+      still there.
+
+      **This one was broken before today and worth knowing about.** `updateStory` was a full-row
+      UPDATE, and the client only ever sends the fields on screen. The old Trajectory panel held
+      exactly one story field, so its Save bound nothing to every other column and the server
+      answered **500** — *"Provided value cannot be bound to SQLite parameter 1"*. It threw rather
+      than wiping, so nothing was lost, but that Save had never worked. Partial saves now keep what
+      they do not mention; an explicit blank still clears.
+
+- [ ] **Story keeps the book and loses the chapter.** No "must end with" on it any more, and
+      Take it with you / Delete are still at the bottom.
+
+- [ ] **Threads shows every card, not just people.** Characters, Lore, Items and Rules, grouped,
+      with a New button for each. `cast` showed characters only, so lore had no home inside a
+      story — the Worlds page lists it across every story, which is a different question.
+
+- [ ] **The Inspector button is off the top bar.** The `Context NN%` reading stays and still opens
+      the Context panel — I kept it deliberately, since nothing else shows that number and
+      **No room** is a refusal you need to see. Say if you want it gone too.
+
+- [ ] **An old link still works.** Paste `#<story>/inspector` and you land on Context; `.../cast`
+      lands on Threads; `.../traj`, `.../queue`, `.../branches` land on Chapter.
+
+---
+
 ## The composer — five modes
 
 Everything below is on the bar above the input.

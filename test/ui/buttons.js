@@ -24,7 +24,7 @@ await wait(500);
 ok("Save writes the new name", await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json(); return v.entries.some(e => e.title === 'RENAMED BY TEST'); })()"));
 
 // ---- 2. New character
-await page.goto("http://127.0.0.1:5179/#" + sid + "/cast");
+await page.goto("http://127.0.0.1:5179/#" + sid + "/threads");
 const before = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).entries.length)()");
 await page.click('[data-newentry="character"]');
 await wait(500);

@@ -39,7 +39,7 @@ ok("  and it is specific rather than a shrug",
 ok("  and the composer is usable again", await page.eval("!document.getElementById('send').disabled"));
 
 // the Context panel should show the overflow too, since that is where you would go to fix it
-await page.click('[data-panel="inspector"]');
+await page.click('[data-panel="context"]');
 await wait(900);
 const side = (await page.text('#sideBody') || '');
 ok("the Context panel shows the overflow", /omitted|ceiling|over|refus|drop|no room/i.test(side));

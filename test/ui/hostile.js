@@ -53,7 +53,7 @@ ok("  the hostile title renders as text",
    /img src=x onerror/.test(await page.text('#page') || ''));
 
 // ---- the document and the cast
-await page.goto(B + "/#" + sid + "/cast");
+await page.goto(B + "/#" + sid + "/threads");
 await clean("story surface");
 ok("  the passage renders as text", /script>window\.__xss/.test(await page.text('#col') || ''));
 ok("  the cast renders as text", /onmouseover|img src=x/.test(await page.text('#sideBody') || ''));
@@ -73,7 +73,7 @@ await page.goto(B + "/");
 await page.click('[data-nav="canon"]');
 await wait(900);
 await clean("worlds page");
-await page.goto(B + "/#" + sid + "/inspector");
+await page.goto(B + "/#" + sid + "/context");
 await page.click('[data-ctxview="prompt"]');
 await clean("prompt view");
 ok("  the prompt shows the hostile text as text", /onerror|script/.test(await page.text('#sideBody pre') || ''));
