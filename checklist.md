@@ -167,21 +167,95 @@ Open **Sutera: Remembers** (or any story). Everything here is on the bar above t
 
 ---
 
-## Known not done
+## Still open — not oversights
 
-Not oversights — these are in `bugs.md` with your own words and what each one needs.
+These are the things you asked for that are not built. Each one says what it needs, so it is a
+starting point rather than a reminder.
 
-- [ ] **Start blank** still just makes an empty story. It needs the fill-in screen you asked for.
-- [ ] **Preferences**: no name change, no writing-stats dashboard.
-- [ ] **Characters**: no creation-by-prompt, no reroller, no outfits, no interiority, no threads
-      between characters. This is the PLAN-04 conversation we half had.
-- [ ] **New scene → New lore**: New scene is gone, but nothing replaced it.
-- [ ] **Regenerate marking the take you rejected**: the canon half is done, the rejection half is
-      not.
-- [ ] **Per-story model and the admin allowlist**: answered in `bugs.md`, not built. The short
-      version is that two harnesses is real and the blocker is one module-level global in
-      `src/llama.ts`, not llama.cpp.
-- [ ] **Homepage / login**: not built on purpose. One hard-coded owner.
+### Start blank needs a screen
+
+> if were starting blank then the user needs a screen to fill in all these things themselves not
+> just start a blank story.
+
+Spark works and returns a skeleton. **Start blank** still just creates `Untitled` and drops you in
+the editor. It should ask for the same things Spark fills in — title, genre, premise, setting,
+point of view, who you are, style, register — before the first passage.
+
+### Preferences: your name, and a writing dashboard
+
+> preferences this should allow the user to change their name see their stats of writing open
+> stories characters etc. just a user stat analytics dash may be useful here.
+
+Neither exists. The name is a hard-coded owner in `serve.ts` — there is a `ponytail:` marker on it
+saying exactly that. The numbers for a dashboard are all already in the database: passages,
+chapters, entries, generations with timings.
+
+### Characters — the design conversation (PLAN-04 §3 onward)
+
+> this might also have a skill to create the character so that we can prompt and it creates
+> something. this should also have a reroller mechanic. it would also be beneficial to have a
+> costume and a selector for it so that way things like armor can be taken on or off without it
+> being an issue when prompting. were also missing internal thoughts of the characters and their
+> threads to the main character or others in the scene.
+
+Four separate things, none built:
+
+- **Character by prompt, with a reroller.** Same shape as Spark, aimed at one character.
+- **Outfits.** Designed with you as a named table with a partial unique index — one worn at a
+  time — rather than a free "right now" line.
+- **Interiority.** Deliberately behind a measurement first: does putting a character's inner
+  state in canon leak into the narration.
+- **Threads between characters.** Agreed as a text field on the entry, not a new table.
+
+### New scene → New lore
+
+> new scene button should be replaced by new lore button. that will say to scan what we have, or
+> create a new character, place item etc.
+
+New scene is gone from the composer, but nothing replaced it. What you described is a button that
+either reads the chapter for facts — which the chapter ritual already does — or opens a new entry
+of a chosen type.
+
+### Regenerate should mark the take you rejected
+
+> the regenerate should prompt to try a different entry marking that the one used wasnt good.
+
+Half done: each take now records the canon its own prompt carried, and History shows it. Nothing
+marks a take as rejected, so nothing can steer the next one away from it.
+
+### The model selector — answered, not built
+
+> is ther anyway around that? two harneses think how pi and prime agent are two harnesses the same
+> idea would start here.
+> for the model selector could i as admin turn on and off what models are available for this app?
+
+Two harnesses is real, and the blocker is this codebase rather than llama.cpp:
+
+- every request already names its model (`model: MODEL` in each `post` in `src/llama.ts`)
+- your router spawns a **separate `llama-server` process per preset** — eight on disk,
+  `write-nt-qwen36-h` loaded
+- so `MODEL` being one module-level global is the only reason switching is process-wide
+
+Per-story model is therefore a small code change. The real constraint is VRAM: two models loaded
+at once means both sets of weights resident, and at 96 GiB two 35B-class models is tight but not
+obviously impossible — that wants measuring, not guessing.
+
+The admin allowlist sits on top: a list of permitted model ids, filtered in `GET /api/models`.
+
+---
+
+## Not built on purpose
+
+- **Homepage / login.** One hard-coded owner, no auth. `serve.ts` carries the `ponytail:` marker.
+- **A model selector inside the story.** It is in Preferences because the model is process-wide;
+  it moves into the story the day per-story models land.
+
+## Settled, no action
+
+- *"create a story works beautifully"*
+- *"themes make sure the theme is easy to build upon. but the way it works now is good"* — themes
+  are CSS custom properties on `html[data-ui-theme]`; adding one is a block of variables.
+- The `Context NN%` reading stays on the top bar. You confirmed you want it.
 
 ---
 
