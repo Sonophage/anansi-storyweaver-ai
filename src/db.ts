@@ -85,6 +85,13 @@ CREATE TABLE IF NOT EXISTS stories (
   active_branch TEXT,                  -- which path you are writing on
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 
+CREATE TABLE IF NOT EXISTS prompt_overrides (
+  owner_id TEXT NOT NULL REFERENCES users(id),
+  key TEXT NOT NULL,                   -- a mode name: continue | speak | act | direct | narrate
+  text TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, key));
+
 CREATE TABLE IF NOT EXISTS branches (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   parent_id TEXT, name TEXT NOT NULL, fork_ordinal INTEGER, is_primary INTEGER DEFAULT 0,
@@ -469,6 +476,26 @@ export function delPassage(storyId: string, id: string) {
 export const pruneViolations = (floor = 0.6) => q(
   `DELETE FROM violations WHERE passage_id NOT IN (SELECT id FROM passages)
       OR confidence IS NULL OR confidence < ?`).run(floor).changes;
+
+/** The writer's own wording for a mode, replacing the shipped one outright.
+ *
+ *  Per OWNER and not per story, which is what Seth asked for: "this would be global with a button
+ *  to set it back to default". An empty or blank override is DELETED rather than stored, so
+ *  clearing the box is the reset — there is no third state where a mode is overridden with nothing.
+ */
+export function setPrompt(owner: string, key: string, text: string) {
+  const t = String(text ?? '').trim();
+  if (!t) { q('DELETE FROM prompt_overrides WHERE owner_id = ? AND key = ?').run(owner, key); return null; }
+  q(`INSERT INTO prompt_overrides (owner_id,key,text,updated_at) VALUES (?,?,?,?)
+     ON CONFLICT(owner_id,key) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at`)
+    .run(owner, key, t, now());
+  return t;
+}
+
+/** Every override this owner has, as { mode: text }. Empty object is the normal case. */
+export const promptsOf = (owner: string): Record<string, string> =>
+  Object.fromEntries((q('SELECT key, text FROM prompt_overrides WHERE owner_id = ?').all(owner) as any[])
+    .map((r) => [r.key, r.text]));
 
 export function upsertEntry(storyId: string, o: string, e: any) {
   const t = now();

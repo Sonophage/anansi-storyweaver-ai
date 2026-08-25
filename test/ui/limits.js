@@ -11,7 +11,12 @@ const sid = await page.eval("(async () => (await (await fetch('/api/stories')).j
 // ---- squeeze the budget until the prompt cannot fit
 await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
   + " await fetch('/api/story', { method:'POST', headers:{'Content-Type':'application/json'},"
-  + " body: JSON.stringify({ id: '" + sid + "', story: { ...v.story, maxContext: 700 } }) }); })()");
+  + " body: JSON.stringify({ id: '" + sid + "', story: { ...v.story, maxContext: 600 } }) }); })()");
+// 600, and the number is load-bearing. budgetFor reserves max(600, max_tokens) plus 6% of the cap,
+// so a cap at or under 638 is what drives the budget to zero — the state this scenario exists for.
+// It was 700, which worked only while max_tokens defaulted to 900; halving that default to 450
+// moved the reserve to 600 and left a 58-token budget, so the zero-budget half stopped being
+// tested and said so. 600 gives zero under either default.
 
 const mani = await page.eval("(async () => { const r = await (await fetch('/api/manifest', { method:'POST',"
   + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyId:'" + sid + "', mode:'direct' }) })).json();"
@@ -20,6 +25,9 @@ const mani = await page.eval("(async () => { const r = await (await fetch('/api/
 console.log("  manifest at a 700-token cap: " + mani);
 const m = JSON.parse(mani);
 ok("the engine refuses rather than truncating", m.over === true);
+// Asserted rather than assumed: if a sampler default moves the reserve again, this says so instead
+// of quietly testing a different state.
+ok(`  and the cap really does leave zero budget (${m.budget})`, m.budget === 0);
 ok(`  and says what would have gone (${JSON.stringify((m.why || '').slice(0, 60))})`, !!m.why);
 
 // the refusal has to reach the writer, not just the JSON

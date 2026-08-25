@@ -99,10 +99,28 @@ export const budgetFor = (story: any, slot: Slot, maxTokens = 900) => {
   return Math.max(0, cap - Math.max(600, maxTokens) - Math.floor(cap * 0.06));
 };
 
+/** The shipped wording of every editable mode, rendered with its placeholders left in.
+ *
+ *  Built by asking the engine itself rather than by keeping a second copy: a copy is a thing that
+ *  goes stale, and the editor's whole job is to show the writer what they are replacing. */
+export function defaultModePrompts(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const mode of ['continue', 'speak', 'act', 'direct', 'narrate']) {
+    const m = buildContext({
+      story: { title: '', genre: '', premise: '', setting: '', pov: '', writingStyle: '', spice: 2 },
+      chapters: [], passages: [{ id: 'p', ordinal: 1, body: 'x.' }], entries: [],
+      mode: mode as any, directive: '{{directive}}', speaker: '{{speaker}}',
+      currentChapter: { id: 'c', index: 1 }, budget: 4000,
+    } as any, estimate).blocks.find((b) => b.kind === 'MODE');
+    if (m) out[mode] = m.text;
+  }
+  return out;
+}
+
 /** Assemble the prompt. Pure from here down — no I/O below this line. */
 export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
                          mode: string, directive?: string, upToOrdinal?: number, maxTokens = 900,
-                         speaker?: string) {
+                         speaker?: string, modePrompts?: Record<string, string>) {
   // Regenerating passage 3 of 50 must build the context that existed at passage 3. Sending
   // the whole document meant the "new take" was written with knowledge of the 47 passages
   // that come after it — which is not a regeneration, it is a summary of the future.
@@ -117,6 +135,7 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
       .filter((p: any) => p.chapterId === v.currentChapter.id)
       .map((p: any) => [p.entryId, p.mode])),
     budget: budgetFor(v.story, slot, maxTokens), tailTokens: 220,
+    modePrompts,
   };
   const manifest = buildContext(inp, estimate);
   return { manifest, prompt: render(manifest) };

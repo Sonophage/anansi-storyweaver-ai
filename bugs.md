@@ -27,7 +27,10 @@ under **Still open** and under the four decisions — you do not need to re-repo
 ## 6 · The Context panel
 
 
-## 7 · Delete, and the model list
+## 7 · The prompts, in your words
+
+
+## 8 · Delete, and the model list
 
 
 ---

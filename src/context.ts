@@ -54,6 +54,10 @@ export interface Input {
   // without being told whose line it is.
   speaker?: string;
   pins?: Record<string, 'force_in' | 'force_out'>;   // per-chapter overrides, SPEC §7.4 step 7
+  // The writer's own wording for a mode, replacing the shipped one outright. Arrives HERE rather
+  // than being read from a table down in the engine, because buildContext is pure below the line
+  // in story.ts and this is a flag like any other.
+  modePrompts?: Record<string, string>;
   currentChapter: Chapter;
   budget: number;          // per-slot context, minus output reserve and margin
   tailTokens?: number;     // DIRECTIVE sits this many tokens above the end. P0 finds it.
@@ -442,8 +446,14 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   if (!(input.mode === 'narrate' && unfinished)) {
     // A stale browser tab still sends the old mode names. Falling back to the neutral mode
     // beats a 500 from an undefined lookup, which is what a reload would otherwise produce.
-    add('MODE', 'mode', (MODE[input.mode] ?? MODE.continue)(input.directive, input.speaker),
-        `mode:${input.mode}`);
+    // The writer's own wording wins, with {{directive}} and {{speaker}} filled the same way the
+    // shipped prompts fill them — an override without them is legal and simply mentions neither.
+    const own = input.modePrompts?.[input.mode]?.trim();
+    add('MODE', 'mode', own
+      ? own.replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')
+           .replace(/\{\{\s*speaker\s*\}\}/g, input.speaker || 'the point-of-view character')
+      : (MODE[input.mode] ?? MODE.continue)(input.directive, input.speaker),
+      own ? `mode:${input.mode} · yours` : `mode:${input.mode}`);
   }
 
   // ponytail: ceilings and a hard refusal, no budget engine. No reservation, no trim ladder, no

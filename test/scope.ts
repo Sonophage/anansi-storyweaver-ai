@@ -208,4 +208,20 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('merging into an existing story stops at the writer who owns it');
 }
 
+// The prompt overrides are per OWNER and on the open list, so nothing else gates them — the
+// scoping has to be in the queries themselves.
+{
+  db.setPrompt(alice, 'speak', "ALICE'S WORDING");
+  assert.deepStrictEqual(db.promptsOf(bob), {}, "bob must not see alice's prompt");
+  assert.strictEqual(db.promptsOf(alice).speak, "ALICE'S WORDING");
+  db.setPrompt(bob, 'speak', "BOB'S WORDING");
+  assert.strictEqual(db.promptsOf(alice).speak, "ALICE'S WORDING",
+    "bob writing his own must not overwrite alice's — the key is (owner, mode), not mode");
+  // Empty is the reset, and it resets only the owner who sent it.
+  db.setPrompt(alice, 'speak', '   ');
+  assert.deepStrictEqual(db.promptsOf(alice), {}, 'blank deletes rather than storing blank');
+  assert.strictEqual(db.promptsOf(bob).speak, "BOB'S WORDING", "and leaves bob's alone");
+  ok('prompt overrides are scoped to their owner, and blank is the reset');
+}
+
 console.log(`\n${n} checks passed`);

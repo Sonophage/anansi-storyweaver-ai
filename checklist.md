@@ -112,7 +112,21 @@ Rail → **✻ Anansi**, inside a story.
 
 ---
 
-## 7 · Delete, and the model list
+## 7 · The prompts, in your words
+
+**Storyteller → The five modes, in your words.**
+
+- [ ] Open **Speak**. The box holds the wording that ships, not an empty field.
+- [ ] Rewrite it and **Save**. Open **Context → Prompt sent** and read it there — what you typed is
+      what the model gets, with `{{speaker}}` filled and nothing added.
+- [ ] Press **Default**. The shipped wording comes back.
+- [ ] It is **global to you**, not to this story. Check it in another story.
+
+> Not built, and it is DECISIONS §3: an override REPLACES, it does not merge with the shipped
+> wording, and nothing validates it beyond refusing a blank. A prompt that produces nothing
+> produces nothing, and the way back is one press.
+
+## 8 · Delete, and the model list
 
 - [ ] ⋯ → **Delete** on a passage with more than one take. It says **Delete take 2**, asks once,
       and deletes on the second press.
@@ -132,8 +146,11 @@ Two came off this list in round three. Six left, and the order is still yours to
 - ~~**Two of the five mode prompts produce slop.**~~ Done, F29 — and it was three, not two: `act`
   carried the same checklist in different words. Measured: the shape was being filled **10 times out
   of 10**, now 5. The spice levels were re-cut in the same sitting. **What is left of this item is
-  the editor**: prompts editable under Storyteller, global, with a reset to default. That is
-  blocked on DECISIONS §3 — how an override composes, and what a bad one does.
+  ~~the editor~~. Built: **Storyteller → The five modes, in your words**. A full replace, global to
+  you, and Default is Save with an empty box. `{{directive}}` and `{{speaker}}` fill the way the
+  shipped ones fill them. What is NOT built is the rest of DECISIONS §3 — there is no composition
+  (an override replaces, it does not merge) and no validation beyond "not blank", because a prompt
+  that produces nothing produces nothing and the reset is one press. Say if you want more than that.
 - **The canon checker only checks entries that fired.** One rule decides both what the model is
   told and what gets verified. The detector is one function now, so the two cannot drift apart —
   but they still fail together, which is the actual finding.
@@ -185,7 +202,7 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 147 checks, nine suites, no model needed
+node --experimental-strip-types test/all.ts    # 149 checks, nine suites, no model needed
 test/ui/run.sh                                 # 10 scenarios, headless browser, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model

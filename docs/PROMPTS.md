@@ -193,6 +193,26 @@ Do not rewrite it, summarise it, or comment on it. Stop at a natural beat, howev
 sentences that takes.
 ```
 
+### The writer's own wording
+
+**Built 2026-08-25.** Storyteller → *The five modes, in your words*. An override is a **full
+replace**: whatever is in the box becomes the MODE block, with `{{directive}}` and `{{speaker}}`
+filled exactly as the shipped prompts fill them. It is per **owner**, not per story — global, with
+Default putting the shipped wording back.
+
+Stored in `prompt_overrides(owner_id, key, text)`. Blank is not a state: `db.setPrompt` deletes
+rather than storing it, so Default is Save with an empty box and there is one path back. `talk` is
+deliberately not editable — it is Anansi's chat rather than a way of writing prose, and a reworded
+chat prompt would let it continue the book.
+
+The override reaches `buildContext` through `Input.modePrompts`, never read from a table inside the
+engine: `buildContext` is pure below the line in `story.ts` and this is a flag like any other. The
+Context panel's manifest is assembled with the same overrides, so *Prompt sent* shows what will
+actually be sent, and the block's reason reads `mode:speak · yours`.
+
+**Not built, and it is DECISIONS §3.** There is no composition — an override replaces, it does not
+merge — and no validation beyond refusing a blank. A prompt that produces nothing produces nothing.
+
 `{{speaker}}` defaults to the point-of-view character and can be anyone in the cast — the
 `speaker` column on a passage has always supported that; until now nothing could set it.
 

@@ -4,7 +4,7 @@ import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA } from './prompts.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
-import { view, assemble, budgetFor, clean } from './story.ts';
+import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
 import { resolveBody } from './context.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
@@ -31,6 +31,8 @@ export const OPEN_ROUTES = new Set([
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats',
+  // Account-wide, like the sampler. Owner-scoped in SQL — every read and write takes c.owner.
+  'GET /api/prompts', 'POST /api/prompts',
 ]);
 
 /** What the import screen shows before anything is written. Bodies are counted, not sent: the
@@ -59,6 +61,10 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
  *  MEASURED 2026-08-25: the long answer to "what is this story about" is 3,696 characters of reply,
  *  4,159 of JSON, about 1,100 tokens. Four proposed entries and a directive can add another 750.
  *  This is the bound on the answer now that the grammar no longer holds one. */
+/** The five the writer may rewrite. `talk` is not one of them: it is Anansi's chat, not a way of
+ *  writing prose, and handing it the same box would let a reworded chat prompt continue the book. */
+const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate'];
+
 const TALK_TOKENS = 2400;
 
 /** One ledger entry. A 600-character body and a name is not a long answer, and the temperature is
@@ -140,7 +146,7 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
   const upTo = c.body.regenerateOf
     ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
   const { manifest, prompt } = assemble(v, c.slot, mode, directive, upTo,
-    Number(c.gen.max_tokens) || 900, c.body.speaker || undefined);
+    Number(c.gen.max_tokens) || 900, c.body.speaker || undefined, db.promptsOf(c.owner));
   if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
   // The estimate draws the meter; this decides. One /tokenize before a call that costs
@@ -444,6 +450,26 @@ export const routes: Record<string, Handler> = {
     return previewOf(imp.parse(name, buf));
   },
 
+  /** The writer's own wording for a mode. Global to them, not per story — Seth: "this would be
+   *  global with a button to set it back to default".
+   *
+   *  Sending an empty string IS the reset: db.setPrompt deletes rather than storing blank, so
+   *  there is no third state where a mode is overridden with nothing. The defaults are returned
+   *  alongside so the editor can show what it is replacing without shipping a second copy of them
+   *  to the browser.
+   *
+   *  ponytail: a full replace, and no validation beyond "not blank". DECISIONS §3 asks how an
+   *  override composes and what a bad one does; neither is answered, so neither is built. A
+   *  prompt that produces nothing produces nothing, and the reset is one press.
+   */
+  'GET /api/prompts': (c: Ctx) => ({ defaults: defaultModePrompts(), yours: db.promptsOf(c.owner) }),
+  'POST /api/prompts': (c: Ctx) => {
+    const key = String(c.body.key ?? '');
+    if (!EDITABLE_MODES.includes(key)) return { error: `there is no mode called "${key}"` };
+    const saved = db.setPrompt(c.owner, key, String(c.body.text ?? ''));
+    return { defaults: defaultModePrompts(), yours: db.promptsOf(c.owner), reset: saved === null };
+  },
+
   // ---- prose ----
   'POST /api/write':   (c) => {
     // The chapter you are READING is the chapter you write into. Without this the route always
@@ -674,8 +700,10 @@ export const routes: Record<string, Handler> = {
     const v = viewOf(c.body.storyId, c.body.chapterId);
     const upTo = c.body.regenerateOf
       ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
+    // The same overrides the generation will use, so the Context panel shows the prompt that will
+    // actually be sent rather than the shipped one.
     const { manifest, prompt } = assemble(v, c.slot, c.body.mode ?? 'direct', c.body.directive,
-      upTo, Number(c.gen.max_tokens) || 900, c.body.speaker || undefined);
+      upTo, Number(c.gen.max_tokens) || 900, c.body.speaker || undefined, db.promptsOf(c.owner));
     let exact: number | null = null;
     try { exact = await count(prompt, modelFor(v.story)); } catch { /* model asleep */ }
     return { manifest, prompt, exact };

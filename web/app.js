@@ -27,6 +27,8 @@ const S = {
   entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, confirmStop: false, router: null, spark: null, ritual: null, setup: null,
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
+  prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
+  promptOpen: null,
   found: null,          // the passage a search result sent you to, marked until you move on
   searchAll: false,     // inside a story, search that story only unless asked otherwise
   setupQ: '',           // filter over the ledger on the next-chapter setup page
@@ -94,6 +96,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
+  'editprompt', 'saveprompt', 'resetprompt',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
@@ -786,6 +789,39 @@ const PANELS = {
           <span style="font-size:13.5px; color:var(--ink)">Thinking is off, and not a setting</span>
           <span class="hint" style="margin:0">With it on this model spent the whole budget reasoning and
             returned no prose on three runs in four. The transport pins it off.</span></span></div>
+      <div class="lbl" style="letter-spacing:.26em; margin-top:22px">The five modes, in your words</div>
+      ${(() => {
+        // The shipped wording comes from the server, rendered by the engine itself, so the box
+        // shows what it is actually replacing rather than a second copy that goes stale.
+        if (!S.prompts) return '<div class="hint" style="margin:0">Reading them&hellip;</div>';
+        const { defaults, yours } = S.prompts;
+        return ['continue', 'speak', 'act', 'direct', 'narrate'].map((k) => {
+          const mine = yours[k];
+          const open = S.promptOpen === k;
+          return `<div class="card" style="margin-bottom:7px; gap:6px;
+              border-color:${mine ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
+            <button data-editprompt="${k}" style="display:flex; align-items:center; gap:9px; width:100%; text-align:left">
+              <span class="kind">${k[0].toUpperCase() + k.slice(1)}</span>
+              ${mine ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">yours</span>' : ''}
+              <span style="margin-left:auto; color:var(--faint); font-size:12px">${open ? '\u2212' : '+'}</span>
+            </button>
+            ${open ? `<textarea class="field" data-prompttext style="min-height:132px; font-family:ui-monospace,monospace;
+                font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
+              <div class="hint" style="margin:0">Replaces the whole instruction for this mode.
+                ${k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
+                  k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you are speaking as. ' : ''}
+                Empty it and press Save to go back to the shipped one.</div>
+              <div style="display:flex; gap:7px">
+                <button class="btn ghost" data-saveprompt="${k}" style="flex:1">Save</button>
+                <button class="btn ghost" data-resetprompt="${k}" style="width:110px">Default</button>
+              </div>` : ''}
+          </div>`;
+        }).join('');
+      })()}
+      <div class="hint">Global to you, not to a story, and they reach the model exactly as written —
+        nothing is added between the box and the prompt. Read one in <strong>Context &rarr; Prompt
+        sent</strong> before you trust it.</div>
+
       <div class="lbl" style="letter-spacing:.26em; margin-top:22px">This story's calls</div>
       ${(ACT?.runs ?? []).slice(0, 3).map((r) => `<div class="row">
         <span style="color:var(--ink)">${esc(r.role ?? 'prose')}${r.error ? ' · failed' : ''}</span>
@@ -948,6 +984,12 @@ function setupPanel() {
     <button class="btn" data-savesetup="1" style="margin-top:16px">Save and write</button>
     <button class="btn ghost" data-skipsetup="1" style="margin-top:8px">Skip &mdash; just write</button>
   </div>`;
+}
+
+async function loadPrompts() {
+  S.prompts = { defaults: {}, yours: {} };      // set first: a second open must not refetch
+  const r = await api.prompts();
+  if (!r.error) { S.prompts = { defaults: r.defaults ?? {}, yours: r.yours ?? {} }; paint(); }
 }
 
 function ctxTabs() {
@@ -1522,6 +1564,7 @@ async function openStory(id) {
   if (r.error) return toast(r.error);
   V = r; S.storyId = id; S.place = 'story';
   if (S.models === null) loadModels();   // the Storyteller panel needs the list to offer one
+  if (S.prompts === null) loadPrompts();
   
   SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen };
   if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
@@ -1773,6 +1816,20 @@ document.addEventListener('click', async (e) => {
     syncHash(); paint();
     return;
   }
+  if (d.editprompt) { S.promptOpen = S.promptOpen === d.editprompt ? null : d.editprompt; paint(); return; }
+  if (d.saveprompt || d.resetprompt) {
+    const key = d.saveprompt || d.resetprompt;
+    // Reset is Save with nothing in it — the route deletes rather than storing blank, so there is
+    // one path and no state where a mode is overridden with an empty string.
+    const text = d.resetprompt ? '' : (document.querySelector('[data-prompttext]')?.value ?? '');
+    const r = await api.savePrompt(key, text);
+    if (r.error) return toast(r.error);
+    S.prompts = { defaults: r.defaults ?? {}, yours: r.yours ?? {} };
+    if (r.reset) S.promptOpen = null;
+    paint(); refreshManifest();
+    return toast(r.reset ? `${key} is back to the shipped wording.` : `${key} is yours now.`);
+  }
+
   if (d.invent) {
     const dir = document.querySelector('[data-invdir]')?.value.trim() ?? '';
     const search = !!document.querySelector('[data-invsearch]')?.checked;

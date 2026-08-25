@@ -149,6 +149,42 @@ ok('MODE is dropped for Narrate on an unfinished line, and only there', () => {
     'Speak must keep MODE — whose line it is lives only there');
 });
 
+ok("the writer's own wording replaces a mode outright, and empties back to the shipped one", () => {
+  // Not `!`: a blank override drops the MODE block entirely (add() skips empty text), and with a
+  // bang that fails as a TypeError from the harness rather than as the assertion that saw it.
+  const withOwn = (modePrompts: any, mode = 'speak', o: any = {}) =>
+    buildContext({ ...base(), mode, speaker: 'Marek Vale', modePrompts, ...o } as any, count)
+      .blocks.find((b) => b.kind === 'MODE') ?? { text: '(no MODE block at all)', reason: '' };
+
+  const shipped = withOwn(undefined);
+  assert.match(shipped.text, /whole answer/, 'the shipped wording, for comparison');
+
+  const mine = withOwn({ speak: 'Answer as the room does. {{speaker}} has said their piece.' });
+  assert.strictEqual(mine.text, 'Answer as the room does. Marek Vale has said their piece.',
+    'a full replace, with {{speaker}} filled the way the shipped one fills it');
+  assert.doesNotMatch(mine.text, /whole answer/, 'and nothing of the shipped wording survives');
+  // The Context panel has to say the prompt is not the one that shipped, or an override is a
+  // silent change to every generation with nothing on screen admitting it.
+  assert.match(mine.reason, /yours/, 'and the manifest says whose wording it is');
+  assert.strictEqual(shipped.reason, 'mode:speak');
+
+  // {{directive}} is the other placeholder, and it belongs to Direct.
+  const dir = withOwn({ direct: 'Do this and nothing else: {{directive}}' }, 'direct',
+                      { directive: 'He drops the key.' });
+  assert.strictEqual(dir.text, 'Do this and nothing else: He drops the key.');
+
+  // An override for one mode must not reach another.
+  assert.match(withOwn({ speak: 'MINE' }, 'act').text, /what it costs, or what it gets/,
+    'act still has its own wording');
+
+  // Blank is not a third state. db.setPrompt deletes rather than storing it, and the engine
+  // treats whitespace as absent too — so a blank that got stored some other way cannot silently
+  // send the model an empty MODE block.
+  for (const blank of ['', '   ', '\n\t '])
+    assert.match(withOwn({ speak: blank }).text, /whole answer/,
+      `a blank override falls back to the shipped wording (${JSON.stringify(blank)})`);
+});
+
 // The five modes are not five labels on one behaviour. Two things separate them, and a mode set
 // that blurs either one is the bug this replaced: whether the writer's text is an INSTRUCTION
 // (direct) or is already the last PASSAGE (speak, act, narrate), and who it belongs to.

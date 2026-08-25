@@ -129,4 +129,34 @@ ok(`the composer stays put while the bar runs (${quiet} -> ${busy})`, String(qui
 ok("  and the bar lines up with the column",
    Math.abs((await page.eval("Math.round(document.getElementById('working').getBoundingClientRect().left)")) - busy[0]) <= 1);
 
+// ---- 9. the five modes, in the writer's own words
+// Global to the writer, a full replace, and empty is the reset. The thing that matters is that it
+// reaches the PROMPT — an editor that saves a box nobody reads is worse than no editor.
+await page.goto(B + "/#" + sid + "/teller");
+await wait(900);
+const promptRows = await page.eval("[...document.querySelectorAll('[data-editprompt]')].map(b => b.dataset.editprompt).join(',')");
+ok(`Storyteller offers all five modes to rewrite (${promptRows})`, promptRows === 'continue,speak,act,direct,narrate');
+await page.click('[data-editprompt="speak"]');
+await wait(300);
+ok("  opening one shows the shipped wording to edit",
+   (await page.eval("document.querySelector('[data-prompttext]')?.value") || '').includes('whole answer'));
+await page.eval("(() => { document.querySelector('[data-prompttext]').value = 'ANSWER AS THE ROOM DOES, for {{speaker}}.'; return 1; })()");
+await page.click('[data-saveprompt="speak"]');
+await wait(900);
+const own = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+  + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'speak'})})).json();"
+  + " return r.prompt; })()");
+ok("  and what you wrote is what the model is sent", /ANSWER AS THE ROOM DOES/.test(own));
+ok("  with the placeholder filled, not left in", !/\{\{speaker\}\}/.test(own));
+ok("  and none of the shipped wording left", !/whole answer/.test(own));
+// Default is Save with nothing in it, so there is one path back. The editor is still open after a
+// save — clicking the header again here would toggle it shut.
+ok("  the editor stays open after saving", await page.visible('[data-resetprompt="speak"]'));
+await page.click('[data-resetprompt="speak"]');
+await wait(900);
+const back = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+  + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'speak'})})).json();"
+  + " return r.prompt; })()");
+ok("  Default puts the shipped wording back", /whole answer/.test(back) && !/ANSWER AS THE ROOM/.test(back));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
