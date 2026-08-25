@@ -98,25 +98,20 @@ export const BLOCK_ORIGIN = {
 
 // The decode, ported from the bureau's own effect (astro-bureau-blog, the last script in
 // src/layouts/Base.astro): text resolves out of random glyphs rather than fading in. The glyph
-// set and the frontier live here because the frontier runs over the writer's prose as it arrives,
-// which makes it the half worth a test.
+// set and the writing head live here because they are pure, which makes them the half worth a test.
 export const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&/<>*';
 export const glyph = () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
 export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** The writing edge of a streamed passage. Only the last FRONTIER characters are unsettled, and
- *  the chance a character is still a glyph rises towards the end, so the line resolves behind the
- *  point the model is writing at.
+/** The writing head of a streamed passage: ONE run of glyphs, and it never touches the prose.
  *
- *  Everything before the frontier is returned byte for byte: this runs on every delta, over prose
- *  the writer is reading as it lands, and a function that could touch a settled sentence would be
- *  scrambling the book. Whitespace is held so the shape of the line never moves.
+ *  The first version scrambled the last sixteen characters of the text itself, re-rolled on every
+ *  delta. Two things were wrong with it. The prose moved after it had settled, which is the last
+ *  thing prose should do; and a delta is a token, so the effect ran at whatever rate the model
+ *  happened to be writing — bursty, uneven, and clunky exactly when the model sped up.
+ *
+ *  A run appended AFTER the text has neither problem. What is written stays written, and the run
+ *  is animated on its own clock, so the model's token rate has nothing to do with how it looks.
  */
-export const FRONTIER = 16;
-export const frontier = (text) => {
-  if (still() || text.length <= 2) return text;
-  const cut = Math.max(0, text.length - FRONTIER);
-  const tail = text.slice(cut), n = tail.length;
-  return text.slice(0, cut) + [...tail].map((ch, i) =>
-    /\s/.test(ch) || Math.random() > (i + 1) / (n + 1) ? ch : glyph()).join('');
-};
+export const HEAD = 9;
+export const glyphRun = (n = HEAD) => Array.from({ length: n }, glyph).join('');

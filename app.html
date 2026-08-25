@@ -116,8 +116,19 @@ input, textarea { font:inherit; color:inherit; }
    nothing is saved until the stream ends and accept returns. It replaces a p50 of 5.7 seconds
    of blank page, which read as a hung app (COUNCIL-04 #3). */
 #col .block.ghost .narr { opacity:.74; }
-#col .block.ghost .narr::after { content:'▍'; color:var(--gold); margin-left:1px;
-  animation:caret 1.1s steps(2, jump-none) infinite; }
+/* The writing head: one run of glyphs after the prose, on its own clock. It is dimmer and a shade
+   narrower than the text so it reads as the machine working rather than as words you missed. */
+#col .block.ghost .head { color:var(--gold-dim); opacity:.62; letter-spacing:-.01em;
+  font-family:ui-monospace,monospace; font-size:.86em; margin-left:.22em; white-space:nowrap; }
+/* Before the first token there is nothing to show but the wait — 0.35s warm, 7.8s cold (F24) —
+   so the head breathes on its own and the block is where the passage is going to land. */
+#col .block.ghost.loading .head { animation:breathe 1.5s ease-in-out infinite; }
+#col .block.ghost.loading .settled::before { content:'Writing'; letter-spacing:.14em;
+  text-transform:uppercase; font-size:11px; color:var(--label); margin-right:10px; }
+@keyframes breathe { 0%, 100% { opacity:.62; } 50% { opacity:.22; } }
+@media (prefers-reduced-motion: reduce) {
+  #col .block.ghost.loading .head { animation:none; }
+}
 @keyframes caret { 50% { opacity:0; } }
 
 /* The decode. The element keeps its real text; the glyphs are an attribute painted over the top,
@@ -131,7 +142,6 @@ input, textarea { font:inherit; color:inherit; }
 #sideHead .decoding::after { color:var(--ink-bright); }
 .up.decoding::after { color:var(--label); }
 @media (prefers-reduced-motion: reduce) { .decoding { color:inherit !important; } .decoding::after { content:none; } }
-@media (prefers-reduced-motion: reduce) { #col .block.ghost .narr::after { animation:none; } }
 
 /* A panel's contents SETTLE in after the panel itself has arrived, so the two reads as one move
    rather than a race. The delay is the panel's own transition, near enough. */

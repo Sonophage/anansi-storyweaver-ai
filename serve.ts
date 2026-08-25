@@ -23,7 +23,10 @@ try { slot = await slotContext(); } catch { /* model asleep; pages still load */
 // no prose on most runs. See P0-FINDINGS F5.
 let gen: Record<string, any> = {
   temperature: 0.85, top_p: 0.95, min_p: 0.05,
-  dry_multiplier: 0, xtc_probability: 0, thinking: false, max_tokens: 900,
+  // 450, not 900. Two effects, and the second is the one that matters: a passage arrives in half
+  // the time, and the budget engine reserves half as much, so the prompt gets those tokens back.
+  // Raise it per session under Storyteller when a scene actually needs the room.
+  dry_multiplier: 0, xtc_probability: 0, thinking: false, max_tokens: 450,
 };
 
 // One responsive surface. desk.html and phone.html were deleted on 2026-08-23 once app.html

@@ -3,7 +3,7 @@
 // sheet on a phone. Layout lives in app.html's CSS — this file decides state and content only,
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, frontier } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -1586,19 +1586,44 @@ function decode(el, slot) {
   requestAnimationFrame(tick);
 }
 
+/** The block where the passage is going to land: a loader first, then the passage arriving.
+ *
+ *  One element for both states. The wait before the first token is 0.35s warm and 7.8s cold (F24),
+ *  and a page that shows nothing for either reads as hung — which is what it was reported as.
+ *
+ *  Two text nodes, and the difference is the whole point: `settled` holds the prose, and once a
+ *  character is in it, it never changes again. `head` holds the run of glyphs, and it is animated
+ *  on a timer of its own rather than on delta arrival — a delta is a token, so anything driven by
+ *  it runs at whatever rate the model is writing, which is uneven by nature.
+ */
 function ghost(text) {
   const col = $('col'); if (!col) return;
   let g = document.getElementById('ghost');
   if (!g) {
     g = document.createElement('div');
-    g.id = 'ghost'; g.className = 'block ghost';
-    g.appendChild(document.createElement('div')).className = 'narr';
+    g.id = 'ghost'; g.className = 'block ghost loading';
+    const narr = g.appendChild(document.createElement('div'));
+    narr.className = 'narr';
+    // textContent on both, never innerHTML: this is untrusted model output arriving a fragment at
+    // a time, and a half-written "<" would be a half-written tag.
+    narr.appendChild(document.createElement('span')).className = 'settled';
+    narr.appendChild(document.createElement('span')).className = 'head';
     col.appendChild(g);
+    if (!still()) {
+      // ~11 rolls a second. Fast enough to read as working, slow enough not to strobe, and
+      // unrelated to how fast the tokens are coming.
+      let last = 0;
+      const tick = (t) => {
+        const el = document.getElementById('ghost');
+        if (!el) return;                       // the ghost went; so does its animation
+        if (t - last > 88) { el.querySelector('.head').textContent = glyphRun(); last = t; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
   }
-  // textContent, not innerHTML: this is untrusted model output arriving a fragment at a time,
-  // and a half-written "<" would be a half-written tag. The glyphs go in AFTER the escape, for
-  // the same reason — they are decoration on the text, never a way into it.
-  g.firstChild.textContent = frontier(text);
+  if (text) g.classList.remove('loading');     // the first token ends the wait
+  g.querySelector('.settled').textContent = text ?? '';
   const read = $('read');
   if (read && read.scrollHeight - read.scrollTop - read.clientHeight < 400) read.scrollTop = read.scrollHeight;
 }
@@ -1671,6 +1696,7 @@ async function generate(mode = S.mode) {
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
   let live = '';
+  ghost('');   // the block appears now, loading, rather than when the first token lands
   const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
     directive: YOURS ? undefined : (typed || undefined), speaker: who },
     (d) => ghost(live += d));

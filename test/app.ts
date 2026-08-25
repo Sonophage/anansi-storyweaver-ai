@@ -127,35 +127,24 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   assert.strictEqual(modelName('').name, 'no model', 'and no model says so');
 }
 
-// The streaming frontier runs on every delta, over prose the writer is reading as it lands. The
-// thing that must never happen is a glyph landing in a sentence that has already settled.
+// The writing head is a run of glyphs APPENDED after the prose, never a scramble of the prose
+// itself. The first version rewrote the last sixteen characters of the text on every delta: the
+// prose moved after it had settled, and the effect ran at the model's token rate, which is uneven.
 {
-  const { frontier, FRONTIER, GLYPHS } = await import('../web/model.js');
-  const text = 'The rain had not stopped, and the lower tiers went on pulsing under the oil.';
+  const { glyphRun, HEAD, GLYPHS } = await import('../web/model.js');
   for (let i = 0; i < 200; i++) {
-    const out = frontier(text);
-    assert.strictEqual(out.length, text.length, 'the line must not move while it settles');
-    assert.strictEqual(out.slice(0, -FRONTIER), text.slice(0, -FRONTIER),
-      'every character before the frontier is the writer\'s, untouched');
-    // Whitespace holds, so the shape of the line is legible from the first frame.
-    for (let j = 0; j < text.length; j++)
-      if (/\s/.test(text[j])) assert.strictEqual(out[j], text[j], 'whitespace never becomes a glyph');
-    for (const ch of out.slice(-FRONTIER))
-      assert.ok(GLYPHS.includes(ch) || text.includes(ch), 'and the glyphs come from the set');
+    const run = glyphRun();
+    assert.strictEqual(run.length, HEAD, 'the head is one fixed-width block, not a gradient');
+    for (const ch of run) assert.ok(GLYPHS.includes(ch), 'and every character comes from the set');
   }
-  // The end of the frontier is the least settled: over many frames the last character is a glyph
-  // far more often than the first. A uniform scramble would fail this, and it is what makes the
-  // effect read as resolving BEHIND the model rather than as noise.
-  let firstGlyphs = 0, lastGlyphs = 0;
-  for (let i = 0; i < 400; i++) {
-    const out = frontier(text);
-    if (out.at(-FRONTIER) !== text.at(-FRONTIER)) firstGlyphs++;
-    if (out.at(-1) !== text.at(-1)) lastGlyphs++;
-  }
-  assert.ok(lastGlyphs > firstGlyphs * 2,
-    `the frontier must be a gradient, not a block (${firstGlyphs} vs ${lastGlyphs} of 400)`);
-  assert.strictEqual(frontier('a'), 'a', 'and there is nothing to resolve in one character');
-  ok('the streaming frontier resolves behind the model and never touches settled prose');
+  assert.strictEqual(glyphRun(3).length, 3, 'and its width is the caller\'s');
+  // Rolled again, it is a different run — a head that never changed would just be nine letters
+  // sitting at the end of the passage.
+  const rolls = new Set(Array.from({ length: 40 }, () => glyphRun()));
+  assert.ok(rolls.size > 1, 'consecutive rolls must differ');
+  // The prose is not an argument here, and that IS the fix: nothing in this module can touch it.
+  assert.ok(!String(glyphRun).includes('text'), 'the head takes no prose, so it cannot rewrite any');
+  ok('the writing head is a run of glyphs and the prose is never an input to it');
 }
 assert.match(html('rail'), /slot 50,048/);
 ok('the rail shows the workspace nav, the model and the real slot size');
