@@ -20,8 +20,28 @@ let MODEL = process.env.ANANSI_MODEL ?? 'write-nt-qwen36-h';
 export const modelFor = (story?: { model?: string | null } | null): string =>
   story?.model && allowed(story.model) ? story.model : MODEL;
 
+/** `fetch`, with a message that says which thing is unreachable and what to do about it.
+ *
+ *  Node's own is `fetch failed`, and that string went all the way to a toast in the composer.
+ *  The router sleeps after 15 minutes (`--sleep-idle-seconds 900`), so a call failing at all is
+ *  most often the writer coming back to a machine that has put the model away — which is the one
+ *  case where "fetch failed" is both the likeliest message and the least useful one. */
+export async function reach(url: string, init: RequestInit): Promise<Response> {
+  try { return await fetch(url, init); }
+  catch (e: any) {
+    // AbortSignal.timeout fires TimeoutError; a caller cancelling fires AbortError. Neither
+    // means the server is missing, and saying so would send someone to restart a running one.
+    if (e?.name === 'TimeoutError')
+      throw new Error(`llama-server at ${HOST} did not answer in time. A model that was asleep can `
+        + 'take a minute to load — try again, or check Preferences.');
+    if (e?.name === 'AbortError') throw new Error('the call was cancelled');
+    throw new Error(`cannot reach llama-server at ${HOST}. It is not running, or it is still `
+      + 'starting. Preferences → Restart it.');
+  }
+}
+
 async function post(path: string, body: unknown, ms = 900_000): Promise<any> {
-  const res = await fetch(HOST + path, {
+  const res = await reach(HOST + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -46,7 +66,7 @@ export async function count(content: string, model = MODEL): Promise<number> {
  *  per-slot ceiling is n_ctx / total_slots = 25024, and any plan that trusts the
  *  reported number budgets 4x what it has. */
 export async function slotContext(): Promise<{ global: number; slots: number; perSlot: number }> {
-  const res = await fetch(`${HOST}/props?model=${encodeURIComponent(MODEL)}`, {
+  const res = await reach(`${HOST}/props?model=${encodeURIComponent(MODEL)}`, {
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new Error(`/props answered ${res.status}`);
@@ -124,7 +144,7 @@ export async function readSSE(res: Response, onDelta: (d: string) => void) {
 export async function chat(system: string, body: string, opts: Record<string, unknown> = {},
                            onDelta?: (d: string) => void) {
   if (onDelta) {
-    const res = await fetch(HOST + '/v1/chat/completions', {
+    const res = await reach(HOST + '/v1/chat/completions', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: MODEL, temperature: 0.85, top_p: 0.95, max_tokens: 900,
@@ -236,7 +256,7 @@ export async function router(action: 'stop' | 'start' | 'restart' | 'status') {
 }
 
 export async function models(): Promise<{ id: string; status: string }[]> {
-  const r = await fetch(`${HOST}/v1/models`, { signal: AbortSignal.timeout(15_000) });
+  const r = await reach(`${HOST}/v1/models`, { signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`/v1/models answered ${r.status}`);
   const d = await r.json() as any;
   return (d.data ?? []).map((m: any) => ({ id: String(m.id), status: m.status?.value ?? 'unknown' }))

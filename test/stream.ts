@@ -8,7 +8,7 @@
 //   node --experimental-strip-types test/stream.ts
 import assert from 'node:assert';
 import { createServer } from 'node:http';
-import { readSSE } from '../src/llama.ts';
+import { readSSE, reach } from '../src/llama.ts';
 
 let n = 0;
 const ok = (m: string, f: () => any) => Promise.resolve(f())
@@ -101,6 +101,34 @@ await ok('only `data:` lines are prose', async () => {
   const r = await readSSE(await fetch(url, { method: 'POST' }), (d) => seen.push(d));
   assert.deepStrictEqual(seen, ['One.'], 'a comment and a non-data frame contribute nothing');
   assert.strictEqual(r.prose, 'One.');
+});
+
+// ---- what the writer is told when the model is not there ----
+//
+// `--sleep-idle-seconds 900` means a writer coming back after lunch is the MOST likely caller to
+// hit a failure, and Node's own message for it is the string `fetch failed`, which went all the
+// way to a toast in the composer. F24 recorded it; these two say what replaced it.
+
+await ok('an unreachable llama-server says what to do, not "fetch failed"', async () => {
+  // Port 1 is privileged and nothing listens on it: a refused connection, not a timeout.
+  await assert.rejects(() => reach('http://127.0.0.1:1/v1/models', {}), (e: any) => {
+    assert.doesNotMatch(e.message, /^fetch failed$/, 'the bare Node message must not reach a toast');
+    assert.match(e.message, /cannot reach llama-server/);
+    assert.match(e.message, /Preferences/, 'and it must name the screen that can fix it');
+    return true;
+  });
+});
+
+await ok('a server that is merely slow is not reported as a missing one', async () => {
+  // A model that was asleep takes a minute to load and answers nothing meanwhile. Telling
+  // someone to restart a server that is busy loading is how a 60-second wait becomes a
+  // five-minute one.
+  const hang = createServer(() => { /* accept, never answer */ });
+  await new Promise<void>((r) => hang.listen(0, '127.0.0.1', () => r()));
+  const url = `http://127.0.0.1:${(hang.address() as any).port}/`;
+  await assert.rejects(() => reach(url, { signal: AbortSignal.timeout(80) }),
+    /did not answer in time/);
+  hang.close();
 });
 
 console.log(`\n${n} checks passed`);
