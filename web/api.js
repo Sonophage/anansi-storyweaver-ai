@@ -24,6 +24,46 @@ const j = async (u, m = 'GET', b) => {
   }
 };
 
+/** The same POST, read a line at a time. `onDelta` gets each fragment of prose as it is written;
+ *  the resolved value is the final line, which is exactly what the non-streaming route returns —
+ *  so a caller checks `.error` and reads `.prose` as it always did.
+ *
+ *  Never rejects, for the same reason `j` does not: a stream that dies mid-passage must not leave
+ *  `busy = true` and the composer disabled. */
+const jStream = async (u, b, onDelta) => {
+  let res;
+  try {
+    res = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...b, stream: true }) });
+  } catch { return { error: 'cannot reach Anansi — is the server still running?' }; }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 404 && data.error === 'not found')
+      return { error: `this Anansi server has no POST ${u} — it is running older code than this `
+        + 'page. Restart it and reload.' };
+    return { ...data, error: data.error ?? `the server said ${res.status}` };
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', last = null;
+  for (;;) {
+    let chunk;
+    try { chunk = await reader.read(); } catch { break; }
+    if (chunk.done) break;
+    buf += dec.decode(chunk.value, { stream: true });
+    let nl;
+    // Whole lines only. A JSON object split across two reads is not parseable until the rest
+    // of it arrives, and a passage is long enough for that to happen more than once.
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+      if (!line.trim()) continue;
+      let o; try { o = JSON.parse(line); } catch { continue; }
+      if (o.d != null) onDelta(o.d); else last = o;
+    }
+  }
+  return last ?? { error: 'the model stopped before it finished the passage.' };
+};
+
 export const api = {
   library:      ()               => j('/api/stories'),
   createStory:  (s)              => j('/api/stories', 'POST', s),
@@ -45,6 +85,7 @@ export const api = {
   delEntry:     (storyId, id)    => j('/api/entry', 'DELETE', { storyId, id }),
   manifest:     (o)              => j('/api/manifest', 'POST', o),
   generate:     (o)              => j('/api/generate', 'POST', o),
+  generateLive: (o, onDelta)     => jStream('/api/generate', o, onDelta),
   summarize:    (storyId, chapterId) => j('/api/summarize', 'POST', { storyId, chapterId }),
   search:       (q, story)       => j(`/api/search?q=${encodeURIComponent(q)}`
     + (story ? `&story=${encodeURIComponent(story)}` : '')),

@@ -1467,6 +1467,31 @@ async function openStory(id) {
 /** Show that a call is in flight, and which one. A generation is 20-40 seconds against a local
  *  model; a composer that just goes quiet reads as a hung page. `kind` colours the bar, because
  *  the five actions do different things and the wait is long enough to forget which you pressed. */
+/** The passage as it is being written, at the end of the chapter you are reading.
+ *
+ *  It is NOT in the document — nothing is saved until the stream finishes and `accept` returns —
+ *  so it lives outside `drawDoc`'s innerHTML and is removed by `unghost` either way. Streaming
+ *  never calls paint(), so it cannot collide with a redraw, and it cannot eat a draft.
+ *
+ *  Scroll only when you were already at the bottom: yanking the page down while someone is
+ *  reading an earlier paragraph is worse than not following the text. */
+function ghost(text) {
+  const col = $('col'); if (!col) return;
+  let g = document.getElementById('ghost');
+  if (!g) {
+    g = document.createElement('div');
+    g.id = 'ghost'; g.className = 'block ghost';
+    g.appendChild(document.createElement('div')).className = 'narr';
+    col.appendChild(g);
+  }
+  // textContent, not innerHTML: this is untrusted model output arriving a fragment at a time,
+  // and a half-written "<" would be a half-written tag.
+  g.firstChild.textContent = text;
+  const read = $('read');
+  if (read && read.scrollHeight - read.scrollTop - read.clientHeight < 400) read.scrollTop = read.scrollHeight;
+}
+const unghost = () => document.getElementById('ghost')?.remove();
+
 function working(kind) {
   const el = $('working');
   if (!el) return;
@@ -1533,8 +1558,11 @@ async function generate(mode = S.mode) {
   S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
-  const r = await api.generate({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
-    directive: YOURS ? undefined : (typed || undefined), speaker: who });
+  let live = '';
+  const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
+    directive: YOURS ? undefined : (typed || undefined), speaker: who },
+    (d) => ghost(live += d));
+  unghost();
   if (r.error) { S.busy = false; drawDock(); working(null); return toast(r.error); }
   MANI = r.manifest;
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
@@ -1558,8 +1586,15 @@ async function regenerateLast() {
 async function regenerateInto(id) {
   if (S.busy) return;
   S.busy = true; drawDock(); drawBar(); working('reroll');
-  const r = await api.generate({ storyId: S.storyId, mode: S.mode, regenerateOf: id, chapterId: V.currentChapter.id,
-    speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined });
+  // A reroll of the LAST passage writes at the bottom, so the ghost belongs there too. Rerolling
+  // one further up would put it in the wrong place, so that one waits — the take replaces a
+  // paragraph you can already see, which is a different kind of wait from a blank page.
+  const atEnd = V.passages.filter((p) => !p.isBreak).at(-1)?.id === id;
+  let live = '';
+  const r = await api.generateLive({ storyId: S.storyId, mode: S.mode, regenerateOf: id, chapterId: V.currentChapter.id,
+    speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined },
+    atEnd ? (d) => ghost(live += d) : () => {});
+  unghost();
   if (r.error) { S.busy = false; drawDock(); drawBar(); working(null); return toast(r.error); }
   const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id, rejected: true,
     chapterId: V.currentChapter.id });

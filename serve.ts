@@ -70,6 +70,22 @@ createServer(async (req, res) => {
       if (!db.ownsStory(sid, OWNER)) return send(res, 404, { error: 'no such story' });
     }
     const out = await handler(ctx);
+    // NDJSON, not SSE: EventSource cannot POST, and every generation carries a body. One JSON
+    // object per line — `{d}` for a delta, and the last line is exactly what the non-streaming
+    // route would have returned, so the client's success path is unchanged.
+    //
+    // The 200 goes out before any work, so an error after that point cannot be a status code;
+    // it arrives as the final line and the client checks `.error` as it always has.
+    if (out && out.__stream) {
+      res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8',
+        'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' });
+      // ponytail: no backpressure. Deltas are a few bytes over loopback; if this ever fronts a
+      // real network, honour res.write's false and wait for 'drain'.
+      const send = (o: unknown) => res.write(JSON.stringify(o) + '\n');
+      try { send(await out.__stream(send)); }
+      catch (e: any) { send({ error: e?.message ?? String(e) }); }
+      return res.end();
+    }
     if (out && out.__raw) {
       const { type, filename, body } = out.__raw;
       res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8`,

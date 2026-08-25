@@ -81,7 +81,65 @@ export async function slotContext(): Promise<{ global: number; slots: number; pe
  *
  *  Cost: no raw buffer control, so DIRECTIVE-at-depth is bounded by the template.
  *  Revisit if a non-reasoning model is chosen. */
-export async function chat(system: string, body: string, opts: Record<string, unknown> = {}) {
+/** Read one llama-server SSE body, handing each delta to `onDelta` as it lands.
+ *
+ *  Exported for `test/stream.ts`, which drives it from a fake server: a `data:` line split
+ *  across two network reads is the classic way a hand-written SSE reader loses a token, and
+ *  that case cannot be produced by asking the real model nicely. */
+export async function readSSE(res: Response, onDelta: (d: string) => void) {
+  const out = { prose: '', reasoning: '', usage: {} as any, timings: {} as any };
+  const reader = res.body!.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let nl: number;
+    // Only whole lines. Half a `data:` frame is not JSON, and the rest of it is in the next read.
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (payload === '[DONE]') continue;
+      let o: any;
+      try { o = JSON.parse(payload); } catch { continue; }
+      // llama-server reports a mid-stream failure in-band, after a 200. Silently returning the
+      // prose written so far would present a truncated passage as a finished one.
+      if (o.error) throw new Error(o.error.message ?? JSON.stringify(o.error));
+      const d = o.choices?.[0]?.delta ?? {};
+      if (d.content) { out.prose += d.content; onDelta(d.content); }
+      if (d.reasoning_content) out.reasoning += d.reasoning_content;
+      // Both ride on the final chunk, and only when stream_options asked for usage.
+      if (o.usage) out.usage = o.usage;
+      if (o.timings) out.timings = o.timings;
+    }
+  }
+  return { ...out, prose: out.prose.trim() };
+}
+
+/** `onDelta` turns the same call into a stream. Everything else — the model, the sampler,
+ *  thinking off, the return shape — is identical, so `generate` has one code path and the
+ *  caller decides whether the writer is watched or waited for. */
+export async function chat(system: string, body: string, opts: Record<string, unknown> = {},
+                           onDelta?: (d: string) => void) {
+  if (onDelta) {
+    const res = await fetch(HOST + '/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: MODEL, temperature: 0.85, top_p: 0.95, max_tokens: 900,
+        chat_template_kwargs: { enable_thinking: false },
+        messages: [{ role: 'system', content: system }, { role: 'user', content: body }],
+        ...opts,
+        // Last, so no caller can turn streaming off while asking for deltas. include_usage is
+        // what puts the token counts on the final chunk; without it logGeneration records nulls.
+        stream: true, stream_options: { include_usage: true },
+      }),
+      signal: AbortSignal.timeout(900_000),
+    });
+    if (!res.ok) throw new Error(`/v1/chat/completions ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    return readSSE(res, onDelta);
+  }
   const r = await post('/v1/chat/completions', {
     model: MODEL, temperature: 0.85, top_p: 0.95, max_tokens: 900,
     // Chain-of-thought off. MEASURED: with thinking on, this model spent the entire

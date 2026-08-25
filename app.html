@@ -112,6 +112,14 @@ input, textarea { font:inherit; color:inherit; }
    358 passages it would be a slow one. The renderer marks it; `:last-of-type` cannot, because it
    means "last <div>" and the chapter pager is a div that comes after every block. */
 #col .block.newest { animation:rise var(--t-slow) var(--ease-out) both; }
+/* The passage as it arrives. Dimmed and carried by a caret, because it is not in the book yet:
+   nothing is saved until the stream ends and accept returns. It replaces a p50 of 5.7 seconds
+   of blank page, which read as a hung app (COUNCIL-04 #3). */
+#col .block.ghost .narr { opacity:.74; }
+#col .block.ghost .narr::after { content:'▍'; color:var(--gold); margin-left:1px;
+  animation:caret 1.1s steps(2, jump-none) infinite; }
+@keyframes caret { 50% { opacity:0; } }
+@media (prefers-reduced-motion: reduce) { #col .block.ghost .narr::after { animation:none; } }
 
 /* A panel's contents SETTLE in after the panel itself has arrived, so the two reads as one move
    rather than a race. The delay is the panel's own transition, near enough. */

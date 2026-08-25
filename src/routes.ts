@@ -53,7 +53,8 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
   return body?.storyId ?? body?.id ?? body?.into ?? query.get('story') ?? null;
 }
 
-async function generate(c: Ctx, mode: string, directive: string | undefined, role = 'prose') {
+async function generate(c: Ctx, mode: string, directive: string | undefined, role = 'prose',
+                        onDelta?: (d: string) => void) {
   // Generating into the chapter you are reading, for the same reason writing does — and it also
   // decides the CONTEXT: revising chapter three should see chapter three, not the whole book.
   const v = viewOf(c.body.storyId, c.body.chapterId);
@@ -81,7 +82,7 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
     // The story's own model, or the process default. `chat` spreads opts over its own defaults,
     // so naming it here is all it takes — every call has always carried a model name.
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
-      { ...sampler, model: using, chat_template_kwargs: { enable_thinking: !!thinking } });
+      { ...sampler, model: using, chat_template_kwargs: { enable_thinking: !!thinking } }, onDelta);
     const ms = Date.now() - t0;
     const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
       params: c.gen, manifest, promptTokens: r.usage?.prompt_tokens,
@@ -552,7 +553,13 @@ export const routes: Record<string, Handler> = {
     try { exact = await count(prompt, modelFor(v.story)); } catch { /* model asleep */ }
     return { manifest, prompt, exact };
   },
-  'POST /api/generate': (c) => generate(c, c.body.mode ?? 'direct', c.body.directive),
+  // Streaming is opt-in per call, not a second route: the gate, the budget check, the /tokenize
+  // and the generation log are the same code either way. p50 was 5.7s of blank page before the
+  // first word appeared (COUNCIL-04 #3), which read as a hung app and got Continue pressed twice.
+  'POST /api/generate': (c) => c.body.stream
+    ? { __stream: (send: (o: unknown) => void) =>
+        generate(c, c.body.mode ?? 'direct', c.body.directive, 'prose', (d) => send({ d })) }
+    : generate(c, c.body.mode ?? 'direct', c.body.directive),
 
   'POST /api/summarize': async (c) => {
     const r = await summarise(c, c.body.storyId, c.body.chapterId);
