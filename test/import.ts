@@ -7,6 +7,7 @@ for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-import.db'
 rmSync('/tmp/anansi-import-out', { recursive: true, force: true });
 const db = await import('../src/db.ts');
 const imp = await import('../src/import.ts');
+const { DatabaseSync } = await import('node:sqlite');
 
 let n = 0;
 const ok = (m: string) => { n++; console.log(`  ok  ${m}`); };
@@ -225,6 +226,92 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.ok(db.ownsStory(r.storyId, other));
   assert.ok(!db.ownsStory(r.storyId, owner), 'an import must not land in someone else\'s library');
   ok('an imported story is owned by the importer and nobody else');
+}
+
+// Every story-scoped table must EITHER survive an export and re-import, or be listed here with a
+// reason. The tables are discovered from the schema rather than typed, so one added later fails
+// this check instead of being quietly dropped on the way back in.
+//
+// This exists because outfits were exactly that: exportStory carried them, fromExport never read
+// them, and a round trip returned every character naked. Nothing connected the two halves.
+// test/web.ts has the same shape of guard for api methods with no caller — this is the
+// persistence version of it.
+const NOT_CARRIED: Record<string, string> = {
+  branches: 'an import is a NEW story on a fresh primary branch — forks do not travel',
+  generations: 'the call log belongs to the machine that made the calls, not to the book',
+  violations: 'flags are re-derived by the checker against the imported prose',
+  proposals: 'an unaccepted proposal is a queue, not canon — carrying it would be accepting it for you',
+  chapter_pins: 'a pin names a chapter, and chapters do not survive the trip — see chapters',
+  arcs: 'act-level summaries cover chapter ranges, which do not survive the trip',
+  chapters: 'KNOWN GAP: every passage lands in chapter one. A book that leaves as twelve chapters '
+    + 'comes back as one. Recorded here rather than hidden, because the importer has never carried '
+    + 'chapter divisions and nothing said so.',
+};
+
+{
+  // Rich enough to exercise the gap: several chapters, a fork, and a row in every story-scoped
+  // table. A one-chapter story cannot show that chapters do not travel — `createStory` makes one
+  // on the way in and the counts match by accident.
+  const src = db.createStory(owner, { title: 'Every table', genre: 'noir', premise: 'A round trip.' });
+  const e = db.upsertEntry(src.id, owner, { title: 'Someone', body: '[a person]', activation: 'triggered', keys: ['k'] });
+  const fit = db.upsertOutfit(src.id, e, { name: 'Coat', body: 'oiled canvas' });
+  db.wearOutfit(src.id, e, fit);
+  let ch = db.chapters(src.id)[0].id;
+  for (let i = 0; i < 3; i++) {
+    const p = db.addPassage({ storyId: src.id, branchId: src.branchId, chapterId: ch, body: `passage ${i}` });
+    db.setPin(src.id, ch, e, 'force_in');
+    if (i === 0) db.addViolation(src.id, { passageId: p, entryId: e, quote: 'q', reason: 'r', confidence: 0.7 });
+    if (i === 1) db.addProposal(src.id, { chapterId: ch, title: 'A fact', body: '[new]', entryType: 'lore', kind: 'new' });
+    if (i < 2) ch = db.endChapter(src.id, src.branchId).opened;
+  }
+  db.addArc(src.id, { branchId: src.branchId, fromChapter: 1, toChapter: 2, title: 'Act one', summary: 'It happened.' });
+  db.logGeneration({ storyId: src.id, chapterId: ch, model: 'test', role: 'prose' });
+  db.forkBranch(src.id, src.branchId, 1, 'a fork');
+
+  const { file } = db.exportStory(src.id, owner, '/tmp/anansi-import-out');
+  const shipped = new DatabaseSync(file, { readOnly: true });
+  const tables = (shipped.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as any[])
+    .map((t: any) => t.name)
+    .filter((t: string) => (shipped.prepare(`PRAGMA table_info(${t})`).all() as any[])
+      .some((c: any) => c.name === 'story_id'));
+  shipped.close();
+
+  const back = imp.absorb(owner, imp.fromExport(file));
+  // Counted by opening the working database directly rather than by adding an accessor to db.ts:
+  // a test does not get to widen the module's surface, and scope.ts already reads a file this way.
+  const live = new DatabaseSync(process.env.ANANSI_DB!, { readOnly: true });
+  // On the PRIMARY branch only, where a table has one. A fork copies rows under the same story_id,
+  // so counting by story alone reported passages 4 -> 3 and called it a loss — when the missing
+  // row was the fork's copy, and forks deliberately do not travel.
+  const branched = (t: string) => (live.prepare(`PRAGMA table_info(${t})`).all() as any[])
+    .some((c: any) => c.name === 'branch_id');
+  const count = (t: string, story: string) => ((branched(t)
+    ? live.prepare(`SELECT COUNT(*) c FROM ${t} WHERE story_id = ?
+                      AND branch_id = (SELECT id FROM branches WHERE story_id = ? AND is_primary = 1)`)
+        .get(story, story)
+    : live.prepare(`SELECT COUNT(*) c FROM ${t} WHERE story_id = ?`).get(story)) as any).c;
+
+  const short: string[] = [], kept: string[] = [];
+  for (const t of tables) {
+    const had = count(t, src.id), now = count(t, back.storyId);
+    if (!had) continue;
+    if (now < had) { if (!(t in NOT_CARRIED)) short.push(`${t} (${had} -> ${now})`); }
+    else kept.push(t);
+  }
+  live.close();
+
+  assert.deepStrictEqual(short, [],
+    `these tables lost rows on a round trip and are not listed as deliberately not carried: `
+    + `${short}. Either read them in fromExport, or add them to NOT_CARRIED with the reason.`);
+  // The list must not rot: a table that has learned to travel should stop claiming it cannot.
+  const stale = Object.keys(NOT_CARRIED).filter((t) => kept.includes(t));
+  assert.deepStrictEqual(stale, [],
+    `these tables are listed as not carried but arrived intact: ${stale}. Remove them from the list.`);
+
+  console.log(`      (${tables.length} story-scoped tables: ${kept.length} travel, `
+    + `${Object.keys(NOT_CARRIED).length} deliberately do not)`);
+  ok('every story-scoped table either survives a round trip or says why not');
 }
 
 console.log(`\n${n} checks passed`);
