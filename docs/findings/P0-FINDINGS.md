@@ -885,3 +885,49 @@ here.
 old value back. Not reproducible in the F-series sense: one model, one question, one run per row.
 It establishes the mechanism, not a rate.
 
+---
+
+## F26 — A voice for Anansi. Two of the three things it was doing wrong stopped; the third is variable, and the first detector I wrote could not see it.
+
+Seth: *"we need a specific personality set for anansi so that its not just raw ai. it should sound
+like anansi, direct but with a bit of flair."*
+
+Four probes through `POST /api/talk` on a copy of *Sutera Remembers*, one model, sequential — so
+this is behaviour, not a rate. The arms are not simultaneous and nothing is seeded.
+
+| probe | before | after |
+|---|---|---|
+| "the long answer" | 3,215 ch, no directive | 3,205 ch, no directive |
+| "what colour are Vel's eyes" | 121 ch, **1 unasked proposal** | 43 ch, cited, none |
+| "set up a scene" | 1,105 ch, directive in the field | 473 ch, directive in the field |
+| "who is Vel, in one line" | 133 ch, **1 unasked proposal** | 138 ch, none |
+
+**Two over-corrections, caught by re-probing rather than by reading the prompt.** Adding *"a
+directive goes in the directive field and nowhere else"* made it fill that field on **all four**
+probes, including "who is Vel" — an unwanted directive opens a card the writer has to dismiss. And
+*"one line if one line does it"* plus *"a short answer is a good answer"* produced a **six-character
+reply**: `Green.` Uncited, from nowhere, which is the one thing the panel exists not to do. Both
+needed the opposite instruction written next to them — *only when asked, otherwise leave it empty*,
+and *short is not uncited*, and *long when they ask for long*.
+
+**What is not fixed:**
+
+- **Instructions still leak into the reply.** The setup probe, after the change: bleed, in the
+  reply, alongside a correctly-filled directive field.
+- **Unasked proposals are variable, not gone.** Two runs of the same "long answer" probe: **4
+  proposals, then 0.** The four-of-four zero in the table above is one sample of each probe, and it
+  is not evidence the behaviour stopped.
+
+**The detector was wrong first.** The bleed regex I started with matched a list of openers — `end
+with`, `have her`, `write a scene`. It reported **no bleed** on a reply ending *"let Vel's dialogue
+cut between the surreal imagery and the raw intimacy of their history"*, which is an instruction
+wearing a different verb. Widened to cover `let X`, `show X …ing`, `focus on`, `lean into`, `resist
+the urge`, `don't let`, and the setup probe went red immediately. **The first version of this
+finding would have said the bleed was fixed.** It still cannot see an instruction phrased as an
+observation, which is the next way it will hide.
+
+Both residuals are the same shape: the prompt forbids it and the model sometimes does it anyway.
+Neither is a candidate for more prompt: a proposal costs one dismissal in a queue that nothing
+reaches canon through, and that is the accept-first design working as designed. A code-side gate on
+proposals from a talk turn is a product decision, not a defect fix.
+
