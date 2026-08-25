@@ -108,6 +108,24 @@ sentence on why they cannot both hold, and your confidence from 0 to 1.
 
 Report nothing rather than reach. Most passages contradict nothing.`;
 
+/** The repair. A contradiction is the model's mistake, so the model is the one told about it —
+ *  before the passage reaches the page, not after it is on it as a red line the writer has to
+ *  read and act on.
+ *
+ *  "Change only those sentences" is the whole prompt. Asked to fix a passage, this model rewrites
+ *  it: same events, different prose, and the writer loses the paragraph they were watching arrive
+ *  for a two-word factual slip. */
+export const MEND =
+`You wrote the passage below and it contradicts canon. Each contradiction is given as the
+canon fact and the words of yours that break it.
+
+Rewrite the passage so those words agree with canon. Change ONLY the sentences that are
+wrong. Every other sentence comes back word for word — same events, same order, same
+rhythm, same length. Do not improve anything. Do not add or remove a scene.
+
+Output the corrected passage and nothing else: no preamble, no list of what you changed,
+no apology.`;
+
 /** The id list is built per call from the entries that actually reached this prompt, so an
  *  id the model invents is not representable. Small integers rather than uuid literals:
  *  an alternation of forty 32-character strings is a large grammar for one choice. */

@@ -1,7 +1,7 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structured, structuredRetry, model, models, setModel, allowList, modelFor, router, webSearch, searchConfigured } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, TALK, TALK_SCHEMA } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, TALK, TALK_SCHEMA } from './prompts.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean } from './story.ts';
@@ -53,6 +53,73 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
   return body?.storyId ?? body?.id ?? body?.into ?? query.get('story') ?? null;
 }
 
+/** One detector, two callers. The check on a saved passage and the repair of a passage on its
+ *  way to the page have to agree about what a contradiction is, and when they were two copies of
+ *  this filter they would have drifted on the first change to either. */
+async function contradictionsIn(facts: { id: string; body: string }[], text: string) {
+  if (!facts.length) return { found: [] as any[] };
+  const numbered = facts.map((f, i) => `${i + 1}. ${f.body}`).join('\n');
+  const r = await structuredRetry(CHECK, `CANON:\n${numbered}\n\nPASSAGE:\n${text}`,
+    checkSchema(facts.length));
+  if (!r.data) return { found: [] as any[], error: r.error ?? 'the check returned nothing usable' };
+
+  // Only narration commits the story to a fact. A character may lie, be wrong, guess, or
+  // speak figuratively — the prompt says so and the model flags it anyway, so the filter is
+  // here rather than left to instruction. Deterministic, and it costs nothing.
+  const spans: [number, number][] = [];
+  for (const m of text.matchAll(/["“][^"”]*["”]/g))
+    spans.push([m.index!, m.index! + m[0].length]);
+  const inDialogue = (quote: string) => {
+    const at = text.indexOf(quote.slice(0, 40));
+    return at >= 0 && spans.some(([a, b]) => at >= a && at < b);
+  };
+  const found = (r.data.contradictions ?? []).filter((x: any) => {
+    if (!x?.quote) return false;
+    if (!text.includes(String(x.quote).slice(0, 30))) return false;  // must be in the passage
+    if (inDialogue(String(x.quote))) return false;                   // speech is not narration
+    return (x.confidence ?? 1) >= 0.6;
+  });
+  return { found };
+}
+
+/** The canon this call was actually shown, as facts. Both the check and the repair judge a
+ *  passage against what reached ITS prompt, never against the whole ledger — a triggered entry
+ *  that never fired is not something the model was told. */
+const factsFor = (v: any, manifest: any, chapterIndex: number) => {
+  const reached = new Set(manifest.blocks
+    .filter((b: any) => b.kind.startsWith('CANON') && b.state === 'included').map((b: any) => b.id));
+  return v.entries.filter((e: any) => reached.has(e.id))
+    // The chapter matters: an entry with a chapter state has a different body in chapter 6 than in
+    // chapter 1, and a passage is judged against the body in force where IT sits.
+    .map((e: any) => ({ id: e.id, body: resolveBody(e, chapterIndex) }))
+    .filter((f: any) => f.body.trim());
+};
+
+/** Contradictions are the model's mistake, so the model is the one told about them, before the
+ *  passage is delivered rather than after it is on the page as a red line for the writer to read
+ *  and act on. One attempt: what survives it still becomes a flag at accept, which is the net
+ *  that was already there.
+ *
+ *  Returns null when there is nothing to do, so the caller keeps the prose it had. */
+async function mend(v: any, manifest: any, prose: string, using: string, maxTokens: number) {
+  const facts = factsFor(v, manifest, v.currentChapter.index);
+  const { found } = await contradictionsIn(facts, prose).catch(() => ({ found: [] as any[] }));
+  if (!found.length) return null;
+  const broken = found.map((x: any) =>
+    `- Canon: ${facts[x.canon - 1]?.body}\n  You wrote: "${x.quote}"`).join('\n');
+  try {
+    const r = await chat(MEND, `${broken}\n\nPASSAGE:\n${prose}`,
+      { temperature: 0.3, max_tokens: maxTokens, model: using,
+        chat_template_kwargs: { enable_thinking: false } });
+    const fixed = clean(r.prose, v.story.stripPatterns);
+    // ponytail: a length floor is the whole guard against a repair that rewrites instead of
+    // correcting. It catches the empty answer, the refusal and the one-line summary; it cannot
+    // catch a same-length rewrite. Compare sentence-by-sentence if that turns out to happen.
+    if (fixed.length < prose.length * 0.6) return { prose, mended: 0, unfixed: found.length };
+    return { prose: fixed, mended: found.length, unfixed: 0 };
+  } catch { return null; }   // the writer keeps the passage; accept will flag it
+}
+
 async function generate(c: Ctx, mode: string, directive: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
   // Generating into the chapter you are reading, for the same reason writing does — and it also
@@ -87,9 +154,15 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
     const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
       params: c.gen, manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
+    // The streamed draft is provisional — the client discards the ghost and saves what this
+    // returns — so the correction happens here, in the window the writer already expects the
+    // passage to settle in. `mend` returns null when there is nothing wrong, which is most calls.
+    const prose = clean(r.prose, v.story.stripPatterns);
+    const m = await mend(v, manifest, prose, using, Number(c.gen.max_tokens) || 900);
     // Handed back so `accept` can tie the take to this call. The manifest is logged here, before
     // any passage exists, so nothing connected a take to the canon it was written against.
-    return { prose: clean(r.prose, v.story.stripPatterns), reasoning: r.reasoning.length,
+    return { prose: m?.prose ?? prose, reasoning: r.reasoning.length,
+             mended: m?.mended ?? 0, unfixed: m?.unfixed ?? 0,
              seconds: +(ms / 1000).toFixed(1), manifest, genId };
   } catch (e: any) {
     db.logGeneration({ storyId: v.id, model: using, role, manifest, error: e?.message, latencyMs: Date.now() - t0 });
@@ -170,39 +243,15 @@ async function check(c: Ctx, storyId: string, passageId: string) {
   // Rebuilding the manifest as of this passage gives exactly what it saw — the right
   // entries, with the right state in force for its chapter.
   const asOf = assemble(v, c.slot, 'direct', undefined, passage.ordinal);
-  const reached = new Set(asOf.manifest.blocks
-    .filter((b) => b.kind.startsWith('CANON') && b.state === 'included').map((b) => b.id));
   const chapter = v.chapters.find((ch) => ch.id === passage.chapterId) ?? v.currentChapter;
-  const facts = v.entries
-    .filter((e) => reached.has(e.id))
-    .map((e) => ({ id: e.id, title: e.title, body: resolveBody(e, chapter.index) }))
-    .filter((f) => f.body.trim());
+  const facts = factsFor(v, asOf.manifest, chapter.index);
   if (!facts.length) return { checked: 0, found: 0, violations: [] };
 
-  const numbered = facts.map((f, i) => `${i + 1}. ${f.body}`).join('\n');
-  const r = await structuredRetry(CHECK, `CANON:\n${numbered}\n\nPASSAGE:\n${passage.body}`,
-    checkSchema(facts.length));
-  if (!r.data) return { error: r.error ?? 'the check returned nothing usable' };
+  const { found, error } = await contradictionsIn(facts, passage.body);
+  if (error) return { error };
 
   db.clearViolations(passageId);   // re-checking replaces, it does not accumulate
 
-  // Only narration commits the story to a fact. A character may lie, be wrong, guess, or
-  // speak figuratively — the prompt says so and the model flags it anyway, so the filter is
-  // here rather than left to instruction. Deterministic, and it costs nothing.
-  const spans: [number, number][] = [];
-  for (const m of passage.body.matchAll(/["“][^"”]*["”]/g))
-    spans.push([m.index!, m.index! + m[0].length]);
-  const inDialogue = (quote: string) => {
-    const at = passage.body.indexOf(quote.slice(0, 40));
-    return at >= 0 && spans.some(([a, b]) => at >= a && at < b);
-  };
-
-  const found = (r.data.contradictions ?? []).filter((x: any) => {
-    if (!x?.quote) return false;
-    if (!passage.body.includes(String(x.quote).slice(0, 30))) return false;  // must be in the passage
-    if (inDialogue(String(x.quote))) return false;                            // speech is not narration
-    return (x.confidence ?? 1) >= 0.6;
-  });
   for (const x of found) {
     const f = facts[x.canon - 1];
     db.addViolation(storyId, { passageId, entryId: f?.id, quote: x.quote,
