@@ -100,6 +100,7 @@ export const api = {
   revert:       (o)              => j('/api/revert', 'POST', o),
   backup:       (storyId)        => j('/api/backup', 'POST', { storyId }),
   extract:      (storyId, chapterId) => j('/api/extract', 'POST', { storyId, chapterId }),
+  invent:       (storyId, o)     => j('/api/invent', 'POST', { storyId, ...o }),
   dismissFlag:  (storyId, id)    => j('/api/violation', 'POST', { storyId, id, status: 'dismissed' }),
   decide:       (o)              => j('/api/proposal', 'POST', o),
   saveOutfit:   (storyId, entryId, outfit) => j('/api/outfit', 'POST', { storyId, entryId, outfit }),

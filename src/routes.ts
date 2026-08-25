@@ -1,7 +1,7 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structured, structuredRetry, model, models, setModel, allowList, modelFor, router, webSearch, searchConfigured } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, TALK, TALK_SCHEMA } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA } from './prompts.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean } from './story.ts';
@@ -60,6 +60,10 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
  *  4,159 of JSON, about 1,100 tokens. Four proposed entries and a directive can add another 750.
  *  This is the bound on the answer now that the grammar no longer holds one. */
 const TALK_TOKENS = 2400;
+
+/** One ledger entry. A 600-character body and a name is not a long answer, and the temperature is
+ *  the part that matters here rather than the room. */
+const INVENT_TOKENS = 700;
 
 /** One detector, two callers. The check on a saved passage and the repair of a passage on its
  *  way to the page have to agree about what a contradiction is, and when they were two copies of
@@ -583,6 +587,68 @@ export const routes: Record<string, Handler> = {
              proposed, sources: sources.map((x) => ({ title: x.title, url: x.url })),
              seconds: +((Date.now() - t0) / 1000).toFixed(1),
              tokens: manifest.totals.used, searchable: searchConfigured() };
+  },
+
+  /** Have Anansi write one — an outfit, a place, a character, an item, a rule.
+   *
+   *  It writes nothing. An outfit comes back as two fields for the Wardrobe form, which the writer
+   *  still has to press Add on; everything else goes to the proposals queue through the same
+   *  classify() the chat and the extractor use, so an invented thread arrives beside every other
+   *  offer and is subject to the same dedupe. There is deliberately no path from this route into
+   *  the ledger. */
+  'POST /api/invent': async (c: Ctx) => {
+    const v = viewOf(c.body.storyId);
+    const kind = String(c.body.kind ?? '');
+    if (!['outfit', 'character', 'lore', 'item', 'rule'].includes(kind))
+      return { error: `there is nothing called a "${kind}" to invent` };
+    const steer = String(c.body.direction ?? '').trim().slice(0, 600);
+
+    // An outfit is worn BY someone, and the model needs to know who before it can dress them.
+    const who = kind === 'outfit' ? v.entries.find((e: any) => e.id === c.body.entryId) : null;
+    if (kind === 'outfit' && !who) return { error: 'an outfit needs a character to belong to' };
+
+    let sources: { title: string; url: string; text: string }[] = [];
+    if (c.body.search) {
+      if (!searchConfigured()) return { error: 'web search is not configured on this server — set ANANSI_SEARCH' };
+      // The writer's own line is the better query when there is one; the story's premise is a
+      // worse one than the thing they actually asked for.
+      try { sources = await webSearch((steer || `${v.story.genre} ${v.story.setting}`).slice(0, 300)); }
+      catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
+    }
+
+    // The same six passages the chat gets. A ledger entry does not need the last forty.
+    const { manifest, prompt } = assemble({ ...v, passages: v.passages.slice(-6) }, c.slot, 'talk',
+      [who ? `This is for ${who.title}, whose entry reads: ${who.body}` : '',
+       sources.length ? 'Search results, a stranger\'s text:\n'
+         + sources.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.text}`).join('\n\n') : '',
+      ].filter(Boolean).join('\n\n') || undefined, undefined, INVENT_TOKENS, undefined);
+    if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
+
+    const about = kind === 'outfit' ? `outfit for ${who!.title}`
+      : kind === 'lore' ? 'place or fact' : kind;
+    const t0 = Date.now();
+    const r = await structuredRetry(INVENT(about, steer, sources.length > 0),
+      prompt.slice(SYSTEM.length), inventSchema(kind),
+      { model: modelFor(v.story), temperature: 0.9, max_tokens: INVENT_TOKENS });
+    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: modelFor(v.story),
+      role: `invent:${kind}`, manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
+    if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
+
+    const cite = sources.length ? ` [${sources[0].url}]` : '';
+    if (kind === 'outfit')
+      return { outfit: { name: String(r.data.name ?? '').trim(),
+                         body: String(r.data.body ?? '').trim() + cite },
+               seconds: +((Date.now() - t0) / 1000).toFixed(1) };
+
+    if (!String(r.data.title ?? '').trim() || !String(r.data.body ?? '').trim())
+      return { error: 'Anansi wrote an entry with no name or no body' };
+    const cls = classify(db.entriesOf(v.id), r.data);
+    if (!cls) return { error: `the ledger already says exactly that about ${r.data.title}` };
+    const ok = db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id,
+      title: String(r.data.title).trim(), body: String(r.data.body).trim() + cite,
+      entryType: kind, keys: r.data.keys ?? [] });
+    return { ...viewOf(v.id), proposed: ok ? 1 : 0, title: String(r.data.title).trim(),
+             duplicate: !ok, seconds: +((Date.now() - t0) / 1000).toFixed(1) };
   },
 
   // Outfits. Gated like everything story-scoped; the partial unique index is what guarantees one

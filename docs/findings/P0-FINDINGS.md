@@ -931,3 +931,54 @@ Neither is a candidate for more prompt: a proposal costs one dismissal in a queu
 reaches canon through, and that is the accept-first design working as designed. A code-side gate on
 proposals from a talk turn is a product decision, not a defect fix.
 
+---
+
+## F27 — "Have Anansi write one" took three passes to stop being useless, and pass one reproduced F25 inside a day.
+
+Seth: *"outfits, locations, new threads, should leverate the ai so it can create one itself, off of
+one button or the user can direct it and then it creates one based off of that."*
+
+Four probes on a copy of *Sutera Remembers*, through `POST /api/invent`, after each revision of the
+prompt and schema. One model, sequential, ~7s a call.
+
+**Pass 1 — it wrote well and filed nothing usable.**
+
+| probe | what came back |
+|---|---|
+| outfit, steered "she is in mourning" | 400 characters of paragraph, cut at `stitched with the same Old Script that binds *W` |
+| character, its own invention | 600 characters, cut at `vials of glass filled with the echo of a *` |
+| lore, steered | good entry, `keys: ["The Synod of the Hollow", "ascetic", "white bone masks", "upper tiers/Celestial towers"]` |
+| character | `keys: ["name", "attribute", "relation"]` |
+
+**The maxLength caps I had just written F25 about, reintroduced in the schema of a new route on the
+same day.** 400 and 600, both hit exactly, both cut mid-word, both still valid JSON — so both would
+have entered the ledger as half a sentence. Nothing was prose-shaped either: every body came back as
+flowing description rather than the bracket form the ledger holds and the context window renders.
+
+**Pass 2 — the caps gone and the bracket form asked for, and it broke the two-field case.** The
+outfit's `name` filled with the first sixty characters of its own body (`"The Murmur, attribute:
+widow's weeds of black oilcloth and t"`), the outfit's body described *the character* rather than the
+clothes, and a steered lore entry took the steer verbatim as its title: `"a rival congregation in the
+upper tiers"`. One format instruction cannot serve a two-field outfit and a three-field ledger entry.
+
+**Pass 3 — a format block per kind, and the steer demoted to a brief.**
+
+    outfit  "Mourning grey"  [wearing: charcoal wool coat, heavy with ash, slit at the hem
+                              for movement, no lace, no softness]
+    lore    "The Pale Liturgy"  [Name: The Pale Liturgy, attribute: rival high-tier congregation,
+                                 relation: rivals to the Rust Choir …]   keys: Pale Liturgy,
+                                 Celestial towers, high-tier, Rust Choir
+
+The outfit body says only what is worn, because it is appended to her entry while the outfit is on
+and repeating who she is costs those tokens twice. The steer is *"what they want, not what to call
+it"* — which is what stopped the title being a parrot of the brief.
+
+**Still wrong, small:** `keys` sometimes includes the title again, which the prompt tells it not to.
+
+**What the route does not do, and this is the point of it:** nothing it returns is saved. The outfit
+arrives in the Wardrobe fields with Add still unpressed; a thread goes to the proposals queue through
+the same `classify()` the chat and the extractor use — the unsteered character probe returned **The
+Wax**, which the ledger already has, and came back `proposed 0, duplicate`. Twelve entries before the
+four calls and twelve after. `test/talk.ts` holds that: saving the outfit, or writing the entry
+instead of proposing it, each turn an assertion red.
+

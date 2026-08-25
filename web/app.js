@@ -93,7 +93,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'fontpick', 'sizepick', 'mode', 'take', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
-  'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock',
+  'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
@@ -487,6 +487,10 @@ const PANELS = {
         <button class="btn" data-newentry="${esc(S.lore.kind)}">New ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}</button>
         <div class="hint">Opens an empty entry for you to fill in. Nothing reaches the model until
           it has a body.</div>
+        ${inventTray(S.lore.kind, `Or have Anansi write ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}`,
+                     'a rival cartographer, or nothing at all and let it choose')}
+        <div class="hint">It goes to the proposals queue under Chapter, like everything else Anansi
+          offers. Nothing is canon until you accept it.</div>
 
         <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Or read the chapter</div>
         <button class="btn ghost" data-loreread="1">Scan ${esc(V.currentChapter.title || `chapter ${V.currentChapter.index}`)} for facts</button>
@@ -944,6 +948,29 @@ function ctxTabs() {
   return `<div style="display:flex; gap:6px; margin-bottom:14px">${t('blocks', 'Blocks')}${t('prompt', 'Prompt sent')}</div>`;
 }
 
+/** The same three controls wherever something can be invented: a line of direction, the web-search
+ *  switch, and the button. No state in S: the direction and the switch are read off the DOM when
+ *  the button is pressed, and the button reports its own progress in place — a paint() here would
+ *  eat the sentence the writer had just typed into the box, which is COUNCIL-04's composer defect
+ *  in a different panel. */
+function inventTray(kind, label, placeholder) {
+  const searchable = V?.searchable !== false;
+  return `<div style="display:flex; flex-direction:column; gap:7px; margin-top:4px;
+      padding-top:9px; border-top:1px solid var(--line)">
+    <textarea class="field" data-invdir placeholder="${esc(placeholder)}"
+      style="min-height:44px; font-size:12.5px"></textarea>
+    <div style="display:flex; align-items:center; gap:9px">
+      <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
+        searchable ? 'var(--mute)' : 'var(--faint)'}"
+        title="${searchable ? 'Look it up on the web first' : 'Set ANANSI_SEARCH on the server to enable this'}">
+        <input type="checkbox" data-invsearch ${searchable ? '' : 'disabled'}> Search the web
+      </label>
+      <button class="btn ghost" data-invent="${esc(kind)}"
+        style="margin-left:auto; width:auto; padding:0 16px; height:34px">${label}</button>
+    </div>
+  </div>`;
+}
+
 function entryEditor() {
   const e = V?.entries.find((x) => x.id === S.entryId);
   if (!e) return `<div class="hint">That entry is gone.</div>`;
@@ -988,7 +1015,10 @@ function entryEditor() {
       <input class="field" data-of="name" placeholder="Plate, court dress, travelling…">
       <textarea class="field" data-of="body" placeholder="What the model reads while it is worn"
         style="min-height:52px"></textarea>
-      <button class="btn ghost" data-addoutfit="1">Add an outfit</button></div>` : ''}
+      <button class="btn ghost" data-addoutfit="1">Add an outfit</button>
+      ${inventTray('outfit', `Have Anansi dress ${esc(e.title)}`,
+                   'mourning, or travelling light, or whatever you already had in mind')}
+    </div>` : ''}
 
     <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Over time</div>
     <div class="hint" style="margin:0 0 8px">A fact can open at a later chapter. Before it opens it is
@@ -1707,6 +1737,31 @@ document.addEventListener('click', async (e) => {
     syncHash(); paint();
     return;
   }
+  if (d.invent) {
+    const dir = document.querySelector('[data-invdir]')?.value.trim() ?? '';
+    const search = !!document.querySelector('[data-invsearch]')?.checked;
+    const was = t.textContent;
+    t.textContent = search ? 'Looking it up…' : 'Writing…'; t.disabled = true;
+    working('direct');
+    const r = await api.invent(S.storyId, { kind: d.invent, entryId: S.entryId || undefined,
+      direction: dir || undefined, search });
+    working(null); t.disabled = false; t.textContent = was;
+    if (r.error) return toast(r.error);
+    if (r.outfit) {
+      // Straight into the form, unsaved. Add an outfit is still the writer's press — and filling
+      // the fields rather than writing the row is the whole difference between this and a
+      // generator that dresses her behind your back.
+      const name = document.querySelector('[data-of="name"]');
+      const body = document.querySelector('[data-of="body"]');
+      if (name) name.value = r.outfit.name;
+      if (body) body.value = r.outfit.body;
+      return toast(`Written, not saved — read it, then press Add an outfit.`);
+    }
+    V = await api.story(S.storyId, V.currentChapter.id); paint();
+    return toast(r.duplicate ? `The ledger already says that about ${r.title}.`
+                             : `${r.title} proposed — waiting under Chapter.`);
+  }
+
   if (d.addoutfit) {
     const name = document.querySelector('[data-of="name"]')?.value.trim();
     const body = document.querySelector('[data-of="body"]')?.value.trim();

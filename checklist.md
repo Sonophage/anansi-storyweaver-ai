@@ -191,7 +191,7 @@ Full write-up with line numbers: `docs/findings/COUNCIL-04.md`.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 143 checks, nine suites, no model needed
+node --experimental-strip-types test/all.ts    # 146 checks, nine suites, no model needed
 test/ui/run.sh                                 # 10 scenarios, headless browser, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 ```

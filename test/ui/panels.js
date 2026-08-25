@@ -196,6 +196,12 @@ await wait(400);
 ok("  and picking a kind changes what New would make",
    /New an object/.test(await page.text('#sideBody') || ''));
 ok("  scanning the chapter is offered without ending it", await page.visible('[data-loreread]'));
+// Have Anansi write one. The button is on the tray for whichever kind is selected, and the box
+// beside it is the writer's own steer.
+ok("  and Anansi can write one, for the kind you picked",
+   (await page.eval("document.querySelector('[data-invent]')?.dataset.invent")) === 'item');
+ok("  with a line of direction and the search switch",
+   await page.visible('[data-invdir]') && await page.visible('[data-invsearch]'));
 await page.click('[data-newlore="1"]');
 await wait(400);
 ok("  and it closes again", !/Write it down/.test(await page.text('#sideBody') || ''));
@@ -272,6 +278,15 @@ await page.eval("(async () => { await fetch('/api/outfit', { method:'POST', head
 await page.goto(B + "/#" + sid3 + "/threads");
 await wait(900);
 ok("outfits appear as chips under the character", await page.visible(`[data-wear^="${who.id}:"]`));
+// The Wardrobe form can write one too, for THIS character, and the button says whose it is.
+await page.click(`#page [data-entry="${who.id}"], [data-entry="${who.id}"]`);
+await wait(600);
+ok("  the Wardrobe offers to have Anansi write one",
+   (await page.eval("document.querySelector('[data-invent]')?.dataset.invent")) === 'outfit');
+ok(`  named for the character it dresses`,
+   (await page.eval("document.querySelector('[data-invent=\"outfit\"]')?.textContent") || '').includes(who.title));
+await page.goto(B + "/#" + sid3 + "/threads");
+await wait(700);
 const chips = await page.eval(`[...document.querySelectorAll('[data-wear^="${who.id}:"]')].map(b => b.textContent.trim()).join(',')`);
 console.log("  chips: " + chips);
 ok(`  one per outfit (${chips})`, /Plate/.test(chips) && /Travelling/.test(chips));

@@ -1,4 +1,5 @@
-// Anansi's answer is not cut off, and the room it is promised is the room it is given.
+// Anansi's two routes against a fake llama-server: /api/talk, whose answer must not be cut off and
+// whose promised room must be the room it is given, and /api/invent, which must never write.
 //
 // Driven against a FAKE llama-server, because both bugs are about numbers on the wire rather than
 // about anything the real model would say. What the real model DID say is written down in
@@ -26,10 +27,17 @@ const srv = createServer((req, res) => {
     const b = JSON.parse(raw || '{}');
     calls.push(b);
     const cut = breakFirst && calls.length === 1;
+    // Answer by the shape of the schema asked for, the same way test/mend.ts does: an outfit wants
+    // a name and a body, a ledger entry wants a title and keys, everything else is a reply.
+    const props = b.response_format?.json_schema?.schema?.properties ?? {};
+    const answer = props.keys ? { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]',
+                                  keys: ['choir', 'rust'] }
+      : props.name ? { name: 'Mourning grey', body: '[wearing: grey, unpinned, no scripture showing]' }
+      : { reply: LONG };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ choices: [{ message: { content: cut
-        ? JSON.stringify({ reply: LONG }).slice(0, 900)      // truncated mid-object, unparseable
-        : JSON.stringify({ reply: LONG }) } }],
+        ? JSON.stringify(answer).slice(0, 900)      // truncated mid-object, unparseable
+        : JSON.stringify(answer) } }],
       usage: { prompt_tokens: 400, completion_tokens: 900 } }));
   });
 });
@@ -112,6 +120,40 @@ assert.ok(Number(calls[1].max_tokens) > Number(calls[0].max_tokens),
   `the retry asked for ${calls[1].max_tokens} against the first call's ${calls[0].max_tokens}`);
 assert.strictEqual(retried.reply.length, LONG.length, 'and the second answer arrives whole');
 ok(`the retry raises the budget (${calls[0].max_tokens} then ${calls[1].max_tokens}), it does not lower it`);
+
+// ---- 5. invent hands back a draft and writes nothing to the ledger
+const invent = (o: any) => { calls = []; return routes['POST /api/invent']({
+  body: { storyId: story.id, ...o }, query: new URLSearchParams(), owner: me,
+  slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+  gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any); };
+
+const before = db.entriesOf(story.id).length;
+const vel = db.entriesOf(story.id).find((e: any) => e.title === 'Vel');
+
+const dressed: any = await invent({ kind: 'outfit', entryId: vel.id, direction: 'she is in mourning' });
+assert.ok(!dressed.error, dressed.error);
+assert.strictEqual(dressed.outfit.name, 'Mourning grey');
+assert.match(dressed.outfit.body, /^\[wearing:/, 'a ledger entry, not prose');
+assert.strictEqual(db.outfitsOf(story.id, vel.id).length, 0,
+  'the outfit is a draft for the Wardrobe form — pressing Add is still the writer\'s');
+// The writer's own line outranks the canon, so it has to actually reach the model.
+assert.match(String(calls[0].messages[0].content), /she is in mourning/,
+  'the direction is in the prompt, or the button did nothing with what they typed');
+ok('an invented outfit comes back as two fields and nothing is worn');
+
+const thread: any = await invent({ kind: 'lore', direction: 'a rival congregation' });
+assert.ok(!thread.error, thread.error);
+assert.strictEqual(thread.proposed, 1);
+assert.strictEqual(thread.title, 'The Rust Choir');
+assert.strictEqual(db.entriesOf(story.id).length, before,
+  'an invented thread is a PROPOSAL — the ledger is untouched until it is accepted');
+assert.ok(db.proposalsOf(story.id).some((p: any) => p.title === 'The Rust Choir'),
+  'and it is in the queue with everything else Anansi offers');
+ok('an invented thread lands in the proposals queue, not in the ledger');
+
+const junk: any = await invent({ kind: 'weapon' });
+assert.match(junk.error ?? '', /nothing called/, 'and a kind nobody defined is refused by name');
+ok('a kind that does not exist is refused rather than assembled');
 
 srv.close();
 console.log(`\n${n} checks passed`);
