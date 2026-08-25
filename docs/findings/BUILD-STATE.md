@@ -192,12 +192,18 @@ instruction and is never written down; Speak, Act and Narrate put the writer's t
 as theirs and the model answers it. `test/ui/model.js` asserts both halves, including the inverse:
 that a Direct instruction appears nowhere in the prose.
 
-### A round trip does not carry chapters — found 2026-08-24
+### A round trip does not carry chapters — surfaced and settled 2026-08-24
 
 Exporting a story and importing it back **flattens every chapter into one**. It has been true
 since the importer was written, and nothing said so: the import's own note names branches,
 revision history and generation logs as things that do not travel, and never mentions chapters.
 Seth's Sutera import landed as one chapter for exactly this reason.
+
+**Settled the same day. Seth: _"the importer works fine, nothing else uses chapters."_** So this
+is a decision rather than debt — chapter divisions are not load-bearing for an imported story, and
+carrying them would mean deciding what happens to their summaries, author's notes and pins, where
+pins name entries whose ids are fresh on the way in. Listed in `NOT_CARRIED` so a round trip's
+real behaviour stays visible, not because it is waiting to be built.
 
 `test/import.ts` now asserts, for every story-scoped table found in the schema, that it either
 survives a round trip or is on an explicit list with a reason. Of fifteen tables, ten carry a

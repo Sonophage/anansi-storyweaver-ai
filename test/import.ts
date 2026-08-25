@@ -243,9 +243,9 @@ const NOT_CARRIED: Record<string, string> = {
   proposals: 'an unaccepted proposal is a queue, not canon — carrying it would be accepting it for you',
   chapter_pins: 'a pin names a chapter, and chapters do not survive the trip — see chapters',
   arcs: 'act-level summaries cover chapter ranges, which do not survive the trip',
-  chapters: 'KNOWN GAP: every passage lands in chapter one. A book that leaves as twelve chapters '
-    + 'comes back as one. Recorded here rather than hidden, because the importer has never carried '
-    + 'chapter divisions and nothing said so.',
+  chapters: 'every passage lands in chapter one. Seth, 2026-08-24: "the importer works fine, '
+    + 'nothing else uses chapters" — so this is a decision, not a gap. Listed because a round trip '
+    + 'genuinely drops them and that should be visible, not because it wants building.',
 };
 
 {

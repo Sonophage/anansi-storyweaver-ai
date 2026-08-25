@@ -162,20 +162,6 @@ A line each is enough, and "none of these" is a real answer.
 
 ---
 
-## Found while you were out — one you should know about
-
-- [ ] **Exporting a story and importing it back flattens every chapter into one.** It has been
-      true since the importer was written and nothing said so — the import's own note names
-      branches, revision history and generation logs as things that do not travel, and never
-      mentions chapters. **Your Sutera import landed as one chapter for exactly this reason.**
-
-      Not fixed, because carrying chapters means deciding what happens to their summaries, their
-      author's notes and their pins — and pins name entries whose ids are fresh on the way in.
-      It is written down in `docs/findings/BUILD-STATE.md` and asserted, so it can no longer be
-      lost quietly. Say if you want it built.
-
----
-
 ## Still open
 
 ### Editing the prompts per account — needs a decision from you
