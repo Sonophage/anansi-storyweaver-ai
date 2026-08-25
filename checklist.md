@@ -1,197 +1,181 @@
-# Walk it yourself — round three, 2026-08-24, evening
+# Walk it yourself — round four, 2026-08-25
 
-Round two is gone from this file: every item on it is built and covered by a test. What is below
-is what landed while you were out, and it is a lot — five editor modes, the importer, the ritual,
-per-story models, Anansi, outfits, a naming pass, and streaming.
+Round three is gone from this file: everything on it is built, and everything you wrote in
+`bugs.md` against it has been done or has a finding saying why not. What is below is the new
+work — the answers you gave me, built — plus what is still open underneath it.
 
-**Restart the server first.** The one on 5174 started at 19:35 and HEAD is 20:20 — it is running
-code from before streaming, and the page will tell you so if you forget.
+**Restart the server first.** Every round three bug report started with a server older than HEAD.
 
 ```bash
 node --experimental-strip-types serve.ts     # http://127.0.0.1:5174
 ```
 
-You are on **Sutera Remembers**, chapter 2, 358 passages.
+You are on **Sutera Remembers**, chapter 2.
 
 Twenty minutes. Bugs go in `bugs.md`, under the matching heading.
 
 ---
 
-## 1 · The words changed everywhere — is it right?
+## 1 · The composer, and the passage arriving
 
-This is the one I most want your eye on, because it is your voice and I have already been wrong
-about it once. Six words for one thing became **threads**.
+The animation is the third version. Say if it is still clunky.
 
-- [ ] The rail says **Threads** inside a story, and **Threads** in the workspace.
-- [ ] The composer button says **+ Thread**.
-- [ ] A search result offers **Add to threads**; accepting one toasts **Woven in.**
-- [ ] A story card says **12 threads**, not "12 in the ledger".
-- [ ] **Context** still says **CANON** — on purpose. It is the engine's window and canon is the
-      engine's word for what reaches the prompt. Tell me if that reads as a seventh word rather
-      than as the one place the engine shows through.
+- [ ] Press **Continue**. A block appears **immediately** at the end of the chapter, saying
+      **WRITING** with a run of glyphs breathing beside it. That is the wait, not a hang.
+- [ ] The prose then fills in **behind** the glyphs, which stay at the writing edge as one block.
+- [ ] Nothing you have already read ever changes. The old version rescrambled the last sixteen
+      characters on every token, which is what made it feel like it was chewing.
+- [ ] The composer **stays where it is** for the whole call. It used to slide off the right edge
+      for the length of every generation — that was layout, not animation.
 
-> I built this as *canon* first, then found your own note in `DECISIONS.md` §6 and moved. The cost
-> is written down there: the serial-writer reviewer wanted **threads** for **plot promises** — the
-> letter unopened in chapter 6 — so if that ever gets built it needs a different word.
-
----
-
-## 2 · Streaming — the passage arrives as it is written
-
-- [ ] Press **Continue**. The prose appears **a fragment at a time**, dimmed, with a caret, at the
-      end of the chapter.
-- [ ] It is replaced by the real passage when it finishes. Nothing is saved until then.
-- [ ] Press Continue **again straight away**. The first word should arrive in **about a third of a
-      second** — the model keeps the prompt cached between calls.
-- [ ] The **first** call after the model has been asleep is still slow (~8s to the first word) and
-      shows the working bar. That is prompt processing; streaming does not touch it. F24.
-- [ ] **⋯ → Regenerate on the last passage** streams too. Regenerate further up does not, on
-      purpose — the take replaces a paragraph you can already see.
+> **Passages are half as long now.** `max_tokens` went 900 → 450, so a passage arrives in half the
+> time and the prompt gets those tokens back. If that is too short for you, Storyteller → Max
+> tokens, and tell me what number you land on.
 
 ---
 
-## 3 · The voice sample actually reaches the model now
-
-**Storyteller → Voice of the weave.**
-
-- [ ] Paste **a few hundred words of your own prose** — take them from Sutera.
-- [ ] Open **Context**. There is a **VOICE** block near the top, and it is **not shortened**.
-- [ ] Read the prompt (Context → the prompt view). The sample is **verbatim, unbracketed**, inside
-      `<voice>`, under one line telling the model it is a specimen and not part of the story.
-
-> It used to be `[Voice: …]` sharing a 250-token cap with point of view, the chapter's ending and
-> the register — so following the field's own hint guaranteed it was cut, and cut first, mid-word.
-> Spice 4 and 5 promise *"Vocabulary follows the writing sample"*; that is true for the first time.
-
----
-
-## 4 · Write into chapter one
-
-The thing I told you was deliberate, and was not.
-
-- [ ] Page back to **chapter 1**. Type a line. Send.
-- [ ] It lands **at the end of chapter 1**, and **you stay in chapter 1**.
-- [ ] The **Context** panel shows chapter 1's context, not the end of the book.
-
-> `/api/write` never received a chapter, so every passage went to `chapters.at(-1)` — off-screen,
-> against the wrong context. `DECISIONS.md` §5 described the correct behaviour and offered you three
-> options about it; the code was doing none of them. Fixed, tested through the route.
-
----
-
-## 5 · Anansi — the chat panel
+## 2 · Anansi has a voice
 
 Rail → **✻ Anansi**, inside a story.
 
-- [ ] Ask something about Sutera. It answers from the ledger and the chapter summaries, and cites
-      what it drew on.
-- [ ] Ask it for something that is not in the story. It should say **it does not say** rather than
-      invent.
-- [ ] Ask it to set something up. It may offer a **directive** — that lands in the composer, in
-      Direct mode, **unsent and editable**. It never writes into your book itself.
-- [ ] It may offer **threads**. They go to the proposals queue, same as extraction; nothing is
-      canon until you accept it.
-- [ ] The conversation is **ephemeral** — reload the page and it is gone. Say if you want it kept.
-- [ ] **Search the web** is present and **off**, with the reason next to it.
+- [ ] Ask it **what the story is about**. It answers at length — it used to stop dead at 1,400
+      characters, mid-word, and the answer looked finished. F25.
+- [ ] Ask it something short. It answers short, **and still says what it drew on**.
+- [ ] Ask it something the story does not say. "It does not say" is a whole answer.
+- [ ] Ask it to **set up a scene**. The directive goes in the card, not into the reply.
+- [ ] Ask it who someone is. **No directive card, no proposals.** A question is not a work order.
+
+> Two things F26 measured and did NOT fix: instructions still leak into the reply sometimes, and an
+> unasked proposal still happens — two runs of the same question gave four and then none. Tell me
+> if either is annoying enough to gate in code.
 
 ---
 
-## 6 · Outfits
+## 3 · Have Anansi write one
 
-**Threads → a character → Wardrobe.**
+**Threads → a character → Wardrobe**, and **+ Thread** on the composer bar.
 
-- [ ] Add two outfits. Wear one. Only one can be worn — the database enforces it, not the screen.
-- [ ] **Context** shows the entry with a **second bracket**: `[Ilva wears: …]`.
-- [ ] Give that character a **chapter state** as well (*From chapter N*). The outfit must **survive**
-      — the state rewrites the body and used to take the outfit with it, silently, while the panel
-      still said "worn".
+- [ ] Wardrobe: **Have Anansi dress her**, with or without a line of direction. It fills the two
+      fields and **does not save** — Add an outfit is still your press.
+- [ ] + Thread: pick a kind, write a line or leave it empty, **have Anansi write one**. It goes to
+      the proposals queue under Chapter. Nothing reaches the ledger.
+- [ ] Try one it already has. It should come back **duplicate**, not propose it twice.
+- [ ] **Search the web** is beside both, and off unless `ANANSI_SEARCH` is set.
 
----
-
-## 7 · Import
-
-- [ ] **Import** an AI Dungeon export or a character card. The **preview** says what it will add
-      before anything is written.
-- [ ] Import the **same file twice into the same story**. Nothing duplicates — including outfits,
-      which used to double every time.
+> Small, known: the trigger words sometimes include the title again, which the prompt says not to.
 
 ---
 
-## 8 · Per-story models, and putting the machine to bed
+## 4 · The character the model does not write
 
-**Preferences**, and **Storyteller → Model** inside a story.
+**Story → The model never writes.**
 
-- [ ] A story can **name its own model**. Saving a model the router does not serve is refused, with
-      the router's own message.
-- [ ] **Restart it** and **Release the models** both work. Release stops the unit; the next
-      generation says **"cannot reach llama-server … Preferences → Restart it"** rather than
-      `fetch failed`.
+- [ ] Name yourself there. Generate a few passages.
+- [ ] It should write **the room's answer** — what others say and do, what happens to you — and
+      stop where you would act.
+- [ ] Set it back to **Nobody** and generate again. The difference should be obvious.
+
+> Measured, F28, 25 generations an arm run simultaneously: dialogue for him **20% → 0%**, action
+> **76% → 25%**, and his interiority **24% → 17%, which is nothing at all**. Two of your three.
+> The model narrates his inner state because that is what third-limited prose IS, and one line in
+> the prompt does not move it. If you want that moved it needs its own attempt.
 
 ---
 
-## Still open — and none of it is waiting on me
+## 5 · Contradictions are the model's problem now
 
-These are COUNCIL-04's findings that I have not fixed, worst first. Say which matter and I will
-take them in that order.
+- [ ] Write something that contradicts a thread — say a character's eyes are the wrong colour in
+      canon, then generate into a scene about it.
+- [ ] The **flag should be rarer**: the model is now told what it broke and given one go at fixing
+      it before the passage is delivered.
+- [ ] When a flag does appear, it is one the model could not fix.
 
-- **The Context panel drowns at 358 passages.** Ninety-six identical `PROSE / prose 60% ceiling`
-  rows under the seven real ones, none clickable, under a footnote that says every row is. They
-  should collapse to one row with a count.
-- **Delete orphans every alternate take.** No confirm, no undo, and ✕ Delete sits next to
-  ↻ Regenerate. It does not promote a sibling, so the other takes stay in the database, invisible.
+> Not measured: this adds a check call to every generation, and a repair call when it fires. I do
+> not know what it costs you in seconds. Say the word and `bench/` will answer it.
+
+---
+
+## 6 · The Context panel
+
+- [ ] Rows are named for **where they go**: Premise & setting, Voice of the weave, Threads always
+      on, Point of view & register, Where you left off, The mode you picked.
+- [ ] Click one. You land on the panel that uses that word.
+- [ ] The dropped rows **collapse to one row per reason**, with a count and what it cost. Ninety-six
+      identical lines became one.
+
+---
+
+## 7 · Delete, and the model list
+
+- [ ] ⋯ → **Delete** on a passage with more than one take. It says **Delete take 2**, asks once,
+      and deletes on the second press.
+- [ ] The other takes are **still there** afterwards. They used to stay in the database, invisible.
+- [ ] **Preferences** and **Storyteller → Model** read as names now: *Write · Qwen3.6*, *no
+      thinking · uncensored*. The raw id is one hover away.
+
+> Two guesses in those names that are yours to confirm: I read `t`/`nt` as thinking and `-h` as
+> uncensored.
+
+---
+
+## Still open — COUNCIL-04, worst first
+
+Two came off this list in round three. Six left, and the order is still yours to set.
+
 - **Two of the five mode prompts produce slop.** Speak's *"speech, action, the room"* is a
-  checklist and a checklist gets filled — reply, gesture, weather. Direct and Continue carry length
-  targets, which is F18's defect pointed at prose.
+  checklist and a checklist gets filled. Direct and Continue carry length targets. **This is the
+  same sitting as the spice levels** and as making the prompts editable under Storyteller — the
+  defaults get re-cut first, then the editor gets built over them.
 - **The canon checker only checks entries that fired.** One rule decides both what the model is
-  told and what gets verified, and they fail together.
+  told and what gets verified. The detector is one function now, so the two cannot drift apart —
+  but they still fail together, which is the actual finding.
 - **Firing is imprecise at scale.** A 46-entry ledger fired all 46 for an eight-person scene.
-  `iron bridge` on *"the bridge was iron"*. The proximity bound `context.ts` deferred "until a real
-  ledger false-fires" — it does now.
 - **Chapter 120 does not fit** and `POST /api/rollup`, which fixes it, has no caller in the UI.
-- **Plot threads are not tracked.** Nothing registers an open promise. Named as the one absence
-  that would stop a serial writer using it.
+- **Plot threads are not tracked.** The one absence named as stopping a serial writer.
 - Smaller: `serve.ts` has no node-suite coverage and it holds the gate; `endChapter` is two writes
   with no transaction; `.db` import is uncapped; two in-flight races can leave the Context panel
   describing the previous book; the composer still eats drafts on panel-open and chapter-paging;
-  and `db.ts:138`'s `ponytail:` marker is false, which matters because that ledger is only worth
-  its accuracy.
+  `db.ts`'s false `ponytail:` marker; and the `.db` export drops `spice_note`, `max_context` and
+  `model` on a round trip.
 
 Full write-up with line numbers: `docs/findings/COUNCIL-04.md`.
 
 ---
 
-## Four decisions still want a line each
+## Four decisions, and F28 moved two of them
 
-`docs/plans/DECISIONS.md`. Two closed themselves since round two — §5 was a bug, and §6 is done.
+`docs/plans/DECISIONS.md`.
 
-1. **Interiority's shape**, now F21 has measured it. My recommendation is option A: build nothing.
-2. **The 82.5%** — the model narrates the protagonist's inner state in 82.5% of generations with
-   nothing in canon at all. Do you want that lower? Nothing has ever aimed at it.
+1. **Interiority's shape** — my recommendation is still option A, build nothing.
+2. **The 82.5%** — F28 now says a standing instruction in the prompt does not touch it. If you want
+   that number down it needs a different lever, and which one is your call.
 3. **Per-account prompt overrides** — where stored, how they compose, what a bad one does.
-4. **Character by prompt**, and what "reroll" re-rolls.
+4. **Character by prompt**, and what "reroll" re-rolls. Your answer in round three was: a global
+   lore entry reroll, or one entry, or one input box. Not built yet.
 
 ---
 
-## Measured while you were out
+## Measured since round three
 
 `docs/findings/P0-FINDINGS.md`.
 
-- **F21** — canon interiority comes back as narrator statement 47.5% of the time, and the model
-  already narrates interiority 82.5% of the time with nothing in canon.
-- **F22** — I was wrong that two 35B models would be tight. The writer is a 35B-**A3B** at 25.9 GiB.
-  Any two fit; three fit in several combinations.
-- **F23** — thinking and structured output do not compose. I argued for thinking ON in Anansi's
-  chat; **3 of the first 5 real calls failed** with unparseable JSON. F5 is not a fact about prose,
-  it is a fact about this model's budget under a token cap.
-- **F24** — the blank page was prefill, and prefill is nearly free warm: **7.8s** cold, **0.35s**
-  on the next call. One average was hiding two numbers, including the council's own p50.
+- **F25** — Anansi's cut-off answers were the grammar, not the token budget. Exactly 1,400
+  characters, mid-word, valid JSON. Two adjacent defects fell out of measuring it.
+- **F26** — the voice. Two over-corrections caught only by re-probing. Two residuals not fixed.
+- **F27** — the invent button took three passes, and pass one reproduced F25 the same day.
+- **F28** — the lockout. Dialogue to zero, action cut by two thirds, interiority untouched.
+
+Read F28's last section if you read nothing else: **the detector was wrong twice**, and the second
+time it survived a fixture built to fix the first, because the model re-genders characters against
+canon. Every rate in it is a floor.
 
 ---
 
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 146 checks, nine suites, no model needed
+node --experimental-strip-types test/all.ts    # 147 checks, nine suites, no model needed
 test/ui/run.sh                                 # 10 scenarios, headless browser, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
+node --experimental-strip-types bench/lockout.ts check    # F28's detectors, no model
 ```
