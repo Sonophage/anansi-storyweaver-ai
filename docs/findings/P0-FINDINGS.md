@@ -751,3 +751,41 @@ disturbed a box that was in use.
 presets and most have no business writing fiction. It is an env var rather than a setting, because
 which models an app may use is an operator's decision about the box — `test/web.ts` asserts no
 route can write it.
+
+---
+
+## F23 — Thinking and structured output do not compose. F5 applies to JSON, not just prose.
+
+Anansi's chat role shipped with `enable_thinking: true`, on the argument that F5's finding —
+thinking returns no prose — was about **prose**, and that analysis is what thinking is for. The
+argument was written into `PLAN-05-TALK.md` and the commit message as the reason the feature was
+worth building now.
+
+**It was wrong, and the first five real calls said so.** From `generations`:
+
+| latency | result |
+|---|---|
+| 25.4s | `model returned unparseable JSON` |
+| 22.2s | `model returned unparseable JSON` |
+| 13.0s | ok |
+| 23.6s | `model returned unparseable JSON` |
+| 16.1s | ok |
+
+**3 of 5 failed.** The mechanism is F5's exactly: reasoning eats the token budget, the JSON object
+is truncated before it closes, and `JSON.parse` fails. A grammar constrains the *shape* of the
+output; it does not stop the model spending its budget before reaching it.
+
+Thinking off, with `structuredRetry`: **6 of 6 succeeded**, and the replies are grounded — one
+answered *"The canon does not say"*, which is what the role asks for when the story is silent.
+
+Six clean runs bounds the failure rate under about 40%, not at zero — but against 3-in-5 the
+direction is not in doubt.
+
+**What this generalises to.** F5 is not a fact about prose. It is a fact about **this model's
+budget under thinking**, and it applies to every role with a token cap — which is all of them.
+Any future use of `enable_thinking: true` needs a raised budget and a measurement, not an argument.
+
+**Found by a first-time-user review, not by the tests.** The suite was green: the failures were
+logged to `generations` with an error and the client showed a toast that nobody was watching. What
+surfaced it was someone reading the Storyteller panel and asking what *"talk · failed — 22.2s"*
+meant.

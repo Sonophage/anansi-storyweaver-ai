@@ -54,7 +54,9 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
 }
 
 async function generate(c: Ctx, mode: string, directive: string | undefined, role = 'prose') {
-  const v = viewOf(c.body.storyId);
+  // Generating into the chapter you are reading, for the same reason writing does — and it also
+  // decides the CONTEXT: revising chapter three should see chapter three, not the whole book.
+  const v = viewOf(c.body.storyId, c.body.chapterId);
   const upTo = c.body.regenerateOf
     ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
   const { manifest, prompt } = assemble(v, c.slot, mode, directive, upTo,
@@ -382,13 +384,18 @@ export const routes: Record<string, Handler> = {
 
   // ---- prose ----
   'POST /api/write':   (c) => {
-    const v = viewOf(c.body.storyId);
+    // The chapter you are READING is the chapter you write into. Without this the route always
+    // took chapters.at(-1), so paging back to chapter one and typing put the passage at the end
+    // of the last chapter — off-screen, and generated against the wrong context. Chapter paging
+    // made that one click away; it was reachable from the rail before that.
+    const v = viewOf(c.body.storyId, c.body.chapterId);
     if (c.body.body?.trim()) db.addPassage({ storyId: v.id, branchId: v.branchId!,
       chapterId: v.currentChapter.id, body: c.body.body.trim(), author: 'human', speaker: c.body.speaker ?? null });
     return viewOf(v.id);
   },
   'POST /api/accept':  (c) => {
-    const v = viewOf(c.body.storyId);
+    // Accepting lands where the generation was aimed.
+    const v = viewOf(c.body.storyId, c.body.chapterId);
     // Regenerate over an existing slot keeps every take; a fresh accept appends.
     const id = c.body.variantOf
       ? db.addVariant(v.id, c.body.variantOf, c.body.body)
@@ -483,12 +490,16 @@ export const routes: Record<string, Handler> = {
 
     const using = modelFor(v.story);
     const t0 = Date.now();
-    // Thinking ON, deliberately. F5's finding that thinking returns no prose is about PROSE;
-    // deciding whether something contradicts chapter three is what thinking is for. A story on a
-    // thinking model gets one here — the router holds three at once.
-    const r = await structured(TALK, prompt.slice(SYSTEM.length), TALK_SCHEMA,
-      { model: using, temperature: 0.4, max_tokens: 1200,
-        chat_template_kwargs: { enable_thinking: true } });
+    // Thinking OFF, and this is a correction. It was ON here on the argument that F5's finding —
+    // thinking returns no prose — was about PROSE, and that analysis is what thinking is for.
+    // MEASURED, on the first five real calls: 3 of 5 came back `model returned unparseable JSON`.
+    // The mechanism is F5's exactly. Reasoning eats the token budget, the JSON is truncated before
+    // it closes, and the parse fails. Thinking and structured output do not compose on this build.
+    //
+    // structuredRetry rather than structured: the retry doubles max_tokens and drops temperature,
+    // which is the right response to a truncated object whatever caused it.
+    const r = await structuredRetry(TALK, prompt.slice(SYSTEM.length), TALK_SCHEMA,
+      { model: using, temperature: 0.4, max_tokens: 1600 });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',
       manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };

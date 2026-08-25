@@ -58,10 +58,9 @@ export function render(m: Manifest): string {
  *  every entry carried [pinned] and the tag distinguished nothing. Provenance still decides
  *  which extraction proposals are conflicts — that is where it does real work. */
 export function entryText(e: Entry): string {
-  // The worn outfit rides WITH the entry, so it obeys the entry's own activation — an always-on
-  // character carries it every call, a triggered one only when they fire. A separate block would
-  // have needed its own budget and its own firing rule for no gain.
-  if (!e.wearing?.body) return e.body;
-  const who = (e.title || '').trim() || 'They';
-  return `${e.body}\n[${who} wears: ${e.wearing.body.trim()}]`;
+  // The worn outfit is NOT appended here. It used to be, and that put it before `resolveBody`,
+  // which returns the state's body wholesale when one is in force — so a character with both a
+  // wardrobe and an "over time" state wrote naked from the chapter the state opened, silently,
+  // while the Threads panel still said "worn". It is applied in context.ts after resolution now.
+  return e.body;
 }

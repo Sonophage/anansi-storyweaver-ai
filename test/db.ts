@@ -488,4 +488,36 @@ ok('a story can name its own model, and a partial save does not lose it', async 
   assert.strictEqual(modelFor(db.getStory(b.id)), dflt, 'and clearing it goes back to the default');
 });
 
+// The chapter you are READING is the chapter you write into — asserted through the ROUTE, not
+// just the db, because that is where it was broken. /api/write took viewOf(storyId) with no
+// chapter, so it always resolved to chapters.at(-1): paging back to chapter one and typing put
+// the passage at the end of the last chapter, off-screen, generated against the wrong context.
+//
+// It needs BOTH halves. The route has to pass the chapter, and addPassage has to place it at the
+// end of THAT chapter rather than the end of the book. Either alone leaves it wrong.
+ok('a write lands in the chapter you are reading, in the right place', async () => {
+  const { routes } = await import('../src/routes.ts');
+  const o = db.owner('which-chapter');
+  const st = db.createStory(o, { title: 'Where' });
+  db.addPassage({ ...st, storyId: st.id, body: 'one A' });
+  const ch1 = db.chapters(st.id)[0];
+  const two = db.endChapter(st.id, st.branchId);
+  db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: two.opened, body: 'two A' });
+  const ctx = (body: any) => ({ body: { storyId: st.id, ...body }, owner: o,
+    query: new URLSearchParams(), slot: { perSlot: 50048 }, gen: {} }) as any;
+
+  await routes['POST /api/write'](ctx({ body: 'into chapter one', chapterId: ch1.id }));
+  await routes['POST /api/write'](ctx({ body: 'at the end' }));
+
+  const rows = db.passagesOf(st.id).map((p: any) => {
+    const c = db.chapters(st.id).find((x: any) => x.id === p.chapter_id);
+    return `${c.idx}:${p.body}`;
+  });
+  assert.deepStrictEqual(rows, ['1:one A', '1:into chapter one', '2:two A', '2:at the end'],
+    'naming a chapter writes into it, in order; naming none still appends at the end');
+  // And the two orders agree, which is the property that matters: the reader and the model see
+  // one book.
+  assert.deepStrictEqual(db.passagesOf(st.id).map((p: any) => p.ordinal), [1, 2, 3, 4]);
+});
+
 console.log(`\n${n} checks passed`);

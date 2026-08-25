@@ -312,10 +312,19 @@ export function parse(name: string, buf: Buffer): Incoming {
  *  like everything else an import writes, so the same file can be imported twice. */
 function plant(storyId: string, entryId: string | null, outfits?: any[]) {
   if (!entryId || !Array.isArray(outfits)) return;
+  // By NAME, the way entries dedupe by title. Without this, re-importing an edited card planted
+  // the whole wardrobe again — three imports gave six outfits — on exactly the workflow `merge`
+  // exists for. Only the newest was worn, so the prompt stayed right and the panel filled with
+  // dead duplicates, which is the kind of wrong that is easy not to notice.
+  const have = new Map(db.outfitsOf(storyId)
+    .filter((o: any) => o.entry_id === entryId)
+    .map((o: any) => [String(o.name).toLowerCase(), o.id]));
   let worn: string | null = null;
   for (const o of outfits.slice(0, 20)) {
-    if (!clip(o?.name, 80) || !clip(o?.body, 1000)) continue;
-    const id = db.upsertOutfit(storyId, entryId, { name: clip(o.name, 80), body: clip(o.body, 1000) });
+    const name = clip(o?.name, 80), body = clip(o?.body, 1000);
+    if (!name || !body) continue;
+    const id = db.upsertOutfit(storyId, entryId,
+      { id: have.get(name.toLowerCase()) ?? '', name, body });
     if (o.active && id) worn = id;
   }
   if (worn) db.wearOutfit(storyId, entryId, worn);

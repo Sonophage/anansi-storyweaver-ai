@@ -108,6 +108,11 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
     + 'Do not rewrite it, summarise it, or comment on it. Write 2-4 paragraphs and stop at a natural beat.',
 };
 
+/** The worn outfit, as a second bracket under whatever the body resolved to. */
+const worn = (body: string, e: Entry): string => e.wearing?.body
+  ? `${body}\n[${(e.title || '').trim() || 'They'} wears: ${e.wearing.body.trim()}]`
+  : body;
+
 /** The body as it stands at a given chapter.
  *
  *  Canon that cannot change is the wrong model for a novel: a static body either leaks a
@@ -261,7 +266,10 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
         id: e.id, text: '', tokens: 0, state: 'omitted', reason: 'pinned out of this chapter' });
       continue;
     }
-    const body = resolveBody(e, currentChapter.index);
+    // AFTER resolution, so a chapter-state replacing the body does not take the wardrobe with it.
+    // It rides with the entry rather than in its own block, so it obeys the entry's own activation:
+    // an always-on character carries it every call, a triggered one only when they fire.
+    const body = worn(resolveBody(e, currentChapter.index), e);
     if (e.activation === 'always_on') {
       add('CANON-ALWAYS', e.id, body, 'always_on', ['always_on']);
     } else if (pins[e.id] === 'force_in') {

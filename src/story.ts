@@ -116,7 +116,7 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     pins: Object.fromEntries((v.pins ?? [])
       .filter((p: any) => p.chapterId === v.currentChapter.id)
       .map((p: any) => [p.entryId, p.mode])),
-    budget: budgetFor(v.story, slot), tailTokens: 220,
+    budget: budgetFor(v.story, slot, maxTokens), tailTokens: 220,
   };
   const manifest = buildContext(inp, estimate);
   return { manifest, prompt: render(manifest) };

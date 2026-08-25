@@ -86,18 +86,24 @@ wrong name.
 
 ---
 
-## 5 · The composer writes into the chapter you are reading
+## 5 · ~~The composer writes into the chapter you are reading~~ — I had this wrong
 
-Paging made this sharp. Focusing an earlier chapter makes it the *current* chapter, so the
-composer appends **there**. That is deliberate — it is how you revise chapter 3 with chapter 3's
-context — but it is now one click away in a 358-passage story.
+**This entry described behaviour the code did not have.** I asserted that focusing an earlier
+chapter made the composer append there, and called it deliberate, without checking the write path.
+A council reviewer verified otherwise: `POST /api/write` and `/api/generate` took
+`viewOf(storyId)` with no chapter, so they always resolved to `chapters.at(-1)`.
 
-**A** — leave it. It is correct and you will learn it.
-**B** — leave it, but say so: the composer shows *"writing into chapter 2"* when you are not at the
-end.
-**C** — reading an old chapter is read-only; writing snaps you back to the last chapter.
+The real behaviour was worse than the one I offered you a choice about: **page back to chapter one,
+type, press Enter, and the passage landed at the end of the last chapter** — off-screen, and
+generated against the wrong chapter's context.
 
-**I would pick B.** C removes something real, A leaves a trap.
+**Fixed rather than decided.** The routes take the chapter you are reading, and `addPassage`
+places it at the end of *that* chapter. Both halves are needed; either alone leaves it wrong.
+Asserted through the route in `test/db.ts`, and breaking either half turns it red.
+
+**What is still yours to say:** whether the composer should *tell* you when you are writing into a
+chapter that is not the last one. I would still show *"writing into Chapter One"* — the behaviour
+is right now, but it is quiet.
 
 ---
 

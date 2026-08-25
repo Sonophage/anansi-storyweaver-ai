@@ -98,7 +98,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
-  'ask', 'usedraft', 'copydraft', 'websearch', 'clearchat'].map((k) => `[data-${k}]`).join(',');
+  'ask', 'usedraft', 'copydraft', 'clearchat'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -1517,10 +1517,13 @@ async function generate(mode = S.mode) {
     if (!typed) return toast(mode === 'narrate'
       ? 'Write the passage first — Narrate puts your own prose on the page.'
       : 'Type what you want to say first, or press Continue.');
-    const w = await api.write(S.storyId, { body: typed, speaker: mode === 'speak' ? who : null });
+    const w = await api.write(S.storyId, { body: typed, speaker: mode === 'speak' ? who : null,
+      chapterId: V.currentChapter.id });
     if (w.error) return toast(w.error);
     clearComposer();
-    V = await api.story(S.storyId);
+    // Refetch the chapter you are READING, not the last one — otherwise writing into chapter one
+    // bounced you to the end of the book, which is where the passage used to go anyway.
+    V = await api.story(S.storyId, V.currentChapter.id);
     paint();
   } else if (mode === 'direct' && !typed) {
     return toast('Say what happens next, or press Continue.');
@@ -1529,18 +1532,18 @@ async function generate(mode = S.mode) {
   S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
-  const r = await api.generate({ storyId: S.storyId, mode,
+  const r = await api.generate({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
     directive: YOURS ? undefined : (typed || undefined), speaker: who });
   if (r.error) { S.busy = false; drawDock(); working(null); return toast(r.error); }
   MANI = r.manifest;
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
   // Regenerate or Delete, and both keep the history, so nothing is lost by committing it.
-  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId,
+  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, chapterId: V.currentChapter.id,
     directive: YOURS ? undefined : (typed || undefined) });
   S.busy = false; working(null);
   if (a2.error) return toast(a2.error);
   clearComposer();
-  V = await api.story(S.storyId);
+  V = await api.story(S.storyId, V.currentChapter.id);
   paint(); refreshManifest(); refreshHistory();
 }
 
@@ -1554,13 +1557,14 @@ async function regenerateLast() {
 async function regenerateInto(id) {
   if (S.busy) return;
   S.busy = true; drawDock(); drawBar(); working('reroll');
-  const r = await api.generate({ storyId: S.storyId, mode: S.mode, regenerateOf: id,
+  const r = await api.generate({ storyId: S.storyId, mode: S.mode, regenerateOf: id, chapterId: V.currentChapter.id,
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined });
   if (r.error) { S.busy = false; drawDock(); drawBar(); working(null); return toast(r.error); }
-  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id, rejected: true });
+  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id, rejected: true,
+    chapterId: V.currentChapter.id });
   S.busy = false; working(null);
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
-  V = await api.story(S.storyId);
+  V = await api.story(S.storyId, V.currentChapter.id);
   paint(); refreshManifest(); refreshHistory();
   toast('New take kept. Both are in History, with the canon each was written against.');
 }
@@ -1875,7 +1879,7 @@ document.addEventListener('click', async (e) => {
   }
   if (d.pickmodel) {
     if (d.pickmodel === SRV.model) return;
-    const r = await api.setModel(d.pickmodel);
+    const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);
     if (r.error) return toast(r.error);
     SRV.model = r.active; paint(); toast(`Now writing with ${r.active}.`); return;
   }
