@@ -174,6 +174,30 @@ ok('deleting a passage takes its canon flags with it', () => {
   db.delStory(s4.id);
 });
 
+ok('deleting the selected take promotes a sibling instead of hiding the slot', () => {
+  const s9 = db.createStory(o, { title: 'Takes' });
+  const base = db.addPassage({ ...s9, storyId: s9.id, body: 'take one' });
+  db.addVariant(s9.id, base, 'take two');
+  const three = db.addVariant(s9.id, base, 'take three');   // addVariant selects the new one
+  // The selected take is what the book is. Deleting it used to leave the slot with nothing
+  // selected, and every read filters on selected = 1 — so 'take one' and 'take two' stayed in
+  // the database and vanished from the story, with no screen able to reach them.
+  db.delPassage(s9.id, three);
+  const takes = [...db.variantsBySlot(s9.id).values()][0];
+  assert.strictEqual(takes.length, 2, 'the siblings are still there');
+  assert.strictEqual(takes.filter((x) => x.selected).length, 1, 'and one of them is now the book');
+  assert.strictEqual(db.passagesOfChapter(s9.chapterId).length, 1,
+    'so the chapter still has its passage — this is the assertion that went to zero');
+  assert.strictEqual((db.passagesOfChapter(s9.chapterId)[0] as any).body, 'take two',
+    'the newest survivor, not the oldest');
+  // The last take of a slot has nothing to promote, and the passage goes for good.
+  const only = db.passagesOfChapter(s9.chapterId)[0] as any;
+  db.delPassage(s9.id, only.id);
+  db.delPassage(s9.id, base);
+  assert.strictEqual(db.passagesOfChapter(s9.chapterId).length, 0, 'deleting every take empties it');
+  db.delStory(s9.id);
+});
+
 ok('the sweep removes orphans and anything under the confidence floor', () => {
   const s5 = db.createStory(o, { title: 'S' });
   const pid = db.addPassage({ ...s5, storyId: s5.id, body: 'x' });

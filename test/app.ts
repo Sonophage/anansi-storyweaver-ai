@@ -76,6 +76,11 @@ const MANIFEST = { manifest: { blocks: [
   { kind: 'SPINE', id: 'spine', text: '', tokens: 392, state: 'included', reason: 'capped' },
   { kind: 'CANON-ALWAYS', id: 'e-1', text: '', tokens: 5480, state: 'included', reason: 'always_on', firedBy: ['always_on'] },
   { kind: 'EARLIER', id: 'c-1', text: '', tokens: 1920, state: 'omitted', reason: 'stale summary' },
+  // Three of one reason, because that is the shape a long book makes: at 358 passages the panel
+  // grew ninety-six identical PROSE lines under the rows that say something.
+  { kind: 'PROSE', id: 'p-9', text: '', tokens: 100, state: 'omitted', reason: 'prose 60% ceiling' },
+  { kind: 'PROSE', id: 'p-8', text: '', tokens: 200, state: 'omitted', reason: 'prose 60% ceiling' },
+  { kind: 'PROSE', id: 'p-7', text: '', tokens: 300, state: 'omitted', reason: 'prose 60% ceiling' },
 ], totals: { budget: 46146, used: 21401, unallocated: 0 }, byKind: {}, overflowed: false }, prompt: '', exact: 21401 };
 
 (globalThis as any).fetch = async (url: string) => {
@@ -100,7 +105,27 @@ for (const id of ['rail', 'bar', 'page']) {
 ok('the workspace boots with no undefined fields');
 
 assert.match(html('rail'), /My stories/);
-assert.match(html('rail'), /write-nt-qwen36-h/);
+// The id is what the router answers to and what ANANSI_MODEL takes, so it stays — in the title,
+// where it is one hover away instead of the first thing the rail says.
+assert.match(html('rail'), /Write \u00b7 Qwen3\.6/, 'the rail names the model in words');
+assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one hover away');
+{
+  const { modelName } = await import('../web/model.js');
+  // Thinking on this model means 900 tokens of reasoning and no prose at all — three runs of four.
+  // A label that drops it is a label that hides the one setting that decides whether prose arrives.
+  assert.match(modelName('write-nt-qwen36-h').detail, /no thinking/);
+  assert.match(modelName('agentic-t-qwen38-h').detail, /(?<!no )thinking/, 't must read as thinking');
+  // Two of the router's presets are the same repo at different quants, so the name alone cannot
+  // tell them apart and the detail is not decoration.
+  const a = modelName('HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:32K');
+  const b = modelName('HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:Q8_K_P');
+  assert.strictEqual(a.name, b.name, 'same repo, same name');
+  assert.notStrictEqual(a.detail, b.detail, 'and the quant is what distinguishes them');
+  // Not anchored: the org is repeated INSIDE the repo name too, and once is enough.
+  assert.doesNotMatch(a.name, /GGUF/i, 'the file format is not part of a name');
+  assert.doesNotMatch(a.name, /HauhauCS/i, 'and neither is the org, twice');
+  assert.strictEqual(modelName('').name, 'no model', 'and no model says so');
+}
 assert.match(html('rail'), /slot 50,048/);
 ok('the rail shows the workspace nav, the model and the real slot size');
 
@@ -179,5 +204,16 @@ for (const [kind, [label, dest]] of Object.entries(BLOCK_ORIGIN)) {
   assert.ok(label && !/^[A-Z-]+$/.test(label), `${kind}'s label is still engine-speak: ${label}`);
 }
 ok('every context row is named for the panel it opens');
+
+// Ninety-six rows saying the same thing is a panel you scroll past its own answer to reach the end
+// of. One row per reason, with the count and what it cost.
+const dropped = html('sideBody').match(/prose 60% ceiling/g) ?? [];
+assert.strictEqual(dropped.length, 1, `three dropped passages must be one row, not ${dropped.length}`);
+assert.match(html('sideBody'), /&times;&thinsp;3/, 'and the row says how many there were');
+assert.match(html('sideBody'), /600/, 'and what they would have cost, added up');
+assert.match(html('sideBody'), /stale summary/, 'a lone omission still says its own reason');
+assert.doesNotMatch(html('sideBody'), /stale summary<\/span>\s*<span[^>]*>&times;/,
+  'and is not given a count of one');
+ok('what came off collapses to one row per reason, with a count');
 
 console.log(`\n${n} checks passed`);

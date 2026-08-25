@@ -3,7 +3,7 @@
 // sheet on a phone. Layout lives in app.html's CSS — this file decides state and content only,
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -25,7 +25,7 @@ const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
-  fieldHistory: null, confirmDelete: false, confirmStop: false, router: null, spark: null, ritual: null, setup: null,
+  fieldHistory: null, confirmDelete: false, confirmDel: null, confirmStop: false, router: null, spark: null, ritual: null, setup: null,
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
   found: null,          // the passage a search result sent you to, marked until you move on
   searchAll: false,     // inside a story, search that story only unless asked otherwise
@@ -153,7 +153,8 @@ function drawRail() {
       align-items:center; gap:12px; white-space:nowrap; overflow:hidden">
       <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${SRV.slot ? 'var(--good)' : 'var(--warn)'}"></span>
       <span class="txt" style="display:flex; flex-direction:column; gap:2px">
-        <span style="font-size:13px; color:var(--ink)">${esc(SRV.model || 'no model')}</span>
+        <span style="font-size:13px; color:var(--ink)" title="${esc(SRV.model || '')}"
+          >${esc(modelName(SRV.model).name)}</span>
         <span style="font-size:11px; color:var(--dim)">${SRV.slot
           ? `slot ${SRV.slot.perSlot.toLocaleString()}` : 'llama-server asleep'}</span>
       </span></div>`;
@@ -247,7 +248,8 @@ function passageHTML(p, newest) {
     <button data-re="${p.id}"><span class="serif" style="color:var(--gold)">↻</span><span class="lbl-txt">Regenerate</span></button>
     <button data-ed="${p.id}"><span class="serif" style="color:var(--gold)">✎</span><span class="lbl-txt">Edit</span></button>
     <button data-hi="${p.id}"><span class="serif" style="color:var(--gold)">⌂</span><span class="lbl-txt">History</span></button>
-    <button data-del="${p.id}" style="color:var(--bad)"><span class="serif">✕</span><span class="lbl-txt">Delete</span></button></div>`;
+    <button data-del="${p.id}" style="color:var(--bad)"><span class="serif">✕</span><span class="lbl-txt">${
+      v.length > 1 ? `Delete take ${at}` : 'Delete'}</span></button></div>`;
 
   const body = spoken
     ? `<div class="who">${p.speaker ? esc(p.speaker)
@@ -429,12 +431,30 @@ const PANELS = {
           <span style="color:var(--gold); font-size:11.5px">${esc(why)}</span>
           <span class="tnum" style="margin-left:auto; color:var(--faint)">${v.toLocaleString()}</span></button>`;
       }).join('')}
-      ${MANI.blocks.filter((b) => b.state !== 'included').map((b) => `<div class="row" style="opacity:.55">
-        <span style="width:8px; height:8px; border-radius:2px; flex:0 0 auto; background:var(--edge-lit)"></span>
-        <span style="color:var(--mute)">${esc((BLOCK_ORIGIN[b.kind] ?? [b.kind])[0])}</span>
-        <span style="color:var(--bad); font-size:11.5px">${esc(b.reason ?? 'omitted')}</span></div>`).join('')}
+      ${(() => {
+        // One row per REASON, with a count. At 358 passages this was ninety-six identical
+        // `PROSE / prose 60% ceiling` lines under the seven that say something, and a panel you
+        // have to scroll past its own answer is a panel nobody reads (COUNCIL-04 #1). The tokens
+        // are summed because "what came off, and how much" is the whole question being asked.
+        const out = new Map();
+        for (const b of MANI.blocks.filter((x) => x.state !== 'included')) {
+          const key = `${b.kind}\u0000${b.reason ?? 'omitted'}`;
+          const at = out.get(key) ?? { n: 0, tokens: 0 };
+          out.set(key, { n: at.n + 1, tokens: at.tokens + (b.tokens ?? 0) });
+        }
+        return [...out].map(([key, { n, tokens }]) => {
+          const [kind, reason] = key.split('\u0000');
+          return `<div class="row" style="opacity:.55">
+            <span style="width:8px; height:8px; border-radius:2px; flex:0 0 auto; background:var(--edge-lit)"></span>
+            <span style="color:var(--mute)">${esc((BLOCK_ORIGIN[kind] ?? [kind])[0])}${
+              n > 1 ? ` <span style="color:var(--faint)">&times;&thinsp;${n}</span>` : ''}</span>
+            <span style="color:var(--bad); font-size:11.5px">${esc(reason)}</span>
+            <span class="tnum" style="margin-left:auto; color:var(--faint)">${tokens.toLocaleString()}</span></div>`;
+        }).join('');
+      })()}
       <div class="hint" style="margin-top:14px">Canon is capped at 45% of the slot, earlier chapters at 25%,
-        recent prose at 60%. The tail is never evicted. Click a row to reach what put it there.</div></div>`;
+        recent prose at 60%. The tail is never evicted. Click one of the rows above the line to reach
+        what put it there; the dimmed rows are what came off, and lead nowhere.</div></div>`;
   },
 
   // Every card in this story, grouped by what kind of thing it is. This was `cast` and showed
@@ -722,12 +742,14 @@ const PANELS = {
       ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
         : S.models.length === 0 ? '<div class="hint" style="margin:0">The router did not answer.</div>'
         : `<select class="field" data-storymodel="1">
-            <option value="">Default &mdash; ${esc(V.defaultModel ?? SRV.model ?? 'whatever the server is on')}</option>
+            <option value="">Default &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}</option>
             ${S.models.map((m) => `<option value="${esc(m.id)}" ${V.story.model === m.id ? 'selected' : ''}
-              >${esc(m.id)}${m.status === 'loaded' ? ' · awake' : ''}</option>`).join('')}
+              >${esc([modelName(m.id).name, modelName(m.id).detail].filter(Boolean).join(' — '))}${
+                m.status === 'loaded' ? ' · awake' : ''}</option>`).join('')}
           </select>
           <div class="hint">${V.story.model
-            ? `This story is written by <code>${esc(V.story.model)}</code>, whatever any other story uses.`
+            ? `This story is written by <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
+               whatever any other story uses.`
             : 'This story uses whatever Preferences is set to. Name one here and it stops moving when that does.'}
             The router holds three at once, so switching between them usually costs nothing &mdash; one that is
             asleep costs a load on the first call.</div>`}
@@ -1328,8 +1350,9 @@ const WPAGES = {
               style="width:100%; text-align:left">
               <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${
                 m.id === SRV.model ? 'var(--gold)' : m.status === 'unloaded' ? 'var(--edge-lit)' : 'var(--good)'}"></span>
-              <span style="color:${m.id === SRV.model ? 'var(--ink)' : 'var(--mute)'}; font-family:ui-monospace,monospace;
-                font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(m.id)}</span>
+              <span title="${esc(m.id)}" style="color:${m.id === SRV.model ? 'var(--ink)' : 'var(--mute)'};
+                font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(modelName(m.id).name)}${
+                  modelName(m.id).detail ? ` <span style="color:var(--faint); font-size:10.5px">${esc(modelName(m.id).detail)}</span>` : ''}</span>
               <span style="margin-left:auto; font-size:10.5px; color:var(--dim)">${esc(m.status)}</span></button>`).join('')}
         <div class="hint">Switching is process-wide, not per story &mdash; two writers share this server,
           so it changes for both. A sleeping model wakes on its first call.</div>
@@ -1710,7 +1733,21 @@ document.addEventListener('click', async (e) => {
   if (d.re) { await regenerateInto(d.re); return; }
   if (d.reroll !== undefined) { await regenerateLast(); return; }
   if (d.send) { await generate(); return; }   // the button's only path; ⌘↵ is the shortcut
-  if (d.del) { const r = await api.delPassage(S.storyId, d.del); if (r.error) return toast(r.error);
+  if (d.del) {
+    // Delete sits next to Regenerate, fired on one press and had no undo. The confirmation is done
+    // in place rather than through paint(): a repaint drops the tray's aria-expanded, so on a phone
+    // the second press would have nothing left to press. The toast is the part a phone can see —
+    // .lbl-txt is hidden there, the tray is icons only.
+    if (S.confirmDel !== d.del) {
+      S.confirmDel = d.del;
+      const lbl = t.querySelector('.lbl-txt'), was = lbl?.textContent;
+      if (lbl) lbl.textContent = 'Press again';
+      toast('Press Delete again to remove it.');
+      setTimeout(() => { if (S.confirmDel === d.del) { S.confirmDel = null; if (lbl) lbl.textContent = was; } }, 4000);
+      return;
+    }
+    S.confirmDel = null;
+    const r = await api.delPassage(S.storyId, d.del); if (r.error) return toast(r.error);
     // The panel may be showing the very passage that just went.
     if (S.historyOf?.id === d.del) { S.historyOf = null; S.panel = 'context'; }
     V = await api.story(S.storyId); paint(); refreshHistory(); return; }
@@ -1920,7 +1957,7 @@ document.addEventListener('click', async (e) => {
     if (d.pickmodel === SRV.model) return;
     const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);
     if (r.error) return toast(r.error);
-    SRV.model = r.active; paint(); toast(`Now writing with ${r.active}.`); return;
+    SRV.model = r.active; paint(); toast(`Now writing with ${modelName(r.active).name}.`); return;
   }
 
   if (d.lkind) { S.ledgerKind = d.lkind; drawPage(); return; }

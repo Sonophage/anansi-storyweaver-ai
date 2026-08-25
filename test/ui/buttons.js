@@ -44,6 +44,25 @@ await page.click('[data-hi="' + pid + '"]');
 ok("History opens its panel", (await page.text('#sideHead') || '').includes('History'));
 ok("  and offers a branch from that passage", await page.eval("!!document.querySelector('[data-fork]')"));
 
+// ---- 3b. Delete asks first, and does not take the other takes with it
+// It sits next to Regenerate in the same tray and used to fire on one press, with no undo.
+const blocksBefore = await page.eval("document.querySelectorAll('#col [data-edit]').length");
+await page.click('#col .block .more');
+await page.click('[data-del="' + pid + '"]');
+await wait(300);
+ok("Delete does not delete on the first press",
+   (await page.eval("document.querySelectorAll('#col [data-edit]').length")) === blocksBefore);
+ok("  and says so where the tray is text", (await page.text('#toast') || '').includes('Press Delete again'));
+// The tray is still open — confirming through paint() would have closed it on a phone, where
+// the labels are hidden and the toast is the only thing that says a second press is wanted.
+// eval, not page.click: with the confirmation gone the first press already deleted the passage and
+// a missing element kills the scenario, which reports as a death rather than as this assertion.
+await page.eval("(() => { document.querySelector('[data-del=\"" + pid + "\"]')?.click(); return 1; })()");
+await wait(500);
+ok("  and deletes on the second (" + blocksBefore + " -> "
+   + (await page.eval("document.querySelectorAll('#col [data-edit]').length")) + ")",
+   (await page.eval("document.querySelectorAll('#col [data-edit]').length")) === blocksBefore - 1);
+
 // ---- 4. the model selector
 await page.click('[data-leave="1"]');
 await page.click('[data-nav="prefs"]');

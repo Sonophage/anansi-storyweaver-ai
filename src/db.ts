@@ -437,8 +437,26 @@ export function editPassage(storyId: string, id: string, body: string) {
  *  foreign key, because a flag can outlive the variant it was raised against — so the delete
  *  is explicit. Without it, deleting a passage left its flags on screen forever. */
 export function delPassage(storyId: string, id: string) {
-  q('DELETE FROM violations WHERE passage_id = ? AND story_id = ?').run(id, storyId);
-  q('DELETE FROM passages WHERE id = ? AND story_id = ?').run(id, storyId);
+  const cur = q('SELECT chapter_id, slot_key, selected FROM passages WHERE id = ? AND story_id = ?')
+    .get(id, storyId) as any;
+  if (!cur) return;
+  db.exec('BEGIN');
+  try {
+    q('DELETE FROM violations WHERE passage_id = ? AND story_id = ?').run(id, storyId);
+    q('DELETE FROM passages WHERE id = ? AND story_id = ?').run(id, storyId);
+    // Deleting the SELECTED take left the slot with no selected row at all, and every read of the
+    // book — passagesOfChapter, view(), the context window — filters on selected = 1. So the other
+    // takes stayed in the database and disappeared from the story, unreachable by any screen: the
+    // ‹ › pager they lived behind is drawn from the passage that had just gone. Promote the newest
+    // survivor instead. SPEC §6.1.5: a slot always has one.
+    if (cur.selected) {
+      const next = q(`SELECT id FROM passages WHERE chapter_id = ? AND slot_key = ?
+                      ORDER BY variant_index DESC LIMIT 1`).get(cur.chapter_id, cur.slot_key) as any;
+      if (next) q('UPDATE passages SET selected = 1 WHERE id = ?').run(next.id);
+    }
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  touch(storyId);
 }
 
 /** Sweep flags whose passage is gone, or which no longer clear the confidence floor. */

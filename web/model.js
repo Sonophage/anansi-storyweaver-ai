@@ -43,6 +43,35 @@ export const ago = (t) => { const d = (Date.now() - t) / 864e5;
 export const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) =>
   ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// The router answers with two kinds of id and both read as machine noise on a page about a book:
+// short aliases from presets.ini — write-nt-qwen36-h — and raw Hugging Face paths like
+// HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:32K, which is 64 characters of it.
+//
+// A transform rather than a lookup table, so a preset added tonight is named tonight without an
+// edit here. `detail` carries what the name drops, and every surface keeps the raw id in a title
+// attribute — the id is what you type into ANANSI_MODEL and what the router answers to.
+//
+// THINKING IS NEVER DROPPED. `t` versus `nt` is the difference between prose and 900 tokens of
+// reasoning and no prose at all, so it is spelled out rather than left as a letter.
+const FAMILY = { qwen36: 'Qwen3.6', qwen38: 'Qwen3.8', tcap27: 'ThinkingCap 27B', ornith: 'Ornith' };
+const ROLE = { write: 'Write', rp: 'Roleplay', agentic: 'Agentic' };
+export const modelName = (id) => {
+  if (!id) return { name: 'no model', detail: '', id: '' };
+  const alias = /^(write|rp|agentic)-(n?t)-([a-z0-9]+)-([a-z0-9]+)$/.exec(id);
+  if (alias) {
+    const [, role, think, family, tail] = alias;
+    return { id, name: `${ROLE[role]} \u00b7 ${FAMILY[family] ?? family}`,
+             detail: [think === 't' ? 'thinking' : 'no thinking',
+                      tail === 'h' ? 'uncensored' : tail].join(' \u00b7 ') };
+  }
+  const [repo, quant] = id.split(':');
+  const org = repo.includes('/') ? repo.split('/')[0].toLowerCase() : '';
+  // The org name is often repeated inside the repo name as well, and once is enough.
+  const name = (repo.split('/').pop() ?? repo).replace(/[-_]?GGUF$/i, '')
+    .split(/[-_]+/).filter((w) => w.toLowerCase() !== org).join(' ');
+  return { id, name, detail: quant ?? '' };
+};
+
 // Block colours are shared so the meter reads the same on both surfaces.
 export const BLOCK_COLOR = {
   SPINE: '#D9B26A', 'CANON-ALWAYS': '#7FB083', 'CANON-TRIGGERED': '#9A8B62',
