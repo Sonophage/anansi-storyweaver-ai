@@ -128,5 +128,10 @@ words and I will make one pass over the whole surface.
   which is the login question you have deliberately left alone.
 - **Outfits.** You already chose: named, one worn at a time, a table with a partial unique index.
   Buildable without further input.
-- **Talk to Anansi about the story**, and **web search for lore on an IP**. Both are big enough to
-  want their own conversation, and neither is blocked by anything above.
+- **Talk to Anansi about the story** — now scoped, in `docs/plans/PLAN-05-TALK.md`. The short
+  version: that one sentence is three features. **Tell** (you say what to add, it proposes) is one
+  prompt role away, because `extract` already classifies, dedupes and files proposals. **Ask** (a
+  conversation) is the genuinely new one, and is newly worth building because per-story models
+  landed today — it could run thinking-on on a thinking model while prose stays thinking-off,
+  which F5 requires. **Fetch** (web search for an IP) is the only one that changes what this app
+  is: it would be the first outbound request it has ever made.
