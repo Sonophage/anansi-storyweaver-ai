@@ -151,6 +151,30 @@ button:not(:disabled):active { transform:translateY(.5px); }
 #modes button, [data-wear], [data-lorekind], [data-kind] { transition:color var(--t-fast) var(--ease),
   border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
 
+/* Surfaces that replace their whole contents. Each one is a different KIND of change, so each
+   one says something different about what happened:
+
+     #bar        the title of what you are looking at — it cross-fades, because you did not move,
+                 the thing you are looking at changed
+     #sideHead   the same, for the panel
+     #hits       results arriving, so they rise like anything else in a list
+     #books      the same on the Worlds page
+
+   `#page > *` and `#sideBody > *` above already cover page and panel contents. None of these has
+   an EXIT: an exit needs the old DOM held while the new one is built, and every version of that
+   either double-renders or drops frames on a long document. An entrance that says where the
+   content came from does the work without the cost. */
+#bar > div, #sideHead > * { animation:fade var(--t) var(--ease-out) both; }
+#hits > *, #books > * { animation:rise var(--t) var(--ease-out) both; }
+#hits > *:nth-child(1) { animation-delay:0ms; }
+#hits > *:nth-child(2) { animation-delay:20ms; }
+#hits > *:nth-child(3) { animation-delay:40ms; }
+#hits > *:nth-child(n+4) { animation-delay:60ms; }
+
+/* The composer bar rebuilds whenever you change mode, and the textarea under it must not move
+   while you are typing into it. Only the row of modes reacts. */
+#modes { animation:fade var(--t-fast) var(--ease-out) both; }
+
 /* The document scrolls to a search hit rather than jumping, so you can see where it took you. */
 @media (prefers-reduced-motion:no-preference) { #read { scroll-behavior:smooth; } }
 .tnum { font-variant-numeric:tabular-nums; }
@@ -166,15 +190,15 @@ button:not(:disabled):active { transform:translateY(.5px); }
 #rail {
   background:var(--rail); display:flex; flex-direction:column; overflow:hidden;
   flex:0 0 auto; width:248px; border-right:1px solid var(--line);
-  transition:width .28s var(--ease); position:relative; z-index:30;
+  transition:width var(--t-slow) var(--ease); position:relative; z-index:30;
 }
 html[data-ui-rail="closed"] #rail { width:76px; }
-#rail .txt { opacity:1; transition:opacity .18s ease; white-space:nowrap; overflow:hidden; }
+#rail .txt { opacity:1; transition:opacity var(--t-fast) var(--ease); white-space:nowrap; overflow:hidden; }
 html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 
 #scrim {
   position:absolute; inset:0; z-index:20; background:rgba(5,5,7,.6); backdrop-filter:blur(3px);
-  opacity:0; pointer-events:none; transition:opacity .3s ease;
+  opacity:0; pointer-events:none; transition:opacity var(--t-slow) var(--ease);
 }
 
 #doc { flex:1; min-width:0; display:flex; flex-direction:column; position:relative; overflow:hidden; background:var(--doc-bg); }
@@ -182,7 +206,7 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 
 #side {
   flex:0 0 auto; width:400px; background:var(--rail); overflow:hidden;
-  border-left:1px solid var(--line); transition:width .3s var(--ease); z-index:30;
+  border-left:1px solid var(--line); transition:width var(--t-slow) var(--ease); z-index:30;
 }
 #side[hidden] { display:block; width:0; border-left-color:transparent; }
 #sideInner { width:400px; height:100%; display:flex; flex-direction:column; overflow:hidden; }
@@ -191,7 +215,7 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 @media (max-width:1099px) {
   #rail {
     position:absolute; top:0; bottom:0; left:0; width:264px;
-    transform:translateX(0); transition:transform .3s var(--ease);
+    transform:translateX(0); transition:transform var(--t-slow) var(--ease);
     box-shadow:40px 0 90px rgba(0,0,0,.6);
   }
   html[data-ui-rail="closed"] #rail { width:264px; transform:translateX(-100%); box-shadow:none; }
@@ -199,7 +223,7 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
   html[data-ui-rail="open"] #scrim { opacity:1; pointer-events:auto; }
   #side {
     position:absolute; top:0; bottom:0; right:0; width:400px;
-    transform:translateX(0); transition:transform .3s var(--ease);
+    transform:translateX(0); transition:transform var(--t-slow) var(--ease);
     box-shadow:-40px 0 90px rgba(0,0,0,.6);
   }
   #side[hidden] { width:400px; transform:translateX(100%); box-shadow:none; border-left-color:var(--line); }
@@ -210,14 +234,14 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
     position:absolute; inset:0; width:auto; border-left:0; box-shadow:none;
     display:flex; flex-direction:column; justify-content:flex-end;
     background:rgba(6,6,8,.72); backdrop-filter:blur(8px);
-    transform:none; transition:background .26s ease;
+    transform:none; transition:background var(--t) var(--ease);
   }
   #side[hidden] { display:flex; width:auto; transform:none; background:rgba(6,6,8,0);
     backdrop-filter:none; pointer-events:none; }
   #sideInner {
     width:auto; height:auto; max-height:88%; background:var(--sheet); border:1px solid var(--chip);
     border-bottom:0; border-radius:26px 26px 0 0;
-    transform:translateY(0); opacity:1; transition:transform .24s ease, opacity .24s ease;
+    transform:translateY(0); opacity:1; transition:transform var(--t) var(--ease), opacity var(--t) var(--ease);
   }
   #side[hidden] #sideInner { transform:translateY(30px); opacity:0; }
 }
@@ -276,7 +300,7 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
    is always present, and hover stays as a shortcut on a pointer. */
 .more {
   position:absolute; right:0; top:-20px; z-index:6; padding:2px 8px; border-radius:8px;
-  font-size:14px; line-height:1.2; color:var(--label); opacity:.4; transition:opacity .15s ease;
+  font-size:14px; line-height:1.2; color:var(--label); opacity:.4; transition:opacity var(--t-fast) var(--ease);
 }
 .block:hover .more, .block:focus-within .more, .block[aria-expanded="true"] .more { opacity:1; }
 .acts {
