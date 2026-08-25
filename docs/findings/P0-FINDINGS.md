@@ -820,8 +820,15 @@ What streaming changes, honestly stated:
 Nothing here was reproducible in the F-series sense — no seed, one story, three consecutive calls.
 It bounds the warm case at "well under a second", not at 349 ms.
 
-**A related observation, not fixed:** with llama-server unreachable, the error that reaches the
-writer is `fetch failed`. That is `post()`'s message and it predates streaming — the streaming
-path returns it identically, as the final line after a 200. The model sleeps after 15 minutes
-(`--sleep-idle-seconds 900`), so this is the message a returning writer is most likely to see, and
-it says nothing useful.
+**A related observation, since fixed:** with llama-server unreachable the error that reached the
+writer was `fetch failed` — Node's own string, straight through to a toast. The model sleeps after
+15 minutes (`--sleep-idle-seconds 900`), so that was the message a returning writer was *most*
+likely to see, and it said nothing. `reach()` in `src/llama.ts` now wraps the four llama-server
+calls and separates the two cases that were one:
+
+- **refused** — *"cannot reach llama-server at HOST. It is not running, or it is still starting.
+  Preferences → Restart it."*
+- **timed out** — *"did not answer in time. A model that was asleep can take a minute to load."*
+
+They are separated because they need opposite responses. Telling someone to restart a server that
+is busy loading a 26 GiB model is how a 60-second wait becomes a five-minute one.

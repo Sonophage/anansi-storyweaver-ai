@@ -1,32 +1,35 @@
-# Bugs — walkthrough round two, 2026-08-24
+# Bugs — walkthrough round three, 2026-08-24 evening
 
-Empty on purpose. Write under the heading that matches where you were in `checklist.md`,
-in whatever form you like. Anything that does not fit a heading goes at the bottom.
+Empty on purpose. Write under the heading that matches where you were in `checklist.md`, in
+whatever form you like. Anything that does not fit a heading goes at the bottom.
 
-Nothing is carried over: what was here is either done, or in `checklist.md` under
-**Still open**.
+Nothing is carried over: round two's headings are all built and tested, and what I already know
+about is in `checklist.md` under **Still open**, so you do not need to re-report those.
 
 ---
 
-## 1 · One chapter at a time
+## 1 · The words changed everywhere — is it right?
 
 
-## 2 · Something is happening
+## 2 · Streaming
 
 
-## 3 · History updates while you are looking at it
+## 3 · The voice sample
 
 
-## 4 · Search stays in this story
+## 4 · Write into chapter one
 
 
-## 5 · The next-chapter setup page
+## 5 · Anansi — the chat panel
 
 
-## 6 · Compact now
+## 6 · Outfits
 
 
-## 7 · Seeing the prompts
+## 7 · Import
+
+
+## 8 · Per-story models, and putting the machine to bed
 
 
 ---
