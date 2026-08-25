@@ -107,24 +107,35 @@ is right now, but it is quiet.
 
 ---
 
-## 6 · The verbiage pass
+## 6 · ~~The verbiage pass~~ — done, and I took your word over mine
 
-Your note: the wording should be cohesive around *threads, story, weaving*. It is not, and that is
-mine. Right now the app says, for overlapping things:
+Four of COUNCIL-04's six reviewers reached this independently, which made it the most-reported
+problem in the app. Six words for one thing:
 
-| word | where | means |
-|---|---|---|
-| canon | engine, docs | facts the prose must not contradict |
-| ledger | UI, docs | the store of those facts |
-| entries | UI, db | the rows in it |
-| cast | old UI | the characters among them |
-| threads | new UI | *all* the rows, in a story |
-| lore | entry type, Worlds page | a kind of row, and also all of them |
+| was | where |
+|---|---|
+| Worlds & lorebooks | workspace nav |
+| Threads | story panel |
+| 12 in the ledger | story card |
+| + Lore | composer |
+| Add to the lore book | search |
+| N entries across M lorebooks | workspace subtitle |
 
-**Threads** already does the work of *ledger*, *entries* and *cast*. My instinct is: **threads** is
-what a story's cards are, a **thread** is one of them, **canon** stays as the engine's word for what
-reaches the prompt, and **lore/ledger** retire. But this is your voice, not mine — tell me the
-words and I will make one pass over the whole surface.
+**One word now: threads.** A story's cards are its threads; one of them is a thread. `+ Thread`,
+`Add to threads`, `12 threads`, `Woven in`. **Canon stays the engine's word** for what reaches the
+prompt, and it now appears in exactly one place — the Context panel, which is the engine's window.
+That is your scheme from this section, unchanged.
+
+I had built it as *canon* first and was wrong to. The argument was that the schema says `entries`
+and the engine says CANON, so canon was the cheaper word — and that the serial writer wants
+*threads* to mean **plot promises** (a letter unopened in chapter 6), which is COUNCIL-04 #10 and
+is not built. That is a real cost and it is worth naming: **if plot-promise tracking is built, it
+will need a different word, because this one is spent.** Your voice beats my consistency argument
+on a naming question, and Anansi is a spider.
+
+The panel key, the URL hash and the `LEDGER`/`ledgerOf` identifiers are unchanged — internal names,
+and `LEDGER` is specifically the cross-story index, which is a different thing from a story's
+threads. Model-facing text is unchanged except the talk role, which says THREADS as it did.
 
 ---
 

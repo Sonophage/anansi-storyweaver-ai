@@ -51,12 +51,12 @@ const POV = ['first person, present tense', 'first person, past tense',
 //   story     the book: what it is, who is in it, how it reads, and taking it with you
 //   chapter   the one you are writing: its name, its ending, where this is going, what it
 //             added, its branches, and closing it
-//   threads   this story's canon — characters, lore, items, rules. Panel key kept; the
-//             label is Canon. 'Threads' is reserved for plot promises, which are not built.
+//   threads   every thread in this story — characters, lore, items, rules. One word for one
+//             thing: DECISIONS 6. 'Canon' stays the ENGINE's word, and shows only in Context.
 //   context   what the model is about to be sent, and why
 const SNAV = [
   ['story', '⚙', 'Story'], ['chapter', '❧', 'Chapter'],
-  ['threads', '☙', 'Canon'], ['context', '◈', 'Context'],
+  ['threads', '☙', 'Threads'], ['context', '◈', 'Context'],
   ['search', '⌕', 'Search'], ['teller', '◐', 'Storyteller'],
   ['anansi', '✻', 'Anansi'],
 ];
@@ -65,7 +65,7 @@ const SNAV = [
 const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
 const WNAV = [
   ['stories', '❋', 'My stories'], ['create', '✎', 'Create a story'],
-  ['canon', '◈', 'Canon'], ['import', '↧', 'Import'], ['prefs', '◐', 'Preferences'],
+  ['canon', '◈', 'Threads'], ['import', '↧', 'Import'], ['prefs', '◐', 'Preferences'],
 ];
 const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
 // Two panels the rail does not list: they open by clicking a thing, not a nav row.
@@ -80,8 +80,8 @@ const WTITLES = {
     // "open a story first" while listing entries from four of them.
     const n = LEDGER?.length ?? 0;
     const books = new Set((LEDGER ?? []).map((e) => e.story)).size;
-    return ['Canon', LEDGER === null ? 'reading…'
-      : `${n} ${n === 1 ? 'entry' : 'entries'} across ${books} ${books === 1 ? 'story' : 'stories'}`];
+    return ['Threads', LEDGER === null ? 'reading…'
+      : `${n} ${n === 1 ? 'thread' : 'threads'} across ${books} ${books === 1 ? 'story' : 'stories'}`];
   },
   import: () => ['Import', 'Character cards, Anansi exports, AI Dungeon'],
   prefs: () => ['Preferences', 'llama-server, model, slot'],
@@ -319,7 +319,7 @@ function drawDock() {
       <button data-continue="1" ${S.busy ? 'disabled' : ''} title="Carry on with no prompt">Continue</button>
       ${MODES.map(([k, label]) => `<button data-mode="${k}" aria-pressed="${k === S.mode}">${label}</button>`).join('')}
       <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
-        style="flex:0 0 auto">+ Canon</button>
+        style="flex:0 0 auto">+ Thread</button>
       ${asWhom ? `<label class="deskonly" style="margin-left:auto; display:flex; align-items:center; gap:6px;
         font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--label); opacity:.75">
         as
@@ -497,7 +497,7 @@ const PANELS = {
     const pick = (key, rows, current, blank) => `<select class="field" data-story="${key}">
       <option value="">${blank}</option>
       ${rows.map((r) => `<option value="${esc(r)}" ${r === current ? 'selected' : ''}>${esc(r)}</option>`).join('')}
-      ${current && !rows.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)} — not in canon</option>` : ''}
+      ${current && !rows.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)} — not a thread</option>` : ''}
     </select>`;
     const fields = STORY_FIELDS.filter((f) => !['direction', 'setting', 'pov', 'persona'].includes(f.k));
     return `<div style="display:flex; flex-direction:column">
@@ -645,7 +645,7 @@ const PANELS = {
               ${turn.meta ? `<div style="font-size:10.5px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
             </div>`).join('')
           : `<div class="hint" style="margin:0">Ask about the story, a character, what you have set up
-              and not paid off. Anansi can also propose <strong>entries</strong> for canon, and
+              and not paid off. Anansi can also propose <strong>threads</strong>, and
               draft a <strong>directive</strong> to hand to the composer.<br><br>
               Nothing it offers goes anywhere until you accept it.</div>`}
         ${t.busy ? '<div class="hint" style="margin:0">Thinking&hellip;</div>' : ''}
@@ -685,7 +685,7 @@ const PANELS = {
   search() {
     // Inside a story, this searches THAT story. It used to span every book you own, which is the
     // wrong default in the one place you already know where you are — and it is how "add to
-    // canon" could quietly put an entry in a different story.
+    // threads" could quietly put one in a different story.
     return `<div style="display:flex; flex-direction:column">
       <input class="field" id="q" value="${esc(S.query)}" placeholder="Search ${
         S.searchAll ? 'every story' : esc(V?.story.title ?? 'this story')}">
@@ -793,7 +793,7 @@ function searchHits() {
         <span style="margin-left:auto; font-size:11px; color:var(--dim)">${esc(r.where ?? '')}</span></span>
       <span style="font-size:13.5px; line-height:1.5; color:var(--ink)">${esc((r.body ?? '').slice(0, 260))}</span></button>
     ${r.kind === 'Entry' ? '' : `<button data-tolore="${i}" style="align-self:flex-start; font-size:10.5px;
-      letter-spacing:.14em; text-transform:uppercase; color:var(--gold); padding:2px 0">＋ Add to canon</button>`}
+      letter-spacing:.14em; text-transform:uppercase; color:var(--gold); padding:2px 0">＋ Add to threads</button>`}
   </div>`).join('');
 }
 
@@ -892,7 +892,7 @@ function setupPanel() {
 
     <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Where, and what</div>
     ${places.length ? places.map((e) => row(e, 'place')).join('')
-      : `<div class="hint" style="margin:0">${q ? 'Nothing matches that.' : 'Nothing in canon yet.'}</div>`}
+      : `<div class="hint" style="margin:0">${q ? 'Nothing matches that.' : 'No threads yet.'}</div>`}
 
     <div class="hint">Ticked means it is sent for this chapter whether or not anyone says its name.
       Unticking an always-on entry holds it back for this chapter only. Both cost or save their
@@ -946,7 +946,7 @@ function entryEditor() {
     <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Wardrobe</div>
     <div class="hint" style="margin:0 0 8px">A named outfit is a second bracket on this character
       while it is worn, so taking the plate off does not mean rewriting who she is. One at a time —
-      the database enforces that, not the screen. Switch on the Canon panel.</div>
+      the database enforces that, not the screen. Switch on the Threads panel.</div>
     ${(e.outfits ?? []).map((o) => `<div class="card" style="margin-bottom:8px;
       border-color:${o.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
       <div style="display:flex; align-items:center; gap:9px">
@@ -1094,7 +1094,7 @@ function storyCard(s, i, hero) {
         font-style:italic; min-height:19px">${esc((s.premise || 'No premise yet.').slice(0, hero ? 200 : 110))}</span>
       <span style="display:flex; align-items:center; gap:11px; margin-top:10px; font-size:11px; color:var(--faint)">
         <span>${s.chapters ?? 0} ${s.chapters === 1 ? 'chapter' : 'chapters'}</span>
-        <span style="opacity:.5">·</span><span>${s.entries ?? 0} in canon</span>
+        <span style="opacity:.5">·</span><span>${s.entries ?? 0} threads</span>
         <span style="opacity:.5">·</span><span>${s.passages ?? 0} passages</span>
         <span style="margin-left:auto">${s.updated_at ? ago(s.updated_at) : ''}</span></span></span>
   </button>`;
@@ -1190,8 +1190,8 @@ const WPAGES = {
   },
 
   canon() {
-    if (LEDGER === null) { loadLedger(); return `<div class="hint">Reading canon…</div>`; }
-    // Grouped by story, because a story IS its canon — entries are story-scoped in the schema
+    if (LEDGER === null) { loadLedger(); return `<div class="hint">Reading the threads…</div>`; }
+    // Grouped by story, because a story IS its threads — entries are story-scoped in the schema
     // and there is no separate lorebook table. The search spans every story, which is the point:
     // it is for when you cannot remember which book an entry belongs to.
     // The filter bar is drawn once. Typing redraws #books only — rewriting the page on every
@@ -1373,7 +1373,7 @@ const WPAGES = {
           return `${row('Words', n(t.words), 'in passages that are in the story')}
             ${row('Passages', n(t.passages), `${n(t.yours)} yours · ${n(t.anansi)} Anansi`)}
             ${row('Stories', n(t.stories), `${n(t.chapters)} chapters`)}
-            ${row('In canon', n(t.entries), 'characters, lore, items, rules')}
+            ${row('Threads', n(t.entries), 'characters, lore, items, rules')}
             ${row('Takes not chosen', n(t.unchosen), 'kept, and not in the story')}
             ${row('Calls to the model', n(t.calls), t.failed ? `${n(t.failed)} failed` : 'none failed')}
             ${row('Time spent generating', t.minutes >= 60
@@ -1636,7 +1636,7 @@ document.addEventListener('click', async (e) => {
     if (x.error) return toast(x.error);
     V = await api.story(S.storyId);
     S.lore = null; S.panel = 'chapter'; syncHash(); paint();
-    toast(`${x.added ?? 0} proposed for canon — nothing accepted yet.`);
+    toast(`${x.added ?? 0} proposed as threads — nothing accepted yet.`);
     return;
   }
   if (d.nav) {
@@ -1808,7 +1808,7 @@ document.addEventListener('click', async (e) => {
     V = res.entries ? res : await api.story(S.storyId);
     const made = [...(V.entries ?? [])].reverse().find((e) => e.title === title);
     S.entryId = made?.id ?? null; S.panel = 'threads'; syncHash(); paint();
-    toast('Added to canon. Give it trigger words so it fires.');
+    toast('Woven in. Give it trigger words so it fires.');
     return;
   }
 
@@ -1999,7 +1999,7 @@ document.addEventListener('click', async (e) => {
     S.ritual = 'Reading it for new facts…'; paint();
     const x = await api.extract(S.storyId, closing.id);
     steps.push(x.error ? `Could not read it for facts: ${x.error}`
-      : `${x.added ?? 0} proposed for canon — nothing accepted yet`);
+      : `${x.added ?? 0} proposed as threads — nothing accepted yet`);
 
     // Step 4: the next chapter's setup, skippable.
     V = await api.story(S.storyId);
@@ -2020,7 +2020,7 @@ document.addEventListener('click', async (e) => {
     const r = await api.decide({ storyId: S.storyId, id: d.id, accept: d.decide === 'accept' });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest();
-    toast(d.decide === 'accept' ? 'Accepted into canon.' : 'Dropped.');
+    toast(d.decide === 'accept' ? 'Woven in.' : 'Dropped.');
     return;
   }
   if (d.branch) { const r = await api.switchBranch(S.storyId, d.branch); if (r.error) return toast(r.error);
@@ -2052,7 +2052,7 @@ document.addEventListener('click', async (e) => {
     S.spark = null;
     await loadLibrary();
     await openStory(r.id);
-    toast(`Created with ${keep.length} in canon.`);
+    toast(`Created with ${keep.length} threads.`);
     return;
   }
   if (d.blank) {

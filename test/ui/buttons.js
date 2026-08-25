@@ -7,7 +7,7 @@ let red = 0;
 const ok = (label, got) => { if (!got) red++;
   console.log("  " + (got ? "ok  " : "FAIL") + " " + label + (got ? "" : "   <-- broken")); };
 
-// ---- 1. clicking an entry in Worlds & lorebooks opens it
+// ---- 1. clicking an entry in the workspace Threads page opens it
 await page.goto("http://127.0.0.1:5179/#" + sid);
 await page.click('[data-leave="1"]');
 await page.click('[data-nav="canon"]');

@@ -220,7 +220,7 @@ await page.click('[data-nav="prefs"]');
 for (let i = 0; i < 60 && !/What you have written/.test(await page.text('#page') || ''); i++) await wait(250);
 const prefs = (await page.text('#page') || '').replace(/\s+/g, ' ');
 ok("Preferences reports what you have written", /What you have written/.test(prefs));
-for (const label of ['Words', 'Passages', 'Stories', 'In the ledgers', 'Takes not chosen', 'Calls to the model'])
+for (const label of ['Words', 'Passages', 'Stories', 'Threads', 'Takes not chosen', 'Calls to the model'])
   ok(`  ${label}`, new RegExp(label).test(prefs));
 ok(`  and splits passages between you and Anansi (${JSON.stringify((prefs.match(/Passages[^A-Z]{0,40}/) ?? [""])[0].trim())})`,
    /yours/.test(prefs) && /Anansi/.test(prefs));

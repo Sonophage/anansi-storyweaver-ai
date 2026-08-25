@@ -107,7 +107,7 @@ if (mine !== '') {
   await page.click(`[data-tolore="${mine}"]`);
   await wait(1600);
   const v = await page.eval("(async () => await (await fetch('/api/story?story=" + sid + "')).json())()");
-  ok(`Add to the lore book writes an entry (${nBefore} -> ${v.entries.length})`, v.entries.length === nBefore + 1);
+  ok(`Add to threads writes an entry (${nBefore} -> ${v.entries.length})`, v.entries.length === nBefore + 1);
   const made = v.entries.at(-1);
   ok(`  named from the text (${JSON.stringify((made?.title ?? '').slice(0, 34))})`, (made?.title ?? '').length > 3);
   // Deliberate: an always-on entry made from a highlight would cost tokens on every call from
@@ -117,6 +117,6 @@ if (mine !== '') {
   ok("  and it opens the editor so it gets finished",
      await page.eval("!!document.querySelector('[data-f=\"keys\"]')"));
   ok("  and says what is still needed", /trigger words/i.test(await page.text('#toast') || ''));
-} else { ok("a result in this story offers Add to the lore book", false); }
+} else { ok("a result in this story offers Add to threads", false); }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

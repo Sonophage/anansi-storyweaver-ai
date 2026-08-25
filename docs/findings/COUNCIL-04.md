@@ -13,7 +13,7 @@ Everything below is **open**.
 
 ---
 
-## 1 · The naming, which four of six raised independently
+## ~~1 · The naming, which four of six raised independently~~ — FIXED
 
 The first-time user could not tell whether these are one thing or five:
 
@@ -26,8 +26,9 @@ The first-time user could not tell whether these are one thing or five:
 | search result | **Add to the lore book** |
 | Context rows | **CANON** |
 
-They are one thing. This is `DECISIONS.md` §6 and it is now the most-reported problem in the app.
-It is a half-day of renaming and it changes how the whole surface reads.
+They are one thing, and it is now called **a thread** in all six places. `DECISIONS.md` §6 records
+the choice and what it costs: *threads* was the word the serial writer wanted for **plot promises**
+(#10 below), so that feature will need a different one.
 
 ## 2 · The Context panel drowns at 358 passages
 
@@ -55,17 +56,24 @@ other take in the database, invisible and unreachable.
 
 Two fixes, both small: promote a sibling on delete, and make it take two presses like Delete story.
 
-## 5 · The voice sample is the worst-served field in the app
+## ~~5 · The voice sample is the worst-served field in the app~~ — FIXED
 
 `CAPS.DIRECTIVE = 250` and `[Voice: …]` is the only truncatable part of that block, so a pasted
 sample is sliced 10% at a time, cut mid-word, and wrapped in brackets — which reads as a
 *description* of style rather than prose to imitate. `context.ts:224` already admits the app's own
 hint ("paste a few hundred words") guarantees the cap is exceeded.
 
-A sample must be shown, in its own block, uncapped and unbracketed, or the field is theatre.
+**Fixed as `VOICE`, its own block.** 500 tokens of its own rather than the tail of DIRECTIVE's 250
+— so "a few hundred words" now fits whole, measured at ~300 words in `test/engine.ts`. Sent
+verbatim inside a `<voice>` fence instead of wrapped as `[Voice: …]`, with one instruction line
+above it saying it is a specimen and must not be continued or mined for facts. It sits high, beside
+SPINE: the only block holding prose that is not this story must not sit next to the sentence being
+continued. Over the cap it still shortens — but the sample is now the only thing that can be cut,
+and `addAnchor` backs the cut up to a sentence boundary, which also stops SPINE cutting the premise
+mid-word.
 
-Related rot: spice levels 4 and 5 say *"Vocabulary follows the writing sample"* — and the writing
-sample is `keep: false`, so it is the first thing dropped.
+The spice-4/5 promise *"Vocabulary follows the writing sample"* is true for the first time: the
+sample is `keep: false` **within its own block**, not the first casualty of a shared one.
 
 ## 6 · Two of the five mode prompts produce slop
 
