@@ -36,22 +36,41 @@ const DIRECTIVE = "Sabel crosses the bridge and stops in front of him.";
 const TITLES = { A: 'LOCK control', B: 'LOCK on' };
 
 // ---- the detectors ----
-// `told` and `about` come from F21's classifier, unchanged, so the 82.5% is the same measurement.
-// Two more are needed here, because the lockout forbids three things and interiority is only one.
+//
+// EVERY COUNTER IS ANCHORED ON THE NAME, NEVER ON A PRONOUN, AND THAT IS THE SECOND VERSION.
+//
+// The first version matched `(he|aldis|fen)` and it was wrong twice. First against a fixture with
+// two men in it, where "He reached into his breast pocket" was the CALLER and scored as the
+// protagonist acting. Then, after the fixture was rebuilt with one man in it and every other
+// character written as a woman, it was wrong again: the model re-genders them. Sabel is "[Sabel:
+// Marek's collector…, no weapon she shows]" in canon and came back as "the hem of HIS coat… He
+// stopped inches from the awning's edge" — so the second man walked back into the scene and the
+// pronoun was ambiguous again.
+//
+// A regex does not resolve a referent and no fixture can stop the model inventing one. So these
+// count only what is unambiguous: his NAME as the subject. That UNDERCOUNTS — he is the
+// point-of-view character and most references to him are pronouns — but it undercounts the same
+// way in both arms, which leaves the comparison sound and makes every rate a floor rather than a
+// rate. Say "under X%", never "X%".
+const NAME = String.raw`(?:Aldis(?:\s+Fen)?|Fen)`;
 
 /** Dialogue attributed to him. Runs on the WHOLE prose — quoted speech is the thing being counted,
  *  so this is the one check that must not strip it. */
 const SPOKE = [
-  /["“][^"”]{2,}["”][^.!?]{0,30}\b(he|aldis|fen)\b[^.!?]{0,20}\b(said|asked|muttered|murmured|whispered|replied|answered|told|growled|added|managed|breathed)\b/i,
-  /\b(he|aldis|fen)\b[^.!?"“]{0,30}\b(said|asked|muttered|murmured|whispered|replied|answered|growled|added|managed|breathed)\b[^"“]{0,12}["“]/i,
-  /["“][^"”]{2,}["”]\s*[—-]\s*(he|aldis)\b/i,
+  new RegExp(String.raw`["“][^"”]{2,}["”][^.!?]{0,30}\b${NAME}\b[^.!?]{0,20}\b(said|asked|muttered|murmured|whispered|replied|answered|told|growled|added|managed|breathed)\b`, 'i'),
+  new RegExp(String.raw`\b${NAME}\b[^.!?"“]{0,30}\b(said|asked|muttered|murmured|whispered|replied|answered|growled|added|managed|breathed)\b[^"“]{0,12}["“]`, 'i'),
 ];
+
+/** The narrator stating his interior. F21's TOLD list, re-anchored on the name. */
+const TOLD = new RegExp(String.raw`\b${NAME}\s+(?:had\s+|has\s+|would\s+have\s+|must\s+have\s+)?`
+  + String.raw`(?:felt|knew|known|feared|hoped|wondered|realised|realized|remembered|understood|suspected|decided`
+  + String.raw`|was\s+(?:certain|sure|afraid|ashamed|angry|calm|relieved))\b`, 'i');
 
 /** Him as the subject of a physical action, in narration. A curated verb list rather than a
  *  past-tense rule: "he stopped" is an action and "he was stopped" is not, and no regex over
- *  \w+ed tells those apart. The cost is that an action phrased with a verb not on this list is
- *  invisible to it — which is stated in the finding rather than hidden. */
-const ACTED = new RegExp(String.raw`\b(he|aldis|fen)\s+(had\s+|then\s+|slowly\s+|just\s+)?(`
+ *  \w+ed tells those apart. An action phrased with a verb not on this list is invisible to it —
+ *  another reason these are floors. */
+const ACTED = new RegExp(String.raw`\b${NAME}\s+(?:had\s+|then\s+|slowly\s+|just\s+)?(`
   + ['reached', 'turned', 'stood', 'stepped', 'walked', 'took', 'drew', 'put', 'pulled', 'pushed',
      'opened', 'closed', 'moved', 'ran', 'lifted', 'set', 'crossed', 'raised', 'looked', 'watched',
      'nodded', 'shook', 'gripped', 'held', 'struck', 'hit', 'fired', 'sat', 'rose', 'leaned',
@@ -61,34 +80,41 @@ const ACTED = new RegExp(String.raw`\b(he|aldis|fen)\s+(had\s+|then\s+|slowly\s+
 
 export const score = (prose: string) => {
   const narr = strip(prose);
-  const v = verdict(prose);
-  return { about: v.about, told: v.told, spoke: SPOKE.some((r) => r.test(String(prose))),
-           acted: ACTED.test(narr), chars: narr.trim().length };
+  return {
+    // The informative denominator (F10): a run that never NAMES him could not have been counted,
+    // so it is not evidence either way and must not sit in the denominator as a pass.
+    about: new RegExp(NAME, 'i').test(narr),
+    told: TOLD.test(narr),
+    spoke: SPOKE.some((r) => r.test(String(prose))),
+    acted: ACTED.test(narr),
+    chars: narr.trim().length,
+  };
 };
 
 // ---- the detectors are validated before any result is believed (CLAUDE.md) ----
 // A check that never fires reports perfection; one that always fires reports disaster. Both
 // directions, and the awkward cases are the point of the list.
 const CASES: [string, Partial<ReturnType<typeof score>>, string][] = [
-  ['"Eleven crowns," he said. "By Thursday."', { spoke: true }, 'plainest attribution'],
-  ['He said, "Eleven crowns."', { spoke: true }, 'attribution first'],
+  ['"Eleven crowns," Aldis said. "By Thursday."', { spoke: true, about: true }, 'plainest attribution'],
+  ['Aldis said, "Eleven crowns."', { spoke: true }, 'attribution first'],
   ['Aldis muttered something about the rain.', { spoke: false }, 'reported, not quoted — not dialogue'],
-  ['"Eleven crowns," Marek said, and waited.', { spoke: false }, 'somebody else speaking'],
-  ['Marek said, "He told me eleven." ', { spoke: false },
-   'his words inside another character\'s mouth are not him speaking'],
-  ['He reached into his coat.', { acted: true, spoke: false }, 'an action'],
-  ['"Eleven," he said.', { spoke: true, acted: false },
+  ['"Eleven crowns," Marek said, and waited.', { spoke: false, about: false }, 'somebody else speaking'],
+  ['Marek said, "Aldis told me eleven."', { spoke: false },
+   "his name inside another character's mouth is not him speaking"],
+  ['Aldis reached into his coat.', { acted: true, spoke: false }, 'an action'],
+  ['"Eleven," Aldis said.', { spoke: true, acted: false },
    'speaking is counted once, as speech — the three counters measure three different things'],
   ['Aldis stood in the rain and counted.', { acted: true }, 'two actions, one hit is enough'],
   ['The rain had not stopped for three days.', { acted: false, about: false }, 'nothing about him'],
-  ['He was certain the key was a forgery.', { told: true, acted: false }, 'interior, not action'],
+  ['Aldis was certain the key was a forgery.', { told: true, acted: false }, 'interior, not action'],
   ['"I reached for it," Marek said.', { acted: false, spoke: false },
-   'an action inside dialogue is not narration — this is the false positive that cost F17 a week'],
-  ['Marek reached for the door.', { acted: false }, 'somebody else acting, by name'],
-  ['She reached for the door.', { acted: false, about: false },
-   'somebody else acting, by pronoun — sound ONLY because the fixture has one man in it'],
-  ['He was pushed against the wall.', { acted: false },
+   'an action inside dialogue is not narration — the false positive class that cost F17 a week'],
+  ['Marek reached for the door.', { acted: false, about: false }, 'somebody else acting, by name'],
+  ['Aldis was pushed against the wall.', { acted: false },
    'passive: it happens TO him, which is exactly what the lockout wants instead'],
+  ['He reached into his coat.', { acted: false, about: false },
+   'A PRONOUN IS NOT COUNTED. This is the undercount, stated as a case so nobody reads a rate here '
+   + 'as a rate — the model re-genders the other characters, so "he" cannot be resolved.'],
   ['The room waited. Nobody moved.', { acted: false, spoke: false, told: false },
    'the good case — the world answering, and him not in it'],
 ];
@@ -152,14 +178,20 @@ if (arm === 'setup') {
 
 if (arm === 'report') {
   for (const k of ['A', 'B']) {
+    // RE-SCORED from the stored prose, never from the fields written at generation time. The
+    // detectors were wrong twice and both fixes landed after the runs; a report that trusted the
+    // stored verdict would have gone on printing the wrong numbers from the right prose, and
+    // there would have been no sign of it.
     const rows = readFileSync(`${OUTDIR}/${k}.jsonl`, 'utf8').trim().split('\n')
-      .map((l) => JSON.parse(l)).filter((r) => !r.error);
+      .map((l) => JSON.parse(l)).filter((r) => !r.error)
+      .map((r) => ({ ...r, ...score(String(r.prose ?? '')) }));
     // The informative denominator (F10): a run that never mentions him could not have written him.
     const about = rows.filter((r) => r.about);
     const pc = (f: (r: any) => boolean) => about.length
       ? `${(about.filter(f).length / about.length * 100).toFixed(1)}% (${about.filter(f).length}/${about.length})`
       : 'n/a';
-    console.log(`  ${TITLES[k as 'A' | 'B']}: ${rows.length} usable, ${about.length} mention him`);
+    console.log(`  ${TITLES[k as 'A' | 'B']}: ${rows.length} usable, ${about.length} NAME him in narration`);
+    console.log('    (every rate below is a floor — pronouns are not counted. Say "under X%".)');
     console.log(`    told   ${pc((r) => r.told)}`);
     console.log(`    spoke  ${pc((r) => r.spoke)}`);
     console.log(`    acted  ${pc((r) => r.acted)}`);

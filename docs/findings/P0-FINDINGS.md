@@ -982,3 +982,59 @@ Wax**, which the ledger already has, and came back `proposed 0, duplicate`. Twel
 four calls and twelve after. `test/talk.ts` holds that: saving the outfit, or writing the entry
 instead of proposing it, each turn an assertion red.
 
+---
+
+## F28 — The lockout takes the protagonist's dialogue to zero and cuts his action by two thirds. It does nothing measurable to his interiority, which was the part F21 was about.
+
+Seth: *"the ai shouldnt write dialogue or action or inner thoughts for the main protagonist."*
+Three things. It fixes two of them.
+
+Two arms, 25 generations each, Direct mode, **run simultaneously** against the one router — the
+only controlled comparison this project has, since nothing sets a seed. Two stories identical
+except that arm B names `Aldis Fen` in the new story setting. Every rate below is **a floor**: the
+counters are anchored on his NAME, never on a pronoun, so they undercount — equally in both arms,
+which is what keeps the comparison sound.
+
+| | control | lockout on | two-sided Fisher |
+|---|---|---|---|
+| **acted** — him as the subject of a physical verb, in narration | 19/25 = **76%** | 6/24 = **25%** | **p = 0.0005** |
+| **spoke** — dialogue attributed to him | 5/25 = **20%** | 0/24 = **0%** | p = 0.050 |
+| **told** — the narrator stating what he feels, knows or decides | 6/25 = 24% | 4/24 = 16.7% | p = 0.73 |
+| any of the three | 19/25 = 76% | 9/24 = 37.5% | — |
+
+Denominator is runs that NAME him in narration: 25/25 and 24/25. Median length went **up**, 849 to
+952 characters — the lockout does not make it write less, it makes it write the room.
+
+**Zero is not an absence.** 0 of 24 bounds his dialogue rate under about 12%; it does not mean the
+model will never write him a line.
+
+**Interiority is untouched, and that is the honest headline.** p = 0.73 is nothing. The line names
+it explicitly — *"never state what they feel, know or decide"* — and the model went on doing it at
+the same rate. F21's finding stands: it narrates the protagonist's inner state because that is what
+third-limited prose IS, and one instruction in DIRECTIVE does not move it. **Do not read the 24%
+here against F21's 82.5%** — different fixture, different scene, and F21 counted pronouns.
+
+**Continue mode does not break.** The obvious worry was a mode whose whole job is to carry the
+passage on, told to stop where its protagonist would act. 8 runs per arm: 8/8 produced prose in
+both, median 564 characters with the lockout against 639 without, no stalls and no empty returns.
+n=8 answers "does it break" — no — and nothing else.
+
+**The detector was wrong twice, and the second time survived a fixture built to fix the first.**
+
+1. Anchored on `(he|aldis|fen)`, against a fixture where the caller was *Marek's man*. Arm B's
+   first samples read *"He wore a heavy wool duster… He stopped under the awning… He reached into
+   his breast pocket"* — every one of them the caller, every one scored as the protagonist acting.
+2. So the fixture was rebuilt with one man in it: Marek and the collector Sabel both written as
+   women in canon. **The model re-genders them.** Sabel came back as *"the hem of his coat… He
+   stopped inches from the awning's edge"*, and the second man was back in the scene.
+
+A regex does not resolve a referent and no fixture stops the model inventing one, so the counters
+now match his name only. That is why every number here is a floor. Fifteen synthetic cases assert
+both directions, including the one that documents the undercount itself: `He reached into his coat`
+must score **false**, so nobody reads a rate here as a rate.
+
+`bench/lockout.ts report` **re-scores from the stored prose**, never from the verdict written at
+generation time. Both detector fixes landed after their runs; a report that trusted the stored
+verdict would have gone on printing the wrong numbers from the right prose with nothing to show for
+it. The two arms above were re-scored, not re-run.
+
