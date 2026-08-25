@@ -88,11 +88,18 @@ await ok('a stream that stops early yields what arrived, and the caller sees no 
     assert.deepStrictEqual(r.usage, {}, 'no usage was sent, so none is reported');
   });
 
-await ok('a heartbeat comment and a blank line are not mistaken for prose', async () => {
-  const url = await serve([': ping\n\n', delta('One.'), '\n', 'data: [DONE]\n\n']);
+await ok('only `data:` lines are prose', async () => {
+  // The JSON payload on the `event:` line is contrived — llama-server does not send one. It is
+  // what makes this assertion able to fail: without it, a broken `data:` guard is invisible,
+  // because every other non-data line is unparseable anyway and skipped for the wrong reason.
+  const url = await serve([
+    ': ping\n\n',
+    `event: ${JSON.stringify({ choices: [{ delta: { content: 'NOT PROSE' } }] })}\n\n`,
+    delta('One.'), '\n', 'data: [DONE]\n\n',
+  ]);
   const seen: string[] = [];
   const r = await readSSE(await fetch(url, { method: 'POST' }), (d) => seen.push(d));
-  assert.deepStrictEqual(seen, ['One.']);
+  assert.deepStrictEqual(seen, ['One.'], 'a comment and a non-data frame contribute nothing');
   assert.strictEqual(r.prose, 'One.');
 });
 

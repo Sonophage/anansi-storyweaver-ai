@@ -789,3 +789,39 @@ Any future use of `enable_thinking: true` needs a raised budget and a measuremen
 logged to `generations` with an error and the client showed a toast that nobody was watching. What
 surfaced it was someone reading the Storyteller panel and asking what *"talk · failed — 22.2s"*
 meant.
+
+---
+
+## F24 — the blank page was mostly prefill, and prefill is nearly free once the cache is warm
+
+COUNCIL-04 #3 measured **p50 5.7s, p90 8.2s, max 79s** of nothing happening per passage, and both
+user reviewers named it. Streaming was built for it. Measured against the real model, on his own
+358-passage story, over the streaming route:
+
+| call | time to first token | total | deltas |
+|---|---|---|---|
+| cold (first call after the model loaded) | **7,771 ms** | 14.4s | 354 |
+| next call, same story | **363 ms** | 6.1s | 309 |
+| the one after that | **349 ms** | 4.2s | 205 |
+
+**Two separate numbers were hiding inside one average.** The wait is prompt processing, and
+llama-server reuses the KV prefix — so the first passage of a session pays ~7.8s before a word
+appears and every passage after it pays about a third of a second. The council's p50 of 5.7s was
+computed over `generations` rows without separating those, which is why it looked like a flat cost.
+
+What streaming changes, honestly stated:
+
+- **Warm — the normal case while you are writing:** 5.7s of blank page becomes ~0.35s. This is the
+  whole win and it is a large one.
+- **Cold — the first passage after a load or a 15-minute sleep:** still ~7.8s before the first
+  word. Streaming does not touch prefill. The working bar is what covers that window, and it
+  already names which action you pressed.
+
+Nothing here was reproducible in the F-series sense — no seed, one story, three consecutive calls.
+It bounds the warm case at "well under a second", not at 349 ms.
+
+**A related observation, not fixed:** with llama-server unreachable, the error that reaches the
+writer is `fetch failed`. That is `post()`'s message and it predates streaming — the streaming
+path returns it identically, as the final line after a 200. The model sleeps after 15 minutes
+(`--sleep-idle-seconds 900`), so this is the message a returning writer is most likely to see, and
+it says nothing useful.

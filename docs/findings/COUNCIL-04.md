@@ -38,7 +38,7 @@ there"*, which is false for 96 of 103 rows.
 
 Omitted blocks of the same kind should collapse to one row with a count.
 
-## 3 · No streaming
+## ~~3 · No streaming~~ — BUILT
 
 `chat()` is a blocking POST; nothing in `src/` or `web/` mentions `stream`. From this machine's own
 `generations` table: **p50 5.7s, p90 8.2s, max 79s** of nothing happening per passage. The
@@ -46,6 +46,17 @@ first-time user assumed Continue was broken and clicked it again; the power user
 one thing that would send them back to NovelAI or SillyTavern, both of which stream.
 
 The working bar helps and is not the same thing as watching the sentence arrive.
+
+**Built.** `POST /api/generate` takes `stream: true` and answers NDJSON — one `{d}` per fragment,
+and a last line identical to what the blocking route returns, so the client's success path did not
+change. Not SSE: `EventSource` cannot POST and every generation carries a body. The passage appears
+in the document as it is written, dimmed and carrying a caret, and is replaced by the real one when
+`accept` returns.
+
+F24 measured what it actually bought, and corrects the p50 above: the wait is **prefill**, and
+llama-server reuses the KV prefix. Warm — the normal case while writing — the blank page goes from
+5.7s to **~0.35s**. Cold, after a load or the 15-minute sleep, it is still **~7.8s** before the
+first word, because streaming does not touch prompt processing. One number was two.
 
 ## 4 · Delete orphans every alternate take
 

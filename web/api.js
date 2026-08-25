@@ -84,7 +84,9 @@ export const api = {
   saveEntry:    (storyId, entry) => j('/api/entry', 'POST', { storyId, entry }),
   delEntry:     (storyId, id)    => j('/api/entry', 'DELETE', { storyId, id }),
   manifest:     (o)              => j('/api/manifest', 'POST', o),
-  generate:     (o)              => j('/api/generate', 'POST', o),
+  // The blocking form is gone from the client — every composer path streams now. The ROUTE still
+  // answers without `stream`, and four bench harnesses depend on that; this is the browser's only
+  // way in, and the browser always watches.
   generateLive: (o, onDelta)     => jStream('/api/generate', o, onDelta),
   summarize:    (storyId, chapterId) => j('/api/summarize', 'POST', { storyId, chapterId }),
   search:       (q, story)       => j(`/api/search?q=${encodeURIComponent(q)}`
