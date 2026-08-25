@@ -22,7 +22,7 @@ const toStory = (r: any) => ({
   title: r.title, genre: r.genre, premise: r.premise, setting: r.setting, pov: r.pov,
   persona: r.persona, writingStyle: r.writing_style, direction: r.direction, spice: r.spice,
   maxContext: r.max_context, status: r.status, stripPatterns: r.strip_patterns,
-  spiceNote: r.spice_note,
+  spiceNote: r.spice_note, model: r.model,
 });
 const toChapter = (c: any) => ({
   id: c.id, index: c.idx, title: c.title, summary: c.summary,

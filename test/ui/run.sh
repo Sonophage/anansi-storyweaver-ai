@@ -29,7 +29,12 @@ fresh() {
   # so deleting it there killed six scenarios at once — and they were scored green, because a
   # scenario that dies before its first assertion reports no failures either.
   node --experimental-strip-types test/ui/seed.ts "$WORK/db" >/dev/null
-  ANANSI_PORT=$PORT ANANSI_DB="$WORK/db" nohup node --experimental-strip-types serve.ts >"$WORK/serve.log" 2>&1 &
+  # The scenarios drive Preferences, which can stop and restart the llama-router unit. Point the
+  # test server at a unit that does not exist so no test can ever take the real one down: a
+  # scenario that stops the model server mid-suite would fail every scenario after it, and would
+  # do it on the machine somebody is writing on.
+  ANANSI_PORT=$PORT ANANSI_DB="$WORK/db" ANANSI_LLAMA_UNIT=anansi-test-nonexistent.service \
+    nohup node --experimental-strip-types serve.ts >"$WORK/serve.log" 2>&1 &
   local n=0
   until curl -sf -o /dev/null -m 2 "http://127.0.0.1:$PORT/"; do sleep 1; n=$((n+1)); [ $n -gt 30 ] && { echo "server never came up"; cat "$WORK/serve.log"; exit 1; }; done
 }

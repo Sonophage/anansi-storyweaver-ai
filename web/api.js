@@ -70,6 +70,7 @@ export const api = {
   models:       ()               => j('/api/models'),
   stats:        ()               => j('/api/stats'),
   setModel:     (model)          => j('/api/model', 'POST', { model }),
+  router:       (action, storyId) => j('/api/router', 'POST', { action, storyId }),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
   runImport:    (name, data, into) => j('/api/import', 'POST', { name, data, into: into || undefined }),
   exportUrl:    (id, format)     => `/api/export?story=${id}&format=${format}`,

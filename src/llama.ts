@@ -2,10 +2,23 @@
 // so buildContext itself stays pure.
 
 const HOST = process.env.ANANSI_LLAMA ?? 'http://127.0.0.1:8080';
-// Mutable so Preferences can switch it. The router serves several models and every call names
-// one, so switching is just a different string — but it is process-wide, not per story, and two
-// tenants share this process. Whoever changes it changes it for both.
+// The DEFAULT model, for a story that names none. Every call already carried a model name — the
+// only reason switching was process-wide is that this one variable answered for everybody.
+//
+// A story can now name its own (`stories.model`), and the router is configured for it: the
+// service runs `--models-max 3 --models-autoload`, and F22 measured the three writing presets at
+// 86,349 MiB of 98,304 at full context, so a switch between them usually costs nothing. A story
+// naming a model that is asleep pays one load on its first call.
 let MODEL = process.env.ANANSI_MODEL ?? 'write-nt-qwen36-h';
+
+/** Which model a call should use: the story's own, or the default.
+ *
+ *  Synchronous, so it cannot ask the router anything — it only enforces the allowlist. Whether the
+ *  router actually serves the id is checked when the story is SAVED (`POST /api/story`), so a
+ *  stored value was real at the time it was chosen. A model retired from presets.ini afterwards
+ *  will fail at generation with the router's own message, which names it. */
+export const modelFor = (story?: { model?: string | null } | null): string =>
+  story?.model && allowed(story.model) ? story.model : MODEL;
 
 async function post(path: string, body: unknown, ms = 900_000): Promise<any> {
   const res = await fetch(HOST + path, {
@@ -18,12 +31,12 @@ async function post(path: string, body: unknown, ms = 900_000): Promise<any> {
   return res.json();
 }
 
-export async function tokenize(content: string): Promise<number[]> {
-  return (await post('/tokenize', { model: MODEL, content })).tokens;
+export async function tokenize(content: string, model = MODEL): Promise<number[]> {
+  return (await post('/tokenize', { model, content })).tokens;
 }
 
-export async function count(content: string): Promise<number> {
-  return (await tokenize(content)).length;
+export async function count(content: string, model = MODEL): Promise<number> {
+  return (await tokenize(content, model)).length;
 }
 
 /** Per-slot context. NOT what /props reports directly.
@@ -133,6 +146,36 @@ const ALLOW = (process.env.ANANSI_MODELS ?? '').split(',').map((s) => s.trim()).
 export const allowed = (id: string) =>
   !ALLOW.length || ALLOW.some((a) => id === a || (a.endsWith('*') && id.startsWith(a.slice(0, -1))));
 export const allowList = () => [...ALLOW];
+
+/** Release the models, or bring the router back.
+ *
+ *  The router has no unload endpoint — it sleeps on `--sleep-idle-seconds`, 900 on this box, and
+ *  that is the only automatic release. Stopping the unit is the way to get the VRAM back NOW,
+ *  which is what you want before running something else on the GPU.
+ *
+ *  It is a `--user` unit, so no privilege escalation is involved. The command is a fixed list with
+ *  the unit name hardcoded — nothing from a request reaches a shell, and `execFile` takes an
+ *  argument array rather than a command line, so there is no shell to reach.
+ *
+ *  Gated in routes.ts, and the server binds to 127.0.0.1 only. */
+const UNIT = process.env.ANANSI_LLAMA_UNIT ?? 'llama-router.service';
+export async function router(action: 'stop' | 'start' | 'restart' | 'status') {
+  const { execFile } = await import('node:child_process');
+  const run = (args: string[]) => new Promise<{ out: string; code: number }>((res) => {
+    execFile('systemctl', args, { timeout: 20_000 },
+      (err: any, stdout: string, stderr: string) =>
+        res({ out: (stdout || stderr || '').trim(), code: err?.code ?? 0 }));
+  });
+  if (action === 'status') {
+    const a = await run(['--user', 'is-active', UNIT]);
+    const t = await run(['--user', 'show', UNIT, '-p', 'ExecMainStartTimestamp', '--value']);
+    return { unit: UNIT, state: a.out || 'unknown', since: t.out || null };
+  }
+  const r = await run(['--user', action, UNIT]);
+  const a = await run(['--user', 'is-active', UNIT]);
+  return { unit: UNIT, action, state: a.out || 'unknown', ok: r.code === 0,
+           message: r.out || null };
+}
 
 export async function models(): Promise<{ id: string; status: string }[]> {
   const r = await fetch(`${HOST}/v1/models`, { signal: AbortSignal.timeout(15_000) });

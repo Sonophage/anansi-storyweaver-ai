@@ -467,4 +467,25 @@ ok('a passage written into an earlier chapter lands in that chapter, in order', 
     'a later write into chapter two still sits before chapter three');
 });
 
+// A story may name its own model. The router runs --models-max 3 --models-autoload, so this is a
+// real choice rather than a wish: F22 measured the three writing presets at 86,349 MiB of 98,304
+// at full context, and Seth's own service comment sizes them at 79,466 at 32k.
+ok('a story can name its own model, and a partial save does not lose it', async () => {
+  const { modelFor } = await import('../src/llama.ts');
+  const o = db.owner('per-story-model');
+  const a = db.createStory(o, { title: 'Default' });
+  const b = db.createStory(o, { title: 'Its own' });
+  const dflt = modelFor(db.getStory(a.id));
+  assert.ok(dflt.length, 'a story naming none gets the process default');
+  db.updateStory(b.id, { model: 'rp-nt-ornith-h' });
+  assert.strictEqual(modelFor(db.getStory(b.id)), 'rp-nt-ornith-h', 'and one naming a model gets it');
+  assert.strictEqual(modelFor(db.getStory(a.id)), dflt, 'without moving the other story');
+  // updateStory is partial, so renaming must not quietly drop the model — the same fault that
+  // made the Trajectory panel's Save answer 500.
+  db.updateStory(b.id, { title: 'Renamed only' });
+  assert.strictEqual(db.getStory(b.id).model, 'rp-nt-ornith-h', 'a save that does not mention it keeps it');
+  db.updateStory(b.id, { model: null });
+  assert.strictEqual(modelFor(db.getStory(b.id)), dflt, 'and clearing it goes back to the default');
+});
+
 console.log(`\n${n} checks passed`);

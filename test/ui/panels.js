@@ -297,4 +297,77 @@ const bare = await page.eval("(async () => { const r = await (await fetch('/api/
   + " return r.prompt; })()");
 ok("  and the prompt stops mentioning it", !/wears:/.test(bare));
 
+// ---- 15. a story can name its own model. The box is already configured for it:
+// --models-max 3 --models-autoload, and F22 measured the three writing presets at 86,349 MiB of
+// 98,304 at full context, so switching between them usually costs nothing.
+const sid4 = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
+const view4 = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid4 + "')).json())()");
+await page.goto(B + "/#" + sid4 + "/teller");
+for (let i = 0; i < 60 && !(await page.visible('[data-storymodel]')); i++) await wait(250);
+ok("Storyteller offers a model for this story", await page.visible('[data-storymodel]'));
+const opts4 = await page.eval("[...document.querySelectorAll('[data-storymodel] option')].map(o => o.value)");
+console.log("  offered: " + opts4.filter(Boolean).length + " models plus the default");
+ok("  with a default option meaning 'follow Preferences'", opts4[0] === '');
+ok(`  and the router's models (${opts4.filter(Boolean).length})`, opts4.filter(Boolean).length > 0);
+ok("  defaulting to none, since this story has never named one",
+   await page.eval("document.querySelector('[data-storymodel]').value === ''"));
+
+const pick = opts4.filter(Boolean)[0];
+if (pick) {
+  await page.eval(`(() => { const el = document.querySelector('[data-storymodel]');
+    el.value = ${JSON.stringify(pick)}; el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+  for (let i = 0; i < 40 && (await view4()).story.model !== pick; i++) await wait(300);
+  const v4 = await view4();
+  ok(`choosing one sticks to the story (${JSON.stringify(v4.story.model)})`, v4.story.model === pick);
+  ok("  and the view reports it as the model that will write this story", v4.model === pick);
+  // updateStory is partial — the same fault that made the Trajectory panel's Save answer 500.
+  await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid4 + "')).json();"
+    + " await fetch('/api/story', { method:'POST', headers:{'Content-Type':'application/json'},"
+    + " body: JSON.stringify({ id:'" + sid4 + "', story: { genre: 'noir, kept' } }) }); })()");
+  await wait(700);
+  ok("  and a save that does not mention it keeps it", (await view4()).story.model === pick);
+  // A model the router does not serve is refused on SAVE, not mid-sentence at generation.
+  const refused = await page.eval("(async () => { const r = await fetch('/api/story', { method:'POST',"
+    + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id:'" + sid4 + "',"
+    + " story: { model: 'not-a-real-model-at-all' } }) }); return JSON.stringify({ ok: r.ok, e: (await r.json()).error }); })()");
+  console.log("  a fake model: " + refused);
+  ok("  a model the router does not serve is refused at save time", !JSON.parse(refused).ok);
+  ok(`    with a message that names it`, /not-a-real-model-at-all/.test(JSON.parse(refused).e ?? ''));
+  ok("    and the real one survives the refusal", (await view4()).story.model === pick);
+  // put it back
+  await page.eval("(async () => { await fetch('/api/story', { method:'POST',"
+    + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id:'" + sid4 + "', story:{ model:null } }) }); })()");
+} else { ok("the router offers a model to choose", false); }
+
+// ---- 16. releasing and restarting the server. The router has NO unload call — it only sleeps
+// after 15 minutes idle — so stopping the unit is the only way to get the VRAM back now.
+//
+// This NEVER presses stop for real. The first press only arms it, which is the behaviour under
+// test; actually stopping would take the model away from whatever else is using the box.
+await page.goto(B + "/");
+await page.click('[data-nav="prefs"]');
+for (let i = 0; i < 60 && !(await page.visible('[data-router]')); i++) await wait(250);
+const prefsText = () => page.text('#page').then((t) => (t || '').replace(/\s+/g, ' '));
+ok("Preferences reports the server itself", /The server itself/.test(await prefsText()));
+ok("  with its state", /llama-router/.test(await prefsText()));
+ok("  a restart button", await page.visible('[data-router="restart"]'));
+ok("  and a release button", await page.visible('[data-router="stop"]'));
+ok("  which says what releasing costs", /VRAM back|cannot write while it is stopped/i.test(await prefsText()));
+await page.click('[data-router="stop"]');
+await wait(700);
+const armed = (await page.text('#toast') || '').trim();
+console.log("  first press: " + JSON.stringify(armed.slice(0, 60)));
+ok("the first press only arms the release", /Press again/i.test(armed));
+const stillUp = await page.eval("(async () => { const r = await fetch('/api/router', { method:'POST',"
+  + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'status', storyId:'" + sid4 + "' }) });"
+  + " return (await r.json()).state; })()");
+const ungated = await page.eval("(async () => { const r = await fetch('/api/router', { method:'POST',"
+  + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'stop' }) });"
+  + " return r.status; })()");
+ok(`  and the route is gated — no story id, no stopping the server (${ungated})`, ungated >= 400);
+ok(`  and it reports on the unit it was given (${stillUp})`, typeof stillUp === 'string' && stillUp.length > 0);
+ok("  which is NOT the real router — run.sh points test servers at a unit that does not exist",
+   stillUp !== 'active');
+await page.goto(B + "/");   // navigate away rather than press again
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

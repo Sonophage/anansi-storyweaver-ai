@@ -25,7 +25,7 @@ const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
-  fieldHistory: null, confirmDelete: false, spark: null, ritual: null, setup: null,
+  fieldHistory: null, confirmDelete: false, confirmStop: false, router: null, spark: null, ritual: null, setup: null,
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
   found: null,          // the passage a search result sent you to, marked until you move on
   searchAll: false,     // inside a story, search that story only unless asked otherwise
@@ -95,7 +95,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
-  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear'].map((k) => `[data-${k}]`).join(',');
+  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -645,6 +645,20 @@ const PANELS = {
             temperature here changes it for every story and every writer on this machine. The route
             takes a story id, which makes it look per-story; it is not. Per-story sampling needs
             PLAN-02's <code>engine_config</code>, which was never built.</span></span></div>
+      <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Model</div>
+      ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
+        : S.models.length === 0 ? '<div class="hint" style="margin:0">The router did not answer.</div>'
+        : `<select class="field" data-storymodel="1">
+            <option value="">Default &mdash; ${esc(V.defaultModel ?? SRV.model ?? 'whatever the server is on')}</option>
+            ${S.models.map((m) => `<option value="${esc(m.id)}" ${V.story.model === m.id ? 'selected' : ''}
+              >${esc(m.id)}${m.status === 'loaded' ? ' · awake' : ''}</option>`).join('')}
+          </select>
+          <div class="hint">${V.story.model
+            ? `This story is written by <code>${esc(V.story.model)}</code>, whatever any other story uses.`
+            : 'This story uses whatever Preferences is set to. Name one here and it stops moving when that does.'}
+            The router holds three at once, so switching between them usually costs nothing &mdash; one that is
+            asleep costs a load on the first call.</div>`}
+
       <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Sampling</div>
       ${slider('Temperature', 'temperature', g.temperature ?? 0.85, 2,
         'Prose only. Structured roles run pinned at 0.2 — a loose sampler under a tight grammar writes valid JSON that says nothing.')}
@@ -1252,7 +1266,23 @@ const WPAGES = {
           <code>ANANSI_MODELS</code> when the server starts — it is an operator's decision about
           the box, so it is not editable from here.</div>`
         : '<div class="hint">Every model the router serves is offered. Narrow it with <code>ANANSI_MODELS</code> — a comma-separated list of ids, <code>prefix*</code> allowed — when you start the server.</div>'}
-        <div class="hint">Sampling, voice and spice belong to each story — they live under Storyteller, inside the story.</div>
+        <div class="hint">Sampling, voice and spice belong to each story — they live under Storyteller, inside the story.
+          A story can also name its own <strong>model</strong> there, and then it stops following this one.</div>
+
+        <div class="lbl" style="letter-spacing:.26em; margin-top:26px">The server itself</div>
+        ${S.router ? `<div class="row"><span style="color:var(--ink)">llama-router</span>
+            <span class="chip">${esc(S.router.state ?? '?')}</span>
+            <span style="margin-left:auto; font-size:11px; color:var(--faint)">${
+              S.router.since ? esc(String(S.router.since).replace(/^\w+ /, '')) : ''}</span></div>`
+          : '<div class="hint" style="margin:0">Asking systemd&hellip;</div>'}
+        <div style="display:flex; gap:7px; margin-top:10px">
+          <button class="btn ghost" data-router="restart" style="flex:1">Restart it</button>
+          <button class="btn ghost" data-router="stop" style="flex:1; color:var(--bad)">Release the models</button>
+        </div>
+        <div class="hint"><strong>Release</strong> stops the service, which is the only way to get the
+          VRAM back immediately — the router has no unload call, it only sleeps on its own after 15
+          minutes idle. Anansi cannot write while it is stopped; <strong>Restart</strong> brings it
+          back and the next call loads what it needs. Both are shared: two writers, one server.</div>
 
         <div class="lbl" style="letter-spacing:.26em; margin-top:30px">What you have written</div>
         ${(() => {
@@ -1316,6 +1346,12 @@ async function loadLedger() {
   if (S.wpage === 'canon') drawPage();
 }
 
+async function loadRouter() {
+  const r = await api.router('status', S.storyId ?? LIB[0]?.id);
+  S.router = r.error ? { state: 'unreachable' } : r;
+  if (S.wpage === 'prefs') drawPage();
+}
+
 async function loadStats() {
   const r = await api.stats();
   S.stats = r.error ? null : r;
@@ -1328,7 +1364,8 @@ async function loadModels() {
   S.allow = r.allow ?? [];
   if (r.active) SRV.model = r.active;
   if (S.wpage === 'prefs') drawPage();
-  loadStats();
+  if (S.place === 'story' && S.panel === 'teller') drawSide();
+  loadStats(); loadRouter();
 }
 
 async function loadLibrary() {
@@ -1342,6 +1379,7 @@ async function openStory(id) {
   const r = await api.story(id);
   if (r.error) return toast(r.error);
   V = r; S.storyId = id; S.place = 'story';
+  if (S.models === null) loadModels();   // the Storyteller panel needs the list to offer one
   
   SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen };
   if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
@@ -1701,6 +1739,25 @@ document.addEventListener('click', async (e) => {
   }
 
   // --- the model is process-wide, so this is a Preferences action
+  if (d.storymodel !== undefined) { return; }   // handled on change, below
+  if (d.router) {
+    // Stopping is the destructive one — it takes the model away from whoever else is writing —
+    // so it asks. Restart does not: it is what you press when something is already wrong.
+    if (d.router === 'stop' && !S.confirmStop) {
+      S.confirmStop = true; drawPage();
+      return toast('Press again to stop the server. Nothing can generate until it is back.');
+    }
+    S.confirmStop = false;
+    toast(d.router === 'stop' ? 'Stopping…' : 'Restarting…');
+    const r = await api.router(d.router, S.storyId ?? LIB[0]?.id);
+    if (r.error) { drawPage(); return toast(r.error); }
+    S.router = r;
+    // The model list is meaningless while the server is down, and stale once it comes back.
+    S.models = null; drawPage();
+    if (r.state === 'active') loadModels();
+    toast(r.state === 'active' ? 'The server is up.' : 'The server is stopped. Restart it when you want to write.');
+    return;
+  }
   if (d.pickmodel) {
     if (d.pickmodel === SRV.model) return;
     const r = await api.setModel(d.pickmodel);
@@ -1967,6 +2024,16 @@ document.addEventListener('change', (e) => {
     if (q) q.placeholder = `Search ${S.searchAll ? 'every story' : (V?.story.title ?? 'this story')}`;
     if (S.query.trim()) api.search(S.query, S.searchAll ? undefined : S.storyId)
       .then((r) => { HITS = r.error ? [] : (r.results ?? []); if ($('hits')) $('hits').innerHTML = searchHits(); });
+    return;
+  }
+  if (e.target.dataset?.storymodel) {
+    const model = e.target.value || null;
+    api.saveStory(S.storyId, { model }).then(async (r) => {
+      if (r.error) return toast(r.error);
+      V = await api.story(S.storyId);
+      paint(); refreshManifest();
+      toast(model ? `This story is written by ${model} now.` : 'Back to the default model.');
+    });
     return;
   }
   if (e.target.id === 'asWhom') {

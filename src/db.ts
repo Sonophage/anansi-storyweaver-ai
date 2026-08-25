@@ -42,6 +42,10 @@ function migrate() {
   // A take you regenerated away from. Recorded, not yet fed to the model — see the ponytail
   // marker on `rejectTake`.
   add('passages', 'rejected', 'INTEGER DEFAULT 0');
+  // Which model writes this story. Null means the process default — most stories, most of the
+  // time. The router runs --models-max 3 --models-autoload, so a story on a different model
+  // usually costs nothing to switch to; one that is asleep costs a load on its first call.
+  add('stories', 'model', 'TEXT');
   // The dedupe index used to cover every row, so a subject once accepted or rejected could
   // never be proposed again. Scoped to open proposals now.
   try {
@@ -587,12 +591,12 @@ export function updateStory(id: string, s: any) {
   if (!cur) return;
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
-      direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,updated_at=? WHERE id=?`)
+      direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), p('genre', 'genre'), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
       p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
-      p('stripPatterns', 'strip_patterns') ?? null, now(), id);
+      p('stripPatterns', 'strip_patterns') ?? null, p('model', 'model') ?? null, now(), id);
 }
 export const updateChapter = (storyId: string, id: string, c: any) =>
   q('UPDATE chapters SET title=?, authors_note=?, keep_whole=? WHERE id=? AND story_id=?')

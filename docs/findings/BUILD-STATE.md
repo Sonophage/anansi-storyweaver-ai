@@ -40,6 +40,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Summary staleness~~ | SHA-256 over covered prose, recomputed on read; stale summaries excluded from the prompt with a reason | **Done.** |
 | ~~Auto-summary~~ | Fires on chapter close | **Done.** |
 | **Search** | A `LIKE` scan | Fine at this size. The unused FTS5 table beside it has been dropped rather than left looking like a feature. |
+| **The model** | Process default, **overridable per story** (`stories.model`), an `ANANSI_MODELS` allowlist, and stop/restart of the router unit from Preferences | Whole. The router runs `--models-max 3 --models-autoload`, so three co-reside and a switch usually costs nothing. |
 | **Branches** | `branches` table, rows, `branchesOf`, switching, **and forking** from a passage's History | Whole. Forking landed with the History panel; the row that said "no fork action" was stale. |
 | **`generations`** | One row per call with the full manifest | Never read. P6's own trigger condition (prefill time, prefix moved) depends on reading it. |
 | **Entry knobs** | `sticky_for`, `proper_nouns`, `priority` columns | The engine ignores all three. |
@@ -51,7 +52,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **119 across six suites** (34 engine, 33 db, 19 scope, 10 import, 14 web, 9 app), plus **327 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
+| **Tests** | **121 across six suites** (34 engine, 34 db, 19 scope, 11 import, 14 web, 9 app), plus **297 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
 
 ---
 

@@ -1,5 +1,5 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, structured, structuredRetry, model, models, setModel, allowList } from './llama.ts';
+import { count, chat, structured, structuredRetry, model, models, setModel, allowList, modelFor, router } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema } from './prompts.ts';
 import * as db from './db.ts';
@@ -63,8 +63,9 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
 
   // The estimate draws the meter; this decides. One /tokenize before a call that costs
   // ~30s of prefill is cheap, and it is the only number the server will agree with.
+  const using = modelFor(v.story);
   try {
-    const exact = await count(prompt);
+    const exact = await count(prompt, using);
     manifest.totals.used = exact;
     if (exact > manifest.totals.budget) {
       const first = manifest.blocks.find((b) => b.state === 'included');
@@ -75,10 +76,12 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
   const { thinking, ...sampler } = c.gen;
   const t0 = Date.now();
   try {
+    // The story's own model, or the process default. `chat` spreads opts over its own defaults,
+    // so naming it here is all it takes — every call has always carried a model name.
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
-      { ...sampler, chat_template_kwargs: { enable_thinking: !!thinking } });
+      { ...sampler, model: using, chat_template_kwargs: { enable_thinking: !!thinking } });
     const ms = Date.now() - t0;
-    const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: model(), role,
+    const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
       params: c.gen, manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     // Handed back so `accept` can tie the take to this call. The manifest is logged here, before
@@ -86,7 +89,7 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
     return { prose: clean(r.prose, v.story.stripPatterns), reasoning: r.reasoning.length,
              seconds: +(ms / 1000).toFixed(1), manifest, genId };
   } catch (e: any) {
-    db.logGeneration({ storyId: v.id, model: model(), role, manifest, error: e?.message, latencyMs: Date.now() - t0 });
+    db.logGeneration({ storyId: v.id, model: using, role, manifest, error: e?.message, latencyMs: Date.now() - t0 });
     return { error: e?.message ?? 'generation failed', manifest };
   }
 }
@@ -231,6 +234,18 @@ export const routes: Record<string, Handler> = {
     catch (e: any) { return { models: [], active: model(), allow: allowList(),
       error: e?.message ?? 'the router did not answer' }; }
   },
+  // Releasing the models and bringing them back. GATED — not on the OPEN list — because it stops
+  // a service both tenants share, and because a route that runs systemctl deserves the gate even
+  // when the unit is user-scoped and the server binds to loopback only. The action is checked
+  // against a fixed list here as well as in llama.ts; nothing from the body reaches a command.
+  'POST /api/router': async (c: Ctx) => {
+    const action = String(c.body.action ?? 'status');
+    if (!['status', 'stop', 'start', 'restart'].includes(action))
+      throw Object.assign(new Error(`no such action: ${action}`), { code: 400 });
+    try { return await router(action as any); }
+    catch (e: any) { return { error: e?.message ?? 'could not reach systemctl' }; }
+  },
+
   'POST /api/model': async (c) => {
     try { return { active: await setModel(String(c.body.model ?? '')) }; }
     catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
@@ -267,9 +282,24 @@ export const routes: Record<string, Handler> = {
   // ---- one story ----
   'GET /api/story':      (c) => {
     const v = viewOf(c.query.get('story')!, c.query.get('chapter') ?? undefined);
-    return { ...v, model: model(), slot: c.slot, gen: c.gen, budget: budgetFor(v.story, c.slot, Number(c.gen.max_tokens) || 900) };
+    // `model` is what will actually write THIS story — the story's own if it names one.
+    return { ...v, model: modelFor(v.story), defaultModel: model(), slot: c.slot, gen: c.gen,
+      budget: budgetFor(v.story, c.slot, Number(c.gen.max_tokens) || 900) };
   },
-  'POST /api/story':     (c) => { db.updateStory(c.body.id, c.body.story); return viewOf(c.body.id); },
+  'POST /api/story':     async (c) => {
+    // A story may name its own model, so this is the one field that has to be checked against the
+    // world before it is stored. Refused here rather than at generation time, where the failure
+    // would arrive mid-sentence and look like the model breaking.
+    const want = c.body.story?.model;
+    if (want) {
+      const known = await models().catch(() => [] as { id: string }[]);
+      if (known.length && !known.some((m) => m.id === want))
+        throw Object.assign(new Error(
+          `the router does not serve "${want}" — or it is not on this app's allowlist`), { code: 400 });
+    }
+    db.updateStory(c.body.id, c.body.story);
+    return viewOf(c.body.id);
+  },
   'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c.body.storyId); },
   'POST /api/chapter/end': async (c) => {
     const v = viewOf(c.body.storyId);
@@ -431,7 +461,7 @@ export const routes: Record<string, Handler> = {
     const { manifest, prompt } = assemble(v, c.slot, c.body.mode ?? 'direct', c.body.directive,
       upTo, Number(c.gen.max_tokens) || 900, c.body.speaker || undefined);
     let exact: number | null = null;
-    try { exact = await count(prompt); } catch { /* model asleep */ }
+    try { exact = await count(prompt, modelFor(v.story)); } catch { /* model asleep */ }
     return { manifest, prompt, exact };
   },
   'POST /api/generate': (c) => generate(c, c.body.mode ?? 'direct', c.body.directive),
