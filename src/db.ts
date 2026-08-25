@@ -46,6 +46,11 @@ function migrate() {
   // time. The router runs --models-max 3 --models-autoload, so a story on a different model
   // usually costs nothing to switch to; one that is asleep costs a load on its first call.
   add('stories', 'model', 'TEXT');
+  // The character the model must not write: no dialogue, no action, no interior. Null on every
+  // story until somebody names one, which keeps the behaviour of every existing book unchanged.
+  // A NAME rather than an entry id, because it also has to work for a protagonist who has no
+  // ledger entry — plenty of second-person books never gave "you" one.
+  add('stories', 'locked_character', 'TEXT');
   // The dedupe index used to cover every row, so a subject once accepted or rejected could
   // never be proposed again. Scoped to open proposals now.
   try {
@@ -73,6 +78,7 @@ CREATE TABLE IF NOT EXISTS stories (
   id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES users(id),
   title TEXT NOT NULL, genre TEXT, premise TEXT, setting TEXT, pov TEXT,
   persona TEXT,              -- who you are in it. The "You · Ilva Marren" byline.
+  locked_character TEXT,     -- the one the model never writes. See migrate().
   writing_style TEXT, direction TEXT, spice INTEGER DEFAULT 2,
  strip_patterns TEXT, max_context INTEGER,
   status TEXT DEFAULT 'in_progress',   -- in_progress | finished | draft
@@ -609,12 +615,14 @@ export function updateStory(id: string, s: any) {
   if (!cur) return;
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
-      direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,updated_at=? WHERE id=?`)
+      direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,
+      locked_character=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), p('genre', 'genre'), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
       p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
-      p('stripPatterns', 'strip_patterns') ?? null, p('model', 'model') ?? null, now(), id);
+      p('stripPatterns', 'strip_patterns') ?? null, p('model', 'model') ?? null,
+      p('lockedCharacter', 'locked_character') ?? null, now(), id);
 }
 export const updateChapter = (storyId: string, id: string, c: any) =>
   q('UPDATE chapters SET title=?, authors_note=?, keep_whole=? WHERE id=? AND story_id=?')

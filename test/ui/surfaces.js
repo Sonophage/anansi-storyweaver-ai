@@ -84,6 +84,25 @@ ok("   Point of view is a dropdown", await page.eval("document.querySelector('[d
 ok("   You are is a dropdown", await page.eval("document.querySelector('[data-story=\"persona\"]')?.tagName === 'SELECT'"));
 ok("   the cast fills You are", await page.eval("[...document.querySelector('[data-story=\"persona\"]').options].some(o => o.text.includes('Aldis'))"));
 ok("   the ledger fills Setting", await page.eval("[...document.querySelector('[data-story=\"setting\"]').options].length > 1"));
+// The lockout: a second, separate dropdown from "You are", so handing yourself a different
+// character for a scene does not also hand over the one you were keeping.
+ok("   the model-never-writes lock is its own dropdown",
+   await page.eval("document.querySelector('[data-story=\"lockedCharacter\"]')?.tagName === 'SELECT'"));
+ok("   drawn from the cast, and off by default",
+   await page.eval("(() => { const el = document.querySelector('[data-story=\"lockedCharacter\"]');"
+     + " return el.value === '' && [...el.options].some(o => o.text.includes('Aldis')); })()"));
+await page.eval("(() => { const el = document.querySelector('[data-story=\"lockedCharacter\"]');"
+  + " el.value = [...el.options].find(o => o.text.includes('Aldis')).value; return 1; })()");
+await page.click('[data-savestory="1"]');
+await wait(800);
+const locked = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).story.lockedCharacter)()");
+ok(`   and saving it sticks (${JSON.stringify(locked)})`, /Aldis/.test(locked || ''));
+// The whole point: it reaches the prompt.
+const lockPrompt = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+  + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'continue'})})).json();"
+  + " return r.prompt; })()");
+ok("   and reaches the prompt as a standing instruction",
+   /belongs to the writer/.test(lockPrompt) && /Stop where/.test(lockPrompt));
 // 6. Spice is a level OR a written register, never both, and the sixth option is the switch.
 // The written box used to sit on screen always, which made it noise on every story that does
 // not use one.

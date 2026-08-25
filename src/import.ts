@@ -66,7 +66,11 @@ export function fromExport(file: string): Incoming {
       source: 'anansi export',
       story: { title: story.title, genre: story.genre, premise: story.premise, setting: story.setting,
         pov: story.pov, persona: story.persona, writingStyle: story.writing_style,
-        direction: story.direction, spice: story.spice },
+        direction: story.direction, spice: story.spice,
+        // Whitelisted by hand, so anything not named here is lost silently on a round trip.
+        // ponytail: spice_note, max_context and model are still missing from this list — a custom
+        // register does not survive an export and re-import. Fix with the columns, not one at a time.
+        lockedCharacter: story.locked_character },
       entries: entries.slice(0, MAX_ENTRIES).map((e) => ({ title: e.title, body: clip(e.body),
         notes: clip(e.notes, 2000), entryType: e.entry_type, activation: e.activation,
         keys: keysOf(e.keys && JSON.parse(e.keys)),

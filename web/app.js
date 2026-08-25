@@ -546,6 +546,16 @@ const PANELS = {
       <label class="lbl">You are</label>
       ${pick('persona', cast.map((e) => e.title), V.story.persona, 'Nobody — narrate only')}
       <div class="hint">The character you speak as in Speak mode. Drawn from the cast.</div>
+      <label class="lbl">The model never writes</label>
+      ${pick('lockedCharacter', cast.map((e) => e.title), V.story.lockedCharacter,
+             'Nobody — it may write anyone')}
+      <div class="hint">${V.story.lockedCharacter
+        ? `No dialogue, no action, no gesture, and nothing about what ${esc(V.story.lockedCharacter)}
+           feels or knows. It writes the world's answer and stops where they would act.`
+        : `Name someone and the model will not write their dialogue, their actions or their inner
+           state — it writes what happens around them instead. Usually the one you play.`}
+        A separate setting from <em>You are</em> on purpose: you may hand yourself a different
+        character for a scene without also handing over the one you were keeping.</div>
       <label class="lbl">Spice</label>
       ${(() => {
         // Six options, not five plus a box. The written override was on screen always, which made

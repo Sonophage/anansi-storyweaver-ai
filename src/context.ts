@@ -37,6 +37,9 @@ export interface Story {
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
   direction?: string;      // the destination. Rides SPINE — see PROMPTS rev 2 §3.
   spiceNote?: string | null;   // a written-out register, replacing the level's fixed line
+  // The one the model never writes. Null on every story until somebody names one. A NAME rather
+  // than an entry id, because a protagonist with no ledger entry is common in second person.
+  lockedCharacter?: string | null;
 }
 export interface Arc {
   fromChapter: number; toChapter: number; title?: string; summary: string;
@@ -366,8 +369,24 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   for (const p of head)
     add('PROSE', p.id, p.body, p.chapterId && pulled.has(p.chapterId) ? 'pulled back' : 'recent prose');
 
+  // The lockout. One line, and it is a prohibition with a destination — a bare "do not write him"
+  // gets worked around (he is described from outside, or the scene stalls waiting for him), so the
+  // line has to say what the model IS for. F21 measured the model narrating the protagonist's
+  // interior in 82.5% of generations with nothing in canon asking for it; this is the only thing
+  // in the app that has ever aimed at that number.
+  //
+  // It rides DIRECTIVE rather than getting a block of its own: DIRECTIVE is the anchor that holds
+  // the standing instructions, it is never evicted, and a fifth block for its ~78 tokens would need
+  // a place in ORDER, a colour, a name in BLOCK_ORIGIN and a row in the Context panel.
+  const locked = story.lockedCharacter?.trim();
   addAnchor('DIRECTIVE', 'directive', [
     { text: `[Writing: ${story.pov}]`, keep: true },
+    { text: locked
+      ? `[${locked} belongs to the writer: never write their dialogue, action, gesture or thought, `
+        + `and never state what they feel, know or decide. Write the world's answer instead — what `
+        + `the others say and do, what the room does, what happens to ${locked}. Stop where `
+        + `${locked} would act.]`
+      : '', keep: true },
     { text: currentChapter.authorsNote ? `[This chapter must end with: ${currentChapter.authorsNote}]` : '', keep: true },
     // A written-out register replaces the level's fixed line. Five lines cannot say
     // everything, and a story that needs a sixth should not have to pick the nearest.

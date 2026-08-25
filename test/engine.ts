@@ -47,6 +47,43 @@ ok('blocks come out in canonical order', () => {
   assert.deepStrictEqual(idx, [...idx].sort((a, b) => a - b));
 });
 
+ok('the lockout names the character it locks, and only when one is named', () => {
+  const off = buildContext(base(), count);
+  const d0 = off.blocks.find((b) => b.kind === 'DIRECTIVE')!;
+  assert.doesNotMatch(d0.text, /belongs to the writer/,
+    'no story has a locked character until somebody names one');
+
+  const i = base();
+  // Deliberately NOT the persona. They are two settings so that handing yourself a different
+  // character for a scene does not also hand over the one you were keeping.
+  (i.story as any).persona = 'Marek Vale';
+  i.story.lockedCharacter = 'Aldis Fen';
+  const d = buildContext(i, count).blocks.find((b) => b.kind === 'DIRECTIVE')!;
+  assert.match(d.text, /Aldis Fen belongs to the writer/, 'it names the locked one');
+  assert.doesNotMatch(d.text, /Marek Vale belongs/, 'and not the one you speak as');
+  // A prohibition with no destination gets worked around — the model describes him from outside,
+  // or stalls waiting for him. The line has to say what the model IS for.
+  assert.match(d.text, /dialogue/); assert.match(d.text, /action/);
+  assert.match(d.text, /feel, know or decide/, 'interiority is named — it is F21\'s 82.5%');
+  assert.match(d.text, /world's answer/, 'and it is told what to write instead');
+
+  assert.match(d.text, /Writing: third limited/, 'point of view survives beside it');
+  assert.strictEqual(d.state, 'included');
+  assert.ok(d.tokens < 250, `DIRECTIVE is capped at 250 and this is ${d.tokens}`);
+
+  // It rides DIRECTIVE, which is capped. A chapter ending long enough to blow the cap must not be
+  // what takes the lockout off — the writer set it and nothing on screen would say it had gone.
+  const tight = base();
+  tight.story.lockedCharacter = 'Aldis Fen';
+  tight.currentChapter = { id: 'c3', index: 3, title: 'Key',
+    authorsNote: 'Aldis refuses to hand over the key, and Marek leaves without it. '.repeat(14) };
+  const dt = buildContext(tight, count).blocks.find((b) => b.kind === 'DIRECTIVE')!;
+  assert.ok(dt.tokens > 250, `the fixture has to actually blow the cap; it is ${dt.tokens}`);
+  // Matched on the LAST clause, not the first: a trimmed anchor keeps its opening words, so
+  // "Aldis Fen belongs to the writer" survives a cut that threw the instruction itself away.
+  assert.match(dt.text, /Stop where Aldis Fen would act/, 'and the whole lockout is still there');
+});
+
 ok('DIRECTIVE is never the last block', () => {
   const m = buildContext(base(), count);
   const inc = m.blocks.filter((b) => b.state === 'included');
