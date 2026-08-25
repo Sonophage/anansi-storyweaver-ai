@@ -1,4 +1,6 @@
-# Six decisions waiting on you — 2026-08-24
+# Decisions waiting on you — 2026-08-24
+
+*(Six, plus the five at the end of `PLAN-05-TALK.md`.)*
 
 Each one has options, what I would pick, and why. Answer in whatever form suits — a line each is
 enough, and "none of these" is a real answer. Nothing here is built.
@@ -122,12 +124,16 @@ words and I will make one pass over the whole surface.
 
 ## Not decisions, just waiting
 
-- **Start blank needs a screen.** Clear; I can build it whenever.
+- ~~**Start blank needs a screen.**~~ **Built** — it asks for title, genre, premise, setting, point
+  of view, voice and register before creating anything.
+- ~~**Outfits.**~~ **Built** to the design you chose: named, one worn at a time, enforced by a
+  partial unique index rather than by the screen.
+- ~~**Per-story models.**~~ **Built.** F22 cleared the hardware question and the router already ran
+  `--models-max 3 --models-autoload`. Preferences also gained **Release the models** and
+  **Restart it**, because the router has no unload call — it only sleeps after 15 minutes.
 - **Preferences: changing your name.** The dashboard landed. The name is a hard-coded owner in
   `serve.ts` — changing it is easy, but it is the first thread of "is there more than one of you",
   which is the login question you have deliberately left alone.
-- **Outfits.** You already chose: named, one worn at a time, a table with a partial unique index.
-  Buildable without further input.
 - **Talk to Anansi about the story** — now scoped, in `docs/plans/PLAN-05-TALK.md`. The short
   version: that one sentence is three features. **Tell** (you say what to add, it proposes) is one
   prompt role away, because `extract` already classifies, dedupes and files proposals. **Ask** (a
