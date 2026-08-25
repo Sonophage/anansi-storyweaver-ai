@@ -18,13 +18,13 @@ one — it looks finished from the UI), and **not started**.
 | Overflow guard that names the block the server would drop | `src/context.ts` §6.4 |
 | Canon 45% cap and the EARLIER ceiling | `src/blocks.ts` |
 | Plain keyword activation, scanning prose **and the directive** | `src/context.ts` |
-| Persistence: 8 tables, cascade deletes, partial index on `selected` | `src/db.ts` |
+| Persistence: 15 tables, cascade deletes, partial indexes on `selected` and on the worn outfit | `src/db.ts` |
 | Variants — regenerate keeps every take, nothing deleted | `db.addVariant` / `selectVariant` |
 | Chapters with manual start and end; breaks are real passages | `db.endChapter` |
 | Chapter summaries (manual trigger) | `POST /api/summarize` |
-| Both surfaces on one engine, one API, one field schema | `web/api.js`, `web/model.js` |
+| One responsive surface on one engine, one API, one field schema | `app.html`, `web/api.js`, `web/model.js` |
 | `generations` logged on every call, including failures | `db.logGeneration` |
-| 11 engine tests that run with no model up | `test/engine.ts` |
+| 34 engine tests that run with no model up | `test/engine.ts` |
 | Per-story export to a standalone database | `db.exportStory` |
 | Import: Anansi exports, AI Dungeon (both halves of a real export), character cards V1/V2/V3 | `src/import.ts`, wired to the Import screen |
 
@@ -40,7 +40,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Summary staleness~~ | SHA-256 over covered prose, recomputed on read; stale summaries excluded from the prompt with a reason | **Done.** |
 | ~~Auto-summary~~ | Fires on chapter close | **Done.** |
 | **Search** | A `LIKE` scan | Fine at this size. The unused FTS5 table beside it has been dropped rather than left looking like a feature. |
-| **Branches** | `branches` table, rows, `branchesOf`, UI entry point | No fork action. The button says so. |
+| **Branches** | `branches` table, rows, `branchesOf`, switching, **and forking** from a passage's History | Whole. Forking landed with the History panel; the row that said "no fork action" was stale. |
 | **`generations`** | One row per call with the full manifest | Never read. P6's own trigger condition (prefill time, prefix moved) depends on reading it. |
 | **Entry knobs** | `sticky_for`, `proper_nouns`, `priority` columns | The engine ignores all three. |
 | ~~Export~~ | Markdown and JSON, with proper download headers | **Done.** |
@@ -191,6 +191,23 @@ typed never reached the page. The new set turns on that distinction — Direct's
 instruction and is never written down; Speak, Act and Narrate put the writer's text on the page
 as theirs and the model answers it. `test/ui/model.js` asserts both halves, including the inverse:
 that a Direct instruction appears nowhere in the prose.
+
+### A round trip does not carry chapters — found 2026-08-24
+
+Exporting a story and importing it back **flattens every chapter into one**. It has been true
+since the importer was written, and nothing said so: the import's own note names branches,
+revision history and generation logs as things that do not travel, and never mentions chapters.
+Seth's Sutera import landed as one chapter for exactly this reason.
+
+`test/import.ts` now asserts, for every story-scoped table found in the schema, that it either
+survives a round trip or is on an explicit list with a reason. Of fifteen tables, ten carry a
+`story_id`; **three of those travel** — entries, passages, outfits — and seven are listed as
+deliberately not carried. `chapters` is on that list marked KNOWN GAP rather than hidden.
+
+The check was written because outfits were dropped the same way — `exportStory` carried them, and
+`fromExport` never read them, so a round trip returned every character naked. It is the
+persistence version of the guard `test/web.ts` already has for api methods with no caller, and it
+fails by name with the counts: `outfits (1 -> 0)`.
 
 ### The two importers, resolved 2026-08-24
 
