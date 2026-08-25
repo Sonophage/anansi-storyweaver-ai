@@ -832,3 +832,56 @@ calls and separates the two cases that were one:
 
 They are separated because they need opposite responses. Telling someone to restart a server that
 is busy loading a 26 GiB model is how a 60-second wait becomes a five-minute one.
+
+---
+
+## F25 — Anansi's cut-off answers were the grammar, not the token budget. They fail differently and only one of them is visible.
+
+Seth: *"it also cut itself off before when i asked it what the story was about before finishing it
+it shouldnt do that."*
+
+Two bounds could have done it and they are not the same bug. `maxLength` on a JSON-schema string
+compiles into the GBNF grammar, which closes the string at exactly N characters — mid-word — and
+the object it belongs to is still **valid**, so a truncated answer arrives looking like a finished
+one. Running out of `max_tokens` truncates the *object*, which does not parse, and
+`structuredRetry` gets a second go. Measured on the real model, `write-nt-qwen36-h`, one long
+question about a story:
+
+| schema | max_tokens | parsed | reply | ends on a full stop | latency |
+|---|---|---|---|---|---|
+| as shipped, `maxLength: 1400` | 1600 | yes | **1,400 chars** | **no** — `"…that is"` | 7.1s |
+| no `maxLength` | 1600 | yes | 3,696 chars | yes | 16.0s |
+| no `maxLength` | 400 | **no** | — | — | 7.4s |
+
+Exactly 1,400. The cap was the cut, and the model wanted **2.6× the room it was given** for that
+question. The third row is the other failure wearing its own face: unparseable JSON, which the
+retry exists for.
+
+The cap on `reply` is gone. The other caps in `TALK_SCHEMA` stay — a directive is one instruction
+and an entry body is one fact, and F18 is what an unbounded string does to a field like that. The
+reply is the one field where the length **is** the content, and `max_tokens` is its bound, because
+that bound fails loudly.
+
+**Two adjacent defects found while measuring this, both fixed:**
+
+- The talk route assembled its prompt reserving `900` tokens of output and then asked for `1600`.
+  The prompt was budgeted for a smaller answer than the one requested, so on a long story the slot
+  could be oversubscribed — and oversubscribing this shared cache does not queue, it returns HTTP
+  500 to both writers. One constant now, reserved and spent.
+- `structuredRetry` retried at a flat `max_tokens: 2000`. The failure it retries is an object that
+  ran out of room, so a caller already asking for more than 2,000 was retried with **less** and
+  could only fail harder. It now doubles what was asked, with 2,000 as the floor.
+
+**End to end**, the same question through `POST /api/talk` on a copy of his own *Sutera Remembers*
+(358 passages, a 4,463-token prompt): **2,576 characters, ending on a full stop, 14.7s.** Under the
+cap that answer would have stopped at 1,400.
+
+One thing that run showed which is NOT about truncation: the reply ended *"End with a gesture from
+Vel that signals they are being watched by something in the dark"* — a directive, written into the
+answer, while the `directive` field came back empty. That belongs with the personality work, not
+here.
+
+`test/talk.ts` holds all three against a fake llama-server, and each was falsified by putting the
+old value back. Not reproducible in the F-series sense: one model, one question, one run per row.
+It establishes the mechanism, not a rate.
+

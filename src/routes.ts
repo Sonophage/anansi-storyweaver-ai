@@ -53,6 +53,14 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
   return body?.storyId ?? body?.id ?? body?.into ?? query.get('story') ?? null;
 }
 
+/** What Anansi is allowed to say, in tokens — reserved when the prompt is assembled and spent when
+ *  the call is made, because they were two different numbers.
+ *
+ *  MEASURED 2026-08-25: the long answer to "what is this story about" is 3,696 characters of reply,
+ *  4,159 of JSON, about 1,100 tokens. Four proposed entries and a directive can add another 750.
+ *  This is the bound on the answer now that the grammar no longer holds one. */
+const TALK_TOKENS = 2400;
+
 /** One detector, two callers. The check on a saved passage and the repair of a passage on its
  *  way to the page have to agree about what a contradiction is, and when they were two copies of
  *  this filter they would have drifted on the first change to either. */
@@ -534,8 +542,12 @@ export const routes: Record<string, Handler> = {
       said,
     ].filter(Boolean).join('\n\n');
 
+    // One number, reserved and spent. It was assembling the prompt against 900 tokens of reserved
+    // output and then asking for 1,600 — the prompt was budgeted for an answer smaller than the one
+    // requested, so the slot could be oversubscribed by 700 tokens on a long story, and this server
+    // does not queue an overflow, it returns 500 to both writers sharing the cache.
     const { manifest, prompt } = assemble(grounded, c.slot, 'talk', ask, undefined,
-      Number(c.gen.max_tokens) || 900, undefined);
+      TALK_TOKENS, undefined);
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
     const using = modelFor(v.story);
@@ -549,7 +561,7 @@ export const routes: Record<string, Handler> = {
     // structuredRetry rather than structured: the retry doubles max_tokens and drops temperature,
     // which is the right response to a truncated object whatever caused it.
     const r = await structuredRetry(TALK, prompt.slice(SYSTEM.length), TALK_SCHEMA,
-      { model: using, temperature: 0.4, max_tokens: 1600 });
+      { model: using, temperature: 0.4, max_tokens: TALK_TOKENS });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',
       manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };

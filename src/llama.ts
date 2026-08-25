@@ -205,7 +205,12 @@ export async function structured(system: string, body: string, schema: unknown, 
 export async function structuredRetry(system: string, body: string, schema: unknown, opts = {}) {
   const first = await structured(system, body, schema, opts);
   if (first.data) return first;
-  return structured(system, body, schema, { ...opts, max_tokens: 2000, temperature: 0.1 });
+  // Double what was asked, never a flat 2000: the failure being retried is an object that ran out
+  // of room, so a caller who already asked for more than 2000 would have been retried with LESS
+  // and the retry could only fail harder. Callers that name no budget keep the old number.
+  const asked = Number((opts as any).max_tokens) || 1000;
+  return structured(system, body, schema,
+    { ...opts, max_tokens: Math.max(2000, asked * 2), temperature: 0.1 });
 }
 
 /** The active model. A getter, not a const — a const captured the value at import and every

@@ -205,9 +205,18 @@ Offer nothing you were not asked for. A question wants an answer, not a queue of
 export const TALK_SCHEMA = {
   type: 'object',
   properties: {
-    // Bounded on purpose. maxLength on a string IS enforced by the GBNF converter — measured
-    // 2026-08-23, 24 in and exactly 24 out against 1,437 unbounded.
-    reply: { type: 'string', maxLength: 1400 },
+    // NOT bounded, and this is a correction. maxLength IS enforced by the GBNF converter — the
+    // grammar closes the string at exactly N characters, mid-word, and the JSON stays valid, so a
+    // truncated answer arrives looking like a finished one. MEASURED 2026-08-25 on the real model,
+    // asked what a story was about: 1,400 characters, ending "…that is". Removing the cap: 3,696
+    // characters, ending in a full stop, 16.0s against 7.1s.
+    //
+    // The other caps here stay. They bound things that ARE short — a directive is one instruction,
+    // an entry body is a fact — and a reasoning model with an unbounded string writes an essay into
+    // them (F18). The reply is the one field whose length IS the answer. max_tokens is its bound,
+    // and running into that fails visibly: the object truncates, the JSON does not parse, and
+    // structuredRetry gets a second go. Measured too — 400 tokens returned unparseable JSON.
+    reply: { type: 'string' },
     directive: { type: 'string', maxLength: 400 },
     entries: {
       type: 'array', maxItems: 4,
