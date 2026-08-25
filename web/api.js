@@ -69,6 +69,7 @@ export const api = {
   ledger:       ()               => j('/api/ledger'),
   models:       ()               => j('/api/models'),
   stats:        ()               => j('/api/stats'),
+  talk:         (storyId, o)     => j('/api/talk', 'POST', { storyId, ...o }),
   setModel:     (model)          => j('/api/model', 'POST', { model }),
   router:       (action, storyId) => j('/api/router', 'POST', { action, storyId }),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),

@@ -44,7 +44,7 @@ export interface Arc {
 export interface Input {
   story: Story; chapters: Chapter[]; passages: Passage[]; entries: Entry[];
   arcs?: Arc[];                    // act-level summaries, replacing the chapters they cover
-  mode: 'continue' | 'speak' | 'act' | 'direct' | 'narrate';
+  mode: 'continue' | 'speak' | 'act' | 'direct' | 'narrate' | 'talk';
   directive?: string;
   // Who the last passage belongs to, for speak and act. The writer's own line is already on the
   // page when those two generate, so the model's job is to answer it — and it cannot do that
@@ -92,6 +92,13 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
     + `Do not decide what ${who || 'that character'} does next. Do not restate the action.`,
 
   direct: (d) => `Write what happens next: ${d}\n\nWrite 2-4 paragraphs covering that and nothing beyond it.\nDo not narrate past the instruction. Do not resolve it faster than the scene wants.`,
+
+  // Not a writing mode. Anansi answers the writer rather than continuing the book, so this block
+  // says what the material above IS — otherwise a model handed canon and prose does the thing it
+  // has been doing all along and writes the next passage.
+  talk: (d) => `The writer is talking to you about this story, not asking for prose.\n`
+    + `Everything above is what you know about it. Do not continue the story.\n\n`
+    + `They say: ${d ?? ''}`,
 
   // The one mode where the text above is the author's own prose rather than a request. Saying so
   // is the whole job: without it the model treats a paragraph of narration as an instruction and

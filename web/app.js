@@ -31,6 +31,7 @@ const S = {
   searchAll: false,     // inside a story, search that story only unless asked otherwise
   setupQ: '',           // filter over the ledger on the next-chapter setup page
   lore: null,           // the + Lore tray above the composer, when it is open
+  talk: { turns: [], busy: false, search: false, draft: null, searchable: null },
   blank: null,          // the Start blank form, when it is open
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
@@ -56,6 +57,7 @@ const SNAV = [
   ['story', '⚙', 'Story'], ['chapter', '❧', 'Chapter'],
   ['threads', '☙', 'Threads'], ['context', '◈', 'Context'],
   ['search', '⌕', 'Search'], ['teller', '◐', 'Storyteller'],
+  ['anansi', '✻', 'Anansi'],
 ];
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
@@ -95,7 +97,8 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
-  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router'].map((k) => `[data-${k}]`).join(',');
+  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
+  'ask', 'usedraft', 'copydraft', 'websearch', 'clearchat'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -611,6 +614,72 @@ const PANELS = {
   },
 
 
+
+  // The conversation. Ephemeral by choice: turns live in S.talk and go nowhere else, so there is
+  // no table, no export question, and nothing for the round-trip invariant to cover.
+  //
+  // Nothing here writes. A thread goes to the proposals queue and waits; a directive is HANDED to
+  // the composer, unsent and editable, because a conversation that could send is a conversation
+  // that can write your book while you are thinking out loud.
+  anansi() {
+    // `searchable` comes off the story view, so the checkbox is right the moment the panel
+    // opens. It used to start null and only learn the truth from the first answer, which meant
+    // offering a switch that could not work and then taking it away.
+    const t = { ...S.talk, searchable: V?.searchable ?? S.talk.searchable };
+    return `<div style="display:flex; flex-direction:column; height:100%">
+      <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-bottom:10px">
+        ${t.turns.length ? t.turns.map((turn) => turn.you
+          ? `<div style="align-self:flex-end; max-width:88%; padding:9px 13px; border-radius:14px 14px 4px 14px;
+              background:rgba(217,178,106,.10); border:1px solid rgba(217,178,106,.22);
+              font-size:13px; line-height:1.5; color:var(--ink)">${esc(turn.text)}</div>`
+          : `<div style="max-width:94%; display:flex; flex-direction:column; gap:7px">
+              <div style="font-size:13.5px; line-height:1.62; color:var(--ink); white-space:pre-wrap">${esc(turn.text)}</div>
+              ${turn.sources?.length ? `<div style="display:flex; flex-direction:column; gap:3px">
+                ${turn.sources.map((x, i) => `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"
+                  style="font-size:11px; color:var(--gold-dim); text-decoration:none; overflow:hidden;
+                  text-overflow:ellipsis; white-space:nowrap">[${i + 1}] ${esc(x.title || x.url)}</a>`).join('')}
+              </div>` : ''}
+              ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
+                border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} proposed &mdash; waiting under Chapter</button>` : ''}
+              ${turn.meta ? `<div style="font-size:10.5px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
+            </div>`).join('')
+          : `<div class="hint" style="margin:0">Ask about the story, a character, what you have set up
+              and not paid off. Anansi can also propose <strong>threads</strong> for the ledger, and
+              draft a <strong>directive</strong> to hand to the composer.<br><br>
+              Nothing it offers goes anywhere until you accept it.</div>`}
+        ${t.busy ? '<div class="hint" style="margin:0">Thinking&hellip;</div>' : ''}
+      </div>
+
+      ${t.draft ? `<div class="card" style="gap:8px; border-color:rgba(217,178,106,.34)">
+        <div class="kind">A directive, for you to use or ignore</div>
+        <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(t.draft)}</div>
+        <div style="display:flex; gap:7px">
+          <button class="btn ghost" data-usedraft="1" style="flex:1">Put it in the composer</button>
+          <button class="btn ghost" data-copydraft="1" style="width:84px">Copy</button>
+        </div>
+        <div class="hint" style="margin:0">It arrives in Direct mode, unsent — read it before you send it.</div>
+      </div>` : ''}
+
+      <div style="display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid var(--line)">
+        <textarea class="field" id="askBox" placeholder="Ask Anansi about this story&hellip;"
+          style="min-height:64px; margin:0"></textarea>
+        <div style="display:flex; align-items:center; gap:8px">
+          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
+            t.searchable === false ? 'var(--faint)' : 'var(--mute)'}"
+            title="${t.searchable === false ? 'Set ANANSI_SEARCH on the server to enable this' : 'Look it up on the web first'}">
+            <input type="checkbox" data-websearch="1" ${t.search ? 'checked' : ''}
+              ${t.searchable === false ? 'disabled' : ''}> Search the web
+          </label>
+          ${t.turns.length ? `<button data-clearchat="1" style="font-size:11px; color:var(--faint)">Clear</button>` : ''}
+          <button class="btn" data-ask="1" ${t.busy ? 'disabled' : ''}
+            style="margin-left:auto; width:auto; padding:0 22px; height:38px">${t.busy ? '&hellip;' : 'Ask'}</button>
+        </div>
+        ${t.searchable === false
+          ? '<div class="hint" style="margin:0">Web search is off. It makes the only outbound request this app can make, so it stays off until <code>ANANSI_SEARCH</code> names a service you trust.</div>'
+          : ''}
+      </div>
+    </div>`;
+  },
 
   search() {
     // Inside a story, this searches THAT story. It used to span every book you own, which is the
@@ -1739,6 +1808,52 @@ document.addEventListener('click', async (e) => {
   }
 
   // --- the model is process-wide, so this is a Preferences action
+  if (d.ask) {
+    const box = $('askBox');
+    const said = (box?.value ?? '').trim();
+    if (!said || S.talk.busy) return;
+    // The question goes up as yours before the answer comes back, so the window reads like a
+    // conversation rather than a form that clears itself.
+    S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null };
+    drawSide(); working('direct');
+    const r = await api.talk(S.storyId, {
+      said, turns: S.talk.turns.slice(0, -1).map((t) => ({ you: t.you, text: t.text })),
+      search: S.talk.search ? said : undefined,
+    });
+    working(null);
+    S.talk.busy = false;
+    if (r.error) { drawSide(); return toast(r.error); }
+    S.talk.searchable = r.searchable ?? S.talk.searchable;
+    S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
+      sources: r.sources ?? [], proposed: r.proposed ?? 0,
+      meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens of context` }];
+    S.talk.draft = r.directive || null;
+    // A thread that landed is a proposal, and the queue lives under Chapter.
+    if (r.proposed) V = await api.story(S.storyId);
+    paint();
+    const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
+    return;
+  }
+  if (d.usedraft) {
+    // HANDED to the composer, not sent. Direct mode, in the box, editable — the whole safety
+    // property of this feature is that Anansi never presses send.
+    const draft = S.talk.draft;
+    if (!draft) return;
+    S.mode = 'direct'; S.panel = null; S.talk.draft = null;
+    syncHash(); paint();
+    const input = $('input');
+    if (input) { input.value = draft; input.focus();
+      input.style.height = 'auto'; input.style.height = `${Math.min(140, input.scrollHeight)}px`; }
+    toast('In the composer, unsent. Read it before you send it.');
+    return;
+  }
+  if (d.copydraft) {
+    if (!S.talk.draft) return;
+    try { await navigator.clipboard.writeText(S.talk.draft); toast('Copied.'); }
+    catch { toast('Could not reach the clipboard — select it and copy by hand.'); }
+    return;
+  }
+  if (d.clearchat) { S.talk = { ...S.talk, turns: [], draft: null }; drawSide(); return; }
   if (d.storymodel !== undefined) { return; }   // handled on change, below
   if (d.router) {
     // Stopping is the destructive one — it takes the model away from whoever else is writing —
@@ -2026,6 +2141,11 @@ document.addEventListener('change', (e) => {
       .then((r) => { HITS = r.error ? [] : (r.results ?? []); if ($('hits')) $('hits').innerHTML = searchHits(); });
     return;
   }
+  if (e.target.dataset?.websearch) {
+    // Never redraws the panel: the question you are part-way through typing lives in the DOM.
+    S.talk.search = e.target.checked;
+    return;
+  }
   if (e.target.dataset?.storymodel) {
     const model = e.target.value || null;
     api.saveStory(S.storyId, { model }).then(async (r) => {
@@ -2053,6 +2173,14 @@ document.addEventListener('drop', (e) => {
   if (!e.target.closest?.('#impdrop')) return;
   e.preventDefault();
   readImport(e.dataTransfer?.files?.[0]);
+});
+
+document.addEventListener('keydown', (e) => {
+  // Enter asks, Shift+Enter is a newline — the same bargain the composer makes.
+  if (e.target?.id === 'askBox' && e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+    e.preventDefault();
+    document.querySelector('[data-ask]')?.click();
+  }
 });
 
 document.addEventListener('input', (e) => {

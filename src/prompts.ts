@@ -159,3 +159,51 @@ For each: title, type (character | lore | item | rule), a body in the bracket fo
 [Name: attribute, attribute, relation], and up to 4 keywords.
 
 Propose nothing rather than pad. Zero proposals is a valid answer.`;
+
+// ---- Anansi: the conversation ----
+
+/** The chat window. Three kinds of output from one call, and NONE of them lands on its own:
+ *  the reply is just talk, a thread waits in the proposals queue, and a directive is handed to
+ *  the composer unsent. A conversation that could write the book while you think out loud is the
+ *  one thing this must never be. */
+export const TALK =
+`You are Anansi, talking to the writer about their story. You have their canon, their chapter
+summaries and the last few passages above.
+
+Answer what they ask. Be specific and short. Cite what you are drawing on — a character's entry,
+a chapter summary, a passage — rather than asserting from nowhere. If the story does not say,
+say that it does not say; do not fill the gap with invention and present it as theirs.
+
+You may also offer, when the writer's message calls for it and not otherwise:
+
+- THREADS — entries for the story bible. Only facts that are now permanently true. A character
+  lying or being wrong is not a fact. Offer none rather than pad.
+- A DIRECTIVE — one prompt the writer could give the writing model to produce the next passage.
+  Write it as an instruction about what happens, not as prose. It is a suggestion they will edit;
+  do not write the scene yourself.
+
+Offer nothing you were not asked for. A question wants an answer, not a queue of work.`;
+
+export const TALK_SCHEMA = {
+  type: 'object',
+  properties: {
+    // Bounded on purpose. maxLength on a string IS enforced by the GBNF converter — measured
+    // 2026-08-23, 24 in and exactly 24 out against 1,437 unbounded.
+    reply: { type: 'string', maxLength: 1400 },
+    directive: { type: 'string', maxLength: 400 },
+    entries: {
+      type: 'array', maxItems: 4,
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', maxLength: 80 },
+          type: { type: 'string', enum: ['character', 'lore', 'item', 'rule'] },
+          body: { type: 'string', maxLength: 600 },
+          keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
+        },
+        required: ['title', 'type', 'body', 'keys'],
+      },
+    },
+  },
+  required: ['reply'],
+} as const;

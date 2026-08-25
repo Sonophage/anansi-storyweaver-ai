@@ -17,8 +17,10 @@ for (let i = 0; i < 40 && !(await rail()); i++) await wait(250);
 // ---- 1. the rail, in order
 const nav = await rail();
 console.log("  rail: " + nav);
-ok("the rail lists six panels in the order asked for",
-   nav === 'story,chapter,threads,context,search,teller');
+// Seth's stated order — story/chapter/threads/context/search/storyteller — with Anansi APPENDED
+// rather than slotted in, so that order still reads exactly as he wrote it.
+ok(`the rail lists the panels in the order asked for (${nav})`,
+   nav === 'story,chapter,threads,context,search,teller,anansi');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 

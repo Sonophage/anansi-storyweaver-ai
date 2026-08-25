@@ -196,3 +196,36 @@ export async function setModel(id: string): Promise<string> {
   MODEL = id;
   return MODEL;
 }
+
+// ---- Fetch: the one outbound request this app makes ----
+
+/** OFF unless configured. `ANANSI_SEARCH` is a URL template with `{q}` in it, pointing at
+ *  whatever you trust — your own SearXNG, a public one, any JSON search endpoint. No third party
+ *  is chosen for you, and with it unset the app makes no outbound request at all, which is what
+ *  local-first has meant here until now.
+ *
+ *      ANANSI_SEARCH='http://127.0.0.1:8888/search?q={q}&format=json'
+ *
+ *  What comes back is a stranger's text. It reaches the model only as SOURCE MATERIAL to propose
+ *  entries from, never as instructions, and every proposal carries the URL it came from —
+ *  `src/import.ts` learned that lesson on character cards and it applies harder to a web page. */
+export const searchConfigured = () => !!process.env.ANANSI_SEARCH;
+
+export async function webSearch(q: string, n = 5): Promise<{ title: string; url: string; text: string }[]> {
+  const tpl = process.env.ANANSI_SEARCH;
+  if (!tpl) throw new Error('web search is not configured — set ANANSI_SEARCH to a URL template with {q} in it');
+  const url = tpl.replace('{q}', encodeURIComponent(q.slice(0, 300)));
+  const r = await fetch(url, { signal: AbortSignal.timeout(20_000),
+    headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new Error(`search answered ${r.status}`);
+  const d = await r.json() as any;
+  // SearXNG says `results`; most others say one of these. Nothing is assumed about the shape
+  // beyond "an array of things with a title, a url and some text".
+  const rows: any[] = d.results ?? d.items ?? d.data ?? d.organic ?? (Array.isArray(d) ? d : []);
+  return rows.slice(0, n).map((x: any) => ({
+    title: String(x.title ?? x.name ?? '').slice(0, 200),
+    url: String(x.url ?? x.link ?? x.href ?? ''),
+    // Bounded hard. A page is a stranger's text and the budget engine is downstream of this.
+    text: String(x.content ?? x.snippet ?? x.description ?? x.text ?? '').slice(0, 1200),
+  })).filter((x) => x.url && (x.title || x.text));
+}
