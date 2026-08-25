@@ -158,8 +158,27 @@ ok('each mode says the one thing that distinguishes it', () => {
 
   // Continue takes no directive at all — it is a button, so there is nowhere to type one.
   const cont = modeText({ mode: 'continue' as any, directive: 'IGNORE ME' });
-  assert.ok(/next 1-2 paragraphs/.test(cont), 'Continue must ask for the next beat');
+  assert.ok(/one small beat/.test(cont), 'Continue must ask for the next beat');
   assert.ok(!/IGNORE ME/.test(cont), 'Continue must not carry a directive it cannot be given');
+
+  // NO PROMPT MAY NAME A LENGTH. F18: a named length is a length the model fills, and three of
+  // these carried one. The scope words do the work — one beat, cover the instruction, stop at a
+  // natural beat — and max_tokens is the bound, because that one fails visibly.
+  for (const m of ['continue', 'speak', 'act', 'direct', 'narrate']) {
+    const t = modeText({ mode: m as any, directive: 'He drops it.' });
+    assert.doesNotMatch(t, /\d\s*-\s*\d\s+paragraphs?|\b(one|two|three|four|five)\s+paragraphs?\b/i,
+      `${m} names a paragraph count, which is the defect F18 measured`);
+    assert.doesNotMatch(t, /\b(\d+|a few|several)\s+(sentences|words)\b(?!\s+that takes)/i,
+      `${m} names a length in sentences or words`);
+  }
+
+  // AND NO PROMPT MAY OFFER A LIST OF SLOTS. Speak said "speech, action, the room" and got back
+  // reply, gesture, weather, in that order, every time (COUNCIL-04) — three slots is a shape, and
+  // a shape the model can see is a shape it completes. Act had the same defect in other words.
+  assert.doesNotMatch(modeText({ mode: 'speak' as any }), /speech, action, the room/);
+  assert.doesNotMatch(modeText({ mode: 'act' as any }), /the consequence, the reaction, the world/);
+  assert.match(modeText({ mode: 'speak' as any }), /any one of\s*\n?those is a whole answer/,
+    'and Speak says explicitly that one thing is a whole answer');
 
   // Direct's text is an instruction and must appear as one.
   assert.match(modeText({ mode: 'direct' as any, directive: 'He drops it.' }),
@@ -181,7 +200,7 @@ ok('each mode says the one thing that distinguishes it', () => {
   assert.match(modeText({ mode: 'narrate' as any }), /written by the author, not by you/);
 
   // A stale tab sending a retired name degrades to the neutral mode instead of a 500.
-  assert.ok(/next 1-2 paragraphs/.test(modeText({ mode: 'cowrite' as any })),
+  assert.ok(/one small beat/.test(modeText({ mode: 'cowrite' as any })),
     'an unknown mode must fall back, not throw');
 });
 

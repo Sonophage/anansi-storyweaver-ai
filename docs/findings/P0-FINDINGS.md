@@ -1038,3 +1038,91 @@ generation time. Both detector fixes landed after their runs; a report that trus
 verdict would have gone on printing the wrong numbers from the right prose with nothing to show for
 it. The two arms above were re-scored, not re-run.
 
+---
+
+## F29 — The mode prompts, re-cut. The checklist was being filled 10 times out of 10, and taking the paragraph count out of Continue halved the passage.
+
+COUNCIL-04: *"Two of the five mode prompts produce slop. Speak's 'speech, action, the room' is a
+checklist and a checklist gets filled — reply, gesture, weather. Direct and Continue carry length
+targets, which is F18's defect pointed at prose."* Seth's own list added the spice levels to the
+same sitting.
+
+Two arms of 20 alternating Speak and Continue, **two servers — one running the old prompts, one the
+new — against the one router at the same time.** Same fixture, same database contents, `max_tokens`
+450 on both.
+
+| | old prompts | new prompts |
+|---|---|---|
+| Speak — **all three slots present** | **10/10 = 100%** | **5/10 = 50%** (Fisher p = 0.0325) |
+| Speak — paragraphs, median | 7 | 5 |
+| Speak — characters, median [range] | 852 [539–1306] | 788 [563–1571] |
+| Continue — characters, median [range] | 685 [519–915] | **291** [172–657] |
+| Continue — paragraphs, median | 2 | 2 |
+
+**Ten out of ten.** The review said the shape gets filled; it was being filled every single time.
+Halving that is the single clearest result in this file, and it cost one sentence: *"any one of
+those is a whole answer and the scene is owed no other."*
+
+**The paragraph count was doing more work than anyone thought.** Continue's median passage fell to
+**43% of its old length** when *"the next 1-2 paragraphs"* came out, with the floor dropping from
+519 characters to 172 — the model was padding to the number, and without it a beat is as long as
+the beat. Read three of them before deciding whether that is good: they come back as complete
+beats in the fixture's declared voice, not as truncation.
+
+**Two things this does NOT establish.** The fixture's own `writingStyle` says *"clipped and wet.
+Short sentences"*, so the absolute lengths are that story's, not a general figure. And whether a
+291-character passage is what Seth wants is a taste question a benchmark cannot answer — the
+finding is that the number in the prompt was setting the length, not that the new length is right.
+
+**A third defect, found while fixing the two named ones.** `act` said *"the consequence, the
+reaction, the world answering"* — the same three slots in different words. COUNCIL-04 named Speak
+only. Both are gone, and `test/engine.ts` now forbids either coming back, along with any paragraph,
+sentence or word count in any of the five.
+
+### The five levels, re-planned
+
+Not measurable the way the modes are — nothing in this harness scores whether a register was
+honoured, and a rubric that tried would score the judge. What changed and why:
+
+Every level now says the same three things in the same order — what may be on the page, **where the
+camera stops**, and how it is written. The old lines said them in adjectives, and an adjective is a
+thing the model reinterprets on every call: *"written with restraint"* reads as *write around it*,
+and *"suggestion and aftermath over anatomy"* is a craft note being asked to do a boundary's job. A
+level is a boundary. The craft belongs to the voice sample, which since the VOICE block has been
+reaching the model verbatim.
+
+The ladder is now literally where the camera stops — **at the kiss, at the door, in the room, on the
+act, nowhere** — and each level is the one before it plus a step, so moving a story up a level gets
+what it had and more rather than a different register.
+
+---
+
+## F30 — What the contradiction repair costs: 1.5 seconds on every generation, and it did not fire once in six.
+
+Owed since the repair shipped. The route logs the prose call's latency; the request also pays for
+the canon check, and for the repair when the check fires. The difference is the cost.
+
+| wall | prose call | overhead | repaired |
+|---|---|---|---|
+| 3,830 ms | 2,347 ms | 1,483 ms | no |
+| 2,805 | 1,349 | 1,456 | no |
+| 2,861 | 1,407 | 1,454 | no |
+| 2,468 | 1,052 | 1,416 | no |
+| 4,571 | 3,043 | 1,528 | no |
+| 2,874 | 1,424 | 1,450 | no |
+
+**Median 1,456 ms, and remarkably flat** — 1,416 to 1,528 across prose calls that ranged from 1.0s
+to 3.0s. That is the shape of a fixed cost: a short prompt, a small structured answer, and a warm
+cache.
+
+**0 of 6 fired a repair**, which bounds the repair rate on this fixture under about 40% and says
+nothing more — six is six. The repair itself is a full extra generation when it happens and was not
+observed here.
+
+Whether 1.5s on every passage is worth a contradiction caught before it reaches the page is Seth's
+call, not a benchmark's. It is roughly a third of a warm generation.
+
+**An aside worth writing down:** the mode A/B ran at about 90 seconds a row, and the first
+explanation reached for was this repair. It was not — two servers contending for a two-slot router
+was. The number above is what it actually costs, measured with the router otherwise idle.
+

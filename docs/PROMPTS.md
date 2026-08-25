@@ -106,13 +106,24 @@ it is the one part of this block that shortens under the 250-token cap.
 
 Explicitness only. Never POV, voice, or pacing.
 
-| Level | Line |
-|---|---|
-| 1 | `Register: no sexual content. Romance may be emotional only. Fade at a kiss.` |
-| 2 | `Register: romantic and sensual. Desire is on the page; sex is not. Cut away at the bedroom door.` |
-| 3 | `Register: sex happens on the page, written with restraint. Suggestion and aftermath over anatomy. Adult fiction between adult characters.` |
-| 4 | `Register: sex is written directly and fully. Explicit, but the scene still serves the story. Vocabulary follows the writing sample. Adult fiction between adult characters.` |
-| 5 | `Register: fully explicit. Write sex in unrestricted detail. Do not fade, summarize, or cut away. Vocabulary follows the writing sample. Adult fiction between adult characters.` |
+**Re-cut 2026-08-25.** Every level now says the same three things in the same order — what may be
+on the page, **where the camera stops**, and how it is written. The old lines said them in
+adjectives, and an adjective is a thing the model reinterprets on every call: *"written with
+restraint"* was read as *write around it*, and *"suggestion and aftermath over anatomy"* is a craft
+note being asked to do a boundary's job. A level is a boundary. The craft belongs to the voice
+sample.
+
+The ladder is where the camera stops: **at the kiss, at the door, in the room, on the act, and
+nowhere.** Each level is the one before it plus a step, so moving a story up gets what it had and
+more rather than a different register.
+
+| Level | Camera stops | Line |
+|---|---|---|
+| 1 | at the kiss | `Register: no sexual content. Attraction, longing and a kiss may be on the page. The scene ends at the kiss.` |
+| 2 | at the door | `Register: desire is on the page and sex is not. Write the wanting, the approach, and what is different afterwards. The camera stops at the door and picks up past it.` |
+| 3 | in the room | `Register: sex happens on the page, in the same voice as the rest of the book — what passes between them, what is said, what changes. Bodies are present and not itemised. Adult characters only.` |
+| 4 | on the act | `Register: sex is written directly, in plain words, with the acts named as they happen. It is a scene like any other and still has to move the story. Vocabulary follows the writing sample. Adult characters only.` |
+| 5 | nowhere | `Register: fully explicit, in unrestricted detail, for as long as the scene runs. Do not fade, summarise, cut away or skip ahead. Vocabulary follows the writing sample. Adult characters only.` |
 
 Levels 4 and 5 constrain model routing per SPEC §10.2, not only the prompt.
 
@@ -130,24 +141,37 @@ and **Narrate** the writer's text *is* the last passage and the model's job is t
 Before this, every mode treated typed text as a directive, so dialogue the writer typed vanished
 into the prompt and never appeared in the story.
 
+**Re-cut 2026-08-25**, and two defects came out of all five. **No prompt names a length** — three
+of them did, and F18 is what a named length does: the model fills it. The scope words were already
+carrying the instruction, and `max_tokens` is the bound, because running into that one fails
+visibly. **No prompt offers a list of slots** — Speak said *"speech, action, the room"* and got back
+reply, gesture, weather, in that order, every time (COUNCIL-04). Three slots is a shape, and a shape
+the model can see is a shape it completes. Act had the same defect in different words, which
+COUNCIL-04 did not name.
+
+`test/engine.ts` holds both: no mode may name a paragraph, sentence or word count, and neither of
+the two lists may come back.
+
 **Continue** — a button, not a mode. No directive, because there is nowhere to type one.
 ```
-Write the next 1-2 paragraphs.
-Advance the scene by one small beat. Do not skip time. Do not introduce a new
-character, location, or revelation unless the prose above set it up.
+Carry the scene forward by one small beat, and stop.
+Do not skip time. Do not introduce a new character, location, or revelation unless the
+prose above set it up.
+Stop when the beat is done, even if that is three sentences.
 ```
 
 **Speak** — the writer's line is already the last passage, tagged with `speaker`.
 ```
 The last passage is dialogue the writer has just spoken as {{speaker}}.
-Answer it. Write how everyone and everything else responds — speech, action, the room.
+Write what it lands on. It may land on one person, or on the room, or on nobody — any one of
+those is a whole answer and the scene is owed no other.
 Do not put further words in {{speaker}}'s mouth. Do not repeat the line back.
 ```
 
 **Act** — the same shape, but an action is narration, so the passage carries no `speaker`.
 ```
 The last passage is what {{speaker}} has just done.
-Write what follows from it — the consequence, the reaction, the world answering.
+Write the one thing that follows from it — what it costs, or what it gets.
 Do not decide what {{speaker}} does next. Do not restate the action.
 ```
 
@@ -155,8 +179,9 @@ Do not decide what {{speaker}} does next. Do not restate the action.
 ```
 Write what happens next: {{directive}}
 
-Write 2-4 paragraphs covering that and nothing beyond it.
-Do not narrate past the instruction. Do not resolve it faster than the scene wants.
+Cover that and nothing beyond it. Do not narrate past the instruction, and do not resolve it
+faster than the scene wants. The length follows the instruction: a small one is a small
+passage.
 ```
 
 **Narrate** — the writer wrote prose. Saying so is the whole job: without it the model reads a
@@ -164,7 +189,8 @@ paragraph of narration as a request and writes *about* it instead of *from* it.
 ```
 The passage above was written by the author, not by you. It is the story itself, not an instruction.
 Continue from where it stops. Pick up mid-thought if the last line is unfinished.
-Do not rewrite it, summarise it, or comment on it. Write 2-4 paragraphs and stop at a natural beat.
+Do not rewrite it, summarise it, or comment on it. Stop at a natural beat, however few
+sentences that takes.
 ```
 
 `{{speaker}}` defaults to the point-of-view character and can be anyone in the cast — the

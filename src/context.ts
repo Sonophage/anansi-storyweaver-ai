@@ -67,12 +67,33 @@ export interface Manifest {
   overflowReason?: string;
 }
 
+/** The five levels, re-cut 2026-08-25. Seth: "the spice level prompts should be specific. and
+ *  should stay that way. we should plan what the levels are appropriately."
+ *
+ *  Every level now says the same three things in the same order — what may be on the page, WHERE
+ *  THE CAMERA STOPS, and how it is written — because the old lines said them in adjectives and an
+ *  adjective is a thing the model reinterprets on every call. "Written with restraint" was read as
+ *  "write around it"; "suggestion and aftermath over anatomy" is a craft note being asked to do a
+ *  boundary's job. A level is a boundary. The craft belongs to the voice sample.
+ *
+ *  The ladder is where the camera stops: at the kiss, at the door, in the room, on the act, and
+ *  nowhere. Each level is the one before it plus one step, so a story that moves up a level gets
+ *  what it had and more, rather than a different register.
+ */
 const SPICE: Record<number, string> = {
-  1: 'Register: no sexual content. Romance may be emotional only. Fade at a kiss.',
-  2: 'Register: romantic and sensual. Desire is on the page; sex is not. Cut away at the bedroom door.',
-  3: 'Register: sex happens on the page, written with restraint. Suggestion and aftermath over anatomy. Adult fiction between adult characters.',
-  4: 'Register: sex is written directly and fully. Explicit, but the scene still serves the story. Vocabulary follows the writing sample. Adult fiction between adult characters.',
-  5: 'Register: fully explicit. Write sex in unrestricted detail. Do not fade, summarize, or cut away. Vocabulary follows the writing sample. Adult fiction between adult characters.',
+  1: 'Register: no sexual content. Attraction, longing and a kiss may be on the page. The scene '
+   + 'ends at the kiss.',
+  2: 'Register: desire is on the page and sex is not. Write the wanting, the approach, and what is '
+   + 'different afterwards. The camera stops at the door and picks up past it.',
+  3: 'Register: sex happens on the page, in the same voice as the rest of the book — what passes '
+   + 'between them, what is said, what changes. Bodies are present and not itemised. Adult '
+   + 'characters only.',
+  4: 'Register: sex is written directly, in plain words, with the acts named as they happen. It is '
+   + 'a scene like any other and still has to move the story. Vocabulary follows the writing '
+   + 'sample. Adult characters only.',
+  5: 'Register: fully explicit, in unrestricted detail, for as long as the scene runs. Do not fade, '
+   + 'summarise, cut away or skip ahead. Vocabulary follows the writing sample. Adult characters '
+   + 'only.',
 };
 
 /** Five modes, and the distinction that matters runs through all of them: in `direct` the
@@ -82,19 +103,34 @@ const SPICE: Record<number, string> = {
 const MODE: Record<string, (d?: string, who?: string) => string> = {
   // The Continue button. No directive, because there is nowhere to type one — a steer with no
   // input is a parameter nobody can set.
-  continue: () => 'Write the next 1-2 paragraphs.\nAdvance the scene by one small beat. Do not skip time. Do not introduce a new\ncharacter, location, or revelation unless the prose above set it up.',
+  // NO PARAGRAPH COUNT. It said "the next 1-2 paragraphs" and F18 is what a named length does: the
+  // model fills it. The scope words were already carrying the instruction — one beat, no time
+  // skipped, nothing new unless the page set it up — and the last line replaces the number with
+  // the permission the number was denying, which is to be short.
+  continue: () => 'Carry the scene forward by one small beat, and stop.\n'
+    + 'Do not skip time. Do not introduce a new character, location, or revelation unless the\n'
+    + 'prose above set it up.\nStop when the beat is done, even if that is three sentences.',
 
   // The writer's line is ALREADY the last passage. The one instruction that earns its tokens is
   // not to keep talking in that character's voice.
+  //
+  // NO LIST. It said "speech, action, the room" and a checklist gets filled: reply, gesture,
+  // weather, in that order, every time (COUNCIL-04). Three slots is a shape, and a shape the model
+  // can see is a shape it will complete. What replaces it says the answer may be ONE thing.
   speak: (_d, who) => `The last passage is dialogue the writer has just spoken as ${who || 'the point-of-view character'}.\n`
-    + 'Answer it. Write how everyone and everything else responds — speech, action, the room.\n'
+    + 'Write what it lands on. It may land on one person, or on the room, or on nobody — any one of\n'
+    + 'those is a whole answer and the scene is owed no other.\n'
     + `Do not put further words in ${who || 'that character'}'s mouth. Do not repeat the line back.`,
 
+  // Same defect, and COUNCIL-04 did not name this one: "the consequence, the reaction, the world
+  // answering" is the same three slots wearing different words.
   act: (_d, who) => `The last passage is what ${who || 'the point-of-view character'} has just done.\n`
-    + 'Write what follows from it — the consequence, the reaction, the world answering.\n'
+    + 'Write the one thing that follows from it — what it costs, or what it gets.\n'
     + `Do not decide what ${who || 'that character'} does next. Do not restate the action.`,
 
-  direct: (d) => `Write what happens next: ${d}\n\nWrite 2-4 paragraphs covering that and nothing beyond it.\nDo not narrate past the instruction. Do not resolve it faster than the scene wants.`,
+  direct: (d) => `Write what happens next: ${d}\n\n`
+    + 'Cover that and nothing beyond it. Do not narrate past the instruction, and do not resolve it\n'
+    + 'faster than the scene wants. The length follows the instruction: a small one is a small\npassage.',
 
   // Not a writing mode. Anansi answers the writer rather than continuing the book, so this block
   // says what the material above IS — otherwise a model handed canon and prose does the thing it
@@ -108,7 +144,8 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
   // writes about it instead of from it.
   narrate: () => 'The passage above was written by the author, not by you. It is the story itself, not an instruction.\n'
     + 'Continue from where it stops. Pick up mid-thought if the last line is unfinished.\n'
-    + 'Do not rewrite it, summarise it, or comment on it. Write 2-4 paragraphs and stop at a natural beat.',
+    + 'Do not rewrite it, summarise it, or comment on it. Stop at a natural beat, however few\n'
+    + 'sentences that takes.',
 };
 
 /** The worn outfit, as a second bracket under whatever the body resolved to. */

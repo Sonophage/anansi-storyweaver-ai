@@ -18,6 +18,12 @@ Twenty minutes. Bugs go in `bugs.md`, under the matching heading.
 
 ## 1 · The composer, and the passage arriving
 
+**Passages are shorter twice over.** `max_tokens` went 900 → 450, and F29 took the paragraph count
+out of Continue's prompt, which halved it again — median 685 characters to 291 on the bench
+fixture. That is the model stopping when the beat is done rather than padding to a number, and the
+samples read as complete beats. But it is a big change to how the book comes out, and whether you
+want it is a taste question no benchmark answers. **This is the thing I most want your eye on.**
+
 The animation is the third version. Say if it is still clunky.
 
 - [ ] Press **Continue**. A block appears **immediately** at the end of the chapter, saying
@@ -90,8 +96,9 @@ Rail → **✻ Anansi**, inside a story.
       it before the passage is delivered.
 - [ ] When a flag does appear, it is one the model could not fix.
 
-> Not measured: this adds a check call to every generation, and a repair call when it fires. I do
-> not know what it costs you in seconds. Say the word and `bench/` will answer it.
+> Measured now, F30: **1.5 seconds on every generation**, flat, and it did not fire a repair once
+> in six. That is about a third of a warm passage. Whether a contradiction caught before it reaches
+> the page is worth it is your call — the switch does not exist yet, so say if you want one.
 
 ---
 
@@ -122,10 +129,11 @@ Rail → **✻ Anansi**, inside a story.
 
 Two came off this list in round three. Six left, and the order is still yours to set.
 
-- **Two of the five mode prompts produce slop.** Speak's *"speech, action, the room"* is a
-  checklist and a checklist gets filled. Direct and Continue carry length targets. **This is the
-  same sitting as the spice levels** and as making the prompts editable under Storyteller — the
-  defaults get re-cut first, then the editor gets built over them.
+- ~~**Two of the five mode prompts produce slop.**~~ Done, F29 — and it was three, not two: `act`
+  carried the same checklist in different words. Measured: the shape was being filled **10 times out
+  of 10**, now 5. The spice levels were re-cut in the same sitting. **What is left of this item is
+  the editor**: prompts editable under Storyteller, global, with a reset to default. That is
+  blocked on DECISIONS §3 — how an override composes, and what a bad one does.
 - **The canon checker only checks entries that fired.** One rule decides both what the model is
   told and what gets verified. The detector is one function now, so the two cannot drift apart —
   but they still fail together, which is the actual finding.
@@ -164,6 +172,9 @@ Full write-up with line numbers: `docs/findings/COUNCIL-04.md`.
 - **F26** — the voice. Two over-corrections caught only by re-probing. Two residuals not fixed.
 - **F27** — the invent button took three passes, and pass one reproduced F25 the same day.
 - **F28** — the lockout. Dialogue to zero, action cut by two thirds, interiority untouched.
+- **F29** — the mode prompts. The checklist was being filled 10/10; taking the paragraph count out
+  of Continue halved the passage.
+- **F30** — the contradiction repair costs 1.5s on every generation, flat, and fired 0 times in 6.
 
 Read F28's last section if you read nothing else: **the detector was wrong twice**, and the second
 time it survived a fixture built to fix the first, because the model re-genders characters against
@@ -177,5 +188,6 @@ canon. Every rate in it is a floor.
 node --experimental-strip-types test/all.ts    # 147 checks, nine suites, no model needed
 test/ui/run.sh                                 # 10 scenarios, headless browser, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
-node --experimental-strip-types bench/lockout.ts check    # F28's detectors, no model
+node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
+node --experimental-strip-types bench/modes.ts check      # F29 detector, no model
 ```

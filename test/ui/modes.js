@@ -76,7 +76,9 @@ ok("  nor does Narrate", !(await page.visible('#asWhom')));
 
 // ---- 6. what each mode actually tells the model
 const cont = await modeBlock('continue', null, 'IGNORE ME');
-ok("Continue asks for the next beat", /next 1-2 paragraphs/.test(cont));
+ok("Continue asks for the next beat", /one small beat/.test(cont));
+ok("  and names no paragraph count — F18: a named length is a length it fills",
+   !/\d\s*-\s*\d\s+paragraphs/.test(cont));
 ok("  and carries no directive, because it has no box", !/IGNORE ME/.test(cont));
 
 const direct = await modeBlock('direct', null, 'He drops the key.');
@@ -98,7 +100,7 @@ ok("  and not to rewrite it", /Do not rewrite it/.test(narr));
 // than the neutral mode.
 const stale = await modeBlock('cowrite');
 ok(`a retired mode name degrades instead of erroring (${JSON.stringify(stale.slice(0, 34))})`,
-   /next 1-2 paragraphs/.test(stale));
+   /one small beat/.test(stale));
 
 // ---- 7. the speaker reaches the prompt through the UI's own selector, not just the API
 await page.click('[data-mode="speak"]');

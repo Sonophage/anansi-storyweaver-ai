@@ -16,9 +16,11 @@ export const MODES = [
 
 export const KINDS = ['character', 'lore', 'item', 'rule'];
 
+// The labels on the dropdown. They name where the camera stops, because that is what the level
+// IS — the lines these stand for are in src/context.ts and they say the same thing at length.
 export const SPICE = [
-  'no sexual content', 'sensual, fades at the door', 'on the page, restrained',
-  'direct and explicit', 'fully explicit',
+  'nothing sexual — ends at the kiss', 'desire, not sex — stops at the door',
+  'on the page, in the book\u2019s voice', 'direct, and the acts named', 'fully explicit',
 ];
 
 export const STORY_FIELDS = [
