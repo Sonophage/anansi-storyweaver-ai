@@ -61,8 +61,21 @@ const promptLen = await page.eval("(document.querySelector('#sideBody pre')?.tex
 ok("   the prompt actually sent is readable (" + promptLen + " chars)", promptLen > 400);
 ok("   and it is the real thing", (await page.text('#sideBody pre') || '').includes('prose engine'));
 await page.click('[data-ctxview="blocks"]');
-await page.click('[data-goblock^="entry"]');
-ok("   clicking a canon row opens that entry", await page.eval("!!document.querySelector('[data-f=\"body\"]')"));
+// A row is a door and it now says what is behind it. It used to say CANON-ALWAYS and open a panel
+// headed Threads, which is how you click a row and arrive lost. Several entries make one block, so
+// the row opens the list; a block from a single entry still opens that entry.
+const rows = "[...document.querySelectorAll('#sideBody [data-goblock]')]";
+ok("   no row is labelled in the engine's words",
+   await page.eval(rows + ".every(r => !/CANON-|SPINE|EARLIER/.test(r.textContent))"));
+const canon = await page.eval("(() => { const r = " + rows
+  + ".find(x => /Threads,/.test(x.textContent)); return r ? r.dataset.goblock : null; })()");
+ok("   the canon row is named for where it goes (" + canon + ")",
+   canon === 'threads:' || /^entry:/.test(canon || ''));
+await page.eval("(() => { " + rows + ".find(x => /Threads,/.test(x.textContent)).click(); return 1; })()");
+await wait(400);
+ok("   and clicking it lands on something that says the same word",
+   /Threads/.test(await page.text('#sideHead') || '')
+   || !!(await page.eval("!!document.querySelector('[data-f=\"body\"]')")));
 
 // 5 + 6. dropdowns fed from the ledger, and the spice override
 await page.goto(B + "/#" + sid + "/story");

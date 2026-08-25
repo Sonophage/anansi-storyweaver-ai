@@ -48,3 +48,21 @@ export const BLOCK_COLOR = {
   SPINE: '#D9B26A', 'CANON-ALWAYS': '#7FB083', 'CANON-TRIGGERED': '#9A8B62',
   EARLIER: '#8A7BA8', PROSE: '#6E8AA0', TAIL: '#5E7A8E', DIRECTIVE: '#C99356', MODE: '#635E56',
 };
+
+// Every Context row is a way back to the thing that made it, so the row is named for what that
+// thing is called WHERE IT LIVES. The engine's kinds — SPINE, CANON-ALWAYS — named nothing you
+// could find once you arrived: you clicked CANON-ALWAYS and landed on a panel that says Threads,
+// and a row called VOICE opened a field called Voice of the weave. Label and destination sit on
+// one line here so they cannot drift apart again. The kinds are still the engine's own words and
+// still the ones in the prompt, the manifest and src/blocks.ts — this is the surface only.
+export const BLOCK_ORIGIN = {
+  SPINE:             ['Premise & setting',       'story'],
+  VOICE:             ['Voice of the weave',      'story'],
+  'CANON-ALWAYS':    ['Threads, always on',      'canon'],
+  'CANON-TRIGGERED': ['Threads, on a keyword',   'canon'],
+  EARLIER:           ['Summaries in context',    'traj'],
+  PROSE:             ['The prose above',         'doc'],
+  DIRECTIVE:         ['Point of view & register', 'story'],
+  TAIL:              ['Where you left off',      'doc'],
+  MODE:              ['The mode you picked',     'doc'],
+};

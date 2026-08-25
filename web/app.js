@@ -3,7 +3,7 @@
 // sheet on a phone. Layout lives in app.html's CSS — this file decides state and content only,
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -417,18 +417,21 @@ const PANELS = {
       ${Object.entries(agg).map(([k, v]) => {
         const rows = inc.filter((b) => b.kind === k);
         const why = rows.map((b) => b.firedBy?.join(', ') || b.reason).filter(Boolean)[0] ?? '';
-        // Every block came from something editable. This is the way back to it.
-        const to = k.startsWith('CANON') ? `entry:${rows[0]?.id ?? ''}`
-          : k === 'EARLIER' ? 'traj:' : k === 'PROSE' || k === 'TAIL' ? 'doc:' : 'story:';
+        // Every block came from something editable. This is the way back to it, under the name it
+        // has when you get there. Canon goes straight to the entry when there is only one to open
+        // and to the list when there are several — the first of nine was an arbitrary place to land.
+        const [label, dest] = BLOCK_ORIGIN[k] ?? [k, 'doc'];
+        const to = dest !== 'canon' ? `${dest}:`
+          : rows.length === 1 && rows[0].id ? `entry:${rows[0].id}` : 'threads:';
         return `<button class="row" data-goblock="${to}" style="width:100%; text-align:left">
           <span style="width:8px; height:8px; border-radius:2px; flex:0 0 auto; background:${BLOCK_COLOR[k] ?? 'var(--ink-ghost)'}"></span>
-          <span style="color:var(--ink)">${esc(k)}</span>
+          <span style="color:var(--ink)">${esc(label)}</span>
           <span style="color:var(--gold); font-size:11.5px">${esc(why)}</span>
           <span class="tnum" style="margin-left:auto; color:var(--faint)">${v.toLocaleString()}</span></button>`;
       }).join('')}
       ${MANI.blocks.filter((b) => b.state !== 'included').map((b) => `<div class="row" style="opacity:.55">
         <span style="width:8px; height:8px; border-radius:2px; flex:0 0 auto; background:var(--edge-lit)"></span>
-        <span style="color:var(--mute)">${esc(b.kind)}</span>
+        <span style="color:var(--mute)">${esc((BLOCK_ORIGIN[b.kind] ?? [b.kind])[0])}</span>
         <span style="color:var(--bad); font-size:11.5px">${esc(b.reason ?? 'omitted')}</span></div>`).join('')}
       <div class="hint" style="margin-top:14px">Canon is capped at 45% of the slot, earlier chapters at 25%,
         recent prose at 60%. The tail is never evicted. Click a row to reach what put it there.</div></div>`;
@@ -1926,6 +1929,7 @@ document.addEventListener('click', async (e) => {
     const [kind, id] = d.goblock.split(':');
     if (kind === 'entry' && id) { S.entryId = id; S.panel = 'entry'; }
     else if (kind === 'traj') S.panel = 'chapter';
+    else if (kind === 'threads') { S.entryId = null; S.panel = 'threads'; }
     else if (kind === 'story') S.panel = 'story';
     else { S.panel = null; }
     syncHash(); paint(); return;

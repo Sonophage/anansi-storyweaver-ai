@@ -159,8 +159,25 @@ assert.match(html('bar'), /46%|4[0-9]%/, 'the header shows the real context perc
 ok('the header reports the manifest percentage from the server');
 
 assert.match(html('sideBody'), /21,401 \/ 46,146/, 'the inspector shows real totals');
-assert.match(html('sideBody'), /CANON-ALWAYS/);
 assert.match(html('sideBody'), /stale summary/, 'an omitted block must say why');
 ok('the inspector renders the real manifest, including what was dropped');
+
+// A row is a door. It used to be labelled in the engine's words — CANON-ALWAYS — and open a panel
+// headed Threads, so arriving meant hunting for what you had just clicked. The label now comes
+// from the destination, and both come from one table.
+const { BLOCK_ORIGIN } = await import('../web/model.js');
+const { ORDER } = await import('../src/blocks.ts');
+for (const kind of ORDER)
+  assert.ok(BLOCK_ORIGIN[kind], `${kind} has no name in BLOCK_ORIGIN — the row would say ${kind}`);
+assert.match(html('sideBody'), /Threads, always on/, 'the canon row is named for where it lands');
+assert.doesNotMatch(html('sideBody'), /CANON-ALWAYS|>SPINE</, 'no engine kind reaches the panel');
+// The destinations the goblock handler actually knows. 'story' typo'd to 'stroy' would render a
+// row that silently closes the panel instead of opening anything.
+const dests = new Set(['story', 'traj', 'doc', 'canon']);
+for (const [kind, [label, dest]] of Object.entries(BLOCK_ORIGIN)) {
+  assert.ok(dests.has(dest), `${kind} points at ${dest}, which no panel answers to`);
+  assert.ok(label && !/^[A-Z-]+$/.test(label), `${kind}'s label is still engine-speak: ${label}`);
+}
+ok('every context row is named for the panel it opens');
 
 console.log(`\n${n} checks passed`);
