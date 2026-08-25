@@ -134,10 +134,11 @@ words and I will make one pass over the whole surface.
 - **Preferences: changing your name.** The dashboard landed. The name is a hard-coded owner in
   `serve.ts` — changing it is easy, but it is the first thread of "is there more than one of you",
   which is the login question you have deliberately left alone.
-- **Talk to Anansi about the story** — now scoped, in `docs/plans/PLAN-05-TALK.md`. The short
-  version: that one sentence is three features. **Tell** (you say what to add, it proposes) is one
-  prompt role away, because `extract` already classifies, dedupes and files proposals. **Ask** (a
-  conversation) is the genuinely new one, and is newly worth building because per-story models
-  landed today — it could run thinking-on on a thinking model while prose stays thinking-off,
-  which F5 requires. **Fetch** (web search for an IP) is the only one that changes what this app
-  is: it would be the first outbound request it has ever made.
+- **Talk to Anansi about the story** — scoped, in `docs/plans/PLAN-05-TALK.md`, and corrected by
+  Seth to a better shape than the one I proposed. **One chat window, three kinds of output, none
+  of which lands on its own**: an answer, a *thread* proposed for the ledger, and a *directive*
+  drafted and handed to the composer in Direct mode — editable, unsent. One structured call does
+  all three. It is newly worth building because per-story models landed today: the chat can run
+  thinking-on on a thinking model while prose stays thinking-off, which F5 requires. **Fetch** (web
+  lore for an IP) is the only part that changes what this app is — the first outbound request it
+  would ever make — and I would leave it out.

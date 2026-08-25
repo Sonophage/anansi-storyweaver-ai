@@ -5,105 +5,117 @@
 
 Nothing is built. This is the scope, not a plan to execute — the decisions at the end are yours.
 
-**That sentence is three features.** They share a name and almost nothing else: different costs,
-different risks, and one of them is nearly free because the machinery already exists.
+**Corrected by Seth, same day:** it *should* write — but what it writes is **threads**, and it
+should also **draft a prompt in its own window for you to take to the composer.** That is a better
+shape than the read-only/writes split this doc opened with, and a cheaper one, so the split is gone.
 
-| | what it does | writes? | new machinery |
+The whole feature is one idea: **the chat window produces things you then choose to use.** It never
+puts a word into your prose itself. That is the rule the rest of the app already runs on —
+extraction proposes and waits, regenerate keeps every take, an import previews before it writes.
+
+| | what it produces | how it lands | new machinery |
 |---|---|---|---|
-| **Ask** | answers questions about the story | no | a conversation, a block set, a budget |
-| **Tell** | you say what to add, it proposes entries | via proposals | one prompt role |
-| **Fetch** | pulls lore off the web for an existing IP | via proposals | network egress, a service, a trust model |
+| **the chat** | answers, threads, and drafted directives | you accept or use each one | one role, one block set, a panel |
+| **Fetch** | lore off the web for an existing IP | proposals with a citation | network egress, a service, a trust model |
 
 ---
 
-## 1 · Tell — the cheap one, and the one you described most concretely
+## 1 · What one turn can produce
 
-*"something about the story to be added and then anansi does it"*
+Three kinds of thing, any or none of them, out of a single structured call:
 
-**This is `POST /api/extract` with your sentence as the input instead of the chapter's prose.**
+| | what it is | where it goes | how it lands |
+|---|---|---|---|
+| **an answer** | plain text — *"Marek is owed eleven crowns and has not been paid"* | the chat window | nowhere; it is just the reply |
+| **a thread** | a proposed entry, the shape `extract` already produces | the proposals queue | you **accept** it, as today |
+| **a directive** | a drafted prompt — *"Marek's man makes it clear the debt is due tonight…"* | **the composer, in Direct mode** | you **use** it, then edit or send |
 
-Everything else already exists and is already right:
+`structured()` already returns several things at once — `EXTRACT_SCHEMA` is the precedent — and
+`maxLength` on a string is honoured by the GBNF converter, measured in this project on 2026-08-23.
+So this is one role and one schema:
 
-- `classify()` resolves a proposal against existing entries on the **title only**, with containment
-  and a shared distinctive word — it already knows that "Marek Vale" and "Marek" are the same
-  person and that a keyword naming someone else is not evidence.
-- `proposals_dedupe`, a unique index on `(story_id, content_hash) WHERE status='open'`, already
-  stops the same suggestion arriving twice.
-- The proposals queue, the accept/reject buttons, and **nothing is canon until you accept it** are
-  all built and tested.
+```
+{ reply: string,
+  directive?: string,        // bounded — a prompt, not a paragraph
+  entries?: [ …the EXTRACT_SCHEMA shape… ] }
+```
 
-So Tell is: a new prompt role that takes a sentence instead of a chapter, and the same pipeline
-after it. The `EXTRACT` role even has the right instincts already — *"propose only facts that are
-now permanently true"*, *"propose nothing rather than pad"*.
+**The directive is handed over, not fired.** It lands in the composer input with the mode switched
+to Direct — editable, unsent. You read it, change what is wrong, and press send yourself: the
+handoff you described as copying, without the copying. A copy button as well, for when you want it
+somewhere else.
 
-**What is genuinely new:** almost nothing. Which is why I would build this first.
-
-**The risk, named:** F21 measured the model restating canon it was given, at 47.5%. A Tell that
-reads the ledger to avoid duplicates could propose things already in it, reworded. `classify` and
-the dedupe index both catch that — but the *measurement* of how often it happens would be worth
-having before trusting the queue not to fill with near-duplicates.
+That single decision is what keeps the feature safe. **A conversation that could send is a
+conversation that can write your book while you are thinking out loud.**
 
 ---
 
-## 2 · Ask — the genuinely new one
+## 2 · Threads — nearly free, because you already built it
 
-*"talk to anansi about the story, or a character"*
+`classify()` resolves a proposal against existing entries on the **title only**, with containment
+and a shared distinctive word — it already knows "Marek Vale" and "Marek" are one person, and that
+a keyword naming someone else is not evidence of being them. `proposals_dedupe`, a unique index on
+`(story_id, content_hash) WHERE status='open'`, already stops the same suggestion arriving twice.
+The queue, the accept and reject, and *nothing is canon until you accept it* are built and tested.
 
-Questions with answers. "Who is Marek?" "What have I set up and not paid off?" "Does this
-contradict chapter three?" Read-only.
+A thread out of the chat window is the **same pipeline as extraction**, entered from a sentence
+instead of from a chapter.
 
-Four things have to be decided, and three of them are interesting.
+**The risk, named:** F21 measured canon coming back out of the model at 47.5%. A conversation that
+reads the ledger in order to avoid duplicates may well propose things already in it, reworded.
+`classify` and the dedupe index both catch that — but how often it happens is worth measuring
+before trusting the queue not to fill with near-misses.
 
-### What does it read?
+---
 
-Not what the composer reads. A prompt for prose is **28,100 tokens** on Sutera, most of it the
-recent prose tail — and a question about who Marek is does not need the last forty passages.
+## 3 · The conversation itself
 
+### What it reads
+
+Not what the composer reads. A prose prompt is **28,100 tokens** on Sutera, most of it the recent
+prose tail — and a question about who Marek is does not need the last forty passages.
 `buildContext` already selects blocks by mode, so this is a **new mode with a different block
-set**: SPINE + CANON + EARLIER (the chapter summaries), and little or no TAIL. That is cheap,
-leaves room for the conversation itself, and reuses the budget engine rather than working around it.
+set**: SPINE + CANON + EARLIER, little or no TAIL. Cheap, leaves room for the conversation, and
+reuses the budget engine rather than working around it.
 
 ### Thinking should probably be ON — and could not have been before today
 
-`chat_template_kwargs: { enable_thinking: false }` is **mandatory for prose**. F5 measured it: with
-thinking on, the model spent the entire 900-token budget reasoning and returned *zero prose* on
-three runs of four.
+`chat_template_kwargs: { enable_thinking: false }` is **mandatory for prose**: F5 measured the model
+spending its entire budget reasoning and returning *zero prose* on three runs of four.
 
-But that finding is about **prose**. Answering "does this contradict chapter three" is exactly the
-work thinking is for. And as of today a story can name its own model, so Ask could run on
-`agentic-t-tcap27-h` — a thinking model already on the box — while the prose stays on
-`write-nt-qwen36-h`. The router holds three at once.
+But that finding is about **prose**. Drafting a directive, or deciding whether something
+contradicts chapter three, is exactly the work thinking is for. And as of today a story names its
+own model — so the chat could run on `agentic-t-tcap27-h`, a thinking model already on the box,
+while prose stays on `write-nt-qwen36-h`. The router holds three at once.
 
-That combination did not exist this morning. It is the strongest argument for building Ask at all.
-
-### It must not be a composer mode
-
-The five modes write the book. A conversation must never put a word into your prose, and putting
-it on the same bar as Continue and Speak is asking for exactly that mistake at 2am. It is its own
-panel — a seventh — or it lives inside Context, which is already the "what does Anansi know" room.
+That combination did not exist this morning, and it is the strongest argument for building this now.
 
 ### Turns accumulate
 
-Each exchange is context for the next. Needs a cap and a visible one, or the fifth question costs
-twice the first. Simplest honest answer: keep the last N turns, show the count, and let the panel
-say what it dropped — the same discipline the overflow guard already uses.
+Each exchange is context for the next. Needs a cap, and a visible one, or the fifth question costs
+twice the first. Keep the last N turns, show the count, say what was dropped — the discipline the
+overflow guard already uses.
 
-### Does the conversation persist?
+### Where it lives, and what it is not
 
-- **Ephemeral** — gone when you close the panel. No schema, no export question, nothing to leak.
-- **Per story** — a `conversations` table, travels with an export, and answers "what did I ask
-  about this book". Also one more thing the round-trip invariant has to cover.
+**Not a composer mode.** The five modes write the book. This one drafts what you might tell them,
+and putting it on the same bar as Continue and Speak invites exactly the mistake it is designed to
+prevent. Its own panel — a seventh — or inside Context, which is already the "what does Anansi
+know" room.
 
-I would start **ephemeral**. If you find yourself wanting yesterday's answer, that is evidence for
-the table, and it is a small migration when it comes.
+### Does it persist?
+
+Ephemeral to start: no schema, no export question, nothing for the round-trip invariant to cover.
+If you find yourself wanting yesterday's answer, that is the evidence for a table, and it is a small
+migration when it comes.
 
 ---
 
-## 3 · Fetch — the one I would not build yet
+## 4 · Fetch — the one I would not build yet
 
 *"search the web for new lore or something if its an ip"*
 
-This is a different kind of change from the other two.
+This is a different kind of change from the rest of it.
 
 - **The app has never made an outbound request.** `serve.ts` binds to loopback and the only thing
   it talks to is llama-server on 127.0.0.1. Fetching means real network egress, from a
