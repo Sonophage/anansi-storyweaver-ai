@@ -201,7 +201,8 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   const blocks: Block[] = [];
   /** Anchors never disappear. The parts marked `keep` are always sent; the rest is shortened
    *  from the end until the whole block fits, and the manifest says it was shortened. Losing
-   *  point of view and register silently is far worse than losing the tail of a style sample. */
+   *  point of view and register silently is far worse than losing the tail of a style sample —
+   *  which is why the sample is the flex part of VOICE and never of DIRECTIVE. */
   const addAnchor = (kind: Kind, id: string, parts: { text: string; keep: boolean }[], cap: number) => {
     const live = parts.filter((p) => p.text.trim());
     let text = live.map((p) => p.text).join('\n');
@@ -211,7 +212,14 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     const flex = live.filter((p) => !p.keep).map((p) => p.text).join('\n');
     let cut = flex;
     while (cut.length > 40 && count(cut) > room) cut = cut.slice(0, Math.floor(cut.length * 0.9));
-    const out = live.map((p) => (p.keep ? p.text : (count(flex) > room ? cut.trimEnd() + '…' : p.text)))
+    // Land on a boundary. Slicing by character ended a pasted voice sample mid-word, which reads
+    // as a typo rather than an excerpt — and the same slice cuts the premise in SPINE.
+    const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '),
+                          cut.lastIndexOf('? '), cut.lastIndexOf('\n'));
+    if (stop > cut.length * 0.5) cut = cut.slice(0, stop + 1);
+    else { const sp = cut.lastIndexOf(' '); if (sp > 40) cut = cut.slice(0, sp); }
+    const tail = /[.!?]$/.test(cut.trimEnd()) ? cut.trimEnd() : cut.trimEnd() + '…';
+    const out = live.map((p) => (p.keep ? p.text : (count(flex) > room ? tail : p.text)))
       .filter((t) => t.trim()).join('\n');
     add(kind, id, out, `anchor shortened to ${cap} tokens`);
   };
@@ -226,8 +234,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // temporal facts does not reach it (COUNCIL-03 S5 — the novelist won this).
   // Anchors are built from parts so that going over the cap shortens the LONG part rather
   // than deleting the block. Deleting SPINE loses the premise and the destination; deleting
-  // DIRECTIVE loses point of view, register and the chapter's ending — and the app's own
-  // hint ("paste a few hundred words of your own prose") guarantees the cap is exceeded.
+  // DIRECTIVE loses point of view, register and the chapter's ending.
   addAnchor('SPINE', 'spine', [
     // The title stays. F12: dropping it was measured at n=30 per arm and made no difference
     // (96% vs 93% on the passages that named the key, CI [-15, +8]) — and neither arm
@@ -237,6 +244,17 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     { text: `Setting: ${story.setting}`, keep: true },
     { text: story.direction ? `Where this is going: ${story.direction}` : '', keep: true },
   ], CAPS.SPINE!);
+
+  // The sample is sent as PROSE, not as a bracketed value. `[Voice: <300 words>]` reads as a
+  // description of a style rather than a specimen of one, and it was the only truncatable part
+  // of DIRECTIVE, so it was sliced 10% at a time until it fit beside three things it does not
+  // compete with. The instruction line is kept; the sample is what gets shortened, on a sentence.
+  if (story.writingStyle?.trim()) addAnchor('VOICE', 'voice', [
+    { text: "A sample of the writer's own prose. Match its rhythm, diction and register. "
+          + 'It is not part of this story: never continue it, quote it, or take facts from it.',
+      keep: true },
+    { text: story.writingStyle.trim(), keep: false },
+  ], CAPS.VOICE!);
 
   // Scan window for triggered entries. Sticky is derived by looking at the recent passages
   // one at a time rather than kept in a table: COUNCIL-03 showed a stored state row cannot
@@ -350,7 +368,6 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
 
   addAnchor('DIRECTIVE', 'directive', [
     { text: `[Writing: ${story.pov}]`, keep: true },
-    { text: story.writingStyle ? `[Voice: ${story.writingStyle}]` : '', keep: false },
     { text: currentChapter.authorsNote ? `[This chapter must end with: ${currentChapter.authorsNote}]` : '', keep: true },
     // A written-out register replaces the level's fixed line. Five lines cannot say
     // everything, and a story that needs a sixth should not have to pick the nearest.

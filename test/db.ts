@@ -398,30 +398,46 @@ ok('an outfit cannot be hung off another story\'s character', () => {
   assert.strictEqual(db.outfitsOf(a.id).length, 0);
 });
 
-// The whole point: it reaches the model as a SECOND bracket, and stops when taken off.
-ok('the worn outfit rides with the entry into the prompt', async () => {
+// The whole point: it reaches the MODEL as a second bracket, and stops when taken off. This
+// used to assert against entryText(), which is one layer above where the outfit is now applied —
+// so it could not see the defect COUNCIL-04's debugger found: with a chapter-state in force,
+// resolveBody() replaced the body wholesale and the outfit went with it. The panel still said
+// "worn" and the character wrote naked. Assert on the block that actually reaches the prompt.
+ok('the worn outfit rides with the entry into the prompt, state or no state', async () => {
   const o = db.owner('wardrobe-prompt');
   const st = db.createStory(o, { title: 'Worn' });
   const e = db.upsertEntry(st.id, o, { title: 'Ilva Marren', body: '[Ilva Marren: 34, envoy]' });
   const plate = db.upsertOutfit(st.id, e, { name: 'Plate', body: 'the plate she took from the hall.' });
-  const { entryText } = await import('../src/render.ts');
-  const { view } = await import('../src/story.ts');
-  const text = () => entryText(view(st.id)!.entries.find((x: any) => x.id === e) as any);
-  assert.strictEqual(text(), '[Ilva Marren: 34, envoy]', 'nothing worn, nothing added');
+  const slot = { global: 100096, slots: 4, perSlot: 25024 };
+  const blockFor = (id: string) => {
+    const { manifest } = story.assemble(story.view(st.id)!, slot, 'continue');
+    return manifest.blocks.find((b: any) => b.id === id)!.text;
+  };
+
+  assert.strictEqual(blockFor(e), '[Ilva Marren: 34, envoy]', 'nothing worn, nothing added');
   db.wearOutfit(st.id, e, plate);
-  assert.match(text(), /^\[Ilva Marren: 34, envoy\]\n\[Ilva Marren wears: the plate/,
+  assert.match(blockFor(e), /^\[Ilva Marren: 34, envoy\]\n\[Ilva Marren wears: the plate/,
     'worn, it is a second bracket under the body — not an edit to it');
+
+  // The defect, as a test. A state in force rewrites the body; the outfit must outlive it.
+  db.addPassage({ ...st, storyId: st.id, body: 'The hall was cold.' });
+  db.upsertState(st.id, e, { fromChapter: 1, body: '[Ilva Marren: sworn to the Bell]' });
+  const held = blockFor(e);
+  assert.match(held, /sworn to the Bell/, 'the state is in force');
+  assert.match(held, /\[Ilva Marren wears: the plate/,
+    `a state must not silently undress her — got ${JSON.stringify(held)}`);
+
   // The wearer is the entry's OWN title, not its first word. Taking the first word turned
   // "The Murmur" and "The Rust Choir" — both real entries from an imported AI Dungeon story —
   // into "[The wears: ...]". The title is what the body already uses, so the two lines agree.
   const murmur = db.upsertEntry(st.id, o, { title: 'The Murmur', body: '[The Murmur: still and sharp]' });
   const coat = db.upsertOutfit(st.id, murmur, { name: 'Coat', body: 'a loose coat, lavender.' });
   db.wearOutfit(st.id, murmur, coat);
-  const line = entryText(view(st.id)!.entries.find((x: any) => x.id === murmur) as any).split('\n')[1];
+  const line = blockFor(murmur).split('\n')[1];
   assert.strictEqual(line, '[The Murmur wears: a loose coat, lavender.]',
     `a name beginning with an article must survive intact, got ${line}`);
   db.wearOutfit(st.id, e, null);
-  assert.strictEqual(text(), '[Ilva Marren: 34, envoy]', 'taken off, it is gone again');
+  assert.doesNotMatch(blockFor(e), /wears:/, 'taken off, it is gone again');
 });
 
 // Writing into an earlier chapter must land at the end of THAT chapter, not the end of the book.

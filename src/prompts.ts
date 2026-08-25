@@ -176,7 +176,7 @@ say that it does not say; do not fill the gap with invention and present it as t
 
 You may also offer, when the writer's message calls for it and not otherwise:
 
-- THREADS — entries for the story bible. Only facts that are now permanently true. A character
+- ENTRIES — canon for the story bible. Only facts that are now permanently true. A character
   lying or being wrong is not a fact. Offer none rather than pad.
 - A DIRECTIVE — one prompt the writer could give the writing model to produce the next passage.
   Write it as an instruction about what happens, not as prose. It is a suggestion they will edit;

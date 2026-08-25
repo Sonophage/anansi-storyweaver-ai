@@ -6,7 +6,7 @@
 // If canon renders as one concatenated block, P6 re-granularizes the renderer.
 
 export type Kind =
-  | 'SPINE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED'
+  | 'SPINE' | 'VOICE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED'
   | 'EARLIER' | 'PROSE' | 'DIRECTIVE' | 'TAIL' | 'MODE';
 
 // LORE and RECALL were declared here, ordered, tagged and ranked for eviction, and nothing ever
@@ -14,8 +14,11 @@ export type Kind =
 // reserved seats for PLAN-02 P5's memory collect-versus-inject, which needs vector recall, which
 // needs pgvector, which needs the Postgres port. Add them back with the code that fills them; the
 // eviction sort below ranks by CANON_KINDS index, so re-inserting them changes nothing else.
+// VOICE sits high, next to SPINE, and deliberately far from TAIL: it is the only block holding
+// prose that is NOT this story, and a long sample next to the sentence being continued is a
+// sample the model continues instead.
 export const ORDER: Kind[] = [
-  'SPINE', 'CANON-ALWAYS', 'CANON-TRIGGERED',
+  'SPINE', 'VOICE', 'CANON-ALWAYS', 'CANON-TRIGGERED',
   'EARLIER', 'PROSE', 'DIRECTIVE', 'TAIL', 'MODE',
 ];
 // CANON-REPEAT lived here between DIRECTIVE and TAIL from F15 until F20 measured it at 850
@@ -24,7 +27,10 @@ export const ORDER: Kind[] = [
 // switched off — a 145-token block on every call needs a reason, and it has none.
 
 // Anchors are never trimmed and are capped at write time (SPEC 7.3).
-export const CAPS: Partial<Record<Kind, number>> = { SPINE: 400, DIRECTIVE: 250 };
+// VOICE was a `keep: false` part of DIRECTIVE under a 250-token cap shared with point of view,
+// the chapter's ending and the register — so the app's own hint ("paste a few hundred words")
+// guaranteed the sample was cut, and cut first. COUNCIL-04 #5. 500 tokens holds ~370 words.
+export const CAPS: Partial<Record<Kind, number>> = { SPINE: 400, DIRECTIVE: 250, VOICE: 500 };
 
 // EARLIER is the one block that grows monotonically with book length.
 // PLAN-02 put it outside the 45% canon cap, which left the only unbounded block

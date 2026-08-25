@@ -194,18 +194,42 @@ ok('notes never reach the prompt', () => {
   assert.ok(!out.includes('chapter nine'));
 });
 
-ok('a long writing sample shortens the anchor, it does not delete it', () => {
-  // The app's own hint says "paste a few hundred words of your own prose", which pushes
-  // DIRECTIVE past its cap. It used to drop the whole block: point of view, register and
-  // the chapter's ending all vanished silently on every call.
+ok('a few hundred words of voice sample survive whole, and unbracketed', () => {
+  // This is the app's own hint — "paste a few hundred words of your own prose" — taken
+  // literally. Under the old arrangement it was a `keep: false` part of DIRECTIVE's 250-token
+  // cap, so following the instruction guaranteed the sample was cut. COUNCIL-04 #5.
   const i = base();
-  i.story.writingStyle = 'The rain came sideways off the water. '.repeat(40);
+  const sample = 'The rain came sideways off the water and nobody looked up. '.repeat(30);
+  i.story.writingStyle = sample.trim();          // ~300 words
+  const m = buildContext(i, count);
+  const v = m.blocks.find((b) => b.kind === 'VOICE')!;
+  assert.strictEqual(v.state, 'included');
+  assert.doesNotMatch(v.reason, /shortened/, 'a few hundred words must fit whole');
+  assert.ok(v.text.includes(sample.trim()), 'the sample is sent verbatim');
+  assert.doesNotMatch(v.text, /\[Voice:/,
+    'not bracketed — [Voice: <prose>] reads as a description of a style, not a specimen');
+  const out = render(m);
+  assert.match(out, /<voice>[\s\S]*<\/voice>/, 'fenced, so it is not read as this story');
+  assert.ok(out.indexOf('<voice>') < out.indexOf('<canon>'),
+    'high in the prompt: prose that is NOT this story must not sit beside the tail');
+});
+
+ok('an oversized voice sample shortens on a sentence, and DIRECTIVE keeps everything', () => {
+  // The sample is now the only flex part of its own block, so going over the cap costs the
+  // sample and nothing else. It used to cost point of view, register and the chapter's beat.
+  const i = base();
+  i.story.writingStyle = 'The rain came sideways off the water. '.repeat(90);   // ~830 tokens
   i.story.spice = 5;
   i.currentChapter = { id: 'c3', index: 3, title: 'Key', authorsNote: 'He must be forced.' };
   const m = buildContext(i, count);
+  const v = m.blocks.find((b) => b.kind === 'VOICE')!;
+  assert.match(v.reason, /shortened/, 'over the cap, it shortens rather than vanishing');
+  assert.ok(v.tokens <= 500, `must fit the cap, got ${v.tokens}`);
+  assert.match(v.text, /water\.$/,
+    `the cut lands on a sentence, not mid-word — ends: ${JSON.stringify(v.text.slice(-24))}`);
+
   const d = m.blocks.find((b) => b.kind === 'DIRECTIVE')!;
-  assert.strictEqual(d.state, 'included', 'the anchor must survive');
-  assert.match(d.reason, /shortened/);
+  assert.doesNotMatch(d.reason, /shortened/, 'DIRECTIVE no longer pays for the sample');
   const out = render(m);
   assert.match(out, /third limited/, 'point of view survives');
   assert.match(out, /fully explicit/, 'the register survives');
