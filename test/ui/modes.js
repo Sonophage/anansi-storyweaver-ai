@@ -114,4 +114,17 @@ if (cast) {
      (await page.eval("document.getElementById('input')?.value")) === '');
 } else { ok("the cast offers someone other than you", false); }
 
+// ---- 8. the working bar does not move the composer
+// It cannot live inside #dockCol (drawDock() sets innerHTML), so it is a flex sibling. As a row
+// sibling at width:100% it shoved the composer off the right edge for the whole 20-40s call.
+const dockBox = () => page.eval("(() => { const d = document.getElementById('dockCol').getBoundingClientRect();"
+  + " return [Math.round(d.left), Math.round(d.right), Math.round(d.width)]; })()");
+const quiet = await dockBox();
+await page.eval("(() => { const w = document.getElementById('working'); w.hidden = false; w.dataset.work = 'speak'; return 1; })()");
+await wait(150);
+const busy = await dockBox();
+ok(`the composer stays put while the bar runs (${quiet} -> ${busy})`, String(quiet) === String(busy));
+ok("  and the bar lines up with the column",
+   Math.abs((await page.eval("Math.round(document.getElementById('working').getBoundingClientRect().left)")) - busy[0]) <= 1);
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

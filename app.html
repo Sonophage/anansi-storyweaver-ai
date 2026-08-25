@@ -341,7 +341,11 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
 .scenebreak i { flex:1; height:1px; background:var(--rule); }
 
 /* --- composer ---------------------------------------------------------- */
-#dock { position:relative; flex:0 0 auto; display:flex; justify-content:center; padding:0 0 28px; background:var(--dock); }
+/* Column, not row. #working cannot live inside #dockCol — drawDock() sets its innerHTML and would
+   wipe the bar mid-generation — so it is a sibling, and as a row sibling with width:100% it pushed
+   the whole composer off the right edge for the length of every call. */
+#dock { position:relative; flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
+  padding:0 0 28px; background:var(--dock); }
 @media (max-width:719px) { #dock { padding:0 18px 24px; } }
 #dockCol { width:100%; max-width:var(--col); display:flex; flex-direction:column; gap:14px; }
 #modes { display:flex; align-items:center; gap:22px; overflow-x:auto; scrollbar-width:none; }
@@ -359,7 +363,7 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
    that simply goes quiet reads as a hung page — which is what it was reported as. The bar under
    the document animates for the whole call, and its colour says WHICH action is running, because
    the five do different things and the wait is long enough to forget which you pressed. */
-#working { height:2px; width:100%; overflow:hidden; background:transparent; flex:0 0 auto; }
+#working { height:2px; width:100%; max-width:var(--col); overflow:hidden; background:transparent; flex:0 0 auto; }
 #working[hidden] { display:none; }
 #working i { display:block; height:100%; width:38%; border-radius:2px;
   background:linear-gradient(90deg, transparent, var(--work, var(--gold)), transparent);
