@@ -51,7 +51,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **119 across six suites** (34 engine, 33 db, 19 scope, 10 import, 14 web, 9 app), plus **324 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
+| **Tests** | **119 across six suites** (34 engine, 33 db, 19 scope, 10 import, 14 web, 9 app), plus **327 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
 
 ---
 
@@ -146,6 +146,39 @@ All except pins and arcs are wired and driven in `test/ui/restored.js`. Both exc
 an explicit DEFERRED list in `test/web.ts` **with the reason**, and that test asserts every other
 api method has a caller — so an engine feature losing its surface fails a test rather than going
 quiet. That invariant is the actual fix; the five wirings are the consequence.
+
+## 3c. Colour and motion, 2026-08-24
+
+**Every colour flows from a token.** `web/app.js` carried **162 raw hex values** in inline styles,
+all of them dark-theme values — so the document themed and the panel and rail could not. A theme
+was only ever half applied. Now 12 remain in the JS and all twelve are decoration: three
+story-card art gradients and three theme swatches, which have to stay literal because they
+*preview* the themes. Nothing in the stylesheet names a colour outside a token definition.
+
+**A theme is one block of variables.** That is the contract, and it only holds because nothing
+hardcodes a colour. It removed a special case too: `html[data-ui-theme="parchment"] #modes
+button[aria-pressed="true"] { color:#6B5220 }` existed because `--gold-lit` is a light gold and
+parchment is a light theme. Overriding the *token* fixes every place that problem appears; the
+rule fixed one button.
+
+**One motion system**, declared in `:root`: four durations, three curves. The rule it follows is
+that motion explains where something came from — a passage rises because it was written below, a
+panel's contents settle after the panel arrives, and a toggle chip does not move at all because it
+did not go anywhere. Only the newest passage animates; replaying 358 of them on every repaint
+would be a slot machine. Everything is opacity and transform, both composited.
+
+**Three things this found that tests could not see.** They needed computed styles and contrast
+arithmetic, so `test/ui/surfaces.js` now carries both, across all three themes:
+
+- **the passage animation never applied.** `#col > .block:last-of-type` means *last `<div>`*, and
+  the chapter pager is a div that comes after every block, so nothing ever matched. Green tests,
+  no animation. The renderer marks the newest passage instead.
+- **parchment's gold was 3.1:1** — cream on cream. Darkened; reverting it turns the check red at
+  1.4:1.
+- **hint text was 3.56:1 in every theme**, at 11.5px. Raised from `--dim` to `--mute`. This is a
+  visual change to Seth's design, made because a hint is the sentence telling you what a control
+  does. The threshold was NOT lowered to accommodate it — tuning a check until it stops
+  complaining is the same failure as writing one that cannot fail.
 
 ## 3b. Surface inventory, verified 2026-08-24
 

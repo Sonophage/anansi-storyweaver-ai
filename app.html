@@ -19,12 +19,28 @@
    only change is that they live in custom properties instead of style strings,
    so a repaint does not rewrite every element's inline style.
    --------------------------------------------------------------------------- */
+/* Every colour the app uses lives here. A THEME is one block below overriding any of these — that
+   is the whole contract, and it only holds if nothing hardcodes a hex. web/app.js used to carry
+   162 of them in inline styles, so the panel and the rail could not be themed at all while the
+   document could. */
 :root {
-  --gold:#D9B26A; --gold-lit:#E0C48C; --gold-dim:#BCA97F;
+  /* ink, on the panel and the rail — brightest to faintest */
+  --ink-bright:#F3ECE0; --ink:#EAE3D6; --mute:#8A8478; --faint:#78726A; --dim:#6E6961;
+  --ink-ghost:#635E56;
+  --gold:#D9B26A; --gold-lit:#E0C48C; --gold-dim:#BCA97F; --on-gold:#100D08;
   --rail:#0C0C0E; --sheet:#0E0D10; --line:#1A1917; --edge:#23211D; --chip:#2A2721;
-  --field:#141317; --mute:#8A8478; --faint:#78726A; --dim:#6E6961;
+  --edge-lit:#3A372F; --field:#141317;
   --good:#7FB083; --warn:#C99356; --bad:#C8705A;
-  --ease:cubic-bezier(.4,0,.2,1);
+
+  /* motion. One scale, so nothing in the app invents its own timing. */
+  --ease:cubic-bezier(.4,0,.2,1);          /* the house curve: settle, do not bounce */
+  --ease-out:cubic-bezier(.16,1,.3,1);     /* arrivals — fast in, long tail */
+  --ease-in:cubic-bezier(.7,0,.84,0);      /* departures */
+  --t-fast:.12s;                            /* a state you should not notice changing */
+  --t:.2s;                                  /* the default: hovers, chips, toggles */
+  --t-slow:.32s;                            /* something moving across the screen */
+  --t-page:.42s;                            /* a whole surface arriving */
+
   --prose:20px; --bubble:17px; --gap:30px; --col:720px;
 }
 html[data-ui-theme="obsidian"] {
@@ -46,9 +62,12 @@ html[data-ui-theme="ink"] {
 html[data-ui-theme="parchment"] {
   --doc-bg:#EFE7D8;
   --doc-wash:radial-gradient(60% 40% at 25% 0%, rgba(150,105,195,.07), transparent 70%), linear-gradient(180deg,#F3EDE1,#EAE1D0 60%);
-  --narr:#3A342B; --body:#2E2A24; --label:#8A7A5E; --rule:rgba(58,52,43,.14); --you-rule:rgba(120,90,40,.45); --speak-rule:rgba(110,80,140,.5);
+  --narr:#3A342B; --body:#2E2A24; --label:#5F5340; --rule:rgba(58,52,43,.14); --you-rule:rgba(120,90,40,.45); --speak-rule:rgba(110,80,140,.5);
   --dock:linear-gradient(180deg,rgba(239,231,216,0),rgba(239,231,216,.94) 40%);
   --chrome:rgba(239,231,216,.72); --chrome-ink:#3A342B; --chrome-dim:#7A6E5C; --chrome-line:rgba(58,52,43,.12);
+  /* Gold has to darken on paper or it is cream on cream. Overriding the tokens fixes every place
+     that uses them; the single-rule override this replaced fixed one button. */
+  --gold:#7D5F1E; --gold-lit:#5E4819; --gold-dim:#6F5C30; --on-gold:#FBF6EA;
 }
 html[data-ui-size="s"] { --prose:18px; --bubble:16px; --gap:26px; --col:660px; }
 html[data-ui-size="m"] { --prose:20px; --bubble:17px; --gap:30px; --col:720px; }
@@ -69,7 +88,71 @@ body {
 button { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-align:left; }
 input, textarea { font:inherit; color:inherit; }
 :focus-visible { outline:2px solid var(--gold); outline-offset:2px; border-radius:4px; }
-@media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
+/* ── motion ──────────────────────────────────────────────────────────────────────────────────
+   One system, four durations, three curves, all declared in :root. The rule the app follows:
+   motion explains where something came from. A panel slides from the edge it lives on; a passage
+   rises because it was written below; a chip does not move at all because it did not go anywhere.
+   Nothing here loops except the working bar, which is reporting that a call is still running.
+
+   Everything is opacity and transform only — both composited, so a 358-passage document does not
+   drop frames when the side panel opens. No animating height, width, top or left. */
+
+/* The whole app respects the system setting. This is the ONLY blanket reset; individual rules
+   below add static fallbacks where removing the animation would remove the information too. */
+@media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; }
+  html { scroll-behavior:auto !important; } }
+
+@keyframes rise   { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:none; } }
+@keyframes settle { from { opacity:0; transform:translateY(-5px); } to { opacity:1; transform:none; } }
+@keyframes fade   { from { opacity:0; } to { opacity:1; } }
+@keyframes lift   { from { opacity:0; transform:translateY(10px) scale(.985); } to { opacity:1; transform:none; } }
+
+/* A new passage RISES: it was written at the bottom and it arrives from there. Only the newest
+   one animates — replaying the whole document on every repaint would be a slot machine, and at
+   358 passages it would be a slow one. The renderer marks it; `:last-of-type` cannot, because it
+   means "last <div>" and the chapter pager is a div that comes after every block. */
+#col .block.newest { animation:rise var(--t-slow) var(--ease-out) both; }
+
+/* A panel's contents SETTLE in after the panel itself has arrived, so the two reads as one move
+   rather than a race. The delay is the panel's own transition, near enough. */
+#sideBody > * { animation:settle var(--t) var(--ease-out) both; }
+#page > * { animation:lift var(--t-page) var(--ease-out) both; }
+
+/* Rows and cards stagger, barely. Six steps is enough to read as a sequence; past that it is a
+   wait. Anything below the sixth arrives with the sixth. */
+#sideBody .card, #sideBody .row, #page .storycard {
+  animation:rise var(--t-slow) var(--ease-out) both; }
+#sideBody .card:nth-child(1),  #page .storycard:nth-child(1)  { animation-delay:0ms; }
+#sideBody .card:nth-child(2),  #page .storycard:nth-child(2)  { animation-delay:22ms; }
+#sideBody .card:nth-child(3),  #page .storycard:nth-child(3)  { animation-delay:44ms; }
+#sideBody .card:nth-child(4),  #page .storycard:nth-child(4)  { animation-delay:66ms; }
+#sideBody .card:nth-child(5),  #page .storycard:nth-child(5)  { animation-delay:88ms; }
+#sideBody .card:nth-child(n+6),#page .storycard:nth-child(n+6){ animation-delay:110ms; }
+
+/* Things you press answer immediately. --t-fast is the point where a change stops feeling like a
+   change and starts feeling like the button was already that way. */
+button, .tag, .chip, .card, .row, select, input, textarea, a.btn {
+  transition:background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+             color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease); }
+button:not(:disabled):active { transform:translateY(.5px); }
+.storycard { transition:transform var(--t) var(--ease-out), border-color var(--t) var(--ease); }
+.storycard:hover { transform:translateY(-2px); }
+.card:hover { border-color:var(--edge-lit); }
+
+/* Focus is not decoration: it is the only thing telling a keyboard where it is. It never fades in,
+   because a ring that arrives late is a ring you have already moved past. */
+:focus-visible { outline:2px solid var(--gold); outline-offset:2px; border-radius:6px; transition:none; }
+
+/* The toast comes up from the composer it is talking about, and leaves the way it came. */
+#toast { animation:rise var(--t) var(--ease-out) both; }
+
+/* Chips that toggle — modes, outfits, kinds — do NOT move. They did not go anywhere; only their
+   state changed, and moving them would say otherwise. */
+#modes button, [data-wear], [data-lorekind], [data-kind] { transition:color var(--t-fast) var(--ease),
+  border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
+
+/* The document scrolls to a search hit rather than jumping, so you can see where it took you. */
+@media (prefers-reduced-motion:no-preference) { #read { scroll-behavior:smooth; } }
 .tnum { font-variant-numeric:tabular-nums; }
 .serif { font-family:'Instrument Serif',Georgia,serif; }
 .up { letter-spacing:.2em; text-transform:uppercase; }
@@ -149,7 +232,7 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 @media (max-width:719px) { #bar { padding:16px 20px 14px; gap:14px; } }
 
 .pill { border:1px solid var(--chrome-line); padding:8px 14px; border-radius:10px; font-size:12px; color:var(--chrome-dim); white-space:nowrap; }
-.pill[aria-pressed="true"] { background:var(--gold); border-color:var(--gold); color:#100D08; }
+.pill[aria-pressed="true"] { background:var(--gold); border-color:var(--gold); color:var(--on-gold); }
 .deskonly { display:block; }
 @media (max-width:719px) { .deskonly { display:none; } }
 .phoneonly { display:none; }
@@ -160,12 +243,12 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
   position:absolute; top:70px; right:32px; z-index:25; width:274px; border-radius:16px;
   border:1px solid var(--chip); background:rgba(16,15,18,.97); backdrop-filter:blur(20px);
   box-shadow:0 30px 70px rgba(0,0,0,.65); padding:16px 18px;
-  display:flex; flex-direction:column; gap:14px; color:#EAE3D6;
+  display:flex; flex-direction:column; gap:14px; color:var(--ink);
 }
 #appearance[hidden] { display:none; }
 @media (max-width:719px) { #appearance { top:62px; right:14px; } }
 .chip { padding:9px 12px; border-radius:11px; border:1px solid var(--chip); color:var(--mute); font-size:13px; }
-.chip[aria-pressed="true"] { border-color:rgba(217,178,106,.5); background:rgba(217,178,106,.08); color:#EAE3D6; }
+.chip[aria-pressed="true"] { border-color:rgba(217,178,106,.5); background:rgba(217,178,106,.08); color:var(--ink); }
 
 /* --- reading column ---------------------------------------------------- */
 #read { position:relative; flex:1; min-height:0; display:flex; justify-content:center; padding:40px 0 0; }
@@ -213,7 +296,7 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
   .acts button span { font-size:15px; }
   .acts .lbl-txt { display:none; }
 }
-.acts button { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:9px; font-size:12.5px; color:#C6BFB2; white-space:nowrap; }
+.acts button { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:9px; font-size:12.5px; color:var(--narr); white-space:nowrap; }
 .acts button:hover { background:rgba(255,255,255,.05); }
 .flag { display:flex; align-items:flex-start; gap:9px; font-size:11.5px; color:var(--bad);
   text-align:left; width:100%; max-width:100%; }
@@ -233,7 +316,6 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
 #modes::-webkit-scrollbar { display:none; }
 #modes button { flex:0 0 auto; font-size:10.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
 #modes button[aria-pressed="true"] { color:var(--gold-lit); border-bottom-color:var(--gold); }
-html[data-ui-theme="parchment"] #modes button[aria-pressed="true"] { color:#6B5220; }
 /* Continue is an action, not a mode — it sends on the press. Given the same underline as the four
    selectable modes it read as a fifth thing you pick, which is the one thing it is not. */
 #modes button[data-continue] { border:1px solid var(--chip); border-radius:999px; padding:5px 13px;
@@ -268,19 +350,19 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 }
 #input::placeholder { color:var(--label); opacity:.75; }
 @media (max-width:719px) { #input { font-size:15.5px; } #inputRow { padding-bottom:12px; } }
-#send { width:34px; height:34px; border-radius:50%; background:var(--gold); color:#100D08; display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto; }
+#send { width:34px; height:34px; border-radius:50%; background:var(--gold); color:var(--on-gold); display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto; }
 #send:disabled { opacity:.4; }
 @media (max-width:719px) { #send { width:30px; height:30px; } }
 
 /* --- side panel -------------------------------------------------------- */
-#sideHead { display:flex; align-items:center; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--line); flex:0 0 auto; color:#EAE3D6; }
-#sideBody { padding:18px 22px 30px; flex:1; min-height:0; display:flex; flex-direction:column; color:#EAE3D6; }
+#sideHead { display:flex; align-items:center; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--line); flex:0 0 auto; color:var(--ink); }
+#sideBody { padding:18px 22px 30px; flex:1; min-height:0; display:flex; flex-direction:column; color:var(--ink); }
 @media (max-width:719px) { #sideHead { padding:18px 20px 12px; } #sideBody { padding:10px 20px 26px; } }
 .lbl { font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin:14px 0 5px; }
 .lbl:first-child { margin-top:0; }
-.field { background:var(--field); border:1px solid var(--chip); border-radius:11px; padding:10px 13px; font-size:13.5px; line-height:1.5; color:#EAE3D6; width:100%; font-family:inherit; }
+.field { background:var(--field); border:1px solid var(--chip); border-radius:11px; padding:10px 13px; font-size:13.5px; line-height:1.5; color:var(--ink); width:100%; font-family:inherit; }
 textarea.field { resize:vertical; min-height:70px; }
-.hint { font-size:11.5px; color:var(--dim); line-height:1.5; margin:6px 0 0; }
+.hint { font-size:11.5px; color:var(--mute); line-height:1.5; margin:6px 0 0; }
 .card { border:1px solid var(--chip); border-radius:14px; padding:13px 15px; display:flex; flex-direction:column; gap:5px; }
 /* Summaries are supposed to be ~180 words and arrive at four times that, so they are clamped
    for the same reason canon flags are: the panel is an index, not a reading surface. */
@@ -289,7 +371,7 @@ textarea.field { resize:vertical; min-height:70px; }
 .tag { font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; padding:2px 8px; border-radius:999px; border:1px solid var(--chip); color:var(--dim); white-space:nowrap; }
 .kind { font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold-dim); }
 .row { display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:12.5px; }
-.btn { padding:12px; text-align:center; border-radius:999px; background:var(--gold); color:#100D08; font-size:11px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; display:block; width:100%; }
+.btn { padding:12px; text-align:center; border-radius:999px; background:var(--gold); color:var(--on-gold); font-size:11px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; display:block; width:100%; }
 .btn.ghost { background:none; border:1px solid var(--chip); color:var(--mute); font-weight:400; }
 .meter { display:flex; height:6px; border-radius:3px; overflow:hidden; background:var(--chip); margin:10px 0 6px; }
 
@@ -319,7 +401,7 @@ textarea.field { resize:vertical; min-height:70px; }
      swallows every click on the input for 4.2 seconds — so the error telling you to type
      something was the thing stopping you from typing it. */
   pointer-events:none;
-  background:#141317; border:1px solid var(--chip); color:#EAE3D6; padding:11px 18px;
+  background:var(--field); border:1px solid var(--chip); color:var(--ink); padding:11px 18px;
   border-radius:999px; font-size:12.5px; box-shadow:0 20px 50px rgba(0,0,0,.6); max-width:90vw;
 }
 #toast[hidden] { display:none; }

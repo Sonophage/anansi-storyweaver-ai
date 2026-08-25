@@ -115,4 +115,55 @@ const dock = (await page.text('#dockCol') || '');
 ok("7. Discard and Keep are gone", !dock.includes('DISCARD') && !/\bKeep\b/.test(dock));
 ok("   Regenerate is on the bar", await page.eval("!!document.querySelector('#bar [data-reroll]')"));
 
+// ---- 8. every theme has to be readable, in the chrome as well as the document. Until the raw
+// hexes came out of web/app.js the panel and the rail could not be themed at all — 162 of them,
+// all dark-theme values — so a light theme was only ever half applied. This is the check that the
+// token contract holds, and it caught parchment's gold at 3.1:1 on paper.
+const lum = (c) => { const m = (c.match(/[\d.]+/g) || [0, 0, 0]).map(Number);
+  const f = (v) => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); };
+  return .2126 * f(m[0]) + .7152 * f(m[1]) + .0722 * f(m[2]); };
+await page.goto(B + "/#" + sid);
+for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
+for (const theme of ['obsidian', 'ink', 'parchment']) {
+  await page.eval(`(() => { document.documentElement.dataset.uiTheme = '${theme}'; return 1; })()`);
+  await wait(350);
+  const rows = JSON.parse(await page.eval(`(() => {
+    const out = [];
+    for (const sel of ['#col .narr', '#sideBody', '#bar .serif', '#modes button', '#modes button[data-mode]',
+                       '.hint', '#input']) {
+      const el = document.querySelector(sel); if (!el) continue;
+      let bg = 'rgba(0, 0, 0, 0)', n = el;
+      while (n && (bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent')) { bg = getComputedStyle(n).backgroundColor; n = n.parentElement; }
+      out.push([sel, getComputedStyle(el).color, bg]);
+    }
+    return JSON.stringify(out); })()`));
+  let worst = 99, where = '';
+  for (const [sel, fg, bg] of rows) {
+    const r = (Math.max(lum(fg), lum(bg)) + .05) / (Math.min(lum(fg), lum(bg)) + .05);
+    if (r < worst) { worst = r; where = sel; }
+  }
+  ok(`8. ${theme} is readable — worst ${worst.toFixed(1)}:1 on ${where}`, worst >= 4.5);
+}
+await page.eval("(() => { document.documentElement.dataset.uiTheme = 'obsidian'; return 1; })()");
+
+// The motion system has to actually apply, not merely be declared.
+await page.goto(B + "/#" + sid + "/threads");
+await wait(700);
+const motion = JSON.parse(await page.eval(`(() => {
+  const cs = getComputedStyle(document.documentElement);
+  const newest = document.querySelector('#col .block.newest');
+  const card = document.querySelector('#sideBody .card, #sideBody .row');
+  return JSON.stringify({
+    tokens: ['--ease','--ease-out','--t-fast','--t','--t-slow','--t-page'].map(k => cs.getPropertyValue(k).trim()),
+    newest: newest ? getComputedStyle(newest).animationName : 'MISSING',
+    card: card ? getComputedStyle(card).animationName : 'MISSING',
+    moving: [...document.querySelectorAll('#col .block')].filter(b => getComputedStyle(b).animationName !== 'none').length,
+  }); })()`));
+ok("   every motion token resolves", motion.tokens.every((t) => t.length));
+ok(`   the newest passage rises (${motion.newest})`, motion.newest === 'rise');
+ok(`   panel contents animate (${motion.card})`, motion.card !== 'none' && motion.card !== 'MISSING');
+// Only the newest — replaying the whole document on every repaint would be a slot machine, and
+// `:last-of-type` silently matched nothing because the chapter pager is a div that comes after.
+ok(`   and only the newest one (${motion.moving})`, motion.moving === 1);
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
