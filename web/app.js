@@ -1523,7 +1523,9 @@ function decode(el, slot) {
   // No rAF in the stub DOM the node suite renders against, and nothing to animate under
   // reduced motion. The element already holds the finished text either way.
   if (still() || typeof requestAnimationFrame !== 'function') return;
-  const len = target.length, total = Math.max(10, len);
+  // Two frames per character, not one: at 60fps a one-frame-per-character decode crossed a
+  // 30-character title in half a second, which read as a flicker rather than as text arriving.
+  const len = target.length, total = Math.max(10, len) * 2;
   let frame = 0;
   el.classList.add('decoding');
   const tick = () => {
