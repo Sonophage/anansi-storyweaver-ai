@@ -3,7 +3,7 @@
 // sheet on a phone. Layout lives in app.html's CSS — this file decides state and content only,
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, frontier } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -179,6 +179,7 @@ function drawBar() {
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(title)}</span>
       <span class="up" style="font-size:10.5px; color:var(--label); white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>
+      <!-- decoded below, after the element exists -->
     </div>
     <div style="margin-left:auto; display:flex; align-items:center; gap:10px; flex:0 0 auto">
       ${inStory ? `<span class="deskonly" style="font-size:12px; color:var(--chrome-dim)">${words.toLocaleString()} words</span>
@@ -197,6 +198,10 @@ function drawBar() {
            text-transform:uppercase; color:var(--on-gold); background:var(--gold); padding:9px 18px;
            border-radius:10px; font-weight:500; white-space:nowrap">Resume writing</button>` : ''}`}
     </div>`;
+  // The title, and the line under it that names the chapter. Both are leaf spans holding nothing
+  // but text, which is what decode() needs — it writes textContent.
+  decode($('bar').querySelector('.serif'), 'title');
+  decode($('bar').querySelector('.up'), 'sub');
 }
 
 function drawAppearance() {
@@ -355,6 +360,7 @@ function drawSide() {
     <span class="serif" style="flex:1; font-size:20px; color:var(--ink-bright); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
     <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
+  decode($('sideHead').querySelector('.serif'), 'panel');
   $('sideBody').innerHTML = (PANELS[S.panel] ?? (() => ''))();
 }
 
@@ -1501,6 +1507,43 @@ async function openStory(id) {
  *
  *  Scroll only when you were already at the bottom: yanking the page down while someone is
  *  reading an earlier paragraph is worse than not following the text. */
+// ---------- the decode ----------
+// One frame per character, left to right, spaces held so the shape of the line is legible from the
+// first frame. Two places want it and they want it differently: a HEADER decodes once, when its
+// text changes, and that is this function. STREAMING prose decodes at its frontier only — see
+// frontier() in model.js, which is where the glyphs are. Scrambling a live 300-word passage whole
+// would be unreadable, and the bureau only ever put this on short headers.
+/** Titles already on screen, by slot, so a repaint that says the same thing does not re-run the
+ *  animation. Every panel repaint replaces the element, so the memory cannot live on it. */
+const DECODED = {};
+function decode(el, slot) {
+  const target = el?.textContent ?? '';
+  if (!el || !target.trim() || DECODED[slot] === target) return;
+  DECODED[slot] = target;
+  // No rAF in the stub DOM the node suite renders against, and nothing to animate under
+  // reduced motion. The element already holds the finished text either way.
+  if (still() || typeof requestAnimationFrame !== 'function') return;
+  const len = target.length, total = Math.max(10, len);
+  let frame = 0;
+  el.classList.add('decoding');
+  const tick = () => {
+    // A repaint during the animation throws this element away; its animation goes with it.
+    if (!el.isConnected) return;
+    const revealed = Math.floor((++frame / total) * len);
+    let out = '';
+    for (let i = 0; i < len; i++)
+      out += target[i] === ' ' ? ' ' : i < revealed ? target[i] : glyph();
+    // The glyphs go in an ATTRIBUTE and are painted by CSS over the top. The real title stays in
+    // textContent the whole time, which is what a screen reader reads, what a copy takes, and what
+    // a test asserting a header can see — writing glyphs into the text itself would have made every
+    // assertion in panels.js a race against half a second of animation.
+    el.dataset.glyphs = out;
+    if (frame < total) requestAnimationFrame(tick);
+    else { el.classList.remove('decoding'); delete el.dataset.glyphs; }
+  };
+  requestAnimationFrame(tick);
+}
+
 function ghost(text) {
   const col = $('col'); if (!col) return;
   let g = document.getElementById('ghost');
@@ -1511,8 +1554,9 @@ function ghost(text) {
     col.appendChild(g);
   }
   // textContent, not innerHTML: this is untrusted model output arriving a fragment at a time,
-  // and a half-written "<" would be a half-written tag.
-  g.firstChild.textContent = text;
+  // and a half-written "<" would be a half-written tag. The glyphs go in AFTER the escape, for
+  // the same reason — they are decoration on the text, never a way into it.
+  g.firstChild.textContent = frontier(text);
   const read = $('read');
   if (read && read.scrollHeight - read.scrollTop - read.clientHeight < 400) read.scrollTop = read.scrollHeight;
 }

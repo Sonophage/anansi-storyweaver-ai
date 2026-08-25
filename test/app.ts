@@ -126,6 +126,37 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   assert.doesNotMatch(a.name, /HauhauCS/i, 'and neither is the org, twice');
   assert.strictEqual(modelName('').name, 'no model', 'and no model says so');
 }
+
+// The streaming frontier runs on every delta, over prose the writer is reading as it lands. The
+// thing that must never happen is a glyph landing in a sentence that has already settled.
+{
+  const { frontier, FRONTIER, GLYPHS } = await import('../web/model.js');
+  const text = 'The rain had not stopped, and the lower tiers went on pulsing under the oil.';
+  for (let i = 0; i < 200; i++) {
+    const out = frontier(text);
+    assert.strictEqual(out.length, text.length, 'the line must not move while it settles');
+    assert.strictEqual(out.slice(0, -FRONTIER), text.slice(0, -FRONTIER),
+      'every character before the frontier is the writer\'s, untouched');
+    // Whitespace holds, so the shape of the line is legible from the first frame.
+    for (let j = 0; j < text.length; j++)
+      if (/\s/.test(text[j])) assert.strictEqual(out[j], text[j], 'whitespace never becomes a glyph');
+    for (const ch of out.slice(-FRONTIER))
+      assert.ok(GLYPHS.includes(ch) || text.includes(ch), 'and the glyphs come from the set');
+  }
+  // The end of the frontier is the least settled: over many frames the last character is a glyph
+  // far more often than the first. A uniform scramble would fail this, and it is what makes the
+  // effect read as resolving BEHIND the model rather than as noise.
+  let firstGlyphs = 0, lastGlyphs = 0;
+  for (let i = 0; i < 400; i++) {
+    const out = frontier(text);
+    if (out.at(-FRONTIER) !== text.at(-FRONTIER)) firstGlyphs++;
+    if (out.at(-1) !== text.at(-1)) lastGlyphs++;
+  }
+  assert.ok(lastGlyphs > firstGlyphs * 2,
+    `the frontier must be a gradient, not a block (${firstGlyphs} vs ${lastGlyphs} of 400)`);
+  assert.strictEqual(frontier('a'), 'a', 'and there is nothing to resolve in one character');
+  ok('the streaming frontier resolves behind the model and never touches settled prose');
+}
 assert.match(html('rail'), /slot 50,048/);
 ok('the rail shows the workspace nav, the model and the real slot size');
 

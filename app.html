@@ -119,6 +119,18 @@ input, textarea { font:inherit; color:inherit; }
 #col .block.ghost .narr::after { content:'▍'; color:var(--gold); margin-left:1px;
   animation:caret 1.1s steps(2, jump-none) infinite; }
 @keyframes caret { 50% { opacity:0; } }
+
+/* The decode. The element keeps its real text; the glyphs are an attribute painted over the top,
+   so nothing that READS the page — a screen reader, a copy, a test — ever sees them. Half a second,
+   on a title that changed. */
+.decoding { color:transparent !important; position:relative; }
+.decoding::after {
+  content:attr(data-glyphs); position:absolute; left:0; top:0; white-space:pre;
+  color:var(--chrome-ink); pointer-events:none;
+}
+#sideHead .decoding::after { color:var(--ink-bright); }
+.up.decoding::after { color:var(--label); }
+@media (prefers-reduced-motion: reduce) { .decoding { color:inherit !important; } .decoding::after { content:none; } }
 @media (prefers-reduced-motion: reduce) { #col .block.ghost .narr::after { animation:none; } }
 
 /* A panel's contents SETTLE in after the panel itself has arrived, so the two reads as one move
