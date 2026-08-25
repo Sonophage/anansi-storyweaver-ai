@@ -125,15 +125,20 @@ accept it. Same queue, same rule.
 
 ## What I would do
 
-1. **Tell**, because it is one prompt role away and reuses a pipeline you already trust.
-2. **Ask**, as its own panel, its own block set, thinking on, on a model of its own — measuring
-   whether thinking actually helps before assuming it, the way F21 and F20 were measured.
-3. **Fetch**, only if you still want it after using the first two, and only as Tell-with-a-citation.
+It is one feature now, so it is one build:
+
+1. **The chat panel**, its own block set, thinking on, on a model of its own — with the three
+   outputs from one structured call, and the directive handed to the composer unsent.
+2. **Measure two things** rather than assume them: whether thinking actually helps here, and how
+   often a thread it proposes is already in the ledger. F20 is the standing warning — a plausible
+   prompt change cost 850 runs per arm to prove it did nothing.
+3. **Fetch**, only if you still want it after using the rest, and only as a proposal with a citation.
 
 ## What I need from you
 
-- **Tell first, or Ask first?** I have argued for Tell; you may want the conversation more.
-- **Where does Ask live** — a seventh panel, or inside Context?
+- **Where does it live** — a seventh panel, or inside Context?
+- **Should the directive land in the composer, or only offer a copy button?** I would hand it over
+  in Direct mode, unsent and editable. Copying works too and is one line less.
 - **Ephemeral or saved?** I would start ephemeral.
 - **Is Fetch in or out?** It is the only one that changes what this app is.
 - **What is it called?** *Talk to Anansi* is your phrase and it is good. If the verbiage pass lands
