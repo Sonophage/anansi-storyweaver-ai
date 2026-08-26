@@ -258,12 +258,16 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
   }
   #side[hidden] { display:flex; width:auto; transform:none; background:rgba(6,6,8,0);
     backdrop-filter:none; pointer-events:none; }
+  /* THE SHEET ARRIVES FROM THE EDGE IT LIVES ON. On a phone the panel is a sheet along the bottom,
+     so it rises from the bottom. It used to slide 30px and fade — a move that says "something
+     appeared here" rather than "this came up from down there", and at 30px it read as a flinch. */
   #sideInner {
     width:auto; height:auto; max-height:88%; background:var(--sheet); border:1px solid var(--chip);
-    border-bottom:0; border-radius:var(--r) 26px 0 0;
-    transform:translateY(0); opacity:1; transition:transform var(--t) var(--ease), opacity var(--t) var(--ease);
+    border-bottom:0; border-radius:var(--r) var(--r) 0 0;
+    transform:translateY(0); opacity:1;
+    transition:transform var(--t-slow) var(--ease), opacity var(--t) var(--ease);
   }
-  #side[hidden] #sideInner { transform:translateY(30px); opacity:0; }
+  #side[hidden] #sideInner { transform:translateY(100%); opacity:0; }
 }
 
 /* --- header ------------------------------------------------------------ */
@@ -351,6 +355,46 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
 .flag[aria-expanded="true"] > span:last-child { -webkit-line-clamp:unset; }
 .scenebreak { display:flex; align-items:center; gap:14px; }
 .scenebreak i { flex:1; height:1px; background:var(--rule); }
+
+/* GRAIN, on paper only. "Parchment takes grain; the two dark themes are screens and do not" —
+   a dark theme with paper texture on it is a screen pretending, and it reads as dirt. Two dot
+   fields at different scales so it does not tile visibly. */
+#read::after {
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:0; z-index:1;
+  background-image:radial-gradient(rgba(120,100,70,.16) .5px, transparent .5px),
+                   radial-gradient(rgba(120,100,70,.1) .5px, transparent .5px);
+  background-size:3px 3px, 7px 7px; background-position:0 0, 2px 3px;
+}
+html[data-ui-theme="parchment"] #read::after,
+html[data-ui-theme="novelist"] #read::after { opacity:.5; }
+
+/* --- the chapter opens ------------------------------------------------------
+   A band, a drop cap and a line out of the chapter's own prose. A chapter used to begin with a
+   10px label and go straight into the paragraph, which reads as a feed rather than as a book. */
+.band { display:flex; flex-direction:column; gap:13px; padding:8px 0 10px; }
+.band-title { font-size:48px; line-height:1.04; color:var(--body); text-wrap:pretty; }
+.band-epi { display:flex; align-items:flex-start; gap:14px; max-width:520px; }
+.band-epi i { width:1px; align-self:stretch; background:var(--gold-dim); opacity:.5; flex:0 0 auto; }
+.band-epi span { font-style:italic; font-size:17px; line-height:1.5; color:var(--label); text-wrap:pretty; }
+.band-rule { height:1px; background:var(--rule); margin-top:18px; }
+@media (max-width:719px) { .band-title { font-size:30px; } .band-epi span { font-size:15px; }
+  .band { gap:10px; padding:2px 0 6px; } .band-rule { margin-top:10px; } }
+
+/* The drop cap is ::first-letter, NOT a span. The passage body is contenteditable and the editor
+   saves its textContent, so a real element in there would be editable, deletable, and would go
+   into the story the moment anyone typed near it. */
+#col .block.opening .narr::first-letter {
+  float:left; font-family:'Instrument Serif',Georgia,serif; font-style:normal;
+  font-size:64px; line-height:.82; color:var(--body); margin:2px 10px 0 0;
+}
+@media (max-width:719px) { #col .block.opening .narr::first-letter { font-size:46px; margin:1px 8px 0 0; } }
+
+/* A running head is RUNNING: it earns its place only once the chapter's own band has scrolled
+   away. Showing both at once says the chapter's name twice inside 60 pixels. */
+.runhead { position:sticky; top:0; z-index:4; display:flex; align-items:baseline; gap:12px;
+  font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label);
+  padding:6px 0; background:var(--doc-bg); opacity:0; transition:opacity var(--t) var(--ease); }
+#read.scrolled .runhead { opacity:1; }
 
 /* --- composer ---------------------------------------------------------- */
 /* Column, not row. #working cannot live inside #dockCol — drawDock() sets its innerHTML and would

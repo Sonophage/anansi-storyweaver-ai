@@ -249,3 +249,33 @@ export const mark = (name, size = 19, colour = 'currentColor') =>
     style="flex:0 0 auto; overflow:visible">${
       (MARK[name] ?? MARK.story).split('M').filter(Boolean)
         .map((d) => `<path d="M${d}"></path>`).join('')}</svg>`;
+
+/** A line from the chapter's own prose, to stand at its head.
+ *
+ *  The design's band carries an epigraph and its note says it is "pulled from its own prose". Two
+ *  rules make that work rather than merely happen:
+ *
+ *  NOT FROM THE FIRST PASSAGE. The first passage is directly under the band, and quoting a line
+ *  the reader is about to read four inches later is not an epigraph, it is a stutter.
+ *
+ *  SHORT AND WHOLE. Between 24 and 90 characters, ending in a full stop, and never a line of
+ *  dialogue — a character's words are theirs, and hoisting them to the head of a chapter puts the
+ *  narrator's authority behind something somebody merely said. Earliest wins among equals, so the
+ *  same chapter always shows the same line.
+ *
+ *  Returns '' when the chapter has not earned one, which is most chapters at their beginning.
+ */
+export const epigraphOf = (passages) => {
+  const after = (passages ?? []).slice(1);
+  let best = '';
+  for (const p of after) {
+    const prose = String(p?.body ?? '').replace(/["“][^"”]*["”]/g, ' ');
+    for (const m of prose.matchAll(/[^.!?]+[.!?]/g)) {
+      const line = m[0].trim();
+      if (line.length < 24 || line.length > 90) continue;
+      if (/["“”]/.test(line)) continue;
+      if (!best || line.length < best.length) best = line;
+    }
+  }
+  return best;
+};

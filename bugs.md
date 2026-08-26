@@ -9,37 +9,40 @@ under **Still open** and under the four decisions — you do not need to re-repo
 
 ---
 
-## 1 · The composer, and the passage arriving
+## 1 · The look — v2 of the design
 
 
-## 2 · Anansi has a voice
+## 2 · The composer, and the passage arriving
 
 
-## 3 · Have Anansi write one
+## 3 · Anansi has a voice
 
 
-## 4 · The character the model does not write
+## 4 · Have Anansi write one
 
 
-## 5 · Contradictions are the model's problem now
+## 5 · The character the model does not write
 
 
-## 6 · The Context panel, and the horizon
+## 6 · Contradictions are the model's problem now
 
 
-## 7 · Acts, for a long book
+## 7 · The Context panel, and the horizon
 
 
-## 8 · The prompts, in your words
+## 8 · Acts, for a long book
 
 
-## 9 · Taking a book out and putting it back, and switching fast
+## 9 · The prompts, in your words
 
 
-## 10 · Strings — what the story owes
+## 10 · Taking a book out and putting it back, and switching fast
 
 
-## 11 · Delete, and the model list
+## 11 · Strings — what the story owes
+
+
+## 12 · Delete, and the model list
 
 
 ---

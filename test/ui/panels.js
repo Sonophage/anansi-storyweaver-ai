@@ -454,4 +454,39 @@ await page.goto(B + "/#" + sid3 + "/chapter");
 await wait(700);
 ok("the Chapter queue is about facts", !/Anansi noticed/.test(await page.text('#sideBody') || ''));
 
+// ---- 18. the chapter opens with a band, and the running head runs
+// A chapter used to begin with a 10px label and go straight into the paragraph, which reads as a
+// feed rather than as a book.
+await page.goto(B + "/#" + sid3);
+await wait(1000);
+ok("the chapter opens with a band", await page.visible('.band-title'));
+const bandTitle = (await page.eval("document.querySelector('.band-title')?.textContent") || '').trim();
+ok(`  naming the chapter (${JSON.stringify(bandTitle)})`, bandTitle.length > 0);
+// The drop cap is ::first-letter on the first NARRATION passage — never a real element, because
+// the passage body is contenteditable and the editor saves its textContent.
+const dropOn = await page.eval("(() => { const b = document.querySelector('#col .block.opening');"
+  + " return b ? (b.classList.contains('speak') ? 'speak' : 'narr') : 'none'; })()");
+ok(`  and the first narration passage carries the drop cap (${dropOn})`, dropOn === 'narr');
+ok("  which is CSS, not an element in the editable body",
+   await page.eval("!document.querySelector('#col .block.opening .narr span.dropcap')"));
+
+// The running head earns its place only once the band has gone by.
+const runState = async () => page.eval("(() => { const r = document.getElementById('read');"
+  + " return JSON.stringify({ top: Math.round(r.scrollTop),"
+  + " op: getComputedStyle(document.querySelector('.runhead')).opacity }); })()");
+await page.eval("(() => { const r = document.getElementById('read'); r.scrollTop = 0;"
+  + " r.dispatchEvent(new Event('scroll')); return 1; })()");
+await wait(400);
+const top = JSON.parse(await runState());
+if (top.top <= 90) {
+  ok(`  the running head is hidden while the band is on screen (top ${top.top})`, top.op === '0');
+} else {
+  ok(`  (this chapter cannot scroll to its own top — ${top.top}px, so the hidden state is untested here)`, true);
+}
+await page.eval("(() => { const r = document.getElementById('read'); r.scrollTop = 400;"
+  + " r.dispatchEvent(new Event('scroll')); return 1; })()");
+await wait(400);
+const down = JSON.parse(await runState());
+ok(`  and appears once it has gone by (top ${down.top})`, down.top <= 90 || down.op === '1');
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

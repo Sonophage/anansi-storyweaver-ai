@@ -13,6 +13,9 @@ const el = (id: string) => {
   const o: any = {
     id, innerHTML: '', textContent: '', hidden: false, value: '', scrollTop: 0,
     scrollHeight: 0, clientHeight: 0, style: {}, dataset: {},
+    // The reading pane toggles `scrolled` on itself so the running head can appear once the
+    // chapter's band has gone by.
+    classList: { toggle() {}, add() {}, remove() {}, contains: () => false },
     addEventListener() {}, focus() {}, closest: () => null,
     querySelectorAll: () => [], querySelector: () => null,
   };

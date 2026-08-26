@@ -76,15 +76,25 @@ const page = {
   async click(sel: string) {
     // Scroll it in first. Panels scroll, so a button below the fold reported a y outside the
     // viewport and the click landed on whatever happened to be there — or on nothing.
-    const box = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
+    // SCROLL, WAIT, THEN MEASURE. #read sets scroll-behavior:smooth, so scrollIntoView starts an
+    // animation and a rect read on the next line is the position the element is LEAVING. This
+    // measured and scrolled in one breath and then clicked 120ms later at coordinates the element
+    // had since moved away from — silently, as a click on whatever was now there. It only started
+    // failing when the chapter band made the document long enough to actually scroll, and it cost
+    // two scenarios that had nothing to do with the change.
+    const found = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
       if (!e) return null;
       e.scrollIntoView({ block: 'center', inline: 'nearest' });
+      return true; })()`);
+    if (!found) throw new Error(`click: no element for ${sel}`);
+    await wait(220);
+    const box = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
+      if (!e) return null;
       const r = e.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) return { hidden: true };
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
-    if (!box) throw new Error(`click: no element for ${sel}`);
+    if (!box) throw new Error(`click: element for ${sel} went away while scrolling to it`);
     if (box.hidden) throw new Error(`click: ${sel} has no box — hidden, or waiting on :hover`);
-    await wait(120);
     for (const type of ['mousePressed', 'mouseReleased']) {
       await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 });
     }

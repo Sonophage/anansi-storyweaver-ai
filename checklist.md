@@ -20,7 +20,31 @@ Twenty minutes. Bugs go in `bugs.md`, under the matching heading.
 
 ---
 
-## 1 · The composer, and the passage arriving
+## 1 · The look — v2 of the design
+
+The whole of `Anansi App v2.dc.html`, applied to the app as it stands rather than as the canvas
+imagines it: the canvas has no Strings and still calls Context the inspector, and its own note is
+entirely about feel.
+
+- [ ] **Nine themes**, not three. Aa → and Parchment now turns the **rail and the panel** to paper,
+      not only the document. Cyberpunk, Fantasy, Grimdark, Novelist, Sci-fi and Romance are new.
+- [ ] **Every mark is a fragment of the orb-web** at one hairline weight — a ring, a half-ring,
+      three spokes. They replace ⚙ ❧ ☙ ⟡ ◈ ⌕ ◐ ✻ ❋ ✎ ↧ ☰, which came from six Unicode blocks.
+- [ ] **A chapter opens with a band**: its number, its name at 48px, and an **epigraph pulled from
+      its own prose**, then a rule and a drop cap.
+- [ ] The **running head** appears only once the band has scrolled away, and carries the chapter
+      and the count — so the header carries the book, and the model when the rail is not showing it.
+- [ ] **Parchment and Novelist take grain.** The dark themes are screens and do not.
+- [ ] Labels are **small caps, sentence case**; one radius family (3px, 12px, pill); one motion
+      curve.
+- [ ] On a phone, the panel **rises from the bottom edge** it lives on.
+
+> The epigraph is mine to defend: it is never taken from the first passage, because quoting a line
+> you are about to read four inches later is a stutter rather than an epigraph, and never from
+> dialogue, because hoisting a character's words to the head of a chapter puts the narrator's
+> authority behind something somebody merely said. A chapter with one passage gets none.
+
+## 2 · The composer, and the passage arriving
 
 **Passages are shorter twice over.** `max_tokens` went 900 → 450, and F29 took the paragraph count
 out of Continue's prompt, which halved it again — median 685 characters to 291 on the bench
@@ -48,7 +72,7 @@ The animation is the third version. Say if it is still clunky.
 
 ---
 
-## 2 · Anansi has a voice
+## 3 · Anansi has a voice
 
 Rail → **✻ Anansi**, inside a story.
 
@@ -65,7 +89,7 @@ Rail → **✻ Anansi**, inside a story.
 
 ---
 
-## 3 · Have Anansi write one
+## 4 · Have Anansi write one
 
 **Threads → a character → Wardrobe**, and **+ Thread** on the composer bar.
 
@@ -80,7 +104,7 @@ Rail → **✻ Anansi**, inside a story.
 
 ---
 
-## 4 · The character the model does not write
+## 5 · The character the model does not write
 
 **Story → The model never writes.**
 
@@ -96,7 +120,7 @@ Rail → **✻ Anansi**, inside a story.
 
 ---
 
-## 5 · Contradictions are the model's problem now
+## 6 · Contradictions are the model's problem now
 
 - [ ] Write something that contradicts a thread — say a character's eyes are the wrong colour in
       canon, then generate into a scene about it.
@@ -110,7 +134,7 @@ Rail → **✻ Anansi**, inside a story.
 
 ---
 
-## 6 · The Context panel, and the horizon
+## 7 · The Context panel, and the horizon
 
 - [ ] Rows are named for **where they go**: Premise & setting, Voice of the weave, Threads always
       on, Point of view & register, Where you left off, The mode you picked.
@@ -126,7 +150,7 @@ Rail → **✻ Anansi**, inside a story.
 
 ---
 
-## 7 · Acts, for a long book
+## 8 · Acts, for a long book
 
 **Chapter → Acts**, inside a story.
 
@@ -144,7 +168,7 @@ Rail → **✻ Anansi**, inside a story.
 > place that admits it is that panel**. If you have not opened it, you do not know your book has a
 > horizon.
 
-## 8 · The prompts, in your words
+## 9 · The prompts, in your words
 
 **Storyteller → The five modes, in your words.**
 
@@ -158,7 +182,7 @@ Rail → **✻ Anansi**, inside a story.
 > wording, and nothing validates it beyond refusing a blank. A prompt that produces nothing
 > produces nothing, and the way back is one press.
 
-## 9 · Taking a book out and putting it back, and switching fast
+## 10 · Taking a book out and putting it back, and switching fast
 
 - [ ] **Story → Take it with you → As a standalone database.** Do it on a story that has a
       **written register**, a **raised context cap**, a **named model** and a **locked character**.
@@ -170,7 +194,7 @@ Rail → **✻ Anansi**, inside a story.
       on screen and the **Context panel** must agree. A slow answer for the book you left used to
       land on the book you opened.
 
-## 10 · Strings — what the story owes
+## 11 · Strings — what the story owes
 
 Rail → **⟡ Strings**, inside a story.
 
@@ -192,7 +216,7 @@ Rail → **⟡ Strings**, inside a story.
 > it was given named the chapter the trailing passages belong to. One line now does, and the same
 > question came back **2, 2, 2**. Check the numbers anyway; six strings over two runs is not a rate.
 
-## 11 · Delete, and the model list
+## 12 · Delete, and the model list
 
 - [ ] ⋯ → **Delete** on a passage with more than one take. It says **Delete take 2**, asks once,
       and deletes on the second press.

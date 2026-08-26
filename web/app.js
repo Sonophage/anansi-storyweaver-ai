@@ -3,7 +3,7 @@
 // sheet on a phone. Layout lives in app.html's CSS — this file decides state and content only,
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -219,8 +219,18 @@ function drawBar() {
     ? Math.round(MANI.totals.used / MANI.totals.budget * 100) : null;
   const noRoom = !!MANI && MANI.totals.budget <= 0;
   const words = inStory ? V.passages.reduce((n, p) => n + (String(p.body).match(/\S+/g) || []).length, 0) : 0;
+  // THE BOOK AND THE MODEL. The chapter and the count live in the running head inside the
+  // document now, where they scroll with the prose they describe — carrying them here too said
+  // the chapter's name twice inside sixty pixels.
+  // THE BOOK AND THE MODEL. The chapter and the count live in the running head inside the
+  // document now, where they scroll with the prose they describe — carrying them here too said
+  // the chapter's name twice inside sixty pixels.
+  //
+  // The model only when the rail is not showing it. The rail's footer names the model and the
+  // slot, so with the rail open the header repeating it is the same duplication one line down.
+  const railHasIt = S.rail && !overlay();
   const [title, sub] = inStory
-    ? [V.story.title, V.currentChapter.title || `Chapter ${V.currentChapter.index}`]
+    ? [V.story.title, railHasIt ? '' : modelName(V.story.model || SRV.model).name]
     : (WTITLES[S.wpage] || WTITLES.stories)();
   $('bar').innerHTML = `
     <button id="burger" data-rail="1" aria-label="Menu"
@@ -228,8 +238,8 @@ function drawBar() {
     <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
       <span class="serif" style="font-size:23px; line-height:1; color:var(--chrome-ink);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(title)}</span>
-      <span class="up" style="font-size:10.5px; color:var(--label); white-space:nowrap;
-        overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>
+      ${sub ? `<span class="up" style="font-size:10.5px; color:var(--label); white-space:nowrap;
+        overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>` : ''}
       <!-- decoded below, after the element exists -->
     </div>
     <div style="margin-left:auto; display:flex; align-items:center; gap:10px; flex:0 0 auto">
@@ -290,7 +300,9 @@ function drawAppearance() {
 }
 
 // ---------- the document ----------
-function passageHTML(p, newest) {
+/** `opening` is the first passage of the chapter: it carries the drop cap, and only when it is
+ *  narration — a drop cap on a line of dialogue sets a quotation mark two inches tall. */
+function passageHTML(p, newest, opening) {
   if (p.isBreak) return `<div class="scenebreak"><i></i><span class="up" style="font-size:10px;
     color:var(--label); opacity:.8">${esc(p.body || 'Scene')}</span><i></i></div>`;
   const mine = p.author === 'human';
@@ -335,7 +347,11 @@ function passageHTML(p, newest) {
         : `Contradiction · ${esc(e?.title ?? 'canon')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>`;
   }).join('');
   const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.id === S.found ? ' found' : ''}`
-    + (newest ? ' newest' : '');
+    // The drop cap goes on plain model narration only. Not on speech — a two-inch quotation mark
+    // is not a drop cap — and not on the writer's own passages, which are set differently: on
+    // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
+    // sat on its own with the text running away from it.
+    + (newest ? ' newest' : '') + (opening && !spoken && !mine ? ' opening' : '');
   return `<div class="${cls}">${body}${acts}${flagged}</div>`;
 }
 
@@ -358,14 +374,24 @@ function drawDoc() {
         esc(c.title || `Chapter ${c.index}`)}${side === 'r' ? ' &rsaquo;' : ''}</button>`
     : `<span style="font-size:11px; color:var(--faint); letter-spacing:.1em; font-variant-caps:all-small-caps">${label}</span>`;
 
+  // The chapter opens with a band: what number it is, what it is called, and a line out of its own
+  // prose. Then a rule, and the prose itself begins with a drop cap. A chapter used to start with
+  // a 10px label and go straight into the paragraph, which reads as a feed rather than a book.
+  const epi = epigraphOf(ps);
   col.innerHTML = `
-    <div style="display:flex; align-items:baseline; gap:12px; font-size:10.5px;
-      letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label)">
-      <span>${esc(ch.title || `Chapter ${ch.index}`)}</span>
-      <span style="letter-spacing:.1em; text-transform:none; opacity:.7">chapter ${at + 1} of ${V.chapters.length}</span>
-      ${words ? `<span style="margin-left:auto; letter-spacing:.1em; text-transform:none; opacity:.7">${words.toLocaleString()} words</span>` : ''}
+    <div class="band">
+      <div style="font-size:11.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label)">
+        Chapter ${ch.index}</div>
+      <div class="serif band-title">${esc(ch.title || `Chapter ${ch.index}`)}</div>
+      ${epi ? `<div class="band-epi"><i></i><span class="serif">${esc(epi)}</span></div>` : ''}
+      <div class="band-rule"></div>
     </div>
-    ${ps.map((p, i) => passageHTML(p, i === ps.length - 1)).join('') || `<div class="narr" style="opacity:.6">${
+    <div class="runhead" aria-hidden="true">
+      <span>${esc(ch.title || `Chapter ${ch.index}`)}</span>
+      <span style="opacity:.7">chapter ${at + 1} of ${V.chapters.length}</span>
+      ${words ? `<span style="margin-left:auto; opacity:.7">${words.toLocaleString()} words</span>` : ''}
+    </div>
+    ${ps.map((p, i) => passageHTML(p, i === ps.length - 1, i === 0)).join('') || `<div class="narr" style="opacity:.6">${
       V.chapters.length > 1 ? 'Nothing in this chapter yet.' : 'Nothing written yet. The composer is below.'}</div>`}
     ${V.chapters.length > 1 ? `<div style="display:flex; align-items:center; gap:14px; padding:26px 0 4px;
       border-top:1px solid rgba(255,255,255,.05); margin-top:18px">
@@ -373,6 +399,14 @@ function drawDoc() {
       <span style="margin-left:auto"></span>
       ${step(next, 'the end', 'r')}</div>` : ''}`;
   if (tip) read.scrollTop = read.scrollHeight;
+  // The running head appears once the band is gone. One listener, attached once — drawRead runs
+  // on every repaint and adding it here each time would stack them.
+  if (!read.dataset.runhead) {
+    read.dataset.runhead = '1';
+    const onScroll = () => read.classList.toggle('scrolled', read.scrollTop > 90);
+    read.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  } else read.classList.toggle('scrolled', read.scrollTop > 90);
 }
 
 /** The story the composer was last drawn for. A draft belongs to its book: paging a chapter or
