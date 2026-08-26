@@ -1229,11 +1229,27 @@ in as many words: *"an unpaid promise you invented is a plot you are handing the
 noticed."*
 
 **What it got wrong: all three said chapter 1, and the story is on chapter 2.** The prompt asks for
-the chapter a promise was set up in and the model has the recent passages, but nothing in what it is
-given says which chapter number those passages belong to. It is not guessing badly so much as
-answering a question it has not been given the material for. Left as it is rather than papered over
-with a default, because a wrong chapter number the writer can see and correct is better than a
-plausible one the app invented.
+the chapter a promise was set up in and the model has the recent passages, but **nothing in what it
+was given said which chapter number those passages belonged to.** The summaries above them are
+labelled by chapter; the loose prose at the end never was. It was not guessing badly so much as
+answering a question it had no material for.
 
-n=1. This establishes that the distinction is expressible, not a rate at which it holds.
+**Fixed by giving it the material, not by defaulting the value.** One line in the ask now names the
+chapter the trailing passages belong to. Same question, same story, immediately after:
+
+| | chapter said |
+|---|---|
+| before | 1, 1, 1 — on a story open at chapter 2 |
+| after | **2, 2, 2** |
+
+And the three it found the second time are different from the first three and equally real — the
+room with no doors and Vel saying *run*, the Wax figure's identity, and "the draft" Vel says he is
+not finished being written into. Two runs, six strings, no invented ones.
+
+The tempting fix was to default the number to the current chapter when the model's looked wrong.
+That would have produced right-looking answers for a model that still could not see the chapter, and
+been wrong the moment a promise really was set up earlier.
+
+n=1 per arm. This establishes that the distinction is expressible and that the chapter number
+follows from being told, not a rate at which either holds.
 

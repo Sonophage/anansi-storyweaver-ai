@@ -25,6 +25,8 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
     model: 'write-nt-qwen36-h', lockedCharacter: 'Aldis Fen' });
   db.upsertEntry(s.id, owner, { title: 'The Key', body: '[brass, not silver]', activation: 'triggered', keys: ['key'] });
   db.addPassage({ ...s, storyId: s.id, body: 'He turned the key.' });
+  db.upsertString(s.id, { title: 'The letter he has not opened', body: 'Sent by his brother',
+    fromChapter: 6, owedBy: 20, summoned: true });
   const { file } = db.exportStory(s.id, owner, '/tmp/anansi-import-out');
   const back = imp.absorb(owner, imp.fromExport(file));
   assert.notStrictEqual(back.storyId, s.id, 'an import must be a new story, not the same id');
@@ -33,6 +35,16 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.strictEqual(e[0].title, 'The Key');
   assert.strictEqual(e[0].activation, 'triggered', 'activation must survive the trip');
   assert.deepStrictEqual(JSON.parse(e[0].keys), ['key'], 'keywords must survive the trip');
+  // Strings are their own table and the export list is written by hand, which is how spice_note
+  // was lost. A book that comes back without what it still owes is a different book.
+  assert.strictEqual(db.stringsOf(back.storyId).length, 1, 'the unpaid promise survives the trip');
+  const str = db.stringsOf(back.storyId)[0];
+  assert.strictEqual(str.title, 'The letter he has not opened');
+  assert.strictEqual(str.from_chapter, 6, 'with the chapter that made it');
+  assert.strictEqual(str.owed_by, 20, 'and the chapter it is owed by');
+  assert.strictEqual(str.summoned, 0,
+    'and OUT of play: summoned means "in the scene I am writing now", which belongs to the '
+    + 'session rather than to the book');
   const got = db.getStory(back.storyId);
   assert.strictEqual(got.spice, 3, 'spice must survive the trip');
   assert.strictEqual(got.spice_note, 'Register: written by hand, and it must survive.',

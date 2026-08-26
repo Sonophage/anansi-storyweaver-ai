@@ -38,8 +38,18 @@ export interface Incoming {
   story: Record<string, any>;
   entries: Record<string, any>[];
   passages: { body: string; author?: string }[];
+  strings?: Record<string, any>[];   // unpaid promises; only an Anansi export carries them
   notes: string[];            // things deliberately not imported, shown to the writer
 }
+
+/** The strings an import brings with it, cleaned once so both paths agree about them.
+ *
+ *  `summoned` is deliberately dropped: it means "in play in the scene I am writing now", which
+ *  belongs to the session rather than to the book. Everything imported arrives out of play. */
+const tiedStrings = (inc: Incoming) => (inc.strings ?? []).slice(0, MAX_ENTRIES)
+  .filter((x) => clip(x.title, 200))
+  .map((x) => ({ title: clip(x.title, 200), body: clip(x.body, 1000),
+    fromChapter: x.fromChapter ?? null, owedBy: x.owedBy ?? null, status: x.status ?? 'open' }));
 
 /** Split a keys field. AI Dungeon writes "a, b, c"; cards write ["a","b"]. */
 const keysOf = (k: unknown): string[] =>
@@ -59,6 +69,10 @@ export function fromExport(file: string): Incoming {
     // stories and lets the cascade do the rest — but reading them back was missed when the table
     // landed, so a round trip quietly returned everyone naked.
     const outfits = src.prepare('SELECT * FROM outfits WHERE story_id = ?').all(story.id) as any[];
+    // A table that may not exist: an export written before strings did.
+    let strings: any[] = [];
+    try { strings = src.prepare('SELECT * FROM strings WHERE story_id = ?').all(story.id) as any[]; }
+    catch { /* older export, no such table */ }
     const passages = src.prepare(
       'SELECT body, author FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1 ORDER BY ordinal')
       .all(story.id, branch?.id) as any[];
@@ -67,8 +81,6 @@ export function fromExport(file: string): Incoming {
       story: { title: story.title, genre: story.genre, premise: story.premise, setting: story.setting,
         pov: story.pov, persona: story.persona, writingStyle: story.writing_style,
         direction: story.direction, spice: story.spice,
-        // ponytail: strings do not survive a round trip yet — they are a new table and this list
-        // is written by hand, which is the same defect this comment already records once.
         // Whitelisted by hand, so anything not named here is lost silently on a round trip. The
         // list is now every column the writer can set: a custom register, a raised context cap and
         // a named model used to vanish on an export and re-import with nothing saying so.
@@ -80,6 +92,15 @@ export function fromExport(file: string): Incoming {
         outfits: outfits.filter((o) => o.entry_id === e.id).slice(0, 20)
           .map((o) => ({ name: clip(o.name, 80), body: clip(o.body, 1000), active: !!o.active })) })),
       passages: passages.slice(0, MAX_PASSAGES).map((p) => ({ body: clip(p.body, 20_000), author: p.author })),
+      // What the book promised and has not paid. A story that comes back without its unpaid
+      // promises comes back as a different book: the ledger says who everybody is and the strings
+      // are the only record of what is still owed.
+      strings: strings.slice(0, MAX_ENTRIES).map((x: any) => ({
+        title: clip(x.title, 200), body: clip(x.body, 1000), fromChapter: x.from_chapter,
+        owedBy: x.owed_by, status: x.status,
+        // summoned is deliberately NOT carried. It means "in play in the scene I am writing now",
+        // which is about the session rather than the book.
+      })),
       notes: ['Branches, revision history and generation logs are not carried across — the ' +
               'import is a new story, not the same one.'],
     };
@@ -349,6 +370,7 @@ export function absorb(owner: string, inc: Incoming) {
     plant(story.id, id, e.outfits);
     entries++;
   }
+  for (const x of tiedStrings(inc)) db.upsertString(story.id, x);
   for (const p of inc.passages.slice(0, MAX_PASSAGES)) {
     if (!clip(p.body, 20_000)) continue;
     db.addPassage({ ...story, storyId: story.id, body: clip(p.body, 20_000), author: p.author ?? 'model' });
@@ -382,6 +404,7 @@ export function merge(owner: string, storyId: string, inc: Incoming) {
     plant(storyId, id, e.outfits);
     if (hit) updated++; else entries++;
   }
+  for (const x of tiedStrings(inc)) db.upsertString(storyId, x);
   for (const p of inc.passages.slice(0, MAX_PASSAGES)) {
     if (!clip(p.body, 20_000)) continue;
     db.addPassage({ storyId, branchId: v.branchId!, chapterId: v.currentChapter.id,

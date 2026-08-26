@@ -181,14 +181,16 @@ Rail → **⟡ Strings**, inside a story.
       to resolve it unless you ask. Put it away again and it leaves.
 - [ ] Mark one **Paid off**. It leaves the prompt whatever its in-play state was — a paid promise
       the model is still told about is an instruction to pay it twice.
+- [ ] Export the story and import it back. The strings come with it, **out of play** — summoned
+      means "in the scene I am writing now", which belongs to the session rather than the book.
 - [ ] Ask **Anansi** what the story has set up and not paid off. What it offers goes to the
       proposals queue under Chapter, like everything else. Accepting one ties a **string**, not a
       thread.
 
 > F33: asked on Sutera, it returned three real unpaid setups and one character entry, sorted
-> correctly, first try. It also said **chapter 1** for all three when the story is on chapter 2 —
-> it is asked which chapter set a promise up and nothing it is given says which chapter the recent
-> prose belongs to. Fix the number by hand for now.
+> correctly, first try. It said **chapter 1** for all three on a story open at chapter 2 — nothing
+> it was given named the chapter the trailing passages belong to. One line now does, and the same
+> question came back **2, 2, 2**. Check the numbers anyway; six strings over two runs is not a rate.
 
 ## 11 · Delete, and the model list
 
@@ -208,9 +210,8 @@ Rail → **⟡ Strings**, inside a story.
 **COUNCIL-04 is closed** — all eight, and all seven of its smaller items. What is below is what
 has been found since, or left deliberately.
 
-- ~~**Plot threads are not tracked.**~~ Built as **Strings** — §10. **COUNCIL-04 is closed.** What
-  is left of it: a string does not survive an export and re-import yet, which is the same
-  hand-written whitelist that lost `spice_note`, and it carries a `ponytail:` marker saying so.
+- ~~**Plot threads are not tracked.**~~ Built as **Strings** — §10. **COUNCIL-04 is closed**, and
+  a string survives an export and re-import along with everything else.
 ~~A long book has a horizon and does not say so.~~ and ~~a failed manifest leaves the last one on
 screen~~ are both done — see §6 below.
 
