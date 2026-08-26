@@ -41,15 +41,17 @@ Everything you wrote in round four's `bugs.md` that is still owed. Do not re-rep
   character all becoming guided steps, with character creation on that same screen instead of three.
   A redesign of the creation flow, so it wants agreeing before it is built.
 - **The ⋯ menu should open centred over the content**, and a double tap or double click should
-  activate a paragraph. Plus a reading mode that swallows clicks — a toggle or automatic is your call.
+  activate a paragraph. (Reading mode, the third part of that note, is built.)
 - ~~**Threads linked to other threads**~~ — **shelved by Seth, 2026-08-26.** Not deferred: he chose
   the character memory over it. Entries exported to or imported from another story is still owed.
-- **Web search through the pi browser tool** rather than another API. I do not know what that tool
-  is; if it answers over HTTP with JSON this may be config rather than code, because `ANANSI_SEARCH`
-  is already just a URL template with `{q}` in it.
-- **"Some touch events do nothing."** Not reproduced. The ⋯ actions are *not* hover-gated — there is
-  an explicit fix and a comment about it in `app.html` — so this is something else, and it needs one
-  example: which control, which device.
+- **Web search through pi.** The tool is `web_search`, built into pi's core and activated by the
+  provider, so the integration is `execFile('pi', ['-p', q, '--mode', 'json', '-t', 'web_search'])` —
+  an argument array, no shell, the pattern llama.ts already uses for systemctl. **Blocked:**
+  `pi auth check --provider google` returns `credentials_not_configured`, so there is nothing to
+  integrate against yet. Worth knowing before it lands: each search becomes a cloud provider turn
+  rather than an HTTP GET, in an app that currently makes no outbound request at all.
+- ~~**"Some touch events do nothing."**~~ **Reproduced and measured — F34.** A tap that drifts 24px
+  does nothing; 14px still works. Not the ⋯ hover gate. Unfixed on purpose: see the note above.
 
 ### Built since round five, owed a walk
 
@@ -80,8 +82,8 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
 
 ### Waiting on you, not on me
 
-- **This walk.** Twelve sections and `bugs.md` is empty. Everything below the line has been built
-  and measured; none of it has been used by the person it is for.
+- **The walk of what was built since round five** — the memory, reading mode, the keyboard. Built and
+  tested, not yet used by the person it is for.
 - **§2, the passage length.** Shorter twice over — `max_tokens` 900 → 450, and F29 took the
   paragraph count out of Continue's prompt, which halved it again on the bench fixture. The samples
   read as complete beats, but whether that is the book you want is a taste question no benchmark
@@ -105,15 +107,16 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
 - **Anansi's chapter numbers** are right now that it is told which chapter it is looking at, but
   that is one run against one story (F33).
 
-### Deliberate debt — thirteen `ponytail:` markers
+### Deliberate debt — fifteen `ponytail:` markers
 
 Three are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
 unscheduled), no streaming backpressure, and ceilings-with-a-refusal instead of a budget engine.
-The other ten each name a ceiling: three stored-and-ignored entry columns, a LIKE scan that goes
+The other twelve each name a ceiling: three stored-and-ignored entry columns, a LIKE scan that goes
 linear at chapter 40, rejected takes recorded but not fed back, the repair's length floor,
 prompt-override validation, the remaining key logic (secondary keys, exclusion keys, regex), the
 checker's blindness to numeric contradictions, the whois cache holding an IP for the life of the
-process, two writers on two different models being unmeasured against VRAM, and the big one below.
+process, two writers on two different models being unmeasured against VRAM, the memory pass reading a whole
+chapter in one call, the UI scale being `zoom` rather than a rem refactor, and the big one below.
 
 **Revisit before putting anything in front of Anansi.** `serve.ts`'s loopback-is-the-desk rule is
 what a reverse proxy would break, and it would break it OPEN. Caddy on 443 for port-free names
