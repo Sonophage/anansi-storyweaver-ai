@@ -208,6 +208,19 @@ export function resolveBody(e: Entry, chapter: number): string {
 // address a DIFFERENT failure from the one measured — a key that is right but wanted only in
 // some contexts — and nothing has demonstrated that one yet.
 
+/** The narration only: every quoted span removed.
+ *
+ *  Dialogue may lie, a character may be wrong, and only the narrator commits the story to a fact.
+ *  Ignoring that produced a long run of false positives in the quality checks — a place name,
+ *  another character's name, a line of dialogue read as a POV break — so anything reading a chapter
+ *  to decide what is TRUE reads this instead of the raw text.
+ *
+ *  The checker in routes.ts does the same job differently: it keeps the text whole and filters the
+ *  quotes the model came back with, because it needs the offsets. Not refactored into this — two
+ *  callers with two genuinely different needs, and the checker's version is the tested one. */
+export const narrationOnly = (text: string) =>
+  String(text ?? '').replace(/["“][^"”]*["”]/g, ' ').replace(/[ \t]{2,}/g, ' ');
+
 /** Fold an English word to a crude stem so "runs" and "running" meet.
  *
  *  Deliberately not Snowball. A real stemmer is a dependency and it collapses exactly the

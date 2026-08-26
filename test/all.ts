@@ -1,6 +1,6 @@
 // Every suite, one command:  node --experimental-strip-types test/all.ts
 import { execFileSync } from 'node:child_process';
-const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'mend.ts', 'talk.ts', 'web.ts', 'app.ts'];
+const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'mend.ts', 'memory.ts', 'talk.ts', 'web.ts', 'app.ts'];
 let bad = 0;
 for (const s of suites) {
   process.stdout.write(`\n── ${s} ${'─'.repeat(46 - s.length)}\n`);

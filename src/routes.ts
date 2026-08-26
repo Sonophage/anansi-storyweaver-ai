@@ -1,11 +1,11 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structured, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA } from './prompts.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
-import { resolveBody } from './context.ts';
+import { resolveBody, narrationOnly } from './context.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -78,6 +78,11 @@ const TALK_TOKENS = 2400;
 /** One ledger entry. A 600-character body and a name is not a long answer, and the temperature is
  *  the part that matters here rather than the room. */
 const INVENT_TOKENS = 700;
+
+/** Every changed character's WHOLE description, in one answer. A state replaces the body rather than
+ *  adding to it, so each one is a full restatement and not a line — four characters at 600 characters
+ *  each is the shape to leave room for. */
+const MEMORY_TOKENS = 1800;
 
 /** One detector, two callers. The check on a saved passage and the repair of a passage on its
  *  way to the page have to agree about what a contradiction is, and when they were two copies of
@@ -207,6 +212,59 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
 /** Summaries bound the context without the budget engine: old chapters collapse, the
  *  recent tail stays whole. The hash is over the covered prose, so a later edit makes the
  *  summary detectably stale rather than quietly wrong. */
+/** What the chapter just closed did to the people in it, as proposals.
+ *
+ *  Proposals, not writes: a memory that edits canon behind you is a memory you cannot audit, and the
+ *  proposal table already has acceptance, rejection and subject-hash dedupe so re-running is safe.
+ *
+ *  `from_chapter` is the NEXT chapter, not the one that closed. The change happened during it, so it
+ *  is in force from the one after — and going back to revise the closed chapter still sees the
+ *  character as they were in it.
+ *
+ *  Rides on the `entry_type === 'state'` convention rather than a new column, the same way an
+ *  accepted string carries its chapter in `keys`. That is the established shape here for a proposal
+ *  that is not an entry.
+ *
+ *  ponytail: one model call for every changed character at once, and the whole chapter's narration in
+ *  the prompt. Fine at chapter length; a chapter long enough to overflow the slot returns the
+ *  overflow error rather than a partial memory, and the fix then is per-scene rather than
+ *  per-chapter. */
+async function remember(storyId: string, chapterId: string) {
+  const v = need(view(storyId), 'no such story');
+  const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
+  const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
+  if (!ps.length) return { remembered: 0 };
+
+  // Characters only: a place does not acquire a broken arm, and states on lore entries are a
+  // different feature nobody has asked for.
+  const cast = v.entries.filter((e: any) => e.entryType === 'character');
+  if (!cast.length) return { remembered: 0 };
+
+  const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
+  const inForce = cast.map((e: any) => `${e.title}: ${resolveBody(e, ch.index)}`).join('\n\n');
+
+  const r = await structuredRetry(MEMORY, `${text}\n\n---\n\n${inForce}`, MEMORY_SCHEMA,
+    { max_tokens: MEMORY_TOKENS });
+  if (!r.data?.characters) return { remembered: 0, error: r.error ?? null };
+
+  const norm = (t: string) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  let remembered = 0;
+  for (const m of r.data.characters) {
+    if (!m?.name?.trim() || !m?.body?.trim()) continue;
+    // Match on the title, exactly as classify() resolves an entry, and never invent a character
+    // here: this pass updates who exists and extraction is what adds someone.
+    const who = cast.find((e: any) => norm(e.title) === norm(m.name));
+    if (!who) continue;
+    if (db.addProposal(storyId, {
+      kind: 'memory', entry_id: who.id, chapterId: ch.id,
+      title: who.title, body: m.body.trim(), entryType: 'state',
+      delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this chapter',
+      keys: [String(ch.index + 1)],
+    })) remembered++;
+  }
+  return { remembered, chapter: ch.index };
+}
+
 async function summarise(c: Ctx, storyId: string, chapterId?: string) {
   const v = need(view(storyId), 'no such story');
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
@@ -419,6 +477,10 @@ export const routes: Record<string, Handler> = {
     // the context without the budget engine; leaving it manual leaves the bound optional.
     if (c.body.summarise !== false) {
       try { await summarise(c, v.id, closing); } catch { /* model asleep; the button still works */ }
+    }
+    // The character memory, on the same terms: a chapter must be able to close with the model down.
+    if (c.body.remember !== false) {
+      try { await remember(v.id, closing); } catch { /* same */ }
     }
     return { ...r, ...viewOf(v.id) };
   },
@@ -820,12 +882,28 @@ export const routes: Record<string, Handler> = {
     }
     return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
   },
+  // Re-runnable: a chapter that closed with the router down gets its memory when it comes back, and
+  // the subject hash stops a second run proposing the same character twice.
+  'POST /api/remember': async (c: Ctx) => {
+    const out = await remember(c.body.storyId, c.body.chapterId);
+    return { ...out, proposals: db.proposalsOf(c.body.storyId) };
+  },
+
   'POST /api/proposal': (c) => {
     const ids: string[] = c.body.ids ?? [c.body.id];
     for (const id of ids) {
       const p = db.proposal(c.body.storyId, id);
       if (!p) continue;
-      if (c.body.accept && p.entry_type === 'string') {
+      if (c.body.accept && p.entry_type === 'state') {
+        // A state is not an entry either. The chapter it comes into force in rides in `keys`, and
+        // the label — four words for the timeline — rode in `delta`.
+        db.upsertState(p.story_id, p.entry_id, {
+          fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || 1,
+          body: c.body.body ?? p.body,
+          label: p.delta || null,
+          beforeMode: 'hide',
+        });
+      } else if (c.body.accept && p.entry_type === 'string') {
         // A string is not an entry, so accepting one makes a string. The chapter it was set up in
         // rides in `keys`, which is the only field on a proposal with room for it.
         db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body,

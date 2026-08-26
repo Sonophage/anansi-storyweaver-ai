@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS proposals (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   chapter_id TEXT, entry_id TEXT,          -- set when this proposes a change to an existing entry
   title TEXT NOT NULL, body TEXT NOT NULL, entry_type TEXT, keys TEXT DEFAULT '[]',
-  kind TEXT NOT NULL,                      -- new | changed | conflict
+  kind TEXT NOT NULL,                      -- new | changed | conflict | memory
   delta TEXT,                              -- one line: what this would change
   status TEXT DEFAULT 'open',              -- open | accepted | rejected
   content_hash TEXT,                       -- dedupe: re-running must not re-propose
@@ -1034,6 +1034,17 @@ export function upsertState(storyId: string, entryId: string, st: any) {
        WHERE id=? AND entry_id=?`)
       .run(st.fromChapter, st.body, st.beforeMode ?? 'hide', st.label ?? null, st.id, entryId);
     return st.id;
+  }
+  // Anchored to a chapter, so (entry, chapter) is the identity whether or not an id was passed.
+  // Without this, accepting the same memory proposal twice — which the open-only dedupe index
+  // deliberately allows after the first acceptance — left two states at one chapter and resolveBody
+  // silently preferred whichever sorted last.
+  const at = q('SELECT id FROM entry_states WHERE entry_id = ? AND from_chapter = ?')
+    .get(entryId, st.fromChapter) as any;
+  if (at) {
+    q('UPDATE entry_states SET body=?, before_mode=?, label=? WHERE id=?')
+      .run(st.body, st.beforeMode ?? 'hide', st.label ?? null, at.id);
+    return at.id;
   }
   const id = uid('st-');
   q('INSERT INTO entry_states (id,entry_id,from_chapter,body,before_mode,label,created_at) VALUES (?,?,?,?,?,?,?)')

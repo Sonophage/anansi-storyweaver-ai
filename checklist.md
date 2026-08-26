@@ -42,13 +42,28 @@ Everything you wrote in round four's `bugs.md` that is still owed. Do not re-rep
   A redesign of the creation flow, so it wants agreeing before it is built.
 - **The ⋯ menu should open centred over the content**, and a double tap or double click should
   activate a paragraph. Plus a reading mode that swallows clicks — a toggle or automatic is your call.
-- **Threads linked to other threads**, and **entries exported to or imported from another story**.
+- ~~**Threads linked to other threads**~~ — **shelved by Seth, 2026-08-26.** Not deferred: he chose
+  the character memory over it. Entries exported to or imported from another story is still owed.
 - **Web search through the pi browser tool** rather than another API. I do not know what that tool
   is; if it answers over HTTP with JSON this may be config rather than code, because `ANANSI_SEARCH`
   is already just a URL template with `{q}` in it.
 - **"Some touch events do nothing."** Not reproduced. The ⋯ actions are *not* hover-gated — there is
   an explicit fix and a comment about it in `app.html` — so this is something else, and it needs one
   example: which control, which device.
+
+### Built since round five, owed a walk
+
+- **The character memory.** Closing a chapter now proposes, for each character that chapter changed,
+  their whole description rewritten as it now stands — in force from the NEXT chapter, so revising
+  the closed one still sees them as they were in it. Proposals, not writes: nothing is canon until
+  accepted, and the card says which chapter it comes into force in. `POST /api/remember` re-runs it
+  on a chapter that closed while the router was down.
+- **Reading mode**, as a button: the composer goes, the prose stops taking taps, the draft survives.
+- **The on-screen keyboard** shortens the page instead of covering the composer, and the phone's dock
+  and bar now pay for the safe-area insets that `viewport-fit=cover` has been spending.
+- **F34's drift threshold is measured but NOT fixed** — a tap that moves 24px still does nothing, on
+  the shelf and everywhere else. That fix needs agreeing because its guard, done wrong, makes Delete
+  run twice.
 
 ### Already built, and round four could not find it
 
@@ -148,8 +163,8 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 171 checks, nine suites, no model needed
-test/ui/run.sh                                 # 364 checks, twelve scenarios, headless, no model
+node --experimental-strip-types test/all.ts    # 176 checks, ten suites, no model needed
+test/ui/run.sh                                 # 375 checks, thirteen scenarios, headless, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model

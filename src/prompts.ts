@@ -48,6 +48,54 @@ export const EXTRACT_SCHEMA = {
  *  writer edits every field before accepting, same discipline as extraction.
  *
  *  SPEC §8.1: a new story starts with a populated ledger, because nobody fills an empty one. */
+/** What a chapter did to the people in it.
+ *
+ *  Seeded with the description currently in force and asked for the WHOLE of it back, because a
+ *  state REPLACES the base body rather than adding to it — see resolveBody. A delta-shaped answer
+ *  ("her arm is broken") would silently drop everything else about her from that chapter onward, and
+ *  it would read as the model forgetting rather than as an answer being too short.
+ *
+ *  One call for every character rather than one per character: the chapter is the expensive half of
+ *  the prompt and this way it is prefilled once.
+ */
+export const MEMORY =
+`Below is a chapter's narration, then a list of characters with the description of each that is
+currently in force.
+
+For each character the chapter CHANGED, return their description rewritten as it now stands.
+
+Rules:
+- Rewrite the WHOLE description, not the change. Keep everything still true — appearance, role,
+  voice, relationships — and fold the change into it. What you return replaces what was there.
+- Change means something the narration establishes: an injury, a death, a a promotion, a move, a
+  relationship that turned, a thing learned or lost. Not a mood in one scene.
+- If a character was merely present, leave them out of the answer entirely.
+- Only the narration commits the story. Dialogue has been removed already; do not infer from what
+  is missing.
+- Write it as canon, in the third person, present tense. No summary of the chapter's plot.
+- label is four words at most, for the timeline: "arm broken", "no longer trusts Vel".
+
+Return only characters that changed.`;
+
+export const MEMORY_SCHEMA = {
+  type: 'object',
+  properties: {
+    characters: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name:  { type: 'string' },
+          body:  { type: 'string' },
+          label: { type: 'string' },
+        },
+        required: ['name', 'body', 'label'],
+      },
+    },
+  },
+  required: ['characters'],
+} as const;
+
 export const SPARK =
 `Turn this idea into a story skeleton.
 

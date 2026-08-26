@@ -811,7 +811,8 @@ const PANELS = {
       <button class="btn" data-savestory="1" style="margin-top:14px">Save</button>
       <button class="btn ghost" data-ritual="1" style="margin-top:10px">${
         S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
-      <div class="hint">Closes it, summarises it, reads it for new facts, and opens the next.</div>
+      <div class="hint">Closes it, summarises it, reads it for new facts, remembers what it did to the
+        people in it, and opens the next.</div>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">What this chapter added</div>
       <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Nothing here is canon until you accept it.</div>
@@ -822,13 +823,15 @@ const PANELS = {
           <div style="display:flex; align-items:center; gap:8px">
             <span style="font-size:14.5px; color:var(--ink-bright)">${esc(p.title)}</span>
             <span class="up" style="margin-left:auto; font-size:9.5px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
-          <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(p.delta || p.body)}</div>
+          <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(p.delta || p.body)}${
+            p.entryType === 'state' ? `<span style="color:var(--faint)"> &middot; in force from chapter ${
+              esc(JSON.parse(p.keys || '[]')[0] ?? '?')}</span>` : ''}</div>
           <div style="display:flex; gap:7px">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Accept</button>
             <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
               border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button></div></div>`;
-      }).join('') || '<div class="hint" style="margin:0">Nothing proposed. Closing a chapter reads it for new facts.</div>'}
+      }).join('') || '<div class="hint" style="margin:0">Nothing proposed. Closing a chapter reads it for new facts and for what it did to the people in it.</div>'}
       ${(V.proposals ?? []).some((p) => p.entryType === 'string')
         ? `<button class="btn ghost" data-panel="strings" style="margin-top:6px">${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
