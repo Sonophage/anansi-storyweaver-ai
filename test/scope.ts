@@ -379,4 +379,30 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('the model in force is the story\'s, then the writer\'s, then the box\'s');
 }
 
+// TLS is configured by a pair, and half a pair must stop the server rather than quietly serving
+// plain HTTP. A downgrade that logs nothing is the kind you find out about from someone else.
+{
+  const { spawn } = await import('node:child_process');
+  const exitOf = (env: Record<string, string>) => new Promise<number>((done) => {
+    const srv = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      env: { ...process.env, ANANSI_PORT: '5196', ANANSI_DB: '/tmp/anansi-scope.db',
+             ANANSI_USER: 'bob', ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service', ...env },
+      stdio: 'ignore',
+    });
+    // If it is still up after a second it never refused, which is the failure this asserts.
+    const t = setTimeout(() => { srv.kill(); done(0); }, 1500);
+    srv.on('exit', (code) => { clearTimeout(t); done(code ?? 0); });
+  });
+
+  assert.strictEqual(await exitOf({ ANANSI_CERT: '/nonexistent.crt' }), 2,
+    'a cert with no key must stop the server, not fall back to plain HTTP');
+  assert.strictEqual(await exitOf({ ANANSI_KEY: '/nonexistent.key' }), 2,
+    'and a key with no cert likewise');
+  assert.notStrictEqual(await exitOf({ ANANSI_CERT: '/nonexistent.crt', ANANSI_KEY: '/nonexistent.key' }), 0,
+    'a configured cert that cannot be read must stop the server too');
+
+  ok('half a TLS pair stops the server instead of serving plain HTTP');
+}
+
 console.log(`\n${n} checks passed`);

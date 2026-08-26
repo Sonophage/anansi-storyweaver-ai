@@ -1,9 +1,11 @@
 // HTTP shell. Static files, body parsing, and dispatch into the route table.
 // Everything with an opinion lives in src/routes.ts and src/story.ts.
-import { createServer } from 'node:http';
+import { createServer as serveHTTP } from 'node:http';
+import { createServer as serveHTTPS } from 'node:https';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import { routes, OPEN_ROUTES, storyIdOf } from './src/routes.ts';
 import type { Ctx } from './src/routes.ts';
@@ -15,6 +17,19 @@ const PORT = Number(process.env.ANANSI_PORT ?? 5174);
 // in: whois needs the peer's real IP, so a `tailscale serve` proxy in front of this would make
 // every request arrive as 127.0.0.1, which is to say as you.
 const HOST = process.env.ANANSI_HOST ?? '127.0.0.1';
+
+// TLS, from a `tailscale cert` pair. Native rather than a `tailscale serve` proxy in front, and
+// that is the whole reason this exists: the proxy dials from loopback, so every peer would arrive
+// as 127.0.0.1 and whois would answer with the desk's identity for all of them.
+//
+// Both or neither, and a configured-but-unreadable cert is a hard stop. Falling back to plain HTTP
+// because a file moved is a downgrade nobody would notice until it mattered.
+const CERT = process.env.ANANSI_CERT, KEY = process.env.ANANSI_KEY;
+if (!!CERT !== !!KEY) {
+  console.error('  ANANSI_CERT and ANANSI_KEY must be set together, or neither.');
+  process.exit(2);
+}
+const TLS = CERT ? { cert: readFileSync(CERT), key: readFileSync(KEY!) } : null;
 const HERE = new URL('.', import.meta.url).pathname;
 
 // Who the request is. PLAN-02 §4 asked for `tailscale whois` on the peer IP, an env-var allowlist
@@ -107,7 +122,7 @@ const send = (res: any, code: number, body: unknown) => {
   res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body));
 };
 
-createServer(async (req, res) => {
+const handler = async (req: any, res: any) => {
   const url = new URL(req.url!, 'http://x');
   const p = url.pathname;
   try {
@@ -178,9 +193,11 @@ createServer(async (req, res) => {
     const code = typeof e?.code === 'number' && e.code >= 400 && e.code < 600 ? e.code : 500;
     send(res, code, { error: e?.message ?? String(e) });
   }
-}).listen(PORT, HOST, () => {
+};
+
+(TLS ? serveHTTPS(TLS, handler) : serveHTTP(handler)).listen(PORT, HOST, () => {
   const n = db.listStories(db.owner(DESK)).length;
-  console.log(`\n  Anansi        http://${HOST}:${PORT}`);
+  console.log(`\n  Anansi        http${TLS ? 's' : ''}://${HOST}:${PORT}`);
   console.log(`  writers       ${ALLOW.size ? [...ALLOW.keys()].join(', ') : `${DESK} (loopback only)`}`);
   console.log(`  admin         ${ADMIN}`);
   console.log(`  model         ${model()}`);

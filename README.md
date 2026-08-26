@@ -15,6 +15,15 @@ node --experimental-strip-types serve.ts     # the app on :5174 (/ and /phone ar
 # working: a peer with no tailnet identity gets 403 from the gate either way.
 ANANSI_HOST=0.0.0.0 ANANSI_ALLOW='you@example.com=sonophage,them@example.com=them' \
   node --experimental-strip-types serve.ts
+
+# HTTPS over the tailnet, from a Tailscale-issued cert. Native TLS rather than `tailscale serve`
+# in front: the proxy dials from loopback, so whois would see every peer as the desk. Both vars or
+# neither — half a pair exits 2 rather than quietly serving plain HTTP.
+tailscale cert hestia.tempel-discus.ts.net       # writes DOMAIN.crt and DOMAIN.key
+ANANSI_CERT=hestia.tempel-discus.ts.net.crt ANANSI_KEY=hestia.tempel-discus.ts.net.key \
+ANANSI_HOST=0.0.0.0 node --experimental-strip-types serve.ts
+# run.ts and the bench scripts then need ANANSI_URL=https://hestia.tempel-discus.ts.net:5174 —
+# they default to http://127.0.0.1:5174, and nothing plain answers on a TLS port.
 node --experimental-strip-types test/all.ts  # every suite, no model and no browser needed
 test/ui/run.sh                               # seven browser scenarios, each on a fresh copy
 node --experimental-strip-types run.ts       # one generation end to end (server must be up)
