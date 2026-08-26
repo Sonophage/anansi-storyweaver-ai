@@ -213,3 +213,39 @@ export function themeVars(key) {
     '--panel-line': mix(S.rail, toward, .14),
   };
 }
+
+// ---------------------------------------------------------------------------
+// MARKS. Every one a fragment of the orb-web in web/icon.svg — its rings and its spokes — drawn
+// at one hairline weight.
+//
+// From the design, and its reason is in the note that ships with it: these replace "glyphs
+// scavenged from six Unicode blocks". A ⚙ and a ❧ and a ◐ come from three different centuries and
+// three different hands, and no amount of sizing makes them a set. A ring, a half-ring and a ring
+// with a hub do.
+// ---------------------------------------------------------------------------
+export const MARK = {
+  story:    'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3',
+  chapter:  'M3 10A7 7 0 0 1 17 10M10 10V3.2',
+  threads:  'M10 10 3.6 6.2M10 10 16.4 6.2M10 10 10 17.4',
+  strings:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 10 16.4 6.2',
+  context:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 6.8A3.2 3.2 0 1 1 10 13.2A3.2 3.2 0 1 1 10 6.8',
+  search:   'M11.8 5.2A3.6 3.6 0 1 1 11.8 12.4A3.6 3.6 0 1 1 11.8 5.2M9.2 11.4 4.4 16.2',
+  teller:   'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 10V3M10 10H17M10 10V17M10 10H3',
+  anansi:   'M10 3.6A6.4 6.4 0 1 1 10 16.4L5.6 17.4 6.6 13.6A6.4 6.4 0 0 1 10 3.6M7.4 10h5.2',
+  stories:  'M6.5 5.2A2.9 2.9 0 1 1 6.5 11A2.9 2.9 0 1 1 6.5 5.2M13.5 5.2A2.9 2.9 0 1 1 13.5 11A2.9 2.9 0 1 1 13.5 5.2M10 11.6A2.9 2.9 0 1 1 10 17.4A2.9 2.9 0 1 1 10 11.6',
+  create:   'M4.2 4.2 15.8 15.8M15.8 4.2 4.2 15.8',
+  import:   'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 3.6V11M10 11 7.3 8.3M10 11 12.7 8.3',
+  prefs:    'M4.4 13.6A7 7 0 1 1 15.6 13.6M10 10V17.6',
+  reading:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 3V17',
+  menu:     'M3 6.5h14M3 10h14M3 13.5h14',
+  chevron:  'M8 5.5 13 10 8 14.5',
+};
+
+/** One mark, at one weight. `size` is the box; the stroke never changes with it — that is what
+ *  "one hairline weight" means and what a scavenged glyph set can never do. */
+export const mark = (name, size = 19, colour = 'currentColor') =>
+  `<svg viewBox="0 0 20 20" width="${size}" height="${size}" fill="none" stroke="${colour}"
+    stroke-width="1.1" stroke-linecap="round" aria-hidden="true"
+    style="flex:0 0 auto; overflow:visible">${
+      (MARK[name] ?? MARK.story).split('M').filter(Boolean)
+        .map((d) => `<path d="M${d}"></path>`).join('')}</svg>`;

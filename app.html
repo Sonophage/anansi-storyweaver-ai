@@ -32,10 +32,18 @@
   --edge-lit:#3A372F; --field:#141317;
   --good:#7FB083; --warn:#C99356; --bad:#C8705A;
 
-  /* motion. One scale, so nothing in the app invents its own timing. */
-  --ease:cubic-bezier(.4,0,.2,1);          /* the house curve: settle, do not bounce */
-  --ease-out:cubic-bezier(.16,1,.3,1);     /* arrivals — fast in, long tail */
-  --ease-in:cubic-bezier(.7,0,.84,0);      /* departures */
+  /* ONE RADIUS FAMILY. Twenty-four distinct values lived in these two files — 1, 2, 3, 4, 6, 7,
+     8, 9, 10, 11, 13, 14, 16, 18, 26 and a pill — which is not a decision, it is fifteen of them
+     taken separately. Three: a hairline for marks and swatches, one for everything with a body,
+     and the pill. Circles stay circles. */
+  --r-tight:3px; --r:12px; --r-pill:999px;
+
+  /* ONE MOTION CURVE. The three that lived here were the same intent written three ways, and
+     nothing in the app could say which of them a given move was. --ease and --ease-in are kept
+     as aliases so no rule has to be rewritten to agree with this. */
+  --ease:cubic-bezier(.16,1,.3,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+  --ease-in:cubic-bezier(.16,1,.3,1);
   --t-fast:.12s;                            /* a state you should not notice changing */
   --t:.2s;                                  /* the default: hovers, chips, toggles */
   --t-slow:.32s;                            /* something moving across the screen */
@@ -66,7 +74,7 @@ body {
 }
 button { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-align:left; }
 input, textarea { font:inherit; color:inherit; }
-:focus-visible { outline:2px solid var(--gold); outline-offset:2px; border-radius:4px; }
+:focus-visible { outline:2px solid var(--gold); outline-offset:2px; border-radius:var(--r-tight); }
 /* ── motion ──────────────────────────────────────────────────────────────────────────────────
    One system, four durations, three curves, all declared in :root. The rule the app follows:
    motion explains where something came from. A panel slides from the edge it lives on; a passage
@@ -102,8 +110,8 @@ input, textarea { font:inherit; color:inherit; }
 /* Before the first token there is nothing to show but the wait — 0.35s warm, 7.8s cold (F24) —
    so the head breathes on its own and the block is where the passage is going to land. */
 #col .block.ghost.loading .head { animation:breathe 1.5s ease-in-out infinite; }
-#col .block.ghost.loading .settled::before { content:'Writing'; letter-spacing:.14em;
-  text-transform:uppercase; font-size:11px; color:var(--label); margin-right:10px; }
+#col .block.ghost.loading .settled::before { content:'Writing'; letter-spacing:.1em;
+  font-variant-caps:all-small-caps; font-size:11px; color:var(--label); margin-right:10px; }
 @keyframes breathe { 0%, 100% { opacity:.62; } 50% { opacity:.22; } }
 @media (prefers-reduced-motion: reduce) {
   #col .block.ghost.loading .head { animation:none; }
@@ -150,7 +158,7 @@ button:not(:disabled):active { transform:translateY(.5px); }
 
 /* Focus is not decoration: it is the only thing telling a keyboard where it is. It never fades in,
    because a ring that arrives late is a ring you have already moved past. */
-:focus-visible { outline:2px solid var(--gold); outline-offset:2px; border-radius:6px; transition:none; }
+:focus-visible { outline:2px solid var(--gold); outline-offset:2px; border-radius:var(--r); transition:none; }
 
 /* The toast comes up from the composer it is talking about, and leaves the way it came. */
 #toast { animation:rise var(--t) var(--ease-out) both; }
@@ -188,10 +196,13 @@ button:not(:disabled):active { transform:translateY(.5px); }
 @media (prefers-reduced-motion:no-preference) { #read { scroll-behavior:smooth; } }
 .tnum { font-variant-numeric:tabular-nums; }
 .serif { font-family:'Instrument Serif',Georgia,serif; }
-.up { letter-spacing:.2em; text-transform:uppercase; }
+/* SMALL CAPS, SENTENCE CASE. Tracked uppercase shouts and loses the shape of a word; small caps
+   from a sentence-cased source keeps the ascenders and reads as a label rather than a heading.
+   The source text is already sentence case everywhere, so this is a CSS change, not a copy one. */
+.up { letter-spacing:.1em; font-variant-caps:all-small-caps; }
 .scroll { overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; scrollbar-color:var(--chip) transparent; }
 .scroll::-webkit-scrollbar { width:8px; height:8px; }
-.scroll::-webkit-scrollbar-thumb { background:var(--chip); border-radius:4px; }
+.scroll::-webkit-scrollbar-thumb { background:var(--chip); border-radius:var(--r-tight); }
 
 /* --- shell ------------------------------------------------------------- */
 #shell { position:fixed; inset:0; display:flex; overflow:hidden; }
@@ -249,7 +260,7 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
     backdrop-filter:none; pointer-events:none; }
   #sideInner {
     width:auto; height:auto; max-height:88%; background:var(--sheet); border:1px solid var(--chip);
-    border-bottom:0; border-radius:26px 26px 0 0;
+    border-bottom:0; border-radius:var(--r) 26px 0 0;
     transform:translateY(0); opacity:1; transition:transform var(--t) var(--ease), opacity var(--t) var(--ease);
   }
   #side[hidden] #sideInner { transform:translateY(30px); opacity:0; }
@@ -264,7 +275,7 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 @media (max-width:1099px) { #burger { display:block; } }
 @media (max-width:719px) { #bar { padding:16px 20px 14px; gap:14px; } }
 
-.pill { border:1px solid var(--chrome-line); padding:8px 14px; border-radius:10px; font-size:12px; color:var(--chrome-dim); white-space:nowrap; }
+.pill { border:1px solid var(--chrome-line); padding:8px 14px; border-radius:var(--r); font-size:12px; color:var(--chrome-dim); white-space:nowrap; }
 .pill[aria-pressed="true"] { background:var(--gold); border-color:var(--gold); color:var(--on-gold); }
 .deskonly { display:block; }
 @media (max-width:719px) { .deskonly { display:none; } }
@@ -273,14 +284,14 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 
 /* --- appearance popover ------------------------------------------------ */
 #appearance {
-  position:absolute; top:70px; right:32px; z-index:25; width:274px; border-radius:16px;
+  position:absolute; top:70px; right:32px; z-index:25; width:274px; border-radius:var(--r);
   border:1px solid var(--chip); background:rgba(16,15,18,.97); backdrop-filter:blur(20px);
   box-shadow:0 30px 70px rgba(0,0,0,.65); padding:16px 18px;
   display:flex; flex-direction:column; gap:14px; color:var(--ink);
 }
 #appearance[hidden] { display:none; }
 @media (max-width:719px) { #appearance { top:62px; right:14px; } }
-.chip { padding:9px 12px; border-radius:11px; border:1px solid var(--chip); color:var(--mute); font-size:13px; }
+.chip { padding:9px 12px; border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:13px; }
 .chip[aria-pressed="true"] { border-color:rgba(217,178,106,.5); background:rgba(217,178,106,.08); color:var(--ink); }
 
 /* --- reading column ---------------------------------------------------- */
@@ -292,13 +303,13 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 html[data-ui-font="serif"] .narr { font-family:'Instrument Serif',Georgia,serif; font-style:italic; }
 html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-serif; font-style:normal; }
 .said { max-width:600px; font-size:var(--bubble); line-height:1.65; color:var(--body); text-wrap:pretty; white-space:pre-wrap; }
-.who { font-size:10.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--label); }
+.who { font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
 .block { position:relative; display:flex; flex-direction:column; gap:10px; }
 .block.speak { padding-left:16px; border-left:1px solid var(--speak-rule); }
 .block.you { padding-right:16px; border-right:1px solid var(--you-rule); align-items:flex-end; text-align:right; }
 /* Where a search result put you. Fades on its own after a few seconds — a permanent mark on
    whatever you last looked for turns into furniture you stop seeing. */
-.block.found { animation: found 6s ease-out forwards; border-radius:10px; }
+.block.found { animation: found 6s ease-out forwards; border-radius:var(--r); }
 @keyframes found {
   0%, 60% { background:rgba(217,178,106,.14); box-shadow:0 0 0 8px rgba(217,178,106,.14); }
   100%    { background:transparent; box-shadow:0 0 0 8px transparent; }
@@ -308,12 +319,12 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
    reach of every touch device — and made them untestable. Each block now carries a handle that
    is always present, and hover stays as a shortcut on a pointer. */
 .more {
-  position:absolute; right:0; top:-20px; z-index:6; padding:2px 8px; border-radius:8px;
+  position:absolute; right:0; top:-20px; z-index:6; padding:2px 8px; border-radius:var(--r);
   font-size:14px; line-height:1.2; color:var(--label); opacity:.4; transition:opacity var(--t-fast) var(--ease);
 }
 .block:hover .more, .block:focus-within .more, .block[aria-expanded="true"] .more { opacity:1; }
 .acts {
-  position:absolute; right:0; top:-22px; gap:6px; padding:6px; border-radius:13px;
+  position:absolute; right:0; top:-22px; gap:6px; padding:6px; border-radius:var(--r);
   border:1px solid var(--chip); background:rgba(19,18,21,.96); box-shadow:0 20px 50px rgba(0,0,0,.6);
   display:none; z-index:7;
 }
@@ -329,7 +340,7 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
   .acts button span { font-size:15px; }
   .acts .lbl-txt { display:none; }
 }
-.acts button { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:9px; font-size:12.5px; color:var(--narr); white-space:nowrap; }
+.acts button { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:var(--r); font-size:12.5px; color:var(--narr); white-space:nowrap; }
 .acts button:hover { background:rgba(255,255,255,.05); }
 .flag { display:flex; align-items:flex-start; gap:9px; font-size:11.5px; color:var(--bad);
   text-align:left; width:100%; max-width:100%; }
@@ -351,11 +362,11 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
 #dockCol { width:100%; max-width:var(--col); display:flex; flex-direction:column; gap:14px; }
 #modes { display:flex; align-items:center; gap:22px; overflow-x:auto; scrollbar-width:none; }
 #modes::-webkit-scrollbar { display:none; }
-#modes button { flex:0 0 auto; font-size:10.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
+#modes button { flex:0 0 auto; font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
 #modes button[aria-pressed="true"] { color:var(--gold-lit); border-bottom-color:var(--gold); }
 /* Continue is an action, not a mode — it sends on the press. Given the same underline as the four
    selectable modes it read as a fifth thing you pick, which is the one thing it is not. */
-#modes button[data-continue] { border:1px solid var(--chip); border-radius:999px; padding:5px 13px;
+#modes button[data-continue] { border:1px solid var(--chip); border-radius:var(--r-pill); padding:5px 13px;
   color:var(--gold-dim); letter-spacing:.2em; }
 #modes button[data-continue]:hover:not(:disabled) { border-color:rgba(217,178,106,.42); color:var(--gold-lit); }
 #modes button[data-continue]:disabled { opacity:.45; }
@@ -366,7 +377,7 @@ html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-ser
    the five do different things and the wait is long enough to forget which you pressed. */
 #working { height:2px; width:100%; max-width:var(--col); overflow:hidden; background:transparent; flex:0 0 auto; }
 #working[hidden] { display:none; }
-#working i { display:block; height:100%; width:38%; border-radius:2px;
+#working i { display:block; height:100%; width:38%; border-radius:var(--r-tight);
   background:linear-gradient(90deg, transparent, var(--work, var(--gold)), transparent);
   animation:working 1.15s ease-in-out infinite; }
 @keyframes working { 0% { transform:translateX(-100%); } 100% { transform:translateX(320%); } }
@@ -395,22 +406,22 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 #sideHead { display:flex; align-items:center; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--line); flex:0 0 auto; color:var(--ink); }
 #sideBody { padding:18px 22px 30px; flex:1; min-height:0; display:flex; flex-direction:column; color:var(--ink); }
 @media (max-width:719px) { #sideHead { padding:18px 20px 12px; } #sideBody { padding:10px 20px 26px; } }
-.lbl { font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin:14px 0 5px; }
+.lbl { font-size:12px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--dim); margin:14px 0 5px; }
 .lbl:first-child { margin-top:0; }
-.field { background:var(--field); border:1px solid var(--chip); border-radius:11px; padding:10px 13px; font-size:13.5px; line-height:1.5; color:var(--ink); width:100%; font-family:inherit; }
+.field { background:var(--field); border:1px solid var(--chip); border-radius:var(--r); padding:10px 13px; font-size:13.5px; line-height:1.5; color:var(--ink); width:100%; font-family:inherit; }
 textarea.field { resize:vertical; min-height:70px; }
 .hint { font-size:11.5px; color:var(--mute); line-height:1.5; margin:6px 0 0; }
-.card { border:1px solid var(--chip); border-radius:14px; padding:13px 15px; display:flex; flex-direction:column; gap:5px; }
+.card { border:1px solid var(--chip); border-radius:var(--r); padding:13px 15px; display:flex; flex-direction:column; gap:5px; }
 /* Summaries are supposed to be ~180 words and arrive at four times that, so they are clamped
    for the same reason canon flags are: the panel is an index, not a reading surface. */
 .clamp { display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden; }
 [aria-expanded="true"] > .clamp { -webkit-line-clamp:unset; }
-.tag { font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; padding:2px 8px; border-radius:999px; border:1px solid var(--chip); color:var(--dim); white-space:nowrap; }
-.kind { font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold-dim); }
+.tag { font-size:9.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; padding:2px 8px; border-radius:var(--r-pill); border:1px solid var(--chip); color:var(--dim); white-space:nowrap; }
+.kind { font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--gold-dim); }
 .row { display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:12.5px; }
-.btn { padding:12px; text-align:center; border-radius:999px; background:var(--gold); color:var(--on-gold); font-size:11px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; display:block; width:100%; }
+.btn { padding:12px; text-align:center; border-radius:var(--r-pill); background:var(--gold); color:var(--on-gold); font-size:11px; font-weight:500; letter-spacing:.1em; font-variant-caps:all-small-caps; display:block; width:100%; }
 .btn.ghost { background:none; border:1px solid var(--chip); color:var(--mute); font-weight:400; }
-.meter { display:flex; height:6px; border-radius:3px; overflow:hidden; background:var(--chip); margin:10px 0 6px; }
+.meter { display:flex; height:6px; border-radius:var(--r-tight); overflow:hidden; background:var(--chip); margin:10px 0 6px; }
 
 /* --- workspace pages --------------------------------------------------- */
 #page { position:relative; flex:1; min-height:0; padding:30px 40px; }
@@ -423,10 +434,10 @@ textarea.field { resize:vertical; min-height:70px; }
 .aside { width:400px; flex:0 0 auto; }
 @media (max-width:1099px) { .aside { width:320px; } }
 @media (max-width:719px) { .aside { width:100%; } }
-.storycard { cursor:pointer; border-radius:18px; overflow:hidden; border:1px solid var(--edge); background:var(--rail); text-align:left; display:block; width:100%; }
+.storycard { cursor:pointer; border-radius:var(--r); overflow:hidden; border:1px solid var(--edge); background:var(--rail); text-align:left; display:block; width:100%; }
 .storycard .art { height:130px; position:relative; }
 .storycard .art .fade { position:absolute; inset:0; background:linear-gradient(180deg,rgba(10,10,12,0) 35%,rgba(10,10,12,.92)); }
-.dashed { border-radius:18px; border:1px dashed var(--chip); min-height:200px; display:flex; align-items:center; justify-content:center; font-size:13.5px; color:var(--faint); }
+.dashed { border-radius:var(--r); border:1px dashed var(--chip); min-height:200px; display:flex; align-items:center; justify-content:center; font-size:13.5px; color:var(--faint); }
 
 /* #read and #dock set display:flex, which beats the UA's [hidden]{display:none}. Without this
    the document region stays on screen behind the workspace pages. */
@@ -439,7 +450,7 @@ textarea.field { resize:vertical; min-height:70px; }
      something was the thing stopping you from typing it. */
   pointer-events:none;
   background:var(--field); border:1px solid var(--chip); color:var(--ink); padding:11px 18px;
-  border-radius:999px; font-size:12.5px; box-shadow:0 20px 50px rgba(0,0,0,.6); max-width:90vw;
+  border-radius:var(--r-pill); font-size:12.5px; box-shadow:0 20px 50px rgba(0,0,0,.6); max-width:90vw;
 }
 #toast[hidden] { display:none; }
 </style>
