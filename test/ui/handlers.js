@@ -132,4 +132,87 @@ ok(`the open panel picks up the edit without being reopened (${editsBefore} -> $
 ok("  and the panel is still History, not something else",
    /Takes/.test(await page.text('#sideBody') || ''));
 
+// ---- in-flight: the slow answer must not land on the new book
+// COUNCIL-04 #11. refreshManifest and openStory's activity fetch both assigned after their await
+// without asking whether the writer was still on that story, so switching books while a manifest
+// was in flight left the Context panel describing the previous one.
+//
+// Racing this needs the race to be REAL, so fetch is slowed for one story's URLs only.
+{
+  // BY NAME, not by position. Taking the first two of /api/stories picked up a "Probe Card" that
+  // an earlier step in this same scenario imports — the library is ordered by last touched — so
+  // the race ran against whatever the previous assertions had left lying around.
+  const two = await page.eval("(async () => { const r = await (await fetch('/api/stories')).json();"
+    + " const want = ['The Silver Key', 'The Gilded Cage of Reason'];"
+    + " return JSON.stringify(want.map(t => r.stories.find(s => s.title === t) ?? null)"
+    + "   .map(s => s && ({ id: s.id, title: s.title }))); })()");
+  const [slow, fast] = JSON.parse(two);   // `B` is the base URL in this file — do not shadow it
+  if (!slow || !fast) {
+    ok("two named stories to race between", false);
+  } else {
+    // Start on the WORKSPACE, not on the slow story: navigating there first makes the later
+    // hash change to it a no-op, so nothing is ever in flight and the race never happens. That
+    // version of this test passed with all three guards deleted, which is how I know.
+    await page.goto(B + "/");
+    await wait(900);
+    // Every request naming A now takes 1.2s; B stays fast. So A is asked for first and answers last.
+    // The BODY as well as the URL: /api/manifest is a POST to one path for every story, so a
+    // throttle that only reads the URL cannot slow one book's manifest and not another's.
+    await page.eval(`(() => {
+      const real = window.__realFetch = window.fetch;
+      const mine = (u, o) => String(u).includes(${JSON.stringify(slow.id)})
+        || (o && typeof o.body === 'string' && o.body.includes(${JSON.stringify(slow.id)}));
+      window.fetch = (u, o) => mine(u, o)
+        ? new Promise((r) => setTimeout(() => r(real(u, o)), 1200))
+        : real(u, o);
+      return 1; })()`);
+    // Open A, then B a moment later — A's answers are still in the air when B's have landed.
+    await page.eval(`(() => { location.hash = '#' + ${JSON.stringify(slow.id)}; return 1; })()`);
+    await wait(120);
+    await page.eval(`(() => { location.hash = '#' + ${JSON.stringify(fast.id)}; return 1; })()`);
+    await wait(2600);
+    const title = (await page.eval("document.querySelector('#bar .serif')?.textContent") || '').trim();
+    ok(`the book on screen is the one you opened last (${JSON.stringify(title)})`, title === fast.title);
+    // The real defect: the panel described the OTHER book's prompt under this book's title. The
+    // manifest carries the story's own title in SPINE, so the prompt names which book it is for.
+    await page.eval("(() => { document.querySelector('[data-panel=\"context\"]')?.click(); return 1; })()");
+    await wait(1400);
+    const prompt = (await page.text('#sideBody') || '');
+    ok("  and the context panel is not describing the book you left",
+       !prompt.includes(slow.title) || slow.title === fast.title);
+    // And the manifest guard on its own. With openStory guarded the slow book never gets as far as
+    // asking for a manifest, so the assertions above cannot see that guard at all — this one opens
+    // the slow book properly first, puts a manifest for it in flight, and only then switches.
+    await page.eval("(() => { window.fetch = window.__realFetch; return 1; })()");
+    await page.goto(B + "/#" + slow.id + "/context");
+    await wait(1200);
+    // Captured FRESH: the page.goto above is a real navigation, so anything stashed on the previous
+    // window is gone and `real` would have been undefined — which makes every un-throttled request
+    // throw, the new book never load, and this assertion pass or fail for reasons of its own.
+    await page.eval(`(() => {
+      const real = window.__realFetch = window.fetch;
+      window.fetch = (u, o) => (o && typeof o.body === 'string' && o.body.includes(${JSON.stringify(slow.id)}))
+        ? new Promise((r) => setTimeout(() => r(real(u, o)), 1500))
+        : real(u, o);
+      return 1; })()`);
+    // Picking a MODE is what puts a manifest in flight — typing only resizes the box, which is why
+    // the first version of this raced nothing and passed with the guard deleted.
+    await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
+    await wait(150);
+    await page.eval(`(() => { location.hash = '#' + ${JSON.stringify(fast.id)} + '/context'; return 1; })()`);
+    await wait(2600);
+    // The PROMPT view, not Blocks: the block list is kinds and token counts, and a stale manifest
+    // from another book looks exactly like this one there. The prompt carries the story's title in
+    // SPINE, so it is the only view where the wrong book is visible as the wrong book. Asserting
+    // on Blocks passed with the guard deleted, which is how I know.
+    await page.eval("(() => { document.querySelector('[data-ctxview=\"prompt\"]')?.click(); return 1; })()");
+    await wait(400);
+    const after = (await page.text('#sideBody') || '');
+    ok(`  and a manifest already in flight for the old book does not land on the new one`,
+       after.includes(fast.title) && !after.includes(slow.title));
+    // Put fetch back, or every scenario after this one runs through the throttle.
+    await page.eval("(() => { if (window.__realFetch) window.fetch = window.__realFetch; return 1; })()");
+  }
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

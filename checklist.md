@@ -187,8 +187,9 @@ Two came off this list in round three. Six left, and the order is still yours to
 - Smaller: four of seven done — `serve.ts`'s gate is now proved by a real server running as the
   other writer; `endChapter` is one transaction; the `.db` import is refused before it is written
   rather than after; and the export carries `spice_note`, `max_context`, `model` and the locked
-  character. **Left**: two in-flight races can leave the Context panel describing the previous
-  book, and the composer still eats drafts on panel-open and chapter-paging.
+  character; and the two in-flight races are guarded — a manifest or an activity fetch that lands
+  after you have opened another book is dropped rather than applied. **Left**: the composer still
+  eats drafts on panel-open and chapter-paging.
 
 Full write-up with line numbers: `docs/findings/COUNCIL-04.md`.
 

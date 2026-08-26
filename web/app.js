@@ -1597,16 +1597,24 @@ async function loadLibrary() {
   SRV = { model: r.model ?? null, slot: r.slot ?? null, gen: r.gen ?? {} };
 }
 
+/** The book most recently ASKED for, which is not the same as the one most recently answered.
+ *  Opening two in quick succession — a click while the first is still in flight, or two hash
+ *  changes — used to let the slower answer land last and win. */
+let OPENING = null;
+
 async function openStory(id) {
+  OPENING = id;
   const r = await api.story(id);
+  if (OPENING !== id) return;                   // superseded before the story even arrived
   if (r.error) return toast(r.error);
   V = r; S.storyId = id; S.place = 'story';
   if (S.models === null) loadModels();   // the Storyteller panel needs the list to offer one
   if (S.prompts === null) loadPrompts();
-  
+
   SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen };
   if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
   const a = await api.activity(id);
+  if (OPENING !== id) return;                   // and again: this is the second await, not the first
   ACT = a.error ? null : a;
   paint();
   refreshManifest();
@@ -1727,9 +1735,15 @@ async function refreshHistory() {
 
 async function refreshManifest() {
   if (!V) return;
-  const r = await api.manifest({ storyId: S.storyId, mode: S.mode,
+  // The story this was asked ABOUT, held across the await. A manifest takes a /tokenize round trip,
+  // and a writer who switches books inside that window used to get the previous book's prompt
+  // rendered under the new book's title — the Context panel describing something that is no longer
+  // on screen, with nothing saying so.
+  const asked = S.storyId;
+  const r = await api.manifest({ storyId: asked, mode: S.mode,
     directive: $('input')?.value || undefined,
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined });
+  if (S.storyId !== asked) return;              // a different book is open; this answer is stale
   if (!r.error) { MANI = r.manifest; PROMPT = r.prompt ?? ''; drawBar();
     if (S.panel === 'context') drawSide(); }
 }
