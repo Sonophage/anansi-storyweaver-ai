@@ -82,7 +82,7 @@ Nothing in this list is a surprise; the point is that adding to it requires writ
 | `db.ts` | `priority` is still stored and ignored — it needs the budget engine to mean anything. `sticky_for` and `proper_nouns` are now used. |
 | `db.ts` | Search is a LIKE scan. |
 | ~~`routes.ts`~~ | **Done.** `GET /api/activity` reads it; Preferences shows prefill seconds and rate per call, which is PLAN-02 §7.2's trigger made observable. |
-| `serve.ts` | One hardcoded owner. No Tailscale identity, no allowlist, no second tenant. |
+| ~~`serve.ts`~~ | **Done.** `tailscale whois` on the peer IP, an `ANANSI_ALLOW` allowlist, one owner resolved per request, and the sampler moved from the process to the owner. 22 checks in `test/scope.ts`, two of which are the allowlist itself. |
 | — | Adventure mode **dropped** (Seth, 2026-08-23), not deferred. Nothing to build. |
 | `desk.js` | Design screens D9, D10, D14 not built as surfaces. |
 | `phone.html` | Manifest and icon **done** — it installs. No service worker, so no offline read; SPEC §13 M7's warning about workers and streaming POSTs is still unanswered. |
@@ -370,10 +370,12 @@ leaves as a standalone database, and comes back through `src/import.ts`.
 
 **What is next, in the order it should happen**
 
-1. **The second tenant.** Tailscale identity, allowlist, one owner per request instead of the
-   hardcoded one in `serve.ts:13`. This is the last structural thing, it gates P3 entirely, and
-   every isolation mechanism it needs is already built and tested (13 checks in `test-scope.ts`,
-   plus export proving a story can be handed over cleanly). Needs Seth's second device.
+1. ~~**The second tenant.**~~ **Done, 2026-08-26.** `tailscale whois` on the peer IP, an
+   `ANANSI_ALLOW` allowlist in `login=account` form, one owner resolved per request, and `gen`
+   moved off the process onto the owner. `test/scope.ts` is 22 checks; the two new ones prove the
+   allowlist refuses the desk itself when told to, and a control proves the 403 is the gate rather
+   than a dead server. Still needs the second person actually on the tailnet — all six nodes are
+   Seth's.
 2. **The F15 confirmation run** — 850 generations per arm, ~100 minutes unattended on the harness
    that now exists. Either it settles canon repetition or it retires it. Cheap, and the alternative
    is shipping on evidence F12 already proved is not enough.

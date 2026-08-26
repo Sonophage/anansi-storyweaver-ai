@@ -276,12 +276,14 @@ original review is outstanding. What is left is of three kinds.
 
 ### Deliberate debt — eleven `ponytail:` markers
 
-Four are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
-unscheduled), one hardcoded owner, no streaming backpressure, and ceilings-with-a-refusal instead
-of a budget engine. The rest each name a ceiling: three stored-and-ignored entry columns, a LIKE
-scan that goes linear at chapter 40, rejected takes recorded but not fed back, the repair's length
-floor, prompt-override validation, the remaining key logic (secondary keys, exclusion keys, regex),
-and the checker's blindness to numeric contradictions.
+Three are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
+unscheduled), no streaming backpressure, and ceilings-with-a-refusal instead of a budget engine.
+The count is still eleven because the hardcoded owner is gone and the whois cache took its place.
+The other eight each name a ceiling: three stored-and-ignored entry columns, a LIKE scan that goes
+linear at chapter 40, rejected takes recorded but not fed back, the repair's length floor,
+prompt-override validation, the remaining key logic (secondary keys, exclusion keys, regex), the
+checker's blindness to numeric contradictions, and the whois cache holding an IP for the life of
+the process.
 
 `grep -rn "ponytail:" src web bench *.ts *.html` is the ledger. Full COUNCIL-04 write-up with line
 numbers: `docs/findings/COUNCIL-04.md`.

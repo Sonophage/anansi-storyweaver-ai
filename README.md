@@ -9,6 +9,12 @@ The one promise: **a fact you write down in chapter one still holds in chapter f
 
 ```bash
 node --experimental-strip-types serve.ts     # the app on :5174 (/ and /phone are the same page)
+
+# Two writers over the tailnet. ANANSI_ALLOW is `login` or `login=account`, comma separated, and
+# an unset one means loopback only. 0.0.0.0 rather than the tailnet address so the desk URL keeps
+# working: a peer with no tailnet identity gets 403 from the gate either way.
+ANANSI_HOST=0.0.0.0 ANANSI_ALLOW='you@example.com=sonophage,them@example.com=them' \
+  node --experimental-strip-types serve.ts
 node --experimental-strip-types test/all.ts  # every suite, no model and no browser needed
 test/ui/run.sh                               # seven browser scenarios, each on a fresh copy
 node --experimental-strip-types run.ts       # one generation end to end (server must be up)

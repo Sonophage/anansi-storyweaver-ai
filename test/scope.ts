@@ -273,4 +273,46 @@ ok('a story cannot be deleted by someone who does not own it');
   } finally { srv.kill(); }
 }
 
+// The allowlist, which is the other half of the gate: the isolation above proves what an owner may
+// touch, and this proves who gets to be one. Two servers, because a check that only ever sees a 403
+// cannot tell a working allowlist from a broken server — the second one is the control.
+{
+  const { spawn } = await import('node:child_process');
+  const boot = async (port: number, allow: string) => {
+    const srv = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      env: { ...process.env, ANANSI_PORT: String(port), ANANSI_DB: '/tmp/anansi-scope.db',
+             ANANSI_USER: 'bob', ANANSI_ALLOW: allow,
+             ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service' },
+      stdio: 'ignore',
+    });
+    const url = `http://127.0.0.1:${port}`;
+    for (let i = 0; i < 40; i++) {
+      try { await fetch(url + '/', { signal: AbortSignal.timeout(500) }); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
+    }
+    return { srv, url };
+  };
+
+  // Bob is the desk here, and the allowlist names only alice. The desk is checked like anyone
+  // else, so bob is refused on his own machine.
+  const shut = await boot(5188, 'alice');
+  try {
+    assert.strictEqual((await fetch(shut.url + '/api/stories')).status, 403,
+      'an allowlist that does not name you refuses you, desk or not');
+    assert.strictEqual((await fetch(shut.url + '/')).status, 403,
+      'and it refuses the app shell too, not only the API');
+  } finally { shut.srv.kill(); }
+
+  // The control. Same server, same desk, and the pair form names bob's ACCOUNT on the right of the
+  // `=` — so a 200 here is what proves the 403 above came from the allowlist and not from a server
+  // that answers nothing.
+  const open = await boot(5189, 'someone@example.test=bob');
+  try {
+    assert.strictEqual((await fetch(open.url + '/api/stories')).status, 200,
+      'an allowlist that does name your account lets you in — the 403 above is the gate, not a dead server');
+  } finally { open.srv.kill(); }
+
+  ok('the allowlist decides who is a writer, and refuses the desk itself when told to');
+}
+
 console.log(`\n${n} checks passed`);
