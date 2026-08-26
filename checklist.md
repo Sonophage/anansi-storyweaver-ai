@@ -110,13 +110,19 @@ Rail → **✻ Anansi**, inside a story.
 
 ---
 
-## 6 · The Context panel
+## 6 · The Context panel, and the horizon
 
 - [ ] Rows are named for **where they go**: Premise & setting, Voice of the weave, Threads always
       on, Point of view & register, Where you left off, The mode you picked.
 - [ ] Click one. You land on the panel that uses that word.
 - [ ] The dropped rows **collapse to one row per reason**, with a count and what it cost. Ninety-six
       identical lines became one.
+- [ ] On a long story, the **header itself** says `N chapters not sent` beside the percentage. You
+      should not have to open a panel to learn that part of your book has stopped reaching the
+      model. Press it — the panel names the range and points at Acts.
+- [ ] Break something so a manifest cannot be built (a context cap of 600 will do it). The panel
+      says **it could not be assembled**. It used to keep showing the last one that worked, which
+      on a story you had just left meant the previous book's prompt under this book's title.
 
 ---
 
@@ -189,14 +195,8 @@ one thing, and two more have been found since.
   it was made in and the one it is owed by?), whether it reaches the prompt or stays writer-facing,
   and **what to call it** — "threads" is now your word for the ledger, so this needs its own or the
   naming pass comes undone.
-- **A long book has a horizon and does not say so.** F32. At chapter 120 fifty-two summaries are
-  dropped and the only place that admits it is the Context panel's dimmed rows. A writer who has
-  not opened that panel does not know part of their book is no longer readable by the model.
-- **A failed manifest leaves the last one on screen.** Found while fixing the in-flight races and
-  deliberately not fixed with them: `refreshManifest` skips the assignment when the request errors,
-  so the Context panel keeps showing the previous book's prompt. Same symptom as the race, different
-  cause. One line — clear `MANI` and `PROMPT` on error — but it changes what the panel shows in a
-  failure case, so it is yours to call.
+~~A long book has a horizon and does not say so.~~ and ~~a failed manifest leaves the last one on
+screen~~ are both done — see §6 below.
 
 ### Closed since round three
 
@@ -247,7 +247,7 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 159 checks, nine suites, no model needed
+node --experimental-strip-types test/all.ts    # 160 checks, nine suites, no model needed
 test/ui/run.sh                                 # 10 scenarios, headless browser, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model

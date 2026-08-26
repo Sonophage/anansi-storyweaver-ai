@@ -24,7 +24,7 @@ under **Still open** and under the four decisions — you do not need to re-repo
 ## 5 · Contradictions are the model's problem now
 
 
-## 6 · The Context panel
+## 6 · The Context panel, and the horizon
 
 
 ## 7 · Acts, for a long book
@@ -47,4 +47,4 @@ under **Still open** and under the four decisions — you do not need to re-repo
 ## Ideas, not bugs
 
 
-## Still open — plot threads, the horizon, the failed manifest
+## Still open — plot threads

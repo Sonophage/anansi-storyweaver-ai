@@ -37,6 +37,7 @@ const S = {
   blank: null,          // the Start blank form, when it is open
 };
 let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
+let MANIERR = null;   // why there is no manifest, when there is none
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
 // separate status route, and activity returns only generation rows.
 let SRV = { model: null, slot: null, gen: {} };
@@ -164,6 +165,33 @@ function drawRail() {
 }
 
 // ---------- header ----------
+/** What the book can no longer remember: the chapters whose summaries were dropped to fit.
+ *
+ *  Read off the manifest rather than recomputed, so it cannot disagree with what was actually sent.
+ *  An arc block carries its range in its id; a chapter block carries the chapter's id, which
+ *  V.chapters turns into a number.
+ *
+ *  This exists because the app knew and did not say. At chapter 120 fifty-two summaries are
+ *  dropped, and until now the only place that admitted it was a dimmed row inside a panel — so a
+ *  writer who had not opened that panel did not know part of their book had stopped reaching the
+ *  model at all. */
+function horizon() {
+  if (!MANI || !V) return null;
+  const idx = new Map(V.chapters.map((c) => [c.id, c.index]));
+  const at = (b) => {
+    const arc = /^arc-(\d+)-(\d+)$/.exec(b.id);
+    return arc ? [Number(arc[1]), Number(arc[2])] : [idx.get(b.id), idx.get(b.id)];
+  };
+  const gone = MANI.blocks.filter((b) => b.kind === 'EARLIER' && b.state !== 'included')
+    .flatMap((b) => { const [a, z] = at(b); return a == null ? [] : [[a, z]]; });
+  if (!gone.length) return null;
+  const from = Math.min(...gone.map(([a]) => a));
+  const to = Math.max(...gone.map(([, z]) => z));
+  // Chapters, not blocks: an arc that was dropped took its whole range with it.
+  const chapters = gone.reduce((n, [a, z]) => n + (z - a + 1), 0);
+  return { chapters, from, to };
+}
+
 function drawBar() {
   const inStory = S.place === 'story' && V;
   // A zero budget is a state, not a number. Dividing by it gave "Context Infinity%", the way
@@ -193,6 +221,13 @@ function drawBar() {
         ? `<button class="pill deskonly" data-panel="context"
             style="border-color:var(--bad); color:var(--bad)">No room</button>`
         : pct == null ? '' : `<button class="pill deskonly" data-panel="context">Context ${pct}%</button>`}
+      ${(() => {
+        const h = horizon();
+        return h ? `<button class="pill deskonly" data-panel="context"
+          style="border-color:rgba(217,178,106,.42); color:var(--gold-dim)"
+          title="Their summaries no longer reach the model. Chapter → Acts collapses them into one."
+          >${h.chapters} ${h.chapters === 1 ? 'chapter' : 'chapters'} not sent</button>` : '';
+      })()}
       <button class="pill" data-appearance="1" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
       <button class="phoneonly" data-panel="chapter" style="font-size:19px; color:var(--chrome-dim)" aria-label="This chapter">⚙</button>`
@@ -406,7 +441,9 @@ const PANELS = {
   setup: setupPanel,
   history: historyPanel,
   context() {
-    if (!MANI) return `<div class="hint">Open the composer once and the manifest appears here.</div>`;
+    if (!MANI) return `<div class="hint">${MANIERR
+      ? `The prompt could not be assembled: ${esc(MANIERR)}`
+      : 'Open the composer once and the manifest appears here.'}</div>`;
     if (S.ctxView === 'prompt') {
       return `<div style="display:flex; flex-direction:column">
         ${ctxTabs()}
@@ -445,6 +482,18 @@ const PANELS = {
         <span class="tnum" style="margin-left:auto; color:var(--faint)">${MANI.totals.used.toLocaleString()} / ${budget.toLocaleString()}</span></div>
       <div class="meter">${Object.entries(agg).map(([k, v]) =>
         `<i style="width:${(v / budget * 100).toFixed(2)}%; background:${BLOCK_COLOR[k] ?? 'var(--ink-ghost)'}"></i>`).join('')}</div>
+      ${(() => {
+        const h = horizon();
+        if (!h) return '';
+        return `<div style="display:flex; align-items:flex-start; gap:10px; padding:10px 0">
+          <span style="width:8px; height:8px; border-radius:50%; background:var(--gold-dim); margin-top:5px; flex:0 0 auto"></span>
+          <span style="flex:1; display:flex; flex-direction:column; gap:4px">
+            <span style="font-size:13px; color:var(--ink)">Chapters ${h.from}&ndash;${h.to} are past the horizon</span>
+            <span class="hint" style="margin:0">Their summaries no longer reach the model, so it
+              cannot draw on them or stay consistent with them.
+              <strong>Chapter &rarr; Acts</strong> collapses a run of them into one summary that
+              does fit.</span></span></div>`;
+      })()}
       ${(() => {
         // Compact now, where the number that makes you want it is. Summarising is what actually
         // shrinks a long book — the open chapter's prose collapses into a few lines and the
@@ -1770,8 +1819,17 @@ async function refreshManifest() {
     directive: $('input')?.value || undefined,
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined });
   if (S.storyId !== asked) return;              // a different book is open; this answer is stale
-  if (!r.error) { MANI = r.manifest; PROMPT = r.prompt ?? ''; drawBar();
-    if (S.panel === 'context') drawSide(); }
+  // A FAILED REQUEST CLEARS IT. It used to skip the assignment, so the panel went on showing the
+  // last manifest that worked — the previous book's prompt under this book's title, which is the
+  // same lie the guard above exists to prevent, arriving by a different road.
+  //
+  // An overflow is not that case: it comes back WITH a manifest and an error, and the panel has a
+  // rendering for it. So the manifest decides, not the error.
+  MANI = r.manifest ?? null;
+  PROMPT = r.manifest ? (r.prompt ?? '') : '';
+  MANIERR = r.manifest ? null : (r.error ?? null);
+  drawBar();
+  if (S.panel === 'context') drawSide();
 }
 
 /** Clearing the value leaves the inline height behind, so a box grown by a long directive stayed

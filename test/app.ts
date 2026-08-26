@@ -76,6 +76,9 @@ const MANIFEST = { manifest: { blocks: [
   { kind: 'SPINE', id: 'spine', text: '', tokens: 392, state: 'included', reason: 'capped' },
   { kind: 'CANON-ALWAYS', id: 'e-1', text: '', tokens: 5480, state: 'included', reason: 'always_on', firedBy: ['always_on'] },
   { kind: 'EARLIER', id: 'c-1', text: '', tokens: 1920, state: 'omitted', reason: 'stale summary' },
+  // A dropped ARC takes its whole range with it, which is what makes the count chapters rather
+  // than blocks — one omitted block here is nine forgotten chapters.
+  { kind: 'EARLIER', id: 'arc-3-11', text: '', tokens: 900, state: 'omitted', reason: 'EARLIER 25% ceiling' },
   // Three of one reason, because that is the shape a long book makes: at 358 passages the panel
   // grew ninety-six identical PROSE lines under the rows that say something.
   { kind: 'PROSE', id: 'p-9', text: '', tokens: 100, state: 'omitted', reason: 'prose 60% ceiling' },
@@ -235,5 +238,14 @@ assert.match(html('sideBody'), /stale summary/, 'a lone omission still says its 
 assert.doesNotMatch(html('sideBody'), /stale summary<\/span>\s*<span[^>]*>&times;/,
   'and is not given a count of one');
 ok('what came off collapses to one row per reason, with a count');
+
+// A long book stops reaching part of itself and the app knew without saying. The bar says it now,
+// so a writer who never opens the Context panel still finds out.
+assert.match(html('bar'), /10 chapters not sent/,
+  'the bar names how many chapters the model can no longer read (1 plus the arc\'s nine)');
+assert.match(html('sideBody'), /Chapters 1&ndash;11 are past the horizon/,
+  'and the panel names which — the range, not the block count');
+assert.match(html('sideBody'), /Acts<\/strong> collapses/, 'and what to do about it');
+ok('a book past its horizon says so on the bar, not only in a dimmed row');
 
 console.log(`\n${n} checks passed`);

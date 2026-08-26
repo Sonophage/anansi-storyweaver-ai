@@ -212,6 +212,22 @@ ok("  and the panel is still History, not something else",
        after.includes(fast.title) && !after.includes(slow.title));
     // Put fetch back, or every scenario after this one runs through the throttle.
     await page.eval("(() => { if (window.__realFetch) window.fetch = window.__realFetch; return 1; })()");
+
+    // A manifest request that FAILS is the same lie by another road: it used to skip the
+    // assignment, so the panel kept showing the last one that worked.
+    await page.eval(`(() => {
+      const real = window.__realFetch = window.fetch;
+      window.fetch = (u, o) => String(u).includes('/api/manifest')
+        ? Promise.resolve(new Response(JSON.stringify({ error: 'the engine fell over' }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }))
+        : real(u, o);
+      return 1; })()`);
+    await page.eval("(() => { document.querySelector('[data-mode=\"speak\"]')?.click(); return 1; })()");
+    await wait(900);
+    const failed = (await page.text('#sideBody') || '');
+    ok("a manifest that fails says so instead of showing the last one that worked",
+       /could not be assembled/.test(failed) && !/prose engine/.test(failed));
+    await page.eval("(() => { window.fetch = window.__realFetch; return 1; })()");
   }
 }
 
