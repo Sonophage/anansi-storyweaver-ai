@@ -125,7 +125,17 @@ tense and the distance are. It is a description of PROSE: "short sentences, weat
 feeling, nobody's interior is ever stated" is the voice; "literary noir" is a genre and is no use
 here.
 
-Infer the spice level from the idea; use 2 when there is no signal.`;
+Infer the spice level from the idea; use 2 when there is no signal.
+
+Also name two of those characters, or neither:
+
+- persona: the one the writer will speak as. The story's centre, the one with the most to lose.
+- lockedCharacter: the one the writing model must never write for, because the writer will. Usually
+  the same as persona, and different only when the idea has an obvious second lead.
+
+Spell both exactly as they appear in your character list, or return the empty string. The empty
+string is a real answer: a story narrated from outside has no persona, and inventing one points the
+writer's byline at somebody who is not in their book. Never name anybody not on that list.`;
 
 export const SPARK_SCHEMA = {
   type: 'object',
@@ -143,6 +153,11 @@ export const SPARK_SCHEMA = {
     // is spelled out as literals rather than stated as bounds it would drop.
     spice:   { type: 'integer', enum: [1, 2, 3, 4, 5] },
     writingStyle: { type: 'string' },
+    // Both must be one of the names in `characters` or the empty string. The empty string is a real
+    // answer and the schema allows it on purpose: a story with no protagonist to speak as is
+    // ordinary, and a proposal invented out of nothing would point the byline at nobody.
+    persona: { type: 'string' },
+    lockedCharacter: { type: 'string' },
     characters: {
       type: 'array', minItems: 2, maxItems: 5,
       items: {
@@ -152,7 +167,8 @@ export const SPARK_SCHEMA = {
       },
     },
   },
-  required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle', 'characters'],
+  required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle', 'characters',
+             'persona', 'lockedCharacter'],
 } as const;
 
 /** The check. Runs on a passage the writer has selected, against the canon entries that

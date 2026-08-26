@@ -700,6 +700,30 @@ export function wearOutfit(storyId: string, entryId: string, outfitId: string | 
 export const delOutfit = (storyId: string, id: string) =>
   q('DELETE FROM outfits WHERE id = ? AND story_id = ?').run(id, storyId);
 
+/** Drop a persona or a locked character that names nobody in this story.
+ *
+ *  The wizard's whole point is choosing who you play from a cast that has not been written yet, so
+ *  the name arrives before the entry does and there is a window where it can be wrong: the spark
+ *  proposes it, the writer edits the cast, and the character they were going to play is gone. The
+ *  same window exists on import, where persona comes from a stranger's card by name.
+ *
+ *  Returns what it cleared, so a caller can say so rather than silently disagreeing with the form
+ *  the writer just filled in. */
+export function pinCast(storyId: string): string[] {
+  const titles = new Set((q('SELECT title FROM entries WHERE story_id = ?').all(storyId) as any[])
+    .map((r) => r.title));
+  const cur = q('SELECT persona, locked_character FROM stories WHERE id = ?').get(storyId) as any;
+  if (!cur) return [];
+  const cleared: string[] = [];
+  for (const [col, val] of [['persona', cur.persona], ['locked_character', cur.locked_character]]) {
+    if (val && !titles.has(val)) {
+      q(`UPDATE stories SET ${col} = NULL WHERE id = ?`).run(storyId);
+      cleared.push(String(val));
+    }
+  }
+  return cleared;
+}
+
 export function delEntry(storyId: string, id: string) {
   // Read the title BEFORE the delete: after it there is nothing left to match the story's persona
   // against, and a persona pointing at a character who no longer exists is worse than an empty one

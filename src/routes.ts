@@ -427,8 +427,12 @@ export const routes: Record<string, Handler> = {
   'POST /api/stories':   (c) => {
     const made = db.createStory(c.owner, c.body);
     for (const e of c.body.entries ?? []) db.upsertEntry(made.id, c.owner, e);
+    // AFTER the cast exists, because the persona names one of them and the wizard lets you choose
+    // it a step before they are written. A name that survived an edit to the cast is dropped here
+    // rather than left pointing at nobody, and it is reported so the surface can say which.
+    const dropped = db.pinCast(made.id);
     if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
-    return made;
+    return { ...made, droppedCast: dropped };
   },
   'DELETE /api/stories': (c) => { db.delStory(c.body.id, c.owner); return { ok: true }; },
 
@@ -444,6 +448,10 @@ export const routes: Record<string, Handler> = {
       story: {
         title: d.title, premise: d.premise, genre: d.genre, setting: d.setting,
         pov: d.pov, spice: d.spice, writingStyle: d.writingStyle, direction: '',
+        // Proposals, not decisions — propose, but let it be turned off, because a wrong guess about
+        // who the writer plays is worse than no guess. Both are checked against the cast that
+        // actually gets created, in POST /api/stories, so a name off the list cannot survive.
+        persona: d.persona || null, lockedCharacter: d.lockedCharacter || null,
       },
       // One always-on entry per character, in the bracket format the ledger uses.
       entries: (d.characters ?? []).map((ch: any) => ({

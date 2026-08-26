@@ -695,4 +695,29 @@ ok('a story\'s persona and locked character follow a rename, and clear on a dele
   assert.strictEqual(read().locked_character, 'Kade Ferrin', 'and leaves the other reference standing');
 });
 
+ok('a persona naming nobody in the story is dropped, and one naming a real character is kept', () => {
+  const me = db.owner('pincast-test');
+  // The wizard's order: the persona is chosen a step BEFORE the cast is written, so it arrives on
+  // the create call as a name and the entries follow it.
+  const st = db.createStory(me, { title: 'The Cast', persona: 'Ilva Marren', lockedCharacter: 'Nobody At All' });
+  db.upsertEntry(st.id, me, { title: 'Ilva Marren', body: 'A courier.', entryType: 'character' });
+  const read = () => db.listStories(me).find((r: any) => r.id === st.id) as any;
+
+  const cleared = db.pinCast(st.id);
+  assert.deepStrictEqual(cleared, ['Nobody At All'], 'it says what it cleared, and only that');
+  assert.strictEqual(read().persona, 'Ilva Marren', 'a persona that names a real character is kept');
+  assert.strictEqual(read().locked_character, null, 'and one that names nobody is dropped');
+
+  // Idempotent: running it again must not clear the good one, which is the failure that would make
+  // it unsafe to call on every save.
+  assert.deepStrictEqual(db.pinCast(st.id), [], 'a second run clears nothing');
+  assert.strictEqual(read().persona, 'Ilva Marren', 'and leaves the kept one alone');
+
+  // Scoped: a character of the same name in ANOTHER story does not rescue a dangling persona.
+  const other = db.createStory(me, { title: 'Elsewhere', persona: 'Someone Elses Hero' });
+  db.upsertEntry(st.id, me, { title: 'Someone Elses Hero', body: 'In the wrong book.', entryType: 'character' });
+  assert.deepStrictEqual(db.pinCast(other.id), ['Someone Elses Hero'],
+    "a cast member of another story cannot satisfy this story's persona");
+});
+
 console.log(`\n${n} checks passed`);
