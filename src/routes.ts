@@ -1,5 +1,5 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, structured, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured } from './llama.ts';
+import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA } from './prompts.ts';
 import * as db from './db.ts';
@@ -83,6 +83,13 @@ const TALK_TOKENS = 2400;
  *  room here truncates the OBJECT, which does not parse, which costs a whole structuredRetry at
  *  ~7s a call. So the room stops being the bound; the temperature is still the part that matters. */
 const INVENT_TOKENS = 1200;
+
+/** A whole skeleton in one answer, and two of its fields are now paragraphs rather than lines — a
+ *  four-to-six-sentence premise, a hundred words of prose voice, and up to five characters on top of
+ *  them. `structured`'s default of 1,200 was cut for the one-line version and would truncate this
+ *  one; a truncated object is unparseable, which is why this is the last caller here to move off
+ *  `structured` and on to `structuredRetry` like every other. */
+const SPARK_TOKENS = 2000;
 
 /** Every changed character's WHOLE description, in one answer. A state replaces the body rather than
  *  adding to it, so each one is a full restatement and not a line — four characters at 600 characters
@@ -430,7 +437,7 @@ export const routes: Record<string, Handler> = {
   'POST /api/spark': async (c) => {
     const idea = String(c.body.idea ?? '').trim();
     if (idea.length < 8) return { error: 'give it a sentence to work from' };
-    const r = await structured(SPARK, idea, SPARK_SCHEMA);
+    const r = await structuredRetry(SPARK, idea, SPARK_SCHEMA, { max_tokens: SPARK_TOKENS });
     if (!r.data?.title) return { error: r.error ?? 'the spark returned nothing usable' };
     const d = r.data;
     return {

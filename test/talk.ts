@@ -1,5 +1,6 @@
-// Anansi's two routes against a fake llama-server: /api/talk, whose answer must not be cut off and
-// whose promised room must be the room it is given, and /api/invent, which must never write.
+// Anansi's structured routes against a fake llama-server: /api/talk, whose answer must not be cut
+// off and whose promised room must be the room it is given, /api/invent, which must never write,
+// and /api/spark, whose premise and prose voice have to come back big enough to write from.
 //
 // Driven against a FAKE llama-server, because both bugs are about numbers on the wire rather than
 // about anything the real model would say. What the real model DID say is written down in
@@ -17,6 +18,10 @@ process.env.ANANSI_DB = DB;
 
 // Longer than the cap that used to be on the field, and it must arrive whole.
 const LONG = ('The story is about penance. ').repeat(110).trim();
+// A spark's two long fields, at the length the prompt now asks for: a premise of four to six
+// sentences and about a hundred words of prose voice. Both must survive the round trip whole.
+const PREMISE = ('Aldis owes the moneylender more than he can pay. ').repeat(5).trim();
+const VOICE = ('Short sentences, and the weather does the feeling. ').repeat(14).trim();
 
 let calls: any[] = [];
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
@@ -33,7 +38,11 @@ const srv = createServer((req, res) => {
     // Keyed on the QUESTION, not on the schema: TALK_SCHEMA always carries `strings` now, so a
     // schema-shaped check made every answer the short one and broke the truncation assertions.
     const asksForStrings = /set up and not paid/.test(String(b.messages?.[1]?.content ?? ''));
-    const answer = asksForStrings ? { reply: 'Two things are owed.',
+    const answer = props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
+        setting: 'Sutera', pov: 'third limited, past tense', spice: 2, writingStyle: VOICE,
+        characters: [{ name: 'Vel', role: 'the Murmur', description: 'Speaks for the dead god.' },
+                     { name: 'Aldis', role: 'a debtor', description: 'Owes more than he can pay.' }] }
+      : asksForStrings ? { reply: 'Two things are owed.',
         strings: [{ title: 'The letter he has not opened', body: 'Sent by his brother', fromChapter: 6 }] }
       : props.keys ? { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]',
                                   keys: ['choir', 'rust'] }
@@ -211,6 +220,61 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.strictEqual(made[0].summoned, 0, 'and out of play, like every string');
   assert.strictEqual(db.entriesOf(story.id).length, before, 'and it is not an entry');
   ok("Anansi's strings go to the proposals queue, and accepting one ties a string not an entry");
+}
+
+// ---- 7. the spark's premise and prose voice come back big enough to write from
+// They were "two or three sentences" and "one sentence" — thinner than the manual form on the same
+// screen asks for, so the skeleton had to be rewritten before the first passage. Three things can
+// regress here on their own: the prompt asking for a line again, the room it is asked for in, and
+// the retry that a longer answer makes worth having. All three are asserted.
+{
+  const { SPARK, SPARK_SCHEMA } = await import('../src/prompts.ts');
+  calls = [];
+  const spark = (idea: string) => routes['POST /api/spark']({
+    body: { idea }, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any) as any;
+
+  const skel = await spark('A broke ex-sergeant owes a moneylender more than he can pay.');
+  assert.ok(!skel.error, skel.error);
+  assert.strictEqual(skel.story.premise, PREMISE,
+    'the premise arrives whole — a cap on the field would close it mid-word with the JSON still '
+    + 'valid, which is F25 and would look like a finished answer');
+  assert.strictEqual(skel.story.writingStyle, VOICE, 'and so does the voice of the weave');
+
+  assert.ok(Number(calls[0].max_tokens) >= 2000,
+    `the spark is asked for in ${calls[0].max_tokens} tokens; a four-to-six-sentence premise, a `
+    + 'hundred words of voice and five characters do not fit in what the one-line version needed');
+
+  // The prompt's two length asks, and the constraints that must survive being widened.
+  assert.match(SPARK, /premise is four to six sentences/,
+    'the premise needs a length worth filling, or the model gives it a line');
+  assert.match(SPARK, /a hundred words or so, not a label/,
+    'and so does the voice, because a model has to be able to match it from what is written');
+  for (const [what, re] of [
+    ['a premise is not a blurb', /not a\s+blurb\.\s+No marketing language, no rhetorical questions/],
+    ['the voice describes prose, not genre', /description of PROSE/],
+    ['spice is inferred, 2 with no signal', /use 2 when there is no signal/],
+    ['genre is two or three comma-separated tags', /comma-separated list of two or three tags/],
+  ] as const) assert.match(SPARK, re, `${what} — kept from the version this replaced`);
+  // tidyGenre already splits, trims and de-duplicates on the way in. The prompt must not pay for
+  // that work twice; it says the shape it wants and stops.
+  assert.doesNotMatch(SPARK, /lower ?case|de-?duplicat/i,
+    'genre normalisation is db.tidyGenre\'s job and test/db.ts proves it');
+  assert.ok(!('maxLength' in (SPARK_SCHEMA.properties.premise as any))
+         && !('maxLength' in (SPARK_SCHEMA.properties.writingStyle as any)),
+    'and neither long field may be capped in the grammar');
+  ok('the spark asks for a premise and a voice worth writing from, in the room they need');
+
+  // A longer answer is a likelier truncation, so this was the last caller still on `structured`
+  // with no retry: an object that ran out of room came back as "the spark returned nothing usable".
+  breakFirst = true; calls = [];
+  const again = await spark('A broke ex-sergeant owes a moneylender more than he can pay.');
+  breakFirst = false;
+  assert.strictEqual(calls.length, 2, 'a truncated skeleton is retried once');
+  assert.ok(!again.error, again.error);
+  assert.strictEqual(again.story.premise, PREMISE, 'and the second answer arrives whole');
+  ok('a spark that runs out of room is retried rather than handed back as nothing usable');
 }
 
 srv.close();

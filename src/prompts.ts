@@ -44,10 +44,6 @@ export const EXTRACT_SCHEMA = {
   required: ['entries'],
 } as const;
 
-/** Spark. One structured call from an idea to a skeleton. Nothing is created here — the
- *  writer edits every field before accepting, same discipline as extraction.
- *
- *  SPEC §8.1: a new story starts with a populated ledger, because nobody fills an empty one. */
 /** What a chapter did to the people in it.
  *
  *  Seeded with the description currently in force and asked for the WHOLE of it back, because a
@@ -96,22 +92,49 @@ export const MEMORY_SCHEMA = {
   required: ['characters'],
 } as const;
 
+/** Spark. One structured call from an idea to a skeleton. Nothing is created here — the
+ *  writer edits every field before accepting, same discipline as extraction.
+ *
+ *  SPEC §8.1: a new story starts with a populated ledger, because nobody fills an empty one.
+ *
+ *  The two fields the writer actually writes from came back as a line each: "a premise of two or
+ *  three sentences" and "one sentence of writing style" are both thinner than the manual form asks
+ *  for on the same screen — Voice of the weave's own hint says "paste a few hundred words of your
+ *  own prose". A skeleton whose premise and voice have to be rewritten before the first passage is
+ *  a skeleton that saved nobody anything, so both now get a length worth filling. The premise rides
+ *  in the spine on EVERY call, which is what keeps it at a handful of sentences rather than a page.
+ *
+ *  Genre stays "a comma-separated list of two or three tags" and no more: `tidyGenre` in db.ts
+ *  splits, trims and de-duplicates on the way in, so telling the model to do it too is one
+ *  instruction paying for work already done. */
 export const SPARK =
 `Turn this idea into a story skeleton.
 
-Return: a title, a premise of two or three sentences, a genre as a comma-separated list of two
-or three tags, a setting, a point of view,
-a spice level from 1 to 5, one sentence of writing style in the writer's own voice, and
-between two and five characters with a name, a role, and a one-line description.
+Return: a title, a premise, a genre as a comma-separated list of two or three tags, a setting, a
+point of view, a spice level from 1 to 5, the voice the prose is written in, and between two and
+five characters with a name, a role, and a one-line description.
 
-Write the premise as a premise, not a blurb. No marketing language, no rhetorical questions.
-Infer the spice level from the idea; use 2 when there is no signal.
-The writing style is a description of prose, not a genre label.`;
+The premise is four to six sentences and it is what the writer writes from: who wants what, what
+stands in the way, what it costs them, and where the story opens. Write it as a premise, not a
+blurb. No marketing language, no rhetorical questions.
+
+The writing style is the voice of the weave, and a model has to be able to match it from what you
+write — so a hundred words or so, not a label. Say how the sentences run and how long they are,
+what the narration notices and what it will not say outright, how much dialogue there is, what the
+tense and the distance are. It is a description of PROSE: "short sentences, weather does the
+feeling, nobody's interior is ever stated" is the voice; "literary noir" is a genre and is no use
+here.
+
+Infer the spice level from the idea; use 2 when there is no signal.`;
 
 export const SPARK_SCHEMA = {
   type: 'object',
   properties: {
     title:   { type: 'string' },
+    // No maxLength on premise or writingStyle, and that is F25: the GBNF converter honours it,
+    // closes the string mid-word, and the JSON stays valid — a skeleton whose premise stops at
+    // "and the debt comes due when" would arrive looking finished. max_tokens is the bound, and
+    // running into that truncates the OBJECT, which structuredRetry can see.
     premise: { type: 'string' },
     genre:   { type: 'string' },
     setting: { type: 'string' },
