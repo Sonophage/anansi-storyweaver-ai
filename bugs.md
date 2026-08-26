@@ -36,7 +36,10 @@ under **Still open** and under the four decisions — you do not need to re-repo
 ## 9 · Taking a book out and putting it back, and switching fast
 
 
-## 10 · Delete, and the model list
+## 10 · Strings — what the story owes
+
+
+## 11 · Delete, and the model list
 
 
 ---
@@ -47,4 +50,4 @@ under **Still open** and under the four decisions — you do not need to re-repo
 ## Ideas, not bugs
 
 
-## Still open — plot threads
+## Still open

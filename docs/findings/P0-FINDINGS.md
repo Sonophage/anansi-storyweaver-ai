@@ -1205,3 +1205,35 @@ dropped. At chapter 120 fifty-two summaries still go, and the only place that sa
 Context panel's dimmed rows. A writer who has not opened that panel does not know their book has a
 horizon.
 
+---
+
+## F33 — Anansi can tell an unpaid promise from a fact, first try. It cannot tell which chapter made it.
+
+Strings are the last of COUNCIL-04, and the design is Seth's: writer-facing until summoned, and
+proposed by Anansi through the same queue as everything else.
+
+The distinction the prompt has to carry is narrow — *"Aldis owns a letter" is a thread, "Aldis has
+not opened the letter" is a string* — so it is worth knowing whether the model holds it. One call,
+on his own *Sutera Remembers*, asked what the story had set up and not paid off:
+
+| kind | what came back |
+|---|---|
+| string | **Vel's Expectation** — she asks if you remember what you have forgotten; the memory is never named |
+| string | **The Room with No Doors** — the Sliver conjures it, and its significance is unresolved |
+| string | **The Dark Throat** — the Wax points into the shadow, you step in, the destination is unknown |
+| thread | **The Wax Figure** — a character entry, which is a fact rather than a promise |
+
+Three unpaid setups and one fact, sorted correctly, on the first attempt. Every one is a real
+thread of that story left hanging, not an invention — which is the failure the prompt warns against
+in as many words: *"an unpaid promise you invented is a plot you are handing the writer, not one you
+noticed."*
+
+**What it got wrong: all three said chapter 1, and the story is on chapter 2.** The prompt asks for
+the chapter a promise was set up in and the model has the recent passages, but nothing in what it is
+given says which chapter number those passages belong to. It is not guessing badly so much as
+answering a question it has not been given the material for. Left as it is rather than papered over
+with a default, because a wrong chapter number the writer can see and correct is better than a
+plausible one the app invented.
+
+n=1. This establishes that the distinction is expressible, not a rate at which it holds.
+

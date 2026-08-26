@@ -294,6 +294,11 @@ You may also offer, when the writer's message calls for it and not otherwise:
 
 - THREADS — entries for the story bible. Only facts that are now permanently true. A character
   lying or being wrong is not a fact. Offer none rather than pad.
+- STRINGS — promises the story has made and not paid. A letter nobody has opened, a debt nobody
+  has called in, a name somebody flinched at. What makes it a string rather than a thread is that
+  it is UNRESOLVED: "Aldis owns a letter" is a thread, "Aldis has not opened the letter" is a
+  string. Give the chapter it was set up in. Only ones the prose actually set up — an unpaid
+  promise you invented is a plot you are handing the writer, not one you noticed.
 - A DIRECTIVE — one prompt the writer could give the writing model to produce the next passage.
   Write it as an instruction about what happens, not as prose. It is a suggestion they will edit;
   do not write the scene yourself.
@@ -328,6 +333,18 @@ export const TALK_SCHEMA = {
     // structuredRetry gets a second go. Measured too — 400 tokens returned unparseable JSON.
     reply: { type: 'string' },
     directive: { type: 'string', maxLength: 400 },
+    strings: {
+      type: 'array', maxItems: 3,
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', maxLength: 90 },
+          body: { type: 'string', maxLength: 300 },
+          fromChapter: { type: 'integer' },
+        },
+        required: ['title', 'fromChapter'],
+      },
+    },
     entries: {
       type: 'array', maxItems: 4,
       items: {

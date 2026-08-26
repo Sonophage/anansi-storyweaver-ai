@@ -170,7 +170,27 @@ Rail → **✻ Anansi**, inside a story.
       on screen and the **Context panel** must agree. A slow answer for the book you left used to
       land on the book you opened.
 
-## 10 · Delete, and the model list
+## 10 · Strings — what the story owes
+
+Rail → **⟡ Strings**, inside a story.
+
+- [ ] **Tie one**: the letter he has not opened, from chapter 6, owed by 20. It appears with how
+      long it has been sitting, and turns **red** when it is past the chapter it was owed by.
+- [ ] It is **yours only** at first. Check **Context → Prompt sent** — the model is not told.
+- [ ] **Put it in play.** Now it is in the prompt, under `<unpaid>`, told what is owed and told not
+      to resolve it unless you ask. Put it away again and it leaves.
+- [ ] Mark one **Paid off**. It leaves the prompt whatever its in-play state was — a paid promise
+      the model is still told about is an instruction to pay it twice.
+- [ ] Ask **Anansi** what the story has set up and not paid off. What it offers goes to the
+      proposals queue under Chapter, like everything else. Accepting one ties a **string**, not a
+      thread.
+
+> F33: asked on Sutera, it returned three real unpaid setups and one character entry, sorted
+> correctly, first try. It also said **chapter 1** for all three when the story is on chapter 2 —
+> it is asked which chapter set a promise up and nothing it is given says which chapter the recent
+> prose belongs to. Fix the number by hand for now.
+
+## 11 · Delete, and the model list
 
 - [ ] ⋯ → **Delete** on a passage with more than one take. It says **Delete take 2**, asks once,
       and deletes on the second press.
@@ -185,16 +205,12 @@ Rail → **✻ Anansi**, inside a story.
 
 ## Still open
 
-**COUNCIL-04 is seven of eight closed, and all seven of its smaller items.** What is left of it is
-one thing, and two more have been found since.
+**COUNCIL-04 is closed** — all eight, and all seven of its smaller items. What is below is what
+has been found since, or left deliberately.
 
-- **Plot threads are not tracked.** Nothing registers an open promise — the letter unopened in
-  chapter 6, the debt owed in 12. The serial-writer reviewer named this as the single absence that
-  would stop them using it, and they were right that attribute drift is not what kills a serial.
-  **Not started, and it wants a conversation first**: what a thread IS (a promise, with the chapter
-  it was made in and the one it is owed by?), whether it reaches the prompt or stays writer-facing,
-  and **what to call it** — "threads" is now your word for the ledger, so this needs its own or the
-  naming pass comes undone.
+- ~~**Plot threads are not tracked.**~~ Built as **Strings** — §10. **COUNCIL-04 is closed.** What
+  is left of it: a string does not survive an export and re-import yet, which is the same
+  hand-written whitelist that lost `spice_note`, and it carries a `ponytail:` marker saying so.
 ~~A long book has a horizon and does not say so.~~ and ~~a failed manifest leaves the last one on
 screen~~ are both done — see §6 below.
 
@@ -247,7 +263,7 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 160 checks, nine suites, no model needed
+node --experimental-strip-types test/all.ts    # 163 checks, nine suites, no model needed
 test/ui/run.sh                                 # 10 scenarios, headless browser, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model

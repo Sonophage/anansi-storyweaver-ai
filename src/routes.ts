@@ -624,6 +624,15 @@ export const routes: Record<string, Handler> = {
     // index apply and nothing arrives twice.
     const existing = db.entriesOf(v.id);
     let proposed = 0;
+    // Strings ride the SAME queue, with entry_type 'string' telling the accept path what to make.
+    // A second queue would be a second place to forget to look.
+    for (const x of ((r.data as any).strings ?? [])) {
+      if (!x?.title?.trim()) continue;
+      if (db.addProposal(v.id, { kind: 'new', entry_id: null, delta: 'A promise, unpaid',
+        chapterId: v.currentChapter.id, title: String(x.title).trim(),
+        body: String(x.body ?? '').trim(), entryType: 'string',
+        keys: [String(x.fromChapter ?? v.currentChapter.index)] })) proposed++;
+    }
     for (const e of (r.data.entries ?? [])) {
       if (!e?.title?.trim() || !e?.body?.trim()) continue;
       const cls = classify(existing, e);
@@ -792,7 +801,12 @@ export const routes: Record<string, Handler> = {
     for (const id of ids) {
       const p = db.proposal(c.body.storyId, id);
       if (!p) continue;
-      if (c.body.accept) {
+      if (c.body.accept && p.entry_type === 'string') {
+        // A string is not an entry, so accepting one makes a string. The chapter it was set up in
+        // rides in `keys`, which is the only field on a proposal with room for it.
+        db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body,
+          fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || null });
+      } else if (c.body.accept) {
         // Accepting makes it yours, so last_editor is human and the entry is pinned from here.
         db.upsertEntry(p.story_id, c.owner, { id: p.entry_id || undefined, title: p.title,
           body: c.body.body ?? p.body, entryType: p.entry_type,

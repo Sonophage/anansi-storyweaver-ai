@@ -30,7 +30,12 @@ const srv = createServer((req, res) => {
     // Answer by the shape of the schema asked for, the same way test/mend.ts does: an outfit wants
     // a name and a body, a ledger entry wants a title and keys, everything else is a reply.
     const props = b.response_format?.json_schema?.schema?.properties ?? {};
-    const answer = props.keys ? { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]',
+    // Keyed on the QUESTION, not on the schema: TALK_SCHEMA always carries `strings` now, so a
+    // schema-shaped check made every answer the short one and broke the truncation assertions.
+    const asksForStrings = /set up and not paid/.test(String(b.messages?.[1]?.content ?? ''));
+    const answer = asksForStrings ? { reply: 'Two things are owed.',
+        strings: [{ title: 'The letter he has not opened', body: 'Sent by his brother', fromChapter: 6 }] }
+      : props.keys ? { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]',
                                   keys: ['choir', 'rust'] }
       : props.name ? { name: 'Mourning grey', body: '[wearing: grey, unpinned, no scripture showing]' }
       : { reply: LONG };
@@ -154,6 +159,35 @@ ok('an invented thread lands in the proposals queue, not in the ledger');
 const junk: any = await invent({ kind: 'weapon' });
 assert.match(junk.error ?? '', /nothing called/, 'and a kind nobody defined is refused by name');
 ok('a kind that does not exist is refused rather than assembled');
+
+// ---- 6. Anansi's strings ride the same queue as everything else it offers
+{
+  calls = [];
+  const said: any = await routes['POST /api/talk']({
+    body: { storyId: story.id, said: 'What has this story set up and not paid off?' },
+    query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+  assert.ok(!said.error, said.error);
+  assert.strictEqual(said.proposed, 1, 'the string is proposed, not written');
+  const p = db.proposalsOf(story.id).find((x: any) => x.entry_type === 'string');
+  assert.ok(p, 'and it is in the SAME queue as every other offer — a second queue is a second '
+    + 'place to forget to look');
+  assert.strictEqual(db.stringsOf(story.id).length, 0, 'nothing is a string until it is accepted');
+
+  // Accepting one makes a STRING, not an entry. They are different tables on purpose.
+  const before = db.entriesOf(story.id).length;
+  await routes['POST /api/proposal']({ body: { storyId: story.id, id: p.id, accept: true },
+    query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {} } as any);
+  const made = db.stringsOf(story.id);
+  assert.strictEqual(made.length, 1, 'accepting it ties the string');
+  assert.strictEqual(made[0].title, 'The letter he has not opened');
+  assert.strictEqual(made[0].from_chapter, 6, 'carrying the chapter it was set up in');
+  assert.strictEqual(made[0].summoned, 0, 'and out of play, like every string');
+  assert.strictEqual(db.entriesOf(story.id).length, before, 'and it is not an entry');
+  ok("Anansi's strings go to the proposals queue, and accepting one ties a string not an entry");
+}
 
 srv.close();
 console.log(`\n${n} checks passed`);
