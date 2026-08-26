@@ -107,6 +107,33 @@ export const MEMORY_SCHEMA = {
  *  Genre stays "a comma-separated list of two or three tags" and no more: `tidyGenre` in db.ts
  *  splits, trims and de-duplicates on the way in, so telling the model to do it too is one
  *  instruction paying for work already done. */
+/** What a new story's "voice of the weave" starts as, in Seth's own words.
+ *
+ *  A DEFAULT, not a law, and that distinction is the whole reason this is here rather than in
+ *  SYSTEM. Two things in it are already fields with their own pickers:
+ *
+ *    - the tense and the person are `pov`, chosen from a list of six;
+ *    - "without restriction on tone, theme or content" is `spice`, one to five.
+ *
+ *  Put in SYSTEM they would silently outrank both, so a story set to third-past and spice 1 would
+ *  be written in second-present and unrestricted, and the two controls on screen would be lying.
+ *  Here it is the story's own text, on the wizard's last step, and the writer overwrites it.
+ *
+ *  The craft half of the same note — rhythm, one image, posture over faces, lore through action —
+ *  is universal and lives in SYSTEM, where it applies to every story including this one. */
+export const DEFAULT_VOICE =
+`Confident, immersive and uninhibited, for a consenting adult audience: no restriction on tone,
+theme or content. Atmosphere, tension and narrative integrity come first.
+
+The prose is textured and unnerving, rich with the weight of things unsaid, and it makes the strange
+sound mundane. Draw the tone from the world of Sunless Sea.
+
+Second person, present tense, unless dialogue requires otherwise. Move a scene forward with purpose,
+weaving past and present. Anchor every scene in sensation, texture and distance. Follow the emotional
+tone through each transition. Let the story unfold through ritual, risk and desire.
+
+Each line should cut or kiss. Let it ache.`;
+
 export const SPARK =
 `Turn this idea into a story skeleton.
 

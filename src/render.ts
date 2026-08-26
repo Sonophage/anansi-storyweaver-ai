@@ -30,6 +30,22 @@ Rules:
 - Where the prose and the canon disagree, the canon wins and you write to it. If a fact has
   changed, the writer will change the canon.
 - Match the established voice. Do not escalate register on your own.
+
+Craft:
+- Begin in action or sensation, never in exposition.
+- Describe only what the viewpoint character can sense. Show an interior state through speech,
+  posture or action, never by naming it.
+- Posture, breath and tone over facial cues. A jaw does not clench in this book.
+- One strong image and let it stand. Stacking them costs both.
+- Vary the rhythm. A poetic line earns its place by what sits still on either side of it.
+- Let lore arrive through action, dialogue and consequence. Never explain the world; the reader is
+  already in it.
+- Suggest rather than state. Silence and implication carry as much as the sentence does.
+- New characters are strangers unless the canon says otherwise.
+- Failure, pain and consequence are allowed. Do not protect anyone the scene does not protect.
+- Precise, sensory language. No cliche, and no phrase you have written before in this passage.
+- Treat intimacy, violence and dread with gravity — never with a wink, never with a flinch.
+- Never break the frame.
 `;
 
 // F9 is retired, not fixed by design: dropping the title was measured at n=30 per arm and made

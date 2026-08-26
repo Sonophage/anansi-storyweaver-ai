@@ -117,17 +117,21 @@ ok('the estimator is within 15% of real tokens on prose', () => {
 
 ok('regenerating a passage does not show the model the passages after it', () => {
   const s2 = db.createStory(o, { title: 'W' });
-  const ids = ['first', 'second', 'third', 'fourth']
-    .map((b) => db.addPassage({ ...s2, storyId: s2.id, body: b }));
+  // Distinctive bodies, not ordinary words. These were 'first'/'second'/'third'/'fourth', and the
+  // day the default point of view became "second person, present tense" the prompt legitimately
+  // contained the word `second` and this test failed for a reason that had nothing to do with it.
+  // A substring assertion on a common word is a fixture waiting to lie either way round.
+  const bodies = ['PASSAGE-ALPHA', 'PASSAGE-BRAVO', 'PASSAGE-CHARLIE', 'PASSAGE-DELTA'];
+  const ids = bodies.map((b) => db.addPassage({ ...s2, storyId: s2.id, body: b }));
   const v = story.view(s2.id)!;
   const slot = { global: 100096, slots: 4, perSlot: 25024 };
-  const target = v.passages.find((p: any) => p.body === 'second')!;
+  const target = v.passages.find((p: any) => p.body === 'PASSAGE-BRAVO')!;
   const whole = story.assemble(v, slot, 'direct', 'go');
   const upTo  = story.assemble(v, slot, 'direct', 'go', target.ordinal);
-  assert.ok(whole.prompt.includes('fourth'), 'a normal call sees the whole document');
-  assert.ok(!upTo.prompt.includes('fourth'), 'a regenerate must not see the future');
-  assert.ok(!upTo.prompt.includes('second'), 'nor the passage it is replacing');
-  assert.ok(upTo.prompt.includes('first'), 'but must see what came before');
+  assert.ok(whole.prompt.includes('PASSAGE-DELTA'), 'a normal call sees the whole document');
+  assert.ok(!upTo.prompt.includes('PASSAGE-DELTA'), 'a regenerate must not see the future');
+  assert.ok(!upTo.prompt.includes('PASSAGE-BRAVO'), 'nor the passage it is replacing');
+  assert.ok(upTo.prompt.includes('PASSAGE-ALPHA'), 'but must see what came before');
   db.delStory(s2.id);
 });
 

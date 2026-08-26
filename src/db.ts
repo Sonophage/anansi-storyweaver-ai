@@ -309,7 +309,7 @@ export function createStory(o: string, s: any) {
   q(`INSERT INTO stories (id,owner_id,title,genre,premise,setting,pov,persona,writing_style,
       direction,spice,spice_note,max_context,model,locked_character,status,created_at,updated_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', tidyGenre(s.genre),
-    s.premise ?? '', s.setting ?? '', s.pov ?? 'third limited, past tense', s.persona ?? null,
+    s.premise ?? '', s.setting ?? '', s.pov ?? 'second person, present tense', s.persona ?? null,
     s.writingStyle ?? '', s.direction ?? null, s.spice ?? 2, s.spiceNote ?? null,
     s.maxContext ?? null, s.model ?? null, s.lockedCharacter ?? null,
     s.status ?? 'in_progress', t, t);

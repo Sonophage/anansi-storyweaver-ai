@@ -1,7 +1,7 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, DEFAULT_VOICE } from './prompts.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
@@ -425,7 +425,12 @@ export const routes: Record<string, Handler> = {
     } catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
   },
   'POST /api/stories':   (c) => {
-    const made = db.createStory(c.owner, c.body);
+    // Blank means "no opinion", and a new story with no opinion about its own prose gets the
+    // model's house voice. Supplied here rather than in createStory because db.ts stores what it is
+    // given and should not know what a prompt is — and because import supplies its own, as do the
+    // fixtures, and neither should be quietly restyled.
+    const made = db.createStory(c.owner,
+      { ...c.body, writingStyle: String(c.body.writingStyle ?? '').trim() || DEFAULT_VOICE });
     for (const e of c.body.entries ?? []) db.upsertEntry(made.id, c.owner, e);
     // AFTER the cast exists, because the persona names one of them and the wizard lets you choose
     // it a step before they are written. A name that survived an edit to the cast is dropped here
