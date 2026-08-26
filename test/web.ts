@@ -182,7 +182,8 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
 // POST /api/proposal branches on `body.accept` and app.js was sending `decision: 'accept'`, so
 // `c.body.accept` was undefined, upsertEntry was skipped, and the proposal was marked rejected.
 // Clicking Accept discarded the fact. Narrow on purpose: a generic payload-contract check was
-// built (bench/contracts.py) and flagged three false positives for every real one, because routes
+// built as bench/contracts.py, deleted 2026-08-25 — it flagged three false positives for every
+// real one, because routes
 // delegate to helpers and spread the body — not test-worthy, so this locks the one that bit.
 {
   const js = read('web/app.js');

@@ -210,8 +210,8 @@ ok('the sweep removes orphans and anything under the confidence floor', () => {
 });
 
 // Entity resolution. Exercised directly because model output is not reproducible.
-const { classifyFor } = await import('../src/routes.ts');
-if (classifyFor) {
+const { classify } = await import('../src/routes.ts');
+if (classify) {
   const F = (who: string) => JSON.stringify({ title: who, body: who, keys: who });
   const ledger = [
     { id: 'e1', title: 'Aldis Fen', body: '[Aldis Fen: sergeant]', last_editor: 'human',
@@ -225,7 +225,7 @@ if (classifyFor) {
       field_editors: JSON.stringify({ title: 'human', body: 'model', keys: 'model' }), keys: '[]' },
   ];
   const kind = (t: string, body = 'x', keys: string[] = []) =>
-    classifyFor(ledger, { title: t, body, keys })?.kind ?? 'none';
+    classify(ledger, { title: t, body, keys })?.kind ?? 'none';
   ok('a shortened name resolves to the existing entry', () =>
     assert.strictEqual(kind('Aldis'), 'conflict'));
   ok('a model-written entry proposes as changed, not conflict', () =>

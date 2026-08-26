@@ -210,9 +210,8 @@ async function summarise(c: Ctx, storyId: string, chapterId?: string) {
  *  `conflict` is the one that matters: a model proposal against a body a human pinned.
  *  The arbitration rule keys on provenance (`last_editor`), so those never auto-apply and
  *  are excluded from bulk accept — screen 28's "Accept all but the conflict". */
-export function classifyFor(existing: any[], p: any) { return classify(existing, p); }
 
-function classify(existing: any[], p: any) {
+export function classify(existing: any[], p: any) {
   const norm = (t: string) => String(t).toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(the|a|an) /, '');
   const words = (t: string) => norm(t).split(' ').filter((w) => w.length > 3);
