@@ -240,7 +240,8 @@ export const allowList = () => [...ALLOW];
  *  the unit name hardcoded — nothing from a request reaches a shell, and `execFile` takes an
  *  argument array rather than a command line, so there is no shell to reach.
  *
- *  Gated in routes.ts, and the server binds to 127.0.0.1 only. */
+ *  Gated in routes.ts. The server no longer binds to loopback only, so the gate is the whole of
+ *  it — see routes.ts on why an ownership check is not the same as an admin check. */
 const UNIT = process.env.ANANSI_LLAMA_UNIT ?? 'llama-router.service';
 export async function router(action: 'stop' | 'start' | 'restart' | 'status') {
   const { execFile } = await import('node:child_process');

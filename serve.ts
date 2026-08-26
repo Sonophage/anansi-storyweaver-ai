@@ -30,19 +30,25 @@ const ALLOW = new Map((process.env.ANANSI_ALLOW ?? '').split(',').map((s) => s.t
 const DESK = process.env.ANANSI_USER ?? 'sonophage';
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const run = promisify(execFile);
-const whois = new Map<string, string | null>();   // peer ip -> tailnet login, null when it has none
+const whois = new Map<string, { login: string | null; at: number }>();
+const MISS_TTL = 60_000;   // how long a "no identity" answer is trusted
 
-// ponytail: cached for the life of the process and keyed on IP. A tailnet address is stable for the
-// life of a node, so the ceiling is that reassigning one mid-run keeps the old identity; a restart
-// clears it, and a TTL is the upgrade if that ever bites.
+// ponytail: a hit is cached for the life of the process and keyed on IP, so the ceiling is that
+// reassigning a tailnet address mid-run keeps the old identity; a restart clears it.
+//
+// A MISS expires after a minute, and that is not symmetry for its own sake. Under systemd this can
+// start before tailscaled answers, and a permanent negative cache would then hold the first peer to
+// knock as "nobody" until the next restart — with nothing in the log saying why. The TTL also keeps
+// a peer with no identity from spawning a process per request.
 async function loginOf(ip: string): Promise<string | null> {
-  if (whois.has(ip)) return whois.get(ip)!;
+  const hit = whois.get(ip);
+  if (hit && (hit.login !== null || Date.now() - hit.at < MISS_TTL)) return hit.login;
   let login: string | null = null;
   try {
     const { stdout } = await run('tailscale', ['whois', '--json', ip], { timeout: 3000 });
     login = JSON.parse(stdout)?.UserProfile?.LoginName ?? null;
   } catch { /* not a tailnet peer, or tailscaled is not answering. No identity, so no entry. */ }
-  whois.set(ip, login);
+  whois.set(ip, { login, at: Date.now() });
   return login;
 }
 

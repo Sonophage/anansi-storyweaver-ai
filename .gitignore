@@ -13,3 +13,8 @@ node_modules/
 # Where uploads land before they are read. safePath() mkdirs it, so nothing needs it tracked —
 # and a 100-byte huge.db got committed from a test run before this line existed.
 imports/
+
+# Who may write, and where the server listens. Two real people's addresses, and the only copy
+# of the allowlist — it lived in a run command until 2026-08-26, which meant a reboot silently
+# took the second writer away. Read by `node --env-file` and by anansi.service alike.
+.env

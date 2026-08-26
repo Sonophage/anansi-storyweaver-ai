@@ -322,9 +322,14 @@ export const routes: Record<string, Handler> = {
       error: e?.message ?? 'the router did not answer' }; }
   },
   // Releasing the models and bringing them back. GATED — not on the OPEN list — because it stops
-  // a service both tenants share, and because a route that runs systemctl deserves the gate even
-  // when the unit is user-scoped and the server binds to loopback only. The action is checked
-  // against a fixed list here as well as in llama.ts; nothing from the body reaches a command.
+  // a service both tenants share. The action is checked against a fixed list here as well as in
+  // llama.ts; nothing from the body reaches a command.
+  //
+  // ponytail: the gate proves you own the story you named, which is not the same as proving you may
+  // stop a shared service. With a second tenant on the tailnet (2026-08-26) either writer can name
+  // one of their own stories and restart the router or switch the model under the other. It was moot
+  // with one owner and it is not moot now. The upgrade is an admin account — smaller than it sounds,
+  // since serve.ts already knows which login is the desk.
   'POST /api/router': async (c: Ctx) => {
     const action = String(c.body.action ?? 'status');
     if (!['status', 'stop', 'start', 'restart'].includes(action))
