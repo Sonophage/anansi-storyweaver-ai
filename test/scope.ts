@@ -315,4 +315,68 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('the allowlist decides who is a writer, and refuses the desk itself when told to');
 }
 
+// Who may stop the router, and whose model a switch lands on. Both are the same lesson: the gate
+// answers "is this your story", and neither of these questions is that one.
+{
+  const { spawn } = await import('node:child_process');
+  const boot = async (port: number, admin: string) => {
+    const srv = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      env: { ...process.env, ANANSI_PORT: String(port), ANANSI_DB: '/tmp/anansi-scope.db',
+             ANANSI_USER: 'bob', ANANSI_ADMIN: admin,
+             ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service' },
+      stdio: 'ignore',
+    });
+    const url = `http://127.0.0.1:${port}`;
+    for (let i = 0; i < 40; i++) {
+      try { await fetch(url + '/', { signal: AbortSignal.timeout(500) }); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
+    }
+    const post = (path: string, body: unknown) => fetch(url + path, { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return { srv, post };
+  };
+
+  // Bob owns the story he names, so the ownership gate lets him through. The admin check is what
+  // stops him, and it has to be a different answer from 404 or the two are indistinguishable.
+  const notAdmin = await boot(5194, 'alice');
+  try {
+    const r = await notAdmin.post('/api/router', { storyId: bStory.id, action: 'status' });
+    assert.strictEqual(r.status, 403,
+      'owning the story you named is not permission to stop a service the other writer shares');
+  } finally { notAdmin.srv.kill(); }
+
+  // The control: same request, same story, bob IS the admin. Anything but 403 — the unit does not
+  // exist here, so systemctl's own answer comes back and that is fine. Without this the check above
+  // cannot tell an admin gate from a route that refuses everyone.
+  const isAdmin = await boot(5195, 'bob');
+  try {
+    const r = await isAdmin.post('/api/router', { storyId: bStory.id, action: 'status' });
+    assert.notStrictEqual(r.status, 403, 'the admin is not refused — the 403 above is the admin check');
+
+    // And while a route's own codes are being trusted: this one names 400 for an action off its
+    // fixed list, and that arrived as 500 until the dispatcher stopped flattening everything but 404.
+    const bad = await isAdmin.post('/api/router', { storyId: bStory.id, action: 'rm -rf' });
+    assert.strictEqual(bad.status, 400, "a route's own 400 must not reach the client as a 500");
+  } finally { isAdmin.srv.kill(); }
+
+  ok('only the admin may stop the router, and owning a story is not being the admin');
+}
+
+// modelFor's precedence, which is what keeps one writer's switch off the other's prose: the story
+// wins, then the writer's own fallback, then the process default. Pure and synchronous, so it needs
+// no router — and the ordering is the whole of the feature.
+{
+  const { modelFor, model } = await import('../src/llama.ts');
+  const boot = model();
+  assert.strictEqual(modelFor({ model: 'story-m' }, 'writer-m'), 'story-m',
+    "a story that names its own model outranks the writer's fallback");
+  assert.strictEqual(modelFor({ model: null }, 'writer-m'), 'writer-m',
+    "a story with none falls back to the writer's, not the process's");
+  assert.strictEqual(modelFor({ model: null }, null), boot,
+    'and with neither, the boot default');
+  assert.strictEqual(modelFor(null, 'writer-m'), 'writer-m',
+    'no story at all still honours the writer');
+  ok('the model in force is the story\'s, then the writer\'s, then the box\'s');
+}
+
 console.log(`\n${n} checks passed`);

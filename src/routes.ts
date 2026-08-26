@@ -1,5 +1,5 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, structured, structuredRetry, model, models, setModel, allowList, modelFor, router, webSearch, searchConfigured } from './llama.ts';
+import { count, chat, structured, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA } from './prompts.ts';
 import * as db from './db.ts';
@@ -12,6 +12,10 @@ import type { Slot } from './story.ts';
 export interface Ctx {
   body: any; query: URLSearchParams; owner: string; slot: Slot;
   gen: Record<string, any>; setGen: (g: Record<string, any>) => void;
+  // The writer's own fallback model, and whether they run the box. Both come from serve.ts:
+  // `admin` is an identity question and the sampler map already lives there.
+  defaultModel: string | null; setDefaultModel: (id: string) => void;
+  admin: boolean;
 }
 type Handler = (c: Ctx) => Promise<any> | any;
 
@@ -163,7 +167,7 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
 
   // The estimate draws the meter; this decides. One /tokenize before a call that costs
   // ~30s of prefill is cheap, and it is the only number the server will agree with.
-  const using = modelFor(v.story);
+  const using = modelFor(v.story, c.defaultModel);
   try {
     const exact = await count(prompt, using);
     manifest.totals.used = exact;
@@ -300,7 +304,7 @@ async function check(c: Ctx, storyId: string, passageId: string) {
 
 export const routes: Record<string, Handler> = {
   // ---- library ----
-  'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: model(), slot: c.slot, gen: c.gen }),
+  'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: c.defaultModel ?? model(), slot: c.slot, gen: c.gen }),
 
   // The router serves several models. Listing is open because it names no story; switching is
   // process-wide and gated, because two tenants share this process and one changes it for both.
@@ -314,11 +318,11 @@ export const routes: Record<string, Handler> = {
   // Names no story on purpose: it spans them. Owner-scoped in SQL, like search and the ledger.
   'GET /api/stats': (c: Ctx) => db.writerStats(c.owner),
 
-  'GET /api/models': async () => {
+  'GET /api/models': async (c: Ctx) => {
     // `allowList` is reported so the screen can say WHY only three of eight are listed. A short
     // list with no explanation reads as the router being down.
-    try { return { models: await models(), active: model(), allow: allowList() }; }
-    catch (e: any) { return { models: [], active: model(), allow: allowList(),
+    try { return { models: await models(), active: c.defaultModel ?? model(), allow: allowList() }; }
+    catch (e: any) { return { models: [], active: c.defaultModel ?? model(), allow: allowList(),
       error: e?.message ?? 'the router did not answer' }; }
   },
   // Releasing the models and bringing them back. GATED — not on the OPEN list — because it stops
@@ -334,13 +338,27 @@ export const routes: Record<string, Handler> = {
     const action = String(c.body.action ?? 'status');
     if (!['status', 'stop', 'start', 'restart'].includes(action))
       throw Object.assign(new Error(`no such action: ${action}`), { code: 400 });
+    // The gate proves you own the story you named, which is not the same as proving you may
+    // stop a service both writers share. ANANSI_ADMIN decides that, and it is the desk by default.
+    if (!c.admin) throw Object.assign(new Error('only the admin may stop or start the router'),
+      { code: 403 });
     try { return await router(action as any); }
     catch (e: any) { return { error: e?.message ?? 'could not reach systemctl' }; }
   },
 
-  'POST /api/model': async (c) => {
-    try { return { active: await setModel(String(c.body.model ?? '')) }; }
-    catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
+  // Per WRITER, not per process. A story that names its own model still wins over this — see
+  // modelFor — so the order is story, then writer, then the boot default. Two writers on two
+  // different models is the point: the router holds three at once (`--models-max 3`).
+  //
+  // ponytail: the pair fitting in VRAM is unmeasured. F-numbers for two concurrent writers were
+  // taken on ONE model with two slots; two models at full budget is a different sum, and this box
+  // dies with HTTP 500 rather than queueing when the cache is oversubscribed.
+  'POST /api/model': async (c: Ctx) => {
+    try {
+      const id = await checkModel(String(c.body.model ?? ''));
+      c.setDefaultModel(id);
+      return { active: id };
+    } catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
   },
   'POST /api/stories':   (c) => {
     const made = db.createStory(c.owner, c.body);
@@ -375,7 +393,7 @@ export const routes: Record<string, Handler> = {
   'GET /api/story':      (c) => {
     const v = viewOf(c.query.get('story')!, c.query.get('chapter') ?? undefined);
     // `model` is what will actually write THIS story — the story's own if it names one.
-    return { ...v, model: modelFor(v.story), defaultModel: model(), slot: c.slot, gen: c.gen,
+    return { ...v, model: modelFor(v.story, c.defaultModel), defaultModel: c.defaultModel ?? model(), slot: c.slot, gen: c.gen,
       // Whether Anansi's web search is available at all. Reported here so the checkbox is right
       // the moment the panel opens, rather than correcting itself after the first question.
       searchable: searchConfigured(),
@@ -616,7 +634,7 @@ export const routes: Record<string, Handler> = {
       TALK_TOKENS, undefined);
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
-    const using = modelFor(v.story);
+    const using = modelFor(v.story, c.defaultModel);
     const t0 = Date.now();
     // Thinking OFF, and this is a correction. It was ON here on the argument that F5's finding —
     // thinking returns no prose — was about PROSE, and that analysis is what thinking is for.
@@ -700,8 +718,8 @@ export const routes: Record<string, Handler> = {
     const t0 = Date.now();
     const r = await structuredRetry(INVENT(about, steer, sources.length > 0),
       prompt.slice(SYSTEM.length), inventSchema(kind),
-      { model: modelFor(v.story), temperature: 0.9, max_tokens: INVENT_TOKENS });
-    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: modelFor(v.story),
+      { model: modelFor(v.story, c.defaultModel), temperature: 0.9, max_tokens: INVENT_TOKENS });
+    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: modelFor(v.story, c.defaultModel),
       role: `invent:${kind}`, manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
@@ -750,7 +768,7 @@ export const routes: Record<string, Handler> = {
     const { manifest, prompt } = assemble(v, c.slot, c.body.mode ?? 'direct', c.body.directive,
       upTo, Number(c.gen.max_tokens) || 900, c.body.speaker || undefined, db.promptsOf(c.owner));
     let exact: number | null = null;
-    try { exact = await count(prompt, modelFor(v.story)); } catch { /* model asleep */ }
+    try { exact = await count(prompt, modelFor(v.story, c.defaultModel)); } catch { /* model asleep */ }
     return { manifest, prompt, exact };
   },
   // Streaming is opt-in per call, not a second route: the gate, the budget check, the /tokenize

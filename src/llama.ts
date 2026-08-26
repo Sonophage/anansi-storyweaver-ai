@@ -17,8 +17,9 @@ let MODEL = process.env.ANANSI_MODEL ?? 'write-nt-qwen36-h';
  *  router actually serves the id is checked when the story is SAVED (`POST /api/story`), so a
  *  stored value was real at the time it was chosen. A model retired from presets.ini afterwards
  *  will fail at generation with the router's own message, which names it. */
-export const modelFor = (story?: { model?: string | null } | null): string =>
-  story?.model && allowed(story.model) ? story.model : MODEL;
+export const modelFor = (story?: { model?: string | null } | null, dflt?: string | null): string =>
+  story?.model && allowed(story.model) ? story.model
+    : (dflt && allowed(dflt) ? dflt : MODEL);
 
 /** `fetch`, with a message that says which thing is unreachable and what to do about it.
  *
@@ -269,15 +270,23 @@ export async function models(): Promise<{ id: string; status: string }[]> {
     .filter((m: any) => allowed(m.id));
 }
 
-/** Switch the active model. Refuses anything the router does not list, so a client cannot
- *  point the engine at an arbitrary string. */
-export async function setModel(id: string): Promise<string> {
+/** Is this a model a client may name? Refuses anything the router does not list, so a client
+ *  cannot point the engine at an arbitrary string. Returns the id so callers read as an
+ *  assignment. */
+export async function checkModel(id: string): Promise<string> {
   // `models()` is already filtered, so this refuses anything off the allowlist as well as
   // anything the router does not serve — one check, and the two failures read differently.
   if (!allowed(id)) throw new Error(`"${id}" is not on this app's model allowlist`);
   const known = await models();
   if (!known.some((m) => m.id === id)) throw new Error(`the router does not serve "${id}"`);
-  MODEL = id;
+  return id;
+}
+
+/** Switch the model this PROCESS falls back to when neither the writer nor the story names one.
+ *  Not what `POST /api/model` calls any more — one writer's choice must not land on the other's
+ *  prose. Kept for a caller that genuinely means the boot default. */
+export async function setModel(id: string): Promise<string> {
+  MODEL = await checkModel(id);
   return MODEL;
 }
 

@@ -28,6 +28,9 @@ const HERE = new URL('.', import.meta.url).pathname;
 const ALLOW = new Map((process.env.ANANSI_ALLOW ?? '').split(',').map((s) => s.trim()).filter(Boolean)
   .map((e) => { const i = e.indexOf('='); return (i < 0 ? [e, e] : [e.slice(0, i), e.slice(i + 1)]) as [string, string]; }));
 const DESK = process.env.ANANSI_USER ?? 'sonophage';
+// Who may stop the router. The desk unless told otherwise — one account, because "may I stop a
+// service the other writer is mid-generation on" is not a question ownership can answer.
+const ADMIN = process.env.ANANSI_ADMIN ?? DESK;
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const run = promisify(execFile);
 const whois = new Map<string, { login: string | null; at: number }>();
@@ -86,6 +89,9 @@ const GEN: Record<string, any> = {
 // the context budget reserves against that number — one of them raising it would quietly shrink the
 // other's prompt. routes.ts already calls this account-wide; this is what makes that true.
 const gens = new Map<string, Record<string, any>>();
+// The writer's fallback model, same reasoning. A story that names its own still wins; this is only
+// what a story with none falls back to, so switching model cannot land on the other's prose.
+const models = new Map<string, string>();
 
 // One responsive surface. desk.html and phone.html were deleted on 2026-08-23 once app.html
 // reached parity; /phone stays mapped so an installed phone home-screen icon keeps working.
@@ -127,6 +133,9 @@ createServer(async (req, res) => {
       body: req.method === 'GET' ? {} : await readBody(req),
       query: url.searchParams, owner: OWNER, slot, gen: gens.get(OWNER) ?? GEN,
       setGen: (g) => { const next = { ...(gens.get(OWNER) ?? GEN), ...g }; gens.set(OWNER, next); ctx.gen = next; },
+      defaultModel: models.get(OWNER) ?? null,
+      setDefaultModel: (id) => { models.set(OWNER, id); ctx.defaultModel = id; },
+      admin: OWNER === db.owner(ADMIN),
     };
 
     // One gate, fail closed. A route that names a story must be a story you own; a route
@@ -163,12 +172,17 @@ createServer(async (req, res) => {
     }
     send(res, 200, out);
   } catch (e: any) {
-    send(res, e?.code === 404 ? 404 : 500, { error: e?.message ?? String(e) });
+    // Any HTTP-shaped code a route names, not only 404. It was `code === 404 ? 404 : 500`, which
+    // silently turned routes.ts's deliberate 400s into 500s — a client cannot tell "you asked for
+    // something impossible" from "the server broke" when both arrive as the same number.
+    const code = typeof e?.code === 'number' && e.code >= 400 && e.code < 600 ? e.code : 500;
+    send(res, code, { error: e?.message ?? String(e) });
   }
 }).listen(PORT, HOST, () => {
   const n = db.listStories(db.owner(DESK)).length;
   console.log(`\n  Anansi        http://${HOST}:${PORT}`);
   console.log(`  writers       ${ALLOW.size ? [...ALLOW.keys()].join(', ') : `${DESK} (loopback only)`}`);
+  console.log(`  admin         ${ADMIN}`);
   console.log(`  model         ${model()}`);
   console.log(`  context       ${slot.global} / ${slot.slots} slots = ${slot.perSlot} per slot`);
   console.log(`  library       ${n} ${n === 1 ? 'story' : 'stories'}`);
