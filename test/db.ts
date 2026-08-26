@@ -724,4 +724,24 @@ ok('a persona naming nobody in the story is dropped, and one naming a real chara
     "a cast member of another story cannot satisfy this story's persona");
 });
 
+ok('auto-open is on by default, survives a partial save, and can be turned off', () => {
+  const me = db.owner('autoopen-test');
+  const st = db.createStory(me, { title: 'The Opening' });
+  const read = () => story.view(st.id)!.story as any;
+  assert.strictEqual(read().autoOpen, true, 'a new story asks the model for its first passage');
+
+  // The failure this is really guarding: updateStory writes every column, so a save of some OTHER
+  // field must not carry a falsy default through and switch this off behind the writer.
+  db.updateStory(st.id, { title: 'The Opening, renamed' });
+  assert.strictEqual(read().autoOpen, true, 'saving an unrelated field leaves it alone');
+
+  db.updateStory(st.id, { autoOpen: false });
+  assert.strictEqual(read().autoOpen, false, 'and it can be turned off');
+  db.updateStory(st.id, { premise: 'Something else entirely.' });
+  assert.strictEqual(read().autoOpen, false, 'off survives an unrelated save too');
+
+  db.updateStory(st.id, { autoOpen: true });
+  assert.strictEqual(read().autoOpen, true, 'and back on again');
+});
+
 console.log(`\n${n} checks passed`);

@@ -51,6 +51,17 @@ function migrate() {
   // A NAME rather than an entry id, because it also has to work for a protagonist who has no
   // ledger entry — plenty of second-person books never gave "you" one.
   add('stories', 'locked_character', 'TEXT');
+  // Whether the model writes the opening passage of a story and of every chapter after it, or
+  // whether the writer does. ON by default, including for every book already on the shelf: a first
+  // passage you did not want is one press to delete, and a blank page you expected to be filled is
+  // a feature you never find. Per STORY rather than per writer, because "start me off" is a
+  // decision about a book — some you want a way in to, some you have already heard the first line of.
+  //
+  // Nothing is generated server-side for it. The surface reads this and fires the Continue it
+  // already has, so the opening streams through the one generate path with its budget check, its
+  // contradiction repair and its writing head, rather than arriving whole from a second engine
+  // that would need all three again.
+  add('stories', 'auto_open', 'INTEGER DEFAULT 1');
   // Existing flags were all raised against canon that had fired — that was the only kind the
   // checker could see — so the default of 1 is true for every row already stored.
   add('violations', 'reached', 'INTEGER DEFAULT 1');
@@ -767,13 +778,16 @@ export function updateStory(id: string, s: any) {
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,
-      locked_character=?,updated_at=? WHERE id=?`)
+      locked_character=?,auto_open=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
       p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
       p('stripPatterns', 'strip_patterns') ?? null, p('model', 'model') ?? null,
-      p('lockedCharacter', 'locked_character') ?? null, now(), id);
+      p('lockedCharacter', 'locked_character') ?? null,
+      // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
+      // p() already resolves that to the current value, so a partial save cannot switch it off.
+      Number(p('autoOpen', 'auto_open') ? 1 : 0), now(), id);
 }
 export const updateChapter = (storyId: string, id: string, c: any) =>
   q('UPDATE chapters SET title=?, authors_note=?, keep_whole=? WHERE id=? AND story_id=?')

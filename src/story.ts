@@ -23,6 +23,9 @@ const toStory = (r: any) => ({
   persona: r.persona, writingStyle: r.writing_style, direction: r.direction, spice: r.spice,
   maxContext: r.max_context, status: r.status, stripPatterns: r.strip_patterns,
   spiceNote: r.spice_note, model: r.model, lockedCharacter: r.locked_character,
+  // Whether the surface should ask for the opening passage itself. Absent on a row written before
+  // the column existed, so it reads as ON, which is the default the column carries too.
+  autoOpen: r.auto_open == null ? true : !!r.auto_open,
 });
 const toChapter = (c: any) => ({
   id: c.id, index: c.idx, title: c.title, summary: c.summary,
