@@ -75,9 +75,14 @@ const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate'];
 
 const TALK_TOKENS = 2400;
 
-/** One ledger entry. A 600-character body and a name is not a long answer, and the temperature is
- *  the part that matters here rather than the room. */
-const INVENT_TOKENS = 700;
+/** One ledger entry, and it is a jumping-off point rather than a line. 700 was sized for the old
+ *  prompt, which asked for a body under forty words; INVENT now asks for a band of sixty to a
+ *  hundred and twenty, because "it doesnt have to be a single sentence, it also doesnt have to be
+ *  three paragraphs" — something the model can write FROM. A 120-word bracket body plus a title
+ *  and four keys is roughly three times the JSON the old ceiling was cut for, and running out of
+ *  room here truncates the OBJECT, which does not parse, which costs a whole structuredRetry at
+ *  ~7s a call. So the room stops being the bound; the temperature is still the part that matters. */
+const INVENT_TOKENS = 1200;
 
 /** Every changed character's WHOLE description, in one answer. A state replaces the body rather than
  *  adding to it, so each one is a full restatement and not a line — four characters at 600 characters

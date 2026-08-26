@@ -244,7 +244,7 @@ It has to belong to THIS story: its register, its place, its period, the names a
 ledger. A generic answer is worse than none — anyone can have a mysterious cloaked figure, and
 nobody needs you for it.
 
-This is reference, not writing. A model reads it on every call it reaches, so it is short, it is
+This is reference, not writing. A model reads it on every call it reaches, so it is dense, it is
 specific, and it is in the ledger's own shape:
 
 ${about.startsWith('outfit')
@@ -252,24 +252,35 @@ ${about.startsWith('outfit')
 `
     + `          "Court plate", "Travelling". Not a sentence, and not her name.
 `
-    + `    body  Only what is WORN, bracket form, under thirty words:
+    + `    body  Only what is WORN, bracket form, forty to eighty words:
 `
-    + `          [wearing: black oilcloth, tarnished silver at the collar, no scripture showing]
+    + `          [wearing: black oilcloth to the ankle, seams let out and resewn by hand,
+`
+    + `           tarnished silver at the collar, gloves kept on indoors, no scripture showing]
 
 `
     + `The body is added to her entry while the outfit is on, so it must NOT say who she is — the `
     + `ledger already says that, and repeating it costs the same tokens twice. Clothes only.`
   : `    title  What the thing is called. A name, not a description of it.
 `
-    + `    body   [Name: attribute, attribute, relation to someone already in the ledger]
+    + `    body   [Name: attribute, attribute, attribute, what it does, what it wants, what it
+`
+    + `            costs, relation to someone already in the ledger] — enough of them that a
+`
+    + `            scene could be written from the bracket alone.
 `
     + `    keys   single words that would really appear in the prose — a name, a place, an object.
 `
     + `           Not the title again, not two words joined by a slash, not the word "attribute".
 
 `
-    + `Bracket form, one line, under forty words. No paragraphs, no scene, no adjective doing the `
-    + `work of a fact. Forty words of specifics beats two hundred of atmosphere.`}
+    + `Bracket form, sixty to a hundred and twenty words — not one sentence, and not three `
+    + `paragraphs either. No scene, and no adjective doing the work of a fact: specifics beat `
+    + `atmosphere at every length.`}
+
+It is a jumping-off point, not a line to be quoted. Write it so the model can write FROM it — facts,
+textures and relations it turns into prose of its own — and never say it back word for word. Nothing
+in it may already read as a finished sentence of the book.
 
 Do not contradict the canon above. Do not rename or redescribe anything that already has an entry.
 ${steer
@@ -291,9 +302,10 @@ ${sources
  *  NO maxLength on a body, and this is F25 again, found a second time in the first four real calls
  *  of this route: a 400-cap closed an outfit at `stitched with the same Old Script that binds *W`
  *  and a 600-cap closed a character at `vials of glass filled with the echo of a *`. Both were
- *  valid JSON, so both would have gone into the ledger as half a sentence. Brevity is the prompt's
- *  job — it asks for under forty words — and `max_tokens` is the bound, because running into THAT
- *  truncates the object, which does not parse, which structuredRetry can see.
+ *  valid JSON, so both would have gone into the ledger as half a sentence. Length is the prompt's
+ *  job — it asks for a BAND, sixty to a hundred and twenty words, so the answer is a jumping-off
+ *  point rather than one line or three paragraphs — and `max_tokens` is the bound, because
+ *  running into THAT truncates the object, which does not parse, which structuredRetry can see.
  *
  *  A title and a trigger word keep their caps: those are names, and a name over eighty characters
  *  is a defect rather than a thought that needed more room. */

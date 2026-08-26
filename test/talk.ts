@@ -156,6 +156,30 @@ assert.ok(db.proposalsOf(story.id).some((p: any) => p.title === 'The Rust Choir'
   'and it is in the queue with everything else Anansi offers');
 ok('an invented thread lands in the proposals queue, not in the ledger');
 
+// ---- 5b. an invented entry is a jumping-off point, and it has the room to be one
+// Seth's spec, verbatim: "it doesnt have to be a single sentence, it also doesnt have to be three
+// paragraphs. it should be written in a way where the ai can use it to write but not say things
+// verbatim, a jumping off point for it." Two halves that regress independently — the prompt can go
+// back to asking for forty words, or the ceiling can go back to the room forty words needed — so
+// both are asserted, and the ceiling is read off THE WIRE rather than from the constant.
+{
+  const said = String(calls[0].messages[0].content);
+  assert.ok(Number(calls[0].max_tokens) >= 1200,
+    `an invented entry is asked for in ${calls[0].max_tokens} tokens, which is the room the old `
+    + 'forty-word body needed; a 120-word body that runs out of it truncates the object rather than '
+    + 'the string, and the retry costs another whole call');
+  assert.match(said, /not one sentence, and not three\s+paragraphs/,
+    'the prompt has to name the FLOOR as well as the ceiling — a ceiling on its own is what made '
+    + 'the bodies one line');
+  assert.match(said, /never say it back word for word/,
+    'and it has to say the body is material to write from rather than a line to quote');
+  // F27, still open and not to be made worse: the prompt forbids keys that repeat the title.
+  assert.match(said, /Not the title again/,
+    'the keys instruction that F27 says the model still sometimes ignores must not go missing '
+    + 'while the body is being widened');
+  ok('an invented entry is asked for as a jumping-off point, in the room one needs');
+}
+
 const junk: any = await invent({ kind: 'weapon' });
 assert.match(junk.error ?? '', /nothing called/, 'and a kind nobody defined is refused by name');
 ok('a kind that does not exist is refused rather than assembled');
