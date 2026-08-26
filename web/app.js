@@ -35,6 +35,7 @@ const S = {
   entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, confirmStop: false, router: null, spark: null, ritual: null, setup: null,
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
+  lookTab: 'theme',     // which of Theme / Font / Size the Aa menu is showing
   prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
   promptOpen: null,
   found: null,          // the passage a search result sent you to, marked until you move on
@@ -113,7 +114,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
-  'newstring', 'savestring', 'delstring', 'summon', 'stringstatus',
+  'newstring', 'savestring', 'delstring', 'summon', 'stringstatus', 'looktab',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
@@ -277,26 +278,47 @@ function drawAppearance() {
   el.hidden = !S.appearance;
   if (!S.appearance) return;
   // From the table, so a theme added there appears here without a second list to keep in step.
-  const themes = Object.entries(THEMES).map(([k, t]) => [k, t.label, t.swatch]);
+  const themes = Object.entries(THEMES);
   const fonts = [['serif', 'Instrument Serif', "'Instrument Serif',Georgia,serif"],
                  ['sans', 'IBM Plex Sans', "'IBM Plex Sans',sans-serif"]];
+  const tabs = [['theme', 'Theme'], ['font', 'Font'], ['size', 'Size']];
+  const tab = S.lookTab ?? 'theme';
+
+  // THE SWATCH CARRIES THE ACCENT AS WELL AS THE PAPER. Six of the nine themes are near-black —
+  // #0A0A0C, #0B0B0C, #07090E, #0A0D0B, #0C0C0C, #08090C — so a circle of the paper alone gave six
+  // circles nobody could tell apart. Half paper, half accent, on the diagonal: the ground you will
+  // read on and the colour that will mark what matters, which is the whole of what a theme is.
+  const swatch = (t) => `<span style="width:22px; height:22px; border-radius:50%; flex:0 0 auto;
+    background:linear-gradient(135deg, ${t.swatch} 0 52%, ${t.accent} 52% 100%);
+    border:1px solid ${t.dark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.16)'}"></span>`;
+
+  const body = tab === 'theme'
+    ? `<div style="display:flex; flex-direction:column; gap:7px">${themes.map(([k, t]) => `
+        <button data-theme="${k}" style="display:flex; align-items:center; gap:11px; padding:8px 10px;
+          border-radius:var(--r); border:1px solid ${look.theme === k ? 'var(--gold)' : 'var(--chip)'}; width:100%">
+          ${swatch(t)}
+          <span style="font-size:13px; color:${look.theme === k ? 'var(--ink)' : 'var(--mute)'}">${esc(t.label)}</span>
+        </button>`).join('')}</div>`
+    : tab === 'font'
+    ? `<div style="display:flex; flex-direction:column; gap:7px">${fonts.map(([k, l, fam]) => `
+        <button class="chip" data-fontpick="${k}" aria-pressed="${look.font === k}"
+          style="font-family:${fam}; font-size:15px">${l}</button>`).join('')}</div>`
+    : `<div style="display:flex; gap:7px">${['s', 'm', 'l'].map((k) => `
+        <button class="chip" data-sizepick="${k}" aria-pressed="${look.size === k}"
+          style="flex:1; text-align:center; padding:9px 0; letter-spacing:.1em; font-size:12.5px">${k.toUpperCase()}</button>`).join('')}</div>`;
+
   el.innerHTML = `
     <div style="display:flex; align-items:center; gap:10px">
       <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--dim)">Reading</span>
       <button data-appearance="0" style="margin-left:auto; color:var(--faint); font-size:12px" aria-label="Close">✕</button>
     </div>
-    <div style="display:flex; flex-direction:column; gap:7px">${themes.map(([k, l, sw]) => `
-      <button data-theme="${k}" style="display:flex; align-items:center; gap:11px; padding:8px 10px;
-        border-radius:var(--r); border:1px solid ${look.theme === k ? 'var(--gold)' : 'var(--chip)'}; width:100%">
-        <span style="width:22px; height:22px; border-radius:var(--r); background:${sw};
-          border:1px solid rgba(255,255,255,.08); flex:0 0 auto"></span>
-        <span style="font-size:13px; color:${look.theme === k ? 'var(--ink)' : 'var(--mute)'}">${l}</span></button>`).join('')}</div>
-    <div style="display:flex; flex-direction:column; gap:7px">${fonts.map(([k, l, fam]) => `
-      <button class="chip" data-fontpick="${k}" aria-pressed="${look.font === k}"
-        style="font-family:${fam}; font-size:15px">${l}</button>`).join('')}</div>
-    <div style="display:flex; gap:7px">${['s', 'm', 'l'].map((k) => `
-      <button class="chip" data-sizepick="${k}" aria-pressed="${look.size === k}"
-        style="flex:1; text-align:center; padding:9px 0; letter-spacing:.1em; font-size:12.5px">${k.toUpperCase()}</button>`).join('')}</div>`;
+    <div style="display:flex; gap:6px">${tabs.map(([k, l]) => `
+      <button data-looktab="${k}" aria-pressed="${tab === k}" style="flex:1; text-align:center;
+        padding:7px 0; font-size:11.5px; border-radius:var(--r);
+        border:1px solid ${tab === k ? 'var(--gold)' : 'var(--chip)'};
+        background:${tab === k ? 'rgba(217,178,106,.10)' : 'transparent'};
+        color:${tab === k ? 'var(--gold-lit)' : 'var(--mute)'}">${l}</button>`).join('')}</div>
+    ${body}`;
 }
 
 // ---------- the document ----------
@@ -2231,6 +2253,7 @@ document.addEventListener('click', async (e) => {
     LEDGER = null; await loadLibrary(); paint(); return; }
   if (d.panel !== undefined) { S.panel = d.panel || null; syncHash(); paint(); return; }
   if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); return; }
+  if (d.looktab) { S.lookTab = d.looktab; drawAppearance(); return; }
   if (d.theme) { look.theme = d.theme; applyLook(); drawAppearance(); return; }
   if (d.fontpick) { look.font = d.fontpick; applyLook(); drawAppearance(); return; }
   if (d.sizepick) { look.size = d.sizepick; applyLook(); drawAppearance(); return; }

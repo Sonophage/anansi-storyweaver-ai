@@ -198,4 +198,34 @@ ok(`   panel contents animate (${motion.card})`, motion.card !== 'none' && motio
 // `:last-of-type` silently matched nothing because the chapter pager is a div that comes after.
 ok(`   and only the newest one (${motion.moving})`, motion.moving === 1);
 
+// ---- the Aa menu: three tabs, and swatches you can tell apart
+// Nine themes in one column with six near-black circles was a list nobody could read. Theme, Font
+// and Size are separate now, and a swatch carries the accent as well as the paper.
+await page.goto(B + "/#" + sid);
+await wait(800);
+await page.eval("(() => { document.querySelector('[data-appearance=\"1\"]')?.click(); return 1; })()");
+await wait(400);
+const tabs = await page.eval("[...document.querySelectorAll('[data-looktab]')].map(b => b.dataset.looktab).join(',')");
+ok(`the Aa menu splits into tabs (${tabs})`, tabs === 'theme,font,size');
+ok("  showing the themes first", (await page.eval("document.querySelectorAll('[data-theme]').length")) === 9);
+ok("  and only the themes — not the fonts and sizes as well",
+   (await page.eval("document.querySelectorAll('[data-fontpick]').length")) === 0
+   && (await page.eval("document.querySelectorAll('[data-sizepick]').length")) === 0);
+// Every swatch shows its own accent, so six near-black papers are still nine distinguishable
+// circles. Asserted on the RENDERED gradients being distinct rather than on any one colour.
+const swatches = await page.eval("(() => [...document.querySelectorAll('[data-theme] span:first-child')]"
+  + ".map(s => getComputedStyle(s).backgroundImage))()");
+ok(`  each theme's swatch carries its accent (${new Set(swatches).size} distinct of ${swatches.length})`,
+   new Set(swatches).size === swatches.length);
+await page.eval("(() => { document.querySelector('[data-looktab=\"font\"]').click(); return 1; })()");
+await wait(300);
+ok("  switching to Font shows the fonts and hides the themes",
+   (await page.eval("document.querySelectorAll('[data-fontpick]').length")) === 2
+   && (await page.eval("document.querySelectorAll('[data-theme]').length")) === 0);
+await page.eval("(() => { document.querySelector('[data-looktab=\"size\"]').click(); return 1; })()");
+await wait(300);
+ok("  and Size shows the three sizes",
+   (await page.eval("document.querySelectorAll('[data-sizepick]').length")) === 3);
+await page.eval("(() => { document.querySelector('[data-appearance=\"0\"]')?.click(); return 1; })()");
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
