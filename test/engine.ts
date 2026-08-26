@@ -215,6 +215,32 @@ ok('when canon is capped, the walk-on goes before the point-of-view character', 
     + 'was created first');
 });
 
+ok('a string reaches the prompt only when it is summoned, and is told what is owed not to pay it', () => {
+  const withStrings = (strings: any) =>
+    buildContext({ ...base(), strings } as any, count).blocks.find((b) => b.kind === 'STRING');
+
+  assert.strictEqual(withStrings(undefined), undefined, 'no strings, no block');
+  assert.strictEqual(withStrings([]), undefined, 'and an empty list is not an empty block');
+
+  const b = withStrings([
+    { title: 'The letter he has not opened', body: 'Sent by his brother', fromChapter: 6, owedBy: 20 },
+    { title: 'The debt to Marek' },
+  ])!;
+  assert.match(b.text, /The letter he has not opened: Sent by his brother \(set up in chapter 6, owed by chapter 20\)/,
+    'the promise, where it was made, and when it is owed');
+  assert.match(b.text, /- The debt to Marek$/m, 'and one with neither is still a line');
+  // The whole reason strings are writer-facing until summoned: a model handed an unresolved
+  // promise reaches for it, and paying it off is the writer's move.
+  assert.match(b.text, /do not resolve one unless the writer asks/,
+    'it is told what is owed, not told to pay it');
+  assert.strictEqual(b.reason, '2 summoned');
+
+  // It sits with canon, before the summaries — near what is true, not near the instructions.
+  const m = buildContext({ ...base(), strings: [{ title: 'x' }] } as any, count);
+  const idx = m.blocks.map((x) => ORDER.indexOf(x.kind));
+  assert.deepStrictEqual(idx, [...idx].sort((a, z) => a - z), 'and it does not break the order');
+});
+
 ok('a 120-chapter book forgets its distant past, in one piece, and acts get it back', () => {
   const long = () => {
     const i = base();

@@ -71,6 +71,10 @@ export function view(storyId: string, focusChapterId?: string) {
       id: v.id, passageId: v.passage_id, entryId: v.entry_id, quote: v.quote,
       reason: v.reason, confidence: v.confidence, reached: v.reached !== 0,
     })),
+    strings: db.stringsOf(storyId).map((x: any) => ({
+      id: x.id, title: x.title, body: x.body ?? '', fromChapter: x.from_chapter,
+      owedBy: x.owed_by, status: x.status, summoned: !!x.summoned,
+    })),
     proposals: db.proposalsOf(storyId).map((p: any) => ({
       id: p.id, entryId: p.entry_id, title: p.title, body: p.body, entryType: p.entry_type,
       keys: JSON.parse(p.keys || '[]'), kind: p.kind, delta: p.delta, chapterId: p.chapter_id,
@@ -130,6 +134,9 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     story: v.story as any, chapters: v.chapters, passages, arcs: v.arcs,
     entries: v.entries.map((e) => ({ ...e, body: entryText(e) })),
     mode: mode as any, directive, speaker, currentChapter: v.currentChapter,
+    // Only the summoned ones, and the filter is here rather than in the engine so buildContext
+    // never has to know what a string's status means.
+    strings: (v as any).strings?.filter((x: any) => x.summoned && x.status === 'open') ?? [],
     // Pins are per chapter, so only this chapter's apply.
     pins: Object.fromEntries((v.pins ?? [])
       .filter((p: any) => p.chapterId === v.currentChapter.id)

@@ -248,6 +248,36 @@ ok('ending a chapter is both writes or neither', () => {
   db.delStory(s10.id);
 });
 
+ok('a string is not an entry, and only a summoned one reaches the prompt', () => {
+  const s11 = db.createStory(o, { title: 'Owed' });
+  const id = db.upsertString(s11.id, { title: 'The letter', body: 'Unopened', fromChapter: 6, owedBy: 20 });
+  assert.ok(id);
+  // NOT in the ledger. An entry resolves by keyword and is sent as canon; a string stays true
+  // while nobody says it, which is the opposite rule.
+  assert.strictEqual(db.entriesOf(s11.id).length, 0, 'a string is not an entry');
+  let x = db.stringsOf(s11.id)[0];
+  assert.strictEqual(x.status, 'open');
+  assert.strictEqual(x.summoned, 0, 'and it starts out of play — writer-facing until summoned');
+
+  // Summoning is what puts it in the prompt, and story.ts is where that filter lives.
+  db.upsertString(s11.id, { ...x, id: x.id, summoned: true });
+  const v = story.view(s11.id)!;
+  assert.strictEqual((v as any).strings[0].summoned, true, 'the view carries it');
+  const { manifest } = story.assemble(v, { global: 100096, slots: 4, perSlot: 25024 }, 'direct');
+  assert.ok(manifest.blocks.some((b) => b.kind === 'STRING'), 'and summoned, it reaches the prompt');
+
+  // Paid is out of play whatever the flag says: a paid promise the model is still told about is
+  // an instruction to pay it twice.
+  db.upsertString(s11.id, { ...x, id: x.id, summoned: true, status: 'paid' });
+  const paid = story.assemble(story.view(s11.id)!, { global: 100096, slots: 4, perSlot: 25024 }, 'direct');
+  assert.ok(!paid.manifest.blocks.some((b) => b.kind === 'STRING'),
+    'a paid string does not reach the prompt even while its summoned flag is set');
+
+  db.delString(s11.id, x.id);
+  assert.strictEqual(db.stringsOf(s11.id).length, 0);
+  db.delStory(s11.id);
+});
+
 ok('the sweep removes orphans and anything under the confidence floor', () => {
   const s5 = db.createStory(o, { title: 'S' });
   const pid = db.addPassage({ ...s5, storyId: s5.id, body: 'x' });

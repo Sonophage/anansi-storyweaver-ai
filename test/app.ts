@@ -221,7 +221,7 @@ assert.match(html('sideBody'), /Threads, always on/, 'the canon row is named for
 assert.doesNotMatch(html('sideBody'), /CANON-ALWAYS|>SPINE</, 'no engine kind reaches the panel');
 // The destinations the goblock handler actually knows. 'story' typo'd to 'stroy' would render a
 // row that silently closes the panel instead of opening anything.
-const dests = new Set(['story', 'traj', 'doc', 'canon']);
+const dests = new Set(['story', 'traj', 'doc', 'canon', 'strings']);
 for (const [kind, [label, dest]] of Object.entries(BLOCK_ORIGIN)) {
   assert.ok(dests.has(dest), `${kind} points at ${dest}, which no panel answers to`);
   assert.ok(label && !/^[A-Z-]+$/.test(label), `${kind}'s label is still engine-speak: ${label}`);

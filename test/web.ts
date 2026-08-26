@@ -118,8 +118,9 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     return [...body.matchAll(/\['([a-z]+)',/g)].map((m) => m[1]);
   };
   const snav = navRows('SNAV'), wnav = navRows('WNAV');
-  assert.deepStrictEqual(snav, ['story', 'chapter', 'threads', 'context', 'search', 'teller', 'anansi'],
-    'the panels, in the order Seth asked for, with Anansi appended rather than slotted in');
+  assert.deepStrictEqual(snav,
+    ['story', 'chapter', 'threads', 'context', 'search', 'teller', 'anansi', 'strings'],
+    'the panels, in the order Seth asked for, with each addition appended rather than slotted in');
 
   // Opened by clicking a thing rather than by a nav row. Each is asserted to have a real opener,
   // so this list cannot become a dumping ground for panels nothing reaches.

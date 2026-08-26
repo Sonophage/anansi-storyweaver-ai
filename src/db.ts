@@ -186,6 +186,17 @@ CREATE TABLE IF NOT EXISTS entry_revisions (
   field TEXT NOT NULL, previous_value TEXT, replaced_at INTEGER NOT NULL, replaced_by TEXT);
 CREATE INDEX IF NOT EXISTS entry_rev_e ON entry_revisions(entry_id, replaced_at);
 
+CREATE TABLE IF NOT EXISTS strings (
+  id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  body TEXT,                               -- what was promised, in the writer's words
+  from_chapter INTEGER,                    -- where the promise was made
+  owed_by INTEGER,                         -- the chapter it should be paid by, if there is one
+  status TEXT DEFAULT 'open',              -- open | paid | dropped
+  summoned INTEGER DEFAULT 0,              -- only a summoned string reaches the prompt
+  created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS strings_s ON strings(story_id, status);
+
 CREATE TABLE IF NOT EXISTS proposals (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   chapter_id TEXT, entry_id TEXT,          -- set when this proposes a change to an existing entry
@@ -507,6 +518,40 @@ export function setPrompt(owner: string, key: string, text: string) {
 export const promptsOf = (owner: string): Record<string, string> =>
   Object.fromEntries((q('SELECT key, text FROM prompt_overrides WHERE owner_id = ?').all(owner) as any[])
     .map((r) => [r.key, r.text]));
+
+/** Strings: the promises a story has made and not paid.
+ *
+ *  Deliberately NOT an entry. An entry resolves by keyword and is sent as canon; a string's whole
+ *  point is that it stays true while nobody says it — the letter nobody has mentioned for fourteen
+ *  chapters is the one most worth remembering. Bolting it onto entries would drop a promise out of
+ *  the book exactly when it had been forgotten longest, which is backwards.
+ */
+export function upsertString(storyId: string, v: any) {
+  const id = v.id && (q('SELECT 1 FROM strings WHERE id = ? AND story_id = ?').get(v.id, storyId))
+    ? v.id : null;
+  if (id) {
+    q(`UPDATE strings SET title=?, body=?, from_chapter=?, owed_by=?, status=?, summoned=?
+       WHERE id=? AND story_id=?`)
+      .run(v.title ?? 'Untitled', v.body ?? '', v.fromChapter ?? null, v.owedBy ?? null,
+        v.status ?? 'open', v.summoned ? 1 : 0, id, storyId);
+    touch(storyId);
+    return id;
+  }
+  const made = uid('st-');
+  q(`INSERT INTO strings (id,story_id,title,body,from_chapter,owed_by,status,summoned,created_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(made, storyId, v.title ?? 'Untitled', v.body ?? '', v.fromChapter ?? null,
+      v.owedBy ?? null, v.status ?? 'open', v.summoned ? 1 : 0, now());
+  touch(storyId);
+  return made;
+}
+
+export const stringsOf = (storyId: string) => q(
+  'SELECT * FROM strings WHERE story_id = ? ORDER BY status = \'open\' DESC, from_chapter, created_at')
+  .all(storyId) as any[];
+
+export const delString = (storyId: string, id: string) =>
+  q('DELETE FROM strings WHERE id = ? AND story_id = ?').run(id, storyId);
 
 export function upsertEntry(storyId: string, o: string, e: any) {
   const t = now();

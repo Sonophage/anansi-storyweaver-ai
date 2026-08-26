@@ -20,7 +20,7 @@ console.log("  rail: " + nav);
 // Seth's stated order — story/chapter/threads/context/search/storyteller — with Anansi APPENDED
 // rather than slotted in, so that order still reads exactly as he wrote it.
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'story,chapter,threads,context,search,teller,anansi');
+   nav === 'story,chapter,threads,context,search,teller,anansi,strings');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 
@@ -405,5 +405,45 @@ if (btn) {
   ok("  and with nothing summarised it says so instead of offering a button that would fail",
      /Two summarised chapters/.test(acts));
 }
+
+// ---- 16. strings: what the story owes, and what the model is told about it
+// Writer-facing until summoned, because a model handed an unresolved promise reaches for it.
+await page.goto(B + "/#" + sid3 + "/strings");
+await wait(900);
+ok("Strings is a panel of its own", /string is something the story has promised/i.test(await page.text('#sideBody') || ''));
+await page.eval(`(() => {
+  document.querySelector('[data-st2="title"]').value = 'The letter he has not opened';
+  document.querySelector('[data-st2="body"]').value = 'Sent by his brother';
+  return 1; })()`);
+await page.click('[data-newstring="1"]');
+await wait(900);
+const one = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid3 + "')).json()).strings)()");
+ok(`tying one stores it (${one.length})`, one.length === 1 && one[0].title === 'The letter he has not opened');
+ok("  and it starts OUT of play", one[0].summoned === false);
+
+const promptOf = () => page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+  + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid3 + "',mode:'continue'})})).json();"
+  + " return r.prompt; })()");
+ok("  and the model is not told about it", !/has not opened/.test(await promptOf()));
+
+await page.click(`[data-summon="${one[0].id}"]`);
+await wait(900);
+const summoned = await promptOf();
+ok("putting it in play is what sends it", /has not opened/.test(summoned));
+ok("  told what is owed, not told to pay it", /do not resolve one unless the writer asks/.test(summoned));
+
+// Putting it away again is the other half of the toggle, and nothing tested it until a
+// falsification that made summon one-way passed.
+await page.click(`[data-summon="${one[0].id}"]`);
+await wait(900);
+ok("putting it away stops sending it", !/has not opened/.test(await promptOf()));
+await page.click(`[data-summon="${one[0].id}"]`);
+await wait(900);
+
+// Paying it off takes it out of play: a paid promise still in the prompt is an instruction to
+// pay it twice.
+await page.click(`[data-stringstatus="${one[0].id}:paid"]`);
+await wait(900);
+ok("marking it paid takes it out of the prompt", !/has not opened/.test(await promptOf()));
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

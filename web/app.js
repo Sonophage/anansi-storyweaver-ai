@@ -57,11 +57,14 @@ const POV = ['first person, present tense', 'first person, past tense',
 //   threads   every thread in this story — characters, lore, items, rules. One word for one
 //             thing: DECISIONS 6. 'Canon' stays the ENGINE's word, and shows only in Context.
 //   context   what the model is about to be sent, and why
+//   strings   promises the story has made and not paid. APPENDED, not slotted in beside Threads
+//             where it arguably belongs: the order above is the one Seth asked for, and Anansi set
+//             the precedent that a new panel goes on the end rather than rearranging it.
 const SNAV = [
   ['story', '⚙', 'Story'], ['chapter', '❧', 'Chapter'],
   ['threads', '☙', 'Threads'], ['context', '◈', 'Context'],
   ['search', '⌕', 'Search'], ['teller', '◐', 'Storyteller'],
-  ['anansi', '✻', 'Anansi'],
+  ['anansi', '✻', 'Anansi'], ['strings', '⟡', 'Strings'],
 ];
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
@@ -98,6 +101,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
+  'newstring', 'savestring', 'delstring', 'summon', 'stringstatus',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
@@ -838,6 +842,63 @@ const PANELS = {
           ? '<div class="hint" style="margin:0">Web search is off. It makes the only outbound request this app can make, so it stays off until <code>ANANSI_SEARCH</code> names a service you trust.</div>'
           : ''}
       </div>
+    </div>`;
+  },
+
+  /** The promises this story has made and not paid.
+   *
+   *  Writer-facing by default: a string only reaches the model when it is SUMMONED, because a
+   *  model handed an unresolved promise reaches for it, and paying it off is the writer's move.
+   *  F20 is the precedent — restating canon near the generation point measured at nothing over 850
+   *  generations an arm, and a standing list of open promises is that idea in a new coat. */
+  strings() {
+    const all = V.strings ?? [];
+    const open = all.filter((x) => x.status === 'open');
+    const done = all.filter((x) => x.status !== 'open');
+    const here = V.currentChapter.index;
+    const row = (x) => {
+      const since = x.fromChapter ? here - x.fromChapter : null;
+      const late = x.owedBy != null && here > x.owedBy;
+      return `<div class="card" style="margin-bottom:8px; gap:6px; border-color:${
+        x.summoned ? 'rgba(217,178,106,.42)' : late ? 'var(--bad)' : 'var(--chip)'}">
+        <div style="display:flex; align-items:baseline; gap:9px">
+          <span class="kind">${esc(x.title)}</span>
+          ${x.summoned ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">in play</span>' : ''}
+          <span style="margin-left:auto; font-size:11px; color:${late ? 'var(--bad)' : 'var(--faint)'}">${
+            x.status !== 'open' ? esc(x.status)
+            : late ? `owed by ${x.owedBy}, and it is chapter ${here}`
+            : since != null ? `${since === 0 ? 'set up this chapter' : `${since} ${since === 1 ? 'chapter' : 'chapters'} ago`}`
+            : ''}</span></div>
+        ${x.body ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(x.body)}</div>` : ''}
+        <div style="display:flex; gap:6px; flex-wrap:wrap">
+          <button class="btn ghost" data-summon="${x.id}" style="width:auto; padding:0 12px; height:30px; font-size:10.5px">${
+            x.summoned ? 'Put it away' : 'Put it in play'}</button>
+          ${x.status === 'open'
+            ? `<button class="btn ghost" data-stringstatus="${x.id}:paid" style="width:auto; padding:0 12px; height:30px; font-size:10.5px">Paid off</button>
+               <button class="btn ghost" data-stringstatus="${x.id}:dropped" style="width:auto; padding:0 12px; height:30px; font-size:10.5px">Let it go</button>`
+            : `<button class="btn ghost" data-stringstatus="${x.id}:open" style="width:auto; padding:0 12px; height:30px; font-size:10.5px">Still open</button>`}
+          <button data-delstring="${x.id}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button>
+        </div></div>`;
+    };
+    return `<div style="display:flex; flex-direction:column">
+      <div class="hint" style="margin:0 0 12px">A string is something the story has promised and not
+        paid &mdash; the letter nobody has opened, the debt nobody has called in. It is yours to see,
+        not the model's, until you <strong>put one in play</strong>: only then does it reach the
+        prompt, and even then it is told what is owed rather than told to pay it.</div>
+      ${open.length ? open.map(row).join('') : '<div class="hint" style="margin:0">Nothing owed yet.</div>'}
+      ${done.length ? `<div class="lbl" style="letter-spacing:.26em; margin-top:22px">Tied off</div>
+        ${done.map(row).join('')}` : ''}
+      <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Tie a new one</div>
+      <input class="field" data-st2="title" placeholder="The letter he has not opened">
+      <textarea class="field" data-st2="body" placeholder="What was promised, and to whom"
+        style="min-height:52px; margin-top:6px"></textarea>
+      <div style="display:flex; gap:6px; margin-top:6px">
+        <input class="field" data-st2="fromChapter" value="${here}" placeholder="From chapter" style="flex:1">
+        <input class="field" data-st2="owedBy" placeholder="Owed by chapter" style="flex:1">
+      </div>
+      <button class="btn" data-newstring="1" style="margin-top:8px">Tie it</button>
+      <div class="hint">Anansi proposes these too &mdash; they arrive in the queue under Chapter with
+        everything else it offers.</div>
     </div>`;
   },
 
@@ -1952,6 +2013,38 @@ document.addEventListener('click', async (e) => {
     syncHash(); paint();
     return;
   }
+  if (d.newstring) {
+    const get = (f) => document.querySelector(`[data-st2="${f}"]`)?.value?.trim();
+    if (!get('title')) return toast('A string needs something to call it.');
+    const r = await api.saveString(S.storyId, { title: get('title'), body: get('body'),
+      fromChapter: Number(get('fromChapter')) || null, owedBy: Number(get('owedBy')) || null });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId, V.currentChapter.id); paint();
+    return toast('Tied. It is yours until you put it in play.');
+  }
+  if (d.summon) {
+    const x = (V.strings ?? []).find((s2) => s2.id === d.summon);
+    const r = await api.saveString(S.storyId, { ...x, summoned: !x?.summoned });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
+    return toast(x?.summoned ? 'Put away. The model stops being told about it.'
+                             : 'In play. It reaches the prompt from the next call.');
+  }
+  if (d.stringstatus) {
+    const [id, status] = String(d.stringstatus).split(':');
+    const x = (V.strings ?? []).find((s2) => s2.id === id);
+    // Paying one off takes it out of play as well: a paid promise the model is still told about is
+    // an instruction to pay it twice.
+    const r = await api.saveString(S.storyId, { ...x, status, summoned: status === 'open' && x?.summoned });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
+  }
+  if (d.delstring) {
+    const r = await api.delString(S.storyId, d.delstring);
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
+  }
+
   if (d.rollup) {
     const [from, to] = String(d.rollup).split(':').map(Number);
     S.busy = true; paint(); working('direct');
@@ -2314,6 +2407,7 @@ document.addEventListener('click', async (e) => {
     if (kind === 'entry' && id) { S.entryId = id; S.panel = 'entry'; }
     else if (kind === 'traj') S.panel = 'chapter';
     else if (kind === 'threads') { S.entryId = null; S.panel = 'threads'; }
+    else if (kind === 'strings') S.panel = 'strings';
     else if (kind === 'story') S.panel = 'story';
     else { S.panel = null; }
     syncHash(); paint(); return;

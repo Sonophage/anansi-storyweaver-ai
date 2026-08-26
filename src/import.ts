@@ -67,6 +67,8 @@ export function fromExport(file: string): Incoming {
       story: { title: story.title, genre: story.genre, premise: story.premise, setting: story.setting,
         pov: story.pov, persona: story.persona, writingStyle: story.writing_style,
         direction: story.direction, spice: story.spice,
+        // ponytail: strings do not survive a round trip yet — they are a new table and this list
+        // is written by hand, which is the same defect this comment already records once.
         // Whitelisted by hand, so anything not named here is lost silently on a round trip. The
         // list is now every column the writer can set: a custom register, a raised context cap and
         // a named model used to vanish on an export and re-import with nothing saying so.

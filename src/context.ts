@@ -54,6 +54,9 @@ export interface Input {
   // without being told whose line it is.
   speaker?: string;
   pins?: Record<string, 'force_in' | 'force_out'>;   // per-chapter overrides, SPEC §7.4 step 7
+  /** A promise the story has made and not paid, and that the writer has put in play. Already
+   *  filtered to summoned-and-open by story.ts — the engine does not know what a status means. */
+  strings?: { title: string; body?: string; fromChapter?: number | null; owedBy?: number | null }[];
   // The writer's own wording for a mode, replacing the shipped one outright. Arrives HERE rather
   // than being read from a table down in the engine, because buildContext is pure below the line
   // in story.ts and this is a flag like any other.
@@ -401,6 +404,24 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // EARLIER — every summary except the chapters still whole in PROSE, or the recent
   // chapter appears twice: a lossy summary beside the lossless prose it summarizes.
   const wholeFrom = currentChapter.index - 2;
+
+  // STRINGS. Only what the writer summoned, and phrased as a standing obligation rather than an
+  // instruction: the model is being told what is owed, not told to pay it. "Do not resolve" is
+  // there because a model handed an unresolved promise reaches for it — which is the writer's move
+  // and the reason strings are writer-facing until summoned.
+  const strings = (input.strings ?? []).filter((x) => x.title?.trim());
+  if (strings.length) {
+    add('STRING', 'strings',
+      'Unpaid, and in play. Let them shape what the characters want and avoid; do not resolve one '
+      + 'unless the writer asks for it.\n'
+      + strings.map((x) => {
+        const made = x.fromChapter ? `set up in chapter ${x.fromChapter}` : '';
+        const owed = x.owedBy ? `owed by chapter ${x.owedBy}` : '';
+        const when = [made, owed].filter(Boolean).join(', ');
+        return `- ${x.title.trim()}${x.body?.trim() ? `: ${x.body.trim()}` : ''}${when ? ` (${when})` : ''}`;
+      }).join('\n'),
+      `${strings.length} summoned`);
+  }
 
   // Arcs first: an act-level summary replaces the chapters it covers rather than joining
   // them. Without this tier EARLIER grows linearly with the book and eventually crowds out

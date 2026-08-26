@@ -6,7 +6,7 @@
 // If canon renders as one concatenated block, P6 re-granularizes the renderer.
 
 export type Kind =
-  | 'SPINE' | 'VOICE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED'
+  | 'SPINE' | 'VOICE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED' | 'STRING'
   | 'EARLIER' | 'PROSE' | 'DIRECTIVE' | 'TAIL' | 'MODE';
 
 // LORE and RECALL were declared here, ordered, tagged and ranked for eviction, and nothing ever
@@ -17,8 +17,12 @@ export type Kind =
 // VOICE sits high, next to SPINE, and deliberately far from TAIL: it is the only block holding
 // prose that is NOT this story, and a long sample next to the sentence being continued is a
 // sample the model continues instead.
+// STRING sits with canon rather than near the end, and only SUMMONED strings ever get here. A
+// string is a promise the story has made and not paid — the letter unopened in chapter 6 — and it
+// is writer-facing by default precisely because a model told about an unresolved promise tends to
+// resolve it, which is the writer's move. Summoning one is the writer saying "this is in play now".
 export const ORDER: Kind[] = [
-  'SPINE', 'VOICE', 'CANON-ALWAYS', 'CANON-TRIGGERED',
+  'SPINE', 'VOICE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'STRING',
   'EARLIER', 'PROSE', 'DIRECTIVE', 'TAIL', 'MODE',
 ];
 // CANON-REPEAT lived here between DIRECTIVE and TAIL from F15 until F20 measured it at 850

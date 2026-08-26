@@ -77,7 +77,8 @@ export const modelName = (id) => {
 // Block colours are shared so the meter reads the same on both surfaces.
 export const BLOCK_COLOR = {
   SPINE: '#D9B26A', 'CANON-ALWAYS': '#7FB083', 'CANON-TRIGGERED': '#9A8B62',
-  EARLIER: '#8A7BA8', PROSE: '#6E8AA0', TAIL: '#5E7A8E', DIRECTIVE: '#C99356', MODE: '#635E56',
+  STRING: '#B07C9E', EARLIER: '#8A7BA8', PROSE: '#6E8AA0', TAIL: '#5E7A8E',
+  DIRECTIVE: '#C99356', MODE: '#635E56',
 };
 
 // Every Context row is a way back to the thing that made it, so the row is named for what that
@@ -91,6 +92,7 @@ export const BLOCK_ORIGIN = {
   VOICE:             ['Voice of the weave',      'story'],
   'CANON-ALWAYS':    ['Threads, always on',      'canon'],
   'CANON-TRIGGERED': ['Threads, on a keyword',   'canon'],
+  STRING:            ['Strings you summoned',    'strings'],
   EARLIER:           ['Summaries in context',    'traj'],
   PROSE:             ['The prose above',         'doc'],
   DIRECTIVE:         ['Point of view & register', 'story'],
