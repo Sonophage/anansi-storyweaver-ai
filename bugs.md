@@ -1,11 +1,27 @@
-# Bugs — walkthrough round four, 2026-08-25
+# Bugs — walkthrough round five, 2026-08-26
 
 Empty on purpose. Write under the heading that matches where you were in `checklist.md`, in
 whatever form you like. Anything that does not fit a heading goes at the bottom.
 
-Nothing is carried over. Round three's answers are in the commit before this one, and every item
-in them is built or has a finding saying why not. What I already know about is in `checklist.md`
-under **Still open** and under the four decisions — you do not need to re-report those.
+Round four's report is in the commit history and every line of it is either built, queued under
+**Still open → Queued from round four**, or waiting on an answer from you. You do not need to
+re-report any of it.
+
+**A to D are new. 1 to 12 are the sections round four never reached** — built, and still unwalked.
+
+---
+
+## A · Two writers, and the door
+
+
+## B · The look — fonts, sizes, and a second scale
+
+
+## C · The shelf — archive, and genre as tags
+
+
+## D · Sampling, in words
+
 
 ---
 

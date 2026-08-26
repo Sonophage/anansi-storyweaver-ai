@@ -16,6 +16,14 @@ export const MODES = [
 
 export const KINDS = ['character', 'lore', 'item', 'rule'];
 
+/** The shelf order: archived books last, everything else left where listStories put it.
+ *
+ *  A stable partition rather than a sort key, because the server already ordered by updated_at and
+ *  the only thing archiving changes is "not first". Here rather than in app.js so it can be tested:
+ *  an archived book taking the hero slot is the bug, and the hero is `[0]` of this. */
+export const shelfOrder = (list) => [...(list ?? [])].sort((a, b) =>
+  (a?.status === 'archived' ? 1 : 0) - (b?.status === 'archived' ? 1 : 0));
+
 // The labels on the dropdown. They name where the camera stops, because that is what the level
 // IS — the lines these stand for are in src/context.ts and they say the same thing at length.
 export const SPICE = [

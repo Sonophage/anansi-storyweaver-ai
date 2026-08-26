@@ -211,7 +211,7 @@ await wait(800);
 await page.eval("(() => { document.querySelector('[data-appearance=\"1\"]')?.click(); return 1; })()");
 await wait(400);
 const tabs = await page.eval("[...document.querySelectorAll('[data-looktab]')].map(b => b.dataset.looktab).join(',')");
-ok(`the Aa menu splits into tabs (${tabs})`, tabs === 'theme,font,size');
+ok(`the Aa menu splits into tabs (${tabs})`, tabs === 'theme,font,size,scale');
 ok("  showing the themes first", (await page.eval("document.querySelectorAll('[data-theme]').length")) === 9);
 ok("  and only the themes — not the fonts and sizes as well",
    (await page.eval("document.querySelectorAll('[data-fontpick]').length")) === 0
@@ -224,13 +224,31 @@ ok(`  each theme's swatch carries its accent (${new Set(swatches).size} distinct
    new Set(swatches).size === swatches.length);
 await page.eval("(() => { document.querySelector('[data-looktab=\"font\"]').click(); return 1; })()");
 await wait(300);
-ok("  switching to Font shows the fonts and hides the themes",
-   (await page.eval("document.querySelectorAll('[data-fontpick]').length")) === 2
+ok("  switching to Font shows the six fonts and hides the themes",
+   (await page.eval("document.querySelectorAll('[data-fontpick]').length")) === 6
    && (await page.eval("document.querySelectorAll('[data-theme]').length")) === 0);
+// Four of the six are system stacks, which is the whole reason there can be six: the two web faces
+// are the only network this page touches, and the list must not have deepened that.
+ok("  and the four added ones are system faces, not new downloads",
+   (await page.eval("(() => { const want = ['book','garamond','system','mono'];"
+     + " return want.every(k => document.querySelector(`[data-fontpick=\"${k}\"]`)); })()")) === true);
 await page.eval("(() => { document.querySelector('[data-looktab=\"size\"]').click(); return 1; })()");
 await wait(300);
-ok("  and Size shows the three sizes",
-   (await page.eval("document.querySelectorAll('[data-sizepick]').length")) === 3);
+ok("  and Size shows the five reading sizes",
+   (await page.eval("document.querySelectorAll('[data-sizepick]').length")) === 5);
+// UI scale is a SEPARATE axis from reading size, so the tab has to be its own and show its own
+// options — the bug to catch is one tab rendering both lists.
+await page.eval("(() => { document.querySelector('[data-looktab=\"scale\"]').click(); return 1; })()");
+await wait(300);
+ok("  and UI is its own tab with four scales and no sizes on it",
+   (await page.eval("document.querySelectorAll('[data-scalepick]').length")) === 4
+   && (await page.eval("document.querySelectorAll('[data-sizepick]').length")) === 0);
+// It has to reach the document, or it is a chip that lights up and moves nothing.
+await page.eval("(() => { document.querySelector('[data-scalepick=\"125\"]').click(); return 1; })()");
+await wait(300);
+ok("  and picking one lands on <html> where the CSS can see it",
+   (await page.eval("document.documentElement.dataset.uiScale")) === '125');
+await page.eval("(() => { document.querySelector('[data-scalepick=\"100\"]').click(); return 1; })()");
 await page.eval("(() => { document.querySelector('[data-appearance=\"0\"]')?.click(); return 1; })()");
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

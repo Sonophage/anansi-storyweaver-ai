@@ -142,8 +142,18 @@ ok("  and the panel is still History, not something else",
   // BY NAME, not by position. Taking the first two of /api/stories picked up a "Probe Card" that
   // an earlier step in this same scenario imports — the library is ordered by last touched — so
   // the race ran against whatever the previous assertions had left lying around.
-  const two = await page.eval("(async () => { const r = await (await fetch('/api/stories')).json();"
-    + " const want = ['The Silver Key', 'The Gilded Cage of Reason'];"
+  // The second title used to be a book that existed in the author's real library and in no seed,
+  // so the lookup returned null, the guard below fired, and the race this scenario exists for never
+  // ran once. It creates its own second book now.
+  const two = await page.eval("(async () => {"
+    + " const want = ['The Silver Key', 'A Second Book To Race'];"
+    + " let r = await (await fetch('/api/stories')).json();"
+    + " if (!r.stories.find(s => s.title === want[1])) {"
+    + "   await fetch('/api/stories', { method: 'POST',"
+    + "     headers: { 'Content-Type': 'application/json' },"
+    + "     body: JSON.stringify({ title: want[1], premise: 'For the race.' }) });"
+    + "   r = await (await fetch('/api/stories')).json();"
+    + " }"
     + " return JSON.stringify(want.map(t => r.stories.find(s => s.title === t) ?? null)"
     + "   .map(s => s && ({ id: s.id, title: s.title }))); })()");
   const [slow, fast] = JSON.parse(two);   // `B` is the base URL in this file — do not shadow it

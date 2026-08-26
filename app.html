@@ -56,13 +56,27 @@
    hand-written blocks lived here and that is exactly why there were three: each new theme meant
    restating the greys, the gold and the chrome by hand, and the light one that forgot rendered
    dark text on cream. Rules that are NOT colours still key on data-ui-theme, below. */
+html[data-ui-size="xs"] { --prose:16px; --bubble:14.5px; --gap:22px; --col:620px; }
 html[data-ui-size="s"] { --prose:18px; --bubble:16px; --gap:26px; --col:660px; }
 html[data-ui-size="m"] { --prose:20px; --bubble:17px; --gap:30px; --col:720px; }
 html[data-ui-size="l"] { --prose:23px; --bubble:19px; --gap:34px; --col:780px; }
+html[data-ui-size="xl"] { --prose:26px; --bubble:21px; --gap:38px; --col:840px; }
+
+/* UI scale, which is a different axis from reading size: that one moves the prose, this one moves
+   the chrome around it — rail, panels, labels, buttons.
+   ponytail: `zoom` on the body, not a rem refactor. The stylesheet is px throughout, so a root
+   font-size would move nothing; zoom moves everything including the px. Ceiling: it can nudge
+   fixed-position elements and anything sized in viewport units. If that shows up, the upgrade is
+   converting the chrome to rem and dropping this. */
+html[data-ui-scale="90"]  body { zoom:0.90; }
+html[data-ui-scale="110"] body { zoom:1.10; }
+html[data-ui-scale="125"] body { zoom:1.25; }
 @media (max-width:719px) {
+  html[data-ui-size="xs"] { --prose:14.5px; --bubble:13.5px; --gap:16px; }
   html[data-ui-size="s"] { --prose:16px; --bubble:14.5px; --gap:18px; }
   html[data-ui-size="m"] { --prose:17.5px; --bubble:15.5px; --gap:22px; }
   html[data-ui-size="l"] { --prose:19.5px; --bubble:17px; --gap:26px; }
+  html[data-ui-size="xl"] { --prose:22px; --bubble:18.5px; --gap:30px; }
 }
 
 * { box-sizing:border-box; }
@@ -306,6 +320,13 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 .narr { font-size:var(--prose); line-height:1.7; color:var(--narr); text-wrap:pretty; white-space:pre-wrap; }
 html[data-ui-font="serif"] .narr { font-family:'Instrument Serif',Georgia,serif; font-style:italic; }
 html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-serif; font-style:normal; }
+/* The four below are SYSTEM stacks on purpose. The two above come from fonts.googleapis.com, which
+   is the only network this page touches; adding more families would deepen that for a local-first
+   app. These cost nothing and work with the wire unplugged. */
+html[data-ui-font="book"] .narr { font-family:'Iowan Old Style',Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif; font-style:normal; }
+html[data-ui-font="garamond"] .narr { font-family:Garamond,'EB Garamond','Apple Garamond',Baskerville,'Times New Roman',serif; font-style:normal; }
+html[data-ui-font="system"] .narr { font-family:system-ui,-apple-system,'Segoe UI',sans-serif; font-style:normal; }
+html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo,Consolas,monospace; font-style:normal; }
 .said { max-width:600px; font-size:var(--bubble); line-height:1.65; color:var(--body); text-wrap:pretty; white-space:pre-wrap; }
 .who { font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
 .block { position:relative; display:flex; flex-direction:column; gap:10px; }

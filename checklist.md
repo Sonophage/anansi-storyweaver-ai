@@ -1,22 +1,77 @@
-# Walk it yourself — round four, 2026-08-25
+# Walk it yourself — round five, 2026-08-26
 
-Round three is gone from this file: everything on it is built, and everything you wrote in
-`bugs.md` against it has been done or has a finding saying why not. What is below is the new work —
-your answers built, plus COUNCIL-04's list worked through to one remaining item — and what is still
-open underneath it.
+Two kinds of thing below. **A to D are new since round four** — the second seat, HTTPS, and the
+mechanical half of what you wrote in round four's `bugs.md`. **1 to 12 are unchanged**, because
+round four stopped at §5: sections 6 through 12 are built and still unwalked, so they are owed a
+first look rather than a re-check.
 
-Ten sections. The one I most want your eye on is **§1**: passages are shorter twice over now and
-that is a taste question no benchmark answers.
+What round four asked for and is NOT built yet is listed under **Still open → Queued from round
+four**. You do not need to re-report any of it.
 
-**Restart the server first.** Every round three bug report started with a server older than HEAD.
+**The server is a systemd unit now, so there is nothing to restart by hand** — and the URL changed,
+twice. Plain HTTP is gone and the certificate matches exactly one spelling of the name:
 
-```bash
-node --experimental-strip-types serve.ts     # http://127.0.0.1:5174
+```
+https://hestia.tempel-discus.ts.net:5174        the only URL that works
+systemctl --user status anansi                  it starts itself, and on boot
 ```
 
-You are on **Sutera Remembers**, chapter 2.
+`https://127.0.0.1:5174`, `https://hestia:5174` and the bare IP all fail on the certificate name.
+Your installed home-screen icon was installed from the old HTTP origin and needs replacing.
 
-Twenty minutes. Bugs go in `bugs.md`, under the matching heading.
+You are on **Sutera Remembers**, chapter 2 — the only book left after round four's walk.
+
+Bugs go in `bugs.md`, under the matching heading.
+
+---
+
+## A · Two writers, and the door
+
+- [ ] Open the app from the desk. It looks exactly as it did; nothing about identity is visible,
+      which is the intent.
+- [ ] **Kia opens `https://hestia.tempel-discus.ts.net:5174` on her phone.** She gets an empty
+      shelf and a New story button, and none of your books.
+- [ ] Her first request created her row. Nothing you do makes yours visible to her, and the
+      404 she would get is the same one a wrong story id gets — no hint that the book exists.
+- [ ] **Storyteller → Sampling, on both at once.** Move Surprise on the desk. Hers does not move.
+      It used to be one object for the whole server.
+- [ ] **Storyteller → Model.** Name a model on your story. Hers keeps whatever hers says. The
+      order is the story's model, then the writer's, then the box's.
+- [ ] **Preferences → the router.** Stop it from the desk: it stops. Ask Kia to try the same and
+      she is refused — *only the admin may stop or start the router*. Switching model is not
+      admin, on purpose.
+- [ ] Try the URL from a device on the house wifi that is **not** on the tailnet. `not a writer
+      here`, on the API and on the page itself.
+
+## B · The look — fonts, sizes, and a second scale
+
+- [ ] **Aa → Font.** Six now, not two. The last four are system faces and cost no download:
+      Iowan/Palatino, Garamond, System, Monospace.
+- [ ] **Aa → Size.** Five steps, XS to XL. This moves the prose and the column it sits in.
+- [ ] **Aa → UI.** A new tab and a different axis: it moves the rail, the panels and the buttons
+      and leaves the prose alone. Four steps.
+- [ ] Both survive a reload, and both survive on the phone.
+- [ ] Set UI to XL on the phone and read a chapter. Look for anything pinned to an edge that has
+      drifted — the header, the dock, the panel. That is the known ceiling of how it is done.
+
+## C · The shelf — archive, and genre as tags
+
+- [ ] **Story → Put it away → Archive this story.** It stays on the shelf, dimmed, and moves to
+      the end. Nothing is deleted and the prompt is unchanged.
+- [ ] An archived book **never takes the hero slot**, whatever it was last written in.
+- [ ] Press it again — *Take it off the shelf-end* — and it returns among the others in the order
+      you last wrote in it.
+- [ ] **Genre.** Type `noir / gothic and horror` into a story's genre and save. It comes back as
+      `noir, gothic, horror`, and the shelf draws three pills.
+- [ ] Type `dark fantasy, slow burn`. Two pills, not four — a space inside a tag is part of it.
+
+## D · Sampling, in words
+
+- [ ] **Storyteller → Sampling.** Temperature is **Surprise**, Top-p is **Focus**, Max tokens is
+      **Passage length**. Each says what it does to the prose rather than what it is called in a
+      paper.
+- [ ] The note above them no longer claims the sampler is shared with the whole server, because it
+      is not any more.
 
 ---
 
@@ -246,6 +301,41 @@ Rail → **⟡ Strings**, inside a story.
 
 **COUNCIL-04 is closed** — all eight findings and all seven of its smaller items. Nothing from the
 original review is outstanding. What is left is of three kinds.
+
+### Queued from round four, not built
+
+Everything you wrote in round four's `bugs.md` that is still owed. Do not re-report these.
+
+- **Anansi has a voice but no personality.** I would rather draft two or three distinct ones and
+  have you pick than guess at it.
+- **Invented content is too thin** — character, wardrobe, thread, story-from-scratch. Your framing
+  is the spec: a jumping-off point the model can write from without quoting it.
+- **Spark fills premise and voice of the weave too lightly** at story creation.
+- **Chapter information should be autofilled by the model and accepted by you**, on every new
+  chapter and not only the first.
+- **The setup wizard**: setting, point of view, who you are, spice and the model-never-writes
+  character all becoming guided steps, with character creation on that same screen instead of three.
+  A redesign of the creation flow, so it wants agreeing before it is built.
+- **The ⋯ menu should open centred over the content**, and a double tap or double click should
+  activate a paragraph. Plus a reading mode that swallows clicks — a toggle or automatic is your call.
+- **Threads linked to other threads**, and **entries exported to or imported from another story**.
+- **Web search through the pi browser tool** rather than another API. I do not know what that tool
+  is; if it answers over HTTP with JSON this may be config rather than code, because `ANANSI_SEARCH`
+  is already just a URL template with `{q}` in it.
+- **"Some touch events do nothing."** Not reproduced. The ⋯ actions are *not* hover-gated — there is
+  an explicit fix and a comment about it in `app.html` — so this is something else, and it needs one
+  example: which control, which device.
+
+### Already built, and round four could not find it
+
+Three of round four's asks exist end to end and were reported as missing. That makes discoverability
+the finding, not the features:
+
+- **A card's history, and revert.** `GET /api/history`, `db.entryHistory`, `revertField`, and
+  `app.js` already calls it for entries.
+- **Two tiers of recovery.** `passage_revisions` and `entry_revisions`, each revertable.
+- **Canon over time** — updating a lore card from a chapter onward. `entry_states`, `POST /api/state`,
+  and the state in force is resolved at assembly so chapter 3 cannot leak what chapter 7 established.
 
 ### Waiting on you, not on me
 

@@ -51,7 +51,8 @@ export const EXTRACT_SCHEMA = {
 export const SPARK =
 `Turn this idea into a story skeleton.
 
-Return: a title, a premise of two or three sentences, a genre, a setting, a point of view,
+Return: a title, a premise of two or three sentences, a genre as a comma-separated list of two
+or three tags, a setting, a point of view,
 a spice level from 1 to 5, one sentence of writing style in the writer's own voice, and
 between two and five characters with a name, a role, and a one-line description.
 

@@ -331,4 +331,19 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
 }
 }
 
+// Archiving is a status, and the whole of what it does is "not first, and last". The hero of the
+// shelf is [0] of shelfOrder, so an archived book taking the hero slot is the failure to catch.
+{
+  const { shelfOrder } = await import('../web/model.js');
+  const shelf = [{ id: 'a', status: 'archived' }, { id: 'b', status: 'in_progress' },
+                 { id: 'c', status: 'archived' }, { id: 'd', status: 'finished' }];
+  const out = shelfOrder(shelf).map((s: any) => s.id);
+  assert.deepStrictEqual(out, ['b', 'd', 'a', 'c'],
+    'archived sink to the end; the rest keep the order the server sent');
+  assert.notStrictEqual(shelfOrder(shelf)[0].status, 'archived',
+    'so an archived book can never take the hero slot');
+  assert.deepStrictEqual(shelfOrder([]).length, 0, 'and an empty shelf does not throw');
+  ok('archived books sort last and never become the hero of the shelf');
+}
+
 console.log(`\n${n} checks passed`);

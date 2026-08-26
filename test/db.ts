@@ -640,4 +640,27 @@ ok('a write lands in the chapter you are reading, in the right place', async () 
   assert.deepStrictEqual(db.passagesOf(st.id).map((p: any) => p.ordinal), [1, 2, 3, 4]);
 });
 
+ok('genre arrives comma-separated however it was punctuated, and a two-word tag survives', () => {
+  const { tidyGenre } = db;
+  assert.strictEqual(tidyGenre('noir, gothic, horror'), 'noir, gothic, horror', 'already tidy is left alone');
+  assert.strictEqual(tidyGenre('noir / gothic and horror'), 'noir, gothic, horror',
+    'slashes and a standalone "and" are separators too');
+  assert.strictEqual(tidyGenre('  noir ;  GOTHIC ,noir '), 'noir, GOTHIC',
+    'trimmed, and deduped case-insensitively on the first spelling');
+  // The one that matters: a space is NOT a separator, or every two-word genre becomes two.
+  assert.strictEqual(tidyGenre('dark fantasy, slow burn'), 'dark fantasy, slow burn',
+    'a space inside a tag is part of the tag');
+  assert.strictEqual(tidyGenre(null), '', 'nothing in, nothing out');
+
+  // Applied on the way IN, not left to whoever reads the row. Read back through listStories
+  // rather than trusting the return of createStory, which could be tidy while the row is not.
+  const o = db.owner('genre-test');
+  const made = db.createStory(o, { title: 'G', genre: 'noir / gothic and noir' });
+  const row = db.listStories(o).find((r: any) => r.id === made.id) as any;
+  assert.strictEqual(row.genre, 'noir, gothic', 'createStory stores the tidied form');
+  db.updateStory(made.id, { genre: 'horror;dark fantasy' });
+  const after = db.listStories(o).find((r: any) => r.id === made.id) as any;
+  assert.strictEqual(after.genre, 'horror, dark fantasy', 'and so does every save after it');
+});
+
 console.log(`\n${n} checks passed`);

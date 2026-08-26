@@ -3,7 +3,7 @@
 // sheet on a phone. Layout lives in app.html's CSS — this file decides state and content only,
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -13,10 +13,11 @@ const overlay = () => matchMedia('(max-width:1099px)').matches;
 // ---------- appearance, remembered per browser ----------
 // Wrapped because a private window throws on access rather than returning null.
 const LOOK = 'anansi.look';
-const look = { theme: 'obsidian', font: 'serif', size: 'm' };
+const look = { theme: 'obsidian', font: 'serif', size: 'm', scale: '100' };
 try { Object.assign(look, JSON.parse(localStorage.getItem(LOOK) || '{}')); } catch { /* no storage */ }
 function applyLook() {
   root.dataset.uiTheme = look.theme; root.dataset.uiFont = look.font; root.dataset.uiSize = look.size;
+  root.dataset.uiScale = look.scale ?? '100';
   // Every colour, derived from the theme's one row and written as custom properties. It replaced
   // three hand-written CSS blocks — which is why there were three themes and not nine, and why
   // the light one had to restate the greys and the gold by hand to avoid dark text on cream.
@@ -109,7 +110,7 @@ const WTITLES = {
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
 const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
-  'fontpick', 'sizepick', 'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
@@ -279,9 +280,14 @@ function drawAppearance() {
   if (!S.appearance) return;
   // From the table, so a theme added there appears here without a second list to keep in step.
   const themes = Object.entries(THEMES);
+  // The last four are system stacks, so the list does not add a font to download. See app.html.
   const fonts = [['serif', 'Instrument Serif', "'Instrument Serif',Georgia,serif"],
-                 ['sans', 'IBM Plex Sans', "'IBM Plex Sans',sans-serif"]];
-  const tabs = [['theme', 'Theme'], ['font', 'Font'], ['size', 'Size']];
+                 ['sans', 'IBM Plex Sans', "'IBM Plex Sans',sans-serif"],
+                 ['book', 'Iowan / Palatino', "'Iowan Old Style',Palatino,Georgia,serif"],
+                 ['garamond', 'Garamond', "Garamond,Baskerville,'Times New Roman',serif"],
+                 ['system', 'System', "system-ui,-apple-system,'Segoe UI',sans-serif"],
+                 ['mono', 'Monospace', "ui-monospace,Menlo,Consolas,monospace"]];
+  const tabs = [['theme', 'Theme'], ['font', 'Font'], ['size', 'Size'], ['scale', 'UI']];
   const tab = S.lookTab ?? 'theme';
 
   // THE SWATCH IS A DISC, HALF PAPER AND HALF ACCENT. Six of the nine themes are near-black —
@@ -308,9 +314,18 @@ function drawAppearance() {
     ? `<div style="display:flex; flex-direction:column; gap:7px">${fonts.map(([k, l, fam]) => `
         <button class="chip" data-fontpick="${k}" aria-pressed="${look.font === k}"
           style="font-family:${fam}; font-size:15px">${l}</button>`).join('')}</div>`
-    : `<div style="display:flex; gap:7px">${['s', 'm', 'l'].map((k) => `
-        <button class="chip" data-sizepick="${k}" aria-pressed="${look.size === k}"
-          style="flex:1; text-align:center; padding:9px 0; letter-spacing:.1em; font-size:12.5px">${k.toUpperCase()}</button>`).join('')}</div>`;
+    : tab === 'size'
+    ? `<div style="display:flex; flex-direction:column; gap:7px">
+        <div style="display:flex; gap:5px">${['xs', 's', 'm', 'l', 'xl'].map((k) => `
+          <button class="chip" data-sizepick="${k}" aria-pressed="${look.size === k}"
+            style="flex:1; text-align:center; padding:9px 0; letter-spacing:.08em; font-size:11.5px">${k.toUpperCase()}</button>`).join('')}</div>
+        <span class="hint" style="margin:0">The prose and the column it sits in.</span></div>`
+    // A separate axis: Size moves the prose, UI moves the chrome around it.
+    : `<div style="display:flex; flex-direction:column; gap:7px">
+        <div style="display:flex; gap:5px">${[['90', 'S'], ['100', 'M'], ['110', 'L'], ['125', 'XL']].map(([k, l]) => `
+          <button class="chip" data-scalepick="${k}" aria-pressed="${(look.scale ?? '100') === k}"
+            style="flex:1; text-align:center; padding:9px 0; letter-spacing:.08em; font-size:11.5px">${l}</button>`).join('')}</div>
+        <span class="hint" style="margin:0">The rail, the panels and the buttons. Leaves the prose alone.</span></div>`;
 
   el.innerHTML = `
     <div style="display:flex; align-items:center; gap:10px">
@@ -754,6 +769,13 @@ const PANELS = {
       <button class="btn ghost" data-exportdb="1" style="margin-top:7px">As a standalone database</button>
       <div class="hint">The database leaves as one file and comes back through Import. Markdown and
         JSON are for reading elsewhere.</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Put it away</div>
+      <button class="btn ghost" data-archive="${V.story.status === 'archived' ? 'in_progress' : 'archived'}">${
+        V.story.status === 'archived' ? 'Take it off the shelf-end' : 'Archive this story'}</button>
+      <div class="hint">${V.story.status === 'archived'
+        ? 'It goes back among the others, in the order you last wrote in it.'
+        : 'It stays on the shelf, dimmed and last. Nothing is deleted and nothing leaves the prompt.'}</div>
+
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--bad)">Danger</div>
       <button class="btn ghost" data-delstory="1" style="color:var(--bad)">${
         S.confirmDelete ? 'Press again to delete this story for good' : 'Delete this story'}</button>
@@ -1070,8 +1092,8 @@ const PANELS = {
         <span style="width:8px; height:8px; border-radius:50%; background:var(--warn); margin-top:5px; flex:0 0 auto"></span>
         <span style="flex:1; display:flex; flex-direction:column; gap:4px">
           <span style="font-size:13.5px; color:var(--ink)">These are shared, not per story</span>
-          <span class="hint" style="margin:0">The sampler is one object for the whole server, so changing
-            temperature here changes it for every story and every writer on this machine. The route
+          <span class="hint" style="margin:0">The sampler belongs to you, not to the server: changing
+            it here changes it for every story YOU write and leaves the other writer alone. The route
             takes a story id, which makes it look per-story; it is not. Per-story sampling needs
             PLAN-02's <code>engine_config</code>, which was never built.</span></span></div>
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Model</div>
@@ -1091,10 +1113,11 @@ const PANELS = {
             asleep costs a load on the first call.</div>`}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Sampling</div>
-      ${slider('Temperature', 'temperature', g.temperature ?? 0.85, 2,
-        'Prose only. Structured roles run pinned at 0.2 — a loose sampler under a tight grammar writes valid JSON that says nothing.')}
-      ${slider('Top-p', 'top_p', g.top_p ?? 0.95, 1, '')}
-      ${slider('Max tokens', 'max_tokens', g.max_tokens ?? 900, 2000,
+      ${slider('Surprise', 'temperature', g.temperature ?? 0.85, 2,
+        'How far the model will reach for a less obvious word. Prose only — structured roles run pinned at 0.2, because a loose sampler under a tight grammar writes valid JSON that says nothing.')}
+      ${slider('Focus', 'top_p', g.top_p ?? 0.95, 1,
+        'How much of the field it considers at all. Lower is tighter and more predictable.')}
+      ${slider('Passage length', 'max_tokens', g.max_tokens ?? 900, 2000,
         'The ceiling on one passage. Raising it costs prefill on every call.')}
       <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 0; border-top:1px solid rgba(255,255,255,.04)">
         <span style="width:8px; height:8px; border-radius:50%; background:var(--bad); margin-top:5px; flex:0 0 auto"></span>
@@ -1497,7 +1520,7 @@ function drawPage() {
   $('page').innerHTML = (WPAGES[S.wpage] ?? WPAGES.stories)();
 }
 
-const STATUS = { in_progress: 'Writing', draft: 'Draft', finished: 'Finished' };
+const STATUS = { in_progress: 'Writing', draft: 'Draft', finished: 'Finished', archived: 'Archived' };
 // The pill is the genre when there is one, because that is the tag worth seeing on a shelf;
 // status only shows when a story is finished or parked.
 function storyCard(s, i, hero) {
@@ -1506,7 +1529,9 @@ function storyCard(s, i, hero) {
   const tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
   const gold = !!tags.length || s.status === 'in_progress';
   if (!tags.length) tags.push(STATUS[s.status] || 'Writing');
-  return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}">
+  // Archived is dimmed rather than hidden: it is still your book and still one tap away.
+  return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}"
+    style="${s.status === 'archived' ? 'opacity:.42; filter:saturate(.5)' : ''}">
     <span class="art" style="display:block; height:${hero ? 190 : 130}px; background:${ART[i % ART.length]}">
       <span class="fade"></span>
       <span style="position:absolute; top:12px; left:14px; display:flex; gap:5px; flex-wrap:wrap;
@@ -1540,8 +1565,9 @@ const WPAGES = {
       <button class="btn" data-open="new" style="width:auto; padding:0 28px; height:48px; margin-top:16px">Create a story</button>
     </div></div>`;
     // listStories is ordered by updated_at, so the first row is the one written into last. It
-    // gets the hero; adding a story is the next thing on the page, then the rest.
-    const [hero, ...rest] = LIB;
+    // gets the hero; adding a story is the next thing on the page, then the rest. Archived books
+    // sink to the end first, so an archived book never takes the hero slot.
+    const [hero, ...rest] = shelfOrder(LIB);
     return `<div style="display:flex; flex-direction:column; gap:22px">
       ${storyCard(hero, 0, true)}
       <div class="grid">
@@ -2302,6 +2328,7 @@ document.addEventListener('click', async (e) => {
   if (d.theme) { look.theme = d.theme; applyLook(); drawAppearance(); return; }
   if (d.fontpick) { look.font = d.fontpick; applyLook(); drawAppearance(); return; }
   if (d.sizepick) { look.size = d.sizepick; applyLook(); drawAppearance(); return; }
+  if (d.scalepick) { look.scale = d.scalepick; applyLook(); drawAppearance(); return; }
 
   if (d.open === 'new') { S.place = 'workspace'; S.wpage = 'create'; paint(); return; }
   if (d.open) { await openStory(d.open); return; }
@@ -2590,6 +2617,15 @@ document.addEventListener('click', async (e) => {
   if (d.exportdb) {
     const r = await api.exportStoryDb(S.storyId);
     toast(r.error ?? `Written to ${r.file}`); return;
+  }
+  // Archiving is a status change and nothing else — no separate table, no hiding, and the same
+  // route that saves every other story field. Reversible by pressing it again.
+  if (d.archive) {
+    const r = await api.saveStory(S.storyId, { status: d.archive });
+    if (r.error) return toast(r.error);
+    V = r; await loadLibrary(); paint();
+    toast(d.archive === 'archived' ? 'Archived. It sits at the end of the shelf.' : 'Back on the shelf.');
+    return;
   }
   if (d.delstory) {
     if (!S.confirmDelete) { S.confirmDelete = true; paint();

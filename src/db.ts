@@ -272,6 +272,19 @@ migrate();
 
 const now = () => Date.now();
 const uid = (p = '') => p + randomBytes(4).toString('hex');
+
+/** Genre, normalised to a comma-separated list.
+ *
+ *  The shelf splits this on commas and draws one pill per tag, so a genre that arrives as
+ *  "noir / gothic and horror" became one long pill. Applied on the way IN — on create and on every
+ *  save, so an old row is fixed the next time its story is touched — because normalising on the way
+ *  out would mean every reader had to remember to do it.
+ *
+ *  Splits on commas, semicolons, slashes and a standalone "and". NOT on spaces: "dark fantasy" is
+ *  one genre, and a space-splitter turns it into two. */
+export const tidyGenre = (g?: string | null): string =>
+  [...new Map(String(g ?? '').split(/[,;/]|\band\b/i).map((t) => t.trim()).filter(Boolean)
+    .map((t) => [t.toLowerCase(), t])).values()].join(', ');
 const q = (sql: string) => db.prepare(sql);
 
 export function owner(login = 'sonophage'): string {
@@ -295,7 +308,7 @@ export function createStory(o: string, s: any) {
   // dropped on the floor, which is a round trip that looks like it works.
   q(`INSERT INTO stories (id,owner_id,title,genre,premise,setting,pov,persona,writing_style,
       direction,spice,spice_note,max_context,model,locked_character,status,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', s.genre ?? '',
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', tidyGenre(s.genre),
     s.premise ?? '', s.setting ?? '', s.pov ?? 'third limited, past tense', s.persona ?? null,
     s.writingStyle ?? '', s.direction ?? null, s.spice ?? 2, s.spiceNote ?? null,
     s.maxContext ?? null, s.model ?? null, s.lockedCharacter ?? null,
@@ -707,7 +720,7 @@ export function updateStory(id: string, s: any) {
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,
       locked_character=?,updated_at=? WHERE id=?`)
-    .run(p('title', 'title'), p('genre', 'genre'), p('premise', 'premise'), p('setting', 'setting'),
+    .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
       p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
