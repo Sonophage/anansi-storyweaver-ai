@@ -96,7 +96,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
-  'editprompt', 'saveprompt', 'resetprompt',
+  'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
@@ -652,6 +652,36 @@ const PANELS = {
         ${c.summaryStale ? '<div class="hint" style="color:var(--bad)">Stale — excluded from the prompt until it is re-run.</div>' : ''}
       </button>`).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
       <button class="btn ghost" data-summarize="1">Summarise this chapter</button>
+
+      <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Acts</div>
+      <div class="hint" style="margin:0 0 8px">One summary standing in for a run of chapters. A
+        chapter summary is about 220 tokens and they never stop arriving — at chapter 120 they do
+        not fit, and the oldest silently stop being sent. An act is what they collapse into.</div>
+      ${(V.arcs ?? []).map((a) => `<div class="card" style="margin-bottom:8px; gap:5px">
+        <div style="display:flex; align-items:center; gap:9px">
+          <span class="kind">${esc(a.title || `Chapters ${a.fromChapter}–${a.toChapter}`)}</span>
+          <span style="margin-left:auto; font-size:11px; color:var(--faint)">chapters ${a.fromChapter}&ndash;${a.toChapter}</span>
+          <button data-delarc="${a.id}" style="color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
+        <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(a.summary)}</div></div>`).join('')}
+      ${(() => {
+        // The range is computed rather than typed. Two number boxes is a question the writer has
+        // to answer about their own token budget; the oldest run that is not in an act yet is the
+        // answer nearly every time, so the button just says which chapters it will take.
+        const inArc = (i) => (V.arcs ?? []).some((a) => i >= a.fromChapter && i <= a.toChapter);
+        const run = V.chapters
+          .filter((c) => c.summary && !c.summaryStale && !inArc(c.index) && c.id !== V.currentChapter.id)
+          .map((c) => c.index).sort((x, y) => x - y);
+        if (run.length < 2) return `<div class="hint" style="margin:0">Two summarised chapters
+          outside an act are needed before there is anything to roll up${
+            (V.arcs ?? []).length ? '' : ', and closing a chapter is what writes a summary'}.</div>`;
+        // Consecutive from the oldest — a gap means a chapter is unsummarised or already in an act.
+        let last = run[0];
+        for (const i of run.slice(1)) { if (i !== last + 1) break; last = i; }
+        return `<button class="btn ghost" data-rollup="${run[0]}:${last}"${S.busy ? ' disabled' : ''}
+          >Roll chapters ${run[0]}&ndash;${last} into one act</button>
+          <div class="hint" style="margin:0">Their own summaries stop being sent and this stands in
+            for them. Undo it by removing the act.</div>`;
+      })()}
 
       <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Branches</div>
       <div style="display:flex; flex-direction:column; gap:9px">
@@ -1824,6 +1854,22 @@ document.addEventListener('click', async (e) => {
     syncHash(); paint();
     return;
   }
+  if (d.rollup) {
+    const [from, to] = String(d.rollup).split(':').map(Number);
+    S.busy = true; paint(); working('direct');
+    const r = await api.rollup(S.storyId, from, to);
+    S.busy = false; working(null);
+    if (r.error) { paint(); return toast(r.error); }
+    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
+    return toast(`Chapters ${from}–${to} are one act now.`);
+  }
+  if (d.delarc) {
+    const r = await api.delArc(S.storyId, d.delarc);
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
+    return toast('The act is gone; those chapters send their own summaries again.');
+  }
+
   if (d.editprompt) { S.promptOpen = S.promptOpen === d.editprompt ? null : d.editprompt; paint(); return; }
   if (d.saveprompt || d.resetprompt) {
     const key = d.saveprompt || d.resetprompt;

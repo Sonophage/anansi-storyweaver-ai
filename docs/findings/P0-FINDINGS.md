@@ -1126,3 +1126,43 @@ call, not a benchmark's. It is roughly a third of a warm generation.
 explanation reached for was this repair. It was not — two servers contending for a two-slot router
 was. The number above is what it actually costs, measured with the router otherwise idle.
 
+---
+
+## F31 — Chapter 120 does not forget its beginning. It forgets 65 chapters in scattered runs, which is worse, and COUNCIL-04 had it wrong.
+
+COUNCIL-04 #9 said a 120-chapter book needs 20,952 tokens of chapter summaries against an 11,536
+ceiling, and that they **"drop oldest-first"**. The first half is right. The second is not, and the
+difference matters.
+
+Measured on the engine directly — summaries are text and the ceiling is a fraction of the budget,
+so this needs no model and is now an assertion rather than a bench run. 120 chapters, 220-token
+summaries, a 46,146-token budget:
+
+| | summaries sent | dropped | EARLIER tokens |
+|---|---|---|---|
+| as it stands | 52 | **65** | 11,440 |
+| first 100 chapters as five acts | 22 blocks | **0** | 4,083 |
+
+**What survives is not the recent half and not the oldest half. It is scattered:**
+
+    kept:  6, 7, 8, 9,  52, 53, 54, 55,  …  96, 97, 98, 99
+    gone:  1, 2, 3, 4, 5,  10, 11, 12,  …  114, 115, 116, 117
+
+Runs of four, with holes between them, and **the newest is not kept either** — 117 is gone. That is
+COUNCIL-04 #8 showing through: eviction follows insertion order rather than age. A book missing its
+beginning has a beginning it has forgotten. A book missing chapters 10 to 51 **contradicts itself in
+the middle and cannot say why**, and the writer has no way to see which of its own chapters the
+model can no longer read.
+
+The fix already existed and had **no caller in the UI**: `POST /api/rollup` collapses a run of
+chapters into one act, and the engine already prefers acts over the summaries they cover. It is
+reachable now — Chapter → Acts — and the button computes its own range from the oldest run that is
+summarised, not stale, and not already inside an act, so the writer is not asked a question about
+their own token budget.
+
+Five acts over a hundred chapters take **4,083 tokens against 11,440**, and nothing drops.
+
+**Not fixed, and now evidenced rather than argued:** the eviction order itself (COUNCIL-04 #8).
+Rolling up is a thing the writer has to do; until the order is fixed, a long book that has not been
+rolled up loses chapters in a pattern nobody chose.
+

@@ -27,10 +27,13 @@ under **Still open** and under the four decisions — you do not need to re-repo
 ## 6 · The Context panel
 
 
-## 7 · The prompts, in your words
+## 7 · Acts, for a long book
 
 
-## 8 · Delete, and the model list
+## 8 · The prompts, in your words
+
+
+## 9 · Delete, and the model list
 
 
 ---

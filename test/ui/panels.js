@@ -387,4 +387,23 @@ ok("  which is NOT the real router — run.sh points test servers at a unit that
    stillUp !== 'active');
 await page.goto(B + "/");   // navigate away rather than press again
 
+// ---- 15. acts: the fix for chapter 120 that had no way in
+// POST /api/rollup existed and nothing in the UI called it, so the one thing that stops a long
+// book forgetting itself was unreachable. The roll-up itself needs the model; what is checked here
+// is that the door exists and names the right chapters.
+await page.goto(B + "/#" + sid3 + "/chapter");
+await wait(900);
+const acts = (await page.text('#sideBody') || '');
+ok("the Chapter panel has an Acts section", /Acts/.test(acts));
+ok("  and says why one is wanted", /at chapter 120|do not fit/i.test(acts));
+// The seed story has no summaries, so the honest state is "there is nothing to roll up yet"
+// rather than a button that would fail.
+const btn = await page.eval("document.querySelector('[data-rollup]')?.dataset.rollup ?? null");
+if (btn) {
+  ok(`  and the button names the range it will take (${btn})`, /^\d+:\d+$/.test(btn));
+} else {
+  ok("  and with nothing summarised it says so instead of offering a button that would fail",
+     /Two summarised chapters/.test(acts));
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

@@ -185,6 +185,60 @@ ok("the writer's own wording replaces a mode outright, and empties back to the s
       `a blank override falls back to the shipped wording (${JSON.stringify(blank)})`);
 });
 
+// COUNCIL-04 #9: chapter 40 fits and chapter 120 does not — 53 chapter summaries drop oldest-first
+// and the book quietly loses its own beginning. `POST /api/rollup` is the fix and had no caller.
+// This is the arithmetic behind it, and it needs no model: summaries are text, and the ceiling is
+// a fraction of the budget.
+ok('a 120-chapter book forgets 65 chapters in scattered runs, and acts get them back', () => {
+  const long = () => {
+    const i = base();
+    // 220 tokens each, which is what SUMMARY(180) is asked for and what they come back at.
+    const summary = 'Something happened, and then something else did, and it mattered later. '
+      .repeat(12).trim();
+    i.chapters = Array.from({ length: 120 }, (_, n) => ({
+      id: `c${n + 1}`, index: n + 1, title: `Chapter ${n + 1}`, summary }));
+    i.currentChapter = { id: 'c120', index: 120, title: 'Chapter 120' };
+    i.budget = 46_146;      // a 50,048 slot, less the reply reserve and the margin
+    return i;
+  };
+
+  const earlier = (m: ReturnType<typeof buildContext>, state: string) => m.blocks
+    .filter((b) => b.kind === 'EARLIER' && b.state === state);
+
+  const before = buildContext(long(), count);
+  const droppedBefore = earlier(before, 'omitted').length;
+  assert.strictEqual(droppedBefore, 65,
+    `117 summaries do not fit and 65 are dropped — measured, not asserted (${droppedBefore})`);
+
+  // AND WHAT SURVIVES IS NOT THE RECENT HALF. COUNCIL-04 #9 said they "drop oldest-first"; they do
+  // not. Measured here, the kept set is 6-9, then 52-55, then 96-99 — scattered runs with holes
+  // between them, because eviction follows insertion order rather than age (#8). A book missing
+  // its beginning is a book with a beginning it has forgotten; a book missing chapters 10 to 51 is
+  // one that contradicts itself in the middle and cannot say why.
+  const kept = earlier(before, 'included').map((b) => Number(b.id.slice(1))).sort((a, b) => a - b);
+  const gaps = kept.filter((c, k) => k > 0 && c !== kept[k - 1] + 1).length;
+  assert.ok(gaps > 0,
+    `the surviving summaries are not one contiguous run — ${gaps} holes in ${kept.length} kept`);
+  assert.ok(kept.at(-1)! < 119,
+    'and the newest is not among them either, so it is not recency that decides');
+
+  // Now roll each run of twenty into one act, which is what the button does.
+  const rolled = long();
+  rolled.arcs = Array.from({ length: 5 }, (_, k) => ({
+    fromChapter: k * 20 + 1, toChapter: k * 20 + 20,
+    title: `Act ${k + 1}`, summary: 'Twenty chapters of it, in one paragraph. '.repeat(6).trim() }));
+  const after = buildContext(rolled, count);
+  assert.strictEqual(earlier(after, 'omitted').length, 0,
+    'with the first hundred chapters as five acts, nothing has to be dropped');
+  // And the acts are actually IN it rather than merely not dropped.
+  const arcBlocks = earlier(after, 'included').filter((b) => b.reason === 'arc');
+  assert.strictEqual(arcBlocks.length, 5, 'all five acts reach the prompt');
+  const beforeTokens = earlier(before, 'included').reduce((t, b) => t + b.tokens, 0);
+  const afterTokens = earlier(after, 'included').reduce((t, b) => t + b.tokens, 0);
+  assert.ok(afterTokens < beforeTokens,
+    `and it costs less than the summaries it replaced (${afterTokens} against ${beforeTokens})`);
+});
+
 // The five modes are not five labels on one behaviour. Two things separate them, and a mode set
 // that blurs either one is the bug this replaced: whether the writer's text is an INSTRUCTION
 // (direct) or is already the last PASSAGE (speak, act, narrate), and who it belongs to.

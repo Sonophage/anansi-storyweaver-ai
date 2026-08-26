@@ -112,7 +112,20 @@ Rail → **✻ Anansi**, inside a story.
 
 ---
 
-## 7 · The prompts, in your words
+## 7 · Acts, for a long book
+
+**Chapter → Acts**, inside a story.
+
+- [ ] With two or more summarised chapters, the button names the range it will take.
+- [ ] Roll them up. Their own summaries stop being sent and the act stands in for them.
+- [ ] **Context** should show fewer EARLIER rows and fewer tokens against them.
+- [ ] Remove the act. Those chapters send their own summaries again.
+
+> This is the thing that stops a long book forgetting itself, and it had no way in until now. What
+> it does NOT fix: which summaries get dropped when you have not rolled up. See F31 — at chapter
+> 120 the survivors are chapters 6-9, 52-55 and 96-99, which is nobody's idea of a memory.
+
+## 8 · The prompts, in your words
 
 **Storyteller → The five modes, in your words.**
 
@@ -126,7 +139,7 @@ Rail → **✻ Anansi**, inside a story.
 > wording, and nothing validates it beyond refusing a blank. A prompt that produces nothing
 > produces nothing, and the way back is one press.
 
-## 8 · Delete, and the model list
+## 9 · Delete, and the model list
 
 - [ ] ⋯ → **Delete** on a passage with more than one take. It says **Delete take 2**, asks once,
       and deletes on the second press.
@@ -160,7 +173,13 @@ Two came off this list in round three. Six left, and the order is still yours to
   close together**, so `iron bridge` no longer fires on *"The bridge was iron"* and `Kade Ashford`
   no longer fires on Kade Ferrin plus Lord Ashford a clause apart. Both are COUNCIL-04's own real
   false fires and both are now tests.
-- **Chapter 120 does not fit** and `POST /api/rollup`, which fixes it, has no caller in the UI.
+- ~~**Chapter 120 does not fit** and `POST /api/rollup` has no caller.~~ Done — **Chapter → Acts**,
+  and the button works out its own range. F31 measured it: 65 of 117 summaries drop, five acts over
+  a hundred chapters cost 4,083 tokens against 11,440, and nothing drops.
+- **Eviction order is backwards** (COUNCIL-04 #8), and F31 turned it from an argument into a
+  measurement. What survives at chapter 120 is **6-9, then 52-55, then 96-99** — scattered runs
+  with holes, and the newest summary is not kept either. COUNCIL-04 #9 said "oldest-first"; it is
+  not. A book missing chapters 10 to 51 contradicts itself in the middle and cannot say why.
 - **Plot threads are not tracked.** The one absence named as stopping a serial writer.
 - Smaller: four of seven done — `serve.ts`'s gate is now proved by a real server running as the
   other writer; `endChapter` is one transaction; the `.db` import is refused before it is written
@@ -197,6 +216,8 @@ Full write-up with line numbers: `docs/findings/COUNCIL-04.md`.
 - **F29** — the mode prompts. The checklist was being filled 10/10; taking the paragraph count out
   of Continue halved the passage.
 - **F30** — the contradiction repair costs 1.5s on every generation, flat, and fired 0 times in 6.
+- **F31** — chapter 120 forgets 65 chapters in scattered runs, not its beginning. Acts fix the
+  fitting; the scattering is a separate defect and is not fixed.
 
 Read F28's last section if you read nothing else: **the detector was wrong twice**, and the second
 time it survived a fixture built to fix the first, because the model re-genders characters against
@@ -207,7 +228,7 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 157 checks, nine suites, no model needed
+node --experimental-strip-types test/all.ts    # 159 checks, nine suites, no model needed
 test/ui/run.sh                                 # 10 scenarios, headless browser, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
