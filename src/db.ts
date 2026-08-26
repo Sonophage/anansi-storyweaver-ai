@@ -596,6 +596,20 @@ export function upsertEntry(storyId: string, o: string, e: any) {
        field_editors=?,updated_at=? WHERE id=? AND story_id=?`)
       .run(e.title, e.body, e.notes ?? cur.notes ?? null, e.entryType, e.activation,
         JSON.stringify(e.keys), e.lastEditor, JSON.stringify(editors), t, e.id, storyId);
+    // A story names its persona and its locked character BY TITLE, so a rename used to leave both
+    // pointing at nobody: the byline read "You · " and the lockout stopped locking anyone. Carried
+    // here because upsertEntry is the one place an entry's title can change.
+    //
+    // ponytail: title, not id. Id columns would be the general fix and they are 37 call sites, a
+    // migration, and a walk through the prompt path that F28's lockout depends on — plus import.ts
+    // sets persona from an external card's NAME before any entry exists. The ceiling of doing it
+    // this way is two entries sharing a title in one story, which would both match; title is the
+    // identity everywhere else here (classify resolves on it, proposals hash it), so that is a
+    // consistent limit rather than a new one.
+    if (cur.title !== e.title) {
+      for (const col of ['persona', 'locked_character'])
+        q(`UPDATE stories SET ${col} = ? WHERE id = ? AND ${col} = ?`).run(e.title, storyId, cur.title);
+    }
     touch(storyId); return e.id;
   }
   // Reuse a supplied id only if it is actually free. Seeding with known ids is useful; an
@@ -686,8 +700,18 @@ export function wearOutfit(storyId: string, entryId: string, outfitId: string | 
 export const delOutfit = (storyId: string, id: string) =>
   q('DELETE FROM outfits WHERE id = ? AND story_id = ?').run(id, storyId);
 
-export const delEntry = (storyId: string, id: string) =>
-  q('DELETE FROM entries WHERE id = ? AND story_id = ?').run(id, storyId);
+export function delEntry(storyId: string, id: string) {
+  // Read the title BEFORE the delete: after it there is nothing left to match the story's persona
+  // against, and a persona pointing at a character who no longer exists is worse than an empty one
+  // — the byline shows a name the ledger cannot explain.
+  const cur = q('SELECT title FROM entries WHERE id = ? AND story_id = ?').get(id, storyId) as any;
+  const r = q('DELETE FROM entries WHERE id = ? AND story_id = ?').run(id, storyId);
+  if (cur) {
+    for (const col of ['persona', 'locked_character'])
+      q(`UPDATE stories SET ${col} = NULL WHERE id = ? AND ${col} = ?`).run(storyId, cur.title);
+  }
+  return r;
+}
 
 /** Manual chapter end. Closes the open chapter and opens the next. */
 export function endChapter(storyId: string, branchId: string, nextTitle?: string) {

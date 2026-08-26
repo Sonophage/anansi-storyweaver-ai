@@ -663,4 +663,36 @@ ok('genre arrives comma-separated however it was punctuated, and a two-word tag 
   assert.strictEqual(after.genre, 'horror, dark fantasy', 'and so does every save after it');
 });
 
+ok('a story\'s persona and locked character follow a rename, and clear on a delete', () => {
+  const me = db.owner('persona-test');
+  const st = db.createStory(me, { title: 'The Reference' });
+  const her = db.upsertEntry(st.id, me, { title: 'Ilva Marren', body: 'A courier.', entryType: 'character' });
+  const him = db.upsertEntry(st.id, me, { title: 'Kade Ashford', body: 'A creditor.', entryType: 'character' });
+  db.updateStory(st.id, { persona: 'Ilva Marren', lockedCharacter: 'Kade Ashford' });
+  const read = () => db.listStories(me).find((r: any) => r.id === st.id) as any;
+  assert.strictEqual(read().persona, 'Ilva Marren', 'the fixture is set up');
+
+  // Renaming someone ELSE must not touch either reference — the update is scoped to the old title.
+  db.upsertEntry(st.id, me, { id: him, title: 'Kade Ferrin', body: 'A creditor.', entryType: 'character' });
+  assert.strictEqual(read().persona, 'Ilva Marren', "renaming another character leaves the persona alone");
+  assert.strictEqual(read().locked_character, 'Kade Ferrin', 'and the locked character follows its own rename');
+
+  // The one that was broken: the byline read "You · " and the lockout locked nobody.
+  db.upsertEntry(st.id, me, { id: her, title: 'Ilva Kest', body: 'A courier.', entryType: 'character' });
+  assert.strictEqual(read().persona, 'Ilva Kest', 'the persona follows the rename');
+
+  // Another story naming the same title must not be dragged along.
+  const other = db.createStory(me, { title: 'Elsewhere' });
+  db.upsertEntry(other.id, me, { title: 'Ilva Kest', body: 'Someone else entirely.', entryType: 'character' });
+  db.updateStory(other.id, { persona: 'Ilva Kest' });
+  db.upsertEntry(st.id, me, { id: her, title: 'Ilva Vane', body: 'A courier.', entryType: 'character' });
+  const otherRead = () => db.listStories(me).find((r: any) => r.id === other.id) as any;
+  assert.strictEqual(otherRead().persona, 'Ilva Kest', "a rename in one story cannot reach another story's persona");
+
+  // And a deleted character leaves an empty reference rather than a name nothing can explain.
+  db.delEntry(st.id, her);
+  assert.strictEqual(read().persona, null, 'deleting the character clears the persona');
+  assert.strictEqual(read().locked_character, 'Kade Ferrin', 'and leaves the other reference standing');
+});
+
 console.log(`\n${n} checks passed`);
