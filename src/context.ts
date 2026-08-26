@@ -170,6 +170,22 @@ const worn = (body: string, e: Entry): string => e.wearing?.body
  *  A state that has not opened yet is hidden — that is the whole point. `hint` is the
  *  exception: it tells the model something exists without saying what, so foreshadowing
  *  has somewhere to come from.
+ *
+ *  REPLACES, and does not append to, the base body. That is deliberate and it is the answer to
+ *  "which shape does not confuse the model": only one description of a character ever reaches the
+ *  prompt, so "she is alive" from the base and "she is dead" from chapter 20 can never arrive
+ *  together. Appending would keep every durable fact and reintroduce exactly the contradictions the
+ *  checker exists to catch.
+ *
+ *  The cost, and the trap for anything that WRITES a state: a state must be a complete description
+ *  of the character as they now are, never a delta. A state that says only "her arm is broken"
+ *  silently drops her eye colour, her role and her voice from that chapter onward, and the failure
+ *  looks like the model forgetting rather than like a state being too short. Anything generating
+ *  states — a chapter-end pass, an import, a proposal — must be seeded with the state currently in
+ *  force and asked to return the whole of it, updated.
+ *
+ *  Nothing is lost by replacing: every state row stays in entry_states, entry_revisions logs field
+ *  changes with a revert, and the surface shows the timeline. Only the PROMPT sees one.
  */
 export function resolveBody(e: Entry, chapter: number): string {
   if (!e.states?.length) return e.body;
