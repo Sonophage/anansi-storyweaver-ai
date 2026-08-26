@@ -119,8 +119,8 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   };
   const snav = navRows('SNAV'), wnav = navRows('WNAV');
   assert.deepStrictEqual(snav,
-    ['story', 'chapter', 'threads', 'context', 'search', 'teller', 'anansi', 'strings'],
-    'the panels, in the order Seth asked for, with each addition appended rather than slotted in');
+    ['story', 'chapter', 'threads', 'strings', 'context', 'search', 'teller', 'anansi'],
+    'the panels in the order Seth asked for — Strings under Threads, which is where he put it');
 
   // Opened by clicking a thing rather than by a nav row. Each is asserted to have a real opener,
   // so this list cannot become a dumping ground for panels nothing reaches.

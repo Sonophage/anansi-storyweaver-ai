@@ -20,7 +20,7 @@ console.log("  rail: " + nav);
 // Seth's stated order — story/chapter/threads/context/search/storyteller — with Anansi APPENDED
 // rather than slotted in, so that order still reads exactly as he wrote it.
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'story,chapter,threads,context,search,teller,anansi,strings');
+   nav === 'story,chapter,threads,strings,context,search,teller,anansi');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 
@@ -445,5 +445,13 @@ await wait(900);
 await page.click(`[data-stringstatus="${one[0].id}:paid"]`);
 await wait(900);
 ok("marking it paid takes it out of the prompt", !/has not opened/.test(await promptOf()));
+
+// ---- 17. Strings sits under Threads, where Seth put it
+// The placement of a PROPOSED string — Strings rather than the Chapter queue — is asserted in
+// test/app.ts, which can seed one; this suite has no model to produce one, and a check that
+// passes on an empty queue is a check that proves nothing.
+await page.goto(B + "/#" + sid3 + "/chapter");
+await wait(700);
+ok("the Chapter queue is about facts", !/Anansi noticed/.test(await page.text('#sideBody') || ''));
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

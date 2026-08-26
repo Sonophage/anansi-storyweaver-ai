@@ -57,14 +57,14 @@ const POV = ['first person, present tense', 'first person, past tense',
 //   threads   every thread in this story — characters, lore, items, rules. One word for one
 //             thing: DECISIONS 6. 'Canon' stays the ENGINE's word, and shows only in Context.
 //   context   what the model is about to be sent, and why
-//   strings   promises the story has made and not paid. APPENDED, not slotted in beside Threads
-//             where it arguably belongs: the order above is the one Seth asked for, and Anansi set
-//             the precedent that a new panel goes on the end rather than rearranging it.
+//   strings   promises the story has made and not paid — what the ledger does NOT hold. It sits
+//             under Threads at Seth's direction: the two are the same question asked twice, one
+//             about what is true and one about what is owed, and reading them apart is the point.
 const SNAV = [
   ['story', '⚙', 'Story'], ['chapter', '❧', 'Chapter'],
-  ['threads', '☙', 'Threads'], ['context', '◈', 'Context'],
+  ['threads', '☙', 'Threads'], ['strings', '⟡', 'Strings'], ['context', '◈', 'Context'],
   ['search', '⌕', 'Search'], ['teller', '◐', 'Storyteller'],
-  ['anansi', '✻', 'Anansi'], ['strings', '⟡', 'Strings'],
+  ['anansi', '✻', 'Anansi'],
 ];
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
@@ -686,7 +686,9 @@ const PANELS = {
   // what it proposed for the ledger, its branches, and closing it. Four rows became one.
   chapter() {
     const ch = V.currentChapter;
-    const ps = V.proposals ?? [];
+    // Thread proposals only. A string is a different kind of offer and lands where strings live —
+    // accepting one there is the same press, next to what it is about to join.
+    const ps = (V.proposals ?? []).filter((p) => p.entryType !== 'string');
     return `<div style="display:flex; flex-direction:column">
       <label class="lbl">Name</label>
       <input class="field" data-chapter-title="1" value="${esc(ch.title ?? '')}"
@@ -719,6 +721,11 @@ const PANELS = {
             <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
               border-radius:9px; border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button></div></div>`;
       }).join('') || '<div class="hint" style="margin:0">Nothing proposed. Closing a chapter reads it for new facts.</div>'}
+      ${(V.proposals ?? []).some((p) => p.entryType === 'string')
+        ? `<button class="btn ghost" data-panel="strings" style="margin-top:6px">${
+            (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
+            (V.proposals ?? []).filter((p) => p.entryType === 'string').length === 1 ? '' : 's'
+          } proposed &mdash; they wait under Strings</button>` : ''}
       <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this chapter for facts</button></div>
 
       <div class="lbl" style="letter-spacing:.26em; margin-top:26px">Summaries in context</div>
@@ -885,6 +892,29 @@ const PANELS = {
         paid &mdash; the letter nobody has opened, the debt nobody has called in. It is yours to see,
         not the model's, until you <strong>put one in play</strong>: only then does it reach the
         prompt, and even then it is told what is owed rather than told to pay it.</div>
+      ${(() => {
+        // Anansi's offers, where the strings are rather than in the Chapter queue with the thread
+        // proposals. Same buttons, same route, same "nothing until you accept it" — a promise it
+        // spotted belongs next to the promises you already know about.
+        const mine = (V.proposals ?? []).filter((p) => p.entryType === 'string');
+        if (!mine.length) return '';
+        return `<div class="lbl" style="letter-spacing:.26em; margin-top:0">Anansi noticed</div>
+          <div class="hint" style="margin:0 0 8px">Nothing is tied until you accept it.</div>
+          ${mine.map((p) => `<div class="card" style="margin-bottom:8px; gap:8px;
+            border-color:rgba(217,178,106,.28)">
+            <div style="display:flex; align-items:center; gap:8px">
+              <span style="font-size:14px; color:var(--ink-bright)">${esc(p.title)}</span>
+              <span style="margin-left:auto; font-size:11px; color:var(--faint)">${
+                p.keys?.[0] ? `set up in chapter ${esc(p.keys[0])}` : ''}</span></div>
+            ${p.body ? `<div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(p.body)}</div>` : ''}
+            <div style="display:flex; gap:7px">
+              <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
+                border-radius:9px; background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Tie it</button>
+              <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
+                border-radius:9px; border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button>
+            </div></div>`).join('')}
+          <div class="lbl" style="letter-spacing:.26em; margin-top:22px">Owed</div>`;
+      })()}
       ${open.length ? open.map(row).join('') : '<div class="hint" style="margin:0">Nothing owed yet.</div>'}
       ${done.length ? `<div class="lbl" style="letter-spacing:.26em; margin-top:22px">Tied off</div>
         ${done.map(row).join('')}` : ''}
@@ -2534,10 +2564,14 @@ document.addEventListener('click', async (e) => {
   if (d.decide) {
     // The route branches on `accept`, not on a verb. Sending `decision: 'accept'` left
     // c.body.accept undefined, so Accept took the reject path and threw the fact away.
+    // Read BEFORE the accept: the proposal is gone from the view once it lands, and the word for
+    // what just happened depends on which kind it was. "Woven in" is the threads word.
+    const was = (V.proposals ?? []).find((p) => p.id === d.id);
     const r = await api.decide({ storyId: S.storyId, id: d.id, accept: d.decide === 'accept' });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest();
-    toast(d.decide === 'accept' ? 'Woven in.' : 'Dropped.');
+    toast(d.decide !== 'accept' ? 'Dropped.'
+      : was?.entryType === 'string' ? 'Tied. It is yours until you put it in play.' : 'Woven in.');
     return;
   }
   if (d.branch) { const r = await api.switchBranch(S.storyId, d.branch); if (r.error) return toast(r.error);

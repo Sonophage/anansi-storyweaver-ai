@@ -69,7 +69,12 @@ const STORY = {
               activation: 'always_on', keys: [], lastEditor: 'human', states: [], notes: '' }],
   pins: [], arcs: [],
   violations: [{ id: 'v-1', passageId: 'p-2', entryId: 'e-1', quote: 'x', reason: 'gloves', confidence: 0.8 }],
-  proposals: [{ id: 'pr-1', entryId: null, title: 'Witness rite', body: 'A signature is void.',
+  strings: [{ id: 'st-1', title: 'The letter he has not opened', body: 'Sent by his brother',
+              fromChapter: 1, owedBy: 4, status: 'open', summoned: false }],
+  proposals: [{ id: 'pr-2', entryId: null, title: 'The debt nobody has called in',
+                body: 'Marek has not asked yet.', entryType: 'string', keys: ['2'], kind: 'new',
+                delta: 'A promise, unpaid', chapterId: 'c-2' },
+              { id: 'pr-1', entryId: null, title: 'Witness rite', body: 'A signature is void.',
                 entryType: 'lore', keys: [], kind: 'new', delta: 'New fact.', chapterId: 'c-2' }],
 };
 const MANIFEST = { manifest: { blocks: [
@@ -247,5 +252,28 @@ assert.match(html('sideBody'), /Chapters 1&ndash;11 are past the horizon/,
   'and the panel names which — the range, not the block count');
 assert.match(html('sideBody'), /Acts<\/strong> collapses/, 'and what to do about it');
 ok('a book past its horizon says so on the bar, not only in a dimmed row');
+
+// Two kinds of offer, two places to answer them. A promise Anansi noticed belongs beside the
+// promises you already know about; the chapter queue stays about facts.
+{
+  click({ panel: 'strings' });
+  await new Promise((r) => setTimeout(r, 30));
+  const strings = html('sideBody');
+  assert.match(strings, /Anansi noticed/, 'a proposed string waits under Strings');
+  assert.match(strings, /The debt nobody has called in/);
+  assert.match(strings, /set up in chapter 2/, 'with the chapter it came from');
+  assert.match(strings, /The letter he has not opened/, 'beside the ones already tied');
+  assert.doesNotMatch(strings, /Witness rite/, 'and not the thread proposals');
+
+  click({ panel: 'chapter' });
+  await new Promise((r) => setTimeout(r, 30));
+  const chapter = html('sideBody');
+  assert.match(chapter, /Witness rite/, 'the chapter queue keeps the thread proposals');
+  assert.doesNotMatch(chapter, /The debt nobody has called in/,
+    'and does not also show the string, which would be two places to answer one offer');
+  assert.match(chapter, /1 string proposed &mdash; they wait under Strings/,
+    'it says where the string went rather than silently dropping it from the count');
+  ok('a proposed string waits under Strings, and the chapter queue says so');
+}
 
 console.log(`\n${n} checks passed`);

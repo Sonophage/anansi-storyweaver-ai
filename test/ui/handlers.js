@@ -200,7 +200,17 @@ ok("  and the panel is still History, not something else",
     await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
     await wait(150);
     await page.eval(`(() => { location.hash = '#' + ${JSON.stringify(fast.id)} + '/context'; return 1; })()`);
-    await wait(2600);
+    // Wait for the CONDITION, not the clock. A fixed wait made this go red once in a batch of
+    // seven scenarios and never alone: under load the new book had not finished opening yet, so
+    // the panel was showing the old one because it was slow rather than because it was stale —
+    // the test failing for the opposite reason to the one it exists for.
+    for (let i = 0; i < 40; i++) {
+      const bar = (await page.eval("document.querySelector('#bar .serif')?.textContent") || '').trim();
+      if (bar === fast.title) break;
+      await wait(200);
+    }
+    // And then past the throttled answer's own arrival, which is the moment being tested.
+    await wait(1800);
     // The PROMPT view, not Blocks: the block list is kinds and token counts, and a stale manifest
     // from another book looks exactly like this one there. The prompt carries the story's title in
     // SPINE, so it is the only view where the wrong book is visible as the wrong book. Asserting
