@@ -5,7 +5,12 @@
 <html lang="en" data-ui-theme="obsidian" data-ui-font="serif" data-ui-size="m">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- interactive-widget=resizes-content: when the on-screen keyboard opens, SHORTEN the layout
+     viewport instead of leaving it alone and sliding the keyboard over the top. Chrome's default on
+     Android is resizes-visual, which puts the composer under the keyboard and makes you scroll to
+     find the thing you are typing into. Nothing here is sized in vh, so shortening is safe.
+     viewport-fit=cover lets the page reach the edges, which is why the insets below exist. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#0A0A0C">
 <title>Anansi</title>
 <link rel="icon" href="./web/icon.svg">
@@ -72,10 +77,13 @@ html[data-ui-size="xl"] { --prose:26px; --bubble:21px; --gap:38px; --col:840px; 
    mid-tap, and F34 already measured how little movement it takes to lose a tap on this surface.
    The composer FADES rather than unmounting, so the mode is visible in the layout and the draft in
    the textarea survives being turned off again. */
-html[data-reading="1"] #dock { opacity:.14; pointer-events:none; }
+/* The composer GOES, rather than fading — Seth's call over my fade.
+   display:none, not an unmount: out of the layout, out of the tab order, out of the accessibility
+   tree, and still in the DOM, so a half-written sentence cannot be lost by toggling the mode. The
+   round trip is asserted in test/ui/phone.js. */
+html[data-reading="1"] #dock { display:none; }
 html[data-reading="1"] #col .block { pointer-events:none; }
 html[data-reading="1"] .more, html[data-reading="1"] .acts { display:none !important; }
-html[data-reading="1"] #dock, html[data-reading="1"] #col .block { transition:opacity var(--t) ease; }
 
 html[data-ui-scale="90"]  body { zoom:0.90; }
 html[data-ui-scale="110"] body { zoom:1.10; }
@@ -300,7 +308,7 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 }
 #burger { display:none; font-size:19px; color:var(--chrome-dim); flex:0 0 auto; }
 @media (max-width:1099px) { #burger { display:block; } }
-@media (max-width:719px) { #bar { padding:16px 20px 14px; gap:14px; } }
+@media (max-width:719px) { #bar { padding:calc(16px + env(safe-area-inset-top, 0px)) 20px 14px; gap:14px; } }
 
 .pill { border:1px solid var(--chrome-line); padding:8px 14px; border-radius:var(--r); font-size:12px; color:var(--chrome-dim); white-space:nowrap; }
 .pill[aria-pressed="true"] { background:var(--gold); border-color:var(--gold); color:var(--on-gold); }
@@ -440,7 +448,7 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
    the whole composer off the right edge for the length of every call. */
 #dock { position:relative; flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
   padding:0 0 28px; background:var(--dock); }
-@media (max-width:719px) { #dock { padding:0 18px 24px; } }
+@media (max-width:719px) { #dock { padding:0 18px calc(24px + env(safe-area-inset-bottom, 0px)); } }
 #dockCol { width:100%; max-width:var(--col); display:flex; flex-direction:column; gap:14px; }
 #modes { display:flex; align-items:center; gap:22px; overflow-x:auto; scrollbar-width:none; }
 #modes::-webkit-scrollbar { display:none; }

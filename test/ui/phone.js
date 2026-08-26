@@ -40,12 +40,8 @@ await page.click("[data-readmode]");
 await wait(400);
 ok("the reading button turns reading mode on",
    (await page.eval("document.documentElement.dataset.reading")) === '1');
-// Faded, not unmounted — the draft in the textarea has to survive turning it off again.
-const dock = await page.eval("(() => { const d = document.querySelector('#dock');"
-  + " const s = getComputedStyle(d); return { op: parseFloat(s.opacity), pe: s.pointerEvents,"
-  + "   there: !!d.querySelector('textarea') }; })()");
-ok(`  the composer fades rather than leaving (opacity ${dock.op}, pointer-events ${dock.pe})`,
-   dock.op < 0.3 && dock.pe === 'none' && dock.there === true);
+ok("  the composer is gone, not dimmed",
+   (await page.eval("getComputedStyle(document.querySelector('#dock')).display")) === 'none');
 ok("  and the prose stops taking taps",
    (await page.eval("getComputedStyle(document.querySelector('#col .block')).pointerEvents")) === 'none');
 // The button has to be able to give it back, or reading mode is a trap on a touch device.
@@ -53,6 +49,25 @@ await page.click("[data-readmode]");
 await wait(400);
 ok("  and the same button gives the composer back",
    (await page.eval("document.documentElement.dataset.reading")) === '0'
-   && (await page.eval("parseFloat(getComputedStyle(document.querySelector('#dock')).opacity)")) > 0.9);
+   && (await page.eval("getComputedStyle(document.querySelector('#dock')).display")) !== 'none');
+
+// Type half a line, leave reading mode and come back: it has to still be there.
+//
+// What this does NOT prove: that the draft is held in state. Breaking drawDock's rehydration
+// (`if (draft?.text)`) leaves this check green, because `display:none` removes the composer from the
+// layout and from the tab order but NOT from the DOM — the textarea and its value are still sitting
+// there. So this asserts the guarantee a writer cares about and nothing about the mechanism, and
+// the day the composer is genuinely unmounted it will stop being green for free.
+await page.type("#dock textarea", "half a sentence that must survive");
+await wait(200);
+await page.click("[data-readmode]");
+await wait(400);
+ok("  and a half-written line survives the round trip",
+   (await page.eval("document.querySelector('#dock')") === null
+    || (await page.eval("getComputedStyle(document.querySelector('#dock')).display")) === 'none'));
+await page.click("[data-readmode]");
+await wait(500);
+const kept = await page.eval("document.querySelector('#dock textarea')?.value ?? ''");
+ok(`  the draft came back ("${kept.slice(0, 34)}")`, kept === "half a sentence that must survive");
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");
