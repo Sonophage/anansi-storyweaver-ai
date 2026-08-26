@@ -221,6 +221,33 @@ ok('a flag records whether the canon it contradicts ever reached the model', () 
   db.delStory(s8.id);
 });
 
+ok('ending a chapter is both writes or neither', () => {
+  const s10 = db.createStory(o, { title: 'Ends' });
+  db.addPassage({ ...s10, storyId: s10.id, body: 'one' });
+  const before = db.chapters(s10.id);
+  assert.strictEqual(before.length, 1);
+  assert.strictEqual(before[0].status, 'open');
+
+  // Make the INSERT fail by taking the id it is about to use. There is no other way in from
+  // outside, and a rollback that is only reasoned about is a rollback nobody has seen.
+  const clash = db.endChapter(s10.id, s10.branchId!, 'Two');
+  assert.strictEqual(db.chapters(s10.id).length, 2, 'the normal path opens the next chapter');
+  assert.strictEqual(db.chapters(s10.id).find((c: any) => c.id === clash.closed).status, 'closed',
+    'and closes the one before it');
+
+  // Now the failure. A branch id that does not exist trips the foreign key on the insert, after
+  // the update to the current chapter has already run.
+  const open = db.chapters(s10.id).find((c: any) => c.status === 'open');
+  assert.throws(() => db.endChapter(s10.id, 'b-does-not-exist-at-all', 'Three'),
+    'a bad branch must throw rather than half-finish');
+  const after = db.chapters(s10.id);
+  assert.strictEqual(after.length, 2, 'no chapter was opened');
+  assert.strictEqual(after.find((c: any) => c.id === open.id).status, 'open',
+    'and the one that was open is STILL open — without the transaction it was closed with no '
+    + 'successor, which is a story you cannot write into and nothing on screen saying why');
+  db.delStory(s10.id);
+});
+
 ok('the sweep removes orphans and anything under the confidence floor', () => {
   const s5 = db.createStory(o, { title: 'S' });
   const pid = db.addPassage({ ...s5, storyId: s5.id, body: 'x' });

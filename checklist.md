@@ -162,11 +162,11 @@ Two came off this list in round three. Six left, and the order is still yours to
   false fires and both are now tests.
 - **Chapter 120 does not fit** and `POST /api/rollup`, which fixes it, has no caller in the UI.
 - **Plot threads are not tracked.** The one absence named as stopping a serial writer.
-- Smaller: `serve.ts` has no node-suite coverage and it holds the gate; `endChapter` is two writes
-  with no transaction; `.db` import is uncapped; two in-flight races can leave the Context panel
-  describing the previous book; the composer still eats drafts on panel-open and chapter-paging;
-  `db.ts`'s false `ponytail:` marker; and the `.db` export drops `spice_note`, `max_context` and
-  `model` on a round trip.
+- Smaller: four of seven done — `serve.ts`'s gate is now proved by a real server running as the
+  other writer; `endChapter` is one transaction; the `.db` import is refused before it is written
+  rather than after; and the export carries `spice_note`, `max_context`, `model` and the locked
+  character. **Left**: two in-flight races can leave the Context panel describing the previous
+  book, and the composer still eats drafts on panel-open and chapter-paging.
 
 Full write-up with line numbers: `docs/findings/COUNCIL-04.md`.
 
@@ -207,7 +207,7 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 149 checks, nine suites, no model needed
+node --experimental-strip-types test/all.ts    # 157 checks, nine suites, no model needed
 test/ui/run.sh                                 # 10 scenarios, headless browser, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model

@@ -15,6 +15,10 @@ export interface Ctx {
 }
 type Handler = (c: Ctx) => Promise<any> | any;
 
+/** The ceiling on anything uploaded. One constant because it was three literals, and the .db
+ *  branch checked none of them — it wrote to disk first and asked afterwards. */
+const MAX_UPLOAD = 20_000_000;
+
 const need = (v: any, msg: string) => { if (!v) throw Object.assign(new Error(msg), { code: 404 }); return v; };
 const viewOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such story');
 
@@ -436,12 +440,19 @@ export const routes: Record<string, Handler> = {
     // the import screen could only be used by dropping a file in by hand.
     if (/\.db$/i.test(name)) {
       const at = imp.safePath(name);
-      if (data) writeFileSync(at, Buffer.from(data, 'base64'));
+      // MEASURE BEFORE WRITING. This branch wrote the file to disk and never checked its size,
+      // while the branch four lines down refused anything over 20MB — so the one format that
+      // touches the filesystem was the one with no ceiling on it.
+      if (data) {
+        const buf = Buffer.from(data, 'base64');
+        if (buf.length > MAX_UPLOAD) throw Object.assign(new Error('that file is over 20MB'), { code: 400 });
+        writeFileSync(at, buf);
+      }
       return imp.absorb(c.owner, imp.fromExport(at));
     }
     if (!data) throw Object.assign(new Error('send the file as base64 in `data`'), { code: 400 });
     const buf = Buffer.from(data, 'base64');
-    if (buf.length > 20_000_000) throw Object.assign(new Error('that file is over 20MB'), { code: 400 });
+    if (buf.length > MAX_UPLOAD) throw Object.assign(new Error('that file is over 20MB'), { code: 400 });
     const inc = imp.parse(name, buf);
     // `into` merges rather than founding a story. AI Dungeon exports one adventure as two
     // files — the cards and the prose — and each on its own makes half a story.
@@ -459,7 +470,7 @@ export const routes: Record<string, Handler> = {
     }
     const buf = Buffer.from(String(c.body.data ?? ''), 'base64');
     if (!buf.length) throw Object.assign(new Error('send the file as base64 in `data`'), { code: 400 });
-    if (buf.length > 20_000_000) throw Object.assign(new Error('that file is over 20MB'), { code: 400 });
+    if (buf.length > MAX_UPLOAD) throw Object.assign(new Error('that file is over 20MB'), { code: 400 });
     return previewOf(imp.parse(name, buf));
   },
 

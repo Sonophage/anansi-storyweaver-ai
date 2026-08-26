@@ -67,9 +67,10 @@ export function fromExport(file: string): Incoming {
       story: { title: story.title, genre: story.genre, premise: story.premise, setting: story.setting,
         pov: story.pov, persona: story.persona, writingStyle: story.writing_style,
         direction: story.direction, spice: story.spice,
-        // Whitelisted by hand, so anything not named here is lost silently on a round trip.
-        // ponytail: spice_note, max_context and model are still missing from this list — a custom
-        // register does not survive an export and re-import. Fix with the columns, not one at a time.
+        // Whitelisted by hand, so anything not named here is lost silently on a round trip. The
+        // list is now every column the writer can set: a custom register, a raised context cap and
+        // a named model used to vanish on an export and re-import with nothing saying so.
+        spiceNote: story.spice_note, maxContext: story.max_context, model: story.model,
         lockedCharacter: story.locked_character },
       entries: entries.slice(0, MAX_ENTRIES).map((e) => ({ title: e.title, body: clip(e.body),
         notes: clip(e.notes, 2000), entryType: e.entry_type, activation: e.activation,

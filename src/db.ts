@@ -279,11 +279,15 @@ export const listStories = (o: string) => q(`
 
 export function createStory(o: string, s: any) {
   const id = uid('s-'), b = uid('b-'), c = uid('c-'), t = now();
+  // spice_note, model and locked_character are here so that an imported story arrives whole.
+  // Import reads them out of the export; without them on this INSERT they were read and then
+  // dropped on the floor, which is a round trip that looks like it works.
   q(`INSERT INTO stories (id,owner_id,title,genre,premise,setting,pov,persona,writing_style,
-      direction,spice,max_context,status,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', s.genre ?? '',
+      direction,spice,spice_note,max_context,model,locked_character,status,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', s.genre ?? '',
     s.premise ?? '', s.setting ?? '', s.pov ?? 'third limited, past tense', s.persona ?? null,
-    s.writingStyle ?? '', s.direction ?? null, s.spice ?? 2, s.maxContext ?? null,
+    s.writingStyle ?? '', s.direction ?? null, s.spice ?? 2, s.spiceNote ?? null,
+    s.maxContext ?? null, s.model ?? null, s.lockedCharacter ?? null,
     s.status ?? 'in_progress', t, t);
   q('INSERT INTO branches (id,story_id,name,is_primary,created_at) VALUES (?,?,?,1,?)').run(b, id, 'main', t);
   q('INSERT INTO chapters (id,story_id,branch_id,idx,title,status,created_at) VALUES (?,?,?,1,?,?,?)')
@@ -631,10 +635,17 @@ export const delEntry = (storyId: string, id: string) =>
 export function endChapter(storyId: string, branchId: string, nextTitle?: string) {
   const cur = openChapterOf(storyId);
   const maxOrd = (q('SELECT MAX(ordinal) AS m FROM passages WHERE branch_id = ?').get(branchId) as any)?.m ?? 0;
-  if (cur) q("UPDATE chapters SET status='closed', summary_covers_through=? WHERE id=?").run(maxOrd, cur.id);
   const id = uid('c-'), idx = (cur?.idx ?? 0) + 1;
-  q('INSERT INTO chapters (id,story_id,branch_id,idx,title,status,created_at) VALUES (?,?,?,?,?,?,?)')
-    .run(id, storyId, branchId, idx, nextTitle ?? `Chapter ${idx}`, 'open', now());
+  // Both writes or neither. Closing the current chapter and opening the next were two statements
+  // with nothing joining them, so an insert that tripped left a story whose only chapter was
+  // closed — no open chapter to write into, and nothing on screen saying why.
+  db.exec('BEGIN');
+  try {
+    if (cur) q("UPDATE chapters SET status='closed', summary_covers_through=? WHERE id=?").run(maxOrd, cur.id);
+    q('INSERT INTO chapters (id,story_id,branch_id,idx,title,status,created_at) VALUES (?,?,?,?,?,?,?)')
+      .run(id, storyId, branchId, idx, nextTitle ?? `Chapter ${idx}`, 'open', now());
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(storyId);
   return { closed: cur?.id, opened: id, idx };
 }

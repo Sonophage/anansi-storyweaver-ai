@@ -224,4 +224,53 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('prompt overrides are scoped to their owner, and blank is the reset');
 }
 
+// ---- the DISPATCHER refuses, not just the database ----
+//
+// Everything above proves the db-level defence: a foreign id does nothing even past the gate.
+// None of it proves the gate itself, which is the thing standing between 30-odd routes and
+// someone else's book — and an audit once found zero ownership checks on 27 routes, which is
+// what the gate exists to stop coming back.
+//
+// A real server, because the gate is four lines inside serve.ts's request handler and testing a
+// copy of it would prove a copy. Spawned as a child on a spare port against this database, as
+// the OTHER writer.
+{
+  const { spawn } = await import('node:child_process');
+  const PORT = 5187;
+  const srv = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], {
+    cwd: new URL('..', import.meta.url).pathname,
+    env: { ...process.env, ANANSI_PORT: String(PORT), ANANSI_DB: '/tmp/anansi-scope.db',
+           ANANSI_USER: 'bob', ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service' },
+    stdio: 'ignore',
+  });
+  const url = `http://127.0.0.1:${PORT}`;
+  const post = (path: string, body: unknown) => fetch(url + path, { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  try {
+    for (let i = 0; i < 40; i++) {
+      try { await fetch(url + '/', { signal: AbortSignal.timeout(500) }); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
+    }
+    // Alice's story, asked for by the server running as bob. Her prose is read BEFORE rather than
+    // written down here: earlier checks in this file edit it, and an expected value copied from
+    // the top of the file would be asserting the fixture rather than the gate.
+    const hers = db.passagesOf(aStory.id).map((p: any) => p.body).join('|');
+    const before = db.passagesOf(aStory.id).length;
+    const foreign = await post('/api/write', { storyId: aStory.id, body: 'BOB WAS HERE' });
+    assert.strictEqual(foreign.status, 404, "a gated route must refuse another writer's story id");
+    assert.strictEqual(db.passagesOf(aStory.id).map((p: any) => p.body).join('|'), hers,
+      'and nothing of hers may have changed');
+    assert.strictEqual(db.passagesOf(aStory.id).length, before, 'nor may anything be added');
+
+    // A gated route naming no story at all: the gate cannot resolve an owner, so it fails closed.
+    const nameless = await post('/api/write', { body: 'no story named' });
+    assert.strictEqual(nameless.status, 400, 'a gated route naming no story must be refused');
+
+    // And the open list still works, or the gate has closed the front door too.
+    const open = await fetch(url + '/api/stories');
+    assert.strictEqual(open.status, 200, 'a route on the open list still answers');
+
+    ok('the dispatcher itself fails closed — a real server, as the other writer');
+  } finally { srv.kill(); }
+}
+
 console.log(`\n${n} checks passed`);

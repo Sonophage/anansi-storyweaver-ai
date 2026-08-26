@@ -17,7 +17,12 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
 // reuses ids collides the second time it is run, and an import people cannot re-run is one
 // they stop trusting.
 {
-  const s = db.createStory(owner, { title: 'Round Trip', genre: 'noir', premise: 'A test.', spice: 3 });
+  // Every field a writer can set, because the export's whitelist is written by hand and anything
+  // not named in it is lost silently. spice_note, max_context, model and locked_character were all
+  // missing, and a round trip that drops the register you wrote is a round trip that looks fine.
+  const s = db.createStory(owner, { title: 'Round Trip', genre: 'noir', premise: 'A test.', spice: 3,
+    spiceNote: 'Register: written by hand, and it must survive.', maxContext: 24_000,
+    model: 'write-nt-qwen36-h', lockedCharacter: 'Aldis Fen' });
   db.upsertEntry(s.id, owner, { title: 'The Key', body: '[brass, not silver]', activation: 'triggered', keys: ['key'] });
   db.addPassage({ ...s, storyId: s.id, body: 'He turned the key.' });
   const { file } = db.exportStory(s.id, owner, '/tmp/anansi-import-out');
@@ -28,7 +33,13 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.strictEqual(e[0].title, 'The Key');
   assert.strictEqual(e[0].activation, 'triggered', 'activation must survive the trip');
   assert.deepStrictEqual(JSON.parse(e[0].keys), ['key'], 'keywords must survive the trip');
-  assert.strictEqual(db.getStory(back.storyId).spice, 3, 'spice must survive the trip');
+  const got = db.getStory(back.storyId);
+  assert.strictEqual(got.spice, 3, 'spice must survive the trip');
+  assert.strictEqual(got.spice_note, 'Register: written by hand, and it must survive.',
+    'a written register must survive it — the level it replaces is meaningless without it');
+  assert.strictEqual(got.max_context, 24_000, 'and a raised context cap');
+  assert.strictEqual(got.model, 'write-nt-qwen36-h', 'and the model the story names');
+  assert.strictEqual(got.locked_character, 'Aldis Fen', 'and the character the model must not write');
   // Twice, because that is where id reuse would blow up.
   assert.notStrictEqual(imp.absorb(owner, imp.fromExport(file)).storyId, back.storyId);
   ok('export round-trips, twice, under fresh ids');
@@ -312,6 +323,28 @@ const NOT_CARRIED: Record<string, string> = {
   console.log(`      (${tables.length} story-scoped tables: ${kept.length} travel, `
     + `${Object.keys(NOT_CARRIED).length} deliberately do not)`);
   ok('every story-scoped table either survives a round trip or says why not');
+}
+
+// The .db branch is the one that touches the filesystem, and it was the one with no ceiling: it
+// wrote the upload to disk and asked about its size afterwards, while the sibling branch four
+// lines below refused anything over 20MB before doing anything at all.
+{
+  const { routes } = await import('../src/routes.ts');
+  const ctx = (body: any) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {} }) as any;
+  const oversize = 'A'.repeat(28_000_000);           // ~21MB once base64 is decoded
+  const { existsSync, unlinkSync } = await import('node:fs');
+  // Self-cleaning: this asserts a file is ABSENT, so a leftover from an earlier run — or from
+  // deliberately breaking the cap to watch this go red — would fail it for the wrong reason.
+  try { unlinkSync(imp.safePath('huge.db')); } catch {}
+  let refused = '';
+  try { await routes['POST /api/import'](ctx({ name: 'huge.db', data: oversize })); }
+  catch (e: any) { refused = String(e?.message ?? e); }
+  assert.match(refused, /over 20MB/, 'a .db over the ceiling is refused');
+  // Refused BEFORE the write, which is the whole point — a check after writeFileSync has already
+  // spent the disk it was protecting.
+  assert.ok(!existsSync(imp.safePath('huge.db')), 'and nothing of it reached the disk');
+  ok('an oversized .db is refused before it is written, not after');
 }
 
 console.log(`\n${n} checks passed`);
