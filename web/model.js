@@ -119,3 +119,97 @@ export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matche
  */
 export const HEAD = 9;
 export const glyphRun = (n = HEAD) => Array.from({ length: n }, glyph).join('');
+
+// ---------------------------------------------------------------------------
+// THEMES. One row per theme, and every token below is derived from it.
+//
+// Straight from the design's own theme() function, and the reason it is a table rather than nine
+// blocks of CSS is written into that design: "a new theme cannot ship half-applied — which is how
+// the rail and the panel stayed near-black on Parchment while the document turned to paper." The
+// app had exactly that shape before this: three hand-written blocks, and the light one had to
+// restate the greys and the gold by hand or render dark text on light ground.
+// ---------------------------------------------------------------------------
+export const THEMES = {
+  obsidian:  { label: 'Obsidian',  dark: 1, swatch: '#0A0A0C', ink: '#EAE3D6', paper: '#0A0A0C', rail: '#0C0C0E', sheet: '#100F12',
+               accent: '#D9B26A', warn: '#C8705A', good: '#7FB083', speak: 'rgba(180,150,220,.5)',
+               wash: 'radial-gradient(50% 40% at 25% 0%, rgba(150,105,195,.22), transparent 70%), linear-gradient(180deg,#131019,#09090B 45%)' },
+  ink:       { label: 'Ink',       dark: 1, swatch: '#0B0B0C', ink: '#E4E0D8', paper: '#0B0B0C', rail: '#0C0C0D', sheet: '#101012',
+               accent: '#D9B26A', warn: '#C8705A', good: '#7FB083', speak: 'rgba(190,185,175,.34)',
+               wash: 'linear-gradient(180deg,#0E0E10,#08080A 60%)' },
+  parchment: { label: 'Parchment', dark: 0, swatch: '#EFE7D8', ink: '#2E2A24', paper: '#EFE7D8', rail: '#E6DCC8', sheet: '#F3EDE1',
+               accent: '#6B5220', warn: '#8C3F28', good: '#3F6B47', speak: 'rgba(110,80,140,.5)',
+               wash: 'radial-gradient(60% 40% at 25% 0%, rgba(150,105,195,.07), transparent 70%), linear-gradient(180deg,#F3EDE1,#EAE1D0 60%)' },
+  cyberpunk: { label: 'Cyberpunk', dark: 1, swatch: '#07090E', ink: '#DFEBF2', paper: '#07090E', rail: '#080B11', sheet: '#0B1018',
+               accent: '#54D8CF', warn: '#E0568C', good: '#54D8CF', speak: 'rgba(224,86,140,.42)',
+               wash: 'radial-gradient(60% 45% at 80% 0%, rgba(224,86,140,.18), transparent 68%), radial-gradient(50% 40% at 10% 10%, rgba(84,216,207,.14), transparent 70%), linear-gradient(180deg,#0A1018,#06080C 55%)' },
+  fantasy:   { label: 'Fantasy',   dark: 1, swatch: '#0A0D0B', ink: '#E7E2D2', paper: '#0A0D0B', rail: '#0B0F0C', sheet: '#0F1411',
+               accent: '#C8A961', warn: '#B4693F', good: '#7FA86B', speak: 'rgba(140,175,130,.42)',
+               wash: 'radial-gradient(55% 42% at 22% 0%, rgba(110,150,105,.18), transparent 70%), linear-gradient(180deg,#101710,#080B09 50%)' },
+  grimdark:  { label: 'Grimdark',  dark: 1, swatch: '#0C0C0C', ink: '#D2CFCA', paper: '#0C0C0C', rail: '#0B0B0B', sheet: '#111111',
+               accent: '#A8674F', warn: '#9E4632', good: '#6E8069', speak: 'rgba(160,150,145,.3)',
+               wash: 'linear-gradient(180deg,#121211,#090909 65%)' },
+  novelist:  { label: 'Novelist',  dark: 0, swatch: '#F6F3EC', ink: '#22201D', paper: '#F6F3EC', rail: '#EDE9DF', sheet: '#FBF9F3',
+               accent: '#8C2F22', warn: '#8C2F22', good: '#3C6B45', speak: 'rgba(60,58,54,.3)',
+               wash: 'linear-gradient(180deg,#FBF9F3,#F1EDE4 70%)' },
+  scifi:     { label: 'Sci-fi',    dark: 1, swatch: '#08090C', ink: '#DCE4EC', paper: '#08090C', rail: '#090B0F', sheet: '#0D1015',
+               accent: '#8FB8D9', warn: '#D98A6A', good: '#7FB8A8', speak: 'rgba(143,184,217,.36)',
+               wash: 'radial-gradient(60% 40% at 50% 0%, rgba(143,184,217,.13), transparent 72%), linear-gradient(180deg,#0C1016,#07080B 55%)' },
+  romance:   { label: 'Romance',   dark: 1, swatch: '#140E13', ink: '#F0E2E4', paper: '#140E13', rail: '#160F15', sheet: '#1B131A',
+               accent: '#D98AA0', warn: '#C4667C', good: '#8FB89C', speak: 'rgba(217,138,160,.4)',
+               wash: 'radial-gradient(60% 45% at 28% 0%, rgba(190,110,140,.22), transparent 70%), linear-gradient(180deg,#1D1420,#100B10 55%)' },
+};
+
+/** Blend two hex colours. The design's own mix(), unchanged. */
+const mix = (hex, over, a) => {
+  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [r1, g1, b1] = p(hex), [r2, g2, b2] = p(over);
+  const f = (x, y) => Math.round(x + (y - x) * a);
+  return `rgb(${f(r1, r2)},${f(g1, g2)},${f(b1, b2)})`;
+};
+
+/** Every custom property a theme sets, derived from its row.
+ *
+ *  "toward" brightens the ink; "away" fades it toward the paper. Fading toward black on a light
+ *  theme is what made every hint sentence a mid-grey on cream — the design says so in as many
+ *  words, and the app had the bug it describes.
+ */
+export function themeVars(key) {
+  const S = THEMES[key] || THEMES.obsidian;
+  const toward = S.dark ? '#FFFFFF' : '#000000';
+  const away = S.paper;
+  return {
+    '--doc-bg': S.paper, '--doc-wash': S.wash, '--rail': S.rail, '--sheet': S.sheet,
+    '--body': S.ink, '--ink': S.ink,
+    '--ink-bright': mix(S.ink, toward, .35),
+    '--narr': mix(S.ink, away, .16),
+    // A hint is the sentence telling you what a control does, so it clears 4.5:1 by construction
+    // rather than by inspection. Paper is bright, so ink fades faster against it: a light theme
+    // needs a shorter fade to hold the contrast a dark one gets for free.
+    '--label': mix(S.ink, away, S.dark ? .34 : .2),
+    '--mute': mix(S.ink, away, S.dark ? .34 : .2),
+    '--dim': mix(S.ink, away, S.dark ? .5 : .32),
+    '--faint': mix(S.ink, away, S.dark ? .5 : .32),
+    '--ink-ghost': mix(S.ink, away, S.dark ? .62 : .44),
+    '--rule': S.dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.11)',
+    '--line': S.dark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.09)',
+    '--edge': mix(S.rail, toward, .11),
+    '--edge-lit': mix(S.rail, toward, .22),
+    '--chip': mix(S.rail, toward, .14),
+    '--field': mix(S.sheet, away, .35),
+    '--gold': S.accent, '--gold-dim': mix(S.accent, away, .22),
+    '--gold-lit': mix(S.accent, toward, .3),
+    '--on-gold': S.dark ? '#100D08' : '#FBF6EA',
+    // The app keeps three states where the design has two: `warn` is the amber one that says
+    // "look at this", `bad` is the red one that says "this is wrong". The design's single warn is
+    // the red; amber is derived from the accent so it stays inside the theme.
+    '--bad': S.warn, '--good': S.good, '--warn': mix(S.accent, away, .12),
+    '--you-rule': mix(S.accent, S.paper, .5), '--speak-rule': S.speak,
+    '--head': mix(S.ink, away, .42),
+    '--dock': `linear-gradient(180deg,${S.paper}00,${S.paper}EB 40%)`,
+    '--chrome': 'transparent',
+    '--chrome-ink': mix(S.ink, toward, .35),
+    '--chrome-dim': mix(S.ink, away, .42),
+    '--chrome-line': S.dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.09)',
+    '--panel-line': mix(S.rail, toward, .14),
+  };
+}

@@ -43,32 +43,11 @@
 
   --prose:20px; --bubble:17px; --gap:30px; --col:720px;
 }
-html[data-ui-theme="obsidian"] {
-  --doc-bg:#0A0A0C;
-  --doc-wash:radial-gradient(50% 40% at 25% 0%, rgba(150,105,195,.22), transparent 70%), linear-gradient(180deg,#131019,#09090B 45%);
-  --narr:#C9C1B2; --body:#EAE3D6; --label:#8E846F; --rule:rgba(255,255,255,.07); --you-rule:rgba(217,178,106,.45); --speak-rule:rgba(180,150,220,.5);
-  --dock:linear-gradient(180deg,rgba(9,9,11,0),rgba(9,9,11,.9) 40%);
-  --chrome:rgba(10,9,12,.5); --chrome-ink:#F3ECE0; --chrome-dim:#8A8478; --chrome-line:rgba(255,255,255,.05);
-}
-html[data-ui-theme="ink"] {
-  --doc-bg:#0B0B0C;
-  --doc-wash:linear-gradient(180deg,#0E0E10,#08080A 60%);
-  --narr:#C6C2BA; --body:#E4E0D8; --label:#7E7A72; --rule:rgba(255,255,255,.07); --you-rule:rgba(217,178,106,.4); --speak-rule:rgba(190,185,175,.34);
-  --dock:linear-gradient(180deg,rgba(11,11,12,0),rgba(11,11,12,.92) 40%);
-  --chrome:rgba(10,10,12,.5); --chrome-ink:#F3ECE0; --chrome-dim:#8A8478; --chrome-line:rgba(255,255,255,.05);
-}
-/* Parchment is the one light theme, so it restates the chrome and the greys too —
-   a token defined only in the dark blocks would render dark text on light ground. */
-html[data-ui-theme="parchment"] {
-  --doc-bg:#EFE7D8;
-  --doc-wash:radial-gradient(60% 40% at 25% 0%, rgba(150,105,195,.07), transparent 70%), linear-gradient(180deg,#F3EDE1,#EAE1D0 60%);
-  --narr:#3A342B; --body:#2E2A24; --label:#5F5340; --rule:rgba(58,52,43,.14); --you-rule:rgba(120,90,40,.45); --speak-rule:rgba(110,80,140,.5);
-  --dock:linear-gradient(180deg,rgba(239,231,216,0),rgba(239,231,216,.94) 40%);
-  --chrome:rgba(239,231,216,.72); --chrome-ink:#3A342B; --chrome-dim:#7A6E5C; --chrome-line:rgba(58,52,43,.12);
-  /* Gold has to darken on paper or it is cream on cream. Overriding the tokens fixes every place
-     that uses them; the single-rule override this replaced fixed one button. */
-  --gold:#7D5F1E; --gold-lit:#5E4819; --gold-dim:#6F5C30; --on-gold:#FBF6EA;
-}
+/* The nine themes are NOT here. They are one row each in web/model.js and every token is derived
+   from that row by themeVars(), which applyLook() writes onto <html> as custom properties. Three
+   hand-written blocks lived here and that is exactly why there were three: each new theme meant
+   restating the greys, the gold and the chrome by hand, and the light one that forgot rendered
+   dark text on cream. Rules that are NOT colours still key on data-ui-theme, below. */
 html[data-ui-size="s"] { --prose:18px; --bubble:16px; --gap:26px; --col:660px; }
 html[data-ui-size="m"] { --prose:20px; --bubble:17px; --gap:30px; --col:720px; }
 html[data-ui-size="l"] { --prose:23px; --bubble:19px; --gap:34px; --col:780px; }

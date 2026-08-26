@@ -3,7 +3,7 @@
 // sheet on a phone. Layout lives in app.html's CSS — this file decides state and content only,
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -17,6 +17,14 @@ const look = { theme: 'obsidian', font: 'serif', size: 'm' };
 try { Object.assign(look, JSON.parse(localStorage.getItem(LOOK) || '{}')); } catch { /* no storage */ }
 function applyLook() {
   root.dataset.uiTheme = look.theme; root.dataset.uiFont = look.font; root.dataset.uiSize = look.size;
+  // Every colour, derived from the theme's one row and written as custom properties. It replaced
+  // three hand-written CSS blocks — which is why there were three themes and not nine, and why
+  // the light one had to restate the greys and the gold by hand to avoid dark text on cream.
+  // data-ui-theme stays: rules that are not colours still key on it, and so do the tests.
+  const vars = themeVars(look.theme);
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', THEMES[look.theme]?.paper ?? '#0A0A0C');
   try { localStorage.setItem(LOOK, JSON.stringify(look)); } catch { /* no storage */ }
 }
 
@@ -250,9 +258,8 @@ function drawAppearance() {
   const el = $('appearance');
   el.hidden = !S.appearance;
   if (!S.appearance) return;
-  const themes = [['obsidian', 'Obsidian', 'linear-gradient(140deg,#1A1622,#0A0A0C)'],
-                  ['ink', 'Ink', 'linear-gradient(140deg,#141416,#0A0A0B)'],
-                  ['parchment', 'Parchment', 'linear-gradient(140deg,#F3EDE1,#DED3BF)']];
+  // From the table, so a theme added there appears here without a second list to keep in step.
+  const themes = Object.entries(THEMES).map(([k, t]) => [k, t.label, t.swatch]);
   const fonts = [['serif', 'Instrument Serif', "'Instrument Serif',Georgia,serif"],
                  ['sans', 'IBM Plex Sans', "'IBM Plex Sans',sans-serif"]];
   el.innerHTML = `

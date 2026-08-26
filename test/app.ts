@@ -23,7 +23,9 @@ for (const id of ['rail', 'bar', 'appearance', 'read', 'col', 'page', 'dock', 'd
 
 const listeners: Record<string, Function[]> = {};
 (globalThis as any).document = {
-  documentElement: { dataset: {} },
+  // `style.setProperty` because applyLook writes every theme token onto <html> as a custom
+  // property now — the nine themes are derived from a table rather than nine blocks of CSS.
+  documentElement: { dataset: {}, style: { setProperty() {} } },
   getElementById: (id: string) => nodes.get(id) ?? el(id),
   querySelector: () => null,
   querySelectorAll: () => [],
@@ -274,6 +276,56 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
   assert.match(chapter, /1 string proposed &mdash; they wait under Strings/,
     'it says where the string went rather than silently dropping it from the count');
   ok('a proposed string waits under Strings, and the chapter queue says so');
+
+// Nine themes, each one row, every token derived from it. Three hand-written CSS blocks is why
+// there were three: a new theme meant restating the greys, the gold and the chrome by hand, and
+// the light one that forgot rendered dark text on cream.
+{
+  const { THEMES, themeVars } = await import('../web/model.js');
+  assert.strictEqual(Object.keys(THEMES).length, 9);
+
+  // Named explicitly, not read off one theme and compared to the others: deriving the expected
+  // set from obsidian meant a token deleted from ALL nine still matched, which is what happened
+  // when I first wrote this and deleted one to watch it go red.
+  const NEEDED = ['--doc-bg', '--doc-wash', '--rail', '--sheet', '--body', '--ink', '--ink-bright',
+    '--narr', '--label', '--mute', '--dim', '--faint', '--ink-ghost', '--rule', '--line', '--edge',
+    '--edge-lit', '--chip', '--field', '--gold', '--gold-dim', '--gold-lit', '--on-gold', '--bad',
+    '--good', '--warn', '--you-rule', '--speak-rule', '--head', '--dock', '--chrome',
+    '--chrome-ink', '--chrome-dim', '--chrome-line', '--panel-line'];
+  for (const name of Object.keys(THEMES)) {
+    const v: any = themeVars(name);
+    for (const k of NEEDED)
+      assert.ok(v[k] && String(v[k]).trim(), `${name} leaves ${k} unset — a theme that omits a `
+        + 'token inherits whatever the last one set, which is how a half-applied theme looks fine '
+        + 'until you switch to it');
+  }
+
+  // The claim the design makes for its own derivation: a hint clears 4.5:1 "by construction
+  // rather than by inspection". Checked on every theme, against that theme's own paper.
+  const rgb = (c: string) => {
+    const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(c);
+    if (m) return [+m[1], +m[2], +m[3]];
+    const h = /^#?([0-9a-f]{6})$/i.exec(c.trim());
+    return h ? [0, 2, 4].map((i) => parseInt(h[1].slice(i, i + 2), 16)) : null;
+  };
+  const rel = (c: number[]) => {
+    const f = c.map((x) => { const s2 = x / 255; return s2 <= 0.03928 ? s2 / 12.92 : ((s2 + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2];
+  };
+  const ratio = (a: string, b: string) => {
+    const x = rgb(a), y = rgb(b);
+    if (!x || !y) return NaN;
+    const l1 = rel(x), l2 = rel(y);
+    return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  };
+  for (const [name, spec] of Object.entries(THEMES)) {
+    const v: any = themeVars(name);
+    const r = ratio(v['--label'], (spec as any).paper);
+    assert.ok(r >= 4.5, `${name}: a hint sentence is ${r.toFixed(2)}:1 against its own paper, `
+      + 'and the derivation exists to make that 4.5 without anyone checking by eye');
+  }
+  ok('nine themes, every token derived from one row each, every hint above 4.5:1');
+}
 }
 
 console.log(`\n${n} checks passed`);
