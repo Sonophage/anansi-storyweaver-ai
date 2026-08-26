@@ -1253,3 +1253,52 @@ been wrong the moment a promise really was set up earlier.
 n=1 per arm. This establishes that the distinction is expressible and that the chapter number
 follows from being told, not a rate at which either holds.
 
+
+---
+
+## F34 — "Clicking a story does not open it" on Android is a drift threshold: 14px of finger movement still opens it, 24px does not.
+
+Reported twice as "some touch events do nothing" and once, concretely, as tapping a story on the
+shelf doing nothing on Android. Both were unreproducible, for a reason that turned out to be the
+harness rather than the app: `bench/drive.ts` had only ever had a mouse. Every scenario ran with
+`hover:hover` matching, `matchMedia('(hover:none)')` false, and a tap that was a click with a hover
+before it. There was no way to reproduce a touch-only bug, so three reports sat unexplained.
+
+`page.mobile()` now sets a phone viewport AND `Emulation.setTouchEmulationEnabled`, and `page.click`
+switches to real `Input.dispatchTouchEvent` pairs once it is on.
+
+Two wrong turns worth recording, because both looked like the app failing:
+
+- `Emulation.setEmitTouchEventsForMouse` hangs `Input.dispatchMouseEvent` — it never returns, and
+  every `page.click` in the scenario blocks until the run is killed. Measured on a button that opens
+  nothing, so it was not the story-open path. Do not use it; dispatch touch directly.
+- The first selector, `[data-open]:not([data-open="new"])`, matched a **rail** item at `x = -132`.
+  A closed drawer still has its contents in the DOM, so an unscoped selector on a phone viewport
+  clicks off-canvas at negative coordinates. `page.click` now refuses a negative box and says why.
+
+With those out of the way, a clean tap works — the story opens, three blocks, the bar reads its
+title. The defect is drift:
+
+| finger movement between touchStart and touchEnd | story opens |
+|---|---|
+| 0px | yes |
+| 6px | yes |
+| 14px | yes |
+| **24px** | **no** |
+| 40px | no |
+
+The threshold sits between 14 and 24 CSS px. The hero card is 354×307, on a page that scrolls, so
+the browser is deciding whether the gesture was a tap or the start of a scroll — and above the
+threshold it chooses scroll and never fires `click`. On a 3x-DPI phone, 24 CSS px is a few
+millimetres of thumb roll, which is ordinary one-handed use on a target that size.
+
+**Not fixed.** The fix is not local to the shelf: every large touch target in the app is reached
+through the one delegated `click` handler in `web/app.js`, so the same drift kills the ⋯ actions and
+the panel buttons, which is exactly what "menu navigation isn't intuitive, hard on mobile" describes.
+The shape of a fix is a `pointerdown`/`pointerup` tap recogniser on that same handler, firing when
+movement is inside a band and the gesture was short, with a guard that swallows the native `click`
+when the browser does fire one. That guard is the whole risk: get it wrong and destructive actions —
+Delete take, Delete this story — run twice. It wants agreeing before it lands, not shipping quietly.
+
+The number is a floor on the defect, not a rate: it says the mechanism exists and where its edge is
+on emulated Chrome at 390x844. A real device may cancel earlier.

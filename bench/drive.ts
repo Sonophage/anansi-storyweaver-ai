@@ -40,6 +40,9 @@ ws.addEventListener('message', (m: any) => {
   const d = JSON.parse(m.data);
   if (d.id && pending.has(d.id)) { pending.get(d.id)!(d); pending.delete(d.id); }
 });
+/** Set by page.mobile(). Once on, page.click and page.type send touch rather than mouse. */
+let touch = false;
+
 function send(method: string, params: any = {}) {
   const id = ++seq;
   return new Promise<any>((res, rej) => {
@@ -95,9 +98,52 @@ const page = {
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
     if (!box) throw new Error(`click: element for ${sel} went away while scrolling to it`);
     if (box.hidden) throw new Error(`click: ${sel} has no box — hidden, or waiting on :hover`);
-    for (const type of ['mousePressed', 'mouseReleased']) {
-      await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 });
+    if (box.x < 0 || box.y < 0) throw new Error(
+      `click: ${sel} sits at ${Math.round(box.x)},${Math.round(box.y)} — off-canvas. `
+      + 'A drawer that is closed still has its contents in the DOM, so scope the selector.');
+    if (touch) {
+      // A finger: touchStart then touchEnd at one point. The browser synthesises the click.
+      await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x, y: box.y }] });
+      await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      for (const type of ['mousePressed', 'mouseReleased']) {
+        await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 });
+      }
     }
+    await wait(220);
+  },
+  /** Become a phone: a phone-sized viewport AND a touch screen with no mouse.
+   *
+   *  Both halves matter and the second is the one that was missing. Every mobile bug reported so far
+   *  has been unreproducible here because the driver only ever had a mouse, so `@media (hover:hover)`
+   *  rules applied, `matchMedia('(hover:none)')` was false, and a tap was a click with a hover
+   *  before it. setTouchEmulationEnabled makes the browser report a touch screen and no hover;
+   *  setEmitTouchEventsForMouse turns the dispatched mouse events into real touch events, so
+   *  page.click and page.type keep working and start behaving like fingers.
+   *
+   *  Call it before the first assertion in a scenario. There is no way back inside one run — reload
+   *  in a fresh scenario for the desktop case.
+   *
+   *  NOT setEmitTouchEventsForMouse: with that on, Input.dispatchMouseEvent never returns and every
+   *  page.click in the scenario hangs until the run is killed. Measured, twice, on a button that
+   *  opens nothing. Real touch events instead — page.click switches to them once this is on, so
+   *  scenarios do not need to know. */
+  async mobile(width = 390, height = 844) {
+    await send('Emulation.setDeviceMetricsOverride',
+      { width, height, deviceScaleFactor: 3, mobile: true });
+    await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+    touch = true;
+    await wait(200);
+  },
+  /** A tap that moves `drift` pixels between touchStart and touchEnd. For finding the point where
+   *  the browser stops calling it a tap and starts calling it a scroll — which is what a large card
+   *  on a scrolling shelf is vulnerable to on a real finger. */
+  async touchDrift(x: number, y: number, drift: number) {
+    await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    if (drift) {
+      await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + drift }] });
+    }
+    await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await wait(220);
   },
   /** A real mouse move, so CSS :hover applies. A dispatched mouseover event does not. */
