@@ -9,3 +9,7 @@ bench/results.json
 bench/*.log
 
 node_modules/
+
+# Where uploads land before they are read. safePath() mkdirs it, so nothing needs it tracked —
+# and a 100-byte huge.db got committed from a test run before this line existed.
+imports/
