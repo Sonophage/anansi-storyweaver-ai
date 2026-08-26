@@ -15,7 +15,7 @@ under **Still open** and under the four decisions — you do not need to re-repo
 ## 2 · The composer, and the passage arriving
 
 
-## 3 · Anansi has a voice
+## 3 · Anansi has a voice, and a panel
 
 
 ## 4 · Have Anansi write one

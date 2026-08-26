@@ -390,11 +390,19 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 @media (max-width:719px) { #col .block.opening .narr::first-letter { font-size:46px; margin:1px 8px 0 0; } }
 
 /* A running head is RUNNING: it earns its place only once the chapter's own band has scrolled
-   away. Showing both at once says the chapter's name twice inside 60 pixels. */
-.runhead { position:sticky; top:0; z-index:4; display:flex; align-items:baseline; gap:12px;
-  font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label);
-  padding:6px 0; background:var(--doc-bg); opacity:0; transition:opacity var(--t) var(--ease); }
-#read.scrolled .runhead { opacity:1; }
+   away. Showing both at once says the chapter's name twice inside 60 pixels.
+   It lives ABOVE the scroller and COLLAPSES, rather than sticking inside it. Sticky-inside meant
+   an opaque strip riding over the prose — a black band across the middle of a paragraph, with the
+   column's own edges showing as a rectangle. It opens its height instead, so the prose moves down
+   to make room for it and nothing is ever covered. */
+#runhead { flex:0 0 auto; display:flex; align-items:baseline; gap:14px; overflow:hidden;
+  height:0; opacity:0; padding:0 40px; box-sizing:content-box;
+  font-size:11.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label);
+  transition:height var(--t-slow) var(--ease), opacity var(--t-slow) var(--ease); }
+#doc.scrolled #runhead { height:34px; opacity:1; padding-top:12px; }
+#runhead > span { display:flex; align-items:baseline; }
+#runhead .tnum { font-variant-numeric:tabular-nums; }
+@media (max-width:719px) { #runhead { padding:0 18px; } #doc.scrolled #runhead { height:26px; padding-top:8px; } }
 
 /* --- composer ---------------------------------------------------------- */
 /* Column, not row. #working cannot live inside #dockCol — drawDock() sets its innerHTML and would
@@ -509,6 +517,7 @@ textarea.field { resize:vertical; min-height:70px; }
     <div id="wash"></div>
     <header id="bar"></header>
     <div id="appearance" hidden></div>
+    <div id="runhead" aria-hidden="true"></div>
     <div id="read" class="scroll"><div id="col"></div></div>
     <div id="page" class="scroll" hidden></div>
     <div id="dock"><div id="working" hidden><i></i></div>

@@ -55,8 +55,13 @@ ok("   search narrows it too (" + hits + " for 'brass')", hits > 0 && hits < all
 
 // 4. context: a readable prompt, and rows that jump
 await page.goto(B + "/#" + sid + "/context");
+// Waited for, not assumed. This asserted and clicked straight after the navigation, which held
+// while the first paint was cheap and started dying in a batch of four once the chapter band, the
+// running head and nine themes' worth of custom properties joined it.
+for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('[data-ctxview=\"prompt\"]')")); i++) await wait(150);
 ok("4. the Context panel offers a prompt view", await page.eval("!!document.querySelector('[data-ctxview=\"prompt\"]')"));
 await page.click('[data-ctxview="prompt"]');
+for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('#sideBody pre')")); i++) await wait(150);
 const promptLen = await page.eval("(document.querySelector('#sideBody pre')?.textContent || '').length");
 ok("   the prompt actually sent is readable (" + promptLen + " chars)", promptLen > 400);
 ok("   and it is the real thing", (await page.text('#sideBody pre') || '').includes('prose engine'));

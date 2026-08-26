@@ -32,8 +32,12 @@ entirely about feel.
       three spokes. They replace ⚙ ❧ ☙ ⟡ ◈ ⌕ ◐ ✻ ❋ ✎ ↧ ☰, which came from six Unicode blocks.
 - [ ] **A chapter opens with a band**: its number, its name at 48px, and an **epigraph pulled from
       its own prose**, then a rule and a drop cap.
-- [ ] The **running head** appears only once the band has scrolled away, and carries the chapter
-      and the count — so the header carries the book, and the model when the rail is not showing it.
+- [ ] The **running head** opens above the prose once the band has scrolled away, carrying the
+      chapter and the count — so the header carries the book, and the model when the rail is not
+      showing it. It must never sit ON the prose: the first version was sticky inside the column and
+      rode over the middle of a paragraph as a black band.
+- [ ] **Aa → Theme.** Nine discs, each half paper and half that theme's accent. The first version
+      cut them on a 135° diagonal at 52% and they read as folded squares in six shades of black.
 - [ ] **Parchment and Novelist take grain.** The dark themes are screens and do not.
 - [ ] Labels are **small caps, sentence case**; one radius family (3px, 12px, pill); one motion
       curve.
@@ -72,7 +76,16 @@ The animation is the third version. Say if it is still clunky.
 
 ---
 
-## 3 · Anansi has a voice
+## 3 · Anansi has a voice, and a panel
+
+- [ ] Open **Anansi** on a story you have not asked anything yet. It offers **four openings** —
+      what the story has set up and not paid off, who somebody is, what it has never said outright,
+      and set up the next scene. One of them names somebody from **your** cast.
+- [ ] Tap one. It **fills the box and does not send**. Nothing in that panel happens until you
+      choose it, and a suggestion that sent itself would be the first thing to break that.
+
+> It used to be two paragraphs of explanation over a panel-height void, with a three-line footnote
+> about web search underneath. The footnote is one line now, and only when search is off.
 
 Rail → **✻ Anansi**, inside a story.
 

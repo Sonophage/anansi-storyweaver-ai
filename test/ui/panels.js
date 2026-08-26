@@ -120,7 +120,12 @@ const total = v.passages.length;
 console.log(`  chapters ${v.chapters.length}, showing ${shown} of ${total} passages`);
 ok(`the document shows one chapter, not the book (${shown} shown, ${inCh} in this chapter, ${total} in all)`,
    shown === inCh);
-ok("  and says which chapter you are on", /chapter \d+ of \d+/i.test(await page.text('#col') || ''));
+// The chapter's NAME is in the band at the top of the column; the count is in the running head,
+// which lives above the scroller and opens once the band has gone by. It used to be one line
+// inside the column, which is why this asked #col for both.
+ok("  and says which chapter you are on",
+   /chapter \d+ of \d+/i.test(await page.text('#runhead') || '')
+   && ((await page.text('.band-title')) || '').trim().length > 0);
 if (v.chapters.length > 1) {
   ok("  with a pager to the neighbouring chapters", await page.visible('#col [data-chapter]'));
   // Which chapter you are reading lives in CLIENT state — view(storyId, focusChapterId). Asking
@@ -471,22 +476,57 @@ ok("  which is CSS, not an element in the editable body",
    await page.eval("!document.querySelector('#col .block.opening .narr span.dropcap')"));
 
 // The running head earns its place only once the band has gone by.
+// The running head lives ABOVE the scroller and OPENS its height. Sticky-inside meant an opaque
+// strip riding over the prose — a black band across the middle of a paragraph.
 const runState = async () => page.eval("(() => { const r = document.getElementById('read');"
+  + " const h = document.getElementById('runhead');"
   + " return JSON.stringify({ top: Math.round(r.scrollTop),"
-  + " op: getComputedStyle(document.querySelector('.runhead')).opacity }); })()");
+  + " h: Math.round(h.getBoundingClientRect().height),"
+  + " op: getComputedStyle(h).opacity,"
+  + " overlaps: h.getBoundingClientRect().bottom > r.getBoundingClientRect().top + 1 }); })()");
 await page.eval("(() => { const r = document.getElementById('read'); r.scrollTop = 0;"
   + " r.dispatchEvent(new Event('scroll')); return 1; })()");
 await wait(400);
 const top = JSON.parse(await runState());
 if (top.top <= 90) {
-  ok(`  the running head is hidden while the band is on screen (top ${top.top})`, top.op === '0');
+  ok(`  the running head is closed while the band is on screen (${top.h}px)`, top.h === 0);
 } else {
-  ok(`  (this chapter cannot scroll to its own top — ${top.top}px, so the hidden state is untested here)`, true);
+  ok(`  (this chapter cannot scroll to its own top — ${top.top}px, so the closed state is untested here)`, true);
 }
 await page.eval("(() => { const r = document.getElementById('read'); r.scrollTop = 400;"
   + " r.dispatchEvent(new Event('scroll')); return 1; })()");
 await wait(400);
 const down = JSON.parse(await runState());
-ok(`  and appears once it has gone by (top ${down.top})`, down.top <= 90 || down.op === '1');
+ok(`  and opens once it has gone by (top ${down.top}, ${down.h}px)`,
+   down.top <= 90 || (down.h > 0 && down.op === '1'));
+ok("  and never covers the prose — it is above the scroller, not inside it", down.overlaps === false);
+
+// ---- 19. the Anansi panel, which had no coverage at all
+// Its empty state was two paragraphs of explanation over a panel-height void: it said what Anansi
+// could do in prose and left you to compose the question.
+await page.goto(B + "/#" + sid3 + "/anansi");
+await wait(1000);
+const asks = await page.eval("[...document.querySelectorAll('[data-askfill]')].map(b => b.dataset.askfill)");
+ok(`Anansi opens with things to ask it (${asks.length})`, asks.length >= 3);
+ok("  one of which is what the story has not paid off",
+   asks.some((a) => /not paid off/i.test(a)));
+// The openings are about THIS story, not a generic list.
+const cast = (await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid3 + "')).json();"
+  + " return (v.entries || []).filter(e => e.entryType === 'character').map(e => e.title); })()"));
+if (cast.length) {
+  ok(`  and one names somebody in this book (${JSON.stringify(cast[0])})`,
+     asks.some((a) => a.includes(cast[0])));
+}
+// Tapping FILLS the box and does not send: the panel's own rule is that nothing happens until you
+// choose it, and a suggestion that sent itself would be the first thing to break it.
+await page.eval("(() => { document.querySelector('[data-askfill]').click(); return 1; })()");
+await wait(500);
+ok("  tapping one fills the box",
+   (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
+ok("  and does not send it — no answer, no thinking",
+   !/Thinking/.test(await page.text('#sideBody') || ''));
+await wait(1200);
+ok("  and it is still there a moment later, not eaten by a repaint",
+   (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

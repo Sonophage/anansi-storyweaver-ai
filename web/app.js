@@ -114,7 +114,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
-  'newstring', 'delstring', 'summon', 'stringstatus', 'looktab',
+  'newstring', 'delstring', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
@@ -284,13 +284,18 @@ function drawAppearance() {
   const tabs = [['theme', 'Theme'], ['font', 'Font'], ['size', 'Size']];
   const tab = S.lookTab ?? 'theme';
 
-  // THE SWATCH CARRIES THE ACCENT AS WELL AS THE PAPER. Six of the nine themes are near-black —
+  // THE SWATCH IS A DISC, HALF PAPER AND HALF ACCENT. Six of the nine themes are near-black —
   // #0A0A0C, #0B0B0C, #07090E, #0A0D0B, #0C0C0C, #08090C — so a circle of the paper alone gave six
-  // circles nobody could tell apart. Half paper, half accent, on the diagonal: the ground you will
-  // read on and the colour that will mark what matters, which is the whole of what a theme is.
-  const swatch = (t) => `<span style="width:22px; height:22px; border-radius:50%; flex:0 0 auto;
-    background:linear-gradient(135deg, ${t.swatch} 0 52%, ${t.accent} 52% 100%);
-    border:1px solid ${t.dark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.16)'}"></span>`;
+  // circles nobody could tell apart.
+  //
+  // Split down the VERTICAL, not on a diagonal. A 135° cut at 52% put a corner-shaped wedge in the
+  // frame and the eye read the whole thing as a folded square however round the element was. A
+  // straight vertical edge through the middle reads as one disc in two colours, which is what it
+  // is. Bigger too — 26px, because two colours in 22px with a border between them is mud.
+  const swatch = (t) => `<span style="width:26px; height:26px; border-radius:50%; flex:0 0 auto;
+    display:block; overflow:hidden;
+    background:linear-gradient(90deg, ${t.swatch} 0 50%, ${t.accent} 50% 100%);
+    box-shadow:inset 0 0 0 1px ${t.dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.2)'}"></span>`;
 
   const body = tab === 'theme'
     ? `<div style="display:flex; flex-direction:column; gap:7px">${themes.map(([k, t]) => `
@@ -408,11 +413,6 @@ function drawDoc() {
       ${epi ? `<div class="band-epi"><i></i><span class="serif">${esc(epi)}</span></div>` : ''}
       <div class="band-rule"></div>
     </div>
-    <div class="runhead" aria-hidden="true">
-      <span>${esc(ch.title || `Chapter ${ch.index}`)}</span>
-      <span style="opacity:.7">chapter ${at + 1} of ${V.chapters.length}</span>
-      ${words ? `<span style="margin-left:auto; opacity:.7">${words.toLocaleString()} words</span>` : ''}
-    </div>
     ${ps.map((p, i) => passageHTML(p, i === ps.length - 1, i === 0)).join('') || `<div class="narr" style="opacity:.6">${
       V.chapters.length > 1 ? 'Nothing in this chapter yet.' : 'Nothing written yet. The composer is below.'}</div>`}
     ${V.chapters.length > 1 ? `<div style="display:flex; align-items:center; gap:14px; padding:26px 0 4px;
@@ -421,14 +421,23 @@ function drawDoc() {
       <span style="margin-left:auto"></span>
       ${step(next, 'the end', 'r')}</div>` : ''}`;
   if (tip) read.scrollTop = read.scrollHeight;
-  // The running head appears once the band is gone. One listener, attached once — drawRead runs
-  // on every repaint and adding it here each time would stack them.
+
+  // The running head lives ABOVE the scroller, so filling it is separate from filling the column.
+  const rh = $('runhead');
+  if (rh) rh.innerHTML = `
+    <span>${esc(ch.title || `Chapter ${ch.index}`)}</span>
+    <span style="opacity:.7">chapter ${at + 1} of ${V.chapters.length}</span>
+    ${words ? `<span class="tnum" style="margin-left:auto; opacity:.7">${words.toLocaleString()} words</span>` : ''}`;
+
+  // It opens once the chapter's own band has gone by. One listener, attached once — drawRead runs
+  // on every repaint and adding it here each time would stack them. The class goes on #doc, not
+  // on the scroller, because what it opens is a sibling of the scroller.
+  const show = () => $('doc')?.classList.toggle('scrolled', read.scrollTop > 90);
   if (!read.dataset.runhead) {
     read.dataset.runhead = '1';
-    const onScroll = () => read.classList.toggle('scrolled', read.scrollTop > 90);
-    read.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-  } else read.classList.toggle('scrolled', read.scrollTop > 90);
+    read.addEventListener('scroll', show, { passive: true });
+  }
+  show();
 }
 
 /** The story the composer was last drawn for. A draft belongs to its book: paging a chapter or
@@ -885,10 +894,38 @@ const PANELS = {
                 border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} proposed &mdash; waiting under Chapter</button>` : ''}
               ${turn.meta ? `<div style="font-size:10.5px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
             </div>`).join('')
-          : `<div class="hint" style="margin:0">Ask about the story, a character, what you have set up
-              and not paid off. Anansi can also propose <strong>threads</strong>, and
-              draft a <strong>directive</strong> to hand to the composer.<br><br>
-              Nothing it offers goes anywhere until you accept it.</div>`}
+          : (() => {
+            // The empty state was two paragraphs of explanation over a panel-height void. It said
+            // what Anansi could do in prose and then left you to compose the question yourself.
+            //
+            // Four openings instead, each one a thing it is actually built to do: answer from the
+            // ledger, say what the story does not say, notice an unpaid promise, draft a directive.
+            // Tapping one FILLS the box and does not send it — the panel's own rule is that
+            // nothing happens until you choose it, and a suggestion that sent itself would be the
+            // first thing to break it.
+            const cast = (V.entries ?? []).filter((e) => e.entryType === 'character');
+            const who = cast[0]?.title;
+            const asks = [
+              ['strings', 'What has this story set up and not paid off?'],
+              who && ['threads', `Who is ${who}, and what do we know for certain?`],
+              ['search', 'What has the story never said outright?'],
+              ['chapter', 'Set up the next scene for me.'],
+            ].filter(Boolean);
+            return `<div style="display:flex; flex-direction:column; gap:10px">
+              <div class="hint" style="margin:0">Anansi has your canon, your chapter summaries and
+                the last few passages. It answers from those, says so when they do not say, and
+                offers <strong>threads</strong>, <strong>strings</strong> and a
+                <strong>directive</strong> &mdash; none of which go anywhere until you accept them.</div>
+              <div style="display:flex; flex-direction:column; gap:6px; margin-top:2px">
+                ${asks.map(([m, q]) => `<button data-askfill="${esc(q)}" style="display:flex;
+                  align-items:flex-start; gap:11px; text-align:left; width:100%; padding:10px 12px;
+                  border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:13px;
+                  line-height:1.45">
+                  <span style="color:var(--gold-dim); display:flex; padding-top:1px">${mark(m, 16)}</span>
+                  <span>${esc(q)}</span></button>`).join('')}
+              </div>
+            </div>`;
+          })()}
         ${t.busy ? '<div class="hint" style="margin:0">Thinking&hellip;</div>' : ''}
       </div>
 
@@ -917,7 +954,8 @@ const PANELS = {
             style="margin-left:auto; width:auto; padding:0 22px; height:38px">${t.busy ? '&hellip;' : 'Ask'}</button>
         </div>
         ${t.searchable === false
-          ? '<div class="hint" style="margin:0">Web search is off. It makes the only outbound request this app can make, so it stays off until <code>ANANSI_SEARCH</code> names a service you trust.</div>'
+          ? `<div class="hint" style="margin:0">Off until <code>ANANSI_SEARCH</code> names a service
+             you trust &mdash; it is the only outbound request this app can make.</div>`
           : ''}
       </div>
     </div>`;
@@ -2144,6 +2182,13 @@ document.addEventListener('click', async (e) => {
     const r = await api.delString(S.storyId, d.delstring);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
+  }
+
+  if (d.askfill !== undefined) {
+    // Fills the box, never sends. The panel's rule is that nothing happens until you choose it.
+    const box = document.getElementById('askBox');
+    if (box) { box.value = d.askfill; box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+    return;
   }
 
   if (d.rollup) {
