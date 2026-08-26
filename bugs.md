@@ -33,7 +33,10 @@ under **Still open** and under the four decisions — you do not need to re-repo
 ## 8 · The prompts, in your words
 
 
-## 9 · Delete, and the model list
+## 9 · Taking a book out and putting it back, and switching fast
+
+
+## 10 · Delete, and the model list
 
 
 ---
@@ -44,4 +47,4 @@ under **Still open** and under the four decisions — you do not need to re-repo
 ## Ideas, not bugs
 
 
-## Still open — which of the six, in what order
+## Still open — plot threads, the horizon, the failed manifest

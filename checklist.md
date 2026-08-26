@@ -1,8 +1,12 @@
 # Walk it yourself — round four, 2026-08-25
 
 Round three is gone from this file: everything on it is built, and everything you wrote in
-`bugs.md` against it has been done or has a finding saying why not. What is below is the new
-work — the answers you gave me, built — plus what is still open underneath it.
+`bugs.md` against it has been done or has a finding saying why not. What is below is the new work —
+your answers built, plus COUNCIL-04's list worked through to one remaining item — and what is still
+open underneath it.
+
+Ten sections. The one I most want your eye on is **§1**: passages are shorter twice over now and
+that is a taste question no benchmark answers.
 
 **Restart the server first.** Every round three bug report started with a server older than HEAD.
 
@@ -33,6 +37,10 @@ The animation is the third version. Say if it is still clunky.
       characters on every token, which is what made it feel like it was chewing.
 - [ ] The composer **stays where it is** for the whole call. It used to slide off the right edge
       for the length of every generation — that was layout, not animation.
+- [ ] Type half a sentence and **do not send it**. Open a panel, change mode, turn to another
+      chapter. The line is still there, **with the cursor where you left it**.
+- [ ] Now open a **different story**. The line is gone — a draft belongs to its book, and carrying
+      it across would be worse than losing it.
 
 > **Passages are half as long now.** `max_tokens` went 900 → 450, so a passage arrives in half the
 > time and the prompt gets those tokens back. If that is too short for you, Storyteller → Max
@@ -121,9 +129,14 @@ Rail → **✻ Anansi**, inside a story.
 - [ ] **Context** should show fewer EARLIER rows and fewer tokens against them.
 - [ ] Remove the act. Those chapters send their own summaries again.
 
-> This is the thing that stops a long book forgetting itself, and it had no way in until now. What
-> it does NOT fix: which summaries get dropped when you have not rolled up. See F31 — at chapter
-> 120 the survivors are chapters 6-9, 52-55 and 96-99, which is nobody's idea of a memory.
+- [ ] **Context → Blocks**, on a long story. The dropped rows say `EARLIER 25% ceiling` with a
+      count. What survives should now be a **run of recent chapters**, not a scatter.
+
+> F31 and F32. What gets dropped when you have not rolled up used to be chapters 6-9, 52-55 and
+> 96-99 — the ids were sorted as **strings**, so `c10` came before `c2`. It is the distant past now,
+> in one piece. What is still true: at chapter 120 fifty-two summaries are dropped and **the only
+> place that admits it is that panel**. If you have not opened it, you do not know your book has a
+> horizon.
 
 ## 8 · The prompts, in your words
 
@@ -139,7 +152,19 @@ Rail → **✻ Anansi**, inside a story.
 > wording, and nothing validates it beyond refusing a blank. A prompt that produces nothing
 > produces nothing, and the way back is one press.
 
-## 9 · Delete, and the model list
+## 9 · Taking a book out and putting it back, and switching fast
+
+- [ ] **Story → Take it with you → As a standalone database.** Do it on a story that has a
+      **written register**, a **raised context cap**, a **named model** and a **locked character**.
+- [ ] **Import** that file. All four should still be set. They used to vanish silently: the export
+      list was written by hand and those four were not on it.
+- [ ] Try importing something **over 20MB**. It is refused, and nothing of it reaches the disk. The
+      `.db` path used to write first and ask afterwards.
+- [ ] Open a story, then **immediately open another** before the first finishes loading. The book
+      on screen and the **Context panel** must agree. A slow answer for the book you left used to
+      land on the book you opened.
+
+## 10 · Delete, and the model list
 
 - [ ] ⋯ → **Delete** on a passage with more than one take. It says **Delete take 2**, asks once,
       and deletes on the second press.
@@ -152,48 +177,38 @@ Rail → **✻ Anansi**, inside a story.
 
 ---
 
-## Still open — COUNCIL-04, worst first
+## Still open
 
-Two came off this list in round three. Six left, and the order is still yours to set.
+**COUNCIL-04 is seven of eight closed, and all seven of its smaller items.** What is left of it is
+one thing, and two more have been found since.
 
-- ~~**Two of the five mode prompts produce slop.**~~ Done, F29 — and it was three, not two: `act`
-  carried the same checklist in different words. Measured: the shape was being filled **10 times out
-  of 10**, now 5. The spice levels were re-cut in the same sitting. **What is left of this item is
-  ~~the editor~~. Built: **Storyteller → The five modes, in your words**. A full replace, global to
-  you, and Default is Save with an empty box. `{{directive}}` and `{{speaker}}` fill the way the
-  shipped ones fill them. What is NOT built is the rest of DECISIONS §3 — there is no composition
-  (an override replaces, it does not merge) and no validation beyond "not blank", because a prompt
-  that produces nothing produces nothing and the reset is one press. Say if you want more than that.
-- ~~**The canon checker only checks entries that fired.**~~ Done. The check reads the **whole
-  ledger** now and each flag records whether that entry reached the prompt. A flag on canon the
-  engine never sent reads **Never sent** in amber, not **Contradiction** in red — different fault,
-  and the fix is a trigger word rather than a rewrite. The repair still judges the model against
-  only what it was told, because asking it to honour canon it never saw is asking it to guess.
-- ~~**Firing is imprecise at scale.**~~ Done. A multi-word key now needs its words **in order and
-  close together**, so `iron bridge` no longer fires on *"The bridge was iron"* and `Kade Ashford`
-  no longer fires on Kade Ferrin plus Lord Ashford a clause apart. Both are COUNCIL-04's own real
-  false fires and both are now tests.
-- ~~**Chapter 120 does not fit** and `POST /api/rollup` has no caller.~~ Done — **Chapter → Acts**,
-  and the button works out its own range. F31 measured it: 65 of 117 summaries drop, five acts over
-  a hundred chapters cost 4,083 tokens against 11,440, and nothing drops.
-- ~~**Eviction order is backwards**~~ (COUNCIL-04 #8). Done, F32 — two bugs in one finding. EARLIER
-  sorted chapter ids as **strings**, so `c10` came before `c2`; a 120-chapter book now keeps
-  **66-117 unbroken** instead of 6-9, 52-55 and 96-99. And canon evicted in **creation order**, so
-  the protagonist Spark wrote first went before yesterday's walk-on; blocks are now ranked by how
-  they earned their place — sticky, then keyword, then point of view, then pinned.
-- **A long book has a horizon and does not say so.** At chapter 120, fifty-two summaries are still
-  dropped; the only place that admits it is the Context panel's dimmed rows. New, from F32.
-- **Plot threads are not tracked.** The one absence named as stopping a serial writer.
-- Smaller: four of seven done — `serve.ts`'s gate is now proved by a real server running as the
-  other writer; `endChapter` is one transaction; the `.db` import is refused before it is written
-  rather than after; and the export carries `spice_note`, `max_context`, `model` and the locked
-  character; and the two in-flight races are guarded — a manifest or an activity fetch that lands
-  after you have opened another book is dropped rather than applied. **Left**: the composer still
-  eats drafts on panel-open and chapter-paging.
+- **Plot threads are not tracked.** Nothing registers an open promise — the letter unopened in
+  chapter 6, the debt owed in 12. The serial-writer reviewer named this as the single absence that
+  would stop them using it, and they were right that attribute drift is not what kills a serial.
+  **Not started, and it wants a conversation first**: what a thread IS (a promise, with the chapter
+  it was made in and the one it is owed by?), whether it reaches the prompt or stays writer-facing,
+  and **what to call it** — "threads" is now your word for the ledger, so this needs its own or the
+  naming pass comes undone.
+- **A long book has a horizon and does not say so.** F32. At chapter 120 fifty-two summaries are
+  dropped and the only place that admits it is the Context panel's dimmed rows. A writer who has
+  not opened that panel does not know part of their book is no longer readable by the model.
+- **A failed manifest leaves the last one on screen.** Found while fixing the in-flight races and
+  deliberately not fixed with them: `refreshManifest` skips the assignment when the request errors,
+  so the Context panel keeps showing the previous book's prompt. Same symptom as the race, different
+  cause. One line — clear `MANI` and `PROMPT` on error — but it changes what the panel shows in a
+  failure case, so it is yours to call.
 
-Full write-up with line numbers: `docs/findings/COUNCIL-04.md`.
+### Closed since round three
 
----
+The mode prompts and the spice levels (F29) and the editor over them · the canon checker reading
+the whole ledger · multi-word key precision · chapter 120 and Acts (F31) · eviction order (F32) ·
+the dispatcher's gate proved by a real server · `endChapter` in one transaction · the `.db` import
+capped before it is written · the export carrying every field you set · the two in-flight races ·
+the composer keeping its draft.
+
+Full write-up with line numbers: `docs/findings/COUNCIL-04.md`. What is NOT built inside the
+finished items: `DECISIONS.md` §3's composition rules for prompt overrides — an override replaces,
+it does not merge, and nothing validates it beyond refusing a blank.
 
 ## Four decisions, and F28 moved two of them
 

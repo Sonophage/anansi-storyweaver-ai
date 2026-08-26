@@ -159,4 +159,49 @@ const back = await page.eval("(async () => { const r = await (await fetch('/api/
   + " return r.prompt; })()");
 ok("  Default puts the shipped wording back", /whole answer/.test(back) && !/ANSWER AS THE ROOM/.test(back));
 
+// ---- 10. the composer keeps what you were writing
+// COUNCIL-04 #11, and the last of the smaller seven. drawDock sets innerHTML, so every repaint —
+// a panel opening, a chapter turning, a mode changing — threw the half-written line away. One
+// handler had grown its own save-and-restore with a comment calling it "the seventh instance of
+// this same repaint bug"; the fix is now in drawDock, where all seven pass through.
+await page.goto(B + "/#" + sid);
+await wait(900);
+const typed = 'half a sentence I have not finished';
+await page.eval(`(() => { const t = document.getElementById('input');
+  t.value = ${JSON.stringify(typed)}; t.focus();
+  t.setSelectionRange(7, 7); return 1; })()`);
+
+await page.click('[data-panel="context"]');
+await wait(700);
+ok("opening a panel does not eat the draft",
+   (await page.eval("document.getElementById('input')?.value")) === typed);
+ok("  and the caret is where you left it",
+   (await page.eval("document.getElementById('input')?.selectionStart")) === 7);
+
+await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
+await wait(500);
+ok("changing mode does not eat it either",
+   (await page.eval("document.getElementById('input')?.value")) === typed);
+
+// Chapter paging, which is the other case the finding named.
+const paged = await page.eval("(() => { const b = document.querySelector('[data-chapter]'); if (!b) return null;"
+  + " b.click(); return 1; })()");
+await wait(800);
+if (paged) {
+  ok("turning to another chapter does not eat it",
+     (await page.eval("document.getElementById('input')?.value")) === typed);
+} else {
+  ok("turning to another chapter does not eat it (no other chapter to turn to)", true);
+}
+
+// But a draft belongs to ITS book. Carrying it into another one would be worse than losing it.
+const other = await page.eval("(async () => { const r = await (await fetch('/api/stories')).json();"
+  + " const s = r.stories.find(x => x.id !== '" + sid + "'); return s ? s.id : null; })()");
+if (other) {
+  await page.eval(`(() => { location.hash = '#' + ${JSON.stringify(other)}; return 1; })()`);
+  await wait(1200);
+  ok("  and opening a different book does not carry it across",
+     (await page.eval("document.getElementById('input')?.value")) === '');
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

@@ -321,9 +321,23 @@ function drawDoc() {
   if (tip) read.scrollTop = read.scrollHeight;
 }
 
+/** The story the composer was last drawn for. A draft belongs to its book: paging a chapter or
+ *  opening a panel must not eat it, and opening a different book must not carry it across. */
+let DOCK_FOR = null;
+
 function drawDock() {
-  if (!(S.place === 'story' && V)) { $('dock').hidden = true; return; }
+  if (!(S.place === 'story' && V)) { $('dock').hidden = true; DOCK_FOR = null; return; }
   $('dock').hidden = false;
+  // Read the live box BEFORE it is replaced. drawDock sets innerHTML, so every caller — every
+  // panel open, every chapter page, every mode switch — threw away whatever was half-written in
+  // it. One handler had already grown its own save-and-restore, with a comment calling this "the
+  // seventh instance of this same repaint bug"; this is that fix at the place they all pass
+  // through, so there is one of it rather than seven.
+  const live = $('input');
+  const draft = live && DOCK_FOR === S.storyId
+    ? { text: live.value, start: live.selectionStart, end: live.selectionEnd,
+        focused: document.activeElement === live }
+    : null;
   const [, , placeholder] = MODES.find((m) => m[0] === S.mode) ?? MODES[0];
   // Speak and Act happen AS someone. Everyone else in the story is fair game, which is what the
   // `speaker` column on a passage has always been for — there was simply no way to set it.
@@ -360,6 +374,18 @@ function drawDock() {
     // in a box you type one line into, that is the wrong default round.
     if (e.key === 'Enter' && !e.shiftKey && !e.altKey) { e.preventDefault(); generate(); }
   });
+  // And put the half-written line back, with the caret where it was — restoring the text but not
+  // the selection moves the cursor to the end mid-sentence, which is its own small theft.
+  if (draft?.text) {
+    ta.value = draft.text;
+    ta.style.height = 'auto'; ta.style.height = `${Math.min(140, ta.scrollHeight)}px`;
+    // The caret is restored whether or not the box had focus — clicking a panel moves focus to the
+    // button, and coming back to a sentence with the cursor thrown to the end is the same theft in
+    // miniature. Focus itself is only given back if it was there, so this never steals it.
+    ta.setSelectionRange(draft.start ?? ta.value.length, draft.end ?? ta.value.length);
+    if (draft.focused) ta.focus();
+  }
+  DOCK_FOR = S.storyId;
 }
 
 // ---------- side panel ----------
@@ -1987,9 +2013,10 @@ document.addEventListener('click', async (e) => {
     // Switching mode rebuilds the dock, which rebuilds the textarea. Carry what is typed across:
     // deciding "this is dialogue, not an instruction" after writing the line is the normal way
     // round, and losing the line for it is the seventh instance of this same repaint bug.
-    const kept = $('input')?.value ?? '';
+    // The save-and-restore that used to be here is gone: drawDock keeps the draft for every
+    // caller now, which is where the fix belongs — this handler was the only one of seven that
+    // had grown its own.
     S.mode = d.mode; drawDock();
-    if (kept && $('input')) { $('input').value = kept; $('input').focus(); }
     refreshManifest(); return;
   }
   if (d.re) { await regenerateInto(d.re); return; }
