@@ -1302,3 +1302,60 @@ Delete take, Delete this story — run twice. It wants agreeing before it lands,
 
 The number is a floor on the defect, not a rate: it says the mechanism exists and where its edge is
 on emulated Chrome at 390x844. A real device may cancel earlier.
+
+---
+
+## F35 — A personality for Anansi. Citation went 1-in-4 to 3-in-4, the loose-end habit landed at 3-in-5, and the first version turned the new vocabulary into section headers.
+
+Seth chose the register from three drafts: *the trickster who likes a knot* — "enjoys the writer's
+traps, hunts knots, hands back the loose end you dropped."
+
+The diagnosis first, because it was in the prompt and not in the model. `TALK` was a manners
+contract: of twelve behavioural bullets, nine were prohibitions. The only character in the whole
+prompt was one adjective pair — "Dry, and a little sly" — against nine "don'ts", and the don'ts won.
+What was missing was a stance, a habit, and exemplars. Exemplars matter most: a model imitates two
+worked examples far more faithfully than it follows an adjective.
+
+Three probe runs on *Sutera Remembers*, n=1 per probe, nothing seeded, sequential. Behaviour, not a
+rate — the same caveat F26 puts on its own table. All three scored by the same detector after it was
+corrected, so the columns are comparable:
+
+| | cited (where possible) | instructions leaked | loose end | unasked |
+|---|---|---|---|---|
+| before | 1/4 | 0/5 | 0/5 | 0, then 1 |
+| after, first version | 3/4 | **1/5** | 2/5 | 0 |
+| after, anti-template | **3/4** | 0/5 | 3/5 | 0 |
+
+**The detector was wrong before the model was.** The first scoring of the "after" run said 2/4 cited,
+because `cites` wanted `chapter 4` and the new voice writes *"chapter one"*. Found by reading a reply
+the detector had marked uncited which plainly cited its source. Both numbers in the first two rows
+were understated until it was fixed, and the fixed version has three more cases asserting the shapes
+it had been blind to. The detectors now live in `bench/voice-detect.ts` for the reason `verdict.ts`
+does: a classifier with two callers becomes two classifiers.
+
+**The regression, and what caused it.** The first version leaked an instruction into the reply on
+"set up a scene" — 943 characters that had invented a FORM: `Knot:`, `Loose end:`, `Directive:` as
+labelled sections, the loose-end section padded to 700 characters of repeated fragments ("The figure
+is the threat. The figure is the memory."), and a directive duplicated into the prose as well as the
+field. Handed vocabulary, the model built a template out of it. The fix names that directly — one
+sentence, in the prose, never a label, no headings — and the leak went to 0/5.
+
+**Two costs that are not fixed.**
+
+Replies are two to three times longer. "who is Vel" 119 -> 514 characters, "what is this story about"
+172 -> 679. The prompt still says short by default and F26 was bought making answers shorter; some of
+the growth is the loose end itself, which is the feature, and some is not.
+
+The refusal grew a loose end. "who is Ondrel Kesh" — nobody in this book — answered:
+
+> The story does not say.
+>
+> Nobody has asked why the figure in the fissure knows the taste of her hair.
+
+The refusal is intact and first, and the loose end is real — the figure in the fissure is in the
+prose. But the prompt says "The story does not say" is a whole reply. Say it and stop, and this is
+not that. Not an invention, which would be the serious failure; a breach of the stop rule, which is
+Seth's call rather than mine.
+
+The loose-end rate is reported as n-of-5 on purpose. The register asked for a habit and 5/5 would be
+a tic, as wrong as 0/5. 3/5 is inside the band this was aiming at, on one run.
