@@ -244,25 +244,47 @@ Rail → **⟡ Strings**, inside a story.
 
 ## Still open
 
-**COUNCIL-04 is closed** — all eight, and all seven of its smaller items. What is below is what
-has been found since, or left deliberately.
+**COUNCIL-04 is closed** — all eight findings and all seven of its smaller items. Nothing from the
+original review is outstanding. What is left is of three kinds.
 
-- ~~**Plot threads are not tracked.**~~ Built as **Strings** — §10. **COUNCIL-04 is closed**, and
-  a string survives an export and re-import along with everything else.
-~~A long book has a horizon and does not say so.~~ and ~~a failed manifest leaves the last one on
-screen~~ are both done — see §6 below.
+### Waiting on you, not on me
 
-### Closed since round three
+- **This walk.** Twelve sections and `bugs.md` is empty. Everything below the line has been built
+  and measured; none of it has been used by the person it is for.
+- **§2, the passage length.** Shorter twice over — `max_tokens` 900 → 450, and F29 took the
+  paragraph count out of Continue's prompt, which halved it again on the bench fixture. The samples
+  read as complete beats, but whether that is the book you want is a taste question no benchmark
+  answers.
+- **The four decisions** in `docs/plans/DECISIONS.md`. §1 interiority's shape and §2 the 82.5% —
+  F28 now says a standing instruction in the prompt does not touch interiority at all, so if you
+  want that number moved it needs a different lever and which one is yours to pick. §3 prompt
+  override composition, which is the one thing not built inside a finished item: an override
+  replaces rather than merges and nothing validates it beyond refusing a blank. §4
+  character-by-prompt and what reroll re-rolls — your answer in round three was a global lore
+  reroll, or one entry, or one box, and none of it is built.
 
-The mode prompts and the spice levels (F29) and the editor over them · the canon checker reading
-the whole ledger · multi-word key precision · chapter 120 and Acts (F31) · eviction order (F32) ·
-the dispatcher's gate proved by a real server · `endChapter` in one transaction · the `.db` import
-capped before it is written · the export carrying every field you set · the two in-flight races ·
-the composer keeping its draft.
+### Measured, known, not fixed
 
-Full write-up with line numbers: `docs/findings/COUNCIL-04.md`. What is NOT built inside the
-finished items: `DECISIONS.md` §3's composition rules for prompt overrides — an override replaces,
-it does not merge, and nothing validates it beyond refusing a blank.
+- **Anansi still leaks instructions into a reply** sometimes, and an unasked proposal is variable
+  rather than gone — two runs of the same probe gave four and then none (F26). Neither is a
+  candidate for more prompt; a code-side gate is a product decision.
+- **Invented `keys` sometimes repeat the title**, which the prompt tells it not to (F27).
+- **The contradiction repair costs 1.5s on every generation** and there is no switch to turn it off
+  (F30).
+- **Anansi's chapter numbers** are right now that it is told which chapter it is looking at, but
+  that is one run against one story (F33).
+
+### Deliberate debt — eleven `ponytail:` markers
+
+Four are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
+unscheduled), one hardcoded owner, no streaming backpressure, and ceilings-with-a-refusal instead
+of a budget engine. The rest each name a ceiling: three stored-and-ignored entry columns, a LIKE
+scan that goes linear at chapter 40, rejected takes recorded but not fed back, the repair's length
+floor, prompt-override validation, the remaining key logic (secondary keys, exclusion keys, regex),
+and the checker's blindness to numeric contradictions.
+
+`grep -rn "ponytail:" src web bench *.ts *.html` is the ledger. Full COUNCIL-04 write-up with line
+numbers: `docs/findings/COUNCIL-04.md`.
 
 ## Four decisions, and F28 moved two of them
 
