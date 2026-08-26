@@ -511,15 +511,39 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // addAnchor already fits each anchor to its cap, so this is a floor rather than a policy.
   // It used to delete the whole block, which is how a long writing sample silently removed
   // the point of view and the spice register from every call.
+  /** Where an EARLIER block sits in the book, as a number. Chapter ids sort as strings — "c10"
+   *  before "c2" — which is how a 120-chapter book ended up keeping chapters 6-9, 52-55 and
+   *  96-99. Arcs are placed at the chapter they start from. */
+  const chapterAt = new Map(chapters.map((c) => [c.id, c.index]));
+  const earlierAt = (b: Block) => {
+    const arc = /^arc-(\d+)-/.exec(b.id);
+    return arc ? Number(arc[1]) : chapterAt.get(b.id) ?? 0;
+  };
+
+  /** How strongly a triggered canon block earned its place. Lower goes first.
+   *
+   *  Read off the reason the block already carries, so there is one source for why it is here and
+   *  what it is worth. A sticky hold is weakest, and the further back it reaches the weaker it is:
+   *  three passages ago is a person who has left the room. */
+  const canonRank = (b: Block) => {
+    const sticky = /^sticky (\d+) back$/.exec(b.reason);
+    if (sticky) return 0 - Number(sticky[1]);       // -3 is weaker than -1
+    if (b.reason === 'keyword') return 1;
+    if (b.reason === 'point of view') return 2;
+    if (b.reason === 'pinned in') return 3;
+    return 4;                                        // always_on, and anything unrecognised
+  };
+
   const evict = (kinds: Kind[], ceiling: number, label: string) => {
     let used = blocks.filter((b) => kinds.includes(b.kind) && b.state === 'included')
                      .reduce((n, b) => n + b.tokens, 0);
     if (used <= ceiling) return;
-    // Lowest value goes first. For canon that is triggered before always-on.
-    // For EARLIER it is chapter summaries before arcs, oldest first within each —
-    // an arc covering thirty chapters is the densest thing in the block and the last that
-    // should go. `CANON_KINDS.indexOf` returned -1 for EARLIER, so the sort was a no-op and
-    // eviction followed insertion order, which dropped the arcs first.
+    // Lowest value goes first, and "lowest value" is a judgement each kind has to make for
+    // itself. What it must never be is the order things happen to have been created in, which is
+    // what it was: rows come back by rowid, so the protagonist Spark wrote first went before
+    // yesterday's walk-on, and 120 chapters of summaries were dropped by the LEXICOGRAPHIC order
+    // of their ids — c1, c10, c100, c11, c2 — which kept chapters 6-9, 52-55 and 96-99 and threw
+    // away the rest (COUNCIL-04 #8, measured in F31).
     const cands = blocks
       // A chapter you asked for back is not a candidate. Evicting it first made the pull
       // silently do nothing, which is worse than refusing.
@@ -527,9 +551,17 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       .sort((a, b) => {
         if (a.kind !== b.kind) return CANON_KINDS.indexOf(b.kind) - CANON_KINDS.indexOf(a.kind);
         if (a.kind === 'PROSE') return 0;   // insertion order is already oldest-first
-        if (a.kind !== 'EARLIER') return 0;
-        const arc = (x: typeof a) => (x.reason === 'arc' ? 1 : 0);   // arcs last
-        return arc(a) - arc(b) || a.id.localeCompare(b.id);
+        if (a.kind === 'EARLIER') {
+          // Arcs last: one covering thirty chapters is the densest thing in the block. Then
+          // oldest first BY CHAPTER NUMBER, so what a long book forgets is its distant past
+          // rather than a scatter of runs nobody chose.
+          const arc = (x: typeof a) => (x.reason === 'arc' ? 1 : 0);
+          return arc(a) - arc(b) || earlierAt(a) - earlierAt(b);
+        }
+        // Canon, within a kind. Every triggered block already says how it got here, and that is
+        // exactly its strength: the writer pinning it beats the point-of-view character, which
+        // beats a keyword in the current window, which beats a hold from three passages back.
+        return canonRank(a) - canonRank(b);
       });
     for (const b of cands) {
       if (used <= ceiling) break;

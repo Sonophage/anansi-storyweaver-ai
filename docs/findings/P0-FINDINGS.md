@@ -1162,7 +1162,46 @@ their own token budget.
 
 Five acts over a hundred chapters take **4,083 tokens against 11,440**, and nothing drops.
 
-**Not fixed, and now evidenced rather than argued:** the eviction order itself (COUNCIL-04 #8).
-Rolling up is a thing the writer has to do; until the order is fixed, a long book that has not been
-rolled up loses chapters in a pattern nobody chose.
+**FIXED the same day — see F32.** The scattering was a string compare on chapter ids. What a long
+book forgets is now its distant past, in one unbroken run, whether or not it has been rolled up.
+
+---
+
+## F32 — The eviction order was creation order in one place and alphabetical order in the other. Both are now the thing they should always have been.
+
+COUNCIL-04 #8, and the mechanism turned out to be two different bugs wearing one finding.
+
+**EARLIER sorted chapter ids as strings.** `"c10"` sorts before `"c2"`, so a 120-chapter book
+dropped its summaries in the order `c1, c10, c100, c101 … c11, c110 … c2`. That is why F31 measured
+the survivors as **6-9, then 52-55, then 96-99** — runs of four with holes between them, and the
+newest summary dropped as well. Nobody chose that; it fell out of a `localeCompare` on an id that
+happens to end in a number.
+
+    before   kept 6-9, 52-55, … 96-99      52 summaries, scattered, newest dropped
+    after    kept 66-117                   52 summaries, one unbroken run, newest first
+
+Same count, because the ceiling has not moved. Completely different book: the model now has an
+unbroken memory of the last fifty-two chapters instead of four-chapter islands with forty-chapter
+holes it cannot see or report.
+
+**Canon evicted in creation order,** because rows come back by `rowid` and the sort returned 0
+within a kind. Creation order is *inversely* correlated with importance in any story that was
+sparked — the protagonist is written first — so when the 45% cap bit, it took the protagonist and
+kept yesterday's walk-on.
+
+Every triggered canon block already records how it earned its place, so that is now what ranks it,
+weakest first:
+
+    sticky 3 back  <  sticky 1 back  <  keyword  <  point of view  <  pinned in  <  always-on
+
+A sticky hold is the weakest and gets weaker the further back it reaches: three passages ago is a
+person who has left the room. Pinned is strongest because the writer said so in as many words.
+
+Both halves are asserted and both were falsified by restoring exactly the defect they fix — the
+string compare, and the `return 0`. Neither needed a model: eviction is arithmetic over text.
+
+**One thing this does not do.** It decides what to drop; it does not tell the writer what was
+dropped. At chapter 120 fifty-two summaries still go, and the only place that says so is the
+Context panel's dimmed rows. A writer who has not opened that panel does not know their book has a
+horizon.
 

@@ -176,10 +176,13 @@ Two came off this list in round three. Six left, and the order is still yours to
 - ~~**Chapter 120 does not fit** and `POST /api/rollup` has no caller.~~ Done — **Chapter → Acts**,
   and the button works out its own range. F31 measured it: 65 of 117 summaries drop, five acts over
   a hundred chapters cost 4,083 tokens against 11,440, and nothing drops.
-- **Eviction order is backwards** (COUNCIL-04 #8), and F31 turned it from an argument into a
-  measurement. What survives at chapter 120 is **6-9, then 52-55, then 96-99** — scattered runs
-  with holes, and the newest summary is not kept either. COUNCIL-04 #9 said "oldest-first"; it is
-  not. A book missing chapters 10 to 51 contradicts itself in the middle and cannot say why.
+- ~~**Eviction order is backwards**~~ (COUNCIL-04 #8). Done, F32 — two bugs in one finding. EARLIER
+  sorted chapter ids as **strings**, so `c10` came before `c2`; a 120-chapter book now keeps
+  **66-117 unbroken** instead of 6-9, 52-55 and 96-99. And canon evicted in **creation order**, so
+  the protagonist Spark wrote first went before yesterday's walk-on; blocks are now ranked by how
+  they earned their place — sticky, then keyword, then point of view, then pinned.
+- **A long book has a horizon and does not say so.** At chapter 120, fifty-two summaries are still
+  dropped; the only place that admits it is the Context panel's dimmed rows. New, from F32.
 - **Plot threads are not tracked.** The one absence named as stopping a serial writer.
 - Smaller: four of seven done — `serve.ts`'s gate is now proved by a real server running as the
   other writer; `endChapter` is one transaction; the `.db` import is refused before it is written
@@ -216,8 +219,8 @@ Full write-up with line numbers: `docs/findings/COUNCIL-04.md`.
 - **F29** — the mode prompts. The checklist was being filled 10/10; taking the paragraph count out
   of Continue halved the passage.
 - **F30** — the contradiction repair costs 1.5s on every generation, flat, and fired 0 times in 6.
-- **F31** — chapter 120 forgets 65 chapters in scattered runs, not its beginning. Acts fix the
-  fitting; the scattering is a separate defect and is not fixed.
+- **F31** — chapter 120 does not fit, and Acts fix it: 4,083 tokens against 11,440.
+- **F32** — the eviction order was alphabetical in one place and creation order in the other.
 
 Read F28's last section if you read nothing else: **the detector was wrong twice**, and the second
 time it survived a fixture built to fix the first, because the model re-genders characters against
@@ -228,7 +231,7 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 158 checks, nine suites, no model needed
+node --experimental-strip-types test/all.ts    # 159 checks, nine suites, no model needed
 test/ui/run.sh                                 # 10 scenarios, headless browser, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model

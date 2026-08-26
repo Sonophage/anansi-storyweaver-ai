@@ -189,7 +189,33 @@ ok("the writer's own wording replaces a mode outright, and empties back to the s
 // and the book quietly loses its own beginning. `POST /api/rollup` is the fix and had no caller.
 // This is the arithmetic behind it, and it needs no model: summaries are text, and the ceiling is
 // a fraction of the budget.
-ok('a 120-chapter book forgets 65 chapters in scattered runs, and acts get them back', () => {
+ok('when canon is capped, the walk-on goes before the point-of-view character', () => {
+  // COUNCIL-04 #8: rows come back by rowid and eviction followed that, so the protagonist Spark
+  // wrote FIRST went before yesterday's walk-on. Creation order is the one thing that must not
+  // decide this — it is inversely correlated with importance in every story that was sparked.
+  const body = (name: string) => `[${name}: ` + 'a person with attributes and a history, '.repeat(14) + ']';
+  const i = base();
+  i.story = { ...i.story, persona: 'Ilva Marren' } as any;
+  i.passages = [{ id: 'p1', ordinal: 1, body: 'Ilva Marren crossed the yard. Bram was there, and Sen watched from the door.' }];
+  i.pins = { 'e-sen': 'force_in' };
+  // Created in this order, which is the order that used to decide. The protagonist is FIRST.
+  i.entries = [
+    entry('e-ilva', body('Ilva Marren'), { title: 'Ilva Marren', activation: 'triggered', keys: ['Ilva'] }),
+    entry('e-bram', body('Bram'), { title: 'Bram', activation: 'triggered', keys: ['Bram'] }),
+    entry('e-sen', body('Sen'), { title: 'Sen', activation: 'triggered', keys: ['Sen'] }),
+  ];
+  // A budget that fits some of them but not all: the 45% cap is what bites.
+  i.budget = 900;
+  const m = buildContext(i, count);
+  const state = (id: string) => m.blocks.find((b) => b.id === id)?.state;
+  assert.strictEqual(state('e-sen'), 'included', 'the one the writer PINNED survives');
+  assert.strictEqual(state('e-ilva'), 'included', 'and so does the point-of-view character');
+  assert.strictEqual(state('e-bram'), 'omitted',
+    'the walk-on who merely fired on a keyword is what goes — it used to be Ilva, because she '
+    + 'was created first');
+});
+
+ok('a 120-chapter book forgets its distant past, in one piece, and acts get it back', () => {
   const long = () => {
     const i = base();
     // 220 tokens each, which is what SUMMARY(180) is asked for and what they come back at.
@@ -210,17 +236,16 @@ ok('a 120-chapter book forgets 65 chapters in scattered runs, and acts get them 
   assert.strictEqual(droppedBefore, 65,
     `117 summaries do not fit and 65 are dropped — measured, not asserted (${droppedBefore})`);
 
-  // AND WHAT SURVIVES IS NOT THE RECENT HALF. COUNCIL-04 #9 said they "drop oldest-first"; they do
-  // not. Measured here, the kept set is 6-9, then 52-55, then 96-99 — scattered runs with holes
-  // between them, because eviction follows insertion order rather than age (#8). A book missing
-  // its beginning is a book with a beginning it has forgotten; a book missing chapters 10 to 51 is
-  // one that contradicts itself in the middle and cannot say why.
+  // WHAT SURVIVES IS THE RECENT PAST, IN ONE PIECE. It was not: chapter ids sort as strings, so
+  // "c10" came before "c2" and the book kept chapters 6-9, then 52-55, then 96-99 — scattered runs
+  // with holes, and the newest summary dropped too (COUNCIL-04 #8, measured in F31). A book
+  // missing its distant past has a past it has forgotten. A book missing chapters 10 to 51
+  // contradicts itself in the middle and cannot say why.
   const kept = earlier(before, 'included').map((b) => Number(b.id.slice(1))).sort((a, b) => a - b);
-  const gaps = kept.filter((c, k) => k > 0 && c !== kept[k - 1] + 1).length;
-  assert.ok(gaps > 0,
-    `the surviving summaries are not one contiguous run — ${gaps} holes in ${kept.length} kept`);
-  assert.ok(kept.at(-1)! < 119,
-    'and the newest is not among them either, so it is not recency that decides');
+  assert.ok(kept.every((c, k) => k === 0 || c === kept[k - 1] + 1),
+    `the summaries that survive must be one unbroken run (${kept[0]}..${kept.at(-1)})`);
+  assert.strictEqual(kept.at(-1), 117, 'ending at the newest one there is');
+  assert.ok(kept[0] > 1, 'and what goes is the distant past, which is the only defensible thing to lose');
 
   // Now roll each run of twenty into one act, which is what the button does.
   const rolled = long();
