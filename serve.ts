@@ -77,6 +77,19 @@ async function loginOf(ip: string): Promise<string | null> {
  *  gate that cannot refuse the machine it runs on cannot be tested from that machine, and an
  *  untestable gate is decorative. The desk passes by its ACCOUNT, which is the value side of the
  *  pair, because that is the name the database knows it by. */
+//
+//  ponytail: this rule is what a reverse proxy would break, and it would break it OPEN. Put Caddy
+//  on 443 for port-free names (anansi.example.dev) and every request arrives from 127.0.0.1, so the
+//  second writer resolves to the desk — her own library replaced by yours, admin true, ANANSI_ALLOW
+//  never consulted, and nothing logged. The Tailscale grant still passes; it is the identity layer
+//  that goes blind. Safe today only because nothing proxies: whoever reaches loopback on this box
+//  already holds the database file.
+//
+//  Three upgrades, in order of laziness: (1) leave Anansi off the proxy and let it keep its own port
+//  and cert; (2) TCP passthrough with PROXY protocol, so TLS still terminates here and the real peer
+//  IP rides in a header node has to parse; (3) trust X-Forwarded-For from loopback only — about five
+//  lines, and the loopback branch below MUST be deleted in the same change or a missing header still
+//  resolves to the desk. Do not land (3) by halves; nothing looks broken and everyone is you.
 async function ownerOf(ip: string): Promise<string | null> {
   if (LOOPBACK.has(ip)) {
     if (ALLOW.size && ![...ALLOW.values()].includes(DESK)) return null;

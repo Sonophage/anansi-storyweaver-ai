@@ -274,16 +274,23 @@ original review is outstanding. What is left is of three kinds.
 - **Anansi's chapter numbers** are right now that it is told which chapter it is looking at, but
   that is one run against one story (F33).
 
-### Deliberate debt — eleven `ponytail:` markers
+### Deliberate debt — thirteen `ponytail:` markers
 
 Three are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
 unscheduled), no streaming backpressure, and ceilings-with-a-refusal instead of a budget engine.
-The count is still eleven because the hardcoded owner is gone and the whois cache took its place.
-The other eight each name a ceiling: three stored-and-ignored entry columns, a LIKE scan that goes
+The other ten each name a ceiling: three stored-and-ignored entry columns, a LIKE scan that goes
 linear at chapter 40, rejected takes recorded but not fed back, the repair's length floor,
 prompt-override validation, the remaining key logic (secondary keys, exclusion keys, regex), the
-checker's blindness to numeric contradictions, and the whois cache holding an IP for the life of
-the process.
+checker's blindness to numeric contradictions, the whois cache holding an IP for the life of the
+process, two writers on two different models being unmeasured against VRAM, and the big one below.
+
+**Revisit before putting anything in front of Anansi.** `serve.ts`'s loopback-is-the-desk rule is
+what a reverse proxy would break, and it would break it OPEN. Caddy on 443 for port-free names
+(`anansi.purfleet.dev`) makes every request arrive from `127.0.0.1`, so the second writer resolves to
+the desk: her library replaced by yours, `admin` true, `ANANSI_ALLOW` never consulted, and nothing
+logged. The Tailscale grant still passes — it is the identity layer that goes blind. Safe today only
+because nothing proxies. The marker in `serve.ts` names three upgrades and which one must not be
+landed by halves.
 
 `grep -rn "ponytail:" src web bench *.ts *.html` is the ledger. Full COUNCIL-04 write-up with line
 numbers: `docs/findings/COUNCIL-04.md`.
