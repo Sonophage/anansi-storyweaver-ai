@@ -718,16 +718,25 @@ export const delOutfit = (storyId: string, id: string) =>
  *  proposes it, the writer edits the cast, and the character they were going to play is gone. The
  *  same window exists on import, where persona comes from a stranger's card by name.
  *
+ *  Only names in `proposed` are policed, and that limit is the whole correctness of this. A persona
+ *  is a NAME and not an entry id ON PURPOSE — see the locked_character migration above — because a
+ *  protagonist need not have a ledger entry at all, and plenty of second-person books never give
+ *  "you" one. The first version of this policed every persona and wiped exactly those, which
+ *  test/ui/hostile.js caught by creating a story whose persona names nobody and expecting it to
+ *  survive. What the model proposed is fair game; what the writer typed is not.
+ *
  *  Returns what it cleared, so a caller can say so rather than silently disagreeing with the form
  *  the writer just filled in. */
-export function pinCast(storyId: string): string[] {
+export function pinCast(storyId: string, proposed: string[] = []): string[] {
+  if (!proposed.length) return [];
+  const fromModel = new Set(proposed.map((s) => String(s)));
   const titles = new Set((q('SELECT title FROM entries WHERE story_id = ?').all(storyId) as any[])
     .map((r) => r.title));
   const cur = q('SELECT persona, locked_character FROM stories WHERE id = ?').get(storyId) as any;
   if (!cur) return [];
   const cleared: string[] = [];
   for (const [col, val] of [['persona', cur.persona], ['locked_character', cur.locked_character]]) {
-    if (val && !titles.has(val)) {
+    if (val && fromModel.has(val) && !titles.has(val)) {
       q(`UPDATE stories SET ${col} = NULL WHERE id = ?`).run(storyId);
       cleared.push(String(val));
     }

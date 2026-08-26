@@ -445,9 +445,11 @@ export const routes: Record<string, Handler> = {
       { ...c.body, writingStyle: String(c.body.writingStyle ?? '').trim() || voiceOf(c.owner) });
     for (const e of c.body.entries ?? []) db.upsertEntry(made.id, c.owner, e);
     // AFTER the cast exists, because the persona names one of them and the wizard lets you choose
-    // it a step before they are written. A name that survived an edit to the cast is dropped here
-    // rather than left pointing at nobody, and it is reported so the surface can say which.
-    const dropped = db.pinCast(made.id);
+    // it a step before they are written. A name the model PROPOSED and that did not survive an edit
+    // to the cast is dropped here rather than left pointing at nobody, and it is reported so the
+    // surface can say which. `proposedCast` is what the spark offered: a persona the writer typed
+    // is never policed, because a protagonist is allowed to have no entry.
+    const dropped = db.pinCast(made.id, c.body.proposedCast ?? []);
     if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
     return { ...made, droppedCast: dropped };
   },

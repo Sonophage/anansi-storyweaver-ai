@@ -707,20 +707,26 @@ ok('a persona naming nobody in the story is dropped, and one naming a real chara
   db.upsertEntry(st.id, me, { title: 'Ilva Marren', body: 'A courier.', entryType: 'character' });
   const read = () => db.listStories(me).find((r: any) => r.id === st.id) as any;
 
-  const cleared = db.pinCast(st.id);
+  // Only what the MODEL proposed is policed. A persona the writer typed is left alone even when it
+  // names nobody, because a protagonist is allowed to have no ledger entry.
+  assert.deepStrictEqual(db.pinCast(st.id), [], 'with nothing proposed, nothing is policed');
+  assert.strictEqual(read().locked_character, 'Nobody At All', 'a name the writer typed survives');
+
+  const cleared = db.pinCast(st.id, ['Ilva Marren', 'Nobody At All']);
   assert.deepStrictEqual(cleared, ['Nobody At All'], 'it says what it cleared, and only that');
   assert.strictEqual(read().persona, 'Ilva Marren', 'a persona that names a real character is kept');
   assert.strictEqual(read().locked_character, null, 'and one that names nobody is dropped');
 
   // Idempotent: running it again must not clear the good one, which is the failure that would make
   // it unsafe to call on every save.
-  assert.deepStrictEqual(db.pinCast(st.id), [], 'a second run clears nothing');
+  assert.deepStrictEqual(db.pinCast(st.id, ['Ilva Marren', 'Nobody At All']), [],
+    'a second run clears nothing');
   assert.strictEqual(read().persona, 'Ilva Marren', 'and leaves the kept one alone');
 
   // Scoped: a character of the same name in ANOTHER story does not rescue a dangling persona.
   const other = db.createStory(me, { title: 'Elsewhere', persona: 'Someone Elses Hero' });
   db.upsertEntry(st.id, me, { title: 'Someone Elses Hero', body: 'In the wrong book.', entryType: 'character' });
-  assert.deepStrictEqual(db.pinCast(other.id), ['Someone Elses Hero'],
+  assert.deepStrictEqual(db.pinCast(other.id, ['Someone Elses Hero']), ['Someone Elses Hero'],
     "a cast member of another story cannot satisfy this story's persona");
 });
 
