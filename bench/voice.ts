@@ -84,11 +84,19 @@ const j = (u: string, b?: unknown, m = 'POST') => fetch(B + u, b
   ? { method: m, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }
   : {}).then((r) => r.json() as any);
 
-const PROBES: [string, boolean][] = [
-  ['what colour are her eyes', false],
-  ['what is this story about', false],
-  ['who is Aldis', false],
-  ['set up a scene', true],
+// [what to ask, was a directive asked for, could a citation have been possible]
+//
+// The third flag is F10's lesson: "who is <somebody not in this book>" answers "the story does not
+// say", which cites nothing and is CORRECT to cite nothing. Counting it as uncited buries the real
+// rate in trials that could never have passed. So the cited score is reported over the probes where
+// a citation was possible, and the refusal probe is scored the other way round — it must NOT cite,
+// and it must not grow a loose end either, because there is nothing to be loose.
+const PROBES: [string, boolean, boolean][] = [
+  ['what colour are her eyes', false, true],
+  ['who is Vel', false, true],
+  ['what is this story about', false, true],
+  ['who is Ondrel Kesh', false, false],      // nobody. The refusal path.
+  ['set up a scene', true, true],
 ];
 
 const { stories } = await j('/api/stories', undefined, 'GET');
@@ -97,22 +105,48 @@ if (!story) { console.log('  no story to probe'); process.exit(1); }
 console.log(`  probing "${story.title}"\n`);
 
 const rounds = Number(process.argv[3] ?? 1);
-let looseEnds = 0, total = 0;
+let looseEnds = 0, total = 0, couldCite = 0, didCite = 0, leaked = 0, unaskedTotal = 0, misplaced = 0;
+const transcript: string[] = [];
 for (let round = 0; round < rounds; round++) {
-  for (const [ask, askedFor] of PROBES) {
-    const r = await j('/api/talk', { storyId: story.id, ask });
+  for (const [ask, askedFor, citable] of PROBES) {
+    const r = await j('/api/talk', { storyId: story.id, said: ask });
     if (r.error) { console.log(`  ${ask}: ${r.error}`); continue; }
     const reply = String(r.reply ?? '');
     total++;
     const loose = offersLooseEnd(reply);
+    const cited = cites(reply);
     if (loose) looseEnds++;
+    if (citable) { couldCite++; if (cited) didCite++; }
+    if (instructs(reply)) leaked++;
+    unaskedTotal += unasked(r, askedFor);
+    // F26 measured this and it is the half the length columns cannot see: when a directive IS
+    // asked for it must arrive in the FIELD, because an instruction sitting in the reply is one the
+    // writer cannot press a button on. Reported separately from the leak count — that one is about
+    // directives nobody asked for.
+    if (askedFor) {
+      const inField = !!String(r.directive ?? '').trim();
+      if (!inField) misplaced++;
+      console.log(`      directive: ${inField ? 'in the field' : 'MISSING from the field'}`
+        + `  (${String(r.directive ?? '').length} ch)`);
+    }
+    transcript.push(`### ${ask}\n${reply}\n`);
     console.log(`  ${ask.padEnd(26)} ${String(reply.length).padStart(5)} ch`
-      + `  cited=${cites(reply) ? 'y' : 'N'}`
+      + `  cited=${citable ? (cited ? 'y' : 'N') : (cited ? 'Y?' : '-')}`
       + `  instructs=${instructs(reply) ? 'Y' : 'n'}`
       + `  unasked=${unasked(r, askedFor)}`
       + `  looseEnd=${loose ? 'y' : '-'}`);
   }
 }
+// The informative denominator, not the total: only the probes where a citation was possible.
+console.log(`\n  cited ${didCite}/${couldCite} where a citation was possible`
+  + `  ·  instructions leaked ${leaked}/${total}`
+  + `  ·  unasked offers ${unaskedTotal}`
+  + `  ·  directives not in the field ${misplaced}`);
 // The register asked for a habit, not a tic. Every probe doing it is as wrong as none.
-console.log(`\n  loose end offered on ${looseEnds}/${total} probes`
+console.log(`  loose end offered on ${looseEnds}/${total} probes`
   + ` — a habit, not a tic: every one of them is as wrong as none.`);
+if (process.env.VOICE_TRANSCRIPT) {
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(process.env.VOICE_TRANSCRIPT, transcript.join('\n'));
+  console.log(`  replies written to ${process.env.VOICE_TRANSCRIPT}`);
+}
