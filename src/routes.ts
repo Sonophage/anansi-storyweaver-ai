@@ -73,6 +73,18 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
  *  writing prose, and handing it the same box would let a reworded chat prompt continue the book. */
 const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate'];
 
+/** The voice of the weave a new story starts with, and it is the writer's to change.
+ *
+ *  Stored as a prompt override under a key that is deliberately not a mode name, so it reuses
+ *  everything that machinery already has: per-owner storage, blank-is-reset, and a scope test that
+ *  proves one writer's cannot overwrite another's. A second table for one string would have been a
+ *  second table to migrate, back up and scope.
+ *
+ *  Three layers, and each one is a fallback for the one before it: this story's own writingStyle,
+ *  then the writer's default, then the shipped DEFAULT_VOICE — which is why the shipped one is
+ *  still worth keeping around after the writer has replaced it. */
+const voiceOf = (owner: string) => db.promptsOf(owner).voice?.trim() || DEFAULT_VOICE;
+
 const TALK_TOKENS = 2400;
 
 /** One ledger entry, and it is a jumping-off point rather than a line. 700 was sized for the old
@@ -430,7 +442,7 @@ export const routes: Record<string, Handler> = {
     // given and should not know what a prompt is — and because import supplies its own, as do the
     // fixtures, and neither should be quietly restyled.
     const made = db.createStory(c.owner,
-      { ...c.body, writingStyle: String(c.body.writingStyle ?? '').trim() || DEFAULT_VOICE });
+      { ...c.body, writingStyle: String(c.body.writingStyle ?? '').trim() || voiceOf(c.owner) });
     for (const e of c.body.entries ?? []) db.upsertEntry(made.id, c.owner, e);
     // AFTER the cast exists, because the persona names one of them and the wizard lets you choose
     // it a step before they are written. A name that survived an edit to the cast is dropped here
@@ -590,12 +602,22 @@ export const routes: Record<string, Handler> = {
    *  override composes and what a bad one does; neither is answered, so neither is built. A
    *  prompt that produces nothing produces nothing, and the reset is one press.
    */
-  'GET /api/prompts': (c: Ctx) => ({ defaults: defaultModePrompts(), yours: db.promptsOf(c.owner) }),
+  'GET /api/prompts': (c: Ctx) => ({
+    defaults: defaultModePrompts(), yours: db.promptsOf(c.owner),
+    // Separate from the modes map so the editor does not list the voice as a sixth mode. `shipped`
+    // is what Default puts back, and it stays the backstop however many times the writer replaces
+    // `mine`. `inUse` saves the surface working out the precedence for a Quick apply button.
+    voice: { shipped: DEFAULT_VOICE, mine: db.promptsOf(c.owner).voice ?? null, inUse: voiceOf(c.owner) },
+  }),
   'POST /api/prompts': (c: Ctx) => {
     const key = String(c.body.key ?? '');
-    if (!EDITABLE_MODES.includes(key)) return { error: `there is no mode called "${key}"` };
+    // `voice` rides here too. It is not a mode and never reaches a MODE block — assemble looks
+    // overrides up BY MODE NAME, so a key that is not one is invisible to it.
+    if (!EDITABLE_MODES.includes(key) && key !== 'voice')
+      return { error: `there is no mode called "${key}"` };
     const saved = db.setPrompt(c.owner, key, String(c.body.text ?? ''));
-    return { defaults: defaultModePrompts(), yours: db.promptsOf(c.owner), reset: saved === null };
+    return { defaults: defaultModePrompts(), yours: db.promptsOf(c.owner), reset: saved === null,
+      voice: { shipped: DEFAULT_VOICE, mine: db.promptsOf(c.owner).voice ?? null, inUse: voiceOf(c.owner) } };
   },
 
   // ---- prose ----

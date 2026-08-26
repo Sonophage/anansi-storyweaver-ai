@@ -405,4 +405,44 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('half a TLS pair stops the server instead of serving plain HTTP');
 }
 
+// The voice of the weave a new story starts with is a prompt override under a key that is not a
+// mode. It rides that machinery precisely so it inherits this scoping — so the scoping is asserted
+// here rather than assumed from the mode checks above.
+{
+  const { routes } = await import('../src/routes.ts');
+  const { DEFAULT_VOICE } = await import('../src/prompts.ts');
+  const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+
+  const a0: any = routes['GET /api/prompts'](ctx(alice));
+  assert.strictEqual(a0.voice.mine, null, 'a writer starts with no voice of their own');
+  assert.strictEqual(a0.voice.inUse, DEFAULT_VOICE, 'so the shipped one is in use');
+
+  routes['POST /api/prompts'](ctx(alice, { key: 'voice', text: "Alice's own voice." }));
+  const a1: any = routes['GET /api/prompts'](ctx(alice));
+  const b1: any = routes['GET /api/prompts'](ctx(bob));
+  assert.strictEqual(a1.voice.inUse, "Alice's own voice.", 'hers is in use for her');
+  assert.strictEqual(b1.voice.inUse, DEFAULT_VOICE, "and bob still gets the shipped one");
+  assert.strictEqual(a1.voice.shipped, DEFAULT_VOICE,
+    'the shipped one stays available as the backstop after she has replaced it');
+
+  // Blank is the reset, exactly as it is for a mode.
+  routes['POST /api/prompts'](ctx(alice, { key: 'voice', text: '   ' }));
+  assert.strictEqual((routes['GET /api/prompts'](ctx(alice)) as any).voice.inUse, DEFAULT_VOICE,
+    'and blanking it puts the shipped one back');
+
+  // It is not a mode, and must not be accepted as one anywhere a mode is expected.
+  const bad: any = routes['POST /api/prompts'](ctx(alice, { key: 'nonsense', text: 'x' }));
+  assert.match(String(bad.error ?? ''), /no mode called/, 'a key that is neither a mode nor voice is refused');
+
+  // A new story opens in the writer's voice, not the shipped one.
+  routes['POST /api/prompts'](ctx(alice, { key: 'voice', text: "Alice's own voice." }));
+  const made: any = routes['POST /api/stories'](ctx(alice, { title: 'Hers' }));
+  assert.strictEqual((db.listStories(alice).find((r: any) => r.id === made.id) as any).writing_style,
+    "Alice's own voice.", "a new story starts in the writer's own voice");
+
+  ok("the voice of the weave is per writer, resets to the shipped one, and starts a new story");
+}
+
 console.log(`\n${n} checks passed`);
