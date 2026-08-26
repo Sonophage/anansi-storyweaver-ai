@@ -35,4 +35,24 @@ ok(`tapping a story on the shelf opens it (blocks=${opened.blocks}, bar="${opene
    opened.blocks > 0);
 ok(`  and nothing was toasted instead ("${opened.toast}")`, !opened.toast);
 
+// Reading mode, on the surface where it matters: a finger, and CSS that actually applies.
+await page.click("[data-readmode]");
+await wait(400);
+ok("the reading button turns reading mode on",
+   (await page.eval("document.documentElement.dataset.reading")) === '1');
+// Faded, not unmounted — the draft in the textarea has to survive turning it off again.
+const dock = await page.eval("(() => { const d = document.querySelector('#dock');"
+  + " const s = getComputedStyle(d); return { op: parseFloat(s.opacity), pe: s.pointerEvents,"
+  + "   there: !!d.querySelector('textarea') }; })()");
+ok(`  the composer fades rather than leaving (opacity ${dock.op}, pointer-events ${dock.pe})`,
+   dock.op < 0.3 && dock.pe === 'none' && dock.there === true);
+ok("  and the prose stops taking taps",
+   (await page.eval("getComputedStyle(document.querySelector('#col .block')).pointerEvents")) === 'none');
+// The button has to be able to give it back, or reading mode is a trap on a touch device.
+await page.click("[data-readmode]");
+await wait(400);
+ok("  and the same button gives the composer back",
+   (await page.eval("document.documentElement.dataset.reading")) === '0'
+   && (await page.eval("parseFloat(getComputedStyle(document.querySelector('#dock')).opacity)")) > 0.9);
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

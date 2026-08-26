@@ -36,7 +36,10 @@ const S = {
   entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, confirmStop: false, router: null, spark: null, ritual: null, setup: null,
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
-  lookTab: 'theme',     // which of Theme / Font / Size the Aa menu is showing
+  lookTab: 'theme',     // which of Theme / Font / Size / UI the Aa menu is showing
+  // Reading mode. Session-only on purpose: persisted, it would come back after a reload as a
+  // composer that will not take a keystroke and no memory of why.
+  reading: false,
   prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
   promptOpen: null,
   found: null,          // the passage a search result sent you to, marked until you move on
@@ -110,7 +113,7 @@ const WTITLES = {
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
 const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
@@ -260,6 +263,9 @@ function drawBar() {
           title="Their summaries no longer reach the model. Chapter → Acts collapses them into one."
           >${h.chapters} ${h.chapters === 1 ? 'chapter' : 'chapters'} not sent</button>` : '';
       })()}
+      <button class="pill" data-readmode="${S.reading ? '0' : '1'}" aria-pressed="${S.reading}"
+        title="${S.reading ? 'Leave reading mode' : 'Read without the composer, and without the prose taking taps'}"
+        style="font-size:15px; line-height:1; padding:7px 12px">${S.reading ? '◉' : '◎'}</button>
       <button class="pill" data-appearance="1" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
       <button class="phoneonly" data-panel="chapter" style="font-size:19px; color:var(--chrome-dim)" aria-label="This chapter">⚙</button>`
@@ -2329,6 +2335,14 @@ document.addEventListener('click', async (e) => {
   if (d.fontpick) { look.font = d.fontpick; applyLook(); drawAppearance(); return; }
   if (d.sizepick) { look.size = d.sizepick; applyLook(); drawAppearance(); return; }
   if (d.scalepick) { look.scale = d.scalepick; applyLook(); drawAppearance(); return; }
+  // The attribute is written here rather than in applyLook: reading mode is not part of the look
+  // and does not belong in the bag that gets persisted.
+  if (d.readmode !== undefined) {
+    S.reading = d.readmode === '1';
+    root.dataset.reading = S.reading ? '1' : '0';
+    drawBar();
+    return;
+  }
 
   if (d.open === 'new') { S.place = 'workspace'; S.wpage = 'create'; paint(); return; }
   if (d.open) { await openStory(d.open); return; }

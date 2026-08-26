@@ -68,6 +68,15 @@ html[data-ui-size="xl"] { --prose:26px; --bubble:21px; --gap:38px; --col:840px; 
    font-size would move nothing; zoom moves everything including the px. Ceiling: it can nudge
    fixed-position elements and anything sized in viewport units. If that shows up, the upgrade is
    converting the chrome to rem and dropping this. */
+/* Reading mode. A button, not a scroll listener: auto-hiding chrome moves controls under a thumb
+   mid-tap, and F34 already measured how little movement it takes to lose a tap on this surface.
+   The composer FADES rather than unmounting, so the mode is visible in the layout and the draft in
+   the textarea survives being turned off again. */
+html[data-reading="1"] #dock { opacity:.14; pointer-events:none; }
+html[data-reading="1"] #col .block { pointer-events:none; }
+html[data-reading="1"] .more, html[data-reading="1"] .acts { display:none !important; }
+html[data-reading="1"] #dock, html[data-reading="1"] #col .block { transition:opacity var(--t) ease; }
+
 html[data-ui-scale="90"]  body { zoom:0.90; }
 html[data-ui-scale="110"] body { zoom:1.10; }
 html[data-ui-scale="125"] body { zoom:1.25; }
