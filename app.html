@@ -251,6 +251,17 @@ html[data-ui-rail="closed"] #rail .txt { opacity:0; }
   position:absolute; inset:0; z-index:20; background:rgba(5,5,7,.6); backdrop-filter:blur(3px);
   opacity:0; pointer-events:none; transition:opacity var(--t-slow) var(--ease);
 }
+/* ONE scrim, two things behind it. The rail raises it under 1100px; the ⋯ tray raises it at every
+   width, because the tray is now a sheet over the middle of the content and a sheet over content
+   with nothing behind it is a sheet you cannot tell is modal. syncTray() writes data-tray, and
+   #scrim's own listener shuts the tray first and the rail second, because the tray is on top. */
+/* And it rises above the side panel while the tray is up. #scrim's base z-index is 20, under
+   #side's 30, because the rail's scrim must not dim the panel. The tray's must: the sheet is
+   centred on the viewport, and at desk width with a 400px panel open the panel was ON TOP of it —
+   page.click reported the History button visible and the press landed on the panel behind
+   nothing. Centring inside the reading column instead needs a transform on #read to make it the
+   containing block, which makes #read a stacking context and puts the sheet back under the scrim. */
+html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
 
 #doc { flex:1; min-width:0; display:flex; flex-direction:column; position:relative; overflow:hidden; background:var(--doc-bg); }
 #wash { position:absolute; inset:0; pointer-events:none; background:var(--doc-wash); }
@@ -371,13 +382,37 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
   display:none; z-index:7;
 }
 @media (hover:hover) { .block:hover .acts { display:flex; } }
-.block[aria-expanded="true"] .acts { display:flex; }
-/* On a phone the tray sits in the flow underneath, as icons, rather than floating off the edge. */
+/* THE TRAY OPENS CENTRED, NOT AT THE BLOCK. It used to sit at top:-22px right:0 of the paragraph it
+   belongs to, so on a phone Edit, Regenerate and Delete arrived at the bottom edge of whichever
+   paragraph had been tapped — off the side of the column, and under the thumb only by luck. The
+   handle stays where it is; what it opens is a sheet in the middle of the screen, so the reach is
+   the same for every paragraph in the chapter.
+
+   Hover is untouched and stays a POINTER shortcut: on a mouse the tray still appears at the block,
+   without the sheet and without the scrim. That is not an alternative to the handle — actions on
+   :hover only were unreachable on every touch device, which is why the handle exists at all (see
+   the note above .more) — so the two are kept side by side deliberately. */
+/* The arrival animation comes off the block that has the tray open, and this is the whole reason
+   the sheet ever landed anywhere but the middle of the screen. `#col .block.newest` carries
+   `animation:rise ... both`, rise ends on `transform:none` but a FILLED transform animation still
+   leaves the element a containing block for a position:fixed child and a stacking context that
+   caps its z-index. So the sheet centred itself on the newest paragraph instead of on the screen,
+   and the scrim painted over the top of it — page.click reported the History button visible and
+   the press landed on the backdrop. The animation has finished playing by the time a tray opens. */
+#col .block[aria-expanded="true"] { animation:none; }
+.block[aria-expanded="true"] .acts {
+  display:flex; position:fixed; left:50%; top:50%; right:auto; transform:translate(-50%, -50%);
+  z-index:32; flex-direction:column; gap:2px; padding:8px;
+  width:min(300px, calc(100vw - 44px)); max-height:80vh; overflow-y:auto;
+  background:var(--sheet); box-shadow:0 40px 90px rgba(0,0,0,.7);
+}
+/* Full-width rows, and the labels come back. They were hidden on a phone because the tray was a
+   floating strip with no room for them; a centred sheet has the room, and four unlabelled glyphs
+   one of which is Delete is not a menu. */
+.block[aria-expanded="true"] .acts button { width:100%; padding:12px 14px; font-size:14px; }
+.block[aria-expanded="true"] .acts .lbl-txt { display:inline; }
 @media (max-width:719px) {
   .more { top:-6px; opacity:.75; font-size:17px; padding:4px 10px; }
-  .block[aria-expanded="true"] .acts {
-    position:static; top:auto; right:auto; margin-top:8px; flex-wrap:wrap; box-shadow:none;
-  }
   .acts button { padding:10px 12px; }
   .acts button span { font-size:15px; }
   .acts .lbl-txt { display:none; }

@@ -36,10 +36,29 @@ ok("  and opens it for editing", await page.eval("!!document.querySelector('[dat
 await page.goto("http://127.0.0.1:5179/#" + sid);
 const pid = await page.eval("document.querySelector('#col [data-edit]')?.dataset.edit");
 console.log("  first passage: " + pid);
+
+// ---- 3a. the backdrop belongs to the tray while a tray is up
+// #scrim serves the rail as well, and this is the desk, where the rail is on screen and has no
+// backdrop of its own. Shutting the RAIL instead looks like it works — the repaint that closes it
+// rebuilds the column and takes the tray with it — and costs the writer their navigation for
+// dismissing a menu. Asserted here rather than on the phone, where the two cannot both be open.
+const railWas = await page.eval("document.documentElement.dataset.uiRail");
+await page.click('#col .block .more');
+ok("the ⋯ handle raises the backdrop", (await page.eval("document.documentElement.dataset.tray")) === '1');
+// #bar's centre is over the backdrop and nowhere near the sheet, which is in the middle of the screen.
+await page.click('#bar');
+ok("  and a click on the backdrop shuts the tray",
+   (await page.eval("document.documentElement.dataset.tray")) === '0');
+ok(`  and leaves the rail as it was (${railWas})`,
+   (await page.eval("document.documentElement.dataset.uiRail")) === railWas);
+
 await page.click('#col .block .more');
 await page.click('[data-ed="' + pid + '"]');
 ok("Edit focuses the passage text", await page.eval("document.activeElement?.dataset?.edit === '" + pid + "'"));
 
+// The tray is a centred sheet over the content now, so Edit shuts it on its way to the cursor —
+// leaving it up would hide the paragraph it just put the caret in. So it is reopened for History.
+await page.click('#col .block .more');
 await page.click('[data-hi="' + pid + '"]');
 ok("History opens its panel", (await page.text('#sideHead') || '').includes('History'));
 ok("  and offers a branch from that passage", await page.eval("!!document.querySelector('[data-fork]')"));

@@ -459,6 +459,9 @@ function drawDoc() {
     read.addEventListener('scroll', show, { passive: true });
   }
   show();
+  // The column was just rebuilt, so no tray survived it. The scrim has to know, or a repaint
+  // while one was open leaves the backdrop up over a page with nothing modal on it.
+  syncTray();
 }
 
 /** The story the composer was last drawn for. A draft belongs to its book: paging a chapter or
@@ -2159,6 +2162,48 @@ async function regenerateInto(id) {
 
 
 
+/** The ⋯ tray. One open at a time, and the scrim is raised while one is.
+ *
+ *  Done in place rather than through paint() for the reason the Delete confirmation is: a repaint
+ *  rebuilds #col and drops aria-expanded, so any repaint shuts the tray. Which is fine as long as
+ *  the scrim goes with it — a backdrop with nothing on top of it is a page that has stopped
+ *  answering. syncTray() is what keeps the two in step, and drawDoc calls it for the repaint case.
+ *
+ *  `blk` null shuts whatever is open; the same block twice is a toggle. */
+const syncTray = () => {
+  root.dataset.tray = document.querySelector('.block[aria-expanded="true"]') ? '1' : '0';
+};
+function openTray(blk) {
+  const already = blk?.getAttribute('aria-expanded') === 'true';
+  for (const b of document.querySelectorAll('.block[aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false');
+  if (blk && !already) blk.setAttribute('aria-expanded', 'true');
+  syncTray();
+}
+
+/** A double click, and on a phone a double tap, opens the paragraph's tray.
+ *
+ *  A second way in rather than a replacement: the ⋯ handle is what must always work, and F34
+ *  measured how little finger movement it takes to lose a tap on this surface, so nothing here
+ *  gets to depend on the delegated `click` firing. `dblclick` is its own native event and arrives
+ *  on its own account.
+ *
+ *  ponytail: measured on emulated touch only — `page.mobile()` plus real touch pairs, where the
+ *  browser does synthesise dblclick from two taps. A real Android that still has double-tap-to-zoom
+ *  may swallow the second tap as a zoom gesture instead, and nothing here can tell. Ceiling: the
+ *  ⋯ handle is the guaranteed way in and this is the shortcut. If it turns out not to fire on a
+ *  real device the upgrade is a tap-count recogniser on pointerup — which is F34's fix and wants
+ *  agreeing first, because the guard that swallows the native click is what makes Delete run twice.
+ *
+ *  No preventDefault. The passages are contenteditable and a double click there selects a word;
+ *  the selection stays under the sheet and is still there when it closes, which is what someone
+ *  who double-clicked a word and then pressed Edit would expect. */
+document.addEventListener('dblclick', (e) => {
+  if (root.dataset.reading === '1') return;
+  const blk = e.target.closest('#col .block');
+  if (!blk || e.target.closest('.acts')) return;
+  openTray(blk);
+});
+
 // ---------- one delegated listener ----------
 document.addEventListener('click', async (e) => {
   const t = e.target.closest(ACTIONS);
@@ -2169,13 +2214,7 @@ document.addEventListener('click', async (e) => {
   const d = t.dataset;
 
   if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
-  if (d.more) {
-    const blk = t.closest('.block');
-    const open = blk.getAttribute('aria-expanded') === 'true';
-    for (const b of document.querySelectorAll('.block[aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false');
-    blk.setAttribute('aria-expanded', open ? 'false' : 'true');
-    return;
-  }
+  if (d.more) { openTray(t.closest('.block')); return; }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
   if (d.continue) { await generate('continue'); return; }
   if (d.newlore) {
@@ -2437,6 +2476,10 @@ document.addEventListener('click', async (e) => {
 
   // --- edit: the passage is already contenteditable and saves on blur. This puts the caret in it.
   if (d.ed) {
+    // Shut the tray first. It is a sheet over the middle of the content now, so leaving it up
+    // hides the very paragraph the cursor was just put in. Every other action in the tray either
+    // repaints — which shuts it through drawDoc — or is Delete, which is waiting for a second press.
+    openTray(null);
     const el = document.querySelector(`[data-edit="${d.ed}"]`);
     if (!el) return;
     el.focus();
@@ -2826,7 +2869,11 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-$('scrim').addEventListener('click', () => { S.rail = false; paint(); });
+$('scrim').addEventListener('click', () => {
+  // The tray is what is on top of the scrim, so it is what a tap on the scrim shuts.
+  if (root.dataset.tray === '1') return openTray(null);
+  S.rail = false; paint();
+});
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); } }

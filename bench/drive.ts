@@ -74,9 +74,9 @@ const page = {
     if (r.exceptionDetails) throw new Error(`eval: ${r.exceptionDetails.text} — ${r.exceptionDetails.exception?.description ?? ''}`);
     return r.result.value;
   },
-  /** Click by CSS selector, through a real mouse event at the element's centre — a
-   *  dispatched click() would skip the capture-phase and delegation this app relies on. */
-  async click(sel: string) {
+  /** Where to press, in viewport coordinates. Shared by click and dbl so the two cannot drift on
+   *  the scroll-then-measure order below, which has already cost two scenarios once. */
+  async box(sel: string) {
     // Scroll it in first. Panels scroll, so a button below the fold reported a y outside the
     // viewport and the click landed on whatever happened to be there — or on nothing.
     // SCROLL, WAIT, THEN MEASURE. #read sets scroll-behavior:smooth, so scrollIntoView starts an
@@ -89,18 +89,24 @@ const page = {
       if (!e) return null;
       e.scrollIntoView({ block: 'center', inline: 'nearest' });
       return true; })()`);
-    if (!found) throw new Error(`click: no element for ${sel}`);
+    if (!found) throw new Error(`press: no element for ${sel}`);
     await wait(220);
     const box = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
       if (!e) return null;
       const r = e.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) return { hidden: true };
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
-    if (!box) throw new Error(`click: element for ${sel} went away while scrolling to it`);
-    if (box.hidden) throw new Error(`click: ${sel} has no box — hidden, or waiting on :hover`);
+    if (!box) throw new Error(`press: element for ${sel} went away while scrolling to it`);
+    if (box.hidden) throw new Error(`press: ${sel} has no box — hidden, or waiting on :hover`);
     if (box.x < 0 || box.y < 0) throw new Error(
-      `click: ${sel} sits at ${Math.round(box.x)},${Math.round(box.y)} — off-canvas. `
+      `press: ${sel} sits at ${Math.round(box.x)},${Math.round(box.y)} — off-canvas. `
       + 'A drawer that is closed still has its contents in the DOM, so scope the selector.');
+    return box as { x: number; y: number };
+  },
+  /** Click by CSS selector, through a real mouse event at the element's centre — a
+   *  dispatched click() would skip the capture-phase and delegation this app relies on. */
+  async click(sel: string) {
+    const box = await page.box(sel);
     if (touch) {
       // A finger: touchStart then touchEnd at one point. The browser synthesises the click.
       await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x, y: box.y }] });
@@ -111,6 +117,28 @@ const page = {
       }
     }
     await wait(220);
+  },
+  /** A double click, and on a touch surface a double tap.
+   *
+   *  Two press/release pairs with NOTHING between them: the browser decides a double press by the
+   *  gap between them, and calling page.click twice cannot do it — that settles 220ms after each
+   *  press, which is past the threshold. The mouse case says clickCount 2 outright, because for a
+   *  dispatched mouse event the count is ours to state rather than the browser's to work out. */
+  async dbl(sel: string) {
+    const box = await page.box(sel);
+    if (touch) {
+      for (const _ of [1, 2]) {
+        await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x, y: box.y }] });
+        await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      }
+    } else {
+      for (const clickCount of [1, 2]) {
+        for (const type of ['mousePressed', 'mouseReleased']) {
+          await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount });
+        }
+      }
+    }
+    await wait(260);
   },
   /** Become a phone: a phone-sized viewport AND a touch screen with no mouse.
    *
