@@ -51,6 +51,9 @@ function migrate() {
   // A NAME rather than an entry id, because it also has to work for a protagonist who has no
   // ledger entry — plenty of second-person books never gave "you" one.
   add('stories', 'locked_character', 'TEXT');
+  // Existing flags were all raised against canon that had fired — that was the only kind the
+  // checker could see — so the default of 1 is true for every row already stored.
+  add('violations', 'reached', 'INTEGER DEFAULT 1');
   // The dedupe index used to cover every row, so a subject once accepted or rejected could
   // never be proposed again. Scoped to open proposals now.
   try {
@@ -219,6 +222,10 @@ CREATE TABLE IF NOT EXISTS chapter_pins (
 CREATE TABLE IF NOT EXISTS violations (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   passage_id TEXT NOT NULL, entry_id TEXT, quote TEXT, reason TEXT, confidence REAL,
+  -- Whether the entry it contradicts actually REACHED the prompt for that passage. The two are
+  -- different faults and want different fixes: 1 is the model contradicting what it was told,
+  -- 0 is the engine never having told it. See check() in routes.ts.
+  reached INTEGER DEFAULT 1,
   status TEXT DEFAULT 'open',              -- open | dismissed | fixed
   created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS violations_p ON violations(passage_id);
@@ -928,9 +935,9 @@ export function setPin(storyId: string, chapterId: string, entryId: string, mode
 
 // ---- violations ----
 export function addViolation(storyId: string, v: any) {
-  q(`INSERT INTO violations (id,story_id,passage_id,entry_id,quote,reason,confidence,created_at)
-     VALUES (?,?,?,?,?,?,?,?)`).run(uid('v-'), storyId, v.passageId, v.entryId ?? null,
-    v.quote ?? null, v.reason ?? null, v.confidence ?? null, now());
+  q(`INSERT INTO violations (id,story_id,passage_id,entry_id,quote,reason,confidence,reached,created_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`).run(uid('v-'), storyId, v.passageId, v.entryId ?? null,
+    v.quote ?? null, v.reason ?? null, v.confidence ?? null, v.reached === false ? 0 : 1, now());
 }
 export const violationsOf = (storyId: string) => q(
   "SELECT * FROM violations WHERE story_id = ? AND status = 'open' ORDER BY created_at DESC")

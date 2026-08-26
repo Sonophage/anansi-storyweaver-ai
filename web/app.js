@@ -268,9 +268,17 @@ function passageHTML(p, newest) {
     const e = V.entries.find((x) => x.id === f.entryId);
     // The reason is whatever the checker returned, and a reasoning model has put 3,321
     // characters in one. Clamped in CSS and expandable, never trusted to be a sentence.
+    // Two different faults wear the same red line otherwise. `reached: false` means the engine
+    // never sent that entry for this passage — the model could not have honoured it, and the fix
+    // is a trigger word or always-on, not a rewrite. Saying "contradiction" there blames the
+    // writer for the engine's omission.
+    const unseen = f.reached === false;
     return `<button class="flag" data-flagx="${f.id}" aria-expanded="false" title="Click to expand · shift-click to dismiss">
-      <span style="width:5px; height:5px; border-radius:50%; background:var(--bad); flex:0 0 auto; margin-top:6px"></span>
-      <span>Contradiction · ${esc(e?.title ?? 'canon')}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>`;
+      <span style="width:5px; height:5px; border-radius:50%; flex:0 0 auto; margin-top:6px;
+        background:${unseen ? 'var(--warn)' : 'var(--bad)'}"></span>
+      <span${unseen ? ' style="color:var(--warn)"' : ''}>${unseen
+        ? `Never sent · ${esc(e?.title ?? 'canon')} contradicts this, and the model was not shown it`
+        : `Contradiction · ${esc(e?.title ?? 'canon')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>`;
   }).join('');
   const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.id === S.found ? ' found' : ''}`
     + (newest ? ' newest' : '');

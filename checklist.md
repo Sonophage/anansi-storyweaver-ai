@@ -151,10 +151,15 @@ Two came off this list in round three. Six left, and the order is still yours to
   shipped ones fill them. What is NOT built is the rest of DECISIONS §3 — there is no composition
   (an override replaces, it does not merge) and no validation beyond "not blank", because a prompt
   that produces nothing produces nothing and the reset is one press. Say if you want more than that.
-- **The canon checker only checks entries that fired.** One rule decides both what the model is
-  told and what gets verified. The detector is one function now, so the two cannot drift apart —
-  but they still fail together, which is the actual finding.
-- **Firing is imprecise at scale.** A 46-entry ledger fired all 46 for an eight-person scene.
+- ~~**The canon checker only checks entries that fired.**~~ Done. The check reads the **whole
+  ledger** now and each flag records whether that entry reached the prompt. A flag on canon the
+  engine never sent reads **Never sent** in amber, not **Contradiction** in red — different fault,
+  and the fix is a trigger word rather than a rewrite. The repair still judges the model against
+  only what it was told, because asking it to honour canon it never saw is asking it to guess.
+- ~~**Firing is imprecise at scale.**~~ Done. A multi-word key now needs its words **in order and
+  close together**, so `iron bridge` no longer fires on *"The bridge was iron"* and `Kade Ashford`
+  no longer fires on Kade Ferrin plus Lord Ashford a clause apart. Both are COUNCIL-04's own real
+  false fires and both are now tests.
 - **Chapter 120 does not fit** and `POST /api/rollup`, which fixes it, has no caller in the UI.
 - **Plot threads are not tracked.** The one absence named as stopping a serial writer.
 - Smaller: `serve.ts` has no node-suite coverage and it holds the gate; `endChapter` is two writes

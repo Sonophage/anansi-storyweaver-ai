@@ -69,7 +69,7 @@ export function view(storyId: string, focusChapterId?: string) {
       title: a.title, summary: a.summary })),
     violations: db.violationsOf(storyId).map((v: any) => ({
       id: v.id, passageId: v.passage_id, entryId: v.entry_id, quote: v.quote,
-      reason: v.reason, confidence: v.confidence,
+      reason: v.reason, confidence: v.confidence, reached: v.reached !== 0,
     })),
     proposals: db.proposalsOf(storyId).map((p: any) => ({
       id: p.id, entryId: p.entry_id, title: p.title, body: p.body, entryType: p.entry_type,

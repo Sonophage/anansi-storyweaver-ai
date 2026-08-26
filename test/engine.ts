@@ -417,6 +417,38 @@ ok('an arc never covers a chapter still whole in PROSE', () => {
 });
 
 // --- activation depth ---
+ok('a multi-word key needs its words in order and close together', () => {
+  // Both of these are real false fires from COUNCIL-04's 46-entry ledger, where all 46 entries
+  // fired for an eight-person scene. Neither test is hypothetical and neither rule catches both:
+  // order alone misses Kade/Ashford, distance alone misses bridge/iron.
+  const fired = (key: string, prose: string, o: Partial<Entry> = {}) => {
+    const i = base();
+    i.passages = [{ id: 'p1', ordinal: 1, body: prose }];
+    i.entries = [entry('e-k', '[the thing]', { activation: 'triggered', keys: [key],
+      entryType: 'lore', ...o })];
+    return buildContext(i, count).blocks.some((b) => b.kind === 'CANON-TRIGGERED' && b.id === 'e-k');
+  };
+
+  assert.strictEqual(fired('iron bridge', 'The bridge was iron, and it was cold'), false,
+    'words that merely co-occur are not the key — they are in the wrong order');
+  assert.strictEqual(fired('iron bridge', 'They crossed the iron bridge at dusk'), true,
+    'and the key itself still fires');
+  assert.strictEqual(fired('iron bridge', 'the iron-shod bridge'), true,
+    'with a word between, which is what the slack is for');
+
+  // The other one: in the right ORDER, but a whole clause apart.
+  assert.strictEqual(
+    fired('Kade Ashford', 'Kade Ferrin drew the bolt. Two days later Lord Ashford sent word.',
+          { entryType: 'character' }), false,
+    'two names a clause apart are two people, not one character');
+  assert.strictEqual(fired('Kade Ashford', 'Kade Ashford came in from the rain',
+                           { entryType: 'character' }), true,
+    'and the character still fires on their own name');
+
+  // One word has neither an order nor a distance, so nothing above may touch it.
+  assert.strictEqual(fired('bridge', 'The bridge was iron'), true, 'a single-word key is unchanged');
+});
+
 ok('word forms meet: a key on "run" fires on "running"', () => {
   const i = base();
   i.entries = [entry('e-run', '[the running of the tide]',

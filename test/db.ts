@@ -143,9 +143,11 @@ ok('variants survive the grouped query', () => {
   db.delStory(s3.id);
 });
 
-ok('only canon that reached the prompt is a candidate for checking', () => {
-  // The checker's input is the manifest, not the ledger. An entry that never fired must
-  // not be checked, or a passage gets flagged for contradicting canon it was never shown.
+ok('firing decides what the model is TOLD — and since COUNCIL-04 #7, only that', () => {
+  // It used to decide what gets VERIFIED as well: one rule doing two jobs, failing together, so a
+  // character who never fired could be contradicted freely. The check reads the whole ledger now
+  // and marks each flag with whether the entry reached the prompt (see test/mend.ts §5). What is
+  // asserted here is the half that did not change: the MANIFEST still carries only what fired.
   const s6 = db.createStory(o, { title: 'C' });
   db.addPassage({ ...s6, storyId: s6.id, body: 'He kept his hand on the coat all the way down.' });
   db.upsertEntry(s6.id, o, { title: 'the key', body: '[the key: brass]',
@@ -196,6 +198,27 @@ ok('deleting the selected take promotes a sibling instead of hiding the slot', (
   db.delPassage(s9.id, base);
   assert.strictEqual(db.passagesOfChapter(s9.chapterId).length, 0, 'deleting every take empties it');
   db.delStory(s9.id);
+});
+
+ok('a flag records whether the canon it contradicts ever reached the model', () => {
+  const s8 = db.createStory(o, { title: 'Reached' });
+  const pid = db.addPassage({ ...s8, storyId: s8.id, body: 'the key was silver' });
+  db.addViolation(s8.id, { passageId: pid, entryId: 'e-1', quote: 'silver', reason: 'brass',
+    confidence: 1, reached: true });
+  db.addViolation(s8.id, { passageId: pid, entryId: 'e-2', quote: 'silver', reason: 'never sent',
+    confidence: 1, reached: false });
+  const rows = db.violationsOf(s8.id);
+  assert.strictEqual(rows.length, 2);
+  assert.strictEqual(rows.find((r: any) => r.entry_id === 'e-1').reached, 1,
+    'canon the model was shown and contradicted anyway');
+  assert.strictEqual(rows.find((r: any) => r.entry_id === 'e-2').reached, 0,
+    'canon the engine never sent — a different fault, fixed with a keyword rather than a rewrite');
+  // Old rows predate the column and were all raised against canon that had fired, which is the
+  // only kind the checker could see. The default has to say so rather than leave them null.
+  db.addViolation(s8.id, { passageId: pid, entryId: 'e-3', quote: 'x', reason: 'y', confidence: 1 });
+  assert.strictEqual(db.violationsOf(s8.id).find((r: any) => r.entry_id === 'e-3').reached, 1,
+    'unspecified means it reached, which is what every stored row was');
+  db.delStory(s8.id);
 });
 
 ok('the sweep removes orphans and anything under the confidence floor', () => {

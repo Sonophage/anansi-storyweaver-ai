@@ -103,13 +103,21 @@ async function contradictionsIn(facts: { id: string; body: string }[], text: str
 /** The canon this call was actually shown, as facts. Both the check and the repair judge a
  *  passage against what reached ITS prompt, never against the whole ledger — a triggered entry
  *  that never fired is not something the model was told. */
-const factsFor = (v: any, manifest: any, chapterIndex: number) => {
+/** The canon a passage is judged against.
+ *
+ *  `all: true` takes the WHOLE ledger and marks each fact with whether it reached the prompt;
+ *  otherwise only the facts that did. The difference is the difference between the two callers.
+ *  The repair judges the model against what it was TOLD — asking it to honour canon it never saw
+ *  is asking it to guess — while the check judges the PASSAGE, and a fact the engine failed to
+ *  send is still a fact the book now contradicts.
+ */
+const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
   const reached = new Set(manifest.blocks
     .filter((b: any) => b.kind.startsWith('CANON') && b.state === 'included').map((b: any) => b.id));
-  return v.entries.filter((e: any) => reached.has(e.id))
+  return v.entries.filter((e: any) => all || reached.has(e.id))
     // The chapter matters: an entry with a chapter state has a different body in chapter 6 than in
     // chapter 1, and a passage is judged against the body in force where IT sits.
-    .map((e: any) => ({ id: e.id, body: resolveBody(e, chapterIndex) }))
+    .map((e: any) => ({ id: e.id, body: resolveBody(e, chapterIndex), reached: reached.has(e.id) }))
     .filter((f: any) => f.body.trim());
 };
 
@@ -261,7 +269,12 @@ async function check(c: Ctx, storyId: string, passageId: string) {
   // entries, with the right state in force for its chapter.
   const asOf = assemble(v, c.slot, 'direct', undefined, passage.ordinal);
   const chapter = v.chapters.find((ch) => ch.id === passage.chapterId) ?? v.currentChapter;
-  const facts = factsFor(v, asOf.manifest, chapter.index);
+  // THE WHOLE LEDGER, not only what fired. Firing used to decide both what the model was told and
+  // what got verified — one rule doing two jobs, failing together — so a character who did not
+  // fire could be contradicted freely and nothing caught it (COUNCIL-04 #7). Each flag now
+  // records which it is, because "you contradicted canon" and "the engine never sent this canon"
+  // are different faults and the second one is fixed with a keyword, not a rewrite.
+  const facts = factsFor(v, asOf.manifest, chapter.index, true);
   if (!facts.length) return { checked: 0, found: 0, violations: [] };
 
   const { found, error } = await contradictionsIn(facts, passage.body);
@@ -272,12 +285,13 @@ async function check(c: Ctx, storyId: string, passageId: string) {
   for (const x of found) {
     const f = facts[x.canon - 1];
     db.addViolation(storyId, { passageId, entryId: f?.id, quote: x.quote,
-      reason: x.why, confidence: x.confidence });
+      reason: x.why, confidence: x.confidence, reached: f?.reached !== false });
   }
   // Same shape the view uses, so a caller never has to know a row from a record.
   return { checked: facts.length, found: found.length,
     violations: db.violationsOf(storyId).map((x: any) => ({ id: x.id, passageId: x.passage_id,
-      entryId: x.entry_id, quote: x.quote, reason: x.reason, confidence: x.confidence })) };
+      entryId: x.entry_id, quote: x.quote, reason: x.reason, confidence: x.confidence,
+      reached: x.reached !== 0 })) };
 }
 
 export const routes: Record<string, Handler> = {

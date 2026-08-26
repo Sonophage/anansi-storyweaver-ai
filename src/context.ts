@@ -178,10 +178,16 @@ export function resolveBody(e: Entry, chapter: number): string {
   return [inForce?.body ?? e.body, ...hints.map((h) => `[not yet known: ${h}]`)].join(' ');
 }
 
-// ponytail: no secondary keys, key_logic, proximity bound, exclusion keys or regex keys
-// (SPEC §7.4). Those all address ONE failure — a multi-word key false-firing on words that
-// happen to co-occur — which a small ledger cannot demonstrate. Build them when a real
-// ledger actually false-fires, and use the fire preview to show it.
+// The proximity bound is BUILT (2026-08-25) — see `fires` below. The marker that stood here said
+// to build it "when a real ledger actually false-fires", and COUNCIL-04 recorded two, from a
+// 46-entry ledger where all 46 fired for an eight-person scene:
+//
+//     `iron bridge`  on  "The bridge was iron, and it was cold"
+//     `Kade Ashford` on  Kade Ferrin and Lord Ashford, two passages apart
+//
+// ponytail: still no secondary keys, key_logic, exclusion keys or regex keys (SPEC §7.4). Those
+// address a DIFFERENT failure from the one measured — a key that is right but wanted only in
+// some contexts — and nothing has demonstrated that one yet.
 
 /** Fold an English word to a crude stem so "runs" and "running" meet.
  *
@@ -219,23 +225,61 @@ function fold(w: string): string {
   return t.length > 3 && t.endsWith('e') ? t.slice(0, -1) : t;
 }
 
+/** How far apart the words of a multi-word key may sit and still be that key.
+ *
+ *  A two-word key spans 1 when the words are adjacent. SLACK 2 lets one or two words fall between
+ *  them — "iron-shod bridge", "Kade of Ashford" — and refuses a whole clause. It is deliberately
+ *  tight: the failure being fixed is words that merely co-occur, and every token of slack is
+ *  another sentence they may co-occur across.
+ */
+const KEY_SLACK = 2;
+
 /** Whole-word match over one window. Proper nouns match exactly, plus plural and possessive;
  *  everything else is folded on both sides so word forms meet.
  *
- *  ponytail: still no secondary keys, key_logic, proximity bound, exclusion keys or regex keys
- *  (SPEC §7.4). Those address false-firing on multi-word keys; add them when a real ledger
- *  actually false-fires, which a four-entry fixture cannot show.
+ *  A MULTI-WORD KEY MUST APPEAR IN ORDER AND CLOSE TOGETHER. It used to fire when every word
+ *  appeared anywhere in the window, in any order, at any distance — so `iron bridge` fired on
+ *  "The bridge was iron, and it was cold" and `Kade Ashford` fired on Kade Ferrin plus Lord
+ *  Ashford two passages apart, for a character who was not in the scene. Both are real, both from
+ *  COUNCIL-04's 46-entry ledger, and order alone would not have caught the second nor distance
+ *  the first — which is why this is both.
+ *
+ *  Single-word keys are untouched: there is no order and no distance in one word.
  */
 function fires(entry: Entry, window: string): string[] {
-  const raw = new Set(window.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []);
-  const folded = new Set([...raw].map(fold));
+  const tokens = window.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
+  const raw = new Set(tokens);
+  const folded = tokens.map(fold);
   const proper = entry.properNouns ?? entry.entryType === 'character';
+  // Every position a part of the key sits at, so the span can be measured rather than guessed.
+  const at = (p: string) => {
+    const out: number[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const hit = proper
+        ? tokens[i] === p || tokens[i] === p + 's' || tokens[i] === p + "'s"
+        : folded[i] === fold(p);
+      if (hit) out.push(i);
+    }
+    return out;
+  };
   return entry.keys.filter((k) => {
     const parts = k.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
     if (!parts.length) return false;
-    return parts.every((p) => proper
-      ? raw.has(p) || raw.has(p + 's') || raw.has(p + "'s")
-      : folded.has(fold(p)));
+    if (parts.length === 1) return proper
+      ? raw.has(parts[0]) || raw.has(parts[0] + 's') || raw.has(parts[0] + "'s")
+      : folded.includes(fold(parts[0]));
+    // Walk the parts in order, each time taking the EARLIEST position after the one before. That
+    // is the tightest run the window allows, so if it is too wide, no run is narrow enough.
+    const first = at(parts[0]);
+    return first.some((start) => {
+      let last = start;
+      for (const p of parts.slice(1)) {
+        const next = at(p).find((i) => i > last);
+        if (next === undefined) return false;
+        last = next;
+      }
+      return last - start <= parts.length - 1 + KEY_SLACK;
+    });
   });
 }
 
