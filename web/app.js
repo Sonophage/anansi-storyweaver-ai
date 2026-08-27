@@ -3466,9 +3466,11 @@ document.addEventListener('click', async (e) => {
     if (S.ritual) return;                       // already running
     working('reroll');
     const closing = V.currentChapter;
-    // Step 1 and 2 are one call: the route summarises on close by itself, deliberately —
-    // "on close rather than on a button nobody remembers".
-    S.ritual = 'Closing and summarising…'; paint();
+    // Steps 1 to 3 are ONE call. The route summarises on close by itself, remembers what the
+    // chapter did to the people in it, and — since 2026-08-27 — reads it for facts, all on the
+    // same terms: "on close rather than on a button nobody remembers". This used to make the
+    // extract call itself, which after the move would have run the extractor twice.
+    S.ritual = 'Closing, summarising, reading it for facts…'; paint();
     const r = await api.endChapter(S.storyId, {});
     if (r.error) { S.ritual = null; working(null); paint(); return toast(r.error); }
     V = await api.story(S.storyId);
@@ -3476,11 +3478,12 @@ document.addEventListener('click', async (e) => {
     const steps = [summary ? `Summarised ${closing.title || 'the chapter'} in ${summary.split(/\s+/).length} words`
                            : 'Closed, but the summary did not come back'];
 
-    // Step 3: read it for facts. Nothing is accepted — SPEC 8.2, and it is the rule that makes
-    // the ledger worth trusting.
-    S.ritual = 'Reading it for new facts…'; paint();
-    const x = await api.extract(S.storyId, closing.id);
-    steps.push(x.error ? `Could not read it for facts: ${x.error}`
+    // What the close already found. Nothing is accepted — SPEC 8.2, and it is the rule that makes
+    // the ledger worth trusting. `extracted` null means the model was down when it closed, which
+    // a chapter is allowed to do; the standalone button is still there to run it again.
+    const x = r.extracted;
+    steps.push(!x ? 'Could not read it for facts — the button on this panel will try again'
+      : x.error ? `Could not read it for facts: ${x.error}`
       : `${x.added ?? 0} proposed as threads — nothing accepted yet`);
 
     // Step 4: the next chapter's setup, skippable.

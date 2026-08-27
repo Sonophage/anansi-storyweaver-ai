@@ -21,6 +21,10 @@ const NARRATED = 'The wrist gave under the weight and she did not cry out.';
 let asked: any = null;
 /** What the fake returns. A name that matches nobody is how the "never invent" check is driven. */
 let answer: any[] = [{ name: 'Vel', body: AFTER, label: 'arm broken, trust gone' }];
+/** And what the EXTRACT role returns. One fake, two roles: `remember` reads `characters` and
+ *  `extract` reads `entries`, so returning both keys serves whichever one asked. */
+let found: any[] = [{ title: 'The Wrist Strap', body: 'Leather, cut from a saddle girth.',
+                      type: 'item', keys: ['strap'] }];
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -31,7 +35,7 @@ const srv = createServer((req, res) => {
       res.end(JSON.stringify(o)); };
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
     asked = { system: b.messages?.[0]?.content ?? '', user: b.messages?.[1]?.content ?? '' };
-    send({ choices: [{ message: { content: JSON.stringify({ characters: answer }) } }],
+    send({ choices: [{ message: { content: JSON.stringify({ characters: answer, entries: found }) } }],
            usage: { prompt_tokens: 200, completion_tokens: 60 } });
   });
 });
@@ -70,6 +74,61 @@ const ok = (m: string) => { n++; console.log(`  ok  ${m}`); };
   // A place cannot acquire a broken arm.
   assert.ok(!asked.user.includes('A stair with no landing'), 'lore entries are not offered for memory');
   ok('the memory pass reads narration only, and is seeded with the description in force');
+}
+
+// ---- 1b. extraction reads narration only too, and closing a chapter fires it ----
+//
+// Two paths read the same prose for the same kind of fact, and until 2026-08-27 they disagreed:
+// `remember` stripped dialogue and `extract` read `p.body` raw, so a character's lie was offered
+// to the ledger as canon by one and refused by the other. That mattered less behind a button;
+// this now runs on every chapter close.
+{
+  asked = null;
+  const r: any = await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId }));
+  assert.ok(!r.error, r.error);
+  assert.ok(asked, 'the model was called');
+  assert.ok(asked.user.includes(NARRATED), 'the narration reaches the extractor');
+  assert.ok(!asked.user.includes(SPOKEN),
+    'and the spoken line does not — EXTRACT\'s own prompt says a character being wrong is not a '
+    + 'fact, and this used to hand it the lie');
+  ok('extraction reads narration only, the way the memory pass always has');
+}
+
+// Closing a chapter reads it for facts with nothing pressed. The ledger is the only tier that
+// survives compaction, so leaving it on a button leaves the memory optional — the same argument
+// the summary already won. Twelve always-on entries in the real database is what the button
+// produced over a book.
+{
+  const before = db.proposalsOf(story.id).length;
+  found = [{ title: 'The Dead God', body: 'The city is built on its back.', type: 'lore', keys: ['god'] }];
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: story.id }));
+  assert.ok(!r.error, r.error);
+  const after = db.proposalsOf(story.id);
+  assert.ok(after.length > before,
+    `closing a chapter must read it for facts: ${before} proposals before, ${after.length} after`);
+  assert.ok(after.some((p: any) => p.title === 'The Dead God'),
+    'and what it found must be in the queue');
+  // HANDED BACK, not merely done. The end-chapter ritual reports this rather than making its own
+  // extract call — without the answer on the response it would call again, and every chapter
+  // close would cost two model calls to say one thing.
+  assert.ok(r.extracted, 'the close must return what it found, or the surface asks a second time');
+  assert.strictEqual(r.extracted.added, 1, 'with the count the ritual prints');
+  // Proposals, never writes. The whole reason this is safe to fire on its own.
+  assert.ok(!db.entriesOf(story.id).some((e: any) => e.title === 'The Dead God'),
+    'nothing may become canon without being accepted');
+  ok('closing a chapter reads it for facts, as proposals, with nothing pressed');
+}
+
+// And the way out, on the same terms as summarise and remember: a flag, not a special case.
+{
+  const ch2 = (db.chapters(story.id).at(-1) as any).id;
+  db.addPassage({ ...story, storyId: story.id, chapterId: ch2,
+    body: 'A second chapter, with a fact in it.' });
+  found = [{ title: 'Never Proposed', body: 'Because extraction was switched off.', type: 'lore', keys: ['never'] }];
+  await routes['POST /api/chapter/end'](ctx({ storyId: story.id, extract: false }));
+  assert.ok(!db.proposalsOf(story.id).some((p: any) => p.title === 'Never Proposed'),
+    'extract: false must switch it off, the way summarise: false and remember: false do');
+  ok('and extract: false opts out of it');
 }
 
 // ---- 2. it proposes rather than writing ----

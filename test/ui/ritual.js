@@ -40,7 +40,14 @@ ok(`  and it is titled for the next chapter (${JSON.stringify(head.replace(/\s+/
 const body = (await page.text('#sideBody') || '');
 console.log("  ritual report: " + body.replace(/\s+/g, ' ').slice(0, 150));
 ok("  it reports the summary it wrote", /Summarised|summary did not/.test(body));
-ok("  and what extraction proposed", /proposed for the ledger|Could not read/.test(body));
+// NOT `|Could not read`, which is what this said until 2026-08-27. The wording it looked for —
+// "proposed for the ledger" — was renamed to "proposed as threads" when the ledger became Threads,
+// and the assertion was never updated. So for as long as extraction FAILED here it passed on its
+// own failure branch, and the day extraction started working on chapter close it went red. An
+// assertion that accepts the error message as a pass cannot fail. Same family as the two inert
+// blocks in this file that .claude/CLAUDE.md records.
+ok(`  and what extraction proposed (${JSON.stringify((body.match(/\d+ proposed as threads|Could not read[^.]*/) ?? ['nothing'])[0])})`,
+   /\d+ proposed as threads/.test(body));
 
 const after = await story();
 ok(`the chapter closed and the next opened (${chBefore} -> ${after.chapters.length})`, after.chapters.length === chBefore + 1);

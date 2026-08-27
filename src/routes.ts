@@ -331,6 +331,40 @@ async function remember(storyId: string, chapterId: string) {
   return { remembered, chapter: ch.index };
 }
 
+/** Read a chapter for facts and put them in the queue as PROPOSALS.
+ *
+ *  Named rather than inline in its route since 2026-08-27, because the chapter close calls it too —
+ *  one body, the way `summarise` and `remember` are already shared.
+ *
+ *  NARRATION ONLY, which it was not until the same day. `remember` has stripped dialogue since it
+ *  was written and this read `p.body` raw, so two paths that read the same prose for the same kind
+ *  of fact disagreed about whether a character's speech counts as one. CLAUDE.md is unambiguous —
+ *  *"Dialogue may lie; characters may be wrong. Only the narrator commits the story"* — and
+ *  `EXTRACT`'s own prompt says *"A character lying or being wrong is not a fact"* while the code
+ *  handed it the lie. `remember`'s is the tested pattern, so `remember`'s is the one that stays.
+ *  It matters more now that this fires on its own: a mistake behind a button is made when you press
+ *  it, and a mistake on chapter close is made every chapter. */
+async function extract(storyId: string, chapterId?: string) {
+  const v = viewOf(storyId);
+  const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
+  const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
+  if (!ps.length) return { error: 'nothing to read in this chapter' };
+  const existing = db.entriesOf(v.id);
+  const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
+  if (!text.trim()) return { error: 'this chapter is all dialogue — nothing the narrator committed' };
+  const r = await structuredRetry(EXTRACT, text, EXTRACT_SCHEMA);
+  if (!r.data?.entries) return { error: r.error ?? 'extraction returned nothing usable' };
+  let added = 0;
+  for (const e of r.data.entries) {
+    if (!e?.title?.trim() || !e?.body?.trim()) continue;
+    const cls = classify(existing, e);
+    if (!cls) continue;
+    if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
+      body: e.body.trim(), entryType: e.type, keys: e.keys ?? [] })) added++;
+  }
+  return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
+}
+
 async function summarise(c: Ctx, storyId: string, chapterId?: string) {
   const v = need(view(storyId), 'no such story');
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
@@ -586,7 +620,24 @@ export const routes: Record<string, Handler> = {
     if (c.body.remember !== false) {
       try { await remember(v.id, closing); } catch { /* same */ }
     }
-    return { ...r, ...viewOf(v.id) };
+    // And read it for facts. The comment above summarise applies to this word for word: the ledger
+    // is the only tier that survives compaction — prose falls out of the chapter window, summaries
+    // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
+    // outlives everything on a button nobody remembers leaves the memory optional.
+    //
+    // Measured on 2026-08-27: twelve entries in the whole database, every one of them always_on,
+    // eleven with `keys` that are just the entry's own title. That is what a manual button
+    // produced over a book. PROPOSALS, so nothing becomes canon without being accepted.
+    //
+    // RETURNED, not just done. The end-chapter ritual used to make this call itself as its own
+    // step 3, so moving it here without handing the answer back would have run the extractor
+    // twice per close — one wasted model call, and a surface that reports on a different pass
+    // from the one that happened.
+    let extracted: any = null;
+    if (c.body.extract !== false) {
+      try { extracted = await extract(v.id, closing); } catch { /* same */ }
+    }
+    return { ...r, extracted, ...viewOf(v.id) };
   },
 
   // ---- history & revert. §7.4's safety argument is "you can revert" — this is the revert. ----
@@ -1046,24 +1097,7 @@ export const routes: Record<string, Handler> = {
   /** Read a chapter and propose ledger entries. Nothing written here is canon: every
    *  proposal is held until accepted (design screen 28). Re-running is safe — the unique
    *  index on content hash means the same fact is not proposed twice. */
-  'POST /api/extract': async (c) => {
-    const v = viewOf(c.body.storyId);
-    const ch = v.chapters.find((x) => x.id === c.body.chapterId) ?? v.currentChapter;
-    const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
-    if (!ps.length) return { error: 'nothing to read in this chapter' };
-    const existing = db.entriesOf(v.id);
-    const r = await structuredRetry(EXTRACT, ps.map((p: any) => p.body).join('\n\n'), EXTRACT_SCHEMA);
-    if (!r.data?.entries) return { error: r.error ?? 'extraction returned nothing usable' };
-    let added = 0;
-    for (const e of r.data.entries) {
-      if (!e?.title?.trim() || !e?.body?.trim()) continue;
-      const cls = classify(existing, e);
-      if (!cls) continue;
-      if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
-        body: e.body.trim(), entryType: e.type, keys: e.keys ?? [] })) added++;
-    }
-    return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
-  },
+  'POST /api/extract': async (c) => extract(c.body.storyId, c.body.chapterId),
   // Re-runnable: a chapter that closed with the router down gets its memory when it comes back, and
   // the subject hash stops a second run proposing the same character twice.
   'POST /api/remember': async (c: Ctx) => {
