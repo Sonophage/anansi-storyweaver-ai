@@ -12,6 +12,10 @@ import type { Slot } from './story.ts';
 
 export interface Ctx {
   body: any; query: URLSearchParams; owner: string; slot: Slot;
+  /** Aborts when the writer's connection goes — which is what Stop does. Only the streaming
+   *  generate honours it: a non-streaming route that gave up halfway through its writes would
+   *  leave half a change behind, and losing a client is not a reason to do that. */
+  signal?: AbortSignal;
   gen: Record<string, any>; setGen: (g: Record<string, any>) => void;
   // The writer's own fallback model, and whether they run the box. Both come from serve.ts:
   // `admin` is an identity question and the sampler map already lives there.
@@ -233,7 +237,10 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // The story's own model, or the process default. `chat` spreads opts over its own defaults,
     // so naming it here is all it takes — every call has always carried a model name.
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
-      { ...sampler, model: using, chat_template_kwargs: { enable_thinking: !!thinking } }, onDelta);
+      { ...sampler, model: using, chat_template_kwargs: { enable_thinking: !!thinking } }, onDelta,
+      // Only the streaming call. `onDelta` is present exactly when there is a writer watching
+      // this arrive, which is exactly when there is a Stop button to press.
+      onDelta ? c.signal : undefined);
     const ms = Date.now() - t0;
     const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
       params: c.gen, manifest, promptTokens: r.usage?.prompt_tokens,
@@ -252,7 +259,13 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
              ...(directive && !directive0?.trim() ? { reusedDirective: directive } : {}),
              seconds: +(ms / 1000).toFixed(1), manifest, genId };
   } catch (e: any) {
-    db.logGeneration({ storyId: v.id, model: using, role, manifest, error: e?.message, latencyMs: Date.now() - t0 });
+    // A stopped generation is logged as stopped, not as a failure. `GET /api/activity` reads
+    // these rows and a writer who stops three takes should not find three errors waiting under
+    // Storyteller — the numbers there are how the box's health is read.
+    const stopped = c.signal?.aborted || e?.name === 'AbortError';
+    db.logGeneration({ storyId: v.id, model: using, role, manifest,
+      error: stopped ? 'stopped by the writer' : e?.message, latencyMs: Date.now() - t0 });
+    if (stopped) return { aborted: true, manifest };
     return { error: e?.message ?? 'generation failed', manifest };
   }
 }

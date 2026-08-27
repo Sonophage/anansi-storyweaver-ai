@@ -8,7 +8,37 @@
 //   node --experimental-strip-types test/stream.ts
 import assert from 'node:assert';
 import { createServer } from 'node:http';
-import { readSSE, reach } from '../src/llama.ts';
+// `chat()` talks to whatever ANANSI_LLAMA named WHEN src/llama.ts was first imported — the host
+// is read once, at module scope. So the fake has to be listening before the import, which is why
+// this one import is dynamic and the server below is started at the top of the file rather than
+// inside the check that uses it.
+const stopFake = await (async () => {
+  const state = { closedEarly: false, finished: false, deltas: 0 };
+  const s = createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    let i = 0;
+    const t = setInterval(() => {
+      if (i++ >= 40) {
+        clearInterval(t);
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        state.finished = true;
+        return res.end();
+      }
+      state.deltas++;
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'word ' } }] })}\n\n`);
+    }, 15);
+    // The socket going before the body finished IS the abort arriving at the model's end. This
+    // is the only assertion that can tell "the page stopped listening" from "the box stopped
+    // generating", and those are the two things the Stop button has to do in that order.
+    res.on('close', () => { clearInterval(t); if (!state.finished) state.closedEarly = true; });
+  });
+  const url = await new Promise<string>((done) =>
+    s.listen(0, '127.0.0.1', () => done(`http://127.0.0.1:${(s.address() as any).port}`)));
+  return { url, state, close: () => s.close() };
+})();
+process.env.ANANSI_LLAMA = stopFake.url;
+const { readSSE, reach, chat } = await import('../src/llama.ts');
 
 let n = 0;
 const ok = (m: string, f: () => any) => Promise.resolve(f())
@@ -130,5 +160,57 @@ await ok('a server that is merely slow is not reported as a missing one', async 
     /did not answer in time/);
   hang.close();
 });
+
+// ---- Stop: the writer's half, and the model's half ----
+//
+// Aborting the browser's fetch is the easy half and it is not the feature. The feature is that
+// the call to llama-server ends too: two slots, so a writer who stops and starts again is
+// otherwise racing their own abandoned generation for the shared cache, and F13's margin was
+// measured with two writers, not three.
+
+await ok('Stop ends the call to the model, not only the page', async () => {
+  const ac = new AbortController();
+  let seen = 0;
+  await assert.rejects(
+    () => chat('system', 'body', {}, () => { if (++seen === 3) ac.abort(); }, ac.signal),
+    (e: any) => {
+      assert.ok(e?.name === 'AbortError' || /abort/i.test(String(e?.message)),
+        `stopping must abort the call, not fail some other way: ${e?.name} ${e?.message}`);
+      return true;
+    });
+  // The close travels over a socket, so it is not instant. Bounded wait rather than a sleep.
+  for (let i = 0; i < 100 && !stopFake.state.closedEarly; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.ok(stopFake.state.closedEarly,
+    'llama-server never saw the connection go — the box is still generating into a slot nobody reads');
+  assert.ok(!stopFake.state.finished, 'and it must not have been allowed to finish first');
+  assert.ok(seen >= 3, 'the writer saw the prose arriving before they stopped it');
+});
+
+await ok('a generation nobody stops still runs to the end', async () => {
+  // The inverse, and the one that matters more: `AbortSignal.any` composes the writer's stop with
+  // the 900-second ceiling, and getting that wrong the other way aborts every generation the
+  // moment it starts. A stop signal that is never fired must change nothing.
+  stopFake.state.closedEarly = false; stopFake.state.finished = false;
+  const never = new AbortController();
+  const r = await chat('system', 'body', {}, () => {}, never.signal);
+  assert.match(r.prose, /word/, 'the prose must arrive whole');
+  assert.ok(stopFake.state.finished, 'and the model must have been left to finish');
+  assert.ok(!stopFake.state.closedEarly, 'with nothing cut short');
+});
+await ok('the fifteen-minute ceiling survives being composed with Stop', async () => {
+  // The failure this exists for is `stop ?? AbortSignal.timeout(...)`: it stops on Stop, it looks
+  // right, and it silently drops the ceiling from every generation a writer is watching — leaving
+  // a hung llama-server to hold the connection open forever with nothing to end it.
+  const never = new AbortController();
+  await assert.rejects(
+    () => chat('system', 'body', {}, () => {}, never.signal, 60),
+    (e: any) => {
+      assert.match(String(e?.message), /did not answer in time|abort/i,
+        `a stop signal must not replace the ceiling: ${e?.name} ${e?.message}`);
+      return true;
+    });
+});
+
+stopFake.close();
 
 console.log(`\n${n} checks passed`);

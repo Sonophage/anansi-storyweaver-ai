@@ -26,6 +26,34 @@ test/ui/run.sh                                  467 checks, twelve scenarios, no
 **COUNCIL-04 is closed** — all eight findings and all seven of its smaller items. Nothing from the
 original review is outstanding. What is left is of three kinds.
 
+### Doorless code, found 2026-08-27
+
+Not bugs and not decisions: finished engine work with nothing that opens it. The class this repo
+keeps hitting.
+
+- **`POST /api/remember` has no caller.** `routes.ts:1047`, driven only by `test/memory.ts`.
+  `web/api.js` has no method for it, so nothing on any surface re-runs the character-memory pass on
+  a chapter that closed while the router was down — the one case the route exists for.
+- **`test/web.ts`'s guard runs in one direction.** It asserts every `api.js` method has a caller in
+  `app.js`; it does not assert every route has an `api.js` method. That is how the above got here,
+  and both directions belong in the check.
+- **Its DEFERRED list is stale.** `rollup` and `delArc` have had callers since arcs got a surface
+  (`app.js:2705`, `2712`), and a name in DEFERRED is skipped by the orphan check — so deleting that
+  surface again would go unnoticed. `delBranch` is the only entry still true.
+
+### The opt-in scenario had gone stale, 2026-08-27
+
+`test/ui/model.js` is the only suite that waits on real generations, so it is not in the default
+set and nothing runs it unless somebody asks. It was last touched **2026-08-24**; "Edit is the only
+door" landed **2026-08-26**. Its step 4 focused a passage and typed into it, which worked while
+every passage carried `contenteditable` and cannot work now — a plain div is not focusable, so
+`focus()` does nothing, `blur()` fires no event, and nothing saves. `handlers.js` was updated the
+same day it changed; this one was not, and sat red-in-waiting for three days.
+
+Two things follow. The scenario presses Edit now, the way `handlers.js` has all along. And **an
+opt-in check is a check that rots**: run `test/ui/run.sh model` on the day any prose-editing or
+composer change lands, or it will be reporting on an app that no longer exists.
+
 ### Queued from round four, not built
 
 What is left of round four's `bugs.md`. Everything else on it is built and is in the walk below.
@@ -259,13 +287,21 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
   (F30).
 - **Anansi's chapter numbers** are right now that it is told which chapter it is looking at, but
   that is one run against one story (F33).
+- **The prose quotes the ledger** (F36). Both prompt halves are in — `render.ts:32` tells SYSTEM
+  that canon is what is TRUE and never how to say it, and INVENT already had its version. What is
+  NOT established is that it worked: **0 in 6**, no before/after, which bounds the rate under about
+  40% and nothing more. Needs a real arm on `bench/quote-detect.ts` before anyone calls it fixed.
+- **Nothing looks for internal coherence** (F36's other half, and it has no marker anywhere). The
+  contradiction checker compares a passage against canon, so a passage that lifts canon's wording
+  while contradicting itself — the guitar out of a coat pocket — agrees with canon perfectly. No
+  amount of tuning the contradiction prompt reaches this class.
 
-### Deliberate debt — twenty `ponytail:` markers
+### Deliberate debt — twenty-one `ponytail:` markers
 
 Three are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
 unscheduled), no streaming backpressure, and ceilings-with-a-refusal instead of a budget engine.
 The other fifteen each name a ceiling: the markdown and JSON exports carrying a cover's timestamp
-and not its bytes (the standalone-database export does carry it), three stored-and-ignored entry columns, a LIKE scan that goes
+and not its bytes (the standalone-database export does carry it), one stored-and-ignored entry column (`priority`; the comment claiming three was wrong and is fixed), a LIKE scan that goes
 linear at chapter 40, rejected takes recorded but not fed back, the repair's length floor,
 prompt-override validation, the remaining key logic (secondary keys, exclusion keys, regex), the
 checker's blindness to numeric contradictions, the whois cache holding an IP for the life of the

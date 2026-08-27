@@ -1,4 +1,4 @@
-# Build state — 2026-08-23 (third pass)
+# Build state — 2026-08-27 (fourth pass)
 
 > **STATUS: LIVE.** Audited against the code, not from memory — twice this document has been wrong
 > because someone wrote it from recall. If it disagrees with the source, the source wins and this
@@ -42,8 +42,8 @@ one — it looks finished from the UI), and **not started**.
 | **Search** | A `LIKE` scan | Fine at this size. The unused FTS5 table beside it has been dropped rather than left looking like a feature. |
 | **The model** | Process default, **overridable per story** (`stories.model`), an `ANANSI_MODELS` allowlist, and stop/restart of the router unit from Preferences | Whole. The router runs `--models-max 3 --models-autoload`, so three co-reside and a switch usually costs nothing. |
 | **Branches** | `branches` table, rows, `branchesOf`, switching, **and forking** from a passage's History | Whole. Forking landed with the History panel; the row that said "no fork action" was stale. |
-| **`generations`** | One row per call with the full manifest | Never read. P6's own trigger condition (prefill time, prefix moved) depends on reading it. |
-| **Entry knobs** | `sticky_for`, `proper_nouns`, `priority` columns | The engine ignores all three. |
+| ~~`generations`~~ | One row per call with the full manifest | **Done.** `GET /api/activity` reads it and Preferences shows prefill seconds and rate per call. The row saying "never read" outlived the route by three days. |
+| **Entry knobs** | `sticky_for`, `proper_nouns`, `priority` columns | **`priority` only.** `context.ts` reads `properNouns` when it folds and holds an entry open for `stickyFor` passages after it last fired. `priority` needs the budget engine to mean anything. |
 | ~~Export~~ | Markdown and JSON, with proper download headers | **Done.** |
 | ~~Spark~~ | Idea in, skeleton out, cast proposed as entries, every field editable before accepting | **Done.** |
 | ~~Canon violation flags~~ | Runs on accept, flags inline on both surfaces, dismissable | **Done.** F1 0.89 measured — see P0-FINDINGS F11. |
@@ -52,7 +52,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **121 across six suites** (34 engine, 34 db, 19 scope, 11 import, 14 web, 9 app), plus **297 driven-browser checks across 12 scenarios** — ten that need no model, plus `model` and `ritual` which wait on real generations — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet. |
+| **Tests** | **201 across eleven suites** (41 engine, 46 db, 31 scope, 12 import, 7 stream, 8 mend, 5 memory, 4 report, 11 talk, 15 web, 21 app), plus **467 driven-browser checks across twelve scenarios**, all green on 2026-08-27 — plus `model` and `ritual`, which wait on real generations and are not in the default set — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet, and that check runs in one direction only — see the correction of 2026-08-27. |
 
 ---
 
@@ -65,7 +65,7 @@ from the code rather than remembered:
 grep -rn "ponytail:" src web bench *.ts *.html
 ```
 
-**Nine markers as of 2026-08-24.** The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. One was added with rejected takes: the flag is recorded and shown but not sent to the model, because feeding a rejected take to the prompt is a prompt change and F20 is what those cost to justify. Each remaining marker names what is missing, why it was left, and the upgrade path.
+**Twenty-one markers as of 2026-08-27.** The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. One was added with rejected takes: the flag is recorded and shown but not sent to the model, because feeding a rejected take to the prompt is a prompt change and F20 is what those cost to justify. Each remaining marker names what is missing, why it was left, and the upgrade path.
 Nothing in this list is a surprise; the point is that adding to it requires writing down the ceiling.
 
 | Where | What is unfinished |
@@ -85,8 +85,8 @@ Nothing in this list is a surprise; the point is that adding to it requires writ
 | ~~`routes.ts`~~ | **Done.** Story covers. `story_covers` holds the JPEG, downscaled to 900px in the browser; the shelf is told only the `set_at`, which keys an immutable URL. A side table and not a column on `stories`, because `listStories` selects `s.*`. |
 | ~~`serve.ts`~~ | **Done.** `tailscale whois` on the peer IP, an `ANANSI_ALLOW` allowlist, one owner resolved per request, and the sampler moved from the process to the owner. 22 checks in `test/scope.ts`, two of which are the allowlist itself. |
 | — | Adventure mode **dropped** (Seth, 2026-08-23), not deferred. Nothing to build. |
-| `desk.js` | Design screens D9, D10, D14 not built as surfaces. |
-| `phone.html` | Manifest and icon **done** — it installs. No service worker, so no offline read; SPEC §13 M7's warning about workers and streaming POSTs is still unanswered. |
+| — | Design screens D9, D10, D14 not built as surfaces. `desk.js` is deleted; the row named a file this same document records as gone. |
+| — | Manifest and icon **done** — it installs. No service worker anywhere in the tree, so no offline read; SPEC §13 M7's warning about workers and streaming POSTs is still unanswered. |
 
 ---
 
@@ -109,9 +109,10 @@ like a feature; search is a `LIKE` scan.
 
 **P5 — "The ledger fills itself and I trust what it did." 30-45h. Substantially done.**
 Extraction under §7.4, the ledger-as-queue with diffs, summary staleness, canon violation checking —
-all built. Missing: **memory collect-versus-inject**, which is vector recall. `RECALL` exists as a
-block kind, is ordered, tagged and ranked first for eviction, and nothing ever adds to it. It is a
-reserved seat, now marked as one in `blocks.ts`.
+all built. Missing: **memory collect-versus-inject**, which is vector recall. `RECALL` is no longer
+even a `Kind` — it and `LORE` were removed, and `blocks.ts:12` records why: nothing ever added a
+block of either, lore renders as `CANON-*` by its activation, and the eviction sort means putting
+them back changes nothing else. Add them with the code that fills them.
 
 **P6 — "The book is longer than the window and it still holds." 40-60h. Correctly waiting.**
 The meter, the 45% canon cap and the EARLIER ceiling were built ahead of the phase. The budget engine
@@ -286,8 +287,9 @@ prose only ever appends. Importing the same adventure twice gives you the prose 
 Substantially complete under shorter names (`idx` for `index`, `summary_hash` for
 `summary_source_hash`, `manifest` for `context_manifest`). Genuinely absent: `engine_config`,
 `model_config`, `writing_mode` (mode is per-request, never stored), tokenizer-keyed `token_counts`
-**maps** (scalars where they exist at all), and `tailscale_login` — there is a `login` column with
-no identity behind it.
+**maps** (scalars where they exist at all). `tailscale_login` is **no longer absent**: `serve.ts`
+resolves one owner per request from `tailscale whois` against an `ANANSI_ALLOW` allowlist, and the
+`login` column has an identity behind it as of 2026-08-26.
 
 `system_block_override` and `token_counts` were removed from the schema by the 2026-08-23 ponytail
 audit as columns nothing read. They were **P1 stubs for planned features**, so the deletion removed
@@ -337,9 +339,9 @@ whole phone surface (which was P7's second-surface work), then the desktop.
 
 | Skipped in P1 | Consequence |
 |---|---|
-| Identity, allowlist, RLS, Postgres | Single hardcoded user. The second tenant cannot exist yet, and that was P3's entire criterion. |
+| ~~Identity, allowlist~~ | **Built 2026-08-26** — whois, `ANANSI_ALLOW`, one owner per request. RLS and Postgres are still not built and are still unscheduled. |
 | `pg_dump` / backups | `anansi.db` is the only copy of anything written. |
-| Status strip | No surface says whether the model is up, busy, or asleep. |
+| ~~Status strip~~ | **Partly built.** The rail says `llama-server asleep` or the real slot size, and Preferences shows the unit's state with stop/restart. Nothing says *busy*. |
 | Spark | The empty-story problem SPEC §8.1 names is live. |
 
 | Skipped in P2 | Consequence |
@@ -377,9 +379,9 @@ leaves as a standalone database, and comes back through `src/import.ts`.
    allowlist refuses the desk itself when told to, and a control proves the 403 is the gate rather
    than a dead server. Still needs the second person actually on the tailnet — all six nodes are
    Seth's.
-2. **The F15 confirmation run** — 850 generations per arm, ~100 minutes unattended on the harness
-   that now exists. Either it settles canon repetition or it retires it. Cheap, and the alternative
-   is shipping on evidence F12 already proved is not enough.
+2. ~~**The F15 confirmation run**~~ — **Done.** F20 ran it at 850 generations per arm and found
+   nothing: -0.02 on contradictions, +0.24 on the silver rate. `CANON-REPEAT` was deleted rather
+   than left switched off, and `blocks.ts` carries the epitaph.
 3. **Activation depth** — secondary keys, `key_logic`, proximity, exclusion, regex. PLAN-03 notes
    this does *not* address F9, since the entry already fires. It addresses multi-word false-firing,
    which is a different and real problem.
@@ -398,3 +400,55 @@ file, which is the exact failure this document's header warns about.
 against corruption and against a bad edit; it protects against nothing that takes the machine or the
 disk. `exportStory` can now put one story anywhere, and nothing calls it on a schedule — so
 off-machine backup is the open item, not backup itself.
+
+---
+
+## 6. Fourth pass, 2026-08-27 — audited against source again
+
+Both harnesses green first: `test/all.ts` **201 ok in eleven suites**, `test/ui/run.sh` **467 ok in
+twelve scenarios, 0 red**. `handlers` came in at 40 this run, so the dropped-CDP death recorded in
+`checklist.md` did not recur. Nothing below is a failure; it is all drift and doorless code.
+
+### What this document had wrong
+
+Eight claims, corrected in place above. The pattern in every one is the same: a row went stale when
+the feature it described got built, and nothing re-read it. `generations` "never read" outlived
+`GET /api/activity` by three days. Two rows named `desk.js` and `phone.html`, files this document's
+own §3c records as deleted. Its own next-step list had items 1 and 2 done. **A build-state document
+that is only ever appended to reports the past as the present**, and this is the fourth pass to
+find that out. `checklist.md` stayed accurate over the same period because it is rewritten rather
+than extended.
+
+### Two things doorless in the code, found this pass
+
+**`POST /api/remember` has no caller.** The route is at `routes.ts:1047`, `test/memory.ts` drives it
+directly, and `web/api.js` has no method for it — `app.js` has no `fetch` of its own either. So
+nothing on any surface re-runs the character-memory pass on a chapter that closed while the router
+was down, which is the case the route exists for. This is the failure class §3's correction table
+already names, arriving again.
+
+**The guard cannot see it, because it runs in one direction.** `test/web.ts` asserts every method in
+`api.js` has a caller in `app.js`. It does not assert that every route in `routes.ts` has a method
+in `api.js`. A route born without a client is invisible to it, and that is exactly how this one got
+here. Both directions belong in that check.
+
+**And its DEFERRED list has gone stale, which blunts it further.** `rollup` and `delArc` are listed
+as deferred with reasons, and both have had callers since arcs got a surface (`app.js:2705`,
+`2712`). While a name sits in DEFERRED the orphan check skips it — so if that surface is deleted
+again, nothing goes red. `delBranch` is the only entry still true.
+
+### F36 is on no open list
+
+`P0-FINDINGS.md` carries it; `checklist.md` and this file did not mention it at all. Both prompt
+halves are in the code (`render.ts:32` for SYSTEM, `prompts.ts:347` for INVENT), and F36's own text
+says the result is 0/6 with no before/after — under about 40% and nothing more, which is the F12
+mistake with a smaller denominator. The structural half it names has no marker anywhere: the
+contradiction checker compares a passage against canon, so a passage that quotes canon while
+contradicting *itself* agrees perfectly. Nothing in the pipeline looks for internal coherence.
+
+### The comment that lied about its own debt
+
+`db.ts:165` said `priority`, `sticky_for` and `proper_nouns` were all stored and ignored. Two of the
+three had been read by `context.ts` for weeks (`:285` folds around `properNouns`, `:425` holds an
+entry open for `stickyFor`). Corrected at the site. A `ponytail:` marker is only worth grepping if
+it is retired when the debt is paid.

@@ -31,7 +31,7 @@ ANANSI_HOST=0.0.0.0 node --experimental-strip-types serve.ts
 # run.ts and the bench scripts then need ANANSI_URL=https://hestia.tempel-discus.ts.net:5174 —
 # they default to http://127.0.0.1:5174, and nothing plain answers on a TLS port.
 node --experimental-strip-types test/all.ts  # every suite, no model and no browser needed
-test/ui/run.sh                               # seven browser scenarios, each on a fresh copy
+test/ui/run.sh                               # twelve browser scenarios, each on a fresh copy
 node --experimental-strip-types run.ts       # one generation end to end (server must be up)
 ```
 
@@ -79,7 +79,7 @@ src/            the engine
   import.ts       Anansi exports, AI Dungeon, character cards
   prompts.ts      every structured-role prompt
 web/            client modules, shipped straight to the browser
-test/           all.ts runs the six suites; ui/ holds browser scenarios and run.sh
+test/           all.ts runs the eleven suites; ui/ holds browser scenarios and run.sh
 bench/          measurement harnesses — the numbers in docs/findings come from here,
                 plus drive.ts, a headless browser that clicks and types
 docs/           spec, prompts, plans, councils, findings

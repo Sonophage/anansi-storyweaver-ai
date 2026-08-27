@@ -33,9 +33,13 @@ const modeBlock = (mode, speaker, directive) => page.eval(
 await page.goto(B + "/#" + sid);
 
 // ---- 1. the five buttons, and what kind of thing each one is
-for (const label of ['Continue', 'Speak', 'Act', 'Direct', 'Narrate'])
-  ok(`${label} is on the bar`, await page.visible(`#modes [data-continue], #modes [data-mode]`)
+for (const label of ['Speak', 'Act', 'Direct', 'Narrate'])
+  ok(`${label} is on the bar`, await page.visible(`#modes [data-mode]`)
      && /./.test(await page.text('#modes') || '') && (await page.text('#modes') || '').includes(label));
+// Continue left the mode row on 2026-08-27 for the end of the page. Asserted from both sides:
+// gone from here, present there — one without the other passes while it is in both places.
+ok("Continue is off the mode row", !(await page.eval("!!document.querySelector('#modes [data-continue]')")));
+ok("  and on the last passage instead", await page.visible('#col .block:last-of-type ~ .carry, #col .carry [data-continue]'));
 ok("New scene is gone from the bar", !/New scene/.test(await page.text('#modes') || ''));
 // Continue sends with nothing typed, so it is an action. A mode you can select but never type
 // into is the shape that made "Continue" need an empty box pressed twice.

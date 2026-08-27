@@ -147,11 +147,20 @@ console.log("   after choosing a level again: " + back);
 ok("   picking a level clears the written register", !JSON.parse(back).note);
 ok("   and the level is what was picked", Number(JSON.parse(back).spice) === 2);
 
-// 7. composer: no Discard/Keep, Regenerate on the bar
+// 7. composer: no Discard/Keep, and Regenerate on the passage rather than in the chrome
 await page.goto(B + "/#" + sid);
 const dock = (await page.text('#dockCol') || '');
 ok("7. Discard and Keep are gone", !dock.includes('DISCARD') && !/\bKeep\b/.test(dock));
-ok("   Regenerate is on the bar", await page.eval("!!document.querySelector('#bar [data-reroll]')"));
+// Regenerate left the top bar on 2026-08-27 for the end of the page, where Continue joined it.
+// Both sides asserted: gone from the chrome, present on the last passage. Only the pair fails
+// when it is added in one place and not removed from the other.
+ok("   Regenerate is off the chrome", await page.eval("!document.querySelector('#bar [data-reroll]')"));
+ok("   and on the last passage, with Continue", await page.eval(
+  "(() => { const c = document.querySelector('#col .carry');"
+  + " return !!c && !!c.querySelector('[data-re]') && !!c.querySelector('[data-continue]'); })()"));
+// One carry row, on the LAST passage only — one per passage is a page of buttons.
+ok("   and there is exactly one of it", await page.eval(
+  "document.querySelectorAll('#col .carry').length === 1"));
 
 // ---- 8. every theme has to be readable, in the chrome as well as the document. Until the raw
 // hexes came out of web/app.js the panel and the rail could not be themed at all — 162 of them,

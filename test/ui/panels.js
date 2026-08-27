@@ -17,10 +17,11 @@ for (let i = 0; i < 40 && !(await rail()); i++) await wait(250);
 // ---- 1. the rail, in order
 const nav = await rail();
 console.log("  rail: " + nav);
-// Seth's stated order — story/chapter/threads/context/search/storyteller — with Anansi APPENDED
-// rather than slotted in, so that order still reads exactly as he wrote it.
+// Seth's stated order — story/chapter/threads/context/search/storyteller. Anansi was APPENDED at
+// the end until 2026-08-27, when he asked for it "beside threads"; it sits between Threads and
+// Strings now, and everything else still reads exactly as he wrote it.
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'story,chapter,threads,strings,context,search,teller,anansi');
+   nav === 'story,chapter,threads,anansi,strings,context,search,teller');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 
@@ -127,14 +128,22 @@ ok("  and says which chapter you are on",
    /chapter \d+ of \d+/i.test(await page.text('#runhead') || '')
    && ((await page.text('.band-title')) || '').trim().length > 0);
 if (v.chapters.length > 1) {
-  ok("  with a pager to the neighbouring chapters", await page.visible('#col [data-chapter]'));
+  // The pager under the prose was removed on 2026-08-27 — "the chapter selector and the end above
+  // the input should be removed from the ui". The rail's Chapters list is the one door now, and it
+  // names every chapter rather than the two either side of you. Same action, so everything below
+  // this still tests what it always did: that choosing a chapter actually moves the document.
+  ok("  and no pager under the prose", !(await page.visible('#col [data-chapter]')));
+  ok("  the rail lists every chapter to jump to", await page.visible('#rail [data-chapter]'));
   // Which chapter you are reading lives in CLIENT state — view(storyId, focusChapterId). Asking
   // /api/story again without &chapter= answers with the last chapter every time, so a fresh fetch
   // cannot see the focus at all. Read the document, which is the thing under test anyway.
   const heading = () => page.eval("document.querySelector('#col > div')?.textContent ?? ''");
-  const to = await page.eval("document.querySelector('#col [data-chapter]')?.dataset.chapter ?? ''");
+  // A chapter that is NOT the one already open, or the click is a no-op that passes.
+  const to = await page.eval(
+    "[...document.querySelectorAll('#rail [data-chapter]')]"
+    + `.map(b => b.dataset.chapter).find(id => id !== ${JSON.stringify(v.currentChapter.id)}) ?? ''`);
   const want = v.chapters.find((c) => c.id === to);
-  await page.click('#col [data-chapter]');
+  await page.click(`#rail [data-chapter="${to}"]`);
   await wait(1200);
   const head = (await heading()).replace(/\s+/g, ' ').trim();
   console.log(`  paged to: ${JSON.stringify(head.slice(0, 60))}`);

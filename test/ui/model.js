@@ -30,12 +30,39 @@ ok(`the composer appends its take (${n0} -> ${n1})`, n1 === n0 + 1);
 ok("  and the document shows it", await page.eval("document.getElementById('col').innerHTML.length > 100"));
 ok("  and the composer is usable again", await page.eval("!document.getElementById('send').disabled"));
 
-// ---- 2. Regenerate on the bar keeps the old take as a variant
+// ---- 1b. Stop. The one path where the writer changes their mind mid-generation.
+//
+// Everything below is asserted against a REAL generation because the two halves that matter —
+// the partial vanishing and nothing being written — only exist once tokens are actually arriving.
+// test/stream.ts covers the transport with a fake; this covers what the writer sees.
+{
+  const before = (await story()).passages.length;
+  await ready('[data-continue="1"]');
+  await page.click('[data-continue="1"]');
+  // Wait for prose to actually start arriving, not merely for the button to change: stopping
+  // before the first token is a different case and would pass without testing anything.
+  let arrived = false;
+  for (let i = 0; i < 60; i++) {
+    if (await page.eval("(document.getElementById('ghost')?.textContent ?? '').length > 20")) { arrived = true; break; }
+    await wait(500);
+  }
+  ok("Stop: the passage is arriving before we stop it", arrived);
+  ok("  and Send has become Stop", await page.eval(
+    "!!document.querySelector('#send[data-stop]') && !document.querySelector('#send[data-send]')"));
+  await page.click('#send[data-stop]');
+  await wait(2500);
+  ok("  the half-written passage is gone", await page.eval("!document.getElementById('ghost')"));
+  ok("  nothing was written", (await story()).passages.length === before);
+  ok("  and the composer takes a keystroke again", await page.eval(
+    "!!document.querySelector('#send[data-send]') && !document.getElementById('input').disabled"));
+}
+
+// ---- 2. Regenerate keeps the old take as a variant
 // addVariant selects the NEW take, and passagesOf filters selected = 1 — so after regenerating
 // the last row has a different id, and the variants live on that one. Following the id was the
 // wrong assertion; following the tail of the document is the right one.
 const v0 = ((await story()).passages.at(-1)?.variants ?? []).length;
-await page.click('#bar [data-reroll]');
+await page.click('#col .carry [data-re]');
 console.log("  regenerating…");
 for (let i = 0; i < 60; i++) {
   if (((await story()).passages.at(-1)?.variants ?? []).length > v0) break;
@@ -89,7 +116,7 @@ ok(`  and EACH take records the canon its own prompt carried (${against} of ${ta
 // appeared to, because you reopen the panel to look at an edit and do not reopen it to
 // regenerate. Do not close the panel anywhere in here.
 const takesOpen = ((await page.text('#sideBody') || '').match(/Take \d+/g) ?? []).length;
-await page.click('#bar [data-reroll]');
+await page.click('#col .carry [data-re]');
 console.log("  regenerating with History open…");
 for (let i = 0; i < 90; i++) {
   if (((await page.text('#sideBody') || '').match(/Take \d+/g) ?? []).length > takesOpen) break;
@@ -111,6 +138,19 @@ await wait(800);
 // ---- 4. editing prose in place saves on blur
 const target = (await story()).passages.find((p) => !p.isBreak);
 await page.goto(B + "/#" + sid);
+// Press EDIT first. Until 2026-08-26 every passage carried `contenteditable` all the time, so
+// focusing one and typing was enough; the door was shut that day — a tap in the prose was raising
+// the keyboard and starting an edit nobody asked for — and a plain div is not focusable, so
+// `focus()` does nothing and `blur()` fires no event and nothing saves.
+//
+// This scenario is opt-in and needs a live model, so it was not run when that landed and sat
+// stale for three days. `handlers.js` was updated the same day and has pressed Edit ever since.
+await page.eval("(() => { const blk = document.querySelector('[data-edit=\"" + target.id + "\"]')"
+  + ".closest('.block'); blk.querySelector('[data-more]')?.click(); return 1; })()");
+await wait(350);
+await page.eval("(() => { const blk = document.querySelector('[data-edit=\"" + target.id + "\"]')"
+  + ".closest('.block'); blk.querySelector('button[data-ed]')?.click(); return 1; })()");
+await wait(350);
 await page.eval("(() => { const e = document.querySelector('[data-edit=\"" + target.id + "\"]');"
   + " e.focus(); e.textContent = 'EDITED BY THE MODEL SCENARIO.'; e.blur(); return 1; })()");
 await wait(1200);

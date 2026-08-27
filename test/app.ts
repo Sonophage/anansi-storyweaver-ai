@@ -197,10 +197,36 @@ assert.match(html('rail'), /The Envoy/, 'and list chapters by title');
 assert.ok(!/My stories/.test(html('rail')), 'and drop the workspace nav');
 ok('the rail swaps navigation when a story opens');
 
+// TWO menus, one rail, and which one is showing is no longer decided by where you are — the menu
+// button asks for the workspace one from inside a story, the story's own name asks for the story
+// one. Both directions asserted from inside an OPEN story, because that is the only place the two
+// can disagree: outside one they are the same answer and a broken split still passes.
+click({ railview: 'workspace' });
+assert.match(html('rail'), /My stories/,
+  'the menu button must reach the workspace menu without leaving the story');
+assert.ok(!/list chapters|Chapters/.test(html('rail')),
+  'and the chapter list goes with it — it named a book you are no longer looking at');
+click({ railview: 'story' });
+assert.match(html('rail'), /Context/, "the story's name must bring its own menu back");
+assert.match(html('rail'), /Anansi<\/span>/, 'which is where Anansi lives');
+ok('the menu and the story name are two doors onto one rail');
+
 assert.match(html('col'), /The hall smells of cold iron/);
 assert.match(html('col'), /Envoy Sereth/, 'a speaker label must render');
 assert.match(html('col'), /You · Ilva Marren/, 'a human passage must be attributed to the persona');
 assert.match(html('col'), /class="block speak"/, 'quoted prose is a speech block');
+// Regenerate and Continue live at the END of the page now, on the passage they act on. The count
+// is the assertion that matters: `newest` is passed per passage, so a renderer that stopped
+// distinguishing them would put a pair of buttons under every paragraph and still "have" them.
+{
+  const carries = html('col').match(/class="carry"/g) ?? [];
+  assert.strictEqual(carries.length, 1,
+    `Regenerate and Continue belong to the last passage only — found ${carries.length} rows`);
+  const carry = html('col').match(/<div class="carry">[\s\S]*?<\/div>/)?.[0] ?? '';
+  assert.match(carry, /data-re="p-5"/, 'and Regenerate must name the LAST passage, not the first');
+  assert.match(carry, /data-continue="1"/, 'and Continue must be there beside it');
+}
+ok('Regenerate and Continue sit under the last passage, once');
 assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you block');
 assert.match(html('col'), /Contradiction · Envoy Sereth/, 'a violation must surface on its passage');
 // Act and Narrate write HUMAN passages that are narration, not dialogue. Before the mode set,
@@ -217,21 +243,59 @@ assert.match(html('col'), /Envoy Sereth<\/div>\s*<div class="said"[^>]*data-edit
   'a human line spoken as another character is labelled with that character');
 ok('prose renders as narration, speech, the writer\'s own line, and a flag');
 
-for (const label of ['Continue', 'Speak', 'Act', 'Direct', 'Narrate']) {
+for (const label of ['Speak', 'Act', 'Direct', 'Narrate']) {
   assert.match(html('dockCol'), new RegExp(`>${label}<`), `the composer must offer ${label}`);
 }
-// Continue is a BUTTON, not a mode: it sends with nothing typed, so it must not be selectable
-// and must not carry a placeholder of its own.
-assert.match(html('dockCol'), /data-continue="1"/, 'Continue must act, not select');
-assert.doesNotMatch(html('dockCol'), /data-mode="continue"/, 'Continue is not a selected mode');
+// Send becomes Stop while the model is writing — the same button, the same corner, because the
+// place your eye is already on is the place you last pressed. Both states asserted: a Stop that
+// appears without Send disappearing is two send buttons.
+{
+  const idle = html('dockCol');
+  assert.match(idle, /data-send="1"/, 'idle, the button sends');
+  assert.doesNotMatch(idle, /data-stop/, 'and offers no Stop when nothing is being written');
+}
+ok('the composer sends when the model is idle');
+
+// Continue LEFT the composer on 2026-08-27. It is an action on the passage it carries on from,
+// at the end of the page, and both halves of that are asserted — that it is gone from here, and
+// that it is there — because only the pair can fail when it is put back in one place and not
+// removed from the other.
+assert.doesNotMatch(html('dockCol'), /data-continue/,
+  'Continue is no longer a chip in the mode row — it belongs to the last passage');
+assert.doesNotMatch(html('dockCol'), /data-mode="continue"/, 'and it was never a selectable mode');
 assert.match(html('dockCol'), /Say it as Ilva Marren/, 'the placeholder follows the mode and the persona');
 // Speak happens as someone, and the default is the point-of-view character.
 assert.match(html('dockCol'), /id="asWhom"/, 'Speak must offer who you are speaking as');
-ok('the composer offers all five modes, with Continue as an action');
+// The two that are not modes sit to the right of the four that are, pushed there by the margin
+// on the first of them. Order matters: asserting only that they exist would pass with them
+// scattered back among Speak and Act, which is the arrangement being fixed.
+const modeRow = html('dockCol').match(/<div id="modes">[\s\S]*?<\/div>/)?.[0] ?? '';
+assert.ok(modeRow, 'the mode row must exist');
+assert.ok(modeRow.indexOf('data-mode="narrate"') < modeRow.indexOf('data-newlore'),
+  '+ Thread comes after the last mode');
+assert.ok(modeRow.indexOf('data-newlore') < modeRow.indexOf('data-panel="anansi"'),
+  'and Anansi after it');
+assert.match(modeRow, /data-newlore="1"[^>]*margin-left:auto/,
+  'and the gap that separates them from the modes is on + Thread, or they are not right-aligned');
+ok('the composer offers the four modes, with + Thread and Anansi pushed right');
 
 assert.match(html('bar'), /Chapter|The Envoy/);
 assert.match(html('bar'), /46%|4[0-9]%/, 'the header shows the real context percentage');
 ok('the header reports the manifest percentage from the server');
+
+// The same number, drawn rather than written, in the running head beside the chapter and the word
+// count. Asserted as a WIDTH against the manifest arithmetic rather than as "a bar is there": a
+// meter that renders at a fixed width is the shape that reports a full context as an empty one.
+{
+  const pct = Math.round(21401 / 46146 * 100);
+  const rh = html('runhead');
+  assert.match(rh, /id="ctxmeter"/, 'the running head must carry the context meter');
+  assert.match(rh, new RegExp(`width:${pct}%`),
+    `the meter must fill to the manifest's own ${pct}%, not to a constant`);
+  assert.match(rh, /data-panel="context"/, 'and pressing it must open Context');
+  assert.ok(!/class="full"/.test(rh), 'and it is not full at 46%');
+}
+ok('the context meter fills to the manifest, and opens the panel behind it');
 
 assert.match(html('sideBody'), /21,401 \/ 46,146/, 'the inspector shows real totals');
 assert.match(html('sideBody'), /stale summary/, 'an omitted block must say why');

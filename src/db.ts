@@ -162,9 +162,10 @@ CREATE TABLE IF NOT EXISTS entries (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   owner_id TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, notes TEXT,
   entry_type TEXT DEFAULT 'character', activation TEXT DEFAULT 'always_on',
-  -- ponytail: priority, sticky_for and proper_nouns are stored and ignored. The engine does
-  -- plain whole-word matching only. priority needs the budget engine to mean anything (SPEC
-  -- §7.3/§7.5); sticky_for and proper_nouns belong with the activation work (SPEC §7.4).
+  -- ponytail: priority is stored and ignored — it needs the budget engine to mean anything
+  -- (SPEC §7.3/§7.5). sticky_for and proper_nouns ARE read: context.ts folds around
+  -- properNouns and holds an entry open for stickyFor passages after it last fired. This
+  -- comment claimed all three were dead until 2026-08-27; two of them had not been for weeks.
   keys TEXT DEFAULT '[]', priority INTEGER DEFAULT 0, sticky_for INTEGER DEFAULT 3,
   proper_nouns INTEGER DEFAULT 1, last_editor TEXT DEFAULT 'human',
   -- Who last wrote each field, as {field: 'human'|'model'}. last_editor alone is entry-level,

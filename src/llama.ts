@@ -143,7 +143,7 @@ export async function readSSE(res: Response, onDelta: (d: string) => void) {
  *  thinking off, the return shape — is identical, so `generate` has one code path and the
  *  caller decides whether the writer is watched or waited for. */
 export async function chat(system: string, body: string, opts: Record<string, unknown> = {},
-                           onDelta?: (d: string) => void) {
+                           onDelta?: (d: string) => void, stop?: AbortSignal, ceilingMs = 900_000) {
   if (onDelta) {
     const res = await reach(HOST + '/v1/chat/completions', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -156,7 +156,16 @@ export async function chat(system: string, body: string, opts: Record<string, un
         // what puts the token counts on the final chunk; without it logGeneration records nulls.
         stream: true, stream_options: { include_usage: true },
       }),
-      signal: AbortSignal.timeout(900_000),
+      // The timeout is the ceiling; `stop` is the writer pressing Stop. Either one ends the call,
+      // and `any` is what lets the second exist WITHOUT giving up the first. Writing this as
+      // `stop ?? timeout` also stops on Stop, passes an obvious test, and quietly removes the
+      // ceiling from every generation a writer is watching — which is all of them.
+      //
+      // `ceilingMs` is a parameter for exactly one reason: without it the ceiling cannot be
+      // tested, because nothing is going to wait fifteen minutes to find out it is gone. No
+      // caller passes it but the check in test/stream.ts.
+      signal: stop ? AbortSignal.any([AbortSignal.timeout(ceilingMs), stop])
+                   : AbortSignal.timeout(ceilingMs),
     });
     if (!res.ok) throw new Error(`/v1/chat/completions ${res.status}: ${(await res.text()).slice(0, 300)}`);
     return readSSE(res, onDelta);

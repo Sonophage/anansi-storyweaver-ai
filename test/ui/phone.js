@@ -293,7 +293,7 @@ await page.eval(`(() => { window.__opened = 0; const real = window.fetch;
 // The web in the bar, not a hamburger — the hamburger was a second door to the same menu and is
 // gone. If this selector ever stops matching, the phone has no way into the menu at all, which is
 // worth a red rather than a skip.
-await page.click("#bar [data-rail]");
+await page.click("#bar [data-railview='workspace']");
 await wait(700);
 const sheet = await page.eval(`(() => { const r = document.getElementById('rail').getBoundingClientRect();
   return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x), y: Math.round(r.y),
@@ -351,8 +351,15 @@ for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/");
                              await page.click("#page .storycard[data-open]"); }]]) {
   await go();
   await wait(1200);
-  const doors = await page.eval("document.querySelectorAll('#bar [data-rail]').length");
+  // One door to the MAIN menu, on every screen. Since 2026-08-27 the bar carries a second door
+  // beside it — the story's own name, which opens the story menu — so this counts the workspace
+  // one specifically. Counting every rail control would pass with the main menu missing and the
+  // story menu present twice, which is the hole this check exists to keep shut.
+  const doors = await page.eval("document.querySelectorAll('#bar [data-railview=\"workspace\"]').length");
   ok(`  one way into the menu on ${where} (${doors})`, doors === 1);
+  const own = await page.eval("document.querySelectorAll('#bar [data-railview=\"story\"]').length");
+  ok(`  and the story's own menu door is there only in a story (${own})`,
+     own === (where === "a story" ? 1 : 0));
   ok(`  and no hamburger left on ${where}`, (await page.eval("!!document.getElementById('burger')")) === false);
 }
 

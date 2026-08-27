@@ -417,6 +417,16 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
 /* Where a search result put you. Fades on its own after a few seconds — a permanent mark on
    whatever you last looked for turns into furniture you stop seeing. */
 .block.found { animation: found 6s ease-out forwards; border-radius:var(--r); }
+/* Regenerate and Continue, under the last passage. Not in the ⋯ tray and not in the chrome:
+   both mean "the end of the page", so they are drawn at the end of the page. Reading mode hides
+   them with the rest of the controls — see the data-reading rule at the top. */
+.carry { display:flex; gap:8px; padding:14px 0 2px; }
+.carry button { border:1px solid var(--edge); border-radius:var(--r); padding:8px 15px;
+  font-size:12.5px; color:var(--mute); display:flex; align-items:center; gap:7px;
+  transition:border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+.carry button:hover:not(:disabled) { border-color:var(--edge-lit); color:var(--ink); }
+.carry button:disabled { opacity:.45; }
+html[data-reading="1"] .carry { display:none !important; }
 @keyframes found {
   0%, 60% { background:rgba(217,178,106,.14); box-shadow:0 0 0 8px rgba(217,178,106,.14); }
   100%    { background:transparent; box-shadow:0 0 0 8px transparent; }
@@ -529,6 +539,15 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 #doc.scrolled #runhead { height:34px; opacity:1; padding-top:12px; }
 #runhead > span { display:flex; align-items:baseline; }
 #runhead .tnum { font-variant-numeric:tabular-nums; }
+/* How much of the model's context the next call has already spent. A thin rule that fills,
+   sitting with the chapter and the word count because it is the same kind of fact about where
+   you are. It opens Context, which is where the number and the blocks behind it live. */
+#ctxmeter { width:74px; height:3px; border-radius:2px; background:var(--rule); overflow:hidden;
+  align-self:center; flex:0 0 auto; margin-left:12px; display:block; }
+#ctxmeter i { display:block; height:100%; background:var(--gold-dim);
+  transition:width var(--t-slow) var(--ease); }
+#ctxmeter.full i { background:var(--bad); }
+@media (max-width:719px) { #ctxmeter { width:52px; } }
 @media (max-width:719px) { #runhead { padding:0 18px; } #doc.scrolled #runhead { height:26px; padding-top:8px; } }
 
 /* --- composer ---------------------------------------------------------- */
@@ -579,6 +598,13 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 @media (max-width:719px) { #input { font-size:15.5px; } #inputRow { padding-bottom:12px; } }
 #send { width:34px; height:34px; border-radius:50%; background:var(--gold); color:var(--on-gold); display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto; }
 #send:disabled { opacity:.4; }
+/* Writing. The same button, in the same place, saying the one thing it can do now — a disabled
+   "…" was a control you could look at and not use, which is what a Stop button is for. Not red:
+   stopping your own generation is an ordinary move, not a destructive one, and the passage is
+   discarded rather than anything of yours being lost. */
+#send.stopping { background:var(--edge-lit); color:var(--ink-bright); font-size:11px;
+  animation:breathe 1.6s var(--ease) infinite; }
+@keyframes breathe { 0%,100% { opacity:1 } 50% { opacity:.62 } }
 @media (max-width:719px) { #send { width:30px; height:30px; } }
 
 /* --- side panel -------------------------------------------------------- */

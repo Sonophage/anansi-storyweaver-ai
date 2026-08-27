@@ -163,7 +163,17 @@ const handler = async (req: any, res: any) => {
     const key = `${req.method} ${p}`;
     const handler = routes[key];
     if (!handler) return send(res, 404, { error: 'not found' });
+    // Stop. The writer's Stop button aborts their fetch; that closes this connection; this
+    // aborts the call to llama-server. Without the last hop the model keeps generating into a
+    // slot nobody is reading from — there are two slots, so a writer who stops and immediately
+    // starts again is racing their own abandoned generation for the cache.
+    //
+    // `writableEnded` is what separates the two ways a response closes: a normal finish, and a
+    // client that went away. Aborting on both would abort every request as it succeeded.
+    const gone = new AbortController();
+    res.on('close', () => { if (!res.writableEnded) gone.abort(); });
     const ctx: Ctx = {
+      signal: gone.signal,
       body: req.method === 'GET' ? {} : await readBody(req),
       query: url.searchParams, owner: OWNER, slot, gen: gens.get(OWNER) ?? GEN,
       setGen: (g) => { const next = { ...(gens.get(OWNER) ?? GEN), ...g }; gens.set(OWNER, next); ctx.gen = next; },

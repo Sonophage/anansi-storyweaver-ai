@@ -119,8 +119,10 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   };
   const snav = navRows('SNAV'), wnav = navRows('WNAV');
   assert.deepStrictEqual(snav,
-    ['story', 'chapter', 'threads', 'strings', 'context', 'search', 'teller', 'anansi'],
-    'the panels in the order Seth asked for — Strings under Threads, which is where he put it');
+    ['story', 'chapter', 'threads', 'anansi', 'strings', 'context', 'search', 'teller'],
+    'the panels in the order Seth asked for. Anansi moved up between Threads and Strings on '
+    + '2026-08-27 — "it can be placed beside threads" — which is why Strings is no longer directly '
+    + 'under Threads, the arrangement the previous version of this line was pinning.');
 
   // Opened by clicking a thing rather than by a nav row. Each is asserted to have a real opener,
   // so this list cannot become a dumping ground for panels nothing reaches.

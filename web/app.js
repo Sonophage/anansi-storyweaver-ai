@@ -64,6 +64,11 @@ function applyLook() {
 const S = {
   place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
+  // WHICH menu the rail is showing, which is not the same question as where you are. The menu
+  // button asks for the workspace one from inside a story; the story's name asks for the story
+  // one. Set to 'story' on open and back to 'workspace' on leave, so the default still follows
+  // you and only a deliberate press disagrees with it.
+  railView: 'workspace',
   entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, confirmStop: false, router: null, spark: null, ritual: null, setup: null,
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
@@ -113,9 +118,12 @@ const POV = ['first person, present tense', 'first person, past tense',
 // together as a set however they were sized.
 const SNAV = [
   ['story', 'story', 'Story'], ['chapter', 'chapter', 'Chapter'],
-  ['threads', 'threads', 'Threads'], ['strings', 'strings', 'Strings'],
+  // Anansi sits beside Threads rather than last: the two are the same move — what this book
+  // knows, and asking about what this book knows. It was after Storyteller, which is settings.
+  ['threads', 'threads', 'Threads'], ['anansi', 'anansi', 'Anansi'],
+  ['strings', 'strings', 'Strings'],
   ['context', 'context', 'Context'], ['search', 'search', 'Search'],
-  ['teller', 'teller', 'Storyteller'], ['anansi', 'anansi', 'Anansi'],
+  ['teller', 'teller', 'Storyteller'],
 ];
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
@@ -148,7 +156,7 @@ const WTITLES = {
 
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
-const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
+const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'home', 'owed', 'help',
   'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
@@ -162,7 +170,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
-  'saveoutfit', 'savestate', 'delall'].map((k) => `[data-${k}]`).join(',');
+  'saveoutfit', 'savestate', 'delall', 'stop'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -172,9 +180,11 @@ function toast(msg) {
 
 // ---------- rail ----------
 function drawRail() {
+  // Which menu, not where you are. Inside a story the rail can be showing either one.
   const inStory = S.place === 'story' && V;
-  const rows = inStory ? SNAV : WNAV;
-  const active = inStory ? S.panel : S.wpage;
+  const storyMenu = inStory && S.railView === 'story';
+  const rows = storyMenu ? SNAV : WNAV;
+  const active = storyMenu ? S.panel : S.wpage;
   const item = ([k, g, l]) => {
     const on = k === active;
     return `<button data-nav="${k}" style="display:flex; align-items:center; gap:13px; padding:11px 12px;
@@ -185,7 +195,7 @@ function drawRail() {
         flex:0 0 auto; color:${on ? 'var(--gold)' : 'var(--faint)'}">${mark(g)}</span>
       <span class="txt" style="font-size:14px; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}">${esc(l)}</span></button>`;
   };
-  const back = inStory
+  const back = storyMenu
     ? `<button data-leave="1" style="margin:0 16px 12px; padding:9px 12px; border-radius:var(--r);
         border:1px solid var(--edge); display:flex; align-items:center; gap:10px; width:calc(100% - 32px)">
         <span style="color:var(--faint); font-size:13px; flex:0 0 auto">‹</span>
@@ -194,7 +204,7 @@ function drawRail() {
              smaller of those two things. Seth: "all stories is confusing when it just takes you to
              the main menu". -->
         <span class="txt" style="font-size:12.5px; color:var(--mute)">Anansi's web</span></button>` : '';
-  const tail = inStory
+  const tail = storyMenu
     ? `<div class="txt" style="padding:26px 12px 10px; font-size:10px; letter-spacing:.3em;
          font-variant-caps:all-small-caps; color:var(--dim)">Chapters</div>
        ${V.chapters.map((c) => `<button data-chapter="${c.id}" style="padding:8px 12px; font-size:13px;
@@ -261,12 +271,21 @@ function horizon() {
   return { chapters, from, to };
 }
 
+/** How much of this model's context the next call is already spoken for, or null when there is
+ *  no manifest to say. ONE definition, because it is now drawn in two places — the pill in the
+ *  chrome and the meter in the running head — and two of these would drift the first time the
+ *  budget changed shape.
+ *
+ *  A zero budget is a state, not a number. Dividing by it gave "Context Infinity%", the way the
+ *  un-clamped version gave "Context -168%". */
+function contextPct() {
+  return MANI && MANI.totals.budget > 0
+    ? Math.round(MANI.totals.used / MANI.totals.budget * 100) : null;
+}
+
 function drawBar() {
   const inStory = S.place === 'story' && V;
-  // A zero budget is a state, not a number. Dividing by it gave "Context Infinity%", the way
-  // the un-clamped version gave "Context -168%".
-  const pct = MANI && MANI.totals.budget > 0
-    ? Math.round(MANI.totals.used / MANI.totals.budget * 100) : null;
+  const pct = contextPct();
   const noRoom = !!MANI && MANI.totals.budget <= 0;
   const words = inStory ? V.passages.reduce((n, p) => n + (String(p.body).match(/\S+/g) || []).length, 0) : 0;
   // THE BOOK AND THE MODEL. The chapter and the count live in the running head inside the
@@ -284,17 +303,17 @@ function drawBar() {
     : (WTITLES[S.wpage] || WTITLES.stories)();
   $('bar').innerHTML = `
     <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
+      ${inStory ? `<button data-railview="story" aria-label="This story's menu"
+        style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">` : ''}
       <span class="serif" style="font-size:23px; line-height:1; color:var(--chrome-ink);
-        white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(title)}</span>
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block">${esc(title)}</span>
+      ${inStory ? '</button>' : ''}
       ${sub ? `<span class="up" style="font-size:10.5px; color:var(--label); white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>` : ''}
       <!-- decoded below, after the element exists -->
     </div>
     <div style="margin-left:auto; display:flex; align-items:center; gap:10px; flex:0 0 auto">
       ${inStory ? `<span class="deskonly" style="font-size:12px; color:var(--chrome-dim)">${words.toLocaleString()} words</span>
-      <button class="pill" data-reroll="1" ${S.busy ? 'disabled style="opacity:.5"' : ''}
-        title="Re-roll the last passage, keeping the old take">${S.busy ? '…' : '↻'}<span
-        class="deskonly" style="display:inline; margin-left:7px">Regenerate</span></button>
       ${noRoom
         ? `<button class="pill deskonly" data-panel="context"
             style="border-color:var(--bad); color:var(--bad)">No room</button>`
@@ -321,8 +340,8 @@ function drawBar() {
       <!-- OUTSIDE the in-story branch, and that is the whole point. The first version of this put it
            inside, so with the hamburger gone there was no way into the menu from the shelf at all —
            a hole, not a missing nicety. One door to the menu, on every screen. -->
-      <button class="phoneonly" data-rail="1" aria-label="Menu"
-        style="align-items:center; color:var(--chrome-dim)">${mark('web', 19)}</button>
+      <button class="pill phoneonly" data-railview="workspace" aria-label="Menu"
+        style="align-items:center; padding:6px 11px; color:var(--chrome-dim)">${mark('web', 19)}</button>
     </div>`;
   // The title, and the line under it that names the chapter. Both are leaf spans holding nothing
   // but text, which is what decode() needs — it writes textContent.
@@ -459,13 +478,22 @@ function passageHTML(p, newest, opening) {
         ? `Never sent · ${esc(e?.title ?? 'canon')} contradicts this, and the model was not shown it`
         : `Contradiction · ${esc(e?.title ?? 'canon')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>`;
   }).join('');
+  // Only on the last passage, because "carry on from here" and "roll this again" both mean the
+  // end of the page. On any earlier passage Regenerate still lives in its ⋯ tray, where it has
+  // always been — this is the same action given a door you do not have to open.
+  const carry = newest ? `<div class="carry">
+    <button data-re="${p.id}" ${S.busy ? 'disabled' : ''}><span class="serif"
+      style="color:var(--gold)">↻</span> Regenerate</button>
+    <button data-continue="1" ${S.busy ? 'disabled' : ''}
+      title="Carry on with no prompt">Continue &rsaquo;</button></div>` : '';
+
   const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${p.id === S.found ? ' found' : ''}`
     // The drop cap goes on plain model narration only. Not on speech — a two-inch quotation mark
     // is not a drop cap — and not on the writer's own passages, which are set differently: on
     // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
     // sat on its own with the text running away from it.
     + (newest ? ' newest' : '') + (opening && !spoken && !mine ? ' opening' : '');
-  return `<div class="${cls}">${body}${acts}${flagged}</div>`;
+  return `<div class="${cls}">${body}${acts}${flagged}</div>${carry}`;
 }
 
 function drawDoc() {
@@ -478,14 +506,7 @@ function drawDoc() {
   const ch = V.currentChapter;
   const ps = V.passages.filter((p) => p.chapterId === ch.id);
   const at = V.chapters.findIndex((c) => c.id === ch.id);
-  const prev = V.chapters[at - 1], next = V.chapters[at + 1];
   const words = ps.reduce((n, p) => n + (String(p.body).match(/\S+/g) || []).length, 0);
-  const step = (c, label, side) => c
-    ? `<button data-chapter="${c.id}" style="font-size:11px; letter-spacing:.1em;
-        font-variant-caps:all-small-caps; color:var(--gold); white-space:nowrap; max-width:44%;
-        overflow:hidden; text-overflow:ellipsis">${side === 'l' ? '&lsaquo; ' : ''}${
-        esc(c.title || `Chapter ${c.index}`)}${side === 'r' ? ' &rsaquo;' : ''}</button>`
-    : `<span style="font-size:11px; color:var(--faint); letter-spacing:.1em; font-variant-caps:all-small-caps">${label}</span>`;
 
   // The chapter opens with a band: what number it is, what it is called, and a line out of its own
   // prose. Then a rule, and the prose itself begins with a drop cap. A chapter used to start with
@@ -501,19 +522,21 @@ function drawDoc() {
     </div>
     ${ps.map((p, i) => passageHTML(p, i === ps.length - 1, i === 0)).join('') || `<div class="narr" style="opacity:.6">${
       V.chapters.length > 1 ? 'Nothing in this chapter yet.' : 'Nothing written yet. The composer is below.'}</div>`}
-    ${V.chapters.length > 1 ? `<div style="display:flex; align-items:center; gap:14px; padding:26px 0 4px;
-      border-top:1px solid rgba(255,255,255,.05); margin-top:18px">
-      ${step(prev, 'the beginning', 'l')}
-      <span style="margin-left:auto"></span>
-      ${step(next, 'the end', 'r')}</div>` : ''}`;
+`;
   if (tip) read.scrollTop = read.scrollHeight;
 
   // The running head lives ABOVE the scroller, so filling it is separate from filling the column.
   const rh = $('runhead');
+  const pct = contextPct();
   if (rh) rh.innerHTML = `
     <span>${esc(ch.title || `Chapter ${ch.index}`)}</span>
     <span style="opacity:.7">chapter ${at + 1} of ${V.chapters.length}</span>
-    ${words ? `<span class="tnum" style="margin-left:auto; opacity:.7">${words.toLocaleString()} words</span>` : ''}`;
+    ${words ? `<span class="tnum" style="margin-left:auto; opacity:.7">${words.toLocaleString()} words</span>` : ''}
+    ${pct == null ? '' : `<button id="ctxmeter" data-panel="context" class="${pct >= 100 ? 'full' : ''}"
+      style="${words ? '' : 'margin-left:auto; '}"
+      aria-label="Context ${pct}% of what this model can hold — open Context"
+      title="${pct}% of this model's context is spoken for. Press to see what is in it."
+      ><i style="width:${Math.min(100, pct)}%"></i></button>`}`;
 
   // It opens once the chapter's own band has gone by. One listener, attached once — drawRead runs
   // on every repaint and adding it here each time would stack them. The class goes on #doc, not
@@ -528,6 +551,11 @@ function drawDoc() {
   // while one was open leaves the backdrop up over a page with nothing modal on it.
   syncTray();
 }
+
+/** The generation in flight, or null. Held here rather than passed around because the thing that
+ *  stops it — the Stop button — is nowhere near the thing that started it, and both are one press
+ *  apart in the same corner of the screen. */
+let STOP = null;
 
 /** The story the composer was last drawn for. A draft belongs to its book: paging a chapter or
  *  opening a panel must not eat it, and opening a different book must not carry it across. */
@@ -556,11 +584,8 @@ function drawDock() {
 
   $('dockCol').innerHTML = `
     <div id="modes">
-      <button data-continue="1" ${S.busy ? 'disabled' : ''} title="Carry on with no prompt">Continue</button>
       ${MODES.map(([k, label]) => `<button data-mode="${k}" aria-pressed="${k === S.mode}">${label}</button>`).join('')}
-      <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
-        style="flex:0 0 auto">+ Thread</button>
-      ${asWhom ? `<label class="deskonly" style="margin-left:auto; display:flex; align-items:center; gap:6px;
+      ${asWhom ? `<label class="deskonly" style="display:flex; align-items:center; gap:6px;
         font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); opacity:.75">
         as
         <select id="asWhom" style="background:none; border:0; color:var(--gold); font-size:11px;
@@ -569,11 +594,24 @@ function drawDock() {
           ${cast.filter((e) => e.title !== me).map((e) => `<option value="${esc(e.title)}"${
             e.title === S.speaker ? ' selected' : ''}>${esc(e.title)}</option>`).join('')}
         </select></label>` : ''}
+      <!-- Neither of these is a mode, and in the same run as Speak/Act/Direct/Narrate they read as
+           a fifth and sixth one. The margin does the separating: what you are writing AS on the
+           left, what you are writing FROM on the right. -->
+      <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
+        style="flex:0 0 auto; margin-left:auto">+ Thread</button>
+      <button data-panel="anansi" aria-pressed="${S.panel === 'anansi'}" title="Ask Anansi about this story"
+        style="flex:0 0 auto">Anansi</button>
     </div>
     <div id="inputRow">
       <textarea id="input" rows="1" placeholder="${esc(placeholder(who))}"></textarea>
       <span class="deskonly" style="font-size:10.5px; color:var(--label); opacity:.55; padding-bottom:3px">&crarr;</span>
-      <button id="send" data-send="1" ${S.busy ? 'disabled' : ''} aria-label="Send">${S.busy ? '…' : '↑'}</button>
+      <!-- One button, two jobs, and it is the same button on purpose: the place your eye is
+           already on when the model is writing is the place you last pressed. A separate Stop
+           somewhere else is a Stop you hunt for while the passage you did not want gets longer. -->
+      ${S.busy
+        ? `<button id="send" data-stop="1" class="stopping" aria-label="Stop writing"
+            title="Stop, and keep what you typed">&#9632;</button>`
+        : `<button id="send" data-send="1" aria-label="Send">&uarr;</button>`}
     </div>`;
   const ta = $('input');
   ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(140, ta.scrollHeight)}px`; });
@@ -2239,6 +2277,9 @@ async function openStory(id) {
   if (OPENING !== id) return;                   // superseded before the story even arrived
   if (r.error) return toast(r.error);
   V = r; S.storyId = id; S.place = 'story';
+  // Opening a book puts the rail on that book's menu. The menu button is how you get back to the
+  // workspace one without leaving the story.
+  S.railView = 'story';
   if (S.models === null) loadModels();   // the Storyteller panel needs the list to offer one
   if (S.prompts === null) loadPrompts();
 
@@ -2455,10 +2496,24 @@ async function generate(mode = S.mode) {
   // it gets told whose line it is answering instead.
   let live = '';
   ghost('');   // the block appears now, loading, rather than when the first token lands
+  STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
     directive: YOURS ? undefined : (typed || undefined), speaker: who },
-    (d) => ghost(live += d));
+    (d) => ghost(live += d), STOP.signal);
+  STOP = null;
   unghost();
+  // Stopped. The half-written passage goes with the ghost — you stopped it because you did not
+  // want it — and nothing is accepted, so there is no take and no history entry. What you typed
+  // is untouched either way: in the box for Direct, and already on the page for Speak/Act/Narrate,
+  // where it is YOUR line and was never the model's to take back.
+  if (r.aborted) {
+    S.busy = false; drawDock(); working(null);
+    // Continue is the mode with nothing typed, so "what you typed is still there" would be a
+    // sentence about a box the writer left empty.
+    return toast(YOURS ? 'Stopped. Your line is still on the page.'
+                 : typed ? 'Stopped. What you typed is still in the box.'
+                 : 'Stopped. Nothing was written.');
+  }
   if (r.error) { S.busy = false; drawDock(); working(null); return toast(r.error); }
   MANI = r.manifest;
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
@@ -2487,10 +2542,17 @@ async function regenerateInto(id) {
   // paragraph you can already see, which is a different kind of wait from a blank page.
   const atEnd = V.passages.filter((p) => !p.isBreak).at(-1)?.id === id;
   let live = '';
+  STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode: S.mode, regenerateOf: id, chapterId: V.currentChapter.id,
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined },
-    atEnd ? (d) => ghost(live += d) : () => {});
+    atEnd ? (d) => ghost(live += d) : () => {}, STOP.signal);
+  STOP = null;
   unghost();
+  // Stopping a re-roll leaves the take you already had selected, because nothing was accepted.
+  if (r.aborted) {
+    S.busy = false; drawDock(); drawBar(); working(null);
+    return toast('Stopped. The take you had is untouched.');
+  }
   if (r.error) { S.busy = false; drawDock(); drawBar(); working(null); return toast(r.error); }
   const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id, rejected: true,
     chapterId: V.currentChapter.id });
@@ -2635,6 +2697,22 @@ const endTap = (e) => {
 document.addEventListener('pointerup', endTap, true);
 document.addEventListener('pointercancel', endTap, true);
 
+/** Leave whatever story is open for a workspace page. One body, two callers: the rail's back
+ *  button and any workspace row pressed while a story is open. A second copy of this drifted
+ *  within a day the last time the rail grew a door. */
+async function leaveTo(page) {
+  S.place = 'workspace'; S.wpage = page;
+  // Leaving puts the rail back on the workspace menu. Without this the rail kept the story menu
+  // for a story that is no longer open, and its Chapters list named a closed book's chapters.
+  S.railView = 'workspace';
+  S.panel = null; S.entryId = null;
+  if (overlay()) S.rail = false;
+  LEDGER = null;
+  await loadLibrary();
+  paint();
+  if (page === 'prefs' && S.models === null) loadModels();
+}
+
 // ---------- one delegated listener ----------
 document.addEventListener('click', async (e) => {
   const t = e.target.closest(ACTIONS);
@@ -2650,7 +2728,22 @@ document.addEventListener('click', async (e) => {
   if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
   if (d.more) { openTray(t.closest('.block')); return; }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
+  // Two doors, one rail. `data-railview` says WHICH menu you asked for: the menu button asks for
+  // the workspace, the story's own name asks for the story. Asking for the menu already open and
+  // showing shuts it; asking for the other one swaps the rail over instead of closing it, which
+  // is what makes them two doors rather than one toggle drawn twice.
+  if (d.railview) {
+    const want = d.railview;
+    if (S.rail && S.railView === want) S.rail = false;
+    else { S.railView = want; S.rail = true; }
+    paint();
+    return;
+  }
   if (d.continue) { await generate('continue'); return; }
+  // Abort only. Everything that has to be put back — the ghost, the busy flag, the composer —
+  // is put back by whichever call was in flight, on its own aborted path, so there is exactly
+  // one place that knows how to end a generation.
+  if (d.stop) { STOP?.abort(); return; }
   if (d.newlore) {
     // Replaces New scene, which was removed with the mode set. Two ways to get a fact into the
     // ledger and they belong together: write it down yourself, or have the chapter read for what
@@ -2805,17 +2898,23 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.nav) {
-    if (S.place === 'story') { S.panel = PANEL_WAS[d.nav] ?? d.nav; S.entryId = null; S.historyOf = null; syncHash(); }
-    else S.wpage = d.nav;
-    if (overlay()) S.rail = false;
-    paint();
-    if (d.nav === 'search') $('q')?.focus();
-    if (d.nav === 'prefs' && S.models === null) loadModels();
-    return;
+    // Which list the row came from is `S.railView`, the same state drawRail used to draw it —
+    // not `S.place`, which since the two menus split can say "story" while the rail is showing
+    // the workspace. Reading the wrong one put My stories and Import inside the story as panels
+    // that do not exist.
+    if (S.place === 'story' && S.railView === 'story') {
+      S.panel = PANEL_WAS[d.nav] ?? d.nav; S.entryId = null; S.historyOf = null; syncHash();
+      if (overlay()) S.rail = false;
+      paint();
+      if (d.nav === 'search') $('q')?.focus();
+      return;
+    }
+    // A workspace row from inside a story is a departure, and it is the same departure the back
+    // button makes — so it goes through the one handler that already knows how, rather than a
+    // second copy of it that would drift.
+    return void await leaveTo(d.nav);
   }
-  if (d.leave) { S.place = 'workspace'; S.wpage = d.leave === '1' ? 'stories' : d.leave;
-    S.panel = null; S.entryId = null;
-    LEDGER = null; await loadLibrary(); paint(); return; }
+  if (d.leave) { await leaveTo(d.leave === '1' ? 'stories' : d.leave); return; }
   if (d.panel !== undefined) { S.panel = d.panel || null; syncHash(); paint(); return; }
   if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); return; }
   if (d.looktab) { S.lookTab = d.looktab; drawAppearance(); return; }

@@ -30,12 +30,18 @@ const j = async (u, m = 'GET', b) => {
  *
  *  Never rejects, for the same reason `j` does not: a stream that dies mid-passage must not leave
  *  `busy = true` and the composer disabled. */
-const jStream = async (u, b, onDelta) => {
+const jStream = async (u, b, onDelta, signal) => {
   let res;
   try {
     res = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...b, stream: true }) });
-  } catch { return { error: 'cannot reach Anansi — is the server still running?' }; }
+      body: JSON.stringify({ ...b, stream: true }), signal });
+  } catch (e) {
+    // Stopping is not failing. An aborted fetch throws exactly like an unreachable server, and
+    // reporting "cannot reach Anansi" to somebody who just pressed Stop is a lie that sends them
+    // looking at the router.
+    if (e?.name === 'AbortError' || signal?.aborted) return { aborted: true };
+    return { error: 'cannot reach Anansi — is the server still running?' };
+  }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     if (res.status === 404 && data.error === 'not found')
@@ -61,6 +67,10 @@ const jStream = async (u, b, onDelta) => {
       if (o.d != null) onDelta(o.d); else last = o;
     }
   }
+  // The read loop breaks on abort the same way it breaks on a dropped connection, so the flag
+  // is what tells them apart — without it Stop reported "the model stopped before it finished",
+  // which is true of the model and wrong about who stopped it.
+  if (signal?.aborted) return { aborted: true };
   return last ?? { error: 'the model stopped before it finished the passage.' };
 };
 
@@ -92,7 +102,7 @@ export const api = {
   // The blocking form is gone from the client — every composer path streams now. The ROUTE still
   // answers without `stream`, and four bench harnesses depend on that; this is the browser's only
   // way in, and the browser always watches.
-  generateLive: (o, onDelta)     => jStream('/api/generate', o, onDelta),
+  generateLive: (o, onDelta, signal) => jStream('/api/generate', o, onDelta, signal),
   summarize:    (storyId, chapterId) => j('/api/summarize', 'POST', { storyId, chapterId }),
   search:       (q, story)       => j(`/api/search?q=${encodeURIComponent(q)}`
     + (story ? `&story=${encodeURIComponent(story)}` : '')),

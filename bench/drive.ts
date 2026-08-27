@@ -7,7 +7,7 @@
 //
 // The script runs with `page` in scope: goto, click, type, eval, key, shot, text.
 import { spawn } from 'node:child_process';
-import { writeFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -246,5 +246,20 @@ try {
   const run = new Function('page', 'wait', `return (async () => { ${await import('node:fs').then((f) => f.readFileSync(script, 'utf8'))} })()`);
   await run(page, wait);
 } finally {
-  ws.close(); chrome.kill();
+  ws.close();
+  // And take the profile with it. Without this every driver run left ~15 MB in a `mkdtemp`
+  // directory nobody ever looked at: 949 of them had built up between 2026-08-25 and 2026-08-27,
+  // filling a 16 GB tmpfs — which is RAM — until `test/all.ts` could not write its own output.
+  // `run.sh` cleans up after ITSELF and always did, so the leak was invisible from there.
+  //
+  // WAIT for chromium to actually be gone first. The first version of this removed the directory
+  // straight after kill() and left twelve behind on a twelve-scenario run: chromium writes its
+  // profile out as it dies, so the directory was recreated a moment after being removed. Killing
+  // and deleting are not the same instant.
+  await new Promise<void>((done) => {
+    const give = setTimeout(done, 4000);           // never hang a suite on a browser that will not die
+    chrome.once('exit', () => { clearTimeout(give); done(); });
+    chrome.kill();
+  });
+  rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 120 });
 }
