@@ -15,8 +15,8 @@ the next round, not a fix.
 ```
 https://hestia.tempel-discus.ts.net:5174        the only URL that works
 systemctl --user status anansi                  it starts itself, and on boot
-node --experimental-strip-types test/all.ts     201 checks, eleven suites, no model
-test/ui/run.sh                                  467 checks, twelve scenarios, no model
+node --experimental-strip-types test/all.ts     222 checks, eleven suites, no model
+test/ui/run.sh                                  473 checks, twelve scenarios, no model
 ```
 
 ---
@@ -52,6 +52,15 @@ was never scarce. The tier meant to catch the prose was not there to catch it.
 - **Per-story look** — theme, font, prose size, UI scale — over a writer default that lives on the
   server rather than in one browser.
 - **Stop** reaches the model, not only the page.
+- **One model per writer.** Switching your default releases the one you were on. The guard is the
+  feature, because the box is shared: never the boot default, never another writer's, never one a
+  book is pinned to, never one with a call in flight. **The router has had an unload endpoint since
+  build b10566** — `llama.ts` and the Preferences hint both said it did not.
+- **A chapter can wear the book's cover** as a plate at its head. Off by default on every book.
+- **The doorless-route guard runs both ways**, and `POST /api/remember` has a door at last.
+- **`handlers` drifting 39 to 40 is diagnosed**, and it was never a flake: its Accept block ran off
+  a live `/api/extract`, so a busy router meant one assertion silently did not run. The fixture
+  plants a proposal now and the skip is a red.
 
 **Owed a walk.** None of it has been used by the person it is for.
 
@@ -395,8 +404,8 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 201 checks, eleven suites, no model needed
-test/ui/run.sh                                 # 467 checks, twelve scenarios, headless, no model
+node --experimental-strip-types test/all.ts    # 222 checks, eleven suites, no model needed
+test/ui/run.sh                                 # 473 checks, twelve scenarios, headless, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model
