@@ -83,6 +83,31 @@ ok(`  step 4 offers only the cast you kept (${offered})`,
 ok("  and Nobody stays available, because a story can be narrated from outside",
    (await page.eval(`document.querySelectorAll('[data-sp="persona"] option').length`)) === 2);
 
+// The cast is EDITABLE, and renaming somebody there has to carry what points at them. The spark
+// proposed Ilva for both persona and locked character; renaming her must not leave step 4 offering
+// a name the cast no longer contains and silently falling back to Nobody.
+await page.click('[data-sparkstep="3"]');
+await wait(400);
+ok("  a proposed character can be edited in place",
+   (await page.eval("!!document.querySelector('[data-spname=\"0\"]')")) === true
+   && (await page.eval("!!document.querySelector('[data-spbody=\"0\"]')")) === true);
+await page.eval(`(() => { document.querySelector('[data-spname="0"]').value = 'Ilva Vane';
+  document.querySelector('[data-spbody="0"]').value = '[Ilva Vane: a tide-clerk who lies about it.]';
+  return 1; })()`);
+// And a blank one you started and abandoned must not reach the ledger as "Untitled".
+await page.click('[data-spadd]');
+await wait(400);
+ok("  writing one of your own gives you a field to type in, not a row called Untitled",
+   (await page.eval("document.querySelectorAll('[data-spname]').length")) === 3
+   && (await page.eval("document.querySelector('[data-spname=\"2\"]')?.value")) === '');
+await page.click('[data-sparkstep="4"]');
+await wait(400);
+const afterRename = await page.eval(`(() => [...document.querySelectorAll('[data-sp="persona"] option')]
+  .map(o => o.value).filter(Boolean).join('|'))()`);
+ok(`  a rename on step 3 reaches step 4 (${afterRename})`, afterRename === 'Ilva Vane');
+ok("  and the persona followed her rather than falling back to Nobody",
+   (await page.eval(`document.querySelector('[data-sp="persona"]')?.value`)) === 'Ilva Vane');
+
 // Step 5, and the voice the writer can apply in one press.
 await page.click('[data-sparkstep="5"]');
 await wait(400);
@@ -110,11 +135,11 @@ const made = await page.eval(`(async () => { const r = await (await fetch('/api/
 ok(`accepting from step 2 creates the story with every step's answers (${JSON.stringify(made)})`, !!made);
 if (made) {
   ok("  the title edited on step 1 is the one that was saved", made.title === 'The Drowned Ledger');
-  ok("  only the kept cast was written", made.entries === 1);
-  ok("  the persona survived, because it is still in the cast", made.persona === 'Ilva Marren');
+  ok("  only the kept, named cast was written — the blank one was dropped", made.entries === 1);
+  ok("  the persona survived the rename", made.persona === 'Ilva Vane');
   // Anansi proposed Ilva for both. She stayed, so both stand — the drop only fires on a name that
   // left the cast, which is what the server's proposedCast list is for.
-  ok("  and the locked character with it", made.locked === 'Ilva Marren');
+  ok("  and the locked character with it", made.locked === 'Ilva Vane');
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

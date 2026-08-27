@@ -1259,11 +1259,33 @@ function harvestSpark() {
     const e = S.spark.entries[Number(c.dataset.spcast)];
     if (e) e.keep = c.checked;
   }
+  for (const t of document.querySelectorAll('[data-spbody]')) {
+    const e = S.spark.entries[Number(t.dataset.spbody)];
+    if (e) e.body = t.value;
+  }
+  // Renaming somebody here has to carry what points AT them, or the next step offers a name the
+  // cast no longer contains and the persona quietly becomes Nobody. Same failure the server fixes
+  // for a rename after the story exists; this is the half hour before it exists.
+  for (const n of document.querySelectorAll('[data-spname]')) {
+    const e = S.spark.entries[Number(n.dataset.spname)];
+    if (!e) continue;
+    const was = e.title, now = n.value;
+    if (was === now) continue;
+    e.title = now;
+    // The spark seeds keys with the character's own name, so a rename strands the trigger too.
+    e.keys = (e.keys ?? []).map((k) => (k === was ? now : k));
+    for (const k of ['persona', 'lockedCharacter'])
+      if (S.spark.story[k] === was) S.spark.story[k] = now;
+    // And what Anansi PROPOSED moves with it, or the server polices a name that no longer exists
+    // and drops a persona the writer only renamed.
+    S.spark.proposed = (S.spark.proposed ?? []).map((x) => (x === was ? now : x));
+  }
 }
 
 /** The cast as it stands: everything still ticked. Step 4 offers these and nothing else, because a
  *  persona naming somebody you just dropped is the exact stranding pinCast exists to catch. */
-const sparkCast = () => (S.spark?.entries ?? []).filter((e) => e.keep !== false);
+const sparkCast = () => (S.spark?.entries ?? [])
+  .filter((e) => e.keep !== false && (e.title ?? '').trim());
 
 function sparkReview() {
   const s = S.spark.story ?? {};
@@ -1298,12 +1320,14 @@ function sparkReview() {
     : step === 3
     ? `<div class="hint" style="margin:0 0 10px">${S.spark.entries.length} proposed. Untick anyone you
          do not want; nothing is written until you accept.</div>
-       ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px">
+       ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px; gap:7px">
          <div style="display:flex; align-items:center; gap:8px">
-           <span style="font-size:14px; color:var(--ink-bright)">${esc(e.title)}</span>
-           <span class="tag" style="margin-left:auto">${esc(e.activation === 'always_on' ? 'Always on' : 'Triggered')}</span></div>
-         <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(e.body ?? '')}</div>
-         <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint); margin-top:4px">
+           <input class="field" data-spname="${i}" value="${esc(e.title)}" placeholder="Their name"
+             style="margin:0; font-size:14px; color:var(--ink-bright)">
+           <span class="tag" style="flex:0 0 auto">${esc(e.activation === 'always_on' ? 'Always on' : 'Triggered')}</span></div>
+         <textarea class="field" data-spbody="${i}" placeholder="[Name: what they are, what they want, what it costs]"
+           style="margin:0; min-height:64px; font-size:12.5px; line-height:1.45">${esc(e.body ?? '')}</textarea>
+         <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint)">
            <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label></div>`).join('')}
        <button class="btn ghost" data-spadd="1" style="margin-top:6px">&#65291; Write one of your own</button>`
     : step === 4
@@ -2968,9 +2992,10 @@ document.addEventListener('click', async (e) => {
   if (d.sparkstep) { harvestSpark(); S.sparkStep = Number(d.sparkstep); paint(); return; }
   if (d.spadd) {
     harvestSpark();
-    S.spark.entries.push({ title: 'Untitled', body: '[Untitled: ]', entryType: 'character',
+    S.spark.entries.push({ title: '', body: '', entryType: 'character',
       activation: 'always_on', keys: [], keep: true });
     paint();
+    document.querySelector(`[data-spname="${S.spark.entries.length - 1}"]`)?.focus();
     return;
   }
   if (d.spvoice) {
@@ -2989,6 +3014,9 @@ document.addEventListener('click', async (e) => {
     const openBox = document.querySelector('[data-sp-open]');
     if (openBox) S.spark.autoOpen = openBox.checked;
     const s = S.spark.story;
+    // sparkCast already drops the nameless — one rule, one place. It was filtered here too, and a
+    // check that a blank card never reaches the ledger stayed green with either filter deleted,
+    // which is a check proving nothing.
     const keep = sparkCast().map(({ keep: _k, ...e }) => e);
     const r = await api.createStory({
       title: s.title || 'Untitled', genre: s.genre, premise: s.premise,
