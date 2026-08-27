@@ -187,8 +187,25 @@ async function mend(v: any, manifest: any, prose: string, using: string, maxToke
   } catch { return null; }   // the writer keeps the passage; accept will flag it
 }
 
-async function generate(c: Ctx, mode: string, directive: string | undefined, role = 'prose',
+/** A reroll of a directed passage re-runs the instruction that made it.
+ *
+ *  `direct` is the only mode whose template takes the directive — speak and act take a speaker and
+ *  ignore it — so a stored directive is proof the passage was written in Direct, and the mode has to
+ *  come back with it or the instruction reaches a template that never mentions it. An explicit
+ *  directive in the request always wins: that is the writer typing a new one.
+ *
+ *  Both the generation and POST /api/manifest go through here, or the Context panel would preview a
+ *  prompt the generation is not going to send. Not inside assemble(): buildContext is pure and this
+ *  reads a row. */
+function inherit(c: Ctx, mode: string, directive?: string) {
+  if (directive?.trim() || !c.body.regenerateOf) return { mode, directive };
+  const own = db.passageDirective(c.body.storyId, String(c.body.regenerateOf));
+  return own?.trim() ? { mode: 'direct', directive: own } : { mode, directive };
+}
+
+async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
+  const { mode, directive } = inherit(c, mode0, directive0);
   // Generating into the chapter you are reading, for the same reason writing does — and it also
   // decides the CONTEXT: revising chapter three should see chapter three, not the whole book.
   const v = viewOf(c.body.storyId, c.body.chapterId);
@@ -230,6 +247,9 @@ async function generate(c: Ctx, mode: string, directive: string | undefined, rol
     // any passage exists, so nothing connected a take to the canon it was written against.
     return { prose: m?.prose ?? prose, reasoning: r.reasoning.length,
              mended: m?.mended ?? 0, unfixed: m?.unfixed ?? 0,
+             // Only when it was inherited rather than typed: the surface says which instruction it
+             // re-ran, because silently re-applying one reads as the model deciding on its own.
+             ...(directive && !directive0?.trim() ? { reusedDirective: directive } : {}),
              seconds: +(ms / 1000).toFixed(1), manifest, genId };
   } catch (e: any) {
     db.logGeneration({ storyId: v.id, model: using, role, manifest, error: e?.message, latencyMs: Date.now() - t0 });
@@ -702,7 +722,12 @@ export const routes: Record<string, Handler> = {
   'POST /api/violation': (c) => { db.setViolationStatus(c.body.storyId, c.body.id, c.body.status ?? 'dismissed');
     return viewOf(c.body.storyId); },
   'POST /api/passage':   (c) => { db.editPassage(c.body.storyId, c.body.id, c.body.body); return viewOf(c.body.storyId); },
-  'DELETE /api/passage': (c) => { db.delPassage(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+  'DELETE /api/passage': (c) => {
+    // One take, or the whole slot. Two intents behind one press, so the caller says which.
+    const gone = c.body.allTakes ? db.delSlot(c.body.storyId, c.body.id)
+                                 : (db.delPassage(c.body.storyId, c.body.id), 1);
+    return { ...viewOf(c.body.storyId), deleted: gone };
+  },
 
   // ---- ledger ----
   'POST /api/entry':   (c) => { db.upsertEntry(c.body.storyId, c.owner, c.body.entry); return viewOf(c.body.storyId); },
@@ -915,7 +940,8 @@ export const routes: Record<string, Handler> = {
       ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
     // The same overrides the generation will use, so the Context panel shows the prompt that will
     // actually be sent rather than the shipped one.
-    const { manifest, prompt } = assemble(v, c.slot, c.body.mode ?? 'direct', c.body.directive,
+    const m0 = inherit(c, c.body.mode ?? 'direct', c.body.directive);
+    const { manifest, prompt } = assemble(v, c.slot, m0.mode, m0.directive,
       upTo, Number(c.gen.max_tokens) || 900, c.body.speaker || undefined, db.promptsOf(c.owner));
     let exact: number | null = null;
     try { exact = await count(prompt, modelFor(v.story, c.defaultModel)); } catch { /* model asleep */ }

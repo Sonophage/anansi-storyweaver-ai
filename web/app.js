@@ -162,7 +162,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
-  'saveoutfit', 'savestate'].map((k) => `[data-${k}]`).join(',');
+  'saveoutfit', 'savestate', 'delall'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -426,7 +426,13 @@ function passageHTML(p, newest, opening) {
          passage. The button in History stays — the two are the same action. -->
     <button data-fork="${p.id}"><span class="serif" style="color:var(--gold)">⑂</span><span class="lbl-txt">Branch</span></button>
     <button data-del="${p.id}" style="color:var(--bad)"><span class="serif">✕</span><span class="lbl-txt">${
-      v.length > 1 ? `Delete take ${at}` : 'Delete'}</span></button></div>`;
+      v.length > 1 ? `Delete take ${at}` : 'Delete'}</span></button>
+    <!-- Deleting a rerolled passage removed the take on screen and promoted the next one, so the
+         block stayed put holding different words — four presses to remove a passage rerolled three
+         times, each one looking like it had failed. Only shown when there IS more than one take;
+         with one, Delete above already is all of them. -->
+    ${v.length > 1 ? `<button data-delall="${p.id}" style="color:var(--bad)"><span class="serif">⌫</span><span
+      class="lbl-txt">Delete all ${v.length} takes</span></button>` : ''}</div>`;
 
   const body = spoken
     ? `<div class="who">${p.speaker ? esc(p.speaker)
@@ -2492,7 +2498,9 @@ async function regenerateInto(id) {
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
   V = await api.story(S.storyId, V.currentChapter.id);
   paint(); refreshManifest(); refreshHistory();
-  toast('New take kept. Both are in History, with the canon each was written against.');
+  toast(r.reusedDirective
+    ? `New take on your instruction: ${String(r.reusedDirective).slice(0, 90)}`
+    : 'New take kept. Both are in History, with the canon each was written against.');
 }
 
 
@@ -2841,24 +2849,30 @@ document.addEventListener('click', async (e) => {
   if (d.re) { await regenerateInto(d.re); return; }
   if (d.reroll !== undefined) { await regenerateLast(); return; }
   if (d.send) { await generate(); return; }   // the button's only path; ⌘↵ is the shortcut
-  if (d.del) {
+  if (d.del || d.delall) {
     // Delete sits next to Regenerate, fired on one press and had no undo. The confirmation is done
     // in place rather than through paint(): a repaint drops the tray's aria-expanded, so on a phone
     // the second press would have nothing left to press. The toast is the part a phone can see —
     // .lbl-txt is hidden there, the tray is icons only.
-    if (S.confirmDel !== d.del) {
-      S.confirmDel = d.del;
+    const id = d.del || d.delall, every = !!d.delall;
+    // The key carries WHICH delete is armed, or confirming "this take" would fire "all of them".
+    const key = (every ? 'all:' : 'one:') + id;
+    if (S.confirmDel !== key) {
+      S.confirmDel = key;
       const lbl = t.querySelector('.lbl-txt'), was = lbl?.textContent;
       if (lbl) lbl.textContent = 'Press again';
-      toast('Press Delete again to remove it.');
-      setTimeout(() => { if (S.confirmDel === d.del) { S.confirmDel = null; if (lbl) lbl.textContent = was; } }, 4000);
+      toast(every ? 'Press again to remove every take of this passage.'
+                  : 'Press Delete again to remove it.');
+      setTimeout(() => { if (S.confirmDel === key) { S.confirmDel = null; if (lbl) lbl.textContent = was; } }, 4000);
       return;
     }
     S.confirmDel = null;
-    const r = await api.delPassage(S.storyId, d.del); if (r.error) return toast(r.error);
+    const r = await api.delPassage(S.storyId, id, every); if (r.error) return toast(r.error);
     // The panel may be showing the very passage that just went.
-    if (S.historyOf?.id === d.del) { S.historyOf = null; S.panel = 'context'; }
-    V = await api.story(S.storyId); paint(); refreshHistory(); return; }
+    if (S.historyOf?.id === id) { S.historyOf = null; S.panel = 'context'; }
+    V = await api.story(S.storyId); paint(); refreshHistory();
+    if (every) toast(`${r.deleted ?? 0} take${r.deleted === 1 ? '' : 's'} gone. The passage is out of the book.`);
+    return; }
   if (d.vp || d.vn) { const p = V.passages.find((x) => x.id === (d.vp || d.vn)); const v = p?.variants ?? [];
     const at = v.findIndex((x) => x.selected); const next = v[at + (d.vn ? 1 : -1)];
     if (next) { await api.pickVariant(S.storyId, next.id); V = await api.story(S.storyId);

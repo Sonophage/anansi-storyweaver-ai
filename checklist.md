@@ -15,8 +15,8 @@ the next round, not a fix.
 ```
 https://hestia.tempel-discus.ts.net:5174        the only URL that works
 systemctl --user status anansi                  it starts itself, and on boot
-node --experimental-strip-types test/all.ts     199 checks, eleven suites, no model
-test/ui/run.sh                                  463 checks, twelve scenarios, no model
+node --experimental-strip-types test/all.ts     201 checks, eleven suites, no model
+test/ui/run.sh                                  467 checks, twelve scenarios, no model
 ```
 
 ---
@@ -108,6 +108,44 @@ Where the next session starts.
   --provider google` returns `credentials_not_configured`, so there is nothing to integrate against.
   Each search would also be a cloud provider turn rather than an HTTP GET, in an app that currently
   makes no outbound request at all.
+
+**Takes: deleting them, and rerolling on the instruction that made them:**
+
+- **Deleting a rerolled passage looked like it did nothing.** Delete removes the take on screen and
+  promotes the newest survivor, which is correct — SPEC 6.1.5 says a slot always has one — so a
+  passage rerolled three times took four presses and the block sat there three times holding
+  different words. The tray now offers **Delete all N takes** beside it, two-press confirmed like
+  the other, keyed so confirming one does not arm the other. `db.delSlot` reports how many it took.
+- **A reroll of a directed passage ignored the instruction that made it.** Two faults, one report.
+  `addVariant` never carried `directive` — it was not in the INSERT — so a take of a directed
+  passage came back undirected, the margin mark vanished, and a second reroll had nothing to
+  inherit. And the generation sent no directive at all, so the reroll answered a question nobody
+  had asked. Both fixed at the source: the take inherits it the way `speaker` already did, and
+  `inherit()` in `routes.ts` reapplies it.
+  **The mode has to come back with it.** `direct` is the only mode template that mentions the
+  directive — speak and act take a speaker and ignore it — so inheriting the text without the mode
+  puts the instruction somewhere no template says it out loud. Falsified exactly there: leaving the
+  mode alone turns "rerolling a directed passage sends the instruction that made it" red. An
+  explicit directive in the request still wins, which is the writer typing a new one.
+  The surface says which instruction it re-ran, because silently obeying an old steer reads as the
+  model deciding for itself.
+
+`POST /api/manifest` goes through the same `inherit()`, or the Context panel would preview a prompt
+the generation is not going to send.
+
+**`handlers` is intermittent, and it died once.** In a full run on 2026-08-27 it stopped at
+**19 ok** — before any of the checks added that day, in the `window.fetch`-patching manifest
+section — with a dropped CDP connection (`undici` websocket, not an assertion). A machine doing
+other work at the time is the likeliest cause and that was self-inflicted: a service restart and a
+run of database probes while the suite was live. It re-ran green alone and green in a clean full
+run. **Not diagnosed, only survived**, so it is written down: if it dies there again, the suspect is
+the global `window.fetch` replacement in that section, not the scenario length.
+
+One check in `test/ui/handlers.js` earned its own note: the first version of the delete-all block
+threw inside `page.eval` when the control was missing, and took the two assertions after it down
+with it — **37 ok, 1 red** where there should have been three reds. A failing `else` on the guard
+makes it **37 ok, 3 red**, which is the count holding. Same shape as the four inert blocks found on
+2026-08-24.
 
 **A second pass on the threads, after Seth walked the first one:**
 
@@ -283,8 +321,8 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 199 checks, eleven suites, no model needed
-test/ui/run.sh                                 # 463 checks, twelve scenarios, headless, no model
+node --experimental-strip-types test/all.ts    # 201 checks, eleven suites, no model needed
+test/ui/run.sh                                 # 467 checks, twelve scenarios, headless, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model

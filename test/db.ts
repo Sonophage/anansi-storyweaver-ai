@@ -818,4 +818,50 @@ ok('a cover round-trips, and the shelf is told when it was set and never the byt
   assert.strictEqual(db.coverAt(st.id), null, 'deleting the story takes its cover with it');
 });
 
+// Takes: what a reroll inherits, and what deleting one actually deletes. Both of these were the
+// same complaint from Seth — deleting a rerolled passage looked like it did nothing, because it
+// removed the take on screen and promoted the next one.
+ok('a take inherits the instruction, and a slot can be deleted whole', () => {
+  const me = db.owner('take-owner');
+  const st = db.createStory(me, { title: 'Four takes' });
+  const first = db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: st.chapterId,
+    body: 'He knocks once.', author: 'model', directive: 'have him lose his nerve' })!;
+
+  const rowOf = (id: string) => db.passagesOf(st.id).find((p: any) => p.id === id)
+    ?? { directive: db.passageDirective(st.id, id) };
+  assert.strictEqual(db.passageDirective(st.id, first), 'have him lose his nerve',
+    'the instruction is on the passage it produced');
+
+  // A second take is another answer to the SAME question, so it carries the same instruction. It
+  // used to be absent from addVariant's INSERT entirely, which meant a reroll of a directed
+  // passage produced an undirected row and a second reroll had nothing to inherit.
+  const second = db.addVariant(st.id, first, 'He knocks, and waits too long.')!;
+  assert.strictEqual(db.passageDirective(st.id, second), 'have him lose his nerve',
+    'and a take inherits it');
+  const third = db.addVariant(st.id, second, 'He does not knock at all.')!;
+  assert.strictEqual(db.passageDirective(st.id, third), 'have him lose his nerve',
+    'and so does a take of a take, which is what a second reroll is');
+
+  // One take at a time promotes a survivor, which is right: a slot always has one.
+  assert.strictEqual(db.passagesOf(st.id).length, 1, 'the book shows one of the three');
+  db.delPassage(st.id, third);
+  assert.strictEqual(db.passagesOf(st.id).length, 1,
+    'deleting the selected take leaves the slot filled — this is the behaviour that looked broken');
+
+  // Which is exactly why the other intent has to be sayable.
+  const gone = db.delSlot(st.id, second);
+  assert.strictEqual(gone, 2, 'delSlot reports how many takes it took with it');
+  assert.strictEqual(db.passagesOf(st.id).length, 0, 'and the passage is out of the book');
+  assert.strictEqual(db.passageDirective(st.id, first), null, 'with no take of it left behind');
+
+  // Scoped like every other read: a passage id is not a story id.
+  const other = db.createStory(db.owner('take-stranger'), { title: 'Not yours' });
+  const theirs = db.addPassage({ storyId: other.id, branchId: other.branchId,
+    chapterId: other.chapterId, body: 'Theirs.', author: 'model', directive: 'a secret steer' })!;
+  assert.strictEqual(db.passageDirective(st.id, theirs), null,
+    'a foreign passage id yields no instruction');
+  assert.strictEqual(db.delSlot(st.id, theirs), 0, 'and no foreign slot can be deleted through it');
+  assert.strictEqual(db.passagesOf(other.id).length, 1, 'theirs is untouched');
+});
+
 console.log(`\n${n} checks passed`);

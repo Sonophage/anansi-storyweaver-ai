@@ -565,4 +565,52 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('a cover is validated as bytes and not as a label, and is served inline');
 }
 
+// A reroll of a directed passage re-runs the instruction that made it. Asserted on the PROMPT,
+// through the same route the Context panel reads, because that is the only place the claim is
+// testable without a model: the mode template is what carries a directive, and `direct` is the only
+// one that mentions it. Passing mode 'continue' is the point — if the inherit did not force the
+// mode, the instruction would reach a template that never says it.
+{
+  const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 40_000, slots: 1, perSlot: 40_000 }, gen: { max_tokens: 900 }, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  const steered = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
+    chapterId: aStory.chapterId, body: 'He knocks once.', author: 'model',
+    directive: 'have him lose his nerve' })!;
+
+  const m1: any = await routes['POST /api/manifest'](ctx(alice,
+    { storyId: aStory.id, regenerateOf: steered, mode: 'continue' }));
+  assert.match(m1.prompt, /have him lose his nerve/,
+    'rerolling a directed passage sends the instruction that made it');
+  assert.match(m1.prompt, /Write what happens next: have him lose his nerve/,
+    'and sends it through the one mode template that carries a directive');
+
+  // A directive in the request is the writer typing a new one, and it wins. Mode `direct` with it,
+  // because that is the only pair the surface can produce — a directive rides in the MODE block, so
+  // mode 'continue' plus a directive would be a request whose instruction has nowhere to go, and
+  // asserting on it would be asserting about a shape nothing sends.
+  const m2: any = await routes['POST /api/manifest'](ctx(alice,
+    { storyId: aStory.id, regenerateOf: steered, mode: 'direct', directive: 'let him go through with it' }));
+  assert.match(m2.prompt, /let him go through with it/, 'a new instruction wins');
+  assert.doesNotMatch(m2.prompt, /lose his nerve/, 'and the old one is not also sent');
+
+  // Nothing inherited when nothing was regenerated, or every fresh Continue would carry the last
+  // steer the story ever had.
+  const m3: any = await routes['POST /api/manifest'](ctx(alice, { storyId: aStory.id, mode: 'continue' }));
+  assert.doesNotMatch(m3.prompt, /lose his nerve/, 'a fresh call inherits nothing');
+
+  // An undirected passage stays undirected: the mode the writer chose is the mode that runs.
+  const plain = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
+    chapterId: aStory.chapterId, body: 'The hall is cold.', author: 'model' })!;
+  const m4: any = await routes['POST /api/manifest'](ctx(alice,
+    { storyId: aStory.id, regenerateOf: plain, mode: 'continue' }));
+  assert.doesNotMatch(m4.prompt, /Write what happens next/,
+    'a passage with no instruction is not forced into Direct');
+  assert.match(m4.prompt, /Carry the scene forward/, 'it rerolls in the mode it was asked for');
+
+  db.delSlot(aStory.id, steered);
+  db.delSlot(aStory.id, plain);
+  ok('a reroll re-runs the instruction that made the passage, and only that passage');
+}
+
 console.log(`\n${n} checks passed`);

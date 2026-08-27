@@ -381,4 +381,54 @@ sts = await statesOf();
 ok(`  and its chapter corrected in place (${sts.length} from chapter ${sts[0]?.fromChapter})`,
    sts.length === 1 && sts[0].fromChapter === 3 && /out loud/.test(sts[0].body));
 
+// ---- Delete all takes. Seeded by adding variants through the API-facing route rather than by
+// rerolling, so it needs no model and the count is exact. The old behaviour is the assertion in the
+// middle: one press removes the take on screen and promotes the next, so the passage is still there.
+await page.goto(B + "/#" + sid);
+await wait(1000);
+const pass = () => page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).passages)()");
+const firstId = (await pass()).find((p) => !p.isBreak)?.id;
+for (const line of ['A second take.', 'A third take.']) {
+  await page.eval("(async () => { await fetch('/api/accept', { method:'POST',"
+    + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyId:'" + sid + "',"
+    + " variantOf:'" + firstId + "', body:" + JSON.stringify(line) + ", check:false }) }); })()");
+  await wait(500);
+}
+await page.goto(B + "/#" + sid);
+await wait(1100);
+const takes = await page.eval("(() => { const p = [...document.querySelectorAll('[data-del]')]; return p.length; })()");
+ok(`the passage is one block however many takes it has (${takes} delete buttons)`, takes >= 1);
+const slotId = await page.eval("document.querySelector('[data-delall]')?.dataset.delall");
+ok("a rerolled passage offers to delete every take", !!slotId);
+
+// A failing else rather than a skip: with no control to press, the two assertions below would
+// otherwise throw inside page.eval and take the rest of the scenario with them, which reports as
+// fewer checks rather than as a failure. Two of the four blocks found inert on 2026-08-24 were
+// exactly this shape.
+if (!slotId) {
+  ok("  deleting one take leaves the passage in the book", false);
+  ok("  and deleting all takes removes it", false);
+} else {
+  // One press, then another: the old behaviour, and the reason the option exists. The block lives.
+  await page.eval("(() => { document.querySelector('[data-del=\"" + slotId + "\"]').click(); return 1; })()");
+  await wait(300);
+  await page.eval("(() => { document.querySelector('[data-del=\"" + slotId + "\"]').click(); return 1; })()");
+  await wait(1100);
+  const live = (await pass()).filter((p) => !p.isBreak);
+  ok(`  deleting one take leaves the passage in the book (${live.length} passage)`, live.length >= 1);
+
+  // Now the other intent, twice pressed like the one above it.
+  const again = await page.eval("document.querySelector('[data-delall]')?.dataset.delall");
+  if (!again) {
+    ok("  and deleting all takes removes it", false);
+  } else {
+    await page.eval("(() => { document.querySelector('[data-delall=\"" + again + "\"]').click(); return 1; })()");
+    await wait(300);
+    await page.eval("(() => { document.querySelector('[data-delall=\"" + again + "\"]').click(); return 1; })()");
+    await wait(1200);
+    const after = (await pass()).filter((p) => !p.isBreak);
+    ok(`  and deleting all takes removes it (${live.length} -> ${after.length})`, after.length < live.length);
+  }
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

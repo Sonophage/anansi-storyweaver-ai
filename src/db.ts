@@ -469,10 +469,14 @@ export function addVariant(storyId: string, passageId: string, body: string, aut
   db.exec('BEGIN');
   try {
     q('UPDATE passages SET selected = 0 WHERE chapter_id = ? AND slot_key = ?').run(cur.chapter_id, cur.slot_key);
+    // The directive rides along, for the reason `speaker` already did: a take is another answer to
+    // the same question. It was not even in this INSERT, so every reroll of a directed passage
+    // produced an undirected row — the margin mark vanished and a second reroll had nothing left
+    // to inherit.
     q(`INSERT INTO passages (id,chapter_id,story_id,branch_id,slot_key,ordinal,variant_index,selected,
-        author,speaker,body,is_break,created_at) VALUES (?,?,?,?,?,?,?,1,?,?,?,0,?)`)
+        author,speaker,body,is_break,directive,created_at) VALUES (?,?,?,?,?,?,?,1,?,?,?,0,?,?)`)
       .run(id, cur.chapter_id, cur.story_id, cur.branch_id, cur.slot_key, cur.ordinal,
-        n + 1, author, cur.speaker, body, now());
+        n + 1, author, cur.speaker, body, cur.directive ?? null, now());
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(cur.story_id);
@@ -563,6 +567,34 @@ export function delPassage(storyId: string, id: string) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(storyId);
 }
+
+/** Every take in one slot, gone together.
+ *
+ *  delPassage removes ONE take and promotes the newest survivor, which is right — a slot always has
+ *  one (SPEC 6.1.5). The cost is that deleting a passage you have rerolled four times takes five
+ *  presses and looks, four times over, like the delete did nothing: the block is still there
+ *  holding different words. This is the other intent, said outright. */
+export function delSlot(storyId: string, id: string) {
+  const cur = q('SELECT chapter_id, slot_key FROM passages WHERE id = ? AND story_id = ?')
+    .get(id, storyId) as any;
+  if (!cur) return 0;
+  db.exec('BEGIN');
+  try {
+    const ids = (q('SELECT id FROM passages WHERE chapter_id = ? AND slot_key = ? AND story_id = ?')
+      .all(cur.chapter_id, cur.slot_key, storyId) as any[]).map((r) => r.id);
+    for (const pid of ids) q('DELETE FROM violations WHERE passage_id = ? AND story_id = ?').run(pid, storyId);
+    q('DELETE FROM passages WHERE chapter_id = ? AND slot_key = ? AND story_id = ?')
+      .run(cur.chapter_id, cur.slot_key, storyId);
+    db.exec('COMMIT');
+    touch(storyId);
+    return ids.length;
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
+/** The instruction a passage was written to, if it had one. Story-scoped like every other read
+ *  here: the gate proves the story, and a passage id is not a story id. */
+export const passageDirective = (storyId: string, id: string): string | null =>
+  (q('SELECT directive FROM passages WHERE id = ? AND story_id = ?').get(id, storyId) as any)?.directive ?? null;
 
 /** Sweep flags whose passage is gone, or which no longer clear the confidence floor. */
 export const pruneViolations = (floor = 0.6) => q(

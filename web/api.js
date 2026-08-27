@@ -76,7 +76,9 @@ export const api = {
   write:        (storyId, o)     => j('/api/write', 'POST', { storyId, ...o }),
   accept:       (storyId, o)     => j('/api/accept', 'POST', { storyId, ...o }),
   editPassage:  (storyId, id, body) => j('/api/passage', 'POST', { storyId, id, body }),
-  delPassage:   (storyId, id)    => j('/api/passage', 'DELETE', { storyId, id }),
+  // allTakes deletes the whole slot rather than the take on screen. Two intents, one route.
+  delPassage:   (storyId, id, allTakes) => j('/api/passage', 'DELETE',
+                                             { storyId, id, ...(allTakes ? { allTakes: true } : {}) }),
   pickVariant:  (storyId, id)    => j('/api/variant', 'POST', { storyId, id }),
   fork:         (storyId, passageId, name) => j('/api/fork', 'POST', { storyId, passageId, name }),
   switchBranch: (storyId, id)    => j('/api/branch', 'POST', { storyId, id }),
