@@ -159,4 +159,27 @@ await wait(500);
 const kept = await page.eval("document.querySelector('#dock textarea')?.value ?? ''");
 ok(`  the draft came back ("${kept.slice(0, 34)}")`, kept === "half a sentence that must survive");
 
+// Tapping the prose must not start editing. Every passage used to carry contenteditable at all
+// times, so on a phone a tap in a paragraph put a caret in it and raised the keyboard — editing
+// nobody asked for, and the reason a stray thumb could rewrite a line.
+const editableAtRest = await page.eval(
+  "document.querySelectorAll('#col [data-edit][contenteditable]').length");
+ok(`no passage is editable until you say so (${editableAtRest} editable at rest)`, editableAtRest === 0);
+
+// The door is Edit, reached through the tray, which is reached by double tap. Open it the way a
+// finger would.
+await page.dbl("#col .block .narr, #col .block .said");
+await wait(400);
+const trayUp = await page.eval("document.querySelectorAll('.acts button[data-ed]').length");
+ok(`a double tap opens the tray with Edit in it (${trayUp} found)`, trayUp > 0);
+await page.click(".acts button[data-ed]");
+await wait(500);
+const afterEdit = await page.eval(
+  "document.querySelectorAll('#col [data-edit][contenteditable]').length");
+ok(`pressing Edit makes exactly one passage editable (${afterEdit})`, afterEdit === 1);
+
+// And the browser must not treat a scroll-up as a page refresh.
+ok("the reading pane keeps the pull-to-refresh gesture to itself",
+   (await page.eval("getComputedStyle(document.getElementById('read')).overscrollBehaviorY")) === 'contain');
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

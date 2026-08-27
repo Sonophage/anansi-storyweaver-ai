@@ -81,6 +81,13 @@ html[data-ui-size="xl"] { --prose:26px; --bubble:21px; --gap:38px; --col:840px; 
    display:none, not an unmount: out of the layout, out of the tab order, out of the accessibility
    tree, and still in the DOM, so a half-written sentence cannot be lost by toggling the mode. The
    round trip is asserted in test/ui/phone.js. */
+/* Pull-to-refresh, off. Scrolling up at the top of the reading pane on Android reloaded the page —
+   which in reading mode is constant, because there is no composer under the prose to scroll past.
+   `contain` rather than `none`: the pane still bounces at its own edges, it just stops handing the
+   gesture to the browser chrome. On #read because that is what scrolls, and on body because the
+   document itself can take the gesture when the pane is short. */
+#read, body { overscroll-behavior-y: contain; }
+
 html[data-reading="1"] #dock { display:none; }
 html[data-reading="1"] #col .block { pointer-events:none; }
 html[data-reading="1"] .more, html[data-reading="1"] .acts { display:none !important; }

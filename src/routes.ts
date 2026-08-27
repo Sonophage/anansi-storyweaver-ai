@@ -5,6 +5,7 @@ import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, chec
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
+import { fileBug } from './report.ts';
 import { resolveBody, narrationOnly } from './context.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
@@ -38,7 +39,7 @@ export const OPEN_ROUTES = new Set([
   // security fix breaking the feature it was protecting.
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
-  'GET /api/models', 'GET /api/ledger', 'GET /api/stats',
+  'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
   // Account-wide, like the sampler. Owner-scoped in SQL — every read and write takes c.owner.
   'GET /api/prompts', 'POST /api/prompts',
 ]);
@@ -399,6 +400,25 @@ export const routes: Record<string, Handler> = {
 
   // Names no story on purpose: it spans them. Owner-scoped in SQL, like search and the ledger.
   'GET /api/stats': (c: Ctx) => db.writerStats(c.owner),
+
+  /** Report a bug, from inside the thing that has the bug.
+   *
+   *  On the OPEN list because a bug is not story-scoped — and because the report you most want is
+   *  the one from a writer whose story will not open, which is exactly when a story-scoped route
+   *  refuses. Both writers can file; the account rides in the report, or a second writer's bug is
+   *  indistinguishable from the first writer's.
+   *
+   *  The prose never leaves. The story is named by id and the report says so in its own footer. */
+  'POST /api/bug': async (c: Ctx) => fileBug({
+    said: String(c.body.said ?? ''),
+    who: db.loginOf(c.owner) ?? c.owner,
+    storyId: c.body.storyId ?? null,
+    chapterIndex: c.body.chapterIndex ?? null,
+    agent: String(c.body.agent ?? '').slice(0, 160) || null,
+    lastError: String(c.body.lastError ?? '').slice(0, 200) || null,
+    model: c.defaultModel ?? model(),
+    slot: c.slot,
+  }),
 
   'GET /api/models': async (c: Ctx) => {
     // `allowList` is reported so the screen can say WHY only three of eight are listed. A short

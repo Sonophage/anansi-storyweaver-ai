@@ -40,6 +40,9 @@ const S = {
   // Reading mode. Session-only on purpose: persisted, it would come back after a reload as a
   // composer that will not take a keystroke and no memory of why.
   reading: false,
+  // The bug report, kept in state so a repaint mid-typing does not eat it — the same lesson the
+  // composer's draft taught seven times.
+  bug: '', bugSending: false, bugUrl: null, bugError: null, lastError: null,
   prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
   promptOpen: null,
   found: null,          // the passage a search result sent you to, marked until you move on
@@ -113,7 +116,7 @@ const WTITLES = {
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
 const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug',
   'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
@@ -377,8 +380,8 @@ function passageHTML(p, newest, opening) {
   const body = spoken
     ? `<div class="who">${p.speaker ? esc(p.speaker)
          : mine ? `You · ${esc(V.story.persona || 'you')}` : esc(V.story.title)}</div>
-       <div class="said" contenteditable="plaintext-only" data-edit="${p.id}">${esc(p.body)}</div>`
-    : `<div class="narr" contenteditable="plaintext-only" data-edit="${p.id}">${esc(p.body)}</div>`;
+       <div class="said" data-edit="${p.id}">${esc(p.body)}</div>`
+    : `<div class="narr" data-edit="${p.id}">${esc(p.body)}</div>`;
   const flagged = flags.map((f) => {
     const e = V.entries.find((x) => x.id === f.entryId);
     // The reason is whatever the checker returned, and a reasoning model has put 3,321
@@ -1948,6 +1951,20 @@ const WPAGES = {
         <div class="hint">Sampling, voice and spice belong to each story — they live under Storyteller, inside the story.
           A story can also name its own <strong>model</strong> there, and then it stops following this one.</div>
 
+        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Report a bug</div>
+        <textarea class="field" data-bug="1" placeholder="What went wrong, and what you were doing."
+          style="min-height:84px">${esc(S.bug ?? '')}</textarea>
+        <div class="hint">Files it on the repo through <code>gh</code>, so no token lives in this app.
+          It carries which build is running, whether the server is older than that build, the model
+          and the story's id &mdash; <strong>never the prose</strong>, the premise or the ledger.</div>
+        <button class="btn ghost" data-sendbug="1" style="margin-top:8px">${
+          S.bugSending ? 'Filing&hellip;' : 'File it'}</button>
+        ${S.bugUrl ? `<div class="hint" style="color:var(--good)">Filed &mdash;
+          <a href="${esc(S.bugUrl)}" target="_blank" rel="noreferrer"
+             style="color:var(--gold)">${esc(S.bugUrl.replace(/^https:\/\/github\.com\//, ''))}</a></div>` : ''}
+        ${S.bugError ? `<div class="hint" style="color:var(--bad)">${esc(S.bugError)}<br>
+          Nothing you wrote is lost &mdash; it is still in the box.</div>` : ''}
+
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">The server itself</div>
         ${S.router ? `<div class="row"><span style="color:var(--ink)">llama-router</span>
             <span class="chip">${esc(S.router.state ?? '?')}</span>
@@ -2659,6 +2676,11 @@ document.addEventListener('click', async (e) => {
     openTray(null);
     const el = document.querySelector(`[data-edit="${d.ed}"]`);
     if (!el) return;
+    // Editable HERE and nowhere else. Every passage used to carry contenteditable all the time, so
+    // on a phone a tap in the prose put a caret in it and raised the keyboard — you were editing
+    // without having asked to, which is what Seth reported. Edit is the only door in now, and blur
+    // shuts it again.
+    el.setAttribute('contenteditable', 'plaintext-only');
     el.focus();
     const r = document.createRange(); r.selectNodeContents(el);
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
@@ -2857,6 +2879,21 @@ document.addEventListener('click', async (e) => {
   }
   // Archiving is a status change and nothing else — no separate table, no hiding, and the same
   // route that saves every other story field. Reversible by pressing it again.
+  if (d.sendbug) {
+    const said = document.querySelector('[data-bug]')?.value ?? '';
+    if (!said.trim()) return toast('Say what went wrong first.');
+    S.bug = said; S.bugSending = true; S.bugUrl = null; S.bugError = null; paint();
+    const r = await api.bug({ said, storyId: S.storyId ?? null,
+      chapterIndex: V?.currentChapter?.index ?? null,
+      agent: navigator.userAgent, lastError: S.lastError ?? null });
+    S.bugSending = false;
+    if (r.url) { S.bugUrl = r.url; S.bug = ''; toast('Filed.'); }
+    // The report is handed back on failure, so a gh that is offline or logged out costs the
+    // writer nothing they typed. It stays in the box.
+    else { S.bugError = r.error ?? 'could not file it'; toast(r.error ?? 'could not file it'); }
+    paint();
+    return;
+  }
   if (d.archive) {
     const r = await api.saveStory(S.storyId, { status: d.archive });
     if (r.error) return toast(r.error);
@@ -3214,6 +3251,9 @@ document.addEventListener('input', (e) => {
 document.addEventListener('blur', async (e) => {
   const id = e.target?.dataset?.edit;
   if (!id || id === 'pending') return;
+  // Shut the door behind you. Left open, the next tap anywhere in that paragraph starts editing
+  // again with no Edit pressed, which is the bug this half fixes.
+  e.target.removeAttribute('contenteditable');
   const body = e.target.textContent;
   const p = V?.passages.find((x) => x.id === id);
   if (!p || p.body === body) return;

@@ -132,6 +132,22 @@ ok(`  and one take is a line, not a numbered card (${(openBody.match(/Take \d+/g
 const editsBefore = await page.eval("document.querySelectorAll('[data-restore]').length");
 
 // Edit the passage in the document, with History still open beside it.
+//
+// Through the Edit ACTION, because a passage is no longer editable until one is pressed. It used to
+// carry contenteditable at all times, which on a phone meant a tap in the prose raised the keyboard
+// and you were editing without asking. This check typed straight into the element, so it was
+// exercising a door that is now shut — and it went red the moment the door closed, which is the
+// right way round.
+// THIS block's Edit, not the first one on the page. The first version reached for
+// `document.querySelector('[data-more]')`, which is whichever paragraph happens to be at the top —
+// so it opened the tray on the wrong passage, pressed Edit on the wrong passage, and the target was
+// still not editable. Same shape of mistake as the unscoped selector that clicked off-canvas.
+await page.eval("(() => { const blk = document.querySelector('[data-edit=\"" + target.id + "\"]')"
+  + ".closest('.block'); blk.querySelector('[data-more]')?.click(); return 1; })()");
+await wait(350);
+await page.eval("(() => { const blk = document.querySelector('[data-edit=\"" + target.id + "\"]')"
+  + ".closest('.block'); blk.querySelector('button[data-ed]')?.click(); return 1; })()");
+await wait(350);
 await page.eval("(() => { const e = document.querySelector('[data-edit=\"" + target.id + "\"]');"
   + " e.focus(); e.textContent = 'EDITED WHILE HISTORY WAS OPEN.'; e.blur(); return 1; })()");
 for (let i = 0; i < 30; i++) {

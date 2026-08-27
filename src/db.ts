@@ -306,6 +306,11 @@ export function owner(login = 'sonophage'): string {
   return id;
 }
 
+/** The account name behind an owner id. The reports and anything else that has to SAY who did
+ *  something need the login rather than the id, which means nothing to a human reading it later. */
+export const loginOf = (ownerId: string): string | null =>
+  (q('SELECT login FROM users WHERE id = ?').get(ownerId) as any)?.login ?? null;
+
 export const listStories = (o: string) => q(`
   SELECT s.*, (SELECT COUNT(*) FROM passages p WHERE p.story_id = s.id AND p.selected = 1) AS passages,
          (SELECT COUNT(*) FROM chapters c WHERE c.story_id = s.id) AS chapters,

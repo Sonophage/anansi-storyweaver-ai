@@ -121,6 +121,7 @@ export const api = {
   models:       ()               => j('/api/models'),
   stats:        ()               => j('/api/stats'),
   talk:         (storyId, o)     => j('/api/talk', 'POST', { storyId, ...o }),
+  bug:          (o)              => j('/api/bug', 'POST', o),
   setModel:     (model, storyId) => j('/api/model', 'POST', { model, storyId }),
   router:       (action, storyId) => j('/api/router', 'POST', { action, storyId }),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
