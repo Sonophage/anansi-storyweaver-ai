@@ -44,5 +44,19 @@ for (const e of input.entries) {
   db.upsertEntry(made.id, me, { title: name, body: e.body, entryType: e.entryType,
     activation: e.activation, keys: e.keys, lastEditor: 'human' });
 }
+// ONE PROPOSAL, PLANTED. `handlers.js` tests Accept by firing a real /api/extract and working
+// whatever the model proposed — so on a run where the model was busy, loading, or simply proposed
+// nothing, that block silently did not execute and the scenario reported 39 ok instead of 40 with
+// no red. A count that moves with the mood of a live model cannot tell "the accept path is broken"
+// from "the router was busy", and `.claude/CLAUDE.md` records handlers' drifting count as
+// undiagnosed. This is the diagnosis: the ground truth was a model call.
+//
+// Planted here, so Accept always has something to accept. The scenario still runs extraction first
+// and works whatever that adds — this only guarantees the queue is never empty.
+db.addProposal(made.id, { kind: 'new', chapterId, title: 'The Vantic Rain',
+  body: '[The Vantic Rain: it has not stopped in three days, and the gutters have given up.]',
+  entryType: 'lore', keys: ['rain'] });
+
 console.log(`  seeded ${input.story.title}: ${input.chapters.length} chapters, `
-  + `${input.passages.length} passages, ${input.entries.length} entries, persona Aldis Fen`);
+  + `${input.passages.length} passages, ${input.entries.length} entries, persona Aldis Fen, `
+  + `1 planted proposal`);

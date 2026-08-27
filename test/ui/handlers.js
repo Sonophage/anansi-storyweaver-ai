@@ -28,7 +28,11 @@ if (props) {
   const titles = (await entries()).map((e) => e.title);
   ok(`Accept lands "${name}" (${kind}) in the ledger`, titles.some((t) => t === name));
 } else {
-  console.log("  SKIP accept — extraction proposed nothing this run");
+  // The seed plants one proposal precisely so this branch cannot be reached. Reaching it means
+  // the queue was empty, which is a real failure of the fixture rather than a quiet skip — and a
+  // skip that produces no `ok` is invisible to a count-based harness, which is how this scenario
+  // drifted between 39 and 40 with nothing red.
+  ok("the proposal queue was not empty — the seed plants one so Accept always has work", false);
 }
 
 // ---- 2. The type and activation chips on an entry
