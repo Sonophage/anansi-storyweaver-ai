@@ -346,4 +346,33 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
   ok('archived books sort last and never become the hero of the shelf');
 }
 
+// The strip above the hero: what is waiting, across every book. Pure, so it is tested here rather
+// than driven through a browser.
+{
+  const { waiting } = await import('../web/model.js');
+  const shelf: any[] = [
+    { id: 's-1', title: 'Sutera', status: 'in_progress', proposed: 1, unpaid: 2, flags: 0 },
+    { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', proposed: 4, unpaid: 0, flags: 1 },
+    { id: 's-3', title: 'Put Away', status: 'archived', proposed: 9, unpaid: 9, flags: 9 },
+  ];
+  const w = waiting(shelf);
+  assert.deepStrictEqual(w.map((x: any) => x.label),
+    ['5 threads proposed', '2 promises unpaid', '1 flag'],
+    'it counts across books, and says one thread rather than one threads');
+
+  // One press has to go where the work is. Sending you to a list of places the work might be is
+  // the thing this replaces.
+  assert.strictEqual(w[0].storyTitle, 'The Salt Ledger', 'the book with the most of them wins the link');
+  assert.strictEqual(w[1].storyTitle, 'Sutera', 'and each kind is judged on its own count');
+
+  // Archiving is the act that means stop showing me this. A strip that then nags about its unpaid
+  // promises has not listened — nine of each are in the archived book and none of them are counted.
+  assert.ok(!w.some((x: any) => x.total > 5), 'an archived book is not counted at all');
+
+  assert.deepStrictEqual(waiting([]), [], 'an empty shelf owes nothing');
+  assert.deepStrictEqual(waiting([{ id: 's', title: 'x', proposed: 0, unpaid: 0, flags: 0 }] as any), [],
+    'and a shelf with nothing outstanding shows no strip rather than three zeroes');
+  ok('the shelf says what is waiting, per kind, in the book it is waiting in');
+}
+
 console.log(`\n${n} checks passed`);

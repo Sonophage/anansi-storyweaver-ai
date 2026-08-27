@@ -24,6 +24,31 @@ export const KINDS = ['character', 'lore', 'item', 'rule'];
 export const shelfOrder = (list) => [...(list ?? [])].sort((a, b) =>
   (a?.status === 'archived' ? 1 : 0) - (b?.status === 'archived' ? 1 : 0));
 
+/** What is waiting across the whole shelf, and which book each kind is mostly in.
+ *
+ *  The shelf is the only screen that can see across books, and until now it could not see INTO one:
+ *  a proposal not accepted, a promise not paid, a flag not looked at all live inside a story and
+ *  were invisible from the outside. This is what the strip above the hero is made of.
+ *
+ *  Archived books are left out on purpose. Putting one away is the act that means "stop showing me
+ *  this", and a strip that then nags about its unpaid promises has not listened. */
+export const waiting = (list) => {
+  const live = (list ?? []).filter((s) => s && s.status !== 'archived');
+  const kind = (key, one, many, panel) => {
+    const total = live.reduce((n, s) => n + (Number(s[key]) || 0), 0);
+    if (!total) return null;
+    // The book with the most of them, so one press goes where the work is rather than to a list.
+    const where = live.reduce((a, b) => ((Number(b[key]) || 0) > (Number(a[key]) || 0) ? b : a));
+    return { key, total, panel, storyId: where.id, storyTitle: where.title,
+             label: `${total} ${total === 1 ? one : many}` };
+  };
+  return [
+    kind('proposed', 'thread proposed', 'threads proposed', 'chapter'),
+    kind('unpaid', 'promise unpaid', 'promises unpaid', 'strings'),
+    kind('flags', 'flag', 'flags', 'chapter'),
+  ].filter(Boolean);
+};
+
 // The labels on the dropdown. They name where the camera stops, because that is what the level
 // IS — the lines these stand for are in src/context.ts and they say the same thing at length.
 export const SPICE = [

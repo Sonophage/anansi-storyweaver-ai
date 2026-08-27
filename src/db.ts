@@ -311,10 +311,22 @@ export function owner(login = 'sonophage'): string {
 export const loginOf = (ownerId: string): string | null =>
   (q('SELECT login FROM users WHERE id = ?').get(ownerId) as any)?.login ?? null;
 
+/** The shelf, and what is waiting in each book on it.
+ *
+ *  The three `waiting` counts are the reason this grew: everything a writer left half-done lives
+ *  INSIDE a story — a proposal not accepted, a promise not paid, a flag not looked at — and from the
+ *  shelf all of it was invisible. Counted per story rather than as one total, so the strip can send
+ *  you to the book it is about rather than making you go and look.
+ *
+ *  ponytail: three correlated subqueries per row. At a shelf of a dozen books that is nothing; if
+ *  this ever gets slow the fix is one grouped join per table rather than a cache. */
 export const listStories = (o: string) => q(`
   SELECT s.*, (SELECT COUNT(*) FROM passages p WHERE p.story_id = s.id AND p.selected = 1) AS passages,
          (SELECT COUNT(*) FROM chapters c WHERE c.story_id = s.id) AS chapters,
-         (SELECT COUNT(*) FROM entries e WHERE e.story_id = s.id) AS entries
+         (SELECT COUNT(*) FROM entries e WHERE e.story_id = s.id) AS entries,
+         (SELECT COUNT(*) FROM proposals pr WHERE pr.story_id = s.id AND pr.status = 'open') AS proposed,
+         (SELECT COUNT(*) FROM strings st WHERE st.story_id = s.id AND st.status = 'open') AS unpaid,
+         (SELECT COUNT(*) FROM violations v WHERE v.story_id = s.id AND v.status = 'open') AS flags
   FROM stories s WHERE s.owner_id = ? ORDER BY s.updated_at DESC`).all(o);
 
 export function createStory(o: string, s: any) {

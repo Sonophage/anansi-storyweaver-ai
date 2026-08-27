@@ -3,7 +3,7 @@
 // sheet on a phone. Layout lives in app.html's CSS — this file decides state and content only,
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -91,7 +91,7 @@ const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queu
 const WNAV = [
   ['stories', 'stories', 'My stories'], ['create', 'create', 'Create a story'],
   ['canon', 'threads', 'Threads'], ['import', 'import', 'Import'],
-  ['prefs', 'prefs', 'Preferences'],
+  ['prefs', 'prefs', 'Preferences'], ['bug', 'bug', 'Report an issue'],
 ];
 const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
 // Two panels the rail does not list: they open by clicking a thing, not a nav row.
@@ -111,12 +111,13 @@ const WTITLES = {
   },
   import: () => ['Import', 'Character cards, Anansi exports, AI Dungeon'],
   prefs: () => ['Preferences', 'llama-server, model, slot'],
+  bug: () => ['Report an issue', 'filed on the repo, without the prose'],
 };
 
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
 const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'home', 'owed',
   'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
@@ -171,8 +172,11 @@ function drawRail() {
 
   $('rail').innerHTML = `
     <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
-      <img src="./web/icon.svg" alt="" style="width:24px; height:24px; border-radius:var(--r); display:block; flex:0 0 auto">
-      <span class="serif txt" style="font-size:26px; color:var(--ink-bright)">Anansi</span>
+      <button data-home="1" aria-label="Anansi — back to my stories"
+        style="display:flex; align-items:center; gap:10px; padding:0; text-align:left">
+        <img src="./web/icon.svg" alt="" style="width:24px; height:24px; border-radius:var(--r); display:block; flex:0 0 auto">
+        <span class="serif txt" style="font-size:26px; color:var(--ink-bright)">Anansi</span>
+      </button>
       <button data-rail="1" style="margin-left:auto; color:var(--faint); display:flex;
         align-items:center; justify-content:center; padding:2px 4px"
         aria-label="${S.rail ? 'Collapse the rail' : 'Expand the rail'}"
@@ -1727,7 +1731,18 @@ const WPAGES = {
     // gets the hero; adding a story is the next thing on the page, then the rest. Archived books
     // sink to the end first, so an archived book never takes the hero slot.
     const [hero, ...rest] = shelfOrder(LIB);
+    // What is waiting, across every book. The shelf is the only screen that can see across them, and
+    // until this it could not see into one — so coming back after a day told you nothing about what
+    // you had left half-done.
+    const owed = waiting(LIB);
     return `<div style="display:flex; flex-direction:column; gap:22px">
+      ${owed.length ? `<div style="display:flex; gap:7px; flex-wrap:wrap; align-items:center">
+        <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+          color:var(--dim)">Waiting for you</span>
+        ${owed.map((w) => `<button class="chip" data-owed="${esc(w.storyId)}" data-owedpanel="${esc(w.panel)}"
+          style="font-size:11.5px; padding:5px 11px">${esc(w.label)}
+          <span style="color:var(--faint)"> &middot; ${esc(w.storyTitle)}</span></button>`).join('')}
+      </div>` : ''}
       ${storyCard(hero, 0, true)}
       <div class="grid">
         <button class="dashed" data-open="new" style="min-height:170px">＋ New story</button>
@@ -1920,6 +1935,32 @@ const WPAGES = {
           is written.</span></label></div>`;
   },
 
+  bug() {
+    return `<div style="display:flex; flex-direction:column; max-width:640px">
+      <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">Report an issue</div>
+      <div style="font-size:14px; line-height:1.65; color:var(--mute); margin:10px 0 16px">What went
+        wrong, and what you were doing when it did. One line is enough &mdash; the report brings the
+        rest with it.</div>
+      <textarea class="field" data-bug="1" style="min-height:132px"
+        placeholder="The tray opened behind the scrim when I double-tapped a paragraph on my phone."
+        >${esc(S.bug ?? '')}</textarea>
+      <button class="btn" data-sendbug="1" style="margin-top:12px; width:auto; padding:0 28px; height:46px">${
+        S.bugSending ? 'Filing&hellip;' : 'File it'}</button>
+      ${S.bugUrl ? `<div class="hint" style="color:var(--good)">Filed &mdash;
+        <a href="${esc(S.bugUrl)}" target="_blank" rel="noreferrer"
+           style="color:var(--gold)">${esc(S.bugUrl.replace(/^https:\/\/github\.com\//, ''))}</a></div>` : ''}
+      ${S.bugError ? `<div class="hint" style="color:var(--bad)">${esc(S.bugError)}<br>
+        Nothing you wrote is lost &mdash; it is still in the box.</div>` : ''}
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">What goes with it</div>
+      <div class="hint" style="margin:0">The commit that is running and whether the server is older
+        than it &mdash; which is the thing that has cost a round trip on every round of reports so
+        far. The model, the slot size, the surface you are on, and the story's <em>id</em>.</div>
+      <div class="hint"><strong>Not the prose.</strong> Not a passage, not the premise, not a ledger
+        entry. The story is named by id and nothing else, and the report says so on its own face.</div>
+      <div class="hint">Filed through <code>gh</code>, so no token lives in this app.</div>
+    </div>`;
+  },
+
   prefs() {
     const slot = SRV.slot?.perSlot, global = SRV.slot?.global, slots = SRV.slot?.slots;
     return `<div class="split" style="max-width:1000px; gap:28px">
@@ -1950,20 +1991,6 @@ const WPAGES = {
         : '<div class="hint">Every model the router serves is offered. Narrow it with <code>ANANSI_MODELS</code> — a comma-separated list of ids, <code>prefix*</code> allowed — when you start the server.</div>'}
         <div class="hint">Sampling, voice and spice belong to each story — they live under Storyteller, inside the story.
           A story can also name its own <strong>model</strong> there, and then it stops following this one.</div>
-
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Report a bug</div>
-        <textarea class="field" data-bug="1" placeholder="What went wrong, and what you were doing."
-          style="min-height:84px">${esc(S.bug ?? '')}</textarea>
-        <div class="hint">Files it on the repo through <code>gh</code>, so no token lives in this app.
-          It carries which build is running, whether the server is older than that build, the model
-          and the story's id &mdash; <strong>never the prose</strong>, the premise or the ledger.</div>
-        <button class="btn ghost" data-sendbug="1" style="margin-top:8px">${
-          S.bugSending ? 'Filing&hellip;' : 'File it'}</button>
-        ${S.bugUrl ? `<div class="hint" style="color:var(--good)">Filed &mdash;
-          <a href="${esc(S.bugUrl)}" target="_blank" rel="noreferrer"
-             style="color:var(--gold)">${esc(S.bugUrl.replace(/^https:\/\/github\.com\//, ''))}</a></div>` : ''}
-        ${S.bugError ? `<div class="hint" style="color:var(--bad)">${esc(S.bugError)}<br>
-          Nothing you wrote is lost &mdash; it is still in the box.</div>` : ''}
 
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">The server itself</div>
         ${S.router ? `<div class="row"><span style="color:var(--ink)">llama-router</span>
@@ -2879,6 +2906,20 @@ document.addEventListener('click', async (e) => {
   }
   // Archiving is a status change and nothing else — no separate table, no hiding, and the same
   // route that saves every other story field. Reversible by pressing it again.
+  // One press goes to the work, not to a list of where the work might be.
+  if (d.owed) {
+    await openStory(d.owed);
+    S.panel = d.owedpanel || 'chapter';
+    syncHash(); paint();
+    return;
+  }
+  // The logo goes home. It looked like a heading and was the one thing on every screen that did
+  // nothing when pressed.
+  if (d.home) {
+    S.place = 'workspace'; S.wpage = 'stories'; S.panel = null; S.storyId = null; V = null;
+    await loadLibrary(); syncHash(); paint();
+    return;
+  }
   if (d.sendbug) {
     const said = document.querySelector('[data-bug]')?.value ?? '';
     if (!said.trim()) return toast('Say what went wrong first.');
