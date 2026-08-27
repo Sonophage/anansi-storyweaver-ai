@@ -818,6 +818,27 @@ ok('a cover round-trips, and the shelf is told when it was set and never the byt
   assert.strictEqual(db.coverAt(st.id), null, 'deleting the story takes its cover with it');
 });
 
+// The cover, used again at the head of every chapter. One image, one switch — Seth: "the chapter
+// image would only pull from the hero so story and chapter share the same image."
+ok('a book can ask for its cover at the head of every chapter, and it is off until it does', () => {
+  const me = db.owner('hero-owner');
+  const st = db.createStory(me, { title: 'A book with a plate' });
+  assert.strictEqual((db.getStory(st.id) as any).chapter_hero, 0,
+    'off by default — a picture at the head of each chapter is a choice about how a book reads, '
+    + 'and turning it on for an existing book would be making that choice for somebody');
+
+  db.updateStory(st.id, { chapterHero: true });
+  assert.strictEqual((db.getStory(st.id) as any).chapter_hero, 1, 'and it turns on');
+  // A partial save must not switch it off, the way it must not switch off a chapter's pull-back.
+  db.updateStory(st.id, { title: 'Renamed' });
+  assert.strictEqual((db.getStory(st.id) as any).chapter_hero, 1,
+    'renaming the book leaves it alone');
+  assert.strictEqual((db.getStory(st.id) as any).title, 'Renamed', 'and the rename lands');
+
+  db.updateStory(st.id, { chapterHero: false });
+  assert.strictEqual((db.getStory(st.id) as any).chapter_hero, 0, 'and off again is a value too');
+});
+
 // A partial chapter save must not switch off what it did not mention. `updateStory` has worked
 // this way since it was written; this did not, and it clobbered the one column that decides
 // whether a chapter's prose is pulled back into the prompt.

@@ -550,11 +550,22 @@ function drawDoc() {
   // prose. Then a rule, and the prose itself begins with a drop cap. A chapter used to start with
   // a 10px label and go straight into the paragraph, which reads as a feed rather than a book.
   const epi = epigraphOf(ps);
+  // The cover again, at the head of the chapter, when the book asks for it. Same picture, same
+  // scrim and same serif as the shelf card — a second treatment of one image is two things to keep
+  // in step. Single quotes inside the url(), because this sits in a style="…" attribute and a
+  // double quote ends that attribute at `background:url(`, which cost the shelf both its cover
+  // and its gradient once already.
+  const plate = V.story.chapterHero && V.cover
+    ? `<div class="plate" style="background:url('${api.coverUrl(S.storyId, V.cover)}') center/cover no-repeat">
+        <span class="fade"></span>
+        <span class="serif plate-title">${esc(ch.title || `Chapter ${ch.index}`)}</span></div>`
+    : '';
   col.innerHTML = `
+    ${plate}
     <div class="band">
       <div style="font-size:11.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label)">
         Chapter ${ch.index}</div>
-      <div class="serif band-title">${esc(ch.title || `Chapter ${ch.index}`)}</div>
+      ${plate ? '' : `<div class="serif band-title">${esc(ch.title || `Chapter ${ch.index}`)}</div>`}
       ${epi ? `<div class="band-epi"><i></i><span class="serif">${esc(epi)}</span></div>` : ''}
       <div class="band-rule"></div>
     </div>
@@ -966,6 +977,11 @@ const PANELS = {
       </div>
       <div class="hint">Shrunk to 900px wide in the browser and stored in the database, not on disk
         — the nightly backup is one file, and a path would leave the covers out of it.</div>
+      ${V.cover ? `<label style="display:flex; align-items:center; gap:9px; margin-top:11px; cursor:pointer">
+        <input type="checkbox" data-story="chapterHero" ${V.story.chapterHero ? 'checked' : ''}>
+        <span style="font-size:13px; color:var(--ink)">Use it at the head of every chapter</span></label>
+      <div class="hint">The same picture, as a plate above each chapter's title. There is no second
+        image to choose &mdash; a chapter shows the cover or nothing.</div>` : ''}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
@@ -3486,7 +3502,12 @@ document.addEventListener('click', async (e) => {
 
   if (d.savestory) {
     const patch = {};
-    document.querySelectorAll('[data-story]').forEach((el) => { patch[el.dataset.story] = el.value; });
+    // A checkbox carries its answer in `checked`, not in `value` — `el.value` on an unchecked box
+    // is the string "on", which is truthy, so reading it the same way as a text field saves every
+    // switch as ON whichever way the writer left it.
+    document.querySelectorAll('[data-story]').forEach((el) => {
+      patch[el.dataset.story] = el.type === 'checkbox' ? el.checked : el.value;
+    });
     // The sixth spice option is a switch, not a level. On `custom` the stored level is left alone
     // and the written line is what the engine reads; on a level the written line is cleared, or it
     // would go on silently overriding the level the writer just chose.

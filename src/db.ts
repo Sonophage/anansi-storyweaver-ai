@@ -50,6 +50,13 @@ function migrate() {
   // names only a theme keeps your font, your size and your scale. Null on every existing row,
   // which reads as "follow the default" — so nothing on the shelf changes appearance.
   add('stories', 'look', 'TEXT');
+  // Whether the cover is also the plate at the head of every chapter. OFF by default, including on
+  // every book that already has a cover: a picture at the head of each chapter is a strong choice
+  // about how a book reads, and turning it on for existing books without asking would be making
+  // that choice for somebody. There is no second image — it is the cover or nothing, which is what
+  // Seth asked for: "the chapter image would only pull from the hero so story and chapter share
+  // the same image."
+  add('stories', 'chapter_hero', 'INTEGER DEFAULT 0');
   // The character the model must not write: no dialogue, no action, no interior. Null on every
   // story until somebody names one, which keeps the behaviour of every existing book unchanged.
   // A NAME rather than an entry id, because it also has to work for a protagonist who has no
@@ -941,13 +948,14 @@ export function updateStory(id: string, s: any) {
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,
-      locked_character=?,auto_open=?,updated_at=? WHERE id=?`)
+      locked_character=?,chapter_hero=?,auto_open=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
       p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
       p('stripPatterns', 'strip_patterns') ?? null, p('model', 'model') ?? null,
       p('lockedCharacter', 'locked_character') ?? null,
+      Number(p('chapterHero', 'chapter_hero') ? 1 : 0),
       // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
       // p() already resolves that to the current value, so a partial save cannot switch it off.
       Number(p('autoOpen', 'auto_open') ? 1 : 0), now(), id);

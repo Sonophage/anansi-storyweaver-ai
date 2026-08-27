@@ -56,7 +56,14 @@ const STORY = {
   story: { title: 'The Ashfall Concordat', genre: 'political fantasy', premise: 'Six houses.',
            setting: 'Ashfall Hall', pov: 'third limited', persona: 'Ilva Marren',
            writingStyle: 'Cold, spare.', direction: 'She signs, or she burns the hall.',
-           spice: 3, status: 'in_progress', stripPatterns: null },
+           spice: 3, status: 'in_progress', stripPatterns: null,
+           // This book asks for its cover at the head of each chapter, which is what makes the
+           // plate render at all. Off is the default everywhere else, so the check below is
+           // testing the switch rather than the absence of one.
+           chapterHero: true },
+  // The moment the cover was set, which is the cache key the immutable URL is built on. Never the
+  // bytes: the shelf and the plate are both told only when it changed.
+  cover: 1756300000,
   chapters: [{ id: 'c-1', index: 1, title: 'Ashfall', summary: 'Ilva arrives.', authorsNote: 'Tense.',
                status: 'closed', coversThrough: 4, summaryStale: false, keepWhole: false },
              { id: 'c-2', index: 2, title: 'The Envoy', summary: null, authorsNote: null,
@@ -238,6 +245,20 @@ ok('the menu and the story name are two doors onto one rail');
     `the browser cached "${cached.theme}" — that is the book's look, not the writer's default`);
 }
 ok("a book's look sits over the writer's, and never becomes it");
+
+// The cover at the head of a chapter, when the book asks for it. Both states, because a plate that
+// renders whatever the switch says is a switch that does nothing.
+{
+  const withPlate = html('col');
+  assert.match(withPlate, /class="plate"/, 'the book asks for it, so the chapter carries the plate');
+  assert.match(withPlate, /api\/cover\?story=s-1/, 'and the plate is the STORY cover, not a second image');
+  // The title moves INTO the plate rather than being printed twice.
+  const bandTitles = (withPlate.match(/class="serif band-title"/g) ?? []).length;
+  assert.strictEqual(bandTitles, 0,
+    'the chapter title belongs to the plate when there is one — printed in both is the same name twice');
+  assert.match(withPlate, /class="serif plate-title"/, 'and it is on the plate');
+}
+ok('a chapter wears the book cover as its plate, and the title moves onto it');
 
 // Leaving takes the book's look off with it, or the shelf wears whichever book you opened last.
 click({ leave: '1' });

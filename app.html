@@ -508,6 +508,18 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 /* --- the chapter opens ------------------------------------------------------
    A band, a drop cap and a line out of the chapter's own prose. A chapter used to begin with a
    10px label and go straight into the paragraph, which reads as a feed rather than as a book. */
+/* The cover, used again at the head of a chapter. Same scrim and same serif as the shelf card
+   below, because it is the same picture — two treatments of one image is two things to keep in
+   step, and the shelf's is the one that has already been through a contrast pass. */
+.plate { position:relative; height:210px; border-radius:var(--r); overflow:hidden;
+  margin:0 0 18px; }
+.plate .fade { position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(10,10,12,0) 30%, rgba(10,10,12,.94)); }
+.plate-title { position:absolute; bottom:16px; left:20px; right:20px; font-size:38px;
+  line-height:1.04; color:var(--ink-bright); text-wrap:pretty; }
+@media (max-width:719px) { .plate { height:150px; } .plate-title { font-size:26px; bottom:12px;
+  left:14px; right:14px; } }
+
 .band { display:flex; flex-direction:column; gap:13px; padding:8px 0 10px; }
 .band-title { font-size:48px; line-height:1.04; color:var(--body); text-wrap:pretty; }
 .band-epi { display:flex; align-items:flex-start; gap:14px; max-width:520px; }

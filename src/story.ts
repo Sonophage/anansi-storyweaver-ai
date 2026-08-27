@@ -26,6 +26,9 @@ const toStory = (r: any) => ({
   // Whether the surface should ask for the opening passage itself. Absent on a row written before
   // the column existed, so it reads as ON, which is the default the column carries too.
   autoOpen: r.auto_open == null ? true : !!r.auto_open,
+  // The cover, used again as the plate at the head of every chapter. Off on a row written before
+  // the column existed, which is the default the column carries too.
+  chapterHero: !!r.chapter_hero,
 });
 const toChapter = (c: any) => ({
   id: c.id, index: c.idx, title: c.title, summary: c.summary,
