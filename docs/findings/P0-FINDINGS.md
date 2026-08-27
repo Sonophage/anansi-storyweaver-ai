@@ -1359,3 +1359,57 @@ Seth's call rather than mine.
 
 The loose-end rate is reported as n-of-5 on purpose. The register asked for a habit and 5/5 would be
 a tic, as wrong as 0/5. 3/5 is inside the band this was aiming at, on one run.
+
+---
+
+## F36 — The prose quotes the ledger. A guitar came out of a coat pocket because the entry saying she carries one is in every prompt, and the contradiction checker cannot see this class at all.
+
+Seth brought a passage and asked whether it was the model's fault or the prompt's. The last sentence:
+
+> She reaches into her pocket, pulls out a weather-beaten Martin guitar, and taps one against the
+> filter.
+
+Read it as the model planned it: *she reaches into her pocket, pulls out a ⟨noun⟩, and taps one
+against the filter.* That sentence was built for a cigarette — "taps one" needs a pack to take one
+from and "the filter" is a cigarette's. The model had the shape right, needed a concrete noun, and
+took the nearest one in its context.
+
+The nearest one was canon. Halsey's entry, `always_on`, so it is in EVERY generation:
+
+    [Halsey: The Musician. A biracial, bisexual, bipolar artist hiding behind a constructed name,
+     wearing a thrifted military jacket and carrying a weather-beaten Martin guitar.]
+
+Two phrases came out of it whole — "the thrifted military jacket swallowing her frame" and "pulls
+out a weather-beaten Martin guitar". Scored by `bench/quote-detect.ts`: **3 shared runs, longest
+"weather beaten martin guitar".**
+
+**The prompt, not the model.** Two causes, both fixable where we can reach them:
+
+The body was written as finished English. *"wearing a thrifted military jacket and carrying a
+weather-beaten Martin guitar"* is a quotable clause. A fact list is not: rewritten as
+`jacket: thrifted military, oversized, brass buttons dulled. guitar: Martin, weather-beaten, kept in
+a hard case.` the same passage scores **0 runs** — the phrases are simply no longer there to lift.
+
+And SYSTEM never forbade it. It said canon is true, do not restate it as exposition, canon wins on
+conflict — nothing said canon is what is TRUE and never how to say it. `INVENT` had learned exactly
+that lesson earlier the same day ("never say it back word for word"), but that governs writing an
+entry, not writing prose from one. SYSTEM has the line now.
+
+**The checker is structurally blind to this.** It compares a passage against canon, and canon SAYS
+she carries a weather-beaten Martin — so a passage saying she carries one agrees with canon
+perfectly. The incoherence is internal: she set the case down two paragraphs earlier, and pockets do
+not hold guitars. Nothing in the pipeline looks for internal coherence, and no amount of tuning the
+contradiction prompt would find this.
+
+**What is NOT established.** Six generations after both changes came back 0/6, and that is not
+evidence the fix worked. Zero in six bounds the rate under about 40% and nothing more — F12 made
+exactly this mistake with zero in sixty against a true rate of 4%. The baseline was 0/3 BEFORE the
+changes, on a different directive from the one that produced Seth's passage, so there is no
+before/after here at all. What is established is the mechanism, from one real passage, and that the
+rewrite removes the phrases it lifted.
+
+The detector's own threshold was measured rather than chosen. At 4-grams it reported that passage
+clean, because "a thrifted military jacket" arrives as "the thrifted military jacket" and shares only
+three words. Three is safe only because of the weight rule — three tokens over three characters —
+and the case that proves it was missing from the first version: "hiding behind a" is a three-word run
+shared with canon and is plainly not a quote. Removing the weight rule now turns that case red.

@@ -29,6 +29,9 @@ Rules:
   them; never restate them as exposition.
 - Where the prose and the canon disagree, the canon wins and you write to it. If a fact has
   changed, the writer will change the canon.
+- Canon is what is TRUE, never how to say it. Do not reuse its wording. A ledger body is a note to
+  you, not a line of the book, and a phrase carried out of it whole is the one thing that makes the
+  prose read as assembled. Its facts, your sentences.
 - Match the established voice. Do not escalate register on your own.
 
 Craft:
