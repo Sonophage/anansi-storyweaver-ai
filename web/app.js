@@ -113,7 +113,8 @@ const WTITLES = {
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
 const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice',
+  'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
@@ -1226,32 +1227,126 @@ function searchHits() {
   </div>`).join('');
 }
 
-/** The skeleton spark returned, editable, with nothing written until it is accepted. */
+/** The skeleton the spark returned, in five steps, with nothing written until it is accepted.
+ *
+ *  Five screens rather than one scroll for one reason that is structural and not cosmetic: `persona`
+ *  and `lockedCharacter` are character TITLES, so they cannot be chosen until a cast exists. That
+ *  is why picking who you play used to be three screens — you accepted, the cast was written, and
+ *  only then could you name one. Cast is step 3 and You is step 4, and the dependency is the order.
+ *
+ *  Accept is on every step, not only the last. Everything here is already filled in by the spark, so
+ *  gating five screens would turn one press into five for anyone who trusts it. Guide, not gate.
+ *
+ *  The fields are harvested into S.spark on every move, because a step that is not rendered is not
+ *  in the DOM — the single-scroll version could read every value at accept time and this cannot. */
+const STEPS = [
+  ['The book', 'What it is.'],
+  ['The world', 'Where it happens, and how it is told.'],
+  ['The cast', 'Who is in it. You can add your own.'],
+  ['You', 'Who you play, and who the model never writes.'],
+  ['The voice', 'How the prose sounds, and who opens it.'],
+];
+
+/** Read whatever this step has on screen back into state. Called before every move, including
+ *  Accept: an edit on the step you are standing on is lost otherwise. */
+function harvestSpark() {
+  if (!S.spark) return;
+  for (const el of document.querySelectorAll('[data-sp]')) {
+    const k = el.dataset.sp;
+    S.spark.story[k] = k === 'spice' ? Number(el.value) || 2 : el.value;
+  }
+  for (const c of document.querySelectorAll('[data-spcast]')) {
+    const e = S.spark.entries[Number(c.dataset.spcast)];
+    if (e) e.keep = c.checked;
+  }
+}
+
+/** The cast as it stands: everything still ticked. Step 4 offers these and nothing else, because a
+ *  persona naming somebody you just dropped is the exact stranding pinCast exists to catch. */
+const sparkCast = () => (S.spark?.entries ?? []).filter((e) => e.keep !== false);
+
 function sparkReview() {
   const s = S.spark.story ?? {};
-  const cast = S.spark.entries ?? [];
-  const row = (k, label, value) => `<label class="lbl">${label}</label>
-    <input class="field" data-sp="${k}" value="${esc(value ?? '')}">`;
-  return `${row('title', 'Title', s.title)}
-    ${row('genre', 'Genre', s.genre)}
-    <label class="lbl">Premise</label>
-    <textarea class="field" data-sp="premise" style="min-height:70px">${esc(s.premise ?? '')}</textarea>
-    ${row('setting', 'Setting', s.setting)}
-    ${row('pov', 'Point of view', s.pov)}
-    <label class="lbl">Spice</label>
-    <select class="field" data-sp="spice">${SPICE.map((l, i) =>
-      `<option value="${i + 1}" ${Number(s.spice) === i + 1 ? 'selected' : ''}>${i + 1} &middot; ${l}</option>`).join('')}</select>
-    <label class="lbl">Voice of the weave</label>
-    <textarea class="field" data-sp="writingStyle" style="min-height:56px">${esc(s.writingStyle ?? '')}</textarea>
-    <div class="lbl" style="letter-spacing:.1em; margin-top:18px">Cast &mdash; ${cast.length} proposed</div>
-    ${cast.map((e, i) => `<div class="card" style="margin-bottom:7px">
-      <div style="display:flex; align-items:center; gap:8px">
-        <span style="font-size:14px; color:var(--ink-bright)">${esc(e.title)}</span>
-        <span class="tag" style="margin-left:auto">${esc(e.activation === 'always_on' ? 'Always on' : 'Triggered')}</span></div>
-      <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(e.body ?? '')}</div>
-      <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint); margin-top:4px">
-        <input type="checkbox" data-spcast="${i}" checked> keep this one</label></div>`).join('')}
-    <button class="btn" data-accept-spark="1" style="margin-top:14px">Accept and start writing</button>
+  const step = S.sparkStep ?? 1;
+  const row = (k, label, value, hint) => `<label class="lbl">${label}</label>
+    <input class="field" data-sp="${k}" value="${esc(value ?? '')}">
+    ${hint ? `<div class="hint">${hint}</div>` : ''}`;
+  const area = (k, label, value, hint, min) => `<label class="lbl">${label}</label>
+    <textarea class="field" data-sp="${k}" style="min-height:${min ?? 70}px">${esc(value ?? '')}</textarea>
+    ${hint ? `<div class="hint">${hint}</div>` : ''}`;
+  const pickOne = (k, label, options, value, none, hint) => `<label class="lbl">${label}</label>
+    <select class="field" data-sp="${k}">
+      <option value="">${esc(none)}</option>
+      ${options.map((o) => `<option value="${esc(o)}" ${o === value ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+    </select>${hint ? `<div class="hint">${hint}</div>` : ''}`;
+
+  const cast = sparkCast();
+  const body = step === 1
+    ? `${row('title', 'Title', s.title)}
+       ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag on the shelf.')}
+       ${area('premise', 'Premise', s.premise, 'It rides in the spine on every call.', 110)}`
+    : step === 2
+    ? `${row('setting', 'Setting', s.setting, 'Where it happens. Lore written later can replace this.')}
+       <label class="lbl">Point of view</label>
+       <select class="field" data-sp="pov">${POV.map((o) =>
+         `<option value="${esc(o)}" ${o === s.pov ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+       <label class="lbl">Spice</label>
+       <select class="field" data-sp="spice">${SPICE.map((l, i) =>
+         `<option value="${i + 1}" ${Number(s.spice) === i + 1 ? 'selected' : ''}>${i + 1} &middot; ${esc(l)}</option>`).join('')}</select>
+       <div class="hint">Changeable per story at any time, and a written-out register can replace the
+         level entirely under Story.</div>`
+    : step === 3
+    ? `<div class="hint" style="margin:0 0 10px">${S.spark.entries.length} proposed. Untick anyone you
+         do not want; nothing is written until you accept.</div>
+       ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px">
+         <div style="display:flex; align-items:center; gap:8px">
+           <span style="font-size:14px; color:var(--ink-bright)">${esc(e.title)}</span>
+           <span class="tag" style="margin-left:auto">${esc(e.activation === 'always_on' ? 'Always on' : 'Triggered')}</span></div>
+         <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(e.body ?? '')}</div>
+         <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint); margin-top:4px">
+           <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label></div>`).join('')}
+       <button class="btn ghost" data-spadd="1" style="margin-top:6px">&#65291; Write one of your own</button>`
+    : step === 4
+    ? (cast.length
+        ? `${pickOne('persona', 'You are', cast.map((e) => e.title), s.persona, 'Nobody \u2014 narrate only',
+             'The character you speak as in Speak mode. Anansi proposed one; it is yours to change.')}
+           ${pickOne('lockedCharacter', 'The model never writes', cast.map((e) => e.title), s.lockedCharacter,
+             'Nobody \u2014 it may write everyone',
+             'No dialogue, no action, no interior for them. Usually the one you play.')}
+           <div class="hint">Both are offered from the cast you kept on the last step, because a name
+             that is not in the book points at nobody.</div>`
+        : `<div class="hint" style="margin:0">You kept nobody, so there is no one to play yet. That is
+             a real answer &mdash; a story narrated from outside has no persona, and you can name one
+             on the Story panel once there is a cast.</div>`)
+    : `${area('writingStyle', 'Voice of the weave', s.writingStyle,
+         'A sample beats a description of one. Yours is filled in already.', 150)}
+       ${S.prompts?.voice ? `<div style="display:flex; gap:7px; margin:-4px 0 10px">
+         <button class="btn ghost" data-spvoice="mine" style="flex:1; font-size:11.5px">Use my default voice</button>
+         <button class="btn ghost" data-spvoice="shipped" style="flex:1; font-size:11.5px">Use the shipped one</button>
+       </div>` : ''}
+       ${area('direction', 'Where this is going', s.direction,
+         'Aims the story without disclosing it. Never restated to the reader. Safe to leave empty.', 80)}
+       <label style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute); margin-top:14px">
+         <input type="checkbox" data-sp-open="1" ${S.spark.autoOpen === false ? '' : 'checked'}>
+         Let the model write the opening passage</label>
+       <div class="hint">And the first passage of every chapter after it. Changeable per story under
+         Storyteller.</div>`;
+
+  return `<div style="display:flex; gap:5px; margin-bottom:14px">${STEPS.map(([t], i) => `
+      <button data-sparkstep="${i + 1}" aria-pressed="${step === i + 1}" style="flex:1; height:5px;
+        border-radius:99px; background:${i + 1 <= step ? 'var(--gold)' : 'var(--chip)'}"
+        aria-label="${esc(t)}"></button>`).join('')}</div>
+    <div class="lbl" style="letter-spacing:.1em; margin:0">${step} of ${STEPS.length} &middot; ${esc(STEPS[step - 1][0])}</div>
+    <div class="hint" style="margin:2px 0 12px">${esc(STEPS[step - 1][1])}</div>
+    ${body}
+    <div style="display:flex; gap:8px; margin-top:18px">
+      ${step > 1 ? `<button class="btn ghost" data-sparkstep="${step - 1}" style="flex:0 0 96px">Back</button>` : ''}
+      ${step < STEPS.length
+        ? `<button class="btn" data-sparkstep="${step + 1}" style="flex:1">Next</button>`
+        : ''}
+    </div>
+    <button class="btn${step < STEPS.length ? ' ghost' : ''}" data-accept-spark="1"
+      style="margin-top:8px">Accept and start writing</button>
     <button class="btn ghost" data-drop-spark="1" style="margin-top:8px">Throw it back</button>
     <div class="hint">Nothing has been written yet. Accepting creates the story and its ledger.</div>`;
 }
@@ -1337,7 +1432,7 @@ function setupPanel() {
 async function loadPrompts() {
   S.prompts = { defaults: {}, yours: {} };      // set first: a second open must not refetch
   const r = await api.prompts();
-  if (!r.error) { S.prompts = { defaults: r.defaults ?? {}, yours: r.yours ?? {} }; paint(); }
+  if (!r.error) { S.prompts = { defaults: r.defaults ?? {}, yours: r.yours ?? {}, voice: r.voice ?? null }; paint(); }
 }
 
 function ctxTabs() {
@@ -2110,6 +2205,29 @@ function clearComposer() {
  *  Speak, Act and Narrate your text IS the next passage — it goes on the page as yours, and then
  *  the model answers it. Getting that wrong is what made typed dialogue disappear into the
  *  prompt: whatever mode you were in, your words only ever became a directive. */
+/** The story or chapter whose opening the model has been asked for, once.
+ *
+ *  A one-shot rather than a standing rule, and that distinction is the whole of it: "auto-open any
+ *  empty chapter" would regenerate the opening every time you opened a story you had deliberately
+ *  left blank. This is set by the two acts that create an empty chapter — accepting a spark, and
+ *  ending one — and consumed immediately. */
+let OPEN_WANTED = null;
+
+/** Ask for the opening passage through the ORDINARY generate path.
+ *
+ *  Nothing about this is a second engine: it is the Continue button, pressed for you. The passage
+ *  streams with the writing head, the budget check and the contradiction repair, because it IS the
+ *  one generation path rather than a copy of it that would drift the day either changed. */
+async function openingPassage() {
+  const want = OPEN_WANTED;
+  OPEN_WANTED = null;
+  if (!want || !V || V.id !== want) return;
+  if (V.story.autoOpen === false) return;
+  // Only into a chapter with no prose in it. A scene break is not prose.
+  if ((V.passages ?? []).some((p) => !p.isBreak)) return;
+  await generate('continue');
+}
+
 async function generate(mode = S.mode) {
   if (S.busy || !V) return;
   const typed = $('input')?.value.trim() ?? '';
@@ -2802,6 +2920,8 @@ document.addEventListener('click', async (e) => {
     S.ritual = null; working(null);
     S.panel = 'setup';
     syncHash(); paint(); refreshManifest();
+    // The new chapter is empty, so the same switch that opens a story opens this one.
+    if (V.story.autoOpen !== false) { OPEN_WANTED = S.storyId; await openingPassage(); }
     return;
   }
   if (d.summarize) { toast('Summarising…'); const r = await api.summarize(S.storyId, V.currentChapter.id);
@@ -2832,26 +2952,66 @@ document.addEventListener('click', async (e) => {
     const r = await api.spark(idea);
     if (r.error) return toast(r.error);
     // A skeleton, not a story. It goes on screen to be edited or thrown back.
-    S.spark = { story: r.story ?? {}, entries: r.entries ?? [] };
+    S.spark = { story: r.story ?? {}, entries: r.entries ?? [], autoOpen: true,
+      // What Anansi proposed, kept as it arrived. The server polices ONLY these names, so an edit
+      // here must not rewrite them — a persona the writer types is theirs and is never dropped.
+      proposed: [r.story?.persona, r.story?.lockedCharacter].filter(Boolean) };
+    S.sparkStep = 1;
+    if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
     paint();
     toast(`${(r.entries ?? []).length} in the cast. Nothing written yet.`);
     return;
   }
-  if (d.dropSpark) { S.spark = null; paint(); return; }
+  if (d.dropSpark) { S.spark = null; S.sparkStep = 1; paint(); return; }
+  // Every move harvests first: a step that is not rendered is not in the DOM, so an edit on the
+  // step being left would be lost the moment it stops being drawn.
+  if (d.sparkstep) { harvestSpark(); S.sparkStep = Number(d.sparkstep); paint(); return; }
+  if (d.spadd) {
+    harvestSpark();
+    S.spark.entries.push({ title: 'Untitled', body: '[Untitled: ]', entryType: 'character',
+      activation: 'always_on', keys: [], keep: true });
+    paint();
+    return;
+  }
+  if (d.spvoice) {
+    harvestSpark();
+    const v = S.prompts?.voice;
+    if (!v) return toast('Still reading your voice.');
+    S.spark.story.writingStyle = d.spvoice === 'mine' ? (v.inUse ?? v.shipped) : v.shipped;
+    paint();
+    toast(d.spvoice === 'mine' ? 'Your voice.' : 'The shipped voice.');
+    return;
+  }
   if (d.acceptSpark) {
-    const get = (k) => document.querySelector(`[data-sp="${k}"]`)?.value;
-    const keep = [...document.querySelectorAll('[data-spcast]')]
-      .filter((c) => c.checked).map((c) => S.spark.entries[Number(c.dataset.spcast)]).filter(Boolean);
+    // From STATE, not from the DOM: accept is available on every step, so most of these fields are
+    // not on screen when it is pressed. harvestSpark folds in whatever is.
+    harvestSpark();
+    const openBox = document.querySelector('[data-sp-open]');
+    if (openBox) S.spark.autoOpen = openBox.checked;
+    const s = S.spark.story;
+    const keep = sparkCast().map(({ keep: _k, ...e }) => e);
     const r = await api.createStory({
-      title: get('title') || 'Untitled', genre: get('genre'), premise: get('premise'),
-      setting: get('setting'), pov: get('pov'), spice: Number(get('spice')) || 2,
-      writingStyle: get('writingStyle'), entries: keep,
+      title: s.title || 'Untitled', genre: s.genre, premise: s.premise,
+      setting: s.setting, pov: s.pov, spice: Number(s.spice) || 2,
+      writingStyle: s.writingStyle, direction: s.direction,
+      persona: s.persona || null, lockedCharacter: s.lockedCharacter || null,
+      // Only what Anansi proposed is policed server-side. A name typed here is never dropped.
+      proposedCast: S.spark.proposed ?? [],
+      entries: keep,
     });
     if (r.error) return toast(r.error);
-    S.spark = null;
+    // auto_open defaults on in the column, so this is only ever a call to turn it OFF.
+    if (S.spark.autoOpen === false) await api.saveStory(r.id, { autoOpen: false });
+    const wantOpen = S.spark.autoOpen !== false;
+    const dropped = r.droppedCast ?? [];
+    S.spark = null; S.sparkStep = 1;
     await loadLibrary();
     await openStory(r.id);
-    toast(`Created with ${keep.length} threads.`);
+    if (wantOpen) OPEN_WANTED = r.id;
+    toast(dropped.length
+      ? `Created. ${dropped.join(' and ')} was not in the cast, so it was left unset.`
+      : `Created with ${keep.length} threads.`);
+    if (wantOpen) await openingPassage();
     return;
   }
   if (d.blank) {
