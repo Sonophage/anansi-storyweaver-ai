@@ -11,7 +11,8 @@ const sid = await page.eval("(async () => (await (await fetch('/api/stories')).j
 await page.goto(B + "/");
 ok("1. the last-written story is a hero", await page.eval("!!document.querySelector('.storycard.hero')"));
 ok("   and is marked as such", (await page.text('.storycard.hero') || '').includes('Last written'));
-const order = await page.eval("[...document.querySelectorAll('#page .storycard, #page .dashed')].map(e => e.className.includes('dashed') ? 'NEW' : (e.className.includes('hero') ? 'HERO' : 'story')).join(' > ')");
+// New story is a plain button now, not a dashed card, so this reads the action rather than the class.
+const order = await page.eval("[...document.querySelectorAll('#page .storycard, #page [data-open=new]')].map(e => e.dataset.open === 'new' ? 'NEW' : (e.className.includes('hero') ? 'HERO' : 'story')).join(' > ')");
 console.log("   order: " + order);
 ok("   new story comes before the rest", order.startsWith('HERO > NEW'));
 

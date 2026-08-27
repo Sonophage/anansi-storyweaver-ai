@@ -12,9 +12,15 @@ node --experimental-strip-types serve.ts     # the app on :5174 (/ and /phone ar
 
 # Two writers over the tailnet. ANANSI_ALLOW is `login` or `login=account`, comma separated, and
 # an unset one means loopback only. 0.0.0.0 rather than the tailnet address so the desk URL keeps
-# working: a peer with no tailnet identity gets 403 from the gate either way.
-ANANSI_HOST=0.0.0.0 ANANSI_ALLOW='you@example.com=sonophage,them@example.com=them' \
-  node --experimental-strip-types serve.ts
+# working: a peer with no tailnet identity gets 403 from the gate either way. Both of them live in
+# an untracked `.env` beside serve.ts — two real addresses — which the systemd user unit reads with
+# EnvironmentFile. A run command would take the second writer away on the next reboot.
+#
+#   ANANSI_HOST=0.0.0.0
+#   ANANSI_ALLOW=you@example.com=sonophage,them@example.com=them
+#
+node --env-file=.env --experimental-strip-types serve.ts
+systemctl --user start anansi                # same .env, as a unit
 
 # HTTPS over the tailnet, from a Tailscale-issued cert. Native TLS rather than `tailscale serve`
 # in front: the proxy dials from loopback, so whois would see every peer as the desk. Both vars or

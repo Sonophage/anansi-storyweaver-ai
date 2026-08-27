@@ -1806,10 +1806,14 @@ const WPAGES = {
           <span style="color:var(--faint)"> &middot; ${esc(w.storyTitle)}</span></button>`).join('')}
       </div>` : ''}
       ${storyCard(hero, 0, true)}
-      <div class="grid">
-        <button class="dashed" data-open="new" style="min-height:170px">＋ New story</button>
+      <!-- A button, not a card. The dashed cell was a book-shaped hole in a shelf of books, and it
+           took a column from the ones that are real. The bar's New story pill is deskonly, so this
+           is also the only one a phone sees. -->
+      <button class="btn" data-open="new"
+        style="width:auto; align-self:start; padding:0 22px; height:44px">＋ New story</button>
+      ${rest.length ? `<div class="grid">
         ${rest.map((s, i) => storyCard(s, i + 1, false)).join('')}
-      </div></div>`;
+      </div>` : ''}</div>`;
   },
 
   create() {

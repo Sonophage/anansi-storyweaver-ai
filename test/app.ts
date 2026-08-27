@@ -97,7 +97,12 @@ const MANIFEST = { manifest: { blocks: [
 ], totals: { budget: 46146, used: 21401, unallocated: 0 }, byKind: {}, overflowed: false }, prompt: '', exact: 21401 };
 
 (globalThis as any).fetch = async (url: string) => {
-  const body = url.startsWith('/api/stories') ? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen }
+  // Three books, not one, and the two extras exist only so the shelf's ORDER can be wrong. With a
+  // single story there is no grid to come after the New story button, so an assertion about where
+  // that button sits is true wherever the button is put.
+  const body = url.startsWith('/api/stories') ? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.' },
+      { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', updatedAt: 2, words: 400, last: 'He paid.' },
+      { id: 's-3', title: 'Sutera', status: 'draft', updatedAt: 1, words: 0, last: null }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen }
     : url.startsWith('/api/story') ? STORY
     : url.startsWith('/api/manifest') ? MANIFEST
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
@@ -163,7 +168,17 @@ assert.match(html('rail'), /slot 50,048/);
 ok('the rail shows the workspace nav, the model and the real slot size');
 
 assert.match(html('page'), /The Ashfall Concordat/);
-ok('the story list renders from the library response');
+// New story is a button between the hero and the grid, not a dashed cell inside it: the shelf is a
+// shelf of books, and the placeholder was taking one of the two columns from a book that exists.
+{
+  const shelf = html('page');
+  const at = (needle: string) => shelf.indexOf(needle);
+  assert.ok(at('storycard hero') >= 0, 'the newest book is the hero');
+  assert.ok(at('data-open="new"') > at('storycard hero'), 'New story comes after the hero');
+  assert.ok(at('data-open="new"') < at('data-open="s-2"'), 'and before the rest of the shelf');
+  assert.doesNotMatch(shelf, /class="dashed"[^>]*data-open="new"/, 'and it is not a book-shaped hole');
+}
+ok('the story list renders from the library response, New story between the hero and the grid');
 
 // ---- now open the story, which is where the field names bit ----
 const click = (dataset: any) => listeners.click?.[0]?.({ target: { closest: () => ({ dataset }) } });

@@ -102,7 +102,6 @@ wrong makes Delete run twice.
 
 Where the next session starts.
 
-- **New story as a button on the shelf**, and every story after the hero in two columns. Small.
 - **Hero images.** Decided: store the cover as a BLOB in the story row, not a file on disk, because
   the nightly backup is one database file and a path would leave the covers out of it. Downscale in
   the browser with a `<canvas>` — native, no dependency — to about 900px wide as JPEG, roughly 150KB
@@ -114,6 +113,19 @@ Where the next session starts.
   --provider google` returns `credentials_not_configured`, so there is nothing to integrate against.
   Each search would also be a cloud provider turn rather than an HTTP GET, in an app that currently
   makes no outbound request at all.
+
+**Done later the same evening, from this list:**
+
+- **The shelf is two columns and New story is a button.** The dashed cell was a book-shaped hole
+  taking one of the columns from a book that exists; it is a plain button between the hero and the
+  grid, and it is what a phone sees too because the bar's pill is `deskonly`. The grid's 3-column
+  rule and its now-redundant 1099px breakpoint both went. `test/app.ts`'s canned library is three
+  books rather than one for this: with one story there is no grid to come after the button, so the
+  order assertion was true wherever the button was put. Falsified — moving the button below the grid
+  turns "and before the rest of the shelf" red.
+- **`README.md` said the allowlist lives in a run command.** It has lived in an untracked `.env`
+  since `bcccbad`, read by `node --env-file=.env` and by `anansi.service`'s `EnvironmentFile`
+  alike. The Run it block now says so, with the two keys named.
 
 ### Already built, and round four could not find it
 
