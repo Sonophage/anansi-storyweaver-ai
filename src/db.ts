@@ -326,7 +326,8 @@ export const listStories = (o: string) => q(`
          (SELECT COUNT(*) FROM entries e WHERE e.story_id = s.id) AS entries,
          (SELECT COUNT(*) FROM proposals pr WHERE pr.story_id = s.id AND pr.status = 'open') AS proposed,
          (SELECT COUNT(*) FROM strings st WHERE st.story_id = s.id AND st.status = 'open') AS unpaid,
-         (SELECT COUNT(*) FROM violations v WHERE v.story_id = s.id AND v.status = 'open') AS flags
+         (SELECT COUNT(*) FROM violations v JOIN passages p ON p.id = v.passage_id
+           WHERE v.story_id = s.id AND v.status = 'open' AND p.selected = 1) AS flags
   FROM stories s WHERE s.owner_id = ? ORDER BY s.updated_at DESC`).all(o);
 
 export function createStory(o: string, s: any) {
@@ -1129,9 +1130,19 @@ export function addViolation(storyId: string, v: any) {
      VALUES (?,?,?,?,?,?,?,?,?)`).run(uid('v-'), storyId, v.passageId, v.entryId ?? null,
     v.quote ?? null, v.reason ?? null, v.confidence ?? null, v.reached === false ? 0 : 1, now());
 }
+/** Open flags on passages that are actually on the page.
+ *
+ *  The `selected = 1` join is the fix for a flag you can see the count of and never the flag: rolling
+ *  a passage again leaves the old take in the database unselected, and its flags stayed open on prose
+ *  that is no longer in the book. The shelf counted one, the document rendered none, and there was
+ *  nothing to press.
+ *
+ *  Filtered rather than deleted, deliberately. An unselected take is one you can switch back to, and
+ *  if you do, its flag is true again — so this hides it rather than losing it. */
 export const violationsOf = (storyId: string) => q(
-  "SELECT * FROM violations WHERE story_id = ? AND status = 'open' ORDER BY created_at DESC")
-  .all(storyId) as any[];
+  `SELECT v.* FROM violations v JOIN passages p ON p.id = v.passage_id
+    WHERE v.story_id = ? AND v.status = 'open' AND p.selected = 1
+    ORDER BY v.created_at DESC`).all(storyId) as any[];
 export const clearViolations = (passageId: string) =>
   q('DELETE FROM violations WHERE passage_id = ?').run(passageId);
 export const setViolationStatus = (storyId: string, id: string, status: string) =>

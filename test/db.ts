@@ -750,4 +750,29 @@ ok('auto-open is on by default, survives a partial save, and can be turned off',
   assert.strictEqual(read().autoOpen, true, 'and back on again');
 });
 
+ok('a flag on a take you rolled away from is not counted and not shown', () => {
+  const me = db.owner('flag-test');
+  const st = db.createStory(me, { title: 'The Flagged' });
+  const first = db.addPassage({ ...st, storyId: st.id, body: 'She was the Murmur still.' });
+  db.addViolation(st.id, { passageId: first, quote: 'She was the Murmur still.',
+    reason: 'canon says otherwise', confidence: 0.9 });
+
+  assert.strictEqual(db.violationsOf(st.id).length, 1, 'a flag on the passage on the page is shown');
+  const counted = () => (db.listStories(me).find((r: any) => r.id === st.id) as any).flags;
+  assert.strictEqual(counted(), 1, 'and counted on the shelf');
+
+  // Roll it again: the old take stays in the database, unselected, and its flag goes with it. This
+  // is the bug Seth hit — the shelf said one flag and the document had nothing to show, because the
+  // prose it was about is no longer in the book.
+  db.addVariant(st.id, first, 'She was no longer the Murmur.');
+  const still = db.passagesOf(st.id).find((p: any) => p.id === first);
+  assert.ok(!still, 'the old take is no longer the selected one');
+  assert.strictEqual(db.violationsOf(st.id).length, 0, 'so its flag is not shown');
+  assert.strictEqual(counted(), 0, 'and the shelf agrees with what the page can show');
+
+  // Hidden, NOT deleted: an unselected take is one you can switch back to, and its flag is true
+  // again if you do. Sweeping it would be the easy fix and the wrong one.
+  assert.strictEqual(db.pruneViolations(0), 0, 'nothing swept it — it is filtered, not lost');
+});
+
 console.log(`\n${n} checks passed`);

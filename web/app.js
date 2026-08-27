@@ -2461,9 +2461,71 @@ document.addEventListener('dblclick', (e) => {
   openTray(blk);
 });
 
+// ---------- the tap that the browser threw away ----------
+//
+// F34: a tap whose finger moves more than about 20px is reclassified as a scroll and `click` never
+// fires. Measured on this surface — 14px still opens a story, 24px does nothing — and on a 3x phone
+// 24 CSS px is a few millimetres of thumb on a 307px-tall card. It kills the shelf, the tray actions
+// and the panel buttons alike, because all of them arrive through the one delegated click below.
+//
+// So: watch the touch, and if the browser is not going to deliver the click, deliver it.
+//
+// THE GUARD IS THE WHOLE RISK, and it is why this waited for Seth to say yes. Delete take and Delete
+// this story are two-press confirmations — fire one twice and the second press is the deletion. The
+// ordering below is what makes that impossible, in this order and no other:
+//
+//   1. dispatch inside DISPATCHING, so the handler knows this one is ours and acts on it;
+//   2. set SYNTH only AFTER the dispatch returns, so our own event cannot be swallowed by it;
+//   3. any native click on the same control within 700ms is then dropped, which is the one the
+//      browser might still send for a movement near the threshold.
+//
+// Below 10px is left alone: the browser fires click itself there and synthesising would be the
+// double. Above 60px was a scroll and is not a tap at all.
+let TAP = null;         // the touch in progress, if it started on something actionable
+let SYNTH = null;       // { el, at } — a click we just delivered ourselves
+let DISPATCHING = false;
+
+document.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse') { TAP = null; return; }
+  const t = e.target.closest(ACTIONS);
+  TAP = (t && t !== root && t !== document.body)
+    ? { el: t, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, at: Date.now() }
+    : null;
+}, true);
+
+// Tracked here rather than read at the end, because the end is the problem: once the browser decides
+// the touch was a scroll it sends POINTERCANCEL, and a cancel carries no useful coordinates. The
+// first version of this listened for pointerup only and never ran at all — the very case it exists
+// for is the one where pointerup does not come.
+document.addEventListener('pointermove', (e) => {
+  if (!TAP || e.pointerType === 'mouse') return;
+  TAP.lx = e.clientX; TAP.ly = e.clientY;
+  TAP.moved = Math.max(TAP.moved, Math.hypot(e.clientX - TAP.x, e.clientY - TAP.y));
+}, true);
+
+const endTap = (e) => {
+  const s = TAP; TAP = null;
+  if (!s || e.pointerType === 'mouse') return;
+  if (Date.now() - s.at > 700) return;                            // a long press is not a tap
+  if (s.moved <= 10 || s.moved > 60) return;                      // the browser has it, or it was a scroll
+  // Still over the control it started on. elementFromPoint rather than e.target, because a cancel's
+  // target is not where the finger is.
+  const over = document.elementFromPoint(s.lx, s.ly);
+  if (!over || over.closest(ACTIONS) !== s.el) return;
+  DISPATCHING = true;
+  s.el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  DISPATCHING = false;
+  SYNTH = { el: s.el, at: Date.now() };
+};
+document.addEventListener('pointerup', endTap, true);
+document.addEventListener('pointercancel', endTap, true);
+
 // ---------- one delegated listener ----------
 document.addEventListener('click', async (e) => {
   const t = e.target.closest(ACTIONS);
+  // The native click for a tap we already delivered. Dropping it is what stops a two-press
+  // confirmation being satisfied by one finger.
+  if (!DISPATCHING && SYNTH && SYNTH.el === t && Date.now() - SYNTH.at < 700) { SYNTH = null; return; }
   // <html> and <body> can never be an action. They carry the look and the rail state, and a
   // closest() that walked up to them turned every click in the app into a rail toggle.
   if (t === root || t === document.body) return;

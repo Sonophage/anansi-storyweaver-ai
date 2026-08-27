@@ -182,4 +182,69 @@ ok(`pressing Edit makes exactly one passage editable (${afterEdit})`, afterEdit 
 ok("the reading pane keeps the pull-to-refresh gesture to itself",
    (await page.eval("getComputedStyle(document.getElementById('read')).overscrollBehaviorY")) === 'contain');
 
+// F34: a tap whose finger drifts is reclassified as a scroll and the click never arrives. Measured
+// at 14px working and 24px dead before the recogniser existed; this is that number, fixed.
+await page.goto(B + "/");
+await wait(800);
+// Count what the page actually receives, so "it opened" and "it opened twice" are distinguishable —
+// the second is what would make a two-press confirmation delete something in one finger.
+await page.eval(`(() => {
+  // The number that matters is how many times the app OPENED a story, not how many click events the
+  // document saw. Both exist at a drift near the threshold — the browser's and ours — and the guard's
+  // whole job is that only one of them is acted on. Counting events would have called that a failure
+  // and counting nothing would have called it a pass.
+  window.__hits = 0;
+  const real = window.fetch;
+  window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__hits++; return real(u, o); };
+  return 1; })()`);
+await page.tapDrift("#page .storycard[data-open]", 24);
+await wait(1500);
+const drifted = await page.eval("(() => ({ hits: window.__hits, blocks: document.querySelectorAll('.block').length }))()");
+ok(`a tap that drifts 24px opens the story now (${drifted.blocks} blocks)`, drifted.blocks > 0);
+// THE assertion this whole change waited on Seth for. One finger, one action.
+ok(`  and the app opened it exactly once, not twice (${drifted.hits})`, drifted.hits === 1);
+
+// 14px is the dangerous number, and it is the one this whole change waited on Seth for. The browser
+// STILL fires click there — F34 measured 14px opening a story before the recogniser existed — and the
+// recogniser fires too, because 14 is over its 10px floor. Both. That is the double, and on Delete
+// take or Delete this story the second press is the deletion.
+//
+// 24px cannot test the guard: nothing native arrives there, so removing the guard leaves that case
+// green. This one goes to two without it.
+await page.goto(B + "/");
+await wait(800);
+await page.eval(`(() => { window.__hits = 0;
+  const real = window.fetch;
+  window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__hits++; return real(u, o); };
+  return 1; })()`);
+await page.tapDrift("#page .storycard[data-open]", 14);
+await wait(1500);
+const both = await page.eval("(() => ({ hits: window.__hits, blocks: document.querySelectorAll('.block').length }))()");
+ok(`  a 14px drift, where the browser fires too, is still ONE action (${both.hits})`, both.hits === 1);
+ok("  and it opened the story", both.blocks > 0);
+
+// A clean tap must still be exactly one, or the recogniser is doubling the ordinary case.
+await page.goto(B + "/");
+await wait(800);
+await page.eval(`(() => { window.__hits = 0;
+  const real = window.fetch;
+  window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__hits++; return real(u, o); };
+  return 1; })()`);
+await page.tapDrift("#page .storycard[data-open]", 0);
+await wait(1500);
+const clean = await page.eval("(() => ({ hits: window.__hits, blocks: document.querySelectorAll('.block').length }))()");
+ok(`  a tap with no drift still opens it exactly once (${clean.hits})`, clean.hits === 1 && clean.blocks > 0);
+
+// And a real scroll must still be a scroll. 80px of movement is a drag, not a fumbled press.
+await page.goto(B + "/");
+await wait(800);
+await page.eval(`(() => { window.__hits = 0;
+  const real = window.fetch;
+  window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__hits++; return real(u, o); };
+  return 1; })()`);
+await page.tapDrift("#page .storycard[data-open]", 80);
+await wait(1200);
+ok("  and 80px of movement is still a scroll, not a press",
+   (await page.eval("window.__hits")) === 0);
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

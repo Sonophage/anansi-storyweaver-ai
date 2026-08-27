@@ -174,6 +174,19 @@ const page = {
     await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await wait(220);
   },
+  /** A tap on a selector that drifts `drift` pixels, through the pointer events the app listens to.
+   *  touchDrift takes coordinates; this takes a selector and scrolls it in first, which is what a
+   *  scenario actually wants. */
+  async tapDrift(sel: string, drift: number) {
+    const box = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
+      if (!e) return null;
+      e.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const r = e.getBoundingClientRect();
+      return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; })()`);
+    if (!box) throw new Error(`tapDrift: no element for ${sel}`);
+    await wait(220);
+    await page.touchDrift(box.x, box.y, drift);
+  },
   /** A real mouse move, so CSS :hover applies. A dispatched mouseover event does not. */
   async hover(sel: string) {
     const box = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
