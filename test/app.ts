@@ -375,4 +375,33 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
   ok('the shelf says what is waiting, per kind, in the book it is waiting in');
 }
 
+// The webs and their prose, kept in step. This is the check that fails when somebody adds a help
+// icon and forgets to write the text, or renames a control and orphans its entry — which is the
+// only way this stays true, because nothing else about it can be verified by reading the code.
+{
+  const { HELP } = await import('../web/help.js');
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+
+  const used = new Set([...src.matchAll(/help(?:Mark|Body)?\('([a-z]+)'\)/g)].map((m) => m[1]));
+  // PANEL_HELP names its slugs as values rather than in a call, so they are read separately.
+  for (const m of src.matchAll(/const PANEL_HELP = \{([^}]*)\}/g))
+    for (const v of m[1].matchAll(/'([a-z]+)'/g)) used.add(v[1]);
+
+  assert.ok(used.size > 0, 'the source really does use the help helper — the regex is not silently empty');
+  for (const slug of used)
+    assert.ok(HELP[slug], `web/app.js opens a web for "${slug}" and web/help.js has no entry for it`);
+  for (const slug of Object.keys(HELP))
+    assert.ok(used.has(slug), `web/help.js explains "${slug}" and nothing in the app opens it`);
+
+  // Definitions, not facts. A number or a list in here is something that will be wrong in a
+  // fortnight, which is the whole reason this file is only the evergreen half.
+  for (const [slug, h] of Object.entries(HELP) as any) {
+    assert.ok(h.title && h.body, `${slug} has both a title and a body`);
+    assert.doesNotMatch(h.body, /\b\d{3,}\b/,
+      `${slug} quotes a number — help that carries counts or sizes goes stale and this file must not`);
+  }
+  ok(`every web opens prose, and every prose has a web (${used.size} of them)`);
+}
+
 console.log(`\n${n} checks passed`);

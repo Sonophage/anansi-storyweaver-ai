@@ -270,6 +270,13 @@ export const MARK = {
   import:   'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 3.6V11M10 11 7.3 8.3M10 11 12.7 8.3',
   prefs:    'M4.4 13.6A7 7 0 1 1 15.6 13.6M10 10V17.6',
   reading:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 3V17',
+  // Help. A quadrant of the orb-web itself — three radials and two spirals — which is the house
+  // metaphor rather than a question mark borrowed from somebody else's icon set.
+  web:      'M10 10 5.05 5.05M10 10 10 3M10 10 14.95 5.05'
+          + 'M7.17 7.17A4 4 0 0 1 12.83 7.17M5.05 5.05A7 7 0 0 1 14.95 5.05',
+  // Reading mode. An open book: one spine, two leaves falling away from it.
+  book:     'M10 5.6V16.2M10 5.6C8.1 4.4 5.6 4.1 3.7 4.3V14.8C5.6 14.6 8.1 14.9 10 16.2'
+          + 'M10 5.6C11.9 4.4 14.4 4.1 16.3 4.3V14.8C14.4 14.6 11.9 14.9 10 16.2',
   menu:     'M3 6.5h14M3 10h14M3 13.5h14',
   chevron:  'M8 5.5 13 10 8 14.5',
 };

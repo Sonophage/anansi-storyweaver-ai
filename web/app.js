@@ -3,11 +3,42 @@
 // sheet on a phone. Layout lives in app.html's CSS — this file decides state and content only,
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
+import { HELP } from './help.js';
 import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
 const phone = () => matchMedia('(max-width:719px)').matches;
+
+/** A web, and what it opens. Both together on purpose: a caller cannot put the icon somewhere and
+ *  forget the text, and the text cannot appear without something to shut it again.
+ *
+ *  It opens IN PLACE, under the control it belongs to. A help page is one you navigate away to and
+ *  do not come back from. */
+const helpMark = (slug) => {
+  const h = HELP[slug];
+  if (!h) return '';
+  const open = S.help === slug;
+  return `<button data-help="${slug}" aria-expanded="${open}" aria-label="What ${esc(h.title)} is"
+    style="display:inline-flex; vertical-align:-2px; margin-left:6px; padding:1px; flex:0 0 auto;
+      color:${open ? 'var(--gold)' : 'var(--faint)'}">${mark('web', 13)}</button>`;
+};
+
+const helpBody = (slug) => {
+  const h = HELP[slug];
+  if (!h || S.help !== slug) return '';
+  return `<div class="card" data-helpbody="${slug}" style="margin:0 0 14px; gap:7px;
+      font-size:12.5px; line-height:1.6; color:var(--mute); border-color:rgba(217,178,106,.28)">
+      <div style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+        color:var(--gold-dim)">${esc(h.title)}</div>${h.body}</div>`;
+};
+
+/** Both halves, for the field-level ones where the label is not clipped and the body can sit right
+ *  under it. The panel-level four are split, because a panel heading is nowrap and decode() owns it. */
+const help = (slug) => helpMark(slug) + helpBody(slug);
+
+/** Which panels ARE their own concept. The rest of the webs live beside a field. */
+const PANEL_HELP = { threads: 'threads', strings: 'strings', context: 'context', anansi: 'anansi' };
 const overlay = () => matchMedia('(max-width:1099px)').matches;
 
 // ---------- appearance, remembered per browser ----------
@@ -40,6 +71,7 @@ const S = {
   // Reading mode. Session-only on purpose: persisted, it would come back after a reload as a
   // composer that will not take a keystroke and no memory of why.
   reading: false,
+  help: null,          // which web is open, if any
   // The bug report, kept in state so a repaint mid-typing does not eat it — the same lesson the
   // composer's draft taught seven times.
   bug: '', bugSending: false, bugUrl: null, bugError: null, lastError: null,
@@ -117,7 +149,7 @@ const WTITLES = {
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
 const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'home', 'owed',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'home', 'owed', 'help',
   'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
@@ -272,8 +304,10 @@ function drawBar() {
           >${h.chapters} ${h.chapters === 1 ? 'chapter' : 'chapters'} not sent</button>` : '';
       })()}
       <button class="pill" data-readmode="${S.reading ? '0' : '1'}" aria-pressed="${S.reading}"
+        aria-label="${S.reading ? 'Leave reading mode' : 'Reading mode'}"
         title="${S.reading ? 'Leave reading mode' : 'Read without the composer, and without the prose taking taps'}"
-        style="font-size:15px; line-height:1; padding:7px 12px">${S.reading ? '◉' : '◎'}</button>
+        style="display:flex; align-items:center; padding:6px 11px; color:${S.reading ? 'var(--gold)' : 'var(--chrome-dim)'}"
+        >${mark('book', 17)}</button>
       <button class="pill" data-appearance="1" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
       <button class="phoneonly" data-panel="chapter" style="font-size:19px; color:var(--chrome-dim)" aria-label="This chapter">⚙</button>`
@@ -545,11 +579,17 @@ function drawSide() {
   side.hidden = !S.panel || S.place !== 'story';
   if (side.hidden) return;
   $('sideHead').innerHTML = `
-    <span class="serif" style="flex:1; font-size:20px; color:var(--ink-bright); white-space:nowrap;
+    <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
+    ${/* OUTSIDE the heading span, and deliberately: decode() writes textContent on that span, so a
+          button inside it is destroyed on the next repaint. Its body goes at the top of #sideBody
+          instead, because the span is nowrap and would clip it. */
+      PANEL_HELP[S.panel] ? helpMark(PANEL_HELP[S.panel]) : ''}
+    <span style="flex:1"></span>
     <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
-  $('sideBody').innerHTML = (PANELS[S.panel] ?? (() => ''))();
+  $('sideBody').innerHTML = (PANEL_HELP[S.panel] ? helpBody(PANEL_HELP[S.panel]) : '')
+    + (PANELS[S.panel] ?? (() => ''))();
 }
 
 const PANELS = {
@@ -604,7 +644,8 @@ const PANELS = {
         return `<div style="display:flex; align-items:flex-start; gap:10px; padding:10px 0">
           <span style="width:8px; height:8px; border-radius:50%; background:var(--gold-dim); margin-top:5px; flex:0 0 auto"></span>
           <span style="flex:1; display:flex; flex-direction:column; gap:4px">
-            <span style="font-size:13px; color:var(--ink)">Chapters ${h.from}&ndash;${h.to} are past the horizon</span>
+            <span style="font-size:13px; color:var(--ink)">Chapters ${h.from}&ndash;${h.to} are past the horizon${helpMark('horizon')}</span>
+            ${helpBody('horizon')}
             <span class="hint" style="margin:0">Their summaries no longer reach the model, so it
               cannot draw on them or stay consistent with them.
               <strong>Chapter &rarr; Acts</strong> collapses a run of them into one summary that
@@ -736,7 +777,8 @@ const PANELS = {
     </select>`;
     const fields = STORY_FIELDS.filter((f) => !['direction', 'setting', 'pov', 'persona'].includes(f.k));
     return `<div style="display:flex; flex-direction:column">
-      ${fields.map((f) => `<label class="lbl">${f.label}</label>
+      ${fields.map((f) => `<label class="lbl">${f.label}${f.k === 'writingStyle' ? helpMark('voice') : ''}</label>
+        ${f.k === 'writingStyle' ? helpBody('voice') : ''}
         ${f.area ? `<textarea class="field" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
                  : `<input class="field" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
         ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}`).join('')}
@@ -745,10 +787,12 @@ const PANELS = {
       <div class="hint">Drawn from the lore and items in this story's ledger.</div>
       <label class="lbl">Point of view</label>
       ${pick('pov', POV, V.story.pov, 'Not set')}
-      <label class="lbl">You are</label>
+      <label class="lbl">You are${helpMark('persona')}</label>
+      ${helpBody('persona')}
       ${pick('persona', cast.map((e) => e.title), V.story.persona, 'Nobody — narrate only')}
       <div class="hint">The character you speak as in Speak mode. Drawn from the cast.</div>
-      <label class="lbl">The model never writes</label>
+      <label class="lbl">The model never writes${helpMark('locked')}</label>
+      ${helpBody('locked')}
       ${pick('lockedCharacter', cast.map((e) => e.title), V.story.lockedCharacter,
              'Nobody — it may write anyone')}
       <div class="hint">${V.story.lockedCharacter
@@ -758,7 +802,8 @@ const PANELS = {
            state — it writes what happens around them instead. Usually the one you play.`}
         A separate setting from <em>You are</em> on purpose: you may hand yourself a different
         character for a scene without also handing over the one you were keeping.</div>
-      <label class="lbl">Spice</label>
+      <label class="lbl">Spice${helpMark('spice')}</label>
+      ${helpBody('spice')}
       ${(() => {
         // Six options, not five plus a box. The written override was on screen always, which made
         // it noise on every story that does not use it. A story is on a level OR on a written
@@ -1546,7 +1591,8 @@ function entryEditor() {
                    'mourning, or travelling light, or whatever you already had in mind')}
     </div>` : ''}
 
-    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Over time</div>
+    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Over time${helpMark('states')}</div>
+    ${helpBody('states')}
     <div class="hint" style="margin:0 0 8px">A fact can open at a later chapter. Before it opens it is
       hidden, or hinted at without saying what it is. Earlier chapters keep the body above.</div>
     ${(e.states ?? []).map((st) => `<div class="card" style="margin-bottom:8px">
@@ -2906,6 +2952,8 @@ document.addEventListener('click', async (e) => {
   }
   // Archiving is a status change and nothing else — no separate table, no hiding, and the same
   // route that saves every other story field. Reversible by pressing it again.
+  // Pressing the same web again shuts it, so the icon is a toggle rather than a one-way door.
+  if (d.help) { S.help = S.help === d.help ? null : d.help; paint(); return; }
   // One press goes to the work, not to a list of where the work might be.
   if (d.owed) {
     await openStory(d.owed);
