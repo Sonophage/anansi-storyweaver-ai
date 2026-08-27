@@ -191,7 +191,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
-  'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow'].map((k) => `[data-${k}]`).join(',');
+  'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
+  'pullback'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -1049,14 +1050,25 @@ const PANELS = {
       <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this chapter for facts</button></div>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Summaries in context</div>
-      ${V.chapters.filter((c) => c.summary).map((c) => `<button class="card" aria-expanded="false"
-        data-expand="1" style="margin-bottom:8px; text-align:left; width:100%">
-        <div style="display:flex; align-items:center; gap:9px">
-          <span class="kind">${esc(c.title || `Chapter ${c.index}`)}</span>
-          <span style="margin-left:auto; font-size:11px; color:var(--faint)">covers to ${c.coversThrough ?? '—'}</span></div>
-        <div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(c.summary)}</div>
+      <div class="hint" style="margin:0 0 8px">The chapter you are writing goes to the model whole.
+        Everything before it goes as the summaries below &mdash; so if the model has forgotten
+        something that happened back there, <b>pull that chapter back</b> and its prose is sent
+        instead of its summary, until you let it go again.</div>
+      ${V.chapters.filter((c) => c.summary).map((c) => `<div class="card"
+        style="margin-bottom:8px; ${c.keepWhole ? 'border-color:var(--gold-dim);' : ''}">
+        <button aria-expanded="false" data-expand="1" style="text-align:left; width:100%">
+          <div style="display:flex; align-items:center; gap:9px">
+            <span class="kind">${esc(c.title || `Chapter ${c.index}`)}</span>
+            <span style="margin-left:auto; font-size:11px; color:var(--faint)">covers to ${c.coversThrough ?? '—'}</span></div>
+          <div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(c.summary)}</div>
+        </button>
         ${c.summaryStale ? '<div class="hint" style="color:var(--bad)">Stale — excluded from the prompt until it is re-run.</div>' : ''}
-      </button>`).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
+        <button data-pullback="${c.id}" data-on="${c.keepWhole ? '0' : '1'}"
+          style="font-size:11.5px; text-align:left; color:${c.keepWhole ? 'var(--gold)' : 'var(--faint)'}"
+          >${c.keepWhole
+            ? '&check; Sent whole &mdash; press to let it go back to its summary'
+            : 'Pull this chapter back &mdash; send its prose, not its summary'}</button>
+      </div>`).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
       <button class="btn ghost" data-summarize="1">Summarise this chapter</button>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Acts</div>
@@ -2820,6 +2832,17 @@ document.addEventListener('click', async (e) => {
   // is put back by whichever call was in flight, on its own aborted path, so there is exactly
   // one place that knows how to end a generation.
   if (d.stop) { STOP?.abort(); return; }
+  // The hatch. The prose window closes at the chapter boundary, so this is the only way back to a
+  // chapter the model has stopped seeing — `keep_whole` has been honoured by the engine since it
+  // was written and had no control anywhere.
+  if (d.pullback) {
+    const r = await api.saveChapter(S.storyId, d.pullback, { keepWhole: d.on === '1' });
+    if (r.error) return toast(r.error);
+    V = r; paint(); refreshManifest();
+    return toast(d.on === '1'
+      ? 'Sent whole. Its prose goes to the model instead of its summary.'
+      : 'Let go. It is back to its summary.');
+  }
   if (d.newlore) {
     // Replaces New scene, which was removed with the mode set. Two ways to get a fact into the
     // ledger and they belong together: write it down yourself, or have the chapter read for what

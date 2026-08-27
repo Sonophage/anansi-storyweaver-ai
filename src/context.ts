@@ -432,7 +432,29 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
 
   // EARLIER — every summary except the chapters still whole in PROSE, or the recent
   // chapter appears twice: a lossy summary beside the lossless prose it summarizes.
-  const wholeFrom = currentChapter.index - 2;
+  //
+  // WHERE THE PROSE STOPS. This was `currentChapter.index - 2` — the chapter you are in plus the
+  // two before it, whole — until 2026-08-27, when Seth asked for the window to close at the
+  // chapter boundary: "when starting a new chapter it should dump current context after the first
+  // message, then rely on the summary, threads and strings, that way keeping everything small."
+  //
+  // The exception is the empty chapter. A new chapter with nothing in it yet has no prose of its
+  // own to continue from, so the previous chapter stays whole until the first passage lands — cut
+  // at the boundary itself, the opening of every chapter would be written from a summary and a
+  // ledger with no sentence in front of it, and the seam between chapters is exactly where a book
+  // can least afford that.
+  //
+  // Counted on passages that are not breaks: a chapter break is a real passage (so NEW SCENE has
+  // something to fire on and ordinals stay dense), and it lands in the chapter being CLOSED. If it
+  // ever moves, or a break is written into a fresh chapter, a `length > 0` check here would call an
+  // empty chapter full and cut the previous one away underneath the opening passage.
+  //
+  // This makes the prompt SMALLER, in a prompt measured at 8,676 of 46,446 tokens with 87% of the
+  // slot unused — so it does not buy room, and it was not asked for to buy room. What it buys is
+  // what the model leans on: the chapter you are writing, plus what the book has written down about
+  // itself. The tier it leans on is only worth leaning on because chapter close now fills it.
+  const started = passages.some((p) => p.chapterId === currentChapter.id && !p.isBreak);
+  const wholeFrom = started ? currentChapter.index : currentChapter.index - 1;
 
   // STRINGS. Only what the writer summoned, and phrased as a standing obligation rather than an
   // instruction: the model is being told what is owed, not told to pay it. "Do not resolve" is

@@ -946,9 +946,19 @@ export function updateStory(id: string, s: any) {
       // p() already resolves that to the current value, so a partial save cannot switch it off.
       Number(p('autoOpen', 'auto_open') ? 1 : 0), now(), id);
 }
-export const updateChapter = (storyId: string, id: string, c: any) =>
+/** Partial save. `undefined` means "leave it", which `updateStory` above has done since it was
+ *  written and this did not: it wrote `c.keepWhole ? 1 : 0` unconditionally, and both callers send
+ *  only `{title, authorsNote}` — so renaming a chapter switched OFF its pull-back. Latent while
+ *  nothing could switch it on, and a live bug the moment the hatch had a door. Same helper, same
+ *  reason. */
+export function updateChapter(storyId: string, id: string, c: any) {
+  const cur = q('SELECT * FROM chapters WHERE id = ? AND story_id = ?').get(id, storyId) as any;
+  if (!cur) return;
+  const p = (k: string, col: string) => (c[k] !== undefined ? c[k] : cur[col]);
   q('UPDATE chapters SET title=?, authors_note=?, keep_whole=? WHERE id=? AND story_id=?')
-    .run(c.title, c.authorsNote ?? null, c.keepWhole ? 1 : 0, id, storyId);
+    .run(p('title', 'title'), p('authorsNote', 'authors_note') ?? null,
+      p('keepWhole', 'keep_whole') ? 1 : 0, id, storyId);
+}
 export const delStory = (id: string, ownerId?: string) => ownerId
   ? q('DELETE FROM stories WHERE id = ? AND owner_id = ?').run(id, ownerId)
   : q('DELETE FROM stories WHERE id = ?').run(id);

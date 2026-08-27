@@ -51,6 +51,42 @@ ok("  and the fields are real inputs, not labels",
    await page.eval("!!document.querySelector('[data-chapter-title]') && !!document.querySelector('[data-chapter-note]')"
      + " && !!document.querySelector('[data-story=\"direction\"]')"));
 
+// ---- 3b. The hatch. The prose window closes at the chapter boundary on 2026-08-27, so this is
+// the only way back to a chapter the model has stopped seeing. `keep_whole` had been honoured by
+// the engine since it was written and had no control anywhere — a finished feature with no door,
+// which is this repo's recurring failure.
+{
+  const pull = () => page.eval("(() => { const b = document.querySelector('[data-pullback]');"
+    + " return b ? { on: b.dataset.on, text: b.textContent.trim().slice(0, 40) } : null; })()");
+  const p0 = await pull();
+  ok(`the summaries list offers a way to pull a chapter back (${JSON.stringify(p0?.text ?? null)})`,
+     !!p0 && p0.on === '1');
+  await page.click('[data-pullback]');
+  await wait(900);
+  const p1 = await pull();
+  ok(`  pressing it sends that chapter whole (${JSON.stringify(p1?.text ?? null)})`,
+     !!p1 && p1.on === '0');
+  // It has to survive a rename, which is the bug that was sitting under it: updateChapter wrote
+  // keep_whole unconditionally and every caller sends only a title and a note.
+  await page.eval("(() => { const el = document.querySelector('[data-chapter-title]');"
+    + " el.value = 'Renamed while pulled back'; return 1; })()");
+  await page.click('[data-savestory="1"]');
+  await wait(1200);
+  ok("  and renaming the chapter does not switch it off again", (await pull())?.on === '0');
+  // And back off, because a hatch you cannot shut is a window that never closes.
+  await page.click('[data-pullback]');
+  await wait(900);
+  ok("  pressing it again lets the chapter go", (await pull())?.on === '1');
+  // WAIT FOR THE MANIFEST TO SETTLE before leaving this section. Every press here refreshes it,
+  // and `refreshManifest` clears MANI while the /tokenize round trip is in flight — so walking on
+  // immediately left the top bar with no context reading and turned section 7 red, two sections
+  // later, for something this block did. Poll the thing itself rather than sleeping at it.
+  for (let i = 0; i < 40; i++) {
+    if (/Context \d+%|No room/.test(await page.text('#bar') || '')) break;
+    await wait(250);
+  }
+}
+
 // ---- 4. Saving from Chapter must not blank the story. updateStory was a full-row UPDATE, so a
 // panel holding one [data-story] field bound undefined to every other column — the Trajectory
 // panel's Save answered 500 for exactly this reason.

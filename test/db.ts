@@ -818,6 +818,31 @@ ok('a cover round-trips, and the shelf is told when it was set and never the byt
   assert.strictEqual(db.coverAt(st.id), null, 'deleting the story takes its cover with it');
 });
 
+// A partial chapter save must not switch off what it did not mention. `updateStory` has worked
+// this way since it was written; this did not, and it clobbered the one column that decides
+// whether a chapter's prose is pulled back into the prompt.
+ok('renaming a chapter leaves its pull-back alone', () => {
+  const me = db.owner('chapter-owner');
+  const st = db.createStory(me, { title: 'A book with a chapter' });
+  const ch = (db.chapters(st.id)[0] as any).id;
+
+  db.updateChapter(st.id, ch, { title: 'One', authorsNote: 'End it in the rain.', keepWhole: true });
+  assert.strictEqual((db.chapters(st.id)[0] as any).keep_whole, 1, 'the chapter is pulled back');
+
+  // What every caller actually sends: a title and a note, and nothing about the window.
+  db.updateChapter(st.id, ch, { title: 'One, renamed', authorsNote: 'End it in the rain.' });
+  const after: any = db.chapters(st.id)[0];
+  assert.strictEqual(after.title, 'One, renamed', 'the rename lands');
+  assert.strictEqual(after.keep_whole, 1,
+    'and the pull-back survives it — a partial save must not switch off what it did not mention');
+
+  // And false is a value, not an omission: the writer must be able to let a chapter go again.
+  db.updateChapter(st.id, ch, { keepWhole: false });
+  assert.strictEqual((db.chapters(st.id)[0] as any).keep_whole, 0, 'releasing it works');
+  assert.strictEqual((db.chapters(st.id)[0] as any).title, 'One, renamed',
+    'and releasing it does not wipe the title either');
+});
+
 // The look: three layers, and the one that matters is that a book's look never becomes yours by
 // being opened. That was the shape of the bug the split exists to prevent — the surface cached
 // whatever was on screen, so reading a book with a green theme made green your default.

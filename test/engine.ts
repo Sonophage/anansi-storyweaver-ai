@@ -259,8 +259,12 @@ ok('a 120-chapter book forgets its distant past, in one piece, and acts get it b
 
   const before = buildContext(long(), count);
   const droppedBefore = earlier(before, 'omitted').length;
-  assert.strictEqual(droppedBefore, 65,
-    `117 summaries do not fit and 65 are dropped — measured, not asserted (${droppedBefore})`);
+  // 65 until 2026-08-27, when the prose window closed at the chapter boundary. This fixture has
+  // no passages at all, so it is the EMPTY-chapter case: 119 and 120 stay whole, 118 summaries are
+  // eligible instead of 117, and one more of them is dropped. The number moved because the
+  // behaviour did, and it is still measured rather than asserted.
+  assert.strictEqual(droppedBefore, 66,
+    `118 summaries do not fit and 66 are dropped — measured, not asserted (${droppedBefore})`);
 
   // WHAT SURVIVES IS THE RECENT PAST, IN ONE PIECE. It was not: chapter ids sort as strings, so
   // "c10" came before "c2" and the book kept chapters 6-9, then 52-55, then 96-99 — scattered runs
@@ -270,7 +274,7 @@ ok('a 120-chapter book forgets its distant past, in one piece, and acts get it b
   const kept = earlier(before, 'included').map((b) => Number(b.id.slice(1))).sort((a, b) => a - b);
   assert.ok(kept.every((c, k) => k === 0 || c === kept[k - 1] + 1),
     `the summaries that survive must be one unbroken run (${kept[0]}..${kept.at(-1)})`);
-  assert.strictEqual(kept.at(-1), 117, 'ending at the newest one there is');
+  assert.strictEqual(kept.at(-1), 118, 'ending at the newest one there is');
   assert.ok(kept[0] > 1, 'and what goes is the distant past, which is the only defensible thing to lose');
 
   // Now roll each run of twenty into one act, which is what the button does.
@@ -468,19 +472,99 @@ ok('a compacted chapter can be pulled back in full, and it costs the recent wind
     'a pulled chapter must not send its summary as well — that is the duplication we removed');
 });
 
+// The prose window closes at the chapter boundary, and the seam is the exception.
+//
+// Seth, 2026-08-27: "when starting a new chapter it should dump current context after the first
+// message, then rely on the summary, threads and strings." The window was the current chapter plus
+// the two before it; it is the current chapter alone once that chapter has a passage in it.
+//
+// Both directions asserted, because only the pair can fail: a window that never closes keeps the
+// old chapters, and a window that closes at the boundary itself leaves the opening passage of every
+// chapter with no sentence in front of it.
+ok('the prose window closes once the new chapter has a passage, and not before', () => {
+  const at = (chapterId: string | undefined, ...bodies: string[]) => bodies.map((body, k) => ({
+    id: `${chapterId ?? 'x'}-${k}`, ordinal: k + 1, body, chapterId }));
+
+  const book = (started: boolean): Input => ({
+    ...base(),
+    chapters: [
+      { id: 'c1', index: 1, title: 'One', summary: 'Chapter one happened.' },
+      { id: 'c2', index: 2, title: 'Two', summary: 'Chapter two happened.' },
+      { id: 'c3', index: 3, title: 'Three', summary: 'Chapter three happened.' },
+      { id: 'c4', index: 4, title: 'Four' },
+    ],
+    currentChapter: { id: 'c4', index: 4, title: 'Four' },
+    passages: [
+      ...at('c2', 'CHAPTER TWO PROSE.'),
+      ...at('c3', 'CHAPTER THREE PROSE.'),
+      // The break lands in the chapter being CLOSED, which is why it is c3's and why an empty c4
+      // must still read as empty.
+      { id: 'brk', ordinal: 90, body: '', chapterId: 'c3', isBreak: true },
+      ...(started ? at('c4', 'CHAPTER FOUR PROSE.') : []),
+    ],
+  } as any);
+
+  const prose = (m: ReturnType<typeof buildContext>) => m.blocks
+    .filter((b) => (b.kind === 'PROSE' || b.kind === 'TAIL') && b.state === 'included')
+    .map((b) => b.text).join(' ');
+  const summaries = (m: ReturnType<typeof buildContext>) => m.blocks
+    .filter((b) => b.kind === 'EARLIER' && b.state === 'included').map((b) => b.text).join(' ');
+
+  // EMPTY: the chapter before stays whole, so the opening has a sentence to continue from.
+  const fresh = buildContext(book(false), count);
+  assert.match(prose(fresh), /CHAPTER THREE PROSE/,
+    'a chapter with nothing in it yet must still see the one before it — otherwise every chapter '
+    + 'opens from a summary with no prose in front of it');
+  assert.ok(!/Chapter three happened/.test(summaries(fresh)),
+    'and chapter three must not ALSO arrive as a summary — that is the duplication the window exists to stop');
+
+  // STARTED: one passage of its own, and the window shuts behind it.
+  const going = buildContext(book(true), count);
+  assert.match(prose(going), /CHAPTER FOUR PROSE/, 'the chapter you are writing is whole');
+  assert.ok(!/CHAPTER THREE PROSE/.test(prose(going)),
+    'and the chapter before it is gone from the prose the moment this one has a passage');
+  assert.ok(!/CHAPTER TWO PROSE/.test(prose(going)), 'along with everything older');
+  // What it falls back on. This is the whole bargain: prose out, summary in.
+  assert.match(summaries(going), /Chapter three happened/,
+    'what leaves the prose has to arrive as its summary, or the chapter is simply forgotten');
+  assert.match(summaries(going), /Chapter two happened/, 'and so does the one before that');
+
+  // A chapter holding ONLY a break is still empty. The break is a real passage — NEW SCENE needs
+  // something to fire on and ordinals stay dense — and it lands in the chapter being closed. If it
+  // ever lands in the fresh one instead, counting passages without excluding it would call an empty
+  // chapter full and cut the previous chapter away from under the opening passage.
+  const onlyBreak = book(false);
+  onlyBreak.passages = [...onlyBreak.passages,
+    { id: 'brk2', ordinal: 99, body: '', chapterId: 'c4', isBreak: true } as any];
+  const stillFresh = buildContext(onlyBreak, count);
+  assert.match(prose(stillFresh), /CHAPTER THREE PROSE/,
+    'a chapter holding nothing but a scene break has not started, and must still see the one before it');
+
+  // The hatch. `keepWhole` is how a writer says "look at that chapter again", and it has to beat
+  // the window or there is no way back to a chapter the model has stopped seeing.
+  const pulled = book(true);
+  pulled.chapters = pulled.chapters.map((c) => c.index === 2 ? { ...c, keepWhole: true } : c);
+  const back = buildContext(pulled, count);
+  assert.match(prose(back), /CHAPTER TWO PROSE/, 'pulling a chapter back beats the window');
+  assert.ok(!/Chapter two happened/.test(summaries(back)),
+    'and its summary steps aside, so it is not sent twice');
+});
+
 // --- the act tier ---
 ok('an arc replaces the chapters it covers, instead of joining them', () => {
   const i = base();
   i.currentChapter = { id: 'cur', index: 12, title: 'now' };
   i.chapters = Array.from({ length: 10 }, (_, k) => ({
     id: `c${k + 1}`, index: k + 1, title: `Ch${k + 1}`, summary: `Summary of chapter ${k + 1}.` }));
-  // Chapters 1..9 are summarised; chapter 10 is inside the whole-prose window and held back.
+  // All ten are summarised. This fixture has no passages, so chapter 12 is EMPTY and the window
+  // holds back only chapter 11 — which has no summary to suppress. Until 2026-08-27 the window was
+  // two chapters wider and chapter 10's summary was held back as well, which is why this was 9.
   const before = buildContext(i, count).blocks.filter((b) => b.kind === 'EARLIER' && b.state === 'included');
-  assert.strictEqual(before.length, 9);
+  assert.strictEqual(before.length, 10);
 
   i.arcs = [{ fromChapter: 1, toChapter: 6, title: 'The first act', summary: 'What the first six did.' }];
   const after = buildContext(i, count).blocks.filter((b) => b.kind === 'EARLIER' && b.state === 'included');
-  assert.strictEqual(after.length, 4, 'chapters 1-6 became one arc; 7, 8 and 9 remain');
+  assert.strictEqual(after.length, 5, 'chapters 1-6 became one arc; 7, 8, 9 and 10 remain');
   const text = after.map((b) => b.text).join(' ');
   assert.match(text, /What the first six did/);
   assert.ok(!/Summary of chapter 3\./.test(text), 'a covered chapter is not sent again');
