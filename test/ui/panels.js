@@ -290,6 +290,27 @@ ok("  the Wardrobe offers to have Anansi write one",
    (await page.eval("document.querySelector('[data-invent]')?.dataset.invent")) === 'outfit');
 ok(`  named for the character it dresses`,
    (await page.eval("document.querySelector('[data-invent=\"outfit\"]')?.textContent") || '').includes(who.title));
+// The card goes to another book, from the panel. This repo's recurring failure is the feature that
+// exists, is tested at the db and the route, and has nothing on any screen that reaches it.
+{
+  const others = await page.eval(
+    "[...document.querySelectorAll('[data-cf] option')].map(o => o.value)");
+  ok(`the entry editor offers the writer's other books (${others.length})`, others.length > 0);
+  ok("  and never the book you are already in", !others.includes(sid3));
+  const target = others[0];
+  const countIn = async (id) => page.eval("(async () => (await (await fetch('/api/story?story="
+    + id + "')).json()).entries.length)()");
+  const before = await countIn(target);
+  const hereBefore = await countIn(sid3);
+  await page.click('[data-copyentry="1"]');
+  await wait(900);
+  ok(`Copy it there lands the card in the other book (${before} -> ${await countIn(target)})`,
+     (await countIn(target)) === before + 1);
+  ok("  and says where it went", /Copied into/.test(await page.text('#toast') || ''));
+  ok("  and takes nothing out of the book it came from",
+     (await countIn(sid3)) === hereBefore);
+}
+
 await page.goto(B + "/#" + sid3 + "/threads");
 await wait(700);
 const chips = await page.eval(`[...document.querySelectorAll('[data-wear^="${who.id}:"]')].map(b => b.textContent.trim()).join(',')`);

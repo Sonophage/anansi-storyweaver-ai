@@ -124,7 +124,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
-  'ask', 'usedraft', 'copydraft', 'clearchat'].map((k) => `[data-${k}]`).join(',');
+  'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -1450,11 +1450,36 @@ function entryEditor() {
         <div class="clamp" style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(h.previous_value ?? '')}</div>
         <button class="btn ghost" data-revertfield="${h.id}" style="margin-top:6px">Put this back</button></div>`).join('')
         : '<div class="hint">No earlier versions of any field.</div>'}` : ''}
+    ${copyElsewhere(e)}
     <button class="btn" data-saveentry="1" style="margin-top:16px">Save</button>
     <button class="btn ghost" data-fieldhistory="1" style="margin-top:10px">${
       S.fieldHistory ? 'Hide field history' : 'Field history'}</button>
     <button class="btn ghost" data-delentry="1" style="margin-top:10px; color:var(--bad)">Delete this entry</button>
   </div>`;
+}
+
+/** Send this card to another of your books, or pull it out of one — the same operation, and which
+ *  it is depends only on which book you happen to be standing in.
+ *
+ *  It copies. Nothing here changes and nothing is linked afterwards: two books that share a
+ *  character diverge the moment either is edited, which is what a writer reusing a card between
+ *  two books wants and is also the only version that needs no machinery to stay true.
+ *
+ *  LIB, not a fetch. The library is already loaded at boot and holds the writer's own stories, so
+ *  the list on this screen cannot offer a book that is not theirs — the server checks both ends
+ *  again, and the point of doing it here is that the menu has nothing wrong in it to pick. */
+function copyElsewhere(e) {
+  const others = LIB.filter((s) => s.id !== S.storyId);
+  return `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Another book</div>
+    ${others.length ? `<div class="hint" style="margin:0 0 8px">Copies ${esc(e.title)} into another of
+      your books, with its trigger words. What it does NOT carry is the timeline: a change over time
+      is anchored to a chapter number, and chapter seven there is not chapter seven here.</div>
+    <div class="card" style="gap:7px">
+      <select class="field" data-cf="into">${others.map((s2) =>
+        `<option value="${esc(s2.id)}">${esc(s2.title)}</option>`).join('')}</select>
+      <button class="btn ghost" data-copyentry="1">Copy it there</button></div>`
+    : `<div class="hint" style="margin:0">You have one book. A card can be copied into another when
+      there is another.</div>`}`;
 }
 
 function historyPanel() {
@@ -2435,6 +2460,16 @@ document.addEventListener('click', async (e) => {
   if (d.entry) { S.entryId = d.entry; S.fieldHistory = null;
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     paint(); return; }
+  if (d.copyentry) {
+    const into = document.querySelector('[data-cf="into"]')?.value;
+    if (!into) return toast('Pick a book to copy it into.');
+    const r = await api.copyEntry(S.storyId, into, S.entryId);
+    if (r.error) return toast(r.error);
+    // No repaint: nothing in THIS book changed, and rebuilding the panel under someone who is
+    // mid-edit in a field is how the seventh instance of the repaint bug got written.
+    return toast(`Copied into ${LIB.find((s2) => s2.id === into)?.title ?? 'the other book'}. `
+      + 'Nothing here changed, and the two are not linked.');
+  }
   if (d.backentry) { S.entryId = null; S.historyOf = null;
     if (S.panel === 'entry' || S.panel === 'history') S.panel = 'threads';
     paint(); return; }

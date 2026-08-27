@@ -685,6 +685,28 @@ export const routes: Record<string, Handler> = {
   'POST /api/entry':   (c) => { db.upsertEntry(c.body.storyId, c.owner, c.body.entry); return viewOf(c.body.storyId); },
   'DELETE /api/entry': (c) => { db.delEntry(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
 
+  /** The same card in another book. Exported to, or imported from — one operation, and which one it
+   *  is depends only on which book the writer is standing in.
+   *
+   *  TWO stories are named and the gate resolves ONE. `storyId` is the source, because that is what
+   *  every other story-scoped route means by it and what storyIdOf reads first, so the gate covers
+   *  the source; `into` is checked by db.copyEntry, which refuses unless BOTH belong to the caller.
+   *  Nothing here trusts the client about either.
+   *
+   *  Nothing in the source story changes, so the source view is not returned — the destination's is,
+   *  which is what a caller standing in the destination would want and costs the other caller
+   *  nothing, since it does not repaint. */
+  'POST /api/entry/copy': (c) => {
+    const from = String(c.body.storyId ?? '');
+    const into = String(c.body.into ?? '');
+    const entryId = String(c.body.entryId ?? '');
+    if (!into || !entryId) return { error: 'name the entry and the book it is going to' };
+    if (into === from) return { error: 'that card is already in this book' };
+    const made = db.copyEntry(from, into, c.owner, entryId);
+    if (!made) return { error: 'no such card in that book' };
+    return { copied: made, into, ...viewOf(into) };
+  },
+
   /** Anansi: the conversation. Ephemeral — turns come from the client and are never stored, so
    *  there is no table, no export question and nothing for the round-trip invariant to cover.
    *

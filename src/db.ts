@@ -744,6 +744,39 @@ export function pinCast(storyId: string, proposed: string[] = []): string[] {
   return cleared;
 }
 
+/** Copy one entry into another of the writer's own books.
+ *
+ *  Both stories are checked here and not only at the gate. The gate resolves ONE story id per
+ *  request and this route names two, so the source would otherwise arrive unchecked — and the
+ *  composite (id, story_id) lookup below is the second half of that: an entry id belonging to a
+ *  third story must not resolve through a source story the caller does happen to own. `entries_scope`
+ *  is the unique index that makes (id, story_id) the way to name an entry, and this is exactly the
+ *  kind of read it exists for.
+ *
+ *  What travels: the card. Title, body, notes, type, activation and its KEYS, which are the half a
+ *  copy without them would silently drop — a triggered entry with no trigger words never reaches
+ *  the model again and looks fine on the screen.
+ *
+ *  What does NOT travel, deliberately:
+ *  - `entry_states`. A state is anchored to a chapter NUMBER, and chapter seven of the book it came
+ *    from is not chapter seven of the book it is going to. Carrying them would put "the debt
+ *    transfers" in force at an unrelated scene, silently, and resolveBody would report it as canon.
+ *  - `entry_revisions`. The field history happened to the original; the copy has not been edited.
+ *  - Outfits and pins, for the same reason — a wardrobe belongs to the character in the book she
+ *    is in, and a pin names a chapter.
+ *
+ *  It copies rather than links. Two books that share a character diverge the moment either is
+ *  edited, which is what reuse means and is the version that needs no machinery to stay true. */
+export function copyEntry(fromStoryId: string, toStoryId: string, o: string, entryId: string) {
+  if (!ownsStory(fromStoryId, o) || !ownsStory(toStoryId, o)) return null;
+  const e = q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(entryId, fromStoryId) as any;
+  if (!e) return null;
+  return upsertEntry(toStoryId, o, {
+    title: e.title, body: e.body, notes: e.notes, entryType: e.entry_type,
+    activation: e.activation, keys: JSON.parse(e.keys || '[]'), lastEditor: 'human',
+  });
+}
+
 export function delEntry(storyId: string, id: string) {
   // Read the title BEFORE the delete: after it there is nothing left to match the story's persona
   // against, and a persona pointing at a character who no longer exists is worse than an empty one

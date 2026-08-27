@@ -83,6 +83,9 @@ export const api = {
   delBranch:    (storyId, id)    => j('/api/branch', 'DELETE', { storyId, id }),
   saveEntry:    (storyId, entry) => j('/api/entry', 'POST', { storyId, entry }),
   delEntry:     (storyId, id)    => j('/api/entry', 'DELETE', { storyId, id }),
+  // `storyId` is the book the entry lives in, which is what the ownership gate reads; `into` is
+  // where it is going and the route checks that one itself. Both have to be the caller's.
+  copyEntry:    (storyId, into, entryId) => j('/api/entry/copy', 'POST', { storyId, into, entryId }),
   manifest:     (o)              => j('/api/manifest', 'POST', o),
   // The blocking form is gone from the client — every composer path streams now. The ROUTE still
   // answers without `stream`, and four bench harnesses depend on that; this is the browser's only

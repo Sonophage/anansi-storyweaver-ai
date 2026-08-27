@@ -95,6 +95,63 @@ db.delStory(aStory.id, bob);
 assert.ok(db.getStory(aStory.id), "bob must not delete alice's story");
 ok('a story cannot be deleted by someone who does not own it');
 
+// Copying a card into another book. TWO stories are named on one request and the gate resolves
+// exactly one of them, so one of the pair always arrives unchecked by it — which is why copyEntry
+// checks both itself. Both directions are asserted separately: a check on the destination alone
+// lets bob pull alice's canon INTO his book, a check on the source alone lets him push his into
+// hers, and either one on its own passes a test that only tries the other.
+{
+  const aCard = db.upsertEntry(aStory.id, alice, { title: 'The Rust Choir', body: '[a congregation]',
+    entryType: 'lore', activation: 'triggered', keys: ['choir', 'rust'] });
+  // A state on it. Chapter 7 of one book is not chapter 7 of another, so this must NOT travel.
+  db.upsertState(aStory.id, aCard, { fromChapter: 7, body: '[the choir is scattered]' });
+
+  // Bob needs a card that really is in his own book. Aiming his own story id at ALICE'S card only
+  // ever proves the composite scope: the row is not there to find, so a copyEntry with no
+  // destination check at all still returns null and the destination assertion passes having tested
+  // nothing. Each of the two ownership checks needs a case only it can refuse.
+  const bCard = db.upsertEntry(bStory.id, bob, { title: "Bob's own", body: '[his alone]' });
+  const aOther = db.createStory(alice, { title: "Alice's second book" });
+
+  const bBefore = db.entriesOf(bStory.id).length;
+  const aBefore = db.entriesOf(aStory.id).length;
+  assert.strictEqual(db.copyEntry(aStory.id, bStory.id, bob, aCard), null,
+    "bob pulled alice's card into his own book — the SOURCE is the half the gate never checks");
+  assert.strictEqual(db.entriesOf(bStory.id).length, bBefore, 'and nothing landed in his ledger');
+  assert.strictEqual(db.copyEntry(bStory.id, aStory.id, bob, bCard), null,
+    "bob pushed his OWN card into alice's book — the destination is checked separately, and the "
+    + 'composite scope cannot catch this one because the card really is in the source book');
+  assert.strictEqual(db.entriesOf(aStory.id).length, aBefore, 'and nothing landed in hers');
+  assert.strictEqual(db.copyEntry(bStory.id, aOther.id, alice, bCard), null,
+    'alice must not read out of a book she does not own, even into one she does');
+  assert.strictEqual(db.entriesOf(aOther.id).length, 0, 'and nothing landed in her second book');
+  ok('a card cannot be copied out of, or into, another writer\'s book');
+
+  // The composite scope, which is the other half. Both books here are ALICE'S, so ownership passes
+  // and the only thing standing between an entry id and the wrong book is (id, story_id).
+  assert.strictEqual(db.copyEntry(aOther.id, aStory.id, alice, aCard), null,
+    'an entry id from another story resolved through a source book the caller does own');
+  assert.strictEqual(db.entriesOf(aStory.id).length, aBefore, 'and nothing was duplicated');
+  ok('an entry id only resolves through the story it actually lives in');
+
+  // And it works, which is the half a security test forgets. The keys travel; the timeline does not.
+  const made = db.copyEntry(aStory.id, aOther.id, alice, aCard);
+  assert.ok(made && made !== aCard, 'the copy is a new card, not the same row in two books');
+  const there = db.entriesOf(aOther.id).find((x: any) => x.id === made) as any;
+  assert.strictEqual(there.title, 'The Rust Choir');
+  assert.strictEqual(there.entry_type, 'lore');
+  assert.strictEqual(there.activation, 'triggered');
+  assert.deepStrictEqual(JSON.parse(there.keys), ['choir', 'rust'],
+    'the keys travel — a triggered card without them never reaches the model again and looks fine');
+  assert.strictEqual(db.statesForStory(aOther.id).size, 0,
+    'the timeline must NOT travel: a state is anchored to a chapter number, and chapter 7 there is '
+    + 'not chapter 7 here, so copying it puts a fact in force at an unrelated scene');
+  assert.strictEqual(db.statesForStory(aStory.id).get(aCard)?.length, 1,
+    'and the original keeps its own');
+  assert.strictEqual(db.entriesOf(aStory.id).length, aBefore, 'the book it came from is unchanged');
+  ok('a copied card carries its keys into the other book, and leaves the timeline behind');
+}
+
 // Export. A story handed to someone else must carry that story and nothing else — the point
 // of the feature is that the file is safe to send, so a leak here is the whole bug. Runs last,
 // so what gets exported is a database that has been through every mutation above.
@@ -260,6 +317,19 @@ ok('a story cannot be deleted by someone who does not own it');
     assert.strictEqual(db.passagesOf(aStory.id).map((p: any) => p.body).join('|'), hers,
       'and nothing of hers may have changed');
     assert.strictEqual(db.passagesOf(aStory.id).length, before, 'nor may anything be added');
+
+    // TWO stories on one request, which is the shape the gate cannot cover on its own: it resolves
+    // `storyId` and nothing else, so `into` is the route's to check. As bob, source his, destination
+    // hers — the gate PASSES this one, and what refuses it is the route.
+    const bOwn = db.entriesOf(bStory.id)[0] as any;
+    const herBefore = db.entriesOf(aStory.id).length;
+    const pushed = await post('/api/entry/copy',
+      { storyId: bStory.id, into: aStory.id, entryId: bOwn.id });
+    assert.strictEqual(pushed.status, 200,
+      'the gate lets this through, because the story it names IS his — that is the point of it');
+    assert.ok((await pushed.json()).error, 'and the route is what refuses it');
+    assert.strictEqual(db.entriesOf(aStory.id).length, herBefore,
+      "nothing of bob's landed in alice's book");
 
     // A gated route naming no story at all: the gate cannot resolve an owner, so it fails closed.
     const nameless = await post('/api/write', { body: 'no story named' });
