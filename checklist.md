@@ -15,8 +15,8 @@ the next round, not a fix.
 ```
 https://hestia.tempel-discus.ts.net:5174        the only URL that works
 systemctl --user status anansi                  it starts itself, and on boot
-node --experimental-strip-types test/all.ts     196 checks, eleven suites, no model
-test/ui/run.sh                                  439 checks, twelve scenarios, no model
+node --experimental-strip-types test/all.ts     199 checks, eleven suites, no model
+test/ui/run.sh                                  452 checks, twelve scenarios, no model
 ```
 
 ---
@@ -102,17 +102,33 @@ wrong makes Delete run twice.
 
 Where the next session starts.
 
-- **Hero images.** Decided: store the cover as a BLOB in the story row, not a file on disk, because
-  the nightly backup is one database file and a path would leave the covers out of it. Downscale in
-  the browser with a `<canvas>` — native, no dependency — to about 900px wide as JPEG, roughly 150KB
-  a cover, against a database already at 2.6MB. Served by a route; the card uses it instead of the
-  gradient art.
 - **Chapter information autofilled by the model and accepted by you**, the last unbuilt item from
   round four.
 - **pi web search.** The tool is `web_search`, built into pi's core. BLOCKED: `pi auth check
   --provider google` returns `credentials_not_configured`, so there is nothing to integrate against.
   Each search would also be a cloud provider turn rather than an HTTP GET, in an app that currently
   makes no outbound request at all.
+
+**Three things Seth found in the threads, fixed the same evening:**
+
+- **The menu's Threads page would not open a thread.** The page is a list beside an editor, and the
+  editor reads from the OPEN story — so pressing a thread in a book you had not opened set the
+  selection and then rendered the "pick a thread" hint again. Nothing opened and nothing said why.
+  It loads that thread's book now and stays on the page, which is what the two-column layout was
+  for. The hint that apologised for it ("Editing needs its story open") is gone with it.
+- **A story's Threads panel had no door to the one that spans every book.** You had to leave the
+  story first, and then know that Threads out there means something wider than Threads in here —
+  this repo's own recurring failure, a finished feature with nothing that opens it. `data-leave`
+  takes a page name now, so one button goes straight there.
+- **Accepting a proposal wrote something you had never read.** The card showed `delta || body`, and
+  for a conflict or an update the delta is a summary — the paragraph about to enter canon was not
+  on screen at all. Both are shown now, and the body is a box you can rewrite first.
+  `POST /api/proposal` has honoured an incoming `body` since it was written; nothing ever sent one.
+  Both the chapter queue and Anansi noticed under Strings, because they share the one handler.
+
+Falsified, each one: removing the workspace branch turns two of the six new browser checks red,
+and making the handler stop reading the box turns "carries what is in the box, not what the model
+said" red.
 
 **Done later the same evening, from this list:**
 
@@ -123,6 +139,20 @@ Where the next session starts.
   books rather than one for this: with one story there is no grid to come after the button, so the
   order assertion was true wherever the button was put. Falsified — moving the button below the grid
   turns "and before the rest of the shelf" red.
+- **Hero images.** Built, and it needs your eye rather than another check: pick one under Story →
+  The cover and see whether a real photograph survives 900px and JPEG 0.82 on the hero card.
+  **One deviation from what was agreed, and it is deliberate:** the bytes are in a side table
+  `story_covers`, not a column on `stories`, because `listStories` selects `s.*` — a blob in that
+  row is read off disk and handed to JS for every card on the shelf, on every paint. Same one
+  database file, so the backup argument that decided this is untouched. The shelf is told only
+  *when* the cover was set, and that timestamp is the cache key: `/api/cover?story=…&v=<set_at>`
+  answers `immutable`, so a cover is fetched once per change rather than once per paint. Refused
+  at the boundary as bytes, not as a label — a PNG relabelled `image/jpeg` does not get stored,
+  which is the case a Content-Type check cannot see. The seven end-to-end checks in
+  `test/ui/surfaces.js` paid for themselves on the first run: a double quote inside `style="…"`
+  ended the attribute at `background:url(`, so the card had neither cover nor gradient — green in
+  every unit check and in `test/app.ts`, invisible until a browser rendered it. Not covered: how it
+  looks. Nothing asserts that a photograph reads well behind the title, and nothing can.
 - **`README.md` said the allowlist lives in a run command.** It has lived in an untracked `.env`
   since `bcccbad`, read by `node --env-file=.env` and by `anansi.service`'s `EnvironmentFile`
   alike. The Run it block now says so, with the two keys named.
@@ -167,11 +197,12 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
 - **Anansi's chapter numbers** are right now that it is told which chapter it is looking at, but
   that is one run against one story (F33).
 
-### Deliberate debt — nineteen `ponytail:` markers
+### Deliberate debt — twenty `ponytail:` markers
 
 Three are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
 unscheduled), no streaming backpressure, and ceilings-with-a-refusal instead of a budget engine.
-The other fourteen each name a ceiling: three stored-and-ignored entry columns, a LIKE scan that goes
+The other fifteen each name a ceiling: the markdown and JSON exports carrying a cover's timestamp
+and not its bytes (the standalone-database export does carry it), three stored-and-ignored entry columns, a LIKE scan that goes
 linear at chapter 40, rejected takes recorded but not fed back, the repair's length floor,
 prompt-override validation, the remaining key logic (secondary keys, exclusion keys, regex), the
 checker's blindness to numeric contradictions, the whois cache holding an IP for the life of the
@@ -227,8 +258,8 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 196 checks, eleven suites, no model needed
-test/ui/run.sh                                 # 439 checks, twelve scenarios, headless, no model
+node --experimental-strip-types test/all.ts    # 199 checks, eleven suites, no model needed
+test/ui/run.sh                                 # 452 checks, twelve scenarios, headless, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model

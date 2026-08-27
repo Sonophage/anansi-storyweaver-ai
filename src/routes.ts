@@ -23,6 +23,9 @@ type Handler = (c: Ctx) => Promise<any> | any;
 /** The ceiling on anything uploaded. One constant because it was three literals, and the .db
  *  branch checked none of them — it wrote to disk first and asked afterwards. */
 const MAX_UPLOAD = 20_000_000;
+// A cover is downscaled in the browser to about 900px wide, which lands near 150KB. 1MB is room
+// for a wide one at high quality and still refuses a phone camera original posted whole.
+const MAX_COVER = 1_000_000;
 
 const need = (v: any, msg: string) => { if (!v) throw Object.assign(new Error(msg), { code: 404 }); return v; };
 const viewOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such story');
@@ -951,6 +954,46 @@ export const routes: Record<string, Handler> = {
     ].filter((x) => x !== null).join('\n\n');
     return { __raw: { type: 'text/markdown', filename: `${safe}.md`, body: md } };
   },
+
+  /** The cover. In the database rather than on disk: the nightly backup is one file, and a path
+   *  on disk would leave every cover out of it.
+   *
+   *  The bytes arrive as a data URL inside the ordinary JSON body — the browser has already made
+   *  one with `canvas.toDataURL`, so multipart parsing would be a parser written to undo work that
+   *  was already done. Downscaling happens in the browser too, which is why the ceiling here is
+   *  1MB and not MAX_UPLOAD: nothing legitimate reaching this route is a camera original.
+   *
+   *  ponytail: the cover survives the export that matters and no other. `POST /api/export`
+   *  snapshots the whole database and deletes the other stories, so ON DELETE CASCADE leaves this
+   *  one's cover in the file — a book leaves and comes back with its face. The markdown and JSON
+   *  exports carry the set_at and not the bytes, because both are for reading elsewhere. Base64 it
+   *  into the JSON if that export ever has to be a full round trip. */
+  'POST /api/cover': (c: Ctx) => {
+    const url = String(c.body.dataUrl ?? '');
+    // Validated at the boundary, not trusted from the surface: the prefix is a claim, the magic
+    // bytes are the file. A PNG or an SVG relabelled as JPEG is refused rather than stored and
+    // served back with an image/jpeg header.
+    const b64 = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(url)?.[1];
+    if (!b64) throw Object.assign(new Error('the cover must be a base64 JPEG data URL'), { code: 400 });
+    const buf = Buffer.from(b64, 'base64');
+    if (!buf.length) throw Object.assign(new Error('that cover is empty'), { code: 400 });
+    if (buf.length > MAX_COVER) throw Object.assign(
+      new Error(`that cover is ${Math.round(buf.length / 1000)}KB, over the 1MB ceiling`), { code: 400 });
+    if (!(buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff))
+      throw Object.assign(new Error('that is not a JPEG'), { code: 400 });
+    db.setCover(c.body.storyId, buf);
+    return viewOf(c.body.storyId);
+  },
+
+  'GET /api/cover': (c: Ctx) => {
+    const jpeg = need(db.getCover(c.query.get('story')!), 'no cover');
+    // No filename, so serve.ts sends it inline. Immutable because the URL carries the set_at the
+    // shelf read; a new cover is a new URL, so nothing has to be revalidated.
+    return { __raw: { type: 'image/jpeg', body: jpeg,
+      headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } } };
+  },
+
+  'DELETE /api/cover': (c: Ctx) => { db.delCover(c.body.storyId); return viewOf(c.body.storyId); },
 
   /** Read a chapter and propose ledger entries. Nothing written here is canon: every
    *  proposal is held until accepted (design screen 28). Re-running is safe — the unique

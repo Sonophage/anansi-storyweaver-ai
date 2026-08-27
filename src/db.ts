@@ -277,6 +277,17 @@ CREATE TABLE IF NOT EXISTS outfits (
 CREATE UNIQUE INDEX IF NOT EXISTS outfits_one_active ON outfits(entry_id) WHERE active = 1;
 CREATE INDEX IF NOT EXISTS outfits_story ON outfits(story_id);
 
+-- The cover, in the database rather than on disk, because the nightly backup is one file and a
+-- path would leave every cover out of it. A SIDE TABLE and not a column on stories, which is the
+-- one place this departs from what was agreed: listStories selects s.*, so a blob in that row
+-- would be read off disk and handed to JS for every card on the shelf, on every paint. Here the
+-- shelf asks only when the cover was set, and the bytes move when the image is requested.
+-- Still the same one file, so the backup argument holds.
+CREATE TABLE IF NOT EXISTS story_covers (
+  story_id TEXT PRIMARY KEY REFERENCES stories(id) ON DELETE CASCADE,
+  jpeg BLOB NOT NULL,
+  set_at INTEGER NOT NULL);
+
 `);
 
 migrate();
@@ -327,7 +338,8 @@ export const listStories = (o: string) => q(`
          (SELECT COUNT(*) FROM proposals pr WHERE pr.story_id = s.id AND pr.status = 'open') AS proposed,
          (SELECT COUNT(*) FROM strings st WHERE st.story_id = s.id AND st.status = 'open') AS unpaid,
          (SELECT COUNT(*) FROM violations v JOIN passages p ON p.id = v.passage_id
-           WHERE v.story_id = s.id AND v.status = 'open' AND p.selected = 1) AS flags
+           WHERE v.story_id = s.id AND v.status = 'open' AND p.selected = 1) AS flags,
+         (SELECT sc.set_at FROM story_covers sc WHERE sc.story_id = s.id) AS cover
   FROM stories s WHERE s.owner_id = ? ORDER BY s.updated_at DESC`).all(o);
 
 export function createStory(o: string, s: any) {
@@ -349,6 +361,22 @@ export function createStory(o: string, s: any) {
 }
 
 export const getStory = (id: string) => q('SELECT * FROM stories WHERE id = ?').get(id) as any;
+
+/** The cover. Ownership is the dispatcher's gate, not this function's: every route that reaches
+ *  here names a story, so it is checked before the handler runs. */
+export const getCover = (id: string) =>
+  (q('SELECT jpeg FROM story_covers WHERE story_id = ?').get(id) as any)?.jpeg ?? null;
+/** When the cover was set, or null. It is the cache key as well as the answer to "is there one":
+ *  the surface asks for `/api/cover?story=…&v=<this>`, which is immutable for that value, so a
+ *  cover is fetched once per change rather than once per paint of the shelf. */
+export const coverAt = (id: string): number | null =>
+  (q('SELECT set_at FROM story_covers WHERE story_id = ?').get(id) as any)?.set_at ?? null;
+export function setCover(id: string, jpeg: Uint8Array) {
+  q(`INSERT INTO story_covers (story_id, jpeg, set_at) VALUES (?,?,?)
+     ON CONFLICT(story_id) DO UPDATE SET jpeg = excluded.jpeg, set_at = excluded.set_at`)
+    .run(id, jpeg, now());
+}
+export const delCover = (id: string) => { q('DELETE FROM story_covers WHERE story_id = ?').run(id); };
 
 /** The only ownership question, asked in one place. Postgres would do this with RLS;
  *  on SQLite it is a gate in the dispatcher plus the scoped writes below, because

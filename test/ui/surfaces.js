@@ -252,4 +252,55 @@ ok("  and picking one lands on <html> where the CSS can see it",
 await page.eval("(() => { document.querySelector('[data-scalepick=\"100\"]').click(); return 1; })()");
 await page.eval("(() => { document.querySelector('[data-appearance=\"0\"]')?.click(); return 1; })()");
 
+// The cover, end to end and over real HTTP: the unit checks in test/scope.ts call the handler, and
+// what they cannot see is the wire — whether serve.ts sends the JPEG inline or as a download, and
+// whether the card's own markup asks for it. A canvas makes the JPEG, so the bytes travel the exact
+// path a picked file does.
+await page.goto(B + "/");
+await wait(400);
+const jpegUrl = await page.eval("(() => { const c = Object.assign(document.createElement('canvas'),"
+  + " { width: 40, height: 24 }); const x = c.getContext('2d');"
+  + " x.fillStyle = '#8a4'; x.fillRect(0,0,40,24); return c.toDataURL('image/jpeg', 0.8); })()");
+ok("13. the browser can make a JPEG data URL to send", jpegUrl.startsWith('data:image/jpeg;base64,'));
+
+// A PNG relabelled as JPEG, refused over the wire. The prefix says jpeg and the bytes say PNG.
+const relabelled = await page.eval("(async () => { const png = Object.assign(document.createElement('canvas'),"
+  + " { width: 4, height: 4 }).toDataURL('image/png').split(',')[1];"
+  + " const r = await fetch('/api/cover', { method:'POST', headers:{'Content-Type':'application/json'},"
+  + " body: JSON.stringify({ storyId: '" + sid + "', dataUrl: 'data:image/jpeg;base64,' + png }) });"
+  + " return r.status; })()");
+ok(`   a PNG wearing a JPEG prefix is refused at the wire (${relabelled})`, relabelled === 400);
+
+const set = await page.eval("(async () => { const r = await fetch('/api/cover', { method:'POST',"
+  + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyId: '" + sid + "',"
+  + " dataUrl: " + JSON.stringify(jpegUrl) + " }) }); const j = await r.json(); return j.cover ?? j.error; })()");
+ok("   and a real one is accepted, with a version to key the URL on", typeof set === 'number' && set > 0);
+
+// Inline, not a download: an <img> pointed at Content-Disposition: attachment shows nothing.
+const head = await page.eval("(async () => { const r = await fetch('/api/cover?story=" + sid + "&v=' + "
+  + set + "); return [r.headers.get('content-type'), r.headers.get('content-disposition'),"
+  + " r.headers.get('cache-control'), (await r.blob()).size].join('|'); })()");
+console.log("   cover response: " + head);
+ok("   it is served inline as image/jpeg, cacheable forever",
+   // An absent header joins as empty, not as "null" — so the empty second field IS the assertion
+   // that no Content-Disposition went out.
+   head.startsWith('image/jpeg||') && head.includes('immutable') && Number(head.split('|')[3]) > 0);
+
+await page.goto(B + "/");
+await wait(500);
+const cardArt = await page.eval("(() => { const c = [...document.querySelectorAll('.storycard')]"
+  + ".find(x => x.textContent.includes('Silver Key')); return c ? c.querySelector('.art').getAttribute('style') : ''; })()");
+ok("   and the card on the shelf asks for it, with the version in the URL",
+   cardArt.includes('/api/cover?story=' + sid) && cardArt.includes('v=' + set));
+// The gradient stays underneath as the fallback, so a cover that has not arrived is not a blank hole.
+ok("   with the gradient still under it while it loads", /gradient/.test(cardArt));
+
+await page.eval("(async () => { await fetch('/api/cover', { method:'DELETE',"
+  + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyId: '" + sid + "' }) }); })()");
+await page.goto(B + "/");
+await wait(500);
+const bare = await page.eval("(() => { const c = [...document.querySelectorAll('.storycard')]"
+  + ".find(x => x.textContent.includes('Silver Key')); return c ? c.querySelector('.art').getAttribute('style') : ''; })()");
+ok("   removing it puts the card back to its gradient", !bare.includes('/api/cover') && /gradient/.test(bare));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

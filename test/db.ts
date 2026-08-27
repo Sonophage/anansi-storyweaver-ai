@@ -775,4 +775,47 @@ ok('a flag on a take you rolled away from is not counted and not shown', () => {
   assert.strictEqual(db.pruneViolations(0), 0, 'nothing swept it — it is filtered, not lost');
 });
 
+// The cover. The reason it is a side table and not a column is that listStories selects s.* — so
+// the assertion that matters is not "it came back", it is "the shelf listing does not carry the
+// bytes". Falsified by selecting sc.jpeg into that listing rather than sc.set_at: the shelf then
+// carries the cover, and "the moment it was set" is the assertion that goes red first.
+ok('a cover round-trips, and the shelf is told when it was set and never the bytes', () => {
+  const me = db.owner('cover-owner');
+  const st = db.createStory(me, { title: 'A book with a face' });
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(40_000, 7)]);
+
+  assert.strictEqual(db.coverAt(st.id), null, 'a new story has no cover');
+  assert.strictEqual(db.getCover(st.id), null, 'and no bytes to hand out');
+  const row0: any = db.listStories(me).find((r: any) => r.id === st.id);
+  assert.ok(!row0.cover, 'and the shelf says so');
+
+  db.setCover(st.id, jpeg);
+  assert.strictEqual(Buffer.from(db.getCover(st.id)!).length, jpeg.length, 'the bytes come back whole');
+  assert.strictEqual(Buffer.compare(Buffer.from(db.getCover(st.id)!), jpeg), 0, 'and unchanged');
+
+  const row: any = db.listStories(me).find((r: any) => r.id === st.id);
+  assert.ok(typeof row.cover === 'number' && row.cover > 0,
+    'the shelf gets the moment it was set, which is what the immutable URL is keyed on');
+  // The whole point of the side table: 40KB of JPEG must not be sitting in the shelf listing.
+  assert.ok(JSON.stringify(row).length < 4_000,
+    `the shelf row is ${JSON.stringify(row).length} bytes — the cover is in it`);
+
+  // Replacing bumps the version, so the URL the shelf builds is a different URL.
+  const first = db.coverAt(st.id)!;
+  db.setCover(st.id, Buffer.concat([jpeg, Buffer.from([0xff, 0xd9])]));
+  assert.strictEqual(db.listStories(me).filter((r: any) => r.id === st.id).length, 1,
+    'a replaced cover is one row, not two');
+  assert.ok(db.coverAt(st.id)! >= first, 'and its version does not go backwards');
+
+  db.delCover(st.id);
+  assert.strictEqual(db.coverAt(st.id), null, 'removing it leaves no cover');
+  assert.strictEqual(db.getCover(st.id), null, 'and no bytes');
+
+  // The story is what owns it. Deleting the book must not leave a cover behind in the database
+  // the backup then carries forever.
+  db.setCover(st.id, jpeg);
+  db.delStory(st.id, me);
+  assert.strictEqual(db.coverAt(st.id), null, 'deleting the story takes its cover with it');
+});
+
 console.log(`\n${n} checks passed`);

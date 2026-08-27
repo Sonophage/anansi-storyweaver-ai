@@ -96,7 +96,9 @@ const MANIFEST = { manifest: { blocks: [
   { kind: 'PROSE', id: 'p-7', text: '', tokens: 300, state: 'omitted', reason: 'prose 60% ceiling' },
 ], totals: { budget: 46146, used: 21401, unallocated: 0 }, byKind: {}, overflowed: false }, prompt: '', exact: 21401 };
 
-(globalThis as any).fetch = async (url: string) => {
+const POSTED: any[] = [];
+(globalThis as any).fetch = async (url: string, init?: any) => {
+  if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   // Three books, not one, and the two extras exist only so the shelf's ORDER can be wrong. With a
   // single story there is no grid to come after the New story button, so an assertion about where
   // that button sits is true wherever the button is put.
@@ -294,6 +296,48 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
   assert.match(chapter, /1 string proposed &mdash; they wait under Strings/,
     'it says where the string went rather than silently dropping it from the count');
   ok('a proposed string waits under Strings, and the chapter queue says so');
+
+// Editing a proposal before it lands. The route has honoured an incoming body since it was
+// written and the surface never sent one, so what the model wrote was what entered canon even
+// after the writer had changed it on screen. The panel also showed `delta || body` — for a
+// conflict or an update that meant the text about to become canon was never displayed at all.
+{
+  const chapter = html('sideBody');   // the chapter panel, from the block above
+  assert.match(chapter, /data-pbody="pr-1"/, 'a thread proposal offers a box, not a paragraph');
+  assert.match(chapter, /A signature is void\./, 'holding what will be written');
+  assert.match(chapter, /New fact\./, 'with the delta still shown beside it');
+
+  click({ panel: 'strings' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.match(html('sideBody'), /data-pbody="pr-2"/, 'and so does a proposed string');
+
+  // The box lives in the DOM, so the handler has to read it. Only this selector answers.
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) =>
+    sel === '[data-pbody="pr-1"]' ? { value: 'Rewritten by hand.' } : null;
+  try {
+    POSTED.length = 0;
+    click({ decide: 'accept', id: 'pr-1' });
+    await new Promise((r) => setTimeout(r, 60));
+    const sent = POSTED.find((x) => String(x.url).startsWith('/api/proposal'));
+    assert.ok(sent, 'accepting a proposal posts to the route');
+    assert.strictEqual(sent.body.accept, true);
+    assert.strictEqual(sent.body.body, 'Rewritten by hand.',
+      'and carries what is in the box, not what the model said');
+
+    // Rejecting must not carry one: the route ignores it, and sending it would claim the wording
+    // of something thrown away mattered.
+    POSTED.length = 0;
+    click({ decide: 'reject', id: 'pr-1' });
+    await new Promise((r) => setTimeout(r, 60));
+    const dropped = POSTED.find((x) => String(x.url).startsWith('/api/proposal'));
+    assert.ok(dropped, 'rejecting posts too');
+    assert.strictEqual(dropped.body.accept, false);
+    assert.strictEqual(dropped.body.body, undefined, 'and carries no body');
+  } finally { doc.querySelector = wasQS; }
+  ok('a proposal shows what it will write, and an edit is what gets sent');
+}
 
 // Nine themes, each one row, every token derived from it. Three hand-written CSS blocks is why
 // there were three: a new theme meant restating the greys, the gold and the chrome by hand, and

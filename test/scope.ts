@@ -515,4 +515,54 @@ ok('a story cannot be deleted by someone who does not own it');
   ok("the voice of the weave is per writer, resets to the shipped one, and starts a new story");
 }
 
+// The cover arrives as a data URL in a JSON body, which means the prefix is a claim the sender
+// makes about bytes the server has not looked at. Every refusal below is a thing a browser will
+// never send and an ordinary curl can: a PNG called a JPEG, a PNG relabelled, nothing at all, and
+// a camera original posted whole. Falsify by deleting the magic-byte line — the relabelled PNG
+// case is the one that goes red, and it is the one a Content-Type header cannot catch.
+{
+  const ctx = (owner: string, body: any = {}, query = '') => ({ body, query: new URLSearchParams(query),
+    owner, slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  const post = (body: any) => { try { return routes['POST /api/cover'](ctx(alice, body)); }
+                                catch (e: any) { return { error: e.message, code: e.code }; } };
+  const jpeg = (n2: number) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(n2, 3)]);
+  const url = (b: Buffer, mime = 'image/jpeg') => `data:${mime};base64,${b.toString('base64')}`;
+
+  for (const [label, body] of [
+    ['a PNG data URL is refused for what it says it is', { storyId: aStory.id, dataUrl: url(jpeg(10), 'image/png') }],
+    ['a PNG wearing a JPEG prefix is refused for what it IS',
+     { storyId: aStory.id, dataUrl: url(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d])) }],
+    ['an empty cover is refused', { storyId: aStory.id, dataUrl: 'data:image/jpeg;base64,' }],
+    ['a missing cover is refused', { storyId: aStory.id }],
+    ['a cover over the 1MB ceiling is refused', { storyId: aStory.id, dataUrl: url(jpeg(1_200_000)) }],
+    ['an SVG is refused, prefix and bytes both', { storyId: aStory.id, dataUrl: url(Buffer.from('<svg onload="x()">'), 'image/svg+xml') }],
+  ] as const) {
+    const r: any = post(body);
+    assert.strictEqual(r.code, 400, `${label}: got ${JSON.stringify(r).slice(0, 90)}`);
+    assert.strictEqual(db.coverAt(aStory.id), null, `${label}: and nothing was stored`);
+  }
+
+  const good: any = post({ storyId: aStory.id, dataUrl: url(jpeg(2_000)) });
+  assert.ok(!good.error, `a real JPEG is accepted: ${good.error ?? ''}`);
+  assert.ok(good.cover! > 0, 'and the view it hands back says there is a cover now');
+  assert.strictEqual(good.story.title, "Alice's book", 'as the whole story view, like every sibling route');
+
+  // Served inline and cacheable forever, because the URL carries the version. A filename here
+  // would make serve.ts send Content-Disposition: attachment, and an <img> would show nothing.
+  const got: any = routes['GET /api/cover'](ctx(alice, {}, `story=${aStory.id}`));
+  assert.strictEqual(got.__raw.type, 'image/jpeg');
+  assert.strictEqual(got.__raw.filename, undefined, 'no filename, so it is inline and not a download');
+  assert.match(got.__raw.headers['Cache-Control'], /immutable/);
+  assert.strictEqual(Buffer.from(got.__raw.body).length, 2_003, 'and it is the bytes that went in');
+
+  // Bob is stopped by the dispatcher, not by this handler — so what is proved here is the other
+  // half: nothing in the handler makes its own decision about who may read a cover.
+  assert.ok(!db.ownsStory(aStory.id, bob), "bob does not own alice's book, so the gate answers first");
+
+  routes['DELETE /api/cover'](ctx(alice, { storyId: aStory.id }));
+  assert.strictEqual(db.coverAt(aStory.id), null, 'and removing it removes it');
+  ok('a cover is validated as bytes and not as a label, and is served inline');
+}
+
 console.log(`\n${n} checks passed`);

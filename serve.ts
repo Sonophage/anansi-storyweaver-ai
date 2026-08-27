@@ -193,9 +193,14 @@ const handler = async (req: any, res: any) => {
       return res.end();
     }
     if (out && out.__raw) {
-      const { type, filename, body } = out.__raw;
-      res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8`,
-        'Content-Disposition': `attachment; filename="${filename}"` });
+      // A download when it names a filename, and inline otherwise — a cover is fetched by an <img>,
+      // which an attachment disposition turns into a save dialog. Every export keeps the charset it
+      // has always had; an image is the only thing that must not carry one.
+      const { type, filename, body, headers } = out.__raw;
+      res.writeHead(200, {
+        'Content-Type': type.startsWith('image/') ? type : `${type}; charset=utf-8`,
+        ...(filename ? { 'Content-Disposition': `attachment; filename="${filename}"` } : {}),
+        ...headers });
       return res.end(body);
     }
     send(res, 200, out);

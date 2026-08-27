@@ -161,7 +161,7 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
-  'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry'].map((k) => `[data-${k}]`).join(',');
+  'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -777,7 +777,14 @@ const PANELS = {
       <div style="display:flex; flex-wrap:wrap; gap:7px">
         ${groups.map(([k, , one]) => `<button class="btn ghost" data-newentry="${k}"
           style="flex:1 1 44%; white-space:nowrap">New ${one}</button>`).join('')}
-      </div></div>`;
+      </div>
+      <!-- This panel is ONE story's threads, because entries are story-scoped in the schema. The
+           page that spans every book already existed and had no door from inside a story: you had
+           to leave first, and then know that Threads out there means something wider than Threads
+           in here. -->
+      <button class="btn ghost" data-leave="canon" style="margin-top:14px">Every book's threads</button>
+      <div class="hint">${V.entries.length} in this story. The wider list spans every book you have,
+        and is where to look when you cannot remember which one a thread is in.</div></div>`;
   },
 
   story() {
@@ -837,6 +844,19 @@ const PANELS = {
         </div>`;
       })()}
       <button class="btn" data-savestory="1" style="margin-top:16px">Save</button>
+
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">The cover</div>
+      ${V.cover ? `<img src="${api.coverUrl(S.storyId, V.cover)}" alt=""
+        style="width:100%; height:120px; object-fit:cover; border-radius:var(--r); border:1px solid var(--edge)">` : ''}
+      <div style="display:flex; gap:7px; margin-top:${V.cover ? '7px' : '0'}">
+        <label class="btn ghost" style="flex:1; display:flex; align-items:center; justify-content:center; cursor:pointer">
+          ${V.cover ? 'Replace it' : 'Choose an image'}
+          <input type="file" accept="image/*" data-cover="1" hidden></label>
+        ${V.cover ? '<button class="btn ghost" data-delcover="1" style="flex:0 0 auto">Remove</button>' : ''}
+      </div>
+      <div class="hint">Shrunk to 900px wide in the browser and stored in the database, not on disk
+        — the nightly backup is one file, and a path would leave the covers out of it.</div>
+
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
         <a class="btn ghost" href="${api.exportUrl(S.storyId, 'markdown')}" download
@@ -895,9 +915,17 @@ const PANELS = {
           <div style="display:flex; align-items:center; gap:8px">
             <span style="font-size:14.5px; color:var(--ink-bright)">${esc(p.title)}</span>
             <span class="up" style="margin-left:auto; font-size:9.5px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
-          <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(p.delta || p.body)}${
-            p.entryType === 'state' ? `<span style="color:var(--faint)"> &middot; in force from chapter ${
-              esc(JSON.parse(p.keys || '[]')[0] ?? '?')}</span>` : ''}</div>
+          <!-- The delta says what CHANGED and the body is what gets written. Showing the delta OR
+               the body meant that for a conflict or an update the text about to enter canon was
+               never on screen at all: you accepted a summary and got a paragraph you had not read.
+               Both now, and the one that lands is editable. POST /api/proposal has honoured an
+               incoming body since it was written; nothing ever sent it. -->
+          ${p.delta && p.delta.trim() !== (p.body ?? '').trim()
+            ? `<div style="font-size:12px; line-height:1.45; color:var(--faint)">${esc(p.delta)}</div>` : ''}
+          <textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} will say"
+            style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
+          ${p.entryType === 'state' ? `<div style="font-size:11px; color:var(--faint)">In force from chapter ${
+            esc(JSON.parse(p.keys || '[]')[0] ?? '?')}</div>` : ''}
           <div style="display:flex; gap:7px">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Accept</button>
@@ -1118,7 +1146,8 @@ const PANELS = {
               <span style="font-size:14px; color:var(--ink-bright)">${esc(p.title)}</span>
               <span style="margin-left:auto; font-size:11px; color:var(--faint)">${
                 p.keys?.[0] ? `set up in chapter ${esc(p.keys[0])}` : ''}</span></div>
-            ${p.body ? `<div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(p.body)}</div>` : ''}
+            <textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} promises"
+              style="margin:0; min-height:64px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
             <div style="display:flex; gap:7px">
               <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
                 border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Tie it</button>
@@ -1757,7 +1786,12 @@ function storyCard(s, i, hero) {
   // Archived is dimmed rather than hidden: it is still your book and still one tap away.
   return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}"
     style="${s.status === 'archived' ? 'opacity:.42; filter:saturate(.5)' : ''}">
-    <span class="art" style="display:block; height:${hero ? 190 : 130}px; background:${ART[i % ART.length]}">
+    <span class="art" style="display:block; height:${hero ? 190 : 130}px; background:${
+      // Single quotes: this whole thing goes inside style="…", and a double quote in the URL ends
+      // the attribute at `background:url(` — which is exactly what it did, and the card lost both
+      // its cover and its gradient.
+      s.cover ? `url('${api.coverUrl(s.id, s.cover)}') center/cover no-repeat, ${ART[i % ART.length]}`
+              : ART[i % ART.length]}">
       <span class="fade"></span>
       <span style="position:absolute; top:12px; left:14px; display:flex; gap:5px; flex-wrap:wrap;
         max-width:70%">${tags.map((t) => `<span class="tag" style="background:rgba(10,9,12,.6);
@@ -1904,7 +1938,7 @@ const WPAGES = {
       <div class="aside" style="border:1px solid var(--edge); border-radius:var(--r);
         background:var(--rail); padding:20px 22px">
         ${S.entryId && V ? entryEditor()
-          : '<div class="hint" style="margin:0">Pick an entry to read or change it. Editing needs its story open — use Open story first.</div>'}
+          : '<div class="hint" style="margin:0">Pick a thread to read or change it. Its book opens here as you press it — you do not have to find it on the shelf first.</div>'}
       </div></div>`;
   },
 
@@ -2736,7 +2770,8 @@ document.addEventListener('click', async (e) => {
     if (d.nav === 'prefs' && S.models === null) loadModels();
     return;
   }
-  if (d.leave) { S.place = 'workspace'; S.wpage = 'stories'; S.panel = null; S.entryId = null;
+  if (d.leave) { S.place = 'workspace'; S.wpage = d.leave === '1' ? 'stories' : d.leave;
+    S.panel = null; S.entryId = null;
     LEDGER = null; await loadLibrary(); paint(); return; }
   if (d.panel !== undefined) { S.panel = d.panel || null; syncHash(); paint(); return; }
   if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); return; }
@@ -2802,6 +2837,19 @@ document.addEventListener('click', async (e) => {
 
   if (d.entry) { S.entryId = d.entry; S.fieldHistory = null;
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
+    // The cross-book page lists threads from every story and the editor beside it reads from the
+    // OPEN one, so pressing a thread in a book you had not opened set S.entryId and then rendered
+    // the "pick an entry" hint again — the press did nothing, and said nothing either. Load the
+    // book the thread belongs to, and stay on the page: the split is a list next to an editor
+    // because browsing many books' threads is the whole point of it.
+    else if (S.place === 'workspace') {
+      const owner = (LEDGER ?? []).find((x) => x.id === d.entry);
+      if (owner && owner.story !== S.storyId) {
+        const r = await api.story(owner.story);
+        if (r.error) return toast(r.error);
+        V = r; S.storyId = owner.story;
+      }
+    }
     paint(); return; }
   if (d.copyentry) {
     const into = document.querySelector('[data-cf="into"]')?.value;
@@ -3098,6 +3146,13 @@ document.addEventListener('click', async (e) => {
     paint();
     return;
   }
+  if (d.delcover) {
+    const r = await api.delCover(S.storyId);
+    if (r.error) return toast(r.error);
+    V = r; await loadLibrary(); paint();
+    toast('Cover removed. The card goes back to its gradient.');
+    return;
+  }
   if (d.archive) {
     const r = await api.saveStory(S.storyId, { status: d.archive });
     if (r.error) return toast(r.error);
@@ -3200,7 +3255,14 @@ document.addEventListener('click', async (e) => {
     // Read BEFORE the accept: the proposal is gone from the view once it lands, and the word for
     // what just happened depends on which kind it was. "Woven in" is the threads word.
     const was = (V.proposals ?? []).find((p) => p.id === d.id);
-    const r = await api.decide({ storyId: S.storyId, id: d.id, accept: d.decide === 'accept' });
+    // What is in the box, not what the model said — they are the same until the writer changes it.
+    // Only sent on accept: the route ignores a body on reject, and sending one would say the
+    // rejected wording mattered.
+    // ponytail: an edit lives in the DOM until Accept, so a repaint mid-edit loses it — the same
+    // hazard the composer's draft-keeping solves. Keep it in S if that ever bites.
+    const edited = document.querySelector(`[data-pbody="${d.id}"]`)?.value;
+    const r = await api.decide({ storyId: S.storyId, id: d.id, accept: d.decide === 'accept',
+      ...(d.decide === 'accept' && edited != null ? { body: edited } : {}) });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest();
     toast(d.decide !== 'accept' ? 'Dropped.'
@@ -3362,7 +3424,36 @@ async function readImport(f) {
   drawPage();
 }
 
+// A cover, shrunk before it is sent. 900px wide is what the hero card can use; anything larger is
+// bytes in a database that back up every night for no visible gain. `createImageBitmap` decodes off
+// the main thread and needs no <img> in the document to do it.
+async function readCover(f) {
+  if (!f) return;
+  // Before the decode, not after it: a camera original spends its time here, and a toast that
+  // says "shrinking" once the shrinking is done reports the past.
+  toast('Shrinking the cover…');
+  let bmp;
+  try { bmp = await createImageBitmap(f); }
+  catch { return toast('could not read that image'); }
+  // Fitted into a box, not scaled by width alone: a tall panorama at 900px wide is still millions
+  // of pixels, and it would come out the far side of the route's 1MB ceiling with nothing the
+  // writer could do about it. Never enlarged — the 1 in the min is what stops a small image being
+  // blown up into a soft one.
+  const k = Math.min(1, 900 / bmp.width, 1400 / bmp.height);
+  const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
+  const c = Object.assign(document.createElement('canvas'), { width: w, height: h });
+  c.getContext('2d').drawImage(bmp, 0, 0, w, h);
+  bmp.close?.();
+  // JPEG and not PNG: a photograph as PNG is several megabytes, and the route only accepts JPEG
+  // for that reason. 0.82 is where a 900px cover lands around 150KB.
+  const r = await api.setCover(S.storyId, c.toDataURL('image/jpeg', 0.82));
+  if (r.error) return toast(r.error);
+  V = r; await loadLibrary(); paint();
+  toast('Cover set.');
+}
+
 document.addEventListener('change', (e) => {
+  if (e.target.dataset?.cover) return void readCover(e.target.files?.[0]);
   if (e.target.dataset?.story === 'spice') {
     const box = $('spiceCustom');
     if (box) box.hidden = e.target.value !== 'custom';

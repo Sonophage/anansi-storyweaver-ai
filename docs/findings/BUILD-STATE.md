@@ -82,6 +82,7 @@ Nothing in this list is a surprise; the point is that adding to it requires writ
 | `db.ts` | `priority` is still stored and ignored — it needs the budget engine to mean anything. `sticky_for` and `proper_nouns` are now used. |
 | `db.ts` | Search is a LIKE scan. |
 | ~~`routes.ts`~~ | **Done.** `GET /api/activity` reads it; Preferences shows prefill seconds and rate per call, which is PLAN-02 §7.2's trigger made observable. |
+| ~~`routes.ts`~~ | **Done.** Story covers. `story_covers` holds the JPEG, downscaled to 900px in the browser; the shelf is told only the `set_at`, which keys an immutable URL. A side table and not a column on `stories`, because `listStories` selects `s.*`. |
 | ~~`serve.ts`~~ | **Done.** `tailscale whois` on the peer IP, an `ANANSI_ALLOW` allowlist, one owner resolved per request, and the sampler moved from the process to the owner. 22 checks in `test/scope.ts`, two of which are the allowlist itself. |
 | — | Adventure mode **dropped** (Seth, 2026-08-23), not deferred. Nothing to build. |
 | `desk.js` | Design screens D9, D10, D14 not built as surfaces. |

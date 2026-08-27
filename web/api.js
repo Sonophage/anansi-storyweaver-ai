@@ -126,5 +126,10 @@ export const api = {
   router:       (action, storyId) => j('/api/router', 'POST', { action, storyId }),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
   runImport:    (name, data, into) => j('/api/import', 'POST', { name, data, into: into || undefined }),
+  setCover:     (storyId, dataUrl) => j('/api/cover', 'POST', { storyId, dataUrl }),
+  delCover:     (storyId)        => j('/api/cover', 'DELETE', { storyId }),
+  // `v` is the set_at the shelf was told about, and the route answers immutable for it, so a
+  // cover is fetched once per change rather than once per paint.
+  coverUrl:     (id, v)          => `/api/cover?story=${id}&v=${v}`,
   exportUrl:    (id, format)     => `/api/export?story=${id}&format=${format}`,
 };

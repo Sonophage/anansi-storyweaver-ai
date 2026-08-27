@@ -47,6 +47,9 @@ export function view(storyId: string, focusChapterId?: string) {
   const arcs = db.arcsOf(storyId);
   return {
     id: storyId, story: toStory(s), chapters,
+    // Whether there is a cover, never the cover itself. Top level rather than inside `story` so a
+    // surface that posts the story object straight back cannot try to save it as a field.
+    cover: db.coverAt(storyId),
     // The chapter you are working in, not simply the last one. Every chapter-scoped feature —
     // the author's note, pins, what canon looks like from here — was addressable only at the
     // tip, so a closed chapter could never be revisited.

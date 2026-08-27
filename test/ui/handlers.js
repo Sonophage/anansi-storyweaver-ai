@@ -279,4 +279,40 @@ ok("  and the panel is still History, not something else",
   }
 }
 
+// ---- The menu's Threads page, with no story open. A fresh load is what makes this falsifiable:
+// the editor beside the list reads from the OPEN story, and after a reload there is none, which is
+// exactly the state a writer is in when they come to that page from the menu. Pressing a thread
+// used to set the selection and then render the "pick a thread" hint again — nothing opened, and
+// nothing said why.
+await page.goto(B + "/");
+await wait(600);
+await page.eval("(() => { document.querySelector('[data-nav=\"canon\"]').click(); return 1; })()");
+await wait(900);
+const listed = await page.eval("document.querySelectorAll('#page [data-entry]').length");
+ok(`the menu's Threads page lists every thread across the shelf (${listed})`, listed > 0);
+const before = (await page.eval("document.querySelector('#page .aside')?.textContent") || '').trim();
+ok("  and offers no editor until one is picked", !before.includes('When it reaches the model'));
+const leid = await page.eval("document.querySelector('#page [data-entry]')?.dataset.entry");
+await page.eval("(() => { document.querySelector('[data-entry=\"" + leid + "\"]').click(); return 1; })()");
+await wait(1200);
+const opened = (await page.eval("document.querySelector('#page .aside')?.textContent") || '').trim();
+// The three rooms of the entry editor. Any one of them proves the editor rendered rather than the
+// hint — the body box proves it has the thread's own text and not an empty form.
+ok("  pressing one opens it, with no need to find its book on the shelf first",
+   opened.includes('When it reaches the model') && opened.includes('Type'));
+const body = await page.eval("document.querySelector('#page .aside textarea')?.value ?? ''");
+ok(`  and the box holds the thread's own body (${JSON.stringify(body.slice(0, 30))})`, body.trim().length > 0);
+
+// ---- The door out of a single book's threads. The panel is one story's by construction, so the
+// list that spans every book needs a way in from inside one.
+await page.goto(B + "/#" + sid + "/threads");
+await wait(900);
+ok("the story's Threads panel offers a door to every book's",
+   await page.eval("!!document.querySelector('#sideBody [data-leave=\"canon\"]')"));
+await page.eval("(() => { document.querySelector('[data-leave=\"canon\"]').click(); return 1; })()");
+await wait(900);
+ok("  and it lands on the page that spans them, not on the shelf",
+   (await page.eval("document.querySelectorAll('#page [data-entry]').length")) > 0
+   && (await page.eval("!!document.querySelector('#page [data-lkind]')")) === true);
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
