@@ -45,8 +45,36 @@ What is left of round four's `bugs.md`. Everything else on it is built and is in
 
 ### Built since round five, owed a walk
 
-Eleven things landed on 2026-08-26 after the round five pass. None has been used by the person it is
-for. This is the next walk.
+Everything below landed on 2026-08-26 after the round five pass, in one long day. None of it has been
+used by the person it is for except where Seth reported a bug against it, which is noted. This is the
+next walk.
+
+**The second half of the day, from Seth's own testing:**
+
+- **F34 is FIXED.** A tap that drifts is delivered anyway — and the first version of that fix ate
+  scrolling ("i cant scroll without opening something"), so it now takes three tests: the distance,
+  whether the page MOVED, and whether the finger came to rest. What is falsified and what is not is
+  written into `web/app.js` beside it; the distance ceiling and the scroll check are belt to braces
+  and neither is independently covered.
+- **A flag you could count and never open.** Its passage was a take rolled away from, so the shelf
+  saw it and the page could not show it. Filtered on `selected`, not swept — an unselected take is
+  one you can switch back to.
+- **Branching was never missing**, only unreachable: it sat at the bottom of the History panel under
+  the fold. It is in the three-dot tray now.
+- **Prose is set like a book.** Paragraphs, dialogue breaking out into its own, indent rather than a
+  blank line, first paragraph flush. Edit hands back the raw text, because `textContent` over `<p>`
+  children would have glued the passage into one line on save.
+- **Your own lines sit on the left margin** with their bar kept, a third bar marks a passage written
+  to your direction, and the last passage on the page is boxed.
+- **One door to the menu.** The hamburger is gone; the web in the bar opens a full-screen sheet from
+  the bottom. "All stories" is now "Anansi's web".
+- **Ten help webs**, on the concepts only — a number in a help body fails a check on purpose.
+- **The shelf says what is waiting** across every book, and Report an issue is on the menu with its
+  own page, filed through `gh` and carrying the build but never the prose.
+- **Tapping the prose no longer edits it**; Edit is the only door, and the keyboard shortens the page
+  rather than covering the composer.
+
+**The first half:**
 
 - **The character memory.** Closing a chapter proposes, for each character it changed, their whole
   description rewritten as it now stands — in force from the NEXT chapter, so revising the closed one
@@ -69,6 +97,23 @@ for. This is the next walk.
 **Not fixed, and named so it is not mistaken for done: F34's drift threshold.** A tap that moves 24px
 still does nothing, on the shelf and everywhere else. The fix needs agreeing, because its guard done
 wrong makes Delete run twice.
+
+### Agreed with Seth, not built
+
+Where the next session starts.
+
+- **New story as a button on the shelf**, and every story after the hero in two columns. Small.
+- **Hero images.** Decided: store the cover as a BLOB in the story row, not a file on disk, because
+  the nightly backup is one database file and a path would leave the covers out of it. Downscale in
+  the browser with a `<canvas>` — native, no dependency — to about 900px wide as JPEG, roughly 150KB
+  a cover, against a database already at 2.6MB. Served by a route; the card uses it instead of the
+  gradient art.
+- **Chapter information autofilled by the model and accepted by you**, the last unbuilt item from
+  round four.
+- **pi web search.** The tool is `web_search`, built into pi's core. BLOCKED: `pi auth check
+  --provider google` returns `credentials_not_configured`, so there is nothing to integrate against.
+  Each search would also be a cloud provider turn rather than an HTTP GET, in an app that currently
+  makes no outbound request at all.
 
 ### Already built, and round four could not find it
 
@@ -110,7 +155,7 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
 - **Anansi's chapter numbers** are right now that it is told which chapter it is looking at, but
   that is one run against one story (F33).
 
-### Deliberate debt — seventeen `ponytail:` markers
+### Deliberate debt — nineteen `ponytail:` markers
 
 Three are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
 unscheduled), no streaming backpressure, and ceilings-with-a-refusal instead of a budget engine.
