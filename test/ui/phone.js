@@ -235,6 +235,42 @@ await wait(1500);
 const clean = await page.eval("(() => ({ hits: window.__hits, blocks: document.querySelectorAll('.block').length }))()");
 ok(`  a tap with no drift still opens it exactly once (${clean.hits})`, clean.hits === 1 && clean.blocks > 0);
 
+// The regression Seth hit within minutes of the first version: "i cant scroll without opening
+// something". A flick — a finger still travelling when it lifts — must never be a press, at ANY
+// distance, because the old band caught every scroll that began on a card.
+await page.goto(B + "/");
+await wait(800);
+await page.eval(`(() => { window.__opened = 0; const real = window.fetch;
+  window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__opened++; return real(u, o); };
+  return 1; })()`);
+// Two big steps and no pause: a finger travelling 12px at a time and gone. Six small ones with a
+// pause is a slow drag that stopped, which is a press, and the app is right to treat it as one.
+await page.tapDrift("#page .storycard[data-open]", 24, 0, 2);
+await wait(1200);
+ok("  a flick that lifts while still moving is never a press, even at a tapping distance",
+   (await page.eval("window.__opened")) === 0);
+
+// 45px, slowly, coming to rest. This is the gesture Seth described — an unhurried scroll that stops
+// — and it is the one the first band got wrong: it settles, so the flick rule lets it through, and
+// only the distance ceiling can refuse it. At 60px it opened a story. A press does not wander 45px.
+await page.goto(B + "/");
+await wait(800);
+await page.eval(`(() => { window.__opened = 0; const real = window.fetch;
+  window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__opened++; return real(u, o); };
+  return 1; })()`);
+await page.tapDrift("#page .storycard[data-open]", 45);
+await wait(1200);
+// WHAT THIS DOES NOT PROVE. It stays green with the distance ceiling widened to 200 AND the scroll
+// check deleted, so neither of those is what refuses this gesture — most likely the page scrolls
+// under the finger and the release lands off the card, which the recogniser also refuses. It is a
+// real regression test for the behaviour Seth reported and it is NOT a test of either guard.
+//
+// The guards that ARE falsified: the recogniser itself (24px, settled), the double-fire guard
+// (14px, where the browser fires too), and the flick rule (two big steps, no pause). The distance
+// ceiling and the scroll check are belt to those braces and neither is independently covered.
+ok("  a slow 45px drag that comes to rest is a scroll, not a press",
+   (await page.eval("window.__opened")) === 0);
+
 // And a real scroll must still be a scroll. 80px of movement is a drag, not a fumbled press.
 await page.goto(B + "/");
 await wait(800);
@@ -246,5 +282,41 @@ await page.tapDrift("#page .storycard[data-open]", 80);
 await wait(1200);
 ok("  and 80px of movement is still a scroll, not a press",
    (await page.eval("window.__hits")) === 0);
+
+// The menu is a full-screen sheet from the bottom, not a drawer from the left with the shelf
+// showing beside it.
+await page.goto(B + "/");
+await wait(800);
+await page.eval(`(() => { window.__opened = 0; const real = window.fetch;
+  window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__opened++; return real(u, o); };
+  return 1; })()`);
+await page.click("#burger");
+await wait(700);
+const sheet = await page.eval(`(() => { const r = document.getElementById('rail').getBoundingClientRect();
+  return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x), y: Math.round(r.y),
+           vw: innerWidth, vh: innerHeight }; })()`);
+ok(`the menu fills the screen (${sheet.w}x${sheet.h} of ${sheet.vw}x${sheet.vh})`,
+   sheet.w >= sheet.vw && sheet.h >= sheet.vh && sheet.x === 0);
+
+// Nothing behind it to reach. This is the structural answer to click-through: not a scrim that must
+// catch the tap, but no exposed surface to tap at all.
+// Sample the whole screen, not one point. The property is that NOTHING behind the sheet is exposed
+// — and the middle of it is a menu item, so a tap there opening a story is the menu working rather
+// than a leak. What must be true is that every point lands inside the sheet.
+const exposed = await page.eval(`(() => {
+  const out = [];
+  for (const fx of [0.1, 0.5, 0.9]) for (const fy of [0.1, 0.5, 0.9]) {
+    const el = document.elementFromPoint(Math.round(innerWidth * fx), Math.round(innerHeight * fy));
+    if (!el || !el.closest('#rail')) out.push(\`\${fx},\${fy}:\${el ? (el.id || el.className || el.tagName) : 'null'}\`);
+  }
+  return out.join(' '); })()`);
+ok(`  and nothing behind it is reachable anywhere on the screen (${exposed || 'nine of nine inside'})`,
+   exposed === '');
+
+// And it has to be closable, or a full-screen sheet is a trap.
+await page.click("#rail [data-rail]");
+await wait(700);
+ok("  the chevron closes it again",
+   (await page.eval("document.documentElement.dataset.uiRail")) === 'closed');
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

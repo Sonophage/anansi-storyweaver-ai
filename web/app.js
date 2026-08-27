@@ -210,9 +210,9 @@ function drawRail() {
         <span class="serif txt" style="font-size:26px; color:var(--ink-bright)">Anansi</span>
       </button>
       <button data-rail="1" style="margin-left:auto; color:var(--faint); display:flex;
-        align-items:center; justify-content:center; padding:2px 4px"
-        aria-label="${S.rail ? 'Collapse the rail' : 'Expand the rail'}"
-        ><span style="display:flex; transform:rotate(${S.rail ? 180 : 0}deg);
+        align-items:center; justify-content:center; padding:6px 8px"
+        aria-label="${S.rail ? 'Close the menu' : 'Open the menu'}"
+        ><span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
           transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span></button>
     </div>
     ${back}
@@ -2485,11 +2485,17 @@ let TAP = null;         // the touch in progress, if it started on something act
 let SYNTH = null;       // { el, at } — a click we just delivered ourselves
 let DISPATCHING = false;
 
+/** Where the page is, so a gesture that MOVED it can be told from one that did not. This is the
+ *  strongest signal there is: the browser only takes the click away when it decided to scroll, and
+ *  if it scrolled, the writer was scrolling. */
+const scrollNow = () => (($('read')?.scrollTop ?? 0) + (document.scrollingElement?.scrollTop ?? 0));
+
 document.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse') { TAP = null; return; }
   const t = e.target.closest(ACTIONS);
   TAP = (t && t !== root && t !== document.body)
-    ? { el: t, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, at: Date.now() }
+    ? { el: t, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0,
+        at: Date.now(), scroll: scrollNow(), step: 0, stepAt: Date.now() }
     : null;
 }, true);
 
@@ -2499,6 +2505,10 @@ document.addEventListener('pointerdown', (e) => {
 // for is the one where pointerup does not come.
 document.addEventListener('pointermove', (e) => {
   if (!TAP || e.pointerType === 'mouse') return;
+  // The size of the LAST step and when it happened, which is how a finger that has come to rest is
+  // told from one still travelling when it lifts.
+  TAP.step = Math.hypot(e.clientX - TAP.lx, e.clientY - TAP.ly);
+  TAP.stepAt = Date.now();
   TAP.lx = e.clientX; TAP.ly = e.clientY;
   TAP.moved = Math.max(TAP.moved, Math.hypot(e.clientX - TAP.x, e.clientY - TAP.y));
 }, true);
@@ -2507,7 +2517,26 @@ const endTap = (e) => {
   const s = TAP; TAP = null;
   if (!s || e.pointerType === 'mouse') return;
   if (Date.now() - s.at > 700) return;                            // a long press is not a tap
-  if (s.moved <= 10 || s.moved > 60) return;                      // the browser has it, or it was a scroll
+  // THREE tests, and the first version had only the loosest of them. Seth: "i cant scroll without
+  // opening something" — a 40px scroll that began on a story card was inside the old 10-to-60 band
+  // and opened it.
+  //
+  //  1. under 10px the browser fires click itself, and synthesising would be the double;
+  //  2. over 30px is a scroll. 60 was far too generous: F34 measured the browser giving up around
+  //     20, so a fumbled press lives just above that and nowhere near 60;
+  //  3. THE PAGE MUST NOT HAVE MOVED, and the finger must have come to rest. The browser only takes
+  //     the click away when it decided to scroll — so if anything scrolled, the writer was
+  //     scrolling, whatever the distance says. And a finger still travelling when it lifts is a
+  //     flick, not a press that wandered.
+  // ponytail: neither of the next two lines is independently covered by a check. The 45px case in
+  // phone.js stays green with the ceiling at 200 and the scroll check deleted, so something else
+  // refuses that gesture and these two are belt to the braces that ARE falsified — the recogniser,
+  // the double-fire guard and the flick rule. If a real press is ever wrongly refused, 30 is the
+  // number to raise, and the way to earn a check for it is a control on a surface that cannot
+  // scroll, which this fixture does not have.
+  if (s.moved <= 10 || s.moved > 30) return;
+  if (Math.abs(scrollNow() - s.scroll) > 2) return;
+  if (s.step > 4 && Date.now() - s.stepAt < 120) return;
   // Still over the control it started on. elementFromPoint rather than e.target, because a cancel's
   // target is not where the finger is.
   const over = document.elementFromPoint(s.lx, s.ly);

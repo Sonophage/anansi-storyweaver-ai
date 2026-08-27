@@ -297,6 +297,30 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   }
   #side[hidden] { width:400px; transform:translateX(100%); box-shadow:none; border-left-color:var(--line); }
 }
+/* Phone: the MENU is a full-screen sheet from the bottom, like the panel beside it.
+   Seth: "instead of it coming from the left could we have it come up from the bottom and be full
+   screen". Two things it settles at once. The drawer left a strip of document beside it at 264px of
+   264, which reads as reachable whether or not it is — and the same edge is now the edge every sheet
+   in the app arrives from, so the rail stops being the one surface with its own idiom.
+
+   Full screen rather than a tall sheet on purpose: a menu with the shelf showing under it is a menu
+   you are half in. There is nothing behind it to tap, which is the structural version of the
+   click-through Seth reported and which I could not reproduce on emulated touch — the scrim takes
+   the tap there. This removes the surface the question was about rather than answering it. */
+@media (max-width:719px) {
+  #rail, html[data-ui-rail="closed"] #rail {
+    position:fixed; inset:0; width:auto; z-index:40;
+    border-right:0; box-shadow:0 -30px 90px rgba(0,0,0,.6);
+    padding-bottom:env(safe-area-inset-bottom, 0px);
+    transform:translateY(0); transition:transform var(--t-slow) var(--ease-out);
+  }
+  html[data-ui-rail="closed"] #rail { transform:translateY(100%); box-shadow:none; }
+  /* Nothing to dim: the sheet is the whole screen. Leaving the scrim up under it only costs a
+     backdrop-filter over a surface nobody can see. */
+  html[data-ui-rail="open"] #scrim { opacity:0; pointer-events:none; }
+  #rail .txt { opacity:1 !important; }
+}
+
 /* Phone: the panel becomes a bottom sheet. */
 @media (max-width:719px) {
   #side {

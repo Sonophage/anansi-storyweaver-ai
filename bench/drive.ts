@@ -166,18 +166,25 @@ const page = {
   /** A tap that moves `drift` pixels between touchStart and touchEnd. For finding the point where
    *  the browser stops calling it a tap and starts calling it a scroll — which is what a large card
    *  on a scrolling shelf is vulnerable to on a real finger. */
-  async touchDrift(x: number, y: number, drift: number) {
+  async touchDrift(x: number, y: number, drift: number, settle = 160, steps = 6) {
     await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
-    if (drift) {
-      await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + drift }] });
+    // In STEPS, like a finger. One jump of the whole distance and an immediate lift is a flick, and
+    // the app is right to ignore it — a real drifting press moves a few pixels at a time and then
+    // comes to rest. Sending it as one jump made the recogniser look broken when it was correct.
+    for (let i = 1; drift && i <= steps; i++) {
+      await send('Input.dispatchTouchEvent',
+        { type: 'touchMove', touchPoints: [{ x, y: y + Math.round((drift * i) / steps) }] });
+      await wait(16);
     }
+    // The rest. `settle` is 0 for a flick that should NOT be treated as a press.
+    if (settle) await wait(settle);
     await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await wait(220);
   },
   /** A tap on a selector that drifts `drift` pixels, through the pointer events the app listens to.
    *  touchDrift takes coordinates; this takes a selector and scrolls it in first, which is what a
    *  scenario actually wants. */
-  async tapDrift(sel: string, drift: number) {
+  async tapDrift(sel: string, drift: number, settle = 160, steps = 6) {
     const box = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
       if (!e) return null;
       e.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -185,7 +192,7 @@ const page = {
       return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; })()`);
     if (!box) throw new Error(`tapDrift: no element for ${sel}`);
     await wait(220);
-    await page.touchDrift(box.x, box.y, drift);
+    await page.touchDrift(box.x, box.y, drift, settle, steps);
   },
   /** A real mouse move, so CSS :hover applies. A dispatched mouseover event does not. */
   async hover(sel: string) {
