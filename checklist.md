@@ -26,6 +26,44 @@ test/ui/run.sh                                  467 checks, twelve scenarios, no
 **COUNCIL-04 is closed** — all eight findings and all seven of its smaller items. Nothing from the
 original review is outstanding. What is left is of three kinds.
 
+### Landed 2026-08-27, second half — memory before compaction
+
+Done in the order agreed with Seth: make the ledger real *before* the prose window is cut, not
+after. The measurement that set the order, read off `anansi.db`: the prompt is **8,676 of 46,446
+tokens**, canon **3.4%** of it, **87% of the slot unused** — and **twelve entries in the whole
+database, every one `always_on`, eleven with `keys` that are just the entry's own title.** Context
+was never scarce. The tier meant to catch the prose was not there to catch it.
+
+- **A chapter reads itself when it closes.** `extract` fires on close on the same terms
+  `summarise` and `remember` already do. Proposals, never writes. The ledger is the only tier that
+  survives compaction, so leaving it on a button left the memory optional — the argument already
+  written above `summarise` at `routes.ts:571`, applied word for word. **The surface had been
+  promising this all along** (`app.js:1015`, `:1043`); the code now matches the copy.
+- **Extraction reads narration only.** PLAN-06 §2c. `remember` has stripped dialogue since it was
+  written and this read `p.body` raw, while `EXTRACT`'s own prompt says a character being wrong is
+  not a fact. Mattered less behind a button; it runs every chapter now.
+- **The prose window closes at the chapter boundary**, with the seam as the exception: an empty
+  chapter still sees the one before it, because otherwise every chapter opens from a summary with
+  no sentence in front of it. The scene break is excluded from that count and has its own case.
+- **`keep_whole` has a door** — a toggle on each summary in the Chapter panel. Honoured by the
+  engine since it was written, reachable from nowhere. Underneath it, `updateChapter` wrote the
+  column unconditionally while every caller sends only a title and a note, so renaming a chapter
+  switched pull-back off. Fixed with the idiom `updateStory` has always had.
+- **Per-story look** — theme, font, prose size, UI scale — over a writer default that lives on the
+  server rather than in one browser.
+- **Stop** reaches the model, not only the page.
+
+**Owed a walk.** None of it has been used by the person it is for.
+
+### Still not measured, and named so it is not mistaken for done
+
+The window change makes the prompt smaller in a prompt that had room to spare. What it buys is
+what the model *leans on*, and nothing yet says whether the ledger it now leans on does any work:
+canon is 3.4% of the prompt and `CANON-TRIGGERED` contributed zero blocks on the last call, because
+nothing in the database can fire. `bench/utilisation.ts` and `bench/ledger-audit.ts` in
+`PLAN-06-MEMORY.md` §5 are the instruments; neither exists yet. **Do not call this an improvement
+until one of them has run.**
+
 ### Doorless code, found 2026-08-27
 
 Not bugs and not decisions: finished engine work with nothing that opens it. The class this repo
