@@ -315,4 +315,70 @@ ok("  and it lands on the page that spans them, not on the shelf",
    (await page.eval("document.querySelectorAll('#page [data-entry]').length")) > 0
    && (await page.eval("!!document.querySelector('#page [data-lkind]')")) === true);
 
+// ---- Outfits and chapter overrides: editable, and wearable where they live. Both routes have
+// updated by id since they were written and the panel never sent one, so the only way to fix a
+// typo in an outfit or a wrong chapter number was to delete the thing and type it again. Wearing
+// was worse: it existed ONLY as chips on the Threads list, and the panel holding the wardrobe said
+// so in a sentence instead of offering a button.
+await page.goto(B + "/#" + sid + "/threads");
+await wait(900);
+const cid = await page.eval("(() => { const b = [...document.querySelectorAll('[data-entry]')]"
+  + ".find(x => x.textContent.includes('Aldis')); return b ? b.dataset.entry : "
+  + "document.querySelector('[data-entry]')?.dataset.entry; })()");
+await page.click('[data-entry="' + cid + '"]');
+await wait(700);
+// A character, or there is no wardrobe to drive. The fixture's persona is one.
+await page.eval("(() => { document.querySelector('[data-kind=\"character\"]')?.click(); return 1; })()");
+await wait(800);
+await page.eval("(() => { document.querySelector('[data-of=\"name\"]').value = 'Plate';"
+  + " document.querySelector('[data-of=\"body\"]').value = 'Scarred half-armour, buckled wrong.';"
+  + " return 1; })()");
+await page.click('[data-addoutfit]');
+await wait(900);
+const outfitOf = async () => (await entries()).find((x) => x.id === cid)?.outfits ?? [];
+let fits = await outfitOf();
+ok(`an outfit can be added (${fits.length})`, fits.length === 1 && fits[0].name === 'Plate');
+
+// Edit it in place. The id in the attribute is what makes this an edit and not a second outfit.
+const oid = fits[0].id;
+await page.eval("(() => { document.querySelector('[data-ofn=\"" + oid + "\"]').value = 'Court dress';"
+  + " document.querySelector('[data-ofb=\"" + oid + "\"]').value = 'Borrowed silk, a size out.';"
+  + " return 1; })()");
+await page.click('[data-saveoutfit="' + oid + '"]');
+await wait(1000);
+fits = await outfitOf();
+ok(`  and edited in place, not duplicated (${fits.length} outfit, "${fits[0]?.name}")`,
+   fits.length === 1 && fits[0].name === 'Court dress' && /Borrowed silk/.test(fits[0].body));
+
+// Worn from the panel that holds the wardrobe, which is the whole report.
+ok("  and the editor offers a way to wear it", await page.eval("!!document.querySelector('[data-wear=\"" + cid + ":" + oid + "\"]')"));
+await page.click('[data-wear="' + cid + ':' + oid + '"]');
+await wait(1000);
+fits = await outfitOf();
+ok(`  pressing it puts it on (active ${fits[0]?.active})`, fits[0]?.active === true);
+await page.click('[data-wear="' + cid + ':' + oid + '"]');
+await wait(1000);
+fits = await outfitOf();
+ok(`  and pressing it again takes it off (active ${fits[0]?.active})`, fits[0]?.active === false);
+
+// A chapter override, then correcting the chapter it comes into force in.
+await page.eval("(() => { document.querySelector('[data-st=\"fromChapter\"]').value = '2';"
+  + " document.querySelector('[data-st=\"body\"]').value = 'He has stopped pretending to be Watch.';"
+  + " return 1; })()");
+await page.click('[data-addstate]');
+await wait(1000);
+const statesOf = async () => (await entries()).find((x) => x.id === cid)?.states ?? [];
+let sts = await statesOf();
+ok(`a chapter override can be added (${sts.length} from chapter ${sts[0]?.fromChapter})`,
+   sts.length === 1 && sts[0].fromChapter === 2);
+const stid = sts[0].id;
+await page.eval("(() => { document.querySelector('[data-stf=\"" + stid + "\"]').value = '3';"
+  + " document.querySelector('[data-stb=\"" + stid + "\"]').value = 'He says it out loud, once.';"
+  + " return 1; })()");
+await page.click('[data-savestate="' + stid + '"]');
+await wait(1000);
+sts = await statesOf();
+ok(`  and its chapter corrected in place (${sts.length} from chapter ${sts[0]?.fromChapter})`,
+   sts.length === 1 && sts[0].fromChapter === 3 && /out loud/.test(sts[0].body));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

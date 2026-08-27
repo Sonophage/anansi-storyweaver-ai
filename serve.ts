@@ -151,7 +151,13 @@ const handler = async (req: any, res: any) => {
       return res.end(await readFile(HERE + PAGES[p], 'utf8'));
     }
     if (/^\/(web\/)?[\w.-]+\.(js|css|svg|webmanifest)$/.test(p)) {
-      res.writeHead(200, { 'Content-Type': `${MIME[extname(p)]}; charset=utf-8` });
+      // no-cache, because these are read off disk on every request and the whole point of that is
+      // that an edit is live without a restart. With no freshness header at all a phone caches
+      // heuristically, so a fix that IS on disk keeps looking like a fix that does not work — and
+      // "it still does not open" is indistinguishable from a stale bundle. There is no build step
+      // and no content hash to put in the URL, so the header is the only place to say it.
+      res.writeHead(200, { 'Content-Type': `${MIME[extname(p)]}; charset=utf-8`,
+        'Cache-Control': 'no-cache' });
       return res.end(await readFile(HERE + p.slice(1), 'utf8'));
     }
     const key = `${req.method} ${p}`;

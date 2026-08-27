@@ -161,7 +161,8 @@ const ACTIONS = ['nav', 'rail', 'leave', 'open', 'chapter', 'panel', 'appearance
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
-  'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover'].map((k) => `[data-${k}]`).join(',');
+  'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
+  'saveoutfit', 'savestate'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -1620,13 +1621,25 @@ function entryEditor() {
     <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Wardrobe</div>
     <div class="hint" style="margin:0 0 8px">A named outfit is a second bracket on this character
       while it is worn, so taking the plate off does not mean rewriting who she is. One at a time —
-      the database enforces that, not the screen. Switch on the Threads panel.</div>
-    ${(e.outfits ?? []).map((o) => `<div class="card" style="margin-bottom:8px;
+      the database enforces that, not the screen.</div>
+    <!-- Wearing one used to be possible ONLY on the Threads list, and this panel said so in a
+         sentence. So the screen that holds the wardrobe could not put anything on, the cross-book
+         page had no chips at all, and the outfits themselves were read-only even though
+         upsertOutfit has updated by id since it was written. Both live here now, on the thing
+         they act on. -->
+    ${(e.outfits ?? []).map((o) => `<div class="card" style="margin-bottom:8px; gap:7px;
       border-color:${o.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
       <div style="display:flex; align-items:center; gap:9px">
-        <span class="kind">${esc(o.name)}${o.active ? ' · worn' : ''}</span>
-        <button data-deloutfit="${o.id}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
-      <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(o.body)}</div></div>`).join('')}
+        <input class="field" data-ofn="${o.id}" value="${esc(o.name)}" aria-label="Outfit name"
+          style="margin:0; font-size:13px; color:var(--ink-bright)">
+        <button data-deloutfit="${o.id}" style="flex:0 0 auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
+      <textarea class="field" data-ofb="${o.id}" aria-label="What the model reads while it is worn"
+        style="margin:0; min-height:52px; font-size:12.5px; line-height:1.45">${esc(o.body)}</textarea>
+      <div style="display:flex; gap:7px">
+        <button class="btn ghost" data-wear="${e.id}:${o.id}" style="flex:1; ${o.active
+          ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${
+          o.active ? 'Worn — take it off' : 'Wear this'}</button>
+        <button class="btn ghost" data-saveoutfit="${o.id}" style="flex:0 0 auto">Save</button></div></div>`).join('')}
     <div class="card" style="gap:7px">
       <input class="field" data-of="name" placeholder="Plate, court dress, travelling…">
       <textarea class="field" data-of="body" placeholder="What the model reads while it is worn"
@@ -1640,14 +1653,21 @@ function entryEditor() {
     ${helpBody('states')}
     <div class="hint" style="margin:0 0 8px">A fact can open at a later chapter. Before it opens it is
       hidden, or hinted at without saying what it is. Earlier chapters keep the body above.</div>
-    ${(e.states ?? []).map((st) => `<div class="card" style="margin-bottom:8px">
-      <div style="display:flex; align-items:center; gap:9px">
-        <span class="kind">From chapter ${st.fromChapter}</span>
-        <span style="margin-left:auto; font-size:9.5px; letter-spacing:.1em; font-variant-caps:all-small-caps;
-          color:var(--faint)">${esc(st.beforeMode ?? 'hide')} before</span>
-        <button data-delstate="${st.id ?? ''}" style="color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
-      <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(st.body)}</div>
-      ${st.label ? `<div class="hint" style="margin:2px 0 0">hint: ${esc(st.label)}</div>` : ''}</div>`).join('')}
+    <!-- Editable for the same reason: upsertState has updated by id since it was written, and the
+         only way to correct a wrong chapter number was to delete the override and type it again. -->
+    ${(e.states ?? []).map((st) => `<div class="card" style="margin-bottom:8px; gap:7px">
+      <div style="display:flex; align-items:center; gap:7px">
+        <input class="field" data-stf="${st.id ?? ''}" type="number" min="1" value="${st.fromChapter}"
+          aria-label="From chapter" style="margin:0; width:92px">
+        <select class="field" data-stm="${st.id ?? ''}" aria-label="Before that chapter" style="margin:0">
+          <option value="hide" ${(st.beforeMode ?? 'hide') === 'hide' ? 'selected' : ''}>hidden before</option>
+          <option value="hint" ${st.beforeMode === 'hint' ? 'selected' : ''}>hinted before</option></select>
+        <button data-delstate="${st.id ?? ''}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
+      <textarea class="field" data-stb="${st.id ?? ''}" aria-label="What is true from that chapter on"
+        style="margin:0; min-height:56px; font-size:12.5px; line-height:1.45">${esc(st.body)}</textarea>
+      <input class="field" data-stl="${st.id ?? ''}" value="${esc(st.label ?? '')}"
+        placeholder="If hinted, what the reader may sense" style="margin:0">
+      <button class="btn ghost" data-savestate="${st.id ?? ''}">Save this change</button></div>`).join('')}
     <div class="card" style="gap:7px">
       <div style="display:flex; gap:7px">
         <input class="field" data-st="fromChapter" type="number" min="1" placeholder="Chapter" style="width:96px">
@@ -1917,6 +1937,10 @@ const WPAGES = {
 
   canon() {
     if (LEDGER === null) { loadLedger(); return `<div class="hint">Reading the threads…</div>`; }
+    // A phone turns .split into a column, so the editor beside the list is BELOW the list — every
+    // book's threads above it. Pressing one opened it off screen, which reads exactly like nothing
+    // happening. Same answer as the story panel: the editor replaces the list, and ‹ Back returns.
+    if (phone() && S.entryId && V) return `<div style="max-width:640px">${entryEditor()}</div>`;
     // Grouped by story, because a story IS its threads — entries are story-scoped in the schema
     // and there is no separate lorebook table. The search spans every story, which is the point:
     // it is for when you cannot remember which book an entry belongs to.
@@ -2731,6 +2755,17 @@ document.addEventListener('click', async (e) => {
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); return;
   }
+  if (d.saveoutfit) {
+    const name = document.querySelector(`[data-ofn="${d.saveoutfit}"]`)?.value.trim();
+    const body = document.querySelector(`[data-ofb="${d.saveoutfit}"]`)?.value.trim();
+    if (!name || !body) return toast('An outfit needs a name and something to wear.');
+    // The id is what makes this an edit rather than a second outfit — upsertOutfit branches on it,
+    // and it checks the row belongs to this story before it writes.
+    const r = await api.saveOutfit(S.storyId, S.entryId, { id: d.saveoutfit, name, body });
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    paint(); refreshManifest(); toast('Saved.'); return;
+  }
   if (d.deloutfit) {
     const r = await api.delOutfit(S.storyId, d.deloutfit);
     if (r.error) return toast(r.error);
@@ -3090,6 +3125,16 @@ document.addEventListener('click', async (e) => {
       { fromChapter: from, body: get('body'), beforeMode: get('beforeMode'), label: get('label') || null });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest(); toast('Added.'); return;
+  }
+  if (d.savestate !== undefined) {
+    if (!d.savestate) return toast('That change has no id to save.');
+    const get = (a) => document.querySelector(`[data-${a}="${d.savestate}"]`)?.value;
+    const from = Number(get('stf'));
+    if (!from || !String(get('stb') ?? '').trim()) return toast('A chapter number and a body, at least.');
+    const r = await api.saveState(S.storyId, S.entryId, { id: d.savestate, fromChapter: from,
+      body: get('stb'), beforeMode: get('stm'), label: get('stl') || null });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint(); refreshManifest(); toast('Saved.'); return;
   }
   if (d.delstate !== undefined) {
     if (!d.delstate) return toast('That change has no id to remove.');

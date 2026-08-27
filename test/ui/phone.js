@@ -356,4 +356,31 @@ for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/");
   ok(`  and no hamburger left on ${where}`, (await page.eval("!!document.getElementById('burger')")) === false);
 }
 
+// The menu's Threads page, on a phone. Same family as the report at the top of this file: the press
+// worked, the thing it opened was off screen, and off screen is indistinguishable from broken. The
+// split becomes a column on a phone, so the editor beside the list sits BELOW every book's threads.
+await page.goto(B + "/");
+await wait(700);
+await page.eval("(() => { document.querySelector('[data-rail]').click(); return 1; })()");
+await wait(500);
+await page.click('[data-nav="canon"]');
+await wait(1100);
+const beads = await page.eval("document.querySelectorAll('#page [data-entry]').length");
+ok(`the menu's Threads page lists threads on a phone (${beads})`, beads > 0);
+const pid = await page.eval("document.querySelector('#page [data-entry]')?.dataset.entry");
+await page.click('[data-entry="' + pid + '"]');
+await wait(1200);
+// The list is GONE, which is what puts the editor where a thumb already is. Checking only that the
+// editor exists would pass with it a screenful below the fold, which is the bug.
+ok("  tapping one puts the editor where the list was",
+   (await page.eval("document.querySelectorAll('#page [data-entry]').length")) === 0
+   && (await page.eval("!!document.querySelector('#page [data-f=\"body\"]')")) === true);
+const top = await page.eval("(() => { const el = document.querySelector('#page [data-f=\"body\"]');"
+  + " return el ? Math.round(el.getBoundingClientRect().top) : 9999; })()");
+ok(`  and it is on the screen, not below it (${top}px from the top)`, top < 700);
+await page.click('[data-backentry]');
+await wait(900);
+ok("  and Back returns to the list rather than to nothing",
+   (await page.eval("document.querySelectorAll('#page [data-entry]').length")) > 0);
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

@@ -16,7 +16,7 @@ the next round, not a fix.
 https://hestia.tempel-discus.ts.net:5174        the only URL that works
 systemctl --user status anansi                  it starts itself, and on boot
 node --experimental-strip-types test/all.ts     199 checks, eleven suites, no model
-test/ui/run.sh                                  452 checks, twelve scenarios, no model
+test/ui/run.sh                                  463 checks, twelve scenarios, no model
 ```
 
 ---
@@ -108,6 +108,31 @@ Where the next session starts.
   --provider google` returns `credentials_not_configured`, so there is nothing to integrate against.
   Each search would also be a cloud provider turn rather than an HTTP GET, in an app that currently
   makes no outbound request at all.
+
+**A second pass on the threads, after Seth walked the first one:**
+
+- **The menu's Threads page really was not opening a thread — on a phone.** The first fix loaded the
+  book, which was the missing half, and the press still read as nothing happening: `.split` becomes
+  a column on a phone, so the editor beside the list sits BELOW every book's threads. Measured at
+  **1183px from the top of the viewport** by the check that now covers it. The editor replaces the
+  list there, the way the story panel already did, and `‹ Back` returns to it. Same family as the
+  report at the top of `test/ui/phone.js` — the press worked and the result was off screen.
+- **Static JS and CSS now say `Cache-Control: no-cache`.** They are read off disk per request so an
+  edit is live without a restart, but with no freshness header at all a phone caches heuristically
+  — and a fix that is on disk then looks like a fix that does not work. There is no build step and
+  no content hash to put in a URL, so the header is the only place to say it.
+- **Outfits are editable, and wearable where the wardrobe is.** Wearing existed only as chips on the
+  Threads list; the panel holding the wardrobe said "Switch on the Threads panel" instead of
+  offering a button, and on the cross-book page there were no chips at all. Each outfit is now a
+  name, a body, Save, and a Wear/take-off toggle.
+- **A chapter override is editable.** Correcting a wrong chapter number meant deleting the override
+  and typing it again.
+
+Both of those last two are the same shape as the proposal body below: `upsertOutfit` and
+`upsertState` have updated by id since they were written, with the ownership check on the composite
+lookup, and the surface never sent an id. Three routes in one session that were finished and had no
+caller. Falsified by dropping the id from each: the outfit check reports **2 outfits** and the
+override check **2 states from chapter 2**, which is what the id prevents.
 
 **Three things Seth found in the threads, fixed the same evening:**
 
@@ -259,7 +284,7 @@ canon. Every rate in it is a floor.
 
 ```bash
 node --experimental-strip-types test/all.ts    # 199 checks, eleven suites, no model needed
-test/ui/run.sh                                 # 452 checks, twelve scenarios, headless, no model
+test/ui/run.sh                                 # 463 checks, twelve scenarios, headless, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model
