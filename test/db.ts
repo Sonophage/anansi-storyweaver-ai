@@ -818,6 +818,39 @@ ok('a cover round-trips, and the shelf is told when it was set and never the byt
   assert.strictEqual(db.coverAt(st.id), null, 'deleting the story takes its cover with it');
 });
 
+// The look: three layers, and the one that matters is that a book's look never becomes yours by
+// being opened. That was the shape of the bug the split exists to prevent — the surface cached
+// whatever was on screen, so reading a book with a green theme made green your default.
+ok('a book\'s look layers over the writer\'s, and null is how it goes back to following', () => {
+  const me = db.owner('look-owner');
+  const st = db.createStory(me, { title: 'A book with a look' });
+
+  assert.strictEqual(db.lookOf(me), null, 'a new writer has no default of their own');
+  assert.strictEqual((db.getStory(st.id) as any).look, null, 'and a new book follows it');
+
+  db.setLook(me, { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' });
+  assert.strictEqual(db.lookOf(me).theme, 'parchment', 'the default round-trips');
+  assert.strictEqual((db.getStory(st.id) as any).look, null,
+    'and setting it must not write anything onto a book');
+
+  db.setStoryLook(st.id, me, { theme: 'ink', font: 'garamond', size: 'l', scale: '110' });
+  assert.strictEqual(JSON.parse((db.getStory(st.id) as any).look).theme, 'ink', 'the book has its own');
+  assert.strictEqual(db.lookOf(me).theme, 'parchment',
+    'and giving a book one must not change the writer default — the whole point of the split');
+
+  // Null is a value here, not an absence: it is the way back, and it is what every book written
+  // before the column existed already holds.
+  db.setStoryLook(st.id, me, null);
+  assert.strictEqual((db.getStory(st.id) as any).look, null, 'null puts it back to following');
+  assert.strictEqual(db.lookOf(me).theme, 'parchment', 'with the default still there to follow');
+
+  // The look is per book, so it must leave with the book.
+  db.setStoryLook(st.id, me, { theme: 'ink' });
+  db.delStory(st.id, me);
+  assert.strictEqual(db.getStory(st.id), undefined, 'the story is gone');
+  assert.strictEqual(db.lookOf(me).theme, 'parchment', 'and the writer default outlives it');
+});
+
 // Takes: what a reroll inherits, and what deleting one actually deletes. Both of these were the
 // same complaint from Seth — deleting a rerolled passage looked like it did nothing, because it
 // removed the take on screen and promoted the next one.

@@ -34,7 +34,13 @@ const listeners: Record<string, Function[]> = {};
   querySelectorAll: () => [],
   addEventListener: (k: string, f: Function) => { (listeners[k] ??= []).push(f); },
 };
-(globalThis as any).localStorage = { getItem: () => null, setItem() {} };
+// A real one, because what the app CACHES is now part of what is being tested: the default, and
+// never the look of whichever book happens to be open.
+const stored = new Map<string, string>();
+(globalThis as any).localStorage = {
+  getItem: (k: string) => stored.get(k) ?? null,
+  setItem: (k: string, v: string) => { stored.set(k, String(v)); },
+};
 (globalThis as any).matchMedia = () => ({ matches: false, addEventListener() {} });
 (globalThis as any).window = { addEventListener() {} };
 (globalThis as any).location = { hash: '', pathname: '/' };
@@ -44,6 +50,9 @@ const listeners: Record<string, Function[]> = {};
 const SLOT = { global: 100096, slots: 2, perSlot: 50048 };
 const STORY = {
   id: 's-1', model: 'write-nt-qwen36-h', slot: SLOT, gen: { temperature: 0.85, top_p: 0.95, max_tokens: 900 },
+  // This book has a look of its own, and only a THEME. The rest has to come from the writer's
+  // default — a book that pinned all four would pass a check that a book that pins one would not.
+  look: { theme: 'ink' },
   story: { title: 'The Ashfall Concordat', genre: 'political fantasy', premise: 'Six houses.',
            setting: 'Ashfall Hall', pov: 'third limited', persona: 'Ilva Marren',
            writingStyle: 'Cold, spare.', direction: 'She signs, or she burns the hall.',
@@ -104,7 +113,9 @@ const POSTED: any[] = [];
   // that button sits is true wherever the button is put.
   const body = url.startsWith('/api/stories') ? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.' },
       { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', updatedAt: 2, words: 400, last: 'He paid.' },
-      { id: 's-3', title: 'Sutera', status: 'draft', updatedAt: 1, words: 0, last: null }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen }
+      { id: 's-3', title: 'Sutera', status: 'draft', updatedAt: 1, words: 0, last: null }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
+      // The writer's default look rides the library call, which is the first thing asked for.
+      look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } }
     : url.startsWith('/api/story') ? STORY
     : url.startsWith('/api/manifest') ? MANIFEST
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
@@ -210,6 +221,37 @@ click({ railview: 'story' });
 assert.match(html('rail'), /Context/, "the story's name must bring its own menu back");
 assert.match(html('rail'), /Anansi<\/span>/, 'which is where Anansi lives');
 ok('the menu and the story name are two doors onto one rail');
+
+// Three layers of look, and the one that must never happen is a book's theme becoming yours.
+{
+  const root = (globalThis as any).document.documentElement;
+  assert.strictEqual(root.dataset.uiTheme, 'ink', "the open book's own theme must be applied");
+  // The book names ONLY a theme, so everything else has to come from the writer's default. A
+  // book that pinned all four would pass this whatever the layering did.
+  assert.strictEqual(root.dataset.uiFont, 'garamond', "and the writer's font underneath it");
+  assert.strictEqual(root.dataset.uiSize, 'l', 'and their prose size');
+  assert.strictEqual(root.dataset.uiScale, '110', 'and their UI scale');
+  // The cache is of YOUR default, never of what is on screen. Caching the effective look is how
+  // opening one green book makes every book green the next time the app starts.
+  const cached = JSON.parse(stored.get('anansi.look') ?? '{}');
+  assert.strictEqual(cached.theme, 'parchment',
+    `the browser cached "${cached.theme}" — that is the book's look, not the writer's default`);
+}
+ok("a book's look sits over the writer's, and never becomes it");
+
+// Leaving takes the book's look off with it, or the shelf wears whichever book you opened last.
+click({ leave: '1' });
+await new Promise((r) => setTimeout(r, 40));
+{
+  const root = (globalThis as any).document.documentElement;
+  assert.strictEqual(root.dataset.uiTheme, 'parchment', 'the shelf is back to the writer default');
+  assert.strictEqual(root.dataset.uiFont, 'garamond', 'with the rest of it unchanged');
+}
+ok('leaving a book takes its look with it');
+
+// Back into the story, because everything below this reads the story surface.
+click({ open: 's-1' });
+await new Promise((r) => setTimeout(r, 40));
 
 assert.match(html('col'), /The hall smells of cold iron/);
 assert.match(html('col'), /Envoy Sereth/, 'a speaker label must render');

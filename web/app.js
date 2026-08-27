@@ -41,11 +41,33 @@ const help = (slug) => helpMark(slug) + helpBody(slug);
 const PANEL_HELP = { threads: 'threads', strings: 'strings', context: 'context', anansi: 'anansi' };
 const overlay = () => matchMedia('(max-width:1099px)').matches;
 
-// ---------- appearance, remembered per browser ----------
-// Wrapped because a private window throws on access rather than returning null.
+// ---------- appearance: yours by default, the book's when it says so ----------
+//
+// Three layers, and keeping them apart is the whole of this. SHIPPED is what a writer who has
+// never touched it sees. MYLOOK is that writer's own default, held on the SERVER — it was
+// per browser until 2026-08-27, which made a phone and the desk two unrelated sets of
+// preferences belonging to one person, and a cleared browser a lost one. `look` is what is
+// actually on screen: the open book's look over MYLOOK.
+//
+// localStorage still exists and now caches ONE thing — MYLOOK — so the first paint has something
+// before /api/stories answers. It must never cache `look`: opening a book with its own green
+// theme would then make green your default the next time you started the app.
 const LOOK = 'anansi.look';
-const look = { theme: 'obsidian', font: 'serif', size: 'm', scale: '100' };
-try { Object.assign(look, JSON.parse(localStorage.getItem(LOOK) || '{}')); } catch { /* no storage */ }
+const LOOK_KEYS = ['theme', 'font', 'size', 'scale'];
+const SHIPPED = { theme: 'obsidian', font: 'serif', size: 'm', scale: '100' };
+const MYLOOK = { ...SHIPPED };
+// Wrapped because a private window throws on access rather than returning null.
+try { Object.assign(MYLOOK, JSON.parse(localStorage.getItem(LOOK) || '{}')); } catch { /* no storage */ }
+let look = { ...MYLOOK };
+/** The cache, and only ever of the default. */
+const cacheMine = () => {
+  try { localStorage.setItem(LOOK, JSON.stringify(MYLOOK)); } catch { /* no storage */ }
+};
+/** Resolve what should be on screen: the book's look, over yours. `own` null means follow. */
+function resolveLook(own) {
+  look = { ...MYLOOK, ...(own ?? {}) };
+  applyLook();
+}
 function applyLook() {
   root.dataset.uiTheme = look.theme; root.dataset.uiFont = look.font; root.dataset.uiSize = look.size;
   root.dataset.uiScale = look.scale ?? '100';
@@ -57,7 +79,6 @@ function applyLook() {
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', THEMES[look.theme]?.paper ?? '#0A0A0C');
-  try { localStorage.setItem(LOOK, JSON.stringify(look)); } catch { /* no storage */ }
 }
 
 // ---------- state ----------
@@ -170,7 +191,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
-  'saveoutfit', 'savestate', 'delall', 'stop'].map((k) => `[data-${k}]`).join(',');
+  'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -402,9 +423,16 @@ function drawAppearance() {
             style="flex:1; text-align:center; padding:9px 0; letter-spacing:.08em; font-size:11.5px">${l}</button>`).join('')}</div>
         <span class="hint" style="margin:0">The rail, the panels and the buttons. Leaves the prose alone.</span></div>`;
 
+  // WHICH of the two you are changing. Inside a book these controls set that book's look; on the
+  // shelf they set your default. Said out loud, because the same four tabs doing two different
+  // things with no label is how you restyle every book you own while meaning to restyle one.
+  const inStory = S.place === 'story' && S.storyId;
+  const ownLook = inStory && V?.look && Object.keys(V.look).length > 0;
+
   el.innerHTML = `
     <div style="display:flex; align-items:center; gap:10px">
-      <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--dim)">Reading</span>
+      <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--dim)">${
+        inStory ? 'This book' : 'Every book'}</span>
       <button data-appearance="0" style="margin-left:auto; color:var(--faint); font-size:12px" aria-label="Close">✕</button>
     </div>
     <div style="display:flex; gap:6px">${tabs.map(([k, l]) => `
@@ -413,7 +441,16 @@ function drawAppearance() {
         border:1px solid ${tab === k ? 'var(--gold)' : 'var(--chip)'};
         background:${tab === k ? 'rgba(217,178,106,.10)' : 'transparent'};
         color:${tab === k ? 'var(--gold-lit)' : 'var(--mute)'}">${l}</button>`).join('')}</div>
-    ${body}`;
+    ${body}
+    ${inStory ? `<div style="display:flex; flex-direction:column; gap:6px; padding-top:11px;
+      border-top:1px solid var(--line)">
+      <span class="hint" style="margin:0">${ownLook
+        ? 'This book has a look of its own.'
+        : 'This book follows your default. Changing anything above gives it one.'}</span>
+      <div style="display:flex; gap:6px">
+        <button class="btn ghost" data-lookmine="1" style="flex:1; font-size:12px">Make this my default</button>
+        ${ownLook ? '<button class="btn ghost" data-lookfollow="1" style="flex:1; font-size:12px">Follow my default</button>' : ''}
+      </div></div>` : ''}`;
 }
 
 // ---------- the document ----------
@@ -550,6 +587,33 @@ function drawDoc() {
   // The column was just rebuilt, so no tray survived it. The scrim has to know, or a repaint
   // while one was open leaves the backdrop up over a page with nothing modal on it.
   syncTray();
+}
+
+/** A look change, and the only thing that decides where it is saved: whether a book is open.
+ *
+ *  Inside a story it is that BOOK's look, and the whole set is pinned rather than the difference
+ *  from your default — "this book has its own look" is a thing a writer can hold in their head,
+ *  where "this book overrides two of the four, so changing your default moves the other two"
+ *  is not. Outside one it is your default.
+ *
+ *  Painted before it is saved. The setting is already applied by the time the round trip starts,
+ *  so a slow answer never shows as a control that did not respond. */
+async function changeLook(patch) {
+  Object.assign(look, patch);
+  applyLook(); drawAppearance();
+  const inStory = S.place === 'story' && S.storyId;
+  if (!inStory) {
+    Object.assign(MYLOOK, patch); cacheMine();
+    const r = await api.saveLook({ look: MYLOOK });
+    return void (r.error && toast(r.error));
+  }
+  const own = {}; for (const k of LOOK_KEYS) own[k] = look[k];
+  const r = await api.saveLook({ storyId: S.storyId, look: own });
+  if (r.error) return void toast(r.error);
+  V = r;
+  // The shelf card and the panel both read V, and the story panel says whether this book has a
+  // look of its own — so the first change has to repaint it, or the row stays saying it follows.
+  drawAppearance();
 }
 
 /** The generation in flight, or null. Held here rather than passed around because the thing that
@@ -2264,6 +2328,14 @@ async function loadLibrary() {
   if (r.error) return toast(r.error);
   LIB = r.stories ?? [];
   SRV = { model: r.model ?? null, slot: r.slot ?? null, gen: r.gen ?? {} };
+  // The server is the authority on your default; the cache was only there to paint before this
+  // answered. A writer on a second device gets their own settings rather than the shipped ones.
+  if (r.look && Object.keys(r.look).length) { Object.assign(MYLOOK, r.look); cacheMine(); }
+  // Resolve unconditionally, and NOT only when the server sent a default. This is also the line
+  // that takes a book's look back off when you leave it — `leaveTo` sets place to workspace and
+  // calls this, so a writer with no default of their own still gets the shelf back to shipped
+  // rather than keeping the theme of whichever book they just closed.
+  resolveLook(S.place === 'story' ? V?.look : null);
 }
 
 /** The book most recently ASKED for, which is not the same as the one most recently answered.
@@ -2280,6 +2352,8 @@ async function openStory(id) {
   // Opening a book puts the rail on that book's menu. The menu button is how you get back to the
   // workspace one without leaving the story.
   S.railView = 'story';
+  // And puts on the book's own look, if it has one. `V.look` null means follow the writer.
+  resolveLook(V.look);
   if (S.models === null) loadModels();   // the Storyteller panel needs the list to offer one
   if (S.prompts === null) loadPrompts();
 
@@ -2702,6 +2776,8 @@ document.addEventListener('pointercancel', endTap, true);
  *  within a day the last time the rail grew a door. */
 async function leaveTo(page) {
   S.place = 'workspace'; S.wpage = page;
+  // The look goes back to yours below, in loadLibrary — it resolves against S.place, which has
+  // just changed. A second resolveLook here was the same call twice and neither could fail.
   // Leaving puts the rail back on the workspace menu. Without this the rail kept the story menu
   // for a story that is no longer open, and its Chapters list named a closed book's chapters.
   S.railView = 'workspace';
@@ -2918,10 +2994,25 @@ document.addEventListener('click', async (e) => {
   if (d.panel !== undefined) { S.panel = d.panel || null; syncHash(); paint(); return; }
   if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); return; }
   if (d.looktab) { S.lookTab = d.looktab; drawAppearance(); return; }
-  if (d.theme) { look.theme = d.theme; applyLook(); drawAppearance(); return; }
-  if (d.fontpick) { look.font = d.fontpick; applyLook(); drawAppearance(); return; }
-  if (d.sizepick) { look.size = d.sizepick; applyLook(); drawAppearance(); return; }
-  if (d.scalepick) { look.scale = d.scalepick; applyLook(); drawAppearance(); return; }
+  if (d.theme) return void changeLook({ theme: d.theme });
+  if (d.fontpick) return void changeLook({ font: d.fontpick });
+  if (d.sizepick) return void changeLook({ size: d.sizepick });
+  if (d.scalepick) return void changeLook({ scale: d.scalepick });
+  // Take the book's look as your own, everywhere. The book keeps it as well — this is a copy
+  // upwards, not a move, so pressing it does not change what is in front of you.
+  if (d.lookmine) {
+    Object.assign(MYLOOK, look); cacheMine(); drawAppearance();
+    const r = await api.saveLook({ look: MYLOOK });
+    if (r.error) return toast(r.error);
+    return toast('Saved as your default for every book.');
+  }
+  // And back. Null is the value that means follow, so this is a write rather than a delete.
+  if (d.lookfollow) {
+    const r = await api.saveLook({ storyId: S.storyId, look: null });
+    if (r.error) return toast(r.error);
+    V = r; resolveLook(null); drawAppearance(); paint();
+    return toast('This book follows your default again.');
+  }
   // The attribute is written here rather than in applyLook: reading mode is not part of the look
   // and does not belong in the bag that gets persisted.
   if (d.readmode !== undefined) {

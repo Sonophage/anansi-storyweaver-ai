@@ -46,6 +46,10 @@ function migrate() {
   // time. The router runs --models-max 3 --models-autoload, so a story on a different model
   // usually costs nothing to switch to; one that is asleep costs a load on its first call.
   add('stories', 'model', 'TEXT');
+  // A book's own look, layered OVER the writer's default rather than replacing it: a story that
+  // names only a theme keeps your font, your size and your scale. Null on every existing row,
+  // which reads as "follow the default" — so nothing on the shelf changes appearance.
+  add('stories', 'look', 'TEXT');
   // The character the model must not write: no dialogue, no action, no interior. Null on every
   // story until somebody names one, which keeps the behaviour of every existing book unchanged.
   // A NAME rather than an entry id, because it also has to work for a protagonist who has no
@@ -284,6 +288,19 @@ CREATE INDEX IF NOT EXISTS outfits_story ON outfits(story_id);
 -- would be read off disk and handed to JS for every card on the shelf, on every paint. Here the
 -- shelf asks only when the cover was set, and the bytes move when the image is requested.
 -- Still the same one file, so the backup argument holds.
+-- What a writer's app looks like when no book has said otherwise: theme, font, prose size, UI
+-- scale. Per WRITER rather than per browser, which is where it lived until now — a phone and the
+-- desk are the same person and were two unrelated sets of preferences, and a cleared browser was
+-- a lost one. localStorage is still written, but only as a cache so the first paint has something
+-- before any fetch answers.
+--
+-- One column of JSON rather than four columns, because these are read and written as a set and
+-- nothing queries on them. A fifth setting is then a change to one surface, not a migration.
+CREATE TABLE IF NOT EXISTS writer_look (
+  owner_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  look TEXT NOT NULL,
+  updated_at INTEGER NOT NULL);
+
 CREATE TABLE IF NOT EXISTS story_covers (
   story_id TEXT PRIMARY KEY REFERENCES stories(id) ON DELETE CASCADE,
   jpeg BLOB NOT NULL,
@@ -378,6 +395,25 @@ export function setCover(id: string, jpeg: Uint8Array) {
     .run(id, jpeg, now());
 }
 export const delCover = (id: string) => { q('DELETE FROM story_covers WHERE story_id = ?').run(id); };
+
+/** The writer's default look, or null. */
+export const lookOf = (ownerId: string): any => {
+  const r = q('SELECT look FROM writer_look WHERE owner_id = ?').get(ownerId) as any;
+  try { return r ? JSON.parse(r.look) : null; } catch { return null; }
+};
+export function setLook(ownerId: string, look: any) {
+  q(`INSERT INTO writer_look (owner_id, look, updated_at) VALUES (?,?,?)
+     ON CONFLICT(owner_id) DO UPDATE SET look = excluded.look, updated_at = excluded.updated_at`)
+    .run(ownerId, JSON.stringify(look ?? {}), now());
+}
+/** A story's own look, or null for "follow the writer's default". Null is a real answer and the
+ *  way a book is put back to following it, so this takes null rather than needing a delete. */
+export function setStoryLook(storyId: string, ownerId: string, look: any) {
+  // Scoped write. `POST /api/look` is on the OPEN list, so the dispatcher's gate never runs for
+  // it — belt to the handler's braces, and the pattern every open route here follows.
+  q('UPDATE stories SET look = ?, updated_at = ? WHERE id = ? AND owner_id = ?')
+    .run(look == null ? null : JSON.stringify(look), now(), storyId, ownerId);
+}
 
 /** The only ownership question, asked in one place. Postgres would do this with RLS;
  *  on SQLite it is a gate in the dispatcher plus the scoped writes below, because

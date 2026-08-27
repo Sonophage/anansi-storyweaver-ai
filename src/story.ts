@@ -50,6 +50,10 @@ export function view(storyId: string, focusChapterId?: string) {
     // Whether there is a cover, never the cover itself. Top level rather than inside `story` so a
     // surface that posts the story object straight back cannot try to save it as a field.
     cover: db.coverAt(storyId),
+    // The book's own look, or null for "follow the writer's default". Top level and not inside
+    // `story` for the same reason `cover` is: a surface that posts the story object straight back
+    // must not be able to save it as a field of the book's text.
+    look: (() => { try { return s.look ? JSON.parse(s.look) : null; } catch { return null; } })(),
     // The chapter you are working in, not simply the last one. Every chapter-scoped feature —
     // the author's note, pins, what canon looks like from here — was addressable only at the
     // tip, so a closed chapter could never be revisited.

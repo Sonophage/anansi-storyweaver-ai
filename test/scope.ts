@@ -265,6 +265,53 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('merging into an existing story stops at the writer who owns it');
 }
 
+// The look — theme, font, prose size, UI scale — is per writer AND per book, and `POST /api/look`
+// is on the open list because setting your own default names no story. Open means the dispatcher's
+// gate never runs, including on the requests that DO name one, so both halves are asserted here:
+// the writer default cannot be read across, and one writer cannot restyle another's book.
+{
+  const lookCtx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  db.setLook(alice, { theme: 'parchment', font: 'garamond' });
+  assert.deepStrictEqual(db.lookOf(bob), null, "bob must not inherit alice's default look");
+  db.setLook(bob, { theme: 'obsidian' });
+  assert.strictEqual(db.lookOf(alice).theme, 'parchment', "and bob's must not overwrite alice's");
+  assert.strictEqual(db.lookOf(bob).theme, 'obsidian');
+
+  // The scoped write. Falsified by dropping `AND owner_id = ?` from setStoryLook, which turns the
+  // next assertion red — without it alice restyles bob's book through an ungated route.
+  db.setStoryLook(bStory.id, bob, { theme: 'ink' });
+  db.setStoryLook(bStory.id, alice, { theme: 'ALICE WAS HERE' });
+  assert.strictEqual(JSON.parse((db.getStory(bStory.id) as any).look).theme, 'ink',
+    "alice restyled bob's book: setStoryLook wrote without checking who owns it");
+
+  // And the route above the query, which is where the 404 comes from. It must not confirm the
+  // book exists, either — "not yours" and "no such story" are the same answer to a stranger.
+  await assert.rejects(async () => routes['POST /api/look'](
+    lookCtx(alice, { storyId: bStory.id, look: { theme: 'ALICE WAS HERE' } })), /no such story/,
+    'the open look route let alice name a story that is not hers');
+
+  // The whitelist. These four values are written onto <html> as `data-ui-*` attributes, and
+  // test/web.ts asserts those never collide with an action name — so an unfiltered object here
+  // would let a client put any attribute it liked on the root element, including one that reads
+  // as a click action. Keys AND values, because a key check alone lets `theme: 'a b"c'` through.
+  const r: any = await routes['POST /api/look'](lookCtx(alice, { look: {
+    theme: 'ink', rail: 'open', 'data-nav': 'x', font: 'a b"c', size: 'm',
+    scale: '110', __proto__: { polluted: true },
+  } }));
+  assert.deepStrictEqual(Object.keys(r.look).sort(), ['scale', 'size', 'theme'],
+    `only the four known keys may survive, and only with sane values — got ${JSON.stringify(r.look)}`);
+  assert.strictEqual(r.look.font, undefined, 'a value with a quote and a space in it is refused whole');
+  assert.strictEqual((db.lookOf(alice) as any).rail, undefined, 'and nothing else reaches the column');
+
+  // Null is a value, not a delete: it is how a book goes back to following your default.
+  db.setStoryLook(bStory.id, bob, null);
+  assert.strictEqual((db.getStory(bStory.id) as any).look, null,
+    'clearing a book\'s look must leave it following the writer default');
+  ok('the look is per writer and per book, and neither crosses to another writer');
+}
+
 // The prompt overrides are per OWNER and on the open list, so nothing else gates them — the
 // scoping has to be in the queries themselves.
 {

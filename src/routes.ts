@@ -49,6 +49,11 @@ export const OPEN_ROUTES = new Set([
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
   // Account-wide, like the sampler. Owner-scoped in SQL — every read and write takes c.owner.
   'GET /api/prompts', 'POST /api/prompts',
+  // Open because setting your OWN default names no story, and the gate refuses a request that
+  // names none. Open means the gate does not run AT ALL, including when a story IS named — so
+  // this route asks the ownership question itself, below, the way every open route has to. That
+  // is the whole of its protection.
+  'POST /api/look',
 ]);
 
 /** What the import screen shows before anything is written. Bodies are counted, not sent: the
@@ -423,7 +428,11 @@ async function check(c: Ctx, storyId: string, passageId: string) {
 
 export const routes: Record<string, Handler> = {
   // ---- library ----
-  'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: c.defaultModel ?? model(), slot: c.slot, gen: c.gen }),
+  'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: c.defaultModel ?? model(),
+    slot: c.slot, gen: c.gen,
+    // The writer's own default look. It rides this call because this is the first thing every
+    // surface asks for, so there is no second round trip before the app can paint itself.
+    look: db.lookOf(c.owner) }),
 
   // The router serves several models. Listing is open because it names no story; switching is
   // process-wide and gated, because two tenants share this process and one changes it for both.
@@ -1152,6 +1161,42 @@ export const routes: Record<string, Handler> = {
   // Gated deliberately. `gen` is one process-wide object, so an open route means one writer's
   // sampler lands on another's next generation — including `thinking: true`, which measured
   // as returning no prose at all (F5). Naming a story at least proves you are a tenant.
+  /** Theme, font, prose size and UI scale.
+   *
+   *  Naming a story sets that BOOK's look; naming none sets the writer's default. One route
+   *  rather than two because it is one decision — which of the two you meant is the story id,
+   *  and a separate `scope` field could disagree with it.
+   *
+   *  `look: null` with a story named puts that book back to following your default. That is why
+   *  this takes null rather than having a DELETE beside it: "follow the default" is a value the
+   *  column already holds for every book written before the column existed.
+   *
+   *  Whitelisted keys, like the sampler below. These reach `data-ui-*` attributes on <html>, and
+   *  the surface asserts those never collide with an action name — an unfiltered object here
+   *  would let a client write any attribute it liked onto the root element.
+   */
+  'POST /api/look': (c: Ctx) => {
+    const clean = (o: any) => {
+      if (o == null) return null;
+      const out: Record<string, string> = {};
+      for (const k of ['theme', 'font', 'size', 'scale'])
+        if (typeof o?.[k] === 'string' && /^[a-z0-9]{1,16}$/i.test(o[k])) out[k] = o[k];
+      return out;
+    };
+    const look = clean(c.body.look);
+    if (c.body.storyId) {
+      // OPEN route: the dispatcher's gate is skipped for the no-story case, so it is skipped here
+      // too. Asked in the same words and answered with the same 404 — "no such story" rather than
+      // "not yours", because which books exist is not a question a stranger gets an answer to.
+      if (!db.ownsStory(c.body.storyId, c.owner))
+        throw Object.assign(new Error('no such story'), { code: 404 });
+      db.setStoryLook(c.body.storyId, c.owner, look);
+      return viewOf(c.body.storyId);
+    }
+    db.setLook(c.owner, look ?? {});
+    return { look: db.lookOf(c.owner) };
+  },
+
   'POST /api/settings': (c) => {
     // Whitelisted. This body was spread straight into the chat payload, so `messages`,
     // `model` or `response_format` from a client would have replaced the prompt itself.
