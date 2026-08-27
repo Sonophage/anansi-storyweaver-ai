@@ -1,11 +1,11 @@
-# What is open — after round five, 2026-08-26
+# What is open — after a day's work on 2026-08-26
 
-**Round five passed clean.** A to D walked and green, sections 1 to 12 walked and green, `bugs.md`
-came back empty. So there is nothing to walk in this file at the moment: the walk items are gone and
-what is left is the standing record of what is open.
+**Round five passed clean**, and then eleven things landed on top of it. So this file is two things:
+the standing record of what is open, and — under **Built since round five** — the list the next walk
+is made of. None of it has been used by the person it is for.
 
-The next round's sections arrive with the next build. The list that decides what that build is is
-**Queued from round four** below, and most of it is waiting on answers rather than on work.
+What is left of round four is one item and a shelved one. The rest of what is open is decisions
+rather than work, and they are gathered below.
 
 One thing a clean pass did NOT clear, because the walk never asked for it: **the three features
 round four reported as missing and which exist end to end.** Nothing in round five sent you looking
@@ -28,22 +28,12 @@ original review is outstanding. What is left is of three kinds.
 
 ### Queued from round four, not built
 
-Everything you wrote in round four's `bugs.md` that is still owed. Do not re-report these.
+What is left of round four's `bugs.md`. Everything else on it is built and is in the walk below.
 
-- **Anansi has a voice but no personality.** I would rather draft two or three distinct ones and
-  have you pick than guess at it.
-- **Invented content is too thin** — character, wardrobe, thread, story-from-scratch. Your framing
-  is the spec: a jumping-off point the model can write from without quoting it.
-- **Spark fills premise and voice of the weave too lightly** at story creation.
 - **Chapter information should be autofilled by the model and accepted by you**, on every new
-  chapter and not only the first.
-- **The setup wizard**: setting, point of view, who you are, spice and the model-never-writes
-  character all becoming guided steps, with character creation on that same screen instead of three.
-  A redesign of the creation flow, so it wants agreeing before it is built.
-- **The ⋯ menu should open centred over the content**, and a double tap or double click should
-  activate a paragraph. (Reading mode, the third part of that note, is built.)
+  chapter and not only the first. Ready to build, no decision needed.
 - ~~**Threads linked to other threads**~~ — **shelved by Seth, 2026-08-26.** Not deferred: he chose
-  the character memory over it. Entries exported to or imported from another story is still owed.
+  the character memory over it.
 - **Web search through pi.** The tool is `web_search`, built into pi's core and activated by the
   provider, so the integration is `execFile('pi', ['-p', q, '--mode', 'json', '-t', 'web_search'])` —
   an argument array, no shell, the pattern llama.ts already uses for systemctl. **Blocked:**
@@ -55,17 +45,30 @@ Everything you wrote in round four's `bugs.md` that is still owed. Do not re-rep
 
 ### Built since round five, owed a walk
 
-- **The character memory.** Closing a chapter now proposes, for each character that chapter changed,
-  their whole description rewritten as it now stands — in force from the NEXT chapter, so revising
-  the closed one still sees them as they were in it. Proposals, not writes: nothing is canon until
-  accepted, and the card says which chapter it comes into force in. `POST /api/remember` re-runs it
-  on a chapter that closed while the router was down.
+Eleven things landed on 2026-08-26 after the round five pass. None has been used by the person it is
+for. This is the next walk.
+
+- **The character memory.** Closing a chapter proposes, for each character it changed, their whole
+  description rewritten as it now stands — in force from the NEXT chapter, so revising the closed one
+  still sees them as they were in it. Proposals, not writes. `POST /api/remember` re-runs it on a
+  chapter that closed while the router was down.
+- **The five-step wizard**, with Accept on every step. Step 4 offers only the cast you kept on step 3.
+- **The spark proposes who you play** and who the model never writes, and both are yours to change.
+  A name it proposed that leaves the cast is dropped and said out loud; a name you typed never is.
+- **The model opens a story and every chapter**, as a switch, on by default. It is the Continue
+  button pressed for you, not a second engine.
+- **Anansi has a personality** — the trickster who likes a knot. F35 has the before and after.
+- **Invented content and the spark** both come back worth writing from now, not one line.
+- **The ⋯ tray opens centred** over the content, and a double tap opens it too.
 - **Reading mode**, as a button: the composer goes, the prose stops taking taps, the draft survives.
+- **An entry copies into another of your own books**, keys and all — but not its states.
+- **The default voice is yours to change**, with a one-press Quick apply and ours as the backstop.
 - **The on-screen keyboard** shortens the page instead of covering the composer, and the phone's dock
-  and bar now pay for the safe-area insets that `viewport-fit=cover` has been spending.
-- **F34's drift threshold is measured but NOT fixed** — a tap that moves 24px still does nothing, on
-  the shelf and everywhere else. That fix needs agreeing because its guard, done wrong, makes Delete
-  run twice.
+  and bar now pay for the safe-area insets `viewport-fit=cover` has been spending.
+
+**Not fixed, and named so it is not mistaken for done: F34's drift threshold.** A tap that moves 24px
+still does nothing, on the shelf and everywhere else. The fix needs agreeing, because its guard done
+wrong makes Delete run twice.
 
 ### Already built, and round four could not find it
 
@@ -107,16 +110,17 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
 - **Anansi's chapter numbers** are right now that it is told which chapter it is looking at, but
   that is one run against one story (F33).
 
-### Deliberate debt — fifteen `ponytail:` markers
+### Deliberate debt — seventeen `ponytail:` markers
 
 Three are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
 unscheduled), no streaming backpressure, and ceilings-with-a-refusal instead of a budget engine.
-The other twelve each name a ceiling: three stored-and-ignored entry columns, a LIKE scan that goes
+The other fourteen each name a ceiling: three stored-and-ignored entry columns, a LIKE scan that goes
 linear at chapter 40, rejected takes recorded but not fed back, the repair's length floor,
 prompt-override validation, the remaining key logic (secondary keys, exclusion keys, regex), the
 checker's blindness to numeric contradictions, the whois cache holding an IP for the life of the
 process, two writers on two different models being unmeasured against VRAM, the memory pass reading a whole
-chapter in one call, the UI scale being `zoom` rather than a rem refactor, and the big one below.
+chapter in one call, the UI scale being `zoom` rather than a rem refactor, the persona being carried
+by title rather than by id, and the big one below.
 
 **Revisit before putting anything in front of Anansi.** `serve.ts`'s loopback-is-the-desk rule is
 what a reverse proxy would break, and it would break it OPEN. Caddy on 443 for port-free names
