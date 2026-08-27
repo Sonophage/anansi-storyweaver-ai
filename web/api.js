@@ -118,6 +118,9 @@ export const api = {
   revert:       (o)              => j('/api/revert', 'POST', o),
   backup:       (storyId)        => j('/api/backup', 'POST', { storyId }),
   extract:      (storyId, chapterId) => j('/api/extract', 'POST', { storyId, chapterId }),
+  // Re-runs the character memory on a chapter that already closed. Chapter close fires this
+  // itself; this is the way back when the router was down at the time.
+  remember:     (storyId, chapterId) => j('/api/remember', 'POST', { storyId, chapterId }),
   invent:       (storyId, o)     => j('/api/invent', 'POST', { storyId, ...o }),
   saveString:   (storyId, x)     => j('/api/string', 'POST', { storyId, string: x }),
   delString:    (storyId, id)    => j('/api/string', 'DELETE', { storyId, id }),

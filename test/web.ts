@@ -170,9 +170,10 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   assert.ok(defined.length > 30, `only ${defined.length} api methods parsed`);
 
   // Deferred on purpose, each with the reason it is not wired yet.
+  // A name in here is SKIPPED by the check below, so a stale entry is a hole: `rollup` and
+  // `delArc` sat here after arcs got a surface, which meant deleting that surface again would
+  // have gone unnoticed. Take a name out the moment it is wired.
   const DEFERRED: Record<string, string> = {
-    rollup:   'arcs belong with the budget engine, P6',
-    delArc:   'same as rollup',
     delBranch: 'forking exists; deleting a branch has no screen yet',
   };
   const orphans = defined.filter((d) => !new RegExp(`\\bapi\\.${d}\\b`).test(app) && !(d in DEFERRED));
@@ -180,6 +181,31 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     `api.${orphans.join(', api.')} has no caller. Either wire it or add it to DEFERRED with a `
     + `reason — an engine feature with no surface is the failure mode this project keeps hitting.`);
   ok(`${defined.length} api methods, ${Object.keys(DEFERRED).length} deferred with reasons, no silent orphans`);
+
+  // AND THE OTHER DIRECTION, which this check did not have until 2026-08-27. The half above asks
+  // whether every api method has a caller. It cannot see a route that was born without one — and
+  // that is exactly how `POST /api/remember` got here: finished, tested in test/memory.ts, driven
+  // by nothing, so the one case it exists for (re-run the memory pass on a chapter that closed
+  // while the router was down) could not be reached from any surface.
+  //
+  // A route reached only by `bench/` is fine and is listed; a route reached by nobody is the bug.
+  const routeSrc = read('src/routes.ts');
+  const declared = [...routeSrc.matchAll(/^\s*'(GET|POST|DELETE) (\/api\/[a-z/]+)'/gm)]
+    .map((m) => m[2]);
+  assert.ok(declared.length > 40, `only ${declared.length} routes parsed`);
+  const NO_CLIENT: Record<string, string> = {
+    // Driven by bench/checker.ts, which is how the contradiction checker is measured. The app
+    // reaches the same code through accept, not through this route.
+    '/api/check': 'bench/checker.ts drives it; the app runs the checker through accept',
+  };
+  const unreachable = [...new Set(declared)].filter((path) =>
+    !api.includes(`'${path}'`) && !api.includes(`\`${path}`) && !api.includes(`${path}?`)
+    && !(path in NO_CLIENT));
+  assert.deepStrictEqual(unreachable, [],
+    `${unreachable.join(', ')} — no method in web/api.js names this route, so no surface can `
+    + `reach it. Wire it, or add it to NO_CLIENT with what does drive it. A route with no door `
+    + `is the same failure as an api method with no caller, arriving from the other side.`);
+  ok(`${[...new Set(declared)].length} routes, every one reachable from web/api.js or spoken for`);
 }
 
 // POST /api/proposal branches on `body.accept` and app.js was sending `decision: 'accept'`, so

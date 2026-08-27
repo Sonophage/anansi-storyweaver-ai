@@ -192,7 +192,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
-  'pullback'].map((k) => `[data-${k}]`).join(',');
+  'pullback', 'remember'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -1047,7 +1047,12 @@ const PANELS = {
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length === 1 ? '' : 's'
           } proposed &mdash; they wait under Strings</button>` : ''}
-      <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this chapter for facts</button></div>
+      <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this chapter for facts</button>
+      <!-- POST /api/remember was finished, tested, and reachable from nowhere until 2026-08-27.
+           Closing a chapter runs it; this is the way back when the router was down at the time,
+           which is the one case the route was written for. -->
+      <button class="btn ghost" data-remember="1" style="margin-top:6px">Remember what it did to the
+        people in it</button></div>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Summaries in context</div>
       <div class="hint" style="margin:0 0 8px">The chapter you are writing goes to the model whole.
@@ -3524,6 +3529,15 @@ document.addEventListener('click', async (e) => {
   if (d.extract) { toast('Reading the chapter…'); const r = await api.extract(S.storyId, V.currentChapter.id);
     if (r.error) return toast(r.error); V = await api.story(S.storyId); paint();
     toast(`${r.added ?? 0} proposed.`); return; }
+  if (d.remember) {
+    toast('Reading it for what it did to the people in it…');
+    const r = await api.remember(S.storyId, V.currentChapter.id);
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint();
+    // `remembered: 0` is a real answer and not a failure: nobody in the chapter changed, or the
+    // cast is empty. Saying "0 proposed" beats a silence that reads as a button that did nothing.
+    return toast(`${r.remembered ?? 0} proposed — nothing accepted yet.`);
+  }
   if (d.decide) {
     // The route branches on `accept`, not on a verb. Sending `decision: 'accept'` left
     // c.body.accept undefined, so Accept took the reject path and threw the fact away.
