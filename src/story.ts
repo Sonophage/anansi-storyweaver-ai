@@ -58,6 +58,10 @@ export function view(storyId: string, focusChapterId?: string) {
     passages: db.passagesOf(storyId).map((p: any) => ({
       id: p.id, ordinal: p.ordinal, body: p.body, author: p.author, speaker: p.speaker,
       isBreak: !!p.is_break, chapterId: p.chapter_id, variantIndex: p.variant_index,
+      // Stored since the schema was written and never shown. It is what distinguishes a passage the
+      // model wrote to order from one it wrote on its own, which is the difference Seth wants to
+      // see down the margin.
+      directed: !!(p.directive && String(p.directive).trim()),
       variants: variants.get(`${p.chapter_id}:${p.slot_key}`) ?? [{ id: p.id, selected: true }],
     })),
     entries: db.entriesOf(storyId).map((e: any) => ({

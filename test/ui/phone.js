@@ -290,7 +290,10 @@ await wait(800);
 await page.eval(`(() => { window.__opened = 0; const real = window.fetch;
   window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__opened++; return real(u, o); };
   return 1; })()`);
-await page.click("#burger");
+// The web in the bar, not a hamburger — the hamburger was a second door to the same menu and is
+// gone. If this selector ever stops matching, the phone has no way into the menu at all, which is
+// worth a red rather than a skip.
+await page.click("#bar [data-rail]");
 await wait(700);
 const sheet = await page.eval(`(() => { const r = document.getElementById('rail').getBoundingClientRect();
   return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x), y: Math.round(r.y),
@@ -318,5 +321,39 @@ await page.click("#rail [data-rail]");
 await wait(700);
 ok("  the chevron closes it again",
    (await page.eval("document.documentElement.dataset.uiRail")) === 'closed');
+
+// The margin rules, read off the COMPUTED style rather than the class list — a class that names a
+// rule nobody can see is the failure worth catching.
+await page.goto(B + "/");
+await wait(700);
+await page.click("#page .storycard[data-open]");
+await wait(1400);
+const margins = await page.eval(`(() => {
+  const blk = document.querySelector('#col .block');
+  const last = document.querySelector('#col .block.newest');
+  const c = blk ? getComputedStyle(blk) : null;
+  const l = last ? getComputedStyle(last) : null;
+  return { align: c ? c.textAlign : null, leftRule: c ? c.borderLeftWidth : null,
+           rightRule: c ? c.borderRightWidth : null,
+           // OUTLINE, not border: a border on the newest block moved the document 46px and broke
+           // the running-head check in panels.js. An outline takes no space, so it decorates without
+           // shifting anything — and this assertion has to measure the thing that is actually there.
+           boxed: l ? parseFloat(l.outlineWidth) > 0 : null }; })()`);
+ok(`nothing is mirrored to the right edge (align ${margins.align}, right rule ${margins.rightRule})`,
+   margins.align !== 'right' && parseFloat(margins.rightRule || '0') === 0);
+ok(`  and the last passage is boxed so the eye finds it (${margins.boxed})`, margins.boxed === true);
+
+// There must be exactly one way into the menu, and it must be there on EVERY screen. The first
+// version of this change put the control inside the in-story branch of the bar, so with the
+// hamburger removed the shelf had no way to open the menu at all.
+for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/"); }],
+                           ["a story", async () => { await page.goto(B + "/"); await wait(500);
+                             await page.click("#page .storycard[data-open]"); }]]) {
+  await go();
+  await wait(1200);
+  const doors = await page.eval("document.querySelectorAll('#bar [data-rail]').length");
+  ok(`  one way into the menu on ${where} (${doors})`, doors === 1);
+  ok(`  and no hamburger left on ${where}`, (await page.eval("!!document.getElementById('burger')")) === false);
+}
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

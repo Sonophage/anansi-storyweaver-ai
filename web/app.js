@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -188,7 +188,11 @@ function drawRail() {
     ? `<button data-leave="1" style="margin:0 16px 12px; padding:9px 12px; border-radius:var(--r);
         border:1px solid var(--edge); display:flex; align-items:center; gap:10px; width:calc(100% - 32px)">
         <span style="color:var(--faint); font-size:13px; flex:0 0 auto">‹</span>
-        <span class="txt" style="font-size:12.5px; color:var(--mute)">All stories</span></button>` : '';
+        <!-- Not "All stories". It does not go to a list of stories, it goes to the whole workspace —
+             the shelf, the ledger across books, import, preferences — and the label promised the
+             smaller of those two things. Seth: "all stories is confusing when it just takes you to
+             the main menu". -->
+        <span class="txt" style="font-size:12.5px; color:var(--mute)">Anansi's web</span></button>` : '';
   const tail = inStory
     ? `<div class="txt" style="padding:26px 12px 10px; font-size:10px; letter-spacing:.3em;
          font-variant-caps:all-small-caps; color:var(--dim)">Chapters</div>
@@ -278,8 +282,6 @@ function drawBar() {
     ? [V.story.title, railHasIt ? '' : modelName(V.story.model || SRV.model).name]
     : (WTITLES[S.wpage] || WTITLES.stories)();
   $('bar').innerHTML = `
-    <button id="burger" data-rail="1" aria-label="Menu"
-      style="display:flex; align-items:center; justify-content:center">${mark('menu', 19)}</button>
     <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
       <span class="serif" style="font-size:23px; line-height:1; color:var(--chrome-ink);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(title)}</span>
@@ -310,11 +312,16 @@ function drawBar() {
         >${mark('book', 17)}</button>
       <button class="pill" data-appearance="1" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
-      <button class="phoneonly" data-panel="chapter" style="font-size:19px; color:var(--chrome-dim)" aria-label="This chapter">⚙</button>`
+`
       : `<button class="pill deskonly" data-open="new">New story</button>
          ${LIB.length ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            font-variant-caps:all-small-caps; color:var(--on-gold); background:var(--gold); padding:9px 18px;
            border-radius:var(--r); font-weight:500; white-space:nowrap">Resume writing</button>` : ''}`}
+      <!-- OUTSIDE the in-story branch, and that is the whole point. The first version of this put it
+           inside, so with the hamburger gone there was no way into the menu from the shelf at all —
+           a hole, not a missing nicety. One door to the menu, on every screen. -->
+      <button class="phoneonly" data-rail="1" aria-label="Menu"
+        style="align-items:center; color:var(--chrome-dim)">${mark('web', 19)}</button>
     </div>`;
   // The title, and the line under it that names the chapter. Both are leaf spans holding nothing
   // but text, which is what decode() needs — it writes textContent.
@@ -412,6 +419,11 @@ function passageHTML(p, newest, opening) {
     <button data-re="${p.id}"><span class="serif" style="color:var(--gold)">↻</span><span class="lbl-txt">Regenerate</span></button>
     <button data-ed="${p.id}"><span class="serif" style="color:var(--gold)">✎</span><span class="lbl-txt">Edit</span></button>
     <button data-hi="${p.id}"><span class="serif" style="color:var(--gold)">⌂</span><span class="lbl-txt">History</span></button>
+    <!-- Branching was BUILT and unreachable: "Branch from this passage" sat at the bottom of the
+         History panel, below the edits list, three steps in and under the fold. Seth reported it as
+         a missing feature. It is here now, where you already are when you are thinking about this
+         passage. The button in History stays — the two are the same action. -->
+    <button data-fork="${p.id}"><span class="serif" style="color:var(--gold)">⑂</span><span class="lbl-txt">Branch</span></button>
     <button data-del="${p.id}" style="color:var(--bad)"><span class="serif">✕</span><span class="lbl-txt">${
       v.length > 1 ? `Delete take ${at}` : 'Delete'}</span></button></div>`;
 
@@ -419,7 +431,11 @@ function passageHTML(p, newest, opening) {
     ? `<div class="who">${p.speaker ? esc(p.speaker)
          : mine ? `You · ${esc(V.story.persona || 'you')}` : esc(V.story.title)}</div>
        <div class="said" data-edit="${p.id}">${esc(p.body)}</div>`
-    : `<div class="narr" data-edit="${p.id}">${esc(p.body)}</div>`;
+    : `<div class="narr" data-edit="${p.id}" data-raw="${esc(p.body)}">${
+         // Paragraphs for READING. Edit swaps this back to the raw text — see the handler — because
+         // textContent over <p> children concatenates with nothing between them, and a save would
+         // glue the whole passage into one line.
+         bookParagraphs(p.body).map((para) => `<p>${esc(para)}</p>`).join('')}</div>`;
   const flagged = flags.map((f) => {
     const e = V.entries.find((x) => x.id === f.entryId);
     // The reason is whatever the checker returned, and a reasoning model has put 3,321
@@ -436,7 +452,7 @@ function passageHTML(p, newest, opening) {
         ? `Never sent · ${esc(e?.title ?? 'canon')} contradicts this, and the model was not shown it`
         : `Contradiction · ${esc(e?.title ?? 'canon')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>`;
   }).join('');
-  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.id === S.found ? ' found' : ''}`
+  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${p.id === S.found ? ' found' : ''}`
     // The drop cap goes on plain model narration only. Not on speech — a two-inch quotation mark
     // is not a drop cap — and not on the writer's own passages, which are set differently: on
     // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
@@ -2844,6 +2860,10 @@ document.addEventListener('click', async (e) => {
     // on a phone a tap in the prose put a caret in it and raised the keyboard — you were editing
     // without having asked to, which is what Seth reported. Edit is the only door in now, and blur
     // shuts it again.
+    // Hand back the RAW text to edit. What is on screen is paragraphs, and editing those directly
+    // would save a passage with every paragraph break removed, because textContent puts nothing
+    // between block children.
+    if (el.dataset.raw !== undefined && el.querySelector('p')) el.textContent = el.dataset.raw;
     el.setAttribute('contenteditable', 'plaintext-only');
     el.focus();
     const r = document.createRange(); r.selectNodeContents(el);

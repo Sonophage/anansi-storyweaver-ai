@@ -404,4 +404,35 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
   ok(`every web opens prose, and every prose has a web (${used.size} of them)`);
 }
 
+// The three rules down the left margin, and the box on the last one.
+{
+  const html = String(nodes.get('col').innerHTML);
+  assert.ok(!/block[^"']*\byou\b[^"']*"[^>]*text-align:right/.test(html),
+    'your own lines are not mirrored to the right edge any more');
+  assert.match(html, /class="block[^"]*\bnewest\b/, 'the last passage on the page is marked');
+  ok('the writer\'s own lines sit on the same left edge as the prose');
+}
+
+// Set like a book: dialogue breaks out into its own paragraph, and a quote inside a sentence does
+// not. Pure, so it is tested here rather than through a browser.
+{
+  const { bookParagraphs } = await import('../web/model.js');
+  assert.deepStrictEqual(
+    bookParagraphs('She crossed the room. "You came," he said. The rain kept on.'),
+    ['She crossed the room.', '"You came," he said. The rain kept on.'],
+    'speech that opens a sentence starts its own paragraph');
+  // The case that makes a naive rule useless: a quotation inside a sentence is not a new paragraph,
+  // and a formatter that breaks there mangles ordinary narration.
+  assert.deepStrictEqual(bookParagraphs('The sign said "closed", so she left.'),
+    ['The sign said "closed", so she left.'],
+    'a quote inside a sentence is left alone');
+  assert.deepStrictEqual(bookParagraphs('One.\n\nTwo.'), ['One.', 'Two.'],
+    "the model's own paragraph breaks survive");
+  assert.deepStrictEqual(bookParagraphs('  '), [], 'nothing in, nothing out');
+  // Curly quotes are what the model actually writes.
+  assert.strictEqual(bookParagraphs('He waited. \u201cWell?\u201d she said.').length, 2,
+    'and curly quotes count, which is what the model actually produces');
+  ok('a passage is set like a book, with speech in its own paragraph');
+}
+
 console.log(`\n${n} checks passed`);

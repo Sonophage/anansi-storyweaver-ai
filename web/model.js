@@ -71,6 +71,24 @@ export const STORY_FIELDS = [
 ];
 
 export const isSpeech = (t) => /^["“]/.test(String(t).trim());
+
+/** A passage as a book sets it: paragraphs, and speech getting its own.
+ *
+ *  Print gives every turn of dialogue a paragraph of its own, and a model that writes narration and
+ *  a line of speech in one run reads as a wall. The rule is conservative on purpose — it breaks
+ *  before a quotation mark that opens after a sentence has ended, and nowhere else. A quote mid
+ *  sentence ("the sign said <em>closed</em>, so she left") is not a new paragraph and must not
+ *  become one.
+ *
+ *  Returns an array of paragraphs. The caller renders them; nothing here knows about HTML, which is
+ *  what lets it be tested without a DOM. */
+export const bookParagraphs = (body) => String(body ?? '')
+  .split(/\n\s*\n|\n/)
+  .flatMap((para) => para
+    // Before an opening quote that begins a sentence: after . ! ? … and a space, or at the start.
+    .split(/(?<=[.!?…][)"'\u201d]?\s)(?=["\u201c])/u)
+    .map((s) => s.trim()))
+  .filter(Boolean);
 export const ago = (t) => { const d = (Date.now() - t) / 864e5;
   return d < 1 ? 'today' : d < 2 ? 'yesterday' : `${Math.floor(d)} days ago`; };
 // Escapes quotes as well as tags: this is interpolated into value="..." attributes on both
