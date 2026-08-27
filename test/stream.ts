@@ -13,8 +13,27 @@ import { createServer } from 'node:http';
 // this one import is dynamic and the server below is started at the top of the file rather than
 // inside the check that uses it.
 const stopFake = await (async () => {
-  const state = { closedEarly: false, finished: false, deltas: 0 };
+  const state = { closedEarly: false, finished: false, deltas: 0, unload: null as any };
   const s = createServer((_req, res) => {
+    // The release path. Recorded rather than merely answered, because the URL and the body shape
+    // were read off a live router by probing, not out of documentation — so the thing worth
+    // pinning is that we still send exactly what that probe found.
+    if (_req.url === '/models/unload') {
+      let raw = '';
+      _req.on('data', (d) => { raw += d; });
+      return void _req.on('end', () => {
+        const body = JSON.parse(raw || '{}');
+        state.unload = { method: _req.method, body };
+        // A router that refuses, on demand — the real one answers 400 "model is not found" for an
+        // id it does not serve, and that path has to come back as a value rather than a throw.
+        if (body.model === 'REFUSE-ME') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: { message: 'model is not found' } }));
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end('{}');
+      });
+    }
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     let i = 0;
     const t = setInterval(() => {
@@ -38,7 +57,7 @@ const stopFake = await (async () => {
   return { url, state, close: () => s.close() };
 })();
 process.env.ANANSI_LLAMA = stopFake.url;
-const { readSSE, reach, chat } = await import('../src/llama.ts');
+const { readSSE, reach, chat, unload } = await import('../src/llama.ts');
 
 let n = 0;
 const ok = (m: string, f: () => any) => Promise.resolve(f())
@@ -209,6 +228,28 @@ await ok('the fifteen-minute ceiling survives being composed with Stop', async (
         `a stop signal must not replace the ceiling: ${e?.name} ${e?.message}`);
       return true;
     });
+});
+
+await ok('releasing a model asks the router the way the router actually answers', async () => {
+  // MEASURED on build b10566, 2026-08-27: POST /models/unload with {model} exists and answers
+  // 400 "model is not found" for an id it does not serve. The comment in llama.ts said the router
+  // had no unload endpoint at all, and Preferences said so on screen — both written against an
+  // older build. This check is what stops that drifting back.
+  const r = await unload('write-nt-qwen36-h');
+  assert.strictEqual(r.ok, true, `the release must succeed against a router that answers: ${r.error}`);
+  assert.ok(stopFake.state.unload, 'and it must actually call /models/unload — nothing else releases one');
+  assert.strictEqual(stopFake.state.unload.method, 'POST', 'as a POST');
+  assert.deepStrictEqual(stopFake.state.unload.body, { model: 'write-nt-qwen36-h' },
+    'with the model named as `model`, which is the key the router reads');
+});
+
+await ok('a router that refuses a release says so, and does not throw', async () => {
+  // A model that will not unload is a model that sleeps in 900 seconds instead, which is exactly
+  // what happened before any of this existed. Throwing here would fail the model switch the writer
+  // actually asked for, over a tidy-up they did not — making the feature worse than not having it.
+  const r = await unload('REFUSE-ME');
+  assert.strictEqual(r.ok, false, 'a 400 from the router is a refusal, not a success');
+  assert.match(String(r.error), /400|not found/, `and it carries what the router said: ${r.error}`);
 });
 
 stopFake.close();

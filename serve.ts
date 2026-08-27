@@ -179,6 +179,11 @@ const handler = async (req: any, res: any) => {
       setGen: (g) => { const next = { ...(gens.get(OWNER) ?? GEN), ...g }; gens.set(OWNER, next); ctx.gen = next; },
       defaultModel: models.get(OWNER) ?? null,
       setDefaultModel: (id) => { models.set(OWNER, id); ctx.defaultModel = id; },
+      // What the OTHER writers are currently set to. The map lives here, so the release policy in
+      // routes.ts cannot answer this on its own — and getting it wrong means taking a model out
+      // from under somebody mid-book.
+      otherDefaults: () => [...models.entries()]
+        .filter(([who]) => who !== OWNER).map(([, id]) => id).filter(Boolean),
       admin: OWNER === db.owner(ADMIN),
     };
 

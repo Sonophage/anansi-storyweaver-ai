@@ -312,6 +312,36 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('the look is per writer and per book, and neither crosses to another writer');
 }
 
+// ONE MODEL PER WRITER, on a box that two writers share. Switching your default releases the one
+// you were on — Seth's ask, because the router holds three and sleeps them only at 900 seconds, so
+// trying three models leaves three resident. Every clause of the guard is a way to take a model out
+// from under somebody, so every clause gets its own case.
+{
+  const { releasable } = await import('../src/llama.ts');
+  const base = { active: 'new-model', bootDefault: 'boot-model', otherDefaults: [] as string[],
+                 storiesOnIt: 0, busy: 0 };
+
+  assert.strictEqual(releasable('old-model', base).ok, true,
+    'a model nobody else is using is released, or this feature does nothing at all');
+
+  assert.strictEqual(releasable('boot-model', base).ok, false,
+    'the boot default is every writer\'s fallback — releasing it makes the next call somebody '
+    + 'else makes pay a cold load');
+  assert.strictEqual(releasable('old-model', { ...base, otherDefaults: ['old-model'] }).ok, false,
+    'and a model the OTHER writer is set to must survive your switch');
+  assert.strictEqual(releasable('old-model', { ...base, storiesOnIt: 1 }).ok, false,
+    'so must one a book names — modelFor puts the story ahead of the writer default');
+  assert.strictEqual(releasable('old-model', { ...base, busy: 1 }).ok, false,
+    'and one with a generation in flight, which is the clause that reaches somebody\'s prose');
+  assert.strictEqual(releasable('same', { ...base, active: 'same' }).ok, false,
+    'switching to the model you are already on releases nothing');
+  assert.strictEqual(releasable('', base).ok, false, 'and a writer with no previous model has nothing to release');
+
+  // The verdict carries WHY, because "kept" with no reason reads as the feature being broken.
+  assert.match(releasable('old-model', { ...base, otherDefaults: ['old-model'] }).why, /another writer/);
+  ok('releasing a model on switch stops at the boot default, the other writer, a pinned book, and a call in flight');
+}
+
 // The prompt overrides are per OWNER and on the open list, so nothing else gates them — the
 // scoping has to be in the queries themselves.
 {

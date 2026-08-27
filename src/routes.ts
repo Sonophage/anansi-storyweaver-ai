@@ -1,5 +1,6 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured } from './llama.ts';
+import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
+         releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, DEFAULT_VOICE } from './prompts.ts';
 import * as db from './db.ts';
@@ -20,6 +21,8 @@ export interface Ctx {
   // The writer's own fallback model, and whether they run the box. Both come from serve.ts:
   // `admin` is an identity question and the sampler map already lives there.
   defaultModel: string | null; setDefaultModel: (id: string) => void;
+  /** What every OTHER writer currently defaults to. Only the release policy uses it. */
+  otherDefaults?: () => string[];
   admin: boolean;
 }
 type Handler = (c: Ctx) => Promise<any> | any;
@@ -530,9 +533,32 @@ export const routes: Record<string, Handler> = {
   // dies with HTTP 500 rather than queueing when the cache is oversubscribed.
   'POST /api/model': async (c: Ctx) => {
     try {
+      const was = c.defaultModel;
       const id = await checkModel(String(c.body.model ?? ''));
       c.setDefaultModel(id);
-      return { active: id };
+      // ONE MODEL PER WRITER. Without this, a writer trying three models leaves three loaded until
+      // the router sleeps them at 900 seconds — Seth's ask, and the router holds only three.
+      //
+      // The guard is the whole of it, because this box is SHARED: releasing the model another
+      // writer is on, or one a book is pinned to, or one with a call in flight, costs somebody
+      // else a cold load in the middle of their prose. `releasable` names every clause; this
+      // gathers the four facts it cannot see for itself.
+      let released: string | null = null, kept: string | null = null;
+      if (was) {
+        const verdict = releasable(was, {
+          active: id, bootDefault: model(),
+          otherDefaults: c.otherDefaults?.() ?? [],
+          storiesOnIt: db.storiesOnModel(was), busy: busyOn(was),
+        });
+        if (verdict.ok) {
+          const r = await unload(was);
+          // A failed release is a model that sleeps in 900 seconds instead, which is what happened
+          // before this existed. Reported, never fatal to the switch the writer asked for.
+          released = r.ok ? was : null;
+          kept = r.ok ? null : `${was} — ${r.error ?? 'the router refused'}`;
+        } else kept = `${was} — ${verdict.why}`;
+      }
+      return { active: id, released, kept };
     } catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
   },
   'POST /api/stories':   (c) => {

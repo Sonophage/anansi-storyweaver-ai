@@ -397,6 +397,12 @@ export function setCover(id: string, jpeg: Uint8Array) {
 export const delCover = (id: string) => { q('DELETE FROM story_covers WHERE story_id = ?').run(id); };
 
 /** The writer's default look, or null. */
+/** How many books, ANY writer's, are pinned to this model. `modelFor` puts the story ahead of the
+ *  writer's default, so a book naming a model is a book that will load it on its next call —
+ *  releasing it out from under one is a cold load somebody did not ask for. */
+export const storiesOnModel = (model: string): number =>
+  (q('SELECT COUNT(*) AS c FROM stories WHERE model = ?').get(model) as any).c;
+
 export const lookOf = (ownerId: string): any => {
   const r = q('SELECT look FROM writer_look WHERE owner_id = ?').get(ownerId) as any;
   try { return r ? JSON.parse(r.look) : null; } catch { return null; }

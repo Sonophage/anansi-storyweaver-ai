@@ -2251,10 +2251,11 @@ const WPAGES = {
           <button class="btn ghost" data-router="restart" style="flex:1">Restart it</button>
           <button class="btn ghost" data-router="stop" style="flex:1; color:var(--bad)">Release the models</button>
         </div>
-        <div class="hint"><strong>Release</strong> stops the service, which is the only way to get the
-          VRAM back immediately — the router has no unload call, it only sleeps on its own after 15
-          minutes idle. Anansi cannot write while it is stopped; <strong>Restart</strong> brings it
-          back and the next call loads what it needs. Both are shared: two writers, one server.</div>
+        <div class="hint"><strong>Release</strong> stops the whole service and takes every model down
+          with it. Switching your model below already releases the one you were on, so you rarely need
+          this — it is for getting the card back for something that is not Anansi. Anansi cannot write
+          while it is stopped; <strong>Restart</strong> brings it back and the next call loads what it
+          needs. Both are shared: two writers, one server.</div>
 
         <div class="lbl" style="letter-spacing:.1em; margin-top:30px">What you have written</div>
         ${(() => {
@@ -3333,7 +3334,14 @@ document.addEventListener('click', async (e) => {
     if (d.pickmodel === SRV.model) return;
     const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);
     if (r.error) return toast(r.error);
-    SRV.model = r.active; paint(); toast(`Now writing with ${modelName(r.active).name}.`); return;
+    SRV.model = r.active; loadModels(); paint();
+    // What happened to the one you were on. Said out loud because the alternative — a model that
+    // silently stays resident, or one that silently goes — is the difference between "why is the
+    // card full" and "why did that take 45 seconds", and neither question has an answer on screen.
+    const name = (id) => modelName(id).name;
+    return toast(r.released ? `Now writing with ${name(r.active)}. ${name(r.released)} released.`
+      : r.kept ? `Now writing with ${name(r.active)}. ${name(r.kept.split(' — ')[0])} kept — ${r.kept.split(' — ')[1]}.`
+      : `Now writing with ${name(r.active)}.`);
   }
 
   if (d.lkind) { S.ledgerKind = d.lkind; drawPage(); return; }

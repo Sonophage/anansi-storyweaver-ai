@@ -168,7 +168,9 @@ export async function chat(system: string, body: string, opts: Record<string, un
                    : AbortSignal.timeout(ceilingMs),
     });
     if (!res.ok) throw new Error(`/v1/chat/completions ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    return readSSE(res, onDelta);
+    const on = String((opts as any).model ?? MODEL);
+    enter(on);
+    try { return await readSSE(res, onDelta); } finally { leave(on); }
   }
   const r = await post('/v1/chat/completions', {
     model: MODEL, temperature: 0.85, top_p: 0.95, max_tokens: 900,
@@ -240,11 +242,69 @@ export const allowed = (id: string) =>
   !ALLOW.length || ALLOW.some((a) => id === a || (a.endsWith('*') && id.startsWith(a.slice(0, -1))));
 export const allowList = () => [...ALLOW];
 
+/** How many generations are in flight, per model. The unload policy needs it: pulling a model out
+ *  from under a call in progress is the one mistake here that reaches somebody's prose.
+ *
+ *  Incremented and decremented around the streaming and non-streaming chat calls only. Structured
+ *  roles are not counted — they are short, and a summary re-run is cheap where a lost passage is
+ *  not, so counting them would only ever refuse a release that was safe. */
+const inFlight = new Map<string, number>();
+export const busyOn = (id: string) => inFlight.get(id) ?? 0;
+const enter = (id: string) => inFlight.set(id, busyOn(id) + 1);
+const leave = (id: string) => {
+  const n = busyOn(id) - 1;
+  if (n > 0) inFlight.set(id, n); else inFlight.delete(id);
+};
+
+/** Whether the model a writer has just switched AWAY from can be released now.
+ *
+ *  Pure, and separate from the call that does it, because every clause here is a way to take a
+ *  model out from under somebody and none of them is obvious from the request that triggers it.
+ *  The router holds three (`--models-max 3`) and sleeps them at 900 seconds on its own, so the
+ *  only thing this buys is immediacy — which means a wrong answer costs more than it saves.
+ *
+ *    bootDefault   — every writer with no choice of their own falls back to it
+ *    otherDefaults — what the OTHER writers are currently set to
+ *    storiesOnIt   — any book pinned to it, whoever owns it: `modelFor` puts the story first
+ *    busy          — a generation in flight on it
+ */
+export function releasable(previous: string, o: {
+  active: string; bootDefault: string | null; otherDefaults: string[];
+  storiesOnIt: number; busy: number;
+}): { ok: boolean; why: string } {
+  if (!previous || previous === o.active) return { ok: false, why: 'not a switch' };
+  if (previous === o.bootDefault) return { ok: false, why: 'it is the fallback for every writer' };
+  if (o.otherDefaults.includes(previous)) return { ok: false, why: 'another writer is on it' };
+  if (o.storiesOnIt > 0) return { ok: false, why: `${o.storiesOnIt} book(s) name it` };
+  if (o.busy > 0) return { ok: false, why: 'a generation is running on it' };
+  return { ok: true, why: 'nothing else is using it' };
+}
+
+/** Give the VRAM back now rather than at `--sleep-idle-seconds`.
+ *
+ *  MEASURED 2026-08-27 on build b10566: `POST /models/unload` with `{model}` exists and answers
+ *  400 "model is not found" for an id it does not serve. `libllama-server-impl.so` carries
+ *  `/models/load` and `/models/unload` in its route table. The comment that used to be here said
+ *  the router had no unload endpoint, and the Preferences screen said so too; both were written
+ *  against an older build and were wrong by the time anybody read them.
+ *
+ *  Never throws. A release that fails is a model that sleeps in 900 seconds instead, which is
+ *  what happened before this existed — so it is not worth failing a writer's model switch over. */
+export async function unload(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const r = await reach(`${HOST}/models/unload`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: id }), signal: AbortSignal.timeout(20_000),
+    });
+    if (!r.ok) return { ok: false, error: `${r.status}: ${(await r.text()).slice(0, 200)}` };
+    return { ok: true };
+  } catch (e: any) { return { ok: false, error: e?.message ?? String(e) }; }
+}
+
 /** Release the models, or bring the router back.
  *
- *  The router has no unload endpoint — it sleeps on `--sleep-idle-seconds`, 900 on this box, and
- *  that is the only automatic release. Stopping the unit is the way to get the VRAM back NOW,
- *  which is what you want before running something else on the GPU.
+ *  Per MODEL, use `unload` above. This stops the whole unit, which is what you want before running
+ *  something else on the GPU: it takes every model down at once and does not come back on its own.
  *
  *  It is a `--user` unit, so no privilege escalation is involved. The command is a fixed list with
  *  the unit name hardcoded — nothing from a request reaches a shell, and `execFile` takes an
