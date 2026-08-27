@@ -22,12 +22,15 @@ fresh() {
   local pid; pid=$(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
   [ -n "$pid" ] && kill "$pid" 2>/dev/null
   sleep 1; rm -f "$WORK"/db*
-  # VACUUM INTO, not cp: in WAL mode recent writes sit in anansi.db-wal and a plain copy of the
-  # main file loses them without saying so. See db.snapshot().
-  node --experimental-strip-types -e "import('./src/db.ts').then(d => d.snapshot('$WORK/db'))"
-  # The scenarios look their story up by title. It used to be a row in the working database,
-  # so deleting it there killed six scenarios at once — and they were scored green, because a
-  # scenario that dies before its first assertion reports no failures either.
+  # The fixture is the WHOLE ground truth, and it did not used to be: this snapshotted the real
+  # anansi.db and seeded The Silver Key on top, so every scenario ran against the author's actual
+  # library plus a fixture. That is invisible until the library changes. On 2026-08-26 it emptied and
+  # three assertions in handlers.js stopped running with no red — 22 checks became 19 — because they
+  # were reaching for a second story that happened to be there. A suite whose ground truth is a book
+  # somebody is writing in tests something different every day.
+  #
+  # A scenario that needs more than the fixture makes it, the way handlers.js makes its empty book
+  # and its second book to race.
   node --experimental-strip-types test/ui/seed.ts "$WORK/db" >/dev/null
   # The scenarios drive Preferences, which can stop and restart the llama-router unit. Point the
   # test server at a unit that does not exist so no test can ever take the real one down: a

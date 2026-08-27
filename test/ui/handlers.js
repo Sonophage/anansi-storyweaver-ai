@@ -49,8 +49,20 @@ ok("  and the change did not wipe the body", !!e?.body);
 ok("  and did not wipe the keywords", Array.isArray(e?.keys));
 
 // ---- 3. An empty story: no chapters with prose, nothing written
-const empty = await page.eval("(async () => { const r = await (await fetch('/api/stories')).json(); const s = r.stories.find(x=>x.title!=='The Silver Key'); return s ? s.id : null; })()");
+// An empty story, MADE here rather than looked for. It used to take whatever else happened to be in
+// the library — and the library is a snapshot of the real anansi.db, so this depended on the author
+// having a second book. The day that library emptied these three checks stopped running and the
+// scenario still reported green: 22 became 19, no red. Which is the failure the notes describe.
+const empty = await page.eval(`(async () => {
+  const r = await (await fetch('/api/stories')).json();
+  const had = r.stories.find(x => x.title === 'An Empty Book');
+  if (had) return had.id;
+  const made = await (await fetch('/api/stories', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: 'An Empty Book' }) })).json();
+  return made.id ?? null; })()`);
 console.log("  empty story for the edge case: " + empty);
+ok("an empty story exists to test the edge case with", !!empty);
 if (empty) {
   await page.goto(B + "/#" + empty);
   const err = await page.eval("window.__err || null");

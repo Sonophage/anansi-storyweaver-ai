@@ -9,6 +9,19 @@ const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
+// A second book, made BEFORE the app loads so the client's library contains it from the first paint.
+// Made later and navigated to by hash, the app does not know the id, lands on the workspace, and
+// drawDock returns early leaving the hidden composer holding its old value — which reads exactly
+// like "the draft carried across" and is not that at all. Reloading to refresh the library is not an
+// option either: the draft under test lives in the page.
+const other = await page.eval(`(async () => {
+  const r = await (await fetch('/api/stories')).json();
+  const had = r.stories.find(x => x.title === 'Another Book Entirely');
+  if (had) return had.id;
+  const made = await (await fetch('/api/stories', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: 'Another Book Entirely' }) })).json();
+  return made.id ?? null; })()`);
 const story = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid + "')).json())()");
 const modeBlock = (mode, speaker, directive) => page.eval(
   "(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
@@ -178,6 +191,8 @@ ok("opening a panel does not eat the draft",
 ok("  and the caret is where you left it",
    (await page.eval("document.getElementById('input')?.selectionStart")) === 7);
 
+ok("there is a second book to carry the draft into", !!other);
+
 await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
 await wait(500);
 ok("changing mode does not eat it either",
@@ -195,13 +210,24 @@ if (paged) {
 }
 
 // But a draft belongs to ITS book. Carrying it into another one would be worse than losing it.
-const other = await page.eval("(async () => { const r = await (await fetch('/api/stories')).json();"
-  + " const s = r.stories.find(x => x.id !== '" + sid + "'); return s ? s.id : null; })()");
+//
+// This assertion sat behind `if (other)` with no else, and `other` was whatever second book happened
+// to be in the library — which was a snapshot of the real anansi.db. The day that library emptied it
+// stopped running and the scenario still reported green, 46 checks becoming 45. It is the check
+// behind "open a different story and the line is gone", which is a walk item.
 if (other) {
+  await page.eval("(() => { document.getElementById('input').dataset.probe = 'before'; return 1; })()");
   await page.eval(`(() => { location.hash = '#' + ${JSON.stringify(other)}; return 1; })()`);
-  await wait(1200);
-  ok("  and opening a different book does not carry it across",
-     (await page.eval("document.getElementById('input')?.value")) === '');
+  await wait(1400);
+  // WHICH book is open, as well as what is in the box: "the draft carried across" and "the app never
+  // opened the other book" look identical from the value alone, and only one of them is a bug.
+  const landed = await page.eval("(() => ({ hash: location.hash,"
+    + " onStory: !!document.querySelector('#col'),"
+    + " box: document.getElementById('input')?.value ?? null }))()");
+  ok(`  and it actually opened the other book (${JSON.stringify(landed.hash)})`,
+     landed.hash.includes(other) && landed.onStory);
+  ok(`  and opening a different book does not carry it across (${JSON.stringify(landed.box)})`,
+     landed.box === '');
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");
