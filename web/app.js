@@ -72,9 +72,22 @@ try { hwkb = localStorage.getItem(HW) === '1'; } catch { /* no storage */ }
  *  Chrome re-reads this meta when it changes, so it can be a runtime setting rather than a reload. */
 const applyHwkb = () => {
   const m = document.querySelector('meta[name="viewport"]');
-  if (!m) return;
-  m.setAttribute('content', m.getAttribute('content')
+  if (m) m.setAttribute('content', m.getAttribute('content')
     .replace(/interactive-widget=[a-z-]+/, `interactive-widget=${hwkb ? 'overlays-content' : 'resizes-content'}`));
+  // AND THE HALF THE META CANNOT DO. `interactive-widget` says what happens to the layout WHEN a
+  // soft keyboard appears. It does not stop one appearing, and on Android tapping a text field
+  // always opens one — hardware keyboard attached or not. So the box was still moving on the tap,
+  // because the browser then scrolls to keep the caret above a keyboard that should not have been
+  // there. Seth: "it's only when I press the input button that it moves ... it needs to stay
+  // static when that setting is on."
+  //
+  // `inputmode="none"` is the one thing that says do not raise a virtual keyboard for this field.
+  // Typing from the physical one is unaffected: inputmode governs the on-screen keyboard, not the
+  // input event. Re-applied from drawDock() as well as here, because the textarea is rebuilt on
+  // every repaint and an attribute set once would last until the first one.
+  for (const ta of document.querySelectorAll('#input, [data-f], .field')) {
+    if (hwkb) ta.setAttribute('inputmode', 'none'); else ta.removeAttribute('inputmode');
+  }
 };
 const setHwkb = (on) => { hwkb = on; try { localStorage.setItem(HW, on ? '1' : '0'); } catch { /* no storage */ } applyHwkb(); };
 applyHwkb();
@@ -605,8 +618,11 @@ function drawAppearance() {
             <span style="margin-left:auto; font-size:10.5px; color:var(--faint)">${hwkb ? 'on' : 'off'}</span>
           </button>
           <span class="hint" style="margin:0">Stops the layout resizing for a keyboard that is not
-            there, and keeps the caret in the box after a press. <strong>This one stays on this
-            device</strong> — it is the only setting here that does.</span>
+            there, keeps the caret in the box after a press, and <strong>stops the on-screen
+            keyboard opening at all</strong> — which is what keeps the composer still when you tap
+            it. Turn it off on a device that has no physical keyboard, or you will have nothing to
+            type with. <strong>This one stays on this device</strong>; it is the only setting here
+            that does.</span>
         </div></div>`;
 
   // WHICH of the two you are changing. Inside a book these controls set that book's look; on the
@@ -1023,6 +1039,8 @@ function drawDock() {
   // someone editing a thread, and stealing it mid-word would be a worse bug than the one this
   // fixes.
   else if (hwkb && (document.activeElement === document.body || !document.activeElement)) ta.focus({ preventScroll: true });
+  // The textarea is new on every repaint, so the inputmode goes on again with it.
+  applyHwkb();
   DOCK_FOR = S.storyId;
 }
 

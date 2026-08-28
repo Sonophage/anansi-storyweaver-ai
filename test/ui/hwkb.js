@@ -67,6 +67,31 @@ if (toggle) {
   ok(`  and it survives repaints — still overlays-content after two (${await widget()})`,
      (await widget()) === 'overlays-content');
 
+  // THE HALF THE META CANNOT DO, and the one Seth actually reported: "it's only when I press the
+  // input button that it moves." `interactive-widget` says what happens to the layout WHEN a soft
+  // keyboard appears; it does not stop one appearing, and on Android a tap on a text field always
+  // opens one whether or not a physical keyboard is attached. The browser then scrolls to keep the
+  // caret above it, and that scroll IS the movement. `inputmode="none"` is the only thing that
+  // says do not raise a virtual keyboard for this field.
+  const im = () => page.eval("(() => document.getElementById('input')?.getAttribute('inputmode') ?? 'absent')()");
+  ok(`with the setting on, the composer refuses an on-screen keyboard (inputmode=${await im()})`,
+     (await im()) === 'none');
+  // It has to survive a repaint too — the textarea is rebuilt by drawDock on nearly every action,
+  // and an attribute set once would last until the first one.
+  await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
+  await wait(400);
+  ok(`  and it is still there after the composer is redrawn (inputmode=${await im()})`,
+     (await im()) === 'none');
+  // And OFF has to mean off, or a writer with no physical keyboard would have nothing to type with.
+  await page.eval("(() => { document.querySelector('[data-appearance]')?.click(); return 1; })()");
+  await wait(300);
+  await page.eval("(() => { document.querySelector('[data-looktab=\"scale\"]')?.click(); return 1; })()");
+  await wait(300);
+  await page.eval("(() => { document.querySelector('[data-hwkb]')?.click(); return 1; })()");
+  await wait(400);
+  ok(`turning it off gives the on-screen keyboard back (inputmode=${await im()})`,
+     (await im()) === 'absent');
+
   // The one place the app itself moves focus for this setting: with a hardware keyboard and
   // nothing focused, the caret comes back to the box. preventScroll on both focus calls, because
   // focus() otherwise scrolls the element into view and yanks the reading column — which is the

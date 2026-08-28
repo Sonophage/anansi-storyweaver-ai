@@ -92,4 +92,45 @@ console.log(`  --gold ${gold} -> ${rgb(gold)} / stroke ${strokeNow}`);
 ok(`  and its stroke is the theme's own accent, not a colour baked into a file (${strokeNow})`,
    !!strokeNow && strokeNow === rgb(gold));
 
+// ---- FULL SCREEN MEANS FULL SCREEN (decided 2026-08-28, PLAN-07).
+//
+// Both of these were already fixed to all four edges and neither read as a screen, because you
+// could see the page through them. `#appearance` carried the desk card's rgba(16,15,18,.97) into
+// the full-screen rule — 3% of the prose behind a blur, and a hardcoded Obsidian colour on a rule
+// the other eight themes share. `#dock.big` inherited `--dock`, which is a gradient fading from
+// nothing to 92% of the paper: right for a composer floating over prose, wrong for one that IS the
+// screen. Issue #3: "the background behind the input should be completely opaque. It is currently
+// not opaque which makes it hard to read anything."
+//
+// Asserted as ALPHA, not as a colour, so a theme change cannot break it.
+const opaque = (sel) => page.eval(`(() => { const e = document.querySelector('${sel}');
+  if (!e) return null; const bg = getComputedStyle(e).backgroundColor;
+  const m = /rgba?\\(([^)]+)\\)/.exec(bg); if (!m) return { bg, alpha: null };
+  const parts = m[1].split(',').map(x => parseFloat(x));
+  return { bg, alpha: parts.length > 3 ? parts[3] : 1 }; })()`);
+
+await page.eval("(() => { document.querySelector('[data-appearance]')?.click(); return 1; })()");
+await wait(400);
+const app = await opaque('#appearance');
+console.log("  #appearance: " + JSON.stringify(app));
+ok(`the themes menu is fully opaque at phone width (alpha ${app && app.alpha})`,
+   !!app && app.alpha === 1);
+await page.eval("(() => { document.querySelector('[data-appearance]')?.click(); return 1; })()");
+await wait(300);
+
+await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
+await wait(400);
+const big = await opaque('#dock.big');
+console.log("  #dock.big: " + JSON.stringify(big));
+ok(`the expanded composer is fully opaque (alpha ${big && big.alpha})`, !!big && big.alpha === 1);
+// And it really is covering the whole screen, which is the other half of the rule.
+const cover = await page.eval(`(() => { const d = document.querySelector('#dock.big');
+  if (!d) return null; const r = d.getBoundingClientRect();
+  return { top: Math.round(r.top), h: Math.round(r.height), vh: innerHeight }; })()`);
+console.log("  #dock.big box: " + JSON.stringify(cover));
+ok(`  and covers the viewport top to bottom, header included (${cover && cover.top}, ${cover && cover.h} of ${cover && cover.vh})`,
+   !!cover && cover.top === 0 && Math.abs(cover.h - cover.vh) <= 1);
+await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
+await wait(300);
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

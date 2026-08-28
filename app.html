@@ -429,6 +429,12 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   #appearance {
     position:fixed; inset:0; top:0; right:0; left:0; bottom:0; width:auto; max-height:none;
     z-index:41; border-radius:0; border:0; overflow-y:auto;
+    /* FULL SCREEN MEANS FULL SCREEN, 2026-08-28. It was already fixed to all four edges here, and
+       it still did not read as a screen: the desk card's `rgba(16,15,18,.97)` came with it, so the
+       prose showed through at 3% behind a blur. That hardcoded colour is also Obsidian's sheet
+       baked into a rule the other eight themes share — the same fault the logo had. Opaque, and
+       from the theme's own token. */
+    background:var(--sheet); backdrop-filter:none;
     padding:20px 18px calc(20px + env(safe-area-inset-bottom, 0px));
     box-shadow:none;
     animation:sheet var(--t-slow) var(--ease-out) both;
@@ -440,7 +446,7 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
    to the last theme scrolled away the only way back. A trap I made by making the panel full-screen;
    the half-height sheet before it had an outside. */
 @media (max-width:1099px) {
-  #appearance .sheet-head { position:sticky; top:0; z-index:1; background:rgba(16,15,18,.97);
+  #appearance .sheet-head { position:sticky; top:0; z-index:1; background:var(--sheet);
     margin:-20px -18px 0; padding:20px 18px 12px; }
 }
 .chip { padding:9px 12px; border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:13px; }
@@ -776,7 +782,13 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
    come with it rather than being a second composer that drifts from the first.
    The draft is untouched by the toggle because drawDock has always carried it across a repaint;
    that is also why leaving the box, reading the last passage and coming back keeps the text. */
-#dock.big { position:fixed; inset:0; z-index:41; padding-top:calc(14px + env(safe-area-inset-top, 0px)); }
+/* `--dock` is a gradient that fades from nothing to 92% of the paper, which is right for a
+   composer floating over prose and wrong for one that IS the screen — issue #3: "the background
+   behind the input should be completely opaque. It is currently not opaque which makes it hard to
+   read anything." Same rule as the themes menu above: a full-screen surface is opaque, in the
+   theme's own colour. */
+#dock.big { position:fixed; inset:0; z-index:41; padding-top:calc(14px + env(safe-area-inset-top, 0px));
+  background:var(--doc-bg); }
 #dock.big #dockCol { flex:1; min-height:0; }
 #dock.big #inputRow { flex:1; min-height:0; align-items:stretch; }
 /* No inline height is set in this mode, so the flex box is the height and the text scrolls in it. */
