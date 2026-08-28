@@ -1,5 +1,20 @@
 # PLAN-07 — The veil goes full screen, and the device toggle finds its tab
 
+> **AGREED 2026-08-28 — the tray and the veil are ONE job.** Seth: *"yes the tray and the veil
+> should be one job."* Four surfaces go full screen on a phone — `#dock.big` (z-index 41),
+> `#appearance` (41), `#rail` (40) and the passage tray's sheet (32) — with four different stacking
+> rules and no shared owner. Issue #2 (the tray opening under its own blur) and issue #3's *"the
+> header should stay"* are both really the same question: **what does a full-screen surface cover,
+> and what stays above it.** Deciding that once is the job. Deciding it three times is what produced
+> the current state.
+>
+> The theme menu going full screen belongs in the same session for the same reason.
+>
+> **Bugs 1, 2 and 3 below are FIXED** (`6333e54`). Bug 4 was already fixed in `76deb5a`. The
+> "collision risk" section named uncommitted work that has since landed. Ask 1 needs no code and is
+> the deliverable it says it is. **Ask 2 and Ask 3 are what remains**, plus the two issue-#2 and
+> issue-#3 items now folded in.
+
 ## Context
 
 Three asks, from a walkthrough of the writing surface:

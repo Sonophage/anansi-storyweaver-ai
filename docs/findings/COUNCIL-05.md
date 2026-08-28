@@ -200,6 +200,13 @@ of one vocabulary, and the grammar is the one that decides what the model *can* 
   the same hex and watching the adjacency rule stay green, because `DIRECTIVE` sits between them in
   `ORDER` and nothing else looked. Distinctness is now checked separately from adjacency.
 
+**ANSWERED 2026-08-28 — Seth: hue is enough.** The three pairs are `CANON-TRIGGERED`/`STRING` at
+1.00:1, `STRING`/`EARLIER` at 1.14:1 and `EARLIER`/`PROSE` at 1.06:1 — olive against mauve, mauve
+against purple, purple against blue. Same lightness, different hue, so in greyscale or to a
+red-green colour-blind reader those three boundaries vanish. It is a personal app on his own screen
+and that is a real answer, not a deferral. The check stays as it is: two adjacent segments may not
+be *identical*, and nothing more. Closed.
+
 **And a rule this council proposed did not survive contact.** The first version asked for 1.2:1 of
 luminance between neighbours; three existing pairs failed it. That is a redesign of the palette
 wearing a check's clothes, and a check needing three exemptions on its first run is one that gets

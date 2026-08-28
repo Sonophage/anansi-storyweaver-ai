@@ -151,7 +151,7 @@ threads. Model-facing text is unchanged except the talk role, which says THREADS
 - **Preferences: changing your name.** The dashboard landed. The name is a hard-coded owner in
   `serve.ts` — changing it is easy, but it is the first thread of "is there more than one of you",
   which is the login question you have deliberately left alone.
-- **Talk to Anansi about the story** — scoped, in `docs/plans/PLAN-05-TALK.md`, and corrected by
+- **Talk to Anansi about the story** — scoped, in `docs/archived/PLAN-05-TALK.md`, and corrected by
   Seth to a better shape than the one I proposed. **One chat window, three kinds of output, none
   of which lands on its own**: an answer, a *thread* proposed for the ledger, and a *directive*
   drafted and handed to the composer in Direct mode — editable, unsent. One structured call does

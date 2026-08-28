@@ -1,54 +1,68 @@
 # What is open — after a day's work on 2026-08-26
 
-## ⇢ SEVEN QUESTIONS, AND THEY ARE THE FIRST THING HERE ON PURPOSE
+## ⇢ ANSWERED 2026-08-28, AND WHAT IS LEFT TO DECIDE
 
-Written overnight 2026-08-28 on branch **`surface-fixes`**, which is pushed and not merged. The
-whole night's work is there; `serial` is untouched and so is the app you were writing in.
+Seven questions were asked here overnight. **Five are answered and closed.** What is below them is
+the standing record and is unchanged.
 
-**Everything below this block is the standing record and has not changed.**
+**Decided by Seth:**
 
-1. **Issue #2 — what was on screen?** I could not reproduce the path you hit. What I *did* find and
-   fix is real and measured: with the composer expanded or the menu open, the tray opened
-   *underneath* them (`elementFromPoint` at its centre returned `#input`, then a rail button) — it
-   was drawn, centred, and nothing on it could be pressed. But both need a full-screen surface
-   already up, and a double tap cannot reach a passage through one. **Your wording was "pops up
-   under IT", which may mean under the entry rather than under a surface.** If you can say what was
-   open when it happened, that is the missing piece.
+- **Issue #5 absorbs PLAN-06 §2e** rather than sitting beside it. Connected threads with a
+  confidence score and their own trigger words *is* the activation work, arriving from the writer's
+  side. §2e stops being its own item.
+- **Issue #7 splits.** The `@`-autocomplete for summoning threads, stories and chapters gets built
+  now. **Anansi's voice gets its own session** — a probe with a denominator first, then a change.
+  Not a prompt edit taken on the way past.
+- **The full-screen veil with Stop inside is its own session**, and the theme menu going full screen
+  goes with it: same shape, same decision about what a full-screen surface covers.
+- **The tray and the veil are one job.** Four surfaces (`#dock.big`, `#appearance`, `#rail`, the
+  tray sheet) have four stacking rules and no shared owner. That gets decided once.
+- **The context meter's colours stay as they are.** Three adjacent pairs are separated by hue alone
+  — `CANON-TRIGGERED`/`STRING` at 1.00:1, `STRING`/`EARLIER` at 1.14:1, `EARLIER`/`PROSE` at
+  1.06:1. It is a personal app and hue is enough. The check still refuses two adjacent segments
+  being *identical*, and nothing else.
+- **Issues #4 and #6 confirmed fixed** on his own screen. #6 is closed on the report as well as in
+  the code.
 
-2. **Issue #6 — I never reproduced "white".** The logo had a background *plate*, not a white one:
-   `#0A0A0C` baked into `web/icon.svg` along with Obsidian's gold, on a file eight of the nine
-   themes do not share. It is inline SVG now with no plate and the theme's own accent. **If you
-   still see white after a restart, it is something else and I want to know.**
+**Still open, and these are the real questions now:**
 
-3. **Issue #5 — threads that scan, connect and carry confidence.** Not started, and it should not
-   be until you have said what you want. It is the biggest thing on the list and it **overlaps
-   PLAN-06 §2e directly**: "triggerable by their own trigger word" *is* the activation work,
-   arriving from the writer's side. My reading is that #5 should absorb 2e rather than sit beside
-   it. Do you agree?
+1. **Where does the `@`-autocomplete look?** Threads, stories and chapters are three scopes. Inside
+   a story, does `@` reach other books or only this one?
+2. **What does a full-screen surface cover?** #3 says the header — book and chapter name — must
+   stay, with the composer filling everything below. Is that true of the *theme menu* and the *menu*
+   too, or only the composer? The answer decides one rule or three.
+3. **The checklist itself.** This file is doing three jobs — open work, a walk list, and a record of
+   what was built. Proposal: it keeps only what is **open and undecided**, capped at one screen;
+   everything historical moves to `BUILD-STATE.md`, which is already the audited record. Agreed
+   before the next session, not during it.
 
-4. **Issue #7 is two things and only one is buildable.** The `@`-autocomplete for summoning
-   threads, stories and chapters is a clean feature and I did not start it. **"Anansi's personality
-   is rough" is not a fix, it is a measurement** — F26 already measured her voice and left two
-   residuals unfixed, and editing the prompt without a probe and a denominator is how F20 happened.
-   Say which you want first.
+**Two books for testing, both in the library:**
 
-5. **PLAN-07's veil is still ahead.** Its three *bugs* are fixed (below). Its designed work — the
-   veil going full screen with Stop inside it, and the hardware-keyboard toggle moving into the UI
-   tab — is not started. **The plan itself flags that no test covers `hwkb` at all**, so a green run
-   would prove nothing about that half either way. Worth landing this branch first?
+- **`Test`** (`s-bcb217a0`) — the one to break. Everything below is true of it.
+- **`The Proving Ground`** (`s-ebce7b7c`) — the same book, Seth's to keep and write in.
 
-6. **A design call from COUNCIL-05 that is yours, not a test's.** Three adjacent pairs in the
-   context meter are separated by hue alone. I cut my own 1.2:1 luminance rule because three
-   existing pairs failed it — that made it a redesign of your palette wearing a check's clothes.
-   The check now only refuses two adjacent segments being *identical*. Do you want the wider rule?
+Noir, night porter, a ledger with pages cut out of it. Three passages, four ledger entries, a voice
+field carrying an F37-style register rule on its own line, a direction set. **Three of its four
+entries are `triggered` with keys that actually appear in the prose** — which makes it the first
+book in the library that can exercise `CANON-TRIGGERED` at all. `bench/utilisation.ts` measured that
+block sent in **zero of 61 calls** because every entry everywhere was `always_on` with keys that
+echoed their own title.
 
-7. **Merge this branch, or keep going on it?** It is `surface-fixes`, pushed, fourteen browser
-   scenarios and eleven unit suites green. `serve.ts`'s three markers are still untouched — you
-   said tomorrow, and they are still the only open items whose failure mode is a door.
+**Open bugs, scoped and not yet built** — see `docs/plans/PLAN-07-VEIL.md` for the veil half:
 
-**What landed overnight:** PLAN-07 bugs 1–3, issues #2, #3, #4 and #6, a guard for the
-duplicate-`@keyframes` class, `bench/sweep.ts`, and two new browser scenarios (`tray`, `composer`)
-in the default set. Details under *Found and fixed*.
+- **The hardware-keyboard toggle** is still in the themes footer and belongs only in the UI tab.
+- **A regression:** with it on, the input box moves again. It used to hold still, because there is
+  no on-screen keyboard to make room for.
+- **Issue #2, diagnosed at last.** On a passage the model just wrote, the tray opens *under its own
+  blur*. `#col .block.newest` carries `animation:rise … both`, and a filled transform animation
+  makes that block a stacking context — which caps the sheet's z-index inside it, so `#scrim` at 31
+  paints over a sheet at 32. `app.html:568-575` records this exact bug from a previous round and the
+  fix that was supposed to close it. It is back, and only on a passage that has just *arrived*,
+  which is the case no fixture had.
+- **Issue #3, the rest.** The expand button's box is 44px but its glyph is still 17px; the expanded
+  composer's ground is not opaque, so prose reads through it; and the header should stay above it.
+
+---
 
 ---
 
@@ -521,7 +535,7 @@ because nothing proxies. The marker in `serve.ts` names three upgrades and which
 landed by halves.
 
 `grep -rn "ponytail:" src web bench *.ts *.html` is the ledger. Full COUNCIL-04 write-up with line
-numbers: `docs/findings/COUNCIL-04.md`.
+numbers: `docs/archived/COUNCIL-04.md`.
 
 ## Four decisions, and F28 moved two of them
 
