@@ -295,7 +295,23 @@ function drawRail() {
     <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
       <button data-home="1" aria-label="Anansi — back to my stories"
         style="display:flex; align-items:center; gap:10px; padding:0; text-align:left">
-        <img src="./web/icon.svg" alt="" style="width:24px; height:24px; border-radius:var(--r); display:block; flex:0 0 auto">
+        <!-- Issue #6 — the logo carried a background plate on every theme.
+             web/icon.svg paints a rect filled #0A0A0C behind the web and strokes it in #D9B26A.
+             Both are Obsidian's values, baked into a file that eight of the nine themes do not
+             share: on Cyberpunk the plate is a near-black box a shade off the page and the gold is
+             not the teal accent; on Parchment and Novelist a dark box sits on cream paper. An img
+             element cannot inherit any of it, which is why it never tracked the theme.
+             Inlined here instead, with no plate and currentColor for the stroke, so the mark is
+             drawn in whatever the theme's accent resolved --gold to and the page shows through
+             behind it. The FILE stays exactly as it is and is still the favicon and the installed
+             icon, where an opaque plate is correct: an app icon has no page behind it to inherit. -->
+        <svg viewBox="0 0 512 512" width="24" height="24" aria-hidden="true"
+          style="display:block; flex:0 0 auto; color:var(--gold)">
+          <g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" opacity=".85">
+            <path d="M256 96 256 416M110 256 402 256M150 150 362 362M362 150 150 362"/>
+            <circle cx="256" cy="256" r="56"/><circle cx="256" cy="256" r="112"/><circle cx="256" cy="256" r="164"/>
+          </g>
+        </svg>
         <span class="serif txt" style="font-size:26px; color:var(--ink-bright)">Anansi</span>
       </button>
       <button data-rail="1" style="margin-left:auto; color:var(--faint); display:flex;
