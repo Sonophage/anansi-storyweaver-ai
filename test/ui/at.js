@@ -180,19 +180,24 @@ const cmenu = () => page.eval(`(() => { const l = document.getElementById('atlis
   return { open: true, items: [...l.querySelectorAll('[data-atpick]')].map(b => b.textContent.replace(/\\s+/g, ' ').trim()) };
 })()`);
 
-ok("the composer has an @ button", await page.eval("!!document.querySelector('[data-atopen]')"));
-const order = await page.eval("[...document.querySelectorAll('#inputRow > *')].map(e => e.id || e.dataset.atopen && 'atopen' || e.dataset.bigin && 'bigin' || e.tagName)");
+// NO @ BUTTON. Typing the character is the whole gesture, and a button for a character you can
+// type is a control earning nothing. Asserted as absent, so it does not come back by accident.
+ok("there is no @ button — typing one is the gesture",
+   !(await page.eval("!!document.querySelector('[data-atopen]')")));
+const order = await page.eval("[...document.querySelectorAll('#inputRow > *')].map(e => e.id || (e.dataset.bigin && 'bigin') || e.tagName)");
 console.log("  input row: " + JSON.stringify(order));
-ok("  with @ and the full-screen button both on the LEFT of the box",
-   order.indexOf('atopen') === 0 && order.indexOf('bigin') === 1 && order.indexOf('inputWrap') === 2);
-ok("  and Send still on the right where it was", order[order.length - 1] === 'send' || order.includes('send'));
+ok("  the full-screen button is on the LEFT of the box",
+   order.indexOf('bigin') === 0 && order.indexOf('inputWrap') === 1);
+ok("  and Send is still on the right where it was", order.includes('send'));
 
-await page.eval("(() => { document.querySelector('[data-atopen]')?.click(); return 1; })()");
-await wait(400);
-let cm = await cmenu();
-console.log("  after pressing @: " + JSON.stringify(cm.items));
-ok("pressing @ types one and opens the menu", cm.open && !!cm.items && cm.items.length > 0);
-ok("  and the @ is in the box", (await page.eval("document.getElementById('input').value")).includes('@'));
+let cm;
+await page.eval(`(() => { const b = document.getElementById('input');
+  b.value = 'she looks at @'; b.selectionStart = b.selectionEnd = b.value.length;
+  b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+await wait(350);
+cm = await cmenu();
+console.log("  after typing @: " + JSON.stringify(cm.items));
+ok("typing @ opens the menu on its own", cm.open && !!cm.items && cm.items.length > 0);
 
 await page.eval(`(() => { const b = document.getElementById('input');
   b.value = '@key'; b.selectionStart = b.selectionEnd = b.value.length;

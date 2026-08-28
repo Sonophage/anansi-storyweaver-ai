@@ -267,7 +267,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
-  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news', 'atopen',
+  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
   'dismiss', 'goflag', 'dropflag', 'modelmenu'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
@@ -990,13 +990,11 @@ function drawDock() {
         style="flex:0 0 auto">Anansi</button>
     </div>
     <div id="inputRow">
-      <!-- BOTH ON THE LEFT, and @ first. They are the two things you reach for BEFORE writing —
-           summon the thing you mean, or take the whole screen to say it in — where Send is the
-           thing you reach for after. The full-screen button used to sit on the right beside Send,
-           where two controls with opposite jobs shared a corner. -->
-      <button data-atopen="1" aria-label="Summon a thread, a chapter or a book by name"
-        title="Summon a thread, a chapter or a book by name"
-        style="flex:0 0 auto; color:var(--faint)">@</button>
+      <!-- ON THE LEFT. It is what you reach for BEFORE writing — take the whole screen to say it
+           in — where Send is what you reach for after. It used to sit on the right beside Send,
+           which put two controls with opposite jobs in one corner.
+           There is no @ BUTTON. Typing @ opens the menu on its own, which is the whole gesture;
+           a button for a character you can type was a control earning nothing. -->
       <button data-bigin="1" aria-pressed="${S.bigInput}" title="${S.bigInput
         ? 'Back to the page' : 'Write in a full screen, and still read what you wrote'}"
         aria-label="${S.bigInput ? 'Close the full-screen composer' : 'Open the full-screen composer'}"
@@ -3963,20 +3961,6 @@ document.addEventListener('click', async (e) => {
   }
   if (d.hwkb) { setHwkb(!hwkb); drawAppearance(); return toast(hwkb
     ? 'The caret comes back to the box on this device.' : 'The caret stays where you put it.'); }
-  // The @ button types the @ for you, at the caret, and opens the menu on it. Nothing a person
-  // could not do from the keyboard — which is the point: the button is for the hand that is not
-  // already on one.
-  if (d.atopen) {
-    const box = $('input'); if (!box) return;
-    box.focus({ preventScroll: true });
-    const at = box.selectionStart ?? box.value.length;
-    const pad = at > 0 && !/\s$/.test(box.value.slice(0, at)) ? ' ' : '';
-    box.value = `${box.value.slice(0, at)}${pad}@${box.value.slice(at)}`;
-    const caret = at + pad.length + 1;
-    box.setSelectionRange(caret, caret);
-    box.dispatchEvent(new Event('input', { bubbles: true }));
-    return;
-  }
   if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
   if (d.mute) {
     V = await api.mute(S.storyId, V.currentChapter.id, d.mute, false); paint();
