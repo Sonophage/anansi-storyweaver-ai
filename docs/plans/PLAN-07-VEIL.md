@@ -17,6 +17,24 @@
 >
 > The theme menu going full screen belongs in the same session for the same reason.
 >
+> **Ask 3 is DONE**, built the way the themes menu ended up rather than the way it is described
+> below. The plan says `position:fixed; inset:0; z-index:50`; it is `position:absolute; inset:0`
+> inside `#shell`, which is itself fixed to all four edges — because a fixed element is only fixed
+> until an ancestor makes itself its containing block, and `zoom` on `<body>` for the UI scale does
+> exactly that. That is what rendered the themes menu as a band on a phone. Everything else in the
+> section stands: Stop moved inside, which is what makes covering the composer safe; the JS sizing
+> and its resize handle are deleted; the exit is a fade with the `still()` branch, which is
+> load-bearing rather than defensive.
+>
+> **And one thing the plan did not ask for.** Seth: *"if the background could form transition in
+> with some kind of pixelation or web like animation that would be ideal. the ai takes long to
+> respond anyway while it formulates so having a ritual for this buys us that time while giving the
+> user something to look at."* The veil draws Anansi's own web — the same seven strokes as
+> `web/icon.svg` — with `pathLength="1"` so one dasharray draws a 320px radial and a 1030px ring at
+> the same rate without measuring either, radials first, then the rings, then it breathes.
+> `stroke-dashoffset` and `opacity` are compositor properties, so it costs nothing on a box loading
+> a 35B model at the same time.
+>
 > **Ask 2 is DONE** (this branch): the hardware-keyboard toggle is out of the "This device" footer
 > that appeared under every tab and lives in the UI tab alone, asserted in both directions —
 > present under `scale`, absent under `theme`, `font` and `size`. `test/ui/hwkb.js` is new and in

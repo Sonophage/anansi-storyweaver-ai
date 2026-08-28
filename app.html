@@ -163,13 +163,47 @@ input, textarea { font:inherit; color:inherit; }
 /* THE VEIL. The book is busy, and it says so by dimming the page rather than by adding a paragraph
    to it. Sized to the reading column in JS — never to #doc, which also holds the composer, and a
    veil over the composer is a veil over Stop. */
-#ghost.veil { position:absolute; left:0; right:0; z-index:22; display:flex; align-items:center;
-  justify-content:center; background:rgba(6,6,8,.66); backdrop-filter:blur(2.5px);
+/* FULL SCREEN, ON TOP OF EVERYTHING, WITH STOP INSIDE IT. The veil used to be sized to #read in
+   JS so that it would not cover the composer, because covering the composer covered Stop. Stop is
+   in here now, which is what makes covering everything safe.
+   `absolute` inside #shell, which is itself fixed to all four edges — not `fixed`, because a fixed
+   element is only fixed until an ancestor makes itself its containing block, and `zoom` on <body>
+   for the UI scale does exactly that. That is what rendered the themes menu as a band on a phone.
+   z-index 50 clears #rail and #appearance and #dock.big at 40/41 and stays under #toast at 60,
+   which is pointer-events:none and so cannot swallow Stop. */
+#ghost.veil { position:absolute; inset:0; z-index:50; display:flex; align-items:center;
+  justify-content:center; background:var(--doc-bg);
   animation:veilin var(--t-slow) var(--ease-out) both; }
-#ghost.veil .narr { text-align:center; }
+#ghost.veil.leaving { animation:veilout var(--t) var(--ease) both; }
+#ghost.veil .narr { text-align:center; display:flex; flex-direction:column; align-items:center; gap:22px; }
 #ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
   letter-spacing:.05em; white-space:nowrap; animation:veilbreathe 1.5s ease-in-out infinite; }
+/* THE WEB DRAWS ITSELF. Seven strokes, the same ones as web/icon.svg, because she is Anansi and
+   the wait is long enough to deserve something to watch. `pathLength="1"` normalises every stroke
+   to one unit, so a single dasharray draws a 320px radial and a 1030px ring at the same rate
+   without anybody measuring either. Radials first, then the rings, then the whole thing breathes.
+   `stroke-dashoffset` and `opacity` are both compositor properties: this costs nothing on a box
+   that is loading a 35B model at the same time. */
+#ghost.veil .web { width:min(46vw, 210px); height:auto; color:var(--gold-dim); opacity:.9; }
+#ghost.veil .web g > * {
+  stroke-dasharray:1; stroke-dashoffset:1;
+  animation:webdraw 1.1s var(--ease-out) forwards, webbreathe 4s ease-in-out 1.6s infinite;
+}
+#ghost.veil .web g > :nth-child(1) { animation-delay:0s, 1.6s; }
+#ghost.veil .web g > :nth-child(2) { animation-delay:.08s, 1.7s; }
+#ghost.veil .web g > :nth-child(3) { animation-delay:.16s, 1.8s; }
+#ghost.veil .web g > :nth-child(4) { animation-delay:.24s, 1.9s; }
+#ghost.veil .web g > :nth-child(5) { animation-delay:.42s, 2.0s; }
+#ghost.veil .web g > :nth-child(6) { animation-delay:.54s, 2.1s; }
+#ghost.veil .web g > :nth-child(7) { animation-delay:.66s, 2.2s; }
+@keyframes webdraw { to { stroke-dashoffset:0; } }
+@keyframes webbreathe { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
+/* Styled beside #send.stopping at the foot of this file, so the two read as one control. */
+#ghost.veil .veilstop { display:flex; align-items:center; gap:8px; padding:11px 20px;
+  border-radius:var(--r-pill); border:1px solid var(--edge-lit); background:var(--sheet);
+  color:var(--ink-bright); font-size:12.5px; letter-spacing:.06em; }
 @keyframes veilin { from { opacity:0; } to { opacity:1; } }
+@keyframes veilout { from { opacity:1; } to { opacity:0; } }
 /* PLAN-07 bug 3: this was also called `breathe`, and so was #send.stopping's at the bottom of
    this file. The later declaration wins for BOTH, so the veil's head has never pulsed at the
    amplitude written for it — .7-to-.28 here against 1-to-.62 there. Renamed rather than merged:
@@ -178,6 +212,9 @@ input, textarea { font:inherit; color:inherit; }
 @media (prefers-reduced-motion: reduce) {
   #ghost.veil { animation:none; }
   #ghost.veil .head { animation:none; }
+  /* The web is DRAWN, not animated in: without this it would sit at dashoffset 1, which is a web
+     that never appears at all. */
+  #ghost.veil .web g > * { animation:none; stroke-dashoffset:0; }
 }
 
 /* THE PASSAGE ARRIVING, LEFT TO RIGHT. A mask three times the width of the block: at 100% the

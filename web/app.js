@@ -3072,47 +3072,84 @@ function decode(el, slot) {
  *  the page: a delta is a token, so anything driven by one runs at whatever uneven rate the model
  *  happens to be writing at.
  */
-let unplace = null;
+/** THE WAITING RITUAL. Full screen, on top of everything, with Stop inside it.
+ *
+ *  It used to be sized to #read in JS and re-measured on resize, and the reason was written above
+ *  it: #doc also holds the composer, and a veil over the composer is a veil over Stop. Stop is
+ *  IN here now, which is what makes covering everything safe — that is the trade PLAN-07 names,
+ *  and it is the whole of why this is one change rather than three.
+ *
+ *  A CHILD OF #shell, `position:absolute; inset:0`, exactly as the themes menu ended up. Not
+ *  `position:fixed`: a fixed element is only fixed to the viewport while no ancestor makes itself
+ *  its containing block, and transform, filter, backdrop-filter, mask, perspective, will-change,
+ *  contain and `zoom` all do — `zoom` is on <body> for the UI scale, and that is what rendered the
+ *  themes menu as a band on Seth's phone. #shell is already fixed to all four edges, so a child of
+ *  it needs no positioning of its own and nothing above it can move this. All the JS measuring is
+ *  gone with it, and the single-handle resize leak with it.
+ *
+ *  AND THE WEB DRAWS ITSELF IN. Seth: "the ai takes long to respond anyway while it formulates so
+ *  having a ritual for this buys us that time while giving the user something to look at." It is
+ *  the app's own mark — the same seven strokes as web/icon.svg, which is a spider's web because
+ *  she is Anansi — drawn on with `pathLength="1"` so one dash length fits every stroke whatever
+ *  its real geometry, radials first and then the rings, and then it breathes. `stroke-dashoffset`
+ *  animates on the compositor and costs nothing while the model is loading a 35B on the same box.
+ */
 function ghost() {
-  const doc = $('doc'), read = $('read'); if (!doc || !read) return;
-  let g = document.getElementById('ghost');
-  if (!g) {
-    g = document.createElement('div');
-    g.id = 'ghost'; g.className = 'veil';
-    // OVER THE PAGE, NOT IN IT. As a block at the end of the column it was one more paragraph in
-    // the document, and the document is what you are reading while you wait. A veil says the book
-    // is busy without pretending to be part of it.
-    //
-    // Sized to #read rather than to #doc, and that is the whole care in this function: #doc also
-    // holds the header and the composer, and a veil over the composer is a veil over Stop.
-    // Positioned against #doc — which is `position:relative` and is NOT the scroller — so it holds
-    // still while the prose behind it scrolls.
-    const place = () => { g.style.top = `${read.offsetTop}px`; g.style.height = `${read.offsetHeight}px`; };
-    place();
-    unplace = () => removeEventListener('resize', place);
-    addEventListener('resize', place);
-    const narr = g.appendChild(document.createElement('div'));
-    narr.className = 'narr';
-    // textContent on both, never innerHTML: this is untrusted model output arriving a fragment at
-    // a time, and a half-written "<" would be a half-written tag.
-    narr.appendChild(document.createElement('span')).className = 'head';
-    doc.appendChild(g);
-    if (!still()) {
-      // ~11 rolls a second. Fast enough to read as working, slow enough not to strobe, and
-      // unrelated to how fast the tokens are coming.
-      let last = 0;
-      const tick = (t) => {
-        const el = document.getElementById('ghost');
-        if (!el) return;                       // the ghost went; so does its animation
-        if (t - last > 88) { el.querySelector('.head').textContent = glyphRun(); last = t; }
-        requestAnimationFrame(tick);
-      };
+  const shell = $('shell'); if (!shell) return;
+  const old = document.getElementById('ghost');
+  // A veil caught mid-fade would be reused at opacity 0 and never appear. PLAN-07's point 5.
+  if (old?.classList.contains('leaving')) old.remove();
+  else if (old) return;
+
+  const g = document.createElement('div');
+  g.id = 'ghost'; g.className = 'veil';
+  // The web, then the roller, then Stop. innerHTML is safe here and only here: every character of
+  // it is written above, and the one place untrusted text lands is `.head`, which is filled with
+  // textContent below and never with markup.
+  g.innerHTML = `<div class="narr">
+      <svg class="web" viewBox="0 0 512 512" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round">
+          <path pathLength="1" d="M256 96 256 416"/><path pathLength="1" d="M110 256 402 256"/>
+          <path pathLength="1" d="M150 150 362 362"/><path pathLength="1" d="M362 150 150 362"/>
+          <circle pathLength="1" cx="256" cy="256" r="56"/>
+          <circle pathLength="1" cx="256" cy="256" r="112"/>
+          <circle pathLength="1" cx="256" cy="256" r="164"/>
+        </g>
+      </svg>
+      <span class="head"></span>
+      <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
+    </div>`;
+  shell.appendChild(g);
+
+  if (!still()) {
+    // ~11 rolls a second. Fast enough to read as working, slow enough not to strobe, and
+    // unrelated to how fast the tokens are coming.
+    let last = 0;
+    const tick = (t) => {
+      const el = document.getElementById('ghost');
+      if (!el || el.classList.contains('leaving')) return;   // it went; so does its animation
+      if (t - last > 88) { el.querySelector('.head').textContent = glyphRun(); last = t; }
       requestAnimationFrame(tick);
-    }
+    };
+    requestAnimationFrame(tick);
+  } else {
+    g.querySelector('.head').textContent = glyphRun();
   }
 }
 
-const unghost = () => { unplace?.(); unplace = null; document.getElementById('ghost')?.remove(); };
+/** It FADES, rather than vanishing. The node used to be removed outright, so a veil that had been
+ *  up for thirty seconds left in one frame.
+ *
+ *  The `still()` branch is load-bearing and not defensive: under reduced motion the CSS sets
+ *  `animation:none` on this element, so a `.leaving` class produces no animation, `animationend`
+ *  never fires, and the veil would stay on the screen for ever. */
+const unghost = () => {
+  const g = document.getElementById('ghost');
+  if (!g || g.classList.contains('leaving')) return;
+  if (still()) return g.remove();
+  g.classList.add('leaving');
+  g.addEventListener('animationend', () => g.remove(), { once: true });
+};
 
 function working(kind) {
   const el = $('working');
