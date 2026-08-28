@@ -120,6 +120,8 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
       { keys: ['workshop'], content: 'The workshop is on Vane Street.', constant: false },
       { keys: ['oath'], content: 'She swore never to pick a lock again.', constant: true },
       { keys: ['ghost'], content: 'disabled fact', enabled: false },
+      { keys: ['k'], content: 'a fact keyed on one letter.', constant: false },
+      { keys: 'k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11', content: 'eleven keys.', constant: false },
     ] } } };
   const inc = imp.fromCard(v2);
   assert.strictEqual(inc.story.persona, 'Leah');
@@ -131,6 +133,23 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.strictEqual(inc.entries.find((e) => /never to pick a lock/.test(e.body))!.activation,
     'always_on', 'a constant lorebook entry is always-on canon');
   assert.ok(!inc.entries.some((e) => /disabled fact/.test(e.body)), 'a disabled entry must not import');
+
+  // SPEC §7.1's 2-32 bound moved onto the write path with the key parser (PLAN-06 §2f), and it
+  // runs here too, because an import writes through `upsertEntry` like everything else. A
+  // one-character key is dropped — it would fire on almost every passage — and an entry left with
+  // no keys cannot be `triggered`, so it arrives as always-on canon instead of as an entry that
+  // is triggered by nothing and can never fire again. Written down because it is the one place
+  // this change alters what an existing card imports as, and nothing else would have said so.
+  assert.deepStrictEqual(inc.entries.find((e) => /one letter/.test(e.body))!.keys, [],
+    'a one-character key does not survive the bound');
+  assert.strictEqual(inc.entries.find((e) => /one letter/.test(e.body))!.activation, 'always_on',
+    'and an entry with no keys left is always-on, never triggered-and-unfireable');
+
+  // The cap here is EIGHT, not SPEC's ten: a card is a file from a stranger. `import.ts` passes it
+  // to `db.keysOf`, and the only thing that proves the argument is still passed is a card that
+  // declares more than eight. Falsified: dropping the `8` gives ten.
+  assert.strictEqual(inc.entries.find((e) => /eleven keys/.test(e.body))!.keys.length, 8,
+    'an imported card is capped at eight keys, whatever it declares');
   assert.strictEqual(inc.passages.length, 1, 'the greeting becomes the opening passage');
 
   // THE one that matters. A card is written by a stranger. Its instruction fields must not

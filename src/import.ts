@@ -51,10 +51,10 @@ const tiedStrings = (inc: Incoming) => (inc.strings ?? []).slice(0, MAX_ENTRIES)
   .map((x) => ({ title: clip(x.title, 200), body: clip(x.body, 1000),
     fromChapter: x.fromChapter ?? null, owedBy: x.owedBy ?? null, status: x.status ?? 'open' }));
 
-/** Split a keys field. AI Dungeon writes "a, b, c"; cards write ["a","b"]. */
-const keysOf = (k: unknown): string[] =>
-  (Array.isArray(k) ? k : String(k ?? '').split(','))
-    .map((s) => String(s).trim()).filter(Boolean).slice(0, 8);
+/** Split a keys field. AI Dungeon writes "a, b, c"; cards write ["a","b"]. The rule itself lives in
+ *  `db.keysOf`, which is the write path every route reaches; eight is the cap for an untrusted file
+ *  where SPEC §7.1 allows ten from the app. */
+const keysOf = (k: unknown): string[] => db.keysOf(k, 8);
 
 // ---- 1. our own export, round-tripped ----
 
@@ -270,9 +270,15 @@ export function fromCard(j: any): Incoming {
   for (const e of (book?.entries ?? []).slice(0, MAX_ENTRIES)) {
     const body = clip(e.content ?? e.entry ?? e.value);
     if (!body || e.enabled === false) continue;
-    entries.push({ title: clip(e.name ?? e.comment ?? keysOf(e.keys)[0] ?? 'Lore', 120) || 'Lore',
+    // Activation follows the KEYS as well as the card's `constant` flag. A card can declare a
+    // non-constant entry whose keys are all empty, or all outside SPEC §7.1's 2-32 bound, and
+    // trusting `constant` alone imports it as `triggered` with nothing that can trigger it —
+    // `db.ts` already names that class: it never reaches the model again and looks fine. The
+    // other two importers have always read the keys; this one did not.
+    const keys = keysOf(e.keys ?? e.key);
+    entries.push({ title: clip(e.name ?? e.comment ?? keys[0] ?? 'Lore', 120) || 'Lore',
       body, entryType: 'lore',
-      activation: e.constant ? 'always_on' : 'triggered', keys: keysOf(e.keys ?? e.key) });
+      activation: e.constant || !keys.length ? 'always_on' : 'triggered', keys });
   }
 
   // Instruction fields. Kept, shown, never fed to the model — see the header.

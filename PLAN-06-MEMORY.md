@@ -167,7 +167,7 @@ prose when the thing is in play, not the title of its own entry.
 next win is precision and presence rather than another retrieval tier. This is that win, and it adds
 no tier, no column and no call.
 
-### 2f · Three key parsers, and the authoritative one drops keys silently
+### ~~2f · Three key parsers, and the authoritative one drops keys silently~~ — FIXED 2026-08-28
 
 | where | behaviour |
 |---|---|
@@ -185,6 +185,18 @@ simplification to skip.
 `grep -rn "keys" test/` confirms **every existing fixture passes keys as a pre-built array**, so the
 comma split is entirely unasserted today. That is the exact shape of the tag-splitting fix
 `.claude/CLAUDE.md:45-51` records as having shipped green because its fixture had no comma in it.
+
+**Done as written, plus one thing this plan did not predict.** `keysOf` moved to `src/db.ts` with a
+`cap` parameter and SPEC §7.1's 2-32 bound; `import.ts` calls `db.keysOf(k, 8)`; `app.js` mirrors the
+bound so the box does not show a key the server is about to drop, and says in a comment that `db` is
+authoritative. Four assertions, each falsified — restoring the old line gives `[]` against
+`['coat','iron bridge']`.
+
+The unpredicted part: **the bound made an existing import defect reachable, and the new assertion
+caught it.** `fromCard`'s lorebook branch set `activation` from the card's `constant` flag alone,
+so a non-constant entry whose keys did not survive imported as `triggered` with zero keys — the
+class `db.ts:881` already names, arriving from the importer. The other two importers had always read
+the keys. Fixed in the same commit; falsified by putting `e.constant` back.
 
 **Why 2e needs a probe before it needs a patch.** Flipping an entry to `triggered` whose keys never
 appear in the prose removes it from the model's context silently. `src/db.ts:836` already names the

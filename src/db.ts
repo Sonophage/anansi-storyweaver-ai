@@ -799,6 +799,24 @@ export const stringsOf = (storyId: string) => q(
 export const delString = (storyId: string, id: string) =>
   q('DELETE FROM strings WHERE id = ? AND story_id = ?').run(id, storyId);
 
+/** The one key parser. There were three — `import.ts` split on comma, `app.js` split on comma
+ *  inline, and this write path did `Array.isArray(e.keys) ? … : []`, so a model or an API client
+ *  that posted `"coat, iron bridge"` lost BOTH keys and the entry looked fine. Every route reaches
+ *  `upsertEntry`, so the split belongs here, at the bottom, where nothing can go around it.
+ *
+ *  The 2-32 bound is SPEC §7.1 and is validation at a trust boundary, not a nicety: a one-character
+ *  key fires on every passage forever, which is the same defect as an entry that never fires, on
+ *  the other side. Out-of-range keys are DROPPED rather than clipped — a key cut mid-word at 32
+ *  matches nothing, which would be silence dressed as a key.
+ *
+ *  `cap` is a parameter because SPEC allows ten and `import.ts` has always taken eight from an
+ *  untrusted file. Both are correct for where they stand. */
+export const keysOf = (k: unknown, cap = 10): string[] =>
+  (Array.isArray(k) ? k : String(k ?? '').split(','))
+    .map((x) => String(x ?? '').trim())
+    .filter((x) => x.length >= 2 && x.length <= 32)
+    .slice(0, cap);
+
 export function upsertEntry(storyId: string, o: string, e: any) {
   const t = now();
   // Defaults once, before either branch. The update path previously had none, so a partial
@@ -809,7 +827,7 @@ export function upsertEntry(storyId: string, o: string, e: any) {
     body: e.body ?? '',
     entryType: e.entryType ?? 'character',
     activation: e.activation ?? 'always_on',
-    keys: Array.isArray(e.keys) ? e.keys.filter(Boolean) : [],
+    keys: keysOf(e.keys),
     lastEditor: e.lastEditor ?? 'human',
   };
   // Branch on whether the ROW exists, not on whether an id was passed. Seeding with a

@@ -3829,7 +3829,10 @@ document.addEventListener('click', async (e) => {
   if (d.saveentry) {
     const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
     const get = (f) => document.querySelector(`[data-f="${f}"]`)?.value;
-    const keys = String(get('keys') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 10);
+    // `db.keysOf` is authoritative and re-parses this on the way in; the same bound is mirrored
+    // here only so the box does not show a key the server is about to drop. SPEC §7.1: ten, 2-32.
+    const keys = String(get('keys') ?? '').split(',').map((s) => s.trim())
+      .filter((s) => s.length >= 2 && s.length <= 32).slice(0, 10);
     const r = await api.saveEntry(S.storyId, { ...e, id: e.id, title: get('title') ?? e.title,
       body: get('body') ?? e.body, notes: get('notes') ?? e.notes, keys });
     if (r.error) return toast(r.error);

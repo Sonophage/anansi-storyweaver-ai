@@ -985,4 +985,43 @@ ok('a mute quiets one entry in one chapter, and neither the next chapter nor a l
     'lifting it restores the checker — quiet, not deaf');
 });
 
+// PLAN-06 §2f. Three parsers existed and the AUTHORITATIVE one — the write path every route
+// reaches — did `Array.isArray(e.keys) ? … : []`, so a comma-separated string was discarded
+// whole rather than split. A model or an API client posting `"coat, iron bridge"` lost both keys
+// and the entry looked perfect on screen: right title, right body, and it can never fire again.
+//
+// This was unassertable before it was unasserted: `grep -rn "keys" test/` showed EVERY fixture in
+// this repo hands `keys` in as a pre-built array, which is the one shape the old code got right.
+// Same trap as the tag-splitting fix whose fixture had no comma in it (.claude/CLAUDE.md).
+// Falsified: restoring the old line turns the first assertion red at ['coat','iron bridge'] vs [].
+ok('a comma-separated keys string is split on the write path, not discarded', () => {
+  const own = db.owner('keysmith');
+  const st = db.createStory(own, { title: 'Keys' });
+
+  const keysIn = (id: string) =>
+    JSON.parse((db.entriesOf(st.id).find((x: any) => x.id === id) as any).keys || '[]');
+
+  const e = db.upsertEntry(st.id, own, { title: 'Wanderer', body: '[a coat]',
+    activation: 'triggered', keys: 'coat, iron bridge' as any });
+  assert.deepStrictEqual(keysIn(e), ['coat', 'iron bridge'],
+    'a string of keys reaches the database as keys. Dropped, the entry is triggered with nothing '
+    + 'that can trigger it — invisible to the model and indistinguishable from working.');
+
+  // The bound is SPEC §7.1 and it runs on the same path. A one-character key fires on every
+  // passage forever; a 33-character one is prose, not a key. Both are dropped, and the keys
+  // beside them survive — a bad key must not take a good one with it.
+  const b = db.upsertEntry(st.id, own, { title: 'Bounded', body: '[b]', activation: 'triggered',
+    keys: `a, ${'x'.repeat(33)}, ${'y'.repeat(32)}, bridge` as any });
+  assert.deepStrictEqual(keysIn(b), ['y'.repeat(32), 'bridge'], 'out-of-range keys go, in-range keys stay, 32 is inclusive');
+
+  // The cap is the app's ten, and import.ts asks for eight from an untrusted file. Both bind.
+  const many = Array.from({ length: 14 }, (_, i) => `key${i}`);
+  const c = db.upsertEntry(st.id, own, { title: 'Many', body: '[c]', keys: many });
+  assert.strictEqual(keysIn(c).length, 10,
+    'SPEC §7.1 caps keys at ten');
+  assert.strictEqual(db.keysOf(many.join(','), 8).length, 8,
+    'and the cap is a parameter — import asks for eight. That import still ASKS is asserted in '
+    + 'test/import.ts against a real card, because this line cannot see it from here.');
+});
+
 console.log(`\n${n} checks passed`);

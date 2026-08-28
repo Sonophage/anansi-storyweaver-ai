@@ -1,4 +1,4 @@
-# Build state — 2026-08-27 (fourth pass)
+# Build state — 2026-08-28 (fifth pass)
 
 > **STATUS: LIVE.** Audited against the code, not from memory — twice this document has been wrong
 > because someone wrote it from recall. If it disagrees with the source, the source wins and this
@@ -52,7 +52,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **201 across eleven suites** (41 engine, 46 db, 31 scope, 12 import, 7 stream, 8 mend, 5 memory, 4 report, 11 talk, 15 web, 21 app), plus **467 driven-browser checks across twelve scenarios**, all green on 2026-08-27 — plus `model` and `ritual`, which wait on real generations and are not in the default set — and the model evals in `bench/` | Routes are covered only through the client-contract check; no HTTP-level suite yet, and that check runs in one direction only — see the correction of 2026-08-27. |
+| **Tests** | **235 across eleven suites** (43 engine, 50 db, 33 scope, 12 import, 13 stream, 8 mend, 8 memory, 4 report, 14 talk, 18 web, 32 app), plus **477 driven-browser checks across twelve scenarios**, all green on 2026-08-28 — plus `model` and `ritual`, which wait on real generations and are not in the default set — and the model evals in `bench/` | No HTTP-level suite yet. The client-contract check **now runs both ways** (`test/web.ts:217`): every `api.js` method needs a caller in `app.js`, and every route in `routes.ts` needs a method in `api.js` or a named entry in `NO_CLIENT`. The one-direction row above was true until 2026-08-27 and is the reason `POST /api/remember` shipped doorless. |
 
 ---
 
@@ -65,7 +65,7 @@ from the code rather than remembered:
 grep -rn "ponytail:" src web bench *.ts *.html
 ```
 
-**Twenty-one markers as of 2026-08-27.** The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. One was added with rejected takes: the flag is recorded and shown but not sent to the model, because feeding a rejected take to the prompt is a prompt change and F20 is what those cost to justify. Each remaining marker names what is missing, why it was left, and the upgrade path.
+**Twenty-four markers as of 2026-08-28**, counted by grep, not recalled: `routes.ts` 6, `db.ts` 6, `app.js` 3, `context.ts` 3, `serve.ts` 3, and one each in `prompts.ts`, `app.html`, `bench/ledger-audit.ts`. (`.claude/CLAUDE.md` said twenty-one until 2026-08-28; the count had not been run since 2026-08-23.) The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. One was added with rejected takes: the flag is recorded and shown but not sent to the model, because feeding a rejected take to the prompt is a prompt change and F20 is what those cost to justify. Each remaining marker names what is missing, why it was left, and the upgrade path.
 Nothing in this list is a surprise; the point is that adding to it requires writing down the ceiling.
 
 | Where | What is unfinished |
@@ -401,6 +401,11 @@ against corruption and against a bad edit; it protects against nothing that take
 disk. `exportStory` can now put one story anywhere, and nothing calls it on a schedule — so
 off-machine backup is the open item, not backup itself.
 
+**Superseded 2026-08-28.** Both halves are built and are in `serve.ts`: a six-hourly copy of the
+whole database to `/data/anansi-backups` keeping fourteen (`:285`), and a daily per-book
+`exportStory` to `/data/anansi-books` (`:314`). Neither survives losing the machine, which is said
+at the site. See §7 for the defect this shipped with and how it was closed.
+
 ---
 
 ## 6. Fourth pass, 2026-08-27 — audited against source again
@@ -452,3 +457,115 @@ contradicting *itself* agrees perfectly. Nothing in the pipeline looks for inter
 three had been read by `context.ts` for weeks (`:285` folds around `properNouns`, `:425` holds an
 entry open for `stickyFor`). Corrected at the site. A `ponytail:` marker is only worth grepping if
 it is retired when the debt is paid.
+
+---
+
+## 7. Fifth pass, 2026-08-28 — the day and a half the fourth pass could not see
+
+`test/all.ts` **235 ok in eleven suites** at `b371eaa`, run before this section was written, and
+**236** after PLAN-06 §2f landed in the same session (below). The
+browser harness is recorded at **477 ok in twelve scenarios** from `b371eaa`'s own run and was not
+re-run for this pass; `modes` moved 49 → 58 over the period.
+
+The fourth pass ended at `0640cb8`. Twenty commits landed after it, and none of them reached this
+document. That is the drift its own §6 predicted, arriving on schedule, and it is the second thing
+worth reading in this section.
+
+### The three doorless findings of §6 are all closed
+
+Checked in the source, not in the commit messages that claim them:
+
+- `POST /api/remember` has a door — `web/api.js:126`, pressed from `web/app.js:1508`. The comment
+  above the button records the three days it was reachable from nowhere.
+- The client-contract guard runs both ways — `test/web.ts:217` onward. A route with no `api.js`
+  method is now a red unless it is named in `NO_CLIENT` with what does drive it (`/api/check`,
+  driven by `bench/checker.ts`, is the only entry).
+- `DEFERRED` is down to `delBranch` alone. `rollup` and `delArc` are out, and the comment above the
+  list now says why a stale name there is a hole rather than a note.
+
+The §2 Tests row has been corrected for all three.
+
+### What landed, and is load-bearing
+
+Verified against source; the commit each came in with is named for the argument, not as evidence.
+
+| | Where |
+|---|---|
+| Off-disk backup, six-hourly to `/data/anansi-backups`, keeping fourteen | `serve.ts:285` |
+| Per-book export to `/data/anansi-books`, daily | `serve.ts:314` |
+| Contradiction **muting**, keyed on the chapter, dropped before the model is asked | `db.mutedIn`, `routes.ts:475` |
+| A **Waiting** panel: proposals, unpaid promises, flags, each linked to where it lives | `60ee4cb` |
+| The cover behind the prose, per-story strength 0–100, clamped in `updateStory` | `db.ts:1054`, `cover_opacity` |
+| Portrait covers, 3:4, downscaled 1100×1600 | `848d025` |
+| A chapter names itself when it opens — title and beat proposed, neither saved until Save | `POST /api/chapter/propose` |
+| "Remember this" — point at a passage, it becomes a thread, as facts and as a proposal | `d206456` |
+| "What changed" — release notes Anansi writes from the commit log, cached on the sha, accumulating | `db.newestNoted`, `release_notes` |
+| The context bar full-width under the header; running head and ⋯ handle deleted | `493f745` |
+| The veil over the reading column only, so Stop stays reachable | `f4fd312` |
+| The seam pin: scroll to the end of the previous passage with 72px of peek | `f4fd312` |
+| The composer grows rather than moves; hardware-keyboard preference, per device | `062dccd` |
+| Spark and thread lengths raised, with the token ceilings raised in the same commit | `7b49bf7` |
+
+`chapter_sticky` was reused rather than orphaned: it meant a sticky heading for one afternoon and
+means the backdrop now. Nothing had set it yet, so there is no migration.
+
+### Two things this pass changes in §5's "what is next"
+
+**Off-machine backup is no longer the open item.** §5's closing paragraph was true when written and
+is now superseded in place. What replaces it is narrower and is written at the site: `/data` is a
+different device, and neither copy survives losing the machine.
+
+**And it shipped with a defect that is worth keeping visible.** Both `/data` paths are fixed
+absolute paths, and every server that booted wrote to them — including the twelve throwaway servers
+`test/ui/run.sh` starts per run. That put 167 fixture exports into `/data/anansi-books` and rotated
+thirteen of fourteen off-disk slots to 274 KB test fixtures, evicting the real copies. Fixed at
+`b371eaa`: a server whose database is not the primary library skips both and says so once,
+`resolve()` on both sides. The near backups were never touched, because those live beside whichever
+database is open. **The shape of it — a feature that is correct in the app and wrong in the harness
+— is not covered by either harness**, and nothing added this pass covers it either.
+
+### F37, and what it does to the register question
+
+F37 reversed under its own control arm and the reversal is the finding. The clause making the voice
+field authoritative measured **98.0 against a control that kept the demand and dropped the clause:
+98.0**. It bought nothing and was deleted. What moves the number is how the rule is *written*: the
+same rule buried in an 812-character line bought 3/28 against a 9/39 baseline; on its own line,
+naming narration with the forms spelled out, 42/43 — and it holds at 97.7% against sixteen passages
+of prose that contradict it. `DEFAULT_VOICE` still says nothing about contractions, deliberately.
+
+This is the second time a prompt clause has measured flat against its own control (F20 was the
+first, and `CANON-REPEAT` was deleted for it). Both are in `P0-FINDINGS.md`.
+
+### PLAN-06 §2f, closed in this session
+
+The write path every route reaches did `Array.isArray(e.keys) ? … : []`, so a model or an API
+client posting `"coat, iron bridge"` lost both keys and the entry looked perfect — triggered, with
+nothing that can trigger it. One parser now, `db.keysOf`, with SPEC §7.1's 2-32 bound and a `cap`
+parameter (`import.ts` asks for eight, the app takes ten).
+
+It was **unassertable before it was unasserted**: every fixture in the repo handed `keys` in as a
+pre-built array, which is the one shape the old code got right. The bound then made a second defect
+reachable — `fromCard` set a lorebook entry's activation from `constant` alone, so an entry whose
+keys did not survive imported as triggered-and-unfireable — and the new assertion caught it rather
+than a person. Both fixed; all four assertions falsified against the restored code.
+
+### Still open, unchanged by any of the above
+
+§5's items 3, 4 and 5 are untouched: activation depth, the budget engine (still correctly gated —
+§7.2's trigger has not fired), and D9/D10/D14 plus the service worker. F36's structural half still
+has no marker anywhere. `delBranch` is still the one honest `DEFERRED` entry.
+
+### What this pass did not fix, and is a finding
+
+**`checklist.md` has started to drift too.** Its heading still says *"after a day's work on
+2026-08-26"* over a body that covers 08-27, and its debt section still says **twenty-one** markers
+where the grep says twenty-four. Its measured counts were corrected to 235 in this pass; the debt
+heading was left alone on purpose, because the paragraph under it enumerates *"the other fifteen"*
+by name and raising the count without naming the new ones would make it less true, not more. It
+needs the rewrite that has kept it accurate, not an edit.
+
+So the fourth pass's lesson does not survive contact: **an append-only document drifts, and a
+rewritten one drifts more slowly — it does not stop.** What actually held over this period was the
+`ponytail:` ledger and the two harnesses, because both are *derived* — you run them and they answer.
+Every count in this section that could be derived was derived. The rest is why the fifth pass exists.
+
