@@ -177,7 +177,10 @@ input, textarea { font:inherit; color:inherit; }
    so it is the right darkness on Parchment as well as on Obsidian. */
 #ghost.veil { position:absolute; inset:0; z-index:50; display:flex; align-items:center;
   justify-content:center;
-  background:color-mix(in srgb, var(--doc-bg) 62%, transparent);
+  /* 31%, halved from 62% on 2026-08-28: at 62 the page behind it was gone rather than obscured,
+     and the blur is doing most of the work anyway. Seth: "lower the opacity by 50 percent since
+     the blur will help mitigate the rest." */
+  background:color-mix(in srgb, var(--doc-bg) 31%, transparent);
   backdrop-filter:blur(14px) saturate(.85); -webkit-backdrop-filter:blur(14px) saturate(.85);
   animation:veilin var(--t-slow) var(--ease-out) both; }
 #ghost.veil.leaving { animation:veilout var(--t) var(--ease) both; }
@@ -996,7 +999,14 @@ textarea.field { resize:vertical; min-height:70px; }
 }
 /* Only what is going to be SENT is marked. Nothing else in this app tints text, so the tint is
    unambiguous: it means she is getting the thing and not only the word. */
-#askMirror mark { background:rgba(217,178,106,.18); color:transparent; border-radius:3px; }
+/* MUCH STRONGER THAN IT WAS. At 18% gold over near-black the highlight measured correct and was
+   invisible on a real phone — Seth: "the @ highlight is not working. but the menu does show up."
+   It was working; it could not be seen. A tint AND an underline now, so it survives a bright room
+   and a dark theme both, and so it does not depend on one channel. */
+#askMirror mark, #inputMirror mark {
+  background:rgba(217,178,106,.30); color:transparent; border-radius:3px;
+  box-shadow:inset 0 -2px 0 var(--gold);
+}
 
 /* The composer's mirror. Same trick as the ask box's and the same rule: every property that
    affects WRAPPING is set on both at once. #input is the one that already had its sizing, so the
@@ -1012,7 +1022,7 @@ textarea.field { resize:vertical; min-height:70px; }
   font:inherit; font-size:inherit; line-height:1.55; letter-spacing:normal;
   white-space:pre-wrap; overflow-wrap:break-word;
 }
-#inputMirror mark { background:rgba(217,178,106,.18); color:transparent; border-radius:3px; }
+
 /* The composer's own @ list, above the row rather than below it — the dock is at the bottom of
    the screen and a menu under it would be off the edge. */
 #atlistInput {

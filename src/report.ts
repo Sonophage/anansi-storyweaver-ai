@@ -24,6 +24,10 @@ export interface BugContext {
   storyId?: string | null;
   chapterIndex?: number | null;
   agent?: string | null;           // the browser's own words, for a phone-only bug
+  /** What the window was doing at the moment of the report. A bug about something MOVING is
+   *  unanswerable without it: the layout viewport shrinking, the visual viewport shrinking and
+   *  the page scrolling look identical to a person and are three different faults. */
+  viewport?: string | null;
   model?: string | null;
   slot?: { global: number; slots: number; perSlot: number } | null;
   lastError?: string | null;
@@ -107,6 +111,7 @@ export function compose(c: BugContext, b: Awaited<ReturnType<typeof build>>, sta
     c.slot ? `| context | ${c.slot.global} / ${c.slot.slots} slots = ${c.slot.perSlot} per slot |` : null,
     c.storyId ? `| story | \`${c.storyId}\`${c.chapterIndex != null ? `, chapter ${c.chapterIndex}` : ''} |` : null,
     c.agent ? `| surface | ${c.agent} |` : null,
+    c.viewport ? `| viewport | ${c.viewport} |` : null,
     c.lastError ? `| last error on screen | \`${c.lastError}\` |` : null,
     '',
     '<sub>Filed from inside Anansi. No prose, premise or ledger text is included — the story is named',

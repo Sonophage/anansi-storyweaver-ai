@@ -217,6 +217,19 @@ if (cm.open) {
   console.log("  composer marks: " + JSON.stringify(marks));
   ok(`  and it is marked, the same as in the ask box (${JSON.stringify(marks)})`,
      marks.length === 1 && /@the Silver Key/.test(marks[0]));
+  // AND THE MARK HAS TO BE VISIBLE, which is a different claim from existing. At 18% gold over
+  // near-black it measured correct and could not be seen on a real phone: "the @ highlight is not
+  // working. but the menu does show up." It was working. So the tint is asserted as strong enough
+  // to read, and the underline as present, because two channels survive a bright room where one
+  // does not.
+  const ink = await page.eval(`(() => { const m = document.querySelector('#inputMirror mark');
+    if (!m) return null; const s = getComputedStyle(m);
+    const a = /\\/\\s*([\\d.]+)|,\\s*([\\d.]+)\\s*\\)/.exec(s.backgroundColor);
+    return { alpha: Number(a?.[1] ?? a?.[2] ?? 1), shadow: s.boxShadow }; })()`);
+  console.log("  mark: " + JSON.stringify(ink));
+  ok(`  strongly enough to see on a phone (alpha ${ink && ink.alpha})`, !!ink && ink.alpha >= 0.25);
+  ok(`  with an underline as well as a tint, so it does not rely on one channel`,
+     !!ink && ink.shadow && ink.shadow !== 'none');
   // THE TWO BOXES MUST NOT SHARE A STORE. The first version of this checked that #askMirror had
   // no marks — and passed with the stores merged, because the ask box was EMPTY after a reload and
   // an empty box has nothing to mark either way. Decorative. So: open the Anansi panel, put the
