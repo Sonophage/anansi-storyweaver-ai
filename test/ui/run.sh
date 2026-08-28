@@ -56,7 +56,12 @@ for s in $scenarios; do
   # not finish — it threw partway, and the assertions it did reach are not the whole story.
   # Counting only ok and RED made a scenario that died at assertion 8 of 25 report "8 ok, 0 red",
   # which is the same false green as the zero case below wearing a different hat.
-  if ! printf '%s' "$out" | grep -q 'all green\|[0-9]* RED'; then
+  # `[0-9]* RED` matched ZERO digits, so any line containing " RED" satisfied it — including the
+  # per-assertion red lines the scenarios print. A scenario that failed one check and then DIED was
+  # scored as having reached its verdict, and reported its partial count as if it were the whole
+  # run: `panels 46 ok, 1 red` for a scenario that has 151. Found 2026-08-27 when a real death hid
+  # behind a real red. `[0-9][0-9]*` is the verdict line and nothing else.
+  if ! printf '%s' "$out" | grep -q 'all green\|[0-9][0-9]* RED'; then
     if [ "$ok" -eq 0 ] && [ "$red" -eq 0 ]; then
       printf '  %-10s DIED before its first assertion\n' "$s"
     else

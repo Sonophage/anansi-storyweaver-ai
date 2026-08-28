@@ -53,10 +53,12 @@ const trayBox = async () => page.eval("(() => { const e = document.querySelector
 ok("there is a newest block to open the tray on",
    (await page.eval("document.querySelectorAll('#col .block.newest').length")) === 1);
 ok("no tray is open to begin with", (await trayBox()) === null);
-await page.click("#col .block.newest .more");
+// The ⋯ handle was removed on 2026-08-27; the double tap this scenario already proved works is
+// the only door now.
+await page.dbl("#col .block.newest .narr, #col .block.newest .said");
 await wait(400);
 const open = await trayBox();
-ok(`the ⋯ handle opens a tray on a touch screen (${open ? Math.round(open.w) + "x" + Math.round(open.h) : "none"})`,
+ok(`a double tap opens a tray on a touch screen (${open ? Math.round(open.w) + "x" + Math.round(open.h) : "none"})`,
    !!open && open.w > 0 && open.h > 0);
 // The assertion that the position is the fix: within 40px of the middle in both axes. The old tray
 // sat at the block, which on this 390x844 viewport is nowhere near it.
@@ -90,7 +92,7 @@ ok("  and pressed nothing on the sheet on the way",
 // A repaint rebuilds #col and takes every open tray with it, so the backdrop has to go with them —
 // a backdrop over a page with nothing modal on it is a page that has stopped answering. History is
 // the shortest action in the tray that repaints.
-await page.click("#col .block.newest .more");
+await page.dbl("#col .block.newest .narr, #col .block.newest .said");   // ⋯ gone; double tap
 await wait(300);
 await page.click('.block[aria-expanded="true"] [data-hi]');
 await wait(900);

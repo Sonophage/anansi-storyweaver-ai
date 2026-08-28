@@ -16,13 +16,22 @@ const el = (id: string) => {
     // The reading pane toggles `scrolled` on itself so the running head can appear once the
     // chapter's band has gone by.
     classList: { toggle() {}, add() {}, remove() {}, contains: () => false },
+    // Attributes are read back by the checks, so they are stored rather than swallowed: the
+    // context meter carries its state on aria-expanded and data-ctxopen, and a stub that dropped
+    // them would let a meter that never opens pass.
+    attrs: {} as Record<string, string>,
+    setAttribute(k: string, v: string) { o.attrs[k] = String(v); },
+    getAttribute: (k: string) => o.attrs[k] ?? null,
     addEventListener() {}, focus() {}, closest: () => null,
     querySelectorAll: () => [], querySelector: () => null,
   };
   nodes.set(id, o); return o;
 };
 for (const id of ['rail', 'bar', 'appearance', 'read', 'col', 'page', 'dock', 'dockCol',
-                  'side', 'sideHead', 'sideBody', 'toast', 'scrim', 'input', 'q', 'idea']) el(id);
+                  'side', 'sideHead', 'sideBody', 'toast', 'scrim', 'input', 'q', 'idea',
+                  // The context meter, the reading it opens, and the speaker strip. All three sit
+                  // OUTSIDE the two elements their draw functions used to write into.
+                  'ctxbar', 'ctxread', 'asRow', 'runhead']) el(id);
 
 const listeners: Record<string, Function[]> = {};
 (globalThis as any).document = {
@@ -124,6 +133,10 @@ const POSTED: any[] = [];
       // The writer's default look rides the library call, which is the first thing asked for.
       look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } }
     : url.startsWith('/api/story') ? STORY
+    // The chapter naming its own next chapter. Answered properly rather than with {}, because an
+    // empty answer is a different case and it has its own guard.
+    : url.startsWith('/api/chapter/propose') ? { chapterId: 'c-2', title: 'The Rust Year',
+        note: 'By the end the debt has to be called in, and Marek has to be in the room for it.' }
     : url.startsWith('/api/manifest') ? MANIFEST
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
@@ -282,6 +295,17 @@ assert.match(html('col'), /class="block speak"/, 'quoted prose is a speech block
 // is the assertion that matters: `newest` is passed per passage, so a renderer that stopped
 // distinguishing them would put a pair of buttons under every paragraph and still "have" them.
 {
+  // The ⋯ handle is gone; a double click is the only way into the tray now.
+  assert.doesNotMatch(html('col'), /class="more"|data-more/,
+    'the three-dot handle must be gone — a double tap opens the tray and has since F34');
+  assert.match(html('col'), /class="acts"/, 'but the tray itself is still rendered');
+  // Reading mode keeps the tray and loses everything in it that writes. The marker is what CSS
+  // hides, so it is asserted here rather than left to a stylesheet nobody reads.
+  const tray = html('col').match(/<div class="acts">[\s\S]*?<\/div>/)?.[0] ?? '';
+  assert.match(tray, /class="wr" data-ed/, 'Edit is marked as writing, so reading mode drops it');
+  assert.match(tray, /data-fork/, 'Branch is not, so reading mode keeps it');
+  assert.match(tray, /class="readonly" *|data-chapters/, 'and the chapter list is reading-mode only');
+
   const carries = html('col').match(/class="carry"/g) ?? [];
   assert.strictEqual(carries.length, 1,
     `Regenerate and Continue belong to the last passage only — found ${carries.length} rows`);
@@ -327,8 +351,28 @@ assert.doesNotMatch(html('dockCol'), /data-continue/,
   'Continue is no longer a chip in the mode row — it belongs to the last passage');
 assert.doesNotMatch(html('dockCol'), /data-mode="continue"/, 'and it was never a selectable mode');
 assert.match(html('dockCol'), /Say it as Ilva Marren/, 'the placeholder follows the mode and the persona');
-// Speak happens as someone, and the default is the point-of-view character.
-assert.match(html('dockCol'), /id="asWhom"/, 'Speak must offer who you are speaking as');
+// Speak happens as someone, and the default is the point-of-view character. It moved OUT of the
+// mode rail on 2026-08-27 — it read as a fifth mode there and ran out of room on a long name — so
+// both halves are asserted: gone from the rail, present on its own full-width strip above it.
+assert.match(html('asRow'), /id="asWhom"/, 'Speak must offer who you are speaking as');
+assert.match(html('asRow'), /Ilva Marren/, 'defaulting to the point-of-view character');
+assert.doesNotMatch(html('dockCol'), /asWhom/,
+  'and it must not be back in the mode rail, which is capped at the column width');
+// Direct and Narrate have no speaker: an instruction is not spoken by anyone, and Narrate is your
+// own prose. The strip must be EMPTIED for them, not merely hidden — a select left in the DOM is
+// one a presence check finds and a keyboard reaches.
+click({ mode: 'direct' });
+assert.strictEqual(html('asRow'), '', 'Direct must carry no speaker control at all');
+click({ mode: 'narrate' });
+assert.strictEqual(html('asRow'), '', 'nor Narrate');
+click({ mode: 'speak' });
+assert.match(html('asRow'), /id="asWhom"/, 'and Speak brings it back');
+// The label names the mode that summoned it. "speaking as" over Act is the row describing a mode
+// you are not in.
+assert.match(html('asRow'), /speaking as/, 'Speak says speaking');
+click({ mode: 'act' });
+assert.match(html('asRow'), /acting as/, 'and Act says acting');
+click({ mode: 'speak' });
 // The two that are not modes sit to the right of the four that are, pushed there by the margin
 // on the first of them. Order matters: asserting only that they exist would pass with them
 // scattered back among Speak and Act, which is the arrangement being fixed.
@@ -342,23 +386,55 @@ assert.match(modeRow, /data-newlore="1"[^>]*margin-left:auto/,
   'and the gap that separates them from the modes is on + Thread, or they are not right-aligned');
 ok('the composer offers the four modes, with + Thread and Anansi pushed right');
 
-assert.match(html('bar'), /Chapter|The Envoy/);
-assert.match(html('bar'), /46%|4[0-9]%/, 'the header shows the real context percentage');
-ok('the header reports the manifest percentage from the server');
+assert.match(html('bar'), /Chapter|The Envoy/, 'the header names the book');
+// The percentage LEFT the header on 2026-08-27 — Seth wanted one bar across the window and the
+// numbers behind a press. It is asserted below, where it went.
+ok('the header names the book, and carries no reading of its own');
 
-// The same number, drawn rather than written, in the running head beside the chapter and the word
-// count. Asserted as a WIDTH against the manifest arithmetic rather than as "a bar is there": a
+// Asserted as a WIDTH against the manifest arithmetic rather than as "a bar is there": a
 // meter that renders at a fixed width is the shape that reports a full context as an empty one.
 {
   const pct = Math.round(21401 / 46146 * 100);
-  const rh = html('runhead');
-  assert.match(rh, /id="ctxmeter"/, 'the running head must carry the context meter');
-  assert.match(rh, new RegExp(`width:${pct}%`),
+  // The meter is its own strip under the header now, not a 74px rule inside a running head that
+  // does not exist until you scroll. Asserted as a WIDTH against the manifest's own arithmetic:
+  // a meter that renders at a constant is the shape that reports a full context as an empty one.
+  const meter = html('ctxbar');
+  assert.match(meter, new RegExp(`width:${pct}%`),
     `the meter must fill to the manifest's own ${pct}%, not to a constant`);
-  assert.match(rh, /data-panel="context"/, 'and pressing it must open Context');
-  assert.ok(!/class="full"/.test(rh), 'and it is not full at 46%');
+  assert.ok(!nodes.get('ctxbar').hidden, 'and it is shown while a story is open');
+  // Shut until pressed. Everything in it used to be in the header beside the story title.
+  assert.ok(nodes.get('ctxread').hidden, 'the reading is shut until the bar is pressed');
+  assert.ok(!/\d+ words|context \d+%/.test(html('bar')),
+    'and the header carries neither the word count nor the percentage any more');
+
+  click({ ctxopen: '1' });
+  const read = html('ctxread');
+  assert.ok(!nodes.get('ctxread').hidden, 'pressing the bar opens the reading');
+  assert.match(read, /chapter 2 of 2/, 'which says which chapter you are on');
+  assert.match(read, /words/, 'and how many words are in it');
+  assert.match(read, new RegExp(`context ${pct}%`), 'and what the context costs');
+  assert.match(read, /data-panel="context"/, 'with the way through to the blocks behind it');
+  click({ ctxopen: '0' });
+  assert.ok(nodes.get('ctxread').hidden, 'and pressing it again shuts it');
+
+  // NO ROOM IS NOT NO BAR. A budget of zero — llama-server unreachable so the slot is unknown, or
+  // a prompt that will not fit — makes the percentage null, and the first version hid the meter
+  // for it. That took the bar away at the moment it says the most, and it hid it through a whole
+  // browser scenario because the test server has no model to size a slot with.
+  const realBudget = MANIFEST.manifest.totals.budget;
+  MANIFEST.manifest.totals.budget = 0;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.ok(!nodes.get('ctxbar').hidden, 'the bar stays when there is no room — that is when it matters');
+  assert.match(html('ctxbar'), /width:100%/, 'full');
+  click({ ctxopen: '1' });
+  assert.match(html('ctxread'), /no room/, 'and the reading says so in words');
+  click({ ctxopen: '0' });
+  MANIFEST.manifest.totals.budget = realBudget;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
 }
-ok('the context meter fills to the manifest, and opens the panel behind it');
+ok('the context bar fills to the manifest, and the reading is behind a press');
 
 assert.match(html('sideBody'), /21,401 \/ 46,146/, 'the inspector shows real totals');
 assert.match(html('sideBody'), /stale summary/, 'an omitted block must say why');
@@ -405,6 +481,36 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
 // Two kinds of offer, two places to answer them. A promise Anansi noticed belongs beside the
 // promises you already know about; the chapter queue stays about facts.
 {
+// A chapter names itself when it opens, and "opens" is the part that was wrong. `endChapter`
+// creates the next chapter titled `Chapter N` (db.ts:933), so "both boxes empty" was never true
+// and the autofill never fired once — the driver saw "Chapter 4" in the title box, called it
+// filled, and reported the note empty. A title that is exactly this chapter's own number is the
+// placeholder, not a name.
+{
+  const asked = () => POSTED.filter((p: any) => p.url.includes('/api/chapter/propose')).length;
+
+  // c-2 is 'The Envoy' — a title a writer chose. Nothing may be proposed over it.
+  const before = asked();
+  click({ panel: 'setup' });
+  assert.strictEqual(asked(), before,
+    'a chapter a writer has named must not have a name proposed over it');
+  assert.match(html('sideBody'), /Have Anansi suggest another/,
+    'and the button offers another rather than a first');
+
+  // The same chapter, holding the placeholder `endChapter` gives it. The panel reads
+  // `currentChapter`, which is its own object in this response and not `chapters[1]`.
+  STORY.currentChapter.title = 'Chapter 2';
+  // Re-open the book so the surface re-reads the canned response rather than the copy it holds.
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'setup' });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.strictEqual(asked(), before + 1,
+    'a chapter still holding the title endChapter gave it has not been named, and must be');
+  STORY.currentChapter.title = 'The Envoy';
+}
+ok('a chapter names itself when it opens, and a placeholder title is not a name');
+
   click({ panel: 'strings' });
   await new Promise((r) => setTimeout(r, 30));
   const strings = html('sideBody');

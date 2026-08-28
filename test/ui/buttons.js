@@ -9,7 +9,10 @@ const ok = (label, got) => { if (!got) red++;
 
 // ---- 1. clicking an entry in the workspace Threads page opens it
 await page.goto("http://127.0.0.1:5179/#" + sid);
-await page.click('[data-leave="1"]');
+// "Anansi's web" was removed from the story menu on 2026-08-27 — the menu button in the bar is
+// the one door to the workspace now, from anywhere.
+await page.click('#bar [data-railview="workspace"]');
+await wait(400);
 await page.click('[data-nav="canon"]');
 const cards = await page.eval("document.querySelectorAll('#page [data-entry]').length");
 console.log("  entries listed on the Worlds page: " + cards);
@@ -43,8 +46,11 @@ console.log("  first passage: " + pid);
 // rebuilds the column and takes the tray with it — and costs the writer their navigation for
 // dismissing a menu. Asserted here rather than on the phone, where the two cannot both be open.
 const railWas = await page.eval("document.documentElement.dataset.uiRail");
-await page.click('#col .block .more');
-ok("the ⋯ handle raises the backdrop", (await page.eval("document.documentElement.dataset.tray")) === '1');
+// The ⋯ handle was removed on 2026-08-27 — a double tap opens the tray and has since F34's fix,
+// so the dot row was a second door to the same room, sitting over the prose on every passage.
+await page.dbl('#col .block .narr, #col .block .said');
+await wait(300);
+ok("a double tap raises the backdrop", (await page.eval("document.documentElement.dataset.tray")) === '1');
 // #bar's centre is over the backdrop and nowhere near the sheet, which is in the middle of the screen.
 await page.click('#bar');
 ok("  and a click on the backdrop shuts the tray",
@@ -52,13 +58,13 @@ ok("  and a click on the backdrop shuts the tray",
 ok(`  and leaves the rail as it was (${railWas})`,
    (await page.eval("document.documentElement.dataset.uiRail")) === railWas);
 
-await page.click('#col .block .more');
+await page.dbl('#col .block .narr, #col .block .said');   // the ⋯ handle is gone; double tap opens the tray
 await page.click('[data-ed="' + pid + '"]');
 ok("Edit focuses the passage text", await page.eval("document.activeElement?.dataset?.edit === '" + pid + "'"));
 
 // The tray is a centred sheet over the content now, so Edit shuts it on its way to the cursor —
 // leaving it up would hide the paragraph it just put the caret in. So it is reopened for History.
-await page.click('#col .block .more');
+await page.dbl('#col .block .narr, #col .block .said');   // the ⋯ handle is gone; double tap opens the tray
 await page.click('[data-hi="' + pid + '"]');
 ok("History opens its panel", (await page.text('#sideHead') || '').includes('History'));
 ok("  and offers a branch from that passage", await page.eval("!!document.querySelector('[data-fork]')"));
@@ -66,7 +72,7 @@ ok("  and offers a branch from that passage", await page.eval("!!document.queryS
 // ---- 3b. Delete asks first, and does not take the other takes with it
 // It sits next to Regenerate in the same tray and used to fire on one press, with no undo.
 const blocksBefore = await page.eval("document.querySelectorAll('#col [data-edit]').length");
-await page.click('#col .block .more');
+await page.dbl('#col .block .narr, #col .block .said');   // the ⋯ handle is gone; double tap opens the tray
 await page.click('[data-del="' + pid + '"]');
 await wait(300);
 ok("Delete does not delete on the first press",
@@ -83,7 +89,10 @@ ok("  and deletes on the second (" + blocksBefore + " -> "
    (await page.eval("document.querySelectorAll('#col [data-edit]').length")) === blocksBefore - 1);
 
 // ---- 4. the model selector
-await page.click('[data-leave="1"]');
+// "Anansi's web" was removed from the story menu on 2026-08-27 — the menu button in the bar is
+// the one door to the workspace now, from anywhere.
+await page.click('#bar [data-railview="workspace"]');
+await wait(400);
 await page.click('[data-nav="prefs"]');
 await wait(1200);
 const models = await page.eval("document.querySelectorAll('[data-pickmodel]').length");

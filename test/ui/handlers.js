@@ -124,7 +124,7 @@ const story2 = () => page.eval("(async () => await (await fetch('/api/story?stor
 await page.goto(B + "/#" + sid2);
 for (let i = 0; i < 40 && !(await page.visible('#col')); i++) await wait(250);
 const target = (await story2()).passages.filter((p) => !p.isBreak).at(-1);
-await page.click(`[data-more="${target.id}"]`);
+await page.dbl(`[data-edit=\"${target.id}\"]`);   // the ⋯ handle is gone; a double tap opens the tray
 await wait(400);
 await page.click(`[data-hi="${target.id}"]`);
 await wait(900);
@@ -147,7 +147,7 @@ const editsBefore = await page.eval("document.querySelectorAll('[data-restore]')
 // so it opened the tray on the wrong passage, pressed Edit on the wrong passage, and the target was
 // still not editable. Same shape of mistake as the unscoped selector that clicked off-canvas.
 await page.eval("(() => { const blk = document.querySelector('[data-edit=\"" + target.id + "\"]')"
-  + ".closest('.block'); blk.querySelector('[data-more]')?.click(); return 1; })()");
+  + ".closest('.block'); blk.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 1; })()");
 await wait(350);
 await page.eval("(() => { const blk = document.querySelector('[data-edit=\"" + target.id + "\"]')"
   + ".closest('.block'); blk.querySelector('button[data-ed]')?.click(); return 1; })()");

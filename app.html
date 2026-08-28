@@ -89,8 +89,24 @@ html[data-ui-size="xl"] { --prose:26px; --bubble:21px; --gap:38px; --col:840px; 
 #read, body { overscroll-behavior-y: contain; }
 
 html[data-reading="1"] #dock { display:none; }
+/* Taps in the prose do nothing while reading — that is what reading mode is for — but a
+   deliberate DOUBLE click still reaches the tray, because dblclick is a document-level listener
+   and does not need the block to take pointer events. */
 html[data-reading="1"] #col .block { pointer-events:none; }
-html[data-reading="1"] .more, html[data-reading="1"] .acts { display:none !important; }
+html[data-reading="1"] #col .block .acts { pointer-events:auto; }
+/* READING MODE keeps the tray — a double tap still opens it — but only the parts that make sense
+   with no composer on screen. Everything that WRITES is marked `wr` and goes; what is left is
+   Regenerate, Branch and the chapter list. Seth: "in reading mode double clicking should work but
+   it should only have regenerate, branch, and a skip to chapter". */
+html[data-reading="1"] .acts .wr { display:none !important; }
+/* And the chapter list is reading-mode's own: while writing, the rail's Chapters list is right
+   there, and a second copy inside every passage's tray is a second thing to keep in step. */
+.acts .readonly { display:none; }
+html[data-reading="1"] .acts .readonly { display:flex; }
+.chaplist { display:flex; flex-direction:column; gap:2px; max-height:40vh; overflow-y:auto;
+  border-top:1px solid var(--chip); margin-top:4px; padding-top:4px; }
+.chaplist button { justify-content:flex-start; font-size:12.5px; color:var(--mute); padding:7px 10px; }
+.chaplist button[aria-current="true"] { color:var(--gold); }
 
 html[data-ui-scale="90"]  body { zoom:0.90; }
 html[data-ui-scale="110"] body { zoom:1.10; }
@@ -435,11 +451,8 @@ html[data-reading="1"] .carry { display:none !important; }
 /* The actions used to appear on :hover only, which put Edit, Regenerate and History out of
    reach of every touch device — and made them untestable. Each block now carries a handle that
    is always present, and hover stays as a shortcut on a pointer. */
-.more {
-  position:absolute; right:0; top:-20px; z-index:6; padding:2px 8px; border-radius:var(--r);
-  font-size:14px; line-height:1.2; color:var(--label); opacity:.4; transition:opacity var(--t-fast) var(--ease);
-}
-.block:hover .more, .block:focus-within .more, .block[aria-expanded="true"] .more { opacity:1; }
+/* The ⋯ handle is gone, 2026-08-27: a double tap opens the tray and has since F34's fix, so it
+   was a second door to the same room sitting over the prose on every passage. */
 .acts {
   position:absolute; right:0; top:-22px; gap:6px; padding:6px; border-radius:var(--r);
   border:1px solid var(--chip); background:rgba(19,18,21,.96); box-shadow:0 20px 50px rgba(0,0,0,.6);
@@ -476,7 +489,6 @@ html[data-reading="1"] .carry { display:none !important; }
 .block[aria-expanded="true"] .acts button { width:100%; padding:12px 14px; font-size:14px; }
 .block[aria-expanded="true"] .acts .lbl-txt { display:inline; }
 @media (max-width:719px) {
-  .more { top:-6px; opacity:.75; font-size:17px; padding:4px 10px; }
   .acts button { padding:10px 12px; }
   .acts button span { font-size:15px; }
   .acts .lbl-txt { display:none; }
@@ -538,38 +550,56 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 }
 @media (max-width:719px) { #col .block.opening .narr::first-letter { font-size:46px; margin:1px 8px 0 0; } }
 
-/* A running head is RUNNING: it earns its place only once the chapter's own band has scrolled
-   away. Showing both at once says the chapter's name twice inside 60 pixels.
-   It lives ABOVE the scroller and COLLAPSES, rather than sticking inside it. Sticky-inside meant
-   an opaque strip riding over the prose — a black band across the middle of a paragraph, with the
-   column's own edges showing as a rectangle. It opens its height instead, so the prose moves down
-   to make room for it and nothing is ever covered. */
-#runhead { flex:0 0 auto; display:flex; align-items:baseline; gap:14px; overflow:hidden;
-  height:0; opacity:0; padding:0 40px; box-sizing:content-box;
-  font-size:11.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label);
-  transition:height var(--t-slow) var(--ease), opacity var(--t-slow) var(--ease); }
-#doc.scrolled #runhead { height:34px; opacity:1; padding-top:12px; }
-#runhead > span { display:flex; align-items:baseline; }
-#runhead .tnum { font-variant-numeric:tabular-nums; }
-/* How much of the model's context the next call has already spent. A thin rule that fills,
-   sitting with the chapter and the word count because it is the same kind of fact about where
-   you are. It opens Context, which is where the number and the blocks behind it live. */
-#ctxmeter { width:74px; height:3px; border-radius:2px; background:var(--rule); overflow:hidden;
-  align-self:center; flex:0 0 auto; margin-left:12px; display:block; }
-#ctxmeter i { display:block; height:100%; background:var(--gold-dim);
-  transition:width var(--t-slow) var(--ease); }
-#ctxmeter.full i { background:var(--bad); }
-@media (max-width:719px) { #ctxmeter { width:52px; } }
-@media (max-width:719px) { #runhead { padding:0 18px; } #doc.scrolled #runhead { height:26px; padding-top:8px; } }
 
 /* --- composer ---------------------------------------------------------- */
 /* Column, not row. #working cannot live inside #dockCol — drawDock() sets its innerHTML and would
    wipe the bar mid-generation — so it is a sibling, and as a row sibling with width:100% it pushed
    the whole composer off the right edge for the length of every call. */
+/* THE CONTEXT BAR. Full width, three pixels, directly under the header — not a number to read,
+   because the number is in the reading a press opens and the blocks behind it are one more press
+   away in Context.
+   These rules were deleted once, by an index-based splice that removed the running head's CSS and
+   took the block sitting next to it. The bar went on rendering with no styling at all: present,
+   not hidden, 792px wide and 0 tall, so it was invisible in the app and only a browser check
+   caught it. Nothing else could have — every unit check reads the markup, and the markup was right. */
+#ctxbar { display:block; width:100%; height:3px; flex:0 0 auto; background:var(--rule);
+  position:relative; overflow:hidden; padding:0; border:0; }
+#ctxbar i { display:block; height:100%; background:var(--gold-dim);
+  transition:width var(--t-slow) var(--ease); }
+#ctxbar.full i { background:var(--bad); }
+#ctxbar:hover i, #ctxbar[aria-expanded="true"] i { background:var(--gold); }
+/* What the bar opens. Everything that used to sit in the header beside the story title. */
+#ctxread { flex:0 0 auto; display:flex; align-items:center; gap:20px; padding:9px 40px;
+  border-bottom:1px solid var(--chrome-line); background:var(--chrome);
+  font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label);
+  animation:fade var(--t-fast) var(--ease-out) both; }
+#ctxread .tnum { font-variant-numeric:tabular-nums; }
+#ctxread button { color:var(--gold-dim); font-size:11px; letter-spacing:.1em;
+  font-variant-caps:all-small-caps; }
+@media (max-width:719px) { #ctxread { padding:8px 18px; gap:13px; } }
+
 #dock { position:relative; flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
   padding:0 0 28px; background:var(--dock); }
 @media (max-width:719px) { #dock { padding:0 18px calc(24px + env(safe-area-inset-bottom, 0px)); } }
 #dockCol { width:100%; max-width:var(--col); display:flex; flex-direction:column; gap:14px; }
+/* WHO you are speaking or acting as. It was squeezed into the right-hand end of the modes rail,
+   where it read as one more mode and ran out of room on a narrow window. Its own strip now, above
+   the rail and the full width of the dock — Seth: "right now its awkwardly placed". */
+/* The strip spans the dock; its CONTENTS line up with the mode rail underneath it, because the
+   rail is capped at the column width and centred. Left-aligned against 40px of dock padding it
+   floated away from the button that summoned it on any window wider than the column. */
+/* The strip spans the dock; its contents sit at the RIGHT of the column, directly over + Thread
+   and Anansi. Left, above Speak, it looked like a label for the modes and the connector rule
+   under it read as a break rather than a tie — Seth: "this looks broken and the selector should be
+   basically above where threads and anansi are". The right-hand end of that rail is where the
+   things that are not modes live, and this is one of them. */
+#asRow { width:100%; display:flex; justify-content:center; padding:9px 0 2px; }
+#asRow > .inner { width:100%; max-width:var(--col); display:flex; align-items:center; gap:9px;
+  justify-content:flex-end;
+  font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
+#asRow select { background:none; border:0; color:var(--gold); font-size:11.5px;
+  letter-spacing:.06em; text-transform:none; max-width:min(60vw, 320px); }
+@media (max-width:719px) { #asRow { padding:8px 18px 0; } #asRow > .inner { max-width:none; } }
 #modes { display:flex; align-items:center; gap:22px; overflow-x:auto; scrollbar-width:none; }
 #modes::-webkit-scrollbar { display:none; }
 #modes button { flex:0 0 auto; font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
@@ -681,10 +711,20 @@ textarea.field { resize:vertical; min-height:70px; }
     <div id="wash"></div>
     <header id="bar"></header>
     <div id="appearance" hidden></div>
-    <div id="runhead" aria-hidden="true"></div>
+    <!-- The context meter, full width and immediately under the header. It was a 74px rule inside
+         the running head, which put the one number that says whether the book still fits into the
+         one row that is hidden until you scroll. Seth: "it should span the full window". The
+         readout under it — which chapter, how many words, how much context — is what a press
+         opens; none of it is in the header any more. -->
+    <button id="ctxbar" hidden></button>
+    <div id="ctxread" hidden></div>
     <div id="read" class="scroll"><div id="col"></div></div>
     <div id="page" class="scroll" hidden></div>
     <div id="dock"><div id="working" hidden><i></i></div>
+      <!-- Above the mode rail and outside #dockCol, which is capped at the column width. Who you
+           are speaking or acting as is not a mode, and sharing the rail with the four that are is
+           what made it read as a fifth. -->
+      <div id="asRow" hidden></div>
 <div id="dockCol"></div></div>
   </main>
 

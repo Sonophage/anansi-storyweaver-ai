@@ -74,7 +74,7 @@ ok(`Regenerate keeps both takes (${v0} -> ${(tail?.variants ?? []).length} varia
 ok("  and the passage count did not grow", (await story()).passages.length === n1);
 // Target the tray by the passage's own id: `.block:last-of-type` matched the wrong block,
 // because #col holds chapter headings between the blocks.
-await page.click('[data-more="' + tail.id + '"]');
+await page.dbl('[data-edit=\"' + tail.id + '\"]');   // the ⋯ handle is gone; a double tap opens the tray
 // Several blocks have steppers; querySelector returns the first, whose tray is shut. Scope it.
 const OPEN = '.block[aria-expanded="true"] ';
 ok("  and a stepper appears in the tray", await page.visible(OPEN + '[data-vp]'));
@@ -97,7 +97,7 @@ if (await page.visible(OPEN + '[data-vp]')) {
 // the selected one, so the id captured back in section 2 is no longer on the page. And the
 // History button lives in the ⋯ tray, which has to be open before it can be clicked at all.
 const cur = (await story()).passages.at(-1);
-await page.click(`[data-more="${cur.id}"]`);
+await page.dbl(`[data-edit=\"${cur.id}\"]`);   // the ⋯ handle is gone; a double tap opens the tray
 await wait(400);
 await page.click(`[data-hi="${cur.id}"]`);
 await wait(1200);
@@ -146,7 +146,7 @@ await page.goto(B + "/#" + sid);
 // This scenario is opt-in and needs a live model, so it was not run when that landed and sat
 // stale for three days. `handlers.js` was updated the same day and has pressed Edit ever since.
 await page.eval("(() => { const blk = document.querySelector('[data-edit=\"" + target.id + "\"]')"
-  + ".closest('.block'); blk.querySelector('[data-more]')?.click(); return 1; })()");
+  + ".closest('.block'); blk.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 1; })()");
 await wait(350);
 await page.eval("(() => { const blk = document.querySelector('[data-edit=\"" + target.id + "\"]')"
   + ".closest('.block'); blk.querySelector('button[data-ed]')?.click(); return 1; })()");

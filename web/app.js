@@ -92,6 +92,12 @@ const S = {
   railView: 'workspace',
   entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, confirmStop: false, router: null, spark: null, ritual: null, setup: null,
+  naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
+  ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
+  chaptersFor: null,    // the passage whose tray is showing the chapter list
+  memoing: null,        // the passage being turned into a thread, while Anansi is thinking
+  newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
+
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
   lookTab: 'theme',     // which of Theme / Font / Size / UI the Aa menu is showing
   // Reading mode. Session-only on purpose: persisted, it would come back after a reload as a
@@ -152,7 +158,10 @@ const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queu
 const WNAV = [
   ['stories', 'stories', 'My stories'], ['create', 'create', 'Create a story'],
   ['canon', 'threads', 'Threads'], ['import', 'import', 'Import'],
-  ['prefs', 'prefs', 'Preferences'], ['bug', 'bug', 'Report an issue'],
+  ['prefs', 'prefs', 'Preferences'],
+  // Above Report an issue, which is where Seth put it: the two are the same conversation from
+  // opposite ends — here is what changed, and here is what is wrong with it.
+  ['news', 'book', 'What changed'], ['bug', 'bug', 'Report an issue'],
 ];
 const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
 // Two panels the rail does not list: they open by clicking a thing, not a nav row.
@@ -172,17 +181,20 @@ const WTITLES = {
   },
   import: () => ['Import', 'Character cards, Anansi exports, AI Dungeon'],
   prefs: () => ['Preferences', 'llama-server, model, slot'],
+  news: () => ['What changed', 'written by Anansi, from the work itself'],
   bug: () => ['Report an issue', 'filed on the repo, without the prose'],
 };
 
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
+// `more` left this list with the ⋯ handle it named. The tray opens on a double click now, which
+// is its own native event and not a delegated action at all.
 const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'home', 'owed', 'help',
   'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
-  'kind', 'act', 'pickmodel', 'fork', 'restore', 'more', 'lkind', 'ctxview', 'goblock', 'invent',
+  'kind', 'act', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
   'newstring', 'delstring', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
@@ -192,7 +204,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
-  'pullback', 'remember'].map((k) => `[data-${k}]`).join(',');
+  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -217,15 +229,12 @@ function drawRail() {
         flex:0 0 auto; color:${on ? 'var(--gold)' : 'var(--faint)'}">${mark(g)}</span>
       <span class="txt" style="font-size:14px; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}">${esc(l)}</span></button>`;
   };
-  const back = storyMenu
-    ? `<button data-leave="1" style="margin:0 16px 12px; padding:9px 12px; border-radius:var(--r);
-        border:1px solid var(--edge); display:flex; align-items:center; gap:10px; width:calc(100% - 32px)">
-        <span style="color:var(--faint); font-size:13px; flex:0 0 auto">‹</span>
-        <!-- Not "All stories". It does not go to a list of stories, it goes to the whole workspace —
-             the shelf, the ledger across books, import, preferences — and the label promised the
-             smaller of those two things. Seth: "all stories is confusing when it just takes you to
-             the main menu". -->
-        <span class="txt" style="font-size:12.5px; color:var(--mute)">Anansi's web</span></button>` : '';
+  // "Anansi's web" used to sit here as the way out of a story. It went on 2026-08-27: the menu
+  // button in the bar opens the workspace menu from anywhere, which is the same one press, and two
+  // doors to one room is one door too many — the argument that removed the hamburger, arriving
+  // again. Seth: "anansies web can be removed from the story menu since we already have a button
+  // that pulls up the main menu and its the same amount of clicks."
+  const back = '';
   const tail = storyMenu
     ? `<div class="txt" style="padding:26px 12px 10px; font-size:10px; letter-spacing:.3em;
          font-variant-caps:all-small-caps; color:var(--dim)">Chapters</div>
@@ -305,6 +314,54 @@ function contextPct() {
     ? Math.round(MANI.totals.used / MANI.totals.budget * 100) : null;
 }
 
+/** The meter under the header, and the readout it opens.
+ *
+ *  Its own function because it is its own strip: `drawBar` owns the header, `drawDoc` owns the
+ *  document, and this sits between them. Everything in the readout used to be in one or the other
+ *  — the word count beside the story title, the context percentage as a pill, which chapter you
+ *  are on inside a running head that is invisible until you scroll. Seth wanted one bar across the
+ *  window and the numbers behind a press, so this is the one place that draws them. */
+function drawMeter() {
+  const bar = $('ctxbar'), read = $('ctxread');
+  if (!bar || !read) return;
+  const inStory = S.place === 'story' && V;
+  const pct = contextPct();
+  // NO ROOM IS NOT NO BAR. A budget of zero — the slot unknown because llama-server is unreachable,
+  // or a prompt that will not fit — makes `contextPct` null, and hiding the meter for it took the
+  // bar away at exactly the moment it says the most. Full and red, with the reason in the reading.
+  const noRoom = !!MANI && MANI.totals.budget <= 0;
+  if (!inStory || !MANI) { bar.hidden = true; read.hidden = true; return; }
+  const fill = pct == null ? 100 : Math.min(100, pct);
+
+  const ch = V.currentChapter;
+  const at = V.chapters.findIndex((c) => c.id === ch.id);
+  const words = V.passages.filter((p) => p.chapterId === ch.id)
+    .reduce((n, p) => n + (String(p.body).match(/\S+/g) || []).length, 0);
+  const h = horizon();
+
+  bar.hidden = false;
+  bar.className = (pct == null || pct >= 100) ? 'full' : '';
+  bar.setAttribute('aria-expanded', String(!!S.ctxOpen));
+  bar.dataset.ctxopen = S.ctxOpen ? '0' : '1';
+  bar.setAttribute('aria-label', pct == null
+    ? 'No room — the prompt does not fit' : `Context ${pct}% of what this model can hold`);
+  bar.title = pct == null
+    ? 'No room. Press for what is in it.'
+    : `${pct}% of this model's context is spoken for. Press for the reading.`;
+  bar.innerHTML = `<i style="width:${fill}%"></i>`;
+
+  read.hidden = !S.ctxOpen;
+  if (!S.ctxOpen) return;
+  read.innerHTML = `
+    <span>chapter ${at + 1} of ${V.chapters.length}</span>
+    <span class="tnum">${words.toLocaleString()} words</span>
+    <span class="tnum" style="color:${(pct == null || pct >= 100) ? 'var(--bad)' : 'var(--gold-dim)'}">${
+      pct == null ? (noRoom ? 'no room' : 'context unknown') : `context ${pct}%`}</span>
+    ${h ? `<span style="color:var(--gold-dim)">${h.chapters} ${
+      h.chapters === 1 ? 'chapter' : 'chapters'} not sent</span>` : ''}
+    <button data-panel="context" style="margin-left:auto">what is in it &rsaquo;</button>`;
+}
+
 function drawBar() {
   const inStory = S.place === 'story' && V;
   const pct = contextPct();
@@ -335,11 +392,11 @@ function drawBar() {
       <!-- decoded below, after the element exists -->
     </div>
     <div style="margin-left:auto; display:flex; align-items:center; gap:10px; flex:0 0 auto">
-      ${inStory ? `<span class="deskonly" style="font-size:12px; color:var(--chrome-dim)">${words.toLocaleString()} words</span>
-      ${noRoom
+      ${inStory ? `${noRoom
+        // A refusal stays in the header. "No room" is not a reading, it is the app saying it
+        // cannot write — that has to be visible without pressing anything.
         ? `<button class="pill deskonly" data-panel="context"
-            style="border-color:var(--bad); color:var(--bad)">No room</button>`
-        : pct == null ? '' : `<button class="pill deskonly" data-panel="context">Context ${pct}%</button>`}
+            style="border-color:var(--bad); color:var(--bad)">No room</button>` : ''}
       ${(() => {
         const h = horizon();
         return h ? `<button class="pill deskonly" data-panel="context"
@@ -362,8 +419,11 @@ function drawBar() {
       <!-- OUTSIDE the in-story branch, and that is the whole point. The first version of this put it
            inside, so with the hamburger gone there was no way into the menu from the shelf at all —
            a hole, not a missing nicety. One door to the menu, on every screen. -->
+      <!-- Same glyph size and same padding as Reading mode beside it. At 19 against the book's 17
+           it sat a little large and a little wide, and three controls in a row show that. -->
       <button class="pill phoneonly" data-railview="workspace" aria-label="Menu"
-        style="align-items:center; padding:6px 11px; color:var(--chrome-dim)">${mark('web', 19)}</button>
+        style="display:flex; align-items:center; padding:6px 11px; color:var(--chrome-dim)"
+        >${mark('web', 17)}</button>
     </div>`;
   // The title, and the line under it that names the chapter. Both are leaf spans holding nothing
   // but text, which is what decode() needs — it writes textContent.
@@ -470,25 +530,45 @@ function passageHTML(p, newest, opening) {
   const flags = (V.violations ?? []).filter((f) => f.passageId === p.id);
   const v = p.variants ?? [];
   const at = v.findIndex((x) => x.selected) + 1;
-  const acts = `<button class="more" data-more="${p.id}" aria-label="Actions">⋯</button>
-    <div class="acts">
-    ${v.length > 1 ? `<span style="display:flex; align-items:center; gap:4px; padding:8px 6px; font-size:12px; color:var(--faint)">
+  // THE ⋯ IS GONE, 2026-08-27. A double tap opens the tray and has since F34's fix, so the dot
+  // row was a second door to the same place — sitting over the prose on every passage, on hover on
+  // the desk and permanently on a phone. Seth: "remove the three dots from the reponse box. we have
+  // double tap now."
+  //
+  // READING MODE keeps the tray but not all of it. The composer is gone there and the prose does
+  // not take taps, so the actions that WRITE have nothing to write into: what is left is the three
+  // that make sense while reading — roll this again, take it somewhere else, go to another chapter.
+  const acts = `<div class="acts">
+    ${v.length > 1 ? `<span class="wr" style="display:flex; align-items:center; gap:4px; padding:8px 6px; font-size:12px; color:var(--faint)">
       <button data-vp="${p.id}">‹</button>${at}/${v.length}<button data-vn="${p.id}">›</button></span>` : ''}
     <button data-re="${p.id}"><span class="serif" style="color:var(--gold)">↻</span><span class="lbl-txt">Regenerate</span></button>
-    <button data-ed="${p.id}"><span class="serif" style="color:var(--gold)">✎</span><span class="lbl-txt">Edit</span></button>
-    <button data-hi="${p.id}"><span class="serif" style="color:var(--gold)">⌂</span><span class="lbl-txt">History</span></button>
+    <!-- "Remember this." The writer's own recall: the model has forgotten something that happened,
+         so you point at the passage it happened in. It goes to Anansi as an INSTRUCTION rather than
+         as prose to continue or a line somebody said, comes back as facts rather than as sentences
+         (F36), and lands in the queue with the chapter it came from. -->
+    <button class="wr" data-memo="${p.id}" ${S.memoing === p.id ? 'disabled' : ''}><span class="serif"
+      style="color:var(--gold)">✦</span><span class="lbl-txt">${
+      S.memoing === p.id ? 'Asking&hellip;' : 'Remember this'}</span></button>
+    <button class="wr" data-ed="${p.id}"><span class="serif" style="color:var(--gold)">✎</span><span class="lbl-txt">Edit</span></button>
+    <button class="wr" data-hi="${p.id}"><span class="serif" style="color:var(--gold)">⌂</span><span class="lbl-txt">History</span></button>
     <!-- Branching was BUILT and unreachable: "Branch from this passage" sat at the bottom of the
          History panel, below the edits list, three steps in and under the fold. Seth reported it as
          a missing feature. It is here now, where you already are when you are thinking about this
          passage. The button in History stays — the two are the same action. -->
     <button data-fork="${p.id}"><span class="serif" style="color:var(--gold)">⑂</span><span class="lbl-txt">Branch</span></button>
-    <button data-del="${p.id}" style="color:var(--bad)"><span class="serif">✕</span><span class="lbl-txt">${
+    <!-- Where you can go from here, while reading. A toggle rather than a list, because a book of
+         forty chapters is forty rows in a tray that is meant to be glanced at. -->
+    <button data-chapters="${p.id}" class="readonly"><span class="serif" style="color:var(--gold)">§</span><span
+      class="lbl-txt">Skip to chapter</span></button>
+    ${S.chaptersFor === p.id ? `<div class="chaplist">${V.chapters.map((c) => `<button data-chapter="${c.id}"
+      ${c.id === V.currentChapter.id ? 'aria-current="true"' : ''}>${esc(c.title || `Chapter ${c.index}`)}</button>`).join('')}</div>` : ''}
+    <button class="wr" data-del="${p.id}" style="color:var(--bad)"><span class="serif">✕</span><span class="lbl-txt">${
       v.length > 1 ? `Delete take ${at}` : 'Delete'}</span></button>
     <!-- Deleting a rerolled passage removed the take on screen and promoted the next one, so the
          block stayed put holding different words — four presses to remove a passage rerolled three
          times, each one looking like it had failed. Only shown when there IS more than one take;
          with one, Delete above already is all of them. -->
-    ${v.length > 1 ? `<button data-delall="${p.id}" style="color:var(--bad)"><span class="serif">⌫</span><span
+    ${v.length > 1 ? `<button class="wr" data-delall="${p.id}" style="color:var(--bad)"><span class="serif">⌫</span><span
       class="lbl-txt">Delete all ${v.length} takes</span></button>` : ''}</div>`;
 
   const body = spoken
@@ -574,31 +654,39 @@ function drawDoc() {
 `;
   if (tip) read.scrollTop = read.scrollHeight;
 
-  // The running head lives ABOVE the scroller, so filling it is separate from filling the column.
-  const rh = $('runhead');
-  const pct = contextPct();
-  if (rh) rh.innerHTML = `
-    <span>${esc(ch.title || `Chapter ${ch.index}`)}</span>
-    <span style="opacity:.7">chapter ${at + 1} of ${V.chapters.length}</span>
-    ${words ? `<span class="tnum" style="margin-left:auto; opacity:.7">${words.toLocaleString()} words</span>` : ''}
-    ${pct == null ? '' : `<button id="ctxmeter" data-panel="context" class="${pct >= 100 ? 'full' : ''}"
-      style="${words ? '' : 'margin-left:auto; '}"
-      aria-label="Context ${pct}% of what this model can hold — open Context"
-      title="${pct}% of this model's context is spoken for. Press to see what is in it."
-      ><i style="width:${Math.min(100, pct)}%"></i></button>`}`;
-
-  // It opens once the chapter's own band has gone by. One listener, attached once — drawRead runs
-  // on every repaint and adding it here each time would stack them. The class goes on #doc, not
-  // on the scroller, because what it opens is a sibling of the scroller.
-  const show = () => $('doc')?.classList.toggle('scrolled', read.scrollTop > 90);
-  if (!read.dataset.runhead) {
-    read.dataset.runhead = '1';
-    read.addEventListener('scroll', show, { passive: true });
-  }
-  show();
+  // THE RUNNING HEAD IS GONE, 2026-08-27. It opened on scroll, moved the prose down to make room
+  // for itself, and by then said only the chapter's name — everything else in it had moved to the
+  // reading under the context bar. Seth: "on scroll theres chapter bar that gets triggered. remove
+  // that." A strip that appears while you are reading is a strip that interrupts reading.
   // The column was just rebuilt, so no tray survived it. The scrim has to know, or a repaint
   // while one was open leaves the backdrop up over a page with nothing modal on it.
   syncTray();
+}
+
+/** Ask Anansi what this chapter is called and what it has to do, and put the answer in the boxes.
+ *
+ *  Into `S.setup` rather than into the DOM, because the panel renders from state — ticking a
+ *  character repaints it, and an answer written straight into the inputs would be thrown away by
+ *  the next repaint, which is the same fault the composer's draft taught seven times. */
+async function nameChapter(chapterId) {
+  if (S.naming) return;
+  S.naming = true; drawSide();
+  const r = await api.proposeChapter(S.storyId, chapterId);
+  S.naming = false;
+  // An answer with no title is not an answer. Checking only `r.error` wrote `undefined` into
+  // the title box, and the next read of it threw on `.trim()` — the panel stopped rendering at
+  // all. Found by the stub DOM answering this route with {}, which is exactly what a route that
+  // half-fails does.
+  if (r.error || !r.title) { drawSide(); return toast(r.error || 'nothing usable came back'); }
+  // Whatever is already typed WINS. This fires on its own when both boxes are empty, and a writer
+  // who started typing in the seconds it took is a writer whose words must not be replaced.
+  const ch = V?.chapters.find((c) => c.id === chapterId);
+  const live = { title: document.querySelector('[data-setup="title"]')?.value ?? '',
+                 note: document.querySelector('[data-setup="note"]')?.value ?? '' };
+  const typed = live.title.trim() && live.title.trim() !== `Chapter ${ch?.index}` ? live.title.trim() : '';
+  S.setup = { title: typed || r.title, note: live.note.trim() || r.note };
+  drawSide();
+  toast('Anansi suggests. Both boxes are yours to change, and nothing is saved until you press Save.');
 }
 
 /** A look change, and the only thing that decides where it is saved: whether a book is open.
@@ -658,21 +746,34 @@ function drawDock() {
   const me = V.story.persona || 'you';
   const who = S.speaker || me;
 
+  // WHO you are speaking or acting as, on its own row above the mode rail and spanning the dock
+  // rather than the column. It sat at the right-hand end of the rail, where it read as one more
+  // mode and ran out of room the moment a name was long — Seth: "right now its awkwardly placed".
+  // Outside #dockCol, which is capped at the column width; this is the full window.
+  const asRow = $('asRow');
+  if (asRow) {
+    asRow.hidden = !asWhom;
+    // EMPTIED, not just hidden. Leaving the select in the DOM behind `hidden` left Direct and
+    // Narrate carrying a speaker control that a presence check can still find and a keyboard can
+    // still reach — and those two modes have no speaker by definition: an instruction is not
+    // spoken by anyone. The inverse of the lie `visible()` exists to catch.
+    if (!asWhom) asRow.innerHTML = '';
+    // The label says which of the two summoned it. "speaking as" over Act, or "acting as" over
+    // Speak, is the row describing a mode you are not in.
+    else asRow.innerHTML = `<div class="inner"><span>${
+      S.mode === 'act' ? 'acting as' : 'speaking as'}</span>
+      <select id="asWhom">
+        <option value=""${S.speaker ? '' : ' selected'}>${esc(me)}</option>
+        ${cast.filter((e) => e.title !== me).map((e) => `<option value="${esc(e.title)}"${
+          e.title === S.speaker ? ' selected' : ''}>${esc(e.title)}</option>`).join('')}
+      </select></div>`;
+  }
+
   $('dockCol').innerHTML = `
     <div id="modes">
       ${MODES.map(([k, label]) => `<button data-mode="${k}" aria-pressed="${k === S.mode}">${label}</button>`).join('')}
-      ${asWhom ? `<label class="deskonly" style="display:flex; align-items:center; gap:6px;
-        font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); opacity:.75">
-        as
-        <select id="asWhom" style="background:none; border:0; color:var(--gold); font-size:11px;
-          letter-spacing:.06em; text-transform:none; max-width:150px">
-          <option value=""${S.speaker ? '' : ' selected'}>${esc(me)}</option>
-          ${cast.filter((e) => e.title !== me).map((e) => `<option value="${esc(e.title)}"${
-            e.title === S.speaker ? ' selected' : ''}>${esc(e.title)}</option>`).join('')}
-        </select></label>` : ''}
       <!-- Neither of these is a mode, and in the same run as Speak/Act/Direct/Narrate they read as
-           a fifth and sixth one. The margin does the separating: what you are writing AS on the
-           left, what you are writing FROM on the right. -->
+           a fifth and sixth one. The margin does the separating. -->
       <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
         style="flex:0 0 auto; margin-left:auto">+ Thread</button>
       <button data-panel="anansi" aria-pressed="${S.panel === 'anansi'}" title="Ask Anansi about this story"
@@ -1619,6 +1720,12 @@ function sparkReview() {
  *  pins are actually for — "a fact that matters in a scene where nobody says its keyword"; and
  *  where is a pinned lore entry or the story's own setting. Skippable on purpose: a blank beat is
  *  a real choice, and some chapters are written to find out what happens. */
+/** Chapters this session has already asked Anansi to name. The ask fires from the render, the way
+ *  the cross-book ledger's fetch does — and a render that fetches without a guard renders again on
+ *  the answer and asks forever. Per chapter id, so paging back and forth does not re-ask, and NOT
+ *  persisted: a fresh session on a chapter still blank is a chapter worth offering again. */
+const NAMED = new Set();
+
 function setupPanel() {
   const ch = V?.currentChapter;
   if (!ch) return '<div class="hint">No chapter open.</div>';
@@ -1652,6 +1759,21 @@ function setupPanel() {
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
   const form = S.setup ?? { title: ch.title ?? '', note: ch.authorsNote ?? '' };
+  // A chapter opens on two empty fields, and an empty field on a panel you did not ask for is a
+  // field that stays empty — while the note is the one thing in this app that rides near the
+  // generation point on every call. So Anansi fills them in, once. Seth: "chapter information
+  // should be autofilled by the model and accepted by you, on every new chapter and not only the
+  // first." Proposed, never saved: Save is still yours.
+  //
+  // "Untouched" is NOT "title is empty". `endChapter` opens the next chapter titled `Chapter N`
+  // (db.ts:933), so a fresh chapter always has a title and the first version of this test never
+  // fired once — the driver saw "Chapter 4" in the box, called it filled, and reported the note
+  // empty. A title that is exactly this chapter's own number is the placeholder, not a name.
+  const placeholder = !form.title.trim() || form.title.trim() === `Chapter ${ch.index}`;
+  if (!S.naming && !NAMED.has(ch.id) && placeholder && !form.note.trim()) {
+    NAMED.add(ch.id);
+    nameChapter(ch.id);
+  }
   return `<div style="display:flex; flex-direction:column">
     ${done ? `<div style="display:flex; flex-direction:column; gap:6px; padding-bottom:16px">
       ${done.map((line) => `<div style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute)">
@@ -1661,11 +1783,16 @@ function setupPanel() {
     <div class="hint" style="margin:6px 0 0">Nothing here is required. Leave it and write.</div>
 
     <label class="lbl">Title</label>
-    <input class="field" data-setup="title" value="${esc(form.title)}" placeholder="Untitled">
+    <input class="field" data-setup="title" value="${esc(form.title)}" placeholder="${
+      S.naming ? 'Anansi is naming it…' : 'Untitled'}">
 
     <label class="lbl">What happens next</label>
     <textarea class="field" data-setup="note" style="min-height:80px"
-      placeholder="Where this chapter has to end up">${esc(form.note)}</textarea>
+      placeholder="${S.naming ? 'and saying what it has to do…' : 'Where this chapter has to end up'}"
+      >${esc(form.note)}</textarea>
+    <button class="btn ghost" data-name="${ch.id}" ${S.naming ? 'disabled' : ''} style="margin-top:7px">${
+      S.naming ? 'Thinking&hellip;' : (!placeholder || form.note.trim())
+        ? 'Have Anansi suggest another' : 'Have Anansi name it'}</button>
     <div class="hint">${form.note.trim() ? 'Rides near the generation point on every call.'
       : '<strong>Not set.</strong> Rides near the generation point when it is.'}</div>
 
@@ -1978,6 +2105,37 @@ const ART = [
 ];
 
 const WPAGES = {
+  /** What changed, in the writer's words. Anansi writes it from the commit log and it is cached on
+   *  the commit it was written from, so it updates itself on every commit with no hook and no build
+   *  step. The fetch is fired from the render the way the cross-book ledger's is, guarded so an
+   *  answer that repaints does not ask again. */
+  news() {
+    if (NEWS === null && !S.newsBusy) { S.newsBusy = true; loadNews(); }
+    if (S.newsBusy && !NEWS) return '<div class="hint">Anansi is reading the work&hellip;</div>';
+    if (!NEWS) return `<div class="hint">${esc(S.newsError ?? 'Nothing to say yet.')}</div>
+      <button class="btn ghost" data-news="1" style="margin-top:12px; width:auto; padding:0 22px">Try again</button>`;
+    // Every batch, newest first. A batch covers the commits since the batch before it, so this is
+    // the whole history rather than only the latest run — which is the difference between release
+    // notes and a status line.
+    const batches = (NEWS.all?.length ? NEWS.all : [NEWS]);
+    return `<div class="split"><div style="flex:1; min-width:0">
+      <div class="hint" style="margin:0 0 14px">Written by Anansi from the work itself, not from a
+        list somebody kept — so it is her reading of it, and the commits remain the record. A new
+        batch is written whenever the app changes.</div>
+      ${batches.map((b, i) => `<div style="margin-bottom:${i === batches.length - 1 ? 0 : 26}px">
+        <div class="serif" style="font-size:${i ? 19 : 25}px; line-height:1.15; color:var(--ink-bright)">${
+          esc(b.headline ?? '')}</div>
+        ${b.at ? `<div class="kind" style="margin-top:4px">${ago(b.at)}</div>` : ''}
+        ${(b.entries ?? []).map((e) => `<div class="card" style="margin-top:10px; gap:5px">
+          <div class="kind">${esc(e.title ?? '')}</div>
+          <div style="font-size:13.5px; line-height:1.6; color:var(--mute)">${esc(e.body ?? '')}</div>
+        </div>`).join('')}
+      </div>`).join('')}
+      <button class="btn ghost" data-news="1" ${S.newsBusy ? 'disabled' : ''}
+        style="margin-top:18px; width:auto; padding:0 22px">${
+        S.newsBusy ? 'Reading&hellip;' : 'Read what has changed since'}</button>
+    </div></div>`;
+  },
   stories() {
     if (!LIB.length) return `<div class="split"><div style="flex:1">
       <div class="serif" style="font-size:30px; color:var(--ink-bright)">Nothing yet</div>
@@ -2325,8 +2483,24 @@ function syncHash() {
 function paint() {
   applyLook();
   root.dataset.uiRail = S.rail ? 'open' : 'closed';
-  drawRail(); drawBar(); drawAppearance(); drawPage(); drawSide();
+  drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide();
   if (S.place === 'story' && V) { drawDoc(); drawDock(); } else { $('dock').hidden = true; }
+}
+
+/** The notes, and the error if there are none. Kept beside LEDGER because it is the same shape of
+ *  thing: fetched once, rendered from, and null until it arrives. */
+let NEWS = null;
+async function loadNews(refresh) {
+  S.newsBusy = true; S.newsError = null; drawPage();
+  const r = await api.whatsnew(refresh);
+  S.newsBusy = false;
+  // Notes AND an error can both come back: the model was down, and what is on screen is what was
+  // written for an older commit — still true about everything up to it, and better than a blank.
+  NEWS = r.notes ? { ...r.notes, all: r.all ?? null } : null;
+  S.newsError = r.error ?? null;
+  drawPage();
+  if (r.error && r.notes) toast(`Showing what is written — ${r.error}`);
+  else if (r.written) toast(`Read ${r.read} commit${r.read === 1 ? '' : 's'}.`);
 }
 
 async function loadLedger() {
@@ -2533,7 +2707,7 @@ async function refreshManifest() {
   MANI = r.manifest ?? null;
   PROMPT = r.manifest ? (r.prompt ?? '') : '';
   MANIERR = r.manifest ? null : (r.error ?? null);
-  drawBar();
+  drawBar(); drawMeter();
   if (S.panel === 'context') drawSide();
 }
 
@@ -2711,7 +2885,11 @@ function openTray(blk) {
  *  the selection stays under the sheet and is still there when it closes, which is what someone
  *  who double-clicked a word and then pressed Edit would expect. */
 document.addEventListener('dblclick', (e) => {
-  if (root.dataset.reading === '1') return;
+  // Reading mode used to refuse this outright. It opens the tray now — CSS hides everything in it
+  // that writes, so what is left is Regenerate, Branch and the chapter list. Seth: "in reading mode
+  // double clicking should work but it should only have regenerate, branch, and a skip to chapter".
+  // `#col .block` still has `pointer-events:none` while reading, so this is the only way in, which
+  // is the point: taps in the prose do nothing and a deliberate double still reaches the tray.
   const blk = e.target.closest('#col .block');
   if (!blk || e.target.closest('.acts')) return;
   openTray(blk);
@@ -2836,7 +3014,25 @@ document.addEventListener('click', async (e) => {
   const d = t.dataset;
 
   if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
-  if (d.more) { openTray(t.closest('.block')); return; }
+  // The chapter list inside a passage's tray. Toggled per passage rather than globally, so opening
+  // it on one passage and then another does not leave two open.
+  if (d.chapters) { S.chaptersFor = S.chaptersFor === d.chapters ? null : d.chapters; drawDoc(); syncTray(); return; }
+  if (d.news) { await loadNews(true); return; }
+  if (d.memo) {
+    if (S.memoing) return;
+    S.memoing = d.memo; drawDoc(); syncTray();
+    toast('Asking Anansi what to remember from this…');
+    const r = await api.memo(S.storyId, d.memo);
+    S.memoing = null;
+    if (r.error) { drawDoc(); return toast(r.error); }
+    V = await api.story(S.storyId, V.currentChapter.id);
+    // Straight to the queue it landed in, because a proposal you cannot see is a proposal you will
+    // not work — the same reason extraction's count is reported rather than swallowed.
+    S.panel = 'chapter'; syncHash(); paint();
+    return toast(r.proposed
+      ? `"${r.title}" is waiting in the chapter queue, from chapter ${r.chapter}. Nothing is canon yet.`
+      : r.note ?? 'already proposed');
+  }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
   // Two doors, one rail. `data-railview` says WHICH menu you asked for: the menu button asks for
   // the workspace, the story's own name asks for the story. Asking for the menu already open and
@@ -2857,6 +3053,8 @@ document.addEventListener('click', async (e) => {
   // The hatch. The prose window closes at the chapter boundary, so this is the only way back to a
   // chapter the model has stopped seeing — `keep_whole` has been honoured by the engine since it
   // was written and had no control anywhere.
+  if (d.ctxopen !== undefined) { S.ctxOpen = d.ctxopen === '1'; drawMeter(); return; }
+  if (d.name) { await nameChapter(d.name); return; }
   if (d.pullback) {
     const r = await api.saveChapter(S.storyId, d.pullback, { keepWhole: d.on === '1' });
     if (r.error) return toast(r.error);
