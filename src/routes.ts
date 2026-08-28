@@ -529,6 +529,7 @@ export const routes: Record<string, Handler> = {
     chapterIndex: c.body.chapterIndex ?? null,
     agent: String(c.body.agent ?? '').slice(0, 160) || null,
     viewport: String(c.body.viewport ?? '').slice(0, 200) || null,
+    composer: String(c.body.composer ?? '').slice(0, 300) || null,
     lastError: String(c.body.lastError ?? '').slice(0, 200) || null,
     model: c.defaultModel ?? model(),
     slot: c.slot,

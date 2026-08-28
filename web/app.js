@@ -4325,6 +4325,9 @@ document.addEventListener('click', async (e) => {
       // without them: the layout viewport shrinking, the visual one shrinking, and the page
       // simply scrolling all look identical to a person and are three different bugs. Cheap
       // enough to send on every report rather than only when somebody remembers to ask.
+      composer: S.geomRest
+        ? `rest ${JSON.stringify(S.geomRest)} typed ${JSON.stringify(S.geomTyped ?? 'not typed yet')}`
+        : null,
       viewport: `layout ${innerWidth}x${innerHeight}`
         + (window.visualViewport
           ? `, visual ${Math.round(visualViewport.width)}x${Math.round(visualViewport.height)}`
@@ -4897,6 +4900,17 @@ document.addEventListener('mousedown', (e) => {
   atAccept(Number(b.dataset.atpick));
 });
 
+// A fresh focus starts a fresh measurement, so the pair in a report is one visit to the box
+// rather than the first keystroke of the session against the latest.
+document.addEventListener('focusin', (e) => {
+  if (e.target?.id !== 'input') return;
+  const dock = $('dock'), inp = e.target;
+  S.geomRest = { dockTop: Math.round(dock?.getBoundingClientRect().top ?? -1),
+    inputH: Math.round(inp.getBoundingClientRect().height),
+    styleH: inp.style.height || 'none', scrollH: inp.scrollHeight, rows: inp.rows, chars: inp.value.length };
+  S.geomTyped = null;
+});
+
 document.addEventListener('keydown', (e) => {
   if (atCfg(e.target?.id) && AT) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -4919,6 +4933,26 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('input', (e) => {
   // The @ menu, and it must not redraw the box either — it writes only #atlist.
   if (atCfg(e.target?.id)) { atScan(e.target); atMirror(e.target.id); }
+  // MEASURE THE MOVE, since nothing about the viewport explains it. Seth: "it moves down, typing
+  // displaces it. it works the same with both settings." Down means the dock got SHORTER — it is
+  // the last flex child of a column, so its top falls when its own height falls — and the only
+  // thing that changes the composer's height on a keystroke is `fit()`. The three viewport
+  // explanations are already ruled out by the numbers in issues #15 and #16, which are identical
+  // either side of the movement.
+  //
+  // So the app records its own geometry on the FIRST keystroke after a focus and carries it in
+  // the next bug report. That is the pair of numbers I cannot get any other way: this reproduces
+  // at 0px on every viewport, scale and device size I can drive.
+  if (e.target?.id === 'input') {
+    const dock = $('dock'), inp = e.target;
+    const now = { dockTop: Math.round(dock?.getBoundingClientRect().top ?? -1),
+      inputH: Math.round(inp.getBoundingClientRect().height),
+      styleH: inp.style.height || 'none', scrollH: inp.scrollHeight, rows: inp.rows,
+      chars: inp.value.length };
+    if (!S.geomRest) S.geomRest = now;
+    else S.geomTyped = now;
+  }
+
   // NO SCROLL COMPENSATION HERE ANY MORE. A `holdStill` lived on this line for an hour, on the
   // theory that typing made the browser scroll the caret into view. Two bug reports filed either
   // side of the movement carried identical viewport numbers — `layout 638x616, visual 638x616 at

@@ -245,6 +245,16 @@ if (cm.open) {
   // are visible you get every letter twice, half a pixel apart.
   ok(`  with the textarea's own text transparent, so nothing double-prints (${ink && ink.boxText})`,
      !!ink && /rgba\(0, 0, 0, 0\)|transparent/.test(ink.boxText));
+  // AND THE MIRROR HAS TO BE READABLE, which is the other half and the one that broke. Both
+  // mirrors still declared `color:transparent` from when they were a layer BEHIND visible text,
+  // and #inputMirror's rule came after the one setting a readable colour, so it won: the mirror
+  // invisible, the textarea invisible, and typing producing nothing on the screen at all. Seth:
+  // "the text in the input box ... rendered the normal input text invisible."
+  //
+  // Asserted as a pair with the line above, because either one alone is satisfied by BOTH being
+  // transparent — which is exactly the state that shipped.
+  ok(`  and the mirror's own text is readable (${ink && ink.plain})`,
+     !!ink && !/rgba\(0, 0, 0, 0\)|transparent/.test(ink.plain));
   // THE TWO BOXES MUST NOT SHARE A STORE. The first version of this checked that #askMirror had
   // no marks — and passed with the stores merged, because the ask box was EMPTY after a reload and
   // an empty box has nothing to mark either way. Decorative. So: open the Anansi panel, put the
