@@ -123,7 +123,13 @@ const MANIFEST = { manifest: { blocks: [
   { kind: 'PROSE', id: 'p-9', text: '', tokens: 100, state: 'omitted', reason: 'prose 60% ceiling' },
   { kind: 'PROSE', id: 'p-8', text: '', tokens: 200, state: 'omitted', reason: 'prose 60% ceiling' },
   { kind: 'PROSE', id: 'p-7', text: '', tokens: 300, state: 'omitted', reason: 'prose 60% ceiling' },
-], totals: { budget: 46146, used: 21401, unallocated: 0 }, byKind: {}, overflowed: false }, prompt: '', exact: 21401 };
+// `used` and `exact` DIFFER on purpose, and by roughly the 1.28x bench/drift.ts measured. They
+// were the same number until 2026-08-28, which meant the checks below could not tell which one
+// the surface was reading — and the surface was reading the wrong one: /api/manifest has returned
+// the tokenizer's `exact` since the route was written and app.js drew the bar from the estimate.
+// A fixture whose two candidate answers are identical is the tag-splitting fixture with no comma
+// in it, arriving again.
+], totals: { budget: 46146, used: 27401, unallocated: 0 }, byKind: {}, overflowed: false }, prompt: '', exact: 21401 };
 
 const POSTED: any[] = [];
 (globalThis as any).fetch = async (url: string, init?: any) => {
@@ -497,7 +503,12 @@ ok('the header names the book, and carries no reading of its own');
 // Asserted as a WIDTH against the manifest arithmetic rather than as "a bar is there": a
 // meter that renders at a fixed width is the shape that reports a full context as an empty one.
 {
+  // 21401 is `exact`, not the 27401 of `totals.used`. If the surface goes back to the estimate
+  // this is 59% and every assertion in this block goes red at once.
   const pct = Math.round(21401 / 46146 * 100);
+  assert.notStrictEqual(21401, MANIFEST.manifest.totals.used,
+    'the fixture must keep the estimate and the exact count apart, or nothing below can see '
+    + 'which one the bar used');
   // The meter is its own strip under the header now, not a 74px rule inside a running head that
   // does not exist until you scroll. Asserted as a WIDTH against the manifest's own arithmetic:
   // a meter that renders at a constant is the shape that reports a full context as an empty one.
@@ -539,8 +550,55 @@ ok('the header names the book, and carries no reading of its own');
 }
 ok('the context bar fills to the manifest, and the reading is behind a press');
 
-assert.match(html('sideBody'), /21,401 \/ 46,146/, 'the inspector shows real totals');
+assert.match(html('sideBody'), /21,401 \/ 46,146/,
+  'the inspector shows the TOKENIZER\'s count, not the estimate — /api/manifest already paid for '
+  + 'a /tokenize round trip and returned it, and PLAN-06 2a and 2d are both errors in the number '
+  + 'it replaces (measured together at 1.28x).');
+assert.ok(!/27,401/.test(html('sideBody')),
+  'and the estimate must not be on screen anywhere beside it');
+// The segments are per-block estimates and there is no per-block exact number to have, so they
+// are scaled to the total printed above them. Unscaled they overshoot it by the same 1.28x and
+// the bar reads as broken against its own caption.
+{
+  // Scoped to the meter's own element: `sideBody` holds other percentage widths and summing the
+  // lot gave 246.4%, which is a check measuring the whole panel rather than the bar.
+  const bar = html('sideBody').match(/<div class="meter">([\s\S]*?)<\/div>/);
+  assert.ok(bar, 'the inspector must draw a meter for this to say anything');
+  const widths = [...bar[1].matchAll(/width:([\d.]+)%/g)].map((m) => Number(m[1]));
+  assert.ok(widths.length >= 2, `only ${widths.length} segments — a one-piece bar cannot show a mix`);
+  const filled = widths.reduce((n, w) => n + w, 0);
+  assert.ok(Math.abs(filled - 21401 / 46146 * 100) < 0.5,
+    `the meter's pieces sum to ${filled.toFixed(1)}% of the budget; the number above them says `
+    + `${(21401 / 46146 * 100).toFixed(1)}%. A breakdown that does not add up to its own total is `
+    + 'the shape a reader reads as broken.');
+}
 assert.match(html('sideBody'), /stale summary/, 'an omitted block must say why');
+// AND THE OTHER BRANCH. `exact` is null whenever the router is asleep — the route swallows the
+// /tokenize failure on purpose so the panel still renders — and then the estimate is all there is.
+// It is 59% high (PLAN-06 2a), so presenting it in the same typeface as a measurement is the
+// surface stating a guess as a fact. This is the state a writer is in every time llama-server is
+// down, which in this repo's own history is often.
+{
+  const realExact = (MANIFEST as any).exact;
+  (MANIFEST as any).exact = null;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'context' });
+  const asleep = html('sideBody');
+  assert.match(asleep, /27,401 \/ 46,146/,
+    'with no tokenizer answer the estimate is what there is, and it is shown');
+  assert.match(asleep, /\(est\.\)/,
+    'and it is MARKED. An estimate that looks like a measurement is the surface telling the '
+    + 'writer something it does not know, and 2a is exactly how wrong it can be.');
+  (MANIFEST as any).exact = realExact;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'context' });
+  assert.ok(!/\(est\.\)/.test(html('sideBody')),
+    'and the mark goes when the tokenizer answers again — a label that never clears is noise');
+}
+ok('an estimate is labelled as one, and the label clears when the tokenizer answers');
+
 ok('the inspector renders the real manifest, including what was dropped');
 
 // A row is a door. It used to be labelled in the engine's words — CANON-ALWAYS — and open a panel

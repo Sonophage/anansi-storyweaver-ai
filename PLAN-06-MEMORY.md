@@ -61,7 +61,7 @@ tokens `story.ts:154` intends.
 
 ## 2 · Six defects. These are bugs, not judgement calls.
 
-### 2a · The token estimator runs 30–48% high on real prose, and its comment says the opposite
+### ~~2a · The token estimator runs 30–48% high on real prose, and its comment says the opposite~~ — FIXED 2026-08-28
 
 `src/story.ts:101` is `Math.ceil(t.length / 2.8)`, with a comment claiming 3.6 measured 24% low.
 Against logged rows: 8,676 estimated against 5,874 exact (1.48×); 3,956 against 3,039 (1.30×). Every
@@ -124,7 +124,7 @@ fact"* while the code hands it the lie.
 Two contradicting patterns; `remember`'s is the tested one. Rule 7 says pick one and flag the other,
 not blend them.
 
-### 2d · `manifest.totals.used` excludes SYSTEM
+### ~~2d · `manifest.totals.used` excludes SYSTEM~~ — FIXED 2026-08-28
 
 `render` prepends SYSTEM and `routes.ts:239` slices exactly that many characters back off to send it
 as the system role. So SYSTEM — 1,872 chars, ~445 real tokens of standing instruction — is on the
@@ -190,6 +190,41 @@ prose when the thing is in play, not the title of its own entry.
 **This is the one item on the list that makes the prompt smaller.** §3's recommendation is that the
 next win is precision and presence rather than another retrieval tier. This is that win, and it adds
 no tier, no column and no call.
+
+**2a AND 2d, AS BUILT — and the meter needed neither of them.**
+
+`/api/manifest` has done a `/tokenize` round trip and returned `exact` beside the manifest since the
+route was written, and `app.js` never read it: the bar drew `totals.used`, the estimate, and
+inherited both defects at once. The generate path was always right — `routes.ts:258` overwrites
+`totals.used` with the same count — so the bar was exact after a generation and 1.28x out on the
+next repaint, which is why it never looked like a fixed offset. **The bar now uses the tokenizer's
+answer, and the estimator stops being the thing the writer reads.** Three lines, no constant
+involved. The segments are scaled to the total printed above them, and when the router is asleep
+`exact` is null and the estimate is shown marked `(est.)` rather than in the same typeface as a
+measurement.
+
+That leaves the estimator with one job — the ceilings and the refusal inside `buildContext`, which
+are pure and cannot make a round trip. **2.8 → 4.2**, and 4.2 rather than the 4.45 median because
+4.2 sits under the lowest rate any model measured (4.28, `rp-t-glm47flash-h`, n=45): the estimate
+stays slightly high for every model in the log instead of exact for one and low for another. High
+is the safe direction — the engine trims early; low means `fits()` refuses late, with an error on
+screen. The rule for re-choosing it is written at the site and asserted in `test/db.ts`, so setting
+it to the median goes red.
+
+**2d is taken off the budget, not added to the blocks.** A SYSTEM block would need a place in
+`ORDER`, a colour, a name in `BLOCK_ORIGIN` and a row in the panel — the same argument
+`context.ts:548` already used to keep the lockout riding DIRECTIVE. And what 2d fixes is worth
+stating narrowly: **the 6% margin was already large enough to absorb SYSTEM**, so nothing was
+overflowing. What was wrong was the number — `totals.budget` told the writer they had ~445 tokens
+they did not, and the 45%/25%/60% ceilings were fractions of it.
+
+**The check that was guarding this asserted the constant against itself.** `test/db.ts` divided a
+fixture by 2.74 and compared it to an estimate that divided by 2.8. It could not fail while those
+two agreed, and it reported the estimator "within 15%" for as long as it was 59% out. It is now a
+measured (18,107 chars → 4,067 charged tokens) pair off the generation log, plus the choose-the-
+lowest-model rule. Seven falsifications, each watched go red: the bar reverting to the estimate,
+unscaled segments, the divisor at the median, the divisor at 2.8, SYSTEM back on the budget, the
+`(est.)` label removed, and the label never clearing.
 
 ### ~~2f · Three key parsers, and the authoritative one drops keys silently~~ — FIXED 2026-08-28
 

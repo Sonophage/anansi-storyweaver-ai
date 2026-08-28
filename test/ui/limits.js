@@ -12,11 +12,13 @@ const sid = await page.eval("(async () => (await (await fetch('/api/stories')).j
 await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
   + " await fetch('/api/story', { method:'POST', headers:{'Content-Type':'application/json'},"
   + " body: JSON.stringify({ id: '" + sid + "', story: { ...v.story, maxContext: 600 } }) }); })()");
-// 600, and the number is load-bearing. budgetFor reserves max(600, max_tokens) plus 6% of the cap,
-// so a cap at or under 638 is what drives the budget to zero — the state this scenario exists for.
-// It was 700, which worked only while max_tokens defaulted to 900; halving that default to 450
-// moved the reserve to 600 and left a 58-token budget, so the zero-budget half stopped being
-// tested and said so. 600 gives zero under either default.
+// 600, and the number is load-bearing. budgetFor reserves max(600, max_tokens), plus 6% of the
+// cap, plus SYSTEM — so a cap at or under ~1,112 is what drives the budget to zero, and 600 is
+// well inside that. It was 700, which worked only while max_tokens defaulted to 900; halving that
+// default to 450 moved the reserve to 600 and left a 58-token budget, so the zero-budget half
+// stopped being tested and said so. 600 gives zero under either default.
+// The threshold moved from 638 to ~1,112 on 2026-08-28 when PLAN-06 2d put SYSTEM's ~446 tokens
+// on the budget; this scenario was already under both, which is why it did not notice.
 
 const mani = await page.eval("(async () => { const r = await (await fetch('/api/manifest', { method:'POST',"
   + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyId:'" + sid + "', mode:'direct' }) })).json();"

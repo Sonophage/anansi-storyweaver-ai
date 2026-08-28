@@ -237,8 +237,10 @@ console.log(`    ${medCpt.toFixed(2)} characters per token  (median over ${cpt.l
 console.log(`    the constant in force is ${DIVISOR} (src/story.ts) —`
   + ` ${((medCpt / DIVISOR - 1) * 100).toFixed(0)}% too SMALL, which is exactly how`
   + `\n    an estimate that divides by it comes out ${((medCpt / DIVISOR - 1) * 100).toFixed(0)}%`
-  + ` too BIG. The comment above that line claims the\n    opposite, and says 3.6 measured 24%`
-  + ` low; ${medCpt.toFixed(2)} is what ${cpt.length} logged calls say.\n`);
+  + ` too BIG.\n    ${medCpt.toFixed(2)} is what ${cpt.length} logged calls say. Two constants`
+  + ` before this one were guesses carrying a comment\n    that called them measurements — 3.6,`
+  + ` then 2.8. If this report and that comment ever disagree,\n    this one counted and the`
+  + ` comment did not.\n`);
 
 console.log(`  WHAT THE METER SHOWS, against what the server charged:`);
 console.log(`    block sum / exact:  ${medMeter.toFixed(2)}x  (median) — this is the bar today,`

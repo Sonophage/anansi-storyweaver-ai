@@ -90,6 +90,7 @@ ok('backup writes a readable snapshot', () => {
 
 // --- regressions for the bugs found in the 2026-08-23 review ---
 const story = await import('../src/story.ts');
+const render = await import('../src/render.ts');
 
 ok('the reserve scales with the budget and with the reply length', () => {
   const slot = { global: 100096, slots: 4, perSlot: 25024 };
@@ -107,12 +108,52 @@ ok('the reserve scales with the budget and with the reply length', () => {
   assert.strictEqual(short - long, 1400, 'every extra reply token costs a prompt token');
 });
 
-ok('the estimator is within 15% of real tokens on prose', () => {
-  const prose = 'The rain had not stopped for three days and the gutters ran black with it. '.repeat(20);
-  const est = story.estimate(prose);
-  // Measured against /tokenize: ~2.74 chars per token on this model and this kind of text.
-  const real = prose.length / 2.74;
-  assert.ok(Math.abs(est - real) / real < 0.15, `estimate ${est} vs ~${Math.round(real)}`);
+// PLAN-06 2a. The check this replaces divided a fixture by 2.74 and compared it to an estimate
+// that divided by 2.8 — it asserted the constant against ITSELF, could not fail while those two
+// numbers agreed, and reported the estimator "within 15%" for as long as it was 59% out against
+// 147 real calls. A comment saying "measured against /tokenize" is not a measurement.
+ok('the estimator errs high against measured tokens, and against the lowest model, not the median', () => {
+  // Ground truth off the generation log, 2026-08-28, via bench/drift.ts: row g-d8a77e3c is a
+  // prompt of 18,107 characters that the server charged 4,067 tokens for — 4.45 chars/token on
+  // Qwen3.6-WNTH-35B-A3B-NN. estimate() reads only `.length`, so the fixture's job is its size.
+  const CHARS = 18_107, CHARGED = 4_067;
+  const est = story.estimate('x'.repeat(CHARS));
+  assert.ok(est >= CHARGED,
+    `estimate ${est} is UNDER the ${CHARGED} tokens the server actually charged for this many `
+    + 'characters. Low is the dangerous direction: buildContext lets the prompt through and '
+    + 'fits() refuses it afterwards, which the writer sees as an error instead of as a trim.');
+
+  // The rule the constant is chosen by, asserted rather than described. bench/drift.ts measured
+  // 4.28 chars/token on rp-t-glm47flash-h over 45 calls — the LOWEST of any model with ten or
+  // more. A divisor above that estimates low for whoever is writing on that model, which is the
+  // whole reason this is not simply set to the 4.45 median of the model in front of us.
+  const divisor = CHARS / est;
+  assert.ok(divisor <= 4.28,
+    `the divisor in force is ${divisor.toFixed(2)}, above the lowest chars/token measured across `
+    + 'models (4.28, rp-t-glm47flash-h, n=45). Pick the lowest and round down, never the median '
+    + 'and never the model you happen to be using — two writers may be on two tokenizers.');
+  assert.ok(divisor >= 3.5,
+    `the divisor in force is ${divisor.toFixed(2)}, which re-creates the over-estimate 2a was: `
+    + 'at 2.8 every ceiling evicted 59% earlier than the slot required.');
+});
+
+// PLAN-06 2d. SYSTEM is prepended by render() and is not a block, so buildContext never saw it
+// and the ceilings were cut from room that was already spent. Worth saying what this did NOT fix:
+// the 6% margin was quietly large enough to absorb SYSTEM, so nothing was overflowing. What was
+// wrong was the number — `totals.budget` told the writer they had ~445 tokens they did not, and
+// the 45%/25%/60% ceilings were fractions of that wrong number.
+ok('SYSTEM is spent before the budget is offered, because it is on the wire either way', () => {
+  const slot = { global: 100096, slots: 4, perSlot: 25024 };
+  const cap = 25024, reply = 900;
+  const b = story.budgetFor({ maxContext: null }, slot, reply);
+  const ifSystemWereFree = cap - Math.max(600, reply) - Math.floor(cap * 0.06);
+  assert.strictEqual(ifSystemWereFree - b, story.estimate(render.SYSTEM),
+    'the budget must be short by exactly SYSTEM. Without the deduction the engine believes it '
+    + 'has room that render() has already spent, and every ceiling is a fraction of a number '
+    + 'that was never true.');
+  assert.ok(story.estimate(render.SYSTEM) > 300,
+    'SYSTEM costs real tokens — if this ever reads near zero, SYSTEM has moved and the deduction '
+    + 'is deducting nothing');
 });
 
 ok('regenerating a passage does not show the model the passages after it', () => {

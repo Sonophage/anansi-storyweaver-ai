@@ -2,7 +2,7 @@
 // The engine never sees a row; the routes never see SQL.
 import { buildContext } from './context.ts';
 import type { Input, Entry } from './context.ts';
-import { render, entryText } from './render.ts';
+import { render, entryText, SYSTEM } from './render.ts';
 import * as db from './db.ts';
 
 export interface Slot { global: number; slots: number; perSlot: number }
@@ -120,13 +120,31 @@ export function view(storyId: string, focusChapterId?: string) {
   };
 }
 
-/** Cheap synchronous estimate, used only to draw the meter on every keystroke.
+/** Cheap synchronous estimate. It draws no meter any more — the surface uses the exact count
+ *  `/api/manifest` already returns — so its only job now is the ceilings and the refusal inside
+ *  `buildContext`, which are pure and cannot make a round trip.
  *
- *  3.6 chars/token was a guess and measured 24% LOW against `/tokenize` on real prose —
- *  which meant the overflow guard, whose entire job is to refuse an over-length prompt,
- *  was reading a number a quarter under the truth. 2.8 matches this model's tokenizer on
- *  this kind of text. The guard that actually decides is `fits()` below, on real tokens. */
-export const estimate = (t: string) => Math.ceil(t.length / 2.8);
+ *  PLAN-06 2a. 3.6 was a guess; 2.8 replaced it and was ALSO a guess, and the comment that stood
+ *  here claimed it was measured. `bench/drift.ts` measured it against 147 logged calls, comparing
+ *  rebuilt prompts to what the server actually charged:
+ *
+ *      4.45 chars/token   n=91   Qwen3.6-WNTH-35B-A3B-NN (+ its pre-rename name)
+ *      4.28 chars/token   n=45   rp-t-glm47flash-h
+ *      5.69 chars/token   n=10   rp-nt-ornith-h
+ *
+ *  So 2.8 ran the estimate 59% HIGH, and every ceiling evicted that much earlier than the slot
+ *  required. Characters per token is a property of the TOKENIZER, so no single constant is right
+ *  for a library that lets two writers pick two models — which is why this is 4.2 and not 4.45:
+ *  4.2 is under the lowest rate measured, so the estimate stays slightly HIGH for every model in
+ *  the log rather than exactly right for one and low for another. High is the safe direction; the
+ *  engine refuses early, where low means `fits()` refuses late with an error on screen.
+ *
+ *  THE KNOB. To re-choose it: run `bench/drift.ts`, take the LOWEST chars/token across the models
+ *  with ten or more calls, and round down. Do not take the median, and do not take the model you
+ *  happen to be using. If a model ever measures below ~4.2 this constant stops being conservative
+ *  and the estimator needs to become a function of the model — that is the trigger, and nothing in
+ *  the log has crossed it. */
+export const estimate = (t: string) => Math.ceil(t.length / 4.2);
 
 /** Safety margin scales with the budget in use, not with the slot.
  *  Off the slot, a story capped at 4,000 tokens lost 1,501 to a margin sized for 25,024. */
@@ -138,7 +156,13 @@ export const budgetFor = (story: any, slot: Slot, maxTokens = 900) => {
   // Clamped at zero. A story capped below the reply reserve produced a NEGATIVE budget, which
   // the surface rendered as "Context -168%" and "406 / -242". The guard still refuses; it just
   // no longer refuses with nonsense on screen.
-  return Math.max(0, cap - Math.max(600, maxTokens) - Math.floor(cap * 0.06));
+  // PLAN-06 2d. SYSTEM is prepended by `render` and is not a block, so `buildContext` never sees
+  // it and its ~445 tokens of standing instruction were room the engine believed it still had.
+  // Taken off the budget rather than added to the blocks: a SYSTEM block would need a place in
+  // ORDER, a colour, a name in BLOCK_ORIGIN and a row in the panel, which is the same argument
+  // `context.ts:548` already used to keep the lockout on DIRECTIVE instead of giving it a block.
+  // The number the writer is shown is then true — this is the room you have, SYSTEM is spent.
+  return Math.max(0, cap - Math.max(600, maxTokens) - Math.floor(cap * 0.06) - estimate(SYSTEM));
 };
 
 /** The shipped wording of every editable mode, rendered with its placeholders left in.

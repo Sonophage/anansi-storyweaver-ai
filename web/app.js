@@ -144,7 +144,7 @@ const S = {
   talk: { turns: [], busy: false, search: false, draft: null, searchable: null },
   blank: null,          // the Start blank form, when it is open
 };
-let LIB = [], V = null, MANI = null, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
+let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 let MANIERR = null;   // why there is no manifest, when there is none
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
 // separate status route, and activity returns only generation rows.
@@ -1197,6 +1197,12 @@ const PANELS = {
     const inc = MANI.blocks.filter((b) => b.state === 'included');
     const agg = {};
     for (const b of inc) agg[b.kind] = (agg[b.kind] ?? 0) + b.tokens;
+    // The total above the meter is the tokenizer's when we have it; the SEGMENTS are per-block
+    // estimates and there is no per-block exact number to have. Scaled so they add up to the
+    // total printed beside them — a bar whose pieces overshoot the number they are a breakdown
+    // of is a bar that reads as broken. The split between kinds is proportional and unchanged.
+    const rawSum = Object.values(agg).reduce((n, v) => n + v, 0);
+    const scale = MANI_EXACT && rawSum ? MANI.totals.used / rawSum : 1;
     if (MANI.totals.budget <= 0) {
       // `budget || 1` used to make this render as "406 / 1" with a meter drawn against nothing.
       return `<div style="display:flex; flex-direction:column">
@@ -1218,9 +1224,12 @@ const PANELS = {
       ${ctxTabs()}
       <div style="display:flex; align-items:baseline; gap:10px; font-size:12.5px; color:var(--mute)">
         <span>Assembled for the next call</span>
-        <span class="tnum" style="margin-left:auto; color:var(--faint)">${MANI.totals.used.toLocaleString()} / ${budget.toLocaleString()}</span></div>
+        <span class="tnum" style="margin-left:auto; color:var(--faint)" data-exact="${MANI_EXACT ? 1 : 0}"
+          title="${MANI_EXACT ? 'Counted by the model\u2019s own tokenizer'
+            : 'Estimated \u2014 the model is not answering, so this is characters divided by a constant'}"
+          >${MANI.totals.used.toLocaleString()} / ${budget.toLocaleString()}${MANI_EXACT ? '' : ' (est.)'}</span></div>
       <div class="meter">${Object.entries(agg).map(([k, v]) =>
-        `<i style="width:${(v / budget * 100).toFixed(2)}%; background:${BLOCK_COLOR[k] ?? 'var(--ink-ghost)'}"></i>`).join('')}</div>
+        `<i style="width:${(v * scale / budget * 100).toFixed(2)}%; background:${BLOCK_COLOR[k] ?? 'var(--ink-ghost)'}"></i>`).join('')}</div>
       ${(() => {
         const h = horizon();
         if (!h) return '';
@@ -3073,6 +3082,25 @@ async function refreshManifest() {
   // An overflow is not that case: it comes back WITH a manifest and an error, and the panel has a
   // rendering for it. So the manifest decides, not the error.
   MANI = r.manifest ?? null;
+  // THE EXACT COUNT WAS ALREADY IN THIS RESPONSE. `/api/manifest` does a /tokenize round trip and
+  // has returned `exact` beside the manifest since the route was written; nothing ever read it, so
+  // the bar drew `totals.used` — the ESTIMATE — and inherited both of PLAN-06's meter defects at
+  // once: the estimator running high (2a) and SYSTEM missing from the sum (2d), measured together
+  // at 1.28x by bench/drift.ts. Neither can reach the bar if the bar uses the tokenizer's answer.
+  //
+  // The generate path has always been right, which is why this never looked like a fixed offset:
+  // routes.ts:258 overwrites totals.used with the same number, so the bar was exact after a
+  // generation and 1.28x out on the next repaint.
+  //
+  // `exact` is null when the model is asleep. Then the estimate is all there is, and the panel
+  // says so rather than presenting a guess in the same typeface as a measurement.
+  //
+  // COPIED, not mutated in place. Writing the exact count back into `r.manifest` edits the
+  // server's own answer, which is invisible in a browser (a fresh parse per response) and not
+  // invisible at all to a test whose stub hands back the same object every time — it clobbered
+  // the fixture's estimate with the exact one and the check could no longer tell them apart.
+  MANI_EXACT = !!MANI && typeof r.exact === 'number';
+  if (MANI_EXACT) MANI = { ...MANI, totals: { ...MANI.totals, used: r.exact } };
   PROMPT = r.manifest ? (r.prompt ?? '') : '';
   MANIERR = r.manifest ? null : (r.error ?? null);
   drawBar(); drawMeter();
@@ -3169,6 +3197,7 @@ async function generate(mode = S.mode) {
   }
   if (r.error) { S.busy = false; drawDock(); working(null); return toast(r.error); }
   MANI = r.manifest;
+  MANI_EXACT = true;    // routes.ts:258 replaced totals.used with count(prompt) before sending it
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
   // Regenerate or Delete, and both keep the history, so nothing is lost by committing it.
   const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, chapterId: V.currentChapter.id,
