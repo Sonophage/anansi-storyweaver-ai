@@ -66,6 +66,73 @@ than title-repeated. Today's numbers describe keys nobody wrote.
 
 ### Phase 2 — the schema, once
 
+**The shape, concretely.** Written out because "fields" is not a design until the columns are named.
+
+**A field is a state with no chapter attached, so there is no new table for fields.** `entry_states`
+(`src/db.ts:241`) already carries `entry_id`, `from_chapter`, `body`, `before_mode` (`hide` | `hint`)
+and `label`. Add three columns and it carries fields too:
+
+```sql
+ALTER TABLE entry_states ADD COLUMN field      TEXT DEFAULT 'body';  -- which room of the card
+ALTER TABLE entry_states ADD COLUMN keys       TEXT DEFAULT '[]';    -- this field's own trigger words
+ALTER TABLE entry_states ADD COLUMN activation TEXT;                 -- null = follow the entry
+```
+
+Every row that exists today is `field = 'body'` and keeps working untouched. `resolveBody` already
+picks the newest state at or before the current chapter; the generalisation is *newest row per
+field*, which is the same query with a `GROUP BY`. **Chapter-end never overwrites — it inserts a row
+with a `from_chapter`**, so she can be loyal in chapter 2 and not in chapter 9 and the model can see
+the turn instead of only the end of it. `entries.body` stays as the always-sent spine.
+
+**The field names are a fixed list in one module, not free text.** Same rule as `src/blocks.ts`:
+named, never numbered, one order in one place. Free-form names let the model write `Motivation` and
+`motivations` into the same book. `entries.field_editors` already keys per-field provenance by name,
+so the two lists must be the same list.
+
+| kind | fields |
+|---|---|
+| character | `body` (the spine) · `appearance` · `motivations` · `interiority` · `relationships` · `voice` |
+| lore / place | `body` · `appearance` · `atmosphere` · `who_is_here` · `history` |
+| item | `body` · `appearance` · `provenance` · `what_it_does` |
+| rule | `body` · `scope` · `consequences` |
+
+Clothing is **not** a field: `outfits` (`src/db.ts:324`) is already the right table, already rides
+with the entry's activation (`context.ts:435`), and already has one-at-a-time enforced in the
+database. #5's *"clothing shouldn't be looked into but they can become new outfits"* is a routing
+rule at chapter end, not a schema change.
+
+**Edges, directed, in a small new table:**
+
+```sql
+CREATE TABLE entry_edges (
+  id TEXT PRIMARY KEY, story_id TEXT NOT NULL, parent_id TEXT NOT NULL, child_id TEXT NOT NULL,
+  confidence REAL DEFAULT 1.0,   -- what an inherited pull is worth against a direct hit
+  keys TEXT DEFAULT '[]',        -- the edge's own trigger words, per #5
+  created_at INTEGER NOT NULL);
+```
+
+**Parent pulls child and never the reverse.** Her coat arrives when she does; she does not arrive
+because somebody said "coat". Undirected edges rebuild COUNCIL-04 #7's crowded scene through the
+back door, and the direction cannot be recovered once two hundred edges exist.
+
+**Retirement, one column:** `ALTER TABLE entries ADD COLUMN retired_at_chapter INTEGER;` — a dead
+character, a burned building, a rule that stopped applying. Without it the ledger's precision decays
+as the book grows, which is exactly when it is needed most.
+
+**Proposals learn to aim at a field:** `proposals` (`src/db.ts:266`) has `entry_type` and `keys` and
+nothing else. It needs `field TEXT` and `activation TEXT` — the first so chapter end can propose a
+change to `motivations` alone instead of a whole new body, the second because §2e's *"honour a
+model's explicit activation"* has nowhere to land today. Both are one column.
+
+**A cap, or the crowded scene comes back.** Fields multiply what can fire by roughly five. `CANON_CAP_FRAC`
+exists; whether it is enough is a measurement, and Phase 3 does not close until `bench/fires.ts`
+reports the per-position numbers again with fields switched on.
+
+**What this does NOT change:** `entries.body`, `keys`, `activation`, `sticky_for`, `proper_nouns` and
+`field_editors` all keep their meaning. Nothing above is a rewrite; it is four `ALTER TABLE`s, one
+small new table, and one names-only module.
+
+
 Four additions. Two of them are less new than they look, and that is the good news.
 
 1. **Fields.** A card becomes named fields per kind — a character has physical description,
