@@ -406,5 +406,7 @@ test/ui/run.sh                                 # 477 checks, twelve scenarios, h
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model
+node --experimental-strip-types bench/drift.ts check       # 2a's detector, no model
+node --experimental-strip-types bench/drift.ts             # the drift report, read-only db
 ```
 

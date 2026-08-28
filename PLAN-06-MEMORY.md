@@ -80,6 +80,30 @@ Build the drift report and let it choose the constant. The authoritative guard a
 `manifest.totals.used` with the exact figure at `:227`, which is why stored manifests show
 `used: 5859` beside a block sum of 8,676.
 
+**MEASURED 2026-08-28, `bench/drift.ts`.** The report is built and its detector is validated; the
+constant has not been changed yet, because the measurement moved the question.
+
+- **4.45 characters per token** on `Qwen3.6-WNTH-35B-A3B-NN` over 91 calls (24 under the new preset
+  name plus 67 under `write-nt-qwen36-h`, which is the same model before the 2026-08-27 rename).
+  The divisor in force is 2.8 — **59% too small**, which is why the estimate comes out 59% too big.
+  The comment above `src/story.ts:129` claims the opposite.
+- **The context bar is off by 1.28x, not 1.58x**, because 2d cancels part of 2a. SYSTEM is
+  **~423 real tokens** missing from every reading, and the estimator inflates by ~59%. They run in
+  opposite directions: **fixing 2d alone makes the bar worse.** One commit, or 2d after this report
+  can show the two moves apart.
+- **SPEC §7.3's warning arrives from a direction §7.3 did not name.** Splitting by canon share
+  found nothing — 4.41 against 4.45, and canon is 4-11% of every prompt in the log, so the question
+  was never really asked. Splitting by **model** found 1.41 chars/token of spread across the presets
+  with ten or more calls (4.28 for `rp-t-glm47flash-h`, 5.69 for `rp-nt-ornith-h`). Characters per
+  token is a tokenizer's property. **One global constant cannot be right for two writers on two
+  models**, which is exactly the case `ANANSI_MODELS` and the second seat exist to allow.
+
+**And the first version of this measurement was wrong.** Pooled across all five models and split by
+date, it read 5.68 before 2026-08-26 against 4.39 after, and the obvious reading — SYSTEM was
+rewritten on the 26th, so the rebuild is distorting old rows — was wrong. The date split was
+splitting the model mix. Written down because the wrong answer was more plausible than the right
+one.
+
 ### 2b · DIRECTIVE's 250-token cap cannot fire, and the manifest says it did
 
 All four parts of the anchor are `keep: true` (`src/context.ts:517-529`), so `addAnchor`'s flex
