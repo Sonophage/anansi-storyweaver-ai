@@ -930,6 +930,24 @@ textarea.field { resize:vertical; min-height:70px; }
 }
 #atlist[hidden] { display:none; }
 
+/* The mirror behind the ask box. Every property that affects WRAPPING is set on both at once —
+   two declarations for one shape is how they drift apart and the highlight ends up a line above
+   what it is highlighting. */
+#askWrap { position:relative; display:flex; }
+#askWrap > #askMirror, #askWrap > #askBox {
+  font:inherit; font-size:13.5px; line-height:1.55; letter-spacing:normal;
+  padding:11px 13px; border:1px solid transparent; border-radius:var(--r);
+  white-space:pre-wrap; overflow-wrap:break-word; word-break:normal;
+}
+#askWrap > #askBox { position:relative; z-index:1; background:transparent; flex:1; min-width:0; }
+#askMirror {
+  position:absolute; inset:0; z-index:0; color:transparent; pointer-events:none;
+  overflow:hidden; user-select:none;
+}
+/* Only what is going to be SENT is marked. Nothing else in this app tints text, so the tint is
+   unambiguous: it means she is getting the thing and not only the word. */
+#askMirror mark { background:rgba(217,178,106,.18); color:transparent; border-radius:3px; }
+
 #toast[hidden] { display:none; }
 </style>
 </head>

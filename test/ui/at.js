@@ -65,11 +65,31 @@ if (!m.open) { ok("the menu is open to accept from", false); } else {
   const after = await page.eval("document.getElementById('askBox').value");
   console.log("  after accepting: " + JSON.stringify(after));
   ok(`accepting writes the name into the question (${JSON.stringify(after)})`, /Silver Key/i.test(after));
-  ok("  and the @ does not survive — what reaches Anansi reads as English", !after.includes('@'));
+  ok("  and the @ stays, so you can see what you summoned", after.includes('@the Silver Key'));
   ok("  and the menu closes", !(await menu()).open);
   // The caret has to land after the name, or the next word is typed into the middle of it.
   const caret = await page.eval("document.getElementById('askBox').selectionStart");
   ok(`  with the caret after what it inserted (${caret} of ${after.length})`, caret === after.length);
+
+  // THE ACCENT IS THE RECEIPT. Seth asked for the @ to be marked AND for "a way to know if it did
+  // pull from the id or not"; those are one mechanism, because a mention is marked only while it
+  // is still going to be sent. Both directions, or the mark means nothing: a picked name lights
+  // up, a hand-typed one does not.
+  const marks = () => page.eval("(() => [...document.querySelectorAll('#askMirror mark')].map(m => m.textContent))()");
+  let mk = await marks();
+  console.log("  marked: " + JSON.stringify(mk));
+  ok(`  and the name is marked, because it resolved (${JSON.stringify(mk)})`,
+     mk.length === 1 && /@the Silver Key/.test(mk[0]));
+
+  await type("tell me about @the Silver Key and @something i typed myself");
+  mk = await marks();
+  console.log("  after typing one by hand: " + JSON.stringify(mk));
+  ok("  a name typed by hand is NOT marked — there is no id behind it",
+     mk.length === 1 && !mk.some((x) => /typed myself/.test(x)));
+
+  await type("tell me about @the Silver Ke");
+  mk = await marks();
+  ok(`  and editing a letter out of a picked name unmarks it (${JSON.stringify(mk)})`, mk.length === 0);
 }
 
 // ---- Escape closes it, and Enter then asks rather than picking

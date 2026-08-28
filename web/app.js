@@ -1716,8 +1716,11 @@ const PANELS = {
              thread you mean than when she has to guess from a paraphrase. The list floats ABOVE
              the box rather than sitting in the column, so opening it moves nothing. -->
         <div id="atlist" hidden></div>
-        <textarea class="field" id="askBox" placeholder="Ask Anansi about this story&hellip;"
-          style="min-height:64px; margin:0"></textarea>
+        <div id="askWrap">
+          <div id="askMirror" aria-hidden="true"></div>
+          <textarea class="field" id="askBox" placeholder="Ask Anansi about this story&hellip;"
+            style="min-height:64px; margin:0"></textarea>
+        </div>
         <div style="display:flex; align-items:center; gap:8px">
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
             t.searchable === false ? 'var(--faint)' : 'var(--mute)'}"
@@ -4102,7 +4105,7 @@ document.addEventListener('click', async (e) => {
     // De-duplicated: naming the same thread twice in one question, or picking it, deleting the
     // word and picking it again, would otherwise put its whole body in front of her twice.
     const seenM = new Set();
-    const mentions = (S.talk.mentions ?? []).filter((m) => said.includes(m.label))
+    const mentions = (S.talk.mentions ?? []).filter((m) => said.includes(`@${m.label}`))
       .filter((m) => !seenM.has(`${m.kind}\u0000${m.id}`) && seenM.add(`${m.kind}\u0000${m.id}`))
       .map((m) => ({ kind: m.kind, id: m.id }));
     S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null,
@@ -4676,6 +4679,47 @@ const AT_MAX = 8;
 
 const atClose = () => { AT = null; const l = $('atlist'); if (l) { l.hidden = true; l.innerHTML = ''; } };
 
+/** THE ACCENT IS THE RECEIPT. Seth asked for two things — keep the @ and mark it, and "a way to
+ *  know if it did pull from the id or not" — and they are one mechanism: a mention is highlighted
+ *  ONLY while it is still going to be sent. Type `@the ledger` by hand and nothing lights up,
+ *  because nothing was picked and there is no id behind it. Delete a letter out of a name you did
+ *  pick and the highlight goes, because the filter at send time drops it too. What you see is
+ *  exactly what she gets.
+ *
+ *  A textarea cannot colour part of its own text, so this is the mirror trick: a div behind the
+ *  box with the same font, padding and wrapping, holding the same string with the mentions wrapped
+ *  in a mark. Its text is transparent — only the marks' backgrounds show — and the real text sits
+ *  on top of them. The two must agree about every property that affects wrapping, which is why the
+ *  CSS sets them together rather than in two places. */
+function atMirror() {
+  const box = $('askBox'), m = $('askMirror');
+  if (!box || !m) return;
+  // No "is it still in the text" filter here: the scan below only marks a run that literally
+  // starts `@name`, so presence is already enforced by the matching. Falsified — removing a filter
+  // on this line changed nothing, which is what a redundant guard looks like.
+  // Longest first, so `@the ledger` is not eaten by a shorter `@the` that also matched.
+  const names = [...new Set((S.talk?.mentions ?? []).map((x) => x.label))]
+    .sort((a, b) => b.length - a.length);
+  let html = '';
+  let i = 0;
+  outer: while (i < box.value.length) {
+    if (box.value[i] === '@') {
+      for (const n of names) {
+        if (box.value.startsWith(`@${n}`, i)) {
+          html += `<mark>${esc(`@${n}`)}</mark>`;
+          i += n.length + 1;
+          continue outer;
+        }
+      }
+    }
+    html += esc(box.value[i]); i++;
+  }
+  // A trailing newline is not rendered by a div the way it is by a textarea; the space keeps the
+  // last line's height so the two do not drift apart at the bottom.
+  m.innerHTML = `${html} `;
+  m.scrollTop = box.scrollTop;
+}
+
 /** The candidates, in the order a writer means them: what is in front of you first. */
 function atFind(q) {
   const seen = new Set();
@@ -4734,11 +4778,12 @@ function atAccept(i) {
   // thing. Filtered against the box's text at send time, so deleting the name drops the mention
   // rather than shipping a reference to something the question no longer mentions.
   S.talk = { ...S.talk, mentions: [...(S.talk.mentions ?? []), { kind: it.kind, id: it.id, label: it.label }] };
-  box.value = `${before}${it.label} ${after}`;
-  const caret = before.length + it.label.length + 1;
+  box.value = `${before}@${it.label} ${after}`;
+  const caret = before.length + it.label.length + 2;   // the @ and the trailing space
   atClose();
   box.focus({ preventScroll: true });
   box.setSelectionRange(caret, caret);
+  atMirror();
 }
 
 // mousedown, not click: a click would move focus out of the textarea first and the caret with it.
@@ -4770,7 +4815,7 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('input', (e) => {
   // The @ menu, and it must not redraw the box either — it writes only #atlist.
-  if (e.target?.id === 'askBox') atScan(e.target);
+  if (e.target?.id === 'askBox') { atScan(e.target); atMirror(); }
   // Neither branch may redraw its own input. Both write only their results container.
   if (e.target.id === 'setupQ') {
     S.setupQ = e.target.value;
