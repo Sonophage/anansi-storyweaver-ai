@@ -181,12 +181,16 @@ input, textarea { font:inherit; color:inherit; }
      A blur alone still says "busy" — the words go and the shapes stay — and it says it without
      putting a sheet of colour between you and your book. If this reads as too legible on a light
      theme the tint comes back as a theme token, not as a literal. */
-  background:transparent;
-  /* 3.5px — 14, then 7, then this, all on 2026-08-28 and all by eye, which is the only instrument
-     for it. With the tint gone the blur is the only thing between the writer and the page, and it
-     only has to say "not now" rather than take the book away. */
-  backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95);
   animation:veilin var(--t-slow) var(--ease-out) both; }
+/* ONE BLUR, TWO SURFACES. Seth, 2026-08-28: "when we maximize the input box, do the same treatment
+   on that background as the one that we do when we press send so that that experience is cohesive."
+   Shared rather than copied, the same bargain as the two dock buttons — a second declaration of the
+   same blur is how the two drift apart, and these are the app's only two full-screen takeovers.
+   3.5px — 14, then 7, then this, all on 2026-08-28 and all by eye, which is the only instrument for
+   it. With the tint gone the blur is the only thing between the writer and the page, and it only
+   has to say "not now" rather than take the book away. */
+#ghost.veil, #dock.big { background:transparent;
+  backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95); }
 #ghost.veil.leaving { animation:veilout var(--t) var(--ease) both; }
 #ghost.veil .narr { text-align:center; display:flex; flex-direction:column; align-items:center; gap:22px; }
 #ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
@@ -781,13 +785,16 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
    into the prose; what it was really doing was separating the composer from the page, and the box
    can say that by itself. `--dock` survives for the big composer, which IS the page. */
 #dock { position:relative; flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
-  padding:0 0 28px; background:transparent; }
-@media (max-width:719px) { #dock { padding:5px 18px calc(19px + env(safe-area-inset-bottom, 0px)); } }
+  padding:0 0 calc(28px + var(--hwkb-air, 0px)); background:transparent; }
+@media (max-width:719px) { #dock { padding:5px 18px calc(19px + var(--hwkb-air, 0px) + env(safe-area-inset-bottom, 0px)); } }
 /* WITH A HARDWARE KEYBOARD THE DOCK SITS STILL, so it can afford to sit off the edge. There is no
    soft keyboard to make room for and nothing below it to reach past — 10px of air, and it stays
    there because nothing moves it any more. Keyed on the root attribute `applyHwkb` writes, so the
-   CSS and the meta swap are driven by one place. */
-html[data-ui-hwkb="1"] #dock { padding-bottom:calc(34px + env(safe-area-inset-bottom, 0px)); }
+   CSS and the meta swap are driven by one place.
+   ADDED, not overridden. This said `padding-bottom:34px` — 24 + 10, correct until the phone base
+   moved to 19px in the composer rework and the air silently became 15px. Two numbers five lines
+   apart that had to agree by hand; now the air is stated once and the base can move without it. */
+html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
 #dockCol { width:100%; max-width:var(--col); display:flex; flex-direction:column; gap:14px; }
 /* WHO you are speaking or acting as. It was squeezed into the right-hand end of the modes rail,
    where it read as one more mode and ran out of room on a narrow window. Its own strip now, above
@@ -877,8 +884,8 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
    fill the button: line-height 1.55 on the font size, plus the padding, equals the button. `fit()`
    measures scrollHeight, which includes the padding, so it agrees without being told. */
 #input {
-  flex:1; min-width:0; font-size:17px; line-height:1.55; color:var(--body); background:none; border:0;
-  resize:none; max-height:140px; padding:9px 0; min-height:44px; font-family:inherit;
+  flex:1; min-width:0; color:var(--body); background:none; border:0;
+  resize:none; max-height:140px; padding:9px 0; min-height:44px;
 }
 /* THE COMPOSER, FULL HEIGHT. A capped box is right for a line and wrong for a paragraph: past the
    cap you are writing into a six-line window and cannot see the top of your own sentence. This is
@@ -886,19 +893,28 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
    come with it rather than being a second composer that drifts from the first.
    The draft is untouched by the toggle because drawDock has always carried it across a repaint;
    that is also why leaving the box, reading the last passage and coming back keeps the text. */
-/* `--dock` is a gradient that fades from nothing to 92% of the paper, which is right for a
-   composer floating over prose and wrong for one that IS the screen — issue #3: "the background
-   behind the input should be completely opaque. It is currently not opaque which makes it hard to
-   read anything." Same rule as the themes menu above: a full-screen surface is opaque, in the
-   theme's own colour. */
+/* THE BACKGROUND LIVES WITH #ghost.veil now, above — see the note there. It was `--dock`, a
+   gradient fading to 92% of the paper, and issue #3 killed that: "the background behind the input
+   should be completely opaque. It is currently not opaque which makes it hard to read anything."
+   The opaque sheet that answered it is gone in turn, replaced by the send blur so the two
+   full-screen states feel like one thing. That is a deliberate walk-back of #3's letter, not an
+   accident.
+   A LITTLE TINT, AND ONLY HERE. Seth, 2026-08-28: "make it a litttttle bit more opaque just when
+   its maximized." Send keeps the bare blur; the box you are typing INTO gets something to sit on,
+   because #3's complaint was about reading, and here there are words of your own on top. 30% is
+   the middle stop of the veil's own history — 62, then 31, then none — so it is the darkness that
+   was already looked at and not rejected. Mixed from `--doc-bg`, the theme's own paper, and never
+   a literal: 62% of Obsidian and 62% of Parchment are not the same colour and only one of them
+   was ever chosen by eye. Declared after the shared rule above, which is what overrides its
+   `transparent`; the blur stays shared so the two cannot drift on radius. */
 #dock.big { position:fixed; inset:0; z-index:41; padding-top:calc(14px + env(safe-area-inset-top, 0px));
-  background:var(--doc-bg); }
+  background:color-mix(in srgb, var(--doc-bg) 30%, transparent); }
 #dock.big #dockCol { flex:1; min-height:0; }
 #dock.big #inputRow { flex:1; min-height:0; align-items:stretch; }
 /* No inline height is set in this mode, so the flex box is the height and the text scrolls in it. */
 #dock.big #input { max-height:none; height:auto; }
 #input::placeholder { color:var(--label); opacity:.75; }
-@media (max-width:719px) { #input { font-size:15.5px; padding:16px 0; min-height:56px; }
+@media (max-width:719px) { #input { padding:16px 0; min-height:56px; }
   #inputRow { padding-bottom:12px; } }
 /* ONE RULE, TWO BUTTONS. Seth: "the maximize button can we style it the same as the send button."
    Shared rather than copied — a second declaration of the same shape is how the two drift, and
@@ -1057,12 +1073,31 @@ textarea.field { resize:vertical; min-height:70px; }
 /* The colour lives HERE now, in the box itself, with the room to carry it. Horizontal padding
    arrives with the background — text against the edge of a filled box reads as a mistake — and
    the mirror takes the same, because the two must agree about every property that moves a glyph. */
-#inputWrap { position:relative; flex:1; min-width:0; display:flex;
-  background:var(--field); border-radius:var(--r); padding:0 13px; }
-#dock.big #inputWrap { background:transparent; padding:0; }
+#inputWrap { position:relative; flex:1; min-width:0; display:flex; --field-pad:13px;
+  background:var(--field); border-radius:var(--r); padding:0 var(--field-pad); }
+#dock.big #inputWrap { background:transparent; --field-pad:0px; }
 #inputWrap > #input { position:relative; z-index:1; background:transparent; }
-#inputMirror { font-size:17px; padding:9px 13px; }
-@media (max-width:719px) { #inputMirror { font-size:15.5px; padding:16px 13px; } }
+/* ONE DECLARATION FOR BOTH BOXES — the shape #askWrap already uses, and the shape the comment
+   above claimed for this pair without ever having. They had a rule each and the mirror's lost:
+   `#inputMirror { font-size:17px }` was declared HERE and `font:inherit; font-size:inherit` in the
+   block below it, which wins on order at equal specificity. So the mirror drew at the inherited
+   body size in every mode while the textarea drew at 17px. The caret counts the TEXTAREA's letters
+   and you read the MIRROR's, so every character pushed the two further apart — Seth, 2026-08-28:
+   "as you type it creates more and more space." One line of prose measured 333.3px in the textarea
+   against 274.5px in the mirror before this rule; the same trap as `color:transparent` two blocks
+   down, in the same block, found the same way. Every property that changes a glyph's WIDTH goes
+   here and nowhere else. */
+#inputWrap > #input, #inputWrap > #inputMirror {
+  font:inherit; font-size:17px; line-height:1.55; letter-spacing:normal;
+}
+@media (max-width:719px) { #inputWrap > #input, #inputWrap > #inputMirror { font-size:15.5px; } }
+/* The horizontal inset is the one thing they CANNOT share. The mirror is positioned against the
+   wrap's PADDING box, so it begins outside the padding the textarea begins inside of and has to
+   re-add it by hand. Taken from the wrap's own variable, so the maximized composer — which drops
+   that padding to nothing — moves both boxes with one number instead of leaving the mirror inset
+   13px from a caret that is not. */
+#inputMirror { padding:9px var(--field-pad); }
+@media (max-width:719px) { #inputMirror { padding:16px var(--field-pad); } }
 #inputMirror {
   /* NOT transparent any more. The mirror was a layer behind visible text and is now the layer you
      READ — the textarea's own text is what went transparent. This line said `color:transparent`

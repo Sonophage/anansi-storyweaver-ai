@@ -169,9 +169,21 @@ ok(`  and its stroke is the theme's own accent, not a colour baked into a file (
 // screen. Issue #3: "the background behind the input should be completely opaque. It is currently
 // not opaque which makes it hard to read anything."
 //
+// #dock.big has since gone the other way — see the note on its own assertion below — so this
+// helper is the themes menu's rule now, and the composer's only in that it reads the same number.
+//
 // Asserted as ALPHA, not as a colour, so a theme change cannot break it.
+//
+// THREE SYNTAXES, not one. This read `rgba(...)` only and returned alpha `null` — which is
+// FALSY, so it failed the assertion and looked exactly like a real regression — the moment
+// #dock.big started mixing its tint from the theme's paper: Chrome computes a `color-mix()`
+// background to `color(srgb r g b / a)`, which the old pattern could not see. The alpha is
+// wherever it is: after a slash in the modern forms, fourth in a legacy comma list, and absent
+// means opaque.
 const opaque = (sel) => page.eval(`(() => { const e = document.querySelector('${sel}');
   if (!e) return null; const bg = getComputedStyle(e).backgroundColor;
+  const slash = /\\/\\s*([0-9.]+)(%?)\\s*\\)/.exec(bg);
+  if (slash) return { bg, alpha: parseFloat(slash[1]) / (slash[2] ? 100 : 1) };
   const m = /rgba?\\(([^)]+)\\)/.exec(bg); if (!m) return { bg, alpha: null };
   const parts = m[1].split(',').map(x => parseFloat(x));
   return { bg, alpha: parts.length > 3 ? parts[3] : 1 }; })()`);
@@ -216,9 +228,27 @@ await wait(300);
 
 await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
 await wait(400);
+// AND MAXIMIZED, IT WEARS THE SEND BLUR — plus a little tint of its own. Seth, 2026-08-28: "do
+// the same treatment on that background as the one that we do when we press send so that that
+// experience is cohesive", then "make it a litttttle bit more opaque just when its maximized."
+// This walks back issue #3's letter on purpose — #3 asked for opaque and got it, and the opaque
+// sheet is now a blur plus 30% of the theme's paper.
+//
+// BOUNDED ON BOTH SIDES, and that is the whole point of the assertion. alpha 1 is issue #3's
+// opaque sheet coming back; alpha 0 is the bare send veil with nothing under the words you are
+// typing, which is what he asked to move off. Only the band between them is the thing that was
+// asked for, so a single-sided check would pass on one of the two states he rejected.
+// The blur is asserted separately because a tint alone is not the send treatment. Its RADIUS is
+// not restated here: the two surfaces share one declaration in app.html and cannot drift on it.
 const big = await opaque('#dock.big');
-console.log("  #dock.big: " + JSON.stringify(big));
-ok(`the expanded composer is fully opaque (alpha ${big && big.alpha})`, !!big && big.alpha === 1);
+const bigBlur = await page.eval(`(() => { const e = document.querySelector('#dock.big');
+  if (!e) return null; const s = getComputedStyle(e);
+  return s.backdropFilter || s.webkitBackdropFilter || null; })()`);
+console.log("  #dock.big: " + JSON.stringify(big) + " backdrop-filter: " + bigBlur);
+ok(`the expanded composer is tinted but not a sheet (alpha ${big && big.alpha})`,
+   !!big && big.alpha > 0 && big.alpha < 1);
+ok(`  and wears the same blur as the send veil (${bigBlur})`,
+   !!bigBlur && /blur\(\s*[0-9.]+px\s*\)/.test(bigBlur));
 // And it really is covering the whole screen, which is the other half of the rule.
 const cover = await page.eval(`(() => { const d = document.querySelector('#dock.big');
   if (!d) return null; const r = d.getBoundingClientRect();
@@ -228,6 +258,108 @@ ok(`  and covers the viewport top to bottom, header included (${cover && cover.t
    !!cover && cover.top === 0 && Math.abs(cover.h - cover.vh) <= 1);
 await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
 await wait(300);
+
+// ---- THE MIRROR AND THE TEXTAREA ARE ONE BOX WEARING TWO HATS (2026-08-28).
+//
+// You read the mirror; the caret belongs to the textarea underneath, whose own text is
+// transparent. So the two have to lay out every glyph identically or the gap between what you see
+// and where the cursor sits GROWS with every character — Seth: "as you type it creates more and
+// more space." It had gone wrong twice before this check existed: `font-weight:600` on a mention,
+// then `font-size:inherit` in a later block quietly beating the `font-size:17px` above it, which
+// is what this was written for. Measured 333.3px against 274.5px for one line of prose.
+//
+// TWO NUMBERS, because there are two ways to be wrong and they look the same on screen. Glyph
+// WIDTH catches the cumulative drift; text ORIGIN catches a constant offset, which is what the
+// maximized composer had — the wrap drops its 13px of padding there and the mirror kept re-adding
+// it, so the words sat 13px right of the caret from the first character.
+//
+// Asked of a real canvas at each element's own computed font rather than compared as strings: two
+// different declarations can agree on the number and still disagree on the family, and it is the
+// rendered width that the caret is counting.
+const metrics = () => page.eval(`(() => {
+  const i = document.querySelector('#input'), m = document.querySelector('#inputMirror');
+  if (!i || !m) return null;
+  const cv = document.createElement('canvas').getContext('2d');
+  const draw = e => { const s = getComputedStyle(e);
+    cv.font = s.fontStyle + ' ' + s.fontWeight + ' ' + s.fontSize + '/' + s.lineHeight + ' ' + s.fontFamily;
+    return Math.round(cv.measureText('the quick brown fox jumps over the lazy dog').width * 10) / 10; };
+  const origin = e => { const s = getComputedStyle(e);
+    return Math.round((e.getBoundingClientRect().left + parseFloat(s.paddingLeft)) * 10) / 10; };
+  return { iw: draw(i), mw: draw(m), ix: origin(i), mx: origin(m) }; })()`);
+
+for (const mode of ["docked", "maximized"]) {
+  if (mode === "maximized") {
+    await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
+    await wait(400);
+  }
+  const m = await metrics();
+  console.log(`  ${mode}: ` + JSON.stringify(m));
+  // Sub-pixel only. A whole pixel of disagreement is already a pixel per character.
+  ok(`the ${mode} mirror renders the same glyph width as the textarea (${m && m.iw} vs ${m && m.mw})`,
+     !!m && Math.abs(m.iw - m.mw) < 0.5);
+  ok(`  and starts its text at the same x (${m && m.ix} vs ${m && m.mx})`,
+     !!m && Math.abs(m.ix - m.mx) < 0.5);
+  if (mode === "maximized") {
+    await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
+    await wait(400);
+  }
+}
+
+// ---- THE MIRROR SCROLLS WITH THE BOX (2026-08-28). Seth: "when the input is maximized that
+// needs to be scrollable." It always did scroll — measured, the textarea clamped correctly and
+// reached scrollTop 961 when asked. What never moved was the MIRROR, which is the layer with the
+// words in it, so from the chair the box was frozen at the first screenful with the caret gone off
+// the bottom. `atMirror` copies scrollTop but only runs on `input`, and a wheel, a drag or the
+// browser's own scroll-to-the-caret are not that event.
+//
+// Driven through the box's own scroll rather than by calling the handler, because a listener
+// registered for the wrong event or on the wrong node is exactly the bug being fixed here.
+await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
+await wait(400);
+const scrolled = await page.eval(`(async () => {
+  const ta = document.querySelector('#input'), m = document.querySelector('#inputMirror');
+  if (!ta || !m) return null;
+  ta.value = Array.from({length: 60}, (_, i) => 'line ' + (i + 1) + ' of the paragraph').join('\\n');
+  ta.dispatchEvent(new Event('input', {bubbles: true}));
+  const room = ta.scrollHeight - ta.clientHeight;
+  ta.scrollTop = 99999;
+  await new Promise(r => setTimeout(r, 120));
+  return { room, ta: ta.scrollTop, m: m.scrollTop, mRoom: m.scrollHeight - m.clientHeight };
+})()`);
+console.log("  maximized scroll: " + JSON.stringify(scrolled));
+// The box must have somewhere to go, or the check below passes on two zeroes — the false green
+// this project keeps finding. Asserted first and separately.
+ok(`the maximized box has more text than height (${scrolled && scrolled.room}px of overflow)`,
+   !!scrolled && scrolled.room > 100);
+ok(`  and the mirror follows it down (mirror ${scrolled && scrolled.m} vs box ${scrolled && scrolled.ta})`,
+   !!scrolled && scrolled.ta > 0 && Math.abs(scrolled.m - scrolled.ta) <= 1);
+await page.eval("(() => { const t = document.querySelector('#input'); t.value = ''; t.dispatchEvent(new Event('input', {bubbles:true})); document.querySelector('[data-bigin]')?.click(); return 1; })()");
+await wait(400);
+
+// ---- AND A REPAINT BRINGS THE LINE BACK VISIBLE, not just present. drawDock saves the half
+// written line and puts it back, but the textarea's text is transparent and only the mirror is
+// read — and nothing in that path painted the mirror, so the sentence came back invisible and
+// stayed invisible until the next keystroke. Seth: "i have noticed that yes."
+//
+// The assertion is on the MIRROR's text, not the textarea's value. `ta.value` survived the whole
+// time this bug existed, so a check on the value is one that cannot fail for the thing that broke.
+await page.eval(`(() => { const t = document.querySelector('#input');
+  t.value = 'the half written line'; t.dispatchEvent(new Event('input', {bubbles: true})); return 1; })()`);
+await wait(250);
+await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
+await wait(450);
+const survived = await page.eval(`(() => {
+  const t = document.querySelector('#input'), m = document.querySelector('#inputMirror');
+  return { value: t && t.value, mirror: m && m.textContent.trim() }; })()`);
+console.log("  across a repaint: " + JSON.stringify(survived));
+ok(`the half-written line is still in the box after a repaint (${survived && survived.value})`,
+   !!survived && survived.value === 'the half written line');
+ok(`  and the mirror is drawing it, so it can be seen (${survived && survived.mirror})`,
+   !!survived && survived.mirror === 'the half written line');
+await page.eval(`(() => { const t = document.querySelector('#input'); t.value = '';
+  t.dispatchEvent(new Event('input', {bubbles: true}));
+  document.querySelector('[data-mode="direct"]')?.click(); return 1; })()`);
+await wait(400);
 
 // ---- A DOUBLE TAP IN THE BOX OPENS THE FULL-SCREEN ONE. Same gesture as the passage tray, and
 // the same bargain: ⤢ is what must always work, this is the shortcut for when your hands are

@@ -1034,6 +1034,13 @@ function drawDock() {
   if (draft?.text) {
     ta.value = draft.text;
     fit();
+    // AND PAINTED. The textarea's own text is transparent — the mirror is the layer you read — and
+    // nothing here drew it: `atMirror` runs from the `input` event, from `atClose` and from the @
+    // picker, none of which a repaint fires. So the line came back into the box invisible and
+    // stayed invisible until the next keystroke. Seth, asked whether he had seen it: "i have
+    // noticed that yes." Not `dispatchEvent('input')`, which would also run `atScan` and could
+    // open the @ menu on every repaint; the mirror is the only thing that needs saying.
+    atMirror('input');
     // The caret is restored whether or not the box had focus — clicking a panel moves focus to the
     // button, and coming back to a sentence with the cursor thrown to the end is the same theft in
     // miniature.
@@ -4199,8 +4206,13 @@ document.addEventListener('click', async (e) => {
     S.mode = 'direct'; S.panel = null; S.talk.draft = null;
     syncHash(); paint();
     const input = $('input');
+    // FIRE THE EVENT, do not re-implement what hangs off it. This set the height by hand — a
+    // THIRD copy of the 140 cap the comment above `fit` was written to stop, and one that skipped
+    // its `S.bigInput` check, so a draft handed over while maximized snapped the box to 140px —
+    // and it never painted the mirror, so the handed draft arrived invisible. `fit` and `atMirror`
+    // are both listeners on `input`; one dispatch is both of them, correctly, and deletes the copy.
     if (input) { input.value = draft; input.focus();
-      input.style.height = 'auto'; input.style.height = `${Math.min(140, input.scrollHeight)}px`; }
+      input.dispatchEvent(new Event('input', { bubbles: true })); }
     toast('In the composer, unsent. Read it before you send it.');
     return;
   }
@@ -4931,6 +4943,21 @@ document.addEventListener('keydown', (e) => {
     document.querySelector('[data-ask]')?.click();
   }
 });
+
+// THE MIRROR SCROLLS WITH THE BOX. You read the mirror; the textarea under it is transparent and
+// owns the caret, so a box that scrolls while the mirror sits still shows you the first screenful
+// forever while the cursor walks off the bottom of it. `atMirror` already copies `scrollTop`, but
+// it only runs on `input` — so a drag, a wheel, a trackpad flick or the browser's own scroll to
+// keep the caret in view moved one layer of the pair and not the other. Measured in the maximized
+// composer: the textarea at scrollTop 961, the mirror at 0. Seth: "when the input is maximized
+// that needs to be scrollable" — it always did scroll; nothing you could see moved.
+//
+// CAPTURE, because `scroll` does not bubble, and delegated so the ask box gets it from the same
+// line: two boxes with mirrors, one rule, which is the bargain everywhere else in this pair.
+document.addEventListener('scroll', (e) => {
+  const c = atCfg(e.target?.id); if (!c) return;
+  const m = $(c.mirror); if (m) m.scrollTop = e.target.scrollTop;
+}, true);
 
 document.addEventListener('input', (e) => {
   // The @ menu, and it must not redraw the box either — it writes only #atlist.
