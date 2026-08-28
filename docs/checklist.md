@@ -571,11 +571,26 @@ canon. Every rate in it is a floor.
 
 ---
 
+## Parked on purpose — not lost, not being built
+
+- **An image attached to an issue.** Seth, 2026-08-28: *"being able to append an image to the issue
+  would be great too ... no thats fine we can drop the image on an issue. it was just a thought.
+  keep the idea though. in case i change my mind later."* Raised and dropped in the same sitting.
+  Nothing is built and nothing is half-built.
+
+  The reason it is not a small job: the in-app bug reporter files through the GitHub API, and there
+  is **no public API endpoint for attaching an image to an issue** — the web UI uploads to a private
+  host that is not part of the API. So the image has to live somewhere first, and that choice is the
+  whole design: commit it into the repo and link the raw URL (permanent, and it puts screenshots in
+  the git history forever), or POST it to a gist (out of the repo, another thing that can 404). A
+  phone screenshot of a rendering bug is exactly the report that is hardest to write in words, which
+  is what makes it worth doing if it comes back.
+
 ## Running the tests
 
 ```bash
 node --experimental-strip-types test/all.ts    # eleven suites, no model — the harness prints its own total needed
-test/ui/run.sh                                 # fourteen scenarios, headless, no model — prints its own total
+test/ui/run.sh                                 # seventeen scenarios, headless, no model — prints its own total
 test/ui/run.sh "model ritual"                  # the two that wait on real generations (39 + 24 ok)
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model
