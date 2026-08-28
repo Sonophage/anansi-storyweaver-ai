@@ -288,6 +288,12 @@ await page.click('[data-goblock="threads:"]');
 await wait(700);
 const list = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 ok("  pressing it opens the list of everything written down", /Characters/.test(list) && /Add/.test(list));
+// ORDER, not just presence. Seth: "move the add to the top and the list of whats in the book to the
+// bottom." The list grows without limit and the four Add buttons do not, so asserting only that
+// both are on the panel is an assertion that was already true before the change and stays true if
+// they swap back.
+ok("  with Add above the book, not buried under it",
+   list.indexOf('Add') >= 0 && list.indexOf('Add') < list.indexOf('Characters'));
 ok("  not the tray", !/Write it down/.test(list));
 ok("  and the tray has its own door from in here", await page.visible('[data-newlore]'));
 

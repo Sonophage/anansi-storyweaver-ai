@@ -1429,7 +1429,21 @@ const PANELS = {
     const groups = [['character', 'Characters', 'character'], ['lore', 'Lore', 'lore'],
                     ['item', 'Items', 'item'], ['rule', 'Rules', 'rule']];
     const shown = groups.filter(([k]) => V.entries.some((e) => e.entryType === k));
+    // ADD AT THE TOP, THE BOOK UNDERNEATH. Seth, 2026-08-28: "move the add to the top and the list
+    // of whats in the book to the bottom." The list grows without limit and the four Add buttons do
+    // not, so the doors were the one thing on this panel that got harder to reach the more you
+    // wrote — twenty threads in and every new one costs a scroll to the bottom. Reading the list is
+    // a scroll you meant to make; reaching Add was not.
     return `<div style="display:flex; flex-direction:column; gap:9px">
+      <div class="lbl" style="letter-spacing:.1em; margin-top:0">Add</div>
+      <div style="display:flex; flex-wrap:wrap; gap:7px">
+        ${groups.map(([k, , one]) => `<button class="btn ghost" data-newentry="${k}"
+          style="flex:1 1 44%; white-space:nowrap">New ${one}</button>`).join('')}
+      </div>
+      <!-- The write-it-down tray moved in here when the composer's button became the door to this
+           list. It is the only way to reach "scan the chapter for facts", to have Anansi write one,
+           and to hang an outfit on a character, so it needs a door of its own rather than none. -->
+      <button class="btn ghost" data-newlore="1" style="margin-top:9px">+ Thread, or read the chapter</button>
       ${shown.map(([k, label]) => `
         <div class="lbl" style="letter-spacing:.1em; margin-top:6px">${label}</div>
         ${V.entries.filter((e) => e.entryType === k).map((e) => entryCard(e)
@@ -1441,15 +1455,6 @@ const PANELS = {
               ? `<button data-wear="${e.id}:" class="tag" style="cursor:pointer; color:var(--dim)">nothing</button>` : ''}
           </div>` : '')).join('')}`).join('')}
       ${shown.length ? '' : '<div class="hint" style="margin:0">Nothing written down yet. Canon is what the model is told and never allowed to contradict.</div>'}
-      <div class="lbl" style="letter-spacing:.1em; margin-top:18px">Add</div>
-      <div style="display:flex; flex-wrap:wrap; gap:7px">
-        ${groups.map(([k, , one]) => `<button class="btn ghost" data-newentry="${k}"
-          style="flex:1 1 44%; white-space:nowrap">New ${one}</button>`).join('')}
-      </div>
-      <!-- The write-it-down tray moved in here when the composer's button became the door to this
-           list. It is the only way to reach "scan the chapter for facts", to have Anansi write one,
-           and to hang an outfit on a character, so it needs a door of its own rather than none. -->
-      <button class="btn ghost" data-newlore="1" style="margin-top:9px">+ Thread, or read the chapter</button>
       <!-- This panel is ONE story's threads, because entries are story-scoped in the schema. The
            page that spans every book already existed and had no door from inside a story: you had
            to leave first, and then know that Threads out there means something wider than Threads
