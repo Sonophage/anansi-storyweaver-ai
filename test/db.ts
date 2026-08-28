@@ -1197,4 +1197,83 @@ ok('the exclusivity index and src/slots.ts name the same slots', () => {
   });
 }
 
+// ---- PLAN-08 Phase 2: connections, retirement, and a proposal that can aim -------------------
+
+{
+  const se = db.createStory(o, { title: 'Edges' });
+  const her  = db.upsertEntry(se.id, o, { title: 'Wrenn', body: '[Wrenn]', keys: ['Wrenn'] });
+  const coat = db.upsertEntry(se.id, o, { title: 'the coat', body: '[a coat]',
+    entryType: 'item', keys: ['coat'] });
+
+  ok('a connection is DIRECTED, which is the whole design decision', () => {
+    // Her coat should arrive when she does. She must NOT arrive because somebody said "coat".
+    // Storing the pair without a direction rebuilds COUNCIL-04 #7's crowded scene by the back
+    // door, and the direction cannot be recovered once a book has two hundred edges. So this
+    // asserts the ABSENCE of the reverse, which is the half a presence check cannot see.
+    assert.ok(db.linkEntries(se.id, her, coat), 'parent to child should link');
+    const e = db.edgesOf(se.id);
+    assert.strictEqual(e.length, 1);
+    assert.strictEqual(e[0].parent_id, her);
+    assert.strictEqual(e[0].child_id, coat);
+    assert.strictEqual(e.some((x: any) => x.parent_id === coat), false,
+      'the reverse edge must not exist merely because the pair is connected');
+  });
+
+  ok('  and the same connection cannot be made twice', () => {
+    // Pressing connect twice would make the child arrive twice and count twice against the cap,
+    // which is a bug nobody would think to look for.
+    assert.strictEqual(db.linkEntries(se.id, her, coat), null);
+    assert.strictEqual(db.edgesOf(se.id).length, 1);
+  });
+
+  ok('  but the reverse direction is a different edge and is allowed', () => {
+    // Two people who know each other is a real shape. Refusing it would confuse "directed" with
+    // "one connection per pair", which are not the same rule.
+    assert.ok(db.linkEntries(se.id, coat, her));
+    assert.strictEqual(db.edgesOf(se.id).length, 2);
+    db.unlinkEntries(se.id, db.edgesOf(se.id).find((x: any) => x.parent_id === coat).id);
+  });
+
+  ok('  a card cannot pull itself in', () =>
+    assert.strictEqual(db.linkEntries(se.id, her, her), null));
+
+  ok('  and neither end may be another story\'s card', () => {
+    const far = db.createStory(o, { title: 'Far' });
+    const theirs = db.upsertEntry(far.id, o, { title: 'Nobody', body: '[x]' });
+    assert.strictEqual(db.linkEntries(se.id, her, theirs), null, 'child from another book');
+    assert.strictEqual(db.linkEntries(se.id, theirs, her), null, 'parent from another book');
+  });
+
+  ok('confidence defaults to a full pull and can be turned down', () => {
+    // Stored, not yet spent: Phase 3 reads it in the eviction order, which is the only place an
+    // inherited pull being worth less than a direct hit can mean anything.
+    assert.strictEqual(db.edgesOf(se.id)[0].confidence, 1);
+    const soft = db.linkEntries(se.id, coat, her, { confidence: 0.4, keys: ['wool'] })!;
+    const row = db.edgesOf(se.id).find((x: any) => x.id === soft);
+    assert.strictEqual(row.confidence, 0.4);
+    assert.deepStrictEqual(JSON.parse(row.keys), ['wool'], 'an edge carries its own trigger words');
+  });
+
+  ok('an entry can be retired at a chapter', () => {
+    // A dead character, a burned building, a rule that stopped applying. Without this the ledger's
+    // precision decays as the book grows, which is exactly when it is needed most.
+    db.db.prepare('UPDATE entries SET retired_at_chapter = 12 WHERE id = ?').run(coat);
+    const row = db.db.prepare('SELECT retired_at_chapter FROM entries WHERE id = ?').get(coat) as any;
+    assert.strictEqual(row.retired_at_chapter, 12);
+  });
+
+  ok('a proposal can aim at a slot, and an invented one is refused at the column', () => {
+    db.addProposal(se.id, { title: 'her fear', body: '[afraid of the water]', entryType: 'character',
+      kind: 'new', field: 'interiority', activation: 'triggered', keys: ['water'] });
+    db.addProposal(se.id, { title: 'her hope', body: '[wants out]', entryType: 'character',
+      kind: 'new', field: 'Motivation', keys: ['out'] });
+    const ps = db.proposalsOf(se.id);
+    assert.strictEqual(ps.find((x: any) => x.title === 'her fear').field, 'interiority');
+    assert.strictEqual(ps.find((x: any) => x.title === 'her fear').activation, 'triggered');
+    assert.strictEqual(ps.find((x: any) => x.title === 'her hope').field, null,
+      'a slot name the module does not know must not reach the column — that is how one book ends '
+      + 'up with Motivation and motivations');
+  });
+}
+
 console.log(`\n${n} checks passed`);

@@ -36,8 +36,13 @@ export const EXTRACT_SCHEMA = {
           type: { type: 'string', enum: ['character', 'lore', 'item', 'rule'] },
           body: { type: 'string' },
           keys: { type: 'array', maxItems: 4, items: { type: 'string' } },
+          // PLAN-08 Phase 2. Required, so the constrained decode always returns one rather than
+          // leaving the entry type to decide. `src/routes.ts` overrides it for characters and
+          // `db.upsertEntry` refuses `triggered` with no keys, so a wrong answer here cannot make
+          // an entry that never reaches the model again.
+          activation: { type: 'string', enum: ['always_on', 'triggered'] },
         },
-        required: ['title', 'type', 'body', 'keys'],
+        required: ['title', 'type', 'body', 'keys', 'activation'],
       },
     },
   },
@@ -449,6 +454,11 @@ A keyword is a word that ACTUALLY APPEARS IN THE PROSE when this thing is presen
 makes the entry reach the model later, so a keyword nobody writes never fires. Repeating the
 title back buys nothing on its own: give what else is said instead — an epithet, the place they
 are always in, the object they carry, what other characters call them.
+
+And an activation. "triggered" is the normal answer: the entry reaches the model when one of its
+keywords appears in recent prose, and stays out of the way otherwise. "always_on" means it is sent
+on every single call for the rest of the book, so use it only for something that is true in every
+scene — a law of this world, not a person who walks in and out of them.
 
 Propose nothing rather than pad. Zero proposals is a valid answer.`;
 

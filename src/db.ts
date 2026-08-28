@@ -66,6 +66,15 @@ function migrate() {
              SELECT o.id, o.story_id, o.entry_id, 'outfit', o.name, o.body, '[]', o.active, o.created_at
                FROM outfits o WHERE NOT EXISTS (SELECT 1 FROM addons a WHERE a.id = o.id)`);
   } catch { /* neither table exists yet on a fresh database; the CREATEs above cover it */ }
+  // PLAN-08 Phase 2. A thread can be finished: a dead character, a burned building, a rule that
+  // stopped applying. Without it the ledger's precision decays as the book grows, which is exactly
+  // when it is needed most, and "everything in here is still true" stays an assumption.
+  add('entries', 'retired_at_chapter', 'INTEGER');
+  // A proposal can aim at one room of a card rather than a whole new body, and can carry the
+  // activation the model was asked for. PLAN-06 2e's "honour a model's explicit activation" had
+  // nowhere to land until this column existed.
+  add('proposals', 'field', 'TEXT');
+  add('proposals', 'activation', 'TEXT');
   add('stories', 'active_branch', 'TEXT');
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
@@ -384,6 +393,30 @@ CREATE UNIQUE INDEX IF NOT EXISTS addons_one_active ON addons(entry_id, slot)
   WHERE active = 1 AND slot IN ('appearance','outfit','voice');
 CREATE INDEX IF NOT EXISTS addons_story ON addons(story_id);
 CREATE INDEX IF NOT EXISTS addons_entry ON addons(entry_id, slot);
+
+-- PLAN-08 Phase 2. Connected threads, issue #5: "Something about a character can be connected to
+-- that character thread. Connected threads should have a confidence score if it gets pulled by
+-- it's parents but also triggerable by their own trigger word."
+--
+-- DIRECTED, and that is the whole design decision. Connection is not symmetric: her coat should
+-- arrive when she does, and she must NOT arrive because somebody said "coat". Undirected edges
+-- rebuild COUNCIL-04 #7's crowded scene -- 46 entries firing at once -- through the back door, and
+-- the direction cannot be recovered once a book has two hundred edges. So: PARENT PULLS CHILD.
+--
+-- confidence is what an inherited pull is worth against a direct keyword hit. It is stored and not
+-- yet read; Phase 3 spends it in the eviction order, which is the only place it can mean anything.
+CREATE TABLE IF NOT EXISTS entry_edges (
+  id TEXT PRIMARY KEY,
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  parent_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+  child_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+  confidence REAL NOT NULL DEFAULT 1.0,
+  keys TEXT DEFAULT '[]',
+  created_at INTEGER NOT NULL);
+-- One edge per direction per pair. Without this, pressing connect twice makes the child arrive
+-- twice and count twice against the cap, which is a bug nobody would think to look for.
+CREATE UNIQUE INDEX IF NOT EXISTS entry_edges_pair ON entry_edges(parent_id, child_id);
+CREATE INDEX IF NOT EXISTS entry_edges_story ON entry_edges(story_id);
 
 -- The cover, in the database rather than on disk, because the nightly backup is one file and a
 -- path would leave every cover out of it. A SIDE TABLE and not a column on stories, which is the
@@ -1099,6 +1132,36 @@ export function setAddonActive(storyId: string, addonId: string, on: boolean) {
   return addonId;
 }
 
+// ---- connections (PLAN-08 Phase 2) ----
+
+export const edgesOf = (storyId: string) =>
+  q('SELECT * FROM entry_edges WHERE story_id = ? ORDER BY created_at').all(storyId) as any[];
+
+/** Connect two cards, parent to child. Returns null rather than throwing on every refusal, the
+ *  same shape as `upsertAddon`, because all three refusals are things a surface can ask for by
+ *  accident and none of them is exceptional. */
+export function linkEntries(storyId: string, parentId: string, childId: string, o: any = {}) {
+  // A card pulling itself in is a loop with no purpose, and it would count twice against the cap.
+  if (parentId === childId) return null;
+  // BOTH ends checked against THIS story. One end checked is how an edge ends up pointing at
+  // another writer's card, which is a leak rather than a coherence bug -- the same reasoning as
+  // the composite foreign key on chapter_pins.
+  const owns = (id: string) => q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(id, storyId);
+  if (!owns(parentId) || !owns(childId)) return null;
+  const id = uid('lk-');
+  try {
+    q('INSERT INTO entry_edges (id,story_id,parent_id,child_id,confidence,keys,created_at) VALUES (?,?,?,?,?,?,?)')
+      .run(id, storyId, parentId, childId, Number(o.confidence ?? 1), JSON.stringify(keysOf(o.keys)), now());
+  } catch { return null; }   // unique index: already connected, not an error
+  touch(storyId);
+  return id;
+}
+
+export function unlinkEntries(storyId: string, id: string) {
+  q('DELETE FROM entry_edges WHERE id = ? AND story_id = ?').run(id, storyId);
+  touch(storyId);
+}
+
 export function delAddon(storyId: string, id: string) {
   q('DELETE FROM addons WHERE id = ? AND story_id = ?').run(id, storyId);
   touch(storyId);
@@ -1611,9 +1674,14 @@ export function addProposal(storyId: string, p: any) {
     .update([subject, p.entry_id ?? ''].join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
-        content_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+        field,activation,content_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(uid('pp-'), storyId, p.chapterId ?? null, p.entry_id ?? null, p.title, p.body,
-        p.entryType ?? 'lore', JSON.stringify(p.keys ?? []), p.kind, p.delta ?? null, hash, now());
+        p.entryType ?? 'lore', JSON.stringify(p.keys ?? []), p.kind, p.delta ?? null,
+        // A slot this proposal aims at, or null for the card's own body. Validated here rather
+        // than at each caller, so a model inventing "Motivation" cannot reach the column.
+        ALL_SLOTS.includes(String(p.field ?? '')) ? String(p.field) : null,
+        p.activation === 'triggered' || p.activation === 'always_on' ? p.activation : null,
+        hash, now());
     return true;
   } catch { return false; }   // unique index: already proposed, not an error
 }

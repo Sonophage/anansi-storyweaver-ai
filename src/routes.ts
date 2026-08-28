@@ -1387,7 +1387,15 @@ export const routes: Record<string, Handler> = {
         // Accepting makes it yours, so last_editor is human and the entry is pinned from here.
         db.upsertEntry(p.story_id, c.owner, { id: p.entry_id || undefined, title: p.title,
           body: c.body.body ?? p.body, entryType: p.entry_type,
-          activation: p.entry_type === 'character' ? 'always_on' : 'triggered',
+          // PLAN-08 Phase 2. The proposal can carry an activation now, and this honours it for
+          // everything except a character. A character never lands `triggered` from a MODEL's
+          // answer: `bench/ledger-audit.ts` found 1 in 12 entries would go dark on a flip and 2
+          // more were "safe on the record, dark on the next call", and a character that stops
+          // reaching the model does not degrade, it vanishes. The writer can still switch one by
+          // hand, on a screen where the trigger words are now visible and editable — which is the
+          // order this whole phase exists to make possible. What this DOES buy: a world-rule that
+          // must apply in every scene can finally say so, where before the type decided for it.
+          activation: p.entry_type === 'character' ? 'always_on' : (p.activation ?? 'triggered'),
           keys: JSON.parse(p.keys || '[]'), lastEditor: 'human' });
       }
       db.setProposalStatus(c.body.storyId, id, c.body.accept ? 'accepted' : 'rejected');
