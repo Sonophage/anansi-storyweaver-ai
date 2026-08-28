@@ -3,6 +3,7 @@ import { count, chat, structuredRetry, model, models, checkModel, allowList, mod
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RELEASE, RELEASE_SCHEMA, DEFAULT_VOICE } from './prompts.ts';
+import { ALL_SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
@@ -1201,13 +1202,18 @@ export const routes: Record<string, Handler> = {
   'POST /api/invent': async (c: Ctx) => {
     const v = viewOf(c.body.storyId);
     const kind = String(c.body.kind ?? '');
-    if (!['outfit', 'character', 'lore', 'item', 'rule'].includes(kind))
+    // PLAN-08. Every addon slot invents the same way an outfit already did — it belongs to a card
+    // and comes back as a form, not a proposal. Seth: "the option that we have for the ai to fill
+    // the costume should also apply to the card type as a whole and the new fields we added."
+    const isAddon = ALL_SLOTS.includes(kind);
+    if (!isAddon && !['character', 'lore', 'item', 'rule'].includes(kind))
       return { error: `there is nothing called a "${kind}" to invent` };
     const steer = String(c.body.direction ?? '').trim().slice(0, 600);
 
-    // An outfit is worn BY someone, and the model needs to know who before it can dress them.
-    const who = kind === 'outfit' ? v.entries.find((e: any) => e.id === c.body.entryId) : null;
-    if (kind === 'outfit' && !who) return { error: 'an outfit needs a character to belong to' };
+    // An addon belongs to a card, and the model needs to know whose before it can write one — an
+    // outfit needs a body to dress, a relationship needs both ends, a voice needs someone to speak.
+    const who = isAddon ? v.entries.find((e: any) => e.id === c.body.entryId) : null;
+    if (isAddon && !who) return { error: `a ${kind.replace(/_/g, ' ')} needs a card to belong to` };
 
     let sources: { title: string; url: string; text: string }[] = [];
     if (c.body.search) {
@@ -1226,7 +1232,7 @@ export const routes: Record<string, Handler> = {
       ].filter(Boolean).join('\n\n') || undefined, undefined, INVENT_TOKENS, undefined);
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
-    const about = kind === 'outfit' ? `outfit for ${who!.title}`
+    const about = isAddon ? `${kind.replace(/_/g, ' ')} for ${who!.title}`
       : kind === 'lore' ? 'place or fact' : kind;
     const t0 = Date.now();
     const r = await structuredRetry(INVENT(about, steer, sources.length > 0),
@@ -1237,9 +1243,15 @@ export const routes: Record<string, Handler> = {
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     const cite = sources.length ? ` [${sources[0].url}]` : '';
-    if (kind === 'outfit')
+    if (isAddon)
+      // `outfit` is kept as the key it has always been so the wardrobe form does not have to
+      // change; `addon` carries the same thing plus which slot it is for, which the newer forms
+      // read. One shape with two names is cheaper than two round trips.
       return { outfit: { name: String(r.data.name ?? '').trim(),
                          body: String(r.data.body ?? '').trim() + cite },
+               addon: { slot: kind, name: String(r.data.name ?? '').trim(),
+                        body: String(r.data.body ?? '').trim() + cite,
+                        keys: Array.isArray(r.data.keys) ? r.data.keys : [] },
                seconds: +((Date.now() - t0) / 1000).toFixed(1) };
 
     if (!String(r.data.title ?? '').trim() || !String(r.data.body ?? '').trim())
@@ -1260,6 +1272,22 @@ export const routes: Record<string, Handler> = {
   'DELETE /api/outfit': (c) => { db.delOutfit(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
   'POST /api/wear':     (c) => { db.wearOutfit(c.body.storyId, c.body.entryId, c.body.outfitId ?? null);
                                  return viewOf(c.body.storyId); },
+
+  // PLAN-08. The rooms of a card. `entryId` is optional on purpose: an addon with no card belongs
+  // to the STORY, which is where a string will live. Every refusal in `db.upsertAddon` — an
+  // unknown slot, a card from another book — comes back as null rather than throwing, so the
+  // surface gets a message instead of a 500.
+  'POST /api/addon':    (c) => {
+    const id = db.upsertAddon(c.body.storyId, c.body.entryId ?? null, c.body.addon ?? {});
+    if (!id) return { error: 'that is not a room this kind of card has, or not a card in this book' };
+    return { addonId: id, ...viewOf(c.body.storyId) };
+  },
+  // Two ways a room reaches the model and this is the writer's half: `active` is pinning it on,
+  // its keys are it arriving on its own. Exclusive slots clear their siblings inside the same
+  // transaction — see `setAddonActive`, and the partial unique index behind it.
+  'POST /api/addon/on': (c) => { db.setAddonActive(c.body.storyId, c.body.id, !!c.body.on);
+                                 return viewOf(c.body.storyId); },
+  'DELETE /api/addon':  (c) => { db.delAddon(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
 
   // Canon over time. The state in force is resolved at assembly, so writing chapter 3
   // cannot see what chapter 7 establishes.

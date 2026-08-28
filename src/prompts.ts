@@ -1,5 +1,6 @@
 // Prompt text for the non-prose roles. PROMPTS.md §5 is the source; these are the
 // rev-2 wordings the councils asked for.
+import { ALL_SLOTS } from './slots.ts';
 /** MEASURED (F18): the word count has to read as a CEILING, not a target. "180 words" made the
  *  model pad — a 160-character chapter came back as 1,269 characters of invention — and made it
  *  explain rather than record: "This action confirms his intent to leave permanently." "Under 180
@@ -546,11 +547,17 @@ ${sources
  *
  *  A title and a trigger word keep their caps: those are names, and a name over eighty characters
  *  is a defect rather than a thought that needed more room. */
-export const inventSchema = (kind: string) => kind === 'outfit'
+/** PLAN-08. An ADDON comes back as a name and a body for a form the writer still presses Add on;
+ *  a whole CARD goes to the proposals queue. `outfit` was the only addon when this was written and
+ *  is now one slot among several, so the test is the slot list rather than that one word. The
+ *  `keys` are asked for on the addon shape too: an addon fires on its own words, so a shape that
+ *  could not carry them would make every invented room one the writer has to key by hand. */
+export const inventSchema = (kind: string) => ALL_SLOTS.includes(kind)
   ? { type: 'object', properties: {
         name: { type: 'string', maxLength: 60 },
         body: { type: 'string' },
-      }, required: ['name', 'body'] }
+        keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
+      }, required: ['name', 'body', 'keys'] }
   : { type: 'object', properties: {
         title: { type: 'string', maxLength: 80 },
         body: { type: 'string' },

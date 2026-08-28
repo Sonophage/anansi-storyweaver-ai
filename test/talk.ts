@@ -55,9 +55,14 @@ const srv = createServer((req, res) => {
       : asksToRemember ? { title: 'The Broken Stair',
           body: '[the lower stair: tread gave under her weight, rail came away, unrepaired]',
           keys: ['stair', 'rail'] }
+      // NAME BEFORE KEYS, and the order is load-bearing. An addon's schema is name + body + keys
+      // (PLAN-08: a room fires on its own words, so the shape has to be able to carry them), and
+      // a card's is title + body + keys. `props.keys` alone no longer tells them apart — checked
+      // first, it answered every addon with a card and the wardrobe form filled with nothing.
+      : props.name ? { name: 'Mourning grey', body: '[wearing: grey, unpinned, no scripture showing]',
+                       keys: ['mourning', 'grey'] }
       : props.keys ? { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]',
                                   keys: ['choir', 'rust'] }
-      : props.name ? { name: 'Mourning grey', body: '[wearing: grey, unpinned, no scripture showing]' }
       : { reply: LONG };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ choices: [{ message: { content: cut
@@ -177,6 +182,18 @@ assert.strictEqual(db.outfitsOf(story.id, vel.id).length, 0,
 assert.match(String(calls[0].messages[0].content), /she is in mourning/,
   'the direction is in the prompt, or the button did nothing with what they typed');
 ok('an invented outfit comes back as two fields and nothing is worn');
+
+// PLAN-08. Every slot invents the same way an outfit did, and an addon carries its own trigger
+// words — a room the writer has to key by hand is a room that mostly never fires.
+assert.strictEqual(dressed.addon.slot, 'outfit', 'the answer says which room it is for');
+assert.deepStrictEqual(dressed.addon.keys, ['mourning', 'grey']);
+const spoken: any = await invent({ kind: 'voice', entryId: vel.id, direction: 'she is short with people' });
+assert.ok(!spoken.error, spoken.error);
+assert.strictEqual(spoken.addon.slot, 'voice', 'a voice is invented the same way a coat is');
+const nowhere: any = await invent({ kind: 'voice', direction: 'no card named' });
+assert.match(String(nowhere.error), /needs a card to belong to/,
+  'an addon with no card is refused — the model cannot write a voice for nobody');
+ok('every slot invents the way an outfit does, and an addon comes back with its own keys');
 
 const thread: any = await invent({ kind: 'lore', direction: 'a rival congregation' });
 assert.ok(!thread.error, thread.error);

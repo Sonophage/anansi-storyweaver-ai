@@ -221,6 +221,14 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // have gone unnoticed. Take a name out the moment it is wired.
   const DEFERRED: Record<string, string> = {
     delBranch: 'forking exists; deleting a branch has no screen yet',
+    // PLAN-08 Phase 3, 2026-08-28. The engine reads addons and the routes write them; the editor
+    // that would call these is the next slice and is what Seth asked for in the same sitting —
+    // the card's face, the anchors per slot, and Anansi filling any of them. Deferred with a date
+    // rather than wired to a half-drawn screen. If this entry is still here in a week, the guard
+    // was right and the surface was never built.
+    saveAddon: 'PLAN-08: the addon editor is the next slice (2026-08-28)',
+    addonOn:   'PLAN-08: the addon editor is the next slice (2026-08-28)',
+    delAddon:  'PLAN-08: the addon editor is the next slice (2026-08-28)',
   };
   const orphans = defined.filter((d) => !new RegExp(`\\bapi\\.${d}\\b`).test(app) && !(d in DEFERRED));
   assert.deepStrictEqual(orphans, [],

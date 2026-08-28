@@ -142,6 +142,10 @@ export const api = {
   saveOutfit:   (storyId, entryId, outfit) => j('/api/outfit', 'POST', { storyId, entryId, outfit }),
   delOutfit:    (storyId, id)    => j('/api/outfit', 'DELETE', { storyId, id }),
   wear:         (storyId, entryId, outfitId) => j('/api/wear', 'POST', { storyId, entryId, outfitId }),
+  // PLAN-08. entryId null is a story-level addon, which is where a string will live.
+  saveAddon:    (storyId, entryId, addon) => j('/api/addon', 'POST', { storyId, entryId, addon }),
+  addonOn:      (storyId, id, on) => j('/api/addon/on', 'POST', { storyId, id, on }),
+  delAddon:     (storyId, id)    => j('/api/addon', 'DELETE', { storyId, id }),
   saveState:    (storyId, entryId, state) => j('/api/state', 'POST', { storyId, entryId, state }),
   delState:     (storyId, id)    => j('/api/state', 'DELETE', { storyId, id }),
   setPin:       (storyId, chapterId, entryId, mode) => j('/api/pin', 'POST', { storyId, chapterId, entryId, mode }),
