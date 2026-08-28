@@ -177,10 +177,11 @@ input, textarea { font:inherit; color:inherit; }
    so it is the right darkness on Parchment as well as on Obsidian. */
 #ghost.veil { position:absolute; inset:0; z-index:50; display:flex; align-items:center;
   justify-content:center;
-  /* 31%, halved from 62% on 2026-08-28: at 62 the page behind it was gone rather than obscured,
-     and the blur is doing most of the work anyway. Seth: "lower the opacity by 50 percent since
-     the blur will help mitigate the rest." */
-  background:color-mix(in srgb, var(--doc-bg) 31%, transparent);
+  /* NO TINT AT ALL, 2026-08-28. 62% then 31% then none: Seth wanted to see the blur on its own.
+     A blur alone still says "busy" — the words go and the shapes stay — and it says it without
+     putting a sheet of colour between you and your book. If this reads as too legible on a light
+     theme the tint comes back as a theme token, not as a literal. */
+  background:transparent;
   backdrop-filter:blur(14px) saturate(.85); -webkit-backdrop-filter:blur(14px) saturate(.85);
   animation:veilin var(--t-slow) var(--ease-out) both; }
 #ghost.veil.leaving { animation:veilout var(--t) var(--ease) both; }
@@ -999,14 +1000,24 @@ textarea.field { resize:vertical; min-height:70px; }
 }
 /* Only what is going to be SENT is marked. Nothing else in this app tints text, so the tint is
    unambiguous: it means she is getting the thing and not only the word. */
-/* MUCH STRONGER THAN IT WAS. At 18% gold over near-black the highlight measured correct and was
-   invisible on a real phone — Seth: "the @ highlight is not working. but the menu does show up."
-   It was working; it could not be seen. A tint AND an underline now, so it survives a bright room
-   and a dark theme both, and so it does not depend on one channel. */
+/* THE WORD IS THE ACCENT, not a block of colour behind it. Seth: "let's not make it gold, let's
+   just make the word the accent color of the theme that is currently selected."
+   `--gold` was already the theme's accent — `themeVars` writes it from `S.accent` — so on
+   Cyberpunk it was already teal and on Novelist already red. What it was NOT was the word: it was
+   a tint behind transparent text, which reads as a highlighter pen rather than as a mark.
+   So the mirror stops being invisible: it renders ALL the text, and the textarea's own text goes
+   transparent with only its caret left. That is the one way to colour part of a textarea, and it
+   is why the two must agree about every property that affects wrapping — the mirror is what you
+   are reading now, not a layer behind what you are reading. */
+#askBox, #input { color:transparent; caret-color:var(--gold); }
+#askMirror, #inputMirror { color:var(--body); }
 #askMirror mark, #inputMirror mark {
-  background:rgba(217,178,106,.30); color:transparent; border-radius:3px;
-  box-shadow:inset 0 -2px 0 var(--gold);
+  background:transparent; color:var(--gold); font-weight:600; border-radius:0;
 }
+/* Selected text has to come back, or dragging over your own sentence selects a row of nothing.
+   ::selection can restore a colour for the selected range even when the text under it is
+   transparent, which is the one thing that makes the trick above survive being edited. */
+#askBox::selection, #input::selection { color:var(--ink-bright); background:var(--edge-lit); }
 
 /* The composer's mirror. Same trick as the ask box's and the same rule: every property that
    affects WRAPPING is set on both at once. #input is the one that already had its sizing, so the

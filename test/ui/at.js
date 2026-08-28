@@ -222,14 +222,29 @@ if (cm.open) {
   // working. but the menu does show up." It was working. So the tint is asserted as strong enough
   // to read, and the underline as present, because two channels survive a bright room where one
   // does not.
+  // THE WORD IS THE ACCENT, not a block behind it, and the accent is the THEME's. Asserted
+  // against the live token rather than a literal, so switching theme cannot make this a lie —
+  // and against the surrounding text, because a mark the same colour as everything else is not
+  // a mark at all.
   const ink = await page.eval(`(() => { const m = document.querySelector('#inputMirror mark');
-    if (!m) return null; const s = getComputedStyle(m);
-    const a = /\\/\\s*([\\d.]+)|,\\s*([\\d.]+)\\s*\\)/.exec(s.backgroundColor);
-    return { alpha: Number(a?.[1] ?? a?.[2] ?? 1), shadow: s.boxShadow }; })()`);
+    const mir = document.getElementById('inputMirror');
+    const box = document.getElementById('input');
+    if (!m || !mir || !box) return null;
+    const rgb = (h) => { const x = /^#?([0-9a-f]{6})$/i.exec((h || '').trim());
+      if (!x) return (h || '').trim();
+      const v = parseInt(x[1], 16);
+      return \`rgb(\${(v >> 16) & 255}, \${(v >> 8) & 255}, \${v & 255})\`; };
+    return { mark: getComputedStyle(m).color, plain: getComputedStyle(mir).color,
+             boxText: getComputedStyle(box).color,
+             accent: rgb(getComputedStyle(document.documentElement).getPropertyValue('--gold')) };
+  })()`);
   console.log("  mark: " + JSON.stringify(ink));
-  ok(`  strongly enough to see on a phone (alpha ${ink && ink.alpha})`, !!ink && ink.alpha >= 0.25);
-  ok(`  with an underline as well as a tint, so it does not rely on one channel`,
-     !!ink && ink.shadow && ink.shadow !== 'none');
+  ok(`  the marked word wears the theme's accent (${ink && ink.mark})`, !!ink && ink.mark === ink.accent);
+  ok(`  and it differs from the text around it (${ink && ink.plain})`, !!ink && ink.mark !== ink.plain);
+  // The mirror is what you READ now, so the textarea's own text has to be out of the way. If both
+  // are visible you get every letter twice, half a pixel apart.
+  ok(`  with the textarea's own text transparent, so nothing double-prints (${ink && ink.boxText})`,
+     !!ink && /rgba\(0, 0, 0, 0\)|transparent/.test(ink.boxText));
   // THE TWO BOXES MUST NOT SHARE A STORE. The first version of this checked that #askMirror had
   // no marks — and passed with the stores merged, because the ask box was EMPTY after a reload and
   // an empty box has nothing to mark either way. Decorative. So: open the Anansi panel, put the

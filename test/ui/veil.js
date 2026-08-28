@@ -74,12 +74,10 @@ ok(`  positioned absolute, so no ancestor can re-base it (${g.position})`, g.pos
 ok(`  covering the whole window, header and composer included (${g.h} of ${g.vh})`,
    g.top === 0 && g.left === 0 && Math.abs(g.h - g.vh) <= 1 && Math.abs(g.w - g.vw) <= 1);
 // The trade PLAN-07 names: covering everything is only safe BECAUSE Stop came inside.
-// TRANSLUCENT AND BLURRED, which is the opposite of what this asserted an hour ago. Seth changed
-// it: the page stays behind the veil, out of focus. "The book is busy" rather than "the book is
-// gone". So the two halves are asserted together — a tint that is not opaque, and a blur that is
-// actually declared, because a translucent veil with no blur is just a dimmed page you can still
-// read the words of.
-ok(`  translucent, so the page is still behind it (alpha ${g.alpha})`, g.alpha > 0 && g.alpha < 1);
+//
+// NO TINT NOW — the blur alone. What must never come back is an OPAQUE veil, which is what this
+// asserted for a day and what "the book is gone" looks like.
+ok(`  not opaque — the page is still behind it (alpha ${g.alpha})`, g.alpha < 1);
 ok(`  and blurred, so it cannot be read through (${g.backdrop})`, /blur\(/.test(g.backdrop || ''));
 ok(`  and the web turns while she thinks (${g.turning})`, g.turning);
 ok("Stop is inside the veil", g.stop);

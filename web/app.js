@@ -97,37 +97,6 @@ const applyHwkb = () => {
     if (hwkb) ta.setAttribute('inputmode', 'none'); else ta.removeAttribute('inputmode');
   }
 };
-/** HOLD THE COMPOSER STILL WHILE YOU TYPE. Seth, with the setting on: "when i click the input box
- *  it does not move, when i type it does move, when i press away it goes back to its default."
- *
- *  So the tap is fixed — `inputmode="none"` stops the on-screen keyboard opening — and typing is
- *  not. Something still appears on that device when keys arrive: Android shows a suggestion or
- *  conversion strip for a physical keyboard in some configurations, and `overlays-content` says
- *  do not resize the layout for it, which leaves the browser SCROLLING to keep the caret above it.
- *  That scroll is the movement.
- *
- *  This cannot be reproduced here — headless Chrome has no widget of any kind, and the composer
- *  measured motionless through typing at every scale. So it is a hypothesis with the shape of a
- *  no-op: on each keystroke, if an ancestor has scrolled, put it back. If nothing scrolled it
- *  costs a comparison. It is gated on the setting, so it cannot affect anybody who has not asked
- *  for a still composer.
- *
- *  If it does not fix it, `POST /api/bug` now carries the viewport numbers from the moment you
- *  file, which is what says whether the layout viewport shrank, the visual one did, or the page
- *  simply scrolled. */
-const holdStill = (box) => {
-  if (!hwkb || !box) return;
-  const ancestors = [];
-  for (let e = box.parentElement; e; e = e.parentElement) {
-    if (e.scrollHeight > e.clientHeight || e.scrollWidth > e.clientWidth) ancestors.push([e, e.scrollTop, e.scrollLeft]);
-  }
-  const sy = window.scrollY, sx = window.scrollX;
-  requestAnimationFrame(() => {
-    for (const [e, top, left] of ancestors) { if (e.scrollTop !== top) e.scrollTop = top; if (e.scrollLeft !== left) e.scrollLeft = left; }
-    if (window.scrollY !== sy || window.scrollX !== sx) window.scrollTo(sx, sy);
-  });
-};
-
 const setHwkb = (on) => { hwkb = on; try { localStorage.setItem(HW, on ? '1' : '0'); } catch { /* no storage */ } applyHwkb(); };
 applyHwkb();
 
@@ -4950,9 +4919,12 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('input', (e) => {
   // The @ menu, and it must not redraw the box either — it writes only #atlist.
   if (atCfg(e.target?.id)) { atScan(e.target); atMirror(e.target.id); }
-  // Every keystroke in a text field, not only the composer: the ledger editor and the setup boxes
-  // are typed into on the same screen and move for the same reason.
-  if (e.target?.tagName === 'TEXTAREA' || e.target?.tagName === 'INPUT') holdStill(e.target);
+  // NO SCROLL COMPENSATION HERE ANY MORE. A `holdStill` lived on this line for an hour, on the
+  // theory that typing made the browser scroll the caret into view. Two bug reports filed either
+  // side of the movement carried identical viewport numbers — `layout 638x616, visual 638x616 at
+  // 0,0, scale 1.00, page scrolled 0` before AND after — so nothing scrolled, nothing resized and
+  // nothing zoomed. The premise was wrong, so the code defending against it was too. Removed
+  // rather than left in as insurance against something measured not to happen.
   // Neither branch may redraw its own input. Both write only their results container.
   if (e.target.id === 'setupQ') {
     S.setupQ = e.target.value;
