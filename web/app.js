@@ -3215,7 +3215,11 @@ async function generate(mode = S.mode) {
   const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, chapterId: V.currentChapter.id,
     directive: YOURS ? undefined : (typed || undefined) });
   S.busy = false; working(null);
-  if (a2.error) return toast(a2.error);
+  // PLAN-07 bug 2. `S.busy` went false and nothing redrew, so `#send` kept `data-stop` and its
+  // breathing style until some unrelated repaint — the composer offering to stop a call that had
+  // already finished and failed. `regenerateInto` two functions down has always had the right
+  // idiom on the same line; this one did not.
+  if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
   clearComposer();
   V = await api.story(S.storyId, V.currentChapter.id);
   arrive();
@@ -3274,11 +3278,17 @@ async function regenerateInto(id) {
   // one further up would put it in the wrong place, so that one waits — the take replaces a
   // paragraph you can already see, which is a different kind of wait from a blank page.
   const atEnd = V.passages.filter((p) => !p.isBreak).at(-1)?.id === id;
-  let live = '';
+  // PLAN-07 bug 1. This was `atEnd ? (d) => ghost(live += d) : () => {}` with `let live = ''`
+  // above it, and both halves were dead: `ghost()` takes no parameters, and `live` was
+  // accumulated and never read. What it actually did was hold the veil back until the FIRST
+  // TOKEN arrived — and never raise it at all if the model errored before then, which is
+  // precisely the cold-start blank page the veil exists to cover. Raised on the press now, the
+  // way `generate()` has always done it.
+  if (atEnd) ghost();
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode: S.mode, regenerateOf: id, chapterId: V.currentChapter.id,
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined },
-    atEnd ? (d) => ghost(live += d) : () => {}, STOP.signal);
+    () => {}, STOP.signal);
   STOP = null;
   unghost();
   // Stopping a re-roll leaves the take you already had selected, because nothing was accepted.
@@ -3309,11 +3319,42 @@ async function regenerateInto(id) {
  *
  *  `blk` null shuts whatever is open; the same block twice is a toggle. */
 const syncTray = () => {
+  // The other direction of the rule below: a full-screen surface going UP shuts whatever tray is
+  // open. Enforced here rather than at each toggle because this is already the one place that
+  // knows the tray's state, and because the toggles do not agree about repainting — `d.rail`
+  // calls paint(), which rebuilds #col and drops aria-expanded on its own, while `d.appearance`
+  // and `d.bigin` only redraw their own surface and would have left the tray open behind them.
+  if (fullScreenSurface())
+    for (const b of document.querySelectorAll('.block[aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false');
   root.dataset.tray = document.querySelector('.block[aria-expanded="true"]') ? '1' : '0';
 };
+
+/** Issue #2 — "the menu that pops up pops up under it, making it unusable."
+ *
+ *  On a phone THREE surfaces become `position:fixed; inset:0` and sit ABOVE the tray: `#rail` at
+ *  z-index 40 (app.html:357), `#appearance` at 41 (:431) and `#dock.big` at 41 (:773). The tray's
+ *  sheet is 32 (:578). Measured rather than reasoned: with the composer expanded,
+ *  `elementFromPoint` at the middle of an open tray returns `#input`; with the menu open it
+ *  returns one of the rail's buttons. The tray is there, correctly centred, and nothing on it can
+ *  be pressed.
+ *
+ *  Raising the tray above them was the other option and it is the wrong one: a paragraph's menu
+ *  floating over a full-screen composer, with the composer still live underneath, is two contexts
+ *  at once. A context menu for something you cannot see is not a menu. So the rule is one
+ *  sentence — WHILE A FULL-SCREEN SURFACE IS UP THERE IS NO TRAY — and it holds in both
+ *  directions: the tray will not open under one, and one opening shuts the tray.
+ *
+ *  Kept as a query rather than as state because all three are already state and a fourth copy is
+ *  a fourth thing to keep in step; `#dock.big` in particular is set by a class, not by `S`. */
+const fullScreenSurface = () => (matchMedia('(max-width:719px)').matches
+  && (S.rail || S.appearance || S.bigInput)) || false;
+
 function openTray(blk) {
   const already = blk?.getAttribute('aria-expanded') === 'true';
   for (const b of document.querySelectorAll('.block[aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false');
+  // No guard here on purpose. `syncTray()` below is the enforcement and it covers both
+  // directions — falsified: removing this line changed nothing, because syncTray shuts the tray
+  // on the very next statement. Two guards for one rule is the second one rotting quietly.
   if (blk && !already) blk.setAttribute('aria-expanded', 'true');
   syncTray();
 }
@@ -3712,7 +3753,7 @@ document.addEventListener('click', async (e) => {
   }
   if (d.leave) { await leaveTo(d.leave === '1' ? 'stories' : d.leave); return; }
   if (d.panel !== undefined) { S.panel = d.panel || null; syncHash(); paint(); return; }
-  if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); return; }
+  if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); syncTray(); return; }
   if (d.looktab) { S.lookTab = d.looktab; drawAppearance(); return; }
   if (d.theme) return void changeLook({ theme: d.theme });
   if (d.fontpick) return void changeLook({ font: d.fontpick });
@@ -3808,7 +3849,7 @@ document.addEventListener('click', async (e) => {
   }
   if (d.hwkb) { setHwkb(!hwkb); drawAppearance(); return toast(hwkb
     ? 'The caret comes back to the box on this device.' : 'The caret stays where you put it.'); }
-  if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); $('input')?.focus(); return; }
+  if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
   if (d.mute) {
     V = await api.mute(S.storyId, V.currentChapter.id, d.mute, false); paint();
     return toast('Quiet for this chapter. Lift it in Waiting.');

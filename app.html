@@ -168,9 +168,13 @@ input, textarea { font:inherit; color:inherit; }
   animation:veilin var(--t-slow) var(--ease-out) both; }
 #ghost.veil .narr { text-align:center; }
 #ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
-  letter-spacing:.05em; white-space:nowrap; animation:breathe 1.5s ease-in-out infinite; }
+  letter-spacing:.05em; white-space:nowrap; animation:veilbreathe 1.5s ease-in-out infinite; }
 @keyframes veilin { from { opacity:0; } to { opacity:1; } }
-@keyframes breathe { 0%, 100% { opacity:.7; } 50% { opacity:.28; } }
+/* PLAN-07 bug 3: this was also called `breathe`, and so was #send.stopping's at the bottom of
+   this file. The later declaration wins for BOTH, so the veil's head has never pulsed at the
+   amplitude written for it — .7-to-.28 here against 1-to-.62 there. Renamed rather than merged:
+   they are two different amplitudes for two different things. */
+@keyframes veilbreathe { 0%, 100% { opacity:.7; } 50% { opacity:.28; } }
 @media (prefers-reduced-motion: reduce) {
   #ghost.veil { animation:none; }
   #ghost.veil .head { animation:none; }
