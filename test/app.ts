@@ -98,6 +98,10 @@ const STORY = {
   entries: [{ id: 'e-1', title: 'Envoy Sereth', body: '[speaks for Kesh]', entryType: 'character',
               activation: 'always_on', keys: [], lastEditor: 'human', states: [], notes: '' }],
   pins: [], arcs: [],
+  // What the engine computes in story.ts: the counts the shelf reads, and the stale summaries,
+  // which are the part that can be waved away. The panel gates on this being present at all.
+  waiting: { proposals: 2, strings: 1, flags: 1,
+             stale: [{ id: 'c-1', index: 1, title: 'Ashfall', ref: 'hash-1' }] },
   violations: [{ id: 'v-1', passageId: 'p-2', entryId: 'e-1', quote: 'x', reason: 'gloves', confidence: 0.8 }],
   strings: [{ id: 'st-1', title: 'The letter he has not opened', body: 'Sent by his brother',
               fromChapter: 1, owedBy: 4, status: 'open', summoned: false }],
@@ -294,6 +298,20 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   assert.doesNotMatch(html('col'), /class="plate"/,
     'and the plate steps aside — one picture, one treatment');
 
+  // THE CHROME STAYS ON TOP. The backdrop is a later sibling than the header, so at the same
+  // layer it painted straight over the book's name, the three controls and the context bar.
+  {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    const rule = css.match(/#doc\.behind #bar[^}]*\}/)?.[0] ?? '';
+    assert.ok(rule, 'the chrome needs a rule lifting it over the backdrop');
+    for (const id of ['#ctxbar', '#ctxread', '#appearance'])
+      assert.ok(rule.includes(id), `${id} must be lifted with the header, or it goes under the picture`);
+    assert.match(rule, /z-index:2/,
+      'above the prose as well as the picture — the chrome is the frame, and a frame the picture '
+      + 'can cover is not a frame');
+  }
+
   STORY.story.chapterSticky = false;
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
@@ -301,6 +319,32 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   assert.match(html('col'), /class="plate"/, 'and the plate comes back');
 }
 ok('a book can keep its cover behind the prose instead, at a strength it chooses');
+
+// WAITING IS WHERE YOU ACT. It listed counts and sent you elsewhere, which is four journeys to
+// answer "does anything want me" — the thing the panel exists to end. Every decision is taken in
+// place now, using the SAME renderer as the panel each item came from.
+{
+  // `openStory` paints twice — it awaits the story, then the activity — so a panel chosen between
+  // the two is repainted over by the second. Let it settle before choosing, and again before
+  // reading, or this reads whichever panel that second paint left behind.
+  await new Promise((r) => setTimeout(r, 60));
+  click({ panel: 'waiting' });
+  await new Promise((r) => setTimeout(r, 20));
+  const w = html('sideBody');
+  // Proposals: the card carries the editable box, because POST /api/proposal reads the BOX and not
+  // the model's wording — a copy without it would quietly accept something else.
+  assert.match(w, /data-decide="accept"/, 'a proposal is accepted here');
+  assert.match(w, /data-decide="reject"/, 'or refused here');
+  assert.match(w, /data-pbody=/, 'and what lands is the box, which is why the box has to be here');
+  // Strings and flags, each with the action that belongs to them.
+  assert.match(w, /data-summon=/, 'a promise is summoned here');
+  assert.match(w, /data-dropflag=/, 'a contradiction is dismissed here');
+  assert.match(w, /data-goflag=/, 'or followed to the passage it is about');
+  // And it no longer sends you away to do any of it.
+  assert.ok(!/data-panel="(chapter|strings|context)"/.test(w),
+    'and nothing here is a link to somewhere else to do it');
+}
+ok('everything Waiting lists can be decided in Waiting');
 
 // Leaving takes the book's look off with it, or the shelf wears whichever book you opened last.
 click({ leave: '1' });
@@ -418,10 +462,13 @@ assert.match(html('asRow'), /id="asWhom"/, 'and Speak brings it back');
   const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   assert.ok(!/#modes button\[data-mode="(speak|act)"\][^{]*\{[^}]*background:/.test(css),
     'no mode button may be given a background — the underline is the selection, for all four');
-  // The STRIP still carries it. That is the part that changes with the mode, and removing both
-  // would take the tint away entirely rather than take it off the button.
-  assert.match(css, /#asRow > \.inner \{ background:var\(--speak-tint\)/,
-    'the strip above it keeps its tint');
+  // AND NEITHER DOES THE ROW, since 2026-08-27. The pair was mixed 88% toward the paper: Speak's
+  // was invisible and Act's, off the accent, was not — so one mode had a filled bar and the other
+  // had nothing, which reads as a fault rather than as a distinction. The label already says which
+  // mode you are in; it does not need a colour to say it twice, badly.
+  assert.ok(!/#asRow > \.inner \{ background:/.test(css),
+    'the speaker row carries no background — one of a pair being visible is not a pair');
+  assert.ok(!/-tint\b/.test(css), 'and the tokens went with it rather than being left unused');
 }
 // The label names the mode that summoned it. "speaking as" over Act is the row describing a mode
 // you are not in.

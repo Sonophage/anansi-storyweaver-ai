@@ -103,7 +103,11 @@ html[data-reading="1"] .acts .wr { display:none !important; }
    there, and a second copy inside every passage's tray is a second thing to keep in step. */
 .acts .readonly { display:none; }
 html[data-reading="1"] .acts .readonly { display:flex; }
-.chaplist { display:flex; flex-direction:column; gap:2px; max-height:40vh; overflow-y:auto;
+/* min-height:0 for the same reason the rail's list needs it: this is a flex child of .acts, and a
+   flex child will not shrink below its content by default, so overflow-y:auto never engages and it
+   grows instead. At forty chapters that pushed the tray past its own max-height. */
+.chaplist { display:flex; flex-direction:column; gap:2px; max-height:40vh; min-height:0;
+  overflow-y:auto; flex-shrink:1;
   border-top:1px solid var(--chip); margin-top:4px; padding-top:4px; }
 .chaplist button { justify-content:flex-start; font-size:12.5px; color:var(--mute); padding:7px 10px; }
 .chaplist button[aria-current="true"] { color:var(--gold); }
@@ -164,9 +168,20 @@ input, textarea { font:inherit; color:inherit; }
 /* Before the first token there is nothing to show but the wait — 0.35s warm, 7.8s cold (F24) —
    so the head breathes on its own and the block is where the passage is going to land. */
 #col .block.ghost.loading .head { animation:breathe 1.5s ease-in-out infinite; }
-#col .block.ghost.loading .settled::before { content:'Writing'; letter-spacing:.1em;
-  font-variant-caps:all-small-caps; font-size:11px; color:var(--label); margin-right:10px; }
 @keyframes breathe { 0%, 100% { opacity:.62; } 50% { opacity:.22; } }
+/* THE ROLLER, ALONE AND IN THE MIDDLE. The prose no longer streams in behind it, so this block has
+   one job for the whole generation and there is nothing for it to sit beside. Centred rather than
+   left-aligned because with no text to align to, a run of glyphs against the left margin reads as
+   a broken first line of the passage. The "Writing" label went with the streaming text: the roller
+   already says it, and a caps label is the kind of chrome that stops being read after a week. */
+#col .block.ghost { display:flex; justify-content:center; }
+#col .block.ghost .narr { text-align:center; }
+#col .block.ghost .head { margin-left:0; }
+/* The passage arriving whole. Long enough to register as an arrival, short enough that it is not
+   a thing you wait through on every generation. */
+#col .block.arrived { animation:arrive var(--t-slow, .28s) var(--ease-out) both; }
+@keyframes arrive { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) { #col .block.arrived { animation:none; } }
 @media (prefers-reduced-motion: reduce) {
   #col .block.ghost.loading .head { animation:none; }
 }
@@ -384,7 +399,36 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   display:flex; flex-direction:column; gap:14px; color:var(--ink);
 }
 #appearance[hidden] { display:none; }
-@media (max-width:719px) { #appearance { top:62px; right:14px; } }
+/* A PANEL, THE WAY THE MENU IS. A 274px card pinned under the top-right corner is a desk shape:
+   on a phone it is the far corner from a thumb and it covers the prose it exists to restyle — and
+   a half-height sheet still sits over the composer, which is the window you are writing in.
+   So it is the same shape as the rail's sheet: fixed to all four edges, its own screen, with the
+   list scrolling inside it. `position:fixed`, not absolute, because `zoom` on <body> for the UI
+   scale re-bases an absolutely positioned element and the panel drifted off the screen at XL —
+   which is the size Seth writes at, and the reason the menu was unusable there.
+   THE BREAKPOINT IS 1099, NOT 719, because that is where `overlay()` in app.js says every menu
+   becomes an overlay — it is where #rail and #side stop being columns and become drawers over the
+   doc. This block used to say 719, so between 720 and 1099 every other menu overlaid the screen
+   and this one alone stayed a desk card pinned in a corner. Two numbers for one decision. If the
+   overlay breakpoint moves, move it here too; test/web.ts asserts the two agree. */
+@media (max-width:1099px) {
+  #appearance {
+    position:fixed; inset:0; top:0; right:0; left:0; bottom:0; width:auto; max-height:none;
+    z-index:41; border-radius:0; border:0; overflow-y:auto;
+    padding:20px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+    box-shadow:none;
+    animation:sheet var(--t-slow) var(--ease-out) both;
+  }
+}
+@keyframes sheet { from { transform:translateY(14px); opacity:0 } to { transform:none; opacity:1 } }
+/* THE WAY OUT STAYS ON SCREEN. Full-screen means there is no outside left to tap, so the close
+   button is the only exit — and it sat at the top of a panel that scrolls 332px at XL, so scrolling
+   to the last theme scrolled away the only way back. A trap I made by making the panel full-screen;
+   the half-height sheet before it had an outside. */
+@media (max-width:1099px) {
+  #appearance .sheet-head { position:sticky; top:0; z-index:1; background:rgba(16,15,18,.97);
+    margin:-20px -18px 0; padding:20px 18px 12px; }
+}
 .chip { padding:9px 12px; border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:13px; }
 .chip[aria-pressed="true"] { border-color:rgba(217,178,106,.5); background:rgba(217,178,106,.08); color:var(--ink); }
 
@@ -407,9 +451,21 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   background-position:center; }
 #backdrop > u { position:absolute; inset:0; display:block;
   background:linear-gradient(90deg, transparent 0%, var(--doc-bg) 62%); }
-/* The prose sits above it, and #read must not paint its own ground over the picture. */
-#doc.behind #read { background:transparent; position:relative; z-index:1; }
-#doc.behind #col { position:relative; z-index:1; }
+/* The prose sits above it, and #read must not paint its own ground over the picture.
+   `position:relative` with NO z-index, deliberately. A positioned element with a z-index other
+   than auto creates a STACKING CONTEXT, and the ⋯ tray is `position:fixed; z-index:32` inside
+   #col — trapped in a context at layer 1 it went under the scrim's 31, so the sheet opened behind
+   its own blur. The note above #scrim warns about exactly this, and giving #col a z-index walked
+   into it from the other side. Positioned-with-auto still paints above the absolutely-positioned
+   backdrop, because #read comes after it in the document, and it makes no context to be caught in. */
+#doc.behind #read { background:transparent; position:relative; }
+/* AND SO DOES THE CHROME. The backdrop is a later sibling than #bar, so with everything at the
+   same layer it painted over the header — the book's name, the three controls and the context bar
+   all went under the picture. Seth: "the menu icons and header and book name and context should
+   all sit above the image and gradient." Above the prose too, which is why it is 2 and not 1:
+   the chrome is the frame, and a frame the picture can cover is not a frame. */
+#doc.behind #bar, #doc.behind #ctxbar, #doc.behind #ctxread, #doc.behind #appearance {
+  position:relative; z-index:2; }
 /* On a phone the column IS the window, so there is no side for the picture to be whole down: the
    gradient goes nearly to the top of it and the image reads as a wash rather than a photograph. */
 @media (max-width:719px) {
@@ -528,6 +584,12 @@ html[data-reading="1"] .carry { display:none !important; }
   line-height:1.5; min-width:0;
 }
 .flag[aria-expanded="true"] > span:last-child { -webkit-line-clamp:unset; }
+/* The actions the flag opens. Hidden until it is expanded, so a passage with three flags is not
+   six buttons of chrome over the prose. */
+.flag[aria-expanded="false"] + .flagacts { display:none; }
+.flagacts { display:flex; flex-wrap:wrap; gap:7px; margin:7px 0 0 14px; }
+.flagacts button { padding:6px 11px; border-radius:var(--r); border:1px solid var(--chip);
+  color:var(--mute); font-size:11.5px; text-align:left; }
 .scenebreak { display:flex; align-items:center; gap:14px; }
 .scenebreak i { flex:1; height:1px; background:var(--rule); }
 
@@ -628,10 +690,11 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
   justify-content:space-between; padding:7px 40px;
   border-top-left-radius:var(--r); border-top-right-radius:var(--r);
   font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
-/* Speak wears the gold the app already uses for the writer's own voice; Act wears the cooler one,
-   because an action is not a line. Both are the theme's, so both follow it. */
-html[data-ui-mode="speak"] #asRow > .inner { background:var(--speak-tint); }
-html[data-ui-mode="act"]   #asRow > .inner { background:var(--act-tint); }
+/* NO TINT ON THE ROW. Speak's was mixed 88% toward the paper and was invisible; Act's came off the
+   accent and was not — so one of the two modes had a filled bar and the other had nothing, which
+   reads as a fault rather than as a distinction. Seth: "remove that background so it mimics the
+   speaking version of it." Both gone, and the tokens with them: a colour only one of a pair wears
+   is not a pair. */
 /* THE BUTTON KEEPS NO BACKGROUND. Tinting it to match the strip above was meant to read as one
    raised block; what it actually did was give one of four modes a filled pill the other three do
    not have, which reads as a different KIND of control rather than as the selected one. Seth:
@@ -642,8 +705,17 @@ html[data-ui-mode="act"]   #asRow > .inner { background:var(--act-tint); }
 #asRow select { background:none; border:0; color:var(--gold); font-size:11.5px;
   letter-spacing:.06em; text-transform:none; max-width:min(60vw, 320px); }
 @media (max-width:719px) { #asRow { padding:8px 18px 0; } #asRow > .inner { max-width:none; } }
-#modes { display:flex; align-items:center; gap:22px; overflow-x:auto; scrollbar-width:none; }
+/* IT WRAPS RATHER THAN SCROLLING SIDEWAYS. It was overflow-x:auto with scrollbar-width:none — so
+   when the row did not fit it scrolled with nothing on screen saying so, and a control past the
+   edge was a control you had no reason to believe existed. It fits at 360px in the shipped sizes,
+   but the UI scale goes to 125% and that is enough to push it over.
+   Wrapping puts every control on screen at once, which is what a row of six modes needs. */
+#modes { display:flex; align-items:center; flex-wrap:wrap; column-gap:22px; row-gap:6px;
+  overflow-x:auto; scrollbar-width:none; }
 #modes::-webkit-scrollbar { display:none; }
+/* `margin-left:auto` on + Thread pushes it right on ONE line; on a wrapped second line it would
+   shove it alone to the far edge with a hole beside it. Below the wrap point they simply follow. */
+@media (max-width:560px) { #modes button[data-newlore] { margin-left:0 !important; } }
 #modes button { flex:0 0 auto; font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
 #modes button[aria-pressed="true"] { color:var(--gold-lit); border-bottom-color:var(--gold); }
 /* Continue is an action, not a mode — it sends on the press. Given the same underline as the four
@@ -678,6 +750,17 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
   flex:1; min-width:0; font-size:17px; line-height:1.55; color:var(--body); background:none; border:0;
   resize:none; max-height:140px; padding:0; font-family:inherit;
 }
+/* THE COMPOSER, FULL HEIGHT. A capped box is right for a line and wrong for a paragraph: past the
+   cap you are writing into a six-line window and cannot see the top of your own sentence. This is
+   the same dock, flexed to the screen — so the mode rail, who you are speaking as, and Anansi all
+   come with it rather than being a second composer that drifts from the first.
+   The draft is untouched by the toggle because drawDock has always carried it across a repaint;
+   that is also why leaving the box, reading the last passage and coming back keeps the text. */
+#dock.big { position:fixed; inset:0; z-index:41; padding-top:calc(14px + env(safe-area-inset-top, 0px)); }
+#dock.big #dockCol { flex:1; min-height:0; }
+#dock.big #inputRow { flex:1; min-height:0; align-items:stretch; }
+/* No inline height is set in this mode, so the flex box is the height and the text scrolls in it. */
+#dock.big #input { max-height:none; height:auto; }
 #input::placeholder { color:var(--label); opacity:.75; }
 @media (max-width:719px) { #input { font-size:15.5px; } #inputRow { padding-bottom:12px; } }
 #send { width:34px; height:34px; border-radius:50%; background:var(--gold); color:var(--on-gold); display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto; }

@@ -52,6 +52,33 @@ const overlay = () => matchMedia('(max-width:1099px)').matches;
 // localStorage still exists and now caches ONE thing — MYLOOK — so the first paint has something
 // before /api/stories answers. It must never cache `look`: opening a book with its own green
 // theme would then make green your default the next time you started the app.
+// THE ONE PREFERENCE THAT MUST NOT FOLLOW YOU. Everything in `look` is held on the server so a
+// phone and the desk are one person's settings — that was the fix on 2026-08-27. A hardware
+// keyboard is the opposite: it is a fact about the MACHINE, not the writer. Synced, turning it on
+// at the desk would make a phone refocus the composer after every press and hold the soft keyboard
+// open over the prose. So it lives in localStorage alone and never rides /api/stories.
+const HW = 'anansi.hwkb';
+let hwkb = false;
+try { hwkb = localStorage.getItem(HW) === '1'; } catch { /* no storage */ }
+/** The layout must stop reflowing for a keyboard that is not there.
+ *
+ *  `interactive-widget=resizes-content` is right for a touch device: the soft keyboard shrinks the
+ *  layout viewport so the composer sits on top of it instead of under it. With a hardware keyboard
+ *  it is the whole problem — Android still reports a widget (a suggestion strip, or the soft
+ *  keyboard flickering up and away), the layout resizes for it, and the dock moves each time.
+ *  `overlays-content` says: do not resize for it, let it cover what it covers. With no soft
+ *  keyboard there is nothing to cover, so the dock simply stops moving.
+ *
+ *  Chrome re-reads this meta when it changes, so it can be a runtime setting rather than a reload. */
+const applyHwkb = () => {
+  const m = document.querySelector('meta[name="viewport"]');
+  if (!m) return;
+  m.setAttribute('content', m.getAttribute('content')
+    .replace(/interactive-widget=[a-z-]+/, `interactive-widget=${hwkb ? 'overlays-content' : 'resizes-content'}`));
+};
+const setHwkb = (on) => { hwkb = on; try { localStorage.setItem(HW, on ? '1' : '0'); } catch { /* no storage */ } applyHwkb(); };
+applyHwkb();
+
 const LOOK = 'anansi.look';
 const LOOK_KEYS = ['theme', 'font', 'size', 'scale'];
 const SHIPPED = { theme: 'obsidian', font: 'serif', size: 'm', scale: '100' };
@@ -83,7 +110,7 @@ function applyLook() {
 
 // ---------- state ----------
 const S = {
-  place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null,
+  place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null, bigInput: false, arrived: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   // WHICH menu the rail is showing, which is not the same question as where you are. The menu
   // button asks for the workspace one from inside a story; the story's name asks for the story
@@ -97,6 +124,7 @@ const S = {
   chaptersFor: null,    // the passage whose tray is showing the chapter list
   memoing: null,        // the passage being turned into a thread, while Anansi is thinking
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
+  modelMenu: false,     // the model list, open under the rail's footer
 
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
   lookTab: 'theme',     // which of Theme / Font / Size / UI the Aa menu is showing
@@ -205,7 +233,7 @@ const WTITLES = {
 // is its own native event and not a delegated action at all.
 const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'home', 'owed', 'help',
-  'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx',
+  'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
@@ -219,7 +247,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
-  'dismiss'].map((k) => `[data-${k}]`).join(',');
+  'dismiss', 'goflag', 'dropflag', 'modelmenu'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -277,16 +305,41 @@ function drawRail() {
           transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span></button>
     </div>
     ${back}
-    <div class="scroll" style="padding:0 16px; display:flex; flex-direction:column">${rows.map(item).join('')}${tail}</div>
-    <div style="margin-top:auto; padding:14px 20px; border-top:1px solid var(--line); display:flex;
-      align-items:center; gap:12px; white-space:nowrap; overflow:hidden">
+    <!-- flex:1 with min-height:0 is what makes overflow-y:auto actually engage. A flex child's
+         min-height is auto by default, so it refuses to shrink below its content and GROWS instead
+         of scrolling — the list ran off the bottom of a rail that is overflow:hidden, and on a
+         phone, where the rail is the whole screen, the chapters simply were not reachable. -->
+    <div class="scroll" style="flex:1; min-height:0; padding:0 16px; display:flex; flex-direction:column"
+      >${rows.map(item).join('')}${tail}</div>
+    <!-- The model, and the place to change it. It was a label: the one thing on this rail that
+         named something you can act on and could not be acted on. Preferences still holds the
+         allowlist, the router's state and the stop/restart — this is the switch, where you are
+         already looking when you wonder what is writing. -->
+    <button data-modelmenu="1" aria-expanded="${!!S.modelMenu}"
+      style="margin-top:auto; padding:14px 20px; border-top:1px solid var(--line); display:flex;
+      align-items:center; gap:12px; white-space:nowrap; overflow:hidden; width:100%; text-align:left">
       <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${SRV.slot ? 'var(--good)' : 'var(--warn)'}"></span>
-      <span class="txt" style="display:flex; flex-direction:column; gap:2px">
-        <span style="font-size:13px; color:var(--ink)" title="${esc(SRV.model || '')}"
-          >${esc(modelName(SRV.model).name)}</span>
+      <span class="txt" style="display:flex; flex-direction:column; gap:2px; min-width:0">
+        <span style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
+          title="${esc(SRV.model || '')}">${esc(modelName(SRV.model).name)}</span>
         <span style="font-size:11px; color:var(--dim)">${SRV.slot
           ? `slot ${SRV.slot.perSlot.toLocaleString()}` : 'llama-server asleep'}</span>
-      </span></div>`;
+      </span></button>
+    ${S.modelMenu ? `<div class="scroll" style="max-height:46vh; border-top:1px solid var(--line);
+      padding:8px 12px 12px; display:flex; flex-direction:column; gap:2px">
+      ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
+        : S.models.length === 0 ? emptyModels()
+        : S.models.map((m) => `<button data-pickmodel="${esc(m.id)}"
+            style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r);
+            width:100%; text-align:left; background:${m.id === SRV.model ? 'rgba(217,178,106,.10)' : 'transparent'}">
+            <span style="width:6px; height:6px; border-radius:50%; flex:0 0 auto; background:${
+              m.id === SRV.model ? 'var(--gold)' : m.status === 'unloaded' ? 'var(--edge-lit)' : 'var(--good)'}"></span>
+            <span class="txt" style="font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis;
+              color:${m.id === SRV.model ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
+          </button>`).join('')}
+      <div class="hint" style="margin:6px 0 0">Yours, not the box's — a story that names its own
+        model still wins. Switching releases the one you were on.</div>
+    </div>` : ''}`;
 }
 
 // ---------- header ----------
@@ -389,11 +442,11 @@ function drawBar() {
   // document now, where they scroll with the prose they describe — carrying them here too said
   // the chapter's name twice inside sixty pixels.
   //
-  // The model only when the rail is not showing it. The rail's footer names the model and the
-  // slot, so with the rail open the header repeating it is the same duplication one line down.
-  const railHasIt = S.rail && !overlay();
+  // The CHAPTER under the book, since 2026-08-27. It was the model's name — a fact about the box,
+  // sitting in the one place on screen that is about the writing. The chapter is what you are in;
+  // the model is in the rail's footer, where it can also be changed.
   const [title, sub] = inStory
-    ? [V.story.title, railHasIt ? '' : modelName(V.story.model || SRV.model).name]
+    ? [V.story.title, V.currentChapter.title || `Chapter ${V.currentChapter.index}`]
     : (WTITLES[S.wpage] || WTITLES.stories)();
   $('bar').innerHTML = `
     <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
@@ -529,7 +582,7 @@ function drawAppearance() {
   const ownLook = inStory && V?.look && Object.keys(V.look).length > 0;
 
   el.innerHTML = `
-    <div style="display:flex; align-items:center; gap:10px">
+    <div class="sheet-head" style="display:flex; align-items:center; gap:10px">
       <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--dim)">${
         inStory ? 'This book' : 'Every book'}</span>
       <button data-appearance="0" style="margin-left:auto; color:var(--faint); font-size:12px" aria-label="Close">✕</button>
@@ -549,7 +602,22 @@ function drawAppearance() {
       <div style="display:flex; gap:6px">
         <button class="btn ghost" data-lookmine="1" style="flex:1; font-size:12px">Make this my default</button>
         ${ownLook ? '<button class="btn ghost" data-lookfollow="1" style="flex:1; font-size:12px">Follow my default</button>' : ''}
-      </div></div>` : ''}`;
+      </div></div>` : ''}
+    <div style="display:flex; flex-direction:column; gap:6px; padding-top:11px;
+      border-top:1px solid var(--line)">
+      <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+        color:var(--dim)">This device</span>
+      <button data-hwkb="1" aria-pressed="${hwkb}" style="display:flex; align-items:center; gap:10px;
+        text-align:left; padding:9px 11px; border-radius:var(--r);
+        border:1px solid ${hwkb ? 'var(--gold)' : 'var(--chip)'};
+        background:${hwkb ? 'rgba(217,178,106,.10)' : 'transparent'}">
+        <span style="font-size:12.5px; color:${hwkb ? 'var(--gold-lit)' : 'var(--mute)'}">Hardware keyboard</span>
+        <span style="margin-left:auto; font-size:10.5px; color:var(--faint)">${hwkb ? 'on' : 'off'}</span>
+      </button>
+      <span class="hint" style="margin:0">Keeps the caret in the box, so you can keep typing after
+        a press instead of reaching back for it. This one stays on this device — a phone has no
+        hardware keyboard, and there it would only hold the on-screen one open over the prose.</span>
+    </div>`;
 }
 
 // ---------- the document ----------
@@ -627,12 +695,20 @@ function passageHTML(p, newest, opening) {
     // is a trigger word or always-on, not a rewrite. Saying "contradiction" there blames the
     // writer for the engine's omission.
     const unseen = f.reached === false;
-    return `<button class="flag" data-flagx="${f.id}" aria-expanded="false" title="Click to expand · shift-click to dismiss">
+    // THE WAY OUT IS A BUTTON, NOT A MODIFIER. Dismissing used to be shift-click on this line, and
+    // a phone has no shift key — so on the surface Seth writes on there was no way to clear a flag
+    // at all without opening the Waiting panel. Expanding reveals two real presses instead.
+    // Buttons cannot nest, so the flag stays the expander and the actions are its sibling.
+    return `<button class="flag" data-flagx="${f.id}" aria-expanded="false" title="Show what to do about it">
       <span style="width:5px; height:5px; border-radius:50%; flex:0 0 auto; margin-top:6px;
         background:${unseen ? 'var(--warn)' : 'var(--bad)'}"></span>
       <span${unseen ? ' style="color:var(--warn)"' : ''}>${unseen
         ? `Never sent · ${esc(e?.title ?? 'canon')} contradicts this, and the model was not shown it`
-        : `Contradiction · ${esc(e?.title ?? 'canon')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>`;
+        : `Contradiction · ${esc(e?.title ?? 'canon')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>
+      <div class="flagacts">
+        <button data-dropflag="${f.id}">Dismiss this one</button>
+        ${f.entryId ? `<button data-mute="${f.entryId}">Ignore ${esc(e?.title ?? 'it')} in this chapter</button>` : ''}
+      </div>`;
   }).join('');
   // Only on the last passage, because "carry on from here" and "roll this again" both mean the
   // end of the page. On any earlier passage Regenerate still lives in its ⋯ tray, where it has
@@ -643,7 +719,7 @@ function passageHTML(p, newest, opening) {
     <button data-continue="1" ${S.busy ? 'disabled' : ''}
       title="Carry on with no prompt">Continue &rsaquo;</button></div>` : '';
 
-  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${p.id === S.found ? ' found' : ''}`
+  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${p.id === S.found ? ' found' : ''}${p.id === S.arrived ? ' arrived' : ''}`
     // The drop cap goes on plain model narration only. Not on speech — a two-inch quotation mark
     // is not a drop cap — and not on the writer's own passages, which are set differently: on
     // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
@@ -794,6 +870,7 @@ let DOCK_FOR = null;
 function drawDock() {
   if (!(S.place === 'story' && V)) { $('dock').hidden = true; DOCK_FOR = null; return; }
   $('dock').hidden = false;
+  $('dock').classList.toggle('big', !!S.bigInput);
   // Read the live box BEFORE it is replaced. drawDock sets innerHTML, so every caller — every
   // panel open, every chapter page, every mode switch — threw away whatever was half-written in
   // it. One handler had already grown its own save-and-restore, with a comment calling this "the
@@ -864,6 +941,11 @@ function drawDock() {
     </div>
     <div id="inputRow">
       <textarea id="input" rows="1" placeholder="${esc(placeholder(who))}"></textarea>
+      <button data-bigin="1" aria-pressed="${S.bigInput}" title="${S.bigInput
+        ? 'Back to the page' : 'Write in a full screen, and still read what you wrote'}"
+        aria-label="${S.bigInput ? 'Close the full-screen composer' : 'Open the full-screen composer'}"
+        style="flex:0 0 auto; color:var(--faint); font-size:13px; padding-bottom:2px">${
+          S.bigInput ? '\u2921' : '\u2922'}</button>
       <span class="deskonly" style="font-size:10.5px; color:var(--label); opacity:.55; padding-bottom:3px">&crarr;</span>
       <!-- One button, two jobs, and it is the same button on purpose: the place your eye is
            already on when the model is writing is the place you last pressed. A separate Stop
@@ -874,7 +956,13 @@ function drawDock() {
         : `<button id="send" data-send="1" aria-label="Send">&uarr;</button>`}
     </div>`;
   const ta = $('input');
-  ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(140, ta.scrollHeight)}px`; });
+  // Fit to the text and let CSS clamp it. The cap used to be written twice — `140` here and
+  // `max-height:140px` in the stylesheet — which is two numbers for one decision, and the pair
+  // that drifted apart this morning was a breakpoint. Expanded, the box is flexed to the panel
+  // and an inline height would fight it.
+  const fit = () => { if (S.bigInput) { ta.style.height = ''; return; }
+    ta.style.height = 'auto'; ta.style.height = `${ta.scrollHeight}px`; };
+  ta.addEventListener('input', fit);
   ta.addEventListener('keydown', (e) => {
     // Enter sends. It used to need Cmd/Ctrl, which meant the button was the only way to send —
     // in a box you type one line into, that is the wrong default round.
@@ -884,13 +972,31 @@ function drawDock() {
   // the selection moves the cursor to the end mid-sentence, which is its own small theft.
   if (draft?.text) {
     ta.value = draft.text;
-    ta.style.height = 'auto'; ta.style.height = `${Math.min(140, ta.scrollHeight)}px`;
+    fit();
     // The caret is restored whether or not the box had focus — clicking a panel moves focus to the
     // button, and coming back to a sentence with the cursor thrown to the end is the same theft in
-    // miniature. Focus itself is only given back if it was there, so this never steals it.
+    // miniature.
     ta.setSelectionRange(draft.start ?? ta.value.length, draft.end ?? ta.value.length);
-    if (draft.focused) ta.focus();
   }
+  // FOCUS IS NOT A PROPERTY OF THE TEXT. This lived inside the block above, so an EMPTY box that
+  // had the caret in it lost focus on every repaint — and a repaint follows almost every action.
+  // On a phone that closes the keyboard; `interactive-widget=resizes-content` then grows the
+  // layout viewport back and the whole dock drops, so the next tap reopens the keyboard and it
+  // rises again. Seth: "the place where i type moves everytime i go to input". Measured before the
+  // fix: empty + focused + repaint left document.activeElement on <body>; with text it survived.
+  // preventScroll, on both. focus() scrolls the element into view by default, and on a page whose
+  // reading column is the scroller that yanks the document — which is the "input box moves" Seth
+  // reported a second time AFTER the repaint fix, because that fix made focus() run more often,
+  // not less. The box is already on screen; it is the dock. Nothing needs scrolling to reach it.
+  if (draft?.focused) ta.focus({ preventScroll: true });
+  // HARDWARE KEYBOARD: the caret comes back on its own. Pressing a button moves focus to that
+  // button, and a repaint then throws the button away — leaving focus on <body> and the writer
+  // reaching for the mouse to get back into the box. With a physical keyboard there is no soft
+  // keyboard to force open, so returning the caret costs nothing and saves the reach.
+  // Narrow on purpose: only when NOTHING is focused. Focus sitting in a panel's own field is
+  // someone editing a thread, and stealing it mid-word would be a worse bug than the one this
+  // fixes.
+  else if (hwkb && (document.activeElement === document.body || !document.activeElement)) ta.focus({ preventScroll: true });
   DOCK_FOR = S.storyId;
 }
 
@@ -930,6 +1036,35 @@ function drawSide() {
   growFields($('sideBody'));
 }
 
+/** One proposal, with the two decisions it carries. Lifted out of the Chapter panel on
+ *  2026-08-27 so Waiting can offer the same card rather than a second copy of it — this repo's
+ *  own recurring failure is two renderings of one thing drifting apart, and Accept is the last
+ *  place that should happen: `POST /api/proposal` reads the BOX, not the model's wording, so a
+ *  copy without the textarea would quietly accept something different from what is on screen. */
+function proposalCard(p) {
+  const tone = p.kind === 'new' ? 'var(--good)' : p.kind === 'conflict' ? 'var(--bad)' : 'var(--warn)';
+  return `<div class="card" style="gap:8px">
+          <div style="display:flex; align-items:center; gap:8px">
+            <span style="font-size:14.5px; color:var(--ink-bright)">${esc(p.title)}</span>
+            <span class="up" style="margin-left:auto; font-size:9.5px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
+          <!-- The delta says what CHANGED and the body is what gets written. Showing the delta OR
+               the body meant that for a conflict or an update the text about to enter canon was
+               never on screen at all: you accepted a summary and got a paragraph you had not read.
+               Both now, and the one that lands is editable. POST /api/proposal has honoured an
+               incoming body since it was written; nothing ever sent it. -->
+          ${p.delta && p.delta.trim() !== (p.body ?? '').trim()
+            ? `<div style="font-size:12px; line-height:1.45; color:var(--faint)">${esc(p.delta)}</div>` : ''}
+          <textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} will say"
+            style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
+          ${p.entryType === 'state' ? `<div style="font-size:11px; color:var(--faint)">In force from chapter ${
+            esc(JSON.parse(p.keys || '[]')[0] ?? '?')}</div>` : ''}
+          <div style="display:flex; gap:7px">
+            <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
+              border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Accept</button>
+            <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
+              border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button></div></div>`;
+}
+
 const PANELS = {
   entry: entryEditor,
   /** Everything this book is waiting on, in one place.
@@ -945,13 +1080,72 @@ const PANELS = {
     const w = V?.waiting;
     if (!w) return '<div class="hint">Nothing to show yet.</div>';
     const h = horizon();
+    // EVERY DECISION IS TAKEN HERE. It listed counts and sent you elsewhere to act on them, which
+    // is four journeys to answer "does anything want me" — the thing this panel exists to end.
+    // Each list is the SAME renderer the panel it came from uses, so Accept here and Accept there
+    // are one behaviour rather than two that drift.
+    const props = V.proposals ?? [];
+    const owed = (V.strings ?? []).filter((x) => x.status === 'open');
+    const flags = (V.violations ?? []).filter((f) => f.status !== 'dismissed');
+
+    const section = (title, hint, inner) => `<div class="lbl" style="letter-spacing:.1em; margin-top:18px">${
+      esc(title)}</div><div class="hint" style="margin:0 0 8px">${esc(hint)}</div>${inner}`;
+
     const rows = [];
-    if (w.proposals) rows.push(['chapter', `${w.proposals} thread${w.proposals === 1 ? '' : 's'} proposed`,
-      'Read them, change them, keep the ones that are true. Nothing is canon until you say so.']);
-    if (w.strings) rows.push(['strings', `${w.strings} promise${w.strings === 1 ? '' : 's'} unpaid`,
-      'Set up and not yet resolved. Summon one to put it in front of the model.']);
-    if (w.flags) rows.push(['context', `${w.flags} contradiction${w.flags === 1 ? '' : 's'} flagged`,
-      'The checker found prose against canon. Each one sits beside the passage it is about.']);
+    if (props.length) rows.push(section(
+      `${props.length} thread${props.length === 1 ? '' : 's'} proposed`,
+      'Nothing is canon until you accept it, and the box is what gets written.',
+      `<div style="display:flex; flex-direction:column; gap:9px">${props.map(proposalCard).join('')}</div>`));
+
+    if (owed.length) rows.push(section(
+      `${owed.length} promise${owed.length === 1 ? '' : 's'} unpaid`,
+      'Summoning one puts it in front of the model. Until then it is yours alone.',
+      owed.map((x) => `<div class="card" style="margin-bottom:8px; gap:6px">
+        <div style="display:flex; align-items:center; gap:9px">
+          <span style="font-size:14px; color:var(--ink-bright)">${esc(x.title)}</span>
+          <span class="up" style="margin-left:auto; font-size:9.5px; letter-spacing:.1em; color:var(--faint)">${
+            x.fromChapter ? `set up in ${x.fromChapter}` : ''}${x.owedBy ? ` · owed by ${x.owedBy}` : ''}</span></div>
+        ${x.body ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(x.body)}</div>` : ''}
+        <div style="display:flex; gap:7px">
+          <button data-summon="${x.id}" style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
+            ${x.summoned ? 'background:var(--gold); color:var(--on-gold)' : 'border:1px solid var(--chip); color:var(--mute)'};
+            font-size:11.5px">${x.summoned ? 'In play — put it away' : 'Summon it'}</button>
+          <button data-stringstatus="${x.id}" style="width:96px; text-align:center; padding:8px 0;
+            border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Paid</button>
+        </div></div>`).join('')));
+
+    if (flags.length) rows.push(section(
+      `${flags.length} contradiction${flags.length === 1 ? '' : 's'} flagged`,
+      'The checker read the prose against canon. Dismissing one leaves the prose alone.',
+      flags.map((f) => {
+        const e = V.entries.find((x) => x.id === f.entryId);
+        const unseen = f.reached === false;
+        return `<div class="card" style="margin-bottom:8px; gap:6px;
+          border-color:${unseen ? 'rgba(217,178,106,.34)' : 'rgba(200,80,80,.34)'}">
+          <div class="kind" style="color:${unseen ? 'var(--warn)' : 'var(--bad)'}">${unseen
+            ? `never sent · ${esc(e?.title ?? 'canon')}` : `contradiction · ${esc(e?.title ?? 'canon')}`}</div>
+          ${f.reason ? `<div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(f.reason)}</div>` : ''}
+          <div style="display:flex; gap:7px">
+            <button data-goflag="${f.passageId}" style="flex:1; text-align:center; padding:8px 0;
+              border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Show me the passage</button>
+            <button data-dropflag="${f.id}" style="width:96px; text-align:center; padding:8px 0;
+              border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Dismiss</button>
+          </div>
+          ${f.entryId ? `<button data-mute="${f.entryId}" style="text-align:left; padding:7px 0 0;
+            color:var(--faint); font-size:11px">Ignore ${esc(e?.title ?? 'this')} for the rest of this chapter</button>` : ''}
+          </div>`;
+      }).join('')));
+
+    // THE WAY BACK. A mute you cannot see is deafness. Every entry quieted in this chapter is
+    // listed here with the press that lifts it, so "not for now" never silently becomes "never".
+    const muted = (V.muted ?? []).map((id) => V.entries.find((x) => x.id === id)).filter(Boolean);
+    if (muted.length) rows.push(section(
+      `${muted.length} quieted in this chapter`,
+      'The checker is not reading the prose against these while the chapter moves. Lift one and it is.',
+      muted.map((m) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
+        <span style="font-size:13px; color:var(--mute)">${esc(m.title)}</span>
+        <button data-unmute="${m.id}" style="margin-left:auto; padding:7px 12px; border-radius:var(--r);
+          border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Listen again</button></div>`).join('')));
 
     // The two that are COMPUTED rather than stored, and so can be waved away. The ref carries the
     // state that made each worth saying, so this is "not for this", never "never again".
@@ -975,10 +1169,7 @@ const PANELS = {
           finished. Go and make me something to worry about.</div></div>`;
     }
 
-    return `${rows.map(([panel, title, body]) => `<button class="card" data-panel="${panel}"
-        style="text-align:left; width:100%; margin-bottom:9px; gap:5px">
-        <div class="kind">${esc(title)}</div>
-        <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(body)}</div></button>`).join('')}
+    return `${rows.join('')}
       ${off.map((d) => `<div class="card" style="margin-bottom:9px; gap:5px">
         <div class="kind">${esc(d.title)}</div>
         <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(d.body)}</div>
@@ -1304,29 +1495,7 @@ const PANELS = {
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">What this chapter added</div>
       <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Nothing here is canon until you accept it.</div>
       <div style="display:flex; flex-direction:column; gap:9px">
-      ${ps.map((p) => {
-        const tone = p.kind === 'new' ? 'var(--good)' : p.kind === 'conflict' ? 'var(--bad)' : 'var(--warn)';
-        return `<div class="card" style="gap:8px">
-          <div style="display:flex; align-items:center; gap:8px">
-            <span style="font-size:14.5px; color:var(--ink-bright)">${esc(p.title)}</span>
-            <span class="up" style="margin-left:auto; font-size:9.5px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
-          <!-- The delta says what CHANGED and the body is what gets written. Showing the delta OR
-               the body meant that for a conflict or an update the text about to enter canon was
-               never on screen at all: you accepted a summary and got a paragraph you had not read.
-               Both now, and the one that lands is editable. POST /api/proposal has honoured an
-               incoming body since it was written; nothing ever sent it. -->
-          ${p.delta && p.delta.trim() !== (p.body ?? '').trim()
-            ? `<div style="font-size:12px; line-height:1.45; color:var(--faint)">${esc(p.delta)}</div>` : ''}
-          <textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} will say"
-            style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
-          ${p.entryType === 'state' ? `<div style="font-size:11px; color:var(--faint)">In force from chapter ${
-            esc(JSON.parse(p.keys || '[]')[0] ?? '?')}</div>` : ''}
-          <div style="display:flex; gap:7px">
-            <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
-              border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Accept</button>
-            <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
-              border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button></div></div>`;
-      }).join('') || '<div class="hint" style="margin:0">Nothing proposed. Closing a chapter reads it for new facts and for what it did to the people in it.</div>'}
+      ${ps.map(proposalCard).join('') || '<div class="hint" style="margin:0">Nothing proposed. Closing a chapter reads it for new facts and for what it did to the people in it.</div>'}
       ${(V.proposals ?? []).some((p) => p.entryType === 'string')
         ? `<button class="btn ghost" data-panel="strings" style="margin-top:6px">${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
@@ -2822,10 +2991,12 @@ function decode(el, slot) {
  *  One element for both states. The wait before the first token is 0.35s warm and 7.8s cold (F24),
  *  and a page that shows nothing for either reads as hung — which is what it was reported as.
  *
- *  Two text nodes, and the difference is the whole point: `settled` holds the prose, and once a
- *  character is in it, it never changes again. `head` holds the run of glyphs, and it is animated
- *  on a timer of its own rather than on delta arrival — a delta is a token, so anything driven by
- *  it runs at whatever rate the model is writing, which is uneven by nature.
+ *  One text node now. It used to be two — `settled` for the prose as it streamed and `head` for
+ *  the glyphs at the frontier — and `settled` went when the streaming did; a span that can never
+ *  hold a character is not a state, it is a leftover. `head` is animated on a timer of its own
+ *  rather than on delta arrival, which is why it kept its clock when the deltas stopped reaching
+ *  the page: a delta is a token, so anything driven by one runs at whatever uneven rate the model
+ *  happens to be writing at.
  */
 function ghost(text) {
   const col = $('col'); if (!col) return;
@@ -2837,7 +3008,6 @@ function ghost(text) {
     narr.className = 'narr';
     // textContent on both, never innerHTML: this is untrusted model output arriving a fragment at
     // a time, and a half-written "<" would be a half-written tag.
-    narr.appendChild(document.createElement('span')).className = 'settled';
     narr.appendChild(document.createElement('span')).className = 'head';
     col.appendChild(g);
     if (!still()) {
@@ -2853,10 +3023,17 @@ function ghost(text) {
       requestAnimationFrame(tick);
     }
   }
-  if (text) g.classList.remove('loading');     // the first token ends the wait
-  g.querySelector('.settled').textContent = text ?? '';
-  const read = $('read');
-  if (read && read.scrollHeight - read.scrollTop - read.clientHeight < 400) read.scrollTop = read.scrollHeight;
+  // THE PROSE DOES NOT ARRIVE A TOKEN AT A TIME ANY MORE. Seth, 2026-08-27: "dont let the
+  // streaming text come in before its done writing. then lets it fade in." Half-written prose
+  // reads as the machine thinking out loud — the sentence reorganises itself under your eye, the
+  // page grows and shoves the composer down, and the passage you finally read is one you already
+  // watched being assembled. So the block stays in its loading state for the whole generation and
+  // shows nothing but the roller; the finished passage fades in from drawDoc once accept returns.
+  //
+  // The deltas are still consumed — the stream is what keeps the connection honest and what Stop
+  // interrupts — they simply do not reach the page.
+  void text;
+  // No scroll chase either: nothing is growing, so there is nothing to follow.
 }
 const unghost = () => document.getElementById('ghost')?.remove();
 
@@ -2964,12 +3141,11 @@ async function generate(mode = S.mode) {
   S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
-  let live = '';
-  ghost('');   // the block appears now, loading, rather than when the first token lands
+  ghost();   // the roller, from the press until accept returns
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
     directive: YOURS ? undefined : (typed || undefined), speaker: who },
-    (d) => ghost(live += d), STOP.signal);
+    () => {}, STOP.signal);
   STOP = null;
   unghost();
   // Stopped. The half-written passage goes with the ghost — you stopped it because you did not
@@ -2994,7 +3170,18 @@ async function generate(mode = S.mode) {
   if (a2.error) return toast(a2.error);
   clearComposer();
   V = await api.story(S.storyId, V.currentChapter.id);
+  arrive();
   paint(); refreshManifest(); refreshHistory();
+}
+
+/** Mark the newest passage so it fades in once, and only once. The flag is cleared on a timer
+ *  rather than at the end of the animation because every later repaint would otherwise re-add the
+ *  class and replay it — a paragraph that fades in again every time you open a panel. */
+function arrive() {
+  const last = V?.passages?.filter((p) => !p.isBreak).at(-1);
+  if (!last) return;
+  S.arrived = last.id;
+  setTimeout(() => { if (S.arrived === last.id) S.arrived = null; }, 1200);
 }
 
 /** Re-roll the last passage, keeping the old take as a variant. */
@@ -3204,7 +3391,27 @@ document.addEventListener('click', async (e) => {
   if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
   // The chapter list inside a passage's tray. Toggled per passage rather than globally, so opening
   // it on one passage and then another does not leave two open.
-  if (d.chapters) { S.chaptersFor = S.chaptersFor === d.chapters ? null : d.chapters; drawDoc(); syncTray(); return; }
+  if (d.chapters) {
+    // drawDoc REBUILDS #col, and a rebuilt block has no aria-expanded — so redrawing to show the
+    // list shut the tray the list lives in, and it could never be seen. The note above openTray
+    // says this outright: any repaint shuts the tray. So the tray is re-opened on the same passage
+    // afterwards, by id, because the element it was opened on no longer exists.
+    S.chaptersFor = S.chaptersFor === d.chapters ? null : d.chapters;
+    const on = d.chapters;
+    drawDoc();
+    const blk = document.querySelector(`[data-edit="${on}"]`)?.closest('.block')
+      ?? document.querySelector(`[data-chapters="${on}"]`)?.closest('.block');
+    if (blk) blk.setAttribute('aria-expanded', 'true');
+    syncTray();
+    return;
+  }
+  if (d.modelmenu) {
+    S.modelMenu = !S.modelMenu;
+    // The list is fetched lazily everywhere else too — opening the menu is the first moment
+    // anybody needs it in the rail.
+    if (S.modelMenu && S.models === null) loadModels();
+    paint(); return;
+  }
   if (d.news) { await loadNews(true); return; }
   if (d.dismiss) {
     const r = await api.dismiss(S.storyId, d.dismiss, d.ref ?? '');
@@ -3504,11 +3711,35 @@ document.addEventListener('click', async (e) => {
     const at = v.findIndex((x) => x.selected); const next = v[at + (d.vn ? 1 : -1)];
     if (next) { await api.pickVariant(S.storyId, next.id); V = await api.story(S.storyId);
       paint(); refreshHistory(); } return; }
-  if (d.flagx) {
-    // Expanding is the common intent; dismissing is destructive, so it takes a modifier.
-    if (e.shiftKey) { await api.dismissFlag(S.storyId, d.flagx); V = await api.story(S.storyId); paint(); }
-    else t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
+  if (d.goflag) {
+    // The passage the flag is about, marked when you land on it — the same road a search hit takes.
+    S.found = d.goflag; S.panel = null; syncHash(); paint();
+    setTimeout(() => document.querySelector(`[data-edit="${d.goflag}"]`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
     return;
+  }
+  if (d.dropflag) {
+    const r = await api.dismissFlag(S.storyId, d.dropflag);
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId, V.currentChapter.id); paint();
+    return toast('Dismissed. The prose is untouched.');
+  }
+  if (d.flagx) {
+    // Expanding is all this does now. Dismissing was shift-click here, which no touch screen can
+    // reach; it is a labelled button in the row the expander opens.
+    t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
+    return;
+  }
+  if (d.hwkb) { setHwkb(!hwkb); drawAppearance(); return toast(hwkb
+    ? 'The caret comes back to the box on this device.' : 'The caret stays where you put it.'); }
+  if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); $('input')?.focus(); return; }
+  if (d.mute) {
+    V = await api.mute(S.storyId, V.currentChapter.id, d.mute, false); paint();
+    return toast('Quiet for this chapter. Lift it in Waiting.');
+  }
+  if (d.unmute) {
+    V = await api.mute(S.storyId, V.currentChapter.id, d.unmute, true); paint();
+    return toast('Listening again.');
   }
 
   if (d.entry) { S.entryId = d.entry; S.fieldHistory = null;
@@ -3742,7 +3973,7 @@ document.addEventListener('click', async (e) => {
     if (d.pickmodel === SRV.model) return;
     const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);
     if (r.error) return toast(r.error);
-    SRV.model = r.active; loadModels(); paint();
+    SRV.model = r.active; S.modelMenu = false; loadModels(); paint();
     // What happened to the one you were on. Said out loud because the alternative — a model that
     // silently stays resident, or one that silently goes — is the difference between "why is the
     // card full" and "why did that take 45 seconds", and neither question has an answer on screen.
@@ -4116,6 +4347,7 @@ $('scrim').addEventListener('click', () => {
 });
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && S.bigInput) { S.bigInput = false; drawDock(); $('input')?.focus(); return; }
   if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); } }
 });
 // A picked file is read here and parsed on the SERVER. The client deliberately has no parser

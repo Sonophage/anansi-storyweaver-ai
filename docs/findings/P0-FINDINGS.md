@@ -1413,3 +1413,60 @@ clean, because "a thrifted military jacket" arrives as "the thrifted military ja
 three words. Three is safe only because of the weight rule — three tokens over three characters —
 and the case that proves it was missing from the first version: "hiding behind a" is a three-word run
 shared with canon and is plainly not a quote. Removing the weight rule now turns that case red.
+
+## F37 — the narrator contracts when the voice says to, and the voice never said to (2026-08-27)
+
+Seth: "no ai ive used will use contractions in its writing even though its in the instructions for
+the voice." Measured with `bench/contractions.ts`, two runs, twenty passages, one story.
+
+| surface   | contracted / opportunities | rate |
+|-----------|---------------------------|------|
+| narration | 12 / 63                   | 19%  |
+| dialogue  | 9 / 10                    | ~90% |
+
+**The denominator is opportunities, not words** (F10): every place one of a closed set of expandable
+forms appeared. `'s`, `'d` and `I've` are excluded from *both* halves because their expansions are
+ambiguous — a rate built on "the coat's hem" is not a rate.
+
+**The pooled 19% is the wrong summary, and this is the finding.** Per passage the distribution is
+not a rate at all, it is bimodal: of twenty passages with an opportunity, **seventeen sit at 0% and
+three sit at 60%, 75% and 100%**. The narrator does not contract one time in five. It decides once,
+per passage, and then holds that decision all the way down. A pooled rate hides that completely, and
+a prompt change tuned against 19% would be tuned against a number that describes nothing.
+
+**The hypothesis was wrong, and the control says so.** The guess was that `render.ts` SYSTEM's
+*"Match the established voice. Do not escalate register on your own"* was outranking the story's
+voice field — the model reading prose with no contractions in it and matching the evidence over the
+instruction. A clause was added making the stated voice authoritative on register, and the rate went
+from 23% to 98%. That looked conclusive and was not: **two things had changed at once**, the clause
+and the story's style text, which was edited to demand contractions in narration.
+
+The control arm removes the clause and keeps the demand, on a fresh database so existing prose
+cannot seed the register either way:
+
+| arm | voice demands it | SYSTEM clause | narration |
+|-----|------------------|---------------|-----------|
+| baseline   | no  | no  | 9/39 = 23%  |
+| control    | yes | no  | 48/49 = 98% |
+| treatment  | yes | yes | 50/51 = 98% |
+
+**98.0% against 98.0%. The clause earned nothing and was removed.** The model was never overriding
+the voice field; it was following it exactly. The field simply never mentioned contractions —
+`DEFAULT_VOICE` does not, so no new story asks for them, and a model writing literary narration
+defaults to expanded forms. Say it in the voice and you get it, in one line, on every passage.
+
+The bimodal per-passage pattern disappears with the demand: twelve passages, twelve at ~100%. That
+is consistent with the register being decided once per passage from the instruction rather than
+sampled per sentence, which is what the baseline's 17-at-zero / 3-at-high split already suggested.
+
+Untested, and worth knowing before anyone re-adds the clause: this fixture is a short story. A long
+book whose established prose contradicts a voice field the writer has just CHANGED is the case the
+clause was written for, and no arm here tested it. It is a real question; it is not this finding.
+
+**Detector, validated before the result was believed** (F17): fourteen cases, both directions, in
+`bench/contractions.ts check`. The specific trap it guards is a model writing the typographic
+apostrophe U+2019 against a detector spelling it `'` — that scores fluent prose at zero and sends
+you to rewrite a prompt that was working. The context tokeniser had exactly that bug the same day.
+The first run of the probe also scored six real passages as "empty" from a wrong response key; every
+skipped trial is printed rather than folded into a denominator, which is the only reason that read
+as a bug instead of as "0%, confirmed".

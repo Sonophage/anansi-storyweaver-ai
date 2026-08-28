@@ -42,6 +42,11 @@ Read off the most recent prose generation in `anansi.db` — mode `speak`, 30 pa
 
 **Story-so-far is 85% of the prompt. All canon together is 3.4%. 37,770 tokens went unallocated.**
 
+**CANON-TRIGGERED is 0 because nothing in the database can fire.** Not "nothing fired on this call":
+there is no triggered entry anywhere. All twelve entries in `anansi.db` are `always_on`, and every
+`keys` array is the entry's own title repeated. §2e has the dump and the four causes. That row is
+not a property of this generation, and COUNCIL-04 #7 in §4 is downstream of it.
+
 That table reframes both concerns. Context is not scarce — it is nearly empty, and P6's trigger
 still has not fired, so the budget engine is correctly unbuilt. Whatever goes wrong in a crowded
 scene, **it is not that the model ran out of room.**
@@ -54,7 +59,7 @@ tokens `story.ts:154` intends.
 
 ---
 
-## 2 · Four defects. These are bugs, not judgement calls.
+## 2 · Six defects. These are bugs, not judgement calls.
 
 ### 2a · The token estimator runs 30–48% high on real prose, and its comment says the opposite
 
@@ -101,6 +106,90 @@ not blend them.
 as the system role. So SYSTEM — 1,872 chars, ~445 real tokens of standing instruction — is on the
 wire but invisible to the manifest and to the on-screen Context meter, which under-reports every
 call by a fixed amount. The exact guard counts the whole string, so only the meter is wrong.
+
+### 2e · Nothing in the ledger can fire. `fires()` has never run on real data.
+
+Read off `anansi.db` on 2026-08-27:
+
+```
+$ node --experimental-strip-types -e "
+const {DatabaseSync}=require('node:sqlite');
+const d=new DatabaseSync('anansi.db',{readOnly:true});
+for(const e of d.prepare('SELECT activation,entry_type,title,keys FROM entries').all())
+  console.log(e.activation, e.entry_type, e.title, e.keys);"
+
+always_on character You                 []
+always_on character Halsey              ["Halsey"]
+always_on character The Captain         ["The Captain"]
+always_on character Lune                ["Lune"]
+always_on character Mercenary           ["Mercenary"]
+always_on character Sister Seraphine    ["Sister Seraphine"]
+always_on character The Courier         ["The Courier"]
+always_on character The Attendant       ["The Attendant"]
+always_on character Helvea Belmont      ["Helvea Belmont"]
+always_on character Konrad Curze        ["Konrad Curze"]
+        (12 rows; Mercenary and Sister Seraphine appear twice, across stories)
+```
+
+**Twelve entries. Twelve `always_on`. Zero `triggered`.** And every `keys` array is the title
+repeated — F27's "invented `keys` sometimes repeat the title" is not sometimes, it is all of them.
+
+So `fires()` (`src/context.ts:281`) — unicode tokenization, `fold()`, the proper-noun exemption,
+multi-word order plus `KEY_SLACK`, the stateless sticky walk — is exercised by six checks at
+`test/engine.ts:524-623` and by **nothing in production**. It is the best-tested dead code in the
+app. COUNCIL-04 #7's *all 46 entries fired for an eight-person scene* was never a matcher failure;
+there was no matcher. The 45% cap and the eviction order are load-bearing precisely because
+everything is always-on.
+
+Four causes, all in code:
+
+| # | where | what |
+|---|---|---|
+| i | `src/prompts.ts:285` | `EXTRACT` asks for "up to 4 keywords" and never asks for an activation. `EXTRACT_SCHEMA` has no such field, so the constrained decode cannot return one even if the prompt did. |
+| ii | `src/db.ts:668`, `:164` | `upsertEntry` and the column both default `always_on`, so every proposal lands always-on. |
+| iii | `web/app.js:1657` | the trigger-words input is `disabled` when an entry is always-on — the keys the extractor *did* propose are invisible and uneditable, and there is no reason to flip the chip on an entry whose keys you cannot see. |
+| iv | `web/app.js:3017`, `:3457` | manual creation is always-on too. The one site that creates `triggered` (`:3138`, "Add to threads") lands it with no keys, deliberately, and says so in a toast. |
+
+**The rule already exists in this repo and runs on one path only.** `src/import.ts:123`:
+
+```ts
+activation: keysOf(w.keys ?? w.key).length ? 'triggered' : 'always_on'
+```
+
+with the reasoning at `:121-122` — *"An entry with no keys can never fire, so it becomes always_on
+rather than silently dead weight."* Apply the same rule at the three proposal sites
+(`src/routes.ts:1049` extract, `:854` threads, `:926` invent): honour a model's explicit
+`always_on`, but let an empty key list override a `triggered` answer. Nothing may land
+triggered-and-dark. `EXTRACT` also needs to say what a key is *for* — the words that appear in the
+prose when the thing is in play, not the title of its own entry.
+
+**This is the one item on the list that makes the prompt smaller.** §3's recommendation is that the
+next win is precision and presence rather than another retrieval tier. This is that win, and it adds
+no tier, no column and no call.
+
+### 2f · Three key parsers, and the authoritative one drops keys silently
+
+| where | behaviour |
+|---|---|
+| `src/import.ts:55` `keysOf` | splits a string on comma, trims, drops empties, caps at 8. Module-private. |
+| `web/app.js:3038` | the same logic inline, cap 10 |
+| `src/db.ts:669` | `Array.isArray(e.keys) ? e.keys.filter(Boolean) : []` — **a comma-separated string is discarded, not split** |
+
+The third is the write path every route reaches, so a model or an API client that posts `"coat, iron
+bridge"` loses both keys and the entry looks fine. Rule 7: `keysOf` is the correct one, so move it to
+`src/db.ts` — the lowest layer, and the only direction that does not create a cycle — export it with
+a cap parameter, and have `import.ts` call `keysOf(x, 8)` so its behaviour stays byte-identical.
+SPEC §7.1's 2-32 char bound belongs there too; it is validation at a trust boundary, not a
+simplification to skip.
+
+`grep -rn "keys" test/` confirms **every existing fixture passes keys as a pre-built array**, so the
+comma split is entirely unasserted today. That is the exact shape of the tag-splitting fix
+`.claude/CLAUDE.md:45-51` records as having shipped green because its fixture had no comma in it.
+
+**Why 2e needs a probe before it needs a patch.** Flipping an entry to `triggered` whose keys never
+appear in the prose removes it from the model's context silently. `src/db.ts:836` already names the
+class: *"a triggered entry with no trigger words never reaches the model again and looks fine."*
+Measure first — see Phase 1.
 
 ---
 
@@ -149,6 +238,15 @@ Ashford two passages apart, for a character not in the scene. This would reintro
 the bug `KEY_SLACK = 2` was built to fix. SPEC §7.6's warning is written about vectors and applies
 here verbatim: *"a vector layer hides trigger bugs behind plausible recall."*
 
+One correction to the shape, not to the verdict: the retrieval need not be a LIKE scan. `node:sqlite`
+on Node v26.7.0 ships FTS5 with BM25 ranking (verified 2026-08-27), so B could rank rather than
+merely match. That improves the ordering and does nothing about the objection above, which is that
+no instrument can separate a real hit from `iron bridge`. Note also `src/db.ts:80-85`: a drop loop
+for a previous `passages_fts` that *"nothing ever populated or queried"*. Git does not contain that
+attempt — it predates the first commit, so those three comments are the whole record. Whatever B
+becomes, its index has to be maintained by the database itself and asserted non-empty, or it repeats
+exactly that.
+
 ### Option C — Postgres and pgvector
 
 **Change.** Everything. `node:sqlite` to a Postgres driver — a dependency, which CLAUDE.md forbids
@@ -165,6 +263,17 @@ rather than merely run.
 SPEC gates it at M6 behind *"the keyword path must work on its own first"*, and BUILD-STATE lists
 Postgres/pgvector/RLS as **never scheduled**. This is a platform decision wearing a recall
 decision's clothes.
+
+**Measured 2026-08-27, and it is further off than the option implies.** `POST /v1/embeddings` on the
+router answers **501** — *"This server does not support embeddings. Start it with `--embeddings`"*.
+No preset in `/data/models/presets.ini` carries the flag, and there is no embedding model on the
+machine (`find /data/models -iname "*embed*" -o -iname "*bge*" -o -iname "*gte*" -o -iname
+"*minilm*"` returns nothing). The router reports `max_instances: 3` and `models_autoload: true`, so
+an embedder could sit beside the writer — but that is a download and a `presets.ini` change on
+Ryoku, not a repo decision. One correction to the framing: Postgres is not the only door. `halfvec`
+and an ANN index are what you need at a million rows; at 63 passages the ranker is a `for` loop over
+cosine, and `node:sqlite` exposes `loadExtension` if `sqlite-vec` is ever wanted. C remains a
+platform decision, as stated — it is just not the only way to get vectors.
 
 ### The commonality
 
@@ -198,6 +307,12 @@ which were dead weight, which got lifted verbatim.
 
 Verified on 2026-08-27: **110 prose generations in `anansi.db` have both a stored manifest and a tied
 passage.** A baseline is available today with no generation run at all.
+
+> **Correction, same day, after building the probe.** 110 is right and unusable. `generations.passage_id`
+> carries no foreign key (`src/db.ts:282`), and **59 of those 110 name a passage that no longer exists** —
+> takes deleted after the call. The informative denominator is **51**, and `bench/utilisation.ts` prints
+> all four numbers so the loss stays visible: 323 prose generations, 146 still holding a manifest, 110
+> tied, 51 joinable. This is F10's rule arriving in this document's own arithmetic.
 
 **Recommendation.** Build the utilisation probe, read the baseline off those 110 rows, then decide.
 The expectation — stated here so the probe can falsify it — is that canon at 3.4% of the prompt is
@@ -258,7 +373,7 @@ character memory, and SPEC §15 gap 2's relations graph is deferred.
 
 ## 5 · The work, in order
 
-### Phase 1 — two probes. Detectors need no model.
+### Phase 1 — three probes. Detectors need no model.
 
 **`bench/cast.ts`.** Synthetic fixture: four characters with distinct, lexically checkable canon — a
 stated gender each, an 8-word speech cap on one (after F17's success), a fixed location, one object
@@ -280,11 +395,36 @@ block kind: tokens sent, share of prompt, runs shared with the prose, longest sh
 off the 110 existing rows. This also gives F36's structural half its first number, and **F36 is on no
 open list** (BUILD-STATE §6).
 
-### Phase 2 — the four defects from §2
+**`bench/ledger-audit.ts`.** The detector 2e needs before 2e can be patched. Read-only against a
+copy of the database, no model. Per entry: activation, keys, whether `keys` is just the title, how
+many of the story's own selected passages a key would fire on, the first and last firing ordinal,
+and a verdict — `safe to trigger` / `would go dark` / `no keys` / `is POV`. Reuse `toEntry`
+(`src/story.ts:10`) for the row mapping and the POV comparison at `src/context.ts:393-395` verbatim
+rather than writing a second one; export `fires` rather than reimplementing it.
+
+Ships a `check` subcommand on the model of `bench/voice.ts:17-38` — labelled synthetic cases with
+known answers, including a key that fires, one that does not, a multi-word key out of order, and
+`Aldis`/`Aldi` — exiting nonzero with *"do not believe a result from this"* on any miss. An audit
+that reports twelve entries safe because its firing check never fires is the failure this repo has
+already shipped twice.
+
+### Phase 2 — the six defects from §2
 
 The drift report (2a, per SPEC §7.5), the DIRECTIVE cap (2b), the dialogue strip on extract (2c), and
 SYSTEM in the meter (2d). 2a and 2b get their assertions in `test/engine.ts`; 2c gets its in
 `test/memory.ts`.
+
+2e and 2f land here too, and they are the cheapest of the six: the shared `keysOf` and its
+comma-split assertion in `test/db.ts`, the `activation` field on `EXTRACT_SCHEMA`, the import rule
+applied at the three proposal sites, and the editor's trigger-words input un-disabled. Gated on
+Phase 1's audit being green — patch the supply side first, then work the twelve live entries by
+hand. Do **not** write an apply script for the backfill: twelve entries is twelve taps on a chip
+that already exists (`web/app.js:1651`), and `activation` is not in `revertEntryField`'s allowlist
+(`src/db.ts:1001` permits `title`, `body`, `keys`, `notes`), so a scripted flip is the one that
+cannot be undone from the UI.
+
+Then measure what it did. `manifest.byKind` before and after on one story, canon token share both
+ways, with the denominator. If it did not move, say so.
 
 ### Phase 3 — held until Phase 1's numbers are read
 
@@ -300,6 +440,64 @@ belongs here too, as a workflow decision rather than a bug fix.
 
 ---
 
+## 6 · The open question this plan does not answer
+
+**Internal coherence needs a judge, and Phase 1's probe cannot reach it.**
+
+**The measurement.** F36, from one real passage: *"She reaches into her pocket, pulls out a
+weather-beaten Martin guitar, and taps one against the filter."* Two causes were found and both
+fixed — a SYSTEM line (*"Canon is what is TRUE, never how to say it"*) and the fact-list body
+rewrite, which took the same passage from 3 shared runs to 0. What is **not** fixed is the class, and
+F36 says so in its own words:
+
+> The checker is structurally blind to this. It compares a passage against canon, and canon SAYS she
+> carries a weather-beaten Martin — so a passage saying she carries one agrees with canon perfectly.
+> The incoherence is internal: she set the case down two paragraphs earlier, and pockets do not hold
+> guitars. **Nothing in the pipeline looks for internal coherence**, and no amount of tuning the
+> contradiction prompt would find this.
+
+F17 drew the line this runs into: *canon contradiction is lexically checkable — the wrong word is
+literally present. Instruction compliance is not.* Internal coherence is on the far side of that
+line, and `agentic-t-tcap27-h` is already loaded in the router for exactly this kind of call.
+
+Where it is tracked, precisely: `checklist.md:294` carries it under *measured, known, not fixed*, and
+it has **no `ponytail:` marker in the code** — which is what "no marker anywhere" there means.
+BUILD-STATE §6's heading *"F36 is on no open list"* is itself stale, and is a ninth instance of the
+drift that document's own §6 catalogues.
+
+**A** — **Build nothing.** Accept that the class is unchecked and rely on the writer reading their own
+prose. Defensible: it is one passage, and the two mechanical causes are fixed.
+
+**B** — **Stop where n-grams stop.** Phase 1's `bench/utilisation.ts` gives the verbatim-lifting
+number cheaply and honestly, off the 110 stored manifests. Ship that, and do not pretend it covers
+coherence. This is what Phase 1 does today.
+
+**C** — **A judge pass, bench-only first.** `bench/coherence.ts`: the accepted passage plus the last
+two or three passages to a judge model, asked only *"does this passage contradict the prose
+immediately before it — an object, a position, who is present, what someone is holding?"* Fixture
+carries planted incoherences so the judge can be validated in both directions before any number from
+it is believed.
+
+**D** — **A judge at generation time**, in the `mend` loop beside the contradiction check.
+
+**I would pick C, and explicitly not D yet.** Two reasons, both measured. F30 timed the existing
+repair at **median 1,456 ms on every generation** — roughly a third of a warm generation — and it
+fired **0 of 6**, which bounds its rate under about 40% and nothing tighter. A second judge call on
+every generation doubles that standing cost for a class whose rate is currently one known instance.
+And a judge needs its own fixture before it is trusted at all: F26 and F35 each recorded *"the
+detector was wrong before the model was"*, and F17's knife probe was **void on its own terms** —
+0 of 20, because the canon fact was a history rather than a prohibition.
+
+So: measure the rate bench-side, and let the rate decide whether it earns a place at generation time.
+If C comes back at F36's apparent frequency, D is not worth 1.5 seconds a call.
+
+**What is still unknown even under C.** Whether internal incoherence gets *worse* with four
+characters on the page. That is the intersection of this section and §4, and neither probe as scoped
+measures it — `bench/cast.ts` plants contradictions against canon, not against the preceding prose.
+Worth folding in once both exist and the baselines are known.
+
+---
+
 ## Critical files
 
 - `src/context.ts` — `buildContext`, `fires`, `resolveBody`, the anchors, `evict`
@@ -308,7 +506,9 @@ belongs here too, as a workflow decision rather than a bug fix.
 - `src/render.ts` — `SYSTEM`, and the only place block order becomes text
 - `src/routes.ts:573` chapter end · `:1040` extract · `:122-192` check and mend
 - `bench/quote-detect.ts` — `quoted()`, reused rather than reimplemented
-- New: `bench/cast.ts`, `bench/utilisation.ts`
+- `src/prompts.ts:285` `EXTRACT` · `src/import.ts:55` `keysOf`, `:123` the activation rule
+- `web/app.js:1657` the disabled trigger-words input · `:1651` the activation chip
+- New: `bench/cast.ts`, `bench/utilisation.ts`, `bench/ledger-audit.ts`
 
 ## Verification
 
@@ -316,6 +516,8 @@ belongs here too, as a workflow decision rather than a bug fix.
 node --experimental-strip-types test/all.ts            # 201 checks, eleven suites, no model
 node --experimental-strip-types bench/cast.ts check     # detectors, both directions, no model
 node --experimental-strip-types bench/utilisation.ts    # baseline off 110 stored manifests
+node --experimental-strip-types bench/ledger-audit.ts check   # firing detector, both directions
+node --experimental-strip-types bench/ledger-audit.ts         # verdict per entry, read-only
 ```
 
 Run `test/all.ts` before and after; it needs no llama-server, so there is no excuse for skipping it.

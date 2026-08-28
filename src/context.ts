@@ -228,7 +228,7 @@ export const narrationOnly = (text: string) =>
  *  is why SPEC §7.4 exempts proper nouns from it at all. This handles the regular suffixes
  *  and nothing else. Irregular forms ("went" for "go") need their own key, and the UI says so.
  */
-function fold(w: string): string {
+export function fold(w: string): string {
   // A fixed sequence, not a loop. English stacks plural-onto-gerund ("bindings") but does
   // not stack further, and a general loop over-strips: "clos" looks like a plural, so
   // "closed" folded to "clo" while "close" folded to "clos" and they never met.
@@ -278,11 +278,24 @@ const KEY_SLACK = 2;
  *
  *  Single-word keys are untouched: there is no order and no distance in one word.
  */
-function fires(entry: Entry, window: string): string[] {
-  const tokens = window.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
+export function fires(entry: Entry, window: string): string[] {
+  // The apostrophe is INSIDE the token class so `aldi's` survives as one word — but that also
+  // keeps the ones at the EDGES, and a straight single quote is how a great deal of fiction marks
+  // dialogue. So `'Aldi'` tokenised to `'aldi'` and matched nothing at either end, and `Aldis'` —
+  // the possessive of a name already ending in s — missed its own entry. Curly quotes were never
+  // affected, because they are not in the class at all, which is why this hid: the same line reads
+  // correctly or not depending on which quote mark the writer's keyboard produced.
+  // Trimmed at the edges only; an interior apostrophe is part of the word.
+  const tokens = (window.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [])
+    .map((t) => t.replace(/^'+|'+$/g, '')).filter(Boolean);
   const raw = new Set(tokens);
   const folded = tokens.map(fold);
   const proper = entry.properNouns ?? entry.entryType === 'character';
+  // ponytail: on the proper-noun path a bare `key + 's'` makes `Aldi` fire on `Aldis`, which may be
+  // a different name entirely. Deliberate, and Seth's call on 2026-08-27: a lore entry that fires
+  // when it need not costs context; one that stays silent costs the fact. He wants the matches.
+  // Ceiling: a story with two names one -s apart shares their entries. Upgrade path is a per-entry
+  // opt-out, not a global tightening — do not "fix" this by dropping the bare plural.
   // Every position a part of the key sits at, so the span can be measured rather than guessed.
   const at = (p: string) => {
     const out: number[] = [];

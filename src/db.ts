@@ -339,9 +339,17 @@ CREATE TABLE IF NOT EXISTS release_notes (
 -- last chapter of the range. So dismissing is not "never tell me again" — it is "not for this".
 -- Edit that chapter and the summary is stale against a new hash; write past the horizon and the
 -- range ends somewhere new; both come back, which is the difference between quiet and deaf.
+--
+-- A mute is the third, and it is here rather than on violations.status for the same reason: the
+-- checker runs on EVERY new passage, so one entry that has drifted out of step with the prose is
+-- raised again on the next passage, and the next. Dismissing rows one at a time never ends —
+-- there is always another row coming. A mute is keyed on the CHAPTER, ref chapterId:entryId,
+-- and check() drops those facts before it asks, so no tokens are spent and no row is written.
+-- Chapter-scoped on purpose: canon and prose fall out of step while a chapter is moving and agree
+-- again once it settles, so the mute ends where the drift does. Lift it and the flags come back.
 CREATE TABLE IF NOT EXISTS dismissals (
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-  kind TEXT NOT NULL,               -- stale | horizon
+  kind TEXT NOT NULL,               -- stale | horizon | mute
   ref TEXT NOT NULL,
   at INTEGER NOT NULL,
   PRIMARY KEY (story_id, kind, ref));
@@ -466,6 +474,18 @@ export const dismiss = (storyId: string, kind: string, ref: string) =>
 export const dismissed = (storyId: string): Set<string> =>
   new Set((q('SELECT kind, ref FROM dismissals WHERE story_id = ?').all(storyId) as any[])
     .map((r) => `${r.kind}:${r.ref}`));
+
+/** Entry ids muted for one chapter. check() drops these facts before it asks the model, so a mute
+ *  costs nothing and writes nothing — unlike a dismissal, which is a row that already exists. */
+export const mutedIn = (storyId: string, chapterId: string): Set<string> =>
+  new Set((q("SELECT ref FROM dismissals WHERE story_id = ? AND kind = 'mute'").all(storyId) as any[])
+    .map((r) => String(r.ref).split(':'))
+    .filter((parts) => parts[0] === chapterId)
+    .map((parts) => parts.slice(1).join(':')));
+
+/** The way back. A mute nobody can lift is deafness, not quiet. */
+export const unmute = (storyId: string, kind: string, ref: string) =>
+  q('DELETE FROM dismissals WHERE story_id = ? AND kind = ? AND ref = ?').run(storyId, kind, String(ref));
 
 export const newestNoted = (): string | null =>
   (q('SELECT head FROM release_notes ORDER BY built_at DESC LIMIT 1').get() as any)?.head ?? null;

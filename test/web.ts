@@ -170,6 +170,27 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   ok('the model allowlist is set on the box, not over the wire');
 }
 
+// A BACKTICK INSIDE AN HTML COMMENT CLOSES THE TEMPLATE IT SITS IN.
+//
+// Three times on 2026-08-27 a comment written to explain a bit of markup was written INSIDE the
+// template literal that produces it, with a name in backticks — and a backtick ends the template.
+// `node --check` passes, because what is left still parses as valid JavaScript; the page simply
+// stops rendering. The last one emptied the rail and the header completely and the node suites
+// stayed green, because the stub DOM never runs the real drawRail template.
+//
+// src/db.ts has "the schema literal contains no backtick" for exactly this reason, on the SQL. It
+// is the same trap and this is the same guard, on the markup.
+{
+  const js = read('web/app.js');
+  const bad = [...js.matchAll(/<!--[\s\S]*?-->/g)]
+    .filter((m) => m[0].includes('`'))
+    .map((m) => m[0].replace(/\s+/g, ' ').slice(0, 60));
+  assert.deepStrictEqual(bad, [],
+    'an HTML comment carries a backtick, which closes the template literal it is written inside. '
+    + 'Use plain words for the name — node --check will not catch this and neither will the stub.');
+  ok(`no HTML comment in app.js carries a backtick (${(js.match(/<!--/g) ?? []).length} comments)`);
+}
+
 // Every api method must have a caller, or be listed here with a reason. Deleting desk.js took
 // the only UI for five features BUILD-STATE calls "Done" — progressions, pins, entry-field
 // revert, export and arcs — and nothing noticed, because the engine and the routes were all
@@ -240,5 +261,24 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
 assert.match(read('web/app.js'), /t === root \|\| t === document\.body/,
   'the delegation must refuse <html> and <body> as action targets');
 ok('the delegation refuses html and body outright');
+
+// The theme panel is a menu, and every menu overlays the screen below `overlay()`'s breakpoint —
+// that is where #rail and #side stop being columns and become drawers over the doc. The panel's
+// full-screen rule carried its own number, 719, while overlay() said 1099, so on any window
+// between them every other menu overlaid and the theme panel alone stayed a 274px card pinned in
+// the top-right corner. Seth's window is in that band; that is how he found it. Two numbers for
+// one decision drift apart silently — nothing renders wrong, it just renders the desk shape.
+{
+  const bp = read('web/app.js').match(/const overlay = \(\) => matchMedia\('\(max-width:(\d+)px\)'\)/)?.[1];
+  assert.ok(bp, 'overlay() no longer reads as a max-width media query — retire this check with it');
+  const html = read('app.html');
+  const rule = html.match(/@media \(max-width:(\d+)px\) \{\s*\n\s*#appearance \{[^}]*position:fixed/);
+  assert.ok(rule, 'no media query makes #appearance a fixed full-screen panel any more');
+  assert.strictEqual(rule[1], bp,
+    `#appearance goes full-screen at ${rule[1]}px but overlay() calls it an overlay at ${bp}px. `
+    + `Between those widths every other menu overlays the screen and the theme panel stays a desk `
+    + `card in the corner. They are one decision; give them one number.`);
+  ok(`the theme panel overlays at the same width every other menu does (${bp}px)`);
+}
 
 console.log(`\n${n} checks passed`);

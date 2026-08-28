@@ -956,4 +956,33 @@ ok('a take inherits the instruction, and a slot can be deleted whole', () => {
   assert.strictEqual(db.passagesOf(other.id).length, 1, 'theirs is untouched');
 });
 
+// A mute is "not for this chapter", never "never again". That scope IS the feature: canon and
+// prose fall out of step while a chapter is moving and agree again once it settles, so silencing
+// an entry everywhere would hide a real contradiction in chapter nine because chapter three was
+// messy. If this ever stops being chapter-scoped the checker goes quiet on a book-wide fact and
+// nothing else in the suite would notice.
+ok('a mute quiets one entry in one chapter, and neither the next chapter nor a lift keeps it', () => {
+  const st = db.createStory(db.owner('muter'), { title: 'Drift' });
+  db.addPassage({ ...st, storyId: st.id, body: 'The chapter has to have prose before it can end.' });
+  db.endChapter(st.id, st.branchId, 'Two');
+  const chapTwo = db.chapters(st.id).map((c: any) => c.id).find((id: string) => id !== st.chapterId);
+  assert.ok(chapTwo, 'the fixture needs two distinct chapters or it proves nothing about scope');
+
+  db.dismiss(st.id, 'mute', `${st.chapterId}:e-aldi`);
+  assert.deepStrictEqual([...db.mutedIn(st.id, st.chapterId)], ['e-aldi'],
+    'the entry is quiet in the chapter it was muted in');
+  assert.deepStrictEqual([...db.mutedIn(st.id, chapTwo)], [],
+    'and NOT in the next chapter — a mute that leaked forward would hide a real contradiction '
+    + 'in a chapter the writer never silenced');
+
+  // Another writer's mute is not yours, on the same chapter id shape.
+  const other = db.createStory(db.owner('mute-stranger'), { title: 'Theirs' });
+  db.dismiss(other.id, 'mute', `${other.chapterId}:e-aldi`);
+  assert.deepStrictEqual([...db.mutedIn(st.id, chapTwo)], [], 'and never across stories');
+
+  db.unmute(st.id, 'mute', `${st.chapterId}:e-aldi`);
+  assert.deepStrictEqual([...db.mutedIn(st.id, st.chapterId)], [],
+    'lifting it restores the checker — quiet, not deaf');
+});
+
 console.log(`\n${n} checks passed`);

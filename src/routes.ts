@@ -466,7 +466,15 @@ async function check(c: Ctx, storyId: string, passageId: string) {
   // fire could be contradicted freely and nothing caught it (COUNCIL-04 #7). Each flag now
   // records which it is, because "you contradicted canon" and "the engine never sent this canon"
   // are different faults and the second one is fixed with a keyword, not a rewrite.
-  const facts = factsFor(v, asOf.manifest, chapter.index, true);
+  // MUTED ENTRIES NEVER REACH THE MODEL. The checker runs on every new passage, so an entry that
+  // has drifted out of step with the prose is raised again on the next passage and the next; the
+  // writer muted it because the chapter is still moving. Dropping the fact here rather than
+  // filtering the result is what makes the mute free: no tokens spent asking about it, and no row
+  // to dismiss afterwards. Filtering BEFORE the call also keeps `facts[x.canon - 1]` honest — the
+  // model numbers against the list it was actually given.
+  const mutes = db.mutedIn(storyId, chapter.id);
+  const facts = factsFor(v, asOf.manifest, chapter.index, true)
+    .filter((f: any) => !f.id || !mutes.has(f.id));
   if (!facts.length) return { checked: 0, found: 0, violations: [] };
 
   const { found, error } = await contradictionsIn(facts, passage.body);
@@ -983,6 +991,14 @@ export const routes: Record<string, Handler> = {
   'POST /api/check':     (c) => check(c, c.body.storyId, c.body.passageId),
   'POST /api/violation': (c) => { db.setViolationStatus(c.body.storyId, c.body.id, c.body.status ?? 'dismissed');
     return viewOf(c.body.storyId); },
+  // Quiet this entry for this chapter, or lift it. Dismiss handles one flag; this handles the
+  // stream of them that one drifting entry produces while a chapter is still being written.
+  'POST /api/mute': (c) => {
+    const ref = `${c.body.chapterId}:${c.body.entryId}`;
+    if (c.body.off) db.unmute(c.body.storyId, 'mute', ref);
+    else db.dismiss(c.body.storyId, 'mute', ref);
+    return viewOf(c.body.storyId, c.body.chapterId);
+  },
   'POST /api/passage':   (c) => { db.editPassage(c.body.storyId, c.body.id, c.body.body); return viewOf(c.body.storyId); },
   'DELETE /api/passage': (c) => {
     // One take, or the whole slot. Two intents behind one press, so the caller says which.

@@ -234,4 +234,70 @@ if (other) {
      landed.box === '');
 }
 
+// THE CARET SURVIVES A REPAINT WHETHER OR NOT ANYTHING IS TYPED YET. drawDock replaces the
+// composer with innerHTML on almost every action, and focus restoration used to live inside
+// `if (draft?.text)` — so an EMPTY box with the caret in it lost focus every time. On a phone that
+// closes the keyboard, the layout viewport grows back under interactive-widget=resizes-content,
+// and the dock drops; the next tap raises it again. Seth reported it as "the place where i type
+// moves everytime i go to input". The empty case is the one that regressed, so it is asserted
+// first and separately — a check that only tried text would have stayed green through the bug.
+{
+  const seen = [];
+  for (const [label, text] of [["empty", ""], ["typed", "half a line"]]) {
+    await page.eval("(() => { const t = document.getElementById('input');"
+      + " t.value = " + JSON.stringify(text) + "; t.dispatchEvent(new Event('input')); t.focus(); return 1; })()");
+    await wait(120);
+    await page.eval("(() => { window.dispatchEvent(new HashChangeEvent('hashchange')); return 1; })()");
+    await wait(400);
+    seen.push([label, await page.eval("(() => document.activeElement === document.getElementById('input'))()")]);
+  }
+  for (const [label, kept] of seen) ok(`the caret survives a repaint in a ${label} composer`, kept);
+
+  // And the other side of it: restoring focus must not GRAB it. A composer that steals the caret
+  // back on every repaint would fight every button press on the page.
+  await page.eval("(() => { const t = document.getElementById('input'); t.value = ''; t.blur(); document.body.focus(); return 1; })()");
+  await page.eval("(() => { window.dispatchEvent(new HashChangeEvent('hashchange')); return 1; })()");
+  await wait(400);
+  ok('and a composer nobody was in is left alone',
+     await page.eval("(() => document.activeElement !== document.getElementById('input'))()"));
+}
+
+// A CAPPED BOX IS RIGHT FOR A LINE AND WRONG FOR A PARAGRAPH. Past the cap you are writing into a
+// six-line window with the top of your own sentence out of sight. The expanded composer is the
+// same dock flexed to the screen, so the mode rail comes with it — asserted, because building a
+// SECOND composer that drifts from the first is the obvious wrong way to do this and would look
+// identical from a height measurement alone.
+{
+  const LONG = Array.from({ length: 40 }, (_, i) => `Line ${i + 1} of a long thing being written.`).join(' ');
+  await page.eval("(() => { const t = document.getElementById('input');"
+    + " t.value = " + JSON.stringify(LONG) + "; t.dispatchEvent(new Event('input')); return 1; })()");
+  await wait(250);
+  const capped = await page.eval("(() => { const t = document.getElementById('input');"
+    + " return { boxH: Math.round(t.getBoundingClientRect().height), content: Math.round(t.scrollHeight) }; })()");
+  ok(`a long draft is clamped and scrolls in place (${capped.boxH}px of ${capped.content}px)`,
+     capped.content > capped.boxH + 2);
+
+  await page.eval("(() => { document.querySelector('[data-bigin]').click(); return 1; })()");
+  await wait(500);
+  const big = await page.eval("(() => { const t = document.getElementById('input'); const m = document.getElementById('modes');"
+    + " return { boxH: Math.round(t.getBoundingClientRect().height), text: t.value.length,"
+    + "   dockH: Math.round(document.getElementById('dock').getBoundingClientRect().height), vh: innerHeight,"
+    + "   rail: !!m && m.getBoundingClientRect().height > 0 }; })()");
+  ok(`expanded, the composer fills the screen (${big.dockH}px of ${big.vh}px)`, big.dockH >= big.vh - 2);
+  ok(`  and the box grew with it (${capped.boxH}px -> ${big.boxH}px)`, big.boxH > capped.boxH);
+  ok('  and the mode rail came with it rather than being left behind', big.rail);
+  ok('  and expanding did not cost a character of the draft', big.text === LONG.length);
+
+  // "if i unfocus it shouldnt lose my text. i.e. if i need to read the last passage or something."
+  await page.eval("(() => { document.getElementById('input').blur(); return 1; })()");
+  await page.eval("(() => { window.dispatchEvent(new HashChangeEvent('hashchange')); return 1; })()");
+  await wait(400);
+  ok('leaving the box to read the page and coming back keeps every character',
+     await page.eval("(() => document.getElementById('input').value.length)()") === LONG.length);
+
+  await page.eval("(() => { document.querySelector('[data-bigin]').click();"
+    + " const t = document.getElementById('input'); t.value = ''; t.dispatchEvent(new Event('input')); return 1; })()");
+  await wait(300);
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

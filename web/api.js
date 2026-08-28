@@ -135,6 +135,9 @@ export const api = {
   prompts:      ()               => j('/api/prompts'),
   savePrompt:   (key, text)      => j('/api/prompts', 'POST', { key, text }),
   dismissFlag:  (storyId, id)    => j('/api/violation', 'POST', { storyId, id, status: 'dismissed' }),
+  // Quiet one canon entry for one chapter, or lift it. Dismiss clears a flag; this stops the
+  // stream of them a drifting entry produces while the chapter is still moving.
+  mute: (storyId, chapterId, entryId, off) => j('/api/mute', 'POST', { storyId, chapterId, entryId, off }),
   decide:       (o)              => j('/api/proposal', 'POST', o),
   saveOutfit:   (storyId, entryId, outfit) => j('/api/outfit', 'POST', { storyId, entryId, outfit }),
   delOutfit:    (storyId, id)    => j('/api/outfit', 'DELETE', { storyId, id }),

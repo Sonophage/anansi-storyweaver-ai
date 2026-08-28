@@ -1,7 +1,7 @@
 // One runnable check. Fails if the engine's load-bearing behaviour breaks.
 //   node --experimental-strip-types test/engine.ts
 import assert from 'node:assert';
-import { buildContext, resolveBody } from '../src/context.ts';
+import { buildContext, resolveBody, fires } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
 import { render } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
@@ -548,6 +548,35 @@ ok('the prose window closes once the new chapter has a passage, and not before',
   assert.match(prose(back), /CHAPTER TWO PROSE/, 'pulling a chapter back beats the window');
   assert.ok(!/Chapter two happened/.test(summaries(back)),
     'and its summary steps aside, so it is not sent twice');
+});
+
+// A key fires through the punctuation a book is actually written with.
+//
+// The apostrophe is inside the tokeniser's character class so `aldi's` survives as one word — and
+// that kept the ones at the EDGES too, so `'Aldi'` became the token `'aldi'` and matched nothing.
+// A great deal of fiction marks dialogue with straight single quotes. It hid because CURLY quotes
+// were never affected: the same line fires or does not depending on which key the writer pressed.
+ok('a key fires through the punctuation a book is written with', () => {
+  const e = entry('e-x', '[Aldis Fen: a debtor]',
+    { activation: 'triggered', keys: ['Aldis'], entryType: 'character' });
+  const hits = (prose: string) => fires(e, prose).length > 0;
+
+  for (const [prose, why] of [
+    ['Aldis walked in.', 'bare'],
+    ['It was Aldis.', 'a full stop'],
+    ['Aldis, later, left.', 'a comma'],
+    ['"Aldis," she said.', 'double quotes'],
+    ["'Aldis' she said.", 'STRAIGHT single quotes, which is the case that was broken'],
+    ['\u2018Aldis\u2019 she said.', 'curly single quotes, which never were'],
+    ["Aldis' coat.", 'its own possessive, a name already ending in s'],
+    ['(Aldis)', 'parentheses'],
+    ['Aldis\u2014later', 'an em dash'],
+    ['Aldis; later', 'a semicolon'],
+  ] as const) assert.ok(hits(prose), `a key must fire through ${why}: ${JSON.stringify(prose)}`);
+
+  // And the trim is at the EDGES only — an interior apostrophe is part of the word.
+  assert.ok(hits("Aldis's coat"), 'including the possessive form the class exists to keep whole');
+  assert.ok(!hits('nothing of the sort here'), 'and it still does not fire on prose that lacks it');
 });
 
 // --- the act tier ---

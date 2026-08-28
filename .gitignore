@@ -18,3 +18,8 @@ imports/
 # of the allowlist — it lived in a run command until 2026-08-26, which meant a reboot silently
 # took the second writer away. Read by `node --env-file` and by anansi.service alike.
 .env
+# AND EVERY COPY OF IT. `.env.bak` appeared on 2026-08-27 from a command that edited the
+# allowlist and backed the file up first — untracked, unignored, and one `git add -A` from
+# being published with the tailnet allowlist in it. A pattern rather than a name, because the
+# next copy will be called something else.
+.env.*
