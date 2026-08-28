@@ -103,6 +103,13 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   const dead = tags.filter((b) => {
     const data = [...b.matchAll(/data-([a-zA-Z-]+)=/g)].map((m) => m[1].toLowerCase().replace(/-/g, ''));
     if (data.some((d) => acts.has(d))) return false;
+    // A THIRD WAY OF BEING REACHABLE, added 2026-08-28. A button can also be picked up by a
+    // dedicated listener that matches it with `closest('[data-x]')` rather than by the delegated
+    // click handler and its allowlist. The @ menu does exactly that, and on purpose: it takes
+    // `mousedown`, because a click would move focus out of the textarea and take the caret with
+    // it. The check's premise was "an action attribute or an id listener" and that was one short.
+    // `closest(` or `closest?.(` — the listener guards against a non-Element target.
+    if (data.some((d) => new RegExp(`closest\\??\\.?\\('\\[data-${d}\\]'\\)`).test(js))) return false;
     const ids = [...b.matchAll(/id="([\w-]+)"/g)].map((m) => m[1]);
     return !ids.some((i) => new RegExp(`\\$\\('${i}'\\)|getElementById\\('${i}'\\)`).test(js));
   });

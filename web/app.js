@@ -1711,7 +1711,11 @@ const PANELS = {
         <div class="hint" style="margin:0">It arrives in Direct mode, unsent — read it before you send it.</div>
       </div>` : ''}
 
-      <div style="display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid var(--line)">
+      <div style="display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid var(--line); position:relative">
+        <!-- @ SUMMONS SOMETHING BY NAME. Issue #7: Anansi answers better when she is told which
+             thread you mean than when she has to guess from a paraphrase. The list floats ABOVE
+             the box rather than sitting in the column, so opening it moves nothing. -->
+        <div id="atlist" hidden></div>
         <textarea class="field" id="askBox" placeholder="Ask Anansi about this story&hellip;"
           style="min-height:64px; margin:0"></textarea>
         <div style="display:flex; align-items:center; gap:8px">
@@ -4631,8 +4635,112 @@ document.addEventListener('drop', (e) => {
   readImport(e.dataTransfer?.files?.[0]);
 });
 
+/** `@` summons a thread, a chapter or a book by name, into the question you are asking Anansi.
+ *
+ *  Issue #7, and the reason is in the report: "Anansi's personality is rough. Asking it questions
+ *  doesn't always answer correctly. I should be able to summon threads, stories or chapters by
+ *  using the @ symbol and then typing the letters and an autocomplete comes up." Naming a thread
+ *  exactly is worth more than any amount of prompt: the difference between "what happened with the
+ *  ledger" and "@the ledger" is whether she has to guess which of your things you meant.
+ *
+ *  WHAT IT CAN SEE, and this is the whole of the scoping decision. Seth: "it should look inside
+ *  the story and its threads. it can reach other books but only the users. it shouldnt reach out
+ *  to another users anything."
+ *
+ *    this story's threads      V.entries
+ *    this story's chapters     V.chapters
+ *    your other books          LIB
+ *    threads in those books    LEDGER
+ *
+ *  Every one of those four is already owner-scoped IN SQL — `db.ledgerOf(c.owner)`,
+ *  `listStories` by owner, and `viewOf` behind the ownership gate — so the "never another user's"
+ *  half needs no new check and gets none. There is nothing here that could reach across accounts
+ *  even if it tried; `test/scope.ts` is what proves that and it proves it for the routes, which is
+ *  the layer where it is decidable. */
+let AT = null;
+const AT_MAX = 8;
+
+const atClose = () => { AT = null; const l = $('atlist'); if (l) { l.hidden = true; l.innerHTML = ''; } };
+
+/** The candidates, in the order a writer means them: what is in front of you first. */
+function atFind(q) {
+  const seen = new Set();
+  const out = [];
+  const add = (label, kind, where) => {
+    const key = `${kind}\u0000${label}`;
+    if (!label || seen.has(key) || out.length >= AT_MAX) return;
+    seen.add(key); out.push({ label, kind, where });
+  };
+  const hit = (x) => !q || String(x ?? '').toLowerCase().includes(q);
+  for (const e of V?.entries ?? []) if (hit(e.title)) add(e.title, 'thread', 'this book');
+  for (const c of V?.chapters ?? []) {
+    const t = (c.title || '').trim();
+    if (hit(t) || hit(`chapter ${c.index}`)) add(t && t !== `Chapter ${c.index}` ? t : `Chapter ${c.index}`, 'chapter', 'this book');
+  }
+  for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your shelf');
+  for (const e of LEDGER ?? []) if (e.story !== S.storyId && hit(e.title)) add(e.title, 'thread', e.storyTitle || 'another book');
+  return out;
+}
+
+function atDraw() {
+  const l = $('atlist'); if (!l) return;
+  if (!AT || !AT.items.length) { l.hidden = true; l.innerHTML = ''; return; }
+  l.hidden = false;
+  l.innerHTML = AT.items.map((it, i) => `
+    <button data-atpick="${i}" aria-selected="${i === AT.sel}" style="display:flex; align-items:baseline;
+      gap:8px; width:100%; text-align:left; padding:8px 10px; border-radius:var(--r);
+      background:${i === AT.sel ? 'rgba(217,178,106,.10)' : 'transparent'};
+      color:${i === AT.sel ? 'var(--gold-lit)' : 'var(--ink)'}; font-size:13px">
+      <span>${esc(it.label)}</span>
+      <span style="margin-left:auto; font-size:10px; letter-spacing:.08em;
+        font-variant-caps:all-small-caps; color:var(--faint)">${esc(it.kind)} \u00b7 ${esc(it.where)}</span>
+    </button>`).join('');
+}
+
+/** Read the `@word` immediately before the caret, if there is one. */
+function atScan(box) {
+  const upto = box.value.slice(0, box.selectionStart ?? 0);
+  const m = /@([^\s@]*)$/.exec(upto);
+  if (!m) return atClose();
+  const items = atFind(m[1].toLowerCase());
+  AT = items.length ? { from: m.index, to: box.selectionStart, items, sel: 0 } : null;
+  atDraw();
+}
+
+function atAccept(i) {
+  const box = $('askBox'); if (!box || !AT) return;
+  const it = AT.items[i ?? AT.sel]; if (!it) return;
+  const before = box.value.slice(0, AT.from), after = box.value.slice(AT.to);
+  // The name goes in WITHOUT the @, because what reaches Anansi should read as English. The @ is
+  // how you FIND it, not part of what you meant.
+  box.value = `${before}${it.label} ${after}`;
+  const caret = before.length + it.label.length + 1;
+  atClose();
+  box.focus({ preventScroll: true });
+  box.setSelectionRange(caret, caret);
+}
+
+// mousedown, not click: a click would move focus out of the textarea first and the caret with it.
+document.addEventListener('mousedown', (e) => {
+  const b = e.target?.closest?.('[data-atpick]');
+  if (!b) return;
+  e.preventDefault();
+  atAccept(Number(b.dataset.atpick));
+});
+
 document.addEventListener('keydown', (e) => {
-  // Enter asks, Shift+Enter is a newline — the same bargain the composer makes.
+  if (e.target?.id === 'askBox' && AT) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      AT.sel = (AT.sel + (e.key === 'ArrowDown' ? 1 : AT.items.length - 1)) % AT.items.length;
+      return atDraw();
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); return atAccept(); }
+    if (e.key === 'Escape') { e.preventDefault(); return atClose(); }
+  }
+  // Enter asks, Shift+Enter is a newline — the same bargain the composer makes. Below the block
+  // above on purpose: while the list is open Enter takes the highlighted name, because that is
+  // what you were in the middle of doing.
   if (e.target?.id === 'askBox' && e.key === 'Enter' && !e.shiftKey && !e.altKey) {
     e.preventDefault();
     document.querySelector('[data-ask]')?.click();
@@ -4640,6 +4748,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  // The @ menu, and it must not redraw the box either — it writes only #atlist.
+  if (e.target?.id === 'askBox') atScan(e.target);
   // Neither branch may redraw its own input. Both write only their results container.
   if (e.target.id === 'setupQ') {
     S.setupQ = e.target.value;
