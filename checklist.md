@@ -177,12 +177,10 @@ wrong makes Delete run twice.
 
 Where the next session starts.
 
-- **Chapter information autofilled by the model and accepted by you**, the last unbuilt item from
-  round four.
-- **pi web search.** The tool is `web_search`, built into pi's core. BLOCKED: `pi auth check
-  --provider google` returns `credentials_not_configured`, so there is nothing to integrate against.
-  Each search would also be a cloud provider turn rather than an HTTP GET, in an app that currently
-  makes no outbound request at all.
+- ~~**Chapter information autofilled by the model and accepted by you**~~ — **built 2026-08-27.**
+  It proposes a title and the beat when a chapter opens; both are yours to change and neither is
+  saved until you press Save.
+- ~~**pi web search.**~~ **Dropped by Seth, 2026-08-27.** A decision, not a deferral.
 
 **Takes: deleting them, and rerolling on the instruction that made them:**
 

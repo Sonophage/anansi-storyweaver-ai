@@ -67,7 +67,9 @@ name, another character's name, a line of dialogue read as a POV break.
 
 ## The model
 
-`write-nt-qwen36-h` on `:8080`, 50,048 tokens per slot (two slots, `kv_unified`). It is a reasoning
+`Qwen3.6-WNTH-35B-A3B-NN` on `:8080`, 50,048 tokens per slot (two slots, `kv_unified`). The whole
+preset list was renamed on 2026-08-27 — the old `write-nt-*` names are gone and the router answers
+`400 model not found` for them. `ANANSI_MODEL` overrides the default in `llama.ts`. It is a reasoning
 model: **`chat_template_kwargs: {enable_thinking: false}` is mandatory** for prose. With thinking on
 it returned no prose at all on three runs of four.
 
