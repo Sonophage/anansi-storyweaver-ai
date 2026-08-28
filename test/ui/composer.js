@@ -54,10 +54,26 @@ for (const [what, sel] of [["send", "#send"], ["the expand button", "#inputRow [
 // an inline style beats a stylesheet — the rule was written and never applied. Seth: "the expand
 // button however is still very very small. The icon at least is very very small." A tap target
 // says where you can press; the glyph is what tells you it is there at all.
-const glyph = await page.eval(`(() => { const e = document.querySelector('#inputRow [data-bigin]');
-  return e ? Math.round(parseFloat(getComputedStyle(e).fontSize)) : null; })()`);
-console.log("  expand glyph font-size: " + glyph + "px");
-ok(`the expand button's glyph is legible, not just its box (${glyph}px)`, glyph !== null && glyph >= 20);
+// ASSERTED AS AGREEMENT WITH SEND, not against a number. The number was a proxy for "legible",
+// picked when the glyph was 13px inside a box with no size at all; the requirement now is Seth's
+// own — "the maximize button can we style it the same as the send button" — and a fixed threshold
+// would have to be rewritten every time either one moves. Both still have to be big enough to
+// see, so the floor stays, low and honest.
+const pair = await page.eval(`(() => {
+  const g = (sel) => { const e = document.querySelector(sel); if (!e) return null;
+    const s = getComputedStyle(e);
+    return { size: Math.round(parseFloat(s.fontSize)), bg: s.backgroundColor,
+             radius: s.borderRadius, w: Math.round(e.getBoundingClientRect().width) }; };
+  return { send: g('#send'), big: g('#inputRow [data-bigin]') };
+})()`);
+console.log("  send/expand: " + JSON.stringify(pair));
+ok("both buttons are on the page", !!pair.send && !!pair.big);
+ok(`  the expand button is the same size as Send (${pair.big?.w} vs ${pair.send?.w})`,
+   pair.big?.w === pair.send?.w);
+ok(`  the same glyph size (${pair.big?.size} vs ${pair.send?.size})`, pair.big?.size === pair.send?.size);
+ok(`  the same fill and the same shape (${pair.big?.bg})`,
+   pair.big?.bg === pair.send?.bg && pair.big?.radius === pair.send?.radius);
+ok(`  and still big enough to read (${pair.big?.size}px)`, (pair.big?.size ?? 0) >= 16);
 
 // ---- #4. "The act as or speak as row doesn't reach the edges on the left or the right."
 //

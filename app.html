@@ -182,11 +182,10 @@ input, textarea { font:inherit; color:inherit; }
      putting a sheet of colour between you and your book. If this reads as too legible on a light
      theme the tint comes back as a theme token, not as a literal. */
   background:transparent;
-  /* 7px, halved from 14 on 2026-08-28. With the tint gone the blur is the only thing standing
-     between you and the page, and at 14 it was doing the tint's old job — the words unreadable
-     and the page unrecognisable with it. Half is enough to say "not now" and leave the book
-     where you left it. */
-  backdrop-filter:blur(7px) saturate(.9); -webkit-backdrop-filter:blur(7px) saturate(.9);
+  /* 3.5px — 14, then 7, then this, all on 2026-08-28 and all by eye, which is the only instrument
+     for it. With the tint gone the blur is the only thing between the writer and the page, and it
+     only has to say "not now" rather than take the book away. */
+  backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95);
   animation:veilin var(--t-slow) var(--ease-out) both; }
 #ghost.veil.leaving { animation:veilout var(--t) var(--ease) both; }
 #ghost.veil .narr { text-align:center; display:flex; flex-direction:column; align-items:center; gap:22px; }
@@ -897,7 +896,14 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 #input::placeholder { color:var(--label); opacity:.75; }
 @media (max-width:719px) { #input { font-size:15.5px; padding:10px 0; min-height:44px; }
   #inputRow { padding-bottom:12px; } }
-#send { width:34px; height:34px; border-radius:50%; background:var(--gold); color:var(--on-gold); display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto; }
+/* ONE RULE, TWO BUTTONS. Seth: "the maximize button can we style it the same as the send button."
+   Shared rather than copied — a second declaration of the same shape is how the two drift, and
+   these two flank the box and are read as a pair. #send keeps its own busy state below; nothing
+   else here is specific to either. */
+#send, #inputRow button[data-bigin] {
+  width:34px; height:34px; border-radius:50%; background:var(--gold); color:var(--on-gold);
+  display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto;
+}
 #send:disabled { opacity:.4; }
 /* Writing. The same button, in the same place, saying the one thing it can do now — a disabled
    "…" was a control you could look at and not use, which is what a Stop button is for. Not red:
@@ -913,14 +919,13 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
    press that drifts 24px is a press this surface can already lose, and a target smaller than the
    finger makes the drift the rule rather than the exception.
    Send keeps its 34px on a desktop, where the pointer is exact and a 44px gold disc is a blot. */
-@media (max-width:719px) { #send { width:44px; height:44px; font-size:16px; } }
+@media (max-width:719px) { #send, #inputRow button[data-bigin] { width:44px; height:44px; font-size:18px; } }
 /* The GLYPH, not just the box. The box went to 44px on a phone and the arrow stayed tiny, because
    the button carried `font-size:13px` INLINE and an inline style beats a stylesheet — so the rule
    below was being written and never applied. Seth: "the expand button however is still very very
    small. The icon at least is very very small." The inline sizing is gone; this owns it. */
-#inputRow button[data-bigin] { width:34px; height:34px; font-size:16px; display:flex; align-items:center;
-  justify-content:center; padding:0; }
-@media (max-width:719px) { #inputRow button[data-bigin] { width:44px; height:44px; font-size:22px; } }
+#inputRow button[data-bigin] { padding:0; }
+
 
 /* --- side panel -------------------------------------------------------- */
 #sideHead { display:flex; align-items:center; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--line); flex:0 0 auto; color:var(--ink); }
