@@ -115,6 +115,23 @@ const app = await opaque('#appearance');
 console.log("  #appearance: " + JSON.stringify(app));
 ok(`the themes menu is fully opaque at phone width (alpha ${app && app.alpha})`,
    !!app && app.alpha === 1);
+// AND IT COVERS THE WINDOW. Opacity was asserted here and coverage was not, which is why a
+// screenshot from Seth's phone — the panel as a band with the header above it and the composer
+// below — did not correspond to any red. Measured at every UI scale, because `zoom` on <body> is
+// the most likely thing to have re-based it and it is the size he writes at.
+for (const scale of ['100', '110', '125']) {
+  await page.eval(`(() => { document.documentElement.dataset.uiScale = '${scale}'; return 1; })()`);
+  await wait(250);
+  const box = await page.eval(`(() => { const a = document.getElementById('appearance');
+    if (!a || a.hidden) return null; const r = a.getBoundingClientRect();
+    return { top: Math.round(r.top), h: Math.round(r.height), w: Math.round(r.width),
+             vh: innerHeight, vw: innerWidth, pos: getComputedStyle(a).position }; })()`);
+  console.log(`  #appearance @${scale}: ` + JSON.stringify(box));
+  ok(`  and covers the whole window at UI scale ${scale} (${box && box.h} of ${box && box.vh})`,
+     !!box && box.top === 0 && Math.abs(box.h - box.vh) <= 1 && Math.abs(box.w - box.vw) <= 1);
+}
+await page.eval("(() => { document.documentElement.dataset.uiScale = '100'; return 1; })()");
+await wait(200);
 await page.eval("(() => { document.querySelector('[data-appearance]')?.click(); return 1; })()");
 await wait(300);
 

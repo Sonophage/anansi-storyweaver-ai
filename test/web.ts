@@ -279,8 +279,16 @@ ok('the delegation refuses html and body outright');
   const bp = read('web/app.js').match(/const overlay = \(\) => matchMedia\('\(max-width:(\d+)px\)'\)/)?.[1];
   assert.ok(bp, 'overlay() no longer reads as a max-width media query — retire this check with it');
   const html = read('app.html');
-  const rule = html.match(/@media \(max-width:(\d+)px\) \{\s*\n\s*#appearance \{[^}]*position:fixed/);
-  assert.ok(rule, 'no media query makes #appearance a fixed full-screen panel any more');
+  // `position:absolute` since 2026-08-28, not fixed — the panel moved out of #doc and became a
+  // child of #shell, which is itself `position:fixed; inset:0`. A fixed element is only fixed to
+  // the viewport while no ancestor makes itself its containing block, and transform, filter,
+  // backdrop-filter, perspective, will-change, contain and `zoom` all do. On Seth's Android it
+  // rendered as a band between the header and the composer. Absolute inside a fixed shell has no
+  // such dependency. What this check is really about is the BREAKPOINT agreeing with overlay(),
+  // so it matches either positioning and asserts inset:0 as the thing that means full screen.
+  const rule = html.match(/@media \(max-width:(\d+)px\) \{[\s\S]{0,400}?#appearance \{[\s\S]{0,400}?position:(?:fixed|absolute); inset:0/);
+  assert.ok(rule, 'no media query makes #appearance a full-screen panel any more — it needs to be '
+    + 'position:absolute or fixed with inset:0 inside the overlay breakpoint');
   assert.strictEqual(rule[1], bp,
     `#appearance goes full-screen at ${rule[1]}px but overlay() calls it an overlay at ${bp}px. `
     + `Between those widths every other menu overlays the screen and the theme panel stays a desk `

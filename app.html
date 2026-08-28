@@ -407,7 +407,14 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
 
 /* --- appearance popover ------------------------------------------------ */
 #appearance {
-  position:absolute; top:70px; right:32px; z-index:25; width:274px; border-radius:var(--r);
+  /* z-index 41, not 25. It was 25 while this lived inside #doc, where `right:32px` measured from
+     the DOC's right edge — which on a desk with the side panel open is 400px clear of #side. Out
+     here in #shell the same 32px measures from the WINDOW, so the card landed underneath #side at
+     z-index 30 and its themes could not be pressed. Caught by handlers.js, which clicks Parchment
+     and reads the theme back.
+     41 rather than 31: it is the same number the full-screen rule below uses, because it is the
+     same decision — a menu goes above the panels, at every width. */
+  position:absolute; top:70px; right:32px; z-index:41; width:274px; border-radius:var(--r);
   border:1px solid var(--chip); background:rgba(16,15,18,.97); backdrop-filter:blur(20px);
   box-shadow:0 30px 70px rgba(0,0,0,.65); padding:16px 18px;
   display:flex; flex-direction:column; gap:14px; color:var(--ink);
@@ -427,7 +434,9 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
    overlay breakpoint moves, move it here too; test/web.ts asserts the two agree. */
 @media (max-width:1099px) {
   #appearance {
-    position:fixed; inset:0; top:0; right:0; left:0; bottom:0; width:auto; max-height:none;
+    /* absolute, not fixed: #shell is the fixed one and this is now its child. Nothing an
+       ancestor does to its containing block can move this any more. */
+    position:absolute; inset:0; top:0; right:0; left:0; bottom:0; width:auto; max-height:none;
     z-index:41; border-radius:0; border:0; overflow-y:auto;
     /* FULL SCREEN MEANS FULL SCREEN, 2026-08-28. It was already fixed to all four edges here, and
        it still did not read as a screen: the desk card's `rgba(16,15,18,.97)` came with it, so the
@@ -880,10 +889,22 @@ textarea.field { resize:vertical; min-height:70px; }
   <nav id="rail" aria-label="Anansi"></nav>
   <div id="scrim"></div>
 
+  <!-- OUT OF #doc, 2026-08-28, and this is a positioning fix rather than a tidy-up. The panel is
+       `position:fixed; inset:0` at phone width and measured full-viewport in headless Chrome at
+       every UI scale — and on a real Android it rendered as a band between the header and the
+       composer, with both showing above and below it. A `position:fixed` element is only fixed to
+       the VIEWPORT while no ancestor makes itself the containing block, and any of transform,
+       filter, backdrop-filter, perspective, will-change, contain or `zoom` does. `zoom` is on
+       <body> for the UI scale (app.html:72) and the bar carries a backdrop-filter; which one it
+       was on that device is not worth chasing, because the fix removes the dependency instead of
+       naming the cause. `#shell` is ALREADY `position:fixed; inset:0`, so a child of it with
+       `position:absolute; inset:0` fills the window with no fixed positioning involved at all.
+       #rail and #scrim have always lived here for the same reason. -->
+  <div id="appearance" hidden></div>
+
   <main id="doc">
     <div id="wash"></div>
     <header id="bar"></header>
-    <div id="appearance" hidden></div>
     <!-- The context meter, full width and immediately under the header. It was a 74px rule inside
          the running head, which put the one number that says whether the book still fits into the
          one row that is hidden until you scroll. Seth: "it should span the full window". The
