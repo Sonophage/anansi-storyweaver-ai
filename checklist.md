@@ -109,12 +109,11 @@ What is left of round four's `bugs.md`. Everything else on it is built and is in
   chapter and not only the first. Ready to build, no decision needed.
 - ~~**Threads linked to other threads**~~ — **shelved by Seth, 2026-08-26.** Not deferred: he chose
   the character memory over it.
-- **Web search through pi.** The tool is `web_search`, built into pi's core and activated by the
-  provider, so the integration is `execFile('pi', ['-p', q, '--mode', 'json', '-t', 'web_search'])` —
-  an argument array, no shell, the pattern llama.ts already uses for systemctl. **Blocked:**
-  `pi auth check --provider google` returns `credentials_not_configured`, so there is nothing to
-  integrate against yet. Worth knowing before it lands: each search becomes a cloud provider turn
-  rather than an HTTP GET, in an app that currently makes no outbound request at all.
+- ~~**Web search through pi.**~~ **Dropped by Seth, 2026-08-27.** Not blocked — decided. Written
+  down rather than deleted because the reason outlives it: every search would have been a cloud
+  provider turn in an app that makes no outbound request at all. `ANANSI_SEARCH` in `llama.ts`
+  stays and is still off unless configured — a URL template pointed at whatever you trust is a
+  different door from a provider chosen for you.
 - ~~**"Some touch events do nothing."**~~ **Reproduced and measured — F34.** A tap that drifts 24px
   does nothing; 14px still works. Not the ⋯ hover gate. Unfixed on purpose: see the note above.
 
