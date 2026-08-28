@@ -385,8 +385,13 @@ async function extract(storyId: string, chapterId?: string) {
     if (!e?.title?.trim() || !e?.body?.trim()) continue;
     const cls = classify(existing, e);
     if (!cls) continue;
+    // PLAN-08 Phase 2. `activation` has to be PASSED, not merely asked for and stored: the schema
+    // gained the field and the column existed, and the value still landed null on every proposal
+    // because this line did not carry it. Found by a real extraction on 2026-08-28, not by any
+    // check — three green suites had no way to see it. `db.addProposal` validates the value.
     if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
-      body: e.body.trim(), entryType: e.type, keys: e.keys ?? [] })) added++;
+      body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
+      activation: e.activation })) added++;
   }
   return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
 }
@@ -1176,7 +1181,8 @@ export const routes: Record<string, Handler> = {
       if (!cls) continue;
       const cite = sources.length ? ` [${sources[0].url}]` : '';
       if (db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id, title: e.title.trim(),
-        body: e.body.trim() + cite, entryType: e.type, keys: e.keys ?? [] })) proposed++;
+        body: e.body.trim() + cite, entryType: e.type, keys: e.keys ?? [],
+        activation: e.activation })) proposed++;
     }
 
     return { reply: r.data.reply ?? '', directive: r.data.directive || null,
