@@ -114,7 +114,7 @@ Harmless at today's size. It would hide a real overrun the moment the block grow
 lockout already added ~78 tokens to it. Either give one part `keep: false` or stop writing the false
 reason; a manifest that lies about its own trimming is worse than one that reports an overrun.
 
-### 2c · `extract` reads raw prose while `remember` strips dialogue
+### ~~2c · `extract` reads raw prose while `remember` strips dialogue~~ — ALREADY BUILT, found 2026-08-28
 
 `remember()` passes `narrationOnly(...)` (`src/routes.ts:293-327`). `POST /api/extract` passes
 `p.body` raw (`src/routes.ts:1046`). CLAUDE.md's rule is unambiguous — every quality check strips
@@ -123,6 +123,12 @@ fact"* while the code hands it the lie.
 
 Two contradicting patterns; `remember`'s is the tested one. Rule 7 says pick one and flag the other,
 not blend them.
+
+**Nothing to do. It landed on 2026-08-27 and this section did not notice.** `extract` calls
+`narrationOnly(...)` and has since `844f99b`; `checklist.md` records it under that day's work, citing
+this section by number. The line reference above (`routes.ts:1046`) now points at
+`POST /api/extract`'s one-line handler, not at the read. **Verified in source before anything was
+built against it** — this section was two commits from being re-implemented on top of itself.
 
 ### ~~2d · `manifest.totals.used` excludes SYSTEM~~ — FIXED 2026-08-28
 
@@ -170,7 +176,7 @@ Four causes, all in code:
 | # | where | what |
 |---|---|---|
 | i | `src/prompts.ts:285` | `EXTRACT` asks for "up to 4 keywords" and never asks for an activation. `EXTRACT_SCHEMA` has no such field, so the constrained decode cannot return one even if the prompt did. |
-| ii | `src/db.ts:668`, `:164` | `upsertEntry` and the column both default `always_on`, so every proposal lands always-on. |
+| ii | `src/db.ts:829`, `:189` | `upsertEntry` and the column both default `always_on`. **Half stale, checked 2026-08-28:** the ACCEPT path at `routes.ts:1336` already differentiates — `p.entry_type === 'character' ? 'always_on' : 'triggered'` — so accepted lore, items and rules land triggered today. What it does not do is look at whether they have keys, which is the defect arriving by a different road. |
 | iii | `web/app.js:1657` | the trigger-words input is `disabled` when an entry is always-on — the keys the extractor *did* propose are invisible and uneditable, and there is no reason to flip the chip on an entry whose keys you cannot see. |
 | iv | `web/app.js:3017`, `:3457` | manual creation is always-on too. The one site that creates `triggered` (`:3138`, "Add to threads") lands it with no keys, deliberately, and says so in a toast. |
 
@@ -186,6 +192,29 @@ rather than silently dead weight."* Apply the same rule at the three proposal si
 `always_on`, but let an empty key list override a `triggered` answer. Nothing may land
 triggered-and-dark. `EXTRACT` also needs to say what a key is *for* — the words that appear in the
 prose when the thing is in play, not the title of its own entry.
+
+**RE-VERIFIED 2026-08-28, and the shape of the fix is smaller than this section says.** It calls for
+the rule at "the three proposal sites". There are **six** callers of `upsertEntry` — `db.ts:1014`
+(copy to another book), `import.ts:375` and `:409`, `routes.ts:602` (the wizard), `routes.ts:1011`
+(`POST /api/entry`, which is the app's own save and any API client), and `routes.ts:1334` (accept).
+All six funnel through one function, which is where `keysOf` went for exactly this reason on the
+same day. **One guard at the bottom, not three at the top** — and it covers the routes nobody has
+written yet, which is how `POST /api/remember` shipped doorless.
+
+**And there is a real conflict to settle before it can be unconditional.** `web/app.js:3964` creates
+`triggered` with `keys: []` ON PURPOSE, and says why: an entry made from a highlight would otherwise
+cost tokens on every call before anyone had finished writing it. So the same state means "dark by
+accident" at five call sites and "not switched on yet" at the sixth. A blanket guard breaks the
+deliberate one. That is a decision, not a patch, and it is Seth's: either the threads site passes an
+explicit opt-out, or triggered-with-no-keys stops being how "not yet" is spelled.
+
+**THE PROBE HAS NOW RUN, and it does not support a flip of what is already there.**
+`bench/ledger-audit.ts` against the live library, 2026-08-28: of the **7 entries the prose can
+answer for** (12 total, less 5 POV), **1 would go dark outright**, and **2 more of the 6 "safe"
+fired only in the past and not on the live window** — Halsey and Konrad Curze are safe on the record
+and dark on the next call. **4 of those 6 "safe" verdicts rest on a story holding fewer than four
+selected passages.** So the safe half of 2e is a guard on NEW writes; migrating the existing twelve
+is not supported by this evidence and was never the cheap half.
 
 **This is the one item on the list that makes the prompt smaller.** §3's recommendation is that the
 next win is precision and presence rather than another retrieval tier. This is that win, and it adds

@@ -1,5 +1,11 @@
 # Next session — the state to argue from
 
+> **SUPERSEDED IN PART, 2026-08-28.** Items 1-4 of §4's build order are done, and §4's own framing
+> of item 2 was wrong in a way worth keeping: 2c turned out to be already built, 2e is one guard
+> rather than three, and 2a's answer was that the meter should not have been reading the estimator
+> at all. `docs/findings/BUILD-STATE.md` §7 is the current state; read it first and treat everything
+> below as the argument that produced it rather than as today's list.
+
 Written 2026-08-28, at the end of a long day. Everything here was read from source or measured, not
 recalled. It exists so the first thing we do next time is **decide priority**, not rediscover state.
 
@@ -75,17 +81,22 @@ below.
 
 ## 4. The build order I would argue for
 
-1. **Re-audit `BUILD-STATE.md`.** Cheap, and it is what makes everything below trustworthy.
-2. **PLAN-06 2f — the key parser.** Three parsers; the authoritative one drops keys **silently**.
-   The only open defect actively corrupting data as Seth writes. PLAN-06 calls it one of the two
-   cheapest. Blocks 2e.
-3. **PLAN-06 2d — SYSTEM missing from `manifest.totals.used`.** One line plus the assertion that
-   does not exist. The context bar under-reports today, so every budget judgement read off it is
-   wrong by a fixed amount.
-4. **PLAN-06 2a — the token estimator running 30–48% high**, with a comment claiming the opposite.
-   Same class as 3, larger: steering by a gauge that lies.
-5. **PLAN-06 2e — the ledger audit.** `bench/ledger-audit.ts` exists to measure it. Gated on 2f,
-   which is the supply side feeding it.
+1. ~~**Re-audit `BUILD-STATE.md`.**~~ **Done** — §7, the fifth pass. It also found `checklist.md`
+   drifting, so the fourth pass's "a rewritten document does not drift" did not survive contact.
+2. ~~**PLAN-06 2f — the key parser.**~~ **Done.** One `keysOf` in `db.ts` with SPEC §7.1's 2-32
+   bound and a cap parameter. It also surfaced a second defect nobody had listed: `fromCard` set a
+   lorebook entry's activation from `constant` alone, so an entry whose keys did not survive
+   imported as triggered-and-unfireable.
+3. ~~**PLAN-06 2d — SYSTEM missing from `manifest.totals.used`.**~~ **Done**, off the budget rather
+   than into the blocks. And "wrong by a fixed amount" was wrong: 2a ran the other way and partly
+   cancelled it, which is why the bar looked roughly right.
+4. ~~**PLAN-06 2a — the token estimator running 30–48% high.**~~ **Done, and it was 59%.**
+   `bench/drift.ts` measured it over 147 logged calls. The meter no longer uses the estimator at
+   all — `/api/manifest` had been returning the exact count all along and nothing read it.
+5. **PLAN-06 2e — the ledger audit.** Ungated now that 2f has landed, and **the probe has run**:
+   1 of 7 judgeable entries would go dark, 2 more are dark on the live window. So the flip is not
+   supported; a guard on new writes is, and it belongs in `upsertEntry` with `keysOf`. One
+   conflict to settle first — `app.js:3964` uses triggered-with-no-keys deliberately.
 6. **F36's structural half.** A passage that quotes canon while contradicting *itself* passes the
    checker perfectly, because the checker compares prose against canon and never against the passage.
    No marker anywhere. New work rather than repair.

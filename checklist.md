@@ -15,7 +15,7 @@ the next round, not a fix.
 ```
 https://hestia.tempel-discus.ts.net:5174        the only URL that works
 systemctl --user status anansi                  it starts itself, and on boot
-node --experimental-strip-types test/all.ts     236 checks, eleven suites, no model
+node --experimental-strip-types test/all.ts     238 checks, eleven suites, no model
 test/ui/run.sh                                  477 checks, twelve scenarios, no model
 ```
 
@@ -70,8 +70,11 @@ The window change makes the prompt smaller in a prompt that had room to spare. W
 what the model *leans on*, and nothing yet says whether the ledger it now leans on does any work:
 canon is 3.4% of the prompt and `CANON-TRIGGERED` contributed zero blocks on the last call, because
 nothing in the database can fire. `bench/utilisation.ts` and `bench/ledger-audit.ts` in
-`PLAN-06-MEMORY.md` §5 are the instruments; neither exists yet. **Do not call this an improvement
-until one of them has run.**
+`PLAN-06-MEMORY.md` §5 are the instruments. **Both now exist**, and `ledger-audit` has been run
+(2026-08-28): of the 7 entries the prose can answer for, 1 would go dark on a flip to `triggered`
+and 2 more fired only in the past, not on the live window. `utilisation` has NOT been run, so the
+question this paragraph asks — does the ledger it now leans on do any work — is still open. **Do
+not call this an improvement until it has.**
 
 ### Doorless code, found 2026-08-27
 
@@ -401,7 +404,7 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 236 checks, eleven suites, no model needed
+node --experimental-strip-types test/all.ts    # 238 checks, eleven suites, no model needed
 test/ui/run.sh                                 # 477 checks, twelve scenarios, headless, no model
 test/ui/run.sh "model ritual"                  # the two that wait on real generations
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model

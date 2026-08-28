@@ -463,7 +463,8 @@ it is retired when the debt is paid.
 ## 7. Fifth pass, 2026-08-28 — the day and a half the fourth pass could not see
 
 `test/all.ts` **235 ok in eleven suites** at `b371eaa`, run before this section was written, and
-**236** after PLAN-06 §2f landed in the same session (below). The
+**238** at the end of the session — 2f, then 2a and 2d. The browser harness is unchanged at 477
+across twelve scenarios and was **not re-run**; that number is `b371eaa`'s. The
 browser harness is recorded at **477 ok in twelve scenarios** from `b371eaa`'s own run and was not
 re-run for this pass; `modes` moved 49 → 58 over the period.
 
@@ -548,6 +549,64 @@ pre-built array, which is the one shape the old code got right. The bound then m
 reachable — `fromCard` set a lorebook entry's activation from `constant` alone, so an entry whose
 keys did not survive imported as triggered-and-unfireable — and the new assertion caught it rather
 than a person. Both fixed; all four assertions falsified against the restored code.
+
+### PLAN-06 §2a and §2d, closed in the same session — and the meter needed neither
+
+`/api/manifest` has done a `/tokenize` round trip and returned `exact` beside the manifest since
+the route was written; `app.js` never read it. The bar drew `totals.used` — the estimate — and
+carried both defects at once, measured together at **1.28x** by `bench/drift.ts`. The generate path
+was always right (`routes.ts:258` overwrites `totals.used` with the same count), so the bar was
+exact after a generation and 1.28x out on the next repaint, which is why it never read as a fixed
+offset. **The bar uses the tokenizer's answer now.** Three lines, no constant involved.
+
+The estimator keeps one job — the ceilings and the refusal inside `buildContext`, which are pure
+and cannot make a round trip. **2.8 → 4.2**, chosen under the lowest rate any model measured (4.28,
+`rp-t-glm47flash-h`) rather than at the 4.45 median of the model in front of us, so it errs high
+for every model in the log instead of exact for one and low for another. 2d is taken off the budget
+rather than added to the blocks, on `context.ts:548`'s own argument. What 2d fixes is narrow: the
+6% margin was already absorbing SYSTEM, so nothing was overflowing — the **number** was wrong.
+
+**Two more fixtures were found unable to see the thing they guarded.** `test/db.ts` divided a
+fixture by 2.74 and compared it to an estimate dividing by 2.8 — it asserted the constant against
+itself and reported "within 15%" while the estimator was 59% out. `test/app.ts`'s manifest fixture
+had `used` and `exact` set to the same number, so no check could tell which one the bar read. Both
+now carry measured values that differ. That is the third and fourth instance of this family, after
+the tag-splitting fixture and the canon-per-take chain.
+
+### The re-verification pass, 2026-08-28 — what did NOT need building
+
+Run before starting the next item, on the rule that this repo's recurring failure is finished code
+nobody can find. Three of the four things on the list were not what the plan said they were:
+
+- **PLAN-06 §2c is already built.** `extract` calls `narrationOnly(...)` and has since `844f99b` on
+  2026-08-27; `checklist.md` records it under that day's work, citing §2c by number, and §2c never
+  noticed. Its line reference now points at a one-line route handler rather than at the read. It
+  was two commits from being re-implemented on top of itself.
+- **§2e's second cause is half stale.** `routes.ts:1336` already differentiates on accept —
+  `p.entry_type === 'character' ? 'always_on' : 'triggered'` — so accepted lore, items and rules
+  land triggered today. What it does not do is check whether they have keys.
+- **§2e's fix is smaller than §2e says.** It calls for the rule at "the three proposal sites";
+  there are **six** callers of `upsertEntry` and all of them funnel through one function, which is
+  where `keysOf` went the same day for the same reason. One guard at the bottom, not three at the
+  top.
+- **§2e also has a conflict that has to be settled first.** `app.js:3964` creates
+  `triggered` with no keys deliberately — an entry made from a highlight would otherwise cost
+  tokens on every call before anyone finished it. The same state means "dark by accident" at five
+  sites and "not switched on yet" at the sixth. A blanket guard breaks the deliberate one.
+- **And its probe has run.** `bench/ledger-audit.ts` against the live library: of the 7 entries the
+  prose can answer for, **1 would go dark**, **2 of the 6 "safe" fired only in the past and not on
+  the live window**, and **4 of those 6 rest on a story with fewer than four selected passages**.
+  Flipping the existing twelve is not supported by this. A guard on new writes is.
+
+`bench/utilisation.ts` and `bench/ledger-audit.ts` both exist; `checklist.md` said neither did, and
+now says otherwise. `utilisation` has still never been run, so "does the ledger do any work" is
+open.
+
+**§2b is confirmed open, in source, and is smaller than its own write-up.** Every DIRECTIVE part is
+`keep: true`, so `addAnchor`'s flex string is empty and the shortening branch returns every part
+unchanged — while still calling `add(...)` with `anchor shortened to ${cap} tokens`. The write-up
+offers "give one part `keep: false` or stop writing the false reason". The second is one line and
+loses nothing; the first changes what reaches the model.
 
 ### Still open, unchanged by any of the above
 
