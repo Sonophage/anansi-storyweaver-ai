@@ -19,7 +19,7 @@ Run it before and after. It needs no llama-server, so there is no excuse for ski
 1. `docs/findings/P0-FINDINGS.md` — measured numbers. These override `docs/SPEC.md` and the plans
    wherever they conflict, and several already do.
 2. `docs/findings/BUILD-STATE.md` — done / half-built / not started, audited against source.
-3. `grep -rn "ponytail:" src web bench *.ts *.html` — the debt ledger. Twenty-one markers. Each names what
+3. `grep -rn "ponytail:" src web bench *.ts *.html` — the debt ledger. Twenty-four markers as of 2026-08-28. Each names what
    is missing, why it was left, and the upgrade path.
 
 ## Conventions that are not negotiable
@@ -69,7 +69,13 @@ name, another character's name, a line of dialogue read as a POV break.
 
 `Qwen3.6-WNTH-35B-A3B-NN` on `:8080`, 50,048 tokens per slot (two slots, `kv_unified`). The whole
 preset list was renamed on 2026-08-27 — the old `write-nt-*` names are gone and the router answers
-`400 model not found` for them. `ANANSI_MODEL` overrides the default in `llama.ts`. It is a reasoning
+`400 model not found` for them. `ANANSI_MODEL` overrides the default in `llama.ts`. A story may also pin its own model in
+`stories.model`, and one in the live library still points at a pre-rename preset, so it will 400.
+**A story's voice field already outranks everything for register — but only if it is written like an
+instruction.** F37: the same rule buried in a long line bought nothing (10.7%), and on its own line
+naming *narration* with the forms spelled out it holds at ~98%, even against a book whose existing
+prose contradicts it. Do not add register rules to SYSTEM; a clause there measured 98.0 against
+98.0 and was deleted. It is a reasoning
 model: **`chat_template_kwargs: {enable_thinking: false}` is mandatory** for prose. With thinking on
 it returned no prose at all on three runs of four.
 

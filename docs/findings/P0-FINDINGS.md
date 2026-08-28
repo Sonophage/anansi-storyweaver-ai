@@ -1463,6 +1463,35 @@ Untested, and worth knowing before anyone re-adds the clause: this fixture is a 
 book whose established prose contradicts a voice field the writer has just CHANGED is the case the
 clause was written for, and no arm here tested it. It is a real question; it is not this finding.
 
+**The wording of the voice line is worth about nine times the line itself.** Seth added a rule to
+his own book and still got formal narration. His clause is `Use contractions.` — two words at the
+front of one 812-character run-on line holding a dozen other instructions, and that same sentence
+then writes *"it will not state emotions outright"*, modelling the form it is asking against.
+
+Held everything else still — same fixture, same model, same sixteen passages of un-contracted prose
+— and changed only the phrasing:
+
+| what the voice says | narration |
+|---------------------|-----------|
+| nothing about contractions | 9/39 = 23% |
+| `Use contractions.` buried in a long line | 3/28 = **10.7%** |
+| its own line, names *narration*, gives the forms | 42/43 = **97.7%** |
+
+The buried version is no better than not asking at all — 3/28 against 9/39 is not a difference these
+denominators can resolve, so read it as "bought nothing", not as "made it worse". The explicit
+version is a different result entirely, and it holds against a book whose established prose
+contradicts it, which is the long-story case this finding previously listed as untested. **That
+question is now closed: prose does not outweigh the voice field. Weak phrasing does.**
+
+The line that works, for reference: *"The narration contracts the way speech does: isn't, doesn't,
+you're, I'm, won't. Never the stiff expanded forms in narration."* Three properties, none of them
+decoration — its own line rather than buried in a list; the word *narration*, because the model
+already contracts in dialogue and reads a bare instruction as being about speech; and the actual
+forms, because an abstract style word is the weakest kind of instruction there is.
+
+Measured on the live library, read-only: `The Anagram of Ash` runs 44% over its last five model
+passages with the weak clause in place — above the 23% baseline, nowhere near 98%. Consistent.
+
 **Detector, validated before the result was believed** (F17): fourteen cases, both directions, in
 `bench/contractions.ts check`. The specific trap it guards is a model writing the typographic
 apostrophe U+2019 against a detector spelling it `'` — that scores fluent prose at zero and sends

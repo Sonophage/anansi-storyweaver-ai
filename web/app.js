@@ -110,7 +110,7 @@ function applyLook() {
 
 // ---------- state ----------
 const S = {
-  place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null, bigInput: false, arrived: null,
+  place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null, bigInput: false, arrived: null, seam: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   // WHICH menu the rail is showing, which is not the same question as where you are. The menu
   // button asks for the workspace one from inside a story; the story's name asks for the story
@@ -2998,18 +2998,31 @@ function decode(el, slot) {
  *  the page: a delta is a token, so anything driven by one runs at whatever uneven rate the model
  *  happens to be writing at.
  */
-function ghost(text) {
-  const col = $('col'); if (!col) return;
+let unplace = null;
+function ghost() {
+  const doc = $('doc'), read = $('read'); if (!doc || !read) return;
   let g = document.getElementById('ghost');
   if (!g) {
     g = document.createElement('div');
-    g.id = 'ghost'; g.className = 'block ghost loading';
+    g.id = 'ghost'; g.className = 'veil';
+    // OVER THE PAGE, NOT IN IT. As a block at the end of the column it was one more paragraph in
+    // the document, and the document is what you are reading while you wait. A veil says the book
+    // is busy without pretending to be part of it.
+    //
+    // Sized to #read rather than to #doc, and that is the whole care in this function: #doc also
+    // holds the header and the composer, and a veil over the composer is a veil over Stop.
+    // Positioned against #doc — which is `position:relative` and is NOT the scroller — so it holds
+    // still while the prose behind it scrolls.
+    const place = () => { g.style.top = `${read.offsetTop}px`; g.style.height = `${read.offsetHeight}px`; };
+    place();
+    unplace = () => removeEventListener('resize', place);
+    addEventListener('resize', place);
     const narr = g.appendChild(document.createElement('div'));
     narr.className = 'narr';
     // textContent on both, never innerHTML: this is untrusted model output arriving a fragment at
     // a time, and a half-written "<" would be a half-written tag.
     narr.appendChild(document.createElement('span')).className = 'head';
-    col.appendChild(g);
+    doc.appendChild(g);
     if (!still()) {
       // ~11 rolls a second. Fast enough to read as working, slow enough not to strobe, and
       // unrelated to how fast the tokens are coming.
@@ -3023,19 +3036,9 @@ function ghost(text) {
       requestAnimationFrame(tick);
     }
   }
-  // THE PROSE DOES NOT ARRIVE A TOKEN AT A TIME ANY MORE. Seth, 2026-08-27: "dont let the
-  // streaming text come in before its done writing. then lets it fade in." Half-written prose
-  // reads as the machine thinking out loud — the sentence reorganises itself under your eye, the
-  // page grows and shoves the composer down, and the passage you finally read is one you already
-  // watched being assembled. So the block stays in its loading state for the whole generation and
-  // shows nothing but the roller; the finished passage fades in from drawDoc once accept returns.
-  //
-  // The deltas are still consumed — the stream is what keeps the connection honest and what Stop
-  // interrupts — they simply do not reach the page.
-  void text;
-  // No scroll chase either: nothing is growing, so there is nothing to follow.
 }
-const unghost = () => document.getElementById('ghost')?.remove();
+
+const unghost = () => { unplace?.(); unplace = null; document.getElementById('ghost')?.remove(); };
 
 function working(kind) {
   const el = $('working');
@@ -3138,6 +3141,10 @@ async function generate(mode = S.mode) {
     return toast('Say what happens next, or press Continue.');
   }
 
+  // The seam: the last thing on the page BEFORE the model writes. Read here rather than earlier,
+  // because for Speak and Act your own line has already landed by now, and that line is the one
+  // you would be reading from.
+  S.seam = V?.passages?.filter((p) => !p.isBreak).at(-1)?.id ?? null;
   S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
@@ -3171,7 +3178,7 @@ async function generate(mode = S.mode) {
   clearComposer();
   V = await api.story(S.storyId, V.currentChapter.id);
   arrive();
-  paint(); refreshManifest(); refreshHistory();
+  paint(); pinToSeam(); refreshManifest(); refreshHistory();
 }
 
 /** Mark the newest passage so it fades in once, and only once. The flag is cleared on a timer
@@ -3181,7 +3188,35 @@ function arrive() {
   const last = V?.passages?.filter((p) => !p.isBreak).at(-1);
   if (!last) return;
   S.arrived = last.id;
-  setTimeout(() => { if (S.arrived === last.id) S.arrived = null; }, 1200);
+  // Longer than the 1.5s reveal, so a repaint mid-animation cannot strip the class and snap the
+  // text visible half way across.
+  setTimeout(() => { if (S.arrived === last.id) S.arrived = null; }, 1700);
+}
+
+/** THE END OF WHAT YOU WERE READING, NOT THE TOP OF WHAT ARRIVED.
+ *
+ *  The first version put the new passage's first line at the very top of the screen. Seth: "what
+ *  you wrote doesnt work. what would work is to shoot back to the end of the last entry before the
+ *  new one arrives. that will already be where i would start reading."
+ *
+ *  He is right, and the difference is not cosmetic. The seam is the last line of the entry you had
+ *  already read. Pinning the NEW passage to the top pushes that line off the screen, so the first
+ *  thing you do is scroll back up to see what the model was answering. Pinning the seam leaves it
+ *  in view with the new prose starting underneath it — where the eye already is.
+ *
+ *  It also deletes the tail hack the first version needed: that one had to invent empty space below
+ *  the last passage before the top of it could ever reach the top of the screen. This scrolls to a
+ *  point that already has a whole passage underneath it, so there is nothing to pad. */
+function pinToSeam() {
+  const read = $('read'); if (!read || !S.seam) return;
+  const el = document.querySelector(`[data-edit="${S.seam}"]`)?.closest('.block');
+  if (!el) return;
+  // A little above the fold, so the line you stopped on is still on screen rather than exactly at
+  // the edge. `behavior:'auto'` because #read carries scroll-behavior:smooth, and a half-second
+  // travel races the 1.5s wipe.
+  const PEEK = 72;
+  const top = read.scrollTop + (el.getBoundingClientRect().bottom - read.getBoundingClientRect().top) - PEEK;
+  read.scrollTo({ top, behavior: 'auto' });
 }
 
 /** Re-roll the last passage, keeping the old take as a variant. */

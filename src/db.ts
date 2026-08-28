@@ -1201,6 +1201,12 @@ export function backup(dir = join(dirname(FILE), 'backups'), keep = 12) {
  *  tables carry no story_id, so a hand-written list would have been the thing that silently
  *  leaked them. Stories go before users: stories.owner_id has no CASCADE, so deleting the
  *  other users first would fail the constraint. */
+/** Every story and who owns it, for the scheduled export. Not `listStories`, which is per owner
+ *  and shaped for the shelf — this is the whole library, across every writer on the box. */
+export const allStoriesForExport = (): { id: string; ownerId: string; title: string }[] =>
+  (q('SELECT id, owner_id, title FROM stories WHERE status IS NULL OR status != ?').all('deleted') as any[])
+    .map((r) => ({ id: r.id, ownerId: r.owner_id, title: r.title }));
+
 export function exportStory(storyId: string, ownerId: string, dir = join(dirname(FILE), 'exports')) {
   if (!ownsStory(storyId, ownerId)) throw new Error('no such story');
   const story = q('SELECT title FROM stories WHERE id = ?').get(storyId) as any;

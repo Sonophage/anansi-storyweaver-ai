@@ -276,5 +276,40 @@ const handler = async (req: any, res: any) => {
     } };
     far(); setInterval(far, 6 * 60 * 60_000).unref();
   }
+
+  // AND EACH BOOK ON ITS OWN, once a day. The two above copy the whole database, which is what you
+  // restore when a disk goes. A per-story export is a different artefact: it opens on its own,
+  // imports into another Anansi through src/import.ts, and is the one you would hand to someone.
+  // Daily rather than six-hourly because it is not a fresher copy of the same thing.
+  //
+  // Seth, 2026-08-27: "export story to data once a day. no off machine backup." So this stops at
+  // /data — a different device, nvme0n1p2 — and buys exactly what the copy above buys: it survives
+  // losing this filesystem and does NOT survive losing the machine. Nothing here is off-site.
+  //
+  // Same failure manners as the copy above: loud once, so an export that is not happening is never
+  // quiet. Verified: an unwritable directory prints "0 written, 1 FAILED ... EACCES" and the server
+  // carries on. Per story, because one unwritable book must not stop the rest.
+  //
+  // One trap, found by testing the failure path: mkdirSync(..., {recursive:true}) HANGS rather than
+  // throwing under /proc on this kernel, and a sync hang here blocks the event loop, so the server
+  // boots to silence and never answers. Real paths (/root, a missing root dir) throw EACCES at once.
+  // If this ever appears to hang at boot, look at ANANSI_EXPORT_DIR before looking at the router.
+  const BOOKS = process.env.ANANSI_EXPORT_DIR ?? '/data/anansi-books';
+  if (BOOKS && BOOKS !== 'off') {
+    let booksSaid = false;
+    const books = () => {
+      let done = 0; const failed: string[] = [];
+      for (const st of db.allStoriesForExport()) {
+        try { db.exportStory(st.id, st.ownerId, BOOKS); done++; }
+        catch (e: any) { failed.push(`${st.title}: ${e?.message}`); }
+      }
+      if (!booksSaid) {
+        if (failed.length) console.error(`  book export  ${done} written, ${failed.length} FAILED at ${BOOKS} — ${failed[0]}`);
+        else console.log(`  book export   ${BOOKS}, ${done} ${done === 1 ? 'book' : 'books'}, daily`);
+        booksSaid = true;
+      }
+    };
+    books(); setInterval(books, 24 * 60 * 60_000).unref();
+  }
   console.log('');
 });

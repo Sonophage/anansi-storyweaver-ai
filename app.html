@@ -160,30 +160,40 @@ input, textarea { font:inherit; color:inherit; }
 /* The passage as it arrives. Dimmed and carried by a caret, because it is not in the book yet:
    nothing is saved until the stream ends and accept returns. It replaces a p50 of 5.7 seconds
    of blank page, which read as a hung app (COUNCIL-04 #3). */
-#col .block.ghost .narr { opacity:.74; }
-/* The writing head: one run of glyphs after the prose, on its own clock. It is dimmer and a shade
-   narrower than the text so it reads as the machine working rather than as words you missed. */
-#col .block.ghost .head { color:var(--gold-dim); opacity:.62; letter-spacing:-.01em;
-  font-family:ui-monospace,monospace; font-size:.86em; margin-left:.22em; white-space:nowrap; }
-/* Before the first token there is nothing to show but the wait — 0.35s warm, 7.8s cold (F24) —
-   so the head breathes on its own and the block is where the passage is going to land. */
-#col .block.ghost.loading .head { animation:breathe 1.5s ease-in-out infinite; }
-@keyframes breathe { 0%, 100% { opacity:.62; } 50% { opacity:.22; } }
-/* THE ROLLER, ALONE AND IN THE MIDDLE. The prose no longer streams in behind it, so this block has
-   one job for the whole generation and there is nothing for it to sit beside. Centred rather than
-   left-aligned because with no text to align to, a run of glyphs against the left margin reads as
-   a broken first line of the passage. The "Writing" label went with the streaming text: the roller
-   already says it, and a caps label is the kind of chrome that stops being read after a week. */
-#col .block.ghost { display:flex; justify-content:center; }
-#col .block.ghost .narr { text-align:center; }
-#col .block.ghost .head { margin-left:0; }
-/* The passage arriving whole. Long enough to register as an arrival, short enough that it is not
-   a thing you wait through on every generation. */
-#col .block.arrived { animation:arrive var(--t-slow, .28s) var(--ease-out) both; }
-@keyframes arrive { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
-@media (prefers-reduced-motion: reduce) { #col .block.arrived { animation:none; } }
+/* THE VEIL. The book is busy, and it says so by dimming the page rather than by adding a paragraph
+   to it. Sized to the reading column in JS — never to #doc, which also holds the composer, and a
+   veil over the composer is a veil over Stop. */
+#ghost.veil { position:absolute; left:0; right:0; z-index:22; display:flex; align-items:center;
+  justify-content:center; background:rgba(6,6,8,.66); backdrop-filter:blur(2.5px);
+  animation:veilin var(--t-slow) var(--ease-out) both; }
+#ghost.veil .narr { text-align:center; }
+#ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
+  letter-spacing:.05em; white-space:nowrap; animation:breathe 1.5s ease-in-out infinite; }
+@keyframes veilin { from { opacity:0; } to { opacity:1; } }
+@keyframes breathe { 0%, 100% { opacity:.7; } 50% { opacity:.28; } }
 @media (prefers-reduced-motion: reduce) {
-  #col .block.ghost.loading .head { animation:none; }
+  #ghost.veil { animation:none; }
+  #ghost.veil .head { animation:none; }
+}
+
+/* THE PASSAGE ARRIVING, LEFT TO RIGHT. A mask three times the width of the block: at 100% the
+   transparent end of the gradient sits over the text and it is hidden; sliding to 0% draws the
+   opaque end across from the left. Slow on purpose — Seth asked for slowly, and a wipe fast enough
+   to be a transition is not the effect. `both` holds the finished state, so a repaint that lands
+   after the animation cannot leave a half-masked paragraph. */
+#col .block.arrived {
+  -webkit-mask-image:linear-gradient(90deg, #000 0 33%, transparent 66% 100%);
+          mask-image:linear-gradient(90deg, #000 0 33%, transparent 66% 100%);
+  -webkit-mask-size:300% 100%;         mask-size:300% 100%;
+  -webkit-mask-repeat:no-repeat;       mask-repeat:no-repeat;
+  animation:wipe 1.5s var(--ease-out) both;
+}
+@keyframes wipe {
+  from { -webkit-mask-position:100% 0; mask-position:100% 0; }
+  to   { -webkit-mask-position:0 0;    mask-position:0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #col .block.arrived { animation:none; -webkit-mask-image:none; mask-image:none; }
 }
 @keyframes caret { 50% { opacity:0; } }
 
