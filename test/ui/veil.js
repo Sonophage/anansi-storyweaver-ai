@@ -49,7 +49,19 @@ const geom = () => page.eval(`(() => {
   return { up: true, parent: g.parentElement?.id, position: cs.position, z: cs.zIndex,
     top: Math.round(r.top), left: Math.round(r.left), h: Math.round(r.height), w: Math.round(r.width),
     vh: innerHeight, vw: innerWidth,
-    alpha: (/rgba?\\(([^)]+)\\)/.exec(cs.backgroundColor)?.[1].split(',').map(Number)[3] ?? 1),
+    // Two spellings, because color-mix() does not resolve to rgba(): Chrome reports
+    // \`color(srgb 0.039 0.039 0.047 / 0.62)\`. The first version of this knew only rgba() and
+    // read a 62% veil as fully opaque — the detector wrong again rather than the code.
+    alpha: (() => {
+      const bg = cs.backgroundColor || '';
+      const slash = /\\/\\s*([\\d.]+)\\s*\\)/.exec(bg);
+      if (slash) return Number(slash[1]);
+      const rgba = /rgba\\(([^)]+)\\)/.exec(bg);
+      return rgba ? Number(rgba[1].split(',')[3]) : 1;
+    })(),
+    bg: cs.backgroundColor,
+    backdrop: cs.backdropFilter || cs.webkitBackdropFilter,
+    turning: /webturn/.test(getComputedStyle(g.querySelector('.web')).animationName || ''),
     stop: !!st, stopOnTop: !!(hit && hit.closest('[data-stop]')),
     strokes: g.querySelectorAll('.web g > *').length };
 })()`);
@@ -62,7 +74,14 @@ ok(`  positioned absolute, so no ancestor can re-base it (${g.position})`, g.pos
 ok(`  covering the whole window, header and composer included (${g.h} of ${g.vh})`,
    g.top === 0 && g.left === 0 && Math.abs(g.h - g.vh) <= 1 && Math.abs(g.w - g.vw) <= 1);
 // The trade PLAN-07 names: covering everything is only safe BECAUSE Stop came inside.
-ok("  and it is opaque — the page behind it is not half-readable", g.alpha === 1);
+// TRANSLUCENT AND BLURRED, which is the opposite of what this asserted an hour ago. Seth changed
+// it: the page stays behind the veil, out of focus. "The book is busy" rather than "the book is
+// gone". So the two halves are asserted together — a tint that is not opaque, and a blur that is
+// actually declared, because a translucent veil with no blur is just a dimmed page you can still
+// read the words of.
+ok(`  translucent, so the page is still behind it (alpha ${g.alpha})`, g.alpha > 0 && g.alpha < 1);
+ok(`  and blurred, so it cannot be read through (${g.backdrop})`, /blur\(/.test(g.backdrop || ''));
+ok(`  and the web turns while she thinks (${g.turning})`, g.turning);
 ok("Stop is inside the veil", g.stop);
 ok("  and it is the topmost thing at its own centre, so it can be pressed", g.stopOnTop);
 ok(`  the web is drawn from the app's own mark (${g.strokes} strokes)`, g.strokes === 7);
