@@ -593,7 +593,25 @@ html[data-reading="1"] .carry { display:none !important; }
    caps its z-index. So the sheet centred itself on the newest paragraph instead of on the screen,
    and the scrim painted over the top of it — page.click reported the History button visible and
    the press landed on the backdrop. The animation has finished playing by the time a tray opens. */
-#col .block[aria-expanded="true"] { animation:none; }
+/* ISSUE #2, 2026-08-28, and this is the THIRD round of the same bug. The rule was `animation:none`
+   alone, written for `.newest`'s filled transform animation. It does not reach `.arrived`, which a
+   passage carries for 1.7s after the model writes it and which sets a `mask-image` — and a MASK
+   makes an element a containing block for position:fixed descendants and a stacking context,
+   exactly as a transform does. `animation:none` kills the wipe and leaves the mask, because the
+   mask is a static property of the class rather than part of the animation. So the sheet at
+   z-index 32 was capped inside the block and #scrim at 31 painted over it. Seth: "the blur screen
+   and the menu are inverted ... any other selection is fine, it is just the new entry."
+
+   TWO CLAUSES, NOT SEVEN. The first version cleared every property that can re-base a fixed child
+   — filter, backdrop-filter, perspective, will-change, contain as well. Removing those five left
+   the checks green, because nothing sets them on a block today: five lines of code defending
+   against nothing. The guard for the CLASS is in test/ui/tray.js, which asserts an open block's
+   computed style has none of the seven. Add the clause when the check goes red, with the
+   falsification that earns it. */
+#col .block[aria-expanded="true"] {
+  animation:none;
+  -webkit-mask-image:none; mask-image:none;
+}
 .block[aria-expanded="true"] .acts {
   display:flex; position:fixed; left:50%; top:50%; right:auto; transform:translate(-50%, -50%);
   z-index:32; flex-direction:column; gap:2px; padding:8px;

@@ -68,4 +68,50 @@ for (const [label, on, off] of [
   await shut();
 }
 
+// ---- THE ONE SETH ACTUALLY HIT. "when a new message is sent by the ai ... the menu that pops up
+// is overlayed by the blur that pops up with it ... any other selection is fine, it is just the new
+// entry that has an issue."
+//
+// A passage the model just wrote carries `.arrived` for 1.7s, and that class sets `mask-image`.
+// A MASK makes an element a containing block for position:fixed descendants and a stacking context,
+// exactly as transform and filter do — so the tray's sheet at z-index 32 gets capped inside the
+// block and #scrim at 31 paints over the top of it. app.html already carried
+// `#col .block[aria-expanded="true"] { animation:none }` from a previous round of this same bug,
+// written for `.newest`'s transform animation; it kills the ANIMATION and leaves the mask, which is
+// a static property of the class and not part of it.
+//
+// Every earlier probe used a seeded newest block and passed. This one puts the class on by hand,
+// which is what `arrive()` does after a generation, and asserts what is TOPMOST rather than where
+// the sheet is — the measurement that was missing.
+{
+  await shut();
+  await page.eval("(() => { const b = document.querySelector('#col .block.newest') || document.querySelector('#col .block'); b.classList.add('arrived'); return 1; })()");
+  await wait(200);
+  await open();
+  const g = await probe();
+  console.log("  just-arrived passage: " + JSON.stringify(g));
+  ok("the tray opens on a passage that has just arrived", g.open);
+  ok(`  and the blur does not land on top of it (topmost: ${g.covering})`, g.onTop);
+
+  // And the general form, because this is the third property in this family to do it: while a
+  // tray is open its block may create NO containing block for a fixed child. transform, filter,
+  // mask, backdrop-filter, perspective, will-change and contain all do, and the next one added to
+  // a block class would break this again in a way the check above only catches by luck.
+  const props = await page.eval(`(() => {
+    const b = document.querySelector('.block[aria-expanded="true"]');
+    if (!b) return null;
+    const s = getComputedStyle(b);
+    return { transform: s.transform, filter: s.filter, mask: s.maskImage || s.webkitMaskImage,
+             backdrop: s.backdropFilter, perspective: s.perspective,
+             willChange: s.willChange, contain: s.contain, animation: s.animationName };
+  })()`);
+  console.log("  open block's computed style: " + JSON.stringify(props));
+  const rebasing = props && Object.entries(props).filter(([k, v]) =>
+    !(v === 'none' || v === 'auto' || v === 'normal' || v === undefined || v === ''));
+  ok(`  and nothing on the open block re-bases a fixed child (${JSON.stringify(rebasing)})`,
+     !!props && rebasing.length === 0);
+  await page.eval("(() => { document.querySelectorAll('#col .block').forEach(b => b.classList.remove('arrived')); return 1; })()");
+  await shut();
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
