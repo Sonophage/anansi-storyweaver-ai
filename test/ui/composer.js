@@ -132,6 +132,18 @@ for (const scale of ['100', '110', '125']) {
 }
 await page.eval("(() => { document.documentElement.dataset.uiScale = '100'; return 1; })()");
 await wait(200);
+// The close button and the tab row must not be on top of one another. The head is sticky, so the
+// tabs scroll UNDER it — measured as the gap between the bottom of the ✕ and the top of the first
+// tab, which is the thing a reader actually sees closing up.
+const gap = await page.eval(`(() => {
+  const x = document.querySelector('#appearance [data-appearance="0"]');
+  const tab = document.querySelector('#appearance [data-looktab]');
+  if (!x || !tab) return null;
+  return Math.round(tab.getBoundingClientRect().top - x.getBoundingClientRect().bottom);
+})()`);
+console.log("  gap between the close button and the tabs: " + gap + "px");
+ok(`the tab row clears the close button (${gap}px)`, gap !== null && gap >= 14);
+
 await page.eval("(() => { document.querySelector('[data-appearance]')?.click(); return 1; })()");
 await wait(300);
 

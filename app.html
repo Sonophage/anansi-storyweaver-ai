@@ -456,7 +456,13 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
    the half-height sheet before it had an outside. */
 @media (max-width:1099px) {
   #appearance .sheet-head { position:sticky; top:0; z-index:1; background:var(--sheet);
-    margin:-20px -18px 0; padding:20px 18px 12px; }
+    margin:-20px -18px 0; padding:20px 18px 16px; }
+  /* Air between the close button and the tab row. The head is STICKY, so the tabs pass under it
+     as the list scrolls and at 12px of padding the ✕ sat right on top of them — Seth: "a bit of
+     padding above the toggles so that it doesnt overlap with the x". 16px on the head plus this
+     margin, on top of #appearance's own 14px gap, so the ✕ has clear space beneath it before
+     anything scrolls into it. */
+  #appearance .sheet-head + div { margin-top:6px; }
 }
 .chip { padding:9px 12px; border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:13px; }
 .chip[aria-pressed="true"] { border-color:rgba(217,178,106,.5); background:rgba(217,178,106,.08); color:var(--ink); }
