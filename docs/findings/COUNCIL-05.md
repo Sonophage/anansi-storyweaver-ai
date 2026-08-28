@@ -37,7 +37,9 @@ This is not rare and it is not small. `bench/utilisation.ts`, run today: **VOICE
 61 scored generations at 8.4% of the prompt.** Every call, on every story with a voice sample, draws
 an eleventh of its meter in the unknown-kind grey.
 
-**And the check that would have caught it is two lines from where it belongs.** `test/app.ts:623`
+**FIXED the same day, and the guard generalised — see the closing note.**
+
+**And the check that would have caught it was two lines from where it belongs.** `test/app.ts:623`
 walks `ORDER` and asserts `BLOCK_ORIGIN[kind]` exists, with the reason written beside it — *"the row
 would say ${kind}"*. Nothing does the same for `BLOCK_COLOR`. One map is guarded, its neighbour is
 not, and they are declared twelve lines apart in the same file.
@@ -150,8 +152,8 @@ A doc that wants a number should say the command, not the answer.
 
 ## What this council would do next, in order
 
-1. **`VOICE` into `BLOCK_COLOR`**, and extend `test/app.ts:623` to walk both maps. Minutes, and it
-   fixes something every writer sees on every call.
+1. ~~**`VOICE` into `BLOCK_COLOR`**~~ — **done**, and the guard is general rather than a second copy
+   of the one beside it. See the closing note.
 2. **Migrate the two dead columns off the live database**, or write down that they are there and why
    an export carries them. Currently neither.
 3. **Put a superseded-naming note at the top of SPEC**, so a reader who greps `canon_entries` learns
@@ -164,3 +166,45 @@ A doc that wants a number should say the command, not the answer.
 The gate. The block order. The purity line in `story.ts`. The ledger, which is 24 markers and was
 found accurate the last two times it was audited. And `checklist.md`'s debt paragraph, which names
 fifteen of twenty-four — it wants rewriting by hand, and padding the number would make it less true.
+
+
+---
+
+## Closing note, written after the council acted on itself
+
+Seat 6 said the cheapest work here is walking the checks that exist and asking what their mirror
+image would be. So item 1 was not done as "add VOICE and extend the neighbouring assertion". It was
+done as **one table in `test/web.ts` naming every vocabulary shared across files**, walked in both
+directions — nothing missing, and nothing invented. Adding a value to any of them now names every
+map you have not updated.
+
+Five pairs, plus three list-against-list checks: `ORDER` against `BLOCK_COLOR` and `BLOCK_ORIGIN`
+(whole), against `TAG` and `CAPS` and `CANON_KINDS` (subset, since those are allowed to cover
+fewer); the `Kind` union against `ORDER` itself, because a kind missing from `ORDER` sorts to
+`indexOf` **-1** and lands at the head of the prompt, silently, on every call; and the four entry
+types across `web/model.js`, `context.ts`'s `Entry` union and `EXTRACT_SCHEMA`'s enum — three lists
+of one vocabulary, and the grammar is the one that decides what the model *can* say.
+
+**The guard found two things beyond what it was written for.**
+
+- **`CANON-TRIGGERED` and `STRING` are the same lightness** — 1.00:1, adjacent in the bar,
+  separable by hue alone. Grandfathered by name rather than silenced, for a measured reason:
+  `utilisation` scored 61 generations and neither kind was sent in any of them, so those two
+  segments have never appeared together. That stops being true the moment §2e makes the triggered
+  tier fire. The exemption is itself asserted, so fixing the pair without removing the entry goes
+  red — an exemption doing nothing is a silenced check waiting for the next colour change.
+- **Adjacent in `ORDER` is not adjacent in the bar.** The meter draws only the kinds a call
+  contains, so which segments touch depends on what was sent. Found by giving `PROSE` and `TAIL`
+  the same hex and watching the adjacency rule stay green, because `DIRECTIVE` sits between them in
+  `ORDER` and nothing else looked. Distinctness is now checked separately from adjacency.
+
+**And a rule this council proposed did not survive contact.** The first version asked for 1.2:1 of
+luminance between neighbours; three existing pairs failed it. That is a redesign of the palette
+wearing a check's clothes, and a check needing three exemptions on its first run is one that gets
+silenced. It was cut to a correctness floor — two adjacent segments may not be the *same* lightness
+— and the wider question is left here as a design call rather than enforced: **three adjacent pairs
+in that meter are separated by hue alone.** Seth's to answer, not a test's.
+
+`VOICE`'s own colour was then picked by lightness rather than hue, because its neighbours in `ORDER`
+are `SPINE` and `CANON-ALWAYS` and a hue-only choice would have put a teal beside a green — the one
+pair a deuteranope cannot separate.

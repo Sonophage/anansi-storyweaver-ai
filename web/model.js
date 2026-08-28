@@ -149,8 +149,19 @@ export const modelName = (id) => {
 };
 
 // Block colours are shared so the meter reads the same on both surfaces.
+// VOICE was missing from here and from nowhere else — BLOCK_ORIGIN twelve lines below has always
+// carried it. app.js reads this as `BLOCK_COLOR[k] ?? 'var(--ink-ghost)'`, so the sample of the
+// writer's own prose was painted in the colour that means "a kind I have no entry for", on the
+// meter and on its legend dot. bench/utilisation measured it present in 61 of 61 scored
+// generations at 8.4% of the prompt: not an edge case, every call.
+//
+// The colour is chosen by LIGHTNESS, not by hue. VOICE sits between SPINE and CANON-ALWAYS in
+// ORDER, so those two are what it is actually seen against, and both are light (L 73 and 67). A
+// hue-only choice would have put a teal beside a green — the one pair a deuteranope cannot
+// separate — so this is dark enough that lightness alone tells them apart, and the check below
+// asserts that rather than trusting the eye that picked it.
 export const BLOCK_COLOR = {
-  SPINE: '#D9B26A', 'CANON-ALWAYS': '#7FB083', 'CANON-TRIGGERED': '#9A8B62',
+  SPINE: '#D9B26A', VOICE: '#5C5480', 'CANON-ALWAYS': '#7FB083', 'CANON-TRIGGERED': '#9A8B62',
   STRING: '#B07C9E', EARLIER: '#8A7BA8', PROSE: '#6E8AA0', TAIL: '#5E7A8E',
   DIRECTIVE: '#C99356', MODE: '#635E56',
 };

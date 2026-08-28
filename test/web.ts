@@ -288,4 +288,144 @@ ok('the delegation refuses html and body outright');
   ok(`the theme panel overlays at the same width every other menu does (${bp}px)`);
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// PAIRED VOCABULARIES. One table, walked both ways.
+//
+// COUNCIL-05 seat 6: four separate defects this week were one defect — two things that must agree,
+// and only one of them guarded. `BLOCK_ORIGIN` was walked against the engine's kinds and its
+// neighbour `BLOCK_COLOR`, declared twelve lines away in the same file, was not; `VOICE` had been
+// missing from it long enough to be painted as an unrecognised kind on 61 of 61 measured calls.
+// The api-method→caller direction was guarded and route→method was not, which is how
+// `POST /api/remember` shipped with no door. In none of those was the instrument missing. It
+// covered one side.
+//
+// So the fix is not another check. It is ONE PLACE that names every vocabulary shared across
+// files, so adding a value to any of them tells you every map you have not updated. Add a row
+// here when you add a vocabulary; the cost of forgetting is exactly what this file is for.
+{
+  const blocks = await import('../src/blocks.ts');
+  const render = await import('../src/render.ts');
+  const model = await import('../web/model.js');
+  const context = read('src/context.ts');
+  const prompts = read('src/prompts.ts');
+
+  /** `whole` must cover every name in `vocab`; `subset` may cover fewer but may not invent one. */
+  const pairs: [string, string[], Record<string, unknown> | string[], 'whole' | 'subset', string][] = [
+    ['blocks.ts ORDER -> web/model.js BLOCK_COLOR', blocks.ORDER, (model as any).BLOCK_COLOR, 'whole',
+      'app.js paints an unlisted kind with var(--ink-ghost), the colour that means "a kind I have '
+      + 'no entry for" — so the block is on the meter, sized correctly, and looks like a bug'],
+    ['blocks.ts ORDER -> web/model.js BLOCK_ORIGIN', blocks.ORDER, (model as any).BLOCK_ORIGIN, 'whole',
+      'the Context row would be named for the engine kind rather than for the panel it opens'],
+    ['blocks.ts ORDER -> render.ts TAG', blocks.ORDER, (render as any).TAG ?? {}, 'subset',
+      'a tag is optional — PROSE and TAIL carry none — but a TAG for a kind that does not exist '
+      + 'wraps nothing and the prompt silently loses a section'],
+    ['blocks.ts ORDER -> blocks.ts CAPS', blocks.ORDER, blocks.CAPS as any, 'subset',
+      'a cap on a kind that is not in ORDER is a cap that never applies'],
+    ['blocks.ts ORDER -> blocks.ts CANON_KINDS', blocks.ORDER, blocks.CANON_KINDS, 'subset',
+      'the eviction sort ranks by CANON_KINDS.indexOf, and a kind missing from ORDER sorts to -1'],
+  ];
+
+  for (const [what, vocab, map, mode, why] of pairs) {
+    const covered = new Set(Array.isArray(map) ? map : Object.keys(map));
+    if (mode === 'whole') {
+      const missing = vocab.filter((k) => !covered.has(k));
+      assert.deepStrictEqual(missing, [], `${what}: missing ${missing.join(', ')}. ${why}`);
+    }
+    const invented = [...covered].filter((k) => !vocab.includes(k as any));
+    assert.deepStrictEqual(invented, [],
+      `${what}: names ${invented.join(', ')}, which is not a block kind. ${why}`);
+  }
+
+  // The type and the order are two lists of the same thing, in two syntaxes, in one file.
+  const declared = [...(read('src/blocks.ts').match(/export type Kind =[\s\S]*?;/)?.[0] ?? '')
+    .matchAll(/'([A-Z-]+)'/g)].map((m) => m[1]);
+  assert.ok(declared.length > 5, `only ${declared.length} kinds parsed out of the Kind union`);
+  assert.deepStrictEqual([...declared].sort(), [...blocks.ORDER].sort(),
+    'the Kind union and ORDER disagree. A kind missing from ORDER sorts to indexOf -1, which puts '
+    + 'it ahead of SPINE at the head of the prompt — silently, and in every call.');
+
+  // Entry types: the surface list, the engine's union, and the grammar the model answers with.
+  const engineKinds = [...(context.match(/entryType: ('[a-z]+'( \| )?)+/)?.[0] ?? '')
+    .matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+  const schemaKinds = [...(prompts.match(/type: \{ type: 'string', enum: \[[^\]]+\]/)?.[0] ?? '')
+    .matchAll(/'([a-z]+)'/g)].map((m) => m[1]).filter((k) => k !== 'string');
+  assert.ok(engineKinds.length === 4 && schemaKinds.length === 4,
+    `parsed ${engineKinds.length} engine kinds and ${schemaKinds.length} schema kinds; both are 4`);
+  assert.deepStrictEqual([...(model as any).KINDS].sort(), [...engineKinds].sort(),
+    "web/model.js KINDS and context.ts's Entry.entryType disagree — the editor would offer a type "
+    + 'the engine does not know, or hide one it does');
+  assert.deepStrictEqual([...schemaKinds].sort(), [...engineKinds].sort(),
+    'EXTRACT_SCHEMA\'s enum and the engine disagree. The grammar decides what the model CAN say, '
+    + 'so a type only in the schema arrives and renders as nothing; one only in the engine can '
+    + 'never be proposed at all.');
+
+  // AND THE COLOURS ARE A VOCABULARY TOO. A kind present in BLOCK_COLOR but indistinguishable
+  // from the segment beside it is covered on paper and invisible in the bar.
+  //
+  // A FLOOR, NOT A DESIGN STANDARD, and the difference matters. The first version of this asked
+  // for 1.2:1 of luminance between neighbours and THREE existing pairs failed it — which makes it
+  // a redesign of Seth's palette wearing a check's clothes, and a check that needs three
+  // exemptions on its first run is one that gets silenced. So it asks only that two adjacent
+  // segments not be the SAME lightness, which is a correctness floor: identical luminance means
+  // one bar in greyscale, and hue is the axis colour blindness takes away. The wider question —
+  // three adjacent pairs in this meter are separated by hue alone — is a design call and is
+  // written down in COUNCIL-05 rather than enforced here.
+  const lum = (hex: string) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  //
+  // GRANDFATHERED, one pair, named rather than silenced. `CANON-TRIGGERED` and `STRING` are
+  // identical in luminance (1.00:1) and were long before this check existed. They are left alone
+  // for a measured reason: `bench/utilisation.ts` scored 61 generations and BOTH kinds were sent
+  // in ZERO of them, so the two segments have never yet appeared in a meter together. That stops
+  // being true the moment PLAN-06 §2e makes the triggered tier fire — which is when this pair
+  // needs a real answer and not an exemption. A name in this list is SKIPPED, so a stale entry is
+  // a hole, the same way `DEFERRED` above is.
+  const GRANDFATHERED = new Set(['CANON-TRIGGERED|STRING']);
+  const colour = (model as any).BLOCK_COLOR as Record<string, string>;
+
+  // Distinctness first, and separately from adjacency — because ADJACENT IN `ORDER` is not the
+  // same as adjacent in the bar. The meter only draws the kinds a call actually contains, so which
+  // segments touch depends on what was sent: CANON-TRIGGERED and STRING have never been sent at
+  // all, which means their neighbours touch instead. Found by giving PROSE and TAIL the same hex
+  // and watching the adjacency rule stay green — DIRECTIVE sits between them in ORDER and nothing
+  // else looked. Two kinds sharing a colour is wrong whatever the order does.
+  const seen = new Map<string, string>();
+  for (const [kind, hex] of Object.entries(colour)) {
+    const first = seen.get(hex.toLowerCase());
+    assert.ok(!first, `${kind} and ${first} are both ${hex}. Two kinds cannot share a colour: the `
+      + 'meter draws only the kinds a call contains, so any two of them can end up touching, and '
+      + 'the legend gives them the same dot whether they touch or not.');
+    seen.set(hex.toLowerCase(), kind);
+  }
+  for (let i = 1; i < blocks.ORDER.length; i++) {
+    const [a, b] = [blocks.ORDER[i - 1], blocks.ORDER[i]];
+    if (GRANDFATHERED.has(`${a}|${b}`)) continue;
+    const ratio = (Math.max(lum(colour[a]), lum(colour[b])) + 0.05)
+      / (Math.min(lum(colour[a]), lum(colour[b])) + 0.05);
+    assert.ok(ratio >= 1.05,
+      `${a} and ${b} are adjacent segments of one meter and are the same lightness `
+      + `(${ratio.toFixed(2)}:1). In greyscale that is one bar, and hue is the axis colour `
+      + 'blindness takes away. Move one of them.');
+  }
+
+  // The exemption itself, asserted. If somebody fixes that pair the entry above becomes a lie that
+  // silences a check nobody knows is silenced — so it has to keep being true to stay.
+  for (const pair of GRANDFATHERED) {
+    const [a, b] = pair.split('|');
+    const ratio = (Math.max(lum(colour[a]), lum(colour[b])) + 0.05)
+      / (Math.min(lum(colour[a]), lum(colour[b])) + 0.05);
+    assert.ok(ratio < 1.05,
+      `${pair} is grandfathered in the adjacency check and no longer needs to be — it is now `
+      + `${ratio.toFixed(2)}:1. Take it out of GRANDFATHERED; an exemption that is not doing `
+      + 'anything is a silenced check waiting for the next colour change.');
+  }
+
+  ok(`${pairs.length + 3} shared vocabularies agree, walked both ways, block colours are all distinct `
+    + `and adjacent ones differ by lightness (${GRANDFATHERED.size} pair grandfathered, still failing)`);
+}
+
 console.log(`\n${n} checks passed`);

@@ -789,13 +789,24 @@ and false of the disk — see the correction there.
 
 ### What was found in the code that no document knew
 
-**`VOICE` has no entry in `BLOCK_COLOR`.** `web/model.js` holds two maps that must both cover
+**`VOICE` had no entry in `BLOCK_COLOR` — fixed the same day, with a general guard.** `web/model.js` holds two maps that must both cover
 `blocks.ts`'s ten kinds; `BLOCK_ORIGIN` covers ten, `BLOCK_COLOR` covers nine. `web/app.js:1238` and
 `:1276` fall back to `var(--ink-ghost)` — the colour that means *a kind I have no entry for*. And it
 is not rare: `bench/utilisation.ts` measured VOICE present in **61 of 61** scored generations at
 **8.4% of the prompt**, so on every call with a voice sample an eleventh of the meter, and its dot
-in the legend, is painted as unrecognised. `test/app.ts:623` walks `ORDER` and asserts
-`BLOCK_ORIGIN[kind]` exists. Nothing does the same for its neighbour, declared twelve lines away.
+in the legend, is painted as unrecognised. `test/app.ts:623` walked `ORDER` and asserted
+`BLOCK_ORIGIN[kind]` exists; nothing did the same for its neighbour, declared twelve lines away.
+
+**What replaced it is one table in `test/web.ts` naming every vocabulary shared across files**,
+walked both ways — nothing missing, nothing invented. `ORDER` against `BLOCK_COLOR` and
+`BLOCK_ORIGIN`; against `TAG`, `CAPS` and `CANON_KINDS` as subsets; the `Kind` union against `ORDER`
+itself, because a kind missing from `ORDER` sorts to `indexOf` **-1** and lands at the head of every
+prompt; and the four entry types across `web/model.js`, `context.ts` and `EXTRACT_SCHEMA`'s enum.
+Block colours are additionally checked for distinctness and adjacent lightness. Seven falsifications
+watched go red — and one that did **not**, which found that adjacent-in-`ORDER` is not
+adjacent-in-the-bar, because the meter draws only the kinds a call contains. See COUNCIL-05's
+closing note for the two further defects the guard found and the one rule that was cut for being a
+redesign rather than a check.
 
 **`docs/SPEC.md`'s table names are superseded wholesale** — `canon_entries` is `entries`,
 `chapter_canon_pins` is `chapter_pins`, `passage_options` was never built because variants live on

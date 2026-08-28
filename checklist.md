@@ -360,6 +360,20 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
 
 ### Found and fixed on 2026-08-28, listed because of how they hid
 
+- **`VOICE` was painted as a kind the app does not recognise, on every call.** `web/model.js` holds
+  two maps that must both cover the engine's ten block kinds; `BLOCK_ORIGIN` covered ten and
+  `BLOCK_COLOR` covered nine. `app.js` falls back to `var(--ink-ghost)` — the colour meaning "a kind
+  I have no entry for" — so the meter segment and its legend dot were grey. `bench/utilisation.ts`
+  measured VOICE present in **61 of 61** scored generations at **8.4% of the prompt**: every call
+  with a voice sample. The check that would have caught it was twelve lines away, guarding the
+  other map. Replaced by one table in `test/web.ts` naming every shared vocabulary, walked both
+  ways — see `docs/findings/COUNCIL-05.md`.
+- **Two dead columns are still on the disk.** `passages.token_counts` and
+  `stories.system_block_override` were cut from the source on 2026-08-23; SQLite does not drop
+  columns and nothing migrated them out, so Seth's `anansi.db` still carries both — and
+  `exportStory` copies them into every standalone database it writes. **Not fixed.** It needs a
+  migration or a written decision, and it currently has neither.
+
 - **The story-model select could not clear the one pin that needed clearing.** `The Shadow's Debt`
   is pinned to `rp-t-glm47flash-h`; the router's preset list was rewritten on 2026-08-27 and that
   name stopped existing, so nothing in the select carried its value, **nothing was selected**, and
