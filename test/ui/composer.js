@@ -166,8 +166,10 @@ ok(`  and its stroke is the theme's own accent, not a colour baked into a file (
 // the full-screen rule — 3% of the prose behind a blur, and a hardcoded Obsidian colour on a rule
 // the other eight themes share. `#dock.big` inherited `--dock`, which is a gradient fading from
 // nothing to 92% of the paper: right for a composer floating over prose, wrong for one that IS the
-// screen. Issue #3: "the background behind the input should be completely opaque. It is currently
-// not opaque which makes it hard to read anything."
+// screen. Issue #8: "the background behind the input should be completely opaque. It is currently
+// not opaque which makes it hard to read anything." (This block said #3 until 2026-08-28. #3 is
+// the button-size report asserted at the top of this file; the opacity one is #8, and the wrong
+// number had been copied into app.html as well.)
 //
 // #dock.big has since gone the other way — see the note on its own assertion below — so this
 // helper is the themes menu's rule now, and the composer's only in that it reads the same number.
@@ -231,10 +233,10 @@ await wait(400);
 // AND MAXIMIZED, IT WEARS THE SEND BLUR — plus a little tint of its own. Seth, 2026-08-28: "do
 // the same treatment on that background as the one that we do when we press send so that that
 // experience is cohesive", then "make it a litttttle bit more opaque just when its maximized."
-// This walks back issue #3's letter on purpose — #3 asked for opaque and got it, and the opaque
+// This walks back issue #8's letter on purpose — #8 asked for opaque and got it, and the opaque
 // sheet is now a blur plus 30% of the theme's paper.
 //
-// BOUNDED ON BOTH SIDES, and that is the whole point of the assertion. alpha 1 is issue #3's
+// BOUNDED ON BOTH SIDES, and that is the whole point of the assertion. alpha 1 is issue #8's
 // opaque sheet coming back; alpha 0 is the bare send veil with nothing under the words you are
 // typing, which is what he asked to move off. Only the band between them is the thing that was
 // asked for, so a single-sided check would pass on one of the two states he rejected.
