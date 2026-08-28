@@ -164,4 +164,69 @@ if (!(await askWith("tell me about @key"))) {
      !!sent2 && (sent2.mentions === undefined || sent2.mentions.length === 0));
 }
 
+// ---- AND THE SAME MENU IN THE COMPOSER. Seth: "on the left hand side add an @ symbol that will
+// add the feature that we just added to the anansi chat there. that way if doing direction or if
+// we want to use a thread that screen with the selector shows up."
+//
+// CHEAP AND CONSISTENT, which is the half he chose: the composer's mentions carry the NAME and no
+// id. That is not nothing — `fires()` scans the DIRECTIVE as well as the prose, so a triggered
+// entry whose key is its own title activates from being named in what you typed, and picking it
+// off the list is how you get the key exactly right rather than nearly right.
+await page.goto(B + "/#" + sid);
+for (let i = 0; i < 40 && !(await page.visible('#input')); i++) await wait(250);
+
+const cmenu = () => page.eval(`(() => { const l = document.getElementById('atlistInput');
+  if (!l || l.hidden) return { open: false };
+  return { open: true, items: [...l.querySelectorAll('[data-atpick]')].map(b => b.textContent.replace(/\\s+/g, ' ').trim()) };
+})()`);
+
+ok("the composer has an @ button", await page.eval("!!document.querySelector('[data-atopen]')"));
+const order = await page.eval("[...document.querySelectorAll('#inputRow > *')].map(e => e.id || e.dataset.atopen && 'atopen' || e.dataset.bigin && 'bigin' || e.tagName)");
+console.log("  input row: " + JSON.stringify(order));
+ok("  with @ and the full-screen button both on the LEFT of the box",
+   order.indexOf('atopen') === 0 && order.indexOf('bigin') === 1 && order.indexOf('inputWrap') === 2);
+ok("  and Send still on the right where it was", order[order.length - 1] === 'send' || order.includes('send'));
+
+await page.eval("(() => { document.querySelector('[data-atopen]')?.click(); return 1; })()");
+await wait(400);
+let cm = await cmenu();
+console.log("  after pressing @: " + JSON.stringify(cm.items));
+ok("pressing @ types one and opens the menu", cm.open && !!cm.items && cm.items.length > 0);
+ok("  and the @ is in the box", (await page.eval("document.getElementById('input').value")).includes('@'));
+
+await page.eval(`(() => { const b = document.getElementById('input');
+  b.value = '@key'; b.selectionStart = b.selectionEnd = b.value.length;
+  b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+await wait(300);
+cm = await cmenu();
+ok("typing filters it here too", cm.open && !!cm.items && cm.items.some((t) => /Silver Key/i.test(t)));
+
+if (cm.open) {
+  await page.eval("(() => { const b = document.querySelector('#atlistInput [data-atpick=\"0\"]');"
+    + " b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); return 1; })()");
+  await wait(300);
+  const v = await page.eval("document.getElementById('input').value");
+  console.log("  composer after accepting: " + JSON.stringify(v));
+  ok(`accepting writes @name into the directive (${JSON.stringify(v)})`, /@the Silver Key/i.test(v));
+  const marks = await page.eval("(() => [...document.querySelectorAll('#inputMirror mark')].map(m => m.textContent))()");
+  console.log("  composer marks: " + JSON.stringify(marks));
+  ok(`  and it is marked, the same as in the ask box (${JSON.stringify(marks)})`,
+     marks.length === 1 && /@the Silver Key/.test(marks[0]));
+  // THE TWO BOXES MUST NOT SHARE A STORE. The first version of this checked that #askMirror had
+  // no marks — and passed with the stores merged, because the ask box was EMPTY after a reload and
+  // an empty box has nothing to mark either way. Decorative. So: open the Anansi panel, put the
+  // same name in ITS box, and assert the composer's pick did not light it up there.
+  await page.eval("(() => { document.querySelector('[data-panel=\"anansi\"]')?.click(); return 1; })()");
+  await wait(500);
+  await page.eval(`(() => { const b = document.getElementById('askBox');
+    if (!b) return 0; b.value = 'and what about @the Silver Key';
+    b.selectionStart = b.selectionEnd = b.value.length;
+    b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+  await wait(300);
+  const askMarks = await page.eval("(() => [...document.querySelectorAll('#askMirror mark')].map(m => m.textContent))()");
+  console.log("  ask box marks after a COMPOSER pick: " + JSON.stringify(askMarks));
+  ok("  a name picked in the composer does not light up in the ask box — separate stores",
+     askMarks.length === 0);
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

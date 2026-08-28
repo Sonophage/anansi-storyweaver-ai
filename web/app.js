@@ -267,7 +267,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
-  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
+  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news', 'atopen',
   'dismiss', 'goflag', 'dropflag', 'modelmenu'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
@@ -990,12 +990,23 @@ function drawDock() {
         style="flex:0 0 auto">Anansi</button>
     </div>
     <div id="inputRow">
-      <textarea id="input" rows="1" placeholder="${esc(placeholder(who))}"></textarea>
+      <!-- BOTH ON THE LEFT, and @ first. They are the two things you reach for BEFORE writing —
+           summon the thing you mean, or take the whole screen to say it in — where Send is the
+           thing you reach for after. The full-screen button used to sit on the right beside Send,
+           where two controls with opposite jobs shared a corner. -->
+      <button data-atopen="1" aria-label="Summon a thread, a chapter or a book by name"
+        title="Summon a thread, a chapter or a book by name"
+        style="flex:0 0 auto; color:var(--faint)">@</button>
       <button data-bigin="1" aria-pressed="${S.bigInput}" title="${S.bigInput
         ? 'Back to the page' : 'Write in a full screen, and still read what you wrote'}"
         aria-label="${S.bigInput ? 'Close the full-screen composer' : 'Open the full-screen composer'}"
         style="flex:0 0 auto; color:var(--faint)">${
           S.bigInput ? '\u2921' : '\u2922'}</button>
+      <div id="inputWrap">
+        <div id="inputMirror" aria-hidden="true"></div>
+        <textarea id="input" rows="1" placeholder="${esc(placeholder(who))}"></textarea>
+      </div>
+      <div id="atlistInput" hidden></div>
       <span class="deskonly" style="font-size:10.5px; color:var(--label); opacity:.55; padding-bottom:3px">&crarr;</span>
       <!-- One button, two jobs, and it is the same button on purpose: the place your eye is
            already on when the model is writing is the place you last pressed. A separate Stop
@@ -3952,6 +3963,20 @@ document.addEventListener('click', async (e) => {
   }
   if (d.hwkb) { setHwkb(!hwkb); drawAppearance(); return toast(hwkb
     ? 'The caret comes back to the box on this device.' : 'The caret stays where you put it.'); }
+  // The @ button types the @ for you, at the caret, and opens the menu on it. Nothing a person
+  // could not do from the keyboard — which is the point: the button is for the hand that is not
+  // already on one.
+  if (d.atopen) {
+    const box = $('input'); if (!box) return;
+    box.focus({ preventScroll: true });
+    const at = box.selectionStart ?? box.value.length;
+    const pad = at > 0 && !/\s$/.test(box.value.slice(0, at)) ? ' ' : '';
+    box.value = `${box.value.slice(0, at)}${pad}@${box.value.slice(at)}`;
+    const caret = at + pad.length + 1;
+    box.setSelectionRange(caret, caret);
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    return;
+  }
   if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
   if (d.mute) {
     V = await api.mute(S.storyId, V.currentChapter.id, d.mute, false); paint();
@@ -4727,7 +4752,30 @@ document.addEventListener('drop', (e) => {
 let AT = null;
 const AT_MAX = 8;
 
-const atClose = () => { AT = null; const l = $('atlist'); if (l) { l.hidden = true; l.innerHTML = ''; } };
+/** Two boxes, one menu. The ask box carries mentions to Anansi as ids; the composer carries them
+ *  as NAMES and nothing else, which is the cheap half Seth chose — and it is not nothing, because
+ *  `fires()` scans the DIRECTIVE as well as the prose (`src/context.ts`), so a triggered entry
+ *  whose key is its own title activates from being named in what you typed. Picking it off the
+ *  list is how you get the key exactly right. */
+const AT_BOX = {
+  askBox:  { list: 'atlist',      mirror: 'askMirror',   ids: true },
+  input:   { list: 'atlistInput', mirror: 'inputMirror', ids: false },
+};
+const atCfg = (id) => AT_BOX[id];
+const atMentions = (id) => (id === 'askBox' ? (S.talk?.mentions ?? []) : (S.mentions ?? []));
+const atRemember = (id, m) => {
+  if (id === 'askBox') S.talk = { ...S.talk, mentions: [...(S.talk.mentions ?? []), m] };
+  else S.mentions = [...(S.mentions ?? []), m];
+};
+
+const atClose = () => {
+  const id = AT?.boxId;
+  AT = null;
+  for (const c of Object.values(AT_BOX)) {
+    const l = $(c.list); if (l) { l.hidden = true; l.innerHTML = ''; }
+  }
+  if (id) atMirror(id);
+};
 
 /** THE ACCENT IS THE RECEIPT. Seth asked for two things — keep the @ and mark it, and "a way to
  *  know if it did pull from the id or not" — and they are one mechanism: a mention is highlighted
@@ -4741,14 +4789,15 @@ const atClose = () => { AT = null; const l = $('atlist'); if (l) { l.hidden = tr
  *  in a mark. Its text is transparent — only the marks' backgrounds show — and the real text sits
  *  on top of them. The two must agree about every property that affects wrapping, which is why the
  *  CSS sets them together rather than in two places. */
-function atMirror() {
-  const box = $('askBox'), m = $('askMirror');
+function atMirror(boxId = 'askBox') {
+  const cfg = atCfg(boxId); if (!cfg) return;
+  const box = $(boxId), m = $(cfg.mirror);
   if (!box || !m) return;
   // No "is it still in the text" filter here: the scan below only marks a run that literally
   // starts `@name`, so presence is already enforced by the matching. Falsified — removing a filter
   // on this line changed nothing, which is what a redundant guard looks like.
   // Longest first, so `@the ledger` is not eaten by a shorter `@the` that also matched.
-  const names = [...new Set((S.talk?.mentions ?? []).map((x) => x.label))]
+  const names = [...new Set(atMentions(boxId).map((x) => x.label))]
     .sort((a, b) => b.length - a.length);
   let html = '';
   let i = 0;
@@ -4793,7 +4842,7 @@ function atFind(q) {
 }
 
 function atDraw() {
-  const l = $('atlist'); if (!l) return;
+  const l = $(atCfg(AT?.boxId ?? 'askBox')?.list ?? 'atlist'); if (!l) return;
   if (!AT || !AT.items.length) { l.hidden = true; l.innerHTML = ''; return; }
   l.hidden = false;
   l.innerHTML = AT.items.map((it, i) => `
@@ -4809,16 +4858,19 @@ function atDraw() {
 
 /** Read the `@word` immediately before the caret, if there is one. */
 function atScan(box) {
+  if (!atCfg(box.id)) return;
   const upto = box.value.slice(0, box.selectionStart ?? 0);
   const m = /@([^\s@]*)$/.exec(upto);
   if (!m) return atClose();
   const items = atFind(m[1].toLowerCase());
-  AT = items.length ? { from: m.index, to: box.selectionStart, items, sel: 0 } : null;
+  AT = items.length ? { boxId: box.id, from: m.index, to: box.selectionStart, items, sel: 0 } : null;
+  if (!AT) return atClose();
   atDraw();
 }
 
 function atAccept(i) {
-  const box = $('askBox'); if (!box || !AT) return;
+  const boxId = AT?.boxId; if (!boxId) return;
+  const box = $(boxId); if (!box) return;
   const it = AT.items[i ?? AT.sel]; if (!it) return;
   const before = box.value.slice(0, AT.from), after = box.value.slice(AT.to);
   // The name goes in WITHOUT the @, because what reaches Anansi should read as English. The @ is
@@ -4827,13 +4879,17 @@ function atAccept(i) {
   // what I'm referring to." The name alone tells her which words you used; the id tells her which
   // thing. Filtered against the box's text at send time, so deleting the name drops the mention
   // rather than shipping a reference to something the question no longer mentions.
-  S.talk = { ...S.talk, mentions: [...(S.talk.mentions ?? []), { kind: it.kind, id: it.id, label: it.label }] };
+  atRemember(boxId, { kind: it.kind, id: it.id, label: it.label });
   box.value = `${before}@${it.label} ${after}`;
   const caret = before.length + it.label.length + 2;   // the @ and the trailing space
   atClose();
   box.focus({ preventScroll: true });
   box.setSelectionRange(caret, caret);
-  atMirror();
+  atMirror(boxId);
+  // The composer's textarea grows from its own `input` listener, and setting `.value` in script
+  // does not fire one. Dispatching it also re-runs the scan, which finds no `@` before the caret —
+  // the inserted name ends in a space — and so simply confirms the menu is shut.
+  box.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // mousedown, not click: a click would move focus out of the textarea first and the caret with it.
@@ -4845,7 +4901,7 @@ document.addEventListener('mousedown', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.target?.id === 'askBox' && AT) {
+  if (atCfg(e.target?.id) && AT) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       AT.sel = (AT.sel + (e.key === 'ArrowDown' ? 1 : AT.items.length - 1)) % AT.items.length;
@@ -4865,7 +4921,7 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('input', (e) => {
   // The @ menu, and it must not redraw the box either — it writes only #atlist.
-  if (e.target?.id === 'askBox') { atScan(e.target); atMirror(); }
+  if (atCfg(e.target?.id)) { atScan(e.target); atMirror(e.target.id); }
   // Neither branch may redraw its own input. Both write only their results container.
   if (e.target.id === 'setupQ') {
     S.setupQ = e.target.value;

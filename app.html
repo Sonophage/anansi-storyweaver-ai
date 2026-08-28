@@ -998,6 +998,32 @@ textarea.field { resize:vertical; min-height:70px; }
    unambiguous: it means she is getting the thing and not only the word. */
 #askMirror mark { background:rgba(217,178,106,.18); color:transparent; border-radius:3px; }
 
+/* The composer's mirror. Same trick as the ask box's and the same rule: every property that
+   affects WRAPPING is set on both at once. #input is the one that already had its sizing, so the
+   mirror inherits from it rather than restating it — a second copy of `padding:10px 0` is how the
+   highlight ends up a line above the word it is highlighting. */
+#inputWrap { position:relative; flex:1; min-width:0; display:flex; }
+#inputWrap > #input { position:relative; z-index:1; background:transparent; }
+#inputMirror { font-size:17px; padding:4px 0; }
+@media (max-width:719px) { #inputMirror { font-size:15.5px; padding:10px 0; } }
+#inputMirror {
+  position:absolute; inset:0; z-index:0; color:transparent; pointer-events:none;
+  overflow:hidden; user-select:none;
+  font:inherit; font-size:inherit; line-height:1.55; letter-spacing:normal;
+  white-space:pre-wrap; overflow-wrap:break-word;
+}
+#inputMirror mark { background:rgba(217,178,106,.18); color:transparent; border-radius:3px; }
+/* The composer's own @ list, above the row rather than below it — the dock is at the bottom of
+   the screen and a menu under it would be off the edge. */
+#atlistInput {
+  position:absolute; bottom:100%; left:0; right:0; margin-bottom:8px; z-index:6;
+  display:flex; flex-direction:column; gap:2px; padding:6px;
+  border:1px solid var(--chip); border-radius:var(--r); background:var(--sheet);
+  box-shadow:0 24px 60px rgba(0,0,0,.55); max-height:46vh; overflow-y:auto;
+}
+#atlistInput[hidden] { display:none; }
+#inputRow { position:relative; }
+
 #toast[hidden] { display:none; }
 </style>
 </head>
