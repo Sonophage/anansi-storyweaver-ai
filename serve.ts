@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
-import { extname } from 'node:path';
+import { extname, resolve } from 'node:path';
 import { routes, OPEN_ROUTES, storyIdOf } from './src/routes.ts';
 import type { Ctx } from './src/routes.ts';
 import { slotContext, model } from './src/llama.ts';
@@ -251,6 +251,23 @@ const handler = async (req: any, res: any) => {
   } catch (e: any) { console.error('  backup failed:', e?.message); } };
   snapshot(); setInterval(snapshot, 30 * 60_000).unref();
 
+  // ONLY THE REAL LIBRARY MANAGES THE SHARED DIRECTORIES.
+  //
+  // Both copies below write to fixed absolute paths under /data, and every server that boots writes
+  // to them — including the twelve throwaway servers `test/ui/run.sh` starts per run, and every
+  // scratch server a probe spins up. On 2026-08-28 that filled /data/anansi-books with 167 exports
+  // of `Alice's Book` and rotated thirteen of the fourteen off-disk backup slots to 274 KB test
+  // fixtures, evicting the real 4 MB copies. The near backups were never hit, because those live
+  // beside whichever database is open; only the absolute paths were.
+  //
+  // So: a server pointed at a database that is not the primary library does not touch them. It is
+  // not the library's custodian and its backups are noise. Loud once, because a real server that
+  // has somehow stopped backing up must not be quiet about it.
+  // resolve() on both sides: ANANSI_DB may be set to the primary library by a relative path, and a
+  // string compare would call that server a stranger and silently stop backing the real book up.
+  const PRIMARY = resolve(db.FILE) === resolve(new URL('./anansi.db', import.meta.url).pathname);
+  if (!PRIMARY) console.log(`  shared copies skipped — ${db.FILE} is not the primary library`);
+
   // AND A COPY ON ANOTHER DISK. Every snapshot above lands beside `anansi.db`: that protects
   // against corruption and against a bad edit, and against nothing that takes the filesystem. The
   // open item since PLAN-02 deleted Neon was not backup, it was backup somewhere else.
@@ -266,7 +283,7 @@ const handler = async (req: any, res: any) => {
   // Silent when the directory cannot be written, because a box without /data must still boot —
   // but LOUD once, on the first attempt, so a backup that is not happening is never quiet.
   const FAR = process.env.ANANSI_BACKUP_DIR ?? '/data/anansi-backups';
-  if (FAR && FAR !== 'off') {
+  if (PRIMARY && FAR && FAR !== 'off') {
     let farSaid = false;
     const far = () => { try {
       const b = db.backup(FAR, 14);
@@ -295,7 +312,7 @@ const handler = async (req: any, res: any) => {
   // boots to silence and never answers. Real paths (/root, a missing root dir) throw EACCES at once.
   // If this ever appears to hang at boot, look at ANANSI_EXPORT_DIR before looking at the router.
   const BOOKS = process.env.ANANSI_EXPORT_DIR ?? '/data/anansi-books';
-  if (BOOKS && BOOKS !== 'off') {
+  if (PRIMARY && BOOKS && BOOKS !== 'off') {
     let booksSaid = false;
     const books = () => {
       let done = 0; const failed: string[] = [];
