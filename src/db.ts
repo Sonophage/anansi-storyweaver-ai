@@ -844,12 +844,19 @@ export function upsertEntry(storyId: string, o: string, e: any) {
   //
   // TWO EXCEPTIONS, and both are deliberate rather than defensive:
   //
-  //   `allowNoKeys` — `web/app.js` makes an entry out of a highlighted passage and lands it
-  //   triggered-with-no-keys ON PURPOSE, because an always-on entry made from a highlight costs
-  //   tokens on every call from then on, before anyone has looked at it. There, dark IS the
-  //   feature: it means "not switched on yet". The flag says so at the call site instead of
-  //   leaving the two meanings to share a state silently. It is a per-call permission and is
-  //   never stored — nothing below binds it to a column.
+  //   `allowNoKeys` — the defect 2e names is SILENCE: an entry going dark with nobody choosing it.
+  //   So the flag marks the writes where somebody did choose, and the app passes it on all three:
+  //   the highlight-to-thread button, which wants dark on purpose (an always-on entry made from a
+  //   highlight costs tokens on every call before anyone has looked at it); the activation chip;
+  //   and the entry editor's Save. The chip one is not a nicety — the trigger-words field is
+  //   DISABLED while an entry is always-on (`web/app.js:2233`), so switching to triggered and then
+  //   typing keys is the only route there is, and a guard without this exemption bounces the
+  //   switch back and makes a triggered entry impossible to create. `test/ui/handlers.js` caught
+  //   exactly that, in a browser, after the unit suite was green.
+  //
+  //   What is left guarded is what 2e is actually about: accept, the wizard, both importers,
+  //   copy-to-another-book, and any API client that did not say it meant it. It is a per-call
+  //   permission and is never stored — nothing below binds it to a column.
   //
   //   A row ALREADY in that state is left alone. `bench/ledger-audit.ts` was run against the live
   //   library on 2026-08-28 before this was written: of the 7 entries the prose can answer for, 1

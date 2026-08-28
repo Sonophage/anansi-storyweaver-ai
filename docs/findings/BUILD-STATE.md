@@ -52,7 +52,7 @@ one — it looks finished from the UI), and **not started**.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **Tests** | **235 across eleven suites** (43 engine, 50 db, 33 scope, 12 import, 13 stream, 8 mend, 8 memory, 4 report, 14 talk, 18 web, 32 app), plus **477 driven-browser checks across twelve scenarios**, all green on 2026-08-28 — plus `model` and `ritual`, which wait on real generations and are not in the default set — and the model evals in `bench/` | No HTTP-level suite yet. The client-contract check **now runs both ways** (`test/web.ts:217`): every `api.js` method needs a caller in `app.js`, and every route in `routes.ts` needs a method in `api.js` or a named entry in `NO_CLIENT`. The one-direction row above was true until 2026-08-27 and is the reason `POST /api/remember` shipped doorless. |
+| **Tests** | **235 across eleven suites** (44 engine, 53 db, 33 scope, 12 import, 13 stream, 8 mend, 8 memory, 4 report, 14 talk, 18 web, 33 app) — **240** — plus **488 driven-browser checks across twelve scenarios** (16 buttons, 60 surfaces, 40 handlers, 18 search, 13 restored, 14 hostile, 11 limits, 35 import, 58 modes, 153 panels, 52 phone, 18 wizard), all green on 2026-08-28 — plus `model` and `ritual`, which wait on real generations and are not in the default set — and the model evals in `bench/` | No HTTP-level suite yet. The client-contract check **now runs both ways** (`test/web.ts:217`): every `api.js` method needs a caller in `app.js`, and every route in `routes.ts` needs a method in `api.js` or a named entry in `NO_CLIENT`. The one-direction row above was true until 2026-08-27 and is the reason `POST /api/remember` shipped doorless. |
 
 ---
 
@@ -463,10 +463,11 @@ it is retired when the debt is paid.
 ## 7. Fifth pass, 2026-08-28 — the day and a half the fourth pass could not see
 
 `test/all.ts` **235 ok in eleven suites** at `b371eaa`, run before this section was written, and
-**238** at the end of the session — 2f, then 2a and 2d. The browser harness is unchanged at 477
-across twelve scenarios and was **not re-run**; that number is `b371eaa`'s. The
-browser harness is recorded at **477 ok in twelve scenarios** from `b371eaa`'s own run and was not
-re-run for this pass; `modes` moved 49 → 58 over the period.
+**240** at the end of the session — 2f, then 2a and 2d, then 2b and the 2e guard. The browser
+harness was run in full at the end: **488 ok in twelve scenarios, 0 red**, up from the 477 recorded
+at `b371eaa`. The
+browser harness ran in full at the end of the session: **488 ok in twelve scenarios, 0 red**, up
+from the 477 recorded at `b371eaa`; `modes` moved 49 → 58 over the period.
 
 The fourth pass ended at `0640cb8`. Twenty commits landed after it, and none of them reached this
 document. That is the drift its own §6 predicted, arriving on schedule, and it is the second thing
@@ -616,6 +617,26 @@ three call sites, beside `keysOf`. `web/app.js:3964` passes the flag, and `test/
 been asserting that deliberate behaviour all along — it goes red in a real browser when the flag is
 dropped, which is how the opt-out was verified instead of assumed. Causes i, iii and iv of §2e are
 still open: nothing yet makes an entry *fire*.
+
+### The browser harness caught what 240 unit checks could not
+
+The 2e guard shipped green on `test/all.ts` and turned `handlers` red on the next full browser run:
+*"switching activation to triggered persists (now always_on)"*.
+
+The guard was bouncing the writer's own activation chip. And the trigger-words field is **disabled
+while an entry is always-on** (`app.js:2233`), so switching to triggered and then typing keys is the
+only route there is — the guard had made a triggered entry **impossible to create by hand**, while
+every unit check stayed green because none of them presses a chip.
+
+Fixed by naming what the guard is actually for. The defect 2e describes is **silence** — an entry
+going dark with nobody choosing it — so `allowNoKeys` now marks the three writes where somebody did
+choose: the highlight-to-thread button, the activation chip, and the entry editor's Save. What is
+left guarded is what 2e was ever about: accept, the wizard, both importers, copy-to-another-book,
+and any API client that did not say it meant it. And because a writer can now legitimately sit in
+that state, the hint under the keys box says so: *"This entry cannot reach the model yet."*
+
+This is the case for the twelve scenarios existing. A unit suite cannot press a chip that is
+disabled by the state the press is meant to change.
 
 ### Still open, unchanged by any of the above
 

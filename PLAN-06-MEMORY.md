@@ -225,10 +225,19 @@ is not supported by this evidence and was never the cheap half.
 
 **BUILT: the guard, in `upsertEntry`, with an explicit opt-out.** A `triggered` entry with no keys
 becomes `always_on` unless the caller passes `allowNoKeys`, and unless the row is already in that
-state. One floor, not three call sites. `web/app.js:3964` passes the flag, because there dark IS
-the feature — an entry made from a highlight would cost tokens on every call before anyone finished
-it — and `test/ui/search.js` has been asserting that behaviour all along; it goes red in a real
-browser when the flag is dropped, which is how the opt-out was verified rather than assumed.
+state. One floor, not three call sites. Three call sites in the app pass the flag, because all three are a
+human choosing: the highlight-to-thread button (`:3964`, where dark IS the feature), the activation
+chip, and the entry editor's Save.
+
+**The chip one was found by the browser harness after the unit suite was green.** `handlers` went
+red — *"switching activation to triggered persists (now always_on)"* — because the trigger-words
+field is disabled while an entry is always-on (`app.js:2233`, cause iii of this very section), so
+switch-then-type is the only route and the guard was bouncing the switch. **It had made a triggered
+entry impossible to create by hand.** So the flag marks intent, not exceptions: what stays guarded
+is accept, the wizard, both importers, copy-to-another-book, and any API client that did not say it
+meant it. The hint under the keys box now says "This entry cannot reach the model yet" when a
+writer sits in that state deliberately. `test/ui/search.js` guards the highlight case and goes red
+in a browser when its flag is dropped.
 
 **NOT BUILT, and not on the evidence: the flip of what is already there.** See the probe run above.
 An already-dark row is left alone, so a rename cannot switch an entry on by the back door.

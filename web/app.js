@@ -2233,7 +2233,11 @@ function entryEditor() {
       ${e.activation === 'always_on' ? 'disabled style="opacity:.5"' : ''}>
     <div class="hint">${e.activation === 'always_on'
       ? 'Always-on entries need none — they are sent on every call.'
-      : 'Comma separated, up to ten. A whole word in recent prose or in your directive fires it.'}</div>
+      : (e.keys ?? []).length
+        ? 'Comma separated, up to ten. A whole word in recent prose or in your directive fires it.'
+        : '<strong>This entry cannot reach the model yet.</strong> Triggered with no trigger words '
+          + 'never fires, and nothing else on this screen would tell you. Comma separated, up to '
+          + 'ten — a whole word in recent prose or in your directive fires it.'}</div>
     <label class="lbl">Your notes</label>
     <textarea class="field" data-f="notes" style="min-height:64px">${esc(e.notes ?? '')}</textarea>
     <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
@@ -3849,7 +3853,13 @@ document.addEventListener('click', async (e) => {
     // Type and activation are chips, so they save immediately rather than waiting for Save —
     // the trigger-words field enables and disables on activation and must repaint to show it.
     const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
-    const patch = { ...e, id: e.id, keys: e.keys ?? [] };
+    // `allowNoKeys`: the guard in db.upsertEntry turns a keyless `triggered` entry always-on so
+    // nothing lands dark by accident, and this chip is the one place where the two-step is the
+    // ONLY route — the trigger-words field above is disabled while an entry is always-on, so a
+    // writer has to switch first and type second. Without the flag the switch bounces straight
+    // back and a triggered entry cannot be made at all. A human pressing "On a keyword" with the
+    // chip and the hint in front of them is not the silence 2e is about.
+    const patch = { ...e, id: e.id, keys: e.keys ?? [], allowNoKeys: true };
     if (d.kind) patch.entryType = d.kind; else patch.activation = d.act;
     const r = await api.saveEntry(S.storyId, patch);
     if (r.error) return toast(r.error);
@@ -3862,8 +3872,11 @@ document.addEventListener('click', async (e) => {
     // here only so the box does not show a key the server is about to drop. SPEC §7.1: ten, 2-32.
     const keys = String(get('keys') ?? '').split(',').map((s) => s.trim())
       .filter((s) => s.length >= 2 && s.length <= 32).slice(0, 10);
+    // Same reason as the chips: the writer is looking at the entry. Emptying the keys box and
+    // saving leaves it triggered-and-dark, which the hint below now says out loud — better than
+    // silently switching it always-on and changing what every call sends without being asked.
     const r = await api.saveEntry(S.storyId, { ...e, id: e.id, title: get('title') ?? e.title,
-      body: get('body') ?? e.body, notes: get('notes') ?? e.notes, keys });
+      body: get('body') ?? e.body, notes: get('notes') ?? e.notes, keys, allowNoKeys: true });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); toast('Saved.'); refreshManifest(); return;
   }
