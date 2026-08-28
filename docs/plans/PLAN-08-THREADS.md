@@ -66,40 +66,70 @@ than title-repeated. Today's numbers describe keys nobody wrote.
 
 ### Phase 2 — the schema, once
 
-**The shape, concretely.** Written out because "fields" is not a design until the columns are named.
+**The shape, concretely.** Rewritten 2026-08-28 on Seth's call: *"all these additions outside of
+the body should be the same class as outfits are, i.e. addons, and several can be triggered on at a
+time for specific ones."* The first draft made a field a row in `entry_states`, one per name. His is
+better and the reason is that a card does not have *one* relationship — it has three, and each wants
+its own trigger words. A field-as-blob can only arrive whole.
 
-**A field is a state with no chapter attached, so there is no new table for fields.** `entry_states`
-(`src/db.ts:241`) already carries `entry_id`, `from_chapter`, `body`, `before_mode` (`hide` | `hint`)
-and `label`. Add three columns and it carries fields too:
+**One table, `addons`, and `outfits` migrates into it as a slot.** Not a rename of `outfits` — the
+name would lie forever on a table holding voices and relationships — and not a second table beside
+it, which is two firing paths to keep in step.
 
 ```sql
-ALTER TABLE entry_states ADD COLUMN field      TEXT DEFAULT 'body';  -- which room of the card
-ALTER TABLE entry_states ADD COLUMN keys       TEXT DEFAULT '[]';    -- this field's own trigger words
-ALTER TABLE entry_states ADD COLUMN activation TEXT;                 -- null = follow the entry
+CREATE TABLE addons (
+  id TEXT PRIMARY KEY,
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  entry_id TEXT REFERENCES entries(id) ON DELETE CASCADE,  -- null = the story's own
+  slot TEXT NOT NULL,              -- outfit | appearance | interiority | relationships | voice | …
+  name TEXT NOT NULL,              -- what it is called on the screen
+  body TEXT NOT NULL,              -- what the model reads
+  keys TEXT DEFAULT '[]',          -- it can arrive on its own, like an entry
+  active INTEGER DEFAULT 0,        -- the writer pinned it on
+  from_chapter INTEGER,            -- when it became true
+  retired_at_chapter INTEGER,
+  created_at INTEGER NOT NULL);
 ```
 
-Every row that exists today is `field = 'body'` and keeps working untouched. `resolveBody` already
-picks the newest state at or before the current chapter; the generalisation is *newest row per
-field*, which is the same query with a `GROUP BY`. **Chapter-end never overwrites — it inserts a row
-with a `from_chapter`**, so she can be loyal in chapter 2 and not in chapter 9 and the model can see
-the turn instead of only the end of it. `entries.body` stays as the always-sent spine.
+**The slots, per kind.** Named in one module, never free text — the `blocks.ts` rule, and
+`entries.field_editors` already keys provenance by name so the two lists must be one list.
 
-**The field names are a fixed list in one module, not free text.** Same rule as `src/blocks.ts`:
-named, never numbered, one order in one place. Free-form names let the model write `Motivation` and
-`motivations` into the same book. `entries.field_editors` already keys per-field provenance by name,
-so the two lists must be the same list.
+| kind | body | addon slots |
+|---|---|---|
+| character | the spine, always sent | `appearance`* · `outfit`* · `interiority` · `relationships` · `voice`* |
+| lore / place | the spine | `appearance`* · `atmosphere` · `who_is_here` · `history` |
+| item | the spine | `appearance`* · `provenance` · `what_it_does` |
+| rule | the spine | `scope` · `consequences` |
 
-| kind | fields |
-|---|---|
-| character | `body` (the spine) · `appearance` · `motivations` · `interiority` · `relationships` · `voice` |
-| lore / place | `body` · `appearance` · `atmosphere` · `who_is_here` · `history` |
-| item | `body` · `appearance` · `provenance` · `what_it_does` |
-| rule | `body` · `scope` · `consequences` |
+`*` = **exclusive**: one at a time, the way an outfit already is. `wearOutfit` (`src/db.ts:1001`)
+already enforces that in a transaction — clear all for the entry, set one — and generalising it is
+one `AND slot = ?` in the `UPDATE`. The rest accumulate: three relationships are three rows, each
+firing on its own words. Exclusivity is a property of the SLOT and it lives in the database, not on
+the screen.
 
-Clothing is **not** a field: `outfits` (`src/db.ts:324`) is already the right table, already rides
-with the entry's activation (`context.ts:435`), and already has one-at-a-time enforced in the
-database. #5's *"clothing shouldn't be looked into but they can become new outfits"* is a routing
-rule at chapter end, not a schema change.
+`motivations` is not in the list. Seth named four for a character and it was not one of them;
+`interiority` is doing that work.
+
+**Two ways in, and they are a UNION — not a new rule.** An addon reaches the model when its entry
+does **and** (`active` is set **or** its `keys` fire). That is exactly what an entry already does
+with `force_in` or a keyword (`src/context.ts:439-443`), so there is no second firing semantics to
+learn or to keep in step. `active` means *the writer pinned it on*; keys mean *it can arrive on its
+own*. Conflating them gives four states and nobody can say what reached the model.
+
+**Strings get this for free, and that is the strongest argument for the shape.** `strings`
+(`src/db.ts:255`) already carries `body`, `from_chapter` and `summoned INTEGER DEFAULT 0` — *"only a
+summoned string reaches the prompt"*. That is `active` with a different name and no keys, so today an
+open promise reaches the model only if the writer remembers to summon it by hand. As an addon with
+`entry_id` null it keeps the manual switch **and** gains trigger words, so a promise can arrive when
+the prose walks past it. Whether the `strings` table folds in or just shares the firing code is a
+Phase 2 call; the win is the same either way and the code-sharing version is smaller.
+
+**`from_chapter` stays, and it is what makes the arc survive.** An exclusive slot plus
+`from_chapter` is a timeline — appearance at chapter 1, appearance at chapter 9, newest at or before
+the current chapter wins, which is `resolveBody`'s existing logic pointed at a slot. Plural slots
+just accumulate. This is the "never overwrite, append with a chapter number" decision from the top
+of this plan, and dropping it to match `outfits` — which has no `from_chapter` — is the one way this
+shape could quietly lose it.
 
 **Edges, directed, in a small new table:**
 
@@ -115,22 +145,27 @@ CREATE TABLE entry_edges (
 because somebody said "coat". Undirected edges rebuild COUNCIL-04 #7's crowded scene through the
 back door, and the direction cannot be recovered once two hundred edges exist.
 
-**Retirement, one column:** `ALTER TABLE entries ADD COLUMN retired_at_chapter INTEGER;` — a dead
-character, a burned building, a rule that stopped applying. Without it the ledger's precision decays
-as the book grows, which is exactly when it is needed most.
+**Retirement:** `retired_at_chapter` on `entries` as well as on `addons` — a dead character, a
+burned building, a rule that stopped applying. Without it the ledger's precision decays as the book
+grows, which is exactly when it is needed most.
 
-**Proposals learn to aim at a field:** `proposals` (`src/db.ts:266`) has `entry_type` and `keys` and
-nothing else. It needs `field TEXT` and `activation TEXT` — the first so chapter end can propose a
-change to `motivations` alone instead of a whole new body, the second because §2e's *"honour a
-model's explicit activation"* has nowhere to land today. Both are one column.
+**Proposals learn to aim at a slot:** `proposals` (`src/db.ts:266`) needs `slot TEXT` and
+`activation TEXT` — the first so chapter end can propose one relationship rather than a whole new
+body, the second because §2e's *"honour a model's explicit activation"* has nowhere to land today.
 
-**A cap, or the crowded scene comes back.** Fields multiply what can fire by roughly five. `CANON_CAP_FRAC`
-exists; whether it is enough is a measurement, and Phase 3 does not close until `bench/fires.ts`
-reports the per-position numbers again with fields switched on.
+**A cap, or the crowded scene comes back — and this shape makes that risk BIGGER, not smaller.**
+Today one entry is one block. After, one entry is one block plus N addons, and N is unbounded
+because plural slots accumulate. COUNCIL-04 #7 was 46 entries firing at once; this is the same
+failure with a finer grain. `CANON_CAP_FRAC` exists and whether it is enough is a measurement, not
+an opinion: Phase 3 does not close until `bench/fires.ts` reports the per-position numbers again
+with addons switched on, and the eviction order has to say what it drops first — a whole entry, or
+its addons before its spine.
 
-**What this does NOT change:** `entries.body`, `keys`, `activation`, `sticky_for`, `proper_nouns` and
-`field_editors` all keep their meaning. Nothing above is a rewrite; it is four `ALTER TABLE`s, one
-small new table, and one names-only module.
+**What this does NOT change:** `entries.body`, `keys`, `activation`, `sticky_for`, `proper_nouns`
+and `field_editors` keep their meaning. `entry_states` keeps its. Nothing above is a rewrite of the
+engine; it is one new table, one migration of `outfits` into it, two small columns on `proposals`,
+one column on `entries`, and one names-only module.
+
 
 
 Four additions. Two of them are less new than they look, and that is the good news.
