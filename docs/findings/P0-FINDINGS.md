@@ -1499,3 +1499,45 @@ you to rewrite a prompt that was working. The context tokeniser had exactly that
 The first run of the probe also scored six real passages as "empty" from a wrong response key; every
 skipped trial is printed rather than folded into a denominator, which is the only reason that read
 as a bug instead of as "0%, confirmed".
+
+## F38 — the ledger's keyword path is not dead. It fires 107 times in 148 chances, and the flip PLAN-06 §2e asks for would add 75 more chances and darken nothing (2026-08-28)
+
+PLAN-08 Phase 1. Measured with `bench/fires.ts`, read-only over the whole library, no model:
+`fires()` imported from `src/context.ts` rather than copied, the sticky walk mirroring
+`context.ts:444-454`, and the real trigger window including `passages.directive`.
+
+| story | positions | as it stands | after the flip | would go dark |
+|---|---|---|---|---|
+| Test | 8 | 22 / 24 — 91.7% | 22 / 24 | 0 |
+| The Anagram of Ash | 62 | 85 / 124 — 68.5% | 133 / 186 — 71.5% | 0 |
+| The Shadow's Debt | 13 | **0 / 0 — never asked** | 11 / 13 — 84.6% | 0 |
+| **library** | 83 | **107 / 148** | **166 / 223 — 74.4%** | **0** |
+
+Three stories have one passage each and cannot be walked.
+
+**§2e's headline is stale and this supersedes it.** On 2026-08-27 it read twelve entries out of
+`anansi.db` and found twelve `always_on`, zero `triggered`, and called `fires()` "the best-tested
+dead code in the app." That was true of that library on that day. It is not true now — the ACCEPT
+path at `routes.ts:1336` lands accepted lore, items and rules `triggered`, and enough have been
+accepted since that the keyword path now runs on 148 entry-positions and answers on 107 of them.
+The dead-code claim should not be repeated without re-running this.
+
+**The denominator is entry-positions where the entry was ELIGIBLE to fire** — activation
+`triggered`, not the point-of-view character, which `context.ts:441` includes unconditionally. An
+always-on entry is not a failure to fire; it is a refusal to ask, and it is in neither half. Without
+that split the library reads as 100% and decides nothing (F10).
+
+**The number the flip turns on is the last column, and it is zero.** An entry that becomes
+`triggered` and then never fires does not degrade, it vanishes silently — so the risk of applying
+`src/import.ts:127`'s rule at the three proposal sites is exactly the count of entries that would go
+dark across a whole book. On this library, none. `The Shadow's Debt` is the case that argues for it:
+one book where the ledger currently never fires at all, and where the flip would put it in front of
+the model on 11 of 13 positions.
+
+**What this does not say.** It cannot say a fired entry deserved to fire — that is a judgement about
+a book and needs a reader. The detector ships with 11 synthetic cases asserting both directions: a
+name fires and an absent one does not, sticky holds a name that has left the window and stops at the
+end of it, lore does not inherit a character's sticky, an entry fires on the directive alone and not
+on an empty one, and an entry whose keys are never said fires nowhere. A story can carry several
+branches and `ordinal` is unique per branch, so only the branch with the most selected passages is
+walked; interleaving two would invent a history nobody wrote.
