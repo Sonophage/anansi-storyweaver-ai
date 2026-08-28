@@ -82,6 +82,24 @@ if (toggle) {
   await wait(400);
   ok(`  and it is still there after the composer is redrawn (inputmode=${await im()})`,
      (await im()) === 'none');
+  // AND THE DOCK SITS OFF THE EDGE while it is on. With no soft keyboard to make room for there is
+  // nothing below it to reach past, so it gets ~10px of air — and it keeps it, because nothing
+  // moves the dock any more. Keyed on the root attribute applyHwkb writes, which is why that
+  // attribute is `data-ui-hwkb` and not `data-hwkb`: the latter is a click action, and
+  // closest('[data-hwkb]') would match <html> on every press in the app. test/app.ts asserts that
+  // separation and caught it the moment this was written.
+  ok("the setting is on the root for the stylesheet to key off",
+     (await page.eval("document.documentElement.dataset.uiHwkb")) === '1');
+  const pad = () => page.eval("(() => Math.round(parseFloat(getComputedStyle(document.getElementById('dock')).paddingBottom)))()");
+  const on = await pad();
+  await page.eval("(() => { document.documentElement.dataset.uiHwkb = '0'; return 1; })()");
+  await wait(200);
+  const off = await pad();
+  await page.eval("(() => { document.documentElement.dataset.uiHwkb = '1'; return 1; })()");
+  console.log(`  dock padding-bottom: ${off}px off, ${on}px on`);
+  ok(`  and the dock gains about 10px of bottom padding with it on (${off} -> ${on})`,
+     on - off >= 8 && on - off <= 12);
+
   // And OFF has to mean off, or a writer with no physical keyboard would have nothing to type with.
   await page.eval("(() => { document.querySelector('[data-appearance]')?.click(); return 1; })()");
   await wait(300);

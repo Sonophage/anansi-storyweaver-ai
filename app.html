@@ -722,6 +722,11 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 #dock { position:relative; flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
   padding:0 0 28px; background:var(--dock); }
 @media (max-width:719px) { #dock { padding:0 18px calc(24px + env(safe-area-inset-bottom, 0px)); } }
+/* WITH A HARDWARE KEYBOARD THE DOCK SITS STILL, so it can afford to sit off the edge. There is no
+   soft keyboard to make room for and nothing below it to reach past — 10px of air, and it stays
+   there because nothing moves it any more. Keyed on the root attribute `applyHwkb` writes, so the
+   CSS and the meta swap are driven by one place. */
+html[data-ui-hwkb="1"] #dock { padding-bottom:calc(34px + env(safe-area-inset-bottom, 0px)); }
 #dockCol { width:100%; max-width:var(--col); display:flex; flex-direction:column; gap:14px; }
 /* WHO you are speaking or acting as. It was squeezed into the right-hand end of the modes rail,
    where it read as one more mode and ran out of room on a narrow window. Its own strip now, above
@@ -805,9 +810,14 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 }
 #inputRow { display:flex; align-items:flex-end; gap:16px; border-bottom:1px solid var(--gold); padding:0 0 14px; }
 html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.28); }
+/* THE BOX IS THE HEIGHT OF THE BUTTONS BESIDE IT. It was one line tall — 26px against a 34px Send
+   on a desk and 24px against 44px on a phone — so the row read as a stripe with two discs on the
+   end of it, and the first character typed changed its height. The padding is what makes one line
+   fill the button: line-height 1.55 on the font size, plus the padding, equals the button. `fit()`
+   measures scrollHeight, which includes the padding, so it agrees without being told. */
 #input {
   flex:1; min-width:0; font-size:17px; line-height:1.55; color:var(--body); background:none; border:0;
-  resize:none; max-height:140px; padding:0; font-family:inherit;
+  resize:none; max-height:140px; padding:4px 0; min-height:34px; font-family:inherit;
 }
 /* THE COMPOSER, FULL HEIGHT. A capped box is right for a line and wrong for a paragraph: past the
    cap you are writing into a six-line window and cannot see the top of your own sentence. This is
@@ -827,7 +837,8 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 /* No inline height is set in this mode, so the flex box is the height and the text scrolls in it. */
 #dock.big #input { max-height:none; height:auto; }
 #input::placeholder { color:var(--label); opacity:.75; }
-@media (max-width:719px) { #input { font-size:15.5px; } #inputRow { padding-bottom:12px; } }
+@media (max-width:719px) { #input { font-size:15.5px; padding:10px 0; min-height:44px; }
+  #inputRow { padding-bottom:12px; } }
 #send { width:34px; height:34px; border-radius:50%; background:var(--gold); color:var(--on-gold); display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto; }
 #send:disabled { opacity:.4; }
 /* Writing. The same button, in the same place, saying the one thing it can do now — a disabled

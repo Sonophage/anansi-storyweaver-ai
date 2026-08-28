@@ -71,6 +71,14 @@ try { hwkb = localStorage.getItem(HW) === '1'; } catch { /* no storage */ }
  *
  *  Chrome re-reads this meta when it changes, so it can be a runtime setting rather than a reload. */
 const applyHwkb = () => {
+  // On the root as well as in the meta, so the stylesheet can key off it — the dock's extra bottom
+  // padding does. One place writes it; nothing else has to know the setting exists.
+  //
+  // `data-ui-hwkb`, not `data-hwkb`: the latter is a CLICK ACTION and `closest('[data-hwkb]')`
+  // would then match <html> on every press in the app. test/app.ts asserts that separation and
+  // caught this the moment it was written — the `data-ui-*` prefix is what the state attributes
+  // use for exactly this reason.
+  root.dataset.uiHwkb = hwkb ? '1' : '0';
   const m = document.querySelector('meta[name="viewport"]');
   if (m) m.setAttribute('content', m.getAttribute('content')
     .replace(/interactive-widget=[a-z-]+/, `interactive-widget=${hwkb ? 'overlays-content' : 'resizes-content'}`));

@@ -28,6 +28,27 @@ for (const [what, sel] of [["send", "#send"], ["the expand button", "#inputRow [
   ok(`${what} is at least 44px square on a phone (${b.w}x${b.h})`, b.w >= 44 && b.h >= 44);
 }
 
+// THE BOX MATCHES THE BUTTONS BESIDE IT. It was one line tall — 24px against a 44px Send — so the
+// row read as a stripe with two discs on the end, and the first character typed changed its
+// height. Asserted as agreement with Send rather than as a number, because what was wrong was the
+// disagreement and a fixed number would need rewriting the next time the target size moves.
+{
+  const inp = await box('#input');
+  const send = await box('#send');
+  console.log(`  #input ${JSON.stringify(inp)}  #send ${JSON.stringify(send)}`);
+  ok(`the input box is as tall as the buttons beside it (${inp && inp.h} vs ${send && send.h})`,
+     !!inp && !!send && Math.abs(inp.h - send.h) <= 2);
+  // And typing one line must not change it, which is the half Seth reported: "clicking the input
+  // box keeps it where i need it but once i start typing it moves."
+  await page.eval("(() => { const t = document.getElementById('input'); t.value = 'a line'; t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()");
+  await wait(250);
+  const after = await box('#input');
+  ok(`  and typing a line does not move it (${inp && inp.h} then ${after && after.h})`,
+     !!after && Math.abs(after.h - inp.h) <= 1);
+  await page.eval("(() => { const t = document.getElementById('input'); t.value = ''; t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()");
+  await wait(200);
+}
+
 // AND THE GLYPH INSIDE IT, which is a different measurement and the one that was wrong. The box
 // went to 44px and the arrow stayed 13px, because the button carried `font-size:13px` INLINE and
 // an inline style beats a stylesheet — the rule was written and never applied. Seth: "the expand
