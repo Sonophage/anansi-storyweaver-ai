@@ -46,6 +46,40 @@ export async function build(): Promise<{ head: string | null; subject: string | 
   } catch { return { head: null, subject: null, committed: null, dirty: null }; }
 }
 
+/** The commits themselves, newest first: subject and body, for the release notes to be written FROM.
+ *
+ *  Raw material, not the notes. Anansi turns these into something a writer can read — the two are
+ *  kept apart so the generated half can be regenerated without going back to git, and so this can
+ *  be tested without a model.
+ *
+ *  `%x00` between fields and `%x01` between commits: a commit body contains blank lines, bullet
+ *  lists and prose, so any newline-based delimiter splits a message in half. NUL and SOH cannot
+ *  appear in a commit message. */
+export async function commits(o: { since?: string | null; days?: number; limit?: number } = {}):
+    Promise<{ sha: string; subject: string; body: string; at: number }[]> {
+  const at = new URL('..', import.meta.url).pathname;
+  // SINCE A COMMIT once there is one, and a window of days before that. The notes accumulate, so
+  // each run only has to read what has happened since the last run read anything — and the first
+  // run has no previous sha, so it takes a window wide enough to cover the work already done.
+  //
+  // `since` is passed as `<sha>..HEAD` rather than as `--since`, because a commit range is exact
+  // where a date is a guess about clocks. It is validated as a short sha here and never reaches a
+  // shell — `run` takes an argument array — but a range built from a stored value is still a value
+  // reaching git, so it is checked rather than trusted.
+  const safe = typeof o.since === 'string' && /^[0-9a-f]{6,40}$/i.test(o.since) ? o.since : null;
+  const args = ['log', '--no-merges', '--format=%h%x00%s%x00%cI%x00%b%x01',
+    `-${Math.max(1, Math.min(200, o.limit ?? 60))}`];
+  if (safe) args.push(`${safe}..HEAD`);
+  else args.push(`--since=${Math.max(1, Math.min(60, o.days ?? 3))} days ago`);
+  try {
+    const { stdout } = await run('git', args, { cwd: at, timeout: 8000 });
+    return stdout.split('\x01').map((chunk) => chunk.trim()).filter(Boolean).map((chunk) => {
+      const [sha, subject, iso, ...rest] = chunk.split('\x00');
+      return { sha, subject, at: Date.parse(iso), body: rest.join('\x00').trim() };
+    }).filter((c) => c.sha && c.subject);
+  } catch { return []; }
+}
+
 /** The report, as markdown. Pure: everything it knows arrives as arguments, so a test can read the
  *  whole thing without a git checkout, a browser or a network. */
 export function compose(c: BugContext, b: Awaited<ReturnType<typeof build>>, startedAt: number): string {

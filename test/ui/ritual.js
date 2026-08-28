@@ -49,6 +49,28 @@ ok("  it reports the summary it wrote", /Summarised|summary did not/.test(body))
 ok(`  and what extraction proposed (${JSON.stringify((body.match(/\d+ proposed as threads|Could not read[^.]*/) ?? ['nothing'])[0])})`,
    /\d+ proposed as threads/.test(body));
 
+// The new chapter names itself. It fires from the panel's own render the moment both boxes are
+// empty, so by the time the ritual has finished there is something in them — and neither is saved
+// until Save is pressed, which is the half that matters and is asserted from the database below.
+{
+  let filled = null;
+  for (let i = 0; i < 60; i++) {
+    filled = await page.eval("(() => { const t = document.querySelector('[data-setup=\"title\"]');"
+      + " const n = document.querySelector('[data-setup=\"note\"]');"
+      + " return t && n ? { title: t.value, note: n.value } : null; })()");
+    if (filled && (filled.title.trim() || filled.note.trim())) break;
+    await wait(1000);
+  }
+  ok(`Anansi names the new chapter (${JSON.stringify((filled?.title ?? '').slice(0, 30))})`,
+     !!filled && filled.title.trim().length > 0);
+  ok(`  and says what it has to do (${(filled?.note ?? '').length} chars)`,
+     (filled?.note ?? '').trim().length > 60);
+  // PROPOSED. Nothing is written until Save, which is what makes it safe to fire unasked.
+  const chNow = (await story()).chapters.at(-1);
+  ok("  and writes neither until you press Save",
+     (chNow?.title ?? '') !== filled.title.trim() || !chNow?.authorsNote);
+}
+
 const after = await story();
 ok(`the chapter closed and the next opened (${chBefore} -> ${after.chapters.length})`, after.chapters.length === chBefore + 1);
 ok("  you are in the new one", after.currentChapter.id !== closing.id);

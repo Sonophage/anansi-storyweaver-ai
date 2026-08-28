@@ -308,6 +308,15 @@ CREATE TABLE IF NOT EXISTS writer_look (
   look TEXT NOT NULL,
   updated_at INTEGER NOT NULL);
 
+-- What changed, in the writer's words, keyed on the commit it was written from. Anansi writes it
+-- once per commit and it is read from here after that: "every commit updates it" costs one model
+-- call per commit rather than one per visit, and a checkout that has not moved cannot produce
+-- different notes on two readings.
+CREATE TABLE IF NOT EXISTS release_notes (
+  head TEXT PRIMARY KEY,
+  notes TEXT NOT NULL,
+  built_at INTEGER NOT NULL);
+
 CREATE TABLE IF NOT EXISTS story_covers (
   story_id TEXT PRIMARY KEY REFERENCES stories(id) ON DELETE CASCADE,
   jpeg BLOB NOT NULL,
@@ -409,6 +418,29 @@ export const delCover = (id: string) => { q('DELETE FROM story_covers WHERE stor
  *  releasing it out from under one is a cold load somebody did not ask for. */
 export const storiesOnModel = (model: string): number =>
   (q('SELECT COUNT(*) AS c FROM stories WHERE model = ?').get(model) as any).c;
+
+/** The notes written for this commit, or null. */
+export const notesFor = (head: string): any => {
+  const r = q('SELECT notes FROM release_notes WHERE head = ?').get(head) as any;
+  try { return r ? JSON.parse(r.notes) : null; } catch { return null; }
+};
+/** The commit the newest notes were written for, or null. What the next batch reads FROM. */
+export const newestNoted = (): string | null =>
+  (q('SELECT head FROM release_notes ORDER BY built_at DESC LIMIT 1').get() as any)?.head ?? null;
+
+/** Every batch, newest first. The notes accumulate: a batch describes the commits since the batch
+ *  before it, so the page is the whole history rather than only the latest run. */
+export const allNotes = (): any[] =>
+  (q('SELECT head, notes, built_at FROM release_notes ORDER BY built_at DESC LIMIT 40').all() as any[])
+    .map((r) => { try { return { head: r.head, at: r.built_at, ...JSON.parse(r.notes) }; }
+                  catch { return null; } })
+    .filter(Boolean);
+
+export function setNotes(head: string, notes: any) {
+  q(`INSERT INTO release_notes (head, notes, built_at) VALUES (?,?,?)
+     ON CONFLICT(head) DO UPDATE SET notes = excluded.notes, built_at = excluded.built_at`)
+    .run(head, JSON.stringify(notes), now());
+}
 
 export const lookOf = (ownerId: string): any => {
   const r = q('SELECT look FROM writer_look WHERE owner_id = ?').get(ownerId) as any;
