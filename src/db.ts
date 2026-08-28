@@ -33,6 +33,27 @@ function migrate() {
     try { if (!has(table, col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${decl}`); }
     catch { /* table not created yet on a fresh database; the CREATE below covers it */ }
   };
+  /** The other direction, and it needs one because deleting a column from the CREATE above does
+   *  NOT delete it from a database that already exists — SQLite has no implicit drop and nothing
+   *  here ever did it explicitly.
+   *
+   *  COUNCIL-05 seat 2: a database built from this file and Seth's live one were diffed on
+   *  2026-08-28 and differed by exactly two columns, both cut from the source by the ponytail
+   *  audit of 2026-08-23 and both still on disk fifteen weeks later. `exportStory` copies the
+   *  file and deletes the other stories, so every standalone database handed to anyone carried
+   *  them forward into a file this schema would never have created.
+   *
+   *  Backs up ONCE before the first real drop, and only then: this rewrites a table in the file
+   *  somebody's novel is in, and the boot snapshot in `serve.ts` does not run until after this. */
+  let backedUp = false;
+  const drop = (table: string, col: string, why: string) => {
+    if (!has(table, col)) return;
+    if (!backedUp) { backedUp = true; try { backup(); } catch { /* keep going; the drop is safe */ } }
+    try { db.exec(`ALTER TABLE ${table} DROP COLUMN ${col}`); console.log(`  dropped ${table}.${col} — ${why}`); }
+    // A refusal is not a reason to stop opening the database. SQLite refuses a column an index,
+    // view or trigger names; neither of these is named by one, checked in sqlite_master.
+    catch (e: any) { console.log(`  could NOT drop ${table}.${col}: ${e?.message}`); }
+  };
   add('stories', 'active_branch', 'TEXT');
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
@@ -101,6 +122,14 @@ function migrate() {
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS proposals_dedupe
              ON proposals(story_id, content_hash) WHERE status = 'open'`);
   } catch { /* nothing to replace */ }
+  // Removed from the schema by the ponytail audit of 2026-08-23 as columns nothing reads. Both
+  // were P1 stubs: `system_block_override` for a per-story SYSTEM replacement, `token_counts` for
+  // SPEC §7.5's tokenizer-keyed map. Neither feature is built and both remain in the plan — this
+  // drops the stubs, not the plan. Verified unreferenced across src, web, test and bench before
+  // the drop, and named by no index, view or trigger.
+  drop('stories', 'system_block_override', 'a P1 stub for a per-story SYSTEM, never read');
+  drop('passages', 'token_counts', 'a P1 stub for SPEC §7.5 tokenizer-keyed counts, never read');
+
 }
 // An earlier revision created an FTS5 table that nothing ever populated or queried, while
 // search ran a LIKE scan beside it. Dropping it rather than leaving a table that looks like
