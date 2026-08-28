@@ -83,6 +83,9 @@ export const api = {
   saveStory:    (id, story)      => j('/api/story', 'POST', { id, story }),
   saveChapter:  (storyId, chapterId, chapter) => j('/api/chapter', 'POST', { storyId, chapterId, chapter }),
   endChapter:   (storyId, o)     => j('/api/chapter/end', 'POST', { storyId, ...o }),
+  // What the chapter about to be written should be called and what it has to do. Proposes only —
+  // the setup panel fills its two fields with this and nothing is saved until you press Save.
+  proposeChapter: (storyId, chapterId) => j('/api/chapter/propose', 'POST', { storyId, chapterId }),
   write:        (storyId, o)     => j('/api/write', 'POST', { storyId, ...o }),
   accept:       (storyId, o)     => j('/api/accept', 'POST', { storyId, ...o }),
   editPassage:  (storyId, id, body) => j('/api/passage', 'POST', { storyId, id, body }),
@@ -121,6 +124,9 @@ export const api = {
   // Re-runs the character memory on a chapter that already closed. Chapter close fires this
   // itself; this is the way back when the router was down at the time.
   remember:     (storyId, chapterId) => j('/api/remember', 'POST', { storyId, chapterId }),
+  // "Remember this." A passage the writer points at, turned into a thread and put in the queue,
+  // carrying the chapter it came from. Proposes; nothing becomes canon unaccepted.
+  memo:         (storyId, passageId, entryType) => j('/api/memo', 'POST', { storyId, passageId, entryType }),
   invent:       (storyId, o)     => j('/api/invent', 'POST', { storyId, ...o }),
   saveString:   (storyId, x)     => j('/api/string', 'POST', { storyId, string: x }),
   delString:    (storyId, id)    => j('/api/string', 'DELETE', { storyId, id }),
@@ -136,6 +142,9 @@ export const api = {
   setPin:       (storyId, chapterId, entryId, mode) => j('/api/pin', 'POST', { storyId, chapterId, entryId, mode }),
   exportStoryDb: (storyId)      => j('/api/export', 'POST', { storyId }),
   ledger:       ()               => j('/api/ledger'),
+  // What changed, in the writer's words. Written by Anansi from the commit log and cached on the
+  // commit it was written from, so it updates itself on every commit. `refresh` writes it again.
+  whatsnew:     (refresh)         => j(`/api/whatsnew${refresh ? '?refresh=1' : ''}`),
   models:       ()               => j('/api/models'),
   stats:        ()               => j('/api/stats'),
   talk:         (storyId, o)     => j('/api/talk', 'POST', { storyId, ...o }),

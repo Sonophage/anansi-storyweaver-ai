@@ -22,6 +22,8 @@ const LONG = ('The story is about penance. ').repeat(110).trim();
 // sentences and about a hundred words of prose voice. Both must survive the round trip whole.
 const PREMISE = ('Aldis owes the moneylender more than he can pay. ').repeat(5).trim();
 const VOICE = ('Short sentences, and the weather does the feeling. ').repeat(14).trim();
+// A chapter's beat, at the length its prompt asks for: three to six sentences of instruction.
+const NOTE = ('By the end the debt has to be called in. ').repeat(4).trim();
 
 let calls: any[] = [];
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
@@ -38,12 +40,21 @@ const srv = createServer((req, res) => {
     // Keyed on the QUESTION, not on the schema: TALK_SCHEMA always carries `strings` now, so a
     // schema-shaped check made every answer the short one and broke the truncation assertions.
     const asksForStrings = /set up and not paid/.test(String(b.messages?.[1]?.content ?? ''));
+    // "Remember this" wants the same SHAPE as an invented entry — title, body, keys — so the
+    // schema cannot tell them apart. Keyed on the question, like the strings case above, and with
+    // its own title: the proposals table dedupes on the subject, so two roles answering with one
+    // name would make the second look like a refusal rather than a duplicate.
+    const asksToRemember = /REMEMBER IT:/.test(String(b.messages?.[1]?.content ?? ''));
     const answer = props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
         setting: 'Sutera', pov: 'third limited, past tense', spice: 2, writingStyle: VOICE,
         characters: [{ name: 'Vel', role: 'the Murmur', description: 'Speaks for the dead god.' },
                      { name: 'Aldis', role: 'a debtor', description: 'Owes more than he can pay.' }] }
       : asksForStrings ? { reply: 'Two things are owed.',
         strings: [{ title: 'The letter he has not opened', body: 'Sent by his brother', fromChapter: 6 }] }
+      : props.title && props.note ? { title: 'The Rust Year', note: NOTE }
+      : asksToRemember ? { title: 'The Broken Stair',
+          body: '[the lower stair: tread gave under her weight, rail came away, unrepaired]',
+          keys: ['stair', 'rail'] }
       : props.keys ? { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]',
                                   keys: ['choir', 'rust'] }
       : props.name ? { name: 'Mourning grey', body: '[wearing: grey, unpinned, no scripture showing]' }
@@ -66,6 +77,11 @@ const me = db.owner('talker');
 const story = db.createStory(me, { title: 'Sutera', premise: 'A city on a dead god.' });
 db.upsertEntry(story.id, me, { title: 'Vel', body: 'Vel is the Murmur.', activation: 'always_on' });
 db.addPassage({ ...story, storyId: story.id, body: 'The lower tiers still pulse.' });
+// A passage with a line of dialogue in it, for "remember this": what the narrator commits is a
+// fact, and what a character says is not — the rule extract and remember already follow.
+const SPOKEN_LINE = 'I never went down there';
+db.addPassage({ ...story, storyId: story.id,
+  body: `The stair gave under her weight and the rail came away in her hand. "${SPOKEN_LINE}," she said.` });
 
 const ask = async (perSlot: number) => {
   calls = [];
@@ -173,11 +189,22 @@ ok('an invented thread lands in the proposals queue, not in the ledger');
 // both are asserted, and the ceiling is read off THE WIRE rather than from the constant.
 {
   const said = String(calls[0].messages[0].content);
-  assert.ok(Number(calls[0].max_tokens) >= 1200,
-    `an invented entry is asked for in ${calls[0].max_tokens} tokens, which is the room the old `
-    + 'forty-word body needed; a 120-word body that runs out of it truncates the object rather than '
-    + 'the string, and the retry costs another whole call');
-  assert.match(said, /not one sentence, and not three\s+paragraphs/,
+  // The band the prompt asks for, read OUT of the prompt, and the room that band needs, read off
+  // THE WIRE. Tying the two together is the point: the pair regresses independently, and asking
+  // for more words inside a ceiling cut for fewer is how F25 happened — valid JSON, closed
+  // mid-thought, looking finished.
+  const band = said.match(/(?:a )?hundred and twenty to two hundred words/i)
+    ?? said.match(/(\w+ )+to (\w+ )+words/i);
+  assert.ok(band, 'the prompt must state a word band for the body, or the model decides for itself');
+  assert.ok(Number(calls[0].max_tokens) >= 2000,
+    `a 200-word body is asked for in ${calls[0].max_tokens} tokens. A body that runs out of room `
+    + 'truncates the OBJECT rather than the string, so it does not parse, and the retry costs '
+    + 'another whole call at ~7s. Raise the ceiling with the ask, in the same commit.');
+  // The FLOOR, not the wording. This asserted the exact phrase "not one sentence, and not three
+  // paragraphs" until 2026-08-27 and went red when the band was widened — the same way ritual.js
+  // went red for wording that had been renamed under it. What must be true is that the prompt
+  // refuses a one-liner, because a ceiling on its own is what made the bodies one line.
+  assert.match(said, /not one sentence/i,
     'the prompt has to name the FLOOR as well as the ceiling — a ceiling on its own is what made '
     + 'the bodies one line');
   assert.match(said, /never say it back word for word/,
@@ -222,6 +249,109 @@ ok('a kind that does not exist is refused rather than assembled');
   ok("Anansi's strings go to the proposals queue, and accepting one ties a string not an entry");
 }
 
+// ---- 6·0. What changed, written for the writer rather than for whoever maintains the code
+{
+  const { RELEASE } = await import('../src/prompts.ts');
+  // The whole job is what it LEAVES OUT. Most commits in a healthy repository change nothing a
+  // writer would ever notice, and a release note that lists them is one nobody reads twice.
+  assert.match(RELEASE, /LEAVE OUT everything else/, 'the role has to be told to throw most of it away');
+  assert.match(RELEASE, /refactors, tests, harness work/, 'and told what "everything else" means');
+  assert.match(RELEASE, /say so in one sentence rather than inventing\s+something/,
+    'and told to say nothing happened rather than pad — otherwise a quiet week reads as a busy one');
+  // Written from prose that says one thing and can be read as another. Nothing downstream checks a
+  // release note, so the one guard is that it may not assert an outcome the material never stated:
+  // the first run of this said half-written text is KEPT when Stop throws it away.
+  assert.match(RELEASE, /NEVER STATE AN OUTCOME THE MATERIAL DOES NOT STATE/,
+    'and forbidden from guessing what happens to somebody\'s work');
+  assert.doesNotMatch(RELEASE, /version number|semver/i, 'no versions — this app has none');
+  ok('the release notes are written for the writer, and told what to leave out');
+}
+
+// ---- 6a. "remember this": a passage the writer points at, turned into a thread
+//
+// The writer's own recall. PLAN-06 argues against another retrieval tier and the argument is that
+// a keyword or vector layer GUESSES — there is no guess here, the writer points. What is asserted
+// is what the model is SHOWN, that it arrives as an instruction rather than as prose, and that it
+// lands in the QUEUE with the chapter it came from rather than in canon.
+{
+  const { MEMO } = await import('../src/prompts.ts');
+  calls = [];
+  const memo = (passageId: string) => routes['POST /api/memo']({
+    body: { storyId: story.id, passageId },
+    query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900 }, setGen: () => {}, defaultModel: null } as any) as any;
+
+  const target = db.passagesOf(story.id).filter((p: any) => !p.is_break).at(-1) as any;
+  const before = db.proposalsOf(story.id).length;
+  const r = await memo(target.id);
+  assert.ok(!r.error, r.error);
+  assert.strictEqual(r.proposed, 1, 'it proposes exactly one thread');
+
+  // A PROPOSAL, carrying where it came from. Nothing is canon until it is accepted — the rule the
+  // ledger queue has always had, and the reason this is safe to offer on any passage.
+  const open = db.proposalsOf(story.id);
+  assert.strictEqual(open.length, before + 1, 'and it goes in the queue');
+  const made = open.find((x: any) => x.title === r.title) as any;
+  assert.ok(made, 'the thread is in the queue by name');
+  assert.ok(made.chapter_id, 'carrying the chapter it came from, which is what makes it auditable');
+  assert.ok(!db.entriesOf(story.id).some((e: any) => e.title === r.title),
+    'and nothing became canon');
+
+  // AN INSTRUCTION, not prose. This is the whole reason it cannot be read as dialogue or as a
+  // scene: Seth's "autoselecting the direct option", borrowed as a rule rather than as a mode.
+  const shown = String(calls[0].messages[1].content);
+  assert.match(shown, /REMEMBER IT:/, 'the passage arrives labelled as something to remember');
+  assert.match(MEMO, /NOT a scene to continue/, 'and the role says it is not prose to carry on from');
+  assert.match(MEMO, /NOT a line anybody is speaking/, 'nor a line somebody said');
+  // F36, by construction: a passage IS finished English, so a role that let it through as-is would
+  // be an F36 generator.
+  assert.match(MEMO, /WRITE IT AS FACTS, NOT AS PROSE/,
+    'and it must turn the passage into facts, or the prose goes back into the book word for word');
+  // Narration only, like extract and remember: a character lying did not make it true.
+  assert.ok(!shown.includes(SPOKEN_LINE),
+    'a line of dialogue in the passage must not reach the ask');
+  ok('a passage the writer points at becomes a thread in the queue, as facts and as an instruction');
+}
+
+// ---- 6b. a chapter names itself when it opens
+//
+// The last item from round four's list. A chapter opened on two blank fields, and the author's
+// note is the one thing in this app that rides near the generation point on EVERY call — so an
+// empty one is the strongest lever in the engine left unused. What is asserted here is what the
+// model is SHOWN and what is done with what it says; whether the name is any good is not a
+// question a fake can answer.
+{
+  const { CHAPTER } = await import('../src/prompts.ts');
+  calls = [];
+  const propose = () => routes['POST /api/chapter/propose']({
+    body: { storyId: story.id, chapterId: db.chapters(story.id).at(-1)!.id },
+    query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900 }, setGen: () => {}, defaultModel: null } as any) as any;
+
+  const r = await propose();
+  assert.ok(!r.error, r.error);
+  assert.strictEqual(r.title, 'The Rust Year', 'the proposed name comes back');
+  assert.strictEqual(r.note, NOTE, 'and the beat arrives whole, not clipped to a line');
+
+  // PROPOSES, writes nothing. The rule the spark and the ledger queue already follow, and the
+  // reason this is safe to fire on its own when a chapter opens.
+  const ch = db.chapters(story.id).at(-1) as any;
+  assert.ok(!ch.title || ch.title !== 'The Rust Year', 'proposing must not write the title');
+  assert.ok(!ch.authors_note, 'and must not write the note');
+
+  const shown = String(calls[0].messages[1].content);
+  assert.match(shown, /NAME CHAPTER \d+/, 'the model is told which chapter it is naming — F33 is '
+    + 'that it cannot work this out for itself');
+  assert.match(shown, /THE BOOK:/, 'and given the book to name it out of');
+  assert.match(CHAPTER, /has not been written yet/,
+    'the prompt has to say the chapter is unwritten, or it summarises the one before it');
+  assert.match(CHAPTER, /note   Three to six sentences/,
+    'and name a length for the beat, or it comes back as a line — the whole failure being fixed');
+  ok('a chapter proposes its own name and beat, and writes neither');
+}
+
 // ---- 7. the spark's premise and prose voice come back big enough to write from
 // They were "two or three sentences" and "one sentence" — thinner than the manual form on the same
 // screen asks for, so the skeleton had to be rewritten before the first passage. Three things can
@@ -242,15 +372,28 @@ ok('a kind that does not exist is refused rather than assembled');
     + 'valid, which is F25 and would look like a finished answer');
   assert.strictEqual(skel.story.writingStyle, VOICE, 'and so does the voice of the weave');
 
-  assert.ok(Number(calls[0].max_tokens) >= 2000,
-    `the spark is asked for in ${calls[0].max_tokens} tokens; a four-to-six-sentence premise, a `
-    + 'hundred words of voice and five characters do not fit in what the one-line version needed');
+  assert.ok(Number(calls[0].max_tokens) >= 3400,
+    `the spark is asked for in ${calls[0].max_tokens} tokens. Since 2026-08-27 it asks for an `
+    + 'eight-to-twelve-sentence premise, a four-to-eight-sentence setting, a hundred words of voice '
+    + 'and up to five characters at forty to eighty words each — roughly 800 words, and JSON with '
+    + 'escaping runs near two tokens a word. Raise the ceiling with the ask, in the same commit.');
 
-  // The prompt's two length asks, and the constraints that must survive being widened.
-  assert.match(SPARK, /premise is four to six sentences/,
-    'the premise needs a length worth filling, or the model gives it a line');
-  assert.match(SPARK, /a hundred words or so, not a label/,
-    'and so does the voice, because a model has to be able to match it from what is written');
+  // EVERY field the writer starts from has to name a length, and the lengths are read out of the
+  // prompt rather than pinned as phrases: this asserted "premise is four to six sentences"
+  // verbatim and went red the moment Seth asked for more detail, which is wording rot, not a
+  // regression. What must be true is that each of the four names a band at all — a field with no
+  // length comes back as a line, which is the failure being fixed.
+  for (const [what, re] of [
+    ['the premise', /premise is \w+ to \w+ sentences/],
+    ['the setting', /setting is \w+ to \w+ sentences/],
+    ['each character', /description is \w+ to \w+ words/],
+    ['the voice', /a hundred words or so, not a label/],
+  ] as const) assert.match(SPARK, re,
+    `${what} needs a length worth filling, or the model gives it a line`);
+  // And a floor is only a floor if it is said to be one.
+  assert.match(SPARK, /floor\s+as much as a ceiling/i,
+    'the prompt has to say the bands are minimums too — every one of them was read as a ceiling '
+    + 'and answered at the bottom of the range');
   for (const [what, re] of [
     ['a premise is not a blurb', /not a\s+blurb\.\s+No marketing language, no rhetorical questions/],
     ['the voice describes prose, not genre', /description of PROSE/],

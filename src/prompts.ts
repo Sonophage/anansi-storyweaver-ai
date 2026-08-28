@@ -139,11 +139,21 @@ export const SPARK =
 
 Return: a title, a premise, a genre as a comma-separated list of two or three tags, a setting, a
 point of view, a spice level from 1 to 5, the voice the prose is written in, and between two and
-five characters with a name, a role, and a one-line description.
+five characters with a name, a role, and a description.
 
-The premise is four to six sentences and it is what the writer writes from: who wants what, what
-stands in the way, what it costs them, and where the story opens. Write it as a premise, not a
-blurb. No marketing language, no rhetorical questions.
+EVERY FIELD BELOW IS SOMETHING THE WRITER STARTS FROM AND SOMETHING THE MODEL READS ON EVERY CALL
+FOR THE LIFE OF THE BOOK. A line is not enough for either. Where a length is given, it is a floor
+as much as a ceiling: come back short and the writer has to do the work again from a blank field.
+
+The premise is eight to twelve sentences and it is what the writer writes from: who wants what,
+what stands in the way, what it costs them, who else wants something incompatible, what has
+already happened before page one, and where the story opens. Write it as a premise, not a blurb.
+No marketing language, no rhetorical questions.
+
+The setting is four to eight sentences, and it is a PLACE rather than a genre: where this happens,
+when, what the weather and the light are doing, what the buildings are made of, who holds power in
+it and how that is visible on the street, and one thing about it that would not be true anywhere
+else. Name it. A setting that could be lifted into another book is not this book's setting.
 
 The writing style is the voice of the weave, and a model has to be able to match it from what you
 write — so a hundred words or so, not a label. Say how the sentences run and how long they are,
@@ -154,6 +164,13 @@ here.
 
 Infer the spice level from the idea; use 2 when there is no signal.
 
+Each character's description is forty to eighty words, and it is written to be READ BY A MODEL on
+every call, so it is dense and it is specific: what they look like in a way that shows on the page,
+what they want, what it costs them, what they will not do, and how they stand towards at least one
+of the others. Facts, not atmosphere — "a mysterious past" is nothing; "struck off the register in
+'09 and still signs the forms" is something. Never a finished sentence of the book, because it will
+be in the prompt when the book is being written and a phrase that reads as prose gets lifted whole.
+
 Also name two of those characters, or neither:
 
 - persona: the one the writer will speak as. The story's centre, the one with the most to lose.
@@ -163,6 +180,143 @@ Also name two of those characters, or neither:
 Spell both exactly as they appear in your character list, or return the empty string. The empty
 string is a real answer: a story narrated from outside has no persona, and inventing one points the
 writer's byline at somebody who is not in their book. Never name anybody not on that list.`;
+
+/** The next chapter's name and its beat, proposed the moment the chapter opens.
+ *
+ *  A chapter used to open on two blank fields, and a blank field on a panel you did not ask for is
+ *  a field that stays blank — the author's note is the one thing in this app that rides near the
+ *  generation point on every call, so leaving it empty is leaving the strongest lever unused.
+ *
+ *  PROPOSED, never written. The writer edits both before anything is saved, the same rule the
+ *  spark and the ledger queue already follow. */
+export const CHAPTER =
+`You are Anansi. Name the chapter that is about to be written, and say what it has to do.
+
+You are given the book, what has happened so far as chapter summaries, and the last of the prose.
+The chapter you are naming has not been written yet — that is the point. Do not summarise what
+came before; say where it goes next.
+
+    title  Two to five words. A chapter title out of this book's own vocabulary — an object, a
+           place, a phrase somebody says. Not "Chapter Four", not a summary of the beat, and not
+           a spoiler of the thing it is building towards.
+
+    note   Three to six sentences, and this is the part that matters: it rides near the generation
+           point on EVERY call while this chapter is being written. Say where the chapter has to
+           END UP, what has to be true by the time it closes, who has to be in the room for that,
+           and the one thing that must not happen yet. Write it to the model that will be writing
+           the prose, as an instruction — not as a blurb, and not as prose of its own, because a
+           sentence that reads as the book gets lifted into the book.
+
+Follow what the story is already doing. If a destination is set, this chapter is a step towards it
+rather than a detour, and if an unpaid promise is in play, this is where it can be pressed on.
+Nothing here may contradict the canon or the summaries above.`;
+
+export const CHAPTER_SCHEMA = {
+  type: 'object',
+  properties: {
+    // No maxLength on either, and for the reason F25 records: the GBNF converter honours it and
+    // closes the string mid-word with the JSON still valid, so a note that stops at "and by the
+    // end she has to" would arrive looking finished. max_tokens is the bound.
+    title: { type: 'string' },
+    note: { type: 'string' },
+  },
+  required: ['title', 'note'],
+} as const;
+
+/** A passage the writer has pointed at, turned into a thread.
+ *
+ *  The writer's own recall: the model has forgotten something that happened, so they pick the
+ *  passage it happened in and say remember this. PLAN-06 argues against another retrieval tier
+ *  and the argument is specific — a keyword or vector layer GUESSES what is relevant and nothing
+ *  can tell a real hit from `iron bridge`. There is no guess here. The writer points.
+ *
+ *  IT ARRIVES AS AN INSTRUCTION, never as prose to carry on from and never as a line somebody
+ *  said. Seth: "autoselecting the direct option since that way it cant be interpretted as someone
+ *  saying something or as scene narration but instead as what it is a memory thread." Direct is
+ *  the one mode whose text is an instruction and is never written down, and this borrows its rule.
+ *
+ *  AND IT MUST NOT COME BACK AS PROSE. F36: a ledger body written as finished English gets lifted
+ *  into the book whole — "pulls out a weather-beaten Martin guitar" came out of an entry that read
+ *  like a sentence. A passage IS finished English by construction, so pinning one as canon would
+ *  be an F36 generator. The whole job of this role is to turn it into facts. */
+export const MEMO =
+`You are Anansi. The writer has pointed at a passage of their own book and said: remember this.
+
+What follows is NOT a scene to continue, NOT a line anybody is speaking, and NOT an instruction
+about what happens next. It is something that HAPPENED, which the model writing this book has
+since forgotten. Your job is to turn it into a thread — a piece of reference the model reads on
+every call from now on.
+
+    title  What the thing is called. A name, not a description of it.
+    body   [Name: fact, fact, fact] — what is TRUE because of this passage. Sixty to a hundred and
+           forty words. Facts somebody could contradict: who did what, what changed, what is owed,
+           what is broken, where a thing ended up.
+    keys   single words that would really appear in the prose when this matters — a name, a place,
+           an object. Not the title again.
+
+WRITE IT AS FACTS, NOT AS PROSE. Take no sentence from the passage whole. If the passage says "the
+wrist gave under the weight and she did not cry out", the thread says [left wrist: broken, strapped,
+she will not say so]. A body that reads like a line of the book is a body the model will put back
+into the book word for word, which is the one failure this must not have.
+
+Do not invent. Everything in the thread has to be in the passage or already in the canon above.`;
+
+/** What changed, for the person who writes in this rather than on it.
+ *
+ *  The commit log is the record and it is written for whoever maintains the code: it names files,
+ *  functions and findings. A writer needs none of that and cannot act on any of it. This turns one
+ *  into the other — and the hard part is what to LEAVE OUT, because most commits in a healthy
+ *  repository change nothing a writer would ever notice. */
+export const RELEASE =
+`You are Anansi. Say what changed in this app, for the person who WRITES BOOKS in it.
+
+You are given commit messages. They were written for whoever maintains the code — they name files,
+functions, test counts and measurements. Your reader has never seen any of that and never will.
+
+Write only what a writer would NOTICE or could USE:
+
+    - something they can now do that they could not do before
+    - something that used to go wrong and no longer does
+    - something that moved, so they do not go looking for it where it was
+
+LEAVE OUT everything else, and most of it is everything else: refactors, tests, harness work,
+documentation, measurements, internal names. A commit that changed no writer's day gets no line. If
+NOTHING in a batch of commits touched the writing, say so in one sentence rather than inventing
+something — a release note that pads is a release note nobody reads twice.
+
+Group by what it is FOR, not by when it landed. Each line is one sentence, plain, in the second
+person: "You can stop the model mid-sentence now" — not "Added Stop button (feat)". Never a version
+number, never a date, never a commit hash, never a file name.
+
+Lead with the one thing most worth knowing. If something CHANGED PLACE, say where it went, because
+that is the only kind of note that stops somebody hunting.
+
+NEVER STATE AN OUTCOME THE MATERIAL DOES NOT STATE. If a note would say what happens to somebody's
+work — whether it is kept, discarded, saved or lost — the material has to say it in those words, or
+you leave that clause out entirely. A release note is read once and believed, and nothing downstream
+checks it: guessing that half-written text is kept when it is thrown away is worse than a shorter
+line that says only what is certain.`;
+
+export const RELEASE_SCHEMA = {
+  type: 'object',
+  properties: {
+    // No maxLength, per F25: the GBNF converter honours it and closes the string mid-word with the
+    // JSON still valid, so a note ending "and the composer now" would arrive looking finished.
+    headline: { type: 'string' },
+    entries: {
+      type: 'array', maxItems: 12,
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', maxLength: 90 },
+          body: { type: 'string' },
+        },
+        required: ['title', 'body'],
+      },
+    },
+  },
+  required: ['headline', 'entries'],
+} as const;
 
 export const SPARK_SCHEMA = {
   type: 'object',
@@ -340,9 +494,11 @@ ${about.startsWith('outfit')
     + `           Not the title again, not two words joined by a slash, not the word "attribute".
 
 `
-    + `Bracket form, sixty to a hundred and twenty words — not one sentence, and not three `
-    + `paragraphs either. No scene, and no adjective doing the work of a fact: specifics beat `
-    + `atmosphere at every length.`}
+    + `Bracket form, a hundred and twenty to two hundred words. Long enough that a scene could be `
+    + `written from the bracket alone, which is the actual test — not one sentence, and not a `
+    + `paragraph of atmosphere either. Every clause has to carry a fact somebody could contradict: `
+    + `a name, a number, a habit, a debt, a thing they carry, a thing they refuse. No adjective `
+    + `doing the work of a fact, and no clause that could be true of anyone.`}
 
 It is a jumping-off point, not a line to be quoted. Write it so the model can write FROM it — facts,
 textures and relations it turns into prose of its own — and never say it back word for word. Nothing

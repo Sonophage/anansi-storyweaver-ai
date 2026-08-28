@@ -9,7 +9,10 @@ const HOST = process.env.ANANSI_LLAMA ?? 'http://127.0.0.1:8080';
 // service runs `--models-max 3 --models-autoload`, and F22 measured the three writing presets at
 // 86,349 MiB of 98,304 at full context, so a switch between them usually costs nothing. A story
 // naming a model that is asleep pays one load on its first call.
-let MODEL = process.env.ANANSI_MODEL ?? 'write-nt-qwen36-h';
+// Renamed on the router 2026-08-27 — the whole preset list was rewritten and `write-nt-qwen36-h`
+// stopped existing, so every call answered `400 model not found` until this changed. ANANSI_MODEL
+// still wins; this is only what a box with nothing set falls back to.
+let MODEL = process.env.ANANSI_MODEL ?? 'Qwen3.6-WNTH-35B-A3B-NN';
 
 /** Which model a call should use: the story's own, or the default.
  *

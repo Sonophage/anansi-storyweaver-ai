@@ -2,11 +2,11 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RELEASE, RELEASE_SCHEMA, DEFAULT_VOICE } from './prompts.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
-import { fileBug } from './report.ts';
+import { fileBug, build, commits } from './report.ts';
 import { resolveBody, narrationOnly } from './context.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
@@ -52,6 +52,8 @@ export const OPEN_ROUTES = new Set([
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
   // Account-wide, like the sampler. Owner-scoped in SQL — every read and write takes c.owner.
   'GET /api/prompts', 'POST /api/prompts',
+  // About the APP, not about a book — it names no story because there is none to name.
+  'GET /api/whatsnew',
   // Open because setting your OWN default names no story, and the gate refuses a request that
   // names none. Open means the gate does not run AT ALL, including when a story IS named — so
   // this route asks the ownership question itself, below, the way every open route has to. That
@@ -104,25 +106,46 @@ const voiceOf = (owner: string) => db.promptsOf(owner).voice?.trim() || DEFAULT_
 const TALK_TOKENS = 2400;
 
 /** One ledger entry, and it is a jumping-off point rather than a line. 700 was sized for the old
- *  prompt, which asked for a body under forty words; INVENT now asks for a band of sixty to a
- *  hundred and twenty, because "it doesnt have to be a single sentence, it also doesnt have to be
- *  three paragraphs" — something the model can write FROM. A 120-word bracket body plus a title
- *  and four keys is roughly three times the JSON the old ceiling was cut for, and running out of
- *  room here truncates the OBJECT, which does not parse, which costs a whole structuredRetry at
- *  ~7s a call. So the room stops being the bound; the temperature is still the part that matters. */
-const INVENT_TOKENS = 1200;
+ *  prompt, which asked for a body under forty words; then sixty to a hundred and twenty; and from
+ *  2026-08-27 a hundred and twenty to two hundred, because Seth asked for thread creation "to not
+ *  be so succinct and be more detailed". A 200-word bracket body plus a title and four keys is
+ *  roughly five times the JSON the original ceiling was cut for, and running out of room here
+ *  truncates the OBJECT, which does not parse, which costs a whole structuredRetry at ~7s a call.
+ *  So the room stops being the bound; the temperature is still the part that matters.
+ *
+ *  RAISED WITH THE ASK, deliberately and in the same commit. Asking a model for more words inside
+ *  a ceiling cut for fewer is how F25 happened: valid JSON, closed mid-thought, looking finished. */
+const INVENT_TOKENS = 2000;
 
-/** A whole skeleton in one answer, and two of its fields are now paragraphs rather than lines — a
- *  four-to-six-sentence premise, a hundred words of prose voice, and up to five characters on top of
- *  them. `structured`'s default of 1,200 was cut for the one-line version and would truncate this
- *  one; a truncated object is unparseable, which is why this is the last caller here to move off
- *  `structured` and on to `structuredRetry` like every other. */
-const SPARK_TOKENS = 2000;
+/** A whole skeleton in one answer, and most of its fields are paragraphs rather than lines now: an
+ *  eight-to-twelve-sentence premise, a four-to-eight-sentence setting, a hundred words of prose
+ *  voice, and up to five characters at forty to eighty words each. `structured`'s default of 1,200
+ *  was cut for the one-line version; 2,000 was cut for the four-to-six-sentence one. A truncated
+ *  object is unparseable, which is why this is a structuredRetry caller like every other.
+ *
+ *  Rough arithmetic rather than a guess: 12 sentences + 8 sentences + 100 words + 5 x 80 words is
+ *  around 800 words of content, and JSON with escaping runs near two tokens a word. 3,400 leaves
+ *  room for the model to be generous where it was asked to be. */
+const SPARK_TOKENS = 3400;
 
 /** Every changed character's WHOLE description, in one answer. A state replaces the body rather than
  *  adding to it, so each one is a full restatement and not a line — four characters at 600 characters
  *  each is the shape to leave room for. */
 const MEMORY_TOKENS = 1800;
+
+/** A title and a three-to-six-sentence beat. Small next to the others, and it still gets a named
+ *  constant rather than a literal, because the one thing every role here has in common is that
+ *  running out of room truncates the OBJECT and costs a whole retry. */
+const CHAPTER_TOKENS = 700;
+
+/** A passage turned into a thread. A 140-word bracket body plus a title and four keys, in the
+ *  same arithmetic as INVENT and for the same reason: running out of room truncates the OBJECT,
+ *  which does not parse, which costs a whole structuredRetry. */
+const MEMO_TOKENS = 1200;
+
+/** Up to twelve notes with a sentence each, plus a headline. Larger than it sounds, because the
+ *  material is forty commit messages and the model is being asked to throw most of them away. */
+const RELEASE_TOKENS = 1600;
 
 /** One detector, two callers. The check on a saved passage and the repair of a passage on its
  *  way to the page have to agree about what a contradiction is, and when they were two copies of
@@ -630,6 +653,136 @@ export const routes: Record<string, Handler> = {
     return viewOf(c.body.id);
   },
   'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c.body.storyId); },
+
+  /** What the chapter about to be written should be called, and what it has to do.
+   *
+   *  PROPOSES, writes nothing. The setup panel fills its two fields with this and the writer edits
+   *  them before saving, which is the rule the spark and the ledger queue already follow — the last
+   *  item from round four's list, and the one Seth marked "ready to build, no decision needed".
+   *
+   *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
+   *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
+  /** "Remember this." A passage the writer points at, turned into a thread.
+   *
+   *  PROPOSES, like everything else that reaches the ledger — it lands in the queue the writer
+   *  already works every chapter, carrying the chapter it came from, and nothing is canon until it
+   *  is accepted. Seth: "do it as a queue with a message appended saying remember this".
+   *
+   *  Narration only, like `extract` and `remember`: what is being asked is what HAPPENED, and a
+   *  character lying in a passage did not make it true.
+   *
+   *  The one thing this must not do is put the prose in the ledger as it stands. See MEMO, and F36.
+   */
+  /** What changed, in the writer's words.
+   *
+   *  Written by Anansi from the commit log, and CACHED ON THE COMMIT it was written from — so it
+   *  updates itself on every commit without a hook, a build step or anything to keep in step, and
+   *  costs one model call per commit rather than one per visit. A checkout that has not moved
+   *  cannot produce different notes on two readings, which is the property that makes this a
+   *  record rather than a re-roll.
+   *
+   *  Returns what it has even when the model is down: the notes for an older commit are still
+   *  true about everything up to it, and are better than an empty page.
+   */
+  'GET /api/whatsnew': async (c: Ctx) => {
+    const b = await build();
+    if (!b.head) return { notes: null, head: null, error: 'this is not a git checkout' };
+    const have = db.notesFor(b.head);
+    if (have && c.query.get('refresh') !== '1')
+      return { notes: have, all: db.allNotes(), head: b.head, written: false };
+
+    // SINCE THE LAST NOTES, and a window of days before there are any. Seth asked to seed it from
+    // three days so nothing already built is missed, and to go forward from there.
+    const from = db.newestNoted();
+    const log = await commits(from ? { since: from } : { days: 3, limit: 200 });
+    if (!log.length) return { notes: have, head: b.head, error: 'nothing new since the last notes' };
+
+    // BODIES FOR THE RECENT ONES, SUBJECTS FOR THE REST. Three days of this repository is 112
+    // commits and 193,000 characters of message — four times the whole slot, so handing it over
+    // whole would overflow, and slicing it would cut a commit in half and hand the model the
+    // fragment. The subjects here are written as sentences ("the prose window closes at the
+    // chapter boundary, and there is a way back"), so a subject alone still says what changed;
+    // the bodies are what say why, and they matter most where the work is freshest.
+    //
+    // ponytail: a fixed 12. A window this size fits with room to spare, and the day a batch does
+    // not, the fix is batching by character count rather than a bigger number here.
+    const DEEP = 12;
+    const body = log.map((x, i) => (i < DEEP && x.body
+      ? `— ${x.subject}\n${x.body}` : `— ${x.subject}`)).join('\n\n').slice(0, 26_000);
+    const r = await structuredRetry(RELEASE, body, RELEASE_SCHEMA,
+      { model: c.defaultModel ?? model(), max_tokens: RELEASE_TOKENS });
+    if (!r.data?.entries) {
+      // The older notes are still true about everything up to the commit they were written from.
+      return { notes: have, all: db.allNotes(), head: b.head,
+               error: r.error ?? 'nothing usable came back' };
+    }
+    db.setNotes(b.head, r.data);
+    // Every batch, newest first — the notes accumulate rather than replacing each other, so what
+    // was written for an older commit stays readable under what was written for this one.
+    return { notes: r.data, all: db.allNotes(), head: b.head, written: true, read: log.length };
+  },
+
+  'POST /api/memo': async (c: Ctx) => {
+    const v = viewOf(c.body.storyId);
+    const p = v.passages.find((x: any) => x.id === c.body.passageId);
+    if (!p) return { error: 'no such passage' };
+    const ch = v.chapters.find((x: any) => x.id === p.chapterId) ?? v.currentChapter;
+    const text = narrationOnly(String(p.body ?? '')).trim();
+    if (!text) return { error: 'that passage is all dialogue — nothing the narrator committed' };
+
+    // The canon already in force, so the thread does not restate or contradict what is known.
+    const known = db.entriesOf(v.id).slice(0, 40)
+      .map((e: any) => `${e.title}: ${resolveBody(e, ch.index)}`).join('\n');
+    const body = [
+      known ? `WHAT IS ALREADY IN THE LEDGER:\n${known}` : '',
+      `THIS HAPPENED IN CHAPTER ${ch.index}${ch.title ? ` — ${ch.title}` : ''}. REMEMBER IT:`,
+      text,
+    ].filter(Boolean).join('\n\n');
+
+    const r = await structuredRetry(MEMO, body, inventSchema('lore'),
+      { model: modelFor(v.story, c.defaultModel), max_tokens: MEMO_TOKENS });
+    if (!r.data?.title || !r.data?.body) return { error: r.error ?? 'nothing usable came back' };
+
+    // WHERE IT CAME FROM, on the proposal. Seth asked for it and it is nearly free — a thread
+    // whose origin is on the record is a thread you can go back and check.
+    const added = db.addProposal(v.id, {
+      kind: 'new', chapterId: ch.id, title: String(r.data.title).trim(),
+      body: String(r.data.body).trim(), entryType: c.body.entryType || 'lore',
+      keys: Array.isArray(r.data.keys) ? r.data.keys : [],
+    });
+    return added
+      ? { proposed: 1, title: String(r.data.title).trim(), chapter: ch.index,
+          proposals: db.proposalsOf(v.id) }
+      : { proposed: 0, title: String(r.data.title).trim(), chapter: ch.index,
+          note: 'already proposed — it is in the queue', proposals: db.proposalsOf(v.id) };
+  },
+
+  'POST /api/chapter/propose': async (c: Ctx) => {
+    const v = viewOf(c.body.storyId);
+    const ch = v.chapters.find((x: any) => x.id === c.body.chapterId) ?? v.currentChapter;
+    const before = v.chapters.filter((x: any) => x.index < ch.index && x.summary);
+    // The tail of the previous chapter, narration only. Dialogue may lie, and this is being asked
+    // where the story has GOT to — the same rule extract and remember follow.
+    const tail = narrationOnly(v.passages.filter((p: any) => !p.isBreak)
+      .slice(-6).map((p: any) => p.body).join('\n\n')).slice(-2400);
+    const body = [
+      `THE BOOK: ${v.story.title}. ${v.story.premise ?? ''}`,
+      v.story.setting ? `SETTING: ${v.story.setting}` : '',
+      v.story.direction ? `WHERE IT IS GOING: ${v.story.direction}` : '',
+      before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
+        `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
+      (v.strings ?? []).filter((x: any) => x.status === 'open').length
+        ? `UNPAID PROMISES: ${(v.strings ?? []).filter((x: any) => x.status === 'open')
+            .map((x: any) => x.title).join('; ')}` : '',
+      tail.trim() ? `THE PROSE ENDS:\n${tail.trim()}` : '',
+      `NAME CHAPTER ${ch.index}.`,
+    ].filter(Boolean).join('\n\n');
+
+    const r = await structuredRetry(CHAPTER, body, CHAPTER_SCHEMA,
+      { model: modelFor(v.story, c.defaultModel), max_tokens: CHAPTER_TOKENS });
+    if (!r.data?.title) return { error: r.error ?? 'nothing usable came back' };
+    return { chapterId: ch.id, title: String(r.data.title).trim(), note: String(r.data.note ?? '').trim() };
+  },
   'POST /api/chapter/end': async (c) => {
     const v = viewOf(c.body.storyId);
     // A break is a real passage so NEW SCENE has something to fire on and ordinals stay dense.
