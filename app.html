@@ -168,9 +168,13 @@ input, textarea { font:inherit; color:inherit; }
   animation:veilin var(--t-slow) var(--ease-out) both; }
 #ghost.veil .narr { text-align:center; }
 #ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
-  letter-spacing:.05em; white-space:nowrap; animation:breathe 1.5s ease-in-out infinite; }
+  letter-spacing:.05em; white-space:nowrap; animation:veilbreathe 1.5s ease-in-out infinite; }
 @keyframes veilin { from { opacity:0; } to { opacity:1; } }
-@keyframes breathe { 0%, 100% { opacity:.7; } 50% { opacity:.28; } }
+/* PLAN-07 bug 3: this was also called `breathe`, and so was #send.stopping's at the bottom of
+   this file. The later declaration wins for BOTH, so the veil's head has never pulsed at the
+   amplitude written for it — .7-to-.28 here against 1-to-.62 there. Renamed rather than merged:
+   they are two different amplitudes for two different things. */
+@keyframes veilbreathe { 0%, 100% { opacity:.7; } 50% { opacity:.28; } }
 @media (prefers-reduced-motion: reduce) {
   #ghost.veil { animation:none; }
   #ghost.veil .head { animation:none; }
@@ -711,10 +715,16 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
    "remove the background from act when its selected. its the only button that has it."
    The underline is how a selected mode has always said so, and it says it for all four.
    The strip above still carries the tint — that is the part that changes with the mode. */
-@media (max-width:719px) { #asRow > .inner { padding:7px 18px; } }
+/* ISSUE #4 — "the act as or speak as row doesn't reach the edges on the left or the right".
+   It was inset THREE times on a phone: #dock already pads 18px (see its rule below), then #asRow
+   added 18 and .inner added 18 again — 54px against the 18px #modes sits at, so the one strip
+   above the mode rail was visibly narrower than everything under it. The dock's padding is the
+   only one that should exist; both of the others are gone here. Desktop is untouched: there
+   #dock has no horizontal padding at all and .inner's 40px is what centres the strip. */
+@media (max-width:719px) { #asRow > .inner { padding:7px 0; } }
 #asRow select { background:none; border:0; color:var(--gold); font-size:11.5px;
   letter-spacing:.06em; text-transform:none; max-width:min(60vw, 320px); }
-@media (max-width:719px) { #asRow { padding:8px 18px 0; } #asRow > .inner { max-width:none; } }
+@media (max-width:719px) { #asRow { padding:8px 0 0; } #asRow > .inner { max-width:none; } }
 /* IT WRAPS RATHER THAN SCROLLING SIDEWAYS. It was overflow-x:auto with scrollbar-width:none — so
    when the row did not fit it scrolled with nothing on screen saying so, and a control past the
    edge was a control you had no reason to believe existed. It fits at 360px in the shipped sizes,
@@ -782,7 +792,17 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 #send.stopping { background:var(--edge-lit); color:var(--ink-bright); font-size:11px;
   animation:breathe 1.6s var(--ease) infinite; }
 @keyframes breathe { 0%,100% { opacity:1 } 50% { opacity:.62 } }
-@media (max-width:719px) { #send { width:30px; height:30px; } }
+/* ISSUE #3 — "the send button and the expand input button are too small". They were: 30px for
+   Send on a phone, and the expand button had no box at all — just a 13px glyph with 2px of
+   padding, so its tap target was roughly the size of the character. 44px is the floor every
+   touch guideline agrees on and F34 is this project's own evidence for why it matters here: a
+   press that drifts 24px is a press this surface can already lose, and a target smaller than the
+   finger makes the drift the rule rather than the exception.
+   Send keeps its 34px on a desktop, where the pointer is exact and a 44px gold disc is a blot. */
+@media (max-width:719px) { #send { width:44px; height:44px; font-size:16px; } }
+#inputRow button[data-bigin] { width:34px; height:34px; display:flex; align-items:center;
+  justify-content:center; padding:0; }
+@media (max-width:719px) { #inputRow button[data-bigin] { width:44px; height:44px; font-size:17px; } }
 
 /* --- side panel -------------------------------------------------------- */
 #sideHead { display:flex; align-items:center; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--line); flex:0 0 auto; color:var(--ink); }

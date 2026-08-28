@@ -428,4 +428,27 @@ ok('the delegation refuses html and body outright');
     + `and adjacent ones differ by lightness (${GRANDFATHERED.size} pair grandfathered, still failing)`);
 }
 
+// Two `@keyframes` of one name is not a syntax error, and not a visible one either: the later
+// declaration silently wins for every rule that references the name. `breathe` was declared twice
+// in app.html — .7-to-.28 for the veil's head and 1-to-.62 for #send.stopping — so the veil never
+// pulsed at the amplitude written for it, and nothing said so. PLAN-07 bug 3.
+{
+  const css = read('app.html');
+  const names = [...css.matchAll(/@keyframes\s+([A-Za-z_-][\w-]*)/g)].map((m) => m[1]);
+  const dupes = [...new Set(names.filter((x, i) => names.indexOf(x) !== i))];
+  assert.deepStrictEqual(dupes, [],
+    `@keyframes declared twice: ${dupes.join(', ')}. The later one wins for every rule that names `
+    + 'it, so one of the two animations runs at the wrong values and nothing in the page says so.');
+
+  // The same mistake from the other side: a renamed keyframe leaves `animation:oldname` pointing
+  // at nothing, the element simply stops moving, and no error appears anywhere.
+  const used = [...css.matchAll(/animation:\s*([A-Za-z_-][\w-]*)/g)].map((m) => m[1])
+    .filter((x) => !['none', 'inherit', 'initial', 'unset'].includes(x));
+  const missing = [...new Set(used)].filter((x) => !names.includes(x));
+  assert.deepStrictEqual(missing, [],
+    `animation: ${missing.join(', ')} — named by a rule and defined by no @keyframes. The element `
+    + 'does not animate and nothing reports it.');
+  ok(`${names.length} @keyframes, each declared once, and every name a rule animates exists`);
+}
+
 console.log(`\n${n} checks passed`);

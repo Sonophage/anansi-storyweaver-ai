@@ -111,7 +111,11 @@ export function fromExport(file: string): Incoming {
 
 /** Scenario and adventure exports, across several years of format churn. Field names are
  *  tried in the order AI Dungeon has used them; nothing here assumes one shape. */
-export function fromAiDungeon(j: any): Incoming {
+// Not exported. `parse()` below is the one door into this module and it dispatches to every
+// reader here; these four were `export`ed and named by nothing outside this file — a wider
+// surface than anybody chose, found by bench/sweep.ts on 2026-08-28. `fromCard`,
+// `fromAiDungeonMarkdown` and `fromExport` stay exported: test/import.ts drives them directly.
+function fromAiDungeon(j: any): Incoming {
   const notes: string[] = [];
   const wi = j.worldInfo ?? j.worldInfoList ?? j.worldInfos ?? [];
   const entries = (Array.isArray(wi) ? wi : []).slice(0, MAX_ENTRIES).map((w: any) => ({
@@ -156,7 +160,7 @@ export function fromAiDungeon(j: any): Incoming {
  *  separately as markdown. Neither is the whole-adventure JSON above, which is why a real export
  *  used to be rejected as unrecognised. Both are handled; importing both into one story is what
  *  `merge` is for. */
-export function fromAiDungeonCards(arr: any[]): Incoming {
+function fromAiDungeonCards(arr: any[]): Incoming {
   // AI Dungeon's own vocabulary, and it writes the same type in mixed case ("Item", "character").
   // Anything it invents that we have no shelf for is lore, which is the shelf that means "canon".
   const AS: Record<string, string> = { character: 'character', race: 'character', class: 'character',
@@ -220,7 +224,7 @@ export function fromAiDungeonMarkdown(text: string): Incoming {
 
 /** tEXt chunks out of a PNG, without a dependency. Cards hide their JSON in one keyed
  *  `chara` (V2) or `ccv3` (V3), base64 encoded. */
-export function pngText(buf: Buffer): Record<string, string> {
+function pngText(buf: Buffer): Record<string, string> {
   const out: Record<string, string> = {};
   if (buf.length < 8 || buf.readUInt32BE(0) !== 0x89504e47) return out;
   let p = 8;
@@ -239,7 +243,7 @@ export function pngText(buf: Buffer): Record<string, string> {
   return out;
 }
 
-export function cardFromPng(buf: Buffer): any {
+function cardFromPng(buf: Buffer): any {
   const t = pngText(buf);
   const raw = t.ccv3 ?? t.chara;
   if (!raw) throw new Error('that PNG carries no character card');

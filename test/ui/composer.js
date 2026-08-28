@@ -1,0 +1,95 @@
+// Issues #3, #4 and #6, all reported from a phone on 2026-08-28 and all measured here rather than
+// eyeballed. Every one of the three is a number the browser can be asked for.
+//
+//   test/ui/run.sh composer
+const B = "http://127.0.0.1:5179";
+let red = 0;
+const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
+
+const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
+await page.mobile();
+await page.goto(B + "/#" + sid);
+for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
+
+// ---- #3. "The send button and the expand input button are too small."
+//
+// 44px is the floor every touch guideline agrees on, and this project has its own evidence for
+// why: F34 measured that a press drifting 24px is one this surface can already lose, so a target
+// smaller than a fingertip makes that drift the rule rather than the exception.
+const box = (sel) => page.eval(`(() => { const e = document.querySelector('${sel}');
+  if (!e) return null; const r = e.getBoundingClientRect();
+  return { w: Math.round(r.width), h: Math.round(r.height), left: Math.round(r.left),
+           right: Math.round(r.right) }; })()`);
+
+for (const [what, sel] of [["send", "#send"], ["the expand button", "#inputRow [data-bigin]"]]) {
+  const b = await box(sel);
+  if (!b) { ok(`${what} is on the page`, false); continue; }
+  console.log(`  ${what}: ${JSON.stringify(b)}`);
+  ok(`${what} is at least 44px square on a phone (${b.w}x${b.h})`, b.w >= 44 && b.h >= 44);
+}
+
+// ---- #4. "The act as or speak as row doesn't reach the edges on the left or the right."
+//
+// The strip was inset three times over — the dock's 18px, then #asRow's 18, then .inner's 18 —
+// so it sat 54px in while the mode rail under it sat at 18. Asserted as ALIGNMENT with #modes
+// rather than as a pixel count, because what was wrong was the disagreement between the two, and
+// a fixed number here would have to be rewritten the next time the dock's padding changes.
+await page.eval("(() => { document.querySelector('[data-mode=\"speak\"]')?.click(); return 1; })()");
+await wait(500);
+// Measured on the TEXT, not on `.inner`'s box. The first version compared `.inner`'s bounding
+// rect against #modes and stayed green when the padding was put back — because an element's own
+// padding is inside its box, so `.inner`'s rect never moved. What a reader sees not reaching the
+// edge is the label and the name, and those are what the padding pushes in.
+const label = await box("#asRow .inner span");
+const sel = await box("#asRow select");
+const firstMode = await box("#modes button");
+const modes = await box("#modes");
+if (!label || !sel || !firstMode || !modes) {
+  ok("the speak-as row and the mode rail are both on screen", false);
+} else {
+  console.log(`  label ${JSON.stringify(label)}  select ${JSON.stringify(sel)}  modes ${JSON.stringify(modes)}`);
+  ok(`the row's label starts at the same edge as the modes under it (${label.left} vs ${firstMode.left})`,
+     Math.abs(label.left - firstMode.left) <= 1);
+  ok(`  and the name it ends with reaches the other edge (${sel.right} vs ${modes.right})`,
+     Math.abs(sel.right - modes.right) <= 1);
+}
+
+// ---- #6. "The anansi logo on dark themes has a white background."
+//
+// The mark is inline SVG now rather than an <img> of a file with #0A0A0C baked behind it, so it
+// has no plate of its own and its stroke follows the theme. Both halves asserted: nothing opaque
+// painted behind it, and the stroke actually changing when the theme does.
+await page.eval("(() => { document.documentElement.dataset.uiRail = 'open'; return 1; })()");
+await wait(300);
+const logo = await page.eval(`(() => {
+  const svg = document.querySelector('#rail svg');
+  if (!svg) return null;
+  const cs = getComputedStyle(svg);
+  const g = svg.querySelector('g');
+  return { tag: svg.tagName, bg: cs.backgroundColor,
+           stroke: g ? getComputedStyle(g).stroke : null,
+           img: !!document.querySelector('#rail img') };
+})()`);
+console.log("  logo: " + JSON.stringify(logo));
+// Written so a MISSING svg is a red rather than a throw: the first version read
+// svg.querySelector('g') unguarded, and reverting the fix on purpose KILLED the scenario at four
+// checks instead of failing three, which run.sh scores as never having reached its verdict.
+ok("the logo is inline SVG, not an <img> carrying its own background", !!logo && !logo.img);
+ok(`  and paints no plate behind itself (${logo && logo.bg})`,
+   !!logo && /rgba\(0, 0, 0, 0\)|transparent/.test(logo.bg));
+
+// Asserted against the TOKEN rather than by switching themes. The first version set
+// `data-ui-theme` and compared two strokes; it went red, and the detector was the thing that was
+// wrong — a theme is applied by `themeVars` writing CSS variables onto :root (web/model.js:284),
+// not by an attribute selector, so setting the attribute alone changes nothing. What matters is
+// that the stroke resolves to the theme's own accent instead of the file's baked #D9B26A, and
+// that is checkable in one place with no theme switch at all.
+const gold = await page.eval("getComputedStyle(document.documentElement).getPropertyValue('--gold').trim()");
+const strokeNow = await page.eval("(() => { const g = document.querySelector('#rail svg g'); return g ? getComputedStyle(g).stroke : null; })()");
+const rgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return h;
+  const v = parseInt(m[1], 16); return `rgb(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255})`; };
+console.log(`  --gold ${gold} -> ${rgb(gold)} / stroke ${strokeNow}`);
+ok(`  and its stroke is the theme's own accent, not a colour baked into a file (${strokeNow})`,
+   !!strokeNow && strokeNow === rgb(gold));
+
+console.log(red ? `\n  ${red} RED` : "\n  all green");

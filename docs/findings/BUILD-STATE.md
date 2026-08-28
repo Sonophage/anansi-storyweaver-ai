@@ -836,3 +836,56 @@ deriving activation from keys while five other write paths did not; and `test/db
 token estimator against its own constant, so the check could not fail. In none of them was the
 instrument missing. **The cheapest work in this project is walking the checks that exist and asking
 what their mirror image would be.**
+
+
+---
+
+## 9. Overnight pass, 2026-08-28 — the six reported issues, on a branch
+
+Worked on **`surface-fixes`**, a worktree branched from `serial`, so the running app kept serving
+from the main checkout untouched while this landed. Pushed, not merged. `checklist.md` opens with
+seven questions; this is what changed under them.
+
+**PLAN-07's three bugs, each confirmed in source before it was touched.** The reroll's veil waited
+for a token that could not arrive — `atEnd ? (d) => ghost(live += d) : () => {}` with both halves
+dead, so the veil never appeared at all when the model errored first, which is the exact cold-start
+blank page it exists to cover. A failed accept left the composer offering to stop a finished call.
+And `@keyframes breathe` was declared twice, so the veil has never pulsed at its own amplitude.
+PLAN-07's fourth bug was already fixed in `76deb5a`, and its "collision risk" section named
+uncommitted work that was mine and is now landed.
+
+**Four of the six issues, all measured rather than eyeballed.** #2: on a phone `#rail` (z-index 40),
+`#appearance` (41) and `#dock.big` (41) all sit above the tray's 32, so the tray opened *underneath*
+them — `elementFromPoint` at its centre returned `#input`, then a rail button. Drawn, centred, and
+unpressable. #3: Send was 30px and the expand button had no box at all, a 13px glyph with 2px of
+padding; both are 44px on a phone now. #4: the speak-as row was inset three times over, 54px against
+the mode rail's 18. #6: the logo carried Obsidian's plate *and* Obsidian's gold on all nine themes,
+baked into a file an `<img>` cannot inherit from; it is inline SVG now.
+
+Not reproduced, and said so in the checklist rather than papered over: #2's exact path, and #6's
+"white".
+
+### Three new instruments, and one of them had three faults before it said anything true
+
+`test/ui/tray.js` and `test/ui/composer.js` are in the **default** set — neither needs a model. The
+check that matters in `tray` is not "the tray opened" but "the tray is the topmost thing at its own
+centre", because a tray that is drawn and cannot be pressed is worse than one that is shut: it looks
+like the app answered.
+
+`bench/sweep.ts` is a static read-only pass for dead exports, unreachable controls, orphan element
+ids, orphan CSS id selectors and orphan localStorage keys. It prints rather than throws, because
+several of its categories have legitimate answers and a sweep that failed the build on each would be
+switched off inside a week. Current result: **four unused TYPE exports** (zero runtime surface, left
+alone), **four payload attributes** riding on admitted actions (the correct pattern), and nothing
+else — no dead controls, no missing ids, no orphan selectors, no orphan keys. Four over-exported
+functions in `import.ts` were narrowed to module-private; `parse()` is the one door and nothing
+outside the file named them.
+
+**It reported 123 dead handlers, then five phantom actions, then read its own comment as evidence,
+before it said anything true.** `ACTIONS` is an array ending `].map(...)` and not `];`, so a pattern
+anchored on `];` ran past it into the next statement; the id-selector scan was matching hex colours;
+and the used-anywhere scan counted the sweep's own prose about `Arc` as a use of `Arc`. Three parse
+faults in one tool, in one sitting. The rule held again, and it is the same rule: **validate the
+detector before believing the result.** Two more instances beside it — a `#4` check that compared a
+padded element's own bounding box and stayed green when the padding came back, and a `#6` check that
+switched `data-ui-theme` when a theme is applied by writing CSS variables, not by an attribute.
