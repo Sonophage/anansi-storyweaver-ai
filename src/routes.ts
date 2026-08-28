@@ -1076,7 +1076,46 @@ export const routes: Record<string, Handler> = {
     const turns = (Array.isArray(c.body.turns) ? c.body.turns : []).slice(-6)
       .map((t: any) => `${t.you ? 'WRITER' : 'ANANSI'}: ${String(t.text ?? '').slice(0, 1200)}`).join('\n');
 
+    // WHAT THE WRITER POINTED AT. `@` in the ask box inserts a name; this is the thing behind it.
+    // Seth: "that way anansi knows exactly what i'm referring to." A name tells her which words
+    // were used, and there are two threads called `the letter` in most books; an id tells her
+    // which one.
+    //
+    // OWNER-SCOPED BY CONSTRUCTION, not by a check bolted on here. `ledgerOf` and `listStories`
+    // both take `c.owner` and filter in SQL, and a chapter is resolved out of `v`, which came
+    // through `viewOf` behind the ownership gate. An id for another writer's thread resolves to
+    // nothing and is dropped in silence, which is the right answer: which books exist is not a
+    // question a stranger gets answered, and that is the same rule `POST /api/look` follows.
+    //
+    // NOTES ARE NOT INCLUDED. `notes` is writer-only and never reaches a model — SPEC §7.1, and
+    // the engine's own `Entry` type has no such field. Title and body only.
+    const wanted = (Array.isArray(c.body.mentions) ? c.body.mentions : []).slice(0, 6);
+    const summoned: string[] = [];
+    if (wanted.length) {
+      const mine = db.ledgerOf(c.owner);
+      const books = db.listStories(c.owner);
+      for (const m of wanted) {
+        const id = String(m?.id ?? '');
+        if (m?.kind === 'thread') {
+          const e = mine.find((x: any) => x.id === id);
+          if (e) summoned.push(`${e.title} — a thread${e.story === v.id ? '' : ` in ${e.story_title}`}`
+            + `:\n${String(e.body ?? '').slice(0, 1200)}`);
+        } else if (m?.kind === 'chapter') {
+          const ch = v.chapters.find((x: any) => x.id === id);
+          if (ch) summoned.push(`Chapter ${ch.index}${ch.title ? ` — ${ch.title}` : ''}:\n`
+            + `${ch.summary ? String(ch.summary).slice(0, 1200) : 'no summary written yet'}`);
+        } else if (m?.kind === 'book') {
+          const b = books.find((x: any) => x.id === id);
+          if (b) summoned.push(`${b.title} — another of the writer's books:\n`
+            + [b.premise, b.setting].filter(Boolean).map((x: any) => String(x).slice(0, 600)).join('\n'));
+        }
+      }
+    }
+
     const ask = [
+      summoned.length && 'The writer pointed at these by name. They are what the question is '
+        + 'about, and they are canon — not a suggestion and not a stranger\'s text:\n\n'
+        + summoned.join('\n\n'),
       // WHICH CHAPTER IT IS LOOKING AT. F33: asked which chapter set a promise up, it said 1 for
       // three promises in a story on chapter 2 — nothing in what it was given said which chapter
       // the recent passages belonged to, so it was answering a question it had no material for.

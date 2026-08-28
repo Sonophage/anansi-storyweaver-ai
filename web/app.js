@@ -4093,11 +4093,25 @@ document.addEventListener('click', async (e) => {
     if (!said || S.talk.busy) return;
     // The question goes up as yours before the answer comes back, so the window reads like a
     // conversation rather than a form that clears itself.
-    S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null };
+    // Read BEFORE the reset, which is the order the first version got wrong: the line below
+    // cleared `mentions` and the line after it read them back empty, so the name went up and the
+    // thing behind it never did. Caught by asserting what the client SENDS rather than what it
+    // stores. Only the ones still named in the question — a mention whose text you deleted is a
+    // reference to something you are no longer asking about, and sending it would put a whole
+    // thread in front of her for a word that is not there.
+    // De-duplicated: naming the same thread twice in one question, or picking it, deleting the
+    // word and picking it again, would otherwise put its whole body in front of her twice.
+    const seenM = new Set();
+    const mentions = (S.talk.mentions ?? []).filter((m) => said.includes(m.label))
+      .filter((m) => !seenM.has(`${m.kind}\u0000${m.id}`) && seenM.add(`${m.kind}\u0000${m.id}`))
+      .map((m) => ({ kind: m.kind, id: m.id }));
+    S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null,
+      mentions: [] };
     drawSide(); working('direct');
     const r = await api.talk(S.storyId, {
       said, turns: S.talk.turns.slice(0, -1).map((t) => ({ you: t.you, text: t.text })),
       search: S.talk.search ? said : undefined,
+      mentions: mentions.length ? mentions : undefined,
     });
     working(null);
     S.talk.busy = false;
@@ -4666,19 +4680,21 @@ const atClose = () => { AT = null; const l = $('atlist'); if (l) { l.hidden = tr
 function atFind(q) {
   const seen = new Set();
   const out = [];
-  const add = (label, kind, where) => {
+  const add = (label, kind, where, id) => {
     const key = `${kind}\u0000${label}`;
     if (!label || seen.has(key) || out.length >= AT_MAX) return;
-    seen.add(key); out.push({ label, kind, where });
+    seen.add(key); out.push({ label, kind, where, id });
   };
   const hit = (x) => !q || String(x ?? '').toLowerCase().includes(q);
-  for (const e of V?.entries ?? []) if (hit(e.title)) add(e.title, 'thread', 'this book');
+  for (const e of V?.entries ?? []) if (hit(e.title)) add(e.title, 'thread', 'this book', e.id);
   for (const c of V?.chapters ?? []) {
     const t = (c.title || '').trim();
-    if (hit(t) || hit(`chapter ${c.index}`)) add(t && t !== `Chapter ${c.index}` ? t : `Chapter ${c.index}`, 'chapter', 'this book');
+    if (hit(t) || hit(`chapter ${c.index}`))
+      add(t && t !== `Chapter ${c.index}` ? t : `Chapter ${c.index}`, 'chapter', 'this book', c.id);
   }
-  for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your shelf');
-  for (const e of LEDGER ?? []) if (e.story !== S.storyId && hit(e.title)) add(e.title, 'thread', e.storyTitle || 'another book');
+  for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your shelf', b.id);
+  for (const e of LEDGER ?? []) if (e.story !== S.storyId && hit(e.title))
+    add(e.title, 'thread', e.storyTitle || 'another book', e.id);
   return out;
 }
 
@@ -4713,6 +4729,11 @@ function atAccept(i) {
   const before = box.value.slice(0, AT.from), after = box.value.slice(AT.to);
   // The name goes in WITHOUT the @, because what reaches Anansi should read as English. The @ is
   // how you FIND it, not part of what you meant.
+  // REMEMBERED, not just typed. Seth: "yes I do want it to do that. that way anansi knows exactly
+  // what I'm referring to." The name alone tells her which words you used; the id tells her which
+  // thing. Filtered against the box's text at send time, so deleting the name drops the mention
+  // rather than shipping a reference to something the question no longer mentions.
+  S.talk = { ...S.talk, mentions: [...(S.talk.mentions ?? []), { kind: it.kind, id: it.id, label: it.label }] };
   box.value = `${before}${it.label} ${after}`;
   const caret = before.length + it.label.length + 1;
   atClose();

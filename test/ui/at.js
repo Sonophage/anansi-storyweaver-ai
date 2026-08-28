@@ -80,4 +80,68 @@ await page.eval("(() => { document.getElementById('askBox').dispatchEvent("
 await wait(200);
 ok("Escape closes it", !(await menu()).open);
 
+// ---- AND THE THING BEHIND THE NAME GOES WITH IT.
+//
+// Seth: "yes I do want it to do that. that way anansi knows exactly what I'm referring to." The
+// name tells her which words were used, and most books have two threads whose titles overlap; the
+// id tells her which one.
+//
+// `fetch` is patched so /api/talk never reaches the server: this is about what the CLIENT sends,
+// and letting it through would put a real generation in a scenario that is in the default set.
+// The server half — resolving those ids against `ledgerOf(c.owner)` and `listStories(c.owner)` —
+// is owner-scoped in SQL and `test/scope.ts:250` already proves that with two owners, which is
+// the layer where it is decidable.
+await page.eval(`(() => {
+  window.__sent = null;
+  const real = window.fetch;
+  window.fetch = (u, init) => {
+    if (String(u).includes('/api/talk')) {
+      window.__sent = JSON.parse(init.body);
+      return Promise.resolve(new Response(JSON.stringify({ said: 'ok', turns: [] }),
+        { headers: { 'Content-Type': 'application/json' } }));
+    }
+    return real(u, init);
+  };
+  return 1;
+})()`);
+
+const askWith = async (text) => {
+  await type(text);
+  const m2 = await menu();
+  if (m2.open) {
+    await page.eval("(() => { const b = document.querySelector('#atlist [data-atpick=\"0\"]');"
+      + " b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); return 1; })()");
+    await wait(250);
+  }
+  return m2.open;
+};
+
+if (!(await askWith("tell me about @key"))) {
+  ok("a mention can be accepted before asking", false);
+} else {
+  await page.eval("(() => { document.querySelector('[data-ask]')?.click(); return 1; })()");
+  await wait(500);
+  const sent = await page.eval("window.__sent");
+  console.log("  sent: " + JSON.stringify(sent && { said: sent.said, mentions: sent.mentions }));
+  ok("the question carries the mention, not only the name",
+     !!sent && Array.isArray(sent.mentions) && sent.mentions.length === 1);
+  ok("  with a kind and an id the server can resolve",
+     !!sent?.mentions?.[0]?.kind && !!sent?.mentions?.[0]?.id);
+}
+
+// And a mention whose name you deleted is not sent. Otherwise a whole thread arrives in front of
+// her for a word that is no longer in the question.
+await page.eval("(() => { window.__sent = null; return 1; })()");
+if (!(await askWith("tell me about @key"))) {
+  ok("a mention can be accepted before deleting it", false);
+} else {
+  await type("tell me about something else entirely");
+  await page.eval("(() => { document.querySelector('[data-ask]')?.click(); return 1; })()");
+  await wait(500);
+  const sent2 = await page.eval("window.__sent");
+  console.log("  after deleting the name: " + JSON.stringify(sent2 && sent2.mentions));
+  ok("deleting the name drops the mention with it",
+     !!sent2 && (sent2.mentions === undefined || sent2.mentions.length === 0));
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
