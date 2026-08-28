@@ -176,8 +176,17 @@ for (const theme of ['obsidian', 'ink', 'parchment']) {
   await wait(350);
   const rows = JSON.parse(await page.eval(`(() => {
     const out = [];
+    // #inputMirror, NOT #input. The composer's textarea renders its own text transparent and a
+    // mirror behind it draws what you read — that is the only way to colour one word inside a
+    // textarea, which is what an @ mention needs. Measuring #input here reported 1.1:1 on every
+    // theme and was right about the element and wrong about the text: the letters on the screen
+    // are the mirror's.
+    //
+    // The PAIR is checked below, so this is not the check being told to look away: a transparent
+    // textarea with no mirror behind it, or a mirror that is itself transparent, is still a red.
+    // Both of those have shipped this week.
     for (const sel of ['#col .narr', '#sideBody', '#bar .serif', '#modes button', '#modes button[data-mode]',
-                       '.hint', '#input']) {
+                       '.hint', '#inputMirror']) {
       const el = document.querySelector(sel); if (!el) continue;
       let bg = 'rgba(0, 0, 0, 0)', n = el;
       while (n && (bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent')) { bg = getComputedStyle(n).backgroundColor; n = n.parentElement; }
@@ -190,6 +199,25 @@ for (const theme of ['obsidian', 'ink', 'parchment']) {
     if (r < worst) { worst = r; where = sel; }
   }
   ok(`8. ${theme} is readable — worst ${worst.toFixed(1)}:1 on ${where}`, worst >= 4.5);
+
+  // AND THE MIRRORED PAIR IS COHERENT. Exactly one of the two carries the visible text: the
+  // textarea's own colour is transparent AND a mirror exists behind it that is not. Either half
+  // alone has shipped — the textarea visible with a mirror behind it double-prints every letter,
+  // and both transparent means typing produces nothing at all, which is what happened on
+  // 2026-08-28 and what Seth saw before I did.
+  const pair = JSON.parse(await page.eval(`(() => {
+    const out = [];
+    for (const [box, mir] of [['input', 'inputMirror'], ['askBox', 'askMirror']]) {
+      const b = document.getElementById(box), m = document.getElementById(mir);
+      if (!b || !m) continue;
+      out.push([box, getComputedStyle(b).color, getComputedStyle(m).color]);
+    }
+    return JSON.stringify(out); })()`));
+  for (const [box, boxColor, mirColor] of pair) {
+    const clear = (c) => /rgba\(0, 0, 0, 0\)|transparent/.test(c);
+    ok(`   #${box} is mirrored — the box's own text is out of the way and the mirror's is not`,
+       clear(boxColor) && !clear(mirColor));
+  }
 }
 await page.eval("(() => { document.documentElement.dataset.uiTheme = 'obsidian'; return 1; })()");
 
