@@ -844,4 +844,81 @@ ok('the resolved body is what reaches the prompt, not the base', () => {
   assert.ok(!out.includes('nobody collects rent'), 'and not the superseded base');
 });
 
+// ---- PLAN-08 Phase 3: the rooms of a card reach the model -------------------------------------
+
+// Aldis is always-on and her name is all over the prose, so the entry itself is never the variable
+// here — only which of her rooms rides with it.
+const withAddons = (addons: any[], extra: Partial<Entry> = {}) => {
+  const b = base();
+  b.entries = [entry('e-aldis', '[Aldis Fen: 34, ex-Watch sergeant]',
+    { lastEditor: 'human', addons, ...extra } as any)];
+  return buildContext(b, count).blocks.find((x) => x.id === 'e-aldis')!;
+};
+const room = (o: any) => ({ id: 'a1', slot: 'interiority', name: 'her fear',
+  body: 'will not cross the bridge at night', keys: [], ...o });
+
+ok('an addon the writer pinned on rides with its entry', () => {
+  const b = withAddons([room({ active: true })]);
+  assert.match(b.text, /her fear: will not cross the bridge at night/);
+});
+
+ok('  and one nobody pinned and nothing named stays out', () => {
+  // The half that matters. A room that always arrives is a longer body with extra steps, and it is
+  // what "several can be triggered on at a time" would silently become.
+  const b = withAddons([room({ active: false, keys: ['ghost wolf'] })]);
+  assert.doesNotMatch(b.text, /her fear/);
+});
+
+ok('  but arrives on its own words, without being pinned', () => {
+  // `coins` is in the last passage. This is the union: active OR keys, the same rule an entry
+  // already uses for force_in or a keyword.
+  const b = withAddons([room({ active: false, keys: ['coins'] })]);
+  assert.match(b.text, /her fear/);
+});
+
+ok('several rooms can be open at once, which is the whole point of the shape', () => {
+  const b = withAddons([
+    room({ id: 'a1', name: 'her fear', active: true }),
+    room({ id: 'a2', name: 'owes the Ambersand', body: 'nine hundred, called in', active: true }),
+  ]);
+  assert.match(b.text, /her fear/);
+  assert.match(b.text, /owes the Ambersand/);
+});
+
+ok('a room that is not true yet is not sent, and one that is finished stops being sent', () => {
+  // The chapter is 3. `resolveBody` asks these two questions of a state; an addon is a state with
+  // a slot, so it has to answer them the same way or an arc leaks backwards and forwards.
+  assert.doesNotMatch(withAddons([room({ active: true, fromChapter: 9 })]).text, /her fear/);
+  assert.doesNotMatch(withAddons([room({ active: true, retiredAtChapter: 2 })]).text, /her fear/);
+  assert.match(withAddons([room({ active: true, fromChapter: 3 })]).text, /her fear/,
+    'in force AT the chapter it opens, not after it');
+});
+
+ok('the outfit slot is left to the older path, so the coat is not sent twice', () => {
+  // The migration COPIED outfits into addons and the surface still writes the `outfits` table.
+  // Reading both would put the coat in the prompt twice; reading only addons would mean wearing
+  // one stopped changing the prompt at all. Asserted so that deleting `worn()` without moving the
+  // surface first goes red here rather than quietly in somebody's book.
+  const b = withAddons([room({ slot: 'outfit', name: 'the grey coat', body: 'wool, shiny cuffs',
+    active: true })], { wearing: { name: 'the grey coat', body: 'wool, shiny cuffs' } } as any);
+  assert.strictEqual((b.text.match(/wool, shiny cuffs/g) ?? []).length, 1,
+    'the coat belongs in the prompt exactly once');
+});
+
+ok('a retired entry is omitted with a reason, not dropped in silence', () => {
+  // Dropping it would leave the manifest unable to answer why a card the writer can see on the
+  // Threads screen is not in the prompt — the same argument the pin path already makes.
+  const b = base();
+  b.entries = [entry('e-dead', '[Konrad Curze: dead at the bridge]',
+    { retiredAtChapter: 2 } as any)];
+  const blk = buildContext(b, count).blocks.find((x) => x.id === 'e-dead')!;
+  assert.strictEqual(blk.state, 'omitted');
+  assert.match(blk.reason ?? '', /retired at chapter 2/);
+});
+
+ok('  and one retired later than here is still in force', () =>
+  assert.notStrictEqual(buildContext(Object.assign(base(), {
+    entries: [entry('e-alive', '[still here]', { retiredAtChapter: 9 } as any)],
+  }), count).blocks.find((x) => x.id === 'e-alive')!.state, 'omitted'));
+
 console.log(`\n${n} checks passed`);

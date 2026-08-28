@@ -22,6 +22,17 @@ export interface Entry {
   wearing?: { name: string; body: string } | null;
   stickyFor?: number;              // stays active this many passages after it last fired
   properNouns?: boolean;           // names do not get folded — see fold()
+  retiredAtChapter?: number;       // finished: a dead character, a burned building. PLAN-08
+  addons?: Addon[];                // the rooms of the card — PLAN-08 Phase 2
+}
+/** A room of a card: an appearance, a relationship, a voice. What an outfit already was,
+ *  generalised — see `src/slots.ts`. Several of the plural slots can be live at once. */
+export interface Addon {
+  id: string; slot: string; name: string; body: string;
+  keys: string[];
+  active?: boolean;                // the writer pinned it on
+  fromChapter?: number;            // not true until this chapter
+  retiredAtChapter?: number;
 }
 export interface Chapter {
   id: string; index: number; title: string; summary?: string; authorsNote?: string;
@@ -159,6 +170,34 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
 const worn = (body: string, e: Entry): string => e.wearing?.body
   ? `${body}\n[${(e.title || '').trim() || 'They'} wears: ${e.wearing.body.trim()}]`
   : body;
+
+/** IN FORCE AT THIS CHAPTER. Not yet true, or finished — the same two questions `resolveBody` asks
+ *  of a state, asked of an addon. An addon with no `fromChapter` has always been true. */
+const live = (a: Addon, at: number) =>
+  (a.fromChapter == null || a.fromChapter <= at)
+  && (a.retiredAtChapter == null || a.retiredAtChapter > at);
+
+/** The rooms of the card that are open right now, each as its own bracket under the body.
+ *
+ *  TWO WAYS IN, AND THEY ARE A UNION — not a new rule. `active` is the writer pinning it on; keys
+ *  are it arriving on its own. That is exactly what an entry already does with `force_in` or a
+ *  keyword at the loop below, so there is no second firing semantics to keep in step.
+ *
+ *  THE OUTFIT SLOT IS SKIPPED HERE ON PURPOSE. `worn()` above still carries it from `e.wearing`,
+ *  because the surface writes outfits through `upsertOutfit`/`wearOutfit` and those write the
+ *  `outfits` table, not `addons`. Reading the backfilled copies here as well would put the coat in
+ *  the prompt twice — and reading them INSTEAD would mean wearing an outfit stopped changing the
+ *  prompt at all, which is the quieter of the two bugs. When the surface moves to addons, delete
+ *  this clause and `worn` with it.
+ *
+ *  `fires` is the shipped matcher with the addon's keys swapped in, never a second copy of it:
+ *  the fold, the proper-noun exemption and multi-word order all have to behave the same here or a
+ *  relationship fires on a rule a character would not. */
+const rooms = (e: Entry, at: number, window: string): string[] =>
+  (e.addons ?? [])
+    .filter((a) => a.slot !== 'outfit' && live(a, at))
+    .filter((a) => a.active || fires({ ...e, keys: a.keys ?? [] }, window).length)
+    .map((a) => `[${(a.name || a.slot).trim()}: ${a.body.trim()}]`);
 
 /** The body as it stands at a given chapter.
  *
@@ -432,7 +471,23 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // AFTER resolution, so a chapter-state replacing the body does not take the wardrobe with it.
     // It rides with the entry rather than in its own block, so it obeys the entry's own activation:
     // an always-on character carries it every call, a triggered one only when they fire.
-    const body = worn(resolveBody(e, currentChapter.index), e);
+    // FINISHED THREADS DO NOT FIRE. A dead character or a burned building that keeps arriving
+    // costs room and contradicts the page, and the ledger's precision decays exactly as the book
+    // gets long enough to need it. Recorded as an omission with a reason rather than dropped
+    // silently, the same as a pin, so the manifest can still answer for it.
+    if (e.retiredAtChapter != null && e.retiredAtChapter <= currentChapter.index) {
+      blocks.push({ kind: e.activation === 'always_on' ? 'CANON-ALWAYS' : 'CANON-TRIGGERED',
+        id: e.id, text: '', tokens: 0, state: 'omitted',
+        reason: `retired at chapter ${e.retiredAtChapter}` });
+      continue;
+    }
+    // The rooms ride WITH the entry rather than as blocks of their own, so an addon obeys the
+    // entry's activation exactly as an outfit already does: an always-on card carries its open
+    // rooms every call, a triggered one only when it fires. Whether that is still right once a
+    // card has six rooms is a measurement, not an opinion — `bench/fires.ts` answers it, and the
+    // eviction order only needs to learn about addons if the cap starts biting.
+    const body = [worn(resolveBody(e, currentChapter.index), e),
+                  ...rooms(e, currentChapter.index, recent)].join('\n');
     if (e.activation === 'always_on') {
       add('CANON-ALWAYS', e.id, body, 'always_on', ['always_on']);
     } else if (pins[e.id] === 'force_in') {

@@ -17,6 +17,7 @@ const toEntry = (r: any, states: any[] = []): Entry => ({
   notes: r.notes ?? '',            // writer-only. Deliberately absent from the Entry the engine sees.
   stickyFor: r.sticky_for ?? undefined,
   properNouns: r.proper_nouns == null ? undefined : !!r.proper_nouns,
+  retiredAtChapter: r.retired_at_chapter ?? undefined,
 });
 const toStory = (r: any) => ({
   title: r.title, genre: r.genre, premise: r.premise, setting: r.setting, pov: r.pov,
@@ -48,6 +49,7 @@ export function view(storyId: string, focusChapterId?: string) {
   const variants = db.variantsBySlot(storyId);
   const states = db.statesForStory(storyId);
   const outfits = db.outfitsOf(storyId);
+  const addons = db.addonsOf(storyId);
   const pins = db.pinsOf(storyId);
   const arcs = db.arcsOf(storyId);
   return {
@@ -98,6 +100,14 @@ export function view(storyId: string, focusChapterId?: string) {
         .map((o: any) => ({ id: o.id, name: o.name, body: o.body, active: !!o.active })),
       wearing: outfits.filter((o: any) => o.entry_id === e.id && o.active)
         .map((o: any) => ({ name: o.name, body: o.body }))[0] ?? null,
+      // PLAN-08. The engine reads these; the outfit slot among them is skipped in `context.ts`
+      // because `wearing` above still carries the coat from the older table.
+      addons: addons.filter((a: any) => a.entry_id === e.id).map((a: any) => ({
+        id: a.id, slot: a.slot, name: a.name, body: a.body,
+        keys: JSON.parse(a.keys || '[]'), active: !!a.active,
+        fromChapter: a.from_chapter ?? undefined,
+        retiredAtChapter: a.retired_at_chapter ?? undefined,
+      })),
     })),
     pins: pins.map((p: any) => ({ chapterId: p.chapter_id, entryId: p.entry_id, mode: p.mode })),
     arcs: arcs.map((a: any) => ({ id: a.id, fromChapter: a.from_chapter, toChapter: a.to_chapter,
