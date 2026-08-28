@@ -874,7 +874,7 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
    measures scrollHeight, which includes the padding, so it agrees without being told. */
 #input {
   flex:1; min-width:0; font-size:17px; line-height:1.55; color:var(--body); background:none; border:0;
-  resize:none; max-height:140px; padding:4px 0; min-height:34px; font-family:inherit;
+  resize:none; max-height:140px; padding:9px 0; min-height:44px; font-family:inherit;
 }
 /* THE COMPOSER, FULL HEIGHT. A capped box is right for a line and wrong for a paragraph: past the
    cap you are writing into a six-line window and cannot see the top of your own sentence. This is
@@ -894,14 +894,20 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 /* No inline height is set in this mode, so the flex box is the height and the text scrolls in it. */
 #dock.big #input { max-height:none; height:auto; }
 #input::placeholder { color:var(--label); opacity:.75; }
-@media (max-width:719px) { #input { font-size:15.5px; padding:10px 0; min-height:44px; }
+@media (max-width:719px) { #input { font-size:15.5px; padding:16px 0; min-height:56px; }
   #inputRow { padding-bottom:12px; } }
 /* ONE RULE, TWO BUTTONS. Seth: "the maximize button can we style it the same as the send button."
    Shared rather than copied — a second declaration of the same shape is how the two drift, and
    these two flank the box and are read as a pair. #send keeps its own busy state below; nothing
-   else here is specific to either. */
+   else here is specific to either.
+   VERTICAL RECTANGLES, not discs: 34x44 on a desk and 44x56 on a phone. Taller than wide, so they
+   read as the ends of the row the box runs between rather than as two buttons that happen to sit
+   near it. The phone width stays at 44 because that is the touch floor; the height grows instead.
+   The glyph colour is HERE and not inline on the button — an inline `color:var(--faint)` is what
+   kept the arrow grey after this rule was written, which is the second time an inline style on
+   that exact button has beaten a stylesheet. */
 #send, #inputRow button[data-bigin] {
-  width:34px; height:34px; border-radius:50%; background:var(--gold); color:var(--on-gold);
+  width:34px; height:44px; border-radius:var(--r); background:var(--gold); color:var(--on-gold);
   display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto;
 }
 #send:disabled { opacity:.4; }
@@ -919,7 +925,7 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
    press that drifts 24px is a press this surface can already lose, and a target smaller than the
    finger makes the drift the rule rather than the exception.
    Send keeps its 34px on a desktop, where the pointer is exact and a 44px gold disc is a blot. */
-@media (max-width:719px) { #send, #inputRow button[data-bigin] { width:44px; height:44px; font-size:18px; } }
+@media (max-width:719px) { #send, #inputRow button[data-bigin] { width:44px; height:56px; font-size:18px; } }
 /* The GLYPH, not just the box. The box went to 44px on a phone and the arrow stayed tiny, because
    the button carried `font-size:13px` INLINE and an inline style beats a stylesheet — so the rule
    below was being written and never applied. Seth: "the expand button however is still very very
@@ -1038,8 +1044,8 @@ textarea.field { resize:vertical; min-height:70px; }
    highlight ends up a line above the word it is highlighting. */
 #inputWrap { position:relative; flex:1; min-width:0; display:flex; }
 #inputWrap > #input { position:relative; z-index:1; background:transparent; }
-#inputMirror { font-size:17px; padding:4px 0; }
-@media (max-width:719px) { #inputMirror { font-size:15.5px; padding:10px 0; } }
+#inputMirror { font-size:17px; padding:9px 0; }
+@media (max-width:719px) { #inputMirror { font-size:15.5px; padding:16px 0; } }
 #inputMirror {
   /* NOT transparent any more. The mirror was a layer behind visible text and is now the layer you
      READ — the textarea's own text is what went transparent. This line said `color:transparent`

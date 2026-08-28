@@ -62,8 +62,9 @@ for (const [what, sel] of [["send", "#send"], ["the expand button", "#inputRow [
 const pair = await page.eval(`(() => {
   const g = (sel) => { const e = document.querySelector(sel); if (!e) return null;
     const s = getComputedStyle(e);
-    return { size: Math.round(parseFloat(s.fontSize)), bg: s.backgroundColor,
-             radius: s.borderRadius, w: Math.round(e.getBoundingClientRect().width) }; };
+    const r = e.getBoundingClientRect();
+    return { size: Math.round(parseFloat(s.fontSize)), bg: s.backgroundColor, color: s.color,
+             radius: s.borderRadius, w: Math.round(r.width), h: Math.round(r.height) }; };
   return { send: g('#send'), big: g('#inputRow [data-bigin]') };
 })()`);
 console.log("  send/expand: " + JSON.stringify(pair));
@@ -73,6 +74,12 @@ ok(`  the expand button is the same size as Send (${pair.big?.w} vs ${pair.send?
 ok(`  the same glyph size (${pair.big?.size} vs ${pair.send?.size})`, pair.big?.size === pair.send?.size);
 ok(`  the same fill and the same shape (${pair.big?.bg})`,
    pair.big?.bg === pair.send?.bg && pair.big?.radius === pair.send?.radius);
+// VERTICAL RECTANGLES, not discs, and the glyph in the fill's own ink. That last one is the
+// second time an inline `color:var(--faint)` on this exact button beat a stylesheet and left the
+// arrow grey inside a gold plate — asserted now rather than looked at.
+ok(`  taller than they are wide (${pair.big?.w}x${pair.big?.h})`, (pair.big?.h ?? 0) > (pair.big?.w ?? 0));
+ok(`  and the glyph wears the fill's own ink, not a grey (${pair.big?.color})`,
+   pair.big?.color === pair.send?.color);
 ok(`  and still big enough to read (${pair.big?.size}px)`, (pair.big?.size ?? 0) >= 16);
 
 // ---- #4. "The act as or speak as row doesn't reach the edges on the left or the right."

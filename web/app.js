@@ -998,7 +998,7 @@ function drawDock() {
       <button data-bigin="1" aria-pressed="${S.bigInput}" title="${S.bigInput
         ? 'Back to the page' : 'Write in a full screen, and still read what you wrote'}"
         aria-label="${S.bigInput ? 'Close the full-screen composer' : 'Open the full-screen composer'}"
-        style="flex:0 0 auto; color:var(--faint)">${
+        >${
           S.bigInput ? '\u2921' : '\u2922'}</button>
       <div id="inputWrap">
         <div id="inputMirror" aria-hidden="true"></div>
