@@ -1,5 +1,57 @@
 # What is open — after a day's work on 2026-08-26
 
+## ⇢ SEVEN QUESTIONS, AND THEY ARE THE FIRST THING HERE ON PURPOSE
+
+Written overnight 2026-08-28 on branch **`surface-fixes`**, which is pushed and not merged. The
+whole night's work is there; `serial` is untouched and so is the app you were writing in.
+
+**Everything below this block is the standing record and has not changed.**
+
+1. **Issue #2 — what was on screen?** I could not reproduce the path you hit. What I *did* find and
+   fix is real and measured: with the composer expanded or the menu open, the tray opened
+   *underneath* them (`elementFromPoint` at its centre returned `#input`, then a rail button) — it
+   was drawn, centred, and nothing on it could be pressed. But both need a full-screen surface
+   already up, and a double tap cannot reach a passage through one. **Your wording was "pops up
+   under IT", which may mean under the entry rather than under a surface.** If you can say what was
+   open when it happened, that is the missing piece.
+
+2. **Issue #6 — I never reproduced "white".** The logo had a background *plate*, not a white one:
+   `#0A0A0C` baked into `web/icon.svg` along with Obsidian's gold, on a file eight of the nine
+   themes do not share. It is inline SVG now with no plate and the theme's own accent. **If you
+   still see white after a restart, it is something else and I want to know.**
+
+3. **Issue #5 — threads that scan, connect and carry confidence.** Not started, and it should not
+   be until you have said what you want. It is the biggest thing on the list and it **overlaps
+   PLAN-06 §2e directly**: "triggerable by their own trigger word" *is* the activation work,
+   arriving from the writer's side. My reading is that #5 should absorb 2e rather than sit beside
+   it. Do you agree?
+
+4. **Issue #7 is two things and only one is buildable.** The `@`-autocomplete for summoning
+   threads, stories and chapters is a clean feature and I did not start it. **"Anansi's personality
+   is rough" is not a fix, it is a measurement** — F26 already measured her voice and left two
+   residuals unfixed, and editing the prompt without a probe and a denominator is how F20 happened.
+   Say which you want first.
+
+5. **PLAN-07's veil is still ahead.** Its three *bugs* are fixed (below). Its designed work — the
+   veil going full screen with Stop inside it, and the hardware-keyboard toggle moving into the UI
+   tab — is not started. **The plan itself flags that no test covers `hwkb` at all**, so a green run
+   would prove nothing about that half either way. Worth landing this branch first?
+
+6. **A design call from COUNCIL-05 that is yours, not a test's.** Three adjacent pairs in the
+   context meter are separated by hue alone. I cut my own 1.2:1 luminance rule because three
+   existing pairs failed it — that made it a redesign of your palette wearing a check's clothes.
+   The check now only refuses two adjacent segments being *identical*. Do you want the wider rule?
+
+7. **Merge this branch, or keep going on it?** It is `surface-fixes`, pushed, fourteen browser
+   scenarios and eleven unit suites green. `serve.ts`'s three markers are still untouched — you
+   said tomorrow, and they are still the only open items whose failure mode is a door.
+
+**What landed overnight:** PLAN-07 bugs 1–3, issues #2, #3, #4 and #6, a guard for the
+duplicate-`@keyframes` class, `bench/sweep.ts`, and two new browser scenarios (`tray`, `composer`)
+in the default set. Details under *Found and fixed*.
+
+---
+
 > **Cleared against source on 2026-08-28.** Everything struck through below was checked in the code,
 > not remembered, and the file line is named. Nothing was deleted: what was open and is now built
 > stays visible, because the reason a thing sat here outlives it.
@@ -20,7 +72,7 @@ the next round, not a fix.
 https://hestia.tempel-discus.ts.net:5174        the only URL that works
 systemctl --user status anansi                  it starts itself, and on boot
 node --experimental-strip-types test/all.ts     eleven suites, no model — the harness prints its own total
-test/ui/run.sh                                  twelve scenarios, no model — it prints its own total
+test/ui/run.sh                                  fourteen scenarios, no model — it prints its own total
                                                 (both read out of the harnesses 2026-08-28)
 ```
 
@@ -358,6 +410,41 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
   character-by-prompt and what reroll re-rolls — your answer in round three was a global lore
   reroll, or one entry, or one box, and none of it is built.
 
+### Fixed overnight 2026-08-28 on `surface-fixes`, with what each cost to find
+
+- **The reroll's veil waited for a token that could not arrive** (PLAN-07 bug 1). `regenerateInto`
+  passed `atEnd ? (d) => ghost(live += d) : () => {}` and BOTH halves were dead — `ghost()` takes no
+  parameters and `live` was never read. It held the veil back until the first token and never raised
+  it at all if the model errored first, which is exactly the cold-start blank page the veil exists
+  to cover. Raised on the press now.
+- **A failed accept left the composer offering to stop a finished call** (bug 2). `generate()` set
+  `S.busy` false and redrew nothing; `regenerateInto` has always had the right idiom on the same line.
+- **`@keyframes breathe` was declared twice** (bug 3), so the veil never pulsed at the amplitude
+  written for it — the later declaration wins for both. Renamed, and `test/web.ts` now asserts every
+  keyframe name is declared once AND that every name a rule animates exists, which is the same
+  mistake from the other side.
+- **The passage tray opened under a full-screen surface** (#2). On a phone `#rail` (40),
+  `#appearance` (41) and `#dock.big` (41) all sit above the tray's 32. Measured, not reasoned. Rule:
+  while a full-screen surface is up there is no tray. `test/ui/tray.js`, in the default set.
+- **Send and the expand button were under the touch floor** (#3): 30px and a bare 13px glyph. Both
+  44px on a phone now, 34px on a desktop where the pointer is exact.
+- **The speak-as row was inset three times over** (#4) — the dock's 18px, then `#asRow`'s 18, then
+  `.inner`'s 18, against the 18 the mode rail sits at. Asserted as alignment with `#modes`, not as a
+  number.
+- **The logo carried Obsidian's plate and Obsidian's gold on all nine themes** (#6). Inline SVG in
+  the rail now, no plate, `currentColor` from `--gold`. `web/icon.svg` is untouched and is still the
+  favicon and installed icon, where an opaque plate is correct.
+- **Four over-exported functions in `import.ts` narrowed** — `parse()` is the one door and nothing
+  outside the file named them. Found by `bench/sweep.ts`, which is new: a static read-only pass for
+  dead exports, unreachable controls, orphan ids and orphan localStorage keys.
+
+**THREE TIMES THE DETECTOR WAS THE THING THAT WAS WRONG**, and each is written beside the check it
+fixed. #4 first compared a padded element's own bounding box and stayed green when the padding came
+back. #6 first switched `data-ui-theme` and compared strokes, when a theme is applied by writing CSS
+variables and not by an attribute. And `bench/sweep.ts` reported 123 dead handlers, then five
+phantom actions, then read its own comment as evidence — three parse faults in one tool before it
+said anything true. Validate the detector before believing the result, three more times over.
+
 ### Found and fixed on 2026-08-28, listed because of how they hid
 
 - **`VOICE` was painted as a kind the app does not recognise, on every call.** `web/model.js` holds
@@ -474,11 +561,12 @@ canon. Every rate in it is a floor.
 
 ```bash
 node --experimental-strip-types test/all.ts    # eleven suites, no model — the harness prints its own total needed
-test/ui/run.sh                                 # twelve scenarios, headless, no model — prints its own total
+test/ui/run.sh                                 # fourteen scenarios, headless, no model — prints its own total
 test/ui/run.sh "model ritual"                  # the two that wait on real generations (39 + 24 ok)
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model
 node --experimental-strip-types bench/drift.ts check       # 2a's detector, no model
 node --experimental-strip-types bench/drift.ts             # the drift report, read-only db
+node --experimental-strip-types bench/sweep.ts             # dead code and half-built, static, no db
 ```
 
