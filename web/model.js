@@ -313,7 +313,15 @@ export function themeVars(key) {
 export const MARK = {
   story:    'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3',
   chapter:  'M3 10A7 7 0 0 1 17 10M10 10V3.2',
-  threads:  'M10 10 3.6 6.2M10 10 16.4 6.2M10 10 10 17.4',
+  // THREADS AND PREFS MOVED TO THE COMPOSER, 2026-08-28, and the menu took new ones. Seth: "allow
+  // the maximize icon to be the threads icon and the send icon to be the preferences icon. then
+  // change those out in the menu since we'll be using it here." The strands and the dial are now
+  // `expand` and `send`; the rows that lost them get shapes from the same hand — two linked rings
+  // for threads, because a thread is a thing joined to another thing, and two rails with handles
+  // for preferences, because that is what a setting looks like when it is not a scavenged gear.
+  expand:   'M10 10 3.6 6.2M10 10 16.4 6.2M10 10 10 17.4',
+  send:     'M4.4 13.6A7 7 0 1 1 15.6 13.6M10 10V17.6',
+  threads:  'M7 6.5A3.5 3.5 0 1 1 7 13.5A3.5 3.5 0 1 1 7 6.5M13 6.5A3.5 3.5 0 1 1 13 13.5A3.5 3.5 0 1 1 13 6.5',
   strings:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 10 16.4 6.2',
   context:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 6.8A3.2 3.2 0 1 1 10 13.2A3.2 3.2 0 1 1 10 6.8',
   search:   'M11.8 5.2A3.6 3.6 0 1 1 11.8 12.4A3.6 3.6 0 1 1 11.8 5.2M9.2 11.4 4.4 16.2',
@@ -322,7 +330,7 @@ export const MARK = {
   stories:  'M6.5 5.2A2.9 2.9 0 1 1 6.5 11A2.9 2.9 0 1 1 6.5 5.2M13.5 5.2A2.9 2.9 0 1 1 13.5 11A2.9 2.9 0 1 1 13.5 5.2M10 11.6A2.9 2.9 0 1 1 10 17.4A2.9 2.9 0 1 1 10 11.6',
   create:   'M4.2 4.2 15.8 15.8M15.8 4.2 4.2 15.8',
   import:   'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 3.6V11M10 11 7.3 8.3M10 11 12.7 8.3',
-  prefs:    'M4.4 13.6A7 7 0 1 1 15.6 13.6M10 10V17.6',
+  prefs:    'M3.2 7.6H16.8M3.2 12.4H16.8M7.6 5.4V9.8M12.4 10.2V14.6',
   reading:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 3V17',
   // Help. A quadrant of the orb-web itself — three radials and two spirals — which is the house
   // metaphor rather than a question mark borrowed from somebody else's icon set.

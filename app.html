@@ -776,9 +776,13 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
   font-variant-caps:all-small-caps; }
 @media (max-width:719px) { #ctxread { padding:8px 18px; gap:13px; } }
 
+/* NO GROUND UNDER THE DOCK. Seth: "remove the dark background. when its minimized that color
+   should only be in the input box." The gradient was a slab the width of the window fading up
+   into the prose; what it was really doing was separating the composer from the page, and the box
+   can say that by itself. `--dock` survives for the big composer, which IS the page. */
 #dock { position:relative; flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
-  padding:0 0 28px; background:var(--dock); }
-@media (max-width:719px) { #dock { padding:0 18px calc(24px + env(safe-area-inset-bottom, 0px)); } }
+  padding:0 0 28px; background:transparent; }
+@media (max-width:719px) { #dock { padding:5px 18px calc(19px + env(safe-area-inset-bottom, 0px)); } }
 /* WITH A HARDWARE KEYBOARD THE DOCK SITS STILL, so it can afford to sit off the edge. There is no
    soft keyboard to make room for and nothing below it to reach past — 10px of air, and it stays
    there because nothing moves it any more. Keyed on the root attribute `applyHwkb` writes, so the
@@ -907,7 +911,7 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
    kept the arrow grey after this rule was written, which is the second time an inline style on
    that exact button has beaten a stylesheet. */
 #send, #inputRow button[data-bigin] {
-  width:34px; height:44px; border-radius:var(--r); background:var(--gold); color:var(--on-gold);
+  width:28px; height:44px; border-radius:var(--r); background:var(--gold); color:var(--on-gold);
   display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto;
 }
 #send:disabled { opacity:.4; }
@@ -925,7 +929,10 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
    press that drifts 24px is a press this surface can already lose, and a target smaller than the
    finger makes the drift the rule rather than the exception.
    Send keeps its 34px on a desktop, where the pointer is exact and a 44px gold disc is a blot. */
-@media (max-width:719px) { #send, #inputRow button[data-bigin] { width:44px; height:56px; font-size:18px; } }
+/* THINNER ON THEIR SIDES. 38px, not 44 — the touch floor is about the SMALLEST dimension of a
+   target and these are 56 tall, so the area is half again what a 44 square gives. The check
+   below asserts the short side and the area together for exactly that reason. */
+@media (max-width:719px) { #send, #inputRow button[data-bigin] { width:38px; height:56px; font-size:18px; } }
 /* The GLYPH, not just the box. The box went to 44px on a phone and the arrow stayed tiny, because
    the button carried `font-size:13px` INLINE and an inline style beats a stylesheet — so the rule
    below was being written and never applied. Seth: "the expand button however is still very very
@@ -1030,8 +1037,13 @@ textarea.field { resize:vertical; min-height:70px; }
    are reading now, not a layer behind what you are reading. */
 #askBox, #input { color:transparent; caret-color:var(--gold); }
 #askMirror, #inputMirror { color:var(--body); }
+/* COLOUR ONLY. `font-weight:600` was here and it is what put the caret adrift: the mirror draws
+   the text and the TEXTAREA carries the caret, so a mention rendered bolder than the invisible
+   text under it is wider than the letters the caret is counting, and every character after it
+   sits further from the cursor. Any property that changes a glyph's WIDTH breaks this pair.
+   Seth: "the cursor is spaced out far away from the thing being written." */
 #askMirror mark, #inputMirror mark {
-  background:transparent; color:var(--gold); font-weight:600; border-radius:0;
+  background:transparent; color:var(--gold); border-radius:0;
 }
 /* Selected text has to come back, or dragging over your own sentence selects a row of nothing.
    ::selection can restore a colour for the selected range even when the text under it is
@@ -1042,10 +1054,15 @@ textarea.field { resize:vertical; min-height:70px; }
    affects WRAPPING is set on both at once. #input is the one that already had its sizing, so the
    mirror inherits from it rather than restating it — a second copy of `padding:10px 0` is how the
    highlight ends up a line above the word it is highlighting. */
-#inputWrap { position:relative; flex:1; min-width:0; display:flex; }
+/* The colour lives HERE now, in the box itself, with the room to carry it. Horizontal padding
+   arrives with the background — text against the edge of a filled box reads as a mistake — and
+   the mirror takes the same, because the two must agree about every property that moves a glyph. */
+#inputWrap { position:relative; flex:1; min-width:0; display:flex;
+  background:var(--field); border-radius:var(--r); padding:0 13px; }
+#dock.big #inputWrap { background:transparent; padding:0; }
 #inputWrap > #input { position:relative; z-index:1; background:transparent; }
-#inputMirror { font-size:17px; padding:9px 0; }
-@media (max-width:719px) { #inputMirror { font-size:15.5px; padding:16px 0; } }
+#inputMirror { font-size:17px; padding:9px 13px; }
+@media (max-width:719px) { #inputMirror { font-size:15.5px; padding:16px 13px; } }
 #inputMirror {
   /* NOT transparent any more. The mirror was a layer behind visible text and is now the layer you
      READ — the textarea's own text is what went transparent. This line said `color:transparent`

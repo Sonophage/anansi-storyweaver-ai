@@ -53,19 +53,23 @@ ok("  and the composer is usable again", await page.eval("!document.getElementBy
   // delivered — which is the property that rotted last time and would rot again.
   let arrived = false;
   for (let i = 0; i < 60; i++) {
-    if (await page.eval("!!document.querySelector('#send[data-stop]') && !!document.getElementById('ghost')")) {
+    if (await page.eval("!!document.getElementById('ghost') && !!document.querySelector('#ghost [data-stop]')")) {
       arrived = true; break;
     }
     await wait(250);
   }
   ok("Stop: the call is in flight, with the roller up, before we stop it", arrived);
-  ok("  and Send has become Stop", await page.eval(
-    "!!document.querySelector('#send[data-stop]') && !document.querySelector('#send[data-send]')"));
+  // SEND NO LONGER BECOMES STOP. Stop is on the veil, which covers the screen; the composer's
+  // button stays Send and is disabled while she writes. Both halves, because "no Stop in the
+  // composer" is also satisfied by there being no composer at all.
+  ok("  Send stays Send in the composer, and is disabled", await page.eval(
+    "!!document.querySelector('#send[data-send]') && document.getElementById('send').disabled"));
+  ok("  and Stop is on the veil instead", await page.eval("!!document.querySelector('#ghost [data-stop]')"));
   // Give the model a moment to actually be writing before stopping it. Stopping in the first
   // instant is a different case — it tests the abort, not the abort of a call that has produced
   // something — and it is the case the old text-based wait accidentally stopped covering.
   await wait(2000);
-  await page.click('#send[data-stop]');
+  await page.click('#ghost [data-stop]');
   await wait(2500);
   ok("  the half-written passage is gone", await page.eval("!document.getElementById('ghost')"));
   ok("  nothing was written", (await story()).passages.length === before);

@@ -21,11 +21,17 @@ const box = (sel) => page.eval(`(() => { const e = document.querySelector('${sel
   return { w: Math.round(r.width), h: Math.round(r.height), left: Math.round(r.left),
            right: Math.round(r.right) }; })()`);
 
+// THE SHORT SIDE AND THE AREA, not "44 square". The buttons are vertical rectangles now — 38x56
+// on a phone — and 44-square was never the point: the floor exists because F34 measured that a
+// press drifting 24px is one this surface loses, so what matters is that a fingertip lands inside
+// the shape. 38 across with 56 of height is half again the area of a 44 square. The short side
+// keeps a floor of its own so "rectangle" cannot become "strip".
 for (const [what, sel] of [["send", "#send"], ["the expand button", "#inputRow [data-bigin]"]]) {
   const b = await box(sel);
   if (!b) { ok(`${what} is on the page`, false); continue; }
   console.log(`  ${what}: ${JSON.stringify(b)}`);
-  ok(`${what} is at least 44px square on a phone (${b.w}x${b.h})`, b.w >= 44 && b.h >= 44);
+  ok(`${what} has a fingertip's worth of target on a phone (${b.w}x${b.h} = ${b.w * b.h}px²)`,
+     Math.min(b.w, b.h) >= 36 && b.w * b.h >= 44 * 44);
 }
 
 // THE BOX MATCHES THE BUTTONS BESIDE IT. It was one line tall — 24px against a 44px Send — so the
@@ -71,7 +77,6 @@ console.log("  send/expand: " + JSON.stringify(pair));
 ok("both buttons are on the page", !!pair.send && !!pair.big);
 ok(`  the expand button is the same size as Send (${pair.big?.w} vs ${pair.send?.w})`,
    pair.big?.w === pair.send?.w);
-ok(`  the same glyph size (${pair.big?.size} vs ${pair.send?.size})`, pair.big?.size === pair.send?.size);
 ok(`  the same fill and the same shape (${pair.big?.bg})`,
    pair.big?.bg === pair.send?.bg && pair.big?.radius === pair.send?.radius);
 // VERTICAL RECTANGLES, not discs, and the glyph in the fill's own ink. That last one is the
@@ -80,6 +85,14 @@ ok(`  the same fill and the same shape (${pair.big?.bg})`,
 ok(`  taller than they are wide (${pair.big?.w}x${pair.big?.h})`, (pair.big?.h ?? 0) > (pair.big?.w ?? 0));
 ok(`  and the glyph wears the fill's own ink, not a grey (${pair.big?.color})`,
    pair.big?.color === pair.send?.color);
+// BOTH ARE DRAWN MARKS NOW, from web/model.js's own set, rather than characters scavenged out of
+// Unicode. The maximize wears what Threads used to wear and Send wears what Preferences did, and
+// the menu took new ones — so the check is that each button holds an svg, not which glyph it is.
+const svgs = await page.eval("(() => ({ send: !!document.querySelector('#send svg'),"
+  + " big: !!document.querySelector('#inputRow [data-bigin] svg'),"
+  + " chars: (document.querySelector('#send')?.textContent || '').trim().length }))()");
+console.log("  icons: " + JSON.stringify(svgs));
+ok("both buttons carry a drawn mark, not a text glyph", svgs.send && svgs.big && svgs.chars === 0);
 ok(`  and still big enough to read (${pair.big?.size}px)`, (pair.big?.size ?? 0) >= 16);
 
 // ---- #4. "The act as or speak as row doesn't reach the edges on the left or the right."

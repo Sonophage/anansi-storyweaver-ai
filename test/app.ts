@@ -424,13 +424,16 @@ ok('prose renders as narration, speech, the writer\'s own line, and a flag');
 for (const label of ['Speak', 'Act', 'Direct', 'Narrate']) {
   assert.match(html('dockCol'), new RegExp(`>${label}<`), `the composer must offer ${label}`);
 }
-// Send becomes Stop while the model is writing — the same button, the same corner, because the
-// place your eye is already on is the place you last pressed. Both states asserted: a Stop that
-// appears without Send disappearing is two send buttons.
+// SEND STAYS SEND. It carried two jobs for as long as Stop had nowhere else to be. Stop lives on
+// the veil now — which covers the whole screen and is the only thing visible while she writes — so
+// the composer's button no longer changes identity underneath the writer. Disabled while busy
+// rather than repurposed: a control that cannot act should say so, not become a different control.
 {
   const idle = html('dockCol');
   assert.match(idle, /data-send="1"/, 'idle, the button sends');
-  assert.doesNotMatch(idle, /data-stop/, 'and offers no Stop when nothing is being written');
+  assert.doesNotMatch(idle, /data-stop/,
+    'the composer must not carry a Stop. It is on the veil, which is the only thing on the screen '
+    + 'while the model writes — two Stops is one of them being wrong about whether it can act.');
 }
 ok('the composer sends when the model is idle');
 

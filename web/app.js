@@ -998,21 +998,23 @@ function drawDock() {
       <button data-bigin="1" aria-pressed="${S.bigInput}" title="${S.bigInput
         ? 'Back to the page' : 'Write in a full screen, and still read what you wrote'}"
         aria-label="${S.bigInput ? 'Close the full-screen composer' : 'Open the full-screen composer'}"
-        >${
-          S.bigInput ? '\u2921' : '\u2922'}</button>
+        >${mark('expand', 18)}</button>
       <div id="inputWrap">
         <div id="inputMirror" aria-hidden="true"></div>
         <textarea id="input" rows="1" placeholder="${esc(placeholder(who))}"></textarea>
       </div>
       <div id="atlistInput" hidden></div>
       <span class="deskonly" style="font-size:10.5px; color:var(--label); opacity:.55; padding-bottom:3px">&crarr;</span>
-      <!-- One button, two jobs, and it is the same button on purpose: the place your eye is
-           already on when the model is writing is the place you last pressed. A separate Stop
-           somewhere else is a Stop you hunt for while the passage you did not want gets longer. -->
-      ${S.busy
-        ? `<button id="send" data-stop="1" class="stopping" aria-label="Stop writing"
-            title="Stop, and keep what you typed">&#9632;</button>`
-        : `<button id="send" data-send="1" aria-label="Send">&uarr;</button>`}
+      <!-- SEND STAYS SEND. It carried two jobs for as long as Stop had nowhere else to be — the
+           argument was that the place your eye is already on is the place you last pressed. Stop
+           lives on the veil now, which covers the whole screen and is the only thing you can see
+           while she writes, so the composer's button no longer has to change identity underneath
+           you. Seth: "the stop button on the input doesnt have to be where the send button is. it
+           can stay the send button since we have it on the other screen."
+           Disabled while busy rather than repurposed: a control that cannot act should say so,
+           not become a different control. -->
+      <button id="send" data-send="1" aria-label="Send" ${S.busy ? 'disabled' : ''}
+        title="${S.busy ? 'Anansi is writing — Stop is on the veil' : 'Send'}">${mark('send', 18)}</button>
     </div>`;
   const ta = $('input');
   // Fit to the text and let CSS clamp it. The cap used to be written twice — `140` here and
