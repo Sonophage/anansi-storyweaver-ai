@@ -975,6 +975,15 @@ textarea.field { resize:vertical; min-height:70px; }
 .row { display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:12.5px; }
 .btn { padding:12px; text-align:center; border-radius:var(--r-pill); background:var(--gold); color:var(--on-gold); font-size:11px; font-weight:500; letter-spacing:.1em; font-variant-caps:all-small-caps; display:block; width:100%; }
 .btn.ghost { background:none; border:1px solid var(--chip); color:var(--mute); font-weight:400; }
+/* THE LONG WAY ROUND, FOLDED. A <details>, because the browser already has this and a state flag
+   plus a repaint would throw away whatever is half-typed inside the fold. The default marker goes
+   — it is a black triangle no theme here would own — and the chevron is text, so it takes the
+   theme's colour like everything else. */
+details.fold > summary { list-style:none; cursor:pointer; padding:10px 0; font-size:11.5px;
+  color:var(--mute); letter-spacing:.06em; }
+details.fold > summary::-webkit-details-marker { display:none; }
+details.fold > summary::before { content:'\203A\00a0'; color:var(--faint); }
+details.fold[open] > summary::before { content:'\2304\00a0'; }
 .meter { display:flex; height:6px; border-radius:var(--r-tight); overflow:hidden; background:var(--chip); margin:10px 0 6px; }
 
 /* --- workspace pages --------------------------------------------------- */

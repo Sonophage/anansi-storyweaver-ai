@@ -502,13 +502,18 @@ click({ mode: 'speak' });
 // scattered back among Speak and Act, which is the arrangement being fixed.
 const modeRow = html('dockCol').match(/<div id="modes">[\s\S]*?<\/div>/)?.[0] ?? '';
 assert.ok(modeRow, 'the mode row must exist');
-assert.ok(modeRow.indexOf('data-mode="narrate"') < modeRow.indexOf('data-newlore'),
-  '+ Thread comes after the last mode');
-assert.ok(modeRow.indexOf('data-newlore') < modeRow.indexOf('data-panel="anansi"'),
+// It was `+ Thread` here until 2026-08-28 and is the door to the whole list now — the tray it used
+// to open has its own button inside that list. The POSITION is what this block is about and that
+// has not moved: two things that are not modes, to the right of the four that are.
+assert.ok(modeRow.indexOf('data-mode="narrate"') < modeRow.indexOf('data-goblock="threads:"'),
+  'Threads comes after the last mode');
+assert.ok(modeRow.indexOf('data-goblock="threads:"') < modeRow.indexOf('data-panel="anansi"'),
   'and Anansi after it');
-assert.match(modeRow, /data-newlore="1"[^>]*margin-left:auto/,
-  'and the gap that separates them from the modes is on + Thread, or they are not right-aligned');
-ok('the composer offers the four modes, with + Thread and Anansi pushed right');
+assert.match(modeRow, /data-goblock="threads:"[^>]*margin-left:auto/,
+  'and the gap that separates them from the modes is on Threads, or they are not right-aligned');
+// And the tray's own door is NOT here any more, or the change did nothing.
+assert.ok(!/data-newlore/.test(modeRow), 'the write-it-down tray no longer opens from the composer');
+ok('the composer offers the four modes, with Threads and Anansi pushed right');
 
 assert.match(html('bar'), /Chapter|The Envoy/, 'the header names the book');
 // The percentage LEFT the header on 2026-08-27 — Seth wanted one bar across the window and the

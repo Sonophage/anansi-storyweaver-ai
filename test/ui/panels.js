@@ -270,46 +270,87 @@ if (await page.visible('[data-setup="title"]')) {
   ok("  and narrows the list", (await page.eval("document.querySelectorAll('[data-pin]').length")) <= 2);
 } else { ok("the setup page opens", false); }
 
-// ---- 11. + Lore replaces New scene. Two ways a fact reaches canon, and they belong together:
-// write it down yourself, or have the chapter read for what is already on the page.
+// ---- 11. THE COMPOSER'S DOOR IS THE LIST; the tray's door is inside it (2026-08-28).
+// It was the other way round: the composer's button opened the write-it-down tray, which is a door
+// to one narrow thing standing where the door to everything should be. Seth: "threads in the
+// composer should open to all the threads in that story ... right now it opens the new threads
+// page, which isnt necessary because we have that on the input."
+//
+// Both halves asserted, because moving a door is only safe if the room it left still has one — the
+// tray is the ONLY way to scan the chapter for facts, to have Anansi write a card, or to hang an
+// outfit on somebody, so a door that vanished would take three features with it.
 await page.goto(B + "/#" + sid);
 for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
-ok("+ Lore is on the composer bar", await page.visible('[data-newlore]'));
-ok("  and New scene is not", !/New scene/.test(await page.text('#modes') || ''));
+ok("the composer bar carries the door to this story's threads", await page.visible('[data-goblock="threads:"]'));
+ok("  and no longer the door to the tray", !(await page.visible('[data-newlore]')));
+ok("  and New scene is still not there", !/New scene/.test(await page.text('#modes') || ''));
+await page.click('[data-goblock="threads:"]');
+await wait(700);
+const list = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
+ok("  pressing it opens the list of everything written down", /Characters/.test(list) && /Add/.test(list));
+ok("  not the tray", !/Write it down/.test(list));
+ok("  and the tray has its own door from in here", await page.visible('[data-newlore]'));
+
 await page.click('[data-newlore="1"]');
 await wait(700);
 const lore = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 ok("  it opens a tray with both ways in", /Write it down/.test(lore) && /read the chapter/i.test(lore));
-ok("  offering every kind of card",
+// Outfit joins the four card kinds. It is NOT one of them — KINDS is the entry TYPE and draws the
+// editor's type buttons, where "outfit" is not a thing an entry can be — so this asserts the tray's
+// list, which is deliberately one longer than that one.
+ok("  offering every kind of card, and outfits beside them",
    (await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind).sort().join(',')"))
-     === 'character,item,lore,rule');
+     === 'character,item,lore,outfit,rule');
 await page.click('[data-lorekind="item"]');
 await wait(400);
 ok("  and picking a kind changes what New would make",
    /New an object/.test(await page.text('#sideBody') || ''));
 ok("  scanning the chapter is offered without ending it", await page.visible('[data-loreread]'));
-// Have Anansi write one. The button is on the tray for whichever kind is selected, and the box
-// beside it is the writer's own steer.
 ok("  and Anansi can write one, for the kind you picked",
    (await page.eval("document.querySelector('[data-invent]')?.dataset.invent")) === 'item');
 ok("  with a line of direction and the search switch",
    await page.visible('[data-invdir]') && await page.visible('[data-invsearch]'));
+
+// ---- 11b. AN OUTFIT HANGS OFF SOMEBODY, so the tray asks whose before it asks anything else.
+// Seth: "a new costume and have it attached to a character from that screen would be phenomenal."
+await page.click('[data-lorekind="outfit"]');
+await wait(500);
+ok("picking Outfit asks whose it is", await page.visible('[data-loreowner]'));
+ok("  and the picker is filled from this story's cast",
+   (await page.eval("document.querySelectorAll('[data-loreowner] option').length")) > 0);
+ok("  Anansi is offered first", (await page.eval("document.querySelector('[data-invent]')?.dataset.invent")) === 'outfit');
+// FOLDED, and asserted as folded rather than as present. Seth: "right now it looks like alot to
+// fill out" — the fields existing is not the complaint, the fields being the first thing you see
+// is. `open` is the whole difference and it is the only thing this can check.
+const fold = await page.eval(`(() => { const d = document.querySelector('.outfitmine');
+  if (!d) return null; return { open: d.open,
+    name: !!d.querySelector('[data-of="name"]'), body: !!d.querySelector('[data-of="body"]'),
+    hint: (d.querySelector('[data-of="body"]')?.placeholder || '') }; })()`);
+console.log("  outfit fold: " + JSON.stringify(fold));
+ok("  the three fields are behind a fold, not in front of you", !!fold && fold.open === false);
+ok("  and they are in there", !!fold && fold.name && fold.body);
+// Bracketed, because the bodies are: `[wearing: ...]` is the shape actually written, and a
+// bracketed hint reads as a slot to replace rather than as text that is already there.
+ok(`  with a bracketed placeholder to replace (${fold && fold.hint.slice(0, 24)})`,
+   !!fold && /^\[/.test(fold.hint) && /\]$/.test(fold.hint));
+
 await page.click('[data-newlore="1"]');
 await wait(400);
-ok("  and it closes again", !/Write it down/.test(await page.text('#sideBody') || ''));
-// threads() returns the entry editor before it looks at S.lore, so with an entry open the tray
-// set its state and the editor rendered anyway — the button did nothing you could see.
+ok("  and the tray closes again", !/Write it down/.test(await page.text('#sideBody') || ''));
+
+// With an entry open, threads() returns the editor before it looks at S.lore — so the tray's own
+// door is not on screen and the composer's is the way back. That door clears the open entry as
+// well as the tray, which is what makes it the door to the LIST rather than to whatever was last
+// left open three presses ago.
 const anyEntry = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
 if (anyEntry) {
   await page.click(`[data-entry="${anyEntry}"]`);
   await wait(500);
   ok("  (an entry editor opens)", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
-  await page.click('[data-newlore="1"]');
+  await page.click('[data-goblock="threads:"]');
   await wait(600);
-  ok("+ Lore works with an entry already open", /Write it down/.test(await page.text('#sideBody') || ''));
-  ok("  and it leaves the entry editor", await page.eval("!document.querySelector('[data-f=\"title\"]')"));
-  await page.click('[data-newlore="1"]');
-  await wait(300);
+  ok("the composer's door works with an entry already open", await page.eval("!document.querySelector('[data-f=\"title\"]')"));
+  ok("  and lands on the list", /Characters/.test(await page.text('#sideBody') || ''));
 } else { ok("there is an entry to open", false); }
 
 // ---- 12. the writing dashboard, drawn from rows that already existed

@@ -984,8 +984,16 @@ function drawDock() {
       ${MODES.map(([k, label]) => `<button data-mode="${k}" aria-pressed="${k === S.mode}">${label}</button>`).join('')}
       <!-- Neither of these is a mode, and in the same run as Speak/Act/Direct/Narrate they read as
            a fifth and sixth one. The margin does the separating. -->
-      <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
-        style="flex:0 0 auto; margin-left:auto">+ Thread</button>
+      <!-- THE LIST, not the form. This was "+ Thread" and opened the write-it-down tray, which is
+           BACKTICKS ARE FATAL IN HERE: this comment lives inside a template literal, so one closed
+           the string and left "+ Thread" as an expression. Syntactically fine; drawDock threw
+           "Thread is not defined" at runtime and the composer rendered as nothing at all.
+           a door to one narrow thing standing where the door to everything should be — and the
+           tray has its own button inside the list, so nothing lost a way in. Seth: "threads in the
+           composer should open to all the threads in that story ... which isnt necessary because
+           we have that on the input." -->
+      <button data-goblock="threads:" title="Everything written down in this story"
+        style="flex:0 0 auto; margin-left:auto">Threads</button>
       <button data-panel="anansi" aria-pressed="${S.panel === 'anansi'}" title="Ask Anansi about this story"
         style="flex:0 0 auto">Anansi</button>
     </div>
@@ -1378,24 +1386,38 @@ const PANELS = {
     // ritual's extraction step on its own — "scan what we have" — without ending the chapter.
     if (S.lore) {
       const KIND_LABEL = { character: 'a character', lore: 'a place or a fact',
-                           item: 'an object', rule: 'a rule of this world' };
+                           item: 'an object', rule: 'a rule of this world', outfit: 'an outfit' };
+      // Outfits are NOT in KINDS and must not be: KINDS is the entry TYPE, and this same list
+      // draws the type buttons in the entry editor, where "outfit" is not a thing an entry can be.
+      // An outfit hangs off a character rather than standing beside one — which is also why this
+      // branch asks whose before it asks anything else. Seth: "a new costume and have it attached
+      // to a character from that screen would be phenomenal."
+      const LORE_KINDS = [...KINDS, 'outfit'];
+      const cast = V.entries.filter((e) => e.entryType === 'character');
       return `<div style="display:flex; flex-direction:column">
         <button class="btn ghost" data-newlore="1" style="margin-bottom:14px">&lsaquo; Back</button>
         <div class="lbl" style="letter-spacing:.1em; margin-top:0">Write it down</div>
         <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px">
-          ${KINDS.map((k) => `<button data-lorekind="${k}" style="flex:1 1 44%; text-align:center;
+          ${LORE_KINDS.map((k) => `<button data-lorekind="${k}" style="flex:1 1 44%; text-align:center;
             font-size:11.5px; padding:8px 0; border-radius:var(--r);
             border:1px solid ${S.lore.kind === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
             background:${S.lore.kind === k ? 'rgba(217,178,106,.12)' : 'transparent'};
             color:${S.lore.kind === k ? 'var(--gold-lit)' : 'var(--mute)'}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}
         </div>
+        ${S.lore.kind === 'outfit' ? (cast.length ? `
+        ${outfitForm(cast, null)}
+        <div class="hint">It hangs on them unworn, and what Anansi writes lands in the fields rather
+          than in the proposals queue — read it, then press Add an outfit. Wearing one is a press on
+          the list behind this tray: what she owns and what she has ON are different questions.</div>`
+        : `<div class="hint" style="margin:0">Nobody to dress yet. An outfit belongs to a character,
+          so write one of those down first.</div>`) : `
         <button class="btn" data-newentry="${esc(S.lore.kind)}">New ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}</button>
         <div class="hint">Opens an empty entry for you to fill in. Nothing reaches the model until
           it has a body.</div>
         ${inventTray(S.lore.kind, `Or have Anansi write ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}`,
                      'a rival cartographer, or nothing at all and let it choose')}
         <div class="hint">It goes to the proposals queue under Chapter, like everything else Anansi
-          offers. Nothing is canon until you accept it.</div>
+          offers. Nothing is canon until you accept it.</div>`}
 
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or read the chapter</div>
         <button class="btn ghost" data-loreread="1">Scan ${esc(V.currentChapter.title || `chapter ${V.currentChapter.index}`)} for facts</button>
@@ -1424,6 +1446,10 @@ const PANELS = {
         ${groups.map(([k, , one]) => `<button class="btn ghost" data-newentry="${k}"
           style="flex:1 1 44%; white-space:nowrap">New ${one}</button>`).join('')}
       </div>
+      <!-- The write-it-down tray moved in here when the composer's button became the door to this
+           list. It is the only way to reach "scan the chapter for facts", to have Anansi write one,
+           and to hang an outfit on a character, so it needs a door of its own rather than none. -->
+      <button class="btn ghost" data-newlore="1" style="margin-top:9px">+ Thread, or read the chapter</button>
       <!-- This panel is ONE story's threads, because entries are story-scoped in the schema. The
            page that spans every book already existed and had no door from inside a story: you had
            to leave first, and then know that Threads out there means something wider than Threads
@@ -1498,7 +1524,7 @@ const PANELS = {
         <label class="btn ghost" style="flex:1; display:flex; align-items:center; justify-content:center; cursor:pointer">
           ${V.cover ? 'Replace it' : 'Choose an image'}
           <input type="file" accept="image/*" data-cover="1" hidden></label>
-        ${V.cover ? '<button class="btn ghost" data-delcover="1" style="flex:0 0 auto">Remove</button>' : ''}
+        ${V.cover ? '<button class="btn ghost" data-delcover="1" style="flex:0 0 auto; width:auto; padding:12px 20px">Remove</button>' : ''}
       </div>
       <div class="hint">Shrunk to 900px wide in the browser and stored in the database, not on disk
         — the nightly backup is one file, and a path would leave the covers out of it.</div>
@@ -2263,6 +2289,39 @@ function ctxTabs() {
  *  the button is pressed, and the button reports its own progress in place — a paint() here would
  *  eat the sentence the writer had just typed into the box, which is COUNCIL-04's composer defect
  *  in a different panel. */
+/** WHOSE OUTFIT. Two screens can be asking: the entry editor, where the character is the page you
+ *  are on, and the + Thread tray, where nothing is open and the writer picks from a list. Both
+ *  reach `POST /api/outfit`, which needs an entryId either way — so the question is answered once,
+ *  here, rather than at each of the three call sites that used to read `S.entryId` and get null. */
+const outfitOwner = () => S.entryId || document.querySelector('[data-loreowner]')?.value || null;
+
+/** ONE OUTFIT FORM, TWO DOORS: the wardrobe on a character's own page, and the + Thread tray where
+ *  nothing is open and the writer says whose. They were two copies of the same three fields and had
+ *  already drifted on labels and placeholders.
+ *
+ *  ANANSI FIRST, and the fields folded behind her. Seth: "right now it looks like alot to fill
+ *  out" — the two ways in were stacked with nothing between them, so the screen asked for a name
+ *  and a body before it offered to write them. A <details>, not a state flag and a repaint: the
+ *  browser has this, and a repaint here would throw away whatever is half-typed in the fold.
+ *
+ *  The placeholders are BRACKETED because the bodies are: `[wearing: ...]` is the shape Seth
+ *  actually writes, and a bracketed hint reads as a slot to replace rather than as text already
+ *  there. */
+function outfitForm(cast, who) {
+  return `
+    ${who ? '' : `<label class="lbl">Whose</label>
+    <select class="field" data-loreowner>${cast.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}</select>`}
+    ${inventTray('outfit', who ? `Have Anansi dress ${esc(who.title)}` : 'Have Anansi write one',
+                 'mourning, or travelling light, or whatever you already had in mind')}
+    <details class="fold outfitmine">
+      <summary>Write it myself</summary>
+      <input class="field" data-of="name" placeholder="[Borrowed Sleepwear]">
+      <textarea class="field" data-of="body" style="min-height:58px"
+        placeholder="[wearing: oversized black sweatpants, faded white t-shirt, silver rings]"></textarea>
+      <button class="btn ghost" data-addoutfit="1">Add an outfit</button>
+    </details>`;
+}
+
 function inventTray(kind, label, placeholder) {
   const searchable = V?.searchable !== false;
   return `<div style="display:flex; flex-direction:column; gap:7px; margin-top:4px;
@@ -2342,15 +2401,15 @@ function entryEditor() {
         <button class="btn ghost" data-wear="${e.id}:${o.id}" style="flex:1; ${o.active
           ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${
           o.active ? 'Worn — take it off' : 'Wear this'}</button>
-        <button class="btn ghost" data-saveoutfit="${o.id}" style="flex:0 0 auto">Save</button></div></div>`).join('')}
-    <div class="card" style="gap:7px">
-      <input class="field" data-of="name" placeholder="Plate, court dress, travelling…">
-      <textarea class="field" data-of="body" placeholder="What the model reads while it is worn"
-        style="min-height:52px"></textarea>
-      <button class="btn ghost" data-addoutfit="1">Add an outfit</button>
-      ${inventTray('outfit', `Have Anansi dress ${esc(e.title)}`,
-                   'mourning, or travelling light, or whatever you already had in mind')}
-    </div>` : ''}
+        <!-- width:auto MATTERS. ".btn" is width:100% by design, which as a flex item is a base
+             size of the WHOLE ROW, and "flex:0 0 auto" then refuses to shrink it: Save took the
+             full width, squeezed Wear this to min-content and ran off the right edge. Only visible
+             on a narrow screen, which is where Seth found it. Same shape as the button in
+             inventTray, which had already worked this out. (No backticks in here: this comment is
+             inside a template literal and one would close the string.) -->
+        <button class="btn ghost" data-saveoutfit="${o.id}"
+          style="flex:0 0 auto; width:auto; padding:12px 20px">Save</button></div></div>`).join('')}
+    <div class="card" style="gap:7px">${outfitForm(null, e)}</div>` : ''}
 
     <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Over time${helpMark('states')}</div>
     ${helpBody('states')}
@@ -3786,7 +3845,7 @@ document.addEventListener('click', async (e) => {
     const was = t.textContent;
     t.textContent = search ? 'Looking it up…' : 'Writing…'; t.disabled = true;
     working('direct');
-    const r = await api.invent(S.storyId, { kind: d.invent, entryId: S.entryId || undefined,
+    const r = await api.invent(S.storyId, { kind: d.invent, entryId: outfitOwner() || undefined,
       direction: dir || undefined, search });
     working(null); t.disabled = false; t.textContent = was;
     if (r.error) return toast(r.error);
@@ -3794,6 +3853,9 @@ document.addEventListener('click', async (e) => {
       // Straight into the form, unsaved. Add an outfit is still the writer's press — and filling
       // the fields rather than writing the row is the whole difference between this and a
       // generator that dresses her behind your back.
+      // The fields live behind "Write it myself" now, so opening the fold is part of handing the
+      // answer over. Filled but folded is the same as not written as far as the writer can tell.
+      document.querySelector('.outfitmine')?.setAttribute('open', '');
       const name = document.querySelector('[data-of="name"]');
       const body = document.querySelector('[data-of="body"]');
       if (name) name.value = r.outfit.name;
@@ -3809,10 +3871,14 @@ document.addEventListener('click', async (e) => {
     const name = document.querySelector('[data-of="name"]')?.value.trim();
     const body = document.querySelector('[data-of="body"]')?.value.trim();
     if (!name || !body) return toast('An outfit needs a name and something to wear.');
-    const r = await api.saveOutfit(S.storyId, S.entryId, { name, body });
+    const owner = outfitOwner();
+    if (!owner) return toast('Pick who it belongs to.');
+    const r = await api.saveOutfit(S.storyId, owner, { name, body });
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
-    paint(); refreshManifest(); return;
+    // The tray stays open on top of the list, so nothing on screen moves when this works. It said
+    // nothing at all before, which from in here is indistinguishable from a press that missed.
+    paint(); refreshManifest(); toast('Added, unworn.'); return;
   }
   if (d.saveoutfit) {
     const name = document.querySelector(`[data-ofn="${d.saveoutfit}"]`)?.value.trim();
@@ -4262,7 +4328,9 @@ document.addEventListener('click', async (e) => {
     const [kind, id] = d.goblock.split(':');
     if (kind === 'entry' && id) { S.entryId = id; S.panel = 'entry'; }
     else if (kind === 'traj') S.panel = 'chapter';
-    else if (kind === 'threads') { S.entryId = null; S.panel = 'threads'; }
+    // S.lore too, or the panel opens on the write-it-down tray somebody left behind three
+    // presses ago. This is the door marked "all the threads in this story"; it owes the list.
+    else if (kind === 'threads') { S.entryId = null; S.lore = null; S.panel = 'threads'; }
     else if (kind === 'strings') S.panel = 'strings';
     else if (kind === 'story') S.panel = 'story';
     else { S.panel = null; }
