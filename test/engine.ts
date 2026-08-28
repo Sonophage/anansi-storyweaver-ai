@@ -82,6 +82,36 @@ ok('the lockout names the character it locks, and only when one is named', () =>
   // Matched on the LAST clause, not the first: a trimmed anchor keeps its opening words, so
   // "Aldis Fen belongs to the writer" survives a cut that threw the instruction itself away.
   assert.match(dt.text, /Stop where Aldis Fen would act/, 'and the whole lockout is still there');
+
+  // PLAN-06 2b. Every part of DIRECTIVE is `keep: true`, so there is no flex string and the
+  // shortening branch hands back all four parts unchanged — while the block used to carry the
+  // reason `anchor shortened to 250 tokens` anyway. A manifest that reports a trim it did not
+  // perform is worse than one that reports an overrun: this is a REAL overrun, and it was
+  // wearing the label of a successful cut. The fixture above already reproduces it; nothing
+  // asserted the reason.
+  assert.ok(dt.tokens > 250, 'the case only exists while the fixture is over the cap');
+  assert.match(dt.reason, /nothing in it may be cut/,
+    `DIRECTIVE is ${dt.tokens} tokens against a cap of 250 and every part of it is keep:true, so `
+    + `nothing was cut. Its reason says "${dt.reason}". A block that says it was shortened when it `
+    + 'was not is how a real overrun stays invisible.');
+  assert.ok(!/shortened/.test(dt.reason), 'and it must not claim a trim that did not happen');
+});
+
+// The other branch, asserted so the fix is not "delete the word shortened". SPINE's premise is
+// the one `keep: false` part in the anchor, so a long enough premise really is cut — and then
+// "shortened" is the true reason and has to survive.
+ok('an anchor that CAN be cut still says it was shortened, and really is shorter', () => {
+  const fat = base();
+  fat.story.premise = 'A debt comes due and the archive floods before anyone can read it. '.repeat(30);
+  const sp = buildContext(fat, count).blocks.find((b) => b.kind === 'SPINE')!;
+  assert.ok(sp.tokens <= 400, `SPINE is capped at 400 and this is ${sp.tokens}`);
+  assert.match(sp.reason, /anchor shortened to 400 tokens/,
+    `a real cut must still report itself; this said "${sp.reason}"`);
+  assert.ok(sp.text.length < fat.story.premise.length,
+    'and the text is actually shorter than the premise it was made from');
+  // The kept parts survive the cut. Without this, "shortened" could be reported by a branch that
+  // threw the whole block away and the reason would still read as correct.
+  assert.match(sp.text, /Setting: Vantic, in the rain/, 'a keep:true part outlives the cut');
 });
 
 ok('DIRECTIVE is never the last block', () => {

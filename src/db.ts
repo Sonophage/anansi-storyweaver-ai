@@ -834,6 +834,34 @@ export function upsertEntry(storyId: string, o: string, e: any) {
   // known id previously took the UPDATE path against a row that was never inserted and
   // silently wrote nothing.
   const cur = e.id ? q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(e.id, storyId) as any : null;
+
+  // PLAN-06 2e, the half the evidence supports. A `triggered` entry with no keys never reaches the
+  // model again and looks perfect on the screen — the class named at `:881` — and until now the
+  // rule that prevents it lived in `import.ts` alone, on one of six paths into this function. The
+  // other five are the wizard, `POST /api/entry` (the app's own save and any API client), accept,
+  // the other importer, and copy-to-another-book. So it belongs HERE, with `keysOf`, for the same
+  // reason: this is the floor everything crosses, including the route nobody has written yet.
+  //
+  // TWO EXCEPTIONS, and both are deliberate rather than defensive:
+  //
+  //   `allowNoKeys` — `web/app.js` makes an entry out of a highlighted passage and lands it
+  //   triggered-with-no-keys ON PURPOSE, because an always-on entry made from a highlight costs
+  //   tokens on every call from then on, before anyone has looked at it. There, dark IS the
+  //   feature: it means "not switched on yet". The flag says so at the call site instead of
+  //   leaving the two meanings to share a state silently. It is a per-call permission and is
+  //   never stored — nothing below binds it to a column.
+  //
+  //   A row ALREADY in that state is left alone. `bench/ledger-audit.ts` was run against the live
+  //   library on 2026-08-28 before this was written: of the 7 entries the prose can answer for, 1
+  //   would go dark outright and 2 more fired only in the past and not on the live window. So
+  //   flipping what is already there is not supported by the evidence, and doing it on the next
+  //   unrelated save would change what reaches the model without anyone asking. This guard stops
+  //   NEW darkness; it does not migrate old.
+  const wasDark = !!cur && cur.activation === 'triggered'
+    && !(JSON.parse(cur.keys || '[]') as string[]).length;
+  if (e.activation === 'triggered' && !e.keys.length && !e.allowNoKeys && !wasDark)
+    e = { ...e, activation: 'always_on' };
+
   if (cur) {
     // Per-field provenance, recorded per field rather than described in a comment.
     const editors = { ...JSON.parse(cur.field_editors || '{}') };

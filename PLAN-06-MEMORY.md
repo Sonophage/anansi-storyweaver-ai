@@ -104,7 +104,7 @@ rewritten on the 26th, so the rebuild is distorting old rows — was wrong. The 
 splitting the model mix. Written down because the wrong answer was more plausible than the right
 one.
 
-### 2b · DIRECTIVE's 250-token cap cannot fire, and the manifest says it did
+### ~~2b · DIRECTIVE's 250-token cap cannot fire, and the manifest says it did~~ — FIXED 2026-08-28
 
 All four parts of the anchor are `keep: true` (`src/context.ts:517-529`), so `addAnchor`'s flex
 string is empty and the shortening branch returns every part unchanged — while still stamping the
@@ -113,6 +113,13 @@ reason `anchor shortened to 250 tokens`. Reproduced at **274 tokens** with that 
 Harmless at today's size. It would hide a real overrun the moment the block grows, and the F28
 lockout already added ~78 tokens to it. Either give one part `keep: false` or stop writing the false
 reason; a manifest that lies about its own trimming is worse than one that reports an overrun.
+
+**Done by stopping the false reason, not by giving a part `keep: false`.** The second option changes
+what reaches the model, and every part of DIRECTIVE is there because something measured it. An
+anchor over its cap that cannot be cut now says exactly that; one that really was cut still says
+"shortened". Both branches are asserted in `test/engine.ts` — the existing lockout fixture already
+reproduced the false reason at 355 tokens against a cap of 250 and nothing had ever read it — and
+both falsify.
 
 ### ~~2c · `extract` reads raw prose while `remember` strips dialogue~~ — ALREADY BUILT, found 2026-08-28
 
@@ -137,7 +144,7 @@ as the system role. So SYSTEM — 1,872 chars, ~445 real tokens of standing inst
 wire but invisible to the manifest and to the on-screen Context meter, which under-reports every
 call by a fixed amount. The exact guard counts the whole string, so only the meter is wrong.
 
-### 2e · Nothing in the ledger can fire. `fires()` has never run on real data.
+### 2e · Nothing in the ledger can fire — **the guard is built, 2026-08-28; the flip is not**
 
 Read off `anansi.db` on 2026-08-27:
 
@@ -215,6 +222,21 @@ fired only in the past and not on the live window** — Halsey and Konrad Curze 
 and dark on the next call. **4 of those 6 "safe" verdicts rest on a story holding fewer than four
 selected passages.** So the safe half of 2e is a guard on NEW writes; migrating the existing twelve
 is not supported by this evidence and was never the cheap half.
+
+**BUILT: the guard, in `upsertEntry`, with an explicit opt-out.** A `triggered` entry with no keys
+becomes `always_on` unless the caller passes `allowNoKeys`, and unless the row is already in that
+state. One floor, not three call sites. `web/app.js:3964` passes the flag, because there dark IS
+the feature — an entry made from a highlight would cost tokens on every call before anyone finished
+it — and `test/ui/search.js` has been asserting that behaviour all along; it goes red in a real
+browser when the flag is dropped, which is how the opt-out was verified rather than assumed.
+
+**NOT BUILT, and not on the evidence: the flip of what is already there.** See the probe run above.
+An already-dark row is left alone, so a rename cannot switch an entry on by the back door.
+
+**Still open in 2e:** causes i, iii and iv — `EXTRACT` never asks for an activation and
+`EXTRACT_SCHEMA` has no field for one, the trigger-words input is `disabled` while an entry is
+always-on so the keys the extractor did propose cannot be seen or edited, and manual creation is
+always-on. The guard stops new darkness; none of it yet makes anything *fire*.
 
 **This is the one item on the list that makes the prompt smaller.** §3's recommendation is that the
 next win is precision and presence rather than another retrieval tier. This is that win, and it adds

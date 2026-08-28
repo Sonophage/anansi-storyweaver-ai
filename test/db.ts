@@ -1065,4 +1065,56 @@ ok('a comma-separated keys string is split on the write path, not discarded', ()
     + 'test/import.ts against a real card, because this line cannot see it from here.');
 });
 
+
+// PLAN-06 2e, the half `bench/ledger-audit.ts` supports. `db.ts:881` names the class in its own
+// words — "a triggered entry with no trigger words never reaches the model again and looks fine on
+// the screen" — and the rule that prevents it lived in import.ts alone, on one of SIX paths into
+// upsertEntry. The other five are the wizard, POST /api/entry, accept, the other importer, and
+// copy-to-another-book. PLAN-06 asked for it at "the three proposal sites"; there is one floor.
+ok('a triggered entry with no keys cannot land dark, unless the caller says it means it', () => {
+  const own = db.owner('darkness');
+  const st = db.createStory(own, { title: 'Dark' });
+  const act = (id: string) =>
+    (db.entriesOf(st.id).find((x: any) => x.id === id) as any).activation;
+
+  // The defect. Nothing on any surface would show this entry as broken: right title, right body,
+  // the word "Triggered" on its chip, and it can never fire.
+  const dark = db.upsertEntry(st.id, own, { title: 'Unfireable', body: '[a fact]',
+    activation: 'triggered', keys: [] });
+  assert.strictEqual(act(dark), 'always_on',
+    'a triggered entry with no keys is one that never reaches the model again. Always-on costs '
+    + 'tokens; dark costs the fact itself, and says nothing.');
+
+  // The opt-out, which is the whole reason this is a flag and not a silent correction. app.js
+  // makes an entry from a highlighted passage and wants it dark: an always-on entry made from a
+  // highlight would cost tokens on every call before anyone had finished writing it.
+  const onPurpose = db.upsertEntry(st.id, own, { title: 'Not yet', body: '[a highlight]',
+    activation: 'triggered', keys: [], allowNoKeys: true });
+  assert.strictEqual(act(onPurpose), 'triggered',
+    'allowNoKeys is how "not switched on yet" is said out loud. Without it the two meanings of '
+    + 'triggered-with-no-keys share one state and the guard cannot tell them apart.');
+
+  // And it is a per-call permission, not a column. If it ever reaches the schema it becomes a
+  // thing to keep in sync on every read path.
+  assert.ok(!('allowNoKeys' in (db.entriesOf(st.id).find((x: any) => x.id === onPurpose) as any)),
+    'allowNoKeys must not be stored — it describes one call, not the entry');
+
+  // A row already in that state is left alone. bench/ledger-audit.ts on the live library found 1
+  // of 7 judgeable entries would go dark on a flip and 2 more were dark on the live window, so
+  // migrating what is already there is not supported. Editing an unrelated field must not do it
+  // by the back door either.
+  db.upsertEntry(st.id, own, { id: onPurpose, title: 'Not yet, renamed', body: '[a highlight]',
+    activation: 'triggered', keys: [] });
+  assert.strictEqual(act(onPurpose), 'triggered',
+    'a rename must not switch an entry on. The guard stops NEW darkness; it does not migrate old '
+    + 'rows, because the probe says that flip loses facts.');
+
+  // The guard must not reach an entry that CAN fire, which is the whole population it is for.
+  const fine = db.upsertEntry(st.id, own, { title: 'Fireable', body: '[a fact]',
+    activation: 'triggered', keys: ['iron bridge'] });
+  assert.strictEqual(act(fine), 'triggered',
+    'an entry with keys is left exactly as asked — a guard that flipped these would quietly make '
+    + 'every triggered entry always-on and put the whole ledger in every prompt');
+});
+
 console.log(`\n${n} checks passed`);

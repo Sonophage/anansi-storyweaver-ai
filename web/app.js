@@ -3960,8 +3960,12 @@ document.addEventListener('click', async (e) => {
     // would quietly cost tokens on every call from now on, before anyone had looked at it.
     const body = String(r.body ?? '').trim().slice(0, 600);
     const title = (body.split(/[.!?\n]/)[0] || body).trim().slice(0, 48) || 'Untitled';
+    // `allowNoKeys` is the opt-out for the guard in `db.upsertEntry`, which otherwise turns a
+    // keyless `triggered` entry always-on so it cannot go dark by accident. Here dark is the
+    // point — see the two lines above — so the intent is stated rather than left to be inferred
+    // from a state that means the opposite everywhere else.
     const res = await api.saveEntry(S.storyId, { id: '', title, body, entryType: 'lore',
-      activation: 'triggered', keys: [], lastEditor: 'human' });
+      activation: 'triggered', keys: [], allowNoKeys: true, lastEditor: 'human' });
     if (res.error) return toast(res.error);
     V = res.entries ? res : await api.story(S.storyId);
     const made = [...(V.entries ?? [])].reverse().find((e) => e.title === title);

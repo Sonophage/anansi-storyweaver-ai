@@ -602,11 +602,20 @@ nobody can find. Three of the four things on the list were not what the plan sai
 now says otherwise. `utilisation` has still never been run, so "does the ledger do any work" is
 open.
 
-**§2b is confirmed open, in source, and is smaller than its own write-up.** Every DIRECTIVE part is
+**§2b — fixed the same day, the smaller way.** Every DIRECTIVE part is
 `keep: true`, so `addAnchor`'s flex string is empty and the shortening branch returns every part
 unchanged — while still calling `add(...)` with `anchor shortened to ${cap} tokens`. The write-up
-offers "give one part `keep: false` or stop writing the false reason". The second is one line and
-loses nothing; the first changes what reaches the model.
+offered "give one part `keep: false` or stop writing the false reason". The second was taken: it is
+one line and loses nothing, where the first changes what reaches the model. An uncuttable anchor
+over its cap now says so; a real cut still reports itself. The existing lockout fixture already
+reproduced the lie at 355 tokens against a cap of 250 and nothing had read the reason.
+
+**§2e — the guard is built; the flip is not.** `upsertEntry` turns a keyless `triggered` entry
+always-on unless the caller passes `allowNoKeys` or the row is already dark. One floor rather than
+three call sites, beside `keysOf`. `web/app.js:3964` passes the flag, and `test/ui/search.js` has
+been asserting that deliberate behaviour all along — it goes red in a real browser when the flag is
+dropped, which is how the opt-out was verified instead of assumed. Causes i, iii and iv of §2e are
+still open: nothing yet makes an entry *fire*.
 
 ### Still open, unchanged by any of the above
 

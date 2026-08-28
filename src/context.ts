@@ -354,7 +354,19 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     const tail = /[.!?]$/.test(cut.trimEnd()) ? cut.trimEnd() : cut.trimEnd() + '…';
     const out = live.map((p) => (p.keep ? p.text : (count(flex) > room ? tail : p.text)))
       .filter((t) => t.trim()).join('\n');
-    add(kind, id, out, `anchor shortened to ${cap} tokens`);
+    // PLAN-06 2b. This stamped "shortened" unconditionally, including when nothing was shortened —
+    // and for DIRECTIVE nothing ever can be, because all four of its parts are `keep: true`, so
+    // `flex` is empty and every part comes back unchanged. Reproduced at 274 tokens against a cap
+    // of 250, carrying the reason for a trim that did not happen.
+    //
+    // The false reason is the whole defect: an anchor that is over its cap and CANNOT be cut is a
+    // real overrun, and it was being reported as a successful trim. Harmless at today's sizes, and
+    // the F28 lockout has already added ~78 tokens to DIRECTIVE. Say which of the two happened.
+    // Giving a part `keep: false` was the other option in 2b and it is the larger one — it changes
+    // what reaches the model, and every part of DIRECTIVE is there because something measured it.
+    add(kind, id, out, out === text
+      ? `anchor over ${cap} tokens and nothing in it may be cut`
+      : `anchor shortened to ${cap} tokens`);
   };
 
   const add = (kind: Kind, id: string, text: string, reason: string, firedBy?: string[]) => {
