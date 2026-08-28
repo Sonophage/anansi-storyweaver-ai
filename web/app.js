@@ -673,7 +673,29 @@ function drawDoc() {
   // in step. Single quotes inside the url(), because this sits in a style="…" attribute and a
   // double quote ends that attribute at `background:url(`, which cost the shelf both its cover
   // and its gradient once already.
-  const plate = V.story.chapterHero && V.cover
+  // THE COVER, BEHIND THE PROSE. Two shapes, and the story picks: a plate at the head of the
+  // chapter that scrolls away with it, or — since 2026-08-27 — the picture staying put while the
+  // prose moves over it, faded left to right into the page.
+  //
+  // The sticky one is drawn OUTSIDE the column, as a backdrop of #doc, because a sticky element
+  // inside a scroller can only stay within its own parent: put in #col it would scroll away with
+  // the chapter it belongs to, which is the thing it exists not to do.
+  const wantsCover = V.story.chapterHero && V.cover;
+  const stick = wantsCover && V.story.chapterSticky;
+  const back = $('backdrop');
+  if (back) {
+    back.hidden = !stick;
+    if (stick) {
+      // The image at the story's own strength, and the gradient over it going LEFT TO RIGHT from
+      // nothing to the page's own colour — so the picture is whole down one side and the prose
+      // reads off paper down the other. The end colour is the theme's token and not a literal:
+      // nine themes, and web/model.js exists because 162 raw hexes meant a theme was only ever
+      // half applied.
+      back.innerHTML = `<i style="background-image:url('${api.coverUrl(S.storyId, V.cover)}');
+        opacity:${Math.max(0, Math.min(100, V.story.coverOpacity ?? 30)) / 100}"></i><u></u>`;
+    } else back.innerHTML = '';
+  }
+  const plate = wantsCover && !stick
     ? `<div class="plate" style="background:url('${api.coverUrl(S.storyId, V.cover)}') center/cover no-repeat">
         <span class="fade"></span>
         <span class="serif plate-title">${esc(ch.title || `Chapter ${ch.index}`)}</span></div>`
@@ -683,7 +705,7 @@ function drawDoc() {
   // as air above a title. Seth: "theres alot of space that can be removed ... its only there with
   // the header". The class says which of the two this chapter is.
   $('doc')?.classList.toggle('plated', !!plate);
-  $('doc')?.classList.toggle('sticky-band', !!V.story.chapterSticky);
+  $('doc')?.classList.toggle('behind', !!stick);
   col.innerHTML = `
     ${plate}
     <div class="band">
@@ -1216,11 +1238,19 @@ const PANELS = {
       <div class="hint">The same picture, as a plate above each chapter's title. There is no second
         image to choose &mdash; a chapter shows the cover or nothing.</div>` : ''}
 
-      <label style="display:flex; align-items:center; gap:9px; margin-top:14px; cursor:pointer">
+      ${V.cover && V.story.chapterHero ? `<label style="display:flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer">
         <input type="checkbox" data-story="chapterSticky" ${V.story.chapterSticky ? 'checked' : ''}>
-        <span style="font-size:13px; color:var(--ink)">Keep the chapter heading at the top while you read</span></label>
-      <div class="hint">It stays with you down the page instead of scrolling away. Per book, because
-        a book that opens each chapter on a picture wants this and one that does not may not.</div>
+        <span style="font-size:13px; color:var(--ink)">Keep it behind the prose while you read</span></label>
+      <div class="hint">It stays put and the writing moves over it, fading left to right into the
+        page. Instead of a plate at the head of the chapter that scrolls away with it.</div>
+      ${V.story.chapterSticky ? `<label class="lbl" style="letter-spacing:.1em; margin-top:12px">How much of it shows</label>
+        <div style="display:flex; align-items:center; gap:12px">
+          <input type="range" min="0" max="100" step="5" style="flex:1"
+            data-story="coverOpacity" value="${V.story.coverOpacity ?? 30}">
+          <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
+            >${V.story.coverOpacity ?? 30}%</span></div>
+        <div class="hint">At full strength a picture under text is unreadable and at nothing it is
+          not there. Save to see it.</div>` : ''}` : ''}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
@@ -2218,7 +2248,7 @@ function storyCard(s, i, hero) {
   // Archived is dimmed rather than hidden: it is still your book and still one tap away.
   return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}"
     style="${s.status === 'archived' ? 'opacity:.42; filter:saturate(.5)' : ''}">
-    <span class="art" style="display:block; height:${hero ? 190 : 130}px; background:${
+    <span class="art" style="display:block; background:${
       // Single quotes: this whole thing goes inside style="…", and a double quote in the URL ends
       // the attribute at `background:url(` — which is exactly what it did, and the card lost both
       // its cover and its gradient.
@@ -2230,7 +2260,7 @@ function storyCard(s, i, hero) {
         ${gold ? 'border-color:rgba(217,178,106,.35); color:var(--gold)' : ''}">${esc(t)}</span>`).join('')}</span>
       ${hero ? '<span class="tag" style="position:absolute; top:12px; right:14px; background:rgba(10,9,12,.6)">Last written</span>' : ''}
       <span class="serif" style="position:absolute; bottom:12px; left:16px; right:16px;
-        font-size:${hero ? 34 : 23}px; line-height:1.05; color:var(--ink-bright)">${esc(s.title)}</span></span>
+        font-size:${hero ? 30 : 21}px; line-height:1.05; color:var(--ink-bright)">${esc(s.title)}</span></span>
     <span style="display:block; padding:14px 16px 16px">
       <span style="display:block; font-size:${hero ? 13.5 : 12.5}px; line-height:1.5; color:var(--mute);
         font-style:italic; min-height:19px">${esc((s.premise || 'No premise yet.').slice(0, hero ? 200 : 110))}</span>
@@ -3870,6 +3900,10 @@ document.addEventListener('click', async (e) => {
     document.querySelectorAll('[data-story]').forEach((el) => {
       patch[el.dataset.story] = el.type === 'checkbox' ? el.checked : el.value;
     });
+    // A range carries a string, and `Number('') || 0` on an untouched one would save 0 — which is
+    // a picture turned off rather than a picture left alone. It is always present when it renders,
+    // so the cast is all it needs; the clamp lives in db.updateStory where every caller passes.
+    if (patch.coverOpacity !== undefined) patch.coverOpacity = Number(patch.coverOpacity);
     // The sixth spice option is a switch, not a level. On `custom` the stored level is left alone
     // and the written line is what the engine reads; on a level the written line is cleared, or it
     // would go on silently overriding the level the writer just chose.
@@ -4119,7 +4153,10 @@ async function readCover(f) {
   // of pixels, and it would come out the far side of the route's 1MB ceiling with nothing the
   // writer could do about it. Never enlarged — the 1 in the min is what stops a small image being
   // blown up into a soft one.
-  const k = Math.min(1, 900 / bmp.width, 1400 / bmp.height);
+  // Portrait, since the cards and the chapter backdrop both became 3:4 on 2026-08-27 — the long
+  // edge is now the tall one, and 900 across was cut for a banner. 1100 x 1600 lands near 220KB at
+  // 0.82, well under the route's 1MB ceiling and sharp on a desk-width backdrop.
+  const k = Math.min(1, 1100 / bmp.width, 1600 / bmp.height);
   const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
   const c = Object.assign(document.createElement('canvas'), { width: w, height: h });
   c.getContext('2d').drawImage(bmp, 0, 0, w, h);

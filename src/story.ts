@@ -30,6 +30,7 @@ const toStory = (r: any) => ({
   // the column existed, which is the default the column carries too.
   chapterHero: !!r.chapter_hero,
   chapterSticky: !!r.chapter_sticky,
+  coverOpacity: r.cover_opacity == null ? 30 : Number(r.cover_opacity),
 });
 const toChapter = (c: any) => ({
   id: c.id, index: c.idx, title: c.title, summary: c.summary,

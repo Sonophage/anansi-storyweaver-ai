@@ -394,14 +394,27 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
    TITLE; above a full-bleed picture it is a gap, and the picture is the thing that should meet
    the header. */
 #doc.plated #read { padding-top:0; }
-/* The chapter's heading, kept at the top while you read past it. Per story, and OFF by default.
-   Sticky INSIDE the scroller rather than a strip above it — the running head was the other shape
-   and it opened its own height, pushing the prose down every time you scrolled. This one is the
-   band you were already looking at, staying put. */
-#doc.sticky-band #col > .band { position:sticky; top:0; z-index:4; background:var(--doc-bg);
-  padding-top:10px; }
-#doc.sticky-band #col > .plate { position:sticky; top:0; z-index:3; }
-#doc.sticky-band #col > .band .band-rule { margin-top:10px; }
+/* THE COVER, BEHIND THE PROSE. Per story, off by default, and it replaced a sticky heading — a
+   strip that followed you down the page is a label, and this is the chapter having a place.
+   It fills the document and does not move, and the prose scrolls over it.
+
+   `i` is the picture at the story's own strength; `u` is the gradient over it, left to right from
+   nothing to the page's own colour. Two elements rather than one background with two layers,
+   because the opacity belongs to the picture alone — applied to a stack it would fade the gradient
+   with it and the text would lose the ground it reads off. */
+#backdrop { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+#backdrop > i { position:absolute; inset:0; display:block; background-size:cover;
+  background-position:center; }
+#backdrop > u { position:absolute; inset:0; display:block;
+  background:linear-gradient(90deg, transparent 0%, var(--doc-bg) 62%); }
+/* The prose sits above it, and #read must not paint its own ground over the picture. */
+#doc.behind #read { background:transparent; position:relative; z-index:1; }
+#doc.behind #col { position:relative; z-index:1; }
+/* On a phone the column IS the window, so there is no side for the picture to be whole down: the
+   gradient goes nearly to the top of it and the image reads as a wash rather than a photograph. */
+@media (max-width:719px) {
+  #backdrop > u { background:linear-gradient(90deg, transparent 0%, var(--doc-bg) 34%); }
+}
 #doc.plated .plate { border-top-left-radius:0; border-top-right-radius:0; }
 @media (max-width:719px) { #read { padding:22px 22px 0; } }
 #col { width:100%; max-width:var(--col); height:max-content; display:flex; flex-direction:column; gap:var(--gap); padding-bottom:20px; }
@@ -702,15 +715,21 @@ textarea.field { resize:vertical; min-height:70px; }
 /* --- workspace pages --------------------------------------------------- */
 #page { position:relative; flex:1; min-height:0; padding:30px 40px; }
 @media (max-width:719px) { #page { padding:20px 18px; } }
-.grid { display:grid; grid-template-columns:repeat(2,1fr); gap:18px; align-content:start; }
-@media (max-width:719px) { .grid { grid-template-columns:1fr; } }
+/* PORTRAIT, at Seth's direction: "like a phone wallpaper". A cover is a book's face and a book is
+   taller than it is wide, so the grid holds more of them across and each one is a page rather than
+   a banner. Two on a phone, because a portrait card at full width is one book per screen. */
+.grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; align-content:start; }
+@media (max-width:1099px) { .grid { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:719px) { .grid { grid-template-columns:repeat(2,1fr); gap:12px; } }
 .split { display:flex; gap:32px; align-items:flex-start; }
 @media (max-width:719px) { .split { flex-direction:column; } }
 .aside { width:400px; flex:0 0 auto; }
 @media (max-width:1099px) { .aside { width:320px; } }
 @media (max-width:719px) { .aside { width:100%; } }
 .storycard { cursor:pointer; border-radius:var(--r); overflow:hidden; border:1px solid var(--edge); background:var(--rail); text-align:left; display:block; width:100%; }
-.storycard .art { height:130px; position:relative; }
+/* 3:4, the shape of a page. Set as an aspect-ratio rather than a height so the card holds its
+   proportions at every column width the grid resolves to. */
+.storycard .art { aspect-ratio:3/4; height:auto; position:relative; }
 .storycard .art .fade { position:absolute; inset:0; background:linear-gradient(180deg,rgba(10,10,12,0) 35%,rgba(10,10,12,.92)); }
 .dashed { border-radius:var(--r); border:1px dashed var(--chip); min-height:200px; display:flex; align-items:center; justify-content:center; font-size:13.5px; color:var(--faint); }
 
@@ -745,6 +764,10 @@ textarea.field { resize:vertical; min-height:70px; }
          one row that is hidden until you scroll. Seth: "it should span the full window". The
          readout under it — which chapter, how many words, how much context — is what a press
          opens; none of it is in the header any more. -->
+    <!-- The cover, kept behind the prose while you read. Outside #read on purpose: a sticky
+         element cannot leave its own scroller, so a backdrop that must not move cannot live in
+         the thing that moves. -->
+    <div id="backdrop" hidden aria-hidden="true"></div>
     <button id="ctxbar" hidden></button>
     <div id="ctxread" hidden></div>
     <div id="read" class="scroll"><div id="col"></div></div>

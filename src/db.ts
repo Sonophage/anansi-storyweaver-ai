@@ -60,7 +60,17 @@ function migrate() {
   // Whether the chapter's band stays at the top while you read past it. Per STORY at Seth's
   // direction — a book that opens each chapter on a picture wants it, and one that does not may
   // not. Off by default, because a strip that follows you down the page is a choice.
+  // Whether the cover stays put behind the prose while you read, rather than scrolling away with
+  // the top of the chapter. Added 2026-08-27 as a sticky HEADING — a strip that followed you down
+  // the page — and repurposed the same day, at Seth's direction, for the treatment that replaced
+  // it: the picture stays and the prose moves over it. Same column, same meaning at the level that
+  // matters (does the chapter's head stay on screen), so no second flag and nothing dead left
+  // behind. Nothing had set it yet.
   add('stories', 'chapter_sticky', 'INTEGER DEFAULT 0');
+  // How much of the cover shows through behind the prose, 0 to 100. A picture at full strength
+  // under text is unreadable and one at nothing is not there, so this is the control that makes
+  // the treatment usable at all rather than a nice idea. 30 is a default that reads as atmosphere.
+  add('stories', 'cover_opacity', 'INTEGER DEFAULT 30');
   // The character the model must not write: no dialogue, no action, no interior. Null on every
   // story until somebody names one, which keeps the behaviour of every existing book unchanged.
   // A NAME rather than an entry id, because it also has to work for a protagonist who has no
@@ -1012,7 +1022,7 @@ export function updateStory(id: string, s: any) {
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,
-      locked_character=?,chapter_hero=?,chapter_sticky=?,auto_open=?,updated_at=? WHERE id=?`)
+      locked_character=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
@@ -1021,6 +1031,7 @@ export function updateStory(id: string, s: any) {
       p('lockedCharacter', 'locked_character') ?? null,
       Number(p('chapterHero', 'chapter_hero') ? 1 : 0),
       Number(p('chapterSticky', 'chapter_sticky') ? 1 : 0),
+      Math.max(0, Math.min(100, Number(p('coverOpacity', 'cover_opacity')) || 0)),
       // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
       // p() already resolves that to the current value, so a partial save cannot switch it off.
       Number(p('autoOpen', 'auto_open') ? 1 : 0), now(), id);

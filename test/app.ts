@@ -277,6 +277,31 @@ ok("a book's look sits over the writer's, and never becomes it");
 }
 ok('a chapter wears the book cover as its plate, and the title moves onto it');
 
+// Or keeps it BEHIND the prose, which replaced the sticky heading. Drawn outside the scroller,
+// because a sticky element cannot leave its own parent — inside #col it would scroll away with the
+// chapter it exists not to scroll away with.
+{
+  STORY.story.chapterSticky = true;
+  STORY.story.coverOpacity = 45;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const back = html('backdrop');
+  assert.ok(!nodes.get('backdrop').hidden, 'the backdrop shows when the book asks for it');
+  assert.match(back, /api\/cover\?story=s-1/, 'and it is the story cover');
+  assert.match(back, /opacity:0\.45/, "at the story's own strength, not a constant");
+  // The plate and the backdrop are two treatments of one picture and must never both be on: the
+  // cover would appear twice, once scrolling and once not.
+  assert.doesNotMatch(html('col'), /class="plate"/,
+    'and the plate steps aside — one picture, one treatment');
+
+  STORY.story.chapterSticky = false;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.ok(nodes.get('backdrop').hidden, 'off again, the backdrop goes');
+  assert.match(html('col'), /class="plate"/, 'and the plate comes back');
+}
+ok('a book can keep its cover behind the prose instead, at a strength it chooses');
+
 // Leaving takes the book's look off with it, or the shelf wears whichever book you opened last.
 click({ leave: '1' });
 await new Promise((r) => setTimeout(r, 40));
