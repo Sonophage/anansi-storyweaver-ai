@@ -986,7 +986,7 @@ function drawDock() {
       <button data-bigin="1" aria-pressed="${S.bigInput}" title="${S.bigInput
         ? 'Back to the page' : 'Write in a full screen, and still read what you wrote'}"
         aria-label="${S.bigInput ? 'Close the full-screen composer' : 'Open the full-screen composer'}"
-        style="flex:0 0 auto; color:var(--faint); font-size:13px; padding-bottom:2px">${
+        style="flex:0 0 auto; color:var(--faint)">${
           S.bigInput ? '\u2921' : '\u2922'}</button>
       <span class="deskonly" style="font-size:10.5px; color:var(--label); opacity:.55; padding-bottom:3px">&crarr;</span>
       <!-- One button, two jobs, and it is the same button on purpose: the place your eye is

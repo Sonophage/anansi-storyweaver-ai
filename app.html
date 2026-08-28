@@ -845,9 +845,13 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
    finger makes the drift the rule rather than the exception.
    Send keeps its 34px on a desktop, where the pointer is exact and a 44px gold disc is a blot. */
 @media (max-width:719px) { #send { width:44px; height:44px; font-size:16px; } }
-#inputRow button[data-bigin] { width:34px; height:34px; display:flex; align-items:center;
+/* The GLYPH, not just the box. The box went to 44px on a phone and the arrow stayed tiny, because
+   the button carried `font-size:13px` INLINE and an inline style beats a stylesheet — so the rule
+   below was being written and never applied. Seth: "the expand button however is still very very
+   small. The icon at least is very very small." The inline sizing is gone; this owns it. */
+#inputRow button[data-bigin] { width:34px; height:34px; font-size:16px; display:flex; align-items:center;
   justify-content:center; padding:0; }
-@media (max-width:719px) { #inputRow button[data-bigin] { width:44px; height:44px; font-size:17px; } }
+@media (max-width:719px) { #inputRow button[data-bigin] { width:44px; height:44px; font-size:22px; } }
 
 /* --- side panel -------------------------------------------------------- */
 #sideHead { display:flex; align-items:center; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--line); flex:0 0 auto; color:var(--ink); }

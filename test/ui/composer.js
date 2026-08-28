@@ -28,6 +28,16 @@ for (const [what, sel] of [["send", "#send"], ["the expand button", "#inputRow [
   ok(`${what} is at least 44px square on a phone (${b.w}x${b.h})`, b.w >= 44 && b.h >= 44);
 }
 
+// AND THE GLYPH INSIDE IT, which is a different measurement and the one that was wrong. The box
+// went to 44px and the arrow stayed 13px, because the button carried `font-size:13px` INLINE and
+// an inline style beats a stylesheet — the rule was written and never applied. Seth: "the expand
+// button however is still very very small. The icon at least is very very small." A tap target
+// says where you can press; the glyph is what tells you it is there at all.
+const glyph = await page.eval(`(() => { const e = document.querySelector('#inputRow [data-bigin]');
+  return e ? Math.round(parseFloat(getComputedStyle(e).fontSize)) : null; })()`);
+console.log("  expand glyph font-size: " + glyph + "px");
+ok(`the expand button's glyph is legible, not just its box (${glyph}px)`, glyph !== null && glyph >= 20);
+
 // ---- #4. "The act as or speak as row doesn't reach the edges on the left or the right."
 //
 // The strip was inset three times over — the dock's 18px, then #asRow's 18, then .inner's 18 —
