@@ -367,6 +367,23 @@ if (anyEntry) {
   console.log("  trigger words field: " + JSON.stringify(keyf));
   ok("the trigger words can be read and edited on an always-on entry",
      !!keyf && keyf.alwaysOn === true && keyf.disabled === false);
+  // ---- Anansi fills the card that is OPEN. Seth: "the characters are filled by ai but the threads
+  // card when i go to it doesnt have that option for me there and id like to add it." It was on the
+  // + Thread tray, which makes a new card, and on the wardrobe, which makes an outfit — the one
+  // screen it was missing from is the one holding the card you are looking at.
+  const trays = await page.eval(`(() => {
+    const t = [...document.querySelectorAll('[data-invtray]')];
+    const btn = [...document.querySelectorAll('[data-invent]')].map(b => b.dataset.invent);
+    return { trays: t.length, kinds: btn,
+      // Each tray must own its own steer box. One shared box would read the line typed for a coat
+      // as the line for the character, which answers a question nobody asked.
+      ownBox: t.every(x => x.querySelector('[data-invdir]')) };
+  })()`);
+  console.log("  invent trays in the entry editor: " + JSON.stringify(trays));
+  ok(`the open card can be written by Anansi (${trays && trays.kinds.join(',')})`,
+     !!trays && trays.kinds.some((k) => ['character', 'lore', 'item', 'rule'].includes(k)));
+  ok("  and every tray on the screen has its own direction box",
+     !!trays && trays.trays > 0 && trays.ownBox === true);
   await page.click('[data-goblock="threads:"]');
   await wait(600);
   ok("the composer's door works with an entry already open", await page.eval("!document.querySelector('[data-f=\"title\"]')"));
@@ -434,8 +451,12 @@ ok("outfits appear as chips under the character", await page.visible(`[data-wear
 // The Wardrobe form can write one too, for THIS character, and the button says whose it is.
 await page.click(`#page [data-entry="${who.id}"], [data-entry="${who.id}"]`);
 await wait(600);
+// NAMED, not "the first one on the page". This read `document.querySelector('[data-invent]')`,
+// which was unambiguous while the wardrobe held the only tray on this screen. The card gained one
+// of its own on 2026-08-28 and the first tray became the character's, so the check went red
+// against working code — the assertion was about position, and position stopped meaning anything.
 ok("  the Wardrobe offers to have Anansi write one",
-   (await page.eval("document.querySelector('[data-invent]')?.dataset.invent")) === 'outfit');
+   (await page.eval("!!document.querySelector('[data-invent=\"outfit\"]')")) === true);
 ok(`  named for the character it dresses`,
    (await page.eval("document.querySelector('[data-invent=\"outfit\"]')?.textContent") || '').includes(who.title));
 // The card goes to another book, from the panel. This repo's recurring failure is the feature that

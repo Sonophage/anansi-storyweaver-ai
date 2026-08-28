@@ -1212,8 +1212,14 @@ export const routes: Record<string, Handler> = {
 
     // An addon belongs to a card, and the model needs to know whose before it can write one — an
     // outfit needs a body to dress, a relationship needs both ends, a voice needs someone to speak.
-    const who = isAddon ? v.entries.find((e: any) => e.id === c.body.entryId) : null;
+    // A CARD KIND WITH AN entryId is the same gesture aimed at a card that already exists: Seth,
+    // 2026-08-28, "the threads card when i go to it doesnt have that option for me there and id
+    // like to add it." Filling the open card is not proposing a new one, so it comes back as a
+    // draft for the form rather than going to the queue — and the writer still presses Save, which
+    // is the line this route has never crossed.
+    const who = (isAddon || c.body.entryId) ? v.entries.find((e: any) => e.id === c.body.entryId) : null;
     if (isAddon && !who) return { error: `a ${kind.replace(/_/g, ' ')} needs a card to belong to` };
+    const refill = !isAddon && !!who;
 
     let sources: { title: string; url: string; text: string }[] = [];
     if (c.body.search) {
@@ -1233,6 +1239,7 @@ export const routes: Record<string, Handler> = {
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
     const about = isAddon ? `${kind.replace(/_/g, ' ')} for ${who!.title}`
+      : refill ? `${kind === 'lore' ? 'place or fact' : kind}, rewriting the card for ${who!.title}`
       : kind === 'lore' ? 'place or fact' : kind;
     const t0 = Date.now();
     const r = await structuredRetry(INVENT(about, steer, sources.length > 0),
@@ -1256,6 +1263,13 @@ export const routes: Record<string, Handler> = {
 
     if (!String(r.data.title ?? '').trim() || !String(r.data.body ?? '').trim())
       return { error: 'Anansi wrote an entry with no name or no body' };
+    // Straight back into the open form, unsaved and unproposed. `classify` below is for cards that
+    // do not exist yet; running it here would refuse the answer as a duplicate of the very card
+    // being rewritten, which is the one thing it is guaranteed to look like.
+    if (refill)
+      return { card: { title: String(r.data.title).trim(), body: String(r.data.body).trim() + cite,
+                       keys: Array.isArray(r.data.keys) ? r.data.keys : [] },
+               seconds: +((Date.now() - t0) / 1000).toFixed(1) };
     const cls = classify(db.entriesOf(v.id), r.data);
     if (!cls) return { error: `the ledger already says exactly that about ${r.data.title}` };
     const ok = db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id,

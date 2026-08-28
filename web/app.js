@@ -2329,7 +2329,11 @@ function outfitForm(cast, who) {
 
 function inventTray(kind, label, placeholder) {
   const searchable = V?.searchable !== false;
-  return `<div style="display:flex; flex-direction:column; gap:7px; margin-top:4px;
+  // data-invtray, because there can now be TWO of these on one screen — the card's own and the
+  // wardrobe's — and `document.querySelector('[data-invdir]')` takes the first one it finds. That
+  // would read the writer's steer for a coat out of the box they typed the character into, which
+  // is a bug that produces a plausible answer to the wrong question.
+  return `<div data-invtray style="display:flex; flex-direction:column; gap:7px; margin-top:4px;
       padding-top:9px; border-top:1px solid var(--line)">
     <textarea class="field" data-invdir placeholder="${esc(placeholder)}"
       style="min-height:44px; font-size:12.5px"></textarea>
@@ -2389,6 +2393,13 @@ function entryEditor() {
         : '<strong>This entry cannot reach the model yet.</strong> Triggered with no trigger words '
           + 'never fires, and nothing else on this screen would tell you. Comma separated, up to '
           + 'ten — a whole word in recent prose or in your directive fires it.'}</div>
+    <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the
+         threads card when i go to it doesnt have that option for me there and id like to add it."
+         It rewrites the card that is open rather than proposing a new one — proposing would offer
+         a duplicate of the thing you are looking at, and the dedupe would refuse it. -->
+    ${inventTray(e.entryType, 'Have Anansi write this card',
+                 'what has changed about them, or nothing at all and let her read the book')}
+    <div class="hint">It fills the fields above, unsaved. Nothing changes until you press Save.</div>
     <label class="lbl">Your notes</label>
     <textarea class="field" data-f="notes" style="min-height:64px">${esc(e.notes ?? '')}</textarea>
     <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
@@ -3853,8 +3864,9 @@ document.addEventListener('click', async (e) => {
   }
 
   if (d.invent) {
-    const dir = document.querySelector('[data-invdir]')?.value.trim() ?? '';
-    const search = !!document.querySelector('[data-invsearch]')?.checked;
+    const tray = t.closest('[data-invtray]') ?? document;
+    const dir = tray.querySelector('[data-invdir]')?.value.trim() ?? '';
+    const search = !!tray.querySelector('[data-invsearch]')?.checked;
     const was = t.textContent;
     t.textContent = search ? 'Looking it up…' : 'Writing…'; t.disabled = true;
     working('direct');
@@ -3862,6 +3874,16 @@ document.addEventListener('click', async (e) => {
       direction: dir || undefined, search });
     working(null); t.disabled = false; t.textContent = was;
     if (r.error) return toast(r.error);
+    if (r.card) {
+      // The open card, rewritten, unsaved. Same bargain as the outfit below and as every other
+      // thing Anansi offers: she fills the fields, the writer reads them and presses Save. The
+      // keys come with it because a card whose trigger words are not rewritten alongside its body
+      // is a card that still fires on the old one.
+      const set = (f, v) => { const el = document.querySelector(`[data-f="${f}"]`); if (el) el.value = v; };
+      set('title', r.card.title); set('body', r.card.body);
+      if (r.card.keys?.length) set('keys', r.card.keys.join(', '));
+      return toast('Written, not saved — read it, then press Save.');
+    }
     if (r.outfit) {
       // Straight into the form, unsaved. Add an outfit is still the writer's press — and filling
       // the fields rather than writing the row is the whole difference between this and a
