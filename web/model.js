@@ -108,6 +108,29 @@ export const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) =>
 // reasoning and no prose at all, so it is spelled out rather than left as a letter.
 const FAMILY = { qwen36: 'Qwen3.6', qwen38: 'Qwen3.8', tcap27: 'ThinkingCap 27B', ornith: 'Ornith' };
 const ROLE = { write: 'Write', rp: 'Roleplay', agentic: 'Agentic' };
+/** The options for a story's model select, in order.
+ *
+ *  A story pinned to a model the router no longer offers used to produce NO selected option — the
+ *  browser then falls back to showing the first one, which is "Default", while the hint underneath
+ *  still says the story is pinned. The two disagreed on screen, and worse, choosing Default fired
+ *  no `change` event, because from the browser's side the value had not changed. So the pin could
+ *  not be cleared from the one control that exists to clear it.
+ *
+ *  That is exactly what happened to `The Shadow's Debt`: it was pinned to `rp-t-glm47flash-h` while
+ *  that preset existed, the router's whole preset list was rewritten on 2026-08-27, and the story
+ *  has answered `400 model not found` ever since with no way out of it through the surface.
+ *
+ *  A pin that is no longer on offer therefore gets an option OF ITS OWN, selected, and says why it
+ *  is there. Keeping it selectable is deliberate: it is what the story is actually set to, and a
+ *  control must show the state it edits before it can be trusted to change it. */
+export const modelOptions = (models, pinned) => {
+  const list = (models ?? []).map((m) => ({ value: m.id, status: m.status, gone: false }));
+  const orphan = pinned && !list.some((o) => o.value === pinned)
+    ? [{ value: pinned, status: null, gone: true }] : [];
+  return [{ value: '', status: null, gone: false }, ...orphan, ...list]
+    .map((o) => ({ ...o, selected: o.value === (pinned ?? '') }));
+};
+
 export const modelName = (id) => {
   if (!id) return { name: 'no model', detail: '', id: '' };
   const alias = /^(write|rp|agentic)-(n?t)-([a-z0-9]+)-([a-z0-9]+)$/.exec(id);

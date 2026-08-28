@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelOptions, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -1799,10 +1799,12 @@ const PANELS = {
       ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
         : S.models.length === 0 ? emptyModels()
         : `<select class="field" data-storymodel="1">
-            <option value="">Default &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}</option>
-            ${S.models.map((m) => `<option value="${esc(m.id)}" ${V.story.model === m.id ? 'selected' : ''}
-              >${esc([modelName(m.id).name, modelName(m.id).detail].filter(Boolean).join(' — '))}${
-                m.status === 'loaded' ? ' · awake' : ''}</option>`).join('')}
+            ${modelOptions(S.models, V.story.model).map((o) => `<option value="${esc(o.value)}"${
+              o.selected ? ' selected' : ''}>${
+              !o.value ? `Default &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
+              : o.gone ? `${esc(modelName(o.value).name)} &mdash; the router no longer offers this`
+              : `${esc([modelName(o.value).name, modelName(o.value).detail].filter(Boolean).join(' — '))}${
+                  o.status === 'loaded' ? ' · awake' : ''}`}</option>`).join('')}
           </select>
           <div class="hint">${V.story.model
             ? `This story is written by <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,

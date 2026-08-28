@@ -59,7 +59,14 @@ const ctx = (body: any) => ({ body, query: new URLSearchParams(), owner: me,
   defaultModel: null, setDefaultModel: () => {}, admin: true }) as any;
 
 let n = 0;
-const ok = (m: string) => { n++; console.log(`  ok  ${m}`); };
+// Message only — assertions run inline above. db.ts, engine.ts and stream.ts take a callback and
+// call it; passing one to THIS `ok` would print a green check for a body that never ran. Refused
+// rather than swallowed. See the note in test/app.ts.
+const ok = (m: string, fn?: unknown) => {
+  if (fn !== undefined) throw new Error(`ok() in this suite takes a message only, and was given a `
+    + `second argument for "${m}" — its body would never run. Put the assertions inline above it.`);
+  n++; console.log(`  ok  ${m}`);
+};
 
 // ---- 1. the model is shown the narration and never the dialogue ----
 {

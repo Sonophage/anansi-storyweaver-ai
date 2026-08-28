@@ -638,6 +638,53 @@ that state, the hint under the keys box says so: *"This entry cannot reach the m
 This is the case for the twelve scenarios existing. A unit suite cannot press a chip that is
 disabled by the state the press is meant to change.
 
+### `bench/utilisation.ts`, run at last — and it narrows the recall question
+
+61 of 347 prose generations can be scored (147 still hold a manifest, 132 are tied to a passage, and
+**70 of those name a passage that no longer exists** — takes deleted after the fact, which caps this
+instrument's denominator from here on). Detector green first, 9 cases.
+
+**PROSE is 59.8% of the prompt and is lifted verbatim in 37.3% of calls.** SPINE 10.6%, VOICE 8.4%,
+TAIL 5.8%, DIRECTIVE 5.3%, CANON-ALWAYS 5.2%, MODE 3.0%, EARLIER 2.0%. **CANON-TRIGGERED and STRING
+were never sent at all** — not a low rate, absent, in all 61.
+
+Two readings this does NOT support. Canon's zero lift is not canon failing: SYSTEM tells the model
+not to reuse canon's wording, so the zero is F36's rule working, and the tool measures echo rather
+than use. And **"2e makes the prompt smaller" does not survive it** — the prompt is 60% prose and
+canon is 5%, so making the triggered tier fire buys precision, not size. That was PLAN-06's framing
+and this file repeated it; it is corrected at the site.
+
+What it does settle: nothing here justifies another retrieval tier. The prompt has room, the model
+demonstrably uses the prose in it, and the selective tier that already exists has fired zero times.
+
+### The story-model select could not clear the one pin that needed clearing
+
+`The Shadow's Debt` is pinned to `rp-t-glm47flash-h`. The router's preset list was rewritten on
+2026-08-27, so no option in the select carried that value, **nothing was selected**, and the browser
+fell back to showing the first option — "Default" — while the hint underneath still said the story
+was pinned. Choosing Default then fired no `change` event, because from the browser's side the value
+had not changed. The press worked and the result did not.
+
+`test/ui/panels.js` §15 drives that select and could not see it: it pins a model the router DOES
+offer, which is the case that always worked. The state cannot be reached through the API either —
+`POST /api/story` refuses a model the router does not serve — so the only way in is to have been
+pinned before a rename. The option list moved to `modelOptions` in `web/model.js` so it can be
+checked without a browser at all.
+
+**The pin is still in the database.** The fix makes it clearable; it does not clear it.
+
+### A fifth inert-check instance, in a check written this session
+
+`test/app.ts`'s `ok()` takes a message only — assertions run inline above it — while `test/db.ts`,
+`test/engine.ts` and `test/stream.ts` take a callback and call it. The same name means two things
+across the eleven suites. A check for the select above was written in the callback style, and it
+printed green while its body never ran; three deliberate breakages of the code under test all came
+back green before that was noticed. All seven message-only suites now throw on a second argument
+instead of swallowing it.
+
+The lesson is not the guard. It is that the falsification pass is what caught it, and a green suite
+would not have.
+
 ### Still open, unchanged by any of the above
 
 §5's items 3, 4 and 5 are untouched: activation depth, the budget engine (still correctly gated —

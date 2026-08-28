@@ -5,7 +5,19 @@
 import assert from 'node:assert';
 
 let n = 0;
-const ok = (m: string) => { n++; console.log(`  ok  ${m}`); };
+// `ok` here takes a MESSAGE ONLY — assertions run inline above it. `test/db.ts`, `test/engine.ts`
+// and `test/stream.ts` take a callback and call it, so the same name means two things across the
+// eleven suites. Passing a callback to this one counts a green check for a body that never ran,
+// which is the "guarded assertion that stops running and still reports green" this project has
+// already been bitten by four times. It was written that way once on 2026-08-28 and only the
+// falsification pass caught it — three deliberate breakages of the code under test, all green.
+// So it refuses a second argument now instead of swallowing it.
+const ok = (m: string, fn?: unknown) => {
+  if (fn !== undefined) throw new Error(`ok() in this suite takes a message only, and was given a `
+    + `second argument for "${m}". Its body would never run and the check would print green. `
+    + `Put the assertions inline above the ok(), the way the rest of this file does.`);
+  n++; console.log(`  ok  ${m}`);
+};
 
 // ---- the smallest DOM these render functions actually touch ----
 const nodes = new Map<string, any>();
@@ -605,6 +617,7 @@ ok('the inspector renders the real manifest, including what was dropped');
 // headed Threads, so arriving meant hunting for what you had just clicked. The label now comes
 // from the destination, and both come from one table.
 const { BLOCK_ORIGIN } = await import('../web/model.js');
+const { modelOptions } = await import('../web/model.js');
 const { ORDER } = await import('../src/blocks.ts');
 for (const kind of ORDER)
   assert.ok(BLOCK_ORIGIN[kind], `${kind} has no name in BLOCK_ORIGIN — the row would say ${kind}`);
@@ -908,5 +921,50 @@ ok('the shelf groups what is waiting by book, and opens the book that is waiting
     'and curly quotes count, which is what the model actually produces');
   ok('a passage is set like a book, with speech in its own paragraph');
 }
+
+
+// The one control that clears a story's model pin could not clear the only pin that has ever
+// needed clearing. `The Shadow's Debt` is pinned to `rp-t-glm47flash-h`; the router's preset list
+// was rewritten on 2026-08-27 and that name stopped existing, so the story has answered
+// `400 model not found` since. With no option carrying its value, NOTHING in the select was
+// selected, the browser fell back to showing the first option — "Default" — and choosing Default
+// fired no `change` event because the value had not changed. The hint underneath went on saying
+// the story was pinned, disagreeing with the control directly above it.
+//
+// `test/ui/panels.js` §15 drives this select and could not see it: it pins a model the router DOES
+// offer, which is the one case that always worked. The state cannot be reached through the API
+// either — `POST /api/story` refuses a model the router does not serve — so the only way in is to
+// have been pinned before a rename. Which is why this is a unit check on the pure function.
+{
+  const live = [{ id: 'write-nt-qwen36-h', status: 'loaded' }, { id: 'rp-nt-ornith-h', status: 'idle' }];
+
+  const orphaned = modelOptions(live, 'rp-t-glm47flash-h');
+  const chosen = orphaned.filter((o: any) => o.selected);
+  assert.strictEqual(chosen.length, 1,
+    `${chosen.length} options selected. Zero is the bug: the browser then shows the FIRST option, `
+    + 'which is Default, so the control says "not pinned" while the story is pinned — and picking '
+    + 'Default fires no change event, so the pin cannot be cleared from the only control for it.');
+  assert.strictEqual(chosen[0].value, 'rp-t-glm47flash-h',
+    'and the selected one is what the story is actually set to');
+  assert.ok(chosen[0].gone, 'marked as gone, so the option can say why it is not in the list');
+  assert.strictEqual(orphaned[0].value, '',
+    'Default stays first — leaving the pin is the thing this writer came here to do');
+  assert.ok(orphaned.some((o: any) => o.value === 'rp-nt-ornith-h' && !o.gone),
+    'and every model the router does offer is still on the list');
+
+  // The ordinary case must not grow a phantom row. A duplicate option for a pin that IS on offer
+  // would give the select two entries with the same value, one of them marked unavailable.
+  const normal = modelOptions(live, 'rp-nt-ornith-h');
+  assert.strictEqual(normal.length, live.length + 1, 'no extra option when the pin is on offer');
+  assert.ok(!normal.some((o: any) => o.gone), 'and nothing is marked gone');
+  assert.deepStrictEqual(normal.filter((o: any) => o.selected).map((o: any) => o.value), ['rp-nt-ornith-h']);
+
+  assert.deepStrictEqual(modelOptions(live, null).filter((o: any) => o.selected).map((o: any) => o.value), [''],
+    'a story that names no model follows Preferences, and the control says so');
+  assert.deepStrictEqual(modelOptions([], 'rp-t-glm47flash-h').filter((o: any) => o.selected)
+    .map((o: any) => o.value), ['rp-t-glm47flash-h'],
+    'even with no models to list, the pin is still what this story is set to');
+}
+ok('a story pinned to a model the router dropped still shows that pin, and can leave it');
 
 console.log(`\n${n} checks passed`);

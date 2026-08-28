@@ -1,5 +1,9 @@
 # What is open — after a day's work on 2026-08-26
 
+> **Cleared against source on 2026-08-28.** Everything struck through below was checked in the code,
+> not remembered, and the file line is named. Nothing was deleted: what was open and is now built
+> stays visible, because the reason a thing sat here outlives it.
+
 **Round five passed clean**, and then eleven things landed on top of it. So this file is two things:
 the standing record of what is open, and — under **Built since round five** — the list the next walk
 is made of. None of it has been used by the person it is for.
@@ -17,6 +21,7 @@ https://hestia.tempel-discus.ts.net:5174        the only URL that works
 systemctl --user status anansi                  it starts itself, and on boot
 node --experimental-strip-types test/all.ts     240 checks, eleven suites, no model
 test/ui/run.sh                                  488 checks, twelve scenarios, no model
+                                                (both read out of the harnesses 2026-08-28)
 ```
 
 ---
@@ -69,17 +74,31 @@ was never scarce. The tier meant to catch the prose was not there to catch it.
 The window change makes the prompt smaller in a prompt that had room to spare. What it buys is
 what the model *leans on*, and nothing yet says whether the ledger it now leans on does any work:
 canon is 3.4% of the prompt and `CANON-TRIGGERED` contributed zero blocks on the last call, because
-nothing in the database can fire. `bench/utilisation.ts` and `bench/ledger-audit.ts` in
-`PLAN-06-MEMORY.md` §5 are the instruments. **Both now exist**, and `ledger-audit` has been run
-(2026-08-28): of the 7 entries the prose can answer for, 1 would go dark on a flip to `triggered`
-and 2 more fired only in the past, not on the live window. `utilisation` has NOT been run, so the
-question this paragraph asks — does the ledger it now leans on do any work — is still open. **Do
-not call this an improvement until it has.**
+nothing in the database can fire. **Both instruments have now been run, 2026-08-28.**
 
-### Doorless code, found 2026-08-27
+`bench/ledger-audit.ts`: of the 7 entries the prose can answer for, **1 would go dark** on a flip to
+`triggered`, **2 more of the 6 "safe" fired only in the past** and not on the live window, and 4 of
+those 6 rest on a story holding fewer than four selected passages. So the flip of what is already
+there is not supported; a guard on new writes is, and it is built.
+
+`bench/utilisation.ts`, over the 61 generations that can be scored: **PROSE is 59.8% of the prompt**
+and is lifted verbatim in 37.3% of calls. **CANON-ALWAYS is 5.2% and shows no lift** — but SYSTEM
+tells the model not to reuse canon's wording, so that zero is the F36 rule working and this
+instrument cannot read it as failure. **CANON-TRIGGERED and STRING were never sent at all**, in any
+of the 61. Not a low rate — absent.
+
+So the answer to the question above is narrower than the question: nothing here justifies another
+retrieval tier, and the thing to fix is that the selective tier has never once fired. **And the
+claim that making it fire would make the prompt smaller does not survive this** — the prompt is 60%
+prose and canon is 5%. The case is precision, not size.
+
+### ~~Doorless code, found 2026-08-27~~ — ALL THREE CLOSED, verified 2026-08-28
 
 Not bugs and not decisions: finished engine work with nothing that opens it. The class this repo
-keeps hitting.
+keeps hitting. Checked in the code rather than in the commits that claim them: `POST /api/remember`
+has a method at `web/api.js:126` and a button at `web/app.js:1508`; `test/web.ts:217` runs the guard
+in both directions, so a route with no `api.js` method is a red unless it is named in `NO_CLIENT`;
+and `DEFERRED` is down to `delBranch` alone with a comment saying why a stale name there is a hole.
 
 - **`POST /api/remember` has no caller.** `routes.ts:1047`, driven only by `test/memory.ts`.
   `web/api.js` has no method for it, so nothing on any surface re-runs the character-memory pass on
@@ -103,6 +122,11 @@ same day it changed; this one was not, and sat red-in-waiting for three days.
 Two things follow. The scenario presses Edit now, the way `handlers.js` has all along. And **an
 opt-in check is a check that rots**: run `test/ui/run.sh model` on the day any prose-editing or
 composer change lands, or it will be reporting on an app that no longer exists.
+
+**And it is owed a run right now.** 2026-08-27 and 28 changed the composer (it grows rather than
+moves, ⤢ flexes it to the whole screen, the hardware-keyboard preference) and the context bar (full
+width under the header, and it reads the tokenizer's count rather than the estimate). `model` and
+`ritual` have not been run since. By this section's own rule that is exactly when they rot.
 
 ### Queued from round four, not built
 
@@ -171,9 +195,13 @@ next walk.
 - **The on-screen keyboard** shortens the page instead of covering the composer, and the phone's dock
   and bar now pay for the safe-area insets `viewport-fit=cover` has been spending.
 
-**Not fixed, and named so it is not mistaken for done: F34's drift threshold.** A tap that moves 24px
-still does nothing, on the shelf and everywhere else. The fix needs agreeing, because its guard done
-wrong makes Delete run twice.
+~~**Not fixed: F34's drift threshold.** A tap that moves 24px still does nothing.~~ **Fixed, and
+this file disagreed with itself about it** — the section above already said "F34 is FIXED" while
+this one said the opposite. `web/app.js:3416` is the band: under 10px the browser fires click
+itself, over 30px is a scroll, and 24px sits inside it. Two further tests carry the case the fix
+was worried about — the page must not have MOVED, and the finger must have come to rest — so a
+40px scroll that began on a story card no longer opens it. The `ponytail:` marker above them still
+stands: neither of those two lines is independently covered.
 
 ### Agreed with Seth, not built
 
@@ -324,6 +352,22 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
   character-by-prompt and what reroll re-rolls — your answer in round three was a global lore
   reroll, or one entry, or one box, and none of it is built.
 
+### Found and fixed on 2026-08-28, listed because of how they hid
+
+- **The story-model select could not clear the one pin that needed clearing.** `The Shadow's Debt`
+  is pinned to `rp-t-glm47flash-h`; the router's preset list was rewritten on 2026-08-27 and that
+  name stopped existing, so nothing in the select carried its value, **nothing was selected**, and
+  the browser showed the first option — "Default" — while the hint underneath said the story was
+  pinned. Choosing Default then fired no `change` event, because the value had not changed. The
+  press worked and the result did not, again. A pin the router no longer offers gets an option of
+  its own now, selected, saying so. **The database still holds the pin** — the fix makes it
+  clearable, it does not clear it. Open the Storyteller panel and pick Default.
+- **`test/app.ts`'s `ok()` takes a message only, and six other suites' do too**, while `db.ts`,
+  `engine.ts` and `stream.ts` take a callback and call it. A check written in the wrong style
+  prints green for a body that never runs — which happened once on 2026-08-28 and was caught only
+  by breaking the code under test three times and watching nothing go red. All seven now throw on a
+  second argument rather than swallowing it. Fifth instance of this family.
+
 ### Measured, known, not fixed
 
 - **Anansi still leaks instructions into a reply** sometimes, and an unasked proposal is variable
@@ -343,7 +387,12 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
   while contradicting itself — the guitar out of a coat pocket — agrees with canon perfectly. No
   amount of tuning the contradiction prompt reaches this class.
 
-### Deliberate debt — twenty-one `ponytail:` markers
+### Deliberate debt — twenty-four `ponytail:` markers
+
+**Counted 2026-08-28, not recalled:** `routes.ts` 6, `db.ts` 6, `app.js` 3, `context.ts` 3,
+`serve.ts` 3, and one each in `prompts.ts`, `app.html`, `bench/ledger-audit.ts`. The prose below was
+written when the count read twenty-one and names fifteen; it is left as it stands rather than
+padded, because naming the three it does not cover takes reading them, not adding a number.
 
 Three are architecture and are not going anywhere soon: SQLite rather than Postgres (pgvector is
 unscheduled), no streaming backpressure, and ceilings-with-a-refusal instead of a budget engine.
