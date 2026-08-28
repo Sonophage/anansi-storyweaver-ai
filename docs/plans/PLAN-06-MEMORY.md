@@ -144,7 +144,13 @@ as the system role. So SYSTEM — 1,872 chars, ~445 real tokens of standing inst
 wire but invisible to the manifest and to the on-screen Context meter, which under-reports every
 call by a fixed amount. The exact guard counts the whole string, so only the meter is wrong.
 
-### 2e · Nothing in the ledger can fire — **the guard is built, 2026-08-28; the flip is not**
+### 2e · Nothing in the ledger can fire — **SUPERSEDED by F38, 2026-08-28. Read that first.**
+
+> **This section's headline is stale.** It was measured on 2026-08-27 against a twelve-entry
+> library. `bench/fires.ts` measured 107 firings in 148 eligible entry-positions on 2026-08-28, so
+> the keyword path is live and "the best-tested dead code in the app" is no longer true. The four
+> causes below are still worth reading; the conclusion is not. `bench/ledger-audit.ts` governs
+> whether anything may be flipped, and says existing rows may not be.
 
 Read off `anansi.db` on 2026-08-27:
 

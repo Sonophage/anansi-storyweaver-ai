@@ -353,6 +353,20 @@ if (anyEntry) {
   await page.click(`[data-entry="${anyEntry}"]`);
   await wait(500);
   ok("  (an entry editor opens)", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
+  // ---- PLAN-08 Phase 1. The trigger words are readable and editable whatever the activation is.
+  // They were greyed out on an always-on entry, which is most of them — so the one screen that
+  // could show F27's defect (every proposed key is the title repeated) was the screen that hid it,
+  // and there was no way to author keys BEFORE flipping the chip, which is the only safe order.
+  // Asserted with the activation read alongside, because "not disabled" on a triggered entry was
+  // already true and would pass this line without the change.
+  const keyf = await page.eval(`(() => { const i = document.querySelector('[data-f="keys"]');
+    if (!i) return null;
+    const hint = i.nextElementSibling ? i.nextElementSibling.textContent : '';
+    return { disabled: i.disabled, alwaysOn: hint.indexOf('always-on') >= 0 };
+  })()`);
+  console.log("  trigger words field: " + JSON.stringify(keyf));
+  ok("the trigger words can be read and edited on an always-on entry",
+     !!keyf && keyf.alwaysOn === true && keyf.disabled === false);
   await page.click('[data-goblock="threads:"]');
   await wait(600);
   ok("the composer's door works with an entry already open", await page.eval("!document.querySelector('[data-f=\"title\"]')"));

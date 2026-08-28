@@ -13,6 +13,12 @@
 // `keysOf(...).length ? 'triggered' : 'always_on'`) and say what would have happened across every
 // generation position in the library that already exists.
 //
+// SIBLING, NOT RIVAL. `bench/ledger-audit.ts` asks the per-ENTRY version of this — *would this
+// entry go dark if it were flipped* — and it is the file that governs the decision, because "dark
+// on the next call" is what a writer notices and "never fired anywhere in the book" is not. This
+// one adds only the per-POSITION denominator: how many chances there were, and how many were taken.
+// Read that one first. Neither copies the matcher; both import `fires` from `src/context.ts`.
+//
 //   node --experimental-strip-types bench/fires.ts check   # the detector, no db, no model
 //   node --experimental-strip-types bench/fires.ts         # the report, read-only db
 //

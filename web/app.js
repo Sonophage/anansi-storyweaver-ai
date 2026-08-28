@@ -2371,11 +2371,19 @@ function entryEditor() {
     <textarea class="field grow" data-f="body" style="min-height:150px; max-height:52vh"
       >${esc(e.body ?? '')}</textarea>
     <div class="hint">This is what the model reads. Bracket form keeps it short: [Name: trait, trait].</div>
+    <!-- NOT DISABLED ANY MORE (2026-08-28, PLAN-08 Phase 1). It was greyed out while an entry was
+         always-on, on the reasoning that an always-on entry does not need keys. True, and it made
+         the words the extractor proposed invisible AND uneditable — so the one screen that could
+         show you F27's defect (every proposed key is the entry's own title repeated) was the one
+         screen that hid it, and there was no reason to ever flip the chip on an entry whose keys
+         you could not read. Keys are what an entry WOULD fire on, so authoring them before the
+         switch is the only safe order. -->
     <label class="lbl">Trigger words</label>
-    <input class="field" data-f="keys" value="${esc((e.keys ?? []).join(', '))}"
-      ${e.activation === 'always_on' ? 'disabled style="opacity:.5"' : ''}>
+    <input class="field" data-f="keys" value="${esc((e.keys ?? []).join(', '))}">
     <div class="hint">${e.activation === 'always_on'
-      ? 'Always-on entries need none — they are sent on every call.'
+      ? 'Not used while this is always-on — it is sent on every call either way. Write them anyway: '
+        + 'they are what it would fire on the moment you switch it to a keyword, and this is the '
+        + 'only place you can see what was proposed for it.'
       : (e.keys ?? []).length
         ? 'Comma separated, up to ten. A whole word in recent prose or in your directive fires it.'
         : '<strong>This entry cannot reach the model yet.</strong> Triggered with no trigger words '

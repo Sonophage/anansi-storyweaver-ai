@@ -27,21 +27,42 @@ nothing in the ledger can currently fire) · **the chapter-end half of #12**, be
 
 ### Phase 1 — the §2e flip, and a probe that proves firing happens
 
-Everything below assumes the trigger path works. **It has never run.** §2e measured twelve entries
-in the real library, twelve `always_on`, zero `triggered`, and every `keys` array the entry's own
-title repeated. `fires()` at `src/context.ts:281` is exercised by six checks in `test/engine.ts` and
-by nothing in production — the best-tested dead code in the app.
+**Rewritten 2026-08-28 after the probe ran. The premise below was wrong and is kept visible rather
+than quietly replaced.** This section said the trigger path had never run — §2e's read of twelve
+entries, twelve `always_on`, zero `triggered`, `fires()` as "the best-tested dead code in the app."
+That was true of that library on that day. **F38 measured 107 firings in 148 eligible chances.** The
+ACCEPT path at `src/routes.ts:1390` lands non-characters `triggered` and enough have been accepted
+since. The dead-code framing must not be repeated without re-running `bench/ledger-audit.ts` and
+`bench/fires.ts`.
 
-So: apply the rule this repo already has on one path (`src/import.ts:123` — an entry with no keys
-becomes `always_on` rather than silently dead weight) at the three proposal sites
-(`src/routes.ts:1049`, `:854`, `:926`), teach `EXTRACT`/`EXTRACT_SCHEMA` to return an activation and
-say what a key is *for* (`src/prompts.ts:285`), and un-disable the trigger-words input at
-`web/app.js:1657` so the keys a model proposed can be seen and edited.
+**What the probes changed about the work:**
 
-**The probe is the deliverable, not the flip.** Per this project's own rule, a check that never fires
-reports perfection. Phase 1 is done when there is a number for *how many generations could have
-triggered an entry and did*, with the informative denominator — not when the code looks right.
-Nothing in Phase 2 starts before that number is read.
+- **The guard §2e asks for is already built**, and it is stronger than §2e describes:
+  `src/db.ts:896-899` refuses to store `triggered` with no keys on `upsertEntry`, which is the write
+  path every route reaches. It stops NEW darkness. It deliberately does not migrate old rows.
+- **Existing rows must not be flipped.** `bench/ledger-audit.ts` — which already existed and which
+  `bench/fires.ts` should have been part of — reports 1 of 12 entries would go dark, and 2 more are
+  *"safe on the record, dark on the next call"*. Four of its eleven "safe" verdicts rest on stories
+  with fewer than four selected passages. That is not evidence for a migration.
+- **A proposal cannot carry an activation yet.** §2e's "honour a model's explicit `always_on`"
+  assumes a field that does not exist: `proposals` (`src/db.ts:266`) has `entry_type` and `keys` and
+  no `activation`. Adding it is a migration and belongs in Phase 2, not here.
+
+**So Phase 1 is the two changes the evidence does support, and they are both about making keys
+visible before anything fires on them:**
+
+1. **Done.** The trigger-words input is no longer disabled on an always-on entry (`web/app.js`). It
+   was greyed out on most entries in the library, so the one screen that could show F27's defect —
+   every proposed key is the entry's own title repeated — was the screen that hid it, and there was
+   no way to author keys *before* flipping the chip, which is the only safe order.
+2. **Done.** `EXTRACT` (`src/prompts.ts`) now says what a keyword is *for*: a word that actually
+   appears in the prose, which is what makes the entry reach the model later, and repeating the
+   title back buys nothing. `EXTRACT_SCHEMA` is unchanged — an `activation` field with nowhere to
+   land would be a constrained decode producing a value the accept path throws away.
+
+**Held, with the reason:** flipping characters-with-keys to `triggered`. It needs the proposals
+column from Phase 2 and a re-run of `ledger-audit` against a library where keys are authored rather
+than title-repeated. Today's numbers describe keys nobody wrote.
 
 ### Phase 2 — the schema, once
 

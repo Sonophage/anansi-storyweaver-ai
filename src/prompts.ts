@@ -445,6 +445,11 @@ or as one scene's mood. A character lying or being wrong is not a fact.
 For each: title, type (character | lore | item | rule), a body in the bracket format
 [Name: attribute, attribute, relation], and up to 4 keywords.
 
+A keyword is a word that ACTUALLY APPEARS IN THE PROSE when this thing is present. It is what
+makes the entry reach the model later, so a keyword nobody writes never fires. Repeating the
+title back buys nothing on its own: give what else is said instead — an epithet, the place they
+are always in, the object they carry, what other characters call them.
+
 Propose nothing rather than pad. Zero proposals is a valid answer.`;
 
 /** Invent one. The button beside a form, so the writer is not staring at an empty Info box for a

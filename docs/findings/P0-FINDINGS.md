@@ -1534,6 +1534,21 @@ dark across a whole book. On this library, none. `The Shadow's Debt` is the case
 one book where the ledger currently never fires at all, and where the flip would put it in front of
 the model on 11 of 13 positions.
 
+**CORRECTION, same day — "0 would go dark" answers a weaker question than it sounds like.**
+`bench/ledger-audit.ts` already existed and asks the per-ENTRY version of this: it reports **1 of 12
+entries the prose can answer for would go dark**, and 2 more (Phone Passcode, Konrad Curze) *"fired
+only in the past and NOT on the live window: safe on the record, dark on the next call."* Both
+numbers are right and they are not the same question. `fires.ts` asks *did this entry ever fire at
+any position in the book* — zero never did. `ledger-audit` asks *would it reach the model on the
+next call* — which is what a writer notices. **The stricter number governs**, and it says the flip
+is not supported for entries that already exist. It also flags that 4 of its 11 "safe" verdicts rest
+on stories holding fewer than four selected passages; one passage that names a character is not
+evidence that the next fifty will.
+
+`bench/fires.ts` should have been part of `ledger-audit` and was written without finding it first.
+It is kept for the per-position denominator, which the older file does not report, and its header
+now says so. Two probes on one decision is how classifiers drift; neither copies the matcher.
+
 **What this does not say.** It cannot say a fired entry deserved to fire — that is a judgement about
 a book and needs a reader. The detector ships with 11 synthetic cases asserting both directions: a
 name fires and an absent one does not, sticky holds a name that has left the window and stops at the
