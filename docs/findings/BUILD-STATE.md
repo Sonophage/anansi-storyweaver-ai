@@ -685,6 +685,38 @@ instead of swallowing it.
 The lesson is not the guard. It is that the falsification pass is what caught it, and a green suite
 would not have.
 
+### The two opt-in scenarios, run at last — one rotted, one found a real defect
+
+Neither had been run since 2026-08-24. Both were broken, in the two different ways that matters.
+
+**`model` died after 3 ok.** Not a product fault: it waited for `#ghost` to accumulate more than 20
+characters of prose, and `062dccd` deliberately stopped delivering prose that way — the roller sits
+alone until accept returns and the passage fades in once. The loop spent its full thirty seconds,
+the generation FINISHED while it waited, Stop was gone by the time it looked, and the click threw.
+It waits on the state the writer acts against now — Send has become Stop, and the roller is up —
+which is true from the moment the call goes out and does not depend on how prose is delivered. That
+is the property that rotted, and the new one cannot rot the same way. **39 ok, 0 red.**
+
+**`ritual` found a real one.** Chapter autofill returned a title and an EMPTY note. `CHAPTER_SCHEMA`
+marks `note` required, but `required` means the key is PRESENT, not that it holds anything, so
+`{"title":"…","note":""}` satisfies the grammar completely — and `structuredRetry` only ever retried
+a PARSE failure, so a schema-valid useless answer was never asked again. The writer got a named
+chapter, a blank beat box, and a toast saying Anansi had suggested both. The beat is the half that
+matters: it rides near the generation point on every call of that chapter.
+
+`structuredRetry` now takes an optional `usable` predicate — default is exactly the old behaviour,
+so no other caller changes, because an empty string is a legitimate answer in most of these schemas
+and a retry costs ~7s. Two unusable answers are reported as unusable rather than as unparseable,
+which would send whoever reads the error to a grammar that parsed perfectly twice. Three checks in
+`test/stream.ts` against the fake router, all falsified.
+
+**And the red stands, honestly.** The model returns an empty beat twice on the seeded fixture, so
+the retry does not rescue it. What changed is that the app says so — `noteMissing` on the route, and
+a toast that tells the writer to write the beat themselves — instead of showing a blank box under a
+message claiming it was filled. `ritual` asserts the ROUTE's invariant rather than the toast, since
+a toast is gone in seconds and the loop above it can spend a minute: `noteMissing` is true exactly
+when the beat is too short to steer anything. **22 ok, 1 red, and the red is the finding.**
+
 ### Still open, unchanged by any of the above
 
 §5's items 3, 4 and 5 are untouched: activation depth, the budget engine (still correctly gated —

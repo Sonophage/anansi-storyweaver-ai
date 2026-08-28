@@ -217,15 +217,34 @@ export async function structured(system: string, body: string, schema: unknown, 
  *  max_tokens mid-object yields truncated, unparseable JSON — a mechanical failure, and
  *  exactly the case a retry fixes. This was dropped on the argument that retries only
  *  address semantic failure, and the first real check call hit it. */
-export async function structuredRetry(system: string, body: string, schema: unknown, opts = {}) {
+/** `usable` is what "it worked" means for a caller that needs more than parseable JSON.
+ *
+ *  A constrained decode cannot return the wrong SHAPE, which is why this only retried on a parse
+ *  failure. It can still return an empty one: JSON Schema's `required` means the key is PRESENT,
+ *  not that it holds anything, so `{"title": "The Iron Bridge", "note": ""}` satisfies
+ *  CHAPTER_SCHEMA completely. That reached a writer on 2026-08-28 as a named chapter with a blank
+ *  beat and a toast saying Anansi had suggested one — `test/ui/ritual.js` caught it, and only
+ *  because it asserts a LENGTH rather than the field's presence.
+ *
+ *  Optional, and the default is exactly the old behaviour, so no other caller changes: an empty
+ *  string is a legitimate answer in most of these schemas and a retry costs ~7s. */
+export async function structuredRetry(system: string, body: string, schema: unknown, opts = {},
+                                      usable?: (d: any) => boolean) {
+  const good = (r: any) => !!r.data && (!usable || usable(r.data));
   const first = await structured(system, body, schema, opts);
-  if (first.data) return first;
+  if (good(first)) return first;
   // Double what was asked, never a flat 2000: the failure being retried is an object that ran out
   // of room, so a caller who already asked for more than 2000 would have been retried with LESS
   // and the retry could only fail harder. Callers that name no budget keep the old number.
   const asked = Number((opts as any).max_tokens) || 1000;
-  return structured(system, body, schema,
+  const again = await structured(system, body, schema,
     { ...opts, max_tokens: Math.max(2000, asked * 2), temperature: 0.1 });
+  // A second empty answer is reported as empty rather than as a parse failure. The caller asked
+  // for something specific and did not get it twice; saying "unparseable" would send whoever
+  // reads the error looking at the wrong thing.
+  if (usable && again.data && !usable(again.data))
+    return { ...again, error: 'the model answered twice with a field this call cannot use' };
+  return again;
 }
 
 /** The active model. A getter, not a const — a const captured the value at import and every

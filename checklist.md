@@ -123,7 +123,12 @@ Two things follow. The scenario presses Edit now, the way `handlers.js` has all 
 opt-in check is a check that rots**: run `test/ui/run.sh model` on the day any prose-editing or
 composer change lands, or it will be reporting on an app that no longer exists.
 
-**And it is owed a run right now.** 2026-08-27 and 28 changed the composer (it grows rather than
+~~**And it is owed a run right now.**~~ **Run 2026-08-28.** `model` was rotted by the streaming
+change and is fixed — 39 ok, 0 red. `ritual` found a real defect and still carries one honest red:
+the model returns an empty chapter beat twice, and the app now says so instead of showing a blank
+box. See BUILD-STATE §7. What follows was the argument for running them:
+
+ 2026-08-27 and 28 changed the composer (it grows rather than
 moves, ⤢ flexes it to the whole screen, the hardware-keyboard preference) and the context bar (full
 width under the header, and it reads the tokenizer's count rather than the estimate). `model` and
 `ritual` have not been run since. By this section's own rule that is exactly when they rot.

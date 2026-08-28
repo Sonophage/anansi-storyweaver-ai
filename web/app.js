@@ -828,7 +828,13 @@ async function nameChapter(chapterId) {
   const typed = live.title.trim() && live.title.trim() !== `Chapter ${ch?.index}` ? live.title.trim() : '';
   S.setup = { title: typed || r.title, note: live.note.trim() || r.note };
   drawSide();
-  toast('Anansi suggests. Both boxes are yours to change, and nothing is saved until you press Save.');
+  // Do not claim she filled a box she left empty. The beat is the half that matters — it rides
+  // near the generation point on every call of this chapter — so a silent blank is the one thing
+  // worse than no proposal at all.
+  toast(r.noteMissing && !live.note.trim()
+    ? 'Anansi named the chapter but did not say what it has to do. Write the beat yourself, or '
+      + 'press again — it is the line that steers every call in this chapter.'
+    : 'Anansi suggests. Both boxes are yours to change, and nothing is saved until you press Save.');
 }
 
 /** A look change, and the only thing that decides where it is saved: whether a book is open.

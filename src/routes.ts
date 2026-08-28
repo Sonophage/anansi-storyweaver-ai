@@ -796,10 +796,23 @@ export const routes: Record<string, Handler> = {
       `NAME CHAPTER ${ch.index}.`,
     ].filter(Boolean).join('\n\n');
 
+    // The note is the point of this call, not a bonus on the title: it rides near the generation
+    // point on EVERY call while the chapter is being written, which is what CHAPTER's own prompt
+    // says. `required` in the schema only guarantees the key is there, so a blank one is legal and
+    // one arrived on 2026-08-28 — a named chapter, an empty beat box, and a toast saying Anansi
+    // had suggested both. 40 characters is well under the three-to-six sentences asked for; it is
+    // a floor against emptiness, not a quality bar, because a quality bar here would be a taste
+    // judgement made by a length.
+    const enough = (d: any) => String(d?.title ?? '').trim().length > 0
+      && String(d?.note ?? '').trim().length >= 40;
     const r = await structuredRetry(CHAPTER, body, CHAPTER_SCHEMA,
-      { model: modelFor(v.story, c.defaultModel), max_tokens: CHAPTER_TOKENS });
+      { model: modelFor(v.story, c.defaultModel), max_tokens: CHAPTER_TOKENS }, enough);
     if (!r.data?.title) return { error: r.error ?? 'nothing usable came back' };
-    return { chapterId: ch.id, title: String(r.data.title).trim(), note: String(r.data.note ?? '').trim() };
+    // Past the retry and still short: hand back what there is and SAY the beat is missing. A title
+    // alone is worth having, and the surface must not present an empty box as a filled one.
+    const note = String(r.data.note ?? '').trim();
+    return { chapterId: ch.id, title: String(r.data.title).trim(), note,
+      ...(note.length >= 40 ? {} : { noteMissing: true }) };
   },
   'POST /api/chapter/end': async (c) => {
     const v = viewOf(c.body.storyId);

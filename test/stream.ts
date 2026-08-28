@@ -13,7 +13,10 @@ import { createServer } from 'node:http';
 // this one import is dynamic and the server below is started at the top of the file rather than
 // inside the check that uses it.
 const stopFake = await (async () => {
-  const state = { closedEarly: false, finished: false, deltas: 0, unload: null as any };
+  const state = { closedEarly: false, finished: false, deltas: 0, unload: null as any,
+    // Scripted JSON answers for the non-streaming path, shifted one per call, and a count of how
+    // many were asked for. `structuredRetry`'s whole job is deciding whether to ask twice.
+    json: [] as string[], jsonCalls: 0 };
   const s = createServer((_req, res) => {
     // The release path. Recorded rather than merely answered, because the URL and the body shape
     // were read off a live router by probing, not out of documentation — so the thing worth
@@ -47,6 +50,14 @@ const stopFake = await (async () => {
         res.end('{}');
       });
     }
+    // The non-streaming path, only when a script has been loaded. Everything else still streams,
+    // so no existing check changes.
+    if (state.json.length) {
+      state.jsonCalls++;
+      const content = state.json.shift()!;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return void res.end(JSON.stringify({ choices: [{ message: { content } }] }));
+    }
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     let i = 0;
     const t = setInterval(() => {
@@ -70,7 +81,7 @@ const stopFake = await (async () => {
   return { url, state, close: () => s.close() };
 })();
 process.env.ANANSI_LLAMA = stopFake.url;
-const { readSSE, reach, chat, unload, models } = await import('../src/llama.ts');
+const { readSSE, reach, chat, unload, models, structuredRetry } = await import('../src/llama.ts');
 
 let n = 0;
 const ok = (m: string, f: () => any) => Promise.resolve(f())
@@ -275,6 +286,53 @@ await ok('the models with Seth\'s -NN tag come first, and the rest are alphabeti
   // if it stops meaning anything the list falls back to alphabetical rather than to arbitrary.
   assert.ok(ids.slice(3).every((id, i, r) => i === 0 || r[i - 1].localeCompare(id) < 0),
     'and what is left is in name order, not in the order the router happened to answer');
+});
+
+
+// A grammar cannot return the wrong SHAPE, which is why structuredRetry only ever retried a parse
+// failure. It can still return an EMPTY one: JSON Schema's `required` means the key is present,
+// not that it holds anything, so {"title":"...","note":""} satisfies CHAPTER_SCHEMA completely.
+// That reached a writer on 2026-08-28 as a named chapter with a blank beat and a toast saying
+// Anansi had suggested both — the beat being the half that rides near the generation point on
+// every call of that chapter. test/ui/ritual.js caught it only because it asserts a LENGTH.
+await ok('a schema-valid but empty answer is asked again, and the second one is taken', async () => {
+  stopFake.state.json = [JSON.stringify({ title: 'The Iron Bridge', note: '' }),
+                         JSON.stringify({ title: 'The Iron Bridge', note: 'x'.repeat(80) })];
+  stopFake.state.jsonCalls = 0;
+  const usable = (d: any) => String(d?.note ?? '').trim().length >= 40;
+  const r = await structuredRetry('sys', 'body', {}, {}, usable);
+  assert.strictEqual(stopFake.state.jsonCalls, 2,
+    `asked ${stopFake.state.jsonCalls} time(s). An answer the caller cannot use has to be asked `
+    + 'again — parseable is not the same as usable, and only the caller knows the difference.');
+  assert.strictEqual(r.data.note.length, 80, 'and the usable answer is the one handed back');
+});
+
+await ok('a usable answer is not asked twice, and no predicate keeps the old behaviour', async () => {
+  stopFake.state.json = [JSON.stringify({ title: 'Fine', note: 'y'.repeat(80) })];
+  stopFake.state.jsonCalls = 0;
+  await structuredRetry('sys', 'body', {}, {}, (d: any) => String(d?.note ?? '').length >= 40);
+  assert.strictEqual(stopFake.state.jsonCalls, 1, 'a good answer costs one call, not two');
+
+  // The default path is untouched, which is what lets this ship without a retry appearing on
+  // every other caller — an empty string is a legitimate answer in most of these schemas and a
+  // second call costs about seven seconds.
+  stopFake.state.json = [JSON.stringify({ title: 'Fine', note: '' })];
+  stopFake.state.jsonCalls = 0;
+  const r = await structuredRetry('sys', 'body', {});
+  assert.strictEqual(stopFake.state.jsonCalls, 1,
+    'with no predicate an empty field is still a valid answer and must not cost a second call');
+  assert.strictEqual(r.data.note, '', 'and it comes back as it arrived');
+});
+
+await ok('two unusable answers are reported as unusable, not as unparseable', async () => {
+  stopFake.state.json = [JSON.stringify({ title: 'A', note: '' }), JSON.stringify({ title: 'A', note: '' })];
+  stopFake.state.jsonCalls = 0;
+  const r = await structuredRetry('sys', 'body', {}, {}, (d: any) => String(d?.note ?? '').length >= 40);
+  assert.strictEqual(stopFake.state.jsonCalls, 2, 'it still only asks twice');
+  assert.match(String(r.error ?? ''), /cannot use/,
+    'and says which failure it was. "unparseable JSON" would send whoever reads it to the grammar, '
+    + 'which parsed perfectly both times.');
+  stopFake.state.json = [];
 });
 
 stopFake.close();

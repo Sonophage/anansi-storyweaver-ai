@@ -39,16 +39,32 @@ ok("  and the composer is usable again", await page.eval("!document.getElementBy
   const before = (await story()).passages.length;
   await ready('[data-continue="1"]');
   await page.click('[data-continue="1"]');
-  // Wait for prose to actually start arriving, not merely for the button to change: stopping
-  // before the first token is a different case and would pass without testing anything.
+  // WAIT FOR THE CALL TO BE IN FLIGHT, not for text to pile up on the page.
+  //
+  // This used to wait for `#ghost` to hold more than 20 characters, because prose arrived a token
+  // at a time and landed there. `062dccd` changed that on purpose — "the roller sits alone in the
+  // middle until accept returns and the finished passage fades in once" — so the ghost now holds
+  // an animated glyph and never grows. The loop therefore spent its full thirty seconds, the
+  // generation FINISHED while it waited, Stop was gone by the time it looked, and the click threw
+  // `no element for #send[data-stop]`. Two reds and a death, none of them a product fault.
+  //
+  // The state to wait on is the one the writer acts against: Send has become Stop, and the roller
+  // is up. Both are true from the moment the call goes out and neither depends on how prose is
+  // delivered — which is the property that rotted last time and would rot again.
   let arrived = false;
   for (let i = 0; i < 60; i++) {
-    if (await page.eval("(document.getElementById('ghost')?.textContent ?? '').length > 20")) { arrived = true; break; }
-    await wait(500);
+    if (await page.eval("!!document.querySelector('#send[data-stop]') && !!document.getElementById('ghost')")) {
+      arrived = true; break;
+    }
+    await wait(250);
   }
-  ok("Stop: the passage is arriving before we stop it", arrived);
+  ok("Stop: the call is in flight, with the roller up, before we stop it", arrived);
   ok("  and Send has become Stop", await page.eval(
     "!!document.querySelector('#send[data-stop]') && !document.querySelector('#send[data-send]')"));
+  // Give the model a moment to actually be writing before stopping it. Stopping in the first
+  // instant is a different case — it tests the abort, not the abort of a call that has produced
+  // something — and it is the case the old text-based wait accidentally stopped covering.
+  await wait(2000);
   await page.click('#send[data-stop]');
   await wait(2500);
   ok("  the half-written passage is gone", await page.eval("!document.getElementById('ghost')"));

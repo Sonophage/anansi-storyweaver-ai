@@ -65,6 +65,26 @@ ok(`  and what extraction proposed (${JSON.stringify((body.match(/\d+ proposed a
      !!filled && filled.title.trim().length > 0);
   ok(`  and says what it has to do (${(filled?.note ?? '').length} chars)`,
      (filled?.note ?? '').trim().length > 60);
+  // On 2026-08-28 this came back 0 chars: CHAPTER_SCHEMA marks `note` required, and `required`
+  // means the key is PRESENT, not that it holds anything, so an empty string satisfied the
+  // grammar completely. The route asks a second time now. If the model still says nothing, the
+  // red above is the honest answer — but the app must not then claim she suggested a beat, and
+  // that is what this asserts. It only runs on the failing path, so it is written as an
+  // if/else rather than a bare `if`: a check that quietly stops running is this repo's oldest
+  // recurring bug.
+  //
+  // Asserted against the ROUTE rather than the toast. A toast is gone in seconds and the loop
+  // above can spend a minute waiting, so reading `#toast` here tested the clock. The route's
+  // answer is the contract, and the invariant holds whatever the model says on the day: it
+  // reports `noteMissing` exactly when the beat it returned is too short to steer anything.
+  const said = await page.eval("(async () => { const r = await (await fetch('/api/chapter/propose',"
+    + " { method:'POST', headers:{'Content-Type':'application/json'},"
+    + " body: JSON.stringify({ storyId: '" + sid + "' }) })).json();"
+    + " return JSON.stringify({ n: (r.note ?? '').trim().length, missing: !!r.noteMissing, e: r.error }); })()");
+  const got = JSON.parse(said || '{}');
+  console.log("  propose says: " + said);
+  ok(`  and it reports a missing beat as missing (${got.n} chars, noteMissing ${got.missing})`,
+     got.missing === (got.n < 40));
   // PROPOSED. Nothing is written until Save, which is what makes it safe to fire unasked.
   const chNow = (await story()).chapters.at(-1);
   ok("  and writes neither until you press Save",
