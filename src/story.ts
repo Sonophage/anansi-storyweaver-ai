@@ -29,6 +29,7 @@ const toStory = (r: any) => ({
   // The cover, used again as the plate at the head of every chapter. Off on a row written before
   // the column existed, which is the default the column carries too.
   chapterHero: !!r.chapter_hero,
+  chapterSticky: !!r.chapter_sticky,
 });
 const toChapter = (c: any) => ({
   id: c.id, index: c.idx, title: c.title, summary: c.summary,
@@ -57,6 +58,22 @@ export function view(storyId: string, focusChapterId?: string) {
     // `story` for the same reason `cover` is: a surface that posts the story object straight back
     // must not be able to save it as a field of the book's text.
     look: (() => { try { return s.look ? JSON.parse(s.look) : null; } catch { return null; } })(),
+    // What this book is waiting on, in one place. Every part of it was already on the surface
+    // somewhere — proposals under the chapter, strings under Strings, flags beside a passage, the
+    // horizon on a bar — which is the problem: a writer had to visit four panels to find out
+    // whether anything wanted them. Computed here so the panel and the shelf agree by construction.
+    waiting: (() => {
+      const off = db.dismissed(storyId);
+      const stale = chapters.filter((c: any) => c.summary && c.summaryStale
+        && !off.has(`stale:${db.summaryHashOf(c.id) ?? c.id}`));
+      return {
+        proposals: db.proposalsOf(storyId).length,
+        strings: db.stringsOf(storyId).filter((x: any) => x.status === 'open' && !x.summoned).length,
+        flags: db.violationsOf(storyId).filter((f: any) => f.status !== 'dismissed').length,
+        stale: stale.map((c: any) => ({ id: c.id, index: c.index, title: c.title,
+                                        ref: db.summaryHashOf(c.id) ?? c.id })),
+      };
+    })(),
     // The chapter you are working in, not simply the last one. Every chapter-scoped feature —
     // the author's note, pins, what canon looks like from here — was addressable only at the
     // tip, so a closed chapter could never be revisited.

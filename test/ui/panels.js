@@ -20,8 +20,11 @@ console.log("  rail: " + nav);
 // Seth's stated order — story/chapter/threads/context/search/storyteller. Anansi was APPENDED at
 // the end until 2026-08-27, when he asked for it "beside threads"; it sits between Threads and
 // Strings now, and everything else still reads exactly as he wrote it.
+// Search went to the top on 2026-08-27, and Anansi came OFF the rail the same day for the
+// composer row — asking her something is a thing you do while writing rather than a place you
+// navigate to. The panel is still there, still deep-linkable, and section 19 below still opens it.
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'story,chapter,threads,anansi,strings,context,search,teller');
+   nav === 'search,waiting,story,chapter,threads,strings,context,teller');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 
@@ -85,6 +88,33 @@ ok("  and the fields are real inputs, not labels",
     if (/Context \d+%|No room/.test(await page.text('#bar') || '')) break;
     await wait(250);
   }
+}
+
+// ---- 3c. A thread's body is not cut off.
+//
+// It was a fixed 96px box, and an invented thread went from 60-120 words to 120-200 on
+// 2026-08-27 — so two thirds of a body sat below the fold with nothing saying there was more.
+// Measured before the fix: 656 characters, 94px of box, 283px of content. This is the one place a
+// unit check cannot stand in for a browser: the markup was always right, the LAYOUT was wrong.
+{
+  await page.goto(B + "/#" + sid + "/threads");
+  for (let i = 0; i < 40 && !(await page.visible('#sideBody .card')); i++) await wait(250);
+  const opened = await page.eval("(() => { const cs = [...document.querySelectorAll('#sideBody .card')];"
+    + " const c = cs.sort((a, b) => (b.textContent||'').length - (a.textContent||'').length)[0];"
+    + " if (!c) return false; c.click(); return true; })()");
+  await wait(900);
+  const box = await page.eval("(() => { const t = document.querySelector('textarea[data-f]');"
+    + " return t ? JSON.stringify({ chars: t.value.length, client: t.clientHeight, scroll: t.scrollHeight }) : null; })()");
+  const b2 = box ? JSON.parse(box) : null;
+  ok(`a thread opens in an editor (${opened})`, !!b2);
+  ok(`  and its body is not cut off (${b2 ? b2.chars + " chars, " + b2.client + "px of " + b2.scroll : "no field"})`,
+     !!b2 && b2.scroll <= b2.client + 4);
+  // PUT THE PAGE BACK. Section 4 below is written against the Chapter panel and reaches straight
+  // for [data-story="direction"] — this block navigated away, so it found nothing and threw, and
+  // took the remaining 124 assertions with it. A section that moves the page owes the next one the
+  // state it was handed.
+  await page.goto(B + "/#" + sid + "/chapter");
+  for (let i = 0; i < 40 && !(await page.visible('[data-story="direction"]')); i++) await wait(250);
 }
 
 // ---- 4. Saving from Chapter must not blank the story. updateStory was a full-row UPDATE, so a

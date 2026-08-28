@@ -57,6 +57,10 @@ function migrate() {
   // Seth asked for: "the chapter image would only pull from the hero so story and chapter share
   // the same image."
   add('stories', 'chapter_hero', 'INTEGER DEFAULT 0');
+  // Whether the chapter's band stays at the top while you read past it. Per STORY at Seth's
+  // direction — a book that opens each chapter on a picture wants it, and one that does not may
+  // not. Off by default, because a strip that follows you down the page is a choice.
+  add('stories', 'chapter_sticky', 'INTEGER DEFAULT 0');
   // The character the model must not write: no dialogue, no action, no interior. Null on every
   // story until somebody names one, which keeps the behaviour of every existing book unchanged.
   // A NAME rather than an entry id, because it also has to work for a protagonist who has no
@@ -317,6 +321,21 @@ CREATE TABLE IF NOT EXISTS release_notes (
   notes TEXT NOT NULL,
   built_at INTEGER NOT NULL);
 
+-- What a writer has waved away. Proposals, strings and flags are ROWS and are dismissed by their
+-- own status; these two are COMPUTED — a summary is stale because its prose moved, and the horizon
+-- is the chapters that no longer fit — so there is nothing to mark and they would nag forever.
+--
+-- Keyed on ref, which carries the STATE that made it worth saying: the summary's hash, or the
+-- last chapter of the range. So dismissing is not "never tell me again" — it is "not for this".
+-- Edit that chapter and the summary is stale against a new hash; write past the horizon and the
+-- range ends somewhere new; both come back, which is the difference between quiet and deaf.
+CREATE TABLE IF NOT EXISTS dismissals (
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,               -- stale | horizon
+  ref TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  PRIMARY KEY (story_id, kind, ref));
+
 CREATE TABLE IF NOT EXISTS story_covers (
   story_id TEXT PRIMARY KEY REFERENCES stories(id) ON DELETE CASCADE,
   jpeg BLOB NOT NULL,
@@ -425,6 +444,19 @@ export const notesFor = (head: string): any => {
   try { return r ? JSON.parse(r.notes) : null; } catch { return null; }
 };
 /** The commit the newest notes were written for, or null. What the next batch reads FROM. */
+/** The hash the summary was written against, which is what makes a dismissal specific: edit the
+ *  chapter and the summary is stale against a NEW hash, so what was waved away comes back. */
+export const summaryHashOf = (chapterId: string): string | null =>
+  (q('SELECT summary_hash FROM chapters WHERE id = ?').get(chapterId) as any)?.summary_hash ?? null;
+
+export const dismiss = (storyId: string, kind: string, ref: string) =>
+  q(`INSERT INTO dismissals (story_id, kind, ref, at) VALUES (?,?,?,?)
+     ON CONFLICT(story_id, kind, ref) DO NOTHING`).run(storyId, kind, String(ref), now());
+/** Everything waved away for this story, as `kind:ref`. */
+export const dismissed = (storyId: string): Set<string> =>
+  new Set((q('SELECT kind, ref FROM dismissals WHERE story_id = ?').all(storyId) as any[])
+    .map((r) => `${r.kind}:${r.ref}`));
+
 export const newestNoted = (): string | null =>
   (q('SELECT head FROM release_notes ORDER BY built_at DESC LIMIT 1').get() as any)?.head ?? null;
 
@@ -980,7 +1012,7 @@ export function updateStory(id: string, s: any) {
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,
-      locked_character=?,chapter_hero=?,auto_open=?,updated_at=? WHERE id=?`)
+      locked_character=?,chapter_hero=?,chapter_sticky=?,auto_open=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
@@ -988,6 +1020,7 @@ export function updateStory(id: string, s: any) {
       p('stripPatterns', 'strip_patterns') ?? null, p('model', 'model') ?? null,
       p('lockedCharacter', 'locked_character') ?? null,
       Number(p('chapterHero', 'chapter_hero') ? 1 : 0),
+      Number(p('chapterSticky', 'chapter_sticky') ? 1 : 0),
       // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
       // p() already resolves that to the current value, so a partial save cannot switch it off.
       Number(p('autoOpen', 'auto_open') ? 1 : 0), now(), id);

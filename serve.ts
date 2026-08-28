@@ -250,5 +250,31 @@ const handler = async (req: any, res: any) => {
     console.log(`  backup        ${(b.bytes / 1024).toFixed(0)} KB, keeping 12`);
   } catch (e: any) { console.error('  backup failed:', e?.message); } };
   snapshot(); setInterval(snapshot, 30 * 60_000).unref();
+
+  // AND A COPY ON ANOTHER DISK. Every snapshot above lands beside `anansi.db`: that protects
+  // against corruption and against a bad edit, and against nothing that takes the filesystem. The
+  // open item since PLAN-02 deleted Neon was not backup, it was backup somewhere else.
+  //
+  // `/data` is a different device — nvme0n1p2, xfs — where the repository is on the root
+  // filesystem. Say what that buys precisely: it survives losing this filesystem and does NOT
+  // survive losing the machine. Off-site is a further step and is not this one.
+  //
+  // Six-hourly rather than half-hourly, keeping fourteen: the near copy is the one you reach for
+  // after a bad edit, and this is the one you reach for after a disk. Different jobs, different
+  // rhythms.
+  //
+  // Silent when the directory cannot be written, because a box without /data must still boot —
+  // but LOUD once, on the first attempt, so a backup that is not happening is never quiet.
+  const FAR = process.env.ANANSI_BACKUP_DIR ?? '/data/anansi-backups';
+  if (FAR && FAR !== 'off') {
+    let farSaid = false;
+    const far = () => { try {
+      const b = db.backup(FAR, 14);
+      if (!farSaid) { console.log(`  off-disk      ${FAR}, ${(b.bytes / 1024 / 1024).toFixed(1)} MB, keeping 14`); farSaid = true; }
+    } catch (e: any) {
+      if (!farSaid) { console.error(`  off-disk backup FAILED at ${FAR}: ${e?.message} — set ANANSI_BACKUP_DIR, or 'off' to stop asking`); farSaid = true; }
+    } };
+    far(); setInterval(far, 6 * 60 * 60_000).unref();
+  }
   console.log('');
 });

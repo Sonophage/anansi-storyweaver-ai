@@ -722,6 +722,16 @@ export const routes: Record<string, Handler> = {
     return { notes: r.data, all: db.allNotes(), head: b.head, written: true, read: log.length };
   },
 
+  /** Waved away. Not "never tell me again" — the ref carries the state that made it worth saying,
+   *  so editing the chapter or writing past the horizon brings it back. */
+  'POST /api/dismiss': (c: Ctx) => {
+    const kind = String(c.body.kind ?? '');
+    if (!['stale', 'horizon'].includes(kind))
+      throw Object.assign(new Error(`nothing is dismissed by "${kind}"`), { code: 400 });
+    db.dismiss(c.body.storyId, kind, String(c.body.ref ?? ''));
+    return viewOf(c.body.storyId);
+  },
+
   'POST /api/memo': async (c: Ctx) => {
     const v = viewOf(c.body.storyId);
     const p = v.passages.find((x: any) => x.id === c.body.passageId);

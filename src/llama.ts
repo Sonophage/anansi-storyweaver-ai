@@ -338,8 +338,15 @@ export async function models(): Promise<{ id: string; status: string }[]> {
   const r = await reach(`${HOST}/v1/models`, { signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`/v1/models answered ${r.status}`);
   const d = await r.json() as any;
-  return (d.data ?? []).map((m: any) => ({ id: String(m.id), status: m.status?.value ?? 'unknown' }))
+  const all = (d.data ?? []).map((m: any) => ({ id: String(m.id), status: m.status?.value ?? 'unknown' }))
     .filter((m: any) => allowed(m.id));
+  // `-NN` FIRST, at Seth's direction. It is his tag on the presets, not anything this app knows
+  // about — so it is a sort key and nothing else: if it stops meaning something the list simply
+  // falls back to alphabetical, which is what the rest of it already is. The router answers in
+  // its own order, which is neither.
+  const nn = (id: string) => /(^|[-_.])NN($|[-_.:])/i.test(id);
+  return all.sort((a: any, b: any) =>
+    (nn(b.id) ? 1 : 0) - (nn(a.id) ? 1 : 0) || a.id.localeCompare(b.id));
 }
 
 /** Is this a model a client may name? Refuses anything the router does not list, so a client

@@ -127,6 +127,8 @@ export const api = {
   // "Remember this." A passage the writer points at, turned into a thread and put in the queue,
   // carrying the chapter it came from. Proposes; nothing becomes canon unaccepted.
   memo:         (storyId, passageId, entryType) => j('/api/memo', 'POST', { storyId, passageId, entryType }),
+  // Waved away, for this state of it. Edit the chapter or write past the horizon and it returns.
+  dismiss:      (storyId, kind, ref) => j('/api/dismiss', 'POST', { storyId, kind, ref }),
   invent:       (storyId, o)     => j('/api/invent', 'POST', { storyId, ...o }),
   saveString:   (storyId, x)     => j('/api/string', 'POST', { storyId, string: x }),
   delString:    (storyId, id)    => j('/api/string', 'DELETE', { storyId, id }),

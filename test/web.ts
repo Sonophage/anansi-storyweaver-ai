@@ -119,14 +119,25 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   };
   const snav = navRows('SNAV'), wnav = navRows('WNAV');
   assert.deepStrictEqual(snav,
-    ['story', 'chapter', 'threads', 'anansi', 'strings', 'context', 'search', 'teller'],
-    'the panels in the order Seth asked for. Anansi moved up between Threads and Strings on '
-    + '2026-08-27 — "it can be placed beside threads" — which is why Strings is no longer directly '
-    + 'under Threads, the arrangement the previous version of this line was pinning.');
+    ['search', 'waiting', 'story', 'chapter', 'threads', 'strings', 'context', 'teller'],
+    'the panels in the order Seth asked for. Search went to the top on 2026-08-27 and Anansi came '
+    + 'off the list the same day — it is a button on the composer row, because asking her something '
+    + 'is a thing you do while writing rather than a place you navigate to. The PANEL is still '
+    + 'there and data-panel="anansi" still opens it; only the nav row went.');
 
   // Opened by clicking a thing rather than by a nav row. Each is asserted to have a real opener,
   // so this list cannot become a dumping ground for panels nothing reaches.
-  const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/, setup: /S\.panel = 'setup'/ };
+  //
+  // `anansi` joined them on 2026-08-27: it came off the rail and onto the composer row, so its
+  // door is a `data-panel` button rather than a nav row. The opener asserted here is that button —
+  // a panel in this list without one is exactly the unreachable-feature failure the list exists
+  // to prevent, and "it used to be in the rail" is not an opener.
+  const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/, setup: /S\.panel = 'setup'/,
+                    // A BUTTON, not any occurrence. The first version of this was
+                    // /data-panel="anansi"/, which matched the COMMENT in app.js explaining that
+                    // the panel keeps its door — so the check passed while pointing that door
+                    // somewhere else. A check that matches its own documentation is decorative.
+                    anansi: /<button data-panel="anansi"/ };
   for (const [name, opens] of Object.entries(byClick)) {
     assert.ok(opens.test(js), `the ${name} panel is not in the rail, so something must set S.panel to it`);
   }

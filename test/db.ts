@@ -837,6 +837,19 @@ ok('a book can ask for its cover at the head of every chapter, and it is off unt
 
   db.updateStory(st.id, { chapterHero: false });
   assert.strictEqual((db.getStory(st.id) as any).chapter_hero, 0, 'and off again is a value too');
+
+  // The sticky heading rides the same partial-save helper, and the pair is asserted TOGETHER: two
+  // booleans written in one UPDATE are two chances to bind the wrong one to the wrong column, and
+  // a swap would leave both individually plausible.
+  db.updateStory(st.id, { chapterSticky: true });
+  assert.strictEqual((db.getStory(st.id) as any).chapter_sticky, 1, 'the sticky heading turns on');
+  assert.strictEqual((db.getStory(st.id) as any).chapter_hero, 0,
+    'and turning it on does not turn the cover-as-plate on with it');
+  db.updateStory(st.id, { chapterHero: true });
+  assert.strictEqual((db.getStory(st.id) as any).chapter_sticky, 1, 'nor the other way round');
+  db.updateStory(st.id, { title: 'Renamed twice' });
+  assert.strictEqual((db.getStory(st.id) as any).chapter_sticky, 1, 'and a rename leaves both alone');
+  assert.strictEqual((db.getStory(st.id) as any).chapter_hero, 1);
 });
 
 // A partial chapter save must not switch off what it did not mention. `updateStory` has worked

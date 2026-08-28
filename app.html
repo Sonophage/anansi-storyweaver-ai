@@ -390,6 +390,19 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
 
 /* --- reading column ---------------------------------------------------- */
 #read { position:relative; flex:1; min-height:0; display:flex; justify-content:center; padding:40px 0 0; }
+/* A chapter that opens on its cover opens at the top of the window. The 40px is air above a
+   TITLE; above a full-bleed picture it is a gap, and the picture is the thing that should meet
+   the header. */
+#doc.plated #read { padding-top:0; }
+/* The chapter's heading, kept at the top while you read past it. Per story, and OFF by default.
+   Sticky INSIDE the scroller rather than a strip above it — the running head was the other shape
+   and it opened its own height, pushing the prose down every time you scrolled. This one is the
+   band you were already looking at, staying put. */
+#doc.sticky-band #col > .band { position:sticky; top:0; z-index:4; background:var(--doc-bg);
+  padding-top:10px; }
+#doc.sticky-band #col > .plate { position:sticky; top:0; z-index:3; }
+#doc.sticky-band #col > .band .band-rule { margin-top:10px; }
+#doc.plated .plate { border-top-left-radius:0; border-top-right-radius:0; }
 @media (max-width:719px) { #read { padding:22px 22px 0; } }
 #col { width:100%; max-width:var(--col); height:max-content; display:flex; flex-direction:column; gap:var(--gap); padding-bottom:20px; }
 
@@ -588,15 +601,31 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 /* The strip spans the dock; its CONTENTS line up with the mode rail underneath it, because the
    rail is capped at the column width and centred. Left-aligned against 40px of dock padding it
    floated away from the button that summoned it on any window wider than the column. */
-/* The strip spans the dock; its contents sit at the RIGHT of the column, directly over + Thread
-   and Anansi. Left, above Speak, it looked like a label for the modes and the connector rule
-   under it read as a break rather than a tie — Seth: "this looks broken and the selector should be
-   basically above where threads and anansi are". The right-hand end of that rail is where the
-   things that are not modes live, and this is one of them. */
-#asRow { width:100%; display:flex; justify-content:center; padding:9px 0 2px; }
-#asRow > .inner { width:100%; max-width:var(--col); display:flex; align-items:center; gap:9px;
-  justify-content:flex-end;
+/* THE FULL WIDTH OF THE WINDOW, and the two ends of it: the label hard left, the name hard right.
+   Anything between them is the strip saying which of the two modes you are in and who you are
+   being — Seth: "have the label next to the dropdown be left screen aligned and the drop down
+   right screen aligned".
+
+   IT IS TINTED, and the mode button below it is tinted to match, so the pair reads as one piece
+   lifted off the rail rather than as a toolbar that happens to sit above one. Both colours come
+   from the theme's own tokens rather than from literals, because a theme is one block of variables
+   here and a hard-coded pair would be right in obsidian and wrong in the other eight. */
+#asRow { width:100%; display:flex; padding:0; }
+#asRow > .inner { width:100%; display:flex; align-items:center; gap:9px;
+  justify-content:space-between; padding:7px 40px;
+  border-top-left-radius:var(--r); border-top-right-radius:var(--r);
   font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
+/* Speak wears the gold the app already uses for the writer's own voice; Act wears the cooler one,
+   because an action is not a line. Both are the theme's, so both follow it. */
+html[data-ui-mode="speak"] #asRow > .inner { background:var(--speak-tint); }
+html[data-ui-mode="act"]   #asRow > .inner { background:var(--act-tint); }
+/* THE BUTTON KEEPS NO BACKGROUND. Tinting it to match the strip above was meant to read as one
+   raised block; what it actually did was give one of four modes a filled pill the other three do
+   not have, which reads as a different KIND of control rather than as the selected one. Seth:
+   "remove the background from act when its selected. its the only button that has it."
+   The underline is how a selected mode has always said so, and it says it for all four.
+   The strip above still carries the tint — that is the part that changes with the mode. */
+@media (max-width:719px) { #asRow > .inner { padding:7px 18px; } }
 #asRow select { background:none; border:0; color:var(--gold); font-size:11.5px;
   letter-spacing:.06em; text-transform:none; max-width:min(60vw, 320px); }
 @media (max-width:719px) { #asRow { padding:8px 18px 0; } #asRow > .inner { max-width:none; } }

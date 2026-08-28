@@ -18,6 +18,19 @@ const stopFake = await (async () => {
     // The release path. Recorded rather than merely answered, because the URL and the body shape
     // were read off a live router by probing, not out of documentation — so the thing worth
     // pinning is that we still send exactly what that probe found.
+    // The model list, so the ORDER it comes back in can be asserted. Deliberately shuffled here:
+    // the router answers in its own order and the point is that neither it nor the fake decides
+    // what the picker shows.
+    if (_req.url === '/v1/models') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return void res.end(JSON.stringify({ data: [
+        { id: 'Wayfarer-2-RPNT-12B', status: { value: 'unloaded' } },
+        { id: 'Qwen3.6-WNTH-35B-A3B-NN', status: { value: 'loaded' } },
+        { id: 'Harbinger-RPNTH-24B', status: { value: 'unloaded' } },
+        { id: 'Artemis-1.1-RPNTH-31B-NN', status: { value: 'sleeping' } },
+        { id: 'Gemma-4-WNTH-31B-NN', status: { value: 'unloaded' } },
+      ] }));
+    }
     if (_req.url === '/models/unload') {
       let raw = '';
       _req.on('data', (d) => { raw += d; });
@@ -57,7 +70,7 @@ const stopFake = await (async () => {
   return { url, state, close: () => s.close() };
 })();
 process.env.ANANSI_LLAMA = stopFake.url;
-const { readSSE, reach, chat, unload } = await import('../src/llama.ts');
+const { readSSE, reach, chat, unload, models } = await import('../src/llama.ts');
 
 let n = 0;
 const ok = (m: string, f: () => any) => Promise.resolve(f())
@@ -250,6 +263,18 @@ await ok('a router that refuses a release says so, and does not throw', async ()
   const r = await unload('REFUSE-ME');
   assert.strictEqual(r.ok, false, 'a 400 from the router is a refusal, not a success');
   assert.match(String(r.error), /400|not found/, `and it carries what the router said: ${r.error}`);
+});
+
+await ok('the models with Seth\'s -NN tag come first, and the rest are alphabetical', async () => {
+  const ids = (await models()).map((m) => m.id);
+  assert.deepStrictEqual(ids, [
+    'Artemis-1.1-RPNTH-31B-NN', 'Gemma-4-WNTH-31B-NN', 'Qwen3.6-WNTH-35B-A3B-NN',
+    'Harbinger-RPNTH-24B', 'Wayfarer-2-RPNT-12B',
+  ], 'the -NN ones first, then the rest by name — the router answers in neither order');
+  // The tag is Seth's, not something this app understands, so it is a sort key and nothing more:
+  // if it stops meaning anything the list falls back to alphabetical rather than to arbitrary.
+  assert.ok(ids.slice(3).every((id, i, r) => i === 0 || r[i - 1].localeCompare(id) < 0),
+    'and what is left is in name order, not in the order the router happened to answer');
 });
 
 stopFake.close();

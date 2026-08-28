@@ -144,14 +144,20 @@ const POV = ['first person, present tense', 'first person, past tense',
 // hairline weight; the ⚙ ❧ ☙ ⟡ ◈ ⌕ ◐ ✻ they replace came from six Unicode blocks and never sat
 // together as a set however they were sized.
 const SNAV = [
+  // Search first, at Seth's direction: it is the row you reach for when you are looking rather
+  // than deciding, and a thing you look for is a thing you want at the top of the list.
+  ['search', 'search', 'Search'],
+  // Everything this book is waiting on, in one place — see the panel for why one place matters.
+  ['waiting', 'threads', 'Waiting'],
   ['story', 'story', 'Story'], ['chapter', 'chapter', 'Chapter'],
-  // Anansi sits beside Threads rather than last: the two are the same move — what this book
-  // knows, and asking about what this book knows. It was after Storyteller, which is settings.
-  ['threads', 'threads', 'Threads'], ['anansi', 'anansi', 'Anansi'],
-  ['strings', 'strings', 'Strings'],
-  ['context', 'context', 'Context'], ['search', 'search', 'Search'],
+  ['threads', 'threads', 'Threads'], ['strings', 'strings', 'Strings'],
+  ['context', 'context', 'Context'],
   ['teller', 'teller', 'Storyteller'],
 ];
+// Anansi came OFF this list on 2026-08-27. It is a button on the composer row, beside + Thread —
+// asking her something is a thing you do while writing, not a place you navigate to, and having
+// it in both put the same door in two rooms. The PANEL still exists and `data-panel="anansi"`
+// still opens it; only the nav row is gone.
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
 const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
@@ -164,10 +170,18 @@ const WNAV = [
   ['news', 'book', 'What changed'], ['bug', 'bug', 'Report an issue'],
 ];
 const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
-// Two panels the rail does not list: they open by clicking a thing, not a nav row.
+// Panels the rail does not list: they open by clicking a thing, not a nav row. Being in here is
+// what makes a panel REACHABLE BY HASH as well as titled — `readHash` validates the name against
+// this map, so a panel missing from it has its deep link dropped and replaced by the default.
+//
+// `anansi` joined them on 2026-08-27 when it came off the rail for the composer row. Leaving it
+// out broke `#<story>/anansi` silently: the link resolved to the default panel and the header had
+// no title. Same shape as the retired names that had to be mapped BEFORE the validity check
+// rather than after — a panel that exists and cannot be addressed is half a panel.
 TITLES.entry = 'Ledger entry';
 TITLES.history = 'History';
 TITLES.setup = 'The next chapter';
+TITLES.anansi = 'Anansi';
 const WTITLES = {
   stories: () => [`My stories`, `${LIB.length} ${LIB.length === 1 ? 'story' : 'stories'}`],
   create: () => ['Create a story', 'Spark a skeleton, or start blank'],
@@ -204,7 +218,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
-  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news'].map((k) => `[data-${k}]`).join(',');
+  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
+  'dismiss'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -431,6 +446,29 @@ function drawBar() {
   decode($('bar').querySelector('.up'), 'sub');
 }
 
+/** Why the model list is empty, and they are not the same why.
+ *
+ *  It said "The router did not answer" for both, and on 2026-08-27 that sent Seth looking at a
+ *  service that was working perfectly: the router served fourteen models and `ANANSI_MODELS` was
+ *  still `write-*,rp-*` from before the presets were renamed, so `allowed()` filtered every one of
+ *  them out. An allowlist that matches nothing is a configuration problem with a one-line fix, and
+ *  telling somebody to restart a healthy server instead is the wrong instruction twice over.
+ *
+ *  `allow` comes back on the same response for exactly this — it was already being sent so the
+ *  screen could say WHY only three of eight were listed, and nothing read it when the answer was
+ *  none of them. */
+function emptyModels() {
+  const allow = S.allow ?? [];
+  if (!allow.length) {
+    return `<div class="hint" style="margin:0">The router did not answer, or it serves nothing.
+      Preferences can restart it.</div>`;
+  }
+  return `<div class="hint" style="margin:0; color:var(--warn)">The router answered, and your
+    allowlist matched none of it. <code>ANANSI_MODELS</code> is
+    <code>${esc(allow.join(', '))}</code> &mdash; if the models on the box were renamed, this is
+    the line to change. Unset it to offer everything the router serves.</div>`;
+}
+
 function drawAppearance() {
   const el = $('appearance');
   el.hidden = !S.appearance;
@@ -640,6 +678,12 @@ function drawDoc() {
         <span class="fade"></span>
         <span class="serif plate-title">${esc(ch.title || `Chapter ${ch.index}`)}</span></div>`
     : '';
+  // The reading column opens 40px down, which is right when a chapter begins with a text band and
+  // wrong when it begins with a picture: the gap reads as dead space above the image rather than
+  // as air above a title. Seth: "theres alot of space that can be removed ... its only there with
+  // the header". The class says which of the two this chapter is.
+  $('doc')?.classList.toggle('plated', !!plate);
+  $('doc')?.classList.toggle('sticky-band', !!V.story.chapterSticky);
   col.innerHTML = `
     ${plate}
     <div class="band">
@@ -750,6 +794,20 @@ function drawDock() {
   // rather than the column. It sat at the right-hand end of the rail, where it read as one more
   // mode and ran out of room the moment a name was long — Seth: "right now its awkwardly placed".
   // Outside #dockCol, which is capped at the column width; this is the full window.
+  // The mode on the root element, so the stylesheet can tint the speaker strip and its own mode
+  // button from one rule each — two inline styles would have to agree about a colour, and the pair
+  // reading as one lifted block depends on them being exactly the same one.
+  //
+  // SET HERE, not in applyLook. Switching mode calls drawDock and nothing else, so an attribute
+  // written in applyLook went stale the moment you pressed a different mode: Act kept its tinted,
+  // rounded background after you had left it. This function is the one that draws the row, so the
+  // attribute and the row cannot disagree.
+  //
+  // `uiMode`, NOT `mode`. `data-mode` is already a click action on the four buttons, and a name
+  // doing two jobs is the bug BUILD-STATE's table opens with — `data-theme` was both the look on
+  // <html> and an action, so `closest()` matched <html> on every click and nothing was editable.
+  root.dataset.uiMode = S.mode;
+
   const asRow = $('asRow');
   if (asRow) {
     asRow.hidden = !asWhom;
@@ -760,6 +818,9 @@ function drawDock() {
     if (!asWhom) asRow.innerHTML = '';
     // The label says which of the two summoned it. "speaking as" over Act, or "acting as" over
     // Speak, is the row describing a mode you are not in.
+    // The label at one end and the name at the other, with the whole window between them:
+    // `justify-content:space-between` on a strip that is the full width, rather than a huddle
+    // pushed to one side.
     else asRow.innerHTML = `<div class="inner"><span>${
       S.mode === 'act' ? 'acting as' : 'speaking as'}</span>
       <select id="asWhom">
@@ -812,6 +873,21 @@ function drawDock() {
 }
 
 // ---------- side panel ----------
+/** Any textarea marked `grow` fits its own content, up to its max-height.
+ *
+ *  One place rather than per field: the composer grew its own for the same reason and the ledger
+ *  editor did not, which is how a thread body ended up two thirds below the fold. Called after the
+ *  panel renders and on every keystroke, and it reads `scrollHeight` off a height of `auto` — the
+ *  measurement is meaningless against the height it is about to replace.
+ */
+function growFields(root) {
+  for (const t of root.querySelectorAll('textarea.grow')) {
+    const fit = () => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight + 2}px`; };
+    fit();
+    if (!t.dataset.grew) { t.dataset.grew = '1'; t.addEventListener('input', fit); }
+  }
+}
+
 function drawSide() {
   const side = $('side');
   side.hidden = !S.panel || S.place !== 'story';
@@ -828,10 +904,66 @@ function drawSide() {
   decode($('sideHead').querySelector('.serif'), 'panel');
   $('sideBody').innerHTML = (PANEL_HELP[S.panel] ? helpBody(PANEL_HELP[S.panel]) : '')
     + (PANELS[S.panel] ?? (() => ''))();
+  // After the markup, because a textarea has no scrollHeight until it is in the document.
+  growFields($('sideBody'));
 }
 
 const PANELS = {
   entry: entryEditor,
+  /** Everything this book is waiting on, in one place.
+   *
+   *  Each part of it was already on the surface somewhere — proposals under Chapter, promises
+   *  under Strings, flags beside the passage they are about, the horizon on a bar — which is
+   *  exactly the problem: four panels to find out whether anything wanted you.
+   *
+   *  Reads `V.waiting`, computed by the engine, so this panel and the shelf cannot disagree about
+   *  whether a book is owed anything.
+   */
+  waiting() {
+    const w = V?.waiting;
+    if (!w) return '<div class="hint">Nothing to show yet.</div>';
+    const h = horizon();
+    const rows = [];
+    if (w.proposals) rows.push(['chapter', `${w.proposals} thread${w.proposals === 1 ? '' : 's'} proposed`,
+      'Read them, change them, keep the ones that are true. Nothing is canon until you say so.']);
+    if (w.strings) rows.push(['strings', `${w.strings} promise${w.strings === 1 ? '' : 's'} unpaid`,
+      'Set up and not yet resolved. Summon one to put it in front of the model.']);
+    if (w.flags) rows.push(['context', `${w.flags} contradiction${w.flags === 1 ? '' : 's'} flagged`,
+      'The checker found prose against canon. Each one sits beside the passage it is about.']);
+
+    // The two that are COMPUTED rather than stored, and so can be waved away. The ref carries the
+    // state that made each worth saying, so this is "not for this", never "never again".
+    const off = [];
+    for (const c of (w.stale ?? [])) off.push({ kind: 'stale', ref: c.ref,
+      title: `${c.title || `Chapter ${c.index}`} has a stale summary`,
+      body: 'Its prose changed after the summary was written, so it is left out of the prompt until '
+          + 'it is written again.' });
+    if (h) off.push({ kind: 'horizon', ref: String(h.to),
+      title: `${h.chapters} chapter${h.chapters === 1 ? '' : 's'} no longer reach the model`,
+      body: `Chapters ${h.from} to ${h.to}. Their summaries do not fit any more — Chapter, then `
+          + 'Acts, collapses a run of them into one.' });
+
+    if (!rows.length && !off.length) {
+      // In her own voice, at Seth's asking: an empty panel that says nothing is indistinguishable
+      // from a broken one.
+      return `<div class="card" style="gap:6px">
+        <div class="kind">nothing is waiting</div>
+        <div style="font-size:13.5px; line-height:1.6; color:var(--mute)">Nothing is owed and
+          nothing is arguing with itself. The book is quiet &mdash; which is not the same as
+          finished. Go and make me something to worry about.</div></div>`;
+    }
+
+    return `${rows.map(([panel, title, body]) => `<button class="card" data-panel="${panel}"
+        style="text-align:left; width:100%; margin-bottom:9px; gap:5px">
+        <div class="kind">${esc(title)}</div>
+        <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(body)}</div></button>`).join('')}
+      ${off.map((d) => `<div class="card" style="margin-bottom:9px; gap:5px">
+        <div class="kind">${esc(d.title)}</div>
+        <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(d.body)}</div>
+        <button data-dismiss="${d.kind}" data-ref="${esc(d.ref)}"
+          style="align-self:flex-start; font-size:11.5px; color:var(--faint); margin-top:3px"
+          >Not now &mdash; ask me again if it changes</button></div>`).join('')}`;
+  },
   setup: setupPanel,
   history: historyPanel,
   context() {
@@ -1083,6 +1215,12 @@ const PANELS = {
         <span style="font-size:13px; color:var(--ink)">Use it at the head of every chapter</span></label>
       <div class="hint">The same picture, as a plate above each chapter's title. There is no second
         image to choose &mdash; a chapter shows the cover or nothing.</div>` : ''}
+
+      <label style="display:flex; align-items:center; gap:9px; margin-top:14px; cursor:pointer">
+        <input type="checkbox" data-story="chapterSticky" ${V.story.chapterSticky ? 'checked' : ''}>
+        <span style="font-size:13px; color:var(--ink)">Keep the chapter heading at the top while you read</span></label>
+      <div class="hint">It stays with you down the page instead of scrolling away. Per book, because
+        a book that opens each chapter on a picture wants this and one that does not may not.</div>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
@@ -1451,7 +1589,7 @@ const PANELS = {
             PLAN-02's <code>engine_config</code>, which was never built.</span></span></div>
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Model</div>
       ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
-        : S.models.length === 0 ? '<div class="hint" style="margin:0">The router did not answer.</div>'
+        : S.models.length === 0 ? emptyModels()
         : `<select class="field" data-storymodel="1">
             <option value="">Default &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}</option>
             ${S.models.map((m) => `<option value="${esc(m.id)}" ${V.story.model === m.id ? 'selected' : ''}
@@ -1874,7 +2012,13 @@ function entryEditor() {
       .map(([k, l]) => `<button data-act="${k}" style="flex:1; text-align:center; font-size:11.5px;
       padding:8px 0; border-radius:var(--r); ${chip(k === e.activation)}">${l}</button>`).join('')}</div>
     <label class="lbl">Info</label>
-    <textarea class="field" data-f="body" style="min-height:96px">${esc(e.body ?? '')}</textarea>
+    <!-- GROWS. It was a fixed 96px box, and an invented thread's body went from 60-120 words to
+         120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
+         sign there was more. Measured: 656 characters, 94px of box, 283px of content. Nothing was
+         lost, it scrolled, and it read as cut off, which is what Seth reported. Capped so a very
+         long one still leaves the buttons under it reachable. -->
+    <textarea class="field grow" data-f="body" style="min-height:150px; max-height:52vh"
+      >${esc(e.body ?? '')}</textarea>
     <div class="hint">This is what the model reads. Bracket form keeps it short: [Name: trait, trait].</div>
     <label class="lbl">Trigger words</label>
     <input class="field" data-f="keys" value="${esc((e.keys ?? []).join(', '))}"
@@ -2149,15 +2293,29 @@ const WPAGES = {
     // What is waiting, across every book. The shelf is the only screen that can see across them, and
     // until this it could not see into one — so coming back after a day told you nothing about what
     // you had left half-done.
-    const owed = waiting(LIB);
+    // BY BOOK, not by item. It listed every waiting thing across every story, which on a shelf of
+    // four books is a wall of chips saying the same three words — Seth: "instead of saying
+    // everything for every story just bring up the titles of the stories that have notifications".
+    // The book's own Waiting panel is where the detail belongs, and that is where this goes.
+    const byBook = new Map();
+    for (const w of waiting(LIB)) {
+      const at = byBook.get(w.storyId) ?? { title: w.storyTitle, n: 0 };
+      at.n += 1; byBook.set(w.storyId, at);
+    }
+    const books = [...byBook.entries()];
     return `<div style="display:flex; flex-direction:column; gap:22px">
-      ${owed.length ? `<div style="display:flex; gap:7px; flex-wrap:wrap; align-items:center">
+      <div style="display:flex; gap:7px; flex-wrap:wrap; align-items:center">
         <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps;
           color:var(--dim)">Waiting for you</span>
-        ${owed.map((w) => `<button class="chip" data-owed="${esc(w.storyId)}" data-owedpanel="${esc(w.panel)}"
-          style="font-size:11.5px; padding:5px 11px">${esc(w.label)}
-          <span style="color:var(--faint)"> &middot; ${esc(w.storyTitle)}</span></button>`).join('')}
-      </div>` : ''}
+        ${books.length
+          ? books.map(([id, b]) => `<button class="chip" data-owed="${esc(id)}" data-owedpanel="waiting"
+              style="font-size:11.5px; padding:5px 11px">${esc(b.title)}
+              <span style="color:var(--faint)"> &middot; ${b.n}</span></button>`).join('')
+          // Said out loud, in her voice. An empty row is indistinguishable from a broken one, and
+          // this row is the one a writer checks first on coming back.
+          : `<span style="font-size:11.5px; color:var(--faint); font-style:italic">nothing is
+              asking for you &mdash; which is either peace or a warning, and I never know which</span>`}
+      </div>
       ${storyCard(hero, 0, true)}
       <!-- A button, not a card. The dashed cell was a book-shaped hole in a shelf of books, and it
            took a column from the ones that are real. The bar's New story pill is deskonly, so this
@@ -2395,7 +2553,7 @@ const WPAGES = {
           <span style="font-size:12px; color:var(--faint)">${slot ? 'Up' : 'Asleep or unreachable'}</span></div>
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Model</div>
         ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
-          : S.models.length === 0 ? '<div class="hint" style="margin:0">The router did not answer.</div>'
+          : S.models.length === 0 ? emptyModels()
           : S.models.map((m) => `<button data-pickmodel="${esc(m.id)}" class="row"
               style="width:100%; text-align:left">
               <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${
@@ -3018,6 +3176,12 @@ document.addEventListener('click', async (e) => {
   // it on one passage and then another does not leave two open.
   if (d.chapters) { S.chaptersFor = S.chaptersFor === d.chapters ? null : d.chapters; drawDoc(); syncTray(); return; }
   if (d.news) { await loadNews(true); return; }
+  if (d.dismiss) {
+    const r = await api.dismiss(S.storyId, d.dismiss, d.ref ?? '');
+    if (r.error) return toast(r.error);
+    V = r; paint();
+    return toast('Put away. It comes back if it changes.');
+  }
   if (d.memo) {
     if (S.memoing) return;
     S.memoing = d.memo; drawDoc(); syncTray();

@@ -128,8 +128,12 @@ const POSTED: any[] = [];
   // single story there is no grid to come after the New story button, so an assertion about where
   // that button sits is true wherever the button is put.
   const body = url.startsWith('/api/stories') ? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.' },
-      { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', updatedAt: 2, words: 400, last: 'He paid.' },
-      { id: 's-3', title: 'Sutera', status: 'draft', updatedAt: 1, words: 0, last: null }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
+      // Two of the three are owed something, and between them five separate things — so a shelf that
+      // listed items would show five chips where it must show two.
+      { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', updatedAt: 2, words: 400, last: 'He paid.',
+        proposed: 3, unpaid: 1, flags: 0 },
+      { id: 's-3', title: 'Sutera', status: 'draft', updatedAt: 1, words: 0, last: null,
+        proposed: 0, unpaid: 0, flags: 2 }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
       look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } }
     : url.startsWith('/api/story') ? STORY
@@ -367,6 +371,33 @@ click({ mode: 'narrate' });
 assert.strictEqual(html('asRow'), '', 'nor Narrate');
 click({ mode: 'speak' });
 assert.match(html('asRow'), /id="asWhom"/, 'and Speak brings it back');
+// The tint follows the mode, and it follows it on the ROOT — which means the attribute has to be
+// rewritten by the thing that draws the row. Written in applyLook it went stale the moment you
+// pressed a different mode, and Act kept its tinted, rounded background after you had left it.
+{
+  const rootEl = (globalThis as any).document.documentElement;
+  assert.strictEqual(rootEl.dataset.uiMode, 'speak', 'the root carries the mode being drawn');
+  click({ mode: 'act' });
+  assert.strictEqual(rootEl.dataset.uiMode, 'act', 'and it changes with it');
+  click({ mode: 'direct' });
+  assert.strictEqual(rootEl.dataset.uiMode, 'direct',
+    'including to a mode with no tint at all — otherwise the last tinted button keeps its lift');
+  click({ mode: 'speak' });
+}
+// And no mode button carries a background of its own. Tinting the selected one to match the strip
+// gave one of four a filled pill the other three do not have, which reads as a different KIND of
+// control rather than as the selected one. The underline is how a selected mode says so, and it
+// says it for all four.
+{
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.ok(!/#modes button\[data-mode="(speak|act)"\][^{]*\{[^}]*background:/.test(css),
+    'no mode button may be given a background — the underline is the selection, for all four');
+  // The STRIP still carries it. That is the part that changes with the mode, and removing both
+  // would take the tint away entirely rather than take it off the button.
+  assert.match(css, /#asRow > \.inner \{ background:var\(--speak-tint\)/,
+    'the strip above it keeps its tint');
+}
 // The label names the mode that summoned it. "speaking as" over Act is the row describing a mode
 // you are not in.
 assert.match(html('asRow'), /speaking as/, 'Speak says speaking');
@@ -665,6 +696,27 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.deepStrictEqual(waiting([{ id: 's', title: 'x', proposed: 0, unpaid: 0, flags: 0 }] as any), [],
     'and a shelf with nothing outstanding shows no strip rather than three zeroes');
   ok('the shelf says what is waiting, per kind, in the book it is waiting in');
+
+// And the SHELF renders it by book rather than by item. `waiting()` still returns one row per
+// waiting thing — that is what the story's own Waiting panel is written against — but a shelf of
+// four books listing every item is a wall of chips saying the same three words. Seth: "just bring
+// up the titles of the stories that have notifications".
+{
+  click({ leave: '1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const page = html('page');
+  const chips = page.match(/data-owed="/g) ?? [];
+  // Two books are owed something, between them three kinds of thing. By ITEM that is three chips
+  // and by BOOK it is two, so the count is what tells the two renderings apart.
+  assert.strictEqual(chips.length, 2,
+    `the shelf must group by book: two books are owed something, and it drew ${chips.length} chips`);
+  assert.match(page, /data-owedpanel="waiting"/,
+    'and each one opens that book\'s Waiting panel, which is where the detail lives');
+  assert.match(page, /The Salt Ledger/, 'named by the book, not by the kind of thing waiting');
+  assert.ok(!/threads proposed/.test(page),
+    'and the kinds stay in the panel — the shelf says which book, not what kind');
+}
+ok('the shelf groups what is waiting by book, and opens the book that is waiting');
 }
 
 // The webs and their prose, kept in step. This is the check that fails when somebody adds a help

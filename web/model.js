@@ -255,6 +255,18 @@ export function themeVars(key) {
     // the red; amber is derived from the accent so it stays inside the theme.
     '--bad': S.warn, '--good': S.good, '--warn': mix(S.accent, away, .12),
     '--you-rule': mix(S.accent, S.paper, .5), '--speak-rule': S.speak,
+    // The two tints the "speaking as" / "acting as" strip wears, and its mode button with it, so
+    // the pair reads as one raised block. DERIVED, like everything else here: a literal pair would
+    // be right in obsidian and wrong in the other eight, and this file exists because 162 raw
+    // hexes in app.js meant a theme was only ever half applied.
+    //
+    // Speech takes the theme's own speech colour, the same one the rule down the side of a spoken
+    // passage uses, so the tie between "you are speaking as" and what speech looks like is the
+    // theme's rather than a coincidence. Action takes the accent, because an action is not a line.
+    // Both mixed most of the way to the paper: this sits under the prose and must not compete with
+    // it, and 88% is a tint you notice only when it changes.
+    '--speak-tint': mix(S.speak, S.paper, 0.88),
+    '--act-tint': mix(S.accent, S.paper, 0.88),
     '--head': mix(S.ink, away, .42),
     '--dock': `linear-gradient(180deg,${S.paper}00,${S.paper}EB 40%)`,
     '--chrome': 'transparent',
