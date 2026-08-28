@@ -7,6 +7,7 @@ import assert from 'node:assert';
 import { unlinkSync, readFileSync } from 'node:fs';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-test.db' + f); } catch {} }
 const db = await import('../src/db.ts');
+const slots = await import('../src/slots.ts');
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -1116,5 +1117,84 @@ ok('a triggered entry with no keys cannot land dark, unless the caller says it m
     'an entry with keys is left exactly as asked — a guard that flipped these would quietly make '
     + 'every triggered entry always-on and put the whole ledger in every prompt');
 });
+
+// ---- PLAN-08 Phase 2: addons, the class an outfit already was --------------------------------
+
+ok('the exclusivity index and src/slots.ts name the same slots', () => {
+  // A partial index cannot call into TypeScript, so the slot list is written twice: once as a SQL
+  // literal and once in `src/slots.ts`. That is exactly the drift `slots.ts` exists to stop, so it
+  // is asserted rather than trusted — add an exclusive slot to the module and forget the index and
+  // the database silently stops enforcing it, with nothing on any screen to say so.
+  const idx = (db.db.prepare(
+    "SELECT sql FROM sqlite_master WHERE name = 'addons_one_active'").get() as any)?.sql ?? '';
+  const inIndex = [...idx.matchAll(/'([a-z_]+)'/g)].map((m: any) => m[1]).sort();
+  assert.deepStrictEqual(inIndex, [...slots.EXCLUSIVE_SLOTS].sort(),
+    'the index and the module disagree about which slots hold one at a time');
+});
+
+{
+  const sa = db.createStory(o, { title: 'Addons' });
+  const who = db.upsertEntry(sa.id, o, { title: 'Wrenn', body: '[Wrenn: a fence]', keys: ['Wrenn'] });
+  const mk = (slot: string, name: string, extra: any = {}) =>
+    db.upsertAddon(sa.id, who, { slot, name, body: `[${name}]`, ...extra });
+
+  ok('an exclusive slot holds one at a time, and the database is what says so', () => {
+    const a = mk('appearance', 'before the fire')!;
+    const b = mk('appearance', 'after the fire')!;
+    db.setAddonActive(sa.id, a, true);
+    db.setAddonActive(sa.id, b, true);
+    const on = db.addonsOf(sa.id).filter((r: any) => r.slot === 'appearance' && r.active);
+    assert.deepStrictEqual(on.map((r: any) => r.id), [b],
+      'switching the second appearance on must take the first off — two appearances is not a state '
+      + 'a card can be in, and leaving it to the screen means the next screen forgets');
+    // FALSIFIED 2026-08-28 by disabling the clear in `setAddonActive`: this does not go red with a
+    // wrong count, it dies with SQLITE constraint 2067 from `addons_one_active`. That is the proof
+    // the comment on the index claims — the database is the enforcer and the transaction only
+    // makes it usable, clearing the sibling instead of handing the writer a constraint error.
+  });
+
+  ok('  but a plural slot holds several at once, which is the whole point of the shape', () => {
+    // Seth: "several can be triggered on at a time for specific ones." A card does not have one
+    // relationship. If this passed by holding one, addons would be fields with extra steps.
+    const r1 = mk('relationships', 'owes the Ambersand')!;
+    const r2 = mk('relationships', 'raised by Halloran')!;
+    db.setAddonActive(sa.id, r1, true);
+    db.setAddonActive(sa.id, r2, true);
+    const on = db.addonsOf(sa.id).filter((r: any) => r.slot === 'relationships' && r.active);
+    assert.strictEqual(on.length, 2, 'both relationships should stay on');
+  });
+
+  ok('  and switching one off leaves its siblings alone', () => {
+    const on = db.addonsOf(sa.id).filter((r: any) => r.slot === 'relationships' && r.active);
+    db.setAddonActive(sa.id, on[0].id, false);
+    const still = db.addonsOf(sa.id).filter((r: any) => r.slot === 'relationships' && r.active);
+    assert.strictEqual(still.length, 1, 'turning one relationship off must not turn the other off');
+  });
+
+  ok('from_chapter survives, because it is what makes an arc survive', () => {
+    // `outfits` has no from_chapter and addons are otherwise its shape, so this is the one field
+    // most likely to be dropped by someone matching the older table. An exclusive slot plus a
+    // chapter is a timeline: loyal at 2, not at 9, with the turn still readable between them.
+    const id = mk('interiority', 'after the docks', { fromChapter: 9 })!;
+    const row = db.addonsOf(sa.id).find((r: any) => r.id === id);
+    assert.strictEqual(row.from_chapter, 9);
+  });
+
+  ok('an unknown slot is refused rather than stored', () => {
+    assert.strictEqual(db.upsertAddon(sa.id, who, { slot: 'motivations', name: 'x', body: 'y' }), null,
+      'free-text slots are how one book ends up with Motivation and motivations');
+  });
+
+  ok('an addon cannot be hung on another story\'s card', () => {
+    const other = db.createStory(o, { title: 'Elsewhere' });
+    assert.strictEqual(db.upsertAddon(other.id, who, { slot: 'voice', name: 'x', body: 'y' }), null,
+      'the ownership gate is per row, not per route');
+  });
+
+  ok('a story-level addon needs no entry at all, which is where a string will live', () => {
+    const id = db.upsertAddon(sa.id, null, { slot: 'history', name: 'the debt', body: '[owed]' });
+    assert.ok(id, 'entry_id is nullable on purpose');
+  });
+}
 
 console.log(`\n${n} checks passed`);

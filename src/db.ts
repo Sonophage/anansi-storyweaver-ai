@@ -12,6 +12,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readdirSync, unlinkSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+// The slot names live in one module because `entries.field_editors` keys provenance by them and
+// the partial unique index below names them as a literal. Three copies of one list is the drift
+// `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
+import { ALL_SLOTS, EXCLUSIVE_SLOTS } from './slots.ts';
 
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
@@ -54,6 +58,14 @@ function migrate() {
     // view or trigger names; neither of these is named by one, checked in sqlite_master.
     catch (e: any) { console.log(`  could NOT drop ${table}.${col}: ${e?.message}`); }
   };
+  // PLAN-08. Copy, never move: every outfit becomes an addon in the `outfit` slot and the row it
+  // came from stays exactly where it is. Keyed on the outfit's own id so running twice inserts
+  // nothing the second time, and so the two rows can still be matched up if this has to be undone.
+  try {
+    db.exec(`INSERT INTO addons (id, story_id, entry_id, slot, name, body, keys, active, created_at)
+             SELECT o.id, o.story_id, o.entry_id, 'outfit', o.name, o.body, '[]', o.active, o.created_at
+               FROM outfits o WHERE NOT EXISTS (SELECT 1 FROM addons a WHERE a.id = o.id)`);
+  } catch { /* neither table exists yet on a fresh database; the CREATEs above cover it */ }
   add('stories', 'active_branch', 'TEXT');
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
@@ -331,6 +343,47 @@ CREATE TABLE IF NOT EXISTS outfits (
   created_at INTEGER NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS outfits_one_active ON outfits(entry_id) WHERE active = 1;
 CREATE INDEX IF NOT EXISTS outfits_story ON outfits(story_id);
+
+-- PLAN-08 Phase 2. Addons: what an outfit already was, generalised to every room of a card.
+-- Seth, 2026-08-28: "all these additions outside of the body should be the same class as outfits
+-- are, i.e. addons, and several can be triggered on at a time for specific ones." A card does not
+-- have ONE relationship; it has three, and each wants its own trigger words. A field held as one
+-- blob can only arrive whole.
+--
+-- "outfits" is NOT dropped and NOT renamed. Rows are copied into here by the migration below and
+-- the old table keeps working untouched, because this rewrites the file somebody's novel is in and
+-- a migration that moves data is a migration that can lose it. The drop is a later, separate step
+-- taken once reads have run off "addons" for a while.
+--
+-- entry_id is NULLABLE: an addon with no entry belongs to the STORY, which is where a string
+-- lives. "strings.summoned" is already "active" under another name — "only a summoned string
+-- reaches the prompt" — so an open promise reaches the model today only if the writer remembers it
+-- by hand. As an addon it keeps that switch and gains trigger words.
+--
+-- "from_chapter" has no equivalent on "outfits" and is here on purpose: it is what makes an arc
+-- survive. An exclusive slot plus a chapter is a timeline — appearance at 1, appearance at 9,
+-- newest at or before the current chapter wins, which is "resolveBody"'s logic pointed at a slot.
+CREATE TABLE IF NOT EXISTS addons (
+  id TEXT PRIMARY KEY,
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  entry_id TEXT REFERENCES entries(id) ON DELETE CASCADE,
+  slot TEXT NOT NULL,
+  name TEXT NOT NULL,
+  body TEXT NOT NULL,
+  keys TEXT DEFAULT '[]',
+  active INTEGER NOT NULL DEFAULT 0,
+  from_chapter INTEGER,
+  retired_at_chapter INTEGER,
+  created_at INTEGER NOT NULL);
+-- NO BACKTICKS IN HERE: this schema is a TypeScript template literal and one closes the string.
+-- ONE AT A TIME, IN THE DATABASE. The slot list is a literal because a partial index cannot call
+-- into TypeScript; "test/db.ts" asserts it against "EXCLUSIVE_SLOTS" so the two cannot drift, which
+-- is the whole reason "src/slots.ts" exists. A screen that merely declines to offer a second one is
+-- a habit, not a rule.
+CREATE UNIQUE INDEX IF NOT EXISTS addons_one_active ON addons(entry_id, slot)
+  WHERE active = 1 AND slot IN ('appearance','outfit','voice');
+CREATE INDEX IF NOT EXISTS addons_story ON addons(story_id);
+CREATE INDEX IF NOT EXISTS addons_entry ON addons(entry_id, slot);
 
 -- The cover, in the database rather than on disk, because the nightly backup is one file and a
 -- path would leave every cover out of it. A SIDE TABLE and not a column on stories, which is the
@@ -998,6 +1051,59 @@ export function upsertOutfit(storyId: string, entryId: string, o: any) {
 /** Wear one, or none. The unique index forbids two active on one character, so the unset has to
  *  happen first — the same write-order rule as selectVariant, and for the same reason: a partial
  *  unique index is not deferrable. Passing null takes everything off. */
+// ---- addons (PLAN-08 Phase 2) ----
+
+export const addonsOf = (storyId: string) =>
+  q('SELECT * FROM addons WHERE story_id = ? ORDER BY slot, created_at').all(storyId) as any[];
+
+export function upsertAddon(storyId: string, entryId: string | null, a: any) {
+  const t = now();
+  const slot = String(a.slot ?? '').trim();
+  if (!ALL_SLOTS.includes(slot)) return null;
+  // A story-level addon has no entry; an entry-level one must point at an entry in THIS story, or
+  // a row can be hung off another writer's card. Same shape as `wearOutfit`'s ownership check.
+  if (entryId && !q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId)) return null;
+  const keys = JSON.stringify(keysOf(a.keys));
+  if (a.id && q('SELECT 1 FROM addons WHERE id = ? AND story_id = ?').get(a.id, storyId)) {
+    q(`UPDATE addons SET name = ?, body = ?, keys = ?, from_chapter = ?, retired_at_chapter = ?
+       WHERE id = ? AND story_id = ?`)
+      .run(a.name, a.body, keys, a.fromChapter ?? null, a.retiredAtChapter ?? null, a.id, storyId);
+    touch(storyId);
+    return a.id;
+  }
+  const id = uid('ad-');
+  q(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,from_chapter,retired_at_chapter,created_at)
+     VALUES (?,?,?,?,?,?,?,0,?,?,?)`)
+    .run(id, storyId, entryId, slot, a.name, a.body, keys, a.fromChapter ?? null, a.retiredAtChapter ?? null, t);
+  touch(storyId);
+  return id;
+}
+
+/** Switch one on or off. EXCLUSIVITY IS ENFORCED HERE AND BY `addons_one_active`, not by the
+ *  screen: an exclusive slot clears its siblings on the same entry first, in a transaction, which
+ *  is `wearOutfit` with `AND slot = ?` added. Doing it in two statements without the transaction is
+ *  how a writer ends up with two appearances and a unique index refusing every later write. */
+export function setAddonActive(storyId: string, addonId: string, on: boolean) {
+  const row = q('SELECT entry_id, slot FROM addons WHERE id = ? AND story_id = ?')
+    .get(addonId, storyId) as any;
+  if (!row) return null;
+  db.exec('BEGIN');
+  try {
+    if (on && EXCLUSIVE_SLOTS.includes(row.slot) && row.entry_id)
+      q('UPDATE addons SET active = 0 WHERE entry_id = ? AND slot = ? AND story_id = ?')
+        .run(row.entry_id, row.slot, storyId);
+    q('UPDATE addons SET active = ? WHERE id = ? AND story_id = ?').run(on ? 1 : 0, addonId, storyId);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  touch(storyId);
+  return addonId;
+}
+
+export function delAddon(storyId: string, id: string) {
+  q('DELETE FROM addons WHERE id = ? AND story_id = ?').run(id, storyId);
+  touch(storyId);
+}
+
 export function wearOutfit(storyId: string, entryId: string, outfitId: string | null) {
   const owns = q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId);
   if (!owns) return null;
