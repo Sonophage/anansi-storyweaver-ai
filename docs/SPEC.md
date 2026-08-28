@@ -1,5 +1,27 @@
 # Anansi — Build Spec
 
+> **NAMING SUPERSEDED, 2026-08-28.** This is a design document and it is still the argument for why
+> the system is shaped as it is. It is **not** a description of the tables that exist. Almost every
+> name below was shortened when the schema was built, and a reader who greps for one and finds
+> nothing cannot tell whether the feature is missing or the name is. It is the name:
+>
+> | here | in `src/db.ts` |
+> |---|---|
+> | `canon_entries` | `entries` |
+> | `canon_entry_progressions` | `entry_states` |
+> | `canon_entry_state` | nothing — the sticky window is stateless, computed in `context.ts` |
+> | `chapter_canon_pins` | `chapter_pins` |
+> | `canon_proposals` | `proposals` |
+> | `canon_violations` | `violations` |
+> | `passage_options` | nothing — variants live in `passages`, keyed on `variant_index` |
+> | `universes`, `invites`, `model_capabilities`, `user_provider_config` | never built |
+>
+> And nine tables exist that this document has never heard of: `arcs`, `dismissals`, `outfits`,
+> `prompt_overrides`, `release_notes`, `story_covers`, `strings`, `writer_look`, `entry_revisions`.
+> The COLUMN-level gaps are the honest ones and are listed as unbuilt everywhere else —
+> `secondary_keys`, `exclusion_keys`, `key_logic`, `reserved_tokens`, `trim_direction`, `embedding`
+> are activation depth and the budget engine. `docs/findings/COUNCIL-05.md` seat 4 is the audit.
+
 > **STATUS: LIVE engine reference, with two dead sections.** §13 Milestones describes a
 > Postgres/Auth.js build sequence that was abandoned for local SQLite — PLAN-02's phases and
 > `findings/BUILD-STATE.md` replace it. §14 Cost and time is pre-build estimation, recomputed in

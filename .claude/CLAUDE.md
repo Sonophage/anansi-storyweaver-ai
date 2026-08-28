@@ -7,7 +7,7 @@ add a dependency without asking.
 ## Before you change anything
 
 ```bash
-node --experimental-strip-types test/all.ts     # 240 checks across eleven suites, no model needed
+node --experimental-strip-types test/all.ts     # eleven suites, no model needed — it prints its own total
 ```
 
 Run it before and after. It needs no llama-server, so there is no excuse for skipping it.

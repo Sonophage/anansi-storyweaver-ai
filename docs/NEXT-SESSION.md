@@ -3,8 +3,9 @@
 > **SUPERSEDED IN PART, 2026-08-28.** Items 1-4 of §4's build order are done, and §4's own framing
 > of item 2 was wrong in a way worth keeping: 2c turned out to be already built, 2e is one guard
 > rather than three, and 2a's answer was that the meter should not have been reading the estimator
-> at all. `docs/findings/BUILD-STATE.md` §7 is the current state; read it first and treat everything
-> below as the argument that produced it rather than as today's list.
+> at all. `docs/findings/BUILD-STATE.md` §7 and §8 are the current state, and
+> `docs/findings/COUNCIL-05.md` is the audit that produced §8; read those first and treat
+> everything below as the argument that produced them rather than as today's list.
 
 Written 2026-08-28, at the end of a long day. Everything here was read from source or measured, not
 recalled. It exists so the first thing we do next time is **decide priority**, not rediscover state.

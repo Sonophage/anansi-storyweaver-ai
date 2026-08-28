@@ -18,13 +18,13 @@ one — it looks finished from the UI), and **not started**.
 | Overflow guard that names the block the server would drop | `src/context.ts` §6.4 |
 | Canon 45% cap and the EARLIER ceiling | `src/blocks.ts` |
 | Plain keyword activation, scanning prose **and the directive** | `src/context.ts` |
-| Persistence: 15 tables, cascade deletes, partial indexes on `selected` and on the worn outfit | `src/db.ts` |
+| Persistence: **21 tables** (`grep -c "CREATE TABLE" src/db.ts`; this row said 15 until 2026-08-28), cascade deletes, partial indexes on `selected` and on the worn outfit | `src/db.ts` |
 | Variants — regenerate keeps every take, nothing deleted | `db.addVariant` / `selectVariant` |
 | Chapters with manual start and end; breaks are real passages | `db.endChapter` |
 | Chapter summaries (manual trigger) | `POST /api/summarize` |
 | One responsive surface on one engine, one API, one field schema | `app.html`, `web/api.js`, `web/model.js` |
 | `generations` logged on every call, including failures | `db.logGeneration` |
-| 34 engine tests that run with no model up | `test/engine.ts` |
+| **44** engine checks that run with no model up — the suite prints its own total, so read it there rather than here | `test/engine.ts` |
 | Per-story export to a standalone database | `db.exportStory` |
 | Import: Anansi exports, AI Dungeon (both halves of a real export), character cards V1/V2/V3 | `src/import.ts`, wired to the Import screen |
 
@@ -294,6 +294,14 @@ resolves one owner per request from `tailscale whois` against an `ANANSI_ALLOW` 
 `system_block_override` and `token_counts` were removed from the schema by the 2026-08-23 ponytail
 audit as columns nothing read. They were **P1 stubs for planned features**, so the deletion removed
 the stubs, not the features; both remain unbuilt and remain in the plan.
+
+**Corrected 2026-08-28: removed from the CODE, not from the database.** A database built from the
+current source has neither column. Seth's live `anansi.db` still has both, because SQLite does not
+drop columns and nothing ever migrated them out — measured by building a fresh schema and diffing
+it against the live file. `db.exportStory` copies a story into a standalone database, so **every
+export carries them forward** into a file the current schema would never have created. The sentence
+above is true of the source and false of the database being written to, which is the most dangerous
+shape a true sentence takes in this document.
 
 ## 3c. The UI overhaul, 2026-08-23
 
@@ -753,3 +761,66 @@ rewritten one drifts more slowly — it does not stop.** What actually held over
 `ponytail:` ledger and the two harnesses, because both are *derived* — you run them and they answer.
 Every count in this section that could be derived was derived. The rest is why the fifth pass exists.
 
+
+
+---
+
+## 8. Sixth pass, 2026-08-28 — the code read first
+
+Commissioned as *"scan what we have, learn it, and compare it against the docs — do not trust the
+documentation."* Made in that order: nothing here was taken from a document and confirmed. The full
+write-up with seats is `docs/findings/COUNCIL-05.md`; this is what it changed.
+
+**Counted, not remembered.** 12,291 lines of source, 11,798 of tests and bench, 7,784 of docs.
+21 tables, 66 routes, 24 markers, no dependencies, no build step. **244** unit checks in eleven
+suites, **488** browser checks in twelve scenarios, plus `model` (39) and `ritual` (24).
+
+### What was wrong here
+
+Three counts, corrected in place above: **15 tables → 21**, **34 engine tests → 44**, and
+`.claude/CLAUDE.md`'s **240 → 244**. Each was true when written and none is off by much, which is
+exactly why they get believed. The pattern is the finding: **every count in this project that is
+DERIVED has stayed true, and every count that is TRANSCRIBED has drifted.** `bench/drift.ts` reads
+the estimator's constant out of `src/story.ts`; `test/web.ts` parses `routes.ts` rather than listing
+routes; both are still right. A document that wants a number should carry the command.
+
+And §3b's claim that two columns "were removed from the schema" is now marked as true of the code
+and false of the disk — see the correction there.
+
+### What was found in the code that no document knew
+
+**`VOICE` has no entry in `BLOCK_COLOR`.** `web/model.js` holds two maps that must both cover
+`blocks.ts`'s ten kinds; `BLOCK_ORIGIN` covers ten, `BLOCK_COLOR` covers nine. `web/app.js:1238` and
+`:1276` fall back to `var(--ink-ghost)` — the colour that means *a kind I have no entry for*. And it
+is not rare: `bench/utilisation.ts` measured VOICE present in **61 of 61** scored generations at
+**8.4% of the prompt**, so on every call with a voice sample an eleventh of the meter, and its dot
+in the legend, is painted as unrecognised. `test/app.ts:623` walks `ORDER` and asserts
+`BLOCK_ORIGIN[kind]` exists. Nothing does the same for its neighbour, declared twelve lines away.
+
+**`docs/SPEC.md`'s table names are superseded wholesale** — `canon_entries` is `entries`,
+`chapter_canon_pins` is `chapter_pins`, `passage_options` was never built because variants live on
+`variant_index`, and four more tables it names do not exist. Nine tables exist that it has never
+heard of. A note now stands at the top of SPEC so a reader who greps a name and finds nothing can
+tell a renamed thing from a missing one.
+
+### What was checked and found sound
+
+The ownership gate. `OPEN_ROUTES` exempts fourteen routes and eight of them touch a story id, so
+each was read: `ledger`, `stats` and `search` are owner-scoped in SQL; `stories` and `spark` name
+the id they just created; `prompts` is account-wide by design; `POST /api/look` asks `db.ownsStory`
+itself and answers **404 rather than 403**, because which books exist is not a question a stranger
+gets answered; and `POST /api/bug` takes a story id only to write it into a report as a label. **No
+hole.** Recorded as a verified negative, because a silent seat reads as an unexamined one.
+
+Also sound: no table in the code that is missing from disk, no exported function in `db.ts` without
+a caller, no unused prompt in `prompts.ts`, and every `Kind` present in `BLOCK_ORIGIN`.
+
+### The pattern the council named
+
+Four of the defects found across this session are one defect: **two things that must agree, and only
+one of them guarded.** `BLOCK_ORIGIN` guarded and `BLOCK_COLOR` not; the api-method→caller direction
+guarded and route→method not, which is how `POST /api/remember` shipped doorless; `import.ts`
+deriving activation from keys while five other write paths did not; and `test/db.ts` asserting the
+token estimator against its own constant, so the check could not fail. In none of them was the
+instrument missing. **The cheapest work in this project is walking the checks that exist and asking
+what their mirror image would be.**

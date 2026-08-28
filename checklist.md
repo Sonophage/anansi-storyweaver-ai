@@ -19,8 +19,8 @@ the next round, not a fix.
 ```
 https://hestia.tempel-discus.ts.net:5174        the only URL that works
 systemctl --user status anansi                  it starts itself, and on boot
-node --experimental-strip-types test/all.ts     240 checks, eleven suites, no model
-test/ui/run.sh                                  488 checks, twelve scenarios, no model
+node --experimental-strip-types test/all.ts     eleven suites, no model — the harness prints its own total
+test/ui/run.sh                                  twelve scenarios, no model — it prints its own total
                                                 (both read out of the harnesses 2026-08-28)
 ```
 
@@ -459,8 +459,8 @@ canon. Every rate in it is a floor.
 ## Running the tests
 
 ```bash
-node --experimental-strip-types test/all.ts    # 240 checks, eleven suites, no model needed
-test/ui/run.sh                                 # 488 checks, twelve scenarios, headless, no model
+node --experimental-strip-types test/all.ts    # eleven suites, no model — the harness prints its own total needed
+test/ui/run.sh                                 # twelve scenarios, headless, no model — prints its own total
 test/ui/run.sh "model ritual"                  # the two that wait on real generations (39 + 24 ok)
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model
