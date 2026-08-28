@@ -27,7 +27,9 @@ are the ones sitting in the gaps *between* instruments rather than under any of 
 ## Seat 1 · The surface — a block the app does not recognise, on every call
 
 `web/model.js` holds two maps that must both cover `src/blocks.ts`'s ten `Kind`s. **`BLOCK_ORIGIN`
-covers all ten. `BLOCK_COLOR` covers nine.** `VOICE` is not in it.
+covered all ten. `BLOCK_COLOR` covered nine.** `VOICE` was not in it. *(Fixed on the day this was
+written — the finding is kept in the tense it was found in, and what fixing it turned up is in the
+closing note.)*
 
 `web/app.js:1238` and `:1276` both read it as `BLOCK_COLOR[k] ?? 'var(--ink-ghost)'`. So the VOICE
 segment of the context meter, and its dot in the legend beside it, are painted in the colour that

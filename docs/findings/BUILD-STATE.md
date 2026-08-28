@@ -790,8 +790,9 @@ and false of the disk — see the correction there.
 ### What was found in the code that no document knew
 
 **`VOICE` had no entry in `BLOCK_COLOR` — fixed the same day, with a general guard.** `web/model.js` holds two maps that must both cover
-`blocks.ts`'s ten kinds; `BLOCK_ORIGIN` covers ten, `BLOCK_COLOR` covers nine. `web/app.js:1238` and
-`:1276` fall back to `var(--ink-ghost)` — the colour that means *a kind I have no entry for*. And it
+`blocks.ts`'s ten kinds; `BLOCK_ORIGIN` covered ten and `BLOCK_COLOR` covered nine.
+`web/app.js:1238` and `:1276` fall back to `var(--ink-ghost)` — the colour that means *a kind I
+have no entry for*. And it
 is not rare: `bench/utilisation.ts` measured VOICE present in **61 of 61** scored generations at
 **8.4% of the prompt**, so on every call with a voice sample an eleventh of the meter, and its dot
 in the legend, is painted as unrecognised. `test/app.ts:623` walked `ORDER` and asserted
