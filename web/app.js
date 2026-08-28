@@ -589,7 +589,25 @@ function drawAppearance() {
         <div style="display:flex; gap:5px">${[['90', 'S'], ['100', 'M'], ['110', 'L'], ['125', 'XL']].map(([k, l]) => `
           <button class="chip" data-scalepick="${k}" aria-pressed="${(look.scale ?? '100') === k}"
             style="flex:1; text-align:center; padding:9px 0; letter-spacing:.08em; font-size:11.5px">${l}</button>`).join('')}</div>
-        <span class="hint" style="margin:0">The rail, the panels and the buttons. Leaves the prose alone.</span></div>`;
+        <span class="hint" style="margin:0">The rail, the panels and the buttons. Leaves the prose alone.</span>
+        <!-- PLAN-07 ask 2. It was in a "This device" footer under every tab, so a setting that is
+             not about appearance at all sat below the themes, the fonts and the sizes alike. It is
+             chrome behaviour, which is what this tab is, and it is the only control in it that
+             belongs to the DEVICE rather than to the book — hence the separator and the hint
+             saying so, rather than a heading that would have to be repeated. -->
+        <div style="display:flex; flex-direction:column; gap:6px; padding-top:11px;
+          border-top:1px solid var(--line)">
+          <button data-hwkb="1" aria-pressed="${hwkb}" style="display:flex; align-items:center; gap:10px;
+            text-align:left; padding:9px 11px; border-radius:var(--r);
+            border:1px solid ${hwkb ? 'var(--gold)' : 'var(--chip)'};
+            background:${hwkb ? 'rgba(217,178,106,.10)' : 'transparent'}">
+            <span style="font-size:12.5px; color:${hwkb ? 'var(--gold-lit)' : 'var(--mute)'}">Hardware keyboard</span>
+            <span style="margin-left:auto; font-size:10.5px; color:var(--faint)">${hwkb ? 'on' : 'off'}</span>
+          </button>
+          <span class="hint" style="margin:0">Stops the layout resizing for a keyboard that is not
+            there, and keeps the caret in the box after a press. <strong>This one stays on this
+            device</strong> — it is the only setting here that does.</span>
+        </div></div>`;
 
   // WHICH of the two you are changing. Inside a book these controls set that book's look; on the
   // shelf they set your default. Said out loud, because the same four tabs doing two different
@@ -619,21 +637,7 @@ function drawAppearance() {
         <button class="btn ghost" data-lookmine="1" style="flex:1; font-size:12px">Make this my default</button>
         ${ownLook ? '<button class="btn ghost" data-lookfollow="1" style="flex:1; font-size:12px">Follow my default</button>' : ''}
       </div></div>` : ''}
-    <div style="display:flex; flex-direction:column; gap:6px; padding-top:11px;
-      border-top:1px solid var(--line)">
-      <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps;
-        color:var(--dim)">This device</span>
-      <button data-hwkb="1" aria-pressed="${hwkb}" style="display:flex; align-items:center; gap:10px;
-        text-align:left; padding:9px 11px; border-radius:var(--r);
-        border:1px solid ${hwkb ? 'var(--gold)' : 'var(--chip)'};
-        background:${hwkb ? 'rgba(217,178,106,.10)' : 'transparent'}">
-        <span style="font-size:12.5px; color:${hwkb ? 'var(--gold-lit)' : 'var(--mute)'}">Hardware keyboard</span>
-        <span style="margin-left:auto; font-size:10.5px; color:var(--faint)">${hwkb ? 'on' : 'off'}</span>
-      </button>
-      <span class="hint" style="margin:0">Keeps the caret in the box, so you can keep typing after
-        a press instead of reaching back for it. This one stays on this device — a phone has no
-        hardware keyboard, and there it would only hold the on-screen one open over the prose.</span>
-    </div>`;
+`;
 }
 
 // ---------- the document ----------

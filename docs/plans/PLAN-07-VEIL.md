@@ -1,5 +1,12 @@
 # PLAN-07 — The veil goes full screen, and the device toggle finds its tab
 
+> **DECIDED 2026-08-28 — FULL SCREEN MEANS FULL SCREEN.** Seth: *"i think its easier if full
+> screen is exactly that full screen. so it should be a top of everything. that might also make it
+> easier to code and debug."* This **reverses** the earlier ask under issue #3, where the header
+> carrying the book and chapter name was to stay above the expanded composer; the answer to that is
+> now no. One rule for all four surfaces rather than three different ones, and the reason given is
+> the right one — a surface that covers everything has nothing to be under.
+>
 > **AGREED 2026-08-28 — the tray and the veil are ONE job.** Seth: *"yes the tray and the veil
 > should be one job."* Four surfaces go full screen on a phone — `#dock.big` (z-index 41),
 > `#appearance` (41), `#rail` (40) and the passage tray's sheet (32) — with four different stacking
@@ -9,6 +16,12 @@
 > the current state.
 >
 > The theme menu going full screen belongs in the same session for the same reason.
+>
+> **Ask 2 is DONE** (this branch): the hardware-keyboard toggle is out of the "This device" footer
+> that appeared under every tab and lives in the UI tab alone, asserted in both directions —
+> present under `scale`, absent under `theme`, `font` and `size`. `test/ui/hwkb.js` is new and in
+> the default set; it also pins the mechanism the setting IS, which is `interactive-widget` in the
+> viewport meta, and that it survives a repaint.
 >
 > **Bugs 1, 2 and 3 below are FIXED** (`6333e54`). Bug 4 was already fixed in `76deb5a`. The
 > "collision risk" section named uncommitted work that has since landed. Ask 1 needs no code and is
