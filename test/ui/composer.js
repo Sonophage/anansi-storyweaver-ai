@@ -193,4 +193,27 @@ ok(`  and covers the viewport top to bottom, header included (${cover && cover.t
 await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
 await wait(300);
 
+// ---- A DOUBLE TAP IN THE BOX OPENS THE FULL-SCREEN ONE. Same gesture as the passage tray, and
+// the same bargain: ⤢ is what must always work, this is the shortcut for when your hands are
+// already in the box. It only OPENS — a double tap inside the big composer would otherwise close
+// the thing you are typing into.
+{
+  const big = () => page.eval("(() => !!document.querySelector('#dock.big'))()");
+  const dbl = () => page.eval("(() => { document.getElementById('input')"
+    + ".dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 1; })()");
+
+  if (await big()) { await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()"); await wait(300); }
+  ok("the composer starts small", !(await big()));
+  await dbl(); await wait(400);
+  ok("a double tap in the box opens the full-screen composer", await big());
+
+  // And does NOT close it again, which is the half that would be infuriating: you double-tap a
+  // word to select it while writing and the screen you are writing on disappears.
+  await dbl(); await wait(400);
+  ok("  and a second double tap does not close it — that is what ⤢ is for", await big());
+  await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
+  await wait(300);
+  ok("  ⤢ still closes it", !(await big()));
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

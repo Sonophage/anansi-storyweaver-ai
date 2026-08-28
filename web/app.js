@@ -3472,6 +3472,19 @@ document.addEventListener('dblclick', (e) => {
   // double clicking should work but it should only have regenerate, branch, and a skip to chapter".
   // `#col .block` still has `pointer-events:none` while reading, so this is the only way in, which
   // is the point: taps in the prose do nothing and a deliberate double still reaches the tray.
+  // A DOUBLE TAP IN THE COMPOSER OPENS THE FULL-SCREEN ONE. Same gesture as the passage tray and
+  // the same argument: the ⤢ button is what must always work, and this is the shortcut for when
+  // your hands are already in the box. It only ever OPENS — a double tap inside the big composer
+  // would otherwise close the thing you are typing into, and ⤢ is right there to close it.
+  //
+  // No preventDefault, for the reason the tray gives: a double click in a textarea selects a word,
+  // and the selection survives into the full-screen box because drawDock carries the draft and the
+  // caret across a repaint. Somebody who double-tapped a word and then wanted to replace it still
+  // can.
+  if (e.target?.id === 'input') {
+    if (!S.bigInput) { S.bigInput = true; drawDock(); syncTray(); $('input')?.focus({ preventScroll: true }); }
+    return;
+  }
   const blk = e.target.closest('#col .block');
   if (!blk || e.target.closest('.acts')) return;
   openTray(blk);
