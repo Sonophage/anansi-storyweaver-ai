@@ -124,9 +124,10 @@ opt-in check is a check that rots**: run `test/ui/run.sh model` on the day any p
 composer change lands, or it will be reporting on an app that no longer exists.
 
 ~~**And it is owed a run right now.**~~ **Run 2026-08-28.** `model` was rotted by the streaming
-change and is fixed — 39 ok, 0 red. `ritual` found a real defect and still carries one honest red:
-the model returns an empty chapter beat twice, and the app now says so instead of showing a blank
-box. See BUILD-STATE §7. What follows was the argument for running them:
+change and is fixed — 39 ok, 0 red. `ritual` is fixed too — 24 ok, 0 red. It had been
+reading `Chapter N`, the placeholder `endChapter` writes, as Anansi's answer, and so read the beat
+box before she had filled it. The model was never returning an empty beat; that was written down as
+a finding for half an evening and it was wrong. See BUILD-STATE §7. What follows was the argument for running them:
 
  2026-08-27 and 28 changed the composer (it grows rather than
 moves, ⤢ flexes it to the whole screen, the hardware-keyboard preference) and the context bar (full
@@ -460,7 +461,7 @@ canon. Every rate in it is a floor.
 ```bash
 node --experimental-strip-types test/all.ts    # 240 checks, eleven suites, no model needed
 test/ui/run.sh                                 # 488 checks, twelve scenarios, headless, no model
-test/ui/run.sh "model ritual"                  # the two that wait on real generations
+test/ui/run.sh "model ritual"                  # the two that wait on real generations (39 + 24 ok)
 node --experimental-strip-types bench/lockout.ts check    # F28 detectors, no model
 node --experimental-strip-types bench/modes.ts check      # F29 detector, no model
 node --experimental-strip-types bench/drift.ts check       # 2a's detector, no model

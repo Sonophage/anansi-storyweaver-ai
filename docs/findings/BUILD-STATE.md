@@ -710,12 +710,28 @@ and a retry costs ~7s. Two unusable answers are reported as unusable rather than
 which would send whoever reads the error to a grammar that parsed perfectly twice. Three checks in
 `test/stream.ts` against the fake router, all falsified.
 
-**And the red stands, honestly.** The model returns an empty beat twice on the seeded fixture, so
-the retry does not rescue it. What changed is that the app says so — `noteMissing` on the route, and
-a toast that tells the writer to write the beat themselves — instead of showing a blank box under a
-message claiming it was filled. `ritual` asserts the ROUTE's invariant rather than the toast, since
-a toast is gone in seconds and the loop above it can spend a minute: `noteMissing` is true exactly
-when the beat is too short to steer anything. **22 ok, 1 red, and the red is the finding.**
+**CORRECTION, same evening: the model was never the problem, and I said it was.** The red was read
+as "the model returns an empty beat twice" and written up that way. It is not what happened.
+Measured after: **six direct calls across two databases returned 550 to 906 characters**, and the
+route call made *inside the failing run itself* returned **629**. The beat was there every time.
+
+What the scenario did was read the boxes before Anansi had answered. `endChapter` opens the next
+chapter titled `Chapter N`, the panel renders `ch.title` into the box on the first paint, and
+ritual's wait loop broke as soon as the title box was non-empty — instantly, on the placeholder —
+then reported the note box's 0 characters as the model's answer. `7b49bf7` established the rule that
+*a title which is exactly this chapter's own number is the placeholder, not a name*, and asserted it
+in the checks it added; this loop predates it and was never brought along. `web/app.js:2126` is the
+same rule in the app.
+
+The loop waits for a real name or a real beat now, and the other direction is asserted so the check
+cannot be satisfied by the thing it exists to refuse. **`model` 39 ok 0 red, `ritual` 24 ok 0 red.**
+
+**The retry stands on its own footing, not on that red.** `required` genuinely does not mean
+non-empty, `structuredRetry` genuinely only retried parse failures, and a blank beat would genuinely
+have reached the writer under a toast claiming it was filled. That hole is real and is now closed
+and asserted. What was wrong was the claim that it had been *observed* — a scenario's red was taken
+as a measurement of the model without measuring the model. Same family as F12's zero and F10's
+denominator: the number was read off the wrong instrument.
 
 ### Still open, unchanged by any of the above
 

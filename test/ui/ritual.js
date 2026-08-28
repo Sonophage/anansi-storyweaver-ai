@@ -53,16 +53,32 @@ ok(`  and what extraction proposed (${JSON.stringify((body.match(/\d+ proposed a
 // empty, so by the time the ritual has finished there is something in them — and neither is saved
 // until Save is pressed, which is the half that matters and is asserted from the database below.
 {
+  // A TITLE THAT IS THIS CHAPTER'S OWN NUMBER IS THE PLACEHOLDER, NOT A NAME. `endChapter` opens
+  // the next chapter titled `Chapter N` (db.ts), and the panel renders `ch.title` into the box
+  // before Anansi has been asked — so "the title box is non-empty" was true from the first paint.
+  // This loop broke on it instantly and then read the note box, which Anansi had not filled yet,
+  // and reported 0 chars. That is not a model failure and it was reported as one: measured against
+  // the route the same evening, the beat came back at 629 characters in this very run, and six
+  // direct calls across two databases returned 550 to 906.
+  //
+  // `7b49bf7` established this exact rule and asserted it in the checks it added; this loop, which
+  // predates it, was left reading a placeholder as an answer. `web/app.js:2126` is the same rule in
+  // the app: empty, or exactly `Chapter ${index}`.
+  const idx = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).currentChapter.index)()");
+  const isPlaceholder = (t) => !String(t ?? '').trim() || String(t).trim() === `Chapter ${idx}`;
   let filled = null;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 90; i++) {
     filled = await page.eval("(() => { const t = document.querySelector('[data-setup=\"title\"]');"
       + " const n = document.querySelector('[data-setup=\"note\"]');"
       + " return t && n ? { title: t.value, note: n.value } : null; })()");
-    if (filled && (filled.title.trim() || filled.note.trim())) break;
+    if (filled && (!isPlaceholder(filled.title) || filled.note.trim())) break;
     await wait(1000);
   }
   ok(`Anansi names the new chapter (${JSON.stringify((filled?.title ?? '').slice(0, 30))})`,
-     !!filled && filled.title.trim().length > 0);
+     !!filled && !isPlaceholder(filled.title));
+  // The other direction, so the check above cannot be satisfied by the thing it exists to refuse.
+  ok(`  and \`Chapter ${idx}\` would not have counted as a name`, isPlaceholder(`Chapter ${idx}`)
+     && !isPlaceholder('The Stair'));
   ok(`  and says what it has to do (${(filled?.note ?? '').length} chars)`,
      (filled?.note ?? '').trim().length > 60);
   // On 2026-08-28 this came back 0 chars: CHAPTER_SCHEMA marks `note` required, and `required`
