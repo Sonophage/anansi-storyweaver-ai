@@ -407,11 +407,11 @@ if (anyEntry) {
   ok(`  with a jump link for each (${face && face.jumps.join(',')})`,
      !!face && face.jumps.length === 1 && face.jumps[0] === 'interiority');
   // The switch is the writer's half of how a room reaches the model; its keys are the other half.
-  ok(`  and the room starts off (${face && face.on})`, !!face && face.on === 'off');
+  ok(`  and the room starts off (${face && face.on})`, !!face && face.on === 'Off');
   await page.click('[data-addonon]');
   await wait(800);
   const flipped = await page.eval("document.querySelector('[data-addonon]')?.textContent.trim()");
-  ok(`  turning it on sticks (${flipped})`, flipped === 'on');
+  ok(`  turning it on sticks (${flipped})`, flipped === 'On');
 
   await page.click('[data-cardview="form"]');
   await wait(400);

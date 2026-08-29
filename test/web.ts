@@ -219,6 +219,23 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // A name in here is SKIPPED by the check below, so a stale entry is a hole: `rollup` and
   // `delArc` sat here after arcs got a surface, which meant deleting that surface again would
   // have gone unnoticed. Take a name out the moment it is wired.
+  // A BACKTICK IN AN HTML COMMENT IS FATAL, and it fails a long way from the cause. app.js builds
+  // its markup with template literals, so the comments inside that markup are inside the string:
+  // one backtick closes it early and what follows parses as code. The file still LOADS — the
+  // parse check above only catches the cases that are also syntax errors — and the function throws
+  // at call time, so a panel renders as nothing at all with no error until somebody opens it.
+  // Four times on 2026-08-28, every one while quoting an identifier in the house style. The same
+  // trap is guarded for the SQL schema in test/db.ts; this is the other half.
+  {
+    const marked = [...app.matchAll(/<!--[\s\S]*?-->/g)]
+      .filter((m) => m[0].includes('`'))
+      .map((m) => m[0].replace(/\s+/g, ' ').slice(0, 70));
+    assert.deepStrictEqual(marked, [],
+      'a backtick inside an HTML comment ends the template literal that holds the markup — '
+      + 'quote identifiers with "double quotes" in there');
+    ok('no HTML comment in web/app.js carries a backtick');
+  }
+
   const DEFERRED: Record<string, string> = {
     delBranch: 'forking exists; deleting a branch has no screen yet',
     // PLAN-08 Phase 3, 2026-08-28. The engine reads addons and the routes write them; the editor

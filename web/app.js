@@ -2357,6 +2357,44 @@ function inventTray(kind, label, placeholder) {
  *
  *  data-goslot and not an href. The app routes on the hash — `#storyid/panel` — so a `#appearance`
  *  link would be read as navigation and throw the panel away on the way to the anchor. */
+/** CLOSE, READ, EDIT — one row, both views. Seth: "edit read it and close it should all be on the
+ *  same row." They were a Back at the top and an Edit at the bottom of a long screen, which is two
+ *  places to look for three things that do the same kind of job. The view you are in is the one
+ *  that reads as pressed, so the row also says where you are. */
+function cardBar(view) {
+  const chip = (on) => `flex:1; ${on ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}`;
+  return `<div style="display:flex; gap:7px; margin-bottom:14px">
+    <button class="btn ghost" data-backentry="1" style="flex:1">Close</button>
+    <button class="btn ghost" data-cardview="face" style="${chip(view === 'face')}"
+      aria-pressed="${view === 'face'}">Read it</button>
+    <button class="btn ghost" data-cardview="form" style="${chip(view === 'form')}"
+      aria-pressed="${view === 'form'}">Edit</button>
+  </div>`;
+}
+
+/** A ROOM, IN THE SHAPE A STORY CARD ALREADY HAS. Seth: "these should be formatted almost as the
+ *  story cards." Same `.card`, same title-plus-pill head, same `.kind` line under it and the same
+ *  body type — `entryCard` is three lines above this and the two are read in the same list, so a
+ *  second shape here would read as a different kind of thing. The pill is the SWITCH: on a story
+ *  card it says how the card fires and cannot be pressed, and here it says the same and can.
+ *
+ *  The switch arrives as MARKUP from the caller rather than as an attribute to interpolate, so the
+ *  `data-` name is a literal at the call site. `test/web.ts` scans this file for buttons with no
+ *  action and cannot see through `${action}` — a guard that cannot read the thing it guards is one
+ *  that reports perfection, which is the failure this project keeps writing checks against. */
+function roomCard(name, body, keys, on, sw, kind) {
+  return `<div class="card" style="gap:6px; margin-bottom:8px; text-align:left;
+      border-color:${on ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+      <span style="flex:1; font-size:14.5px; color:var(--ink-bright)">${esc(name)}</span>
+      ${sw}</div>
+    <div class="kind">${esc(kind.replace(/_/g, ' '))}</div>
+    <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(body)}</div>
+    ${keys.length ? `<div style="display:flex; flex-wrap:wrap; gap:4px">${
+      keys.map((k) => `<span class="tag" style="opacity:.6">${esc(k)}</span>`).join('')}</div>` : ''}
+  </div>`;
+}
+
 function cardHead(e, slots) {
   return `<div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:2px">
       <div style="font-family:var(--serif,serif); font-size:22px; color:var(--ink-bright)">${esc(e.title || 'Untitled')}</div>
@@ -2378,27 +2416,28 @@ function cardHead(e, slots) {
  *  is its trigger words, and those live in the form because they are typing, not looking. */
 function cardFace(e, slots) {
   const rooms = (e.addons ?? []).filter((a) => a.slot !== 'outfit');
-  const shown = slots.filter((sl) => rooms.some((a) => a.slot === sl.name));
+  // The outfit room is drawn from `e.outfits` rather than from the addons, so it earns its jump
+  // link the same way — by holding something. See the note in `src/context.ts` on why the coat
+  // still comes from the older table.
+  const shown = slots.filter((sl) => sl.name === 'outfit'
+    ? (e.outfits ?? []).length : rooms.some((a) => a.slot === sl.name));
   return `<div style="display:flex; flex-direction:column">
-    <button class="btn ghost" data-backentry="1" style="margin-bottom:14px">&lsaquo; Back</button>
+    ${cardBar('face')}
     ${cardHead(e, shown)}
     <div class="hint" style="margin-top:0">${esc(e.body || 'Nothing written down yet.')}</div>
     ${shown.map((sl) => `
       <div data-slotat="${esc(sl.name)}" class="lbl" style="letter-spacing:.1em; margin-top:18px">${
         esc(sl.name.replace(/_/g, ' '))}${sl.exclusive ? '' : ' <span style="opacity:.5">(several)</span>'}</div>
-      ${rooms.filter((a) => a.slot === sl.name).map((a) => `
-        <div class="card" style="gap:6px; margin-bottom:8px; border-color:${
-          a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
-          <div style="display:flex; align-items:center; gap:9px">
-            <div style="flex:1; color:var(--ink-bright); font-size:13px">${esc(a.name)}</div>
-            <button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag"
-              style="cursor:pointer; ${a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}"
-              >${a.active ? 'on' : 'off'}</button>
-          </div>
-          <div class="hint" style="margin:0">${esc(a.body)}</div>
-          ${(a.keys ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:4px">${
-            a.keys.map((k) => `<span class="tag" style="opacity:.6">${esc(k)}</span>`).join('')}</div>` : ''}
-        </div>`).join('')}`).join('')}
+      ${rooms.filter((a) => a.slot === sl.name).map((a) => roomCard(a.name, a.body, a.keys ?? [], a.active,
+        `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag" style="cursor:pointer; ${
+          a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
+          >${a.active ? 'On' : 'Off'}</button>`, sl.name)).join('')}`).join('')}
+    ${(e.outfits ?? []).length ? `
+      <div data-slotat="outfit" class="lbl" style="letter-spacing:.1em; margin-top:18px">outfit</div>
+      ${e.outfits.map((o) => roomCard(o.name, o.body, [], o.active,
+        `<button data-wear="${esc(e.id)}:${o.active ? '' : esc(o.id)}" class="tag" style="cursor:pointer; ${
+          o.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
+          >${o.active ? 'On' : 'Off'}</button>`, 'outfit')).join('')}` : ''}
     ${shown.length ? '' : '<div class="hint" style="margin-top:18px">No rooms filled in yet. Open the form to write one, or have Anansi.</div>'}
     <button class="btn ghost" data-cardview="form" style="margin-top:20px">Edit this card</button>
   </div>`;
@@ -2417,13 +2456,7 @@ function entryEditor() {
   const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
     background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
   return `<div style="display:flex; flex-direction:column">
-    <!-- BOTH DOORS. Back leaves the card; Read it goes to the face. Without the second one the
-         form was a one-way trip: the only way back to the card you were reading was out of it and
-         in again, which is the sort of thing that reads as the app losing your place. -->
-    <div style="display:flex; gap:7px; margin-bottom:14px">
-      <button class="btn ghost" data-backentry="1" style="flex:1">&lsaquo; Back</button>
-      <button class="btn ghost" data-cardview="face" style="flex:0 0 auto; width:auto; padding:12px 20px">Read it</button>
-    </div>
+    ${cardBar('form')}
     ${cardHead(e, slots)}
     <label class="lbl">Name</label>
     <input class="field" data-f="title" value="${esc(e.title ?? '')}">
@@ -2503,18 +2536,12 @@ function entryEditor() {
       </div>`;
     }).join('')}
 
-    <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the
-         threads card when i go to it doesnt have that option for me there and id like to add it."
-         It rewrites the card that is open rather than proposing a new one — proposing would offer
-         a duplicate of the thing you are looking at, and the dedupe would refuse it. -->
-    ${inventTray(e.entryType, 'Have Anansi write this card',
-                 'what has changed about them, or nothing at all and let her read the book')}
-    <div class="hint">It fills the fields above, unsaved. Nothing changes until you press Save.</div>
-    <label class="lbl">Your notes</label>
-    <textarea class="field" data-f="notes" style="min-height:64px">${esc(e.notes ?? '')}</textarea>
-    <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
+    <!-- THE WARDROBE IS A ROOM, and sits with the others rather than under the notes. Seth:
+         "outfits should be part of it." It still writes the older outfits table — moved, not
+         rewritten — which is why the room loop above skips the outfit slot rather than drawing a
+         second editor for one thing. data-slotat so the jump link at the top reaches it too. -->
     ${e.entryType === 'character' ? `
-    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Wardrobe</div>
+    <div data-slotat="outfit" class="lbl" style="letter-spacing:.1em; margin-top:20px">outfit <span style="opacity:.5">(one at a time)</span></div>
     <div class="hint" style="margin:0 0 8px">A named outfit is a second bracket on this character
       while it is worn, so taking the plate off does not mean rewriting who she is. One at a time —
       the database enforces that, not the screen.</div>
@@ -2544,6 +2571,18 @@ function entryEditor() {
         <button class="btn ghost" data-saveoutfit="${o.id}"
           style="flex:0 0 auto; width:auto; padding:12px 20px">Save</button></div></div>`).join('')}
     <div class="card" style="gap:7px">${outfitForm(null, e)}</div>` : ''}
+
+    <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the
+         threads card when i go to it doesnt have that option for me there and id like to add it."
+         It rewrites the card that is open rather than proposing a new one — proposing would offer
+         a duplicate of the thing you are looking at, and the dedupe would refuse it. -->
+    ${inventTray(e.entryType, 'Have Anansi write this card',
+                 'what has changed about them, or nothing at all and let her read the book')}
+    <div class="hint">It fills the fields above, unsaved. Nothing changes until you press Save.</div>
+    <label class="lbl">Your notes</label>
+    <textarea class="field" data-f="notes" style="min-height:64px">${esc(e.notes ?? '')}</textarea>
+    <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
+
 
     <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Over time${helpMark('states')}</div>
     ${helpBody('states')}
