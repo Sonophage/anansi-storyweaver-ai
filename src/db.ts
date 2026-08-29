@@ -951,16 +951,31 @@ export const delString = (storyId: string, id: string) =>
  *  the other side. Out-of-range keys are DROPPED rather than clipped — a key cut mid-word at 32
  *  matches nothing, which would be silence dressed as a key.
  *
- *  `cap` is a parameter because SPEC allows ten and `import.ts` has always taken eight from an
- *  untrusted file. Both were correct for where they stood, and both were too low: a real AI
- *  Dungeon export on 2026-08-29 carried up to 14 keys on a card, and 58 of its 645 triggers were
- *  being dropped in silence. DIVERGES from SPEC §7.1, which says ten — the code wins and the spec
- *  is now wrong. Raised at Seth's direction; the cost is a wider trigger surface on 18 cards. */
-export const keysOf = (k: unknown, cap = 14): string[] =>
-  (Array.isArray(k) ? k : String(k ?? '').split(','))
-    .map((x) => String(x ?? '').trim())
+ *  NORMALISED, not stored as typed. A key is stored in the shape `fires` will look for, because
+ *  `fires` tokenises the KEY as well as the window — so `High`, `(High`, `High.` and `"High` are
+ *  four spellings of one trigger that all match identically. AI Dungeon writes them out by hand
+ *  because its own matcher is exact-string; ours is not, and a real export on 2026-08-29 carried
+ *  154 such duplicates across 644 keys. Left alone they fire redundantly and, worse, make the
+ *  panel claim 644 triggers where 468 exist — a count nobody can act on.
+ *
+ *  Edge punctuation only. INTERIOR is left exactly as typed: a space is what makes `High Gothic`
+ *  a two-part key, which `fires` walks as an ordered run, and that is the whole reason it does
+ *  not fire on "high above". Stripping inside would collapse the fix into the bug.
+ *
+ *  NO CAP by default, at Seth's direction 2026-08-29. SPEC §7.1's ten was a guess and the code
+ *  wins: after normalisation the widest card in a real 219-card export holds ten, so the cap only
+ *  ever bit the duplicates. Callers reading an untrusted file still pass one — see `import.ts`. */
+export const keysOf = (k: unknown, cap = Infinity): string[] => {
+  const seen = new Set<string>();
+  return (Array.isArray(k) ? k : String(k ?? '').split(','))
+    .map((x) => String(x ?? '').trim()
+      .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
     .filter((x) => x.length >= 2 && x.length <= 32)
+    // Case-insensitively, keeping the FIRST spelling: the writer's capitalisation is the one
+    // shown in the panel, and `fires` lowercases before it compares anything.
+    .filter((x) => !seen.has(x.toLowerCase()) && (seen.add(x.toLowerCase()), true))
     .slice(0, cap);
+};
 
 export function upsertEntry(storyId: string, o: string, e: any) {
   const t = now();

@@ -1057,14 +1057,33 @@ ok('a comma-separated keys string is split on the write path, not discarded', ()
     keys: `a, ${'x'.repeat(33)}, ${'y'.repeat(32)}, bridge` as any });
   assert.deepStrictEqual(keysIn(b), ['y'.repeat(32), 'bridge'], 'out-of-range keys go, in-range keys stay, 32 is inclusive');
 
-  // The cap is the app's ten, and import.ts asks for eight from an untrusted file. Both bind.
+  // NO CAP on the app path since 2026-08-29. SPEC §7.1's ten was a number nobody measured, and
+  // after the normalisation below the widest card in a real 219-card export holds ten — so the
+  // cap only ever cut duplicates. It survives as a PARAMETER for untrusted callers.
   const many = Array.from({ length: 14 }, (_, i) => `key${i}`);
   const c = db.upsertEntry(st.id, own, { title: 'Many', body: '[c]', keys: many });
-  assert.strictEqual(keysIn(c).length, 10,
-    'SPEC §7.1 caps keys at ten');
+  assert.strictEqual(keysIn(c).length, 14, 'every distinct key the writer gives is kept');
   assert.strictEqual(db.keysOf(many.join(','), 8).length, 8,
-    'and the cap is a parameter — import asks for eight. That import still ASKS is asserted in '
-    + 'test/import.ts against a real card, because this line cannot see it from here.');
+    'and the cap is still a parameter — import passes one, because that file is a stranger\'s. '
+    + 'That import still PASSES it is asserted in test/import.ts against a real card.');
+
+  // NORMALISATION. `fires` tokenises the key as well as the window, so `High`, `(High`, `High.`
+  // and `"High` are four spellings of ONE trigger that all match identically. AI Dungeon writes
+  // them by hand because its matcher is exact-string; ours is not. Measured on a real export:
+  // 154 such duplicates across 644 keys, every one of them firing redundantly and inflating the
+  // panel's count to a number no one could act on.
+  assert.deepStrictEqual(db.keysOf('High, (High, High., "High, [High, High)'), ['High'],
+    'punctuation variants of one word collapse to one key');
+  assert.deepStrictEqual(db.keysOf('Erebus, erebus, EREBUS'), ['Erebus'],
+    'the dedupe is case-insensitive and keeps the first spelling the writer used');
+
+  // AND INTERIOR PUNCTUATION SURVIVES, which is the half that matters. The space is what makes
+  // `High Gothic` a two-part key, and `fires` walks the parts as an ordered run — that is the
+  // whole reason it does not fire on "high above". Strip inside and the fix becomes the bug.
+  assert.deepStrictEqual(db.keysOf('High Gothic, (High Gothic)'), ['High Gothic'],
+    'a multi-word key keeps its space, and its bracketed twin still dedupes against it');
+  assert.deepStrictEqual(db.keysOf("Aldi's cart"), ["Aldi's cart"],
+    'an interior apostrophe is part of the word, not edge punctuation');
 });
 
 

@@ -67,11 +67,13 @@ const tiedStrings = (inc: Incoming) => (inc.strings ?? []).slice(0, MAX_ENTRIES)
     fromChapter: x.fromChapter ?? null, owedBy: x.owedBy ?? null, status: x.status ?? 'open' }));
 
 /** Split a keys field. AI Dungeon writes "a, b, c"; cards write ["a","b"]. The rule itself lives in
- *  `db.keysOf`, which is the write path every route reaches. Was eight for an untrusted file
- *  against SPEC §7.1's ten; both are now 14, because a real export carried cards with 14 keys and
- *  the gap was throwing 9% of that book's triggers away without a word. Raising here alone would
- *  have bought nothing — `upsertEntry` re-caps on the way in, so the lower of the two always won. */
-const keysOf = (k: unknown): string[] => db.keysOf(k, 14);
+ *  `db.keysOf`, which is the write path every route reaches and which now normalises and dedupes.
+ *  The app path has no cap; this one keeps a ceiling because the file is a stranger's and nothing
+ *  else bounds how many keys one card may declare. It is deliberately far above anything real —
+ *  the widest card in a measured 219-card export holds ten after normalisation — so it is an
+ *  anti-abuse stop, not a policy. If it ever fires, `cap()` says so rather than trimming quietly. */
+const KEY_CEILING = 64;
+const keysOf = (k: unknown): string[] => db.keysOf(k, KEY_CEILING);
 
 // ---- 1. our own export, round-tripped ----
 

@@ -128,7 +128,7 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
       { keys: ['oath'], content: 'She swore never to pick a lock again.', constant: true },
       { keys: ['ghost'], content: 'disabled fact', enabled: false },
       { keys: ['k'], content: 'a fact keyed on one letter.', constant: false },
-      { keys: 'k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11', content: 'eleven keys.', constant: false },
+      { keys: 'k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13, k14, k15, k16', content: 'sixteen keys.', constant: false },
     ] } } };
   const inc = imp.fromCard(v2);
   assert.strictEqual(inc.story.persona, 'Leah');
@@ -152,11 +152,12 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.strictEqual(inc.entries.find((e) => /one letter/.test(e.body))!.activation, 'always_on',
     'and an entry with no keys left is always-on, never triggered-and-unfireable');
 
-  // The cap here is EIGHT, not SPEC's ten: a card is a file from a stranger. `import.ts` passes it
-  // to `db.keysOf`, and the only thing that proves the argument is still passed is a card that
-  // declares more than eight. Falsified: dropping the `8` gives ten.
-  assert.strictEqual(inc.entries.find((e) => /eleven keys/.test(e.body))!.keys.length, 8,
-    'an imported card is capped at eight keys, whatever it declares');
+  // NO CAP since 2026-08-29. Sixteen declared, sixteen kept — the old limits only ever bit the
+  // punctuation duplicates below, and trimming real triggers to hit a number nobody measured is
+  // how a card stops firing for a reason the panel cannot show. Falsified: any cap under 16 here
+  // reads that cap instead.
+  assert.strictEqual(inc.entries.find((e) => /sixteen keys/.test(e.body))!.keys.length, 16,
+    'a card keeps every distinct key it declares');
   assert.strictEqual(inc.passages.length, 1, 'the greeting becomes the opening passage');
 
   // THE one that matters. A card is written by a stranger. Its instruction fields must not
@@ -208,7 +209,16 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   const inc = imp.fromCard({ name: 'Huge', description: 'x'.repeat(50_000),
     character_book: { entries: Array.from({ length: 500 }, (_, i) => ({ keys: ['k'], content: `e${i}` })) } });
   assert.ok(inc.entries[0].body.length <= 8_000, 'one field cannot exceed the per-entry cap');
-  assert.ok(inc.entries.length <= 200, 'a lorebook cannot exceed the entry cap');
+  assert.ok(inc.entries.length <= 250, 'a lorebook cannot exceed the entry cap');
+  // A bound that trims in silence is a loss the writer finds months later, in a card that was
+  // never there. Both halves asserted: it names the drop when it cuts, and says nothing when
+  // there is nothing to say — a note that always fires is as useless as one that never does.
+  assert.match(inc.notes.join('\n'), /500 lorebook entries in the file and 250 came across/,
+    'a truncated import must say how many were left behind');
+  const small = imp.fromCard({ name: 'Small', description: 'x',
+    character_book: { entries: Array.from({ length: 3 }, (_, i) => ({ keys: ['k'], content: `e${i}` })) } });
+  assert.ok(!small.notes.some((n) => /came across/.test(n)),
+    'an import that fits must not claim anything was dropped');
   assert.throws(() => imp.parse('junk.json', Buffer.from('not json at all')), /not JSON/);
   assert.throws(() => imp.parse('empty.json', Buffer.from('{"unrelated":1}')), /unrecognised/);
   assert.throws(() => imp.parse('empty.md', Buffer.from('   \n\n  ')), /no prose/);
