@@ -19,7 +19,15 @@ import { ALL_SLOTS, EXCLUSIVE_SLOTS } from './slots.ts';
 
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
-// shape so the port is mechanical. Port when the second writer arrives or vectors are wanted.
+// shape so the port is mechanical.
+//
+// THE TRIGGER WAS REWRITTEN ON 2026-08-29 because it read as already fired and was not. It said
+// "port when the second writer arrives", and a second writer HAS been writing over the tailnet for
+// some time. Seth, asked directly: that was never her. A trusted person on your own tailnet is not
+// what RLS defends against. Port when a second TENANT arrives — somebody whose rows must be
+// invisible to you at the DATABASE level rather than at the route gate — or when vectors are
+// wanted for memory recall (PLAN-02 P5). Neither is true, and a trigger that looks overdue every
+// time it is read teaches the next reader to skim past all of them.
 export const FILE = process.env.ANANSI_DB ?? new URL('../anansi.db', import.meta.url).pathname;
 export const db = new DatabaseSync(FILE);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');

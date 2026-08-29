@@ -767,8 +767,10 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       own ? `mode:${input.mode} · yours` : `mode:${input.mode}`);
   }
 
-  // ponytail: ceilings and a hard refusal, no budget engine. No reservation, no trim ladder, no
-  // eviction order, and no 'partial' block state — every block is included or omitted whole.
+  // ponytail: ceilings and a hard refusal, no budget engine. No reservation, no trim ladder, and no
+  // 'partial' block state — every block is included or omitted whole. THERE IS an eviction order
+  // now and this comment denied it until 2026-08-29: F31 and F32 built one, and `evict` below
+  // sorts canon by how it earned its place, EARLIER by chapter number and PROSE oldest-first.
   // Deferred on measurement: prefill is fast (F1), the server refuses overflow rather than
   // truncating (F3), and summaries bound the context. PLAN-02 §7.2 holds the trigger condition.
   // ---- ceilings, then the guard ----

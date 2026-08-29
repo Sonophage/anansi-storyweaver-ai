@@ -137,6 +137,18 @@ const MEMORY_TOKENS = 1800;
 // reason every other role here does: running out of room truncates the OBJECT and costs a retry.
 const RETIRE_TOKENS = 400;
 
+/** How many DISTINCT models may be loaded at once across every writer. See `POST /api/model`. */
+const MAX_LOADED = 2;
+
+/** Would switching this writer to `id` put more than `max` distinct models in the router at once?
+ *
+ *  Pulled out of the route so it can be checked without a router to ask — the route's other half
+ *  is `checkModel`, which is a network call, and a decision nobody can test is a decision nobody
+ *  knows the shape of. Switching to a model somebody else is already on is always fine: it loads
+ *  nothing new, which is why this counts DISTINCT ids and not writers. */
+export const tooManyModels = (others: string[], id: string, max = MAX_LOADED) =>
+  new Set([...others.filter(Boolean), id]).size > max;
+
 /** A title and a three-to-six-sentence beat. Small next to the others, and it still gets a named
  *  constant rather than a literal, because the one thing every role here has in common is that
  *  running out of room truncates the OBJECT and costs a whole retry. */
@@ -661,13 +673,29 @@ export const routes: Record<string, Handler> = {
   // modelFor — so the order is story, then writer, then the boot default. Two writers on two
   // different models is the point: the router holds three at once (`--models-max 3`).
   //
-  // ponytail: the pair fitting in VRAM is unmeasured. F-numbers for two concurrent writers were
-  // taken on ONE model with two slots; two models at full budget is a different sum, and this box
-  // dies with HTTP 500 rather than queueing when the cache is oversubscribed.
+  // ponytail: MAX_LOADED is 2 and it is a bound, not a measurement. Two writers on two models is
+  // what Seth wants and the router holds three (`--models-max 3`), but the F-numbers for two
+  // concurrent writers were taken on ONE model with two slots — two models at FULL BUDGET is a
+  // different sum and nobody has run it. Ceiling: two is a guess sitting between one measured pair
+  // and the router's three. Upgrade path is to measure a pair on this box and raise it; the
+  // measurement is deliberately not run here, because the way to run it is to oversubscribe the
+  // cache while somebody is mid-generation, and the failure it produces is their lost prose.
   'POST /api/model': async (c: Ctx) => {
     try {
       const was = c.defaultModel;
       const id = await checkModel(String(c.body.model ?? ''));
+      // A REFUSAL IS A MESSAGE; A 500 MID-GENERATION IS LOST WORK. Oversubscribing the shared cache
+      // does not queue — both requests die (`.claude/CLAUDE.md`), and the writer who loses is
+      // whoever was already writing. So the count is checked BEFORE the switch is recorded, and a
+      // third distinct model is refused by name rather than discovered by somebody's prose ending
+      // mid-sentence. Switching to a model already in play is always allowed: it loads nothing.
+      const others = c.otherDefaults?.() ?? [];
+      if (tooManyModels(others, id)) {
+        return { error: `${new Set([...others, id]).size} models would be loaded at once and this `
+          + `box is measured for ${MAX_LOADED}. Somebody else is on `
+          + `${[...new Set(others.filter(Boolean))].join(', ')} — switching to one of those, or `
+          + `waiting until they are done, is the way through.` };
+      }
       c.setDefaultModel(id);
       // ONE MODEL PER WRITER. Without this, a writer trying three models leaves three loaded until
       // the router sleeps them at 900 seconds — Seth's ask, and the router holds only three.

@@ -42,6 +42,26 @@ for (const [body, query, want] of [
 }
 ok('the gate finds the story id in every shape the routes use');
 
+// 2b. THE SHARED BOX. Two writers on two models is the point; a third dies with HTTP 500 rather
+// than queueing, because oversubscribing the shared cache does not queue — both requests die, and
+// the writer who loses is whoever was already mid-generation. So it is refused at the switch, where
+// it can still be a sentence.
+{
+  const { tooManyModels } = await import('../src/routes.ts');
+  assert.strictEqual(tooManyModels([], 'a'), false, 'the first model is always fine');
+  assert.strictEqual(tooManyModels(['a'], 'b'), false, 'and a second — that is the whole point');
+  assert.strictEqual(tooManyModels(['a', 'b'], 'c'), true, 'a third is refused');
+  // SWITCHING ONTO SOMEBODY ELSE'S MODEL LOADS NOTHING, so it can never be refused. Counting
+  // writers instead of distinct ids would have got this backwards and blocked the safe move.
+  assert.strictEqual(tooManyModels(['a', 'b'], 'a'), false,
+    'joining a model already loaded is always allowed');
+  assert.strictEqual(tooManyModels(['a', 'a', 'a'], 'b'), false,
+    'three writers on one model is one model');
+  // An unset default is an empty string in the map; it is not a model.
+  assert.strictEqual(tooManyModels(['a', ''], 'b'), false, 'a writer with no model is not one');
+}
+ok('a third distinct model is refused at the switch, and joining a loaded one never is');
+
 // 3. Ownership itself.
 assert.ok(db.ownsStory(aStory.id, alice));
 assert.ok(!db.ownsStory(aStory.id, bob), "bob must not own alice's story");
@@ -474,6 +494,24 @@ ok('a story cannot be deleted by someone who does not own it');
   } finally { open.srv.kill(); }
 
   ok('the allowlist decides who is a writer, and refuses the desk itself when told to');
+
+  // AND A FORWARDED HEADER FAILS CLOSED. Loopback is the desk, and the day anything fronts this —
+  // Caddy on 443 for a port-free name — every request arrives from 127.0.0.1 and the second writer
+  // resolves to Seth: her library replaced by his, admin true, the allowlist never consulted, and
+  // nothing logged. It is the identity layer going blind, and nothing looks broken. Nothing on a
+  // tailnet sends these headers, so this is inert today and is the whole difference on the day it
+  // is not. The control is the SAME server answering 200 without the header.
+  const front = await boot(5190, 'someone@example.test=bob');
+  try {
+    assert.strictEqual((await fetch(front.url + '/api/stories')).status, 200,
+      'the desk is let in on its own machine — the control for the three below');
+    for (const h of ['X-Forwarded-For', 'X-Real-IP', 'Forwarded']) {
+      assert.strictEqual((await fetch(front.url + '/api/stories', { headers: { [h]: '10.0.0.9' } })).status,
+        403, `${h} on a loopback request must fail closed, not resolve to the desk`);
+    }
+  } finally { front.srv.kill(); }
+
+  ok('a proxy header on a loopback request fails closed rather than handing over the desk');
 }
 
 // Who may stop the router, and whose model a switch lands on. Both are the same lesson: the gate

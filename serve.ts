@@ -82,15 +82,30 @@ async function loginOf(ip: string): Promise<string | null> {
 //  on 443 for port-free names (anansi.example.dev) and every request arrives from 127.0.0.1, so the
 //  second writer resolves to the desk — her own library replaced by yours, admin true, ANANSI_ALLOW
 //  never consulted, and nothing logged. The Tailscale grant still passes; it is the identity layer
-//  that goes blind. Safe today only because nothing proxies: whoever reaches loopback on this box
-//  already holds the database file.
+//  that goes blind.
+//
+//  SETH, 2026-08-29, asked directly: *"i basically did identity through tailscale. so identity is
+//  email. and device locked. we dont share devices so this should be fine. later ill do a domain
+//  with a port only she can access and lock everything else down."* So the identity that matters is
+//  the tailnet login resolved below, and the loopback branch is only ever meant to be HIM at this
+//  keyboard. The plan is a locked port, not a shared front door.
+//
+//  Which is why the guard below is a refusal and not a header parse: the day something does front
+//  this, the failure is silent and everyone becomes the desk. A refusal is loud, names this line,
+//  and costs nothing while nothing proxies.
 //
 //  Three upgrades, in order of laziness: (1) leave Anansi off the proxy and let it keep its own port
 //  and cert; (2) TCP passthrough with PROXY protocol, so TLS still terminates here and the real peer
 //  IP rides in a header node has to parse; (3) trust X-Forwarded-For from loopback only — about five
 //  lines, and the loopback branch below MUST be deleted in the same change or a missing header still
 //  resolves to the desk. Do not land (3) by halves; nothing looks broken and everyone is you.
-async function ownerOf(ip: string): Promise<string | null> {
+async function ownerOf(ip: string, headers?: Record<string, unknown>): Promise<string | null> {
+  // FAIL CLOSED IF SOMETHING IS IN FRONT. A forwarded header on a request that reached loopback
+  // means the peer address is a proxy's, not the writer's, and the branch below would hand that
+  // request the desk's whole library. Nothing on a tailnet sends these, so this is inert today and
+  // becomes the difference between a locked door and an open one on the day it is not.
+  if (headers && LOOPBACK.has(ip)
+    && ['x-forwarded-for', 'x-real-ip', 'forwarded'].some((h) => headers[h] != null)) return null;
   if (LOOPBACK.has(ip)) {
     if (ALLOW.size && ![...ALLOW.values()].includes(DESK)) return null;
     return db.owner(DESK);
@@ -141,7 +156,7 @@ const handler = async (req: any, res: any) => {
   try {
     // Before the pages, not only before the API: a request this server will not answer should not
     // get the app shell either.
-    const OWNER = await ownerOf(req.socket.remoteAddress ?? '');
+    const OWNER = await ownerOf(req.socket.remoteAddress ?? '', req.headers as any);
     if (!OWNER) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('not a writer here\n');
