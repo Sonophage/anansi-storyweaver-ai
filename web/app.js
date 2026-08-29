@@ -1004,7 +1004,7 @@ function drawDock() {
            door to the list, and comes back beside it — the two are different jobs and the list
            was standing where both of them had to fit. -->
       <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
-        style="flex:0 0 auto">+<span class="deskonly">&nbsp;Thread</span></button>
+        style="flex:0 0 auto">+ Threads</button>
       <button data-panel="anansi" aria-pressed="${S.panel === 'anansi'}" title="Ask Anansi about this story"
         style="flex:0 0 auto">Anansi</button>
     </div>
@@ -2366,18 +2366,25 @@ function inventTray(kind, label, placeholder) {
  *
  *  data-goslot and not an href. The app routes on the hash — `#storyid/panel` — so a `#appearance`
  *  link would be read as navigation and throw the panel away on the way to the anchor. */
-/** CLOSE, READ, EDIT — one row, both views. Seth: "edit read it and close it should all be on the
- *  same row." They were a Back at the top and an Edit at the bottom of a long screen, which is two
- *  places to look for three things that do the same kind of job. The view you are in is the one
- *  that reads as pressed, so the row also says where you are. */
+/** READ, EDIT, EXIT — one row, both views, in the panel's own Close type. Seth: "this looks good
+ *  but it should be read, edit, exit. and theres a secondary close text on the card. thats where i
+ *  want these buttons in that size text."
+ *
+ *  That secondary text is the panel's Close at the head of every side panel: 11px, small caps,
+ *  gold. These are the same control at the same weight, so the card's three doors read as chrome
+ *  rather than as three things to do — a row of full-width buttons at the top of a card said the
+ *  most important thing on the screen was leaving it. The view you are in is the gold one, so the
+ *  row also says where you are. */
 function cardBar(view) {
-  const chip = (on) => `flex:1; ${on ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}`;
-  return `<div style="display:flex; gap:7px; margin-bottom:14px">
-    <button class="btn ghost" data-backentry="1" style="flex:1">Close</button>
-    <button class="btn ghost" data-cardview="face" style="${chip(view === 'face')}"
-      aria-pressed="${view === 'face'}">Read it</button>
-    <button class="btn ghost" data-cardview="form" style="${chip(view === 'form')}"
+  const link = (on) => `background:none; border:0; padding:4px 0; cursor:pointer; font-size:11px;
+    letter-spacing:.12em; font-variant-caps:all-small-caps;
+    color:${on ? 'var(--gold)' : 'var(--faint)'}`;
+  return `<div style="display:flex; gap:16px; align-items:center; margin-bottom:12px">
+    <button data-cardview="face" style="${link(view === 'face')}"
+      aria-pressed="${view === 'face'}">Read</button>
+    <button data-cardview="form" style="${link(view === 'form')}"
       aria-pressed="${view === 'form'}">Edit</button>
+    <button data-backentry="1" style="${link(false)}; margin-left:auto">Exit</button>
   </div>`;
 }
 

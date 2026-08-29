@@ -844,6 +844,13 @@ html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
    Wrapping puts every control on screen at once, which is what a row of six modes needs. */
 #modes { display:flex; align-items:center; flex-wrap:wrap; column-gap:22px; row-gap:6px;
   overflow-x:auto; scrollbar-width:none; }
+/* SEVEN THINGS ON ONE LINE AT 390px. Four modes and three doors — Threads, + Threads, Anansi —
+   and at 22px the last of them wrapped onto a second row. A taller composer row MOVES THE DOCK,
+   which this project has three separate bug reports about, so the gap closes rather than the row
+   growing. 22px was chosen when the row held six things; six gaps at 12px buys back 60px, which is
+   the whole overflow. test/ui/composer.js measures the row height against a button, so shipping a
+   seventh control without finding it room goes red there rather than on Seth's phone. */
+@media (max-width:719px) { #modes { column-gap:12px; } }
 #modes::-webkit-scrollbar { display:none; }
 /* `margin-left:auto` on + Thread pushes it right on ONE line; on a wrapped second line it would
    shove it alone to the far edge with a hole beside it. Below the wrap point they simply follow. */
