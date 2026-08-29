@@ -1579,6 +1579,28 @@ export function addArc(storyId: string, a: any) {
 export const delArc = (storyId: string, id: string) =>
   q('DELETE FROM arcs WHERE id = ? AND story_id = ?').run(id, storyId);
 
+/** FINISHED, from a chapter onward. A dead character, a burned building, a rule that stopped
+ *  applying — PLAN-08's "a thread can be finished", and the write half of a column that has had a
+ *  reader since Phase 2 and no writer at all.
+ *
+ *  NULL BRINGS IT BACK, which is `setPin`'s contract above and the reason there is no second
+ *  function: the way back has to exist the day the way out does, or the first wrong press is
+ *  permanent. `src/context.ts` drops on `retiredAtChapter <= currentChapter.index`, so this is a
+ *  THRESHOLD and never a delete — the card still reaches the model in every chapter before it, and
+ *  going back to write chapter 6 still has the man who dies in chapter 12.
+ *
+ *  DELIBERATELY NOT PART OF `upsertEntry`, and the reason is not the column. That function writes
+ *  `last_editor` and logs an `entry_revisions` row, and `last_editor` is what COUNCIL-03 S1's
+ *  arbitration keys on — so bringing a character back through the entry save would quietly mark
+ *  the card human-edited and change how every later proposal about them is judged. Retiring is not
+ *  editing. Its own door, one column, no revision row: the undo IS the other direction. */
+export function setRetired(storyId: string, id: string, at: number | null | undefined) {
+  const r = q('UPDATE entries SET retired_at_chapter = ? WHERE id = ? AND story_id = ?')
+    .run(at ?? null, id, storyId);
+  if (r.changes) touch(storyId);
+  return !!r.changes;
+}
+
 // ---- chapter pins ----
 export const pinsOf = (storyId: string) =>
   q('SELECT * FROM chapter_pins WHERE story_id = ?').all(storyId) as any[];
@@ -1670,8 +1692,20 @@ export function addProposal(storyId: string, p: any) {
   // hashing the body meant re-running always duplicated.
   const subject = String(p.title).toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(the|a|an) /, '');
+  // A RETIREMENT DEDUPES AGAINST RETIREMENTS ONLY. The hash is the subject and nothing else, so
+  // one chapter close proposing both "this is how she changed" and "she is finished" collided and
+  // the second was dropped on a `false` nobody reads. A retirement is a fact about a card's
+  // LIFESPAN, not about its content, so it does not compete with a content proposal for the same
+  // subject — the writer may well want both, and "her arm broke, and then she died" is one chapter.
+  //
+  // ponytail: only `retire` gets a lane, not every kind. Kind-wide would also let `new` and
+  // `changed` coexist for one subject, and those two ARE the same proposal wearing two labels
+  // depending on whether `classify` found the entry. Ceiling: `memory` and `changed` still collide
+  // with each other, which is a live defect this does not fix — see the note on `remember`.
+  // Upgrade path: put `kind` in the hash for everyone, and re-check the extract path first.
   const hash = createHash('sha256')
-    .update([subject, p.entry_id ?? ''].join('\u0000')).digest('hex').slice(0, 32);
+    .update([subject, p.entry_id ?? '', p.kind === 'retire' ? 'retire' : ''].join('\u0000'))
+    .digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
         field,activation,content_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)

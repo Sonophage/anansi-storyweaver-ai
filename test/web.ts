@@ -146,7 +146,13 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // door is a `data-panel` button rather than a nav row. The opener asserted here is that button —
   // a panel in this list without one is exactly the unreachable-feature failure the list exists
   // to prevent, and "it used to be in the rail" is not an opener.
-  const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/, setup: /S\.panel = 'setup'/,
+  // `setup` moved from an assignment to a BUTTON on 2026-08-28: the chapter's own screen now hands
+  // you on to the next chapter rather than the close teleporting you there. Asserted in the button
+  // form for the reason spelled out below, which is the stronger of the two.
+  // `ritual` is the chapter's own screen, opened from the Chapter panel's door.
+  const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/,
+                    setup: /<button class="btn ghost" data-panel="setup"/,
+                    ritual: /S\.panel = 'ritual'/,
                     // A BUTTON, not any occurrence. The first version of this was
                     // /data-panel="anansi"/, which matched the COMMENT in app.js explaining that
                     // the panel keeps its door — so the check passed while pointing that door
@@ -162,6 +168,18 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   assert.deepStrictEqual([...snav, ...wnav].filter((n) => !panelNames.includes(n)), [],
     'these nav rows point at a panel that does not exist');
   ok(`${panelNames.length} panels, ${snav.length} in the story rail and ${wnav.length} outside, none orphaned`);
+
+  // A RETIRED CARD MUST BE VISIBLE SOMEWHERE. It stops reaching the model for the rest of the book
+  // and the Threads screen draws it like any other, so without the way back a wrong press is
+  // invisible AND permanent. Sliced to the waiting panel on purpose — the same argument the mutes
+  // carry, and asserting it anywhere in the file would pass on a comment about it.
+  {
+    const w = js.slice(js.indexOf('  waiting() {'), js.indexOf('\n  },', js.indexOf('  waiting() {')));
+    assert.match(w, /<button data-unretire="/,
+      'a finished thread must be liftable from Waiting, the way a mute is');
+    assert.match(w, /retiredAtChapter/, 'and it must read the threshold off the view, not guess');
+    ok('a finished thread is listed in Waiting with the press that brings it back');
+  }
 
   // Retired panel names still have to resolve, or every bookmark and open tab breaks.
   const was = js.slice(js.indexOf('const PANEL_WAS ='), js.indexOf('};', js.indexOf('const PANEL_WAS =')));

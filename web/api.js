@@ -146,6 +146,12 @@ export const api = {
   saveAddon:    (storyId, entryId, addon) => j('/api/addon', 'POST', { storyId, entryId, addon }),
   addonOn:      (storyId, id, on) => j('/api/addon/on', 'POST', { storyId, id, on }),
   delAddon:     (storyId, id)    => j('/api/addon', 'DELETE', { storyId, id }),
+  // PLAN-08 Phase 4. A thread can be finished, and brought back: atChapter null lifts it. Its own
+  // route rather than a field on saveEntry, because upsertEntry writes last_editor and that is
+  // what arbitration keys on — bringing a character back is not editing their card.
+  retire:       (storyId, id, atChapter) => j('/api/retire', 'POST', { storyId, id, atChapter }),
+  // Re-run the finished scan when the router was asleep at chapter end.
+  finished:     (storyId, chapterId) => j('/api/finished', 'POST', { storyId, chapterId }),
   saveState:    (storyId, entryId, state) => j('/api/state', 'POST', { storyId, entryId, state }),
   delState:     (storyId, id)    => j('/api/state', 'DELETE', { storyId, id }),
   setPin:       (storyId, chapterId, entryId, mode) => j('/api/pin', 'POST', { storyId, chapterId, entryId, mode }),

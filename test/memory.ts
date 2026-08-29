@@ -25,6 +25,11 @@ let answer: any[] = [{ name: 'Vel', body: AFTER, label: 'arm broken, trust gone'
  *  `extract` reads `entries`, so returning both keys serves whichever one asked. */
 let found: any[] = [{ title: 'The Wrist Strap', body: 'Leather, cut from a saddle girth.',
                       type: 'item', keys: ['strap'] }];
+/** And what the RETIRE role returns. Third key on the same blob, for the same reason: one fake
+ *  server, and whichever role asked reads the key it wants. `card` is an enum in the real schema,
+ *  built from the candidates the route offers — so a name that is not among them is how the gate
+ *  is driven from the far side. */
+let finished: any[] = [];
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -35,7 +40,8 @@ const srv = createServer((req, res) => {
       res.end(JSON.stringify(o)); };
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
     asked = { system: b.messages?.[0]?.content ?? '', user: b.messages?.[1]?.content ?? '' };
-    send({ choices: [{ message: { content: JSON.stringify({ characters: answer, entries: found }) } }],
+    send({ choices: [{ message: { content: JSON.stringify({ characters: answer, entries: found,
+                                                            finished }) } }],
            usage: { prompt_tokens: 200, completion_tokens: 60 } });
   });
 });
@@ -200,6 +206,111 @@ let proposal: any;
   const states = db.statesForStory(story.id).get(vel) ?? [];
   assert.strictEqual(states.length, 1, 'accepting the same memory twice updates one state, not two');
   ok('memory never invents a character, and accepting the same one twice does not double the state');
+}
+
+// ---- 5. what a chapter FINISHED — PLAN-08 Phase 4 ----
+//
+// The one decision in the app that changes what the model is told for the REST OF THE BOOK, and it
+// does it to a card that goes on looking alive on the Threads screen. So the whole path is driven
+// here: what the model is shown, what is done with what it says, and what accepting writes.
+const WHERE = 'Vel comes back in the last act and the city goes with her.';
+let retProposal: any;
+{
+  db.updateStory(story.id, { direction: WHERE });
+  const ch: any = db.chapters(story.id).at(-1);
+  db.addPassage({ ...story, storyId: story.id, chapterId: ch.id,
+    body: 'Vel went down on the stair and did not get up. "She is fine," the porter said.' });
+  finished = [{ card: 'Vel', why: 'her body is on the stair' }];
+  found = []; answer = [];
+  asked = null;
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: story.id }));
+  assert.ok(!r.error, r.error);
+
+  // `retire` runs LAST of the four, so `asked` is its ask.
+  assert.ok(asked.user.includes('Vel went down on the stair'), 'the narration reaches the scan');
+  assert.ok(!asked.user.includes('She is fine'),
+    'and the porter does not — a character SAYS she is fine, and dialogue does not commit the story');
+  assert.ok(asked.user.includes(BEFORE) || asked.user.includes(AFTER),
+    'the description in force is seeded, so the judgement is about the card the book actually has');
+  // THE DIRECTION, and this is the first time `stories.direction` has ever left the prose path.
+  // Without it the scan cannot tell offstage from finished, which is the whole distinction.
+  assert.ok(asked.system.includes(WHERE),
+    'where the book is going reaches the scan — "depending on where we\'re going" is this field');
+
+  // The denominator rides in the runtime answer, not only in the probe.
+  assert.strictEqual(r.retired?.proposed, 1);
+  assert.ok((r.retired?.eligible ?? 0) >= 1, 'and it says how many the chapter named');
+
+  retProposal = db.proposalsOf(story.id).find((p: any) => p.entry_type === 'retire');
+  assert.ok(retProposal, 'a retirement proposal exists');
+  assert.strictEqual(retProposal.entry_id, vel);
+  assert.deepStrictEqual(JSON.parse(retProposal.keys), [String(ch.idx + 1)],
+    'in force from the NEXT chapter: she dies DURING the one that just closed, and revising it '
+    + 'later must still have her in it');
+  // PROPOSALS, NEVER WRITES. The reason this is safe to fire on every close.
+  const row: any = db.db.prepare('SELECT retired_at_chapter FROM entries WHERE id = ?').get(vel);
+  assert.strictEqual(row.retired_at_chapter, null, 'nothing is retired until it is accepted');
+  ok('closing a chapter proposes what it finished, seeded with the description and the direction');
+}
+
+{
+  const before = db.entriesOf(story.id).length;
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: retProposal.id, accept: true }));
+  const row: any = db.db.prepare('SELECT retired_at_chapter FROM entries WHERE id = ?').get(vel);
+  assert.strictEqual(row.retired_at_chapter, Number(JSON.parse(retProposal.keys)[0]));
+  assert.strictEqual(db.entriesOf(story.id).length, before, 'accepting a retirement adds no entry');
+  // A THRESHOLD AND NOT A DELETE, which is what makes going back to revise safe.
+  const e: any = { ...db.entriesOf(story.id).find((x: any) => x.id === vel), title: 'Vel' };
+  assert.ok(e, 'the card is still there — retiring is not deleting');
+  ok('accepting a retirement writes the threshold and nothing else');
+}
+
+{
+  // A MALFORMED KEY MUST RETIRE NOTHING. The state branch beside this one falls back to `|| 1` on
+  // a bad key, which is harmless for a state and would retire a card from chapter ONE here — the
+  // whole book, silently, off one bad proposal. Nothing rather than something wrong.
+  const stair = db.entriesOf(story.id).find((x: any) => x.title === 'The Long Stair') as any;
+  db.addProposal(story.id, { title: 'The Long Stair', body: 'malformed', entryType: 'retire',
+    entry_id: stair.id, kind: 'retire', keys: ['not a chapter'] });
+  const bad = db.proposalsOf(story.id).find((p: any) => p.entry_type === 'retire'
+    && p.entry_id === stair.id);
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: bad.id, accept: true }));
+  const row: any = db.db.prepare('SELECT retired_at_chapter FROM entries WHERE id = ?').get(stair.id);
+  assert.strictEqual(row.retired_at_chapter, null,
+    'a retirement with an unreadable chapter must write nothing, not retire from chapter 1');
+  ok('a retirement with a malformed chapter writes nothing at all');
+}
+
+{
+  // The gate, driven through the route: a card the closing chapter never names is never offered,
+  // so a model naming it anyway cannot retire it. This is the difference between a scan and a
+  // scan that can finish a character it read no line about.
+  const ch2: any = db.chapters(story.id).at(-1);
+  db.addPassage({ ...story, storyId: story.id, chapterId: ch2.id,
+    body: 'The Long Stair was empty and the rain came in sideways.' });
+  finished = [{ card: 'Vel', why: 'invented out of nothing' }];
+  const before = db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length;
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: story.id }));
+  assert.strictEqual(db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length,
+    before, 'a card this chapter never names must not be retirable through it');
+  // The model named a card that was never on its list. In production the enum makes that
+  // impossible; the route checks anyway, because the constraint is the router's to honour and
+  // this is the one answer that decides what the model stops being told.
+  assert.strictEqual(r.retired?.proposed, 0,
+    'a name that was never offered must produce nothing, whatever the model returns');
+  ok('a card the closing chapter never names is never offered to the scan, and cannot be smuggled in');
+}
+
+{
+  const ch3: any = db.chapters(story.id).at(-1);
+  db.addPassage({ ...story, storyId: story.id, chapterId: ch3.id,
+    body: 'The Long Stair went on being a stair with no landing.' });
+  finished = [{ card: 'The Long Stair', why: 'switched off' }];
+  const before = db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length;
+  await routes['POST /api/chapter/end'](ctx({ storyId: story.id, retire: false }));
+  assert.strictEqual(db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length,
+    before, 'retire: false must switch it off, the way summarise/remember/extract: false do');
+  ok('and retire: false opts out of it');
 }
 
 srv.close();

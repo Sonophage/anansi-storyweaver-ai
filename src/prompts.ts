@@ -98,6 +98,79 @@ export const MEMORY_SCHEMA = {
   required: ['characters'],
 } as const;
 
+/** Which cards a chapter FINISHED — a dead character, a burned building, a rule that stopped
+ *  applying. PLAN-08 Phase 4, and Seth's own framing of it: *"at chapter end we can drop the
+ *  cards. Or choose to, depending on where we're going."*
+ *
+ *  Seeded with the description in force, the way MEMORY is and for the same reason: the model has
+ *  to judge the card as the book currently has it, not as it was first written.
+ *
+ *  THE DIRECTION IS THE POINT, and this is the first time `stories.direction` has ever reached
+ *  this file — until now it existed only in SPINE, on the prose path. A character who walks off
+ *  the page in chapter 7 and is the whole of chapter 30 is offstage, not finished, and the closing
+ *  chapter cannot tell you which. Nothing else in the input can either.
+ *
+ *  Whether the clause buys anything is a MEASUREMENT and not an assumption. F20 spent 850
+ *  generations per arm proving that restating canon in a second block bought nothing and deleted
+ *  it; F37 measured the same rule twice and kept the version that worked. `bench/retire.ts` runs
+ *  both arms — with the direction and with it blank — and if they match, this clause comes out.
+ *
+ *  THE ASYMMETRY IS DELIBERATE AND IT IS THE WHOLE PROMPT. Missing a finished card costs one card
+ *  firing a few chapters too long, which F39 priced at a rounding error against the ceiling.
+ *  Finishing a card that is merely offstage removes a character from the book with the card still
+ *  sitting on screen looking alive. So every rule below leans the same way, and the last line says
+ *  so outright. */
+export const RETIRE = (direction: string) =>
+`Below is a chapter's narration, then the ledger cards this chapter names, each with the
+description of it that is currently in force.
+
+Name the cards this chapter FINISHED. A card is finished when the narration commits that it is
+over for good: the character died, the building burned down, the object was destroyed, the rule
+stopped applying.
+
+Rules:
+- Offstage is not finished. A character who leaves the room, the city, or the book for a while is
+  alive and coming back. Say nothing about them.
+- Uncertain is not finished. Missing, presumed, last seen, never found — leave it out. The writer
+  can finish a card in one press; nobody can un-kill someone once the prose has moved on.
+- Only the narration commits the story. Dialogue has been removed already, so a character somebody
+  SAYS is dead is not dead. A body on the page is.
+- A card that stops mattering is not finished. This is about what is gone, not about what is dull.
+- why is one short sentence naming what the narration commits: "her body is on the stair".
+${direction.trim() ? `
+WHERE THIS STORY IS GOING, in the writer's own words:
+${direction.trim()}
+
+If that says a card comes back, matters later, or is not done with, it is NOT finished — whatever
+this chapter looks like. The writer knows the book. This is one chapter of it.
+` : ''}
+Name nothing rather than guess. An empty answer is the usual answer.`;
+
+/** THE CARD NAMES ARE AN ENUM, built from the candidates the caller is about to offer. The sampler
+ *  then cannot name a card that is not on the list, so there is no fuzzy title matcher on the way
+ *  back and no third copy of `classify`'s `norm`. EXTRACT_SCHEMA's own note is the licence: the
+ *  converter ignores numeric bounds and honours enums, and `maxLength` on a string is honoured.
+ *
+ *  Never call this with an empty list — an empty enum is not a grammar. `retire()` returns before
+ *  the model call when there are no candidates, which is also the cheap path and the usual one. */
+export const retireSchema = (titles: string[]) => ({
+  type: 'object',
+  properties: {
+    finished: {
+      type: 'array', maxItems: 6,
+      items: {
+        type: 'object',
+        properties: {
+          card: { type: 'string', enum: titles },
+          why:  { type: 'string', maxLength: 160 },
+        },
+        required: ['card', 'why'],
+      },
+    },
+  },
+  required: ['finished'],
+} as const);
+
 /** Spark. One structured call from an idea to a skeleton. Nothing is created here — the
  *  writer edits every field before accepting, same discipline as extraction.
  *

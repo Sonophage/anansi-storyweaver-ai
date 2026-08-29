@@ -1254,12 +1254,50 @@ ok('the exclusivity index and src/slots.ts name the same slots', () => {
     assert.deepStrictEqual(JSON.parse(row.keys), ['wool'], 'an edge carries its own trigger words');
   });
 
-  ok('an entry can be retired at a chapter', () => {
+  // The column had a reader from Phase 2 and no writer at all, so this used to reach for raw SQL.
+  // It goes through `setRetired` now, which is what the surface and the accept path both call.
+  const retiredAt = (id: string) => (db.db.prepare(
+    'SELECT retired_at_chapter FROM entries WHERE id = ?').get(id) as any).retired_at_chapter;
+
+  ok('an entry can be retired at a chapter, and brought back', () => {
     // A dead character, a burned building, a rule that stopped applying. Without this the ledger's
     // precision decays as the book grows, which is exactly when it is needed most.
-    db.db.prepare('UPDATE entries SET retired_at_chapter = 12 WHERE id = ?').run(coat);
-    const row = db.db.prepare('SELECT retired_at_chapter FROM entries WHERE id = ?').get(coat) as any;
-    assert.strictEqual(row.retired_at_chapter, 12);
+    assert.strictEqual(db.setRetired(se.id, coat, 12), true);
+    assert.strictEqual(retiredAt(coat), 12);
+    // THE WAY BACK, in the same function and shipped the same day. `setPin`'s contract: null lifts
+    // it. Without this the first wrong press is permanent and the writer's only undo is SQL.
+    assert.strictEqual(db.setRetired(se.id, coat, null), true);
+    assert.strictEqual(retiredAt(coat), null);
+  });
+
+  ok('  and an ordinary entry save does not disturb the threshold', () => {
+    // The reason retirement is not a field on `upsertEntry`: that function writes `last_editor`,
+    // which arbitration keys on, and it defaults every absent field across six callers — accept,
+    // the wizard, both importers, copy. A retirement riding in there would be cleared by an
+    // unrelated save, or a card would be marked human-edited by being brought back.
+    db.setRetired(se.id, coat, 12);
+    const e = db.entriesOf(se.id).find((x: any) => x.id === coat) as any;
+    db.upsertEntry(se.id, o, { id: coat, title: e.title, body: 'a different coat entirely',
+      entryType: e.entry_type, activation: e.activation, keys: [], lastEditor: 'model' });
+    assert.strictEqual(retiredAt(coat), 12, 'the threshold survived a save that never mentioned it');
+    db.setRetired(se.id, coat, null);
+  });
+
+  ok('a retirement and a change to the same card both reach the queue', () => {
+    // `addProposal` hashes the SUBJECT, so one chapter close proposing both "this is how she
+    // changed" and "she is finished" collided and the second was dropped on a `false` nobody
+    // reads. A retirement is a fact about a card's lifespan, not its content; the writer may want
+    // both, and "her arm broke, and then she died" is one chapter.
+    const before = db.proposalsOf(se.id).length;
+    assert.strictEqual(db.addProposal(se.id, { title: 'the coat', body: 'now torn',
+      entryType: 'character', entry_id: coat, kind: 'changed' }), true);
+    assert.strictEqual(db.addProposal(se.id, { title: 'the coat', body: 'burned in the fire',
+      entryType: 'retire', entry_id: coat, kind: 'retire', keys: ['4'] }), true,
+      'the retirement must not be eaten by the change');
+    // And a SECOND retirement for the same card still dedupes, or re-running the scan floods it.
+    assert.strictEqual(db.addProposal(se.id, { title: 'the coat', body: 'burned again',
+      entryType: 'retire', entry_id: coat, kind: 'retire', keys: ['4'] }), false);
+    assert.strictEqual(db.proposalsOf(se.id).length, before + 2);
   });
 
   ok('a proposal can aim at a slot, and an invented one is refused at the column', () => {

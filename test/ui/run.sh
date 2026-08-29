@@ -7,6 +7,7 @@
 #
 #   test/ui/run.sh              # all of them
 #   test/ui/run.sh search       # just one
+#   test/ui/run.sh panels ritual # or several, unquoted
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 PORT=${ANANSI_UI_PORT:-5179}
@@ -42,7 +43,9 @@ fresh() {
   until curl -sf -o /dev/null -m 2 "http://127.0.0.1:$PORT/"; do sleep 1; n=$((n+1)); [ $n -gt 30 ] && { echo "server never came up"; cat "$WORK/serve.log"; exit 1; }; done
 }
 
-scenarios=${1:-}
+# EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
+# green for a scenario nobody asked about — twice, per docs/HANDOFF.md.
+scenarios=${*:-}
 [ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard"
 # `model` and `ritual` are excluded from the default set: every step waits on a real generation, so it runs
 # in minutes. Ask for it by name: test/ui/run.sh model

@@ -1,7 +1,7 @@
 // One runnable check. Fails if the engine's load-bearing behaviour breaks.
 //   node --experimental-strip-types test/engine.ts
 import assert from 'node:assert';
-import { buildContext, resolveBody, fires } from '../src/context.ts';
+import { buildContext, resolveBody, fires, retirable } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
 import { render } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
@@ -1045,6 +1045,54 @@ ok('confidence orders the pulls against each other, and both below a keyword hit
   assert.match(at('e-far').reason, /canon 45% ceiling/);
   assert.strictEqual(at('e-near').state, 'included',
     'and the stronger pull outlives it — which is the only thing confidence is for');
+});
+
+// ---- PLAN-08 Phase 4: which cards a closing chapter may be ASKED to finish --------------------
+
+// `retirable` is a gate in front of the model, so every check here is about what it REFUSES. A
+// gate that admits everything hands the scan the whole ledger; one that admits nothing reports a
+// perfect false-retirement rate while seeing no cards at all. Both failures read as success.
+const card = (title: string, o: Partial<Entry> = {}) =>
+  entry(`e-${title.toLowerCase().replace(/\W+/g, '-')}`, `[${title}: a card]`,
+    { title, activation: 'triggered', ...o } as any);
+const CHAPTER = 'The rain did not stop. Marek counted the coins twice on the stair.';
+
+ok('a card the chapter names can be asked about', () => {
+  const got = retirable([card('Marek', { keys: ['Marek'] })], CHAPTER);
+  assert.deepStrictEqual(got.map((e) => e.title), ['Marek']);
+});
+
+ok('  and one it never names cannot — there is no sentence to judge it by', () => {
+  // The refusal that matters most: offering the whole ledger is how a scan finishes a character
+  // it read no line about.
+  assert.deepStrictEqual(retirable([card('Halsey', { keys: ['Halsey'] })], CHAPTER), []);
+});
+
+ok('a card with NO keys is reachable by its own title', () => {
+  // `bench/ledger-audit.ts` measured the live library: eleven of twelve entries carry keys that
+  // are only their title repeated, and the twelfth carries none. Without the title append the
+  // keyless card can never be retired and the denominator shrinks with nothing to show for it.
+  const got = retirable([card('Marek', { keys: [] })], CHAPTER);
+  assert.deepStrictEqual(got.map((e) => e.title), ['Marek']);
+});
+
+ok('a card that already carries a threshold is not asked about again', () => {
+  // Whatever the number is, the writer chose it. A model revising somebody's decision on every
+  // close is not a proposal, it is an argument — and it is how the queue becomes noise.
+  assert.deepStrictEqual(retirable([card('Marek', { keys: ['Marek'], retiredAtChapter: 2 })], CHAPTER), []);
+  assert.deepStrictEqual(retirable([card('Marek', { keys: ['Marek'], retiredAtChapter: 99 })], CHAPTER), [],
+    'including one retired far ahead of here — it is still a decision that was taken');
+});
+
+ok('THE POINT-OF-VIEW CHARACTER IS NEVER ASKED ABOUT', () => {
+  // buildContext applies the retirement branch BEFORE its isPov branch, so a retired persona card
+  // is omitted from every prompt with nothing on screen saying why: the protagonist stops being
+  // described and it reads as the model forgetting. The writer may still do it by hand.
+  assert.deepStrictEqual(retirable([card('Marek', { keys: ['Marek'] })], CHAPTER, 'Marek'), []);
+  assert.deepStrictEqual(retirable([card('Marek', { keys: ['Marek'] })], CHAPTER, '  MAREK  ')
+    .map((e) => e.title), [], 'matched the way isPov matches — trimmed and folded to lower case');
+  assert.deepStrictEqual(retirable([card('Marek', { keys: ['Marek'] })], CHAPTER, 'Aldis')
+    .map((e) => e.title), ['Marek'], 'and somebody else being the persona changes nothing');
 });
 
 console.log(`\n${n} checks passed`);

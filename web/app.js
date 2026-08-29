@@ -230,6 +230,7 @@ const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
 TITLES.entry = 'Ledger entry';
 TITLES.history = 'History';
 TITLES.setup = 'The next chapter';
+TITLES.ritual = 'Ending the chapter';
 TITLES.anansi = 'Anansi';
 const WTITLES = {
   stories: () => [`My stories`, `${LIB.length} ${LIB.length === 1 ? 'story' : 'stories'}`],
@@ -270,7 +271,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
   'dismiss', 'goflag', 'dropflag', 'modelmenu',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
-  'cardview', 'goslot', 'addonon', 'saveaddon', 'deladdon', 'addaddon'].map((k) => `[data-${k}]`).join(',');
+  'cardview', 'goslot', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
+  // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
+  'retire', 'unretire', 'endchapter', 'refinished'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -1164,8 +1167,13 @@ function proposalCard(p) {
                incoming body since it was written; nothing ever sent it. -->
           ${p.delta && p.delta.trim() !== (p.body ?? '').trim()
             ? `<div style="font-size:12px; line-height:1.45; color:var(--faint)">${esc(p.delta)}</div>` : ''}
-          <textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} will say"
-            style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
+          ${p.entryType === 'retire' ? '' : `<textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} will say"
+            style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>`}
+          ${p.entryType === 'retire' ? `<div style="font-size:12px; line-height:1.45; color:var(--mute)">${
+            esc(p.body ?? '')}</div>
+          <div style="font-size:11px; color:var(--faint)">Stops reaching the model from chapter ${
+            esc(String(JSON.parse(p.keys || '[]')[0] ?? '?'))}. Every chapter before it still has it,
+            and Waiting can bring it back.</div>` : ''}
           ${p.entryType === 'state' ? `<div style="font-size:11px; color:var(--faint)">In force from chapter ${
             esc(JSON.parse(p.keys || '[]')[0] ?? '?')}</div>` : ''}
           <div style="display:flex; gap:7px">
@@ -1173,6 +1181,90 @@ function proposalCard(p) {
               border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Accept</button>
             <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
               border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button></div></div>`;
+}
+
+/** ENDING A CHAPTER, ON ITS OWN SCREEN. PLAN-08 Phase 4, and issue #12's ritual step.
+ *
+ *  A panel and not a full-screen surface. `docs/checklist.md` question 2 — what a full-screen
+ *  surface covers — is reserved for its own session, and the checklist also holds "the tray and
+ *  the veil are one job: four surfaces, four stacking rules, no shared owner." A full-screen
+ *  ritual would be a fifth surface shipped ahead of the session that decides the rule. Everything
+ *  this screen does is panel-shaped anyway: reports, and cards decided in place.
+ *
+ *  hand-carried across exactly one refetch and dropped silently by every other `api.story` call —
+ *  so the checklist vanished on any unrelated press. The summary length is on `V.chapters` and the
+ *  decisions are on `V.proposals`, both of which survive a reload, a second writer and a crash.
+ *  There is nothing else worth keeping, so there is no new column and no `ritual_runs` table.
+ *
+ *  THREE STATES PER STEP, NEVER TWO. Ran-and-found-nothing, ran-and-failed and never-ran have to
+ *  read differently: every worker at chapter end is wrapped in try/catch precisely so a chapter
+ *  can close with the model down, and "0 proposed" and "the router was asleep" are not the same
+ *  sentence. The re-run buttons live here because this is the screen that says which one to press.
+ */
+function ritualPanel() {
+  const ch = V.chapters.find((c) => c.id === S.ritualOf) ?? V.currentChapter;
+  const closed = ch.status === 'closed' || ch.id !== V.currentChapter.id;
+  const ps = (V.proposals ?? []).filter((p) => p.chapterId === ch.id);
+  const of = (t) => ps.filter((p) => p.entryType === t);
+  const facts = ps.filter((p) => !['state', 'string', 'retire'].includes(p.entryType));
+  const dot = (tone) => `<span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto;
+    background:var(${tone})"></span>`;
+  const step = (tone, label, note, body) => `<div style="margin-bottom:18px">
+    <div style="display:flex; align-items:center; gap:9px">${dot(tone)}
+      <span style="font-size:13.5px; color:var(--ink-bright)">${esc(label)}</span></div>
+    <div style="font-size:12px; line-height:1.5; color:var(--faint); margin:5px 0 0 16px">${note}</div>
+    ${body ? `<div style="display:flex; flex-direction:column; gap:9px; margin:10px 0 0 16px">${body}</div>` : ''}</div>`;
+
+  const summary = ch.summary;
+  const words = summary ? summary.trim().split(/\s+/).length : 0;
+
+  return `<div class="lbl" style="letter-spacing:.1em">${esc(ch.title || `Chapter ${ch.index}`)}</div>
+    <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin:6px 0 18px">
+      Closing a chapter summarises it, reads it for new facts, remembers what it did to the people
+      in it, and asks which threads it finished. Nothing below becomes canon until you accept it.</div>
+
+    ${closed ? '' : `<button class="btn" data-endchapter="1">${
+      S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
+    <div class="hint">It closes here and the next one opens. The prose stays exactly where it is.</div>`}
+
+    <div style="margin-top:22px">
+    ${step(closed ? '--good' : '--chip', closed ? 'Closed, and the next one opened'
+      : 'Not closed yet', closed ? 'Its prose is whole in the prompt until the next chapter has a passage of its own.'
+      : 'Nothing below has run.')}
+
+    ${step(summary ? '--good' : closed ? '--warn' : '--chip',
+      summary ? `Summarised in ${words} word${words === 1 ? '' : 's'}` : 'Not summarised',
+      summary ? esc(summary)
+        : closed ? 'The summary did not come back — the router may have been asleep.'
+                 : 'Runs when the chapter closes.',
+      closed && !summary ? '<button class="btn ghost" data-summarize="1">Summarise it now</button>' : '')}
+
+    ${step(of('state').length ? '--good' : '--chip',
+      `Remembered what it did to the people in it${of('state').length ? ` — ${of('state').length} waiting` : ''}`,
+      of('state').length ? 'Each one replaces a description from the next chapter on. Nothing is accepted.'
+        : 'Nothing changed anybody, or the pass has not run.',
+      of('state').map(proposalCard).join('')
+        + '<button class="btn ghost" data-remember="1">Read it for changes again</button>')}
+
+    ${step(facts.length ? '--good' : '--chip',
+      `Read for facts${facts.length ? ` — ${facts.length} proposed` : ''}`,
+      facts.length ? 'Nothing here is canon until you accept it.'
+        : 'No new threads came out of this chapter, or the pass has not run.',
+      facts.map(proposalCard).join('')
+        + '<button class="btn ghost" data-extract="1">Read it for facts again</button>')}
+
+    ${step(of('retire').length ? '--warn' : '--chip',
+      `What this chapter finished${of('retire').length ? ` — ${of('retire').length} proposed` : ''}`,
+      of('retire').length
+        ? 'Accepting one stops that thread reaching the model from the next chapter on. Every chapter before it still has it, and Waiting can bring it back.'
+        : 'Nothing was proposed as finished. Only threads this chapter NAMES are ever offered, and never the point-of-view character.',
+      of('retire').map(proposalCard).join('')
+        + '<button class="btn ghost" data-refinished="1">Look again for finished threads</button>')}
+
+    ${step(closed ? '--good' : '--chip', 'On to the next chapter',
+      'Its name, its brief, and who is in it.',
+      '<button class="btn ghost" data-panel="setup">Set up the next chapter</button>')}
+    </div>`;
 }
 
 const PANELS = {
@@ -1186,6 +1278,8 @@ const PANELS = {
    *  Reads `V.waiting`, computed by the engine, so this panel and the shelf cannot disagree about
    *  whether a book is owed anything.
    */
+  ritual() { return ritualPanel(); },
+
   waiting() {
     const w = V?.waiting;
     if (!w) return '<div class="hint">Nothing to show yet.</div>';
@@ -1256,6 +1350,20 @@ const PANELS = {
         <span style="font-size:13px; color:var(--mute)">${esc(m.title)}</span>
         <button data-unmute="${m.id}" style="margin-left:auto; padding:7px 12px; border-radius:var(--r);
           border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Listen again</button></div>`).join('')));
+
+    // THE SAME ARGUMENT AS THE MUTES ABOVE, one step further. A retired card stops reaching the
+    // model for the rest of the book and the Threads screen draws it exactly like a live one, so
+    // without this list a wrong press is invisible and permanent. `retiredAtChapter` has ridden on
+    // the view since Phase 2 and nothing has ever rendered it.
+    const finished = (V.entries ?? []).filter((e) => e.retiredAtChapter != null);
+    if (finished.length) rows.push(section(
+      `${finished.length} finished`,
+      'These stopped reaching the model at the chapter named. Every chapter before it still has them.',
+      finished.map((e) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
+        <span style="font-size:13px; color:var(--mute)">${esc(e.title)}</span>
+        <span style="font-size:11px; color:var(--faint)">from chapter ${esc(String(e.retiredAtChapter))}</span>
+        <button data-unretire="${e.id}" style="margin-left:auto; padding:7px 12px; border-radius:var(--r);
+          border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Bring it back</button></div>`).join('')));
 
     // The two that are COMPUTED rather than stored, and so can be waved away. The ref carries the
     // state that made each worth saying, so this is "not for this", never "never again".
@@ -1629,10 +1737,8 @@ const PANELS = {
         min-height:96px; line-height:1.6">${esc(V.story.direction ?? '')}</textarea>
       <div class="hint">Aims the story without disclosing it. Never restated to the reader.</div>
       <button class="btn" data-savestory="1" style="margin-top:14px">Save</button>
-      <button class="btn ghost" data-ritual="1" style="margin-top:10px">${
-        S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
-      <div class="hint">Closes it, summarises it, reads it for new facts, remembers what it did to the
-        people in it, and opens the next.</div>
+      <button class="btn ghost" data-ritual="1" style="margin-top:10px">End this chapter</button>
+      <div class="hint">Opens the chapter's own screen, where it closes.</div>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">What this chapter added</div>
       <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Nothing here is canon until you accept it.</div>
@@ -2242,7 +2348,6 @@ function setupPanel() {
 
   const cast = V.entries.filter((e) => e.entryType === 'character' && match(e));
   const places = V.entries.filter((e) => (e.entryType === 'lore' || e.entryType === 'item') && match(e));
-  const done = V.ritualDone;
   // Rendered from state, not from the DOM. Ticking a character repaints this panel, and reading
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
@@ -2263,10 +2368,6 @@ function setupPanel() {
     nameChapter(ch.id);
   }
   return `<div style="display:flex; flex-direction:column">
-    ${done ? `<div style="display:flex; flex-direction:column; gap:6px; padding-bottom:16px">
-      ${done.map((line) => `<div style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute)">
-        <span style="width:6px; height:6px; border-radius:50%; background:var(--good); flex:0 0 auto"></span>
-        ${esc(line)}</div>`).join('')}</div>` : ''}
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(ch.title || `Chapter ${ch.index}`)}</div>
     <div class="hint" style="margin:6px 0 0">Nothing here is required. Leave it and write.</div>
 
@@ -2461,6 +2562,10 @@ function cardFace(e, slots) {
   return `<div style="display:flex; flex-direction:column">
     ${cardBar('face')}
     ${cardHead(e, shown)}
+    ${e.retiredAtChapter != null ? `<div class="card" style="flex-direction:row; align-items:center; gap:9px; margin:0 0 10px">
+      <span style="font-size:12px; color:var(--warn)">Finished from chapter ${esc(String(e.retiredAtChapter))}</span>
+      <button data-unretire="${e.id}" style="margin-left:auto; padding:6px 11px; border-radius:var(--r);
+        border:1px solid var(--chip); color:var(--faint); font-size:11px">Bring it back</button></div>` : ''}
     <div class="hint" style="margin-top:0">${esc(e.body || 'Nothing written down yet.')}</div>
     ${shown.map((sl) => `
       <div data-slotat="${esc(sl.name)}" class="lbl" style="letter-spacing:.1em; margin-top:18px">${
@@ -2469,6 +2574,10 @@ function cardFace(e, slots) {
         `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag" style="cursor:pointer; ${
           a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
           >${a.active ? 'On' : 'Off'}</button>`, sl.name)).join('')}`).join('')}
+    ${e.retiredAtChapter == null ? `<button data-retire="${e.id}" class="btn ghost"
+      style="margin-top:20px">Mark this finished</button>
+    <div class="hint">It stops reaching the model from the next chapter on. Every chapter before it
+      still has it, and Waiting can bring it back.</div>` : ''}
     ${(e.outfits ?? []).length ? `
       <div data-slotat="outfit" class="lbl" style="letter-spacing:.1em; margin-top:18px">outfit</div>
       ${e.outfits.map((o) => roomCard(o.name, o.body, [], o.active,
@@ -4366,6 +4475,20 @@ document.addEventListener('click', async (e) => {
     return toast('Listening again.');
   }
 
+  // PLAN-08 Phase 4. A THRESHOLD, not a delete: the card stops reaching the model from the chapter
+  // named and every chapter before it still has them, which is what makes going back to revise
+  // chapter 6 safe after somebody dies in chapter 12. The chapter it takes effect from is the NEXT
+  // one, for the same reason a state is anchored to the next one — the death happens during the
+  // chapter you are in.
+  if (d.retire) {
+    V = await api.retire(S.storyId, d.retire, (V.currentChapter?.index ?? 0) + 1); paint();
+    return toast('Finished. Lift it in Waiting.');
+  }
+  if (d.unretire) {
+    V = await api.retire(S.storyId, d.unretire, null); paint();
+    return toast('Back in the book.');
+  }
+
   // Every card opens on its face. Carrying the last card's view over means pressing a thread to
   // READ it and landing in a form of empty boxes, which is the thing the face exists to avoid.
   if (d.entry) { S.entryId = d.entry; S.fieldHistory = null; S.cardView = null;
@@ -4793,8 +4916,7 @@ document.addEventListener('click', async (e) => {
       : (mode === 'force_in' ? null : 'force_in');
     const r = await api.setPin(S.storyId, V.currentChapter.id, id, next);
     if (r.error) return toast(r.error);
-    const done = V.ritualDone;
-    V = await api.story(S.storyId); V.ritualDone = done;
+    V = await api.story(S.storyId);
     paint(); refreshManifest(); return;
   }
   if (d.savesetup) {
@@ -4832,39 +4954,38 @@ document.addEventListener('click', async (e) => {
     if (ct) await api.saveChapter(S.storyId, V.currentChapter.id, { title: ct.value, authorsNote: cn?.value ?? '' });
     V = await api.story(S.storyId); paint(); toast('Saved.'); refreshManifest(); return;
   }
-  if (d.ritual) {
+  // The DOOR. Pressing it opens the chapter's own screen; the close itself is a second press
+  // inside, which is the right number before an act that cannot be undone from one button.
+  if (d.ritual) { S.ritualOf = V.currentChapter.id; S.panel = 'ritual'; syncHash(); paint(); return; }
+
+  if (d.endchapter) {
     if (S.ritual) return;                       // already running
     working('reroll');
+    // FOUR PASSES, ONE CALL. The route closes the chapter, summarises it, remembers what it did to
+    // the people in it, reads it for facts, and asks which threads it finished — all on the same
+    // terms: "on close rather than on a button nobody remembers". Each is wrapped server-side so a
+    // chapter can still close with the model down, and the screen says which one did not run.
+    S.ritual = 'Closing, summarising, reading it…'; paint();
     const closing = V.currentChapter;
-    // Steps 1 to 3 are ONE call. The route summarises on close by itself, remembers what the
-    // chapter did to the people in it, and — since 2026-08-27 — reads it for facts, all on the
-    // same terms: "on close rather than on a button nobody remembers". This used to make the
-    // extract call itself, which after the move would have run the extractor twice.
-    S.ritual = 'Closing, summarising, reading it for facts…'; paint();
     const r = await api.endChapter(S.storyId, {});
     if (r.error) { S.ritual = null; working(null); paint(); return toast(r.error); }
     V = await api.story(S.storyId);
-    const summary = V.chapters.find((c) => c.id === closing.id)?.summary;
-    const steps = [summary ? `Summarised ${closing.title || 'the chapter'} in ${summary.split(/\s+/).length} words`
-                           : 'Closed, but the summary did not come back'];
-
-    // What the close already found. Nothing is accepted — SPEC 8.2, and it is the rule that makes
-    // the ledger worth trusting. `extracted` null means the model was down when it closed, which
-    // a chapter is allowed to do; the standalone button is still there to run it again.
-    const x = r.extracted;
-    steps.push(!x ? 'Could not read it for facts — the button on this panel will try again'
-      : x.error ? `Could not read it for facts: ${x.error}`
-      : `${x.added ?? 0} proposed as threads — nothing accepted yet`);
-
-    // Step 4: the next chapter's setup, skippable.
-    V = await api.story(S.storyId);
-    V.ritualDone = steps;
+    // The panel stays on the chapter that just closed and recomputes its whole report from `V`.
+    // refetch dropped — so the checklist vanished on the next unrelated press.
+    S.ritualOf = closing.id;
     S.ritual = null; working(null);
-    S.panel = 'setup';
     syncHash(); paint(); refreshManifest();
-    // The new chapter is empty, so the same switch that opens a story opens this one.
     if (V.story.autoOpen !== false) { OPEN_WANTED = S.storyId; await openingPassage(); }
     return;
+  }
+  // The way back when the router was asleep at the close. Same shape as data-remember.
+  if (d.refinished) {
+    toast('Looking for finished threads…');
+    const r = await api.finished(S.storyId, S.ritualOf ?? V.currentChapter.id);
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint();
+    return toast(r.proposed ? `${r.proposed} proposed as finished, of ${r.eligible} this chapter names`
+                            : `Nothing finished, of ${r.eligible ?? 0} this chapter names`);
   }
   if (d.summarize) { toast('Summarising…'); const r = await api.summarize(S.storyId, V.currentChapter.id);
     if (r.error) return toast(r.error); V = await api.story(S.storyId); paint(); return; }

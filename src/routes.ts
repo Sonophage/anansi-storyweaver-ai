@@ -2,13 +2,13 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RELEASE, RELEASE_SCHEMA, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RELEASE, RELEASE_SCHEMA, RETIRE, retireSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
 import { fileBug, build, commits } from './report.ts';
-import { resolveBody, narrationOnly } from './context.ts';
+import { resolveBody, narrationOnly, retirable } from './context.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -133,6 +133,9 @@ const SPARK_TOKENS = 3400;
  *  adding to it, so each one is a full restatement and not a line — four characters at 600 characters
  *  each is the shape to leave room for. */
 const MEMORY_TOKENS = 1800;
+// Six objects of a card name and one sentence. Small, and it still gets a named constant for the
+// reason every other role here does: running out of room truncates the OBJECT and costs a retry.
+const RETIRE_TOKENS = 400;
 
 /** A title and a three-to-six-sentence beat. Small next to the others, and it still gets a named
  *  constant rather than a literal, because the one thing every role here has in common is that
@@ -395,6 +398,67 @@ async function extract(storyId: string, chapterId?: string) {
       activation: e.activation })) added++;
   }
   return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
+}
+
+/** WHICH CARDS THIS CHAPTER FINISHED. PLAN-08 Phase 4, the fourth worker at chapter end.
+ *
+ *  Proposals, never writes — the same bargain `extract` and `remember` already make, and it
+ *  matters more here than in either: accepting one of these is the only decision in the app that
+ *  changes what the model is told for the rest of the book, and the card stays on the Threads
+ *  screen looking alive while it happens.
+ *
+ *  THE GATE COMES FIRST AND IT IS FREE. `retirable` (`src/context.ts`) offers only cards this
+ *  chapter NAMES, that carry no threshold already, and never the point-of-view character. Most
+ *  closes hand it nothing, and then this costs no model call at all.
+ *
+ *  ponytail: a fourth sequential call over the same narration. The free-looking alternative is to
+ *  fold the question into MEMORY, which already carries the cast with the description in force —
+ *  refused, because MEMORY is characters-only on purpose (`test/memory.ts` asserts lore is not
+ *  offered) and the writer's own examples are a burned building and a repealed rule. Widening a
+ *  measured prompt to answer a second question is how a measurement stops meaning anything.
+ *  Ceiling: four calls on a long chapter. Upgrade path: one call answering both, with both arms
+ *  measured by `bench/retire.ts` before the old shape is deleted. */
+async function retire(storyId: string, chapterId?: string) {
+  const v = viewOf(storyId);
+  const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
+  const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
+  if (!ps.length) return { proposed: 0, eligible: 0 };
+  const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
+  if (!text.trim()) return { proposed: 0, eligible: 0 };
+
+  const cands = retirable(v.entries as any, text, (v.story as any).persona);
+  // The cheap path, and the usual one. Also the reason `retireSchema` may never be handed an
+  // empty list: an empty enum is not a grammar.
+  if (!cands.length) return { proposed: 0, eligible: 0, chapter: ch.index };
+
+  const inForce = cands.map((e: any) => `${e.title}: ${resolveBody(e, ch.index)}`).join('\n\n');
+  const r = await structuredRetry(RETIRE(String((v.story as any).direction ?? '')),
+    `${text}\n\n---\n\n${inForce}`, retireSchema(cands.map((e: any) => e.title)) as any,
+    { max_tokens: RETIRE_TOKENS });
+  if (!r.data?.finished) return { proposed: 0, eligible: cands.length, error: r.error ?? null };
+
+  // IN FORCE FROM THE NEXT CHAPTER, not this one. `src/context.ts` drops on
+  // `retiredAtChapter <= currentChapter.index`, and the death happens DURING the chapter that just
+  // closed — so storing this chapter's own number takes the man out of the chapter he dies in, and
+  // takes him out again every time the writer goes back to revise it. `remember` anchors its
+  // states the same way and for the same reason.
+  const at = ch.index + 1;
+  let proposed = 0;
+  for (const f of r.data.finished) {
+    // The enum should make a miss impossible. Checked anyway: the constraint is the router's to
+    // honour, and this is the one answer that decides what the model stops being told.
+    const who = cands.find((e: any) => e.title === f?.card);
+    if (!who) continue;
+    if (db.addProposal(v.id, {
+      kind: 'retire', entryType: 'retire', entry_id: who.id, chapterId: ch.id, title: who.title,
+      body: String(f.why ?? '').trim() || 'finished by this chapter',
+      delta: `Stops reaching the model from chapter ${at}`,
+      keys: [String(at)],
+    })) proposed++;
+  }
+  // The denominator rides in the runtime answer and not only in the probe: "2 proposed" means
+  // nothing without "of 5 the chapter named".
+  return { proposed, eligible: cands.length, chapter: ch.index };
 }
 
 async function summarise(c: Ctx, storyId: string, chapterId?: string) {
@@ -855,7 +919,16 @@ export const routes: Record<string, Handler> = {
     if (c.body.extract !== false) {
       try { extracted = await extract(v.id, closing); } catch { /* same */ }
     }
-    return { ...r, extracted, ...viewOf(v.id) };
+    // And ask which of them the chapter FINISHED. Last of the four deliberately: it is the only
+    // step that takes something away, and a writer reading the queue should meet what the chapter
+    // added before what it ended. Nothing is written here either — a retirement is a proposal, and
+    // accepting one is the only decision in the app that changes what the model is told for the
+    // rest of the book.
+    let retired: any = null;
+    if (c.body.retire !== false) {
+      try { retired = await retire(v.id, closing); } catch { /* same */ }
+    }
+    return { ...r, extracted, retired, ...viewOf(v.id) };
   },
 
   // ---- history & revert. §7.4's safety argument is "you can revert" — this is the revert. ----
@@ -1303,6 +1376,22 @@ export const routes: Record<string, Handler> = {
                                  return viewOf(c.body.storyId); },
   'DELETE /api/addon':  (c) => { db.delAddon(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
 
+  // PLAN-08 Phase 4. A thread can be finished, and it can be brought back — `atChapter: null`
+  // lifts it, which is `setPin`'s contract and the reason there is one route and not two. This is
+  // deliberately NOT part of `POST /api/entry`: `upsertEntry` writes `last_editor` and logs a
+  // revision, and `last_editor` is what arbitration keys on, so bringing a character back through
+  // the entry save would quietly mark the card human-edited. Retiring is not editing.
+  'POST /api/retire': (c) => {
+    const at = c.body.atChapter == null ? null : Number(c.body.atChapter);
+    if (at != null && !(Number.isInteger(at) && at > 0)) return { error: 'that is not a chapter' };
+    if (!db.setRetired(c.body.storyId, c.body.id, at)) return { error: 'no such card in this book' };
+    return viewOf(c.body.storyId);
+  },
+  // The way back when the router was down at chapter end — the exact case `POST /api/remember`
+  // exists for, and the reason that route was called a bug for not existing.
+  'POST /api/finished': async (c) => ({ ...(await retire(c.body.storyId, c.body.chapterId)),
+                                        ...viewOf(c.body.storyId) }),
+
   // Canon over time. The state in force is resolved at assembly, so writing chapter 3
   // cannot see what chapter 7 establishes.
   'POST /api/state':   (c) => { db.upsertState(c.body.storyId, c.body.entryId, c.body.state); return viewOf(c.body.storyId); },
@@ -1426,6 +1515,17 @@ export const routes: Record<string, Handler> = {
           label: p.delta || null,
           beforeMode: 'hide',
         });
+      } else if (c.body.accept && p.entry_type === 'retire') {
+        // A THRESHOLD, never a delete and never a body: not one word of the card changes, only the
+        // chapter from which it stops being sent. `p.body` holds the model's reason and the box on
+        // a proposal card is editable, so it is deliberately IGNORED here — there is nothing on a
+        // retirement for an edited body to land in.
+        //
+        // THE INTEGER GUARD IS NOT DECORATION. The state branch above falls back to `|| 1` on a
+        // malformed key, which is harmless there and would retire a card from chapter ONE here —
+        // the whole book, silently, from a bad proposal. Nothing rather than something wrong.
+        const at = Number(JSON.parse(p.keys || '[]')[0]);
+        if (p.entry_id && Number.isInteger(at) && at > 0) db.setRetired(p.story_id, p.entry_id, at);
       } else if (c.body.accept && p.entry_type === 'string') {
         // A string is not an entry, so accepting one makes a string. The chapter it was set up in
         // rides in `keys`, which is the only field on a proposal with room for it.

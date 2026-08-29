@@ -70,6 +70,13 @@ ok('an upsert with a foreign entry id does not rewrite it');
 assert.strictEqual(db.upsertState(bStory.id, aEntry, { fromChapter: 2, body: 'x' }), null);
 ok('a state cannot be hung off another story\'s entry');
 
+// A cross-tenant retirement is not a coherence bug, it is a silent deletion of somebody else's
+// character: the card stays on their Threads screen and quietly stops reaching the model.
+assert.strictEqual(db.setRetired(bStory.id, aEntry, 3), false);
+assert.strictEqual((db.entriesOf(aStory.id)[0] as any).retired_at_chapter ?? null, null,
+  "alice's entry was retired through bob's story");
+ok('a card cannot be finished through another story\'s id');
+
 // Deleting a character takes its wardrobe with it, or outfits outlive the person wearing them.
 {
   const tmp = db.upsertEntry(aStory.id, alice, { title: 'Temporary', body: '[here briefly]' });

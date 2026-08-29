@@ -373,6 +373,43 @@ export function fires(entry: Entry, window: string): string[] {
   });
 }
 
+/** The cards a closing chapter may be ASKED to finish. PLAN-08 Phase 4.
+ *
+ *  A gate in front of the model, not a decision. Three refusals, and each one is a defect that
+ *  would otherwise be invisible:
+ *
+ *  NAMED BY THIS CHAPTER. A card the closing chapter never mentions cannot be judged finished by
+ *  reading it — there is no sentence to judge. Offering the whole ledger is how a scan retires a
+ *  character it read no line about. The title is appended to the keys because
+ *  `bench/ledger-audit.ts` measured the live library on 2026-08-28: eleven of twelve entries carry
+ *  keys that are only their own title back, and one carries none at all, so asking `fires` alone
+ *  would make a keyless card invisible here and shrink the denominator in silence. Two characters
+ *  minimum on the append — SPEC §7.1's floor, owned by `db.keysOf` and restated rather than
+ *  imported because this module has no database below it and never will.
+ *
+ *  ALREADY CARRYING A THRESHOLD. Whatever number is on it, the writer chose it. Re-proposing it
+ *  every close turns the queue into noise, and a model revising somebody's decision is not a
+ *  proposal, it is an argument.
+ *
+ *  NEVER THE POINT-OF-VIEW CHARACTER. `buildContext` applies the retirement branch BEFORE its
+ *  `isPov` branch, so a retired persona card is omitted from every prompt with nothing on screen
+ *  saying so — the protagonist quietly stops being described. The writer may still do it by hand;
+ *  the scan must never suggest it.
+ *
+ *  Lives here rather than in `routes.ts` so that `bench/` and `test/engine.ts` can both reach it:
+ *  importing it from there would pull `src/db.ts`, which opens the database writable and migrates
+ *  it at module load, which is the objection `bench/ledger-audit.ts` already records. */
+export function retirable(entries: Entry[], window: string, persona?: string | null): Entry[] {
+  const who = String(persona ?? '').trim().toLowerCase();
+  return entries.filter((e) => {
+    if (e.retiredAtChapter != null) return false;
+    if (who && e.title.trim().toLowerCase() === who) return false;
+    const title = e.title.trim();
+    const keys = title.length >= 2 ? [...e.keys, title] : e.keys;
+    return fires({ ...e, keys }, window).length > 0;
+  });
+}
+
 export function buildContext(input: Input, count: (s: string) => number): Manifest {
   const { story, chapters, passages, entries, currentChapter, budget } = input;
   const tailTokens = input.tailTokens ?? 200;
