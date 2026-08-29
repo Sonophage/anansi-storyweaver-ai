@@ -1604,3 +1604,52 @@ nothing when canon fits. A weight probe that cannot report "the cap bit" reports
 **A percentage under 100 is not "the cap cannot bite".** It is the cap not biting on the prose that
 exists, in a library whose largest ledger is six cards. This bounds the risk at today's sizes; it
 does not retire it, and the trigger above is what re-opens it.
+
+## F40 — the finished-thread scan is right about deaths and wrong about a closed building, and the direction clause it was built around measures exactly zero (2026-08-28)
+
+PLAN-08 Phase 4. Measured with `bench/retire.ts`, four hand-written closing chapters, three runs per
+case per arm, no database — it drives `retirable`, `RETIRE` and `retireSchema` directly, the same
+three the route uses.
+
+| arm | recall | false finishes |
+|---|---|---|
+| with the direction | 6/6 — **100%** | 3/30 — **10%** |
+| without it | 6/6 — **100%** | 3/30 — **10%** |
+
+**Recall is the uninteresting number and it is printed second on purpose.** A scan that finishes
+everything scores perfect recall — the smoke alarm that never stops beeping detects every fire.
+`bench/retire.ts check` asserts the two graders cannot be satisfied by one answer, and that naming
+every card scores full recall *and* full damage.
+
+**All three false finishes are one card, three times out of three, in both arms: `the Vestry`.** The
+fixture chapter says it "closed its doors for the last time and the sign came down off the wall",
+and the writer's direction says in as many words that it reopens in the last act. `Cazalet` is in
+the same chapter, walks out "and did not look back", is named in the same direction line — and the
+scan correctly leaves him alone every time. So this is not a scan ignoring the direction wholesale.
+**It reads a PLACE the prose calls closed as finished, and a PERSON walking away as offstage**, and
+nothing the writer says about where the book is going moves either reading.
+
+**The direction clause measured zero across 30 chances and two placements.** `stories.direction`
+reaching `src/prompts.ts` at all is new — until this it existed only in SPINE, on the prose path —
+and it is the entire mechanism aimed at "depending on where we're going". It was measured in the
+middle of the rules list and again at the head of the prompt as a named veto with the rule restated
+in the list. Identical: 3/9 on the case built for it, both times.
+
+**It is NOT being deleted on this evidence, and that is a deliberate departure from F20's precedent.**
+F20 deleted CANON-REPEAT on 850 generations per arm. This is 30 chances, which is not a comparable
+foundation for removing the only mechanism aimed at the problem. What this does buy is that nobody
+may claim the clause works: the number is in the prompt's own comment beside it. To retire the
+clause honestly, run this at n≥200 per arm with more than one card of the failing shape.
+
+**The first version of this probe could not see the defect at all**, and that is worth recording.
+Its three original cases were unambiguous from the prose alone, so both arms scored 0/21 and the
+comparison read as "the clause is decoration" — the same output a working clause would produce. The
+fourth case exists because a probe that cannot fail on the thing it was built to measure reports
+perfection (F17). The gate is reported first and separately for the same reason: a `retirable` that
+admitted nothing would report a flawless false-finish rate having seen no cards.
+
+**What this means for shipping.** The scan PROPOSES; nothing is written without a press; a wrong
+press is visible in three places and reversible in one. A 10% false-finish rate concentrated on one
+recognisable shape is survivable under those terms and would not be survivable under any kind of
+auto-accept. Do not add one. The next move on the model half is a rule about places specifically —
+a building being shut is not a building being gone — with this probe re-run before it is believed.

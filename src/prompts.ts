@@ -110,10 +110,18 @@ export const MEMORY_SCHEMA = {
  *  the page in chapter 7 and is the whole of chapter 30 is offstage, not finished, and the closing
  *  chapter cannot tell you which. Nothing else in the input can either.
  *
- *  Whether the clause buys anything is a MEASUREMENT and not an assumption. F20 spent 850
- *  generations per arm proving that restating canon in a second block bought nothing and deleted
- *  it; F37 measured the same rule twice and kept the version that worked. `bench/retire.ts` runs
- *  both arms — with the direction and with it blank — and if they match, this clause comes out.
+ *  MEASURED, AND IT BOUGHT NOTHING SO FAR — F40. `bench/retire.ts` runs both arms, with the
+ *  direction and with it blank, and they came back identical: 3 false finishes in 30 chances,
+ *  both arms, across TWO placements of this clause (in the rules list, and at the head as a named
+ *  veto with the rule restated below). The one card it gets wrong is a PLACE the prose calls
+ *  closed — the scan reads a shut building as gone and a person walking away as offstage, and
+ *  nothing the writer says about the destination moves either.
+ *
+ *  It is not deleted on that evidence and the departure is deliberate: F20 removed CANON-REPEAT on
+ *  850 generations per arm, and 30 chances is not a comparable foundation for taking out the only
+ *  mechanism aimed at this. What the number does buy is that nobody may claim the clause WORKS.
+ *  To retire it honestly, re-run at n>=200 per arm with more than one card of the failing shape.
+ *  The next thing to try is a rule about places specifically, not another placement of this one.
  *
  *  THE ASYMMETRY IS DELIBERATE AND IT IS THE WHOLE PROMPT. Missing a finished card costs one card
  *  firing a few chapters too long, which F39 priced at a rounding error against the ceiling.
@@ -121,7 +129,13 @@ export const MEMORY_SCHEMA = {
  *  sitting on screen looking alive. So every rule below leans the same way, and the last line says
  *  so outright. */
 export const RETIRE = (direction: string) =>
-`Below is a chapter's narration, then the ledger cards this chapter names, each with the
+`${direction.trim() ? `WHERE THIS STORY IS GOING, in the writer's own words:
+${direction.trim()}
+
+A card named there is NOT finished. Skip it, whatever this chapter does to it. The writer knows
+the book and this is one chapter of it.
+
+` : ''}Below is a chapter's narration, then the ledger cards this chapter names, each with the
 description of it that is currently in force.
 
 Name the cards this chapter FINISHED. A card is finished when the narration commits that it is
@@ -137,12 +151,9 @@ Rules:
   SAYS is dead is not dead. A body on the page is.
 - A card that stops mattering is not finished. This is about what is gone, not about what is dull.
 - why is one short sentence naming what the narration commits: "her body is on the stair".
-${direction.trim() ? `
-WHERE THIS STORY IS GOING, in the writer's own words:
-${direction.trim()}
-
-If that says a card comes back, matters later, or is not done with, it is NOT finished — whatever
-this chapter looks like. The writer knows the book. This is one chapter of it.
+${direction.trim() ? `- A card the writer named at the top, under WHERE THIS STORY IS GOING, is not
+  finished. Leave it out even if this chapter closes its doors, walks it off the page, or says it
+  is over. The writer has already told you it comes back.
 ` : ''}
 Name nothing rather than guess. An empty answer is the usual answer.`;
 

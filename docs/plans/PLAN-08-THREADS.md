@@ -244,9 +244,22 @@ coat reaches the prompt exactly once, so deleting one alone goes red rather than
 
 ### Phase 4 — chapter end
 
-#5's scan proposes new threads as well as rewriting; clothing lands as an outfit on the character
-rather than as prose in her description; per-field updates instead of whole-body overwrites. The
-ritual screen from #12 gets the step, or the step has nowhere to be.
+**The retirement half is done, 2026-08-28.** Seth's framing: *"the way it will work will be chapter.
+At chapter end we can drop the cards. Or choose to, depending on where we're going."* A fourth
+worker at chapter end proposes what the chapter FINISHED, behind a gate (`retirable`) that offers
+only cards the chapter names, never one that already carries a threshold, and never the
+point-of-view character. Accepting writes `retired_at_chapter` and nothing else — a threshold, never
+a delete. The ritual is a screen now, and a finished card is visible and liftable in three places.
+
+**F40 is the caution that comes with it.** Recall 100%, false finishes 10% — all of them one card, a
+place the prose calls closed. The `stories.direction` clause, which is the only mechanism aimed at
+"depending on where we're going", measured **exactly zero** across two placements. The scan
+proposes and nothing is written without a press; **do not add an auto-accept**, and read F40 before
+touching the prompt.
+
+**Still open in this phase:** #5's scan proposing new threads as well as rewriting; clothing landing
+as an outfit on the character rather than as prose in her description; per-field updates instead of
+whole-body overwrites — which needs `proposals.field`, written since Phase 2 and read by nothing.
 
 ## One correction to carry into the work
 

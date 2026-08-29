@@ -14,7 +14,7 @@ of it reach the model. Phases 1, 2 and 3 are done. Phase 4 has not started.
 | 1 · the flip + a probe | **done.** F38 is the number. Two changes shipped, two held with reasons. |
 | 2 · the schema, once | **done.** `addons`, `entry_edges`, `retired_at_chapter`, `proposals.field`/`.activation`. |
 | 3 · the context path | **done.** Addons and edges both reach the model; the cap is measured (F39). One thing left over, below. |
-| 4 · chapter end | **not started.** #5's scan, clothing routed to outfits, #12's ritual step. |
+| 4 · chapter end | **the retirement half is done** (F40). Still open: #5's scan proposing new threads, clothing routed to outfits. |
 
 ### What Phase 3 closed, on 2026-08-28
 
@@ -35,6 +35,30 @@ of it reach the model. Phases 1, 2 and 3 are done. Phase 4 has not started.
    `bench/weight.ts` reporting the ceiling dropping a card at any position, or `fills` under ~50
    cards. Read the denominator before the number: **no book has a room yet**, so only the modelled
    column is evidence about this feature.
+
+### Phase 4, the retirement half — done 2026-08-28
+
+A chapter can finish a thread. `entries.retired_at_chapter` had a reader since Phase 2 and no
+writer at all; it has `db.setRetired` now, with the way back in the same function (`null` lifts it,
+which is `setPin`'s contract). Deliberately NOT a field on `upsertEntry`: that writes `last_editor`,
+which arbitration keys on, so bringing a character back through the entry save would mark the card
+human-edited.
+
+- **The scan is a fourth worker at chapter end**, behind a free gate: `retirable()` in
+  `src/context.ts` offers only cards the closing chapter NAMES, that carry no threshold already, and
+  **never the point-of-view character** — `buildContext` applies its retirement branch before its
+  `isPov` branch, so a retired persona card takes the protagonist out of every prompt with nothing
+  on screen saying so.
+- **Stored as `ch.index + 1`.** She dies DURING the chapter that just closed, so revising that
+  chapter later must still have her in it. `remember` anchors states the same way.
+- **The ritual is a screen** — a panel, not a full-screen surface, because `docs/checklist.md`
+  question 2 reserves that decision. `V.ritualDone` is deleted: it was carried across exactly one
+  refetch and dropped by every other, so the checklist vanished on any unrelated press.
+- **F40 is the number, and it is a caution.** Recall 100%; false finishes **10%**, all of them one
+  card — a place the prose calls closed. The `stories.direction` clause measured **exactly zero**
+  across two placements. Read F40 before touching the prompt.
+- **Still owed:** the browser round trip in `test/ui/panels.js` (press retire → manifest omits →
+  press bring-back → it does not), and a rule about places, measured.
 
 ### What Phase 3 still owes
 
@@ -79,7 +103,7 @@ of it reach the model. Phases 1, 2 and 3 are done. Phase 4 has not started.
 
 ## Numbers that override the docs
 
-`docs/findings/P0-FINDINGS.md` beats `SPEC.md` and every plan. The three that matter most here:
+`docs/findings/P0-FINDINGS.md` beats `SPEC.md` and every plan. The four that matter most here:
 
 - **F38** — the ledger's keyword path is NOT dead: 107 firings in 148 eligible entry-positions.
   PLAN-06 §2e's "best-tested dead code in the app" was true of a twelve-entry library on
@@ -89,6 +113,10 @@ of it reach the model. Phases 1, 2 and 3 are done. Phase 4 has not started.
   every position through `view()`/`assemble()` against a COPY of the database — it never opens the
   live book. **Its denominator is the reading: no book has a room yet**, so the "as it stands"
   column is the shape before the feature and only the modelled column is evidence about it.
+- **F40** — the finished-thread scan is right about deaths and wrong about a closed building, and
+  the direction clause measures zero. It PROPOSES; nothing is written without a press. **Do not add
+  an auto-accept.** `bench/retire.ts` re-runs it; its first three cases could not see the defect at
+  all, which is why there is a fourth.
 - **`bench/ledger-audit.ts` governs whether anything may be flipped to `triggered`**, and says
   existing rows may not: 1 in 12 would go dark and 2 more are "safe on the record, dark on the next
   call". `bench/fires.ts` is its per-position sibling and should be folded into it one day; it
@@ -100,7 +128,7 @@ Issues #7, #9, #11, #12, #14. #9 (contradictions arriving late) is **downstream*
 beside it — the check reads the ledger, so fielded cards change its inputs and doing it first is
 work thrown away. `serve.ts`'s three `ponytail:` markers are untouched: `:81` a reverse proxy breaks
 the loopback rule OPEN, `:208` no backpressure now that a phone is on the tailnet, `:54` whois
-cached per process. Twenty-six `ponytail:` markers across the tree; the two new ones are the one-hop
+cached per process. Twenty-nine `ponytail:` markers across the tree; the newest are the one-hop
 bound on the inherited pull and the eviction decision F39 bought.
 
 Parked with its reasoning in `docs/checklist.md`: attaching an image to an issue.
