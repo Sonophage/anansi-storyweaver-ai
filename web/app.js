@@ -1202,7 +1202,18 @@ function proposalCard(p) {
  *  sentence. The re-run buttons live here because this is the screen that says which one to press.
  */
 function ritualPanel() {
-  const ch = V.chapters.find((c) => c.id === S.ritualOf) ?? V.currentChapter;
+  // WHICH CHAPTER THIS SCREEN IS ABOUT, and it has to survive a reload. `S.ritualOf` is session
+  // state, so a cold load at `#story/ritual` has none — and falling back to `currentChapter` there
+  // reported on the NEW chapter, which after a close is empty, so the screen said a chapter that
+  // had just been summarised and read for facts had neither. `test/ui/ritual.js` caught it by
+  // asserting the count on screen equals the queue rather than asserting the model found something.
+  //
+  // The fallback is `wholeFrom`'s rule in `src/context.ts`, for the same reason it exists there: a
+  // chapter with no passage of its own yet has nothing to report on, and the one before it does.
+  // Write a passage and the screen is about the chapter you are in again.
+  const started = (V.passages ?? []).some((p) => p.chapterId === V.currentChapter.id && !p.isBreak);
+  const ch = V.chapters.find((c) => c.id === S.ritualOf)
+    ?? (started ? V.currentChapter : (V.chapters.at(-2) ?? V.currentChapter));
   const closed = ch.status === 'closed' || ch.id !== V.currentChapter.id;
   const ps = (V.proposals ?? []).filter((p) => p.chapterId === ch.id);
   const of = (t) => ps.filter((p) => p.entryType === t);

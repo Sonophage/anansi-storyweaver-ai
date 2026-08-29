@@ -57,7 +57,13 @@ human-edited.
 - **F40 is the number, and it is a caution.** Recall 100%; false finishes **10%**, all of them one
   card — a place the prose calls closed. The `stories.direction` clause measured **exactly zero**
   across two placements. Read F40 before touching the prompt.
-- **Still owed:** the browser round trip in `test/ui/panels.js` (press retire → manifest omits →
+- **The browser harness ran.** `panels` 175 ok, `surfaces` 63 ok, **`ritual` 29 ok** after being
+  rewritten for the two-press flow. It found a real defect that 295 node checks and 175 `panels`
+  checks all missed, because none of them reload the page: `S.ritualOf` is session state, so a cold
+  load at `#story/ritual` fell back to `currentChapter` — the NEW, empty chapter — and the screen
+  reported that a chapter just summarised and read for facts had neither. The fallback is
+  `wholeFrom`'s rule now: no session state and an empty current chapter means the one before it.
+- **Still owed:** the retire round trip in `test/ui/panels.js` (press retire → manifest omits →
   press bring-back → it does not), and a rule about places, measured.
 
 ### What Phase 3 still owes
@@ -97,6 +103,11 @@ human-edited.
 - **A leftover server on a bench port breaks `test/scope.ts`.** It boots its own on 5187-5196; a
   stray debug server on 5188 makes the allowlist test report a broken gate. Kill by port, not by a
   `pkill` on an env var, which never matches.
+- **`buttons` and `handlers` have been DEAD in the browser harness, and not because of recent work.**
+  Verified 2026-08-28 by running both at `c06b51a` as well as at HEAD: `buttons` dies after 0
+  assertions, `handlers` after 1, identically at both. They are in the default set, so every run
+  that reports the other sixteen green is reporting on sixteen. Nobody has looked at them; do that
+  before trusting a full pass.
 - **Seth runs the browser harness only when he asks for it.** Test what you touched. Be honest that
   a change to a shared view (the card's default, for instance) touches every scenario that opens a
   thread — three broke that way today and only a full pass found them.

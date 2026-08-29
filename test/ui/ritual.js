@@ -25,29 +25,82 @@ const chBefore = before.chapters.length;
 // the six-panel rearrangement, and closing a chapter is the chapter's business.
 await page.goto(B + "/#" + sid + "/chapter");
 for (let i = 0; i < 40 && !(await page.visible('[data-ritual="1"]')); i++) await wait(250);
+// TWO PRESSES NOW, and that is the point of the change. The button on the Chapter panel is a DOOR
+// to the chapter's own screen (PLAN-08 Phase 4, issue #12); the close itself is a second press
+// inside it. One press before an act that cannot be undone from one button was one too few.
 await page.click('[data-ritual="1"]');
-console.log("  ritual running (summarise, then extraction)…");
-for (let i = 0; i < 120; i++) {
-  if (await page.visible('[data-savesetup="1"]')) break;
+for (let i = 0; i < 40 && !(await page.visible('[data-endchapter="1"]')); i++) await wait(250);
+ok("the ritual has a screen of its own, and the close lives on it",
+   await page.visible('[data-endchapter="1"]'));
+// NAMED BEFORE ANYTHING RUNS. The screen has to say what closing will do while it is still a
+// choice, or it is a progress bar with extra steps.
+const plan = (await page.text('#sideBody') || '');
+ok(`  and it names its steps before anything has run (${plan.replace(/\s+/g,' ').trim().length} chars)`,
+   /summarise|summaris/i.test(plan) && /finish/i.test(plan));
+
+await page.click('[data-endchapter="1"]');
+console.log("  ritual running (summarise, remember, extraction, finished)…");
+for (let i = 0; i < 180; i++) {
+  if (await page.visible('[data-panel="setup"]')) break;
   await wait(1000);
 }
 
-// ---- the ritual's three steps
+// ---- what the screen reports when it is done
+ok("the chapter's own screen stays put and hands you on to the next",
+   await page.visible('[data-panel="setup"]'));
+// THE REPORT SURVIVES A RELOAD. It used to be `V.ritualDone`, a client field carried across
+// exactly one refetch and dropped by every other, so the checklist vanished on the next press.
+await page.goto(B + "/#" + sid + "/ritual");
+for (let i = 0; i < 40 && !(await page.text('#sideBody')); i++) await wait(250);
+const again = (await page.text('#sideBody') || '');
+ok(`  and the report is still there after a reload (${again.replace(/\s+/g,' ').trim().length} chars)`,
+   /summaris/i.test(again));
+// THE REPORT ITSELF, and it moved here from the setup panel on 2026-08-28. Setup is what comes
+// NEXT; what just ended is the ritual screen's own business, which is the whole reason the screen
+// exists. These two assertions came with it unchanged in intent.
+console.log("  ritual report: " + again.replace(/\s+/g, ' ').slice(0, 180));
+ok("  it reports the summary it wrote", /Summarised in \d+ word|Not summarised/.test(again));
+// NOT `|Could not read`, which is what this said until 2026-08-27. The wording it looked for —
+// "proposed for the ledger" — was renamed when the ledger became Threads, and the assertion was
+// never updated. So for as long as extraction FAILED here it passed on its own failure branch, and
+// the day extraction started working on chapter close it went red. An assertion that accepts the
+// error message as a pass cannot fail. Same family as the two inert blocks in this file that
+// .claude/CLAUDE.md records.
+// WHAT THE SCREEN SAYS MUST EQUAL WHAT THE SERVER HOLDS, which is an invariant and holds at zero.
+// The version this replaces demanded the model propose at least one fact — a statement about the
+// model dressed as a statement about the code, and it goes red on a chapter that genuinely holds
+// nothing new. Its ancestor had the opposite fault and accepted "Could not read" as a pass, so it
+// could not fail at all. This can fail, and only for a reason worth waking up for: the count on
+// screen disagreeing with the queue, or the empty case saying nothing.
+const v = await story();
+const facts = v.proposals.filter((p) => p.chapterId === closing.id
+  && !['state', 'string', 'retire'].includes(p.entryType));
+if (facts.length) {
+  ok(`  and what extraction proposed is on screen (${facts.length})`,
+     new RegExp("Read for facts — " + facts.length + " proposed").test(again));
+} else {
+  ok("  and a chapter that proposed nothing says so, rather than showing a bare heading",
+     /No new threads came out of this chapter/.test(again));
+}
+// The finished-thread step, in the guard-proof form: the model may legitimately find nothing, so
+// assert the invariant that holds at ZERO and then branch with an else, or the check stops running
+// and still reports green — which this file has already done twice.
+const rets = (await story()).proposals.filter((p) => p.entryType === 'retire');
+if (rets.length) {
+  ok(`  ${rets.length} finished thread(s) proposed, each decidable in place`,
+     /data-decide/.test(again));
+} else {
+  ok("  nothing was proposed as finished, and the screen says so in words",
+     /Nothing was proposed as finished/i.test(again));
+}
+
+await page.goto(B + "/#" + sid + "/setup");
+for (let i = 0; i < 40 && !(await page.visible('[data-savesetup="1"]')); i++) await wait(250);
 ok("the setup panel opens when the ritual finishes", await page.visible('[data-savesetup="1"]'));
 const head = (await page.text('#sideHead') || '');
 ok(`  and it is titled for the next chapter (${JSON.stringify(head.replace(/\s+/g,' ').trim().slice(0,28))})`,
    /next chapter/i.test(head));
 const body = (await page.text('#sideBody') || '');
-console.log("  ritual report: " + body.replace(/\s+/g, ' ').slice(0, 150));
-ok("  it reports the summary it wrote", /Summarised|summary did not/.test(body));
-// NOT `|Could not read`, which is what this said until 2026-08-27. The wording it looked for —
-// "proposed for the ledger" — was renamed to "proposed as threads" when the ledger became Threads,
-// and the assertion was never updated. So for as long as extraction FAILED here it passed on its
-// own failure branch, and the day extraction started working on chapter close it went red. An
-// assertion that accepts the error message as a pass cannot fail. Same family as the two inert
-// blocks in this file that .claude/CLAUDE.md records.
-ok(`  and what extraction proposed (${JSON.stringify((body.match(/\d+ proposed as threads|Could not read[^.]*/) ?? ['nothing'])[0])})`,
-   /\d+ proposed as threads/.test(body));
 
 // The new chapter names itself. It fires from the panel's own render the moment both boxes are
 // empty, so by the time the ritual has finished there is something in them — and neither is saved
