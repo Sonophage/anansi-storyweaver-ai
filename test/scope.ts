@@ -234,6 +234,52 @@ ok('a story cannot be deleted by someone who does not own it');
     assert.strictEqual(db.copyLedger(home, home, alice), null, 'and a book cannot copy into itself');
   }
   ok('a whole ledger can outlive its book, with the connections between what travelled');
+
+  // A BOOK CAN FOLLOW ANOTHER BOOK'S THREADS — a world bible, and the books set in it. One column,
+  // no new ownership scope, because a world here IS a book that happens to hold cards.
+  {
+    const world = db.createStory(alice, { title: 'The Ash Cycle' }).id;
+    const book = db.createStory(alice, { title: 'The Anagram of Ash' }).id;
+    db.upsertEntry(world, alice, { title: 'the Ambersand', body: '[a house that lends at ruin]',
+      entryType: 'lore', keys: ['Ambersand'] });
+    db.upsertEntry(book, alice, { title: 'Halsey', body: '[Halsey]', keys: ['Halsey'] });
+    db.updateStory(book, { loreFrom: world });
+
+    assert.deepStrictEqual(db.entriesFor(book).map((e: any) => e.title).sort(),
+      ['Halsey', 'the Ambersand'], "the world's threads reach the book that follows it");
+    // AND `entriesOf` IS UNTOUCHED, which is the load-bearing half: DELETE, copy and export all
+    // read it and all mean "cards this book owns". A follower must not be able to delete, export
+    // or duplicate its world's cards, and a followed card looks exactly like an owned one.
+    assert.deepStrictEqual(db.entriesOf(book).map((e: any) => e.title), ['Halsey'],
+      'and the follower does not OWN them');
+    assert.strictEqual(db.entriesFor(world).length, 1, 'following does not run backwards');
+
+    // The follower's own card wins a title collision: the book you are writing in is allowed to
+    // disagree with the bible, and losing that silently would be the worst kind of surprise.
+    db.upsertEntry(book, alice, { title: 'the Ambersand', body: '[burned, in this one]',
+      entryType: 'lore', keys: ['Ambersand'] });
+    const both = db.entriesFor(book).filter((e: any) => e.title === 'the Ambersand');
+    assert.strictEqual(both.length, 1, 'one card, not two');
+    assert.match(both[0].body, /burned/, "and it is the follower's own");
+
+    // ONE HOP, NEVER A CHAIN, and a pair is the only cycle one hop can make.
+    assert.strictEqual(db.updateStory(book, { loreFrom: book }) ?? null, null);
+    assert.strictEqual((db.getStory(book) as any).lore_from, world, 'a book cannot follow itself');
+    db.updateStory(world, { loreFrom: book });
+    assert.strictEqual((db.getStory(world) as any).lore_from, null,
+      'and cannot follow the book that follows it');
+
+    // Cross-owner never, even though the column is set on a story the owner controls: a source can
+    // change hands, and a card crossing owners through a read path is a leak.
+    db.updateStory(book, { loreFrom: bStory.id });
+    assert.deepStrictEqual(db.entriesFor(book).map((e: any) => e.title).sort(),
+      ['Halsey', 'the Ambersand'], "another owner's book lends nothing");
+
+    db.updateStory(book, { loreFrom: world });
+    assert.deepStrictEqual(db.followersOf(world).map((x: any) => x.title), ['The Anagram of Ash'],
+      'and the world knows who would lose threads if it went');
+  }
+  ok('a book can follow another book\'s threads, one hop, same owner, its own cards winning');
 }
 
 // Export. A story handed to someone else must carry that story and nothing else — the point

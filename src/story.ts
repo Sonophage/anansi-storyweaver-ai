@@ -100,7 +100,13 @@ export function view(storyId: string, focusChapterId?: string) {
       directed: !!(p.directive && String(p.directive).trim()),
       variants: variants.get(`${p.chapter_id}:${p.slot_key}`) ?? [{ id: p.id, selected: true }],
     })),
-    entries: db.entriesOf(storyId).map((e: any) => ({
+    // `entriesFor`, not `entriesOf`: what reaches the model and the screen includes the threads
+    // this book FOLLOWS. Delete, copy and export deliberately still read `entriesOf` — see the note
+    // there for why widening that one would have let a follower delete its world's cards.
+    loreFrom: (s as any).lore_from ?? null,
+    follows: (() => { const w = (s as any).lore_from && db.getStory((s as any).lore_from) as any;
+      return w ? { id: w.id, title: w.title } : null; })(),
+    entries: db.entriesFor(storyId).map((e: any) => ({
       ...toEntry(e, states.get(e.id) ?? []),
       // Reads through `db.outfitsOf`, which is the `outfit` slot of `addons` — see the note there.
       outfits: outfits.filter((o: any) => o.entry_id === e.id)
@@ -109,7 +115,11 @@ export function view(storyId: string, focusChapterId?: string) {
         .map((o: any) => ({ name: o.name, body: o.body }))[0] ?? null,
       // PLAN-08. The engine reads these; the outfit slot among them is skipped in `context.ts`
       // because `wearing` above still carries the coat from the older table.
-      addons: addons.filter((a: any) => a.entry_id === e.id).map((a: any) => ({
+      // Where a followed card actually lives, so the screen can say so and refuse to edit it here.
+      sharedFrom: e.shared_from ?? null,
+      sharedFromId: e.shared_from_id ?? null,
+      addons: (e.shared_from ? db.addonsOf(e.shared_from_id) : addons)
+        .filter((a: any) => a.entry_id === e.id).map((a: any) => ({
         id: a.id, slot: a.slot, name: a.name, body: a.body,
         keys: JSON.parse(a.keys || '[]'), active: !!a.active,
         fromChapter: a.from_chapter ?? undefined,

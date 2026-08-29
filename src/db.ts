@@ -83,6 +83,12 @@ function migrate() {
   // nowhere to land until this column existed.
   add('proposals', 'field', 'TEXT');
   add('proposals', 'activation', 'TEXT');
+  // A book can follow another book's threads — a world bible, and the books set in it. One column
+  // rather than a `worlds` table on purpose: a world here IS a book, one that happens to hold cards
+  // and little prose, so it needs no new ownership scope. `test/scope.ts` exists because every
+  // route being story-scoped is what keeps two writers apart, and a second scope beside it is the
+  // thing most likely to open a hole nobody sees.
+  add('stories', 'lore_from', 'TEXT');
   add('stories', 'active_branch', 'TEXT');
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
@@ -687,6 +693,44 @@ export const passagesOf = (id: string) => q(
   'SELECT * FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1 ORDER BY ordinal')
   .all(id, activeBranchOf(id)) as any[];
 export const entriesOf = (id: string) => q('SELECT * FROM entries WHERE story_id = ? ORDER BY rowid').all(id) as any[];
+
+/** This book's cards AND the ones it follows, each foreign card carrying the book it lives in.
+ *
+ *  SEPARATE FROM `entriesOf` ON PURPOSE, and this is the load-bearing decision. `entriesOf` is what
+ *  DELETE, copy, export and the ownership checks all read, and every one of them means "cards this
+ *  book owns". Widening it would have let a follower delete its world's cards, export them as its
+ *  own, and copy them twice into the same book — silently, because a followed card looks exactly
+ *  like an owned one. So the widening happens here, and only the read paths that mean "what
+ *  reaches the model and the screen" call it.
+ *
+ *  ONE LEVEL, NEVER A CHAIN. A follows B follows C does not give A C's cards, and that is not a
+ *  limitation to fix later: a chain needs a cycle guard, a depth, and an answer for what happens
+ *  when the middle book is deleted. One hop needs none of those and covers a world bible with
+ *  books set in it, which is the thing that was asked for.
+ *
+ *  SAME OWNER, CHECKED HERE. Following is set on a story the owner controls, but the source could
+ *  change hands or the column could be written by an import, and a card crossing owners through a
+ *  read path is a leak rather than a coherence bug. */
+export function entriesFor(id: string) {
+  const own = entriesOf(id);
+  const st = getStory(id) as any;
+  const from = st?.lore_from;
+  if (!from || from === id) return own;
+  const src = getStory(from) as any;
+  if (!src || src.owner_id !== st.owner_id) return own;
+  // The follower's own card wins on a title collision: the book you are writing in is allowed to
+  // say something different about a character from the bible, and losing that silently to a
+  // world-level card would be the worst kind of surprise.
+  const mine = new Set(own.map((e: any) => String(e.title).trim().toLowerCase()));
+  const shared = entriesOf(from)
+    .filter((e: any) => !mine.has(String(e.title).trim().toLowerCase()))
+    .map((e: any) => ({ ...e, shared_from: src.title, shared_from_id: from }));
+  return [...own, ...shared];
+}
+
+/** The books that would lose cards if this one went. */
+export const followersOf = (id: string) =>
+  q('SELECT id, title FROM stories WHERE lore_from = ?').all(id) as any[];
 
 /** Every entry this owner has, with the story it belongs to. The Worlds page groups by story
  *  and searches across all of them — 'in case we forget what story a certain entry belongs to'. */
@@ -1413,7 +1457,8 @@ export function updateStory(id: string, s: any) {
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,
-      locked_character=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,updated_at=? WHERE id=?`)
+      locked_character=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
+      lore_from=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
@@ -1425,7 +1470,21 @@ export function updateStory(id: string, s: any) {
       Math.max(0, Math.min(100, Number(p('coverOpacity', 'cover_opacity')) || 0)),
       // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
       // p() already resolves that to the current value, so a partial save cannot switch it off.
-      Number(p('autoOpen', 'auto_open') ? 1 : 0), now(), id);
+      Number(p('autoOpen', 'auto_open') ? 1 : 0),
+      // A book cannot follow itself, and cannot follow a book that follows it: one hop means the
+      // pair is the only cycle possible, so refusing it here is cheaper than a walk. Placed to
+      // match the COLUMN ORDER above — written two slots early once, every value after it shifted,
+      // and `test/db.ts` caught it as an unrelated field refusing to save.
+      (() => { const w = p('loreFrom', 'lore_from') || null;
+        // An explicit null clears it; an INVALID one leaves what is stored alone. Returning null on
+        // a refusal would have made "follow yourself" a way to silently unfollow the book you were
+        // actually following, which is a partial save destroying a setting it was not asked about
+        // — the exact thing the note above this function exists to prevent.
+        if (!w) return null;
+        if (w === id) return cur.lore_from ?? null;
+        const other = getStory(w) as any;
+        return other && other.lore_from !== id ? w : (cur.lore_from ?? null); })(),
+      now(), id);
 }
 /** Partial save. `undefined` means "leave it", which `updateStory` above has done since it was
  *  written and this did not: it wrote `c.keepWhole ? 1 : 0` unconditionally, and both callers send

@@ -797,6 +797,12 @@ export const routes: Record<string, Handler> = {
       moved = db.copyLedger(String(c.body.id ?? ''), into, c.owner);
       if (!moved) return { error: 'those threads cannot go to that book, so nothing was deleted' };
     }
+    // A DELETE THAT EMPTIES SOMEBODY ELSE'S LEDGER IS THE SAME LOSS THIS ROUTE JUST LEARNED TO
+    // PREVENT, one book further out. Refused by name rather than explained afterwards.
+    const needs = db.followersOf(String(c.body.id ?? ''));
+    if (needs.length) return { error: `${needs.map((x: any) => x.title).join(' and ')} `
+      + `${needs.length === 1 ? 'follows' : 'follow'} this book's threads. Point ${
+        needs.length === 1 ? 'it' : 'them'} somewhere else first, and it can go.` };
     db.delStory(c.body.id, c.owner);
     return { ok: true, moved };
   },
