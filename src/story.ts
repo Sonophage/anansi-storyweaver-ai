@@ -102,6 +102,7 @@ export function view(storyId: string, focusChapterId?: string) {
     })),
     entries: db.entriesOf(storyId).map((e: any) => ({
       ...toEntry(e, states.get(e.id) ?? []),
+      // Reads through `db.outfitsOf`, which is the `outfit` slot of `addons` — see the note there.
       outfits: outfits.filter((o: any) => o.entry_id === e.id)
         .map((o: any) => ({ id: o.id, name: o.name, body: o.body, active: !!o.active })),
       wearing: outfits.filter((o: any) => o.entry_id === e.id && o.active)

@@ -172,11 +172,6 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
     + 'sentences that takes.',
 };
 
-/** The worn outfit, as a second bracket under whatever the body resolved to. */
-const worn = (body: string, e: Entry): string => e.wearing?.body
-  ? `${body}\n[${(e.title || '').trim() || 'They'} wears: ${e.wearing.body.trim()}]`
-  : body;
-
 /** IN FORCE AT THIS CHAPTER. Not yet true, or finished — the same two questions `resolveBody` asks
  *  of a state, asked of an addon. An addon with no `fromChapter` has always been true. */
 const live = (a: Addon, at: number) =>
@@ -189,21 +184,25 @@ const live = (a: Addon, at: number) =>
  *  are it arriving on its own. That is exactly what an entry already does with `force_in` or a
  *  keyword at the loop below, so there is no second firing semantics to keep in step.
  *
- *  THE OUTFIT SLOT IS SKIPPED HERE ON PURPOSE. `worn()` above still carries it from `e.wearing`,
- *  because the surface writes outfits through `upsertOutfit`/`wearOutfit` and those write the
- *  `outfits` table, not `addons`. Reading the backfilled copies here as well would put the coat in
- *  the prompt twice — and reading them INSTEAD would mean wearing an outfit stopped changing the
- *  prompt at all, which is the quieter of the two bugs. When the surface moves to addons, delete
- *  this clause and `worn` with it.
+ *  THE OUTFIT SLOT IS A ROOM LIKE ANY OTHER NOW. It was skipped here until 2026-08-28 because the
+ *  surface still wrote the older `outfits` table and reading the migration's copies as well would
+ *  have put the coat in the prompt twice. The surface writes addons, so `worn()` and that skip are
+ *  both gone and there is one table, one firing path and one way in.
+ *
+ *  IT KEEPS ITS OWN SENTENCE, and that is not decoration: "[Aldis wears: wool, shiny cuffs]" says
+ *  she has it ON, and "[the grey coat: wool, shiny cuffs]" says only that the coat exists. The
+ *  wardrobe is the one slot where the room's NAME is not what the model needs to be told.
  *
  *  `fires` is the shipped matcher with the addon's keys swapped in, never a second copy of it:
  *  the fold, the proper-noun exemption and multi-word order all have to behave the same here or a
  *  relationship fires on a rule a character would not. */
 const rooms = (e: Entry, at: number, window: string): string[] =>
   (e.addons ?? [])
-    .filter((a) => a.slot !== 'outfit' && live(a, at))
+    .filter((a) => live(a, at))
     .filter((a) => a.active || fires({ ...e, keys: a.keys ?? [] }, window).length)
-    .map((a) => `[${(a.name || a.slot).trim()}: ${a.body.trim()}]`);
+    .map((a) => a.slot === 'outfit'
+      ? `[${(e.title || '').trim() || 'They'} wears: ${a.body.trim()}]`
+      : `[${(a.name || a.slot).trim()}: ${a.body.trim()}]`);
 
 /** The body as it stands at a given chapter.
  *
@@ -520,7 +519,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
    *  ceiling dropping a card at any position, or `fills` under about 50 cards. Upgrade path when
    *  it fires: trim rooms before spines — a card without its rooms still tells the model who is in
    *  the scene, and a dropped card leaves it inventing them. */
-  const bodyOf = (e: Entry) => [worn(resolveBody(e, currentChapter.index), e),
+  const bodyOf = (e: Entry) => [resolveBody(e, currentChapter.index),
                                 ...rooms(e, currentChapter.index, recent)].join('\n');
 
   const pins = input.pins ?? {};

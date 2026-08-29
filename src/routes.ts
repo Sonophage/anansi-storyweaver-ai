@@ -1366,13 +1366,10 @@ export const routes: Record<string, Handler> = {
              duplicate: !ok, seconds: +((Date.now() - t0) / 1000).toFixed(1) };
   },
 
-  // Outfits. Gated like everything story-scoped; the partial unique index is what guarantees one
-  // worn at a time, so `wear` never has to trust the client about it.
-  'POST /api/outfit':   (c) => { db.upsertOutfit(c.body.storyId, c.body.entryId, c.body.outfit ?? {});
-                                 return viewOf(c.body.storyId); },
-  'DELETE /api/outfit': (c) => { db.delOutfit(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
-  'POST /api/wear':     (c) => { db.wearOutfit(c.body.storyId, c.body.entryId, c.body.outfitId ?? null);
-                                 return viewOf(c.body.storyId); },
+  // The three outfit routes are GONE, 2026-08-28. The wardrobe is an addon in the `outfit` slot,
+  // so `POST /api/addon` and `POST /api/addon/on` do this and there is one way in. `db.upsertOutfit`
+  // and friends survive as one-line shims over the addon writers because `src/import.ts` calls
+  // them; the HTTP surface has no reason to.
 
   // PLAN-08. The rooms of a card. `entryId` is optional on purpose: an addon with no card belongs
   // to the STORY, which is where a string will live. Every refusal in `db.upsertAddon` — an

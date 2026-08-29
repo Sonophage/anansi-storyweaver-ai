@@ -139,9 +139,6 @@ export const api = {
   // stream of them a drifting entry produces while the chapter is still moving.
   mute: (storyId, chapterId, entryId, off) => j('/api/mute', 'POST', { storyId, chapterId, entryId, off }),
   decide:       (o)              => j('/api/proposal', 'POST', o),
-  saveOutfit:   (storyId, entryId, outfit) => j('/api/outfit', 'POST', { storyId, entryId, outfit }),
-  delOutfit:    (storyId, id)    => j('/api/outfit', 'DELETE', { storyId, id }),
-  wear:         (storyId, entryId, outfitId) => j('/api/wear', 'POST', { storyId, entryId, outfitId }),
   // PLAN-08. entryId null is a story-level addon, which is where a string will live.
   saveAddon:    (storyId, entryId, addon) => j('/api/addon', 'POST', { storyId, entryId, addon }),
   addonOn:      (storyId, id, on) => j('/api/addon/on', 'POST', { storyId, id, on }),

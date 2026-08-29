@@ -504,12 +504,13 @@ ok("  and opens it", await page.eval("!!document.getElementById('input')"));
 const sid3 = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 const story3 = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid3 + "')).json())()");
 const who = (await story3()).entries.find((e) => e.entryType === 'character');
-await page.eval("(async () => { await fetch('/api/outfit', { method:'POST', headers:{'Content-Type':'application/json'},"
-  + " body: JSON.stringify({ storyId:'" + sid3 + "', entryId:'" + who.id + "',"
-  + " outfit:{ name:'Plate', body:'the plate he took from the hall' } }) });"
-  + " await fetch('/api/outfit', { method:'POST', headers:{'Content-Type':'application/json'},"
-  + " body: JSON.stringify({ storyId:'" + sid3 + "', entryId:'" + who.id + "',"
-  + " outfit:{ name:'Travelling', body:'oiled canvas, hood up' } }) }); })()");
+// Seeded through /api/addon, because the wardrobe IS an addon in the `outfit` slot since
+// 2026-08-28 — one table, one firing path. /api/outfit is gone with the second one.
+await page.eval("(async () => { const add = (name, body) => fetch('/api/addon', { method:'POST',"
+  + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyId:'" + sid3 + "',"
+  + " entryId:'" + who.id + "', addon:{ slot:'outfit', name, body } }) });"
+  + " await add('Plate', 'the plate he took from the hall');"
+  + " await add('Travelling', 'oiled canvas, hood up'); })()");
 await page.goto(B + "/#" + sid3 + "/threads");
 await wait(900);
 ok("outfits appear as chips under the character", await page.visible(`[data-wear^="${who.id}:"]`));

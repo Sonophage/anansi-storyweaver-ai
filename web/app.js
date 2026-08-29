@@ -4353,7 +4353,8 @@ document.addEventListener('click', async (e) => {
     if (!name || !body) return toast('An outfit needs a name and something to wear.');
     const owner = outfitOwner();
     if (!owner) return toast('Pick who it belongs to.');
-    const r = await api.saveOutfit(S.storyId, owner, { name, body });
+    // PLAN-08. The wardrobe is an addon in the `outfit` slot now — one table, one firing path.
+    const r = await api.saveAddon(S.storyId, owner, { slot: 'outfit', name, body });
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     // The tray stays open on top of the list, so nothing on screen moves when this works. It said
@@ -4366,13 +4367,13 @@ document.addEventListener('click', async (e) => {
     if (!name || !body) return toast('An outfit needs a name and something to wear.');
     // The id is what makes this an edit rather than a second outfit — upsertOutfit branches on it,
     // and it checks the row belongs to this story before it writes.
-    const r = await api.saveOutfit(S.storyId, S.entryId, { id: d.saveoutfit, name, body });
+    const r = await api.saveAddon(S.storyId, S.entryId, { id: d.saveoutfit, slot: 'outfit', name, body });
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); toast('Saved.'); return;
   }
   if (d.deloutfit) {
-    const r = await api.delOutfit(S.storyId, d.deloutfit);
+    const r = await api.delAddon(S.storyId, d.deloutfit);
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); return;
@@ -4383,7 +4384,12 @@ document.addEventListener('click', async (e) => {
     const [entryId, outfitId] = String(d.wear).split(':');
     const worn = V.entries.find((x) => x.id === entryId)?.outfits?.find((o) => o.id === outfitId);
     // Clicking the one already worn takes it off, so the chips are a toggle rather than a trap.
-    const r = await api.wear(S.storyId, entryId, worn?.active ? null : (outfitId || null));
+    // Exclusivity is the database's, not the screen's: `setAddonActive` clears the siblings in
+    // the same transaction, which is what `wearOutfit` did and generalises to every one-at-a-time
+    // slot. Taking one off is the same call with `on` false.
+    const r = worn?.active || !outfitId
+      ? await api.addonOn(S.storyId, worn?.id ?? outfitId, false)
+      : await api.addonOn(S.storyId, outfitId, true);
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); return;

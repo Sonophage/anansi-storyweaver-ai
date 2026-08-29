@@ -1061,24 +1061,29 @@ export const canonBehind = (storyId: string, passageId: string): string[] => {
 
 // ---- outfits ----
 
+/** THE WARDROBE IS AN ADDON IN THE `outfit` SLOT. PLAN-08 Phase 2 created `addons` as the class an
+ *  outfit already was and copied every row across; the surface went on writing `outfits`, so there
+ *  were two tables and two firing paths for one thing and `src/context.ts` had to skip the `outfit`
+ *  slot to keep from sending the coat twice.
+ *
+ *  These four keep their names and write addons underneath. That is deliberate and it is the reason
+ *  this was a small change rather than a hunt: `src/import.ts` and three suites call them, and a
+ *  rename would have meant finding every caller and getting them all right in one pass. They are
+ *  one line each now, and the behaviour they had — one worn at a time, cleared in a transaction —
+ *  is `setAddonActive`'s, because `outfit` is an exclusive slot.
+ *
+ *  ponytail: the `outfits` TABLE still exists and nothing writes it any more. Ceiling: a stale
+ *  table that a future import, export or backup could resurrect into a second source of truth.
+ *  Upgrade path: check `exportStory`, take a backup, then drop it — this rewrites the file
+ *  somebody's novel is in, which is the caution the migration block at the top of this file takes. */
 export const outfitsOf = (storyId: string) =>
-  q('SELECT * FROM outfits WHERE story_id = ? ORDER BY created_at').all(storyId) as any[];
+  q("SELECT * FROM addons WHERE story_id = ? AND slot = 'outfit' ORDER BY created_at").all(storyId) as any[];
 
 export function upsertOutfit(storyId: string, entryId: string, o: any) {
-  // The composite lookup is the ownership check: an entry id from another story does not resolve
-  // here, so it cannot have an outfit hung off it. Same shape as upsertState.
-  const owns = q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId);
-  if (!owns) return null;
-  const id = o.id || uid('o-');
-  if (o.id && q('SELECT 1 FROM outfits WHERE id = ? AND story_id = ?').get(o.id, storyId)) {
-    q('UPDATE outfits SET name = ?, body = ? WHERE id = ? AND story_id = ?')
-      .run(o.name ?? '', o.body ?? '', o.id, storyId);
-  } else {
-    q('INSERT INTO outfits (id,entry_id,story_id,name,body,active,created_at) VALUES (?,?,?,?,?,0,?)')
-      .run(id, entryId, storyId, o.name ?? 'Untitled', o.body ?? '', now());
-  }
-  touch(storyId);
-  return id;
+  // Ownership, the exclusive-slot transaction and the unknown-slot refusal are all `upsertAddon`'s
+  // now — it makes the same composite-lookup check this used to make for itself.
+  return upsertAddon(storyId, entryId, { ...o, slot: 'outfit',
+    name: o.name ?? 'Untitled', body: o.body ?? '' });
 }
 
 /** Wear one, or none. The unique index forbids two active on one character, so the unset has to
@@ -1179,19 +1184,17 @@ export function delAddon(storyId: string, id: string) {
 export function wearOutfit(storyId: string, entryId: string, outfitId: string | null) {
   const owns = q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId);
   if (!owns) return null;
-  db.exec('BEGIN');
-  try {
-    q('UPDATE outfits SET active = 0 WHERE entry_id = ? AND story_id = ?').run(entryId, storyId);
-    if (outfitId) q('UPDATE outfits SET active = 1 WHERE id = ? AND entry_id = ? AND story_id = ?')
-      .run(outfitId, entryId, storyId);
-    db.exec('COMMIT');
-  } catch (e) { db.exec('ROLLBACK'); throw e; }
-  touch(storyId);
+  // ONE AT A TIME IS THE SLOT'S PROPERTY AND THE DATABASE'S JOB. `setAddonActive` clears the
+  // siblings on this entry inside the same transaction because `outfit` is an exclusive slot, and
+  // the partial unique index refuses a second one regardless. Null takes everything off, which is
+  // what this has always meant, and is why the clear runs even when there is nothing to put on.
+  for (const a of q("SELECT id FROM addons WHERE entry_id = ? AND story_id = ? AND slot = 'outfit' AND active = 1")
+    .all(entryId, storyId) as any[]) setAddonActive(storyId, a.id, false);
+  if (outfitId) setAddonActive(storyId, outfitId, true);
   return outfitId;
 }
 
-export const delOutfit = (storyId: string, id: string) =>
-  q('DELETE FROM outfits WHERE id = ? AND story_id = ?').run(id, storyId);
+export const delOutfit = (storyId: string, id: string) => delAddon(storyId, id);
 
 /** Drop a persona or a locked character that names nobody in this story.
  *

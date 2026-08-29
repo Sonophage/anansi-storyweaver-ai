@@ -894,15 +894,25 @@ ok('a room that is not true yet is not sent, and one that is finished stops bein
     'in force AT the chapter it opens, not after it');
 });
 
-ok('the outfit slot is left to the older path, so the coat is not sent twice', () => {
-  // The migration COPIED outfits into addons and the surface still writes the `outfits` table.
-  // Reading both would put the coat in the prompt twice; reading only addons would mean wearing
-  // one stopped changing the prompt at all. Asserted so that deleting `worn()` without moving the
-  // surface first goes red here rather than quietly in somebody's book.
+ok('the outfit is a room like any other now, and it keeps its own sentence', () => {
+  // Until 2026-08-28 the surface wrote a second table and the engine had to SKIP this slot to keep
+  // from sending the coat twice. One table now, one firing path — and `wearing` on the Entry is
+  // dead to the engine, so passing it must change nothing.
   const b = withAddons([room({ slot: 'outfit', name: 'the grey coat', body: 'wool, shiny cuffs',
     active: true })], { wearing: { name: 'the grey coat', body: 'wool, shiny cuffs' } } as any);
   assert.strictEqual((b.text.match(/wool, shiny cuffs/g) ?? []).length, 1,
     'the coat belongs in the prompt exactly once');
+  // AND IT SAYS SHE HAS IT ON. "[the grey coat: wool]" says only that the coat exists; the
+  // wardrobe is the one slot where the room's NAME is not what the model needs to be told.
+  assert.match(b.text, /wears: wool, shiny cuffs/,
+    'a worn outfit reads as worn, not as a coat that exists somewhere');
+});
+
+ok('  and an outfit nobody is wearing stays out of the prompt', () => {
+  // The half that makes the above mean anything: an unworn coat is a coat in a cupboard, and it
+  // used to be excluded by `wearing` being null rather than by the room being switched off.
+  assert.doesNotMatch(withAddons([room({ slot: 'outfit', name: 'the grey coat',
+    body: 'wool, shiny cuffs', active: false })]).text, /shiny cuffs/);
 });
 
 ok('a retired entry is omitted with a reason, not dropped in silence', () => {

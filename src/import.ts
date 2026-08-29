@@ -68,7 +68,12 @@ export function fromExport(file: string): Incoming {
     // Outfits travel with the character. `exportStory` carries them already — it deletes other
     // stories and lets the cascade do the rest — but reading them back was missed when the table
     // landed, so a round trip quietly returned everyone naked.
-    const outfits = src.prepare('SELECT * FROM outfits WHERE story_id = ?').all(story.id) as any[];
+    // PLAN-08. The wardrobe moved into `addons` as the `outfit` slot and nothing writes the old
+    // table any more, so reading it here exported an empty wardrobe from a book that had one —
+    // silently, because an absent outfit looks exactly like a card that never had one. The payload
+    // keeps its `outfits` shape so older export files still import.
+    const outfits = src.prepare(
+      "SELECT * FROM addons WHERE story_id = ? AND slot = 'outfit'").all(story.id) as any[];
     // A table that may not exist: an export written before strings did.
     let strings: any[] = [];
     try { strings = src.prepare('SELECT * FROM strings WHERE story_id = ?').all(story.id) as any[]; }

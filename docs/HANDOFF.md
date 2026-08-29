@@ -109,15 +109,33 @@ human-edited.
 - **Still owed:** the retire round trip in `test/ui/panels.js` (press retire → manifest omits →
   press bring-back → it does not), and a rule about places, measured.
 
-### What Phase 3 still owes
+### The wardrobe stopped being two things — 2026-08-28
 
-**`worn()` and the outfit slot are a temporary pair.** The migration COPIED `outfits` into
-   `addons` and the surface still writes the old table, so `src/context.ts` skips the `outfit` slot
-   and `web/app.js` skips drawing it as a room. Both clauses come out together on the day the
-   wardrobe writes addons — and `test/ui/panels.js` asserts the coat reaches the prompt exactly
-   once, so deleting one clause alone goes red rather than silently doubling it.
+`worn()` and the `outfit` slot were a temporary pair and they are gone. PLAN-08 Phase 2 made
+`addons` the class an outfit already was and copied every row across; the surface went on writing
+the old `outfits` table, so there were two tables and two firing paths for one thing and
+`src/context.ts` had to SKIP the `outfit` slot to keep from sending the coat twice.
 
-## What shipped today, in one line each
+- **`db.upsertOutfit` / `wearOutfit` / `delOutfit` / `outfitsOf` keep their names and write addons.**
+  Deliberate: `src/import.ts` and three suites call them, and a rename would have meant finding
+  every caller and getting them all right in one pass. One line each now.
+- **One at a time is the slot's property and the database's job** — `outfit` is exclusive, so
+  `setAddonActive` clears the siblings in the same transaction and the partial index refuses a
+  second regardless. That is what `wearOutfit` did, generalised.
+- **The outfit keeps its own sentence.** `[Aldis wears: wool, shiny cuffs]` says she has it ON;
+  `[the grey coat: wool, shiny cuffs]` says only that the coat exists. It is the one slot where the
+  room's NAME is not what the model needs to be told, and there is a check for it.
+- **`POST /api/outfit`, `DELETE /api/outfit` and `POST /api/wear` are deleted**, with their three
+  `web/api.js` methods. `test/web.ts` caught them going dead the moment the surface moved.
+- **`src/import.ts` exported an empty wardrobe** for one commit, because it read the old table
+  directly — an absent outfit looks exactly like a card that never had one. Fixed; the payload
+  keeps its `outfits` shape so older export files still import.
+
+**Still there:** the `outfits` TABLE, unwritten by anything. A `ponytail:` marker on `outfitsOf`
+names the ceiling — a stale table a future import or export could resurrect into a second source of
+truth — and the upgrade path: check `exportStory`, take a backup, then drop it.
+
+### What Phase 3 still owes## What shipped today, in one line each
 
 - The composer: the mirror follows the box's scroll, the caret stopped drifting (one font
   declaration for two boxes), a restored line comes back visible, Save stopped running off a narrow
