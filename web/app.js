@@ -268,7 +268,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
-  'dismiss', 'goflag', 'dropflag', 'modelmenu'].map((k) => `[data-${k}]`).join(',');
+  'dismiss', 'goflag', 'dropflag', 'modelmenu',
+  // PLAN-08: the card's two views, the jump links, and the rooms themselves.
+  'cardview', 'goslot', 'addonon', 'saveaddon', 'deladdon', 'addaddon'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -2349,13 +2351,80 @@ function inventTray(kind, label, placeholder) {
   </div>`;
 }
 
+/** NAME, TYPE, THEN A WAY DOWN TO EACH ROOM. Seth, 2026-08-28: "the threads card should be by the
+ *  threads header. name first. then type then under an anchor link for each subtype so its easy to
+ *  reach." A six-room character is a long screen and the rooms are the reason you opened it.
+ *
+ *  data-goslot and not an href. The app routes on the hash — `#storyid/panel` — so a `#appearance`
+ *  link would be read as navigation and throw the panel away on the way to the anchor. */
+function cardHead(e, slots) {
+  return `<div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:2px">
+      <div style="font-family:var(--serif,serif); font-size:22px; color:var(--ink-bright)">${esc(e.title || 'Untitled')}</div>
+      <span class="tag" style="text-transform:lowercase">${esc(e.entryType)}</span>
+    </div>
+    ${slots.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 12px">
+      ${slots.map((sl) => `<button data-goslot="${esc(sl.name)}" class="tag"
+        style="cursor:pointer">${esc(sl.name.replace(/_/g, ' '))}</button>`).join('')}
+    </div>` : ''}`;
+}
+
+/** THE FACE. Seth: "a view of each thread that only prints out what is filled in with option to
+ *  turn on or off things. instead of filling in. i.e. what we have now is the form the other would
+ *  be a face."
+ *
+ *  So: nothing empty is drawn. A card with one room is one room long, not five headings and four
+ *  blanks — which is what the form has to be and is exactly why it is the wrong thing to read.
+ *  The switch here is `active`, the writer's half of how a room reaches the model; the other half
+ *  is its trigger words, and those live in the form because they are typing, not looking. */
+function cardFace(e, slots) {
+  const rooms = (e.addons ?? []).filter((a) => a.slot !== 'outfit');
+  const shown = slots.filter((sl) => rooms.some((a) => a.slot === sl.name));
+  return `<div style="display:flex; flex-direction:column">
+    <button class="btn ghost" data-backentry="1" style="margin-bottom:14px">&lsaquo; Back</button>
+    ${cardHead(e, shown)}
+    <div class="hint" style="margin-top:0">${esc(e.body || 'Nothing written down yet.')}</div>
+    ${shown.map((sl) => `
+      <div data-slotat="${esc(sl.name)}" class="lbl" style="letter-spacing:.1em; margin-top:18px">${
+        esc(sl.name.replace(/_/g, ' '))}${sl.exclusive ? '' : ' <span style="opacity:.5">(several)</span>'}</div>
+      ${rooms.filter((a) => a.slot === sl.name).map((a) => `
+        <div class="card" style="gap:6px; margin-bottom:8px; border-color:${
+          a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
+          <div style="display:flex; align-items:center; gap:9px">
+            <div style="flex:1; color:var(--ink-bright); font-size:13px">${esc(a.name)}</div>
+            <button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag"
+              style="cursor:pointer; ${a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}"
+              >${a.active ? 'on' : 'off'}</button>
+          </div>
+          <div class="hint" style="margin:0">${esc(a.body)}</div>
+          ${(a.keys ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:4px">${
+            a.keys.map((k) => `<span class="tag" style="opacity:.6">${esc(k)}</span>`).join('')}</div>` : ''}
+        </div>`).join('')}`).join('')}
+    ${shown.length ? '' : '<div class="hint" style="margin-top:18px">No rooms filled in yet. Open the form to write one, or have Anansi.</div>'}
+    <button class="btn ghost" data-cardview="form" style="margin-top:20px">Edit this card</button>
+  </div>`;
+}
+
 function entryEditor() {
   const e = V?.entries.find((x) => x.id === S.entryId);
   if (!e) return `<div class="hint">That entry is gone.</div>`;
+  // The server hands the slot list over in the view — see `src/story.ts`. Not copied into this
+  // file: the database enforces exclusivity off the same list, and two copies would let a screen
+  // offer a second appearance the write would refuse.
+  const slots = V?.slots?.[e.entryType] ?? [];
+  // THE FACE IS THE DEFAULT, because reading your own canon is the common act and editing it is the
+  // deliberate one. The form is one press away and every check that drives it presses that button.
+  if (S.cardView !== 'form') return cardFace(e, slots);
   const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
     background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
   return `<div style="display:flex; flex-direction:column">
-    <button class="btn ghost" data-backentry="1" style="margin-bottom:14px">&lsaquo; Back</button>
+    <!-- BOTH DOORS. Back leaves the card; Read it goes to the face. Without the second one the
+         form was a one-way trip: the only way back to the card you were reading was out of it and
+         in again, which is the sort of thing that reads as the app losing your place. -->
+    <div style="display:flex; gap:7px; margin-bottom:14px">
+      <button class="btn ghost" data-backentry="1" style="flex:1">&lsaquo; Back</button>
+      <button class="btn ghost" data-cardview="face" style="flex:0 0 auto; width:auto; padding:12px 20px">Read it</button>
+    </div>
+    ${cardHead(e, slots)}
     <label class="lbl">Name</label>
     <input class="field" data-f="title" value="${esc(e.title ?? '')}">
     <label class="lbl">Type</label>
@@ -2393,6 +2462,47 @@ function entryEditor() {
         : '<strong>This entry cannot reach the model yet.</strong> Triggered with no trigger words '
           + 'never fires, and nothing else on this screen would tell you. Comma separated, up to '
           + 'ten — a whole word in recent prose or in your directive fires it.'}</div>
+    <!-- THE ROOMS. One section per slot this kind of card has, whether or not it holds anything —
+         the form is where you fill things in, so an empty room has to be visible to be fillable.
+         That is the opposite of the face above and the reason there are two views at all. -->
+    ${slots.filter((sl) => sl.name !== 'outfit').map((sl) => {
+      // OUTFIT IS NOT DRAWN HERE. The Wardrobe below is already the outfit's screen — it writes the
+      // older `outfits` table, which is still what the engine reads for the coat (see the note on
+      // `rooms` in src/context.ts). A section here as well would give one thing two editors that
+      // write different tables, and the writer would have no way to tell which one the model sees.
+      // The same clause comes out of both places on the day the wardrobe moves to addons.
+      const mine = (e.addons ?? []).filter((a) => a.slot === sl.name);
+      return `
+      <div data-slotat="${esc(sl.name)}" class="lbl" style="letter-spacing:.1em; margin-top:20px">${
+        esc(sl.name.replace(/_/g, ' '))}${sl.exclusive ? ' <span style="opacity:.5">(one at a time)</span>' : ''}</div>
+      ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${
+        a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
+        <div style="display:flex; align-items:center; gap:9px">
+          <input class="field" data-an="${esc(a.id)}" value="${esc(a.name)}"
+            style="margin:0; font-size:13px; color:var(--ink-bright)">
+          <button data-deladdon="${esc(a.id)}" style="flex:0 0 auto; color:var(--bad); font-size:12px"
+            aria-label="Remove">&#10005;</button></div>
+        <textarea class="field" data-ab="${esc(a.id)}"
+          style="margin:0; min-height:52px; font-size:12.5px; line-height:1.45">${esc(a.body)}</textarea>
+        <input class="field" data-ak="${esc(a.id)}" value="${esc((a.keys ?? []).join(', '))}"
+          placeholder="[trigger words, comma separated]" style="margin:0; font-size:12px">
+        <div style="display:flex; gap:7px">
+          <button class="btn ghost" data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" style="flex:1; ${
+            a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${
+            a.active ? 'On — take it off' : 'Turn it on'}</button>
+          <button class="btn ghost" data-saveaddon="${esc(a.id)}"
+            style="flex:0 0 auto; width:auto; padding:12px 20px">Save</button></div>
+      </div>`).join('')}
+      <div class="card" style="gap:7px">
+        <input class="field" data-newan="${esc(sl.name)}" placeholder="[name it]">
+        <textarea class="field" data-newab="${esc(sl.name)}" style="min-height:48px"
+          placeholder="[what the model reads]"></textarea>
+        <button class="btn ghost" data-addaddon="${esc(sl.name)}">Add</button>
+        ${inventTray(sl.name, `Have Anansi write ${esc(sl.name.replace(/_/g, ' '))}`,
+                     'what has changed, or nothing at all and let her read the book')}
+      </div>`;
+    }).join('')}
+
     <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the
          threads card when i go to it doesnt have that option for me there and id like to add it."
          It rewrites the card that is open rather than proposing a new one — proposing would offer
@@ -3884,6 +3994,15 @@ document.addEventListener('click', async (e) => {
       if (r.card.keys?.length) set('keys', r.card.keys.join(', '));
       return toast('Written, not saved — read it, then press Save.');
     }
+    if (r.addon && document.querySelector(`[data-newan="${r.addon.slot}"]`)) {
+      // Into the boxes for THAT slot, not the first pair on the screen — a card in the form draws
+      // one Add box per slot and they are all on screen at once.
+      const n = document.querySelector(`[data-newan="${r.addon.slot}"]`);
+      const b = document.querySelector(`[data-newab="${r.addon.slot}"]`);
+      if (n) n.value = r.addon.name;
+      if (b) b.value = r.addon.body;
+      return toast('Written, not saved — read it, then press Add.');
+    }
     if (r.outfit) {
       // Straight into the form, unsaved. Add an outfit is still the writer's press — and filling
       // the fields rather than writing the row is the whole difference between this and a
@@ -3900,6 +4019,56 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId, V.currentChapter.id); paint();
     return toast(r.duplicate ? `The ledger already says that about ${r.title}.`
                              : `${r.title} proposed — waiting under Chapter.`);
+  }
+
+  // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
+  if (d.cardview) { S.cardView = d.cardview === 'form' ? 'form' : null; paint(); return; }
+  if (d.goslot) {
+    // The form draws every slot and the face draws only the filled ones, so the same link has to
+    // find whichever is on screen. Both mark their headings with data-slotat.
+    document.querySelector(`[data-slotat="${d.goslot}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (d.addonon) {
+    // The id and the state it is going TO, not a toggle: two presses racing on one row would
+    // otherwise both read "off" and both write "on", and on an exclusive slot the second write is
+    // the one the unique index refuses.
+    const [id, on] = d.addonon.split(':');
+    const r = await api.addonOn(S.storyId, id, on === '1');
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    paint(); refreshManifest(); return;
+  }
+  if (d.saveaddon) {
+    const name = document.querySelector(`[data-an="${d.saveaddon}"]`)?.value.trim();
+    const body = document.querySelector(`[data-ab="${d.saveaddon}"]`)?.value.trim();
+    const keys = document.querySelector(`[data-ak="${d.saveaddon}"]`)?.value ?? '';
+    if (!name || !body) return toast('A room needs a name and something in it.');
+    // The slot comes off the row that is already there rather than out of the form: it is not
+    // editable and a card cannot move a room to another slot, so sending it would be sending a
+    // value the writer never chose.
+    const had = (V.entries.find((x) => x.id === S.entryId)?.addons ?? [])
+      .find((a) => a.id === d.saveaddon);
+    const r = await api.saveAddon(S.storyId, S.entryId, { id: d.saveaddon, slot: had?.slot, name, body, keys });
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    paint(); refreshManifest(); toast('Saved.'); return;
+  }
+  if (d.addaddon) {
+    const name = document.querySelector(`[data-newan="${d.addaddon}"]`)?.value.trim();
+    const body = document.querySelector(`[data-newab="${d.addaddon}"]`)?.value.trim();
+    if (!name || !body) return toast('A room needs a name and something in it.');
+    const r = await api.saveAddon(S.storyId, S.entryId, { slot: d.addaddon, name, body });
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    paint(); refreshManifest(); toast('Added, off.'); return;
+  }
+  if (d.deladdon) {
+    const r = await api.delAddon(S.storyId, d.deladdon);
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    paint(); refreshManifest(); return;
   }
 
   if (d.addoutfit) {
@@ -4081,7 +4250,9 @@ document.addEventListener('click', async (e) => {
     return toast('Listening again.');
   }
 
-  if (d.entry) { S.entryId = d.entry; S.fieldHistory = null;
+  // Every card opens on its face. Carrying the last card's view over means pressing a thread to
+  // READ it and landing in a form of empty boxes, which is the thing the face exists to avoid.
+  if (d.entry) { S.entryId = d.entry; S.fieldHistory = null; S.cardView = null;
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     // The cross-book page lists threads from every story and the editor beside it reads from the
     // OPEN one, so pressing a thread in a book you had not opened set S.entryId and then rendered

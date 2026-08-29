@@ -103,6 +103,11 @@ ok("  and the fields are real inputs, not labels",
     + " const c = cs.sort((a, b) => (b.textContent||'').length - (a.textContent||'').length)[0];"
     + " if (!c) return false; c.click(); return true; })()");
   await wait(900);
+  // The card lands on its face; this section is about the FORM's body field not being cut off, so
+  // it has to open the form first. Pressing it here rather than changing what is asserted: the
+  // growing textarea is still the thing under test and it still lives in the form.
+  await page.eval("(() => { document.querySelector('[data-cardview=\"form\"]')?.click(); return 1; })()");
+  await wait(600);
   const box = await page.eval("(() => { const t = document.querySelector('textarea[data-f]');"
     + " return t ? JSON.stringify({ chars: t.value.length, client: t.clientHeight, scroll: t.scrollHeight }) : null; })()");
   const b2 = box ? JSON.parse(box) : null;
@@ -352,7 +357,64 @@ const anyEntry = await page.eval("document.querySelector('[data-entry]')?.datase
 if (anyEntry) {
   await page.click(`[data-entry="${anyEntry}"]`);
   await wait(500);
-  ok("  (an entry editor opens)", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
+  // A CARD OPENS ON ITS FACE NOW (2026-08-28). Seth asked for "a view of each thread that only
+  // prints out what is filled in ... instead of filling in", and reading your own canon is the
+  // common act while editing it is the deliberate one. So the form is one press away, and every
+  // check that drives the form presses that button — asserted here rather than assumed, because
+  // this is the line that tells the two views apart.
+  ok("  (a card opens on its face, not its form)",
+     (await page.eval("!!document.querySelector('[data-cardview]')")) === true
+     && (await page.eval("!!document.querySelector('[data-f=\"title\"]')")) === false);
+  await page.click('[data-cardview="form"]');
+  await wait(400);
+  ok("  and Edit this card opens the form", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
+  const formSlots = await page.eval("document.querySelectorAll('[data-slotat]').length");
+  ok(`  where every room is drawn, filled or not (${formSlots} headings)`, formSlots > 1);
+
+  // ---- THE FACE PRINTS WHAT IS FILLED IN, AND NOTHING ELSE. Seth: "a view of each thread that
+  // only prints out what is filled in with option to turn on or off things. instead of filling in."
+  // The form has to draw every empty room to be fillable; the face must not, or the two views are
+  // the same view and the second earns nothing. Both halves are asserted from one state: a card
+  // with exactly one room filled shows one heading on the face and all of them on the form.
+  const made = await page.eval(`(async () => {
+    const r = await fetch('/api/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storyId: '${sid}', entryId: '${anyEntry}',
+        addon: { slot: 'interiority', name: 'her fear', body: 'will not cross at night', keys: 'bridge' } }) });
+    const j = await r.json(); return j.addonId ?? j.error ?? null; })()`);
+  console.log("  made an addon: " + made);
+  ok(`an addon can be written through the route (${made})`, /^ad-/.test(String(made)));
+  // RELOAD. The POST above went straight to the server, so the page is holding the view it had
+  // before the room existed — and the face renders from that. Reading a stale V would have this
+  // check reporting on the card as it was, which is the quietest kind of false red.
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
+  await page.click('[data-goblock="threads:"]');
+  await wait(700);
+  await page.click(`[data-entry="${anyEntry}"]`);
+  await wait(700);
+  const face = await page.eval(`(() => ({
+    slots: [...document.querySelectorAll('[data-slotat]')].map(x => x.dataset.slotat),
+    jumps: [...document.querySelectorAll('[data-goslot]')].map(x => x.dataset.goslot),
+    shows: /her fear/.test(document.querySelector('#sideBody')?.textContent || ''),
+    hasForm: !!document.querySelector('[data-f="title"]'),
+    on: document.querySelector('[data-addonon]')?.textContent.trim() }))()`);
+  console.log("  face: " + JSON.stringify(face));
+  ok(`the face prints only the room that is filled (${face && face.slots.join(',')})`,
+     !!face && face.slots.length === 1 && face.slots[0] === 'interiority');
+  ok("  and it prints what is in it, not a box to type in",
+     !!face && face.shows === true && face.hasForm === false);
+  // Name, then type, then a way down to each room — one jump link per filled room and no more.
+  ok(`  with a jump link for each (${face && face.jumps.join(',')})`,
+     !!face && face.jumps.length === 1 && face.jumps[0] === 'interiority');
+  // The switch is the writer's half of how a room reaches the model; its keys are the other half.
+  ok(`  and the room starts off (${face && face.on})`, !!face && face.on === 'off');
+  await page.click('[data-addonon]');
+  await wait(800);
+  const flipped = await page.eval("document.querySelector('[data-addonon]')?.textContent.trim()");
+  ok(`  turning it on sticks (${flipped})`, flipped === 'on');
+
+  await page.click('[data-cardview="form"]');
+  await wait(400);
   // ---- PLAN-08 Phase 1. The trigger words are readable and editable whatever the activation is.
   // They were greyed out on an always-on entry, which is most of them — so the one screen that
   // could show F27's defect (every proposed key is the title repeated) was the screen that hid it,
@@ -451,6 +513,8 @@ ok("outfits appear as chips under the character", await page.visible(`[data-wear
 // The Wardrobe form can write one too, for THIS character, and the button says whose it is.
 await page.click(`#page [data-entry="${who.id}"], [data-entry="${who.id}"]`);
 await wait(600);
+await page.click('[data-cardview="form"]');
+await wait(500);
 // NAMED, not "the first one on the page". This read `document.querySelector('[data-invent]')`,
 // which was unambiguous while the wardrobe held the only tray on this screen. The card gained one
 // of its own on 2026-08-28 and the first tray became the character's, so the check went red

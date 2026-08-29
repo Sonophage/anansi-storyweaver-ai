@@ -3,6 +3,7 @@
 import { buildContext } from './context.ts';
 import type { Input, Entry } from './context.ts';
 import { render, entryText, SYSTEM } from './render.ts';
+import { SLOTS } from './slots.ts';
 import * as db from './db.ts';
 
 export interface Slot { global: number; slots: number; perSlot: number }
@@ -53,6 +54,11 @@ export function view(storyId: string, focusChapterId?: string) {
   const pins = db.pinsOf(storyId);
   const arcs = db.arcsOf(storyId);
   return {
+    // PLAN-08. The slot list travels with the view rather than being copied into the browser: the
+    // database enforces exclusivity off `src/slots.ts` and the screen has to agree with it, and a
+    // second copy in web/ is exactly the drift that module exists to stop. The browser cannot
+    // import the .ts, so the server hands it over as data.
+    slots: SLOTS,
     id: storyId, story: toStory(s), chapters,
     // Whether there is a cover, never the cover itself. Top level rather than inside `story` so a
     // surface that posts the story object straight back cannot try to save it as a field.
