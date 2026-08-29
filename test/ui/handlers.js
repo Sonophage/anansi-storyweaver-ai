@@ -218,7 +218,9 @@ ok("  and the panel is still History, not something else",
     await wait(120);
     await page.eval(`(() => { location.hash = '#' + ${JSON.stringify(fast.id)}; return 1; })()`);
     await wait(2600);
-    const title = (await page.eval("document.querySelector('#bar .serif')?.textContent") || '').trim();
+    // NOT the first .serif in the bar: #26 made the word Anansi the logo and it sits before the
+    // book's title. `.wordmark` names it so this reads the title rather than whichever came first.
+    const title = (await page.eval("document.querySelector('#bar .serif:not(.wordmark)')?.textContent") || '').trim();
     ok(`the book on screen is the one you opened last (${JSON.stringify(title)})`, title === fast.title);
     // The real defect: the panel described the OTHER book's prompt under this book's title. The
     // manifest carries the story's own title in SPINE, so the prompt names which book it is for.
@@ -252,7 +254,7 @@ ok("  and the panel is still History, not something else",
     // the panel was showing the old one because it was slow rather than because it was stale —
     // the test failing for the opposite reason to the one it exists for.
     for (let i = 0; i < 40; i++) {
-      const bar = (await page.eval("document.querySelector('#bar .serif')?.textContent") || '').trim();
+      const bar = (await page.eval("document.querySelector('#bar .serif:not(.wordmark)')?.textContent") || '').trim();
       if (bar === fast.title) break;
       await wait(200);
     }

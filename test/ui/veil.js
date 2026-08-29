@@ -114,7 +114,15 @@ console.log("  resolve: " + JSON.stringify(solved));
 ok(`  the middle column spells her name (${solved && solved.word})`, !!solved && solved.word === 'ANANSI');
 ok("  and the rest of the weave is going out from under it",
    !!solved && solved.solved === true && Number(solved.dim) < 1);
-await wait(700);
+// #29 gave the letters their own fade (.9s) inside a longer hold (1220ms), so `.leaving` is added
+// LATER than it used to be — this waited 700ms, which was after the old 620ms hold and is now in
+// the middle of the new one. Waits for the state rather than for a number, so tuning either the
+// fade or the hold does not silently turn this into a check of the wrong moment.
+for (let i = 0; i < 40; i++) {
+  const st = await page.eval("(() => { const g = document.getElementById('ghost'); return g ? (g.classList.contains('leaving') ? 'leaving' : 'up') : 'gone'; })()");
+  if (st !== 'up') break;
+  await wait(50);
+}
 const mid = await page.eval("(() => { const g = document.getElementById('ghost'); return g ? (g.classList.contains('leaving') ? 'leaving' : 'up') : 'gone'; })()");
 console.log("  right after Stop: " + mid);
 ok(`pressing Stop starts the veil leaving rather than deleting it (${mid})`, mid === 'leaving');

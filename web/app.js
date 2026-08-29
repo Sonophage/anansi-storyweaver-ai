@@ -494,7 +494,13 @@ function drawBar() {
          property test/ui/phone.js exists to keep: the hole it guards is zero doors, not two. -->
     <button data-railview="workspace" aria-label="Menu"
       style="flex:0 0 auto; display:flex; align-items:center; padding:6px 10px 6px 0">
-      <span class="serif" style="display:block; font-size:17px; line-height:1;
+      <!-- #26. The word IS the logo now, and it carries a wordmark class so nothing has to select
+           it by being the first .serif in the bar: the book's title is the second one, and an
+           ordinal selector would be a trap for every check that reads the header.
+           NO BACKTICKS IN HERE. This comment is inside a template literal and one of them closes
+           the string — the file still loads and the function throws when it is called, so a panel
+           renders as nothing. It happened writing this very comment. -->
+      <span class="serif wordmark" style="display:block; font-size:17px; line-height:1;
         color:var(--gold)">Anansi</span>
     </button>
     <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">

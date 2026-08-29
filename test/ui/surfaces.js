@@ -11,10 +11,17 @@ const sid = await page.eval("(async () => (await (await fetch('/api/stories')).j
 await page.goto(B + "/");
 ok("1. the last-written story is a hero", await page.eval("!!document.querySelector('.storycard.hero')"));
 ok("   and is marked as such", (await page.text('.storycard.hero') || '').includes('Last written'));
-// New story is a plain button now, not a dashed card, so this reads the action rather than the class.
-const order = await page.eval("[...document.querySelectorAll('#page .storycard, #page [data-open=new]')].map(e => e.dataset.open === 'new' ? 'NEW' : (e.className.includes('hero') ? 'HERO' : 'story')).join(' > ')");
+// #19 took New story OFF the shelf entirely — the bar pill is the one door, and it lost `deskonly`
+// in the same change so a phone still has it. What is left to assert is the shelf's own order, and
+// that the door exists somewhere a phone can reach.
+const order = await page.eval("[...document.querySelectorAll('#page .storycard')].map(e => e.className.includes('hero') ? 'HERO' : 'story').join(' > ')");
 console.log("   order: " + order);
-ok("   new story comes before the rest", order.startsWith('HERO > NEW'));
+ok("   the hero comes first and the rest follow", order.startsWith('HERO'));
+ok("   and the shelf itself offers no New story button",
+   await page.eval("!document.querySelector('#page [data-open=new]')"));
+ok("   while the bar still does, un-hidden",
+   await page.eval("(() => { const b = document.querySelector('#bar [data-open=new]');"
+     + " return !!b && !b.classList.contains('deskonly'); })()"));
 
 // 2. the pill is the genre — and genre is comma-separated, so it is pillS. An AI Dungeon import
 // writes its whole tag list into this field, which is how a card came to read "horror, nsfw"
@@ -185,7 +192,7 @@ for (const theme of ['obsidian', 'ink', 'parchment']) {
     // The PAIR is checked below, so this is not the check being told to look away: a transparent
     // textarea with no mirror behind it, or a mirror that is itself transparent, is still a red.
     // Both of those have shipped this week.
-    for (const sel of ['#col .narr', '#sideBody', '#bar .serif', '#modes button', '#modes button[data-mode]',
+    for (const sel of ['#col .narr', '#sideBody', '#bar .serif:not(.wordmark)', '#modes button', '#modes button[data-mode]',
                        '.hint', '#inputMirror']) {
       const el = document.querySelector(sel); if (!el) continue;
       let bg = 'rgba(0, 0, 0, 0)', n = el;

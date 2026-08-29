@@ -309,12 +309,21 @@ await page.click('[data-newlore="1"]');
 await wait(700);
 const lore = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 ok("  it opens a tray with both ways in", /Write it down/.test(lore) && /read the chapter/i.test(lore));
-// Outfit joins the four card kinds. It is NOT one of them — KINDS is the entry TYPE and draws the
-// editor's type buttons, where "outfit" is not a thing an entry can be — so this asserts the tray's
-// list, which is deliberately one longer than that one.
-ok("  offering every kind of card, and outfits beside them",
-   (await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind).sort().join(',')"))
-     === 'character,item,lore,outfit,rule');
+// #27. EVERY ROOM joins the four card kinds, not just the outfit. They are NOT kinds — KINDS is the
+// entry TYPE and draws the editor's type buttons, where a room is not a thing an entry can be — so
+// this asserts the tray's list, which is deliberately longer than that one. Compared against the
+// server's own slot list rather than a list typed here, or the two drift and the check still passes.
+{
+  const offered = await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind).sort()");
+  const slots = await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
+    + " return [...new Set(Object.values(v.slots || {}).flat().map(x => x.name))].sort(); })()");
+  const want = [...new Set(['character', 'item', 'lore', 'rule', ...slots])].sort();
+  console.log("  tray offers: " + offered.join(','));
+  ok("  offering every kind of card and every room one can have",
+     offered.join(',') === want.join(','));
+  ok("    including the ones that were only reachable after the card existed",
+     offered.includes('interiority') && offered.includes('relationships') && offered.includes('voice'));
+}
 await page.click('[data-lorekind="item"]');
 await wait(400);
 ok("  and picking a kind changes what New would make",
@@ -468,8 +477,11 @@ ok(`  and splits passages between you and Anansi (${JSON.stringify((prefs.match(
 const words = Number((prefs.match(/Words[^\d]*([\d,]+)/) ?? [, '0'])[1].replace(/,/g, ''));
 console.log("  words reported: " + words);
 ok(`  with a real count, not a placeholder (${words})`, words > 0);
-ok("  and says which models are allowed, or that all are",
-   /allowed for Anansi|Every model the router serves/.test(prefs));
+// #23 took the allowlist line off this page with the rest of the operator console. What the page
+// must still do is BE the writing record, which the words above already assert — this one is
+// replaced rather than deleted so the count does not quietly drop.
+ok("  and does not carry the operator console any more",
+   !/llama-server/.test(prefs) && !/The server itself/.test(prefs));
 
 // ---- 13. Start blank asks for the story. It used to create `Untitled` and drop you at a
 // blinking cursor, which is the moment you know least about the book.
@@ -619,36 +631,18 @@ if (pick) {
     + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id:'" + sid4 + "', story:{ model:null } }) }); })()");
 } else { ok("the router offers a model to choose", false); }
 
-// ---- 16. releasing and restarting the server. The router has NO unload call — it only sleeps
-// after 15 minutes idle — so stopping the unit is the only way to get the VRAM back now.
+// ---- 16. RELEASING AND RESTARTING THE SERVER — REMOVED WITH ITS SURFACE (#23).
 //
-// This NEVER presses stop for real. The first press only arms it, which is the behaviour under
-// test; actually stopping would take the model away from whatever else is using the box.
-await page.goto(B + "/");
-await page.click('[data-nav="prefs"]');
-for (let i = 0; i < 60 && !(await page.visible('[data-router]')); i++) await wait(250);
-const prefsText = () => page.text('#page').then((t) => (t || '').replace(/\s+/g, ' '));
-ok("Preferences reports the server itself", /The server itself/.test(await prefsText()));
-ok("  with its state", /llama-router/.test(await prefsText()));
-ok("  a restart button", await page.visible('[data-router="restart"]'));
-ok("  and a release button", await page.visible('[data-router="stop"]'));
-ok("  which says what releasing costs", /VRAM back|cannot write while it is stopped/i.test(await prefsText()));
-await page.click('[data-router="stop"]');
-await wait(700);
-const armed = (await page.text('#toast') || '').trim();
-console.log("  first press: " + JSON.stringify(armed.slice(0, 60)));
-ok("the first press only arms the release", /Press again/i.test(armed));
-const stillUp = await page.eval("(async () => { const r = await fetch('/api/router', { method:'POST',"
-  + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'status', storyId:'" + sid4 + "' }) });"
-  + " return (await r.json()).state; })()");
-const ungated = await page.eval("(async () => { const r = await fetch('/api/router', { method:'POST',"
-  + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'stop' }) });"
-  + " return r.status; })()");
-ok(`  and the route is gated — no story id, no stopping the server (${ungated})`, ungated >= 400);
-ok(`  and it reports on the unit it was given (${stillUp})`, typeof stillUp === 'string' && stillUp.length > 0);
-ok("  which is NOT the real router — run.sh points test servers at a unit that does not exist",
-   stillUp !== 'active');
-await page.goto(B + "/");   // navigate away rather than press again
+// This drove the router's stop and restart buttons on Preferences and checked that the first press
+// only ARMS the release rather than doing it, which is the right behaviour for a control that takes
+// the model away from whoever else is writing. #23 took those buttons off the page: Preferences is
+// a writing record now and the model selector lives on the rail.
+//
+// The ROUTE is still there and still admin-gated, and test/scope.ts proves that gate with two
+// owners — "may I stop a service the other writer is mid-generation on" is not a question ownership
+// can answer. What is gone with the buttons is the arming behaviour, because there is no longer a
+// press to arm. If the controls ever come back, so does this block; it is in git at the commit that
+// removed them rather than rewritten from memory.
 
 // ---- 15. acts: the fix for chapter 120 that had no way in
 // POST /api/rollup existed and nothing in the UI called it, so the one thing that stops a long
