@@ -218,9 +218,15 @@ const rooms = (e: Entry, at: number, window: string): string[] =>
     .slice().sort((a, b) => Number(b.slot === 'facts') - Number(a.slot === 'facts'))
     .filter((a) => live(a, at))
     .filter((a) => a.active || fires({ ...e, keys: a.keys ?? [] }, window).length)
-    .map((a) => a.slot === 'outfit'
-      ? `[${(e.title || '').trim() || 'They'} wears: ${a.body.trim()}]`
-      : `[${(a.name || a.slot).trim()}: ${a.body.trim()}]`);
+    .map((a) => {
+      if (a.slot === 'outfit') return `[${(e.title || '').trim() || 'They'} wears: ${a.body.trim()}]`;
+      // FACTS READS BARE. It is the card's spine — the half the body used to hold — so it belongs
+      // in the prompt the way the body did, not labelled as a room of it. Wrapping it produced
+      // "[You: [You: protagonist…" on every migrated card, because a body is already written in
+      // the bracket format and the wrapper added a second name and a second bracket around it.
+      if (a.slot === 'facts') return a.body.trim();
+      return `[${(a.name || a.slot).trim()}: ${a.body.trim()}]`;
+    });
 
 /** The body as it stands at a given chapter.
  *
@@ -634,8 +640,12 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
    *  ceiling dropping a card at any position, or `fills` under about 50 cards. Upgrade path when
    *  it fires: trim rooms before spines — a card without its rooms still tells the model who is in
    *  the scene, and a dropped card leaves it inventing them. */
+  // EMPTIES DROPPED BEFORE THE JOIN. A card whose permanent half has moved into its `facts` room
+  // has an empty body, and joining that with the rooms put a blank line at the top of every one of
+  // them — 461 cards, one wasted line each.
   const bodyOf = (e: Entry) => [resolveBody(e, currentChapter.index),
-                                ...rooms(e, currentChapter.index, recent)].join('\n');
+                                ...rooms(e, currentChapter.index, recent)]
+    .map((x) => x.trim()).filter(Boolean).join('\n');
 
   const pins = input.pins ?? {};
   for (const e of entries) {

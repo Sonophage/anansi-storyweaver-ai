@@ -232,10 +232,28 @@ function roomOffer(onto: any, field: string | null, body: string): string | null
 const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
   const reached = new Set(manifest.blocks
     .filter((b: any) => b.kind.startsWith('CANON') && b.state === 'included').map((b: any) => b.id));
+  const text = new Map(manifest.blocks.filter((b: any) => b.kind.startsWith('CANON'))
+    .map((b: any) => [b.id, b.text]));
   return v.entries.filter((e: any) => all || reached.has(e.id))
+    // THE CARD AS THE MODEL SAW IT, rooms included. This read the body alone, so a fact living in a
+    // room — her voice, one relationship, and now `facts` — reached the model and was never checked
+    // against. That was already wrong and it becomes load-bearing the moment a card's permanent
+    // half moves OUT of the body: an entry whose body is empty was dropped by the filter below and
+    // stopped being checked at all, silently.
+    //
+    // The manifest's own block text IS body-plus-open-rooms — it is what `bodyOf` built and what
+    // was sent — so an entry that reached the model is judged against exactly that. One that did
+    // not reach it has no block, so the body in force at this chapter plus its open rooms is
+    // assembled here instead.
     // The chapter matters: an entry with a chapter state has a different body in chapter 6 than in
     // chapter 1, and a passage is judged against the body in force where IT sits.
-    .map((e: any) => ({ id: e.id, body: resolveBody(e, chapterIndex), reached: reached.has(e.id) }))
+    .map((e: any) => ({
+      id: e.id,
+      body: text.get(e.id) ?? [resolveBody(e, chapterIndex),
+        ...(e.addons ?? []).filter((a: any) => a.active && a.body?.trim())
+          .map((a: any) => `[${(a.name || a.slot).trim()}: ${a.body.trim()}]`)].join('\n').trim(),
+      reached: reached.has(e.id),
+    }))
     .filter((f: any) => f.body.trim());
 };
 
