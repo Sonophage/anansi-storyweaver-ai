@@ -1098,9 +1098,18 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   if (entryId && !q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId)) return null;
   const keys = JSON.stringify(keysOf(a.keys));
   if (a.id && q('SELECT 1 FROM addons WHERE id = ? AND story_id = ?').get(a.id, storyId)) {
+    // PRESENCE, NOT TRUTHINESS. These two were written as `?? null` unconditionally and the addon
+    // editor sends neither, so every save of a room silently cleared its chapter anchors — which
+    // made the room editor a de-facto un-retire button nobody knew was one, and quietly undid the
+    // one thing `from_chapter` exists for, the arc. `undefined` now leaves the stored value alone
+    // and an explicit `null` still clears it, which is `setPin`'s contract for the same job.
+    const cur = q('SELECT from_chapter, retired_at_chapter FROM addons WHERE id = ? AND story_id = ?')
+      .get(a.id, storyId) as any;
+    const from = 'fromChapter' in a ? (a.fromChapter ?? null) : (cur?.from_chapter ?? null);
+    const till = 'retiredAtChapter' in a ? (a.retiredAtChapter ?? null) : (cur?.retired_at_chapter ?? null);
     q(`UPDATE addons SET name = ?, body = ?, keys = ?, from_chapter = ?, retired_at_chapter = ?
        WHERE id = ? AND story_id = ?`)
-      .run(a.name, a.body, keys, a.fromChapter ?? null, a.retiredAtChapter ?? null, a.id, storyId);
+      .run(a.name, a.body, keys, from, till, a.id, storyId);
     touch(storyId);
     return a.id;
   }

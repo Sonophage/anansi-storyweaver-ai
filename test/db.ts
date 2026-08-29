@@ -1283,6 +1283,25 @@ ok('the exclusivity index and src/slots.ts name the same slots', () => {
     db.setRetired(se.id, coat, null);
   });
 
+  ok('saving a room does not silently clear its chapter anchors', () => {
+    // The addon editor sends name, body and keys and nothing else, and these two were written as
+    // `?? null` unconditionally — so every save of a room cleared both, which made the room editor
+    // a de-facto un-retire button nobody knew was one and quietly undid the arc `from_chapter`
+    // exists for. Found while building the entry-level retirement, from the other side.
+    const ad = db.upsertAddon(se.id, her, { slot: 'interiority', name: 'her fear',
+      body: 'will not cross the bridge', keys: [], fromChapter: 3, retiredAtChapter: 9 });
+    db.upsertAddon(se.id, her, { id: ad, slot: 'interiority', name: 'her fear',
+      body: 'will not cross the bridge at night', keys: [] });
+    const row: any = db.addonsOf(se.id).find((x: any) => x.id === ad);
+    assert.strictEqual(row.from_chapter, 3, 'the chapter it became true survived the save');
+    assert.strictEqual(row.retired_at_chapter, 9, 'and so did the chapter it stops at');
+    // An explicit null still clears, or there would be no way to undo one from the surface.
+    db.upsertAddon(se.id, her, { id: ad, slot: 'interiority', name: 'her fear',
+      body: 'x', keys: [], retiredAtChapter: null });
+    assert.strictEqual((db.addonsOf(se.id).find((x: any) => x.id === ad) as any).retired_at_chapter,
+      null, 'an explicit null lifts it, the way setPin and setRetired do');
+  });
+
   ok('a retirement and a change to the same card both reach the queue', () => {
     // `addProposal` hashes the SUBJECT, so one chapter close proposing both "this is how she
     // changed" and "she is finished" collided and the second was dropped on a `false` nobody
