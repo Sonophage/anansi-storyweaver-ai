@@ -208,6 +208,81 @@ let proposal: any;
   ok('memory never invents a character, and accepting the same one twice does not double the state');
 }
 
+// ---- 4b. a fact about a card that already exists lands in ONE ROOM of it ----
+//
+// `proposals.field` was written from Phase 2 and read by nothing, so accepting any change rewrote
+// the WHOLE body — the overwrite this plan exists to stop. "She was loyal in chapter 2 and is not
+// by chapter 9" is the arc, and a whole-body rewrite is how you lose it.
+{
+  found = [{ title: 'Vel', body: 'She will not cross the bridge at night, and says so to nobody.',
+             type: 'character', keys: ['bridge'], activation: 'triggered', field: 'interiority' }];
+  const ch: any = db.chapters(story.id).at(-1);
+  db.addPassage({ ...story, storyId: story.id, chapterId: ch.id,
+    body: 'Vel stopped at the bridge and would not put a foot on it.' });
+  const r: any = await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
+  assert.ok(!r.error, r.error);
+  const prop = db.proposalsOf(story.id).find((p: any) => p.field === 'interiority');
+  assert.ok(prop, 'the room the model named survived into the proposal');
+  assert.strictEqual(prop.entry_id, vel, 'aimed at the card that already exists');
+
+  const bodyBefore = (db.entriesOf(story.id).find((e: any) => e.id === vel) as any).body;
+  const roomsBefore = db.addonsOf(story.id).length;
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: prop.id, accept: true }));
+
+  const room = db.addonsOf(story.id).find((a: any) => a.slot === 'interiority' && a.entry_id === vel) as any;
+  assert.ok(room, 'accepting wrote a room');
+  assert.strictEqual(db.addonsOf(story.id).length, roomsBefore + 1);
+  assert.match(room.body, /will not cross the bridge/);
+  // THE REST OF THE CARD IS UNTOUCHED. This is the whole point of the field.
+  assert.strictEqual((db.entriesOf(story.id).find((e: any) => e.id === vel) as any).body, bodyBefore,
+    'the card body must not be rewritten when the fact belongs in one room of it');
+  ok('a fact about an existing card lands in one room, and leaves the rest of the card alone');
+}
+
+{
+  // A room with no words of its own and nobody pinning it on never reaches the model — the same
+  // darkness `src/import.ts:127` refuses for an entry, and worse here, because the room looks
+  // filled in on the card while being invisible to every prompt.
+  found = [{ title: 'Vel', body: 'A voice that carries and never rises.', type: 'character',
+             keys: [], activation: 'triggered', field: 'voice' }];
+  const ch: any = db.chapters(story.id).at(-1);
+  await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
+  const prop = db.proposalsOf(story.id).find((p: any) => p.field === 'voice');
+  assert.ok(prop, 'the voice room was proposed');
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: prop.id, accept: true }));
+  const room = db.addonsOf(story.id).find((a: any) => a.slot === 'voice' && a.entry_id === vel) as any;
+  assert.strictEqual(room.active, 1,
+    'an accepted room with no trigger words is switched on, or it is filled in and dark');
+  ok('  and a room with no words of its own is switched on rather than left dark');
+}
+
+{
+  // A slot this KIND does not have is refused before it is ever stored. The enum in the schema
+  // cannot say "per kind"; `slotsFor` is the same list the screen draws from.
+  found = [{ title: 'The Long Stair', body: 'It sounds like a bell.', type: 'lore',
+             keys: ['stair'], activation: 'triggered', field: 'voice' }];
+  const ch: any = db.chapters(story.id).at(-1);
+  await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
+  const bad = db.proposalsOf(story.id).find((p: any) => p.title === 'The Long Stair' && p.field);
+  assert.ok(!bad, 'a place has no voice, and the room must not survive into the proposal');
+  ok('  and a room the card\'s kind does not have is refused');
+}
+
+{
+  // A ROOM NEEDS A CARD TO BE A ROOM OF. A brand-new thread has no rooms yet and its body is the
+  // whole of it, so a field on a `new` proposal is dropped — otherwise accepting it would write a
+  // room hanging off nothing and the card itself would never be created.
+  found = [{ title: 'The Ninth Bell', body: 'It is rung for the drowned.', type: 'lore',
+             keys: ['ninth bell'], activation: 'triggered', field: 'history' }];
+  const ch: any = db.chapters(story.id).at(-1);
+  await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
+  const fresh = db.proposalsOf(story.id).find((p: any) => p.title === 'The Ninth Bell');
+  assert.ok(fresh, 'the new thread was proposed');
+  assert.strictEqual(fresh.entry_id, null, 'and it is new — no card to be a room of');
+  assert.strictEqual(fresh.field, null, 'so the room it named was dropped');
+  ok('  and a brand-new thread carries no room, because its body is the whole of it');
+}
+
 // ---- 5. what a chapter FINISHED — PLAN-08 Phase 4 ----
 //
 // The one decision in the app that changes what the model is told for the REST OF THE BOOK, and it

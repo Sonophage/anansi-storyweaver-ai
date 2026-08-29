@@ -8,6 +8,7 @@ import { unlinkSync, readFileSync } from 'node:fs';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-test.db' + f); } catch {} }
 const db = await import('../src/db.ts');
 const slots = await import('../src/slots.ts');
+const prompts = await import('../src/prompts.ts');
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -1130,6 +1131,18 @@ ok('the exclusivity index and src/slots.ts name the same slots', () => {
   const inIndex = [...idx.matchAll(/'([a-z_]+)'/g)].map((m: any) => m[1]).sort();
   assert.deepStrictEqual(inIndex, [...slots.EXCLUSIVE_SLOTS].sort(),
     'the index and the module disagree about which slots hold one at a time');
+});
+
+ok('the extraction schema and src/slots.ts name the same slots', () => {
+  // The third place the slot list is written, and the same argument as the index above: a
+  // constrained decode has to state its enum as a literal, and a schema that interpolated the
+  // module would change shape between calls, which makes it unreadable next to a log of them. So
+  // it is written out and asserted — add a slot to the module and forget this and the model can
+  // never propose into it, silently, with the feature looking built.
+  const inSchema = [...(prompts.EXTRACT_SCHEMA as any).properties.entries.items.properties.field.enum]
+    .filter((x: string) => x !== 'none').sort();
+  assert.deepStrictEqual(inSchema, [...slots.ALL_SLOTS].sort(),
+    'the extraction schema and the module disagree about which rooms exist');
 });
 
 {

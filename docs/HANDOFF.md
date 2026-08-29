@@ -36,6 +36,29 @@ of it reach the model. Phases 1, 2 and 3 are done. Phase 4 has not started.
    cards. Read the denominator before the number: **no book has a room yet**, so only the modelled
    column is evidence about this feature.
 
+### Phase 4, per-field updates — done 2026-08-28
+
+**`proposals.field` is live on both ends.** It had been written since Phase 2 and read by nothing,
+and nothing ever set it either — a dead column at both ends, so every accepted change rewrote the
+WHOLE card body. That is the overwrite PLAN-08 exists to stop: she was loyal in chapter 2 and is not
+by chapter 9, and a whole-body rewrite loses the arc that made the book worth reading.
+
+- **`EXTRACT_SCHEMA` gained `field`**, an enum of every slot plus `none`. It is the THIRD place the
+  slot list is written — a constrained decode must state its enum as a literal — so `test/db.ts`
+  asserts it against `slots.ts`, the same way the partial index already is.
+- **Three refusals in `extract()`, none of which the column could make for itself:** `none` means
+  the card's own body; a room needs a card that ALREADY EXISTS to be a room of, so a field on a
+  `new` proposal is dropped; and a slot the card's KIND does not have — `voice` on a place — is
+  refused against `slotsFor`, because the enum cannot say "per kind".
+- **Accepting writes an addon and leaves the body untouched.** An accepted room with no trigger
+  words is switched ON, because a room that is filled in on the card and invisible to every prompt
+  is the same darkness `src/import.ts:127` refuses for an entry.
+- Five checks in `test/memory.ts`, each falsified.
+
+**Not measured.** `EXTRACT` is a prompt with findings attached to it (F27) and this adds a paragraph
+to it. Whether the model aims at the right room, or reaches for one when the body was the right
+answer, has no number. That is a deliberate park, on Seth's call — build now, debug the logic later.
+
 ### Phase 4, the retirement half — done 2026-08-28
 
 A chapter can finish a thread. `entries.retired_at_chapter` had a reader since Phase 2 and no

@@ -42,8 +42,19 @@ export const EXTRACT_SCHEMA = {
           // `db.upsertEntry` refuses `triggered` with no keys, so a wrong answer here cannot make
           // an entry that never reaches the model again.
           activation: { type: 'string', enum: ['always_on', 'triggered'] },
+          // PLAN-08 Phase 4. WHICH ROOM OF AN EXISTING CARD this belongs in, or `none` for the
+          // card's own body. Required and enumerated, never free text, for the reason `slots.ts`
+          // exists: a model writing `Motivation` into one card and `motivations` into the next in
+          // the same book is the drift that module was built to stop. The list is spelled out here
+          // rather than interpolated because a schema that changes shape between calls cannot be
+          // read alongside a log of the calls — `src/routes.ts` checks the answer against
+          // `slotsFor(kind)` anyway, so a slot this kind does not have is refused at the door.
+          field: { type: 'string',
+                   enum: ['none', 'appearance', 'atmosphere', 'consequences', 'history',
+                          'interiority', 'outfit', 'provenance', 'relationships', 'scope',
+                          'voice', 'what_it_does', 'who_is_here'] },
         },
-        required: ['title', 'type', 'body', 'keys', 'activation'],
+        required: ['title', 'type', 'body', 'keys', 'activation', 'field'],
       },
     },
   },
@@ -544,6 +555,17 @@ And an activation. "triggered" is the normal answer: the entry reaches the model
 keywords appears in recent prose, and stays out of the way otherwise. "always_on" means it is sent
 on every single call for the rest of the book, so use it only for something that is true in every
 scene — a law of this world, not a person who walks in and out of them.
+
+And a field. Most of the time this is "none": the fact is a NEW thing and the body describes the
+whole of it. Use a room name instead when the fact is about a card THAT ALREADY EXISTS and belongs
+in one part of it rather than in the whole description — how she looks now, what she is wearing,
+what she is thinking, one relationship, how she sounds, what a place is like now, who is in it,
+what it has been through, where an object came from, what it does, what a rule covers, what
+breaking it costs.
+
+When you name a room, the title is the card that already exists and the body is JUST that room —
+one paragraph about that one thing. Do not restate the rest of the card. Everything else about them
+stays exactly as it is.
 
 Propose nothing rather than pad. Zero proposals is a valid answer.`;
 

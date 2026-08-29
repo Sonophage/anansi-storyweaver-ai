@@ -3,7 +3,7 @@ import { count, chat, structuredRetry, model, models, checkModel, allowList, mod
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RELEASE, RELEASE_SCHEMA, RETIRE, retireSchema, DEFAULT_VOICE } from './prompts.ts';
-import { ALL_SLOTS } from './slots.ts';
+import { ALL_SLOTS, slotsFor } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
@@ -393,9 +393,23 @@ async function extract(storyId: string, chapterId?: string) {
     // gained the field and the column existed, and the value still landed null on every proposal
     // because this line did not carry it. Found by a real extraction on 2026-08-28, not by any
     // check — three green suites had no way to see it. `db.addProposal` validates the value.
+    // PLAN-08 Phase 4. WHICH ROOM, if the model named one and it is a room this card can have.
+    // Three refusals, all of them here rather than at the column, because `db.addProposal` can only
+    // check that the name is a slot SOMEWHERE — it cannot know whose card this is:
+    //
+    //   - `none`, or anything not a slot, means the card's own body. The normal answer.
+    //   - A room needs a card that ALREADY EXISTS to be a room OF. A brand-new thread has no rooms
+    //     yet and its body is the whole of it, so a field on a `new` proposal is dropped.
+    //   - A slot this KIND does not have — `voice` on a rule, `provenance` on a character — is
+    //     refused against `slotsFor`, which is the same list the screen draws from. The enum in
+    //     EXTRACT_SCHEMA cannot express "per kind" and this is where that is enforced.
+    const asked = String((e as any).field ?? 'none');
+    const onto = cls.entry_id ? (v.entries as any[]).find((x) => x.id === cls.entry_id) : null;
+    const field = onto && ALL_SLOTS.includes(asked)
+      && slotsFor(onto.entryType).some((sl) => sl.name === asked) ? asked : null;
     if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
-      activation: e.activation })) added++;
+      activation: e.activation, field })) added++;
   }
   return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
 }
@@ -1531,6 +1545,22 @@ export const routes: Record<string, Handler> = {
         // rides in `keys`, which is the only field on a proposal with room for it.
         db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body,
           fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || null });
+      } else if (c.body.accept && p.field && p.entry_id) {
+        // PLAN-08 Phase 4. THE ROOM, NOT THE WHOLE CARD. `proposals.field` has been written since
+        // Phase 2 and read by nothing, so every accepted change rewrote the entire body — which is
+        // the overwrite this plan exists to stop. A card is named fields; a fact about one of them
+        // lands in one of them and everything else about her stays exactly as it was.
+        //
+        // The editable box still decides what lands, the same as every other accept: the route has
+        // honoured an incoming body since it was written, and `web/app.js` sends it.
+        const keys = JSON.parse(p.keys || '[]');
+        const id = db.upsertAddon(p.story_id, p.entry_id,
+          { slot: p.field, name: p.title, body: c.body.body ?? p.body, keys });
+        // A ROOM WITH NO KEYS THAT NOBODY PINNED ON NEVER REACHES THE MODEL. That is the same
+        // darkness `src/import.ts:127` refuses for an entry — keys or always-on, never neither —
+        // and it is worse here, because the room looks filled in on the card while being invisible
+        // to every prompt. So an accepted room with no words of its own is switched on.
+        if (id && !keys.length) db.setAddonActive(p.story_id, id, true);
       } else if (c.body.accept) {
         // Accepting makes it yours, so last_editor is human and the entry is pinned from here.
         db.upsertEntry(p.story_id, c.owner, { id: p.entry_id || undefined, title: p.title,

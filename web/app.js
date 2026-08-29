@@ -1176,6 +1176,9 @@ function proposalCard(p) {
             and Waiting can bring it back.</div>` : ''}
           ${p.entryType === 'state' ? `<div style="font-size:11px; color:var(--faint)">In force from chapter ${
             esc(JSON.parse(p.keys || '[]')[0] ?? '?')}</div>` : ''}
+          ${p.field ? `<div style="font-size:11px; color:var(--faint)">Lands in ${
+            esc(String(p.field).replace(/_/g, ' '))} on ${esc(p.title)}. The rest of the card is
+            left exactly as it is.</div>` : ''}
           <div style="display:flex; gap:7px">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Accept</button>

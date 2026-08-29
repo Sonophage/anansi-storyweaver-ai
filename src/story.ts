@@ -137,6 +137,10 @@ export function view(storyId: string, focusChapterId?: string) {
     proposals: db.proposalsOf(storyId).map((p: any) => ({
       id: p.id, entryId: p.entry_id, title: p.title, body: p.body, entryType: p.entry_type,
       keys: JSON.parse(p.keys || '[]'), kind: p.kind, delta: p.delta, chapterId: p.chapter_id,
+      // PLAN-08 Phase 4. Which ROOM this lands in, or null for the card's own body. Written since
+      // Phase 2 and shipped to nobody until the accept path learned to read it, so the surface
+      // could not say where an accepted fact was about to go.
+      field: p.field ?? null,
     })),
   };
 }
