@@ -25,6 +25,73 @@
 const WRITE = process.argv.includes('--write');
 const db = await import('../src/db.ts');
 
+// ---------------------------------------------------------------------------------------------
+// `--stated` — the cards the default run leaves alone, done the way Seth chose once he saw what
+// the choice was: "yes do the current version into facts and drop the old one."
+//
+// A stated card's description is not in `entries.body`. `resolveBody` returns the newest STATE
+// whose chapter has arrived, and the base body is the superseded original underneath it. So the
+// CURRENT version is that state's body, and "the old one" is everything below it.
+//
+// THE STATES GO TOO, and that is a deletion of history taken on purpose, not a side effect.
+// Keeping them would put the in-force state in the prompt beside a facts room holding the same
+// words — the exact duplication this migration exists to prevent — and dropping only the newest
+// would promote the one beneath it, printing an older self next to the current one. What is lost
+// is the intermediate versions and their labels. They survive in the backup this takes first, and
+// every row is printed in full below before it is deleted.
+if (process.argv.includes('--stated')) {
+  const cards = db.db.prepare(`
+    SELECT e.id, e.title, e.body, e.story_id, s.title AS story,
+           (SELECT MAX(idx) FROM chapters WHERE story_id = e.story_id) AS cur
+    FROM entries e JOIN stories s ON s.id = e.story_id
+    WHERE EXISTS (SELECT 1 FROM entry_states WHERE entry_id = e.id)
+      AND NOT EXISTS (SELECT 1 FROM addons WHERE entry_id = e.id AND slot = 'facts')
+    ORDER BY e.title`).all() as any[];
+  const statesOf = db.db.prepare(
+    'SELECT id, from_chapter, before_mode, label, body FROM entry_states WHERE entry_id = ? ORDER BY from_chapter');
+
+  console.log(`\n  ${WRITE ? 'MOVING' : 'DRY RUN — nothing is written'}  ·  stated cards\n`);
+  const plan: any[] = [];
+  for (const c of cards) {
+    const st = statesOf.all(c.id) as any[];
+    // `resolveBody`'s rule, and it has to stay `resolveBody`'s rule: the last state that has
+    // arrived. A state dated after the current chapter has not happened yet and is not the
+    // current version of anybody.
+    const inForce = st.filter((x) => x.from_chapter <= c.cur).at(-1);
+    if (!inForce) { console.log(`    ${c.title} — no state has arrived yet, left alone`); continue; }
+    const ahead = st.filter((x) => x.from_chapter > c.cur);
+    if (ahead.length) { console.log(`    ${c.title} — has ${ahead.length} state(s) dated ahead of chapter ${c.cur}, left alone`); continue; }
+    plan.push({ c, st, inForce });
+    console.log(`    ${c.title}  (${c.story}, now in chapter ${c.cur})`);
+    console.log(`      facts becomes  ch${inForce.from_chapter} "${String(inForce.body).replace(/\s+/g, ' ').slice(0, 74)}…"`);
+    console.log(`      body dropped   ${String(c.body).length} chars "${String(c.body).replace(/\s+/g, ' ').slice(0, 60)}…"`);
+    for (const x of st) console.log(`      state dropped  ch${x.from_chapter} ${x.before_mode} "${x.label ?? ''}" ${String(x.body).length} chars`
+      + (x.id === inForce.id ? '  ← kept, as the facts room' : ''));
+  }
+  if (!WRITE) { console.log(`\n  Nothing was changed. Add --write to do it, which backs up first.\n`); process.exit(0); }
+  if (!plan.length) { console.log(`\n  Nothing to do.\n`); process.exit(0); }
+
+  const bk = db.backup();
+  console.log(`\n  backed up to ${bk.file} (${(bk.bytes / 1048576).toFixed(1)}MB)`);
+  const { randomBytes: rb } = await import('node:crypto');
+  const ins = db.db.prepare(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,created_at)
+                             VALUES (?,?,?,'facts',?,?,'[]',1,?)`);
+  const clear = db.db.prepare('UPDATE entries SET body = ? WHERE id = ?');
+  const dropStates = db.db.prepare('DELETE FROM entry_states WHERE entry_id = ?');
+  const t = Date.now();
+  db.db.exec('BEGIN');
+  try {
+    for (const { c, inForce } of plan) {
+      ins.run('ad-' + rb(4).toString('hex'), c.story_id, c.id, c.title, inForce.body, t);
+      clear.run('', c.id);
+      dropStates.run(c.id);
+    }
+    db.db.exec('COMMIT');
+  } catch (e: any) { db.db.exec('ROLLBACK'); console.log(`  ROLLED BACK, nothing changed: ${e?.message}`); process.exit(1); }
+  console.log(`  ${plan.length} card(s) moved, ${plan.reduce((n: number, p: any) => n + p.st.length, 0)} state row(s) dropped\n`);
+  process.exit(0);
+}
+
 const rows = db.db.prepare(`
   SELECT e.id, e.title, e.body, e.story_id, s.title AS story, s.owner_id AS owner
   FROM entries e JOIN stories s ON s.id = e.story_id
