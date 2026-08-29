@@ -775,4 +775,64 @@ await wait(1200);
 ok("  and it is still there a moment later, not eaten by a repaint",
    (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
 
+// ---- PLAN-08: a thread brings another in with it, from the screen to the prompt -------------
+//
+// The engine has read `entry_edges` since 2026-08-28 and NOTHING could create one — no route, no
+// method, no button — so the inherited pull was exercised by `test/engine.ts` and by nothing a
+// writer could reach. This drives the whole length of it: press Connect on a card, and check the
+// other card arrives in the real prompt behind it, with the reason saying who pulled it.
+{
+  const v = await story3();
+  const parent = v.entries.find((e) => e.title === 'Aldis Fen') ?? v.entries[0];
+  // A card that cannot fire on its own, so if it reaches the prompt the edge is the only thing
+  // that could have put it there. That is the whole design of the check.
+  const childId = await page.eval("(async () => { const r = await (await fetch('/api/entry',{method:'POST',"
+    + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid3 + "',"
+    + "entry:{title:'Ghost Wolf',body:'[Ghost Wolf: never said aloud]',entryType:'lore',"
+    + "activation:'triggered',keys:['zzzznobodysaysthis'],lastEditor:'human'}})})).json();"
+    + " return (r.entries.find(e => e.title === 'Ghost Wolf') || {}).id; })()");
+  ok("a card that fires on nothing exists to be pulled", !!childId);
+
+  const before = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+    + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid3 + "',mode:'continue'})})).json();"
+    + " return r.prompt; })()");
+  ok("  and it is NOT in the prompt on its own", !/never said aloud/.test(before));
+
+  await page.goto(B + "/#" + sid3 + "/threads");
+  await wait(700);
+  await page.click('[data-entry="' + parent.id + '"]');
+  await wait(500);
+  await page.click('[data-cardview="form"]');
+  await wait(500);
+  const picked = await page.eval("(() => { const sel = document.querySelector('[data-lk=\"child\"]');"
+    + " if (!sel) return 'no connect control'; const o = [...sel.options].find(x => x.textContent === 'Ghost Wolf');"
+    + " if (!o) return 'the other card is not offered'; sel.value = o.value; return 'ok'; })()");
+  ok(`the card's form offers something to connect to (${picked})`, picked === 'ok');
+  await page.click('[data-link="1"]');
+  await wait(900);
+
+  const edges = (await story3()).edges ?? [];
+  ok(`pressing Connect writes a directed edge (${edges.length})`,
+     edges.some((x) => x.parentId === parent.id && x.childId === childId));
+
+  const after = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+    + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid3 + "',mode:'continue'})})).json();"
+    + " return JSON.stringify({ prompt: r.prompt, blocks: r.manifest.blocks.map(b => ({id:b.id,reason:b.reason,state:b.state})) }); })()");
+  const got = JSON.parse(after);
+  ok("  and the connected card now reaches the prompt behind its parent",
+     /never said aloud/.test(got.prompt));
+  const blk = got.blocks.find((b) => b.id === childId);
+  ok(`  with the manifest naming who pulled it (${JSON.stringify(blk?.reason ?? 'none')})`,
+     /^inherited /.test(blk?.reason ?? ''));
+
+  // AND THE DIRECTION, which is the one thing about this table that cannot be recovered later.
+  const edge = edges.find((x) => x.parentId === parent.id && x.childId === childId);
+  await page.click('[data-unlink="' + edge.id + '"]');
+  await wait(900);
+  const gone = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+    + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid3 + "',mode:'continue'})})).json();"
+    + " return r.prompt; })()");
+  ok("  and Disconnect takes it back out of the prompt", !/never said aloud/.test(gone));
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

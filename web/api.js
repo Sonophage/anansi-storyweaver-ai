@@ -150,6 +150,10 @@ export const api = {
   // route rather than a field on saveEntry, because upsertEntry writes last_editor and that is
   // what arbitration keys on — bringing a character back is not editing their card.
   retire:       (storyId, id, atChapter) => j('/api/retire', 'POST', { storyId, id, atChapter }),
+  // PLAN-08. Directed: parent pulls child, never the reverse, so both ends are named.
+  link:         (storyId, parentId, childId, confidence) => j('/api/link', 'POST',
+                                             { storyId, parentId, childId, confidence }),
+  unlink:       (storyId, id)    => j('/api/link', 'DELETE', { storyId, id }),
   // Re-run the finished scan when the router was asleep at chapter end.
   finished:     (storyId, chapterId) => j('/api/finished', 'POST', { storyId, chapterId }),
   saveState:    (storyId, entryId, state) => j('/api/state', 'POST', { storyId, entryId, state }),

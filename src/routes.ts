@@ -1390,6 +1390,23 @@ export const routes: Record<string, Handler> = {
                                  return viewOf(c.body.storyId); },
   'DELETE /api/addon':  (c) => { db.delAddon(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
 
+  // PLAN-08 Phase 3's missing half. The engine has read `entry_edges` since 2026-08-28 — a card
+  // whose parent reached the prompt is pulled in behind it, worth `confidence` against a direct
+  // hit — and until now NOTHING could create one: no route, no method, no button. A read path with
+  // no writer is the "engine feature with no surface" this repo keeps hitting, and `test/web.ts`
+  // exists to catch it; it caught this, and the answer at the time was to take the routes out
+  // rather than build the door. This is the door.
+  //
+  // DIRECTED, and the surface has to name which end is which: parent pulls child and never the
+  // reverse. Her coat arrives when she does; she does not arrive because somebody said "coat".
+  'POST /api/link': (c) => {
+    const id = db.linkEntries(c.body.storyId, c.body.parentId, c.body.childId,
+      { confidence: c.body.confidence });
+    if (!id) return { error: 'those two cannot be connected that way, or already are' };
+    return viewOf(c.body.storyId);
+  },
+  'DELETE /api/link': (c) => { db.unlinkEntries(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+
   // PLAN-08 Phase 4. A thread can be finished, and it can be brought back — `atChapter: null`
   // lifts it, which is `setPin`'s contract and the reason there is one route and not two. This is
   // deliberately NOT part of `POST /api/entry`: `upsertEntry` writes `last_editor` and logs a

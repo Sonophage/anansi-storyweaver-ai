@@ -273,7 +273,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
-  'retire', 'unretire', 'endchapter', 'refinished'].map((k) => `[data-${k}]`).join(',');
+  'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -2566,6 +2566,42 @@ function cardHead(e, slots) {
  *  blanks — which is what the form has to be and is exactly why it is the wrong thing to read.
  *  The switch here is `active`, the writer's half of how a room reaches the model; the other half
  *  is its trigger words, and those live in the form because they are typing, not looking. */
+/** CONNECTED THREADS. PLAN-08 Phase 3's writer, arriving after its reader.
+ *
+ *  DIRECTED, and the screen has to say which way. Her coat arrives when she does; she does not
+ *  arrive because somebody said "coat" — so this card is always the PARENT of what it lists, and
+ *  the way to connect the other direction is to open the other card. Undirected edges rebuild
+ *  COUNCIL-04 #7's crowded scene through the back door and the direction cannot be recovered once
+ *  a book has two hundred of them.
+ *
+ *  How strong the pull is, in three words rather than a number: it sorts against a direct keyword
+ *  hit in the eviction order and nothing else, so a decimal on screen would be false precision
+ *  about something the writer cannot observe. */
+const PULL = [['1', 'as strong as being named'], ['0.6', 'worth less than being named'],
+              ['0.3', 'a hint, dropped first']];
+function connections(e) {
+  const mine = (V.edges ?? []).filter((x) => x.parentId === e.id);
+  const others = (V.entries ?? []).filter((x) => x.id !== e.id
+    && !mine.some((m) => m.childId === x.id));
+  const nameOf = (id) => (V.entries ?? []).find((x) => x.id === id)?.title ?? id;
+  return `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Brings in with it</div>
+    <div class="hint" style="margin:0 0 9px">When this thread reaches the model, these come with it.
+      Not the other way round: connect from the other card for that.</div>
+    ${mine.map((x) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
+      <span style="font-size:13px; color:var(--mute)">${esc(nameOf(x.childId))}</span>
+      <span style="font-size:11px; color:var(--faint)">${esc(
+        (PULL.find((p) => Number(p[0]) === Number(x.confidence)) ?? PULL[0])[1])}</span>
+      <button data-unlink="${x.id}" style="margin-left:auto; padding:6px 11px; border-radius:var(--r);
+        border:1px solid var(--chip); color:var(--faint); font-size:11px">Disconnect</button></div>`).join('')
+      || '<div class="hint" style="margin:0 0 9px">Nothing yet.</div>'}
+    ${others.length ? `<div style="display:flex; gap:7px; align-items:center">
+      <select class="field" data-lk="child" style="margin:0; flex:1">${
+        others.map((x) => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join('')}</select>
+      <select class="field" data-lk="conf" style="margin:0; flex:1">${
+        PULL.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select></div>
+      <button class="btn ghost" data-link="1" style="margin-top:8px">Connect</button>` : ''}`;
+}
+
 function cardFace(e, slots) {
   const rooms = (e.addons ?? []).filter((a) => a.slot !== 'outfit');
   // The outfit room is drawn from `e.outfits` rather than from the addons, so it earns its jump
@@ -2588,10 +2624,6 @@ function cardFace(e, slots) {
         `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag" style="cursor:pointer; ${
           a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
           >${a.active ? 'On' : 'Off'}</button>`, sl.name)).join('')}`).join('')}
-    ${e.retiredAtChapter == null ? `<button data-retire="${e.id}" class="btn ghost"
-      style="margin-top:20px">Mark this finished</button>
-    <div class="hint">It stops reaching the model from the next chapter on. Every chapter before it
-      still has it, and Waiting can bring it back.</div>` : ''}
     ${(e.outfits ?? []).length ? `
       <div data-slotat="outfit" class="lbl" style="letter-spacing:.1em; margin-top:18px">outfit</div>
       ${e.outfits.map((o) => roomCard(o.name, o.body, [], o.active,
@@ -2782,6 +2814,11 @@ function entryEditor() {
         <div class="clamp" style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(h.previous_value ?? '')}</div>
         <button class="btn ghost" data-revertfield="${h.id}" style="margin-top:6px">Put this back</button></div>`).join('')
         : '<div class="hint">No earlier versions of any field.</div>'}` : ''}
+    ${connections(e)}
+    ${e.retiredAtChapter == null ? `<button data-retire="${e.id}" class="btn ghost"
+      style="margin-top:20px">Mark this finished</button>
+    <div class="hint">It stops reaching the model from the next chapter on. Every chapter before it
+      still has it, and Waiting can bring it back.</div>` : ''}
     ${copyElsewhere(e)}
     <button class="btn" data-saveentry="1" style="margin-top:16px">Save</button>
     <button class="btn ghost" data-fieldhistory="1" style="margin-top:10px">${
@@ -4502,6 +4539,17 @@ document.addEventListener('click', async (e) => {
     V = await api.retire(S.storyId, d.unretire, null); paint();
     return toast('Back in the book.');
   }
+
+  if (d.link) {
+    const child = document.querySelector('[data-lk="child"]')?.value;
+    const conf = Number(document.querySelector('[data-lk="conf"]')?.value ?? 1);
+    if (!child) return toast('Nothing to connect to.');
+    const r = await api.link(S.storyId, S.entryId, child, conf);
+    if (r.error) return toast(r.error);
+    V = r; paint();
+    return toast('Connected. It arrives when this one does.');
+  }
+  if (d.unlink) { V = await api.unlink(S.storyId, d.unlink); paint(); return toast('Disconnected.'); }
 
   // Every card opens on its face. Carrying the last card's view over means pressing a thread to
   // READ it and landing in a form of empty boxes, which is the thing the face exists to avoid.
