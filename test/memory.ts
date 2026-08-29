@@ -321,7 +321,9 @@ let retProposal: any;
   const ch: any = db.chapters(story.id).at(-1);
   db.addPassage({ ...story, storyId: story.id, chapterId: ch.id,
     body: 'Vel went down on the stair and did not get up. "She is fine," the porter said.' });
-  finished = [{ card: 'Vel', why: 'her body is on the stair' }];
+  // The quote has to BE in the narration now — the route checks it, so the fake has to be honest
+  // the way the model has to be. This sentence is in the passage below, word for word.
+  finished = [{ card: 'Vel', quote: 'Vel went down on the stair and did not get up' }];
   found = []; answer = [];
   asked = null;
   const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: story.id }));
@@ -351,7 +353,35 @@ let retProposal: any;
   // PROPOSALS, NEVER WRITES. The reason this is safe to fire on every close.
   const row: any = db.db.prepare('SELECT retired_at_chapter FROM entries WHERE id = ?').get(vel);
   assert.strictEqual(row.retired_at_chapter, null, 'nothing is retired until it is accepted');
+  // THE EVIDENCE IS WHAT THE WRITER READS. A verbatim line from their own prose says more about
+  // whether to accept than the model's summary of it did.
+  assert.match(retProposal.body, /went down on the stair/,
+    'the proposal carries the sentence that commits it, out of the writer\'s own prose');
   ok('closing a chapter proposes what it finished, seeded with the description and the direction');
+}
+
+{
+  // A CARD IT CANNOT QUOTE FOR IS NOT PROPOSED. The model returns a sentence that is nowhere in
+  // the chapter; the route checks rather than trusts, which is the only part of this decision code
+  // can make for itself. F41 measured two shapes the prompt forbade in words and it did anyway.
+  const ch: any = db.chapters(story.id).at(-1);
+  db.addPassage({ ...story, storyId: story.id, chapterId: ch.id,
+    body: 'Sedge stood in the doorway a long while and then was not there.' });
+  const sedge = db.upsertEntry(story.id, me, { title: 'Sedge', body: '[Sedge: a runner]',
+    entryType: 'character', keys: ['Sedge'] });
+  finished = [{ card: 'Sedge', quote: 'Sedge was buried at the crossroads before dawn' }];
+  const r: any = await routes['POST /api/finished'](ctx({ storyId: story.id, chapterId: ch.id }));
+  assert.strictEqual(r.proposed, 0, 'nothing was proposed on evidence that is not in the prose');
+  assert.strictEqual(r.unevidenced, 1, 'and the refusal is COUNTED, not swallowed');
+  assert.ok(!db.proposalsOf(story.id).some((p: any) => p.entry_id === sedge));
+  ok('  and a card it cannot quote the prose for is refused, and the refusal is counted');
+
+  // AND A SCRAP IS NOT EVIDENCE. "a" is in every chapter ever written, so without a floor the
+  // check passes on anything and reports perfection — the shape this project has shipped twice.
+  finished = [{ card: 'Sedge', quote: 'the' }];
+  const r2: any = await routes['POST /api/finished'](ctx({ storyId: story.id, chapterId: ch.id }));
+  assert.strictEqual(r2.proposed, 0, 'a fragment that happens to appear is not a sentence');
+  assert.strictEqual(r2.unevidenced, 1);
 }
 
 {
@@ -389,7 +419,7 @@ let retProposal: any;
   const ch2: any = db.chapters(story.id).at(-1);
   db.addPassage({ ...story, storyId: story.id, chapterId: ch2.id,
     body: 'The Long Stair was empty and the rain came in sideways.' });
-  finished = [{ card: 'Vel', why: 'invented out of nothing' }];
+  finished = [{ card: 'Vel', quote: 'invented out of nothing, and not in the prose at all' }];
   const before = db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length;
   const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: story.id }));
   assert.strictEqual(db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length,
@@ -406,7 +436,7 @@ let retProposal: any;
   const ch3: any = db.chapters(story.id).at(-1);
   db.addPassage({ ...story, storyId: story.id, chapterId: ch3.id,
     body: 'The Long Stair went on being a stair with no landing.' });
-  finished = [{ card: 'The Long Stair', why: 'switched off' }];
+  finished = [{ card: 'The Long Stair', quote: 'The Long Stair went on being a stair with no landing' }];
   const before = db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length;
   await routes['POST /api/chapter/end'](ctx({ storyId: story.id, retire: false }));
   assert.strictEqual(db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length,

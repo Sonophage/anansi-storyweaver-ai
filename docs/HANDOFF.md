@@ -195,16 +195,18 @@ truth — and the upgrade path: check `exportStory`, take a backup, then drop it
   every position through `view()`/`assemble()` against a COPY of the database — it never opens the
   live book. **Its denominator is the reading: no book has a room yet**, so the "as it stands"
   column is the shape before the feature and only the modelled column is evidence about it.
-- **F41 supersedes F40's headline.** A place is never finished, it changes: `retirable` offers only
-  `character` and `rule`, so a burned building can no longer be retired at all and what happened to
-  it goes in its `history` room. Places wrongly finished: 3 → **0**. The percentage went 10% → 20%
-  because the denominator HALVED — every place was refused before the model was asked — so do not
-  read that as a regression. What is left is people who leave with final-sounding prose, at n=3,
-  which is too thin to tune on.
-- **F40** — the finished-thread scan is right about deaths and wrong about a closed building, and
-  the direction clause measures zero. It PROPOSES; nothing is written without a press. **Do not add
-  an auto-accept.** `bench/retire.ts` re-runs it; its first three cases could not see the defect at
-  all, which is why there is a fourth.
+- **F42 is where the finished-thread scan actually stands: 16/16 recall, 0 false finishes in 40
+  chances — under 7.5%, not never.** The fix was structural: the model must QUOTE the sentence from
+  the narration that commits the end, and `retire()` checks the sentence is really in the prose it
+  handed over. A judgement became a lookup. It also settled `stories.direction`, which F40 measured
+  at zero and F41 could not separate: at n=8 it fixed one case completely and broke another
+  completely, which is why the average looked like nothing. With evidence required only the help
+  remains, 0/40 against 6/40. **The clause stays.**
+- **F41** — a place is never finished, it changes. `retirable` offers only `character` and `rule`,
+  so a burned building cannot be retired at all and what happened to it goes in its `history` room.
+- **F40** — the first measurement of the scan, superseded by both of the above. Keep it for the
+  method: its first three cases could not see the defect at all, and both arms scoring 0/21 read
+  exactly like a working clause.
 - **`bench/ledger-audit.ts` governs whether anything may be flipped to `triggered`**, and says
   existing rows may not: 1 in 12 would go dark and 2 more are "safe on the record, dark on the next
   call". `bench/fires.ts` is its per-position sibling and should be folded into it one day; it

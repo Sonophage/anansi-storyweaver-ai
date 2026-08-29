@@ -1694,3 +1694,49 @@ fourth case existed.
 **Not tuned further, deliberately.** Seth: *"build well, debug the logic later."* Buildings were the
 ask and buildings are answered. The people case is the next prompt experiment and it has a fixture
 waiting for it.
+
+## F42 — asking the model to QUOTE the sentence takes the finished-thread scan to 16/16 recall and zero false finishes, and settles the direction clause as load-bearing (2026-08-29)
+
+F41 left one shape wrong and one question open. Both are answered, and the fix was structural
+rather than more prose.
+
+**The two failures the prompt already forbade in words.** Halloway — *"nobody found him in the fire,
+and nobody found him anywhere else either"* — and Cazalet — *"walked out through the yard and did
+not look back; whatever he had been to that place was over"*. `RETIRE` said *"Uncertain is not
+finished. Missing, presumed, last seen, never found"* and *"somebody leaving a place for the last
+time is usually not the person ending either"*. Both rules were there. Both were ignored. F37 is why
+another prohibition was not the answer: the same rule buried in a list bought nothing.
+
+**So the model produces evidence instead.** `why` — a one-line paraphrase — became `quote`: the
+sentence from the narration, word for word, that says the person is dead or the law is void. The
+route then checks the sentence is actually in the prose it handed over, normalised on both sides
+with a 15-character floor. **That turns a judgement into a lookup, and a lookup is the only part of
+this decision code can make for itself.** Quoted dialogue cannot pass at all, because
+`narrationOnly` has already removed it — the rule this whole file runs on, arriving for free.
+
+| n=8 per arm, 4 cases, 40 chances | recall | false finishes | Halloway | Cazalet |
+|---|---|---|---|---|
+| **before** · with the direction | 14/16 — 88% | 7/40 — 18% | 0/8 | **7/8** |
+| **before** · without it | 14/16 — 88% | 8/40 — 20% | **8/8** | 0/8 |
+| **after** · with the direction | **16/16 — 100%** | **0/40 — under 7.5%, not never** | 0/8 | 0/8 |
+| **after** · without it | **16/16 — 100%** | 6/40 — 15% | 4/8 | 2/8 |
+
+**THE DIRECTION CLAUSE IS DECIDED, AND IT STAYS.** F40 measured it at exactly zero and F41 could not
+separate it at n=3. At n=8 the mechanism became visible and it was a WASH FOR A REASON: the clause
+fixed Halloway completely (8/8 wrong → 0/8) and broke Cazalet almost as completely (0/8 → 7/8),
+netting 7 against 8. With evidence required, the harm is gone and only the help remains: **0/40
+against 6/40**. Two measurements that averaged to nothing were two large opposite effects, which is
+the reading a single rate can never give you.
+
+**Recall went up, not down.** 14/16 to 16/16. Demanding evidence did not make the scan timid — the
+two it had been missing were cases where it had proposed something else instead.
+
+**Zero is bounded, not claimed.** 0 in 40 is *under 7.5%*, printed that way by the probe. F12
+declared a defect gone on zero-in-sixty when the true rate was 4%.
+
+**What the writer sees improved as a side effect.** The proposal card now carries the sentence out
+of their own prose rather than the model's summary of it, which is more use when deciding whether to
+accept than a paraphrase was.
+
+**`unevidenced` is returned and counted, not swallowed.** A scan that keeps naming cards it cannot
+quote for is a prompt problem, and a count is the only way anyone would know.

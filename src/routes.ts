@@ -457,22 +457,38 @@ async function retire(storyId: string, chapterId?: string) {
   // takes him out again every time the writer goes back to revise it. `remember` anchors its
   // states the same way and for the same reason.
   const at = ch.index + 1;
+  // THE EVIDENCE HAS TO BE IN THE PROSE. The model returns the sentence it says commits the end,
+  // and this checks that the sentence is actually there — a lookup, not a judgement, which is the
+  // only part of this decision code can make for itself. F41's two failures were a man nobody
+  // found and a man who walked away, both of which the prompt already forbade in words.
+  //
+  // Normalised on both sides, and a floor of 15 characters: without it "he" matches everything and
+  // the check reports perfection. Quoted dialogue cannot pass at all, because `narrationOnly` has
+  // already taken it out of `text` — which is the rule this whole file runs on, arriving for free.
+  const flat = (x: string) => String(x ?? '').toLowerCase().replace(/[\u2018\u2019\u201c\u201d"']/g, '')
+    .replace(/\s+/g, ' ').trim();
+  const prose = flat(text);
+  let unevidenced = 0;
   let proposed = 0;
   for (const f of r.data.finished) {
     // The enum should make a miss impossible. Checked anyway: the constraint is the router's to
     // honour, and this is the one answer that decides what the model stops being told.
     const who = cands.find((e: any) => e.title === f?.card);
     if (!who) continue;
+    const quote = flat(f?.quote);
+    if (quote.length < 15 || !prose.includes(quote)) { unevidenced++; continue; }
     if (db.addProposal(v.id, {
       kind: 'retire', entryType: 'retire', entry_id: who.id, chapterId: ch.id, title: who.title,
-      body: String(f.why ?? '').trim() || 'finished by this chapter',
+      body: String(f.quote ?? '').trim() || 'finished by this chapter',
       delta: `Stops reaching the model from chapter ${at}`,
       keys: [String(at)],
     })) proposed++;
   }
   // The denominator rides in the runtime answer and not only in the probe: "2 proposed" means
   // nothing without "of 5 the chapter named".
-  return { proposed, eligible: cands.length, chapter: ch.index };
+  // `unevidenced` is reported rather than swallowed: a scan that keeps naming cards it cannot
+  // quote for is a prompt problem, and a count is the only way anyone would know.
+  return { proposed, eligible: cands.length, unevidenced, chapter: ch.index };
 }
 
 async function summarise(c: Ctx, storyId: string, chapterId?: string) {

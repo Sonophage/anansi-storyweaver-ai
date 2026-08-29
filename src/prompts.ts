@@ -167,7 +167,11 @@ Rules:
 - A card that stops mattering is not finished. This is about what is gone, not about what is dull.
 - Somebody leaving a place for the last time is not the place ending, and it is usually not the
   person ending either.
-- why is one short sentence naming what the narration commits: "her body is on the stair".
+- quote is THE SENTENCE FROM THE NARRATION ABOVE, word for word, that says this person is dead or
+  this law is void. Copy it exactly; do not summarise it and do not write your own.
+- IF YOU CANNOT FIND SUCH A SENTENCE, THE CARD IS NOT FINISHED. A sentence about somebody leaving,
+  or about a thing being over, or about nobody finding them, is not a sentence about a person
+  ending. Leave the card out rather than quoting the nearest thing to it.
 ${direction.trim() ? `- A card the writer named at the top, under WHERE THIS STORY IS GOING, is not
   finished. Leave it out even if this chapter closes its doors, walks it off the page, or says it
   is over. The writer has already told you it comes back.
@@ -189,10 +193,16 @@ export const retireSchema = (titles: string[]) => ({
       items: {
         type: 'object',
         properties: {
-          card: { type: 'string', enum: titles },
-          why:  { type: 'string', maxLength: 160 },
+          card:  { type: 'string', enum: titles },
+          // THE EVIDENCE, VERBATIM, and the caller checks it against the narration it was given.
+          // It replaced `why`, a one-line paraphrase, after F41 measured two shapes the prompt
+          // already forbade in words and the model finished anyway — a man "nobody found" and a
+          // man who "walked out and did not look back". More prohibitions were not the answer:
+          // F37 measured the same rule buried in a list buying nothing. Asking for the SENTENCE
+          // turns a judgement into a lookup, and a lookup is something code can check.
+          quote: { type: 'string', maxLength: 200 },
         },
-        required: ['card', 'why'],
+        required: ['card', 'quote'],
       },
     },
   },
