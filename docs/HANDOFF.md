@@ -36,6 +36,26 @@ of it reach the model. Phases 1, 2 and 3 are done. Phase 4 has not started.
    cards. Read the denominator before the number: **no book has a room yet**, so only the modelled
    column is evidence about this feature.
 
+### The proposals queue stopped losing facts — 2026-08-28
+
+**"Duplicate" meant SAME CARD, and it should have meant same PLACE.** At chapter end several passes
+each have something to say about one person — her description from `remember`, a new fact from
+`extract`, one of her rooms, that she is finished — and the queue called every one after the first a
+duplicate and dropped it on a `false` nobody reads. Measured before the fix: `remember`'s state
+landed and `extract`'s rewrite of the same character was **binned on every close where both spoke**.
+Two rooms of one card did it to each other too, which the rooms feature inherited on the day it was
+built.
+
+`db.proposalTarget` is now the one definition of where accepting would write — `state` · `retire` ·
+`string` · `room:<slot>` · `body` — and both the dedupe and the accept path ask it, so they cannot
+drift. Two proposals collide only when accepting them would write over each other.
+
+The correct collisions survive for free and are asserted: `new` and `changed` still collide, because
+both write the body and they are one offer wearing two labels depending on whether `classify`
+recognised the card; so do the same room twice and the same retirement twice, which is what the
+dedupe was built for. The `retire`-only lane added earlier the same day is deleted — it fixed one
+case of a general defect and left the rest standing.
+
 ### Phase 4, per-field updates — done 2026-08-28
 
 **`proposals.field` is live on both ends.** It had been written since Phase 2 and read by nothing,
@@ -172,7 +192,7 @@ Issues #7, #9, #11, #12, #14. #9 (contradictions arriving late) is **downstream*
 beside it — the check reads the ledger, so fielded cards change its inputs and doing it first is
 work thrown away. `serve.ts`'s three `ponytail:` markers are untouched: `:81` a reverse proxy breaks
 the loopback rule OPEN, `:208` no backpressure now that a phone is on the tailnet, `:54` whois
-cached per process. Twenty-nine `ponytail:` markers across the tree; the newest are the one-hop
+cached per process. Twenty-eight `ponytail:` markers across the tree; the newest are the one-hop
 bound on the inherited pull and the eviction decision F39 bought.
 
 Parked with its reasoning in `docs/checklist.md`: attaching an image to an issue.

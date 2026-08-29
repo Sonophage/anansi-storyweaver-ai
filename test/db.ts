@@ -1315,21 +1315,47 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
       null, 'an explicit null lifts it, the way setPin and setRetired do');
   });
 
-  ok('a retirement and a change to the same card both reach the queue', () => {
-    // `addProposal` hashes the SUBJECT, so one chapter close proposing both "this is how she
-    // changed" and "she is finished" collided and the second was dropped on a `false` nobody
-    // reads. A retirement is a fact about a card's lifespan, not its content; the writer may want
-    // both, and "her arm broke, and then she died" is one chapter.
-    const before = db.proposalsOf(se.id).length;
-    assert.strictEqual(db.addProposal(se.id, { title: 'the coat', body: 'now torn',
-      entryType: 'character', entry_id: coat, kind: 'changed' }), true);
-    assert.strictEqual(db.addProposal(se.id, { title: 'the coat', body: 'burned in the fire',
-      entryType: 'retire', entry_id: coat, kind: 'retire', keys: ['4'] }), true,
-      'the retirement must not be eaten by the change');
-    // And a SECOND retirement for the same card still dedupes, or re-running the scan floods it.
-    assert.strictEqual(db.addProposal(se.id, { title: 'the coat', body: 'burned again',
-      entryType: 'retire', entry_id: coat, kind: 'retire', keys: ['4'] }), false);
-    assert.strictEqual(db.proposalsOf(se.id).length, before + 2);
+  ok('two proposals collide only when accepting them would write to the same place', () => {
+    // "DUPLICATE" USED TO MEAN SAME CARD. At chapter end several passes each have something to say
+    // about one person — her description, a new fact, one of her rooms, that she is finished — and
+    // the queue called three of them duplicates of the first and dropped them on a `false` nobody
+    // reads. Measured 2026-08-28: `remember`'s state landed and `extract`'s rewrite of the same
+    // character was binned, on every close where both spoke. Two rooms of one card did it to each
+    // other too, which the rooms feature had inherited on the day it was built.
+    const s2 = db.createStory(o, { title: 'Collide' });
+    const who = db.upsertEntry(s2.id, o, { title: 'Halsey', body: '[Halsey]', entryType: 'character' });
+    const add = (p: any) => db.addProposal(s2.id,
+      { title: 'Halsey', entry_id: who, body: 'x', entryType: 'character', kind: 'changed', ...p });
+
+    // FOUR DIFFERENT PLACES, all of them allowed at once.
+    assert.strictEqual(add({ kind: 'memory', entryType: 'state', keys: ['2'] }), true, 'her description');
+    assert.strictEqual(add({}), true, 'a new fact about her — this is the one that was being lost');
+    assert.strictEqual(add({ field: 'voice' }), true, 'her voice');
+    assert.strictEqual(add({ field: 'relationships' }), true, 'and a relationship, separately');
+    assert.strictEqual(add({ kind: 'retire', entryType: 'retire', keys: ['4'] }), true, 'and finished');
+    assert.strictEqual(db.proposalsOf(s2.id).length, 5);
+
+    // AND THE HALF THAT MATTERS MORE: the same place twice is still one offer, or re-running any
+    // pass floods the queue — which is what the dedupe was built for in the first place.
+    assert.strictEqual(add({}), false, 'the body again');
+    assert.strictEqual(add({ kind: 'new' }), false,
+      'and `new` is `changed` wearing another label — both write the body, so they must still collide');
+    assert.strictEqual(add({ field: 'voice' }), false, 'the same room again');
+    assert.strictEqual(add({ kind: 'retire', entryType: 'retire', keys: ['9'] }), false, 'finished again');
+    assert.strictEqual(db.proposalsOf(s2.id).length, 5, 'nothing was added by the four refusals');
+  });
+
+  ok('  and the dedupe asks the same question the accept path does', () => {
+    // One definition, two callers. If these drift, the dedupe is deciding about a write that does
+    // not happen — the failure would be invisible in both directions.
+    assert.strictEqual(db.proposalTarget({ entry_type: 'state' }), 'state');
+    assert.strictEqual(db.proposalTarget({ entry_type: 'retire' }), 'retire');
+    assert.strictEqual(db.proposalTarget({ entry_type: 'string' }), 'string');
+    assert.strictEqual(db.proposalTarget({ entry_type: 'character', field: 'voice', entry_id: 'e1' }), 'room:voice');
+    assert.strictEqual(db.proposalTarget({ entry_type: 'character' }), 'body');
+    // A field with no card to hang it on is not a room — it is the body, which is what the accept
+    // path does with it too.
+    assert.strictEqual(db.proposalTarget({ entry_type: 'character', field: 'voice' }), 'body');
   });
 
   ok('a proposal can aim at a slot, and an invented one is refused at the column', () => {

@@ -1696,25 +1696,38 @@ export const delState = (storyId: string, id: string) => q(
 /** Nothing here is canon. Screen 28: "1 new · 2 changed · 1 conflict · nothing is canon yet."
  *  A conflict is specifically a model proposal against a body a human pinned — the arbitration
  *  rule keys on provenance, so those never auto-apply and never bulk-accept. */
+/** WHERE ACCEPTING THIS PROPOSAL WOULD WRITE. One definition, because two things need it and they
+ *  must never disagree: the dedupe below, and the accept path in `src/routes.ts`, whose branches
+ *  are in exactly this order.
+ *
+ *  This exists because "duplicate" used to mean SAME CARD, and at chapter end several passes each
+ *  have something to say about one person — her description, a new fact about her, one of her
+ *  rooms, that she is finished. Four different places, and the queue called three of them
+ *  duplicates of the first and dropped them on a `false` nobody reads. Measured on 2026-08-28:
+ *  `remember`'s state landed and `extract`'s rewrite of the same character was binned, on every
+ *  chapter close where both spoke. Two ROOMS of one card did the same to each other.
+ *
+ *  Two proposals collide when accepting them would write over each other, and not before. `new` and
+ *  `changed` still collide, correctly and for free: both write the body, and they are the same
+ *  offer wearing two labels depending on whether `classify` recognised the card. */
+export const proposalTarget = (p: any): string =>
+  p.entry_type === 'state'  ? 'state'
+  : p.entry_type === 'retire' ? 'retire'
+  : p.entry_type === 'string' ? 'string'
+  : (p.field && p.entry_id) ? `room:${p.field}`
+  : 'body';
+
 export function addProposal(storyId: string, p: any) {
   // Hash the SUBJECT, not the wording. The model rewords the same fact on every run, so
   // hashing the body meant re-running always duplicated.
   const subject = String(p.title).toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(the|a|an) /, '');
-  // A RETIREMENT DEDUPES AGAINST RETIREMENTS ONLY. The hash is the subject and nothing else, so
-  // one chapter close proposing both "this is how she changed" and "she is finished" collided and
-  // the second was dropped on a `false` nobody reads. A retirement is a fact about a card's
-  // LIFESPAN, not about its content, so it does not compete with a content proposal for the same
-  // subject — the writer may well want both, and "her arm broke, and then she died" is one chapter.
-  //
-  // ponytail: only `retire` gets a lane, not every kind. Kind-wide would also let `new` and
-  // `changed` coexist for one subject, and those two ARE the same proposal wearing two labels
-  // depending on whether `classify` found the entry. Ceiling: `memory` and `changed` still collide
-  // with each other, which is a live defect this does not fix — see the note on `remember`.
-  // Upgrade path: put `kind` in the hash for everyone, and re-check the extract path first.
+  // SAME PLACE, NOT SAME PERSON — see `proposalTarget` above for what this replaced and why. The
+  // first version of this lane was `retire`-only, which fixed one case of a general defect and left
+  // the rest of it standing.
   const hash = createHash('sha256')
-    .update([subject, p.entry_id ?? '', p.kind === 'retire' ? 'retire' : ''].join('\u0000'))
-    .digest('hex').slice(0, 32);
+    .update([subject, p.entry_id ?? '', proposalTarget({ ...p, entry_type: p.entryType ?? p.entry_type })]
+      .join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
         field,activation,content_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)

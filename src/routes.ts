@@ -1520,7 +1520,12 @@ export const routes: Record<string, Handler> = {
     for (const id of ids) {
       const p = db.proposal(c.body.storyId, id);
       if (!p) continue;
-      if (c.body.accept && p.entry_type === 'state') {
+      // WHERE THIS WRITES, asked once and from the same function the dedupe asks. The branches
+      // below used to test `entry_type` and `field` themselves, which meant two places decided
+      // what a proposal DOES and nothing made them agree — and the dedupe is only correct if it
+      // agrees. `db.proposalTarget` is the definition; this is the only other caller.
+      const target = db.proposalTarget(p);
+      if (c.body.accept && target === 'state') {
         // A state is not an entry either. The chapter it comes into force in rides in `keys`, and
         // the label — four words for the timeline — rode in `delta`.
         db.upsertState(p.story_id, p.entry_id, {
@@ -1529,7 +1534,7 @@ export const routes: Record<string, Handler> = {
           label: p.delta || null,
           beforeMode: 'hide',
         });
-      } else if (c.body.accept && p.entry_type === 'retire') {
+      } else if (c.body.accept && target === 'retire') {
         // A THRESHOLD, never a delete and never a body: not one word of the card changes, only the
         // chapter from which it stops being sent. `p.body` holds the model's reason and the box on
         // a proposal card is editable, so it is deliberately IGNORED here — there is nothing on a
@@ -1540,12 +1545,12 @@ export const routes: Record<string, Handler> = {
         // the whole book, silently, from a bad proposal. Nothing rather than something wrong.
         const at = Number(JSON.parse(p.keys || '[]')[0]);
         if (p.entry_id && Number.isInteger(at) && at > 0) db.setRetired(p.story_id, p.entry_id, at);
-      } else if (c.body.accept && p.entry_type === 'string') {
+      } else if (c.body.accept && target === 'string') {
         // A string is not an entry, so accepting one makes a string. The chapter it was set up in
         // rides in `keys`, which is the only field on a proposal with room for it.
         db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body,
           fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || null });
-      } else if (c.body.accept && p.field && p.entry_id) {
+      } else if (c.body.accept && target.startsWith('room:')) {
         // PLAN-08 Phase 4. THE ROOM, NOT THE WHOLE CARD. `proposals.field` has been written since
         // Phase 2 and read by nothing, so every accepted change rewrote the entire body — which is
         // the overwrite this plan exists to stop. A card is named fields; a fact about one of them

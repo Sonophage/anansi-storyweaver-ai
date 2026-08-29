@@ -19,7 +19,7 @@ Run it before and after. It needs no llama-server, so there is no excuse for ski
 1. `docs/findings/P0-FINDINGS.md` — measured numbers. These override `docs/SPEC.md` and the plans
    wherever they conflict, and several already do.
 2. `docs/findings/BUILD-STATE.md` — done / half-built / not started, audited against source.
-3. `grep -rn "ponytail:" src web bench *.ts *.html` — the debt ledger. Twenty-nine markers as of 2026-08-28. Each names what
+3. `grep -rn "ponytail:" src web bench *.ts *.html` — the debt ledger. Twenty-eight markers as of 2026-08-28. Each names what
    is missing, why it was left, and the upgrade path.
 
 ## Conventions that are not negotiable
