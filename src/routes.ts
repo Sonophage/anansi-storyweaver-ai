@@ -3,7 +3,7 @@ import { count, chat, structuredRetry, model, models, checkModel, allowList, mod
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RELEASE, RELEASE_SCHEMA, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
-import { ALL_SLOTS, slotsFor } from './slots.ts';
+import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
@@ -669,11 +669,33 @@ export const routes: Record<string, Handler> = {
   // The router serves several models. Listing is open because it names no story; switching is
   // process-wide and gated, because two tenants share this process and one changes it for both.
   // Names no story on purpose: it spans them. Owner-scoped in SQL, like search.
-  'GET /api/ledger': (c: Ctx) => ({ entries: db.ledgerOf(c.owner).map((e: any) => ({
-    id: e.id, story: e.story, storyTitle: e.story_title, title: e.title, body: e.body,
-    notes: e.notes ?? '', entryType: e.entry_type, activation: e.activation,
-    keys: JSON.parse(e.keys || '[]'),
-  })) }),
+  /** #22's blocker. This sent a card's spine and nothing else — no rooms, no wardrobe, no
+   *  threshold — so the page that spans the shelf could not draw a room it never received, and
+   *  could not switch one on. It has described cards that have had rooms since Phase 2 while
+   *  showing none of them. `SLOTS` rides along for the same reason `view()` sends it: the screen
+   *  and the database have to agree about which rooms a kind has, and a second copy in `web/` is
+   *  the drift `src/slots.ts` exists to stop. */
+  'GET /api/ledger': (c: Ctx) => {
+    const rooms = db.roomsOf(c.owner);
+    return { slots: SLOTS, entries: db.ledgerOf(c.owner).map((e: any) => ({
+      id: e.id, story: e.story, storyTitle: e.story_title, title: e.title, body: e.body,
+      notes: e.notes ?? '', entryType: e.entry_type, activation: e.activation,
+      keys: JSON.parse(e.keys || '[]'),
+      // A finished thread is drawn differently and must not read as live on a page that spans
+      // every book — the one place a retired card is most likely to be mistaken for a working one.
+      retiredAtChapter: e.retired_at_chapter ?? undefined,
+      addons: rooms.filter((a: any) => a.entry_id === e.id).map((a: any) => ({
+        id: a.id, slot: a.slot, name: a.name, body: a.body,
+        keys: JSON.parse(a.keys || '[]'), active: !!a.active,
+        fromChapter: a.from_chapter ?? undefined,
+        retiredAtChapter: a.retired_at_chapter ?? undefined,
+      })),
+      // The wardrobe reads off the same rows — `outfit` is a slot like any other since the tables
+      // were merged — so the chips on this page work without a second query.
+      outfits: rooms.filter((a: any) => a.entry_id === e.id && a.slot === 'outfit')
+        .map((a: any) => ({ id: a.id, name: a.name, body: a.body, active: !!a.active })),
+    })) };
+  },
 
   // Names no story on purpose: it spans them. Owner-scoped in SQL, like search and the ledger.
   'GET /api/stats': (c: Ctx) => db.writerStats(c.owner),

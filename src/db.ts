@@ -738,6 +738,16 @@ export const ledgerOf = (ownerId: string) => q(`
   SELECT e.*, s.title AS story_title, s.id AS story
   FROM entries e JOIN stories s ON s.id = e.story_id
   WHERE s.owner_id = ? ORDER BY s.updated_at DESC, e.rowid`).all(ownerId) as any[];
+
+/** Every ROOM this owner has, across every book. #22's blocker: the cross-story Threads page could
+ *  not show a room or switch one on because `GET /api/ledger` had never sent one — a page that
+ *  spans the shelf, describing cards that have had rooms since Phase 2, drawing none of them.
+ *
+ *  One query rather than a call per card. The page holds every card on the shelf, and a lookup per
+ *  card is the shape that is fine at twelve books and quietly is not at fifty. */
+export const roomsOf = (ownerId: string) => q(`
+  SELECT a.* FROM addons a JOIN stories s ON s.id = a.story_id
+  WHERE s.owner_id = ? AND a.entry_id IS NOT NULL ORDER BY a.slot, a.created_at`).all(ownerId) as any[];
 export const branchesOf = (id: string) => q('SELECT * FROM branches WHERE story_id = ? ORDER BY created_at').all(id) as any[];
 
 /** Append a passage to the END OF ITS CHAPTER, not the end of the book.

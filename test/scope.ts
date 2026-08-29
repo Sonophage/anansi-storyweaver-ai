@@ -327,6 +327,38 @@ ok('a story cannot be deleted by someone who does not own it');
     assert.ok(yes.ok && !db.getStory(world), 'unfollow it and the book can go');
   }
   ok('a book other books follow is refused by name, and goes once nothing needs it');
+
+  // #22's BLOCKER. The page that spans the shelf could not draw a room or switch one on, because
+  // this route had never sent one — cards have had rooms since Phase 2 and it sent the spine.
+  {
+    const ctxFor = (body: any = {}) => ({ body, query: new URLSearchParams(), owner: alice,
+      slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+      defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+    const bk = db.createStory(alice, { title: 'Ledger payload' }).id;
+    const who = db.upsertEntry(bk, alice, { title: 'Wrenn', body: '[Wrenn]', keys: ['Wrenn'] });
+    const coat = db.upsertAddon(bk, who, { slot: 'outfit', name: 'the grey coat',
+      body: 'wool, shiny cuffs', keys: [] });
+    db.setAddonActive(bk, coat!, true);
+    db.upsertAddon(bk, who, { slot: 'interiority', name: 'her fear', body: 'the bridge', keys: ['bridge'] });
+    db.setRetired(bk, who, 9);
+
+    const r: any = routes['GET /api/ledger'](ctxFor());
+    const card = r.entries.find((e: any) => e.id === who);
+    assert.deepStrictEqual(card.addons.map((a: any) => a.slot).sort(), ['interiority', 'outfit'],
+      'every room reaches the page that spans the shelf');
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(card.addons.find((a: any) => a.slot === 'interiority').keys)),
+      ['bridge'], "and a room's own trigger words with it, or it arrives unable to fire");
+    assert.strictEqual(card.outfits.length, 1);
+    assert.strictEqual(card.outfits[0].active, true, 'the wardrobe reads off the same rows');
+    // A finished thread must not read as live HERE above anywhere else: this is the one page where
+    // a card is seen out of the context of the book that retired it.
+    assert.strictEqual(card.retiredAtChapter, 9, 'and a finished thread says so');
+    assert.ok(r.slots && r.slots.character, 'the slot list rides along, from src/slots.ts');
+    // Another owner's rooms are not in it. The route is owner-scoped in SQL and this is the half
+    // that would leak if the new query forgot the join.
+    assert.ok(!r.entries.some((e: any) => e.story === bStory.id), "and nobody else's book is in it");
+  }
+  ok('the cross-shelf ledger carries rooms, the wardrobe, and what is finished');
 }
 
 // Export. A story handed to someone else must carry that story and nothing else — the point
