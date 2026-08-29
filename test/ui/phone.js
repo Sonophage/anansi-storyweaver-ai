@@ -381,12 +381,22 @@ await page.click('[data-entry="' + pid + '"]');
 await wait(1200);
 // The list is GONE, which is what puts the editor where a thumb already is. Checking only that the
 // editor exists would pass with it a screenful below the fold, which is the bug.
-ok("  tapping one puts the editor where the list was",
+// A CARD, not a form. It opens on its face now (PLAN-08): reading your own canon is the common
+// act and editing it is the deliberate one. What this section is about has not changed — the list
+// is GONE and the card is where a thumb already was — so the assertion follows the card rather
+// than the body field it used to reach for.
+ok("  tapping one puts the card where the list was",
    (await page.eval("document.querySelectorAll('#page [data-entry]').length")) === 0
-   && (await page.eval("!!document.querySelector('#page [data-f=\"body\"]')")) === true);
-const top = await page.eval("(() => { const el = document.querySelector('#page [data-f=\"body\"]');"
+   && (await page.eval("!!document.querySelector('#page [data-cardview]')")) === true);
+const top = await page.eval("(() => { const el = document.querySelector('#page [data-cardview]');"
   + " return el ? Math.round(el.getBoundingClientRect().top) : 9999; })()");
 ok(`  and it is on the screen, not below it (${top}px from the top)`, top < 700);
+// And the form is one press away, on the same screen, still above the fold.
+await page.click('#page [data-cardview="form"]');
+await wait(700);
+const ftop = await page.eval("(() => { const el = document.querySelector('#page [data-f=\"body\"]');"
+  + " return el ? Math.round(el.getBoundingClientRect().top) : 9999; })()");
+ok(`  and Edit reaches the body field without a scroll (${ftop}px from the top)`, ftop < 700);
 await page.click('[data-backentry]');
 await wait(900);
 ok("  and Back returns to the list rather than to nothing",

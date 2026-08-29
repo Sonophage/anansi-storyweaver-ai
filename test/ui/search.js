@@ -83,7 +83,11 @@ const entry = await page.eval("[...document.querySelectorAll('[data-hit]')]"
 if (entry) {
   await page.click(`[data-hit][data-hitid="${entry}"]`);
   await wait(1200);
-  ok("clicking an entry hit opens that entry's editor",
+  // A card opens on its FACE now (PLAN-08). This section is about the form, so it presses Edit —
+// the assertions below are unchanged and still measure what they always did.
+await page.eval("(() => { document.querySelector('[data-cardview=\"form\"]')?.click(); return 1; })()");
+await wait(500);
+ok("clicking an entry hit opens that entry's editor",
      await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
   ok("  and it is the entry that was clicked",
      (await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
@@ -114,7 +118,10 @@ if (mine !== '') {
   // now on, before anyone had looked at it.
   ok(`  and it does not fire until you give it trigger words (${made?.activation})`,
      made?.activation === 'triggered' && (made?.keys ?? []).length === 0);
-  ok("  and it opens the editor so it gets finished",
+  // A NEW CARD OPENS ON ITS FORM, not its face (PLAN-08). It is born with no trigger words and
+  // cannot fire until somebody types some, so landing on a view that prints only what is filled in
+  // would show nothing at all beside a toast asking for words there is no box for.
+  ok("  and it opens the FORM so it gets finished, not the face",
      await page.eval("!!document.querySelector('[data-f=\"keys\"]')"));
   ok("  and says what is still needed", /trigger words/i.test(await page.text('#toast') || ''));
 } else { ok("a result in this story offers Add to threads", false); }

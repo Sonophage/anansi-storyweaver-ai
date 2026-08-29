@@ -4343,6 +4343,9 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId);
     // saveEntry does not report the new id, so take the newest row of that name.
     S.entryId = V.entries.filter((x) => x.title === 'Untitled').at(-1)?.id ?? null;
+    // A new card is called Untitled and says "[Untitled: ]". There is nothing to read on its face,
+    // so it opens where it can be written. Same rule as the woven-in entry below.
+    S.cardView = 'form';
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     paint(); return;
   }
@@ -4479,7 +4482,11 @@ document.addEventListener('click', async (e) => {
     if (res.error) return toast(res.error);
     V = res.entries ? res : await api.story(S.storyId);
     const made = [...(V.entries ?? [])].reverse().find((e) => e.title === title);
-    S.entryId = made?.id ?? null; S.panel = 'threads'; syncHash(); paint();
+    // THE FORM, not the face. A card is born empty and this one is born WITHOUT trigger words, so
+    // it cannot fire until somebody types some — landing on a face that shows what is filled in
+    // would show nothing at all, next to a toast asking for words there is no box for. The face is
+    // for reading a card that has something to read.
+    S.entryId = made?.id ?? null; S.cardView = 'form'; S.panel = 'threads'; syncHash(); paint();
     toast('Woven in. Give it trigger words so it fires.');
     return;
   }

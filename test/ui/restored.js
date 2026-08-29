@@ -12,6 +12,11 @@ const story = () => page.eval("(async () => await (await fetch('/api/story?story
 await page.goto(B + "/#" + sid + "/threads");
 const eid = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
 await page.click('[data-entry="' + eid + '"]');
+await wait(600);
+// A card opens on its FACE now (PLAN-08) and the progression form lives in the form, where the
+// typing is. This section is about the form, so it presses Edit; the assertions are unchanged.
+await page.eval("(() => { document.querySelector('[data-cardview=\"form\"]')?.click(); return 1; })()");
+await wait(600);
 ok("the entry editor offers a progression form", await page.eval("!!document.querySelector('[data-st=\"body\"]')"));
 const before = ((await story()).entries.find((e) => e.id === eid)?.states ?? []).length;
 // Anchor it at the CURRENT chapter, or resolveBody correctly withholds it as not yet open —
