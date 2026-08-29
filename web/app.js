@@ -1536,7 +1536,10 @@ const PANELS = {
       // An outfit hangs off a character rather than standing beside one — which is also why this
       // branch asks whose before it asks anything else. Seth: "a new costume and have it attached
       // to a character from that screen would be phenomenal."
-      const LORE_KINDS = [...KINDS, 'outfit'];
+      // #27. Every room, not just the outfit. `V.slots` is the server's copy of `src/slots.ts`,
+      // so this list cannot drift from the one the database enforces.
+      const ROOMS = [...new Set(Object.values(V.slots ?? {}).flat().map((x) => x.name))];
+      const LORE_KINDS = [...KINDS, ...ROOMS];
       const cast = V.entries.filter((e) => e.entryType === 'character');
       return `<div style="display:flex; flex-direction:column">
         <button class="btn ghost" data-newlore="1" style="margin-bottom:14px">&lsaquo; Back</button>
@@ -1548,12 +1551,13 @@ const PANELS = {
             background:${S.lore.kind === k ? 'rgba(217,178,106,.12)' : 'transparent'};
             color:${S.lore.kind === k ? 'var(--gold-lit)' : 'var(--mute)'}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}
         </div>
-        ${S.lore.kind === 'outfit' ? (cast.length ? `
-        ${outfitForm(cast, null)}
+        ${ROOMS.includes(S.lore.kind) ? ((S.lore.kind === 'outfit' ? cast : V.entries).length ? `
+        ${roomForm(V.entries.filter((e) => (V.slots?.[e.entryType] ?? [])
+            .some((sl) => sl.name === S.lore.kind)), null, S.lore.kind)}
         <div class="hint">It hangs on them unworn, and what Anansi writes lands in the fields rather
           than in the proposals queue — read it, then press Add an outfit. Wearing one is a press on
           the list behind this tray: what she owns and what she has ON are different questions.</div>`
-        : `<div class="hint" style="margin:0">Nobody to dress yet. An outfit belongs to a character,
+        : `<div class="hint" style="margin:0">No card to hang it on yet. A room belongs to a thread,
           so write one of those down first.</div>`) : `
         <button class="btn" data-newentry="${esc(S.lore.kind)}">New ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}</button>
         <div class="hint">Opens an empty entry for you to fill in. Nothing reaches the model until
@@ -2480,18 +2484,42 @@ const outfitOwner = () => S.entryId || document.querySelector('[data-loreowner]'
  *  The placeholders are BRACKETED because the bodies are: `[wearing: ...]` is the shape Seth
  *  actually writes, and a bracketed hint reads as a slot to replace rather than as text already
  *  there. */
-function outfitForm(cast, who) {
+/** #27. This was the outfit form and `outfit` was the only room the tray could reach — every other
+ *  one existed only AFTER the card did, from the edit form. They are all `addons` with a `slot`, so
+ *  one form serves them all and the only per-slot difference is what to call it and what to suggest.
+ *
+ *  The slot list comes from `V.slots`, which the server already ships from `src/slots.ts` — a second
+ *  copy in here is the drift that module exists to stop. */
+const SLOT_HINT = {
+  outfit:        ['[Borrowed Sleepwear]', '[wearing: oversized black sweatpants, faded white t-shirt]'],
+  appearance:    ['[As she is now]', '[grey at the temple, the limp worse in the cold]'],
+  interiority:   ['[What she will not say]', '[will not cross the bridge at night, and says so to nobody]'],
+  relationships: ['[Her and the Ambersand]', '[owes them nine hundred, called in last winter]'],
+  voice:         ['[How she sounds]', '[short sentences, never raises it, answers a question with a question]'],
+  atmosphere:    ['[What it is like now]', '[lamps out along the bank, wet stone, nobody about]'],
+  who_is_here:   ['[Who you find there]', '[the porter, and whoever is owed money that week]'],
+  history:       ['[What it has been through]', '[burned in the spring and rebuilt wrong]'],
+  provenance:    ['[Where it came from]', '[cut from a saddle girth, and it shows]'],
+  what_it_does:  ['[What it does]', '[opens the lower archive vault and nothing else]'],
+  scope:         ['[What it covers]', '[everyone inside the walls, and nobody on the water]'],
+  consequences:  ['[What breaking it costs]', '[the Watch takes a hand, or takes the debt]'],
+};
+const slotLabel = (slot) => String(slot).replace(/_/g, ' ');
+function roomForm(cast, who, slot = 'outfit') {
+  const [namePh, bodyPh] = SLOT_HINT[slot] ?? ['[What it is called]', '[what the model reads]'];
   return `
     ${who ? '' : `<label class="lbl">Whose</label>
     <select class="field" data-loreowner>${cast.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}</select>`}
-    ${inventTray('outfit', who ? `Have Anansi dress ${esc(who.title)}` : 'Have Anansi write one',
+    ${inventTray(slot, who ? `Have Anansi write ${esc(who.title)}'s ${esc(slotLabel(slot))}`
+                           : 'Have Anansi write one',
                  'mourning, or travelling light, or whatever you already had in mind')}
     <details class="fold outfitmine">
       <summary>Write it myself</summary>
-      <input class="field" data-of="name" placeholder="[Borrowed Sleepwear]">
+      <input class="field" data-of="name" placeholder="${esc(namePh)}">
       <textarea class="field" data-of="body" style="min-height:58px"
-        placeholder="[wearing: oversized black sweatpants, faded white t-shirt, silver rings]"></textarea>
-      <button class="btn ghost" data-addoutfit="1">Add an outfit</button>
+        placeholder="${esc(bodyPh)}"></textarea>
+      <input class="field" data-of="keys" placeholder="Words that bring it in, comma separated">
+      <button class="btn ghost" data-addoutfit="${esc(slot)}">Add ${esc(slotLabel(slot))}</button>
     </details>`;
 }
 
@@ -2798,7 +2826,7 @@ function entryEditor() {
              inside a template literal and one would close the string.) -->
         <button class="btn ghost" data-saveoutfit="${o.id}"
           style="flex:0 0 auto; width:auto; padding:12px 20px">Save</button></div></div>`).join('')}
-    <div class="card" style="gap:7px">${outfitForm(null, e)}</div>` : ''}
+    <div class="card" style="gap:7px">${roomForm(null, e, 'outfit')}</div>` : ''}
 
     <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the
          threads card when i go to it doesnt have that option for me there and id like to add it."
@@ -4371,18 +4399,26 @@ document.addEventListener('click', async (e) => {
   }
 
   if (d.addoutfit) {
+    // #27. The attribute carries the SLOT now — it was a bare "1" when the outfit was the only
+    // room this form could write. `'1'` still means outfit so nothing older breaks.
+    const slot = d.addoutfit === '1' ? 'outfit' : d.addoutfit;
     const name = document.querySelector('[data-of="name"]')?.value.trim();
     const body = document.querySelector('[data-of="body"]')?.value.trim();
-    if (!name || !body) return toast('An outfit needs a name and something to wear.');
+    const keys = document.querySelector('[data-of="keys"]')?.value ?? '';
+    if (!name || !body) return toast(`A ${slot.replace(/_/g, ' ')} needs a name and something in it.`);
     const owner = outfitOwner();
     if (!owner) return toast('Pick who it belongs to.');
     // PLAN-08. The wardrobe is an addon in the `outfit` slot now — one table, one firing path.
-    const r = await api.saveAddon(S.storyId, owner, { slot: 'outfit', name, body });
+    // A room with no trigger words of its own reaches the model only when the writer switches it
+    // on. Sent so a writer who typed them gets them; empty is a legitimate answer.
+    const r = await api.saveAddon(S.storyId, owner, { slot, name, body,
+      keys: keys.split(',').map((x) => x.trim()).filter(Boolean) });
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     // The tray stays open on top of the list, so nothing on screen moves when this works. It said
     // nothing at all before, which from in here is indistinguishable from a press that missed.
-    paint(); refreshManifest(); toast('Added, unworn.'); return;
+    paint(); refreshManifest();
+    toast(slot === 'outfit' ? 'Added, unworn.' : `Added. Switch it on from the card.`); return;
   }
   if (d.saveoutfit) {
     const name = document.querySelector(`[data-ofn="${d.saveoutfit}"]`)?.value.trim();

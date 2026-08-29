@@ -69,8 +69,13 @@ const stored = new Map<string, string>();
 
 // ---- canned server, shaped exactly like the routes ----
 const SLOT = { global: 100096, slots: 2, perSlot: 50048 };
+// The slot list the server ships from `src/slots.ts`. Imported rather than retyped, because a
+// second copy here would let the tray and the database disagree and the check would still pass.
+const { SLOTS } = await import('../src/slots.ts');
+
 const STORY = {
-  id: 's-1', model: 'write-nt-qwen36-h', slot: SLOT, gen: { temperature: 0.85, top_p: 0.95, max_tokens: 900 },
+  id: 's-1', model: 'write-nt-qwen36-h', slot: SLOT, slots: SLOTS,
+  gen: { temperature: 0.85, top_p: 0.95, max_tokens: 900 },
   // This book has a look of its own, and only a THEME. The rest has to come from the writer's
   // default — a book that pinned all four would pass a check that a book that pins one would not.
   look: { theme: 'ink' },
@@ -998,6 +1003,24 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.match(page, /What you have written/, 'the writing record is what the page is now');
   assert.match(page, /data-backup=|data-exportdb=|Backups/i, 'and the backups door stays');
   ok('Preferences is a writing record: the operator console is gone, the stats and backups stay');
+}
+
+// #27. The add-a-thread tray offered four kinds and ONE room — the outfit — and every other room
+// existed only after the card did, from the edit form. They are all addons with a slot.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'threads' }); click({ newlore: '1' });
+  const tray = html('sideBody');
+  for (const slot of ['interiority', 'relationships', 'voice', 'history']) {
+    assert.match(tray, new RegExp(`data-lorekind="${slot}"`), `the tray offers ${slot}`);
+  }
+  assert.match(tray, /data-lorekind="outfit"/, 'and still the outfit');
+  // THE LIST COMES FROM THE SERVER'S COPY of src/slots.ts, not from a second one in here — a room
+  // the database enforces and the tray does not offer is a room nobody can reach.
+  assert.doesNotMatch(html('sideBody'), /data-lorekind="motivations"/,
+    'and nothing the module does not name');
+  ok('the add-a-thread tray offers every room a card can have, not only the outfit');
 }
 
 console.log(`\n${n} checks passed`);
