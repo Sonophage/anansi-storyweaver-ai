@@ -3146,9 +3146,9 @@ const WPAGES = {
               asking for you &mdash; which is either peace or a warning, and I never know which</span>`}
       </div>
       ${storyCard(hero, 0, true)}
-      <!-- A button, not a card. The dashed cell was a book-shaped hole in a shelf of books, and it
-           took a column from the ones that are real. The bar's New story pill is deskonly, so this
-           is also the only one a phone sees. -->
+      <!-- The dashed New story cell went with #19: it was a book-shaped hole in a shelf of books
+           and it took a column from the ones that are real. The bar's pill lost deskonly in the
+           same change, so a phone still has a door. -->
       ${rest.length ? `<div class="grid">
         ${rest.map((s, i) => storyCard(s, i + 1, false)).join('')}
       </div>` : ''}</div>`;
