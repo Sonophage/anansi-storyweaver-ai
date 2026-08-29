@@ -151,6 +151,30 @@ function migrate() {
   drop('stories', 'system_block_override', 'a P1 stub for a per-story SYSTEM, never read');
   drop('passages', 'token_counts', 'a P1 stub for SPEC §7.5 tokenizer-keyed counts, never read');
 
+  // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
+  // and is idempotent, so by the time this line is reached every outfit is an addon in the `outfit`
+  // slot. Nothing writes `outfits` any more — `upsertOutfit` and friends are one-line shims over
+  // the addon writers, the three HTTP routes are deleted, and `src/import.ts` reads addons with a
+  // fallback to this table for export files written before the move.
+  //
+  // ORDER IS EVERYTHING HERE and it is why this sits below the copy rather than beside it: drop
+  // first and the wardrobe is gone from every book that had not booted since Phase 2. Backed up
+  // before the first drop by the same guard the column drops use — this rewrites the file
+  // somebody's novel is in, which is the whole reason that guard exists.
+  if ((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name = 'outfits'")
+    .get() as any).n) {
+    const left = (db.prepare(`SELECT COUNT(*) n FROM outfits o
+      WHERE NOT EXISTS (SELECT 1 FROM addons a WHERE a.id = o.id)`).get() as any).n;
+    // A REFUSAL, NOT A LOSS. If anything is still only in the old table the copy above did not
+    // reach it, and dropping would take it with us — say so and leave the table alone.
+    if (left) console.log(`  keeping outfits: ${left} row(s) never made it into addons`);
+    else {
+      if (!backedUp) { backedUp = true; try { backup(); } catch { /* keep going; the drop is safe */ } }
+      try { db.exec('DROP TABLE outfits'); console.log('  dropped table outfits — the wardrobe is an addon'); }
+      catch (e: any) { console.log(`  could NOT drop outfits: ${e?.message}`); }
+    }
+  }
+
 }
 // An earlier revision created an FTS5 table that nothing ever populated or queried, while
 // search ran a LIKE scan beside it. Dropping it rather than leaving a table that looks like
@@ -342,16 +366,11 @@ CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at
 -- transfers in chapter seven" and the wrong one for "she puts the plate on and takes it off".
 -- Story-scoped so the ownership gate reaches it; the partial unique index is what enforces
 -- exactly one worn at a time, in SQL rather than in application code that can be bypassed.
-CREATE TABLE IF NOT EXISTS outfits (
-  id TEXT PRIMARY KEY,
-  entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
-  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  body TEXT NOT NULL,
-  active INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS outfits_one_active ON outfits(entry_id) WHERE active = 1;
-CREATE INDEX IF NOT EXISTS outfits_story ON outfits(story_id);
+-- "outfits" WAS HERE and it is not coming back. The wardrobe is an addon in the "outfit" slot:
+-- one table, one firing path, one way in. Leaving the CREATE behind would have rebuilt the table
+-- empty on every boot immediately before the migration dropped it again, which is a table that
+-- exists for a fraction of a second and a log line every start.
+-- The drop is in migrate() and it refuses to run while any row is still only in the old table.
 
 -- PLAN-08 Phase 2. Addons: what an outfit already was, generalised to every room of a card.
 -- Seth, 2026-08-28: "all these additions outside of the body should be the same class as outfits

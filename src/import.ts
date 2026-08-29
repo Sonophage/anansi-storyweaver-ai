@@ -72,8 +72,17 @@ export function fromExport(file: string): Incoming {
     // table any more, so reading it here exported an empty wardrobe from a book that had one —
     // silently, because an absent outfit looks exactly like a card that never had one. The payload
     // keeps its `outfits` shape so older export files still import.
-    const outfits = src.prepare(
+    //
+    // AND OLDER EXPORT FILES ARE READ THE OLD WAY. A file written before 2026-08-28 has its
+    // wardrobe in `outfits` and nothing in `addons`, and `absorb` reads the incoming file with raw
+    // SQL rather than opening it through `migrate()` — so nothing would copy it across on the way
+    // in. The fallback is what makes dropping the table safe for files that already left.
+    let outfits = src.prepare(
       "SELECT * FROM addons WHERE story_id = ? AND slot = 'outfit'").all(story.id) as any[];
+    if (!outfits.length) {
+      try { outfits = src.prepare('SELECT * FROM outfits WHERE story_id = ?').all(story.id) as any[]; }
+      catch { /* a file written after the table was dropped; the addons read above is all there is */ }
+    }
     // A table that may not exist: an export written before strings did.
     let strings: any[] = [];
     try { strings = src.prepare('SELECT * FROM strings WHERE story_id = ?').all(story.id) as any[]; }
