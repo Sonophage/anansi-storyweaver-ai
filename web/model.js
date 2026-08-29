@@ -311,6 +311,14 @@ export function themeVars(key) {
 // with a hub do.
 // ---------------------------------------------------------------------------
 export const MARK = {
+  // THE WHOLE WEB, the seven strokes of web/icon.svg at this box size: four threads and three
+  // rings. `web` below is three strokes of it and stays what it is — a corner of a web reads as a
+  // menu, and the whole thing reads as her. Circles are arcs so `mark()` can draw them: it splits
+  // on a capital M and hands each piece to a <path>, which a <circle> cannot ride in.
+  webfull:  'M10 3.6 10 16.4M3.6 10 16.4 10M5.4 5.4 14.6 14.6M14.6 5.4 5.4 14.6'
+          + 'M10 7.8A2.2 2.2 0 1 1 10 12.2A2.2 2.2 0 1 1 10 7.8'
+          + 'M10 5.6A4.4 4.4 0 1 1 10 14.4A4.4 4.4 0 1 1 10 5.6'
+          + 'M10 3.6A6.4 6.4 0 1 1 10 16.4A6.4 6.4 0 1 1 10 3.6',
   story:    'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3',
   chapter:  'M3 10A7 7 0 0 1 17 10M10 10V3.2',
   // THREADS AND PREFS MOVED TO THE COMPOSER, 2026-08-28, and the menu took new ones. Seth: "allow
