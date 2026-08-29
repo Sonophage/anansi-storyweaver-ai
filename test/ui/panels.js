@@ -836,4 +836,70 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   ok("  and Disconnect takes it back out of the prompt", !/never said aloud/.test(gone));
 }
 
+// ---- a shared world, and threads that start a book ------------------------------------------
+//
+// Two features that look alike on the panel and differ permanently: following is a LINK and forking
+// is a COPY. Both are driven here end to end, because the difference is the sort of thing a writer
+// discovers by having edited the wrong one.
+{
+  // A world bible to follow: its own book, holding one card and no prose.
+  const world = await page.eval("(async () => { const made = await (await fetch('/api/stories',"
+    + "{method:'POST',headers:{'Content-Type':'application/json'},"
+    + "body:JSON.stringify({title:'The Ash Cycle'})})).json();"
+    + " const id = made.id || (made.stories||[]).find(s => s.title === 'The Ash Cycle').id;"
+    + " await fetch('/api/entry',{method:'POST',headers:{'Content-Type':'application/json'},"
+    + "body:JSON.stringify({storyId:id,entry:{title:'the Ambersand',"
+    + "body:'[the Ambersand: a house that lends at ruin]',entryType:'lore',activation:'always_on',"
+    + "keys:[],lastEditor:'human'}})}); return id; })()");
+  ok("a world bible exists to be followed", !!world);
+
+  await page.goto(B + "/#" + sid3 + "/story");
+  for (let i = 0; i < 40 && !(await page.visible('[data-story="loreFrom"]')); i++) await wait(250);
+  ok("the story panel offers a world to belong to", await page.visible('[data-story="loreFrom"]'));
+  const picked = await page.eval("(() => { const sel = document.querySelector('[data-story=\"loreFrom\"]');"
+    + " const o = [...sel.options].find(x => /Ash Cycle/.test(x.textContent));"
+    + " if (!o) return 'the world is not offered'; sel.value = o.value; return 'ok'; })()");
+  ok(`  and this book's own world is not among them (${picked})`, picked === 'ok');
+  await page.click('[data-savestory="1"]');
+  await wait(900);
+
+  // THE LINK REACHES THE PROMPT. That is the whole feature: not a copy on the screen, a card in
+  // the model's context that belongs to another book.
+  const shared = (await story3()).entries.filter((e) => e.sharedFrom);
+  ok(`the world's threads are in this book now (${shared.map((e) => e.title).join(', ') || 'none'})`,
+     shared.some((e) => e.title === 'the Ambersand'));
+  ok("  and they say which book they live in", shared.every((e) => !!e.sharedFrom));
+  ok("  and this book does not own them",
+     !(await story3()).entries.filter((e) => !e.sharedFrom).some((e) => e.title === 'the Ambersand'));
+  const prompt = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
+    + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid3 + "',mode:'continue'})})).json();"
+    + " return r.prompt; })()");
+  ok("  and a followed thread reaches the prompt like any other", /lends at ruin/.test(prompt));
+
+  // READ HERE, EDIT WHERE IT LIVES. Saving it from this book would mint a duplicate rather than
+  // change the shared card, so the form is not offered at all.
+  await page.goto(B + "/#" + sid3 + "/threads");
+  await wait(800);
+  const sid4 = shared.find((e) => e.title === 'the Ambersand').id;
+  await page.click('[data-entry="' + sid4 + '"]');
+  await wait(600);
+  const face = (await page.text('#sideBody') || '');
+  ok("a followed thread opens read-only, naming the book it lives in", /lives in The Ash Cycle/.test(face));
+  ok("  and offers no way to edit it here", !(await page.visible('[data-cardview="form"]')));
+
+  // FORKING IS A COPY, and the proof is that the source does not move afterwards.
+  await page.goto(B + "/#" + sid3 + "/story");
+  for (let i = 0; i < 40 && !(await page.visible('[data-forkthreads="1"]')); i++) await wait(250);
+  const own = (await story3()).entries.filter((e) => !e.sharedFrom).length;
+  await page.click('[data-forkthreads="1"]');
+  await wait(1400);
+  const lib = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories)()");
+  const forked = lib.find((x) => /threads$/.test(x.title));
+  ok(`forking makes a new book named after this one (${forked?.title ?? 'none'})`, !!forked);
+  ok(`  carrying this book's own threads and not the followed ones (${forked?.entries} of ${own})`,
+     forked?.entries === own);
+  ok("  and it follows nothing — it owns what it was given",
+     (forked?.lore_from ?? null) === null);
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
