@@ -9,6 +9,7 @@ import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
 import { fileBug, build, commits } from './report.ts';
 import { resolveBody, cardText, narrationOnly, retirable, numbersIn } from './context.ts';
+import { presets } from './presets.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -869,7 +870,17 @@ export const routes: Record<string, Handler> = {
   'GET /api/models': async (c: Ctx) => {
     // `allowList` is reported so the screen can say WHY only three of eight are listed. A short
     // list with no explanation reads as the router being down.
-    try { return { models: await models(), active: c.defaultModel ?? model(), allow: allowList() }; }
+    // WHAT THE ROUTER SERVES, WHAT ITS FILE SAYS, AND WHAT IT HAS ACTUALLY DONE — three sources,
+    // merged on the id. The router knows which models exist and whether they are loaded; only
+    // `presets.ini` knows a model's own ctx-size and how many slots it is divided across; and only
+    // this database knows how fast any of them writes. A model the presets file does not mention
+    // still lists, with less to say about it.
+    const meta = Object.fromEntries(presets().map((p: any) => [p.id, p]));
+    const speed = db.modelSpeeds();
+    const dress = (m: any) => ({ ...m,
+      ctxSize: meta[m.id]?.ctxSize, parallel: meta[m.id]?.parallel, perSlot: meta[m.id]?.perSlot,
+      tps: speed[m.id]?.tps, runs: speed[m.id]?.runs });
+    try { return { models: (await models()).map(dress), active: c.defaultModel ?? model(), allow: allowList() }; }
     catch (e: any) { return { models: [], active: c.defaultModel ?? model(), allow: allowList(),
       error: e?.message ?? 'the router did not answer' }; }
   },

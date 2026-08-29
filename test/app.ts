@@ -795,6 +795,23 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const spoken = html('sideBody');
   assert.doesNotMatch(spoken, /who_is_here/, 'no room name is shown with its underscores');
   ok('a proposal says where it lands before it says what lands, and wears the room as a chip');
+
+// #25. Three sources merge into one row and each may be missing. Checked here rather than by
+// driving the rail, which is why it lives in web/model.js at all.
+{
+  const { modelFacts } = await import('../web/model.js');
+  // PER-SLOT, not the whole window: ctx-size is divided across slots, so a model with 100,000 and
+  // two writers gives each of them 50k. Showing the window would overstate the budget by double.
+  assert.strictEqual(modelFacts({ perSlot: 50000, tps: 58.4, runs: 58 }), '50k each · 58.4 tok/s');
+  // Under five calls the count rides along, because 63 tok/s off two calls is a different claim.
+  assert.strictEqual(modelFacts({ perSlot: 65536, tps: 5.8, runs: 2 }), '66k each · 5.8 tok/s (2)');
+  // A model nobody has written with says nothing about speed rather than guessing a number.
+  assert.strictEqual(modelFacts({ perSlot: 16384 }), '16k each');
+  // And one the presets file does not mention still lists, with less to say.
+  assert.strictEqual(modelFacts({ tps: 39, runs: 45 }), '39 tok/s');
+  assert.strictEqual(modelFacts({}), '', 'a model with neither says nothing at all');
+  ok('a model row says its per-slot context and what it has actually measured');
+}
   click({ pkind: 'all' });
   await new Promise((r) => setTimeout(r, 30));
 

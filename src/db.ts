@@ -1989,6 +1989,43 @@ export const proposal = (storyId: string, id: string) =>
 export const setProposalStatus = (storyId: string, id: string, status: string) =>
   q('UPDATE proposals SET status = ? WHERE id = ? AND story_id = ?').run(status, id, storyId);
 
+/** HOW FAST EACH MODEL ACTUALLY WRITES, from what it has actually written. #25 asked for a speed
+ *  field and `presets.ini` has none; hand-writing one is a number that goes stale the first time a
+ *  quant changes and says nothing when it does.
+ *
+ *  MEDIAN, NOT MEAN. A cold load, a sleeping model waking, and a 500 from an oversubscribed cache
+ *  all land in this table as one enormous latency, and three of those drag a mean anywhere. The
+ *  median of twenty calls does not move.
+ *
+ *  Errored and zero-token rows are excluded, and the COUNT rides along with the number: "63 tok/s"
+ *  off two calls and off two hundred are different claims and the screen should be able to say
+ *  which it is holding. */
+export const modelSpeeds = () => {
+  // `timings.predicted_per_second` AND NOT completion_tokens/latency_ms. Latency is wall clock for
+  // the whole request: waking a sleeping model, processing six thousand tokens of prompt, then
+  // generating. Dividing tokens by that reported Artemis at 4.4 tok/s against the 5.8 the server
+  // itself measured, and — worse — reported ONE model at two different speeds under its old and
+  // new preset names, because the two names hold calls with different prompt sizes. llama.cpp
+  // already separates prompt from prediction and this is the number it means by speed.
+  const rows = q(`SELECT model, timings FROM generations
+                  WHERE model IS NOT NULL AND error IS NULL AND timings IS NOT NULL
+                  ORDER BY model`).all() as any[];
+  const by = new Map<string, number[]>();
+  for (const r of rows) {
+    let tps: number | undefined;
+    try { tps = JSON.parse(r.timings)?.predicted_per_second; } catch { /* not JSON; skip the row */ }
+    if (!Number.isFinite(tps) || (tps as number) <= 0) continue;
+    if (!by.has(r.model)) by.set(r.model, []);
+    by.get(r.model)!.push(tps as number);
+  }
+  const out: Record<string, { tps: number; runs: number }> = {};
+  for (const [m, xs] of by) {
+    xs.sort((a, b) => a - b);
+    out[m] = { tps: Math.round(xs[Math.floor(xs.length / 2)]! * 10) / 10, runs: xs.length };
+  }
+  return out;
+};
+
 /** What the model has actually been doing. PLAN-02 §7.2's budget-engine trigger is stated in
  *  terms of prefill time and prefix churn, and neither is knowable until something reads this. */
 /** What this writer has actually done. Every number here was already in the database — the

@@ -420,3 +420,28 @@ export const epigraphOf = (passages) => {
   }
   return best;
 };
+
+/** WHAT THE APP KNOWS ABOUT A MODEL, which until #25 was nothing.
+ *
+ *  `GET /api/models` returned `{id, status}` and everything else on screen was string surgery on
+ *  the id. It now merges three sources that each know one thing and none of which knows the others:
+ *  the router says which models exist and whether they are loaded, `presets.ini` says a model's own
+ *  ctx-size and how many slots it is cut into, and the app's own `generations` table says how fast
+ *  each one has actually written.
+ *
+ *  PER-SLOT, NEVER THE WHOLE WINDOW. `ctx-size` is divided ACROSS slots, so the number that matters
+ *  to a writer is the quotient — checks.md called it "context window divided by half". Showing
+ *  100,000 for a model serving two writers overstates the budget by double.
+ *
+ *  THE RUN COUNT RIDES WITH A THIN SPEED. 63 tok/s off two calls and off two hundred are different
+ *  claims and a screen that cannot say which is asserting more than it knows, so under five calls
+ *  the count is shown beside it. A model nobody has written with says nothing rather than a guess.
+ *
+ *  Here rather than in `web/app.js` so it can be checked: app.js is imported for its side effects
+ *  and exports nothing, so a rule that lives in it can only be tested by driving the whole rail. */
+export function modelFacts(m) {
+  const bits = [];
+  if (m?.perSlot) bits.push(`${Math.round(m.perSlot / 1000)}k each`);
+  if (m?.tps) bits.push(`${m.tps} tok/s${m.runs < 5 ? ` (${m.runs})` : ''}`);
+  return bits.join(' · ');
+}

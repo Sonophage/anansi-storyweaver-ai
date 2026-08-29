@@ -1433,4 +1433,55 @@ ok('a passage remembers which press wrote it, and a reroll is the same press', (
   db.delStory(s9.id);
 });
 
+// #25. The router's preset file, read rather than guessed at. Both hazards are real and both are
+// in the live file: a `[*]` stanza that carries the defaults most models rely on, and dropped
+// models kept in place behind `;` with the A/B that dropped them written above.
+const { parsePresets } = await import('../src/presets.ts');
+ok('presets: defaults are merged, commented-out stanzas are not models', () => {
+  const P = parsePresets([
+    '[*]', 'ctx-size = 32768', 'parallel = 4', '',
+    '; DROPPED 2026-08-06: lost the A/B. Re-add with:',
+    '; [qwen36-heretic-q8]',
+    '; ctx-size = 100000',
+    '',
+    '[Alpha]', 'model = /x.gguf', 'ctx-size = 100000', 'parallel = 2', '',
+    '[Beta]', 'model = /y.gguf',
+  ].join('\n'));
+  const by = Object.fromEntries(P.map((x: any) => [x.id, x]));
+  assert.deepStrictEqual(Object.keys(by).sort(), ['Alpha', 'Beta'],
+    'a commented-out stanza is a comment, and [*] is not a model');
+  // The anchoring is the load-bearing half: unanchor the stanza pattern and `; [qwen36-heretic-q8]`
+  // becomes a model the router does not serve, which 400s the moment a writer picks it.
+  assert.ok(!P.some((x: any) => /qwen36-heretic-q8/.test(x.id)),
+    'a model kept in the file behind a semicolon is not offered');
+  // "context window divided by half" — ctx-size is divided ACROSS slots, which is the constraint
+  // the whole build is sized against.
+  assert.strictEqual(by.Alpha.perSlot, 50000, 'a model that overrides both gets its own per-slot');
+  assert.strictEqual(by.Beta.parallel, 4, 'a model that overrides neither inherits from [*]');
+  assert.strictEqual(by.Beta.perSlot, 8192, 'and its per-slot follows from the inherited pair');
+  assert.strictEqual(by.Alpha.ctxSize, 100000);
+});
+
+// Speed is MEASURED, because presets.ini has no speed field and a hand-written one goes stale
+// silently. From the server's own timings, not from wall clock — see the note on modelSpeeds.
+ok('speed comes from the server timings, and a bad row cannot poison it', () => {
+  const s1 = db.createStory(o, { title: 'Speedy' });
+  const put = (model: string, timings: string | null) =>
+    db.db.prepare(`INSERT INTO generations (id, story_id, model, role, prompt_tokens,
+      completion_tokens, timings, latency_ms, error, created_at) VALUES (?,?,?,'write',10,10,?,?,?,?)`)
+      .run('g-' + Math.random().toString(16).slice(2), s1.id, model, timings, 1000, null, Date.now());
+  put('M', JSON.stringify({ predicted_per_second: 10 }));
+  put('M', JSON.stringify({ predicted_per_second: 300 }));
+  put('M', JSON.stringify({ predicted_per_second: 20 }));
+  put('M', 'not json at all');
+  put('M', JSON.stringify({ predicted_per_second: 0 }));
+  const got = db.modelSpeeds()['M'];
+  // 10, 20, 300: the median is 20 and the mean is 110. The first version of this used 10/20/30,
+  // where the two are the same number — the median could be swapped for a mean and the check
+  // stayed green, which is the shape of an assertion that cannot fail.
+  assert.strictEqual(got.tps, 20, 'the MEDIAN, so one outlying call cannot drag it');
+  assert.strictEqual(got.runs, 3, 'and unparseable and zero rows are not counted as runs');
+  db.delStory(s1.id);
+});
+
 console.log(`\n${n} checks passed`);

@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelOptions, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -372,8 +372,10 @@ function drawRail() {
             width:100%; text-align:left; background:${m.id === SRV.model ? 'rgba(217,178,106,.10)' : 'transparent'}">
             <span style="width:6px; height:6px; border-radius:50%; flex:0 0 auto; background:${
               m.id === SRV.model ? 'var(--gold)' : m.status === 'unloaded' ? 'var(--edge-lit)' : 'var(--good)'}"></span>
-            <span class="txt" style="font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis;
-              color:${m.id === SRV.model ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
+            <span class="txt" style="min-width:0; display:flex; flex-direction:column; gap:1px">
+              <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
+                color:${m.id === SRV.model ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
+              ${modelFacts(m) ? `<span style="font-size:10.5px; color:var(--dim)">${esc(modelFacts(m))}</span>` : ''}</span>
           </button>`).join('')}
       <div class="hint" style="margin:6px 0 0">Yours, not the box's — a story that names its own
         model still wins. Switching releases the one you were on.</div>
