@@ -511,9 +511,14 @@ assert.ok(modeRow.indexOf('data-goblock="threads:"') < modeRow.indexOf('data-pan
   'and Anansi after it');
 assert.match(modeRow, /data-goblock="threads:"[^>]*margin-left:auto/,
   'and the gap that separates them from the modes is on Threads, or they are not right-aligned');
-// And the tray's own door is NOT here any more, or the change did nothing.
-assert.ok(!/data-newlore/.test(modeRow), 'the write-it-down tray no longer opens from the composer');
-ok('the composer offers the four modes, with Threads and Anansi pushed right');
+// THREE BUTTONS NOW, and the order is the sentence: this book's threads, then writing one down,
+// then Anansi. `+ Thread` came back beside the list on 2026-08-28 — they are different jobs and the
+// list had been standing where both of them needed to fit.
+assert.ok(modeRow.indexOf('data-goblock="threads:"') < modeRow.indexOf('data-newlore'),
+  '+ Thread comes after the list it adds to');
+assert.ok(modeRow.indexOf('data-newlore') < modeRow.indexOf('data-panel="anansi"'),
+  'and Anansi is last, which is where Seth asked for + Thread to sit beside it');
+ok('the composer offers the four modes, with Threads, + Thread and Anansi pushed right');
 
 assert.match(html('bar'), /Chapter|The Envoy/, 'the header names the book');
 // The percentage LEFT the header on 2026-08-27 — Seth wanted one bar across the window and the

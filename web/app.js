@@ -996,6 +996,15 @@ function drawDock() {
            we have that on the input." -->
       <button data-goblock="threads:" title="Everything written down in this story"
         style="flex:0 0 auto; margin-left:auto">Threads</button>
+      <!-- THREE PLACES, THREE JOBS. Seth, 2026-08-28: "on the menu threads is seen in three
+           places. main menu, threads for all books. composer menu, threads for only the current
+           story. button next to anansi near the input should be + threads. add threads."
+           So: the main nav is the wide list across every book, Threads here is this book's, and
+           this one is the writing-down tray. It was here as "+ Thread" this morning, became the
+           door to the list, and comes back beside it — the two are different jobs and the list
+           was standing where both of them had to fit. -->
+      <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
+        style="flex:0 0 auto">+<span class="deskonly">&nbsp;Thread</span></button>
       <button data-panel="anansi" aria-pressed="${S.panel === 'anansi'}" title="Ask Anansi about this story"
         style="flex:0 0 auto">Anansi</button>
     </div>

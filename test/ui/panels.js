@@ -287,7 +287,10 @@ if (await page.visible('[data-setup="title"]')) {
 await page.goto(B + "/#" + sid);
 for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
 ok("the composer bar carries the door to this story's threads", await page.visible('[data-goblock="threads:"]'));
-ok("  and no longer the door to the tray", !(await page.visible('[data-newlore]')));
+// AND THE TRAY HAS ITS OWN BUTTON BESIDE IT, which is not the same door. Seth: "button next to
+// anansi near the input should be + threads. add threads." The list and the writing-down tray are
+// different jobs; for half a day the list was standing where both had to fit.
+ok("  with the writing-down tray beside it, not behind it", await page.visible('[data-newlore]'));
 ok("  and New scene is still not there", !/New scene/.test(await page.text('#modes') || ''));
 await page.click('[data-goblock="threads:"]');
 await wait(700);

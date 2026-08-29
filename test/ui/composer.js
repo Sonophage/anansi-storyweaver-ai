@@ -11,6 +11,27 @@ await page.mobile();
 await page.goto(B + "/#" + sid);
 for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
 
+// ---- THE COMPOSER ROW STAYS ON ONE LINE (2026-08-28). Three buttons sit right of the four modes
+// now — this book's Threads, + Thread, and Anansi — and a third one pushed Anansi onto a second
+// row at 390px. The row getting taller MOVES THE DOCK, which this project has three separate bug
+// reports about, so the label is "+" on a phone and "+ Thread" on a desk.
+//
+// Measured as HEIGHT against a button, not as equal tops: the buttons do not share a top edge even
+// on one line, because the row is not stretch-aligned and they are not all the same height. A tops
+// check reported two rows on a row that was plainly one.
+{
+  const row = await page.eval(`(() => { const r = document.querySelector('#modes');
+    if (!r) return null; const kids = [...r.children];
+    return { h: Math.round(r.getBoundingClientRect().height),
+             tallest: Math.max(...kids.map(b => Math.round(b.getBoundingClientRect().height))),
+             labels: kids.map(b => b.textContent.trim()).join('|'), vw: innerWidth }; })()`);
+  console.log("  modes row: " + JSON.stringify(row));
+  ok(`the composer row is one line at phone width (${row && row.h}px of a ${row && row.tallest}px button)`,
+     !!row && row.h < row.tallest * 1.6);
+  ok(`  and carries all three doors beside the modes (${row && row.labels})`,
+     !!row && /Threads/.test(row.labels) && /Anansi/.test(row.labels) && row.labels.split('|').length === 7);
+}
+
 // ---- #3. "The send button and the expand input button are too small."
 //
 // 44px is the floor every touch guideline agrees on, and this project has its own evidence for
