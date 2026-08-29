@@ -1021,6 +1021,13 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 /* PORTRAIT, at Seth's direction: "like a phone wallpaper". A cover is a book's face and a book is
    taller than it is wide, so the grid holds more of them across and each one is a page rather than
    a banner. Two on a phone, because a portrait card at full width is one book per screen. */
+/* #22. Every card the same height in the selectable view. `.card` has no height cap and the body
+   printed whole, so one long thread made a tall card and the whole grid row stretched to it — a
+   shelf of even cards with one giant among them. Three lines and a fixed height, so the grid is a
+   grid; the whole body is one press away on the card itself. */
+.clamp3 { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.grid > .card { min-height:132px; }
+
 .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; align-content:start; }
 @media (max-width:1099px) { .grid { grid-template-columns:repeat(2,1fr); } }
 @media (max-width:719px) { .grid { grid-template-columns:repeat(2,1fr); gap:12px; } }

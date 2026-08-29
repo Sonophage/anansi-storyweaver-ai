@@ -168,6 +168,15 @@ const POSTED: any[] = [];
     // empty answer is a different case and it has its own guard.
     : url.startsWith('/api/chapter/propose') ? { chapterId: 'c-2', title: 'The Rust Year',
         note: 'By the end the debt has to be called in, and Marek has to be in the room for it.' }
+    // #22. TWO BOOKS, because the page's whole job is grouping and collapsing — with one book
+    // "exactly one open" is true however the collapse is written.
+    : url.startsWith('/api/ledger') ? { slots: SLOTS, entries: [
+        { id: 'e-1', story: 's-1', storyTitle: 'The Ashfall Concordat', title: 'Halsey',
+          body: 'A fence with a good coat and a better memory.', entryType: 'character',
+          activation: 'always_on', keys: [], addons: [], outfits: [] },
+        { id: 'e-2', story: 's-2', storyTitle: 'The Salt Ledger', title: 'the Ambersand',
+          body: 'A house that lends at ruin.', entryType: 'lore',
+          activation: 'triggered', keys: ['Ambersand'], addons: [], outfits: [] }] }
     : url.startsWith('/api/manifest') ? MANIFEST
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
@@ -1021,6 +1030,29 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.doesNotMatch(html('sideBody'), /data-lorekind="motivations"/,
     'and nothing the module does not name');
   ok('the add-a-thread tray offers every room a card can have, not only the outfit');
+}
+
+// #22. The cross-shelf Threads page: one book open, the rest collapsed, and cards that do not
+// stretch their row. `db.ledgerOf` already orders by `s.updated_at DESC`, so [0] is the book you
+// were last writing in — the ordering was never the problem, the twelve grids at once were.
+{
+  // Back to the workspace first: `data-nav` is the workspace rail, and the block above this one
+  // opened a story, where the rail is `data-panel` instead. A nav click inside a story does nothing
+  // and the page stays whatever it was — which is how this read as a rendering bug for a minute.
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ nav: 'canon' });
+  // The page paints "Reading the threads…" first and fetches; loadLedger repaints when it lands.
+  for (let i = 0; i < 20 && !/data-lbook=/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+  const page = html('page');
+  assert.match(page, /data-lbook=/, 'every book is a heading you can press');
+  assert.match(page, /aria-expanded="true"/, 'the one you were last in is open');
+  assert.match(page, /aria-expanded="false"/, 'and the rest are not');
+  assert.strictEqual((page.match(/aria-expanded="true"/g) ?? []).length, 1,
+    'exactly one open, or the page is the wall of grids this replaced');
+  assert.match(page, /class="clamp3"/,
+    'and a long thread does not stretch its row — the body is clamped in the selectable view');
+  ok('the cross-shelf page opens the book you were last in and collapses the rest');
 }
 
 console.log(`\n${n} checks passed`);

@@ -140,6 +140,7 @@ const S = {
   railView: 'workspace',
   entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, spark: null, ritual: null, setup: null,
+  ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
   ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
   chaptersFor: null,    // the passage whose tray is showing the chapter list
@@ -267,7 +268,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
-  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel',
+  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'lbook',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
@@ -2169,13 +2170,25 @@ function ledgerBooks() {
     if (!books.has(e.story)) books.set(e.story, { title: e.storyTitle, rows: [] });
     books.get(e.story).rows.push(e);
   }
-  return [...books.entries()].map(([sid, b]) => `<div style="display:flex; flex-direction:column; gap:10px">
+  // #22. COLLAPSED EXCEPT THE FIRST. `db.ledgerOf` already orders by `s.updated_at DESC`, so the
+  // book at [0] is the one you were last writing in — it is open, on top, and every other book is
+  // a heading you can press. A shelf of twelve books was twelve grids at once, and the one you
+  // wanted was below all of them.
+  //
+  // Collapse is per book id in `S.ledgerShut`, so it survives a keystroke in the search box — the
+  // list redraws on every one of those, and a boolean per book kept in the markup would reset.
+  return [...books.entries()].map(([sid, b], i) => {
+    const shut = S.ledgerShut[sid] ?? (i > 0);
+    return `<div style="display:flex; flex-direction:column; gap:10px">
     <div style="display:flex; align-items:baseline; gap:10px">
-      <span class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(b.title)}</span>
-      <span class="up" style="font-size:10px; color:var(--dim)">${b.rows.length} ${b.rows.length === 1 ? 'entry' : 'entries'}</span>
+      <button data-lbook="${sid}" style="display:flex; align-items:baseline; gap:10px; text-align:left"
+        aria-expanded="${!shut}">
+        <span style="color:var(--dim); font-size:12px; width:10px">${shut ? '›' : '⌄'}</span>
+        <span class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(b.title)}</span>
+        <span class="up" style="font-size:10px; color:var(--dim)">${b.rows.length} ${b.rows.length === 1 ? 'entry' : 'entries'}</span></button>
       <button data-open="${sid}" style="margin-left:auto; font-size:11px; letter-spacing:.1em;
         font-variant-caps:all-small-caps; color:var(--gold)">Open story</button></div>
-    <div class="grid">${b.rows.map(entryCard).join('')}</div></div>`).join('')
+    ${shut ? '' : `<div class="grid">${b.rows.map(entryCard).join('')}</div>`}</div>`; }).join('')
     || `<div class="hint">${q || S.ledgerKind !== 'all' ? 'Nothing matches that.' : 'No entries yet.'}</div>`;
 }
 
@@ -2982,7 +2995,7 @@ function entryCard(e) {
       ${e.retiredAtChapter != null ? `<span class="tag" style="border-color:var(--chip);
         color:var(--warn)">finished ch.${esc(String(e.retiredAtChapter))}</span>` : ''}</div>
     <div class="kind">${esc(e.entryType ?? 'lore')}</div>
-    <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(e.body ?? '')}</div></button>`;
+    <div class="clamp3" style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(e.body ?? '')}</div></button>`;
 }
 
 // ---------- workspace pages ----------
@@ -4454,6 +4467,15 @@ document.addEventListener('click', async (e) => {
     paint(); refreshManifest(); return;
   }
   if (d.lorekind) { S.lore = { ...(S.lore ?? {}), kind: d.lorekind }; paint(); return; }
+  // #22. Redraws only #books, the way the filter chips do — repainting the page would destroy the
+  // search input mid-query, which is the bug the comment on canon() records.
+  if (d.lbook) {
+    const i = [...new Set((LEDGER ?? []).map((e) => e.story))].indexOf(d.lbook);
+    S.ledgerShut[d.lbook] = !(S.ledgerShut[d.lbook] ?? (i > 0));
+    const el = document.getElementById('books');
+    if (el) el.innerHTML = ledgerBooks();
+    return;
+  }
   if (d.loreread) {
     // The ritual's third step, reachable without ending the chapter — "scan what we have".
     working('reroll');
