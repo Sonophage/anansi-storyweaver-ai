@@ -3369,19 +3369,23 @@ function ghost() {
 
   const g = document.createElement('div');
   g.id = 'ghost'; g.className = 'veil';
-  // The web, then the roller, then Stop. innerHTML is safe here and only here: every character of
-  // it is written above, and the one place untrusted text lands is `.head`, which is filled with
-  // textContent below and never with markup.
+  // THE WEAVE, then the roller, then Stop. The drawn web is gone — Seth, 2026-08-28: "remove the
+  // web. instead copy the current scrmbled glyph animation and make it five lines tall and eleven
+  // letters long and them all be random. when the ai is done have the sixth letter spell anansi
+  // going down and fade out the other letters and then go to the text screen."
+  //
+  // SIX ROWS, NOT FIVE, and it is the one number I changed: the sixth letter of eleven is the
+  // middle column, and ANANSI is six letters, so a five-row grid cannot spell it downward. WEAVE_H
+  // is the constant to move if the word changes.
+  //
+  // Spans, not one text node. The resolve fades every letter EXCEPT the middle column, and opacity
+  // is a property of an element — a <pre> of text can be rewritten but not dissolved around a word.
+  // innerHTML is safe here and only here: every character of it is written above, and the one place
+  // untrusted text lands is `.head`, which is filled with textContent below and never with markup.
   g.innerHTML = `<div class="narr">
-      <svg class="web" viewBox="0 0 512 512" aria-hidden="true">
-        <g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round">
-          <path pathLength="1" d="M256 96 256 416"/><path pathLength="1" d="M110 256 402 256"/>
-          <path pathLength="1" d="M150 150 362 362"/><path pathLength="1" d="M362 150 150 362"/>
-          <circle pathLength="1" cx="256" cy="256" r="56"/>
-          <circle pathLength="1" cx="256" cy="256" r="112"/>
-          <circle pathLength="1" cx="256" cy="256" r="164"/>
-        </g>
-      </svg>
+      <div class="weave" aria-hidden="true">${
+        Array.from({ length: WEAVE_H }, () =>
+          `<div class="wrow">${'<i></i>'.repeat(WEAVE_W)}</div>`).join('')}</div>
       <span class="head"></span>
       <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
     </div>`;
@@ -3394,13 +3398,43 @@ function ghost() {
     const tick = (t) => {
       const el = document.getElementById('ghost');
       if (!el || el.classList.contains('leaving')) return;   // it went; so does its animation
-      if (t - last > 88) { el.querySelector('.head').textContent = glyphRun(); last = t; }
+      if (t - last > 88) {
+        el.querySelector('.head').textContent = glyphRun();
+        // Every cell every roll, which is what "them all be random" asks for. The resolve stops
+        // this by adding `.solved`, so the grid holds still under the word rather than churning
+        // behind it.
+        if (!el.querySelector('.weave')?.classList.contains('solved'))
+          for (const c of el.querySelectorAll('.weave i')) c.textContent = glyph();
+        last = t;
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   } else {
     g.querySelector('.head').textContent = glyphRun();
+    for (const c of g.querySelectorAll('.weave i')) c.textContent = glyph();
   }
+}
+
+/** Six rows of eleven. The middle column is the sixth of them, which is where the name lands. */
+const WEAVE_W = 11, WEAVE_H = 6, WEAVE_WORD = 'ANANSI';
+
+/** THE RESOLVE. She finishes, the middle column stops being noise and says who wrote it, and the
+ *  rest of the weave goes out from under it. Then the veil leaves and the page is there.
+ *
+ *  It runs BEFORE `.leaving`, not with it: fading 66 letters and the whole veil at once reads as
+ *  one fade with a word briefly in it, which is the effect happening and not being seen. */
+function solve(g) {
+  const weave = g.querySelector('.weave');
+  if (!weave) return 0;
+  const rows = [...weave.querySelectorAll('.wrow')];
+  const mid = Math.floor(WEAVE_W / 2);          // the sixth of eleven
+  rows.forEach((row, r) => {
+    const cell = row.children[mid];
+    if (cell) cell.textContent = WEAVE_WORD[r] ?? '';
+  });
+  weave.classList.add('solved');
+  return 620;                                    // long enough to read it, short enough to want to
 }
 
 /** It FADES, rather than vanishing. The node used to be removed outright, so a veil that had been
@@ -3413,8 +3447,14 @@ const unghost = () => {
   const g = document.getElementById('ghost');
   if (!g || g.classList.contains('leaving')) return;
   if (still()) return g.remove();
-  g.classList.add('leaving');
-  g.addEventListener('animationend', () => g.remove(), { once: true });
+  // The name first, then the fade. Under reduced motion neither happens — the branch above already
+  // returned, and a resolve nobody can see is a delay before the page for no reason.
+  const hold = solve(g);
+  setTimeout(() => {
+    if (!g.isConnected || g.classList.contains('leaving')) return;
+    g.classList.add('leaving');
+    g.addEventListener('animationend', () => g.remove(), { once: true });
+  }, hold);
 };
 
 function working(kind) {

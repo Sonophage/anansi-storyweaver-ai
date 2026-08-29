@@ -61,9 +61,13 @@ const geom = () => page.eval(`(() => {
     })(),
     bg: cs.backgroundColor,
     backdrop: cs.backdropFilter || cs.webkitBackdropFilter,
-    turning: /webturn/.test(getComputedStyle(g.querySelector('.web')).animationName || ''),
-    stop: !!st, stopOnTop: !!(hit && hit.closest('[data-stop]')),
-    strokes: g.querySelectorAll('.web g > *').length };
+    rows: g.querySelectorAll('.weave .wrow').length,
+    cols: g.querySelector('.weave .wrow')?.children.length ?? 0,
+    web: g.querySelectorAll('.web').length,
+    // Every cell holding SOMETHING is the whole of "them all be random" that a still frame can
+    // check. Whether the next frame differs is asserted below, by watching two of them.
+    filled: [...g.querySelectorAll('.weave i')].every((c) => (c.textContent || '').trim().length),
+    stop: !!st, stopOnTop: !!(hit && hit.closest('[data-stop]')) };
 })()`);
 
 const g = await geom();
@@ -79,14 +83,38 @@ ok(`  covering the whole window, header and composer included (${g.h} of ${g.vh}
 // asserted for a day and what "the book is gone" looks like.
 ok(`  not opaque — the page is still behind it (alpha ${g.alpha})`, g.alpha < 1);
 ok(`  and blurred, so it cannot be read through (${g.backdrop})`, /blur\(/.test(g.backdrop || ''));
-ok(`  and the web turns while she thinks (${g.turning})`, g.turning);
+// THE WEAVE REPLACED THE DRAWN WEB, 2026-08-28. Seth: "remove the web. instead copy the current
+// scrmbled glyph animation and make it five lines tall and eleven letters long and them all be
+// random." Six rows, not five, and the reason is in `ghost()`: the sixth letter of eleven is the
+// middle column and ANANSI is six letters, so five rows cannot spell it downward.
+ok(`  the drawn web is gone (${g.web} of them)`, g.web === 0);
+ok(`  and a weave stands where it was (${g.rows} rows of ${g.cols})`, g.rows === 6 && g.cols === 11);
+ok("  with every cell holding a glyph", g.filled);
+// MOVING, not merely present. A grid of 66 characters that never changes is a picture, and a
+// picture passes every check above.
+const roll1 = await page.eval("[...document.querySelectorAll('#ghost .weave i')].map(c=>c.textContent).join('')");
+await wait(400);
+const roll2 = await page.eval("[...document.querySelectorAll('#ghost .weave i')].map(c=>c.textContent).join('')");
+ok("  and it is rolling while she thinks", roll1 !== roll2 && roll1.length === 66);
 ok("Stop is inside the veil", g.stop);
 ok("  and it is the topmost thing at its own centre, so it can be pressed", g.stopOnTop);
-ok(`  the web is drawn from the app's own mark (${g.strokes} strokes)`, g.strokes === 7);
 
-// It has to GO, and go by fading rather than vanishing.
+// AND IT RESOLVES BEFORE IT GOES. The middle column stops being noise and says who wrote it while
+// the rest of the weave fades out from under it. Asserted on the letters AND on the class that
+// fades their neighbours: the word alone would pass with all 66 still on screen, which is the
+// effect happening and not being seen.
 await page.eval("(() => { document.querySelector('#ghost [data-stop]')?.click(); return 1; })()");
-await wait(150);
+await wait(120);
+const solved = await page.eval(`(() => { const w = document.querySelector('#ghost .weave');
+  if (!w) return null;
+  return { word: [...w.querySelectorAll('.wrow')].map(r => r.children[5]?.textContent ?? '').join(''),
+           solved: w.classList.contains('solved'),
+           dim: getComputedStyle(w.querySelector('.wrow i')).opacity }; })()`);
+console.log("  resolve: " + JSON.stringify(solved));
+ok(`  the middle column spells her name (${solved && solved.word})`, !!solved && solved.word === 'ANANSI');
+ok("  and the rest of the weave is going out from under it",
+   !!solved && solved.solved === true && Number(solved.dim) < 1);
+await wait(700);
 const mid = await page.eval("(() => { const g = document.getElementById('ghost'); return g ? (g.classList.contains('leaving') ? 'leaving' : 'up') : 'gone'; })()");
 console.log("  right after Stop: " + mid);
 ok(`pressing Stop starts the veil leaving rather than deleting it (${mid})`, mid === 'leaving');

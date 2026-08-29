@@ -193,6 +193,21 @@ input, textarea { font:inherit; color:inherit; }
   backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95); }
 #ghost.veil.leaving { animation:veilout var(--t) var(--ease) both; }
 #ghost.veil .narr { text-align:center; display:flex; flex-direction:column; align-items:center; gap:22px; }
+/* THE WEAVE. Six rows of eleven glyphs, all rolling, and on the resolve the middle column holds
+   still and says ANANSI while the rest goes out from under it. Monospace and a fixed column width
+   so the grid is a grid — a proportional font makes six rows of random letters into six ragged
+   lines, and the column that spells the name has to be a column. */
+#ghost.veil .weave { display:flex; flex-direction:column; gap:2px; align-items:center;
+  font-family:ui-monospace,monospace; font-size:19px; line-height:1.25; color:var(--gold-dim);
+  user-select:none; }
+#ghost.veil .wrow { display:flex; gap:4px; }
+#ghost.veil .wrow i { display:block; width:1ch; font-style:normal; text-align:center;
+  transition:opacity var(--t-slow) var(--ease), color var(--t-slow) var(--ease); }
+/* Everything but the middle column goes. `:not(:nth-child(6))` IS the sixth of eleven — one place
+   states which column the name lands in and it is `WEAVE_W / 2` in web/app.js; if that constant
+   moves, this selector has to move with it. */
+#ghost.veil .weave.solved .wrow i { opacity:0; }
+#ghost.veil .weave.solved .wrow i:nth-child(6) { opacity:1; color:var(--gold); }
 #ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
   letter-spacing:.05em; white-space:nowrap; animation:veilbreathe 1.5s ease-in-out infinite; }
 /* THE WEB DRAWS ITSELF. Seven strokes, the same ones as web/icon.svg, because she is Anansi and
