@@ -1,230 +1,182 @@
-# Handoff — 2026-08-28, end of the surface-and-threads day
+# Handoff — 2026-08-29, end of the migration-and-measurement day
 
-Branch `serial`, current, pushed, tree clean. `main` is 26+ commits behind and has not been
-touched. Read `.claude/CLAUDE.md` first; this file is what a cold session needs on top of it.
+`main` and `serial` are both at **`6e5652d`**, pushed, tree clean. Read `.claude/CLAUDE.md` first;
+this file is what a cold session needs on top of it.
 
-## Where the work is
+**Do these two things, in this order.** Everything else in this file is context for them.
 
-**PLAN-08 (`docs/plans/PLAN-08-THREADS.md`) is the live plan.** It absorbs issues #5 and #13 and
-PLAN-06 §2e into one job, because they are one question: what is in a card, and what makes a piece
-of it reach the model. Phases 1, 2 and 3 are done. Phase 4 has not started.
+---
 
-| phase | state |
-|---|---|
-| 1 · the flip + a probe | **done.** F38 is the number. Two changes shipped, two held with reasons. |
-| 2 · the schema, once | **done.** `addons`, `entry_edges`, `retired_at_chapter`, `proposals.field`/`.activation`. |
-| 3 · the context path | **done.** Addons and edges both reach the model; the cap is measured (F39). One thing left over, below. |
-| 4 · chapter end | **done** (F40, F41). Retirement, per-field updates, clothing as an outfit. The model's judgement is parked, not owed. |
+## 1 · Restart the live server — FIRST, before anything else
 
-### What Phase 3 closed, on 2026-08-28
+`serve.ts` loads `src/*.ts` **once, at boot**. `#25`'s work is in `src/` and the running server
+started at **15:53:50** against code that predates it. Only `web/*.js` is served fresh per request.
 
-1. **Directed edges are read.** A second pass in `buildContext` pulls a child in when its parent
-   reached the prompt, or when the EDGE's own keys hit the window. The block's reason carries both
-   the parent and the worth — `inherited 0.60 from Halsey` — because `canonRank` reads the reason,
-   so an inherited pull sorts strictly below a direct keyword hit and above a sticky hold. That is
-   where `confidence` gets spent. ONE HOP, with the ceiling written at the loop.
-   **There is still no way to CREATE an edge from a surface**, and that is deliberate: two routes
-   were written and then taken back out, because `test/web.ts` refuses a route no method in
-   `web/api.js` names, and the method it would need has no caller until the Threads screen draws
-   connections. `db.linkEntries` is how a test or a one-liner makes one today. The door belongs
-   with the screen, in Phase 4.
-2. **The cap is measured — F39, `bench/weight.ts`.** Canon peaks at **2% of its 45% ceiling** across
-   the library, and a COUNCIL-04 #7 scene (46 cards at once) with five rooms on every one of them
-   would want about **60%** of it. **Decision: eviction keeps dropping a whole card and does not
-   learn to trim rooms first**, recorded as a `ponytail:` marker on `bodyOf` with its trigger —
-   `bench/weight.ts` reporting the ceiling dropping a card at any position, or `fills` under ~50
-   cards. Read the denominator before the number: **no book has a room yet**, so only the modelled
-   column is evidence about this feature.
+**This cost two diagnoses today.** Seth re-ran a worker, got the old answer, and reported the fix as
+broken — twice — because the process was older than the code. Before debugging any report of "it
+still does X", check the server's start time against HEAD:
 
-### The proposals queue stopped losing facts — 2026-08-28
+```bash
+ps -eo pid,lstart,args | grep '[s]erve.ts'
+git log -1 --format='%ad' --date='format:%a %b %d %H:%M:%S %Y'
+```
 
-**"Duplicate" meant SAME CARD, and it should have meant same PLACE.** At chapter end several passes
-each have something to say about one person — her description from `remember`, a new fact from
-`extract`, one of her rooms, that she is finished — and the queue called every one after the first a
-duplicate and dropped it on a `false` nobody reads. Measured before the fix: `remember`'s state
-landed and `extract`'s rewrite of the same character was **binned on every close where both spoke**.
-Two rooms of one card did it to each other too, which the rooms feature inherited on the day it was
-built.
+### How to restart it without breaking his setup
 
-`db.proposalTarget` is now the one definition of where accepting would write — `state` · `retire` ·
-`string` · `room:<slot>` · `body` — and both the dedupe and the accept path ask it, so they cannot
-drift. Two proposals collide only when accepting them would write over each other.
+**The environment is not in the repo and must not be.** `ANANSI_ALLOW`, `ANANSI_ADMIN`,
+`ANANSI_CERT`, `ANANSI_KEY`, `ANANSI_HOST` and `ANANSI_MODELS` live in the command Seth started it
+with. Capture them from the running process **before** killing it:
 
-The correct collisions survive for free and are asserted: `new` and `changed` still collide, because
-both write the body and they are one offer wearing two labels depending on whether `classify`
-recognised the card; so do the same room twice and the same retirement twice, which is what the
-dedupe was built for. The `retire`-only lane added earlier the same day is deleted — it fixed one
-case of a general defect and left the rest standing.
+```bash
+cp /proc/<pid>/environ /tmp/live.env0            # null-separated, while it is still alive
+```
 
-### Phase 4, per-field updates — done 2026-08-28
+`/tmp/anansi-restart.sh` already exists and does this correctly — it was generated today from that
+environ with `shlex.quote` on every value, and it `cd`s to the repo and `exec`s node. It survives
+until reboot. Regenerate it the same way if it is gone.
 
-**`proposals.field` is live on both ends.** It had been written since Phase 2 and read by nothing,
-and nothing ever set it either — a dead column at both ends, so every accepted change rewrote the
-WHOLE card body. That is the overwrite PLAN-08 exists to stop: she was loyal in chapter 2 and is not
-by chapter 9, and a whole-body rewrite loses the arc that made the book worth reading.
+**A restart that loses the environment is worse than no restart:** the first attempt today came back
+on `127.0.0.1` over plain HTTP with no allow-list, so Kia could not reach it and neither could
+Seth's phone, and nothing said so except the startup banner. **Read the banner every time.** It
+should say:
 
-- **`EXTRACT_SCHEMA` gained `field`**, an enum of every slot plus `none`. It is the THIRD place the
-  slot list is written — a constrained decode must state its enum as a literal — so `test/db.ts`
-  asserts it against `slots.ts`, the same way the partial index already is.
-- **Three refusals in `extract()`, none of which the column could make for itself:** `none` means
-  the card's own body; a room needs a card that ALREADY EXISTS to be a room of, so a field on a
-  `new` proposal is dropped; and a slot the card's KIND does not have — `voice` on a place — is
-  refused against `slotsFor`, because the enum cannot say "per kind".
-- **Accepting writes an addon and leaves the body untouched.** An accepted room with no trigger
-  words is switched ON, because a room that is filled in on the card and invisible to every prompt
-  is the same darkness `src/import.ts:127` refuses for an entry.
-- Five checks in `test/memory.ts`, each falsified.
+```
+Anansi        https://0.0.0.0:5174
+writers       zlovlokvi@gmail.com, hellrigelkc@gmail.com
+admin         sonophage
+```
 
-**Not measured.** `EXTRACT` is a prompt with findings attached to it (F27) and this adds a paragraph
-to it. Whether the model aims at the right room, or reaches for one when the body was the right
-answer, has no number. That is a deliberate park, on Seth's call — build now, debug the logic later.
+Back up first — `sqlite3 anansi.db ".backup 'backups/pre-restart.db'"` — because migrations run at
+boot. Two ran today and both are already applied.
 
-### Phase 4, the retirement half — done 2026-08-28
+---
 
-A chapter can finish a thread. `entries.retired_at_chapter` had a reader since Phase 2 and no
-writer at all; it has `db.setRetired` now, with the way back in the same function (`null` lifts it,
-which is `setPin`'s contract). Deliberately NOT a field on `upsertEntry`: that writes `last_editor`,
-which arbitration keys on, so bringing a character back through the entry save would mark the card
-human-edited.
+## 2 · Then finish #25: the model info panel
 
-- **The scan is a fourth worker at chapter end**, behind a free gate: `retirable()` in
-  `src/context.ts` offers only cards the closing chapter NAMES, that carry no threshold already, and
-  **never the point-of-view character** — `buildContext` applies its retirement branch before its
-  `isPov` branch, so a retired persona card takes the protagonist out of every prompt with nothing
-  on screen saying so.
-- **Stored as `ch.index + 1`.** She dies DURING the chapter that just closed, so revising that
-  chapter later must still have her in it. `remember` anchors states the same way.
-- **The ritual is a screen** — a panel, not a full-screen surface, because `docs/checklist.md`
-  question 2 reserves that decision. `V.ritualDone` is deleted: it was carried across exactly one
-  refetch and dropped by every other, so the checklist vanished on any unrelated press.
-- **F40 is the number, and it is a caution.** Recall 100%; false finishes **10%**, all of them one
-  card — a place the prose calls closed. The `stories.direction` clause measured **exactly zero**
-  across two placements. Read F40 before touching the prompt.
-- **The browser harness ran.** `panels` 175 ok, `surfaces` 63 ok, **`ritual` 29 ok** after being
-  rewritten for the two-press flow. It found a real defect that 295 node checks and 175 `panels`
-  checks all missed, because none of them reload the page: `S.ritualOf` is session state, so a cold
-  load at `#story/ritual` fell back to `currentChapter` — the NEW, empty chapter — and the screen
-  reported that a chapter just summarised and read for facts had neither. The fallback is
-  `wholeFrom`'s rule now: no session state and an empty current chapter means the one before it.
-- **Still owed:** the retire round trip in `test/ui/panels.js` (press retire → manifest omits →
-  press bring-back → it does not), and a rule about places, measured.
+The **data is done and shipped**; what is missing is the surface.
 
-### The wardrobe stopped being two things — 2026-08-28
+`GET /api/models` now returns `{ id, status, ctxSize, parallel, perSlot, tps, runs }`, merged from
+three sources that each know one thing: the router (what exists, what is loaded), `presets.ini`
+(`ctx-size`, `parallel`, and `perSlot = ctx-size / parallel`), and the `generations` table (measured
+speed). `src/presets.ts` is the parser; `db.modelSpeeds()` is the speed.
 
-`worn()` and the `outfit` slot were a temporary pair and they are gone. PLAN-08 Phase 2 made
-`addons` the class an outfit already was and copied every row across; the surface went on writing
-the old `outfits` table, so there were two tables and two firing paths for one thing and
-`src/context.ts` had to SKIP the `outfit` slot to keep from sending the coat twice.
+The rail footer's model rows already show `50k each · 58.4 tok/s` via `modelFacts()` in
+`web/model.js`. **What #25 still asks for** is a panel that opens from a model row carrying:
 
-- **`db.upsertOutfit` / `wearOutfit` / `delOutfit` / `outfitsOf` keep their names and write addons.**
-  Deliberate: `src/import.ts` and three suites call them, and a rename would have meant finding
-  every caller and getting them all right in one pass. One line each now.
-- **One at a time is the slot's property and the database's job** — `outfit` is exclusive, so
-  `setAddonActive` clears the siblings in the same transaction and the partial index refuses a
-  second regardless. That is what `wearOutfit` did, generalised.
-- **The outfit keeps its own sentence.** `[Aldis wears: wool, shiny cuffs]` says she has it ON;
-  `[the grey coat: wool, shiny cuffs]` says only that the coat exists. It is the one slot where the
-  room's NAME is not what the model needs to be told, and there is a check for it.
-- **`POST /api/outfit`, `DELETE /api/outfit` and `POST /api/wear` are deleted**, with their three
-  `web/api.js` methods. `test/web.ts` caught them going dead the moment the surface moved.
-- **`src/import.ts` exported an empty wardrobe** for one commit, because it read the old table
-  directly — an absent outfit looks exactly like a card that never had one. Fixed; the payload
-  keeps its `outfits` shape so older export files still import.
+- [ ] the prose blurb — hand-written, per the issue; the id already encodes purpose (`RP`/`W`/`A`),
+      thinking (`NT`/`T`), decensored (`H`) and the `-NN` novel tier, and `modelName()` in
+      `web/model.js` decodes some of it already. **Extend that decode; hand-write only the blurb.**
+- [ ] measured speed and per-slot context — both already on the payload, no new plumbing
+- [ ] the switch button — `data-pickmodel` already exists and works
 
-**Still there:** the `outfits` TABLE, unwritten by anything. A `ponytail:` marker on `outfitsOf`
-names the ceiling — a stale table a future import or export could resurrect into a second source of
-truth — and the upgrade path: check `exportStory`, take a backup, then drop it.
+**Register the panel properly or it is half a panel**: a name in `TITLES` is what makes a panel
+hash-addressable, `readHash` validates against that map, and `PANELS.<name>()` as a shorthand method
+is what `test/web.ts`'s `panelNames` regex can see. `SNAV` is pinned at eight names by
+`test/web.ts` — do not add to it. Any new `data-` action must go in `ACTIONS` or `test/web.ts`
+refuses the button, which it did twice today, correctly.
 
-### What Phase 3 still owes## What shipped today, in one line each
+**Four surfaces read the model list**: rail footer (`web/app.js` ~360), Storyteller (~2058), the bar
+label, and Preferences — which was deleted in #23, so three.
 
-- The composer: the mirror follows the box's scroll, the caret stopped drifting (one font
-  declaration for two boxes), a restored line comes back visible, Save stopped running off a narrow
-  screen, the maximized composer wears the send blur over 30% of the theme's paper.
-- Threads: a card has rooms (`addons`), a **face** that prints only what is filled in with a switch
-  per room, a **form** that draws every room to be fillable, jump links per room, and Anansi can
-  write the card you are looking at or any single room of it.
-- Navigation: her mark at the far left of the bar is the main menu on every screen; a workspace
-  page's own title opens it too; in a story the story's name opens the story menu and the web pill
-  on the right opens Anansi. `+ Threads` and `Threads` are two different doors on the composer row.
-- The send veil weaves a 6x11 grid of glyphs and resolves the middle column to ANANSI before it
-  fades.
+---
 
-## Traps this repo has already paid for
+## What changed today, and what it means for anything you touch
 
-- **A backtick inside a template literal is fatal and does not look like it.** In `web/app.js` the
-  markup's HTML comments are inside the string: one backtick closes it, the file still LOADS, and
-  the function throws at call time so a panel renders as nothing. In `src/db.ts` the same thing in a
-  SQL comment fails as a TypeScript syntax error a long way from the cause. **Five times in one
-  day.** `test/web.ts` and `test/db.ts` both check for it now — run `test/all.ts` before hand-rolling
-  a smoke test. A `${` in one of those comments is an interpolation and does the same.
-- **`test/ui/run.sh` reads `$1` only.** `run.sh a b c` silently runs `a`. Quote them: `run.sh "a b"`.
-- **Guards that cannot read what they guard report perfection.** `test/web.ts` refuses a button
-  whose action attribute is interpolated, and wants `<button data-panel="x"` with the attribute
-  first — it was burned once by matching its own explanatory comment.
-- **A leftover server on a bench port breaks `test/scope.ts`.** It boots its own on 5187-5196; a
-  stray debug server on 5188 makes the allowlist test report a broken gate. Kill by port, not by a
-  `pkill` on an env var, which never matches.
-- **THE HARNESS'S OWN SILENCE IS AUDIBLE NOW.** `test/ui/run.sh` records every scenario it runs to
-  `/tmp/anansi-ui-results.json` — merged per scenario, so `run.sh panels` does not erase what the
-  others last said — and `test/web.ts` reads it. Three different answers on purpose: no file is a
-  NOTE (a fresh clone has never run it), a stale scenario is a NOTE (a fact about this machine), and
-  **a recorded death is a FAILURE**. `test/all.ts` now refuses to go green over a known corpse.
-  Deliberately NOT a static check that every `data-*` in `test/ui/` exists in `web/app.js`: that is
-  the obvious fix and it would not have caught this, because `data-act` DOES exist — it moved behind
-  a press. The failure was ordering, not absence, and a guard that cannot fire reports perfection.
-- **`buttons` and `handlers` are repaired: 0 → 17 ok and 1 → 43 ok, both 0 red.** They had been
-  dying on their first click for weeks. One cause and one straggler: a card opens on its FACE now
-  and both reached straight for form controls (commit `4ae74a9` taught `panels.js` and `phone.js`
-  to press Edit; these two were missed) — and in the wardrobe, changing a card's kind saves and
-  REPAINTS, and the repaint landed between filling the two boxes and pressing Add, so the press
-  reached a real button holding empty fields and the only symptom was `an outfit can be added (0)`.
-  Both files assert the face and then the form now, so the two views cannot quietly become one.
-- **Seth runs the browser harness only when he asks for it.** Test what you touched. Be honest that
-  a change to a shared view (the card's default, for instance) touches every scenario that opens a
-  thread — three broke that way today and only a full pass found them.
+### Every card's body moved into a `facts` room
 
-## Numbers that override the docs
+`bench/tofacts.ts` moved **461 cards**; there are **465 facts rooms** now. `entries.body` is empty
+across the library. The `facts` room is the half chapter-end cannot rewrite, which is what Seth
+asked for: *"there's no place to keep the characters main facts that doesn't get overwritten."*
 
-`docs/findings/P0-FINDINGS.md` beats `SPEC.md` and every plan. The four that matter most here:
+**This broke three things by making one assumption false, and the lesson generalises: reading
+`resolveBody` alone is no longer the same as reading the card.** Use **`cardText(e, at, window?)`**
+from `src/context.ts` — body plus the rooms that are switched on. Four callers go through it now
+(`factsFor`, `remember`, the retirement scan, and what a new thread is told already exists) and
+`buildContext`'s own `bodyOf` is the same expression, so there is one of it.
 
-- **F38** — the ledger's keyword path is NOT dead: 107 firings in 148 eligible entry-positions.
-  PLAN-06 §2e's "best-tested dead code in the app" was true of a twelve-entry library on
-  2026-08-27 and is not true now. §2e is marked superseded.
-- **F39** — the cap does not bite. Canon peaks at 2% of its 45% ceiling; a 46-card COUNCIL-04 #7
-  scene with five rooms on every card would want ~60%. Measured by `bench/weight.ts`, which walks
-  every position through `view()`/`assemble()` against a COPY of the database — it never opens the
-  live book. **Its denominator is the reading: no book has a room yet**, so the "as it stands"
-  column is the shape before the feature and only the modelled column is evidence about it.
-- **F42 is where the finished-thread scan actually stands: 16/16 recall, 0 false finishes in 40
-  chances — under 7.5%, not never.** The fix was structural: the model must QUOTE the sentence from
-  the narration that commits the end, and `retire()` checks the sentence is really in the prose it
-  handed over. A judgement became a lookup. It also settled `stories.direction`, which F40 measured
-  at zero and F41 could not separate: at n=8 it fixed one case completely and broke another
-  completely, which is why the average looked like nothing. With evidence required only the help
-  remains, 0/40 against 6/40. **The clause stays.**
-- **F41** — a place is never finished, it changes. `retirable` offers only `character` and `rule`,
-  so a burned building cannot be retired at all and what happened to it goes in its `history` room.
-- **F40** — the first measurement of the scan, superseded by both of the above. Keep it for the
-  method: its first three cases could not see the defect at all, and both arms scoring 0/21 read
-  exactly like a working clause.
-- **`bench/ledger-audit.ts` governs whether anything may be flipped to `triggered`**, and says
-  existing rows may not: 1 in 12 would go dark and 2 more are "safe on the record, dark on the next
-  call". `bench/fires.ts` is its per-position sibling and should be folded into it one day; it
-  reports the denominator, which the older file does not.
+The cost of missing one: the memory pass spent a whole chapter end asking the model what had changed
+about `"Halloran: "` — a name, a colon, and nothing. **F46.**
 
-## Open, and not being worked on
+### `passages.mode` — which press wrote each passage
 
-Issues #7, #9, #11, #12, #14. #9 (contradictions arriving late) is **downstream** of PLAN-08, not
-beside it — the check reads the ledger, so fielded cards change its inputs and doing it first is
-work thrown away. `serve.ts`'s three `ponytail:` markers are untouched: `:81` a reverse proxy breaks
-the loopback rule OPEN, `:208` no backpressure now that a phone is on the tailnet, `:54` whois
-cached per process. Twenty-eight `ponytail:` markers across the tree; the newest are the one-hop
-bound on the inherited pull and the eviction decision F39 bought.
+`speak | act | direct | narrate`, null on everything before today (1,994 rows). It could not be
+derived: Speak leaves a `speaker` and Direct leaves a `directive`, but Act and Narrate both write a
+bare human row. Four accent colours are derived once in `themeVars` from values every theme already
+declares — **not** four new columns in `THEMES`, because there are nineteen themes and that table
+exists so a theme cannot ship half-applied. The last passage is boxed in its own accent.
 
-Parked with its reasoning in `docs/checklist.md`: attaching an image to an issue.
+### The chapter-end memory pass routes to rooms
 
-## Unverified by anyone but the harness
+`roomPieces` splits an answer the model has already labelled into one proposal per room.
+`withoutEcho` drops any sentence the card already contains, so a room edit carries the change and
+not the whole card — **but only on room edits.** `test/memory.ts` caught the first version applying
+it to the `none` path too: a state IS the whole description rewritten, and it REPLACES the body from
+that chapter on, so stripping it would leave a state holding one sentence and silently drop
+everything else about the character. **F47.**
 
-The talk-draft handoff (`web/app.js`, the "hand it to the composer" path) has no test — reaching it
-needs a real generation. It is verified by reading only, and that is written down rather than hidden
-inside a green count.
+### The proposals queue
+
+Chips by kind — Everything · New · Conflicts · Changed · Finished, each with its count. **Add all is
+offered on `new` alone**, and not over a mixed queue, and not for a single card. A proposal card now
+says **where it lands above the words that will land there**, with the room as a chip on its title
+row.
+
+---
+
+## Traps that cost real time today
+
+- **A stale server.** Twice. See §1.
+- **`test/all.ts` going red with no suite named.** `test/web.ts` deliberately refuses a *recorded*
+  browser death from `/tmp/anansi-ui-results.json`. Any falsification run that leaves a scenario red
+  makes the node suite red until `test/ui/run.sh` runs green again. This looked like flakiness for
+  hours. The runner now **names** the suites that failed.
+- **`upsertAddon` always inserts a room switched OFF.** Passing `active: 1` does nothing; the accept
+  path calls `setAddonActive` separately. A seeding script that assumes otherwise creates cards that
+  render as empty — which is how a fixture character went into a chapter with a blank card.
+- **`narrationOnly` strips quoted spans before any check sees them.** A name written inside
+  quotation marks is invisible to the retirement gate. Two attempts to name a first-person narrator
+  in his own chapter vanished this way. Use em dashes.
+- **`keys` is already an array on the client** and a JSON string on the fixtures and older callers.
+  `JSON.parse([])` is `JSON.parse('')`, which throws.
+- **A first-person narrator is never a retirement candidate** unless the narration names him — the
+  chapter calls him "I", so his card never fires. Worth knowing before concluding the gate is broken.
+
+## Falsify, or it is decorative — four caught today
+
+Three of my own checks passed against deliberately broken code before being fixed:
+
+- a colour assertion comparing a computed `rgb()` against a raw hex token off `:root` — never equal,
+  so it could not fail
+- a speed test using `10/20/30`, where the mean and the median are the same number
+- a commented-stanza test that passed with **either** of two independent guards removed
+- and a fixture whose cards were one-liners, which scored 0/25 on a defect the live library produced
+  at 16% — **a fixture that cannot reproduce the failure reports it as absent**
+
+When a fixture will not reproduce something, **measure against the real story**. It is available
+here in a way it is not for most projects and it was the only thing that worked for F47.
+
+---
+
+## The live library, as it stands
+
+465 cards, 465 facts rooms, 2,021 passages, **0 open proposals**.
+
+**The Test story (`s-bcb217a0`) is a working end-to-end fixture, built today.** Chapters 1–3 closed
+with summaries; chapter 4 open and empty. Cards include Coyle (dead, ch2), Beckett (dismissed, ch3),
+Sondra (a live control who does nothing), the two-o-clock rule (abolished, ch2), Halloran (the
+narrator, named in the story's `direction`, must never be finished) and Wrenn. Chapter 3 carries all
+four modes, so it is also the place to look at #14's accents.
+
+Close a chapter there to exercise the whole ritual against real prose. Predictions belong in writing
+**before** the close — that is how both of today's misses were caught honestly.
+
+## Open issues, 10
+
+**#13** (Threads) is largely delivered — rooms, routing, per-room proposals — and is open because
+Seth has not called it done. **#22** has four items left; **#27** needs the story-wide fact scan;
+**#18** needs the style library and a re-roll on the style field; **#20** needs seeding from threads.
+**#9** (contradictions before the prose reaches the writer) is architectural. **#21**, **#24**,
+**#11** are unstarted. **#17** (Pinterest) needs Seth's call on whether a network API belongs in a
+local-first app at all.
+
+`grep -rn "ponytail:" src web bench *.ts *.html` — 14 markers, each naming its own ceiling.
