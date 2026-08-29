@@ -126,7 +126,18 @@ const STORY = {
                 body: 'Marek has not asked yet.', entryType: 'string', keys: ['2'], kind: 'new',
                 delta: 'A promise, unpaid', chapterId: 'c-2' },
               { id: 'pr-1', entryId: null, title: 'Witness rite', body: 'A signature is void.',
-                entryType: 'lore', keys: [], kind: 'new', delta: 'New fact.', chapterId: 'c-2' }],
+                entryType: 'lore', keys: [], kind: 'new', delta: 'New fact.', chapterId: 'c-2' },
+              // One of each other kind, so the chips have something to separate and Add all has
+              // something it must NOT offer to.
+              { id: 'pr-3', entryId: 'e-1', title: 'Aldis', body: 'She is thinner now.',
+                entryType: 'character', keys: [], kind: 'changed', field: 'appearance',
+                target: 'ad-9', delta: 'thinner', chapterId: 'c-2' },
+              { id: 'pr-4', entryId: 'e-2', title: 'The stair', body: 'It is boarded over.',
+                entryType: 'lore', keys: [], kind: 'conflict', delta: 'boarded', chapterId: 'c-2' },
+              // TWO new ones, because Add all is not offered over a single card — one card is a
+              // press either way and a button that says "Add all 1" is a button that lies slightly.
+              { id: 'pr-5', entryId: null, title: 'The lamplighter', body: 'He comes at six.',
+                entryType: 'character', keys: [], kind: 'new', delta: 'New face.', chapterId: 'c-2' }],
 };
 const MANIFEST = { manifest: { blocks: [
   { kind: 'SPINE', id: 'spine', text: '', tokens: 392, state: 'included', reason: 'capped' },
@@ -734,6 +745,41 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.match(chapter, /1 string proposed &mdash; they wait under Strings/,
     'it says where the string went rather than silently dropping it from the count');
   ok('a proposed string waits under Strings, and the chapter queue says so');
+
+  // THE THREE KINDS ARE THREE DECISIONS. `new` adds a card that does not exist, `conflict` updates
+  // one that does, `changed` edits one room of one. They were in a single stack, so a chapter's
+  // worth arrived as one undifferentiated list. Seth: "maybe we should have em split by that filter
+  // and an accept all."
+  assert.match(chapter, /data-pkind="new"/, 'the queue is filterable by kind');
+  assert.match(chapter, /data-pkind="conflict"/);
+  assert.match(chapter, /data-pkind="changed"/);
+  // The count is on the chip: a filter that does not say how many is a filter you have to press to
+  // find out whether it was worth pressing.
+  // ONE, not two: the string proposal is answered under Strings and the chapter queue excludes it,
+  // so the chip counts what is actually on this screen rather than what the chapter produced.
+  assert.match(chapter, /New 2/, 'and each chip carries its count, of what this screen shows');
+  assert.match(chapter, /Everything 4/, 'the Everything chip counts the queue without the string');
+  // ADD ALL IS NOT OFFERED ON `all`. That is the whole safety property: it appears only once the
+  // writer has narrowed to the additive kind.
+  assert.doesNotMatch(chapter, /data-acceptall/,
+    'Add all is not offered over a mixed queue, where it would accept conflicts and room edits too');
+
+  click({ pkind: 'conflict' });
+  await new Promise((r) => setTimeout(r, 30));
+  const onlyConflict = html('sideBody');
+  assert.match(onlyConflict, /The stair/, 'a chip narrows the queue to its kind');
+  assert.doesNotMatch(onlyConflict, /Witness rite/, 'and drops the others');
+  assert.doesNotMatch(onlyConflict, /data-acceptall/,
+    'and Add all is still not offered — a conflict is sometimes the model being wrong');
+
+  click({ pkind: 'new' });
+  await new Promise((r) => setTimeout(r, 30));
+  const onlyNew = html('sideBody');
+  assert.match(onlyNew, /data-acceptall="new"/, 'Add all appears on new, which is the additive kind');
+  assert.doesNotMatch(onlyNew, /The stair/);
+  ok('the queue splits by kind, and Add all is offered on new alone');
+  click({ pkind: 'all' });
+  await new Promise((r) => setTimeout(r, 30));
 
 // Editing a proposal before it lands. The route has honoured an incoming body since it was
 // written and the surface never sent one, so what the model wrote was what entered canon even

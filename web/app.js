@@ -138,7 +138,7 @@ const S = {
   // one. Set to 'story' on open and back to 'workspace' on leave, so the default still follows
   // you and only a deliberate press disagrees with it.
   railView: 'workspace',
-  entryId: null, historyOf: null, newRoom: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
+  entryId: null, historyOf: null, newRoom: null, propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, spark: null, ritual: null, setup: null,
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
@@ -274,7 +274,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
   'dismiss', 'goflag', 'dropflag', 'modelmenu',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
-  'cardview', 'goslot', 'newroom', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
+  'cardview', 'goslot', 'newroom', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads'].map((k) => `[data-${k}]`).join(',');
 
@@ -1799,6 +1799,23 @@ const PANELS = {
     // Thread proposals only. A string is a different kind of offer and lands where strings live —
     // accepting one there is the same press, next to what it is about to join.
     const ps = (V.proposals ?? []).filter((p) => p.entryType !== 'string');
+    // THREE DIFFERENT DECISIONS, AND THEY WERE IN ONE STACK. `new` adds a card that does not exist,
+    // `conflict` updates one that does, and `changed` edits ONE ROOM of one — a room edit is the
+    // only one of the three that can stand in for something already written, which is why it is the
+    // only one with a Replace. Seth, having seen a chapter's worth at once: "maybe we should have
+    // em split by that filter and an accept all."
+    //
+    // `memory` rides with `changed`: both answer "what did this chapter do to the people in it",
+    // and the difference between them — one room against the whole description — is a distinction
+    // the queue does not need to make on a chip.
+    const KINDOF = (p) => p.entryType === 'retire' ? 'retire'
+      : p.kind === 'memory' ? 'changed' : (p.kind ?? 'conflict');
+    const PKINDS = [['all', 'Everything'], ['new', 'New'], ['conflict', 'Conflicts'],
+                    ['changed', 'Changed'], ['retire', 'Finished']];
+    const nOf = (k) => k === 'all' ? ps.length : ps.filter((p) => KINDOF(p) === k).length;
+    const shown = S.propKind === 'all' ? ps : ps.filter((p) => KINDOF(p) === S.propKind);
+    const pchip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+      background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
     return `<div style="display:flex; flex-direction:column">
       <label class="lbl">Name</label>
       <input class="field" data-chapter-title="1" value="${esc(ch.title ?? '')}"
@@ -1817,7 +1834,24 @@ const PANELS = {
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">What this chapter added</div>
       <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Nothing here is canon until you accept it.</div>
       <div style="display:flex; flex-direction:column; gap:9px">
-      ${ps.map(proposalCard).join('') || '<div class="hint" style="margin:0">Nothing proposed. Closing a chapter reads it for new facts and for what it did to the people in it.</div>'}
+      ${ps.length ? `<div style="display:flex; gap:7px; flex-wrap:wrap; margin-bottom:4px">
+        ${PKINDS.filter(([k]) => nOf(k)).map(([k, l]) => `<button data-pkind="${k}"
+          style="font-size:11.5px; padding:6px 13px; border-radius:var(--r-pill); ${pchip(k === S.propKind)}"
+          >${l} ${nOf(k)}</button>`).join('')}
+      </div>` : ''}
+      ${/* ACCEPT ALL IS OFFERED ON `new` ONLY, and that is a decision rather than a first step.
+            A new card is additive — the worst it can do is leave you a card to delete. The other
+            two write into cards you already have: a conflict is sometimes the model being wrong
+            rather than the card being stale (this chapter proposed "The Narrator", who is Halloran
+            under another name, and "Ledgers", which is the card "The Ledger"), and a changed
+            proposal edits a room. Neither is safe by the dozen. */ ''}
+      ${S.propKind === 'new' && shown.length > 1
+        ? `<button class="btn ghost" data-acceptall="new" ${S.busy ? 'disabled' : ''}
+             style="margin-bottom:4px">Add all ${shown.length}</button>
+           <div class="hint" style="margin:0 0 6px">Only offered for new threads. A new card is one
+             you can delete; a conflict and a change both write into cards you already have.</div>` : ''}
+      ${shown.map(proposalCard).join('') || `<div class="hint" style="margin:0">${
+        ps.length ? 'Nothing of that kind.' : 'Nothing proposed. Closing a chapter reads it for new facts and for what it did to the people in it.'}</div>`}
       ${(V.proposals ?? []).some((p) => p.entryType === 'string')
         ? `<button class="btn ghost" data-panel="strings" style="margin-top:6px">${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
@@ -5266,6 +5300,26 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId); paint(); refreshManifest();
     toast(d.decide !== 'accept' ? 'Dropped.'
       : was?.entryType === 'string' ? 'Tied. It is yours until you put it in play.' : 'Woven in.');
+    return;
+  }
+  if (d.pkind) { S.propKind = d.pkind; paint(); return; }
+  if (d.acceptall) {
+    // ONE AT A TIME, AND IT STOPS ON THE FIRST REFUSAL. The route decides one proposal per call and
+    // a batch that carried on past an error would report a number nobody could trust. The list is
+    // read once, before any of it lands, because accepting changes the view underneath it.
+    const batch = (V.proposals ?? []).filter((p) => (p.kind ?? '') === d.acceptall && p.entryType !== 'string');
+    if (!batch.length) return;
+    S.busy = true; drawDock();
+    let done = 0;
+    for (const p of batch) {
+      const r = await api.decide({ storyId: S.storyId, id: p.id, accept: true });
+      if (r.error) { S.busy = false; V = await api.story(S.storyId); paint();
+        return toast(`${done} added, then: ${r.error}`); }
+      done++;
+    }
+    S.busy = false;
+    V = await api.story(S.storyId); paint(); refreshManifest();
+    toast(`${done} woven in.`);
     return;
   }
   if (d.branch) { const r = await api.switchBranch(S.storyId, d.branch); if (r.error) return toast(r.error);
