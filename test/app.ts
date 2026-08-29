@@ -984,4 +984,20 @@ ok('the shelf groups what is waiting by book, and opens the book that is waiting
 }
 ok('a story pinned to a model the router dropped still shows that pin, and can leave it');
 
+// #23. Preferences was a settings screen carrying an operator's console. What is left is a
+// writing record, and these assert the removal rather than trusting it — a page that quietly kept
+// one of the three would look right and be wrong.
+{
+  click({ nav: 'prefs' });
+  await new Promise((r) => setTimeout(r, 40));   // the page paints after its stats call is queued
+  const page = html('page');
+  assert.doesNotMatch(page, /llama-server/, 'the server address is gone');
+  assert.doesNotMatch(page, /data-router=/, 'and the restart and stop controls with it');
+  assert.doesNotMatch(page, /data-pickmodel=/,
+    'and the second copy of the model list — the rail footer has the one that stays');
+  assert.match(page, /What you have written/, 'the writing record is what the page is now');
+  assert.match(page, /data-backup=|data-exportdb=|Backups/i, 'and the backups door stays');
+  ok('Preferences is a writing record: the operator console is gone, the stats and backups stay');
+}
+
 console.log(`\n${n} checks passed`);

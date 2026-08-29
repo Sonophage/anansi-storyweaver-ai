@@ -139,7 +139,7 @@ const S = {
   // you and only a deliberate press disagrees with it.
   railView: 'workspace',
   entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
-  fieldHistory: null, confirmDelete: false, confirmDel: null, confirmStop: false, router: null, spark: null, ritual: null, setup: null,
+  fieldHistory: null, confirmDelete: false, confirmDel: null, spark: null, ritual: null, setup: null,
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
   ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
   chaptersFor: null,    // the passage whose tray is showing the chapter list
@@ -213,7 +213,9 @@ const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queu
 const WNAV = [
   ['stories', 'stories', 'My stories'], ['create', 'create', 'Create a story'],
   ['canon', 'threads', 'Threads'], ['import', 'import', 'Import'],
-  ['prefs', 'prefs', 'Preferences'],
+  // #23: it is a writing record, not a settings screen. The panel key stays `prefs` so every
+  // bookmark and open tab still resolves — a renamed key is a broken deep link for no gain.
+  ['prefs', 'prefs', 'What you have written'],
   // Above Report an issue, which is where Seth put it: the two are the same conversation from
   // opposite ends — here is what changed, and here is what is wrong with it.
   ['news', 'book', 'What changed'], ['bug', 'bug', 'Report an issue'],
@@ -265,7 +267,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
-  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'router',
+  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
@@ -3299,53 +3301,25 @@ const WPAGES = {
   },
 
   prefs() {
+    // #23. This was a settings screen carrying an operator's console: the llama-server address, a
+    // second copy of the model list, and the router's restart and stop buttons. Seth: "preferences
+    // has a lot of things we dont need, we have the model selector already in the main menu, the
+    // only thing that matters here really is the what you have written."
+    //
+    // What is left is a WRITING RECORD, which is why the page is called one. The model list lives
+    // on the rail footer and always did; this was the copy.
+    //
+    // THE CONSEQUENCE, STATED RATHER THAN DISCOVERED: the router state dot went with the controls,
+    // so a llama-server that is down is no longer visible here. It shows up as a generation that
+    // fails, which is later and louder. Accepted in #23 up front.
+    // The slot numbers are still shown further down, under what the model is given — that is a
+    // fact about YOUR writing (how much room a call has), not an operator control, so it stayed
+    // when the console went. Its three locals came off the top with the address block and have to
+    // come back, or the page throws where nothing had ever rendered it to notice.
     const slot = SRV.slot?.perSlot, global = SRV.slot?.global, slots = SRV.slot?.slots;
     return `<div class="split" style="max-width:1000px; gap:28px">
       <div style="flex:1; min-width:0">
-        <div class="lbl">llama-server</div>
-        <div class="field" style="font-family:ui-monospace,monospace">http://127.0.0.1:8080</div>
-        <div style="display:flex; align-items:center; gap:9px; margin-top:10px">
-          <span style="width:8px; height:8px; border-radius:50%; background:${slot ? 'var(--good)' : 'var(--warn)'}"></span>
-          <span style="font-size:12px; color:var(--faint)">${slot ? 'Up' : 'Asleep or unreachable'}</span></div>
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Model</div>
-        ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
-          : S.models.length === 0 ? emptyModels()
-          : S.models.map((m) => `<button data-pickmodel="${esc(m.id)}" class="row"
-              style="width:100%; text-align:left">
-              <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${
-                m.id === SRV.model ? 'var(--gold)' : m.status === 'unloaded' ? 'var(--edge-lit)' : 'var(--good)'}"></span>
-              <span title="${esc(m.id)}" style="color:${m.id === SRV.model ? 'var(--ink)' : 'var(--mute)'};
-                font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(modelName(m.id).name)}${
-                  modelName(m.id).detail ? ` <span style="color:var(--faint); font-size:10.5px">${esc(modelName(m.id).detail)}</span>` : ''}</span>
-              <span style="margin-left:auto; font-size:10.5px; color:var(--dim)">${esc(m.status)}</span></button>`).join('')}
-        <div class="hint">Switching is process-wide, not per story &mdash; two writers share this server,
-          so it changes for both. A sleeping model wakes on its first call.</div>
-        ${S.allow?.length ? `<div class="hint">${S.allow.length} of the router's models
-          ${S.allow.length === 1 ? 'is' : 'are'} allowed for Anansi:
-          ${S.allow.map((a) => `<code>${esc(a)}</code>`).join(', ')}. Set with
-          <code>ANANSI_MODELS</code> when the server starts — it is an operator's decision about
-          the box, so it is not editable from here.</div>`
-        : '<div class="hint">Every model the router serves is offered. Narrow it with <code>ANANSI_MODELS</code> — a comma-separated list of ids, <code>prefix*</code> allowed — when you start the server.</div>'}
-        <div class="hint">Sampling, voice and spice belong to each story — they live under Storyteller, inside the story.
-          A story can also name its own <strong>model</strong> there, and then it stops following this one.</div>
-
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">The server itself</div>
-        ${S.router ? `<div class="row"><span style="color:var(--ink)">llama-router</span>
-            <span class="chip">${esc(S.router.state ?? '?')}</span>
-            <span style="margin-left:auto; font-size:11px; color:var(--faint)">${
-              S.router.since ? esc(String(S.router.since).replace(/^\w+ /, '')) : ''}</span></div>`
-          : '<div class="hint" style="margin:0">Asking systemd&hellip;</div>'}
-        <div style="display:flex; gap:7px; margin-top:10px">
-          <button class="btn ghost" data-router="restart" style="flex:1">Restart it</button>
-          <button class="btn ghost" data-router="stop" style="flex:1; color:var(--bad)">Release the models</button>
-        </div>
-        <div class="hint"><strong>Release</strong> stops the whole service and takes every model down
-          with it. Switching your model below already releases the one you were on, so you rarely need
-          this — it is for getting the card back for something that is not Anansi. Anansi cannot write
-          while it is stopped; <strong>Restart</strong> brings it back and the next call loads what it
-          needs. Both are shared: two writers, one server.</div>
-
-        <div class="lbl" style="letter-spacing:.1em; margin-top:30px">What you have written</div>
+        <div class="lbl" style="letter-spacing:.1em">What you have written</div>
         ${(() => {
           const t = S.stats;
           if (!t) return '<div class="hint" style="margin:0">Counting&hellip;</div>';
@@ -3355,9 +3329,14 @@ const WPAGES = {
             <span class="tnum" style="margin-left:auto; color:var(--faint)">${v}</span></div>`;
           // Thirty days of passages, drawn from the same rows. A sparkline rather than a number,
           // because "have I written this week" is a shape question.
-          const max = Math.max(1, ...t.days.map((d) => d.n));
-          const spark = t.days.length > 1 ? `<div style="display:flex; align-items:flex-end; gap:2px;
-            height:34px; margin:10px 0 4px">${t.days.map((d) => `<span title="${esc(d.d)}: ${d.n}"
+          // `days` is the 30-day sparkline and it is not guaranteed: an older stats response, or
+          // one from a database with no generations logged, has no such key. `t` being truthy was
+          // the only guard, so the page threw on `.map` of undefined and rendered NOTHING — and no
+          // test had ever opened this page, which is how it survived. Found writing #23's check.
+          const days = t.days ?? [];
+          const max = Math.max(1, ...days.map((d) => d.n));
+          const spark = days.length > 1 ? `<div style="display:flex; align-items:flex-end; gap:2px;
+            height:34px; margin:10px 0 4px">${days.map((d) => `<span title="${esc(d.d)}: ${d.n}"
             style="flex:1; min-width:2px; height:${Math.max(6, d.n / max * 100)}%;
             background:${d.n ? 'var(--gold)' : 'var(--chip)'}; opacity:${d.n ? .75 : .35}; border-radius:var(--r-tight)"></span>`).join('')}</div>
             <div class="hint" style="margin:0 0 8px">Passages a day, most recent on the right.</div>` : '';
@@ -3423,12 +3402,6 @@ async function loadLedger() {
   if (S.wpage === 'canon') drawPage();
 }
 
-async function loadRouter() {
-  const r = await api.router('status', S.storyId ?? LIB[0]?.id);
-  S.router = r.error ? { state: 'unreachable' } : r;
-  if (S.wpage === 'prefs') drawPage();
-}
-
 async function loadStats() {
   const r = await api.stats();
   S.stats = r.error ? null : r;
@@ -3442,7 +3415,7 @@ async function loadModels() {
   if (r.active) SRV.model = r.active;
   if (S.wpage === 'prefs') drawPage();
   if (S.place === 'story' && S.panel === 'teller') drawSide();
-  loadStats(); loadRouter();
+  loadStats();
 }
 
 async function loadLibrary() {
@@ -4863,24 +4836,6 @@ document.addEventListener('click', async (e) => {
   }
   if (d.clearchat) { S.talk = { ...S.talk, turns: [], draft: null }; drawSide(); return; }
   if (d.storymodel !== undefined) { return; }   // handled on change, below
-  if (d.router) {
-    // Stopping is the destructive one — it takes the model away from whoever else is writing —
-    // so it asks. Restart does not: it is what you press when something is already wrong.
-    if (d.router === 'stop' && !S.confirmStop) {
-      S.confirmStop = true; drawPage();
-      return toast('Press again to stop the server. Nothing can generate until it is back.');
-    }
-    S.confirmStop = false;
-    toast(d.router === 'stop' ? 'Stopping…' : 'Restarting…');
-    const r = await api.router(d.router, S.storyId ?? LIB[0]?.id);
-    if (r.error) { drawPage(); return toast(r.error); }
-    S.router = r;
-    // The model list is meaningless while the server is down, and stale once it comes back.
-    S.models = null; drawPage();
-    if (r.state === 'active') loadModels();
-    toast(r.state === 'active' ? 'The server is up.' : 'The server is stopped. Restart it when you want to write.');
-    return;
-  }
   if (d.pickmodel) {
     if (d.pickmodel === SRV.model) return;
     const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);

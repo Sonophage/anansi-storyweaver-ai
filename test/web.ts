@@ -349,6 +349,12 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     // Driven by bench/checker.ts, which is how the contradiction checker is measured. The app
     // reaches the same code through accept, not through this route.
     '/api/check': 'bench/checker.ts drives it; the app runs the checker through accept',
+    // #23 took the router controls off Preferences, which was their only door. The route stays: it
+    // is an OPERATOR action, admin-gated, and test/scope.ts proves the gate with two owners — "may
+    // I stop a service the other writer is mid-generation on" is not a question ownership can
+    // answer, and that check is worth more than the buttons were. Deleting the route would have
+    // deleted the gate test with it.
+    '/api/router': 'an operator action with no surface since #23; test/scope.ts proves its gate',
   };
   const unreachable = [...new Set(declared)].filter((path) =>
     !api.includes(`'${path}'`) && !api.includes(`\`${path}`) && !api.includes(`${path}?`)

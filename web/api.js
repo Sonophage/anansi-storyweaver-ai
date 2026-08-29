@@ -171,7 +171,6 @@ export const api = {
   talk:         (storyId, o)     => j('/api/talk', 'POST', { storyId, ...o }),
   bug:          (o)              => j('/api/bug', 'POST', o),
   setModel:     (model, storyId) => j('/api/model', 'POST', { model, storyId }),
-  router:       (action, storyId) => j('/api/router', 'POST', { action, storyId }),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
   runImport:    (name, data, into) => j('/api/import', 'POST', { name, data, into: into || undefined }),
   setCover:     (storyId, dataUrl) => j('/api/cover', 'POST', { storyId, dataUrl }),
