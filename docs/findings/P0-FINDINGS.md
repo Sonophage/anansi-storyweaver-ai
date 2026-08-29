@@ -1740,3 +1740,44 @@ accept than a paraphrase was.
 
 **`unevidenced` is returned and counted, not swallowed.** A scan that keeps naming cards it cannot
 quote for is a prompt problem, and a count is the only way anyone would know.
+
+## F43 — the contradiction checker is BLIND to numbers, not weak at them: 0 of 4 wrong counts against 4 of 4 of everything else. A targeted rule bought nothing and was deleted (2026-08-29)
+
+Seth was asked whether numbers matter in a real book and said counts do. Measuring it first was the
+right order, because the number F11 recorded was not the number.
+
+**F11's "one case in twelve" was one numeric CASE among twelve, missed.** A rate over the wrong
+denominator decides nothing (F10). `bench/checker.ts` now carries six numeric cases — three that
+contradict and **three that are clean**, because a rule that flags every number scores perfect
+recall on this class and is worthless.
+
+| class | caught | false alarms |
+|---|---|---|
+| numbers | **0 of 4** | 0 on 3 clean |
+| everything else | **4 of 4** | 0 on 7 clean |
+
+**It is not a weak spot. It is a blind one**, and it sits beside a part of the checker that is
+perfect.
+
+**A targeted rule was written, measured, and deleted.** It named the thing and spelled out the form
+— *"NUMBERS ARE FACTS AND A DIFFERENT NUMBER IS A CONTRADICTION… digits and words are the same
+number: 4 crowns contradicts eleven crowns"* — with both negatives stated so it could not simply
+flag every digit. **0/4 before, 0/4 after.** No movement, and no new false alarms either. Deleted on
+F20's precedent: a clause measuring the same as its absence is tokens on every call for nothing.
+
+**It cannot be a wording problem, and this is the observation that settles it.** Canon reaches the
+model: the *no limp* case passes, and that fact is in the **same sentence** as the debt — *"limp in
+the left knee from a fall he lies about, owes Marek eleven crowns"*. The checker reads that
+sentence, catches the limp contradiction, and misses the crowns. It is not failing to be told; it is
+failing to compare.
+
+**The next thing to try is structural, and it is Rule 5's shape:** pull the numbers out of canon and
+out of the passage in CODE, and ask the model only about pairs that disagree — rather than hoping it
+notices while reading for everything else. That is the same move that took the retirement scan to
+zero false finishes in F42: stop asking for a judgement and ask for a lookup.
+
+**A hazard fixed on the way.** `bench/checker.ts` took `stories[0]` from whatever server it was
+pointed at and **wrote passages into it**, deleting them afterwards — against the desk's live
+instance that is somebody's actual novel. It seeds its own book now, which also makes the canon in
+its header a fact rather than a hope: a run against a library without a brass key measured nothing
+and said nothing about it.

@@ -50,9 +50,12 @@ const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const run = promisify(execFile);
 const whois = new Map<string, { login: string | null; at: number }>();
 const MISS_TTL = 60_000;   // how long a "no identity" answer is trusted
-
-// ponytail: a hit is cached for the life of the process and keyed on IP, so the ceiling is that
-// reassigning a tailnet address mid-run keeps the old identity; a restart clears it.
+// And how long a HIT is trusted. It used to be the life of the process, so a tailnet address that
+// changed hands kept its old identity until a restart — and the failure that produces is one
+// writer answering as another, silently, which is the one class this file exists to prevent. Ten
+// minutes bounds it, and costs one `tailscale whois` per peer per ten minutes: a process spawn on
+// a request that already waits on a model.
+const HIT_TTL = 600_000;
 //
 // A MISS expires after a minute, and that is not symmetry for its own sake. Under systemd this can
 // start before tailscaled answers, and a permanent negative cache would then hold the first peer to
@@ -60,7 +63,7 @@ const MISS_TTL = 60_000;   // how long a "no identity" answer is trusted
 // a peer with no identity from spawning a process per request.
 async function loginOf(ip: string): Promise<string | null> {
   const hit = whois.get(ip);
-  if (hit && (hit.login !== null || Date.now() - hit.at < MISS_TTL)) return hit.login;
+  if (hit && Date.now() - hit.at < (hit.login !== null ? HIT_TTL : MISS_TTL)) return hit.login;
   let login: string | null = null;
   try {
     const { stdout } = await run('tailscale', ['whois', '--json', ip], { timeout: 3000 });
@@ -220,9 +223,17 @@ const handler = async (req: any, res: any) => {
     if (out && out.__stream) {
       res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8',
         'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' });
-      // ponytail: no backpressure, and this now fronts a real network — a phone on the tailnet
-      // rather than only loopback. Deltas are a few bytes each, so the ceiling is a slow peer on
-      // a long generation; honour res.write's false and wait for 'drain' when that shows up.
+      // NO BACKPRESSURE, AND MEASURED 2026-08-29 RATHER THAN FEARED. `res.write` returning false
+      // does not lose anything — node queues it — so the only cost of ignoring it is memory held
+      // for a slow peer, and the whole stream is bounded: ~5KB of deltas for a 900-token
+      // generation, plus a final line that is the non-streaming response, 91KB for the largest
+      // book in this library. About 96KB held for a phone on a bad connection is not a hazard, and
+      // honouring 'drain' would mean making `send` awaited through every producer that calls it.
+      //
+      // ponytail: bounded by what is streamed, not by a guard. Ceiling: a route that streams
+      // something UNBOUNDED — an export, a whole-book download — at which point the memory is the
+      // file. Upgrade path is to make `send` async and await it in the producers, and the trigger
+      // is a new `__stream` route whose payload is not a story view.
       const send = (o: unknown) => res.write(JSON.stringify(o) + '\n');
       try { send(await out.__stream(send)); }
       catch (e: any) { send({ error: e?.message ?? String(e) }); }

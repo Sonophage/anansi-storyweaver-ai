@@ -476,9 +476,25 @@ export const SPARK_SCHEMA = {
  *  dominant false-positive class in fiction is in-fiction falsehood: a character who lies,
  *  is mistaken, speaks figuratively, or narrates unreliably is not the book contradicting
  *  itself. Three hand-written versions of this check got that wrong before the model saw it. */
-// ponytail: the checker misses numeric contradictions — "two crowns" against canon's eleven, one
-// case in twelve (P0-FINDINGS F11). A targeted numeric rule is not worth it against that rate;
-// revisit if numbers start mattering in a real book.
+// F11 read this as "one case in twelve" and that was one numeric CASE among twelve, missed — a
+// rate over the wrong denominator, which decides nothing. Measured on its own class 2026-08-29:
+// the checker caught 0 of 4 wrong counts while catching 4 of 4 of everything else. Not a weak
+// spot, a BLIND one. Seth was asked whether numbers matter and said counts do.
+//
+// A TARGETED RULE WAS WRITTEN AND MEASURED AND BOUGHT NOTHING — 0/4 before, 0/4 after, no movement
+// and no new false alarms. It named the thing and spelled out the form, which is the shape F37
+// found load-bearing, and it still did not move. It was deleted rather than kept, on F20's
+// precedent: a clause that measures the same as its absence is tokens on every call for nothing.
+//
+// The reason it cannot be a wording problem: canon reaches the model — the "no limp" case passes,
+// and that fact is in the SAME SENTENCE as the debt. It reads "limp in the left knee ... owes
+// Marek eleven crowns", catches the limp and misses the crowns.
+//
+// ponytail: the checker is blind to numbers and prose does not fix it. Ceiling: a wrong count
+// reaches the page and only a reader catches it. Upgrade path is structural and Rule 5's shape —
+// pull the numbers out of canon and out of the passage in CODE, and ask the model only about the
+// pairs that disagree, rather than hoping it notices while reading for everything else.
+// `bench/checker.ts` scores the class on its own denominator and is where that gets tried.
 export const CHECK =
 `Below are facts established as canon. You are given a passage from the same story.
 
@@ -488,6 +504,7 @@ unmentioned is not a contradiction.
 
 A character lying, being wrong, guessing, speaking figuratively, or hoping is NOT a
 contradiction. Only the narration commits the story to a fact.
+
 
 For each real contradiction give the canon id, the exact quote from the passage, one
 sentence on why they cannot both hold, and your confidence from 0 to 1.
