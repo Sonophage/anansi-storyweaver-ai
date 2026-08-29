@@ -183,7 +183,57 @@ ok('a story cannot be deleted by someone who does not own it');
   assert.strictEqual(db.statesForStory(aStory.id).get(aCard)?.length, 1,
     'and the original keeps its own');
   assert.strictEqual(db.entriesOf(aStory.id).length, aBefore, 'the book it came from is unchanged');
-  ok('a copied card carries its keys into the other book, and leaves the timeline behind');
+  // AND ITS ROOMS, since 2026-08-29. A card is named fields now, so a copy carrying only the spine
+  // arrived without her appearance, her voice, her relationships or her wardrobe — most of what a
+  // card IS — and looked complete doing it, because a card with no rooms is indistinguishable from
+  // a card whose rooms did not travel.
+  {
+    const roomy = db.upsertEntry(aStory.id, alice, { title: 'Wrenn', body: '[Wrenn: a fence]',
+      entryType: 'character', keys: ['Wrenn'] });
+    const fear = db.upsertAddon(aStory.id, roomy, { slot: 'interiority', name: 'her fear',
+      body: 'will not cross the bridge at night', keys: ['bridge'] });
+    const coat = db.upsertAddon(aStory.id, roomy, { slot: 'outfit', name: 'the grey coat',
+      body: 'wool, shiny cuffs', keys: [] });
+    db.setAddonActive(aStory.id, coat!, true);
+    void fear;
+    const twin = db.copyEntry(aStory.id, aOther.id, alice, roomy)!;
+    const rooms = db.addonsOf(aOther.id).filter((a: any) => a.entry_id === twin);
+    assert.deepStrictEqual(rooms.map((a: any) => a.slot).sort(), ['interiority', 'outfit'],
+      'the rooms travel with the card, the wardrobe among them');
+    assert.deepStrictEqual(JSON.parse(rooms.find((a: any) => a.slot === 'interiority').keys), ['bridge'],
+      "and a room's own trigger words come with it, or it arrives unable to fire");
+    assert.strictEqual(rooms.find((a: any) => a.slot === 'outfit').active, 1,
+      'and a coat she was wearing is still on — upsertAddon inserts unworn, so this is thrown after');
+    assert.strictEqual(db.addonsOf(aStory.id).filter((a: any) => a.entry_id === roomy).length, 2,
+      'the book it came from keeps its own');
+  }
+  ok('a copied card carries its keys and its rooms, and leaves the timeline behind');
+
+  // THE WHOLE SHELF, AND THE CONNECTIONS BETWEEN WHAT TRAVELS. This exists for the day a book is
+  // deleted: the prose is the book and goes with it, the ledger is work that outlives the story it
+  // was written for, and `entries.story_id` cascades so one press took all of it.
+  {
+    const home = db.createStory(alice, { title: 'Leaving' }).id;
+    const dest = db.createStory(alice, { title: 'Arriving' }).id;
+    const her = db.upsertEntry(home, alice, { title: 'Halsey', body: '[Halsey]', keys: ['Halsey'] });
+    const coat = db.upsertEntry(home, alice, { title: 'the grey coat', body: '[a coat]',
+      entryType: 'item', keys: ['coat'] });
+    db.linkEntries(home, her, coat, { confidence: 0.6 });
+    const moved = db.copyLedger(home, dest, alice)!;
+    assert.strictEqual(moved.cards, 2);
+    assert.strictEqual(moved.edges, 1, 'the connection between two cards that both travelled');
+    const edge = db.edgesOf(dest)[0] as any;
+    const nameOf = (id: string) => db.entriesOf(dest).find((x: any) => x.id === id)?.title;
+    // DIRECTED, and the direction is the one thing about that table that cannot be recovered
+    // later. A copy that reversed it would be silent and permanent.
+    assert.strictEqual(nameOf(edge.parent_id), 'Halsey');
+    assert.strictEqual(nameOf(edge.child_id), 'the grey coat');
+    assert.strictEqual(edge.confidence, 0.6, 'and what the pull is worth comes with it');
+    // A cross-owner move is refused, or a delete could launder a book into somebody else's shelf.
+    assert.strictEqual(db.copyLedger(home, bStory.id, alice), null);
+    assert.strictEqual(db.copyLedger(home, home, alice), null, 'and a book cannot copy into itself');
+  }
+  ok('a whole ledger can outlive its book, with the connections between what travelled');
 }
 
 // Export. A story handed to someone else must carry that story and nothing else — the point

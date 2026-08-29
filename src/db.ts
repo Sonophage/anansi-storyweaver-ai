@@ -1306,14 +1306,68 @@ export function pinCast(storyId: string, proposed: string[] = []): string[] {
  *
  *  It copies rather than links. Two books that share a character diverge the moment either is
  *  edited, which is what reuse means and is the version that needs no machinery to stay true. */
+/** THE WHOLE CARD, not its spine. This carried title, body, notes, type, activation and keys and
+ *  nothing else until 2026-08-29 — so a card sent to another book arrived without her appearance,
+ *  her voice, her relationships, her wardrobe or her chapter states. That is most of what a card
+ *  IS since Phase 2, and the loss was silent: the copy looked complete because a card with no
+ *  rooms looks exactly like a card whose rooms did not travel.
+ *
+ *  Edges are NOT here and cannot be: an edge names two cards, and this one knows about one. They
+ *  are `copyLedger`'s, which copies a whole shelf at once and can map both ends. */
 export function copyEntry(fromStoryId: string, toStoryId: string, o: string, entryId: string) {
   if (!ownsStory(fromStoryId, o) || !ownsStory(toStoryId, o)) return null;
   const e = q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(entryId, fromStoryId) as any;
   if (!e) return null;
-  return upsertEntry(toStoryId, o, {
+  const made = upsertEntry(toStoryId, o, {
     title: e.title, body: e.body, notes: e.notes, entryType: e.entry_type,
     activation: e.activation, keys: JSON.parse(e.keys || '[]'), lastEditor: 'human',
   });
+  if (!made) return null;
+  // The rooms, the wardrobe among them — `outfit` is a slot like any other since the tables were
+  // merged, so the coat travels for free rather than needing its own clause.
+  for (const a of q('SELECT * FROM addons WHERE entry_id = ? AND story_id = ?')
+    .all(entryId, fromStoryId) as any[]) {
+    const id = upsertAddon(toStoryId, made, { slot: a.slot, name: a.name, body: a.body,
+      keys: JSON.parse(a.keys || '[]'), fromChapter: a.from_chapter, retiredAtChapter: a.retired_at_chapter });
+    // `upsertAddon` always inserts unworn, and an exclusive slot refuses a second one worn — so
+    // the switch is thrown after, through the function that clears the siblings in a transaction.
+    if (id && a.active) setAddonActive(toStoryId, id, true);
+  }
+  // THE TIMELINE DOES NOT TRAVEL, and that was already decided with a check behind it —
+  // `test/scope.ts`: "a state is anchored to a chapter number, and chapter 7 there is not chapter 7
+  // here, so copying it puts a fact in force at an unrelated scene." Written here because the
+  // rooms above make it look like an oversight: they travel and states do not, and the difference
+  // is that a room is true until it is retired while a state is true FROM A NUMBER that means
+  // nothing in the book it lands in. Deleting this comment and adding the loop takes ten seconds
+  // and puts her chapter-9 death into chapter 9 of a book she has not walked into yet.
+  return made;
+}
+
+/** Every card in one book, copied into another, with the connections between them.
+ *
+ *  This exists for the day a book is deleted: the prose is the book and goes with it, but the
+ *  ledger is work that outlives the story it was written for. Deleting used to take it — one
+ *  `DELETE` and `ON DELETE CASCADE` did the rest — and the only way to save it was to open every
+ *  card and send it on by hand, which is the sort of chore nobody does thirty times.
+ *
+ *  EDGES LAST, AND ONLY WHERE BOTH ENDS MADE THE TRIP. A connection pointing at a card that was
+ *  not copied is worse than no connection: `buildContext` would look it up, find nothing, and
+ *  quietly pull in nothing, which reads as the feature being broken rather than as a missing card. */
+export function copyLedger(fromStoryId: string, toStoryId: string, o: string) {
+  if (!ownsStory(fromStoryId, o) || !ownsStory(toStoryId, o)) return null;
+  if (fromStoryId === toStoryId) return null;
+  const map = new Map<string, string>();
+  for (const e of entriesOf(fromStoryId)) {
+    const made = copyEntry(fromStoryId, toStoryId, o, e.id);
+    if (made) map.set(e.id, made);
+  }
+  let edges = 0;
+  for (const g of edgesOf(fromStoryId)) {
+    const parent = map.get(g.parent_id), child = map.get(g.child_id);
+    if (!parent || !child) continue;
+    if (linkEntries(toStoryId, parent, child, { confidence: g.confidence, keys: JSON.parse(g.keys || '[]') })) edges++;
+  }
+  return { cards: map.size, edges };
 }
 
 export function delEntry(storyId: string, id: string) {

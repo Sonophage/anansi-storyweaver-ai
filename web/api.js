@@ -78,7 +78,9 @@ export const api = {
   library:      ()               => j('/api/stories'),
   createStory:  (s)              => j('/api/stories', 'POST', s),
   spark:        (idea)           => j('/api/spark', 'POST', { idea }),
-  deleteStory:  (id)             => j('/api/stories', 'DELETE', { id }),
+  // `into` sends the book's threads to another of yours before it goes. The prose is the book and
+  // goes with it; a cast and a city are work that outlives the story they were written for.
+  deleteStory:  (id, into)       => j('/api/stories', 'DELETE', { id, ...(into ? { into } : {}) }),
   story:        (id, chapter)    => j(`/api/story?story=${id}${chapter ? `&chapter=${chapter}` : ''}`),
   saveStory:    (id, story)      => j('/api/story', 'POST', { id, story }),
   saveChapter:  (storyId, chapterId, chapter) => j('/api/chapter', 'POST', { storyId, chapterId, chapter }),

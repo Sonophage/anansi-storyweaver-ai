@@ -1728,8 +1728,21 @@ const PANELS = {
       <button class="btn ghost" data-delstory="1" style="color:var(--bad)">${
         S.confirmDelete ? 'Press again to delete this story for good' : 'Delete this story'}</button>
       <div class="hint">${S.confirmDelete
-        ? 'Every chapter, passage and ledger entry goes with it. Snapshots in backups/ still have it.'
-        : 'Export it first if you might want it back.'}</div></div>`;
+        ? 'Every chapter and passage goes with it. Snapshots in backups/ still have it.'
+        : 'Export it first if you might want it back.'}</div>
+      ${S.confirmDelete && (V.entries ?? []).length && LIB.filter((x) => x.id !== S.storyId).length
+        ? `<div class="card" style="margin-top:10px; gap:8px">
+        <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">Its ${
+          (V.entries ?? []).length} thread${(V.entries ?? []).length === 1 ? '' : 's'} do not have to
+          go with it. A cast, a city and its rules outlive the book they were written for.</div>
+        <select class="field" data-rescue="1" style="margin:0">
+          <option value="">Let them go too</option>
+          ${LIB.filter((x) => x.id !== S.storyId)
+            .map((x) => `<option value="${esc(x.id)}">Move them into ${esc(x.title)}</option>`).join('')}
+        </select>
+        <div class="hint" style="margin:0">Each card arrives with its rooms, its wardrobe and the
+          connections between the ones that travel. Its changes over time do not: chapter nine
+          there is not chapter nine here. Strings and prose stay with the book.</div></div>` : ''}</div>`;
   },
 
   // The chapter you are writing, whole: its name, how it has to end, where the story is going,
@@ -4964,11 +4977,16 @@ document.addEventListener('click', async (e) => {
   if (d.delstory) {
     if (!S.confirmDelete) { S.confirmDelete = true; paint();
       setTimeout(() => { if (S.confirmDelete) { S.confirmDelete = false; paint(); } }, 6000); return; }
-    const r = await api.deleteStory(S.storyId);
-    if (r.error) return toast(r.error);
+    // Read the picker BEFORE the call: the paint that follows replaces the panel it lives in.
+    const into = document.querySelector('[data-rescue]')?.value || '';
+    const r = await api.deleteStory(S.storyId, into);
+    if (r.error) { S.confirmDelete = false; paint(); return toast(r.error); }
     S.confirmDelete = false; S.place = 'workspace'; S.wpage = 'stories';
     S.storyId = null; V = null; LEDGER = null;
-    await loadLibrary(); paint(); toast('Deleted.'); return;
+    await loadLibrary(); paint();
+    return toast(r.moved
+      ? `Deleted. ${r.moved.cards} thread${r.moved.cards === 1 ? '' : 's'} kept.`
+      : 'Deleted.');
   }
 
   if (d.pin !== undefined || d.place !== undefined) {

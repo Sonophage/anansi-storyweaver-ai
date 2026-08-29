@@ -780,7 +780,26 @@ export const routes: Record<string, Handler> = {
     if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
     return { ...made, droppedCast: dropped };
   },
-  'DELETE /api/stories': (c) => { db.delStory(c.body.id, c.owner); return { ok: true }; },
+  /** Delete a book, and optionally send its ledger somewhere first.
+   *
+   *  THE PROSE IS THE BOOK AND GOES WITH IT. The ledger is not: a cast, a city and its rules are
+   *  work that outlives the story they were written for, and `entries.story_id` cascades, so one
+   *  press took all of it. The only way to save any of it was to open every card and send it on by
+   *  hand, thirty times, which is a chore nobody does.
+   *
+   *  `into` FIRST, AND A FAILURE THERE STOPS THE DELETE. If the copy cannot happen — a book that
+   *  is not yours, or the same book — nothing is deleted and the caller is told, because the one
+   *  unrecoverable order is "deleted, and the rescue silently did not run". */
+  'DELETE /api/stories': (c) => {
+    const into = String(c.body.into ?? '').trim();
+    let moved: { cards: number; edges: number } | null = null;
+    if (into) {
+      moved = db.copyLedger(String(c.body.id ?? ''), into, c.owner);
+      if (!moved) return { error: 'those threads cannot go to that book, so nothing was deleted' };
+    }
+    db.delStory(c.body.id, c.owner);
+    return { ok: true, moved };
+  },
 
   /** Idea in, skeleton out. Creates nothing: the writer edits every field first, and the
    *  characters arrive as proposed entries rather than as canon. */
