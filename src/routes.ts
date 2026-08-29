@@ -203,6 +203,32 @@ async function contradictionsIn(facts: { id: string; body: string }[], text: str
  *  is asking it to guess — while the check judges the PASSAGE, and a fact the engine failed to
  *  send is still a fact the book now contradicts.
  */
+/** WHICH ROOM A PROPOSAL WOULD STAND IN FOR, or `said` when there is nothing to offer.
+ *
+ *  Seth, 2026-08-29: "rooms the ai should not over write but offer to add the room, overwrite it.
+ *  not just over write." Another relationship beside the one she has and a CORRECTION of it are
+ *  different acts, and the model is not the one who should choose — so the existing room rides on
+ *  the proposal and the writer picks.
+ *
+ *  AND IT DEDUPES ITSELF. If what the model wrote is what is already in that room there is nothing
+ *  to offer: a proposal you would accept to change nothing is queue noise, and a queue nobody
+ *  trusts is one nobody reads. Folded on both sides, so punctuation and case cannot make two
+ *  identical rooms look different.
+ *
+ *  Shared by `extract` and `remember`, which both propose rooms now and would otherwise decide this
+ *  twice and differently. */
+const flatRoom = (x: string) => String(x ?? '').toLowerCase()
+  .replace(/[^\p{L}\p{N} ]/gu, '').replace(/\s+/g, ' ').trim();
+function roomOffer(onto: any, field: string | null, body: string): string | null | 'said' {
+  if (!field || !onto) return null;
+  const already = (onto.addons ?? []).filter((a: any) => a.slot === field);
+  if (already.some((a: any) => flatRoom(a.body) === flatRoom(body))) return 'said';
+  // The one it would replace: the live one if there is one, else the newest. An exclusive slot has
+  // at most one live by construction; a plural slot is a judgement, and the newest is the one the
+  // writer most recently cared about.
+  return (already.find((a: any) => a.active) ?? already.at(-1))?.id ?? null;
+}
+
 const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
   const reached = new Set(manifest.blocks
     .filter((b: any) => b.kind.startsWith('CANON') && b.state === 'included').map((b: any) => b.id));
@@ -363,7 +389,25 @@ async function remember(storyId: string, chapterId: string) {
     // here: this pass updates who exists and extraction is what adds someone.
     const who = cast.find((e: any) => norm(e.title) === norm(m.name));
     if (!who) continue;
-    if (db.addProposal(storyId, {
+    // WHERE THE CHANGE BELONGS. This pass rewrote the WHOLE description every time, which is the
+    // overwrite PLAN-08 exists to stop and the reason `facts` had to be invented: a state REPLACES
+    // the body, so everything the rewrite did not repeat was silently dropped from that chapter on.
+    //
+    // A room is edited without touching the rest of the card, so most changes go there now. `none`
+    // is still the whole-description state and still the right answer for the case it was built
+    // for — a death, a transformation, a person the chapter genuinely replaced — which is why that
+    // path is kept rather than migrated away.
+    const asked = String((m as any).field ?? 'none');
+    const field = slotsFor('character').some((sl) => sl.name === asked) ? asked : null;
+    const offer = roomOffer(who, field, m.body);
+    if (offer === 'said') continue;
+
+    if (db.addProposal(storyId, field ? {
+      kind: 'changed', entry_id: who.id, chapterId: ch.id,
+      title: who.title, body: m.body.trim(), entryType: 'character', field, target: offer,
+      delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this chapter',
+      keys: [],
+    } : {
       kind: 'memory', entry_id: who.id, chapterId: ch.id,
       title: who.title, body: m.body.trim(), entryType: 'state',
       delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this chapter',
@@ -420,26 +464,10 @@ async function extract(storyId: string, chapterId?: string) {
     const field = onto && ALL_SLOTS.includes(asked)
       && slotsFor(onto.entryType).some((sl) => sl.name === asked) ? asked : null;
 
-    // A ROOM THAT ALREADY EXISTS IS AN OFFER, NOT AN OVERWRITE. Seth: "rooms the ai should not over
-    // write but offer to add the room, overwrite it. not just over write." Another relationship
-    // beside the one she has and a correction of it are different acts, and the model is not the
-    // one who should choose — so the existing room rides along as `target` and the writer picks.
-    //
-    // AND IT DEDUPES ITSELF. If what the model wrote is what is already in that room, there is
-    // nothing to offer: a proposal you would accept to change nothing is queue noise, and a queue
-    // nobody trusts is one nobody reads. Compared folded, so punctuation and case do not make two
-    // identical rooms look different.
-    const flat = (x: string) => String(x ?? '').toLowerCase().replace(/[^\p{L}\p{N} ]/gu, '')
-      .replace(/\s+/g, ' ').trim();
-    let target: string | null = null;
-    if (field && onto) {
-      const already = (onto.addons ?? []).filter((a: any) => a.slot === field);
-      if (already.some((a: any) => flat(a.body) === flat(e.body))) continue;   // already said
-      // The one it would replace: the live one if there is one, else the newest. An exclusive slot
-      // has at most one live by construction; a plural slot is a judgement and the newest is the
-      // one the writer most recently cared about.
-      target = (already.find((a: any) => a.active) ?? already.at(-1))?.id ?? null;
-    }
+    // A room that already exists is an OFFER — see `roomOffer` for the whole argument.
+    const offer = roomOffer(onto, field, e.body);
+    if (offer === 'said') continue;
+    const target = offer;
     if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
       activation: e.activation, field, target })) added++;

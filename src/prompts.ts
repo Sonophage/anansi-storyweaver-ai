@@ -75,12 +75,29 @@ export const MEMORY =
 `Below is a chapter's narration, then a list of characters with the description of each that is
 currently in force.
 
-For each character the chapter CHANGED, return their description rewritten as it now stands.
+For each character the chapter CHANGED, say what changed and WHERE IT BELONGS.
+
+Most changes belong in one room of the card, and the field value names which:
+
+  appearance     how they look now
+  interiority    what they think, fear or want
+  relationships  one relationship, and only that one
+  voice          how they sound
+  history        what they have been through
+  role           their part in the story, if that is what changed
+  facts          something permanent about them that is now established
+
+For those, the body is JUST THAT ROOM — one paragraph about that one thing — and everything else
+about them stays exactly as it is. That is the whole point: a room is edited without touching the
+rest of the card.
+
+Use "none" only when the change is to who they now ARE as a whole and no single room holds it — a
+death, a transformation, a person the chapter has genuinely replaced. THEN, and only then, rewrite
+the whole description as it now stands, keeping everything still true and folding the change into
+it, because what you return replaces what was there.
 
 Rules:
-- Rewrite the WHOLE description, not the change. Keep everything still true — appearance, role,
-  voice, relationships — and fold the change into it. What you return replaces what was there.
-- Change means something the narration establishes: an injury, a death, a a promotion, a move, a
+- Change means something the narration establishes: an injury, a death, a promotion, a move, a
   relationship that turned, a thing learned or lost. Not a mood in one scene.
 - If a character was merely present, leave them out of the answer entirely.
 - Only the narration commits the story. Dialogue has been removed already; do not infer from what
@@ -101,8 +118,14 @@ export const MEMORY_SCHEMA = {
           name:  { type: 'string' },
           body:  { type: 'string' },
           label: { type: 'string' },
+          // WHERE THE CHANGE BELONGS. `none` is the whole-description rewrite this pass has always
+          // done; a room name is the change landing in one part of the card and leaving the rest
+          // alone. Required, so the model answers rather than letting the caller assume.
+          field: { type: 'string',
+                   enum: ['none', 'appearance', 'facts', 'history', 'interiority',
+                          'relationships', 'role', 'voice'] },
         },
-        required: ['name', 'body', 'label'],
+        required: ['name', 'body', 'label', 'field'],
       },
     },
   },

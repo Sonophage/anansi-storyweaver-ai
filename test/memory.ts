@@ -20,7 +20,7 @@ const NARRATED = 'The wrist gave under the weight and she did not cry out.';
 
 let asked: any = null;
 /** What the fake returns. A name that matches nobody is how the "never invent" check is driven. */
-let answer: any[] = [{ name: 'Vel', body: AFTER, label: 'arm broken, trust gone' }];
+let answer: any[] = [{ name: 'Vel', body: AFTER, label: 'arm broken, trust gone', field: 'none' }];
 /** And what the EXTRACT role returns. One fake, two roles: `remember` reads `characters` and
  *  `extract` reads `entries`, so returning both keys serves whichever one asked. */
 let found: any[] = [{ title: 'The Wrist Strap', body: 'Leather, cut from a saddle girth.',
@@ -157,6 +157,8 @@ let proposal: any;
   assert.match(proposal.delta, /arm broken/, 'and the four-word label rides in delta, for the timeline');
   assert.strictEqual(db.statesForStory(story.id).size, 0, 'nothing is written to canon until accepted');
   ok('a chapter proposes a state per changed character, in force from the next chapter');
+
+
 }
 
 // ---- 3. accepting writes a state, not an entry ----
@@ -513,6 +515,45 @@ let retProposal: any;
   assert.strictEqual(db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length,
     before, 'retire: false must switch it off, the way summarise/remember/extract: false do');
   ok('and retire: false opts out of it');
+}
+
+// #18/PLAN-08. The memory pass rewrote the WHOLE description every time, which is the overwrite
+// this plan exists to stop — and the reason `facts` had to be invented, because a state REPLACES
+// the body and everything the rewrite did not repeat was dropped from that chapter on.
+{
+  const ch: any = db.chapters(story.id).at(-1);
+  db.addPassage({ ...story, storyId: story.id, chapterId: ch.id,
+    body: 'Vel would not look at the bridge, and would not say why.' });
+  answer = [{ name: 'Vel', body: 'She will not cross the bridge at night.',
+              label: 'afraid of the bridge', field: 'interiority' }];
+  found = [];
+  const before = db.statesForStory(story.id).get(vel)?.length ?? 0;
+  await routes['POST /api/remember'](ctx({ storyId: story.id, chapterId: ch.id }));
+  const prop = db.proposalsOf(story.id).find((p: any) => p.field === 'interiority');
+  assert.ok(prop, 'a change that belongs in one room is proposed as that room');
+  assert.strictEqual(prop.entry_type, 'character', 'not as a state — a state replaces the body');
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: prop.id, accept: true }));
+  const room = db.addonsOf(story.id).find((a: any) => a.slot === 'interiority' && a.entry_id === vel) as any;
+  assert.match(room.body, /will not cross the bridge/);
+  assert.strictEqual(db.statesForStory(story.id).get(vel)?.length ?? 0, before,
+    'and the timeline is untouched — nothing replaced her description');
+  ok('the memory pass lands a change in one room and leaves the rest of the card alone');
+}
+
+{
+  // AND `none` STILL WRITES A STATE. That path is the one the pass was built for — a death, a
+  // transformation, a person the chapter genuinely replaced — and it is kept, not migrated away.
+  const ch: any = db.chapters(story.id).at(-1);
+  answer = [{ name: 'Vel', body: 'Vel is dead at the foot of the stair.', label: 'dead',
+              field: 'none' }];
+  const before = db.statesForStory(story.id).get(vel)?.length ?? 0;
+  await routes['POST /api/remember'](ctx({ storyId: story.id, chapterId: ch.id }));
+  const st = db.proposalsOf(story.id).find((p: any) => p.entry_type === 'state' && /dead/.test(p.body));
+  assert.ok(st, 'a change to who she now IS is still a state');
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: st.id, accept: true }));
+  assert.strictEqual(db.statesForStory(story.id).get(vel)!.length, before + 1,
+    'and accepting it writes one');
+  ok('  and a change to the whole of her is still a state, which is what that path is for');
 }
 
 srv.close();
