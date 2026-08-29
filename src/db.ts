@@ -199,6 +199,7 @@ function migrate() {
   // the drop, and named by no index, view or trigger.
   drop('stories', 'system_block_override', 'a P1 stub for a per-story SYSTEM, never read');
   drop('passages', 'token_counts', 'a P1 stub for SPEC §7.5 tokenizer-keyed counts, never read');
+  drop('stories', 'strip_patterns', '#26: strip-from-output is ripped, feature and column');
 
   // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
   // and is idempotent, so by the time this line is reached every outfit is an addon in the `outfit`
@@ -242,7 +243,7 @@ CREATE TABLE IF NOT EXISTS stories (
   persona TEXT,              -- who you are in it. The "You · Ilva Marren" byline.
   locked_character TEXT,     -- the one the model never writes. See migrate().
   writing_style TEXT, direction TEXT, spice INTEGER DEFAULT 2,
- strip_patterns TEXT, max_context INTEGER,
+  max_context INTEGER,
   status TEXT DEFAULT 'in_progress',   -- in_progress | finished | draft
   active_branch TEXT,                  -- which path you are writing on
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -1508,14 +1509,14 @@ export function updateStory(id: string, s: any) {
   if (!cur) return;
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
-      direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,
+      direction=?,spice=?,spice_note=?,max_context=?,status=?,model=?,
       locked_character=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
       lore_from=?,voice_sample=?,style_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
       p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
-      p('stripPatterns', 'strip_patterns') ?? null, p('model', 'model') ?? null,
+      p('model', 'model') ?? null,
       p('lockedCharacter', 'locked_character') ?? null,
       Number(p('chapterHero', 'chapter_hero') ? 1 : 0),
       Number(p('chapterSticky', 'chapter_sticky') ? 1 : 0),

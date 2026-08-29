@@ -273,7 +273,7 @@ async function mend(v: any, manifest: any, prose: string, using: string, maxToke
     const r = await chat(MEND, `${broken}\n\nPASSAGE:\n${prose}`,
       { temperature: 0.3, max_tokens: maxTokens, model: using,
         chat_template_kwargs: { enable_thinking: false } });
-    const fixed = clean(r.prose, v.story.stripPatterns);
+    const fixed = clean(r.prose);
     // ponytail: a length floor is the whole guard against a repair that rewrites instead of
     // correcting. It catches the empty answer, the refusal and the one-line summary; it cannot
     // catch a same-length rewrite. Compare sentence-by-sentence if that turns out to happen.
@@ -339,7 +339,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // The streamed draft is provisional — the client discards the ghost and saves what this
     // returns — so the correction happens here, in the window the writer already expects the
     // passage to settle in. `mend` returns null when there is nothing wrong, which is most calls.
-    const prose = clean(r.prose, v.story.stripPatterns);
+    const prose = clean(r.prose);
     const m = await mend(v, manifest, prose, using, Number(c.gen.max_tokens) || 900);
     // Handed back so `accept` can tie the take to this call. The manifest is logged here, before
     // any passage exists, so nothing connected a take to the canon it was written against.
@@ -579,7 +579,7 @@ async function summarise(c: Ctx, storyId: string, chapterId?: string) {
   // 280 rather than 400: 180 words is about 240 tokens, and the old headroom was room to pad in.
   const r = await chat(SUMMARY(180), ps.map((p: any) => p.body).join('\n\n'),
     { temperature: 0.2, max_tokens: 280, chat_template_kwargs: { enable_thinking: false } });
-  const summary = clean(r.prose, v.story.stripPatterns);
+  const summary = clean(r.prose);
   db.setSummary(ch.id, summary, ps.at(-1)!.ordinal, db.proseHash(bodies));
   return { summary, chapterId: ch.id };
 }
@@ -1850,7 +1850,7 @@ export const routes: Record<string, Handler> = {
     const text = run.map((ch) => `Chapter ${ch.index} — ${ch.title}: ${ch.summary}`).join('\n\n');
     const r = await chat(ARC(from, to, 220), text,
       { temperature: 0.2, max_tokens: 500, chat_template_kwargs: { enable_thinking: false } });
-    const summary = clean(r.prose, v.story.stripPatterns);
+    const summary = clean(r.prose);
     if (!summary) return { error: 'the roll-up returned nothing usable' };
     db.addArc(v.id, { branchId: v.branchId, fromChapter: from, toChapter: to,
       title: `${run[0].title} to ${run.at(-1)!.title}`, summary });

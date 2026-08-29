@@ -1391,4 +1391,20 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
   });
 }
 
+// THE <think> STRIP, WHICH #26 NEARLY TOOK WITH IT. `clean` had two halves — the writer's own
+// regexes and this — and ripping strip-from-output meant deleting one and keeping the other. The
+// whole suite passed either way, because nothing anywhere asserted the surviving half; deleting it
+// too would have shipped green and put reasoning tags in the prose the first time
+// `enable_thinking: false` was missed on a reasoning model. Falsified by removing the replace: red.
+{
+  const { clean } = await import('../src/story.ts');
+  ok('clean() strips <think>, every block of it, and leaves prose alone', () => {
+    assert.equal(clean('<think>weighing it up</think>She did not answer.'), 'She did not answer.',
+      'reasoning scaffolding never reaches the page');
+    assert.equal(clean('Before.<think>a</think>Between.<think>b</think>After.'),
+      'Before.Between.After.', 'every block, not just the first');
+    assert.equal(clean('  She waited.  '), 'She waited.', 'prose with no scaffolding is only trimmed');
+  });
+}
+
 console.log(`\n${n} checks passed`);

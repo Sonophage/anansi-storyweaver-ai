@@ -90,7 +90,6 @@ export const STORY_FIELDS = [
         + 'not the same writing style. It gets its own block under the voice.' },
   { k: 'direction',    label: 'Where this is going', area: true,
     hint: 'Aims the story without disclosing it. Never restated to the reader.' },
-  { k: 'stripPatterns', label: 'Strip from output', hint: 'One regex per line. Local models leak scaffolding.' },
 ];
 
 export const isSpeech = (t) => /^["“]/.test(String(t).trim());

@@ -82,7 +82,7 @@ const STORY = {
   story: { title: 'The Ashfall Concordat', genre: 'political fantasy', premise: 'Six houses.',
            setting: 'Ashfall Hall', pov: 'third limited', persona: 'Ilva Marren',
            writingStyle: 'Cold, spare.', direction: 'She signs, or she burns the hall.',
-           spice: 3, status: 'in_progress', stripPatterns: null,
+           spice: 3, status: 'in_progress', 
            // This book asks for its cover at the head of each chapter, which is what makes the
            // plate render at all. Off is the default everywhere else, so the check below is
            // testing the switch rather than the absence of one.

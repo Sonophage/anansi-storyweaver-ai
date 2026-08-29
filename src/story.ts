@@ -26,7 +26,7 @@ const toStory = (r: any) => ({
   // #18. The instruction is `writingStyle` and always was; these two are the sample and the
   // book's own genre flavour, and the engine reads all three separately now.
   voiceSample: r.voice_sample ?? '', styleNote: r.style_note ?? '',
-  maxContext: r.max_context, status: r.status, stripPatterns: r.strip_patterns,
+  maxContext: r.max_context, status: r.status,
   spiceNote: r.spice_note, model: r.model, lockedCharacter: r.locked_character,
   // Whether the surface should ask for the opening passage itself. Absent on a row written before
   // the column existed, so it reads as ON, which is the default the column carries too.
@@ -255,16 +255,17 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
   return { manifest, prompt: render(manifest) };
 }
 
-/** Strip whatever the writer listed, plus reasoning scaffolding. */
-export function clean(text: string, patterns?: string | null) {
-  let out = text.replace(/<think>[\s\S]*?<\/think>/g, '');
-  // The writer's own patterns, run on the writer's own machine — but two people share this
-  // process, so a runaway pattern would stall the other one's generation too. Bounded rather
-  // than trusted: short patterns, few of them.
-  const lines = (patterns ?? '').split('\n').map((s) => s.trim())
-    .filter((s) => s && s.length <= 200).slice(0, 20);
-  for (const line of lines) {
-    try { out = out.replace(new RegExp(line, 'g'), ''); } catch { /* not a valid regex; skip it */ }
-  }
-  return out.trim();
+/** Strip reasoning scaffolding.
+ *
+ *  This used to also run per-story regexes the writer typed into "Strip from output" — ripped in
+ *  #26, feature and column both. Nobody had ever set one, and it was a user-supplied regex run on
+ *  a process two people share, so a runaway pattern would have stalled the other writer's
+ *  generation as well as its author's.
+ *
+ *  THE `<think>` STRIP STAYS AND IS NOT DEFENSIVE. This is a reasoning model, and
+ *  `enable_thinking: false` is mandatory for prose precisely because the tags come back otherwise.
+ *  Deleting this with the rest of the function would put them in the prose the first time that
+ *  flag is missed. */
+export function clean(text: string) {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 }
