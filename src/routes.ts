@@ -647,6 +647,17 @@ async function check(c: Ctx, storyId: string, passageId: string) {
       reached: x.reached !== 0 })) };
 }
 
+function ledgerInto(c: Ctx, from: string, into: string) {
+  const src = db.getStory(from) as any;
+  if (!src) return null;
+  const target = into === 'new'
+    ? (db.createStory(c.owner, { title: `${src.title} — threads` }) as any)?.id
+    : into;
+  if (!target) return null;
+  const moved = db.copyLedger(from, target, c.owner);
+  return moved ? { ...moved, into: target } : null;
+}
+
 export const routes: Record<string, Handler> = {
   // ---- library ----
   'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: c.defaultModel ?? model(),
@@ -780,6 +791,12 @@ export const routes: Record<string, Handler> = {
     if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
     return { ...made, droppedCast: dropped };
   },
+/** Copy one book's ledger into another, minting the other if `into` is the literal `new`.
+ *
+ *  Shared by the delete rescue and by the standalone "start a book from these threads", because
+ *  they are one operation with different follow-ups and two copies of it would drift on the day
+ *  one of them learns about a table the other does not. */
+
   /** Delete a book, and optionally send its ledger somewhere first.
    *
    *  THE PROSE IS THE BOOK AND GOES WITH IT. The ledger is not: a cast, a city and its rules are
@@ -794,7 +811,7 @@ export const routes: Record<string, Handler> = {
     const into = String(c.body.into ?? '').trim();
     let moved: { cards: number; edges: number } | null = null;
     if (into) {
-      moved = db.copyLedger(String(c.body.id ?? ''), into, c.owner);
+      moved = ledgerInto(c, String(c.body.id ?? ''), into);
       if (!moved) return { error: 'those threads cannot go to that book, so nothing was deleted' };
     }
     // A DELETE THAT EMPTIES SOMEBODY ELSE'S LEDGER IS THE SAME LOSS THIS ROUTE JUST LEARNED TO
@@ -809,6 +826,16 @@ export const routes: Record<string, Handler> = {
 
   /** Idea in, skeleton out. Creates nothing: the writer edits every field first, and the
    *  characters arrive as proposed entries rather than as canon. */
+  /** Start a book from this one's threads, or top up another with them. Nothing is deleted and
+   *  nothing is moved — a card is copied, whole, and both books keep their own from then on. For
+   *  a LINK rather than a copy, a book follows another's ledger instead; these are two different
+   *  things and the surface says so where each is offered. */
+  'POST /api/threads/copy': (c) => {
+    const moved = ledgerInto(c, String(c.body.storyId ?? ''), String(c.body.into ?? 'new'));
+    if (!moved) return { error: 'those threads cannot go to that book' };
+    return { ...moved, stories: db.listStories(c.owner) };
+  },
+
   'POST /api/spark': async (c) => {
     const idea = String(c.body.idea ?? '').trim();
     if (idea.length < 8) return { error: 'give it a sentence to work from' };

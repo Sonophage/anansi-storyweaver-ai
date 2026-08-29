@@ -273,7 +273,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
-  'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink'].map((k) => `[data-${k}]`).join(',');
+  'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -1707,6 +1707,19 @@ const PANELS = {
         <div class="hint">At full strength a picture under text is unreadable and at nothing it is
           not there. Save to see it.</div>` : ''}` : ''}
 
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Part of a world</div>
+      <select class="field" data-story="loreFrom" style="margin:0">
+        <option value="">Stands on its own</option>
+        ${LIB.filter((x) => x.id !== S.storyId && x.lore_from !== S.storyId)
+          .map((x) => `<option value="${esc(x.id)}"${
+            V.loreFrom === x.id ? ' selected' : ''}>Follows ${esc(x.title)}</option>`).join('')}
+      </select>
+      <div class="hint">${V.follows
+        ? `Every thread in ${esc(V.follows.title)} reaches this book too, and fires by the same
+           rules. They are the same cards, not copies — edit one there and it changes here.`
+        : `A world bible is just a book that holds threads. Follow it and its cast, its places and
+           its rules reach this book without being copied into it.`}</div>
+
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
         <a class="btn ghost" href="${api.exportUrl(S.storyId, 'markdown')}" download
@@ -1715,6 +1728,10 @@ const PANELS = {
           style="flex:1; text-decoration:none">JSON</a>
       </div>
       <button class="btn ghost" data-exportdb="1" style="margin-top:7px">As a standalone database</button>
+      <button class="btn ghost" data-forkthreads="1" style="margin-top:7px">Start a new book from
+        these threads</button>
+      <div class="hint">A COPY, and both books keep their own from then on. For one world across
+        several books, follow another book's threads above instead — that is a link, not a copy.</div>
       <div class="hint">The database leaves as one file and comes back through Import. Markdown and
         JSON are for reading elsewhere.</div>
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Put it away</div>
@@ -1737,6 +1754,7 @@ const PANELS = {
           go with it. A cast, a city and its rules outlive the book they were written for.</div>
         <select class="field" data-rescue="1" style="margin:0">
           <option value="">Let them go too</option>
+          <option value="new">Move them into a new book</option>
           ${LIB.filter((x) => x.id !== S.storyId)
             .map((x) => `<option value="${esc(x.id)}">Move them into ${esc(x.title)}</option>`).join('')}
         </select>
@@ -2616,6 +2634,21 @@ function connections(e) {
 }
 
 function cardFace(e, slots) {
+  // A FOLLOWED CARD IS READ HERE AND EDITED WHERE IT LIVES. Saving it from this book would not
+  // change the world's copy — `upsertEntry` is scoped by story, so the id would not resolve and a
+  // DUPLICATE would be minted in this book instead. That is the quiet kind of wrong: two cards
+  // with one name, drifting, and the writer believing they edited the shared one.
+  if (e.sharedFrom) return `<div style="display:flex; flex-direction:column">
+    ${cardHead(e, [])}
+    <div class="card" style="flex-direction:row; align-items:center; gap:9px; margin:0 0 10px">
+      <span style="font-size:12px; color:var(--faint)">This thread lives in ${esc(e.sharedFrom)}</span>
+      <button data-open="${esc(e.sharedFromId)}" style="margin-left:auto; padding:6px 11px;
+        border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11px"
+        >Open that book</button></div>
+    <div class="hint" style="margin-top:0">${esc(e.body || 'Nothing written down yet.')}</div>
+    <div class="hint">It reaches this book's prompts and fires by the same rules. Editing it there
+      changes it everywhere, which is the point of following rather than copying.</div></div>`;
+
   const rooms = (e.addons ?? []).filter((a) => a.slot !== 'outfit');
   // The outfit room is drawn from `e.outfits` rather than from the addons, so it earns its jump
   // link the same way — by holding something. See the note in `src/context.ts` on why the coat
@@ -2925,7 +2958,11 @@ function entryCard(e) {
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
       <span style="font-size:14.5px; color:var(--ink-bright)">${esc(e.title)}</span>
       <span class="tag" style="border-color:${gold ? 'rgba(217,178,106,.35)' : 'var(--chip)'};
-        color:${gold ? 'var(--gold)' : 'var(--dim)'}">${pill}</span></div>
+        color:${gold ? 'var(--gold)' : 'var(--dim)'}">${pill}</span>
+      ${e.sharedFrom ? `<span class="tag" style="border-color:var(--chip); color:var(--faint)"
+        >from ${esc(e.sharedFrom)}</span>` : ''}
+      ${e.retiredAtChapter != null ? `<span class="tag" style="border-color:var(--chip);
+        color:var(--warn)">finished ch.${esc(String(e.retiredAtChapter))}</span>` : ''}</div>
     <div class="kind">${esc(e.entryType ?? 'lore')}</div>
     <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(e.body ?? '')}</div></button>`;
 }
@@ -4569,6 +4606,18 @@ document.addEventListener('click', async (e) => {
     return toast('Connected. It arrives when this one does.');
   }
   if (d.unlink) { V = await api.unlink(S.storyId, d.unlink); paint(); return toast('Disconnected.'); }
+
+  if (d.forkthreads) {
+    const n = (V.entries ?? []).filter((e) => !e.sharedFrom).length;
+    if (!n) return toast('There are no threads of its own to take.');
+    const r = await api.copyThreads(S.storyId, 'new');
+    if (r.error) return toast(r.error);
+    LIB = r.stories ?? LIB;
+    // Straight into it, because a new book you cannot see is indistinguishable from a press that
+    // did nothing — and the toast is gone in three seconds.
+    await openStory(r.into);
+    return toast(`${r.cards} thread${r.cards === 1 ? '' : 's'} in a new book.`);
+  }
 
   // Every card opens on its face. Carrying the last card's view over means pressing a thread to
   // READ it and landing in a form of empty boxes, which is the thing the face exists to avoid.

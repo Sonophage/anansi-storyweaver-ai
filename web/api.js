@@ -81,6 +81,9 @@ export const api = {
   // `into` sends the book's threads to another of yours before it goes. The prose is the book and
   // goes with it; a cast and a city are work that outlives the story they were written for.
   deleteStory:  (id, into)       => j('/api/stories', 'DELETE', { id, ...(into ? { into } : {}) }),
+  // Copy this book's threads into another, or into a new one — `into` of 'new' mints it. A COPY,
+  // not a link: for a shared world a book follows another's ledger instead.
+  copyThreads:  (storyId, into) => j('/api/threads/copy', 'POST', { storyId, into }),
   story:        (id, chapter)    => j(`/api/story?story=${id}${chapter ? `&chapter=${chapter}` : ''}`),
   saveStory:    (id, story)      => j('/api/story', 'POST', { id, story }),
   saveChapter:  (storyId, chapterId, chapter) => j('/api/chapter', 'POST', { storyId, chapterId, chapter }),

@@ -280,6 +280,53 @@ ok('a story cannot be deleted by someone who does not own it');
       'and the world knows who would lose threads if it went');
   }
   ok('a book can follow another book\'s threads, one hop, same owner, its own cards winning');
+
+  // A COPY IS NOT A LINK, and the two doors sit next to each other on the same panel, so the
+  // difference is asserted rather than left to the wording.
+  {
+    const from = db.createStory(alice, { title: 'The Ash Cycle' }).id;
+    db.upsertEntry(from, alice, { title: 'the Ambersand', body: '[a house]', entryType: 'lore' });
+    const ctxFor = (body: any) => ({ body, query: new URLSearchParams(), owner: alice,
+      slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+      defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+    const r: any = routes['POST /api/threads/copy'](ctxFor({ storyId: from, into: 'new' }));
+    assert.ok(!r.error, r.error);
+    assert.strictEqual(r.cards, 1);
+    assert.notStrictEqual(r.into, from, 'a new book, not this one');
+    assert.match((db.getStory(r.into) as any).title, /Ash Cycle/,
+      'named after the book it came from, so it is findable on the shelf');
+    // BOTH BOOKS KEEP THEIR OWN. This is the half that separates it from following: edit one and
+    // the other does not move.
+    db.upsertEntry(r.into, alice, { id: db.entriesOf(r.into)[0].id, title: 'the Ambersand',
+      body: '[burned to the ground]', entryType: 'lore', activation: 'always_on', keys: [],
+      lastEditor: 'human' });
+    assert.match((db.entriesOf(from)[0] as any).body, /a house/,
+      'the book it was copied FROM is untouched — a copy, not a link');
+    assert.strictEqual((db.getStory(r.into) as any).lore_from ?? null, null,
+      'and the new book follows nothing: it owns what it was given');
+  }
+  ok('threads can start a new book, and that is a copy rather than a link');
+
+  // AND A FOLLOWED BOOK CANNOT BE DELETED OUT FROM UNDER ITS FOLLOWERS. Built without a check
+  // first, which the falsification caught: stubbing the guard left every assertion green.
+  {
+    const world = db.createStory(alice, { title: 'The Ash Cycle' }).id;
+    const book = db.createStory(alice, { title: 'The Anagram of Ash' }).id;
+    db.upsertEntry(world, alice, { title: 'the Ambersand', body: '[a house]', entryType: 'lore' });
+    db.updateStory(book, { loreFrom: world });
+    const ctxFor = (body: any) => ({ body, query: new URLSearchParams(), owner: alice,
+      slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+      defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+    const no: any = routes['DELETE /api/stories'](ctxFor({ id: world }));
+    assert.match(no.error ?? '', /The Anagram of Ash/,
+      'the refusal NAMES who needs it, or the writer cannot act on it');
+    assert.ok(db.getStory(world), 'and the book is still there');
+    // The way through is the one the message describes, and then it goes.
+    db.updateStory(book, { loreFrom: null });
+    const yes: any = routes['DELETE /api/stories'](ctxFor({ id: world }));
+    assert.ok(yes.ok && !db.getStory(world), 'unfollow it and the book can go');
+  }
+  ok('a book other books follow is refused by name, and goes once nothing needs it');
 }
 
 // Export. A story handed to someone else must carry that story and nothing else — the point
