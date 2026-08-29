@@ -17,8 +17,15 @@ await page.click('[data-nav="canon"]');
 const cards = await page.eval("document.querySelectorAll('#page [data-entry]').length");
 console.log("  entries listed on the Worlds page: " + cards);
 await page.click('#page [data-entry]');
-ok("clicking an entry opens the editor", await page.eval("!!document.querySelector('[data-f=\"body\"]')"));
-ok("  and the name field is populated", !!(await page.eval("document.querySelector('[data-f=\"title\"]')?.value")));
+// A CARD OPENS ON ITS FACE, not its form — that is the whole point of the face, so that pressing a
+// thread to READ it does not land you in a page of empty boxes. This asserted the form directly
+// and had been dying on it since; `panels.js` and `phone.js` learned to press Edit and this file
+// was missed. Both halves are asserted now, so neither can quietly become the other.
+ok("clicking an entry opens its face", await page.eval("!!document.querySelector('[data-cardview=\"form\"]')"));
+await page.click('[data-cardview="form"]');
+await wait(300);
+ok("  and Edit opens the form", await page.eval("!!document.querySelector('[data-f=\"body\"]')"));
+ok("  with the name field populated", !!(await page.eval("document.querySelector('[data-f=\"title\"]')?.value")));
 
 // editing it actually saves
 await page.eval("document.querySelector('[data-f=\"title\"]').value = 'RENAMED BY TEST'");

@@ -126,11 +126,14 @@ human-edited.
 - **A leftover server on a bench port breaks `test/scope.ts`.** It boots its own on 5187-5196; a
   stray debug server on 5188 makes the allowlist test report a broken gate. Kill by port, not by a
   `pkill` on an env var, which never matches.
-- **`buttons` and `handlers` have been DEAD in the browser harness, and not because of recent work.**
-  Verified 2026-08-28 by running both at `c06b51a` as well as at HEAD: `buttons` dies after 0
-  assertions, `handlers` after 1, identically at both. They are in the default set, so every run
-  that reports the other sixteen green is reporting on sixteen. Nobody has looked at them; do that
-  before trusting a full pass.
+- **`buttons` and `handlers` were DEAD in the harness, and the cause was one line of drift.**
+  A card opens on its FACE now; both scenarios reached straight for form controls — the activation
+  chips, `[data-f]`, the wardrobe. Commit `4ae74a9` taught `panels.js` and `phone.js` to press Edit
+  and these two were missed, so they died on their first click and had been reporting nothing since.
+  **`buttons` is repaired: 0 → 17 ok, 0 red.** **`handlers` went 1 → 30 ok and still dies** — the
+  same drift at further sites, each fix uncovering the next. Not finished, and it is three cycles
+  in; whoever picks it up should expect layers rather than one cause.
+  Both now assert the FACE and then the form, so the two views cannot quietly become one again.
 - **Seth runs the browser harness only when he asks for it.** Test what you touched. Be honest that
   a change to a shared view (the card's default, for instance) touches every scenario that opens a
   thread — three broke that way today and only a full pass found them.

@@ -41,6 +41,11 @@ await page.goto(B + "/#" + sid + "/threads");
 // afterwards gave undefined and turned four probe errors into four fake bugs.
 const eid = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
 await page.click('[data-entry="' + eid + '"]');
+// A card opens on its FACE. Everything below reaches for the form — the activation chips, the
+// kind chips — so press Edit first, the way panels.js and phone.js already do. This scenario was
+// missed when they were fixed and has died on the first click ever since.
+await page.click('[data-cardview="form"]');
+await wait(300);
 await page.click('[data-act="triggered"]');
 await wait(700);
 let e = (await entries()).find((x) => x.id === eid);
@@ -299,10 +304,16 @@ ok("  and offers no editor until one is picked", !before.includes('When it reach
 const leid = await page.eval("document.querySelector('#page [data-entry]')?.dataset.entry");
 await page.eval("(() => { document.querySelector('[data-entry=\"" + leid + "\"]').click(); return 1; })()");
 await wait(1200);
+// A card opens on its FACE here too. Assert the face first so the two views cannot quietly become
+// one, then press Edit — the same fix as the activation chips at the top of this file, and the one
+// `panels.js` and `phone.js` already carry.
+ok("  pressing one opens its face", await page.eval("!!document.querySelector('#page [data-cardview=\"form\"]')"));
+await page.eval("(() => { document.querySelector('#page [data-cardview=\"form\"]').click(); return 1; })()");
+await wait(700);
 const opened = (await page.eval("document.querySelector('#page .aside')?.textContent") || '').trim();
 // The three rooms of the entry editor. Any one of them proves the editor rendered rather than the
 // hint — the body box proves it has the thread's own text and not an empty form.
-ok("  pressing one opens it, with no need to find its book on the shelf first",
+ok("  and Edit opens the form, with no need to find its book on the shelf first",
    opened.includes('When it reaches the model') && opened.includes('Type'));
 const body = await page.eval("document.querySelector('#page .aside textarea')?.value ?? ''");
 ok(`  and the box holds the thread's own body (${JSON.stringify(body.slice(0, 30))})`, body.trim().length > 0);
@@ -334,6 +345,10 @@ await wait(700);
 // A character, or there is no wardrobe to drive. The fixture's persona is one.
 await page.eval("(() => { document.querySelector('[data-kind=\"character\"]')?.click(); return 1; })()");
 await wait(800);
+// The wardrobe is on the FORM, and the card is back on its face after the save above. Same fix as
+// the activation chips at the top of this file.
+await page.eval("(() => { document.querySelector('[data-cardview=\"form\"]')?.click(); return 1; })()");
+await wait(400);
 await page.eval("(() => { document.querySelector('[data-of=\"name\"]').value = 'Plate';"
   + " document.querySelector('[data-of=\"body\"]').value = 'Scarred half-armour, buckled wrong.';"
   + " return 1; })()");
