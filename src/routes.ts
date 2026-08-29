@@ -262,6 +262,29 @@ export function roomPieces(field: string | null, body: string, slots: { name: st
   return out.length ? out : [{ field, body }];
 }
 
+/** The change, with everything the card already says taken back out.
+ *
+ *  A `changed` proposal is meant to be the size of one room. Measured over eight runs against the
+ *  live library on 2026-08-29, roughly one proposal in six came back as the character's WHOLE CARD
+ *  restated with the new thing folded in — the room named correctly, the body carrying the entire
+ *  description along with it. Accepted with Replace, that writes a whole card into one room.
+ *
+ *  A sentence the card already contains adds nothing to a room edit whether the answer is a rewrite
+ *  or not, so dropping it is safe in both cases and needs no threshold and no judgement about which
+ *  kind of answer this is — Rule 5 again. What remains is what the chapter actually added. If
+ *  nothing remains, the answer said nothing new and the caller drops it.
+ *
+ *  Matching is normalised and needs 25 characters, the same floor the retirement scan's quote check
+ *  uses and for the same reason: without it, short fragments match everything and the strip eats
+ *  the answer. */
+export function withoutEcho(body: string, card: string) {
+  const flat = (x: string) => x.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const known = flat(card);
+  const kept = String(body).split(/(?<=[.;])\s+/)
+    .filter((part) => { const f = flat(part); return f.length < 25 || !known.includes(f); });
+  return kept.join(' ').trim();
+}
+
 const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
   const reached = new Set(manifest.blocks
     .filter((b: any) => b.kind.startsWith('CANON') && b.state === 'included').map((b: any) => b.id));
@@ -457,6 +480,20 @@ async function remember(storyId: string, chapterId: string) {
       // proposal made of it is a card edit that would write the word `none` into a room.
       if (/^none[.\s]*$/i.test(piece.body.trim())) continue;
       const field = piece.field;
+      // WHAT THE CARD ALREADY SAYS IS NOT A CHANGE — for a ROOM. See `withoutEcho`: about one
+      // proposal in six came back as the whole card restated under a room's label, and a sentence
+      // already on the card adds nothing to a room edit either way.
+      //
+      // NOT ON THE `none` PATH, and test/memory.ts caught that on the first attempt. A state IS the
+      // whole description rewritten with the change folded in — that is the contract the state path
+      // exists for, and what it repeats from the card is the part that is still true. Stripping it
+      // there would leave a state holding only the new sentence, which then REPLACES the body from
+      // that chapter on and silently drops everything else about the character.
+      if (field) {
+        const fresh = withoutEcho(piece.body, cardText(who, ch.index));
+        if (fresh.length < 12) continue;
+        piece.body = fresh;
+      }
       const offer = roomOffer(who, field, piece.body);
       if (offer === 'said') continue;
 

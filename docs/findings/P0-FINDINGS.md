@@ -1916,3 +1916,43 @@ percentage so a small denominator cannot hide in one, which is F10's rule.
 fixture measured against one alternative. `bench/rooms.ts check` validates both graders in both
 directions before any of it is believed, and asserts that a run naming every room of every character
 is scored as intruding rather than as recall.
+
+## F47 — a room edit was carrying the whole card about one time in six, and neither the fixture nor the writer's own sample said so (2026-08-29)
+
+With F46's fix in, the second live chapter end routed correctly — Halloran to `interiority`, Wrenn to
+`appearance`, nothing into `facts`, the merely-present character left alone. Both bodies were the
+character's ENTIRE card restated with the change folded in. Accepted with Replace, that writes a
+whole description into one room.
+
+**Two samples, both wrong, in opposite directions.** The writer saw 2 of 2 and reported it as always.
+`bench/rooms.ts` saw 1 of 25 and would have reported it as absent — and after the fixture's cards
+were rewritten to match the shape of real ones (dense bracketed records rather than one-line
+descriptions) it saw 0 of 25, which is worse. Measured against the writer's own chapter and cards
+over eight runs: **3 of 19 proposals, about one in six.**
+
+The fixture could not reproduce it and the fix could not have been measured on it. What worked was
+running the shipped pass against the real story, which is available here in a way it is not for most
+projects and should be reached for sooner.
+
+**`withoutEcho` drops any sentence the card already contains, normalised, with a 25-character floor.**
+It needs no threshold and no judgement about which kind of answer this is: a sentence already on the
+card adds nothing to a room edit whether the answer is a rewrite or not. What remains is what the
+chapter added; if nothing remains, the answer said nothing new and is dropped.
+
+**It is NOT applied on the `none` path**, and `test/memory.ts` caught that on the first attempt. A
+state IS the whole description rewritten with the change folded in — what it repeats from the card
+is the part that is still true — and a state REPLACES the body from that chapter on. Stripping it
+there would have left a state holding one sentence and silently dropped everything else about the
+character, which is precisely the overwrite this whole phase exists to stop.
+
+| | rewrites, live chapter, 8 runs |
+|---|---|
+| before | 3/19 (16%) |
+| after | **0/21** |
+
+**0 of 21 bounds the rate under roughly 14%. It does not mean never** — F12 declared a defect gone on
+zero-in-sixty when the true rate was 4%.
+
+Unresolved and recorded rather than fixed: on that chapter, 6 of 21 proposals still choose `facts`.
+Whether those are wrong is not established — this run has no per-proposal ground truth — and the
+number is here so the next attempt starts from it rather than from an impression.

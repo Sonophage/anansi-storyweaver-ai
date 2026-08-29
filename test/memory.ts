@@ -610,4 +610,26 @@ srv.close();
   ok('a body of the single word "none" is not written into a room');
 }
 
+// A room edit carries the CHANGE, not the card. Measured against the live library on 2026-08-29:
+// about one proposal in six came back as the whole card restated under a room's label, which
+// accepted with Replace writes a whole description into one room.
+{
+  const { withoutEcho } = await import('../src/routes.ts');
+  const card = '[Ilse: 44, harbourmaster at Cordray nine years. Black hair cropped short, a scar '
+             + 'through one eyebrow from a winch cable. Keeps the tide book in a canvas satchel.]';
+  const rewrite = 'Ilse: 44, harbourmaster at Cordray nine years. Black hair cropped short, a scar '
+                + 'through one eyebrow from a winch cable. Her hands are burned to the wrist now.';
+  assert.strictEqual(withoutEcho(rewrite, card), 'Her hands are burned to the wrist now.',
+    'the card is taken back out and the change is what is left');
+  const clean = 'Her hands are burned to the wrist and the scarring will not fade.';
+  assert.strictEqual(withoutEcho(clean, card), clean, 'a body that was already the change is untouched');
+  assert.strictEqual(withoutEcho(card.replace(/[\[\]]/g, ''), card), '',
+    'an answer that is only the card says nothing new and comes back empty');
+  // THE 25-CHARACTER FLOOR. Without it a short fragment matches somewhere in the card and the
+  // strip eats a real change — the same floor, for the same reason, as the quote check.
+  assert.strictEqual(withoutEcho('She is gone.', card), 'She is gone.',
+    'a short sentence is kept even if its words appear on the card');
+  ok('a room edit carries the change and not the card');
+}
+
 console.log(`\n${n} checks passed`);

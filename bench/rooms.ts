@@ -30,15 +30,28 @@ const SLOTS = [{ name: 'appearance' }, { name: 'facts' }, { name: 'history' }, {
 
 // One chapter, four people, and what each one's change actually is. `rooms: []` means the chapter
 // did not change them at all — they are the control, and proposing them is the false positive.
+// THE CARDS ARE IN THE SHAPE THE LIVE ONES ARE IN, and that is not cosmetic. The first version of
+// this fixture used bare one-line descriptions and scored a 4% rewrite rate against the 100% the
+// live library produced — so it could not have measured a fix to the thing it was built for. Real
+// cards are dense bracketed records several facts long, which is what `cardText` hands the pass.
+// A fixture that does not reproduce the failure is a fixture that reports it as absent.
 const CAST = [
   { name: 'Ilse',  rooms: ['appearance'],
-    card: 'Ilse: the harbourmaster. Black hair cropped short, a scar through one eyebrow. Keeps the tide book.' },
+    card: '[Ilse: 44, harbourmaster at Cordray nine years. Black hair cropped short, a scar through one '
+        + 'eyebrow from a winch cable. Keeps the tide book in a canvas satchel, never on the office shelf. '
+        + 'Was a bar pilot before the post and does not mention it. Signs her name with one initial.]' },
   { name: 'Marek', rooms: ['interiority'],
-    card: 'Marek: her deputy, nineteen, eager and unproven. Believes the harbour is the safest place on the coast.' },
+    card: '[Marek: 19, her deputy, two winters in the post. Reads the tide book on his own time and has '
+        + 'memorised it as far as the spring. Believes the harbour is the safest place on the coast. '
+        + 'Sleeps in the office loft because the lodging house is dearer. Calls her ma’am and means it.]' },
   { name: 'Voss',  rooms: ['appearance', 'relationships'],
-    card: 'Voss: the pilot who takes ships over the bar. Heavy-set, red-bearded, drinks at the Anchor. Ilse trusts him.' },
+    card: '[Voss: 51, the pilot who takes ships over the bar. Heavy-set, red-bearded, a drinker at the '
+        + 'Anchor and never before a run. Has never lost a hull in twenty years and says so. Ilse trusts '
+        + 'him further than she trusts the tide book. Keeps a dog aboard that answers to nobody else.]' },
   { name: 'Tam',   rooms: [],
-    card: 'Tam: the boy who runs messages between the harbour office and the town.' },
+    card: '[Tam: 13, runs messages between the harbour office and the town for a penny a turn. Faster on '
+        + 'the sea wall than on the road and has been told twice not to use it. Cannot read the tide book '
+        + 'and pretends otherwise. His mother keeps the laundry on Cross Street.]' },
 ];
 
 const CHAPTER = `The fire took the east side of the harbour office before anyone reached it with a hose.
@@ -59,7 +72,7 @@ Tam ran messages all evening and was sent home at eleven.`;
 // ---------------------------------------------------------------------------------------------
 // The graders. Each answers one question and they must not be satisfiable by the same answer.
 // ---------------------------------------------------------------------------------------------
-type Piece = { name: string; field: string | null };
+type Piece = { name: string; field: string | null; body: string };
 
 /** Of the proposals made ABOUT SOMEBODY THE CHAPTER CHANGED, how many name the right room. */
 const placement = (ps: Piece[]) => {
@@ -75,6 +88,29 @@ const bothRooms = (ps: Piece[]) => {
   const his = new Set(ps.filter((p) => p.name === 'Voss').map((p) => p.field));
   return his.has('appearance') && his.has('relationships');
 };
+
+/** IS THE BODY THE SIZE OF A ROOM, or the whole card again?
+ *
+ *  Measured on the second live chapter end (2026-08-29): the ROOM was right — Halloran to
+ *  interiority, Wrenn to appearance, nothing in facts — and both bodies were the character's entire
+ *  card restated, with the change folded in. "Halloran: 51, night porter at the Ambersand for nine
+ *  years. Keeps the ledger in a hardback book…" under the label `interiority`. Accepting that with
+ *  Replace writes the whole description into one room.
+ *
+ *  Placement could not see it, and would have scored both as successes. So this grades the other
+ *  half: what fraction of the card's EXISTING sentences the proposal repeats. A room-sized edit
+ *  says the new thing and nothing else; a rewrite carries the card along with it. */
+const sentences = (t: string) => String(t).split(/[.;]\s+/)
+  .map((x) => x.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim())
+  .filter((x) => x.length >= 25);
+const echo = (body: string, card: string) => {
+  const had = sentences(card);
+  if (!had.length) return 0;
+  const flat = String(body).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ');
+  return had.filter((x) => flat.includes(x)).length / had.length;
+};
+/** Over half the card repeated back is a rewrite wearing a room's label. */
+const isRewrite = (body: string, card: string) => echo(body, card) > 0.5;
 
 /** Somebody the chapter did not change, proposed anyway. Once per run, per such character. */
 const intruders = (ps: Piece[]) =>
@@ -97,7 +133,17 @@ if (process.argv[2] === 'check') {
   // The two cannot be satisfied at once: naming everything wins nothing.
   const greedy: Piece[] = CAST.flatMap((c) => SLOTS.map((s) => ({ name: c.name, field: s.name })));
   a.ok(intruders(greedy).length > 0, 'proposing everybody is caught as intruding, not scored as recall');
-  console.log('\n  graders agree on a right answer, on the observed failure, and on a greedy one\n');
+  // THE BODY GRADER, BOTH WAYS. The rewrite is the real one Halloran got on 2026-08-29, shortened;
+  // the good one says the new thing and nothing else. A grader that cannot tell them apart would
+  // report the defect as fixed.
+  const card = CAST[0]!.card;
+  a.ok(isRewrite(card.replace(/[\[\]]/g, '') + ' Her hands are burned to the wrist now.', card),
+    'a body that carries the whole card along with it is a rewrite');
+  a.ok(!isRewrite('Her hands are burned to the wrist and the scarring will not fade.', card),
+    'a body that says only the new thing is room-sized');
+  a.ok(!isRewrite('', card), 'an empty body is not scored as a rewrite');
+  console.log('\n  graders agree on a right answer, on the observed failure, and on a greedy one');
+  console.log('  and the body grader tells a room-sized edit from the card repeated back\n');
   process.exit(0);
 }
 
@@ -115,7 +161,8 @@ const ARMS = [
   { key: 'B', label: 'with splitting   ', prompt: MEMORY, split: true },
 ] as const;
 const tally: Record<string, any> = Object.fromEntries(
-  ARMS.map((a) => [a.key, { judged: 0, right: 0, facts: 0, both: 0, intr: 0, empty: 0 }]));
+  ARMS.map((a) => [a.key, { judged: 0, right: 0, facts: 0, both: 0, intr: 0, empty: 0,
+                            bodies: 0, rewrites: 0 }]));
 
 for (let i = 0; i < RUNS; i++) {
   for (const { key: arm, prompt, split } of ARMS) {
@@ -127,9 +174,16 @@ for (let i = 0; i < RUNS; i++) {
       const declared = SLOTS.some((s) => s.name === m.field) ? m.field : null;
       const pieces = split ? roomPieces(declared, String(m.body ?? ''), SLOTS)
                            : [{ field: declared, body: String(m.body ?? '') }];
-      return pieces.map((p) => ({ name: String(m.name ?? '').trim(), field: p.field }));
+      return pieces.map((p) => ({ name: String(m.name ?? '').trim(), field: p.field, body: p.body }));
     });
+    const ps2 = ps as { name: string; field: string | null; body: string }[];
     const pl = placement(ps);
+    for (const p of ps2) {
+      const c = CAST.find((x) => x.name === p.name);
+      if (!c || !c.rooms.length) continue;
+      tally[arm].bodies++;
+      if (isRewrite(p.body, c.card)) tally[arm].rewrites++;
+    }
     tally[arm].judged += pl.judged; tally[arm].right += pl.right; tally[arm].facts += pl.facts;
     if (bothRooms(ps)) tally[arm].both++;
     tally[arm].intr += intruders(ps).length;
@@ -145,6 +199,7 @@ for (const { key: arm, label } of ARMS) {
     + `   landed in facts ${t.facts}/${t.judged} (${pc(t.facts, t.judged)})`
     + `   both of Voss's rooms ${t.both}/${RUNS}`
     + `   proposed someone unchanged ${t.intr}/${RUNS}`
+    + `\n                   WHOLE-CARD REWRITES ${t.rewrites}/${t.bodies} (${pc(t.rewrites, t.bodies)})`
     + (t.empty ? `   answered nothing ${t.empty}/${RUNS}` : ''));
 }
 console.log(`\n  Placement is over PROPOSALS MADE about a character the chapter changed, not over runs:`);
