@@ -353,12 +353,15 @@ for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/");
                              await page.click("#page .storycard[data-open]"); }]]) {
   await go();
   await wait(1200);
-  // One door to the MAIN menu, on every screen. Since 2026-08-27 the bar carries a second door
-  // beside it — the story's own name, which opens the story menu — so this counts the workspace
-  // one specifically. Counting every rail control would pass with the main menu missing and the
-  // story menu present twice, which is the hole this check exists to keep shut.
+  // AT LEAST ONE door to the MAIN menu, on every screen. This asked for exactly one until
+  // 2026-08-28, when Seth said: "the maine menu moveing forward will be the anansi logo on the
+  // left or the header of any main menu item." On a workspace page that is deliberately two — her
+  // mark and the page's own title — so the count is no longer the rule. THE HOLE THIS GUARDS IS
+  // ZERO, which is what happened the last time the control moved: the shelf had no way in at all.
+  // Still counted specifically on the workspace door, because counting every rail control would
+  // pass with the main menu missing and the story menu present twice.
   const doors = await page.eval("document.querySelectorAll('#bar [data-railview=\"workspace\"]').length");
-  ok(`  one way into the menu on ${where} (${doors})`, doors === 1);
+  ok(`  a way into the menu on ${where} (${doors})`, doors >= 1);
   const own = await page.eval("document.querySelectorAll('#bar [data-railview=\"story\"]').length");
   ok(`  and the story's own menu door is there only in a story (${own})`,
      own === (where === "a story" ? 1 : 0));

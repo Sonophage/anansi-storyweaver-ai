@@ -488,12 +488,29 @@ function drawBar() {
     ? [V.story.title, V.currentChapter.title || `Chapter ${V.currentChapter.index}`]
     : (WTITLES[S.wpage] || WTITLES.stories)();
   $('bar').innerHTML = `
+    <!-- THE MAIN MENU IS THE LOGO NOW. Seth, 2026-08-28: "the maine menu moveing forward will be
+         the anansi logo on the left or the header of any main menu item. only the name of the story
+         will open the story menu." Her mark, drawn the way the rail's header draws it — no plate,
+         currentColor, so it takes the theme (issue #6). It is on EVERY screen, which is the whole
+         property test/ui/phone.js exists to keep: the hole it guards is zero doors, not two. -->
+    <button data-railview="workspace" aria-label="Menu"
+      style="flex:0 0 auto; display:flex; align-items:center; padding:6px 10px 6px 0">
+      <svg viewBox="0 0 512 512" width="21" height="21" aria-hidden="true"
+        style="display:block; color:var(--gold)">
+        <g fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" opacity=".85">
+          <path d="M256 96 256 416M110 256 402 256M150 150 362 362M362 150 150 362"/>
+          <circle cx="256" cy="256" r="56"/><circle cx="256" cy="256" r="112"/><circle cx="256" cy="256" r="164"/>
+        </g>
+      </svg>
+    </button>
     <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
       ${inStory ? `<button data-railview="story" aria-label="This story's menu"
-        style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">` : ''}
+        style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">`
+        : `<button data-railview="workspace" aria-label="Menu"
+        style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">`}
       <span class="serif" style="font-size:23px; line-height:1; color:var(--chrome-ink);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block">${esc(title)}</span>
-      ${inStory ? '</button>' : ''}
+      </button>
       ${sub ? `<span class="up" style="font-size:10.5px; color:var(--label); white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>` : ''}
       <!-- decoded below, after the element exists -->
@@ -523,14 +540,16 @@ function drawBar() {
          ${LIB.length ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            font-variant-caps:all-small-caps; color:var(--on-gold); background:var(--gold); padding:9px 18px;
            border-radius:var(--r); font-weight:500; white-space:nowrap">Resume writing</button>` : ''}`}
-      <!-- OUTSIDE the in-story branch, and that is the whole point. The first version of this put it
-           inside, so with the hamburger gone there was no way into the menu from the shelf at all —
-           a hole, not a missing nicety. One door to the menu, on every screen. -->
-      <!-- Same glyph size and same padding as Reading mode beside it. At 19 against the book's 17
-           it sat a little large and a little wide, and three controls in a row show that. -->
-      <button class="pill phoneonly" data-railview="workspace" aria-label="Menu"
+      <!-- HER WEB, AND IT OPENS HER. Seth: "make the icon a full web and make it go to anansi.
+           this can remove the anansi text link from the input field." Asking her something is a
+           thing you do while writing, which is the argument that took Anansi off the nav row in
+           the first place; it just had the wrong control.
+           IN A STORY ONLY, because there is no Anansi to ask without one — and the menu is not
+           lost with it, which was the objection: the logo at the far left of this bar is the way
+           in on every screen now. Same glyph size and padding as Reading mode beside it. -->
+      ${inStory ? `<button data-panel="anansi" class="pill phoneonly" aria-label="Ask Anansi"
         style="display:flex; align-items:center; padding:6px 11px; color:var(--chrome-dim)"
-        >${mark('web', 17)}</button>
+        >${mark('webfull', 17)}</button>` : ''}
     </div>`;
   // The title, and the line under it that names the chapter. Both are leaf spans holding nothing
   // but text, which is what decode() needs — it writes textContent.
@@ -1005,8 +1024,10 @@ function drawDock() {
            was standing where both of them had to fit. -->
       <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
         style="flex:0 0 auto">+ Threads</button>
-      <button data-panel="anansi" aria-pressed="${S.panel === 'anansi'}" title="Ask Anansi about this story"
-        style="flex:0 0 auto">Anansi</button>
+      <!-- ANANSI CAME OFF THIS ROW. Her web in the header is the way to her now, and it is a
+           better one: the row was three doors deep and the seventh control was already being
+           fought onto one line at 390px. The PANEL is unchanged and data-panel="anansi" still
+           opens it, exactly as when she came off the nav row for the same reason. -->
     </div>
     <div id="inputRow">
       <!-- ON THE LEFT. It is what you reach for BEFORE writing — take the whole screen to say it

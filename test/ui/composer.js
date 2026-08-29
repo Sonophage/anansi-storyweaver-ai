@@ -29,8 +29,13 @@ for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
   console.log("  modes row: " + JSON.stringify(row));
   ok(`the composer row is one line at phone width (${row && row.h}px of a ${row && row.tallest}px button)`,
      !!row && row.h < row.tallest * 1.6);
-  ok(`  and carries all three doors beside the modes (${row && row.labels})`,
-     !!row && /Threads/.test(row.labels) && /Anansi/.test(row.labels) && row.labels.split('|').length === 7);
+  // TWO doors beside the four modes now, not three. Anansi came off this row on 2026-08-28 — her
+  // web in the header opens her — and the row was three deep with the sixth control already being
+  // fought onto one line at 390px. Asserted as an ABSENCE too, or "Anansi moved" would pass with
+  // her still sitting here.
+  ok(`  and carries both thread doors beside the modes (${row && row.labels})`,
+     !!row && /Threads/.test(row.labels) && row.labels.split('|').length === 6);
+  ok("  with Anansi no longer among them", !!row && !/Anansi/.test(row.labels));
 }
 
 // ---- #3. "The send button and the expand input button are too small."
