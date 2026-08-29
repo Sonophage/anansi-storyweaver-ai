@@ -226,6 +226,24 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     }
   }
 
+  // #29. The weave's fade and the hold that has to outlast it live in two files, and the failure
+  // when they disagree is invisible: the veil walks out while the letters are still going, so the
+  // effect happens off-screen and looks like it was never built. Asserted as an INEQUALITY rather
+  // than two numbers, so either can be tuned and only a real inversion goes red.
+  {
+    const css = readFileSync(R + 'app.html', 'utf8');
+    const fade = /--t-weave:\s*([\d.]+)s/.exec(css);
+    assert.ok(fade, 'the weave has a fade duration of its own, not the shared --t-slow');
+    const hold = /return (\d+);\s*\/\/ long enough to read it/.exec(read('web/app.js'));
+    assert.ok(hold, 'and solve() returns the hold before the veil leaves');
+    assert.ok(Number(hold![1]) > Number(fade![1]) * 1000,
+      `the hold (${hold![1]}ms) must outlast the fade (${Number(fade![1]) * 1000}ms), or the `
+      + `letters are still going when the veil starts leaving and nobody sees it`);
+    assert.doesNotMatch(css.slice(css.indexOf('.wrow i {'), css.indexOf('.wrow i {') + 200),
+      /--t-slow/, 'and it no longer borrows the token every other motion shares');
+    ok(`the weave's letters fade for ${fade![1]}s inside a ${hold![1]}ms hold`);
+  }
+
   // Retired panel names still have to resolve, or every bookmark and open tab breaks.
   const was = js.slice(js.indexOf('const PANEL_WAS ='), js.indexOf('};', js.indexOf('const PANEL_WAS =')));
   for (const old of ['inspector', 'cast', 'traj', 'queue', 'branches']) {

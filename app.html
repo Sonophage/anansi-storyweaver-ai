@@ -52,6 +52,13 @@
   --t-fast:.12s;                            /* a state you should not notice changing */
   --t:.2s;                                  /* the default: hovers, chips, toggles */
   --t-slow:.32s;                            /* something moving across the screen */
+  /* The weave letting go of its letters, and ONLY that. #29: they went at --t-slow and were gone
+     before they read as fading. That token is shared with the newest-passage rise, the veil
+     fade-in, the side panel and every page arrival, so raising it would have slowed the whole app
+     to fix one effect — which is why this has its own name instead of a bigger number up there.
+     Coupled to the hold in web/app.js `solve()`: the hold must OUTLAST this or the veil leaves
+     while the letters are still going. */
+  --t-weave:.9s;
   --t-page:.42s;                            /* a whole surface arriving */
 
   --prose:20px; --bubble:17px; --gap:30px; --col:720px;
@@ -202,7 +209,7 @@ input, textarea { font:inherit; color:inherit; }
   user-select:none; }
 #ghost.veil .wrow { display:flex; gap:4px; }
 #ghost.veil .wrow i { display:block; width:1ch; font-style:normal; text-align:center;
-  transition:opacity var(--t-slow) var(--ease), color var(--t-slow) var(--ease); }
+  transition:opacity var(--t-weave) var(--ease), color var(--t-weave) var(--ease); }
 /* Everything but the middle column goes. `:not(:nth-child(6))` IS the sixth of eleven — one place
    states which column the name lands in and it is `WEAVE_W / 2` in web/app.js; if that constant
    moves, this selector has to move with it. */

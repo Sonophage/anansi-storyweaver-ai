@@ -227,17 +227,21 @@ assert.match(html('rail'), /slot 50,048/);
 ok('the rail shows the workspace nav, the model and the real slot size');
 
 assert.match(html('page'), /The Ashfall Concordat/);
-// New story is a button between the hero and the grid, not a dashed cell inside it: the shelf is a
-// shelf of books, and the placeholder was taking one of the two columns from a book that exists.
+// ONE New story button, and it is the rail's — #19. It was on the page too, between the hero and
+// the grid, and before that a dashed cell inside the grid taking a column from a book that exists.
+// The page copy existed for one reason: the bar pill carried `deskonly` and a phone saw neither.
+// Removing the page button alone would have shipped a phone with no way to start a book, so the
+// pill lost `deskonly` in the same change and this asserts BOTH halves — the shelf has none, and
+// the one that remains is not hidden on a narrow screen.
 {
   const shelf = html('page');
-  const at = (needle: string) => shelf.indexOf(needle);
-  assert.ok(at('storycard hero') >= 0, 'the newest book is the hero');
-  assert.ok(at('data-open="new"') > at('storycard hero'), 'New story comes after the hero');
-  assert.ok(at('data-open="new"') < at('data-open="s-2"'), 'and before the rest of the shelf');
-  assert.doesNotMatch(shelf, /class="dashed"[^>]*data-open="new"/, 'and it is not a book-shaped hole');
+  assert.ok(shelf.indexOf('storycard hero') >= 0, 'the newest book is the hero');
+  assert.doesNotMatch(shelf, /data-open="new"/,
+    'the shelf itself offers no New story button — the rail is the one door');
+  assert.match(html('bar'), /<button class="pill" data-open="new"/,
+    'and the bar pill is not deskonly, or a phone has no door at all');
 }
-ok('the story list renders from the library response, New story between the hero and the grid');
+ok('one New story button, on the bar, and the shelf does not repeat it');
 
 // ---- now open the story, which is where the field names bit ----
 const click = (dataset: any) => listeners.click?.[0]?.({ target: { closest: () => ({ dataset }) } });

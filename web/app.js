@@ -331,13 +331,6 @@ function drawRail() {
              drawn in whatever the theme's accent resolved --gold to and the page shows through
              behind it. The FILE stays exactly as it is and is still the favicon and the installed
              icon, where an opaque plate is correct: an app icon has no page behind it to inherit. -->
-        <svg viewBox="0 0 512 512" width="24" height="24" aria-hidden="true"
-          style="display:block; flex:0 0 auto; color:var(--gold)">
-          <g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" opacity=".85">
-            <path d="M256 96 256 416M110 256 402 256M150 150 362 362M362 150 150 362"/>
-            <circle cx="256" cy="256" r="56"/><circle cx="256" cy="256" r="112"/><circle cx="256" cy="256" r="164"/>
-          </g>
-        </svg>
         <span class="serif txt" style="font-size:26px; color:var(--ink-bright)">Anansi</span>
       </button>
       <button data-rail="1" style="margin-left:auto; color:var(--faint); display:flex;
@@ -498,13 +491,8 @@ function drawBar() {
          property test/ui/phone.js exists to keep: the hole it guards is zero doors, not two. -->
     <button data-railview="workspace" aria-label="Menu"
       style="flex:0 0 auto; display:flex; align-items:center; padding:6px 10px 6px 0">
-      <svg viewBox="0 0 512 512" width="21" height="21" aria-hidden="true"
-        style="display:block; color:var(--gold)">
-        <g fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" opacity=".85">
-          <path d="M256 96 256 416M110 256 402 256M150 150 362 362M362 150 150 362"/>
-          <circle cx="256" cy="256" r="56"/><circle cx="256" cy="256" r="112"/><circle cx="256" cy="256" r="164"/>
-        </g>
-      </svg>
+      <span class="serif" style="display:block; font-size:17px; line-height:1;
+        color:var(--gold)">Anansi</span>
     </button>
     <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
       ${inStory ? `<button data-railview="story" aria-label="This story's menu"
@@ -539,7 +527,7 @@ function drawBar() {
       <button class="pill" data-appearance="1" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
 `
-      : `<button class="pill deskonly" data-open="new">New story</button>
+      : `<button class="pill" data-open="new">New story</button>
          ${LIB.length ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            font-variant-caps:all-small-caps; color:var(--on-gold); background:var(--gold); padding:9px 18px;
            border-radius:var(--r); font-weight:500; white-space:nowrap">Resume writing</button>` : ''}`}
@@ -3090,8 +3078,6 @@ const WPAGES = {
       <!-- A button, not a card. The dashed cell was a book-shaped hole in a shelf of books, and it
            took a column from the ones that are real. The bar's New story pill is deskonly, so this
            is also the only one a phone sees. -->
-      <button class="btn" data-open="new"
-        style="width:auto; align-self:start; padding:0 22px; height:44px">＋ New story</button>
       ${rest.length ? `<div class="grid">
         ${rest.map((s, i) => storyCard(s, i + 1, false)).join('')}
       </div>` : ''}</div>`;
@@ -3665,7 +3651,12 @@ function solve(g) {
     if (cell) cell.textContent = WEAVE_WORD[r] ?? '';
   });
   weave.classList.add('solved');
-  return 620;                                    // long enough to read it, short enough to want to
+  // THE HOLD MUST OUTLAST THE FADE OR THE FADE IS NOT SEEN. `--t-weave` is .9s, and `.leaving`
+  // starts when this expires — so a hold shorter than the fade means the veil walks out while the
+  // letters are still going, which is the effect happening off-screen. 900 of fade, then 320 of
+  // the word alone. #29: it was 620 against a .32s fade, so the letters were gone in a third of
+  // the hold and the rest was the word sitting still.
+  return 1220;                                   // long enough to read it, short enough to want to
 }
 
 /** It FADES, rather than vanishing. The node used to be removed outright, so a veil that had been
