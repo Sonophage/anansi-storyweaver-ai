@@ -120,7 +120,15 @@ export function fromExport(file: string): Incoming {
         // list is now every column the writer can set: a custom register, a raised context cap and
         // a named model used to vanish on an export and re-import with nothing saying so.
         spiceNote: story.spice_note, maxContext: story.max_context, model: story.model,
-        lockedCharacter: story.locked_character },
+        lockedCharacter: story.locked_character,
+        // #18's two, added the same day the columns were. The comment above is the whole reason
+        // this line exists: a hand-whitelisted payload loses anything not named in it, silently,
+        // and a book would have come back through an export with its sample and its style gone.
+        //
+        // `lore_from` is deliberately NOT here. It points at another story id, and that id does
+        // not exist in the file being imported — a followed book arrives standing on its own,
+        // which is the only honest answer.
+        voiceSample: story.voice_sample, styleNote: story.style_note },
       entries: cap(entries, MAX_ENTRIES, 'canon entries', notes).map((e) => ({ title: e.title, body: clip(e.body),
         notes: clip(e.notes, 2000), entryType: e.entry_type, activation: e.activation,
         keys: keysOf(e.keys && JSON.parse(e.keys)),
