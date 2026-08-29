@@ -274,7 +274,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
   'dismiss', 'goflag', 'dropflag', 'modelmenu',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
-  'cardview', 'goslot', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
+  'cardview', 'goslot', 'newroom', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads'].map((k) => `[data-${k}]`).join(',');
 
@@ -1638,6 +1638,12 @@ const PANELS = {
   },
 
   story() {
+    // SAVE IS FIRST AND THE COVER IS SECOND — #26. Save sat under Spice, at the end of eleven
+    // fields, so the press that commits them was the one thing you had to scroll to find; it is
+    // now beside the panel's close control, where leaving and keeping are the same reach. The
+    // cover moved above the title because it is the only field you judge by looking rather than
+    // reading, and a picture at the bottom of a form is a picture nobody sees.
+    //
     // Setting comes from the lore already written down and You-are from the cast, so neither is
     // free text drifting away from the ledger. A value the ledger does not hold is kept and
     // labelled rather than silently dropped.
@@ -1650,6 +1656,38 @@ const PANELS = {
     </select>`;
     const fields = STORY_FIELDS.filter((f) => !['direction', 'setting', 'pov', 'persona'].includes(f.k));
     return `<div style="display:flex; flex-direction:column">
+      <button class="btn" data-savestory="1" style="margin-bottom:22px">Save</button>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:0">The cover</div>
+      ${V.cover ? `<img src="${api.coverUrl(S.storyId, V.cover)}" alt=""
+        style="width:100%; height:120px; object-fit:cover; border-radius:var(--r); border:1px solid var(--edge)">` : ''}
+      <div style="display:flex; gap:7px; margin-top:${V.cover ? '7px' : '0'}">
+        <label class="btn ghost" style="flex:1; display:flex; align-items:center; justify-content:center; cursor:pointer">
+          ${V.cover ? 'Replace it' : 'Choose an image'}
+          <input type="file" accept="image/*" data-cover="1" hidden></label>
+        ${V.cover ? '<button class="btn ghost" data-delcover="1" style="flex:0 0 auto; width:auto; padding:12px 20px">Remove</button>' : ''}
+      </div>
+      <div class="hint">Shrunk to 900px wide in the browser and stored in the database, not on disk
+        — the nightly backup is one file, and a path would leave the covers out of it.</div>
+      ${V.cover ? `<label style="display:flex; align-items:center; gap:9px; margin-top:11px; cursor:pointer">
+        <input type="checkbox" data-story="chapterHero" ${V.story.chapterHero ? 'checked' : ''}>
+        <span style="font-size:13px; color:var(--ink)">Use it at the head of every chapter</span></label>
+      <div class="hint">The same picture, as a plate above each chapter's title. There is no second
+        image to choose &mdash; a chapter shows the cover or nothing.</div>` : ''}
+
+      ${V.cover && V.story.chapterHero ? `<label style="display:flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer">
+        <input type="checkbox" data-story="chapterSticky" ${V.story.chapterSticky ? 'checked' : ''}>
+        <span style="font-size:13px; color:var(--ink)">Keep it behind the prose while you read</span></label>
+      <div class="hint">It stays put and the writing moves over it, fading left to right into the
+        page. Instead of a plate at the head of the chapter that scrolls away with it.</div>
+      ${V.story.chapterSticky ? `<label class="lbl" style="letter-spacing:.1em; margin-top:12px">How much of it shows</label>
+        <div style="display:flex; align-items:center; gap:12px">
+          <input type="range" min="0" max="100" step="5" style="flex:1"
+            data-story="coverOpacity" value="${V.story.coverOpacity ?? 30}">
+          <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
+            >${V.story.coverOpacity ?? 30}%</span></div>
+        <div class="hint">At full strength a picture under text is unreadable and at nothing it is
+          not there. Save to see it.</div>` : ''}` : ''}
+
       ${fields.map((f) => `<label class="lbl">${f.label}${f.k === 'writingStyle' ? helpMark('voice') : ''}</label>
         ${f.k === 'writingStyle' ? helpBody('voice') : ''}
         ${f.area ? `<textarea class="field" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
@@ -1693,38 +1731,6 @@ const PANELS = {
           <div class="hint">This replaces the level entirely — it is the register line the model receives.</div>
         </div>`;
       })()}
-      <button class="btn" data-savestory="1" style="margin-top:16px">Save</button>
-
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">The cover</div>
-      ${V.cover ? `<img src="${api.coverUrl(S.storyId, V.cover)}" alt=""
-        style="width:100%; height:120px; object-fit:cover; border-radius:var(--r); border:1px solid var(--edge)">` : ''}
-      <div style="display:flex; gap:7px; margin-top:${V.cover ? '7px' : '0'}">
-        <label class="btn ghost" style="flex:1; display:flex; align-items:center; justify-content:center; cursor:pointer">
-          ${V.cover ? 'Replace it' : 'Choose an image'}
-          <input type="file" accept="image/*" data-cover="1" hidden></label>
-        ${V.cover ? '<button class="btn ghost" data-delcover="1" style="flex:0 0 auto; width:auto; padding:12px 20px">Remove</button>' : ''}
-      </div>
-      <div class="hint">Shrunk to 900px wide in the browser and stored in the database, not on disk
-        — the nightly backup is one file, and a path would leave the covers out of it.</div>
-      ${V.cover ? `<label style="display:flex; align-items:center; gap:9px; margin-top:11px; cursor:pointer">
-        <input type="checkbox" data-story="chapterHero" ${V.story.chapterHero ? 'checked' : ''}>
-        <span style="font-size:13px; color:var(--ink)">Use it at the head of every chapter</span></label>
-      <div class="hint">The same picture, as a plate above each chapter's title. There is no second
-        image to choose &mdash; a chapter shows the cover or nothing.</div>` : ''}
-
-      ${V.cover && V.story.chapterHero ? `<label style="display:flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer">
-        <input type="checkbox" data-story="chapterSticky" ${V.story.chapterSticky ? 'checked' : ''}>
-        <span style="font-size:13px; color:var(--ink)">Keep it behind the prose while you read</span></label>
-      <div class="hint">It stays put and the writing moves over it, fading left to right into the
-        page. Instead of a plate at the head of the chapter that scrolls away with it.</div>
-      ${V.story.chapterSticky ? `<label class="lbl" style="letter-spacing:.1em; margin-top:12px">How much of it shows</label>
-        <div style="display:flex; align-items:center; gap:12px">
-          <input type="range" min="0" max="100" step="5" style="flex:1"
-            data-story="coverOpacity" value="${V.story.coverOpacity ?? 30}">
-          <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
-            >${V.story.coverOpacity ?? 30}%</span></div>
-        <div class="hint">At full strength a picture under text is unreadable and at nothing it is
-          not there. Save to see it.</div>` : ''}` : ''}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Part of a world</div>
       <select class="field" data-story="loreFrom" style="margin:0">
@@ -2631,7 +2637,8 @@ function roomCard(name, body, keys, on, sw, kind) {
       <span style="flex:1; font-size:14.5px; color:var(--ink-bright)">${esc(name)}</span>
       ${sw}</div>
     <div class="kind">${esc(kind.replace(/_/g, ' '))}</div>
-    <div style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(body)}</div>
+    <button data-goslot="${esc(kind)}" style="text-align:left; width:100%; font-size:12.5px;
+      line-height:1.45; color:var(--mute); cursor:pointer">${esc(body)}</button>
     ${keys.length ? `<div style="display:flex; flex-wrap:wrap; gap:4px">${
       keys.map((k) => `<span class="tag" style="opacity:.6">${esc(k)}</span>`).join('')}</div>` : ''}
   </div>`;
@@ -2803,8 +2810,11 @@ function entryEditor() {
       // The same clause comes out of both places on the day the wardrobe moves to addons.
       const mine = (e.addons ?? []).filter((a) => a.slot === sl.name);
       return `
-      <div data-slotat="${esc(sl.name)}" class="lbl" style="letter-spacing:.1em; margin-top:20px">${
-        esc(sl.name.replace(/_/g, ' '))}${sl.exclusive ? ' <span style="opacity:.5">(one at a time)</span>' : ''}</div>
+      <div data-slotat="${esc(sl.name)}" class="lbl" style="letter-spacing:.1em; margin-top:20px;
+        display:flex; align-items:baseline; gap:8px">${
+        esc(sl.name.replace(/_/g, ' '))}${sl.exclusive ? ' <span style="opacity:.5">(one at a time)</span>' : ''}
+        <button data-newroom="${esc(sl.name)}" aria-label="Add one" style="margin-left:auto;
+          color:var(--gold); font-size:15px; line-height:1; padding:0 4px">+</button></div>
       ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${
         a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
         <div style="display:flex; align-items:center; gap:9px">
@@ -3009,7 +3019,22 @@ function historyPanel() {
   </div>`;
 }
 
+/** A card on a grid: name, how it fires, and the first few lines of what it says.
+ *
+ *  THE PREVIEW IS NOT `e.body` ANY MORE, and it cannot be. The 2026-08-29 migration moved every
+ *  card's body into its `facts` room — the half chapter end cannot rewrite — so `body` is now empty
+ *  on all 461 cards in the library and this grid drew 461 headings over blank lines. The card shows
+ *  the body if it still has one, else its facts, else the first room it has turned on, else any
+ *  room at all. THE LAST FALLBACK IS NOT BELT AND BRACES: a room is created switched off, so a card
+ *  whose only room is a new one has nothing active to show and would draw the same blank line this
+ *  exists to remove — test/ui/panels.js seeds exactly that case. `GET /api/ledger` has sent
+ *  `addons` since #22's blocker was cleared, so none of this costs a request. */
 function entryCard(e) {
+  const rooms = e.addons ?? [];
+  const preview = (e.body ?? '').trim()
+    || rooms.find((a) => a.slot === 'facts')?.body?.trim()
+    || rooms.find((a) => a.active)?.body?.trim()
+    || rooms[0]?.body?.trim() || '';
   const act = e.activation ?? 'always_on';
   const pill = act === 'always_on' ? 'Always on' : 'Triggered';
   const gold = act === 'always_on';
@@ -3023,7 +3048,7 @@ function entryCard(e) {
       ${e.retiredAtChapter != null ? `<span class="tag" style="border-color:var(--chip);
         color:var(--warn)">finished ch.${esc(String(e.retiredAtChapter))}</span>` : ''}</div>
     <div class="kind">${esc(e.entryType ?? 'lore')}</div>
-    <div class="clamp3" style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(e.body ?? '')}</div></button>`;
+    <div class="clamp3" style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(preview)}</div></button>`;
 }
 
 // ---------- workspace pages ----------
@@ -3239,6 +3264,10 @@ const WPAGES = {
     // it is for when you cannot remember which book an entry belongs to.
     // The filter bar is drawn once. Typing redraws #books only — rewriting the page on every
     // keystroke destroyed the input and swallowed the query, which is how "brass" found nothing.
+    // #22: the row names GROUPS, so every name on it is plural. `Character` beside `Everything`
+    // read like a filter for one card.
+    const LKIND_LABEL = { all: 'Everything', character: 'Characters', lore: 'Lore',
+                          item: 'Items', rule: 'Rules' };
     const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
       background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
     return `<div class="split" style="gap:28px">
@@ -3250,7 +3279,7 @@ const WPAGES = {
           style="margin:0; max-width:340px">
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
           ${['all', ...KINDS].map((k) => `<button data-lkind="${k}" style="font-size:12px; padding:8px 16px;
-            border-radius:var(--r-pill); ${chip(k === S.ledgerKind)}">${k === 'all' ? 'Everything' : k[0].toUpperCase() + k.slice(1)}</button>`).join('')}
+            border-radius:var(--r-pill); ${chip(k === S.ledgerKind)}">${LKIND_LABEL[k]}</button>`).join('')}
         </div>
         <div id="books" style="display:flex; flex-direction:column; gap:16px">${ledgerBooks()}</div>
       </div>
@@ -4400,6 +4429,14 @@ document.addEventListener('click', async (e) => {
     // find whichever is on screen. Both mark their headings with data-slotat.
     document.querySelector(`[data-slotat="${d.goslot}"]`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (d.newroom) {
+    // The section's own empty card, not a new one: one way to make a room, reached from the top of
+    // the section instead of the bottom.
+    const box = document.querySelector(`[data-newan="${d.newroom}"]`);
+    box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    box?.focus();
     return;
   }
   if (d.addonon) {

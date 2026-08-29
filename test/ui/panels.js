@@ -427,7 +427,8 @@ if (anyEntry) {
   await wait(700);
   const face = await page.eval(`(() => ({
     slots: [...document.querySelectorAll('[data-slotat]')].map(x => x.dataset.slotat),
-    jumps: [...document.querySelectorAll('[data-goslot]')].map(x => x.dataset.goslot),
+    jumps: [...document.querySelectorAll('[data-goslot].tag')].map(x => x.dataset.goslot),
+    bodyJumps: [...document.querySelectorAll('[data-goslot]:not(.tag)')].map(x => x.dataset.goslot),
     shows: /her fear/.test(document.querySelector('#sideBody')?.textContent || ''),
     hasForm: !!document.querySelector('[data-f="title"]'),
     on: document.querySelector('[data-addonon]')?.textContent.trim() }))()`);
@@ -436,9 +437,15 @@ if (anyEntry) {
      !!face && face.slots.length === 1 && face.slots[0] === 'interiority');
   ok("  and it prints what is in it, not a box to type in",
      !!face && face.shows === true && face.hasForm === false);
-  // Name, then type, then a way down to each room — one jump link per filled room and no more.
+  // Name, then type, then a way down to each room — one TAG per filled room and no more. Scoped
+  // to `.tag` since #22 made the room's own body a second way in: unscoped, this counted both and
+  // read as a duplicated link.
   ok(`  with a jump link for each (${face && face.jumps.join(',')})`,
      !!face && face.jumps.length === 1 && face.jumps[0] === 'interiority');
+  // #22: "make the body jump to [data-slotat]". The room's text is the biggest thing on the face
+  // and was the one part of it that did nothing when pressed.
+  ok(`  and the room's own body is a way into it too (${face && face.bodyJumps.join(',')})`,
+     !!face && face.bodyJumps.length === 1 && face.bodyJumps[0] === 'interiority');
   // The switch is the writer's half of how a room reaches the model; its keys are the other half.
   ok(`  and the room starts off (${face && face.on})`, !!face && face.on === 'Off');
   await page.click('[data-addonon]');
@@ -915,6 +922,32 @@ ok("  and it is still there a moment later, not eaten by a repaint",
      forked?.entries === own);
   ok("  and it follows nothing — it owns what it was given",
      (forked?.lore_from ?? null) === null);
+}
+
+// ---- A CARD WITH NO BODY STILL SAYS SOMETHING. The 2026-08-29 migration moved every card's body
+// into its `facts` room, so `entries.body` is empty on all 461 cards in the live library and the
+// grid drew names over blank lines. The preview falls back to facts, then to the first room turned
+// on. Falsified by putting `e.body` back as the only source: this block goes red, and nothing else
+// in any suite does — which is exactly how the regression shipped unseen in the first place.
+{
+  const sid5 = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
+  const made = await page.eval(`(async () => {
+    const v = await (await fetch('/api/entry', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ storyId:'${sid5}', entry:{ title:'Bodyless', entryType:'character', body:'', keys:'' } }) })).json();
+    const id = (v.entries ?? []).find((e) => e.title === 'Bodyless')?.id;
+    await fetch('/api/addon', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ storyId:'${sid5}', entryId:id,
+        addon:{ slot:'facts', name:'Bodyless', body:'a lamplighter who never lit one', keys:'' } }) });
+    return id; })()`);
+  ok(`a card with an empty body and a facts room exists (${made})`, /^e-/.test(String(made)));
+  await page.goto(B + "/#" + sid5);
+  for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
+  await page.click('[data-goblock="threads:"]');
+  await wait(700);
+  const shown = await page.eval(
+    `(document.querySelector('[data-entry="${made}"] .clamp3')?.textContent ?? '').trim()`);
+  ok(`  and the grid prints its facts rather than a blank line ("${shown.slice(0, 34)}")`,
+     /lamplighter/.test(shown));
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");
