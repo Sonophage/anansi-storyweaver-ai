@@ -921,4 +921,130 @@ ok('  and one retired later than here is still in force', () =>
     entries: [entry('e-alive', '[still here]', { retiredAtChapter: 9 } as any)],
   }), count).blocks.find((x) => x.id === 'e-alive')!.state, 'omitted'));
 
+// ---- PLAN-08 Phase 3: the inherited pull -------------------------------------------------------
+
+// `entry_edges` was written in Phase 2 and read by nothing until now. Every check below is about
+// one of two things: that a pull happens at all, and that it only ever happens ONE WAY.
+const linked = (edges: any[], entries?: Entry[]) => {
+  const b = base();
+  if (entries) b.entries = entries;
+  (b as any).edges = edges;
+  return buildContext(b, count);
+};
+// The ghost is named nowhere in the prose and has no way in of its own — so if it reaches the
+// prompt, an edge is the only thing that put it there.
+const ghost = 'e-ghost', aldis = 'e-aldis';
+
+ok('a card connected to one that reached the prompt arrives with it', () => {
+  const blk = linked([{ parentId: aldis, childId: ghost }]).blocks.find((x) => x.id === ghost)!;
+  assert.strictEqual(blk.state, 'included');
+  // Named off the fixture rather than spelled out, so this says "the parent" and not "this string".
+  assert.strictEqual(blk.reason, `inherited 1.00 from ${base().entries[0].title}`,
+    'the reason names the parent and what the pull is worth, because eviction reads it');
+});
+
+ok('  and stays out when nothing connects it', () => {
+  // The half that makes the check above mean anything: without the edge the ghost is absent, so
+  // the edge is what changed and not the fixture.
+  assert.strictEqual(linked([]).blocks.find((x) => x.id === ghost), undefined);
+});
+
+ok('  and stays out when its parent did not reach the prompt either', () => {
+  const b = linked([{ parentId: 'e-key', childId: ghost }], [
+    entry('e-key', '[the Silver Key: brass not silver]',
+      { activation: 'triggered', keys: ['ghost wolf'], entryType: 'item' }),
+    entry(ghost, '[Ghost Wolf: never mentioned anywhere]', { activation: 'triggered', keys: ['ghost wolf'] }),
+  ]);
+  assert.strictEqual(b.blocks.find((x) => x.id === ghost), undefined, 'a silent parent pulls nothing');
+});
+
+ok('THE DIRECTION HOLDS: a child that fires does not drag its parent in', () => {
+  // The load-bearing one, and the reason the column exists. Her coat arrives when she does; she
+  // must NOT arrive because somebody said "coat". Undirected edges rebuild COUNCIL-04 #7's
+  // crowded scene from the back door, and the direction cannot be recovered once a book has two
+  // hundred of them — so this asserts the reverse pull is absent, not merely unlikely.
+  const b = linked([{ parentId: ghost, childId: 'e-coat' }], [
+    entry(ghost, '[Ghost Wolf: never mentioned anywhere]',
+      { activation: 'triggered', keys: ['ghost wolf'], entryType: 'lore', properNouns: false }),
+    entry('e-coat', '[the grey coat: wool, shiny cuffs]',
+      { activation: 'triggered', keys: ['coins'], entryType: 'item', properNouns: false }),
+  ]);
+  assert.strictEqual(b.blocks.find((x) => x.id === 'e-coat')!.state, 'included',
+    'the child fired on its own words, so the fixture is doing its job');
+  assert.strictEqual(b.blocks.find((x) => x.id === ghost), undefined,
+    'and the parent must not be pulled backwards along the edge');
+});
+
+ok("an edge fires on its OWN words, with the parent nowhere near the page", () => {
+  // #5: "also triggerable by their own trigger word". `coins` is in the last passage; the parent
+  // here is the Silver Key entry, which is not in the prompt in this fixture.
+  const b = linked([{ parentId: 'e-key', childId: ghost, keys: ['coins'] }], [
+    entry('e-key', '[the Silver Key]', { activation: 'triggered', keys: ['ghost wolf'], entryType: 'item' }),
+    entry(ghost, '[Ghost Wolf: never mentioned anywhere]',
+      { activation: 'triggered', keys: ['ghost wolf'], entryType: 'lore', properNouns: false }),
+  ]);
+  const blk = b.blocks.find((x) => x.id === ghost)!;
+  assert.strictEqual(blk.state, 'included');
+  assert.match(blk.reason, /own words/);
+  assert.deepStrictEqual(blk.firedBy, ['edge', 'coins'], 'and it says which word did it');
+});
+
+ok('a pull cannot resurrect a card that is pinned out or finished', () => {
+  // The two `continue`s in the direct pass state a rule; a second pass that ignored what they
+  // recorded would silently undo it, and the manifest would still show the card as omitted.
+  //
+  // ASKED OF EVERY BLOCK WITH THAT ID, not of the first one. A second pass that pushed a second
+  // block for the same card would leave the omission sitting in front of it, so `find` would
+  // still answer "omitted" while the prompt carried the card — the assertion would be true and
+  // blind at the same time, which is the failure mode this suite has already been burned by.
+  const reached = (m: ReturnType<typeof buildContext>, id: string) =>
+    m.blocks.filter((x) => x.id === id && x.state === 'included');
+  const withEdge = (f: (b: Input) => void) => {
+    const b = base(); (b as any).edges = [{ parentId: aldis, childId: ghost }]; f(b);
+    return buildContext(b, count);
+  };
+  const out = withEdge((b) => { b.pins = { [ghost]: 'force_out' }; });
+  assert.deepStrictEqual(reached(out, ghost), [], 'pinned out stays out, edge or no edge');
+  assert.match(out.blocks.find((x) => x.id === ghost)!.reason, /pinned out/);
+  const dead = withEdge((b) => { b.entries = [b.entries[0], { ...b.entries[2], retiredAtChapter: 2 } as Entry]; });
+  assert.deepStrictEqual(reached(dead, ghost), [], 'a finished thread stays finished');
+  assert.match(dead.blocks.find((x) => x.id === ghost)!.reason, /retired/);
+});
+
+ok('a card that arrives by the edge brings its rooms, exactly as one that fired would', () => {
+  // `bodyOf` is one definition for both passes. Two copies of it is how the inherited pull would
+  // quietly arrive as a bare spine, which reads as the model forgetting rather than as a bug.
+  const b = linked([{ parentId: aldis, childId: ghost }], [
+    base().entries[0],
+    { ...base().entries[2], addons: [{ id: 'a1', slot: 'interiority', name: 'its hunger',
+        body: 'eats what it remembers', keys: [], active: true }] } as any,
+  ]);
+  assert.match(b.blocks.find((x) => x.id === ghost)!.text, /its hunger: eats what it remembers/);
+});
+
+ok('confidence orders the pulls against each other, and both below a keyword hit', () => {
+  // What `confidence` is FOR. Under a ceiling that cannot hold all three, the weakest pull goes
+  // first and the entry that fired on its own words is the last thing standing.
+  const body = (t: string) => `[${t}: ${'x'.repeat(160)}]`;
+  const b = base();
+  b.budget = 224;                       // canon ceiling is 45% of this: 100 tokens, room for two of the three
+  b.passages = [{ id: 'p1', ordinal: 1, body: 'Marek counted the coins twice.' }];
+  b.entries = [
+    entry('e-hit',  body('fired on its own words'),
+      { activation: 'triggered', keys: ['coins'], entryType: 'item', properNouns: false }),
+    entry('e-near', body('pulled hard'),   { activation: 'triggered', keys: ['nothing said'] }),
+    entry('e-far',  body('pulled weakly'), { activation: 'triggered', keys: ['nothing said'] }),
+  ];
+  (b as any).edges = [
+    { parentId: 'e-hit', childId: 'e-near', confidence: 0.9 },
+    { parentId: 'e-hit', childId: 'e-far',  confidence: 0.1 },
+  ];
+  const at = (id: string) => buildContext(b, count).blocks.find((x) => x.id === id)!;
+  assert.strictEqual(at('e-hit').state, 'included', 'the direct hit survives the ceiling');
+  assert.strictEqual(at('e-far').state, 'omitted', 'the weakest pull goes first');
+  assert.match(at('e-far').reason, /canon 45% ceiling/);
+  assert.strictEqual(at('e-near').state, 'included',
+    'and the stronger pull outlives it — which is the only thing confidence is for');
+});
+
 console.log(`\n${n} checks passed`);

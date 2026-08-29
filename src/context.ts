@@ -65,6 +65,12 @@ export interface Input {
   // without being told whose line it is.
   speaker?: string;
   pins?: Record<string, 'force_in' | 'force_out'>;   // per-chapter overrides, SPEC §7.4 step 7
+  /** Directed connections between cards, PLAN-08 Phase 2's `entry_edges`. PARENT PULLS CHILD AND
+   *  NEVER THE REVERSE: her coat arrives when she does, and she must not arrive because somebody
+   *  said "coat". `confidence` is what an inherited pull is worth against a direct keyword hit —
+   *  spent in the eviction order, which is the only place it can mean anything — and `keys` are
+   *  the edge's own trigger words, per #5. */
+  edges?: { parentId: string; childId: string; confidence?: number; keys?: string[] }[];
   /** A promise the story has made and not paid, and that the writer has put in play. Already
    *  filtered to summoned-and-open by story.ts — the engine does not know what a status means. */
   strings?: { title: string; body?: string; fromChapter?: number | null; owedBy?: number | null }[];
@@ -458,6 +464,28 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   const persona = (story as any).persona?.trim().toLowerCase();
   const isPov = (e: Entry) => !!persona && e.title.trim().toLowerCase() === persona;
 
+  /** The card as it reaches the model: the body in force at this chapter, the coat, and every
+   *  room that is open. ONE DEFINITION, because a card pulled in by its parent below must carry
+   *  exactly what a card that fired on its own carries — two copies of this is how the inherited
+   *  pull would quietly arrive as a bare spine.
+   *
+   *  The rooms ride WITH the entry rather than as blocks of their own, so an addon obeys the
+   *  entry's activation exactly as an outfit already does: an always-on card carries its open
+   *  rooms every call, a triggered one only when it fires.
+   *
+   *  ponytail: EVICTION DROPS A WHOLE CARD, NEVER ITS ROOMS FIRST. F39 measured it — canon peaks
+   *  at 2% of its 45% ceiling across the library today, and a COUNCIL-04 #7 scene (46 cards firing
+   *  at once, the worst on record) with five rooms on every one of them would want about 60% of
+   *  that ceiling. So a per-room trim is a mechanism for a pressure nothing has produced, and it
+   *  would have to choose between a spine and a room with no evidence about which the model misses
+   *  more. Ceiling: at roughly 77 simultaneous cards with five rooms each, the ceiling fills and
+   *  whole cards start disappearing rather than thinning. TRIGGER: `bench/weight.ts` reporting the
+   *  ceiling dropping a card at any position, or `fills` under about 50 cards. Upgrade path when
+   *  it fires: trim rooms before spines — a card without its rooms still tells the model who is in
+   *  the scene, and a dropped card leaves it inventing them. */
+  const bodyOf = (e: Entry) => [worn(resolveBody(e, currentChapter.index), e),
+                                ...rooms(e, currentChapter.index, recent)].join('\n');
+
   const pins = input.pins ?? {};
   for (const e of entries) {
     // force_out is a hard filter and is applied first here so nothing downstream can
@@ -481,13 +509,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
         reason: `retired at chapter ${e.retiredAtChapter}` });
       continue;
     }
-    // The rooms ride WITH the entry rather than as blocks of their own, so an addon obeys the
-    // entry's activation exactly as an outfit already does: an always-on card carries its open
-    // rooms every call, a triggered one only when it fires. Whether that is still right once a
-    // card has six rooms is a measurement, not an opinion — `bench/fires.ts` answers it, and the
-    // eviction order only needs to learn about addons if the cap starts biting.
-    const body = [worn(resolveBody(e, currentChapter.index), e),
-                  ...rooms(e, currentChapter.index, recent)].join('\n');
+    const body = bodyOf(e);
     if (e.activation === 'always_on') {
       add('CANON-ALWAYS', e.id, body, 'always_on', ['always_on']);
     } else if (pins[e.id] === 'force_in') {
@@ -508,6 +530,49 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
         if (then.length) { add('CANON-TRIGGERED', e.id, body, `sticky ${back} back`, ['sticky', ...then]); break; }
       }
     }
+  }
+
+  // THE INHERITED PULL — PLAN-08 Phase 3. `entry_edges` has been written since Phase 2 and read by
+  // nothing; this is where `confidence` gets spent.
+  //
+  // PARENT PULLS CHILD AND NEVER THE REVERSE. Her coat arrives when she does; she does not arrive
+  // because somebody said "coat". That direction is the whole design decision behind the table —
+  // see its own comment in `src/db.ts` — and an undirected walk here would rebuild COUNCIL-04 #7's
+  // crowded scene through the back door with the schema still looking correct.
+  //
+  // TWO WAYS AN EDGE FIRES, and they are the same union an entry and an addon already use: the
+  // parent reached the prompt, or the EDGE's own keys hit the window (#5, "also triggerable by
+  // their own trigger word"). `fires` is the shipped matcher with the edge's keys swapped in,
+  // never a second copy, so the fold, the proper-noun exemption and multi-word order behave here
+  // exactly as they do on the card itself.
+  //
+  // ANYTHING THAT ALREADY HAS A BLOCK IS LEFT ALONE, included or omitted. That is what stops a
+  // pull from resurrecting a card the writer pinned out or a thread that is finished — a rule the
+  // two `continue`s above would otherwise state and this loop would silently undo.
+  //
+  // ponytail: ONE HOP. A pulls B pulls C leaves C out, because this reads what the direct pass
+  // placed and not what it places. Deliberate: a walk needs a cycle guard — A→B and B→A are two
+  // legal rows — and a depth nobody has measured, and no book here has yet shown a two-hop chain.
+  // Upgrade path is a bounded walk with a seen-set in this loop, not a recursive helper.
+  const placed = new Set(blocks.filter((b) => b.state === 'included').map((b) => b.id));
+  const settled = new Set(blocks.map((b) => b.id));
+  const entryById = new Map(entries.map((e) => [e.id, e]));
+  for (const edge of input.edges ?? []) {
+    const child = entryById.get(edge.childId);
+    if (!child || settled.has(edge.childId)) continue;
+    const hits = edge.keys?.length ? fires({ ...child, keys: edge.keys }, recent) : [];
+    if (!placed.has(edge.parentId) && !hits.length) continue;
+    // Clamped rather than trusted: `confidence` is a REAL column a route can be handed, and a
+    // value outside 0..1 would sort an inherited pull above a keyword or below every sticky hold.
+    const conf = Math.min(1, Math.max(0, edge.confidence ?? 1));
+    const why = placed.has(edge.parentId)
+      ? (entryById.get(edge.parentId)?.title?.trim() || edge.parentId)
+      : "the edge's own words";
+    // The reason carries BOTH why it is here and what it is worth, because `canonRank` reads the
+    // reason — one source for the two, the same bargain the sticky walk already makes.
+    add('CANON-TRIGGERED', child.id, bodyOf(child), `inherited ${conf.toFixed(2)} from ${why}`,
+        ['edge', ...hits]);
+    settled.add(child.id);
   }
 
   // EARLIER — every summary except the chapters still whole in PROSE, or the recent
@@ -680,6 +745,12 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   const canonRank = (b: Block) => {
     const sticky = /^sticky (\d+) back$/.exec(b.reason);
     if (sticky) return 0 - Number(sticky[1]);       // -3 is weaker than -1
+    // An inherited pull lands in the gap between the two: strictly below any direct keyword hit,
+    // and above a sticky hold, with `confidence` ordering the pulls among themselves. A pull at
+    // full confidence is worth 0; one at zero confidence is worth exactly a one-passage hold,
+    // which is the floor and is why the value is clamped where it is written.
+    const pull = /^inherited ([\d.]+) from /.exec(b.reason);
+    if (pull) return Number(pull[1]) - 1;           // (-1, 0]
     if (b.reason === 'keyword') return 1;
     if (b.reason === 'point of view') return 2;
     if (b.reason === 'pinned in') return 3;

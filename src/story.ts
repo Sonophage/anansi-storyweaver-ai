@@ -116,6 +116,11 @@ export function view(storyId: string, focusChapterId?: string) {
       })),
     })),
     pins: pins.map((p: any) => ({ chapterId: p.chapter_id, entryId: p.entry_id, mode: p.mode })),
+    // PLAN-08 Phase 3. Directed connections, parent to child. They travel with the view because
+    // the engine reads them and the Threads screen draws them, and both have to agree about which
+    // way round an edge points — the one thing about this table that cannot be recovered later.
+    edges: db.edgesOf(storyId).map((e: any) => ({ id: e.id, parentId: e.parent_id,
+      childId: e.child_id, confidence: e.confidence, keys: JSON.parse(e.keys || '[]') })),
     arcs: arcs.map((a: any) => ({ id: a.id, fromChapter: a.from_chapter, toChapter: a.to_chapter,
       title: a.title, summary: a.summary })),
     violations: db.violationsOf(storyId).map((v: any) => ({
@@ -219,6 +224,9 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     pins: Object.fromEntries((v.pins ?? [])
       .filter((p: any) => p.chapterId === v.currentChapter.id)
       .map((p: any) => [p.entryId, p.mode])),
+    // Not filtered by chapter: an edge is a fact about the book, not about where you are writing.
+    // What it can pull is already bounded by the entries that reached the prompt at this position.
+    edges: v.edges ?? [],
     budget: budgetFor(v.story, slot, maxTokens), tailTokens: 220,
     modePrompts,
   };

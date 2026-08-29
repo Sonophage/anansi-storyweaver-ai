@@ -7,27 +7,38 @@ touched. Read `.claude/CLAUDE.md` first; this file is what a cold session needs 
 
 **PLAN-08 (`docs/plans/PLAN-08-THREADS.md`) is the live plan.** It absorbs issues #5 and #13 and
 PLAN-06 §2e into one job, because they are one question: what is in a card, and what makes a piece
-of it reach the model. Phases 1 and 2 are done. Phase 3 is half done.
+of it reach the model. Phases 1, 2 and 3 are done. Phase 4 has not started.
 
 | phase | state |
 |---|---|
 | 1 · the flip + a probe | **done.** F38 is the number. Two changes shipped, two held with reasons. |
 | 2 · the schema, once | **done.** `addons`, `entry_edges`, `retired_at_chapter`, `proposals.field`/`.activation`. |
-| 3 · the context path | **half.** Addons reach the model; **edges do not**, and the cap is unmeasured. |
+| 3 · the context path | **done.** Addons and edges both reach the model; the cap is measured (F39). One thing left over, below. |
 | 4 · chapter end | **not started.** #5's scan, clothing routed to outfits, #12's ritual step. |
+
+### What Phase 3 closed, on 2026-08-28
+
+1. **Directed edges are read.** A second pass in `buildContext` pulls a child in when its parent
+   reached the prompt, or when the EDGE's own keys hit the window. The block's reason carries both
+   the parent and the worth — `inherited 0.60 from Halsey` — because `canonRank` reads the reason,
+   so an inherited pull sorts strictly below a direct keyword hit and above a sticky hold. That is
+   where `confidence` gets spent. ONE HOP, with the ceiling written at the loop.
+   **There is still no way to CREATE an edge from a surface**, and that is deliberate: two routes
+   were written and then taken back out, because `test/web.ts` refuses a route no method in
+   `web/api.js` names, and the method it would need has no caller until the Threads screen draws
+   connections. `db.linkEntries` is how a test or a one-liner makes one today. The door belongs
+   with the screen, in Phase 4.
+2. **The cap is measured — F39, `bench/weight.ts`.** Canon peaks at **2% of its 45% ceiling** across
+   the library, and a COUNCIL-04 #7 scene (46 cards at once) with five rooms on every one of them
+   would want about **60%** of it. **Decision: eviction keeps dropping a whole card and does not
+   learn to trim rooms first**, recorded as a `ponytail:` marker on `bodyOf` with its trigger —
+   `bench/weight.ts` reporting the ceiling dropping a card at any position, or `fills` under ~50
+   cards. Read the denominator before the number: **no book has a room yet**, so only the modelled
+   column is evidence about this feature.
 
 ### What Phase 3 still owes
 
-1. **Directed edges are stored and never read.** `entry_edges` has `parent_id`, `child_id`,
-   `confidence` and its own `keys`, and `buildContext` does not look at the table. A parent that
-   fires should pull its children in, worth less than a direct hit — `confidence` is the number and
-   nothing spends it yet.
-2. **The cap is unmeasured, and this shape makes the risk WORSE.** One entry used to be one block;
-   it is now one block plus N rooms, and plural slots accumulate without limit. COUNCIL-04 #7 was 46
-   entries firing at once — this is the same failure at a finer grain. Re-run `bench/fires.ts` with
-   addons switched on before calling Phase 3 done, and decide what the eviction order drops first:
-   a whole card, or its rooms before its spine.
-3. **`worn()` and the outfit slot are a temporary pair.** The migration COPIED `outfits` into
+**`worn()` and the outfit slot are a temporary pair.** The migration COPIED `outfits` into
    `addons` and the surface still writes the old table, so `src/context.ts` skips the `outfit` slot
    and `web/app.js` skips drawing it as a room. Both clauses come out together on the day the
    wardrobe writes addons — and `test/ui/panels.js` asserts the coat reaches the prompt exactly
@@ -68,11 +79,16 @@ of it reach the model. Phases 1 and 2 are done. Phase 3 is half done.
 
 ## Numbers that override the docs
 
-`docs/findings/P0-FINDINGS.md` beats `SPEC.md` and every plan. The two that matter most here:
+`docs/findings/P0-FINDINGS.md` beats `SPEC.md` and every plan. The three that matter most here:
 
 - **F38** — the ledger's keyword path is NOT dead: 107 firings in 148 eligible entry-positions.
   PLAN-06 §2e's "best-tested dead code in the app" was true of a twelve-entry library on
   2026-08-27 and is not true now. §2e is marked superseded.
+- **F39** — the cap does not bite. Canon peaks at 2% of its 45% ceiling; a 46-card COUNCIL-04 #7
+  scene with five rooms on every card would want ~60%. Measured by `bench/weight.ts`, which walks
+  every position through `view()`/`assemble()` against a COPY of the database — it never opens the
+  live book. **Its denominator is the reading: no book has a room yet**, so the "as it stands"
+  column is the shape before the feature and only the modelled column is evidence about it.
 - **`bench/ledger-audit.ts` governs whether anything may be flipped to `triggered`**, and says
   existing rows may not: 1 in 12 would go dark and 2 more are "safe on the record, dark on the next
   call". `bench/fires.ts` is its per-position sibling and should be folded into it one day; it
@@ -84,7 +100,8 @@ Issues #7, #9, #11, #12, #14. #9 (contradictions arriving late) is **downstream*
 beside it — the check reads the ledger, so fielded cards change its inputs and doing it first is
 work thrown away. `serve.ts`'s three `ponytail:` markers are untouched: `:81` a reverse proxy breaks
 the loopback rule OPEN, `:208` no backpressure now that a phone is on the tailnet, `:54` whois
-cached per process. Twenty-four `ponytail:` markers across the tree.
+cached per process. Twenty-six `ponytail:` markers across the tree; the two new ones are the one-hop
+bound on the inherited pull and the eviction decision F39 bought.
 
 Parked with its reasoning in `docs/checklist.md`: attaching an image to an issue.
 

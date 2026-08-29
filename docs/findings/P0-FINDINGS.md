@@ -1556,3 +1556,51 @@ end of it, lore does not inherit a character's sticky, an entry fires on the dir
 on an empty one, and an entry whose keys are never said fires nowhere. A story can carry several
 branches and `ordinal` is unique per branch, so only the branch with the most selected passages is
 walked; interleaving two would invent a history nobody wrote.
+
+## F39 — the cap does not bite. Canon peaks at 2% of its 45% ceiling, and the worst crowded scene this project has on record would want 60% of it even with five rooms on every card (2026-08-28)
+
+PLAN-08 Phase 3's second debt. The plan states the risk as a warning and not a number: *"one entry
+is one block plus N addons, and N is unbounded because plural slots accumulate. COUNCIL-04 #7 was
+46 entries firing at once; this is the same failure with a finer grain."* Measured with
+`bench/weight.ts`, which walks every position of every book through `view()` and `assemble()` — the
+same two functions the running server calls — against a **copy** of the database, so the live book
+is never opened.
+
+| book | positions | cards | as it stands | +5 rooms per card (modelled) | ceiling fills at |
+|---|---|---|---|---|---|
+| Test | 9 | 4 | 1% median, 1% peak | 5% | ~77 cards |
+| The Anagram of Ash | 62 | 6 | 1% median, 2% peak | 6% | ~90 cards |
+| The Shadow's Debt | 13 | 2 | 0% | 2% | ~90 cards |
+| **library** | **84** | | **0 positions where the ceiling dropped a card** | **0** | |
+
+**The denominator first, because it is the whole reading: NO BOOK HAS A ROOM YET.** Zero addons
+outside the `outfit` slot exist across the library, and the outfit copies the migration made are
+skipped by `context.ts` on purpose. So the "as it stands" column measures the shape *before* this
+feature and is not evidence about it. Only the modelled column says anything about the risk PLAN-08
+names, and it is labelled as modelled everywhere it appears.
+
+**What is modelled and what is not.** Measured: what canon weighs at each of 84 real positions, with
+the real cards, the real firing, the real budget and the real SYSTEM reserve. Modelled: k synthetic
+rooms added to every card that reached the prompt, with a room's body stood in for by that book's
+**median card body** (140–179 characters) — a room is a paragraph about a card in the same voice as
+the card, so the card's own body is the closest thing the library has to a measurement of one.
+
+**The decision this bought: eviction keeps dropping a whole card and does not learn to trim rooms
+first.** The ceiling fills at roughly 77 cards firing at once with five rooms each, in the tightest
+book. COUNCIL-04 #7 — 46 entries at once for an eight-person scene, the worst crowded scene on
+record — lands at about **60% of that ceiling**. The most any book in the library has fired at one
+position is 6. A per-room trim is therefore a mechanism for a pressure nothing has produced, and it
+would have to choose between a spine and a room with no evidence about which the model misses more.
+Written down as a `ponytail:` marker on `bodyOf` in `src/context.ts` with its trigger:
+`bench/weight.ts` reporting the ceiling dropping a card at any position, or `fills` under about 50
+cards. The upgrade path, when it fires, is rooms before spines — a card without its rooms still
+tells the model who is in the scene, and a dropped card leaves it inventing them.
+
+**The detector answers both ways before any of the above is believed** (F17).
+`bench/weight.ts check` asserts that rooms make canon heavier, that each room adds again rather than
+a flat surcharge, that the ceiling **does** drop a card when canon outgrows it, and that it drops
+nothing when canon fits. A weight probe that cannot report "the cap bit" reports perfection forever.
+
+**A percentage under 100 is not "the cap cannot bite".** It is the cap not biting on the prose that
+exists, in a library whose largest ledger is six cards. This bounds the risk at today's sizes; it
+does not retire it, and the trigger above is what re-opens it.

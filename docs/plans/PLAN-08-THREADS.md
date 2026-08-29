@@ -208,8 +208,39 @@ believed.
 
 ### Phase 3 — the context path
 
-What fires, per field, through the directed edges, with sticky and the proper-noun exemption intact.
-`render.ts` stays the only place block order becomes text. `buildContext` stays pure.
+**Done, 2026-08-28.** What fires, per field, through the directed edges, with sticky and the
+proper-noun exemption intact. `render.ts` stays the only place block order becomes text.
+`buildContext` stays pure — the edges arrive through `Input`, like every other flag.
+
+- **Rooms reach the model.** `rooms()` in `src/context.ts`, on the union the plan asked for: `active`
+  or the addon's own keys, matched by the shipped `fires` with the addon's keys swapped in.
+- **The inherited pull spends `confidence`.** `entry_edges` was stored and read by nothing; a second
+  pass now pulls a child in when its parent reached the prompt, or when the EDGE's own keys hit the
+  window (#5's "also triggerable by their own trigger word"). The block's reason carries both the
+  parent and the worth — `inherited 0.60 from Halsey` — because `canonRank` reads the reason, and an
+  inherited pull sorts strictly below any direct keyword hit and above a sticky hold.
+  **The direction is asserted, not assumed:** `test/engine.ts` has a check that a child which fires
+  does not drag its parent in, and it was falsified by adding a reverse pull and watching that one
+  assertion go red. One hop only, with the ceiling written down where the loop is.
+- **No route creates an edge, on purpose.** `POST /api/link` and `DELETE /api/link` were written
+  and taken back out: `test/web.ts` refuses a route that no method in `web/api.js` names, and that
+  method would have no caller until the Threads screen draws a connection — which is the fielded-card
+  editor, and this plan puts it out of scope. The guard is right; wiring the door and the screen
+  together in Phase 4 is what it is asking for. `db.linkEntries` already checks both ends for
+  ownership and is how a test makes an edge today.
+- **The cap is measured: F39.** `bench/weight.ts`, a third bench, walking every position of every
+  book through `view()` and `assemble()` against a COPY of the database. Canon peaks at 2% of its
+  45% ceiling today; a COUNCIL-04 #7 scene — 46 cards at once — with five rooms on every one of them
+  would want about 60% of it. **The eviction order therefore keeps dropping a whole card and does
+  not learn to trim rooms first**, with the trigger and the upgrade path recorded as a `ponytail:`
+  marker on `bodyOf` in `src/context.ts`. The denominator says the rest: no book has a room yet, so
+  only the modelled column is evidence about this feature at all.
+
+**Still owed, and it is the one thing this phase did not close:** `worn()` and the `outfit` slot are
+a temporary pair. The migration COPIED `outfits` into `addons` and the surface still writes the old
+table, so `src/context.ts` skips the `outfit` slot and `web/app.js` skips drawing it as a room. Both
+clauses come out together on the day the wardrobe writes addons — `test/ui/panels.js` asserts the
+coat reaches the prompt exactly once, so deleting one alone goes red rather than silently doubling.
 
 ### Phase 4 — chapter end
 
