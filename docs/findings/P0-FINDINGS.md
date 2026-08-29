@@ -1781,3 +1781,40 @@ pointed at and **wrote passages into it**, deleting them afterwards — against 
 instance that is somebody's actual novel. It seeds its own book now, which also makes the canon in
 its header a fact rather than a hope: a run against a library without a brass key measured nothing
 and said nothing about it.
+
+## F44 — telling the model what the writer rejected changes nothing, and the control says why: a reroll already goes somewhere else on its own (2026-08-29)
+
+`db.rejectTake` has recorded which takes the writer turned down since it was written, and has never
+told the model. Its marker named the obvious next step — put "not like this" and the rejected text
+into the prompt — and refused to take it on faith, citing F20. That was right, and the measurement
+says something the question did not anticipate.
+
+Built as an ARM rather than a feature: `Input.rejected` reaches DIRECTIVE as one bracket, nothing in
+the app sets it, and `bench/reroll.ts` turns it on for half the runs. Both arms go through the real
+`buildContext` and `render`, so they are the prompt the app would send and differ by exactly one
+bracket — asserted in the probe's own check, which also pins both ends of the similarity scale.
+
+| arm | median overlap with the rejected take | came back close |
+|---|---|---|
+| told what was rejected | **0.15** | 1 of 6 |
+| told nothing | **0.19** | 0 of 6 |
+
+**The control is the finding.** 0.19 means a reroll already lands somewhere else without being told
+anything — the complaint the feature exists for, *"I pressed it again and got the same paragraph"*,
+is not what this model does. There was nothing to fix, which is why saying more did not fix it. The
+bracket is tokens on every reroll for a difference of 0.04 at n=6.
+
+**What this does NOT say.** Nothing about whether the new take is any GOOD. A reroll that is
+different and worse is a loss this cannot see, and the probe says so in its own output. It answers
+the divergence complaint and nothing beyond it.
+
+**The arm is kept rather than deleted, and n=6 is the reason.** F20 deleted a block on 850 runs per
+arm and F43 deleted a rule on a clean 0/4; six pairs is thinner than either, and throwing away the
+apparatus means rebuilding it to ask the same question properly. Nothing sets the field, so it costs
+nothing at runtime. The trigger for revisiting is a writer actually reporting repeated rerolls —
+then re-run at n≥50 and either wire it up or delete both halves.
+
+**The similarity measure is word-level Jaccard with a four-character floor, and the floor matters.**
+Without it, `the`, `and`, `a` and the rest of the scaffolding two English paragraphs always share
+put every pair around 0.3 and bury the difference the arms exist to show. Both ends of the scale are
+asserted in `check`: identical takes score 1, unrelated ones under 0.1.

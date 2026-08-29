@@ -28,10 +28,25 @@ export function safePath(name: string): string {
 }
 
 const MAX_FIELD = 8_000;      // one entry body; the budget engine works in thousands of tokens
-const MAX_ENTRIES = 200;
+// Raised from 200 on 2026-08-29: a real AI Dungeon export carried 219 story cards, and the
+// cut is silent — the parse slices before `absorb` ever sees the list, so 19 cards vanished
+// with nothing on the import screen saying so. Still a bound, because this is untrusted input.
+const MAX_ENTRIES = 250;
 const MAX_PASSAGES = 2_000;
 const clip = (s: unknown, n = MAX_FIELD) =>
   typeof s === 'string' ? s.replace(/\r\n/g, '\n').trim().slice(0, n) : '';
+
+/** Slice a list, and say so when it actually cuts. Every bound in this file was a bare
+ *  `.slice()`, so an oversized file imported clean and short — the loss surfaced months later
+ *  as a card that was never there. The count is sitting right there in the file; the only
+ *  reason it was never named is that nobody wrote the line. Silent when nothing is dropped. */
+const cap = <T>(list: T[], n: number, what: string, notes: string[]): T[] => {
+  if (list.length > n)
+    notes.push(`${list.length} ${what} in the file and ${n} came across — the last ` +
+      `${list.length - n} did not. Import the rest into this story from a second file if you ` +
+      'need them all.');
+  return list.slice(0, n);
+};
 
 export interface Incoming {
   source: string;
@@ -90,6 +105,8 @@ export function fromExport(file: string): Incoming {
     const passages = src.prepare(
       'SELECT body, author FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1 ORDER BY ordinal')
       .all(story.id, branch?.id) as any[];
+    const notes = ['Branches, revision history and generation logs are not carried across — the ' +
+                   'import is a new story, not the same one.'];
     return {
       source: 'anansi export',
       story: { title: story.title, genre: story.genre, premise: story.premise, setting: story.setting,
@@ -100,23 +117,22 @@ export function fromExport(file: string): Incoming {
         // a named model used to vanish on an export and re-import with nothing saying so.
         spiceNote: story.spice_note, maxContext: story.max_context, model: story.model,
         lockedCharacter: story.locked_character },
-      entries: entries.slice(0, MAX_ENTRIES).map((e) => ({ title: e.title, body: clip(e.body),
+      entries: cap(entries, MAX_ENTRIES, 'canon entries', notes).map((e) => ({ title: e.title, body: clip(e.body),
         notes: clip(e.notes, 2000), entryType: e.entry_type, activation: e.activation,
         keys: keysOf(e.keys && JSON.parse(e.keys)),
         outfits: outfits.filter((o) => o.entry_id === e.id).slice(0, 20)
           .map((o) => ({ name: clip(o.name, 80), body: clip(o.body, 1000), active: !!o.active })) })),
-      passages: passages.slice(0, MAX_PASSAGES).map((p) => ({ body: clip(p.body, 20_000), author: p.author })),
+      passages: cap(passages, MAX_PASSAGES, 'passages', notes).map((p) => ({ body: clip(p.body, 20_000), author: p.author })),
       // What the book promised and has not paid. A story that comes back without its unpaid
       // promises comes back as a different book: the ledger says who everybody is and the strings
       // are the only record of what is still owed.
-      strings: strings.slice(0, MAX_ENTRIES).map((x: any) => ({
+      strings: cap(strings, MAX_ENTRIES, 'unpaid promises', notes).map((x: any) => ({
         title: clip(x.title, 200), body: clip(x.body, 1000), fromChapter: x.from_chapter,
         owedBy: x.owed_by, status: x.status,
         // summoned is deliberately NOT carried. It means "in play in the scene I am writing now",
         // which is about the session rather than the book.
       })),
-      notes: ['Branches, revision history and generation logs are not carried across — the ' +
-              'import is a new story, not the same one.'],
+      notes,
     };
   } finally { src.close(); }
 }
@@ -132,7 +148,7 @@ export function fromExport(file: string): Incoming {
 function fromAiDungeon(j: any): Incoming {
   const notes: string[] = [];
   const wi = j.worldInfo ?? j.worldInfoList ?? j.worldInfos ?? [];
-  const entries = (Array.isArray(wi) ? wi : []).slice(0, MAX_ENTRIES).map((w: any) => ({
+  const entries = cap(Array.isArray(wi) ? wi : [], MAX_ENTRIES, 'world info entries', notes).map((w: any) => ({
     title: clip(w.name ?? w.keys ?? w.key ?? 'Untitled', 120) || 'Untitled',
     body: clip(w.entry ?? w.value ?? w.description ?? w.content),
     entryType: 'lore',
@@ -152,7 +168,7 @@ function fromAiDungeon(j: any): Incoming {
     .filter(Boolean);
   const opening = clip(j.prompt ?? j.promptText ?? j.description, 20_000);
   const passages = (opening ? [{ body: opening, author: 'human' }] : [])
-    .concat(text.slice(0, MAX_PASSAGES).map((t: string) => ({ body: t, author: 'model' })));
+    .concat(cap(text, MAX_PASSAGES, 'actions', notes).map((t: string) => ({ body: t, author: 'model' })));
 
   if (clip(j.authorsNote)) notes.push(`Author's note carried onto chapter one: ${clip(j.authorsNote, 500)}`);
   return {
@@ -179,8 +195,9 @@ function fromAiDungeonCards(arr: any[]): Incoming {
   // Anything it invents that we have no shelf for is lore, which is the shelf that means "canon".
   const AS: Record<string, string> = { character: 'character', race: 'character', class: 'character',
     item: 'item', faction: 'lore', location: 'lore', place: 'lore' };
+  const notes: string[] = [];
   let spoilers = 0;
-  const entries = arr.slice(0, MAX_ENTRIES).map((c: any) => {
+  const entries = cap(arr, MAX_ENTRIES, 'story cards', notes).map((c: any) => {
     const body = clip(c.value ?? c.entry);
     // `description` is AI Dungeon's edit log for the card — dated revisions of the same text.
     // Worth reading, noise in a prompt, so it goes to notes. Unless there is nothing else.
@@ -196,8 +213,8 @@ function fromAiDungeonCards(arr: any[]): Incoming {
     };
   }).filter((e) => e.body);
 
-  const notes = ['Story cards carry no prose. Export the adventure text too and import it into ' +
-                 'this story to bring the writing across.'];
+  notes.push('Story cards carry no prose. Export the adventure text too and import it into ' +
+             'this story to bring the writing across.');
   if (spoilers) notes.push(`${spoilers} card${spoilers > 1 ? 's were' : ' was'} marked a spoiler in ` +
     'AI Dungeon. That flag has no equivalent here, so they came in as ordinary canon — put them ' +
     'behind a progression if they should stay hidden until a later chapter.');
@@ -216,8 +233,9 @@ export function fromAiDungeonMarkdown(text: string): Incoming {
   const src = String(text ?? '').replace(/\r\n/g, '\n');
   const h = src.match(/^#[ \t]+(.+)$/m);
   const rest = h ? src.slice(src.indexOf(h[0]) + h[0].length) : src;
-  const passages = rest.split(/\n[ \t]*\n/).map((b) => b.trim()).filter(Boolean)
-    .slice(0, MAX_PASSAGES)
+  const notes: string[] = [];
+  const blocks = rest.split(/\n[ \t]*\n/).map((b) => b.trim()).filter(Boolean);
+  const passages = cap(blocks, MAX_PASSAGES, 'passages', notes)
     .map((b) => b.startsWith('>')
       ? { body: clip(b.replace(/^>[ \t]?/gm, '').trim(), 20_000), author: 'human' }
       : { body: clip(b, 20_000), author: 'model' })
@@ -228,9 +246,9 @@ export function fromAiDungeonMarkdown(text: string): Incoming {
     story: { title: clip(h?.[1], 200) || 'Imported adventure', pov: 'second person, present tense' },
     entries: [],
     passages,
-    notes: [`${passages.length} passages, ${mine} of them yours — the lines the export marks with ` +
+    notes: notes.concat([`${passages.length} passages, ${mine} of them yours — the lines the export marks with ` +
             '">". Everything else is attributed to the model.',
-            'Chapters are not in the export, so all of it lands in chapter one. Split it where you want.'],
+            'Chapters are not in the export, so all of it lands in chapter one. Split it where you want.']),
   };
 }
 
@@ -285,7 +303,7 @@ export function fromCard(j: any): Incoming {
 
   // A card's lorebook is keyword-triggered canon, the same idea under a different name.
   const book = d.character_book ?? d.characterBook ?? j.character_book;
-  for (const e of (book?.entries ?? []).slice(0, MAX_ENTRIES)) {
+  for (const e of cap(book?.entries ?? [], MAX_ENTRIES, 'lorebook entries', notes)) {
     const body = clip(e.content ?? e.entry ?? e.value);
     if (!body || e.enabled === false) continue;
     // Activation follows the KEYS as well as the card's `constant` flag. A card can declare a
@@ -318,7 +336,7 @@ export function fromCard(j: any): Incoming {
       premise: clip(d.scenario, 2000) || persona.slice(0, 300),
       setting: clip(d.scenario, 500), persona: name, spice: spiceFromTags(d.tags),
     },
-    entries: entries.slice(0, MAX_ENTRIES),
+    entries: cap(entries, MAX_ENTRIES, 'entries', notes),
     passages: first ? [{ body: first, author: 'model' }] : [],
     notes,
   };

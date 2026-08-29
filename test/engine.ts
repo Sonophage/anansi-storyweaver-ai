@@ -1105,4 +1105,25 @@ ok('THE POINT-OF-VIEW CHARACTER IS NEVER ASKED ABOUT', () => {
     .map((e) => e.title), ['Marek'], 'and somebody else being the persona changes nothing');
 });
 
+// ---- the rejected take, which is an ARM and not a feature yet -------------------------------
+
+ok('a rejected take reaches DIRECTIVE when it is sent, and nothing changes when it is not', () => {
+  // `db.rejectTake` has recorded rejections since it was written and never told the model. The
+  // field exists so `bench/reroll.ts` can measure whether telling it helps, before anything in the
+  // app starts doing it — the same bar F20 set when it deleted a block that measured zero.
+  const off = render(buildContext(base(), count));
+  const b = base();
+  (b as any).rejected = 'He went down the stair and the rain went with him.';
+  const on = render(buildContext(b, count));
+  assert.doesNotMatch(off, /rejected this attempt/i, 'silent unless the caller sends one');
+  assert.match(on, /rejected this attempt/i);
+  assert.match(on, /the rain went with him/, 'and it carries the take itself, not a summary of it');
+});
+
+ok('  and a blank one is not a rejection', () => {
+  const b = base();
+  (b as any).rejected = '   ';
+  assert.doesNotMatch(render(buildContext(b, count)), /rejected this attempt/i);
+});
+
 console.log(`\n${n} checks passed`);
