@@ -5190,7 +5190,15 @@ document.addEventListener('click', async (e) => {
   }
   // The DOOR. Pressing it opens the chapter's own screen; the close itself is a second press
   // inside, which is the right number before an act that cannot be undone from one button.
-  if (d.ritual) { S.ritualOf = V.currentChapter.id; S.panel = 'ritual'; syncHash(); paint(); return; }
+  if (d.ritual) {
+    // THE DOOR NAMES NO CHAPTER, and that is the fix rather than the omission. It used to pin
+    // `V.currentChapter`, which is right while you are writing and wrong the moment a chapter
+    // closes: the next one opens empty, so pressing the door after a close reported on a chapter
+    // with no prose and put the re-run buttons on it. `ritualPanel` already answers this correctly
+    // for a cold load — the chapter you are in if it has a passage, the one before it otherwise —
+    // and the door overrode that with something worse. Now they agree.
+    S.ritualOf = null; S.panel = 'ritual'; syncHash(); paint(); return;
+  }
 
   if (d.endchapter) {
     if (S.ritual) return;                       // already running

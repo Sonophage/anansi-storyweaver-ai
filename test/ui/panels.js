@@ -988,4 +988,46 @@ ok("  and it is still there a moment later, not eaten by a repaint",
      /lamplighter/.test(shown));
 }
 
+// ---- WHICH CHAPTER THE RITUAL SCREEN IS ABOUT, AFTER A CLOSE. The door pinned `V.currentChapter`,
+// which is right while you are writing and wrong the instant a chapter closes: the next one opens
+// empty, so pressing the door after a close reported on a chapter with no prose and offered its
+// re-run buttons for that one. `ritualPanel` already had the right rule for a cold load and the
+// door overrode it. Seth hit this on 2026-08-29 re-running the memory pass on a chapter he had
+// just closed.
+//
+// NO MODEL: /api/chapter/end takes summarise/remember/extract/retire false and closes anyway, which
+// is the same flags the ritual screen's own checkboxes send.
+{
+  const sid6 = await page.eval(`(async () => {
+    const r = await (await fetch('/api/stories', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ title:'Which Chapter', genre:'test', premise:'x', pov:'third past' }) })).json();
+    const id = r.storyId ?? r.id ?? (r.stories && r.stories.at(-1).id);
+    await fetch('/api/write', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ storyId:id, body:'The bell rang once and nobody came down for it.' }) });
+    await fetch('/api/chapter/end', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ storyId:id, summarise:false, remember:false, extract:false, retire:false }) });
+    return id; })()`);
+  ok(`a story with one closed chapter and an empty new one (${sid6})`, /^s-/.test(String(sid6)));
+  // NAMES, NOT NUMBERS. A new story's chapters carry titles ("Chapter One"), so asserting the
+  // string "Chapter 1" tested the naming convention rather than which chapter was on screen.
+  const chs = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid6}')).json())
+    .chapters.map(c => ({ i: c.index ?? c.idx, t: c.title || ('Chapter ' + (c.index ?? c.idx)) })))()`);
+  ok(`  two chapters now (${chs.map(c => c.t).join(', ')})`, chs.length === 2);
+
+  await page.goto(B + "/#" + sid6);
+  for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
+  await page.click('[data-panel="chapter"], [data-nav="chapter"]');
+  for (let i = 0; i < 40 && !(await page.visible('[data-ritual="1"]')); i++) await wait(250);
+  await page.click('[data-ritual="1"]');
+  for (let i = 0; i < 40 && !(await page.visible('#sideBody')); i++) await wait(250);
+  await wait(400);
+  const said = (await page.eval("document.querySelector('#sideBody')?.textContent || ''")).replace(/\s+/g, ' ');
+  // The chapter that just closed is chapter 1. Reporting on chapter 2 is the defect.
+  const closed = chs[0].t, opened = chs[1].t;
+  ok(`  the door opens the ritual on the chapter that CLOSED (${closed}), not the empty new one (${opened})`,
+     said.includes(closed) && !said.includes(opened));
+  // And it says so: a closed chapter's screen does not offer to close it again.
+  ok('  and a closed chapter is not offered for closing again', !(await page.visible('[data-endchapter="1"]')));
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
