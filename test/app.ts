@@ -778,6 +778,23 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.match(onlyNew, /data-acceptall="new"/, 'Add all appears on new, which is the additive kind');
   assert.doesNotMatch(onlyNew, /The stair/);
   ok('the queue splits by kind, and Add all is offered on new alone');
+
+  // WHERE IT LANDS IS ABOVE THE WORDS, not under them. It sat below the textarea, so the
+  // destination of a change was read after the change and on a long body was off the card entirely.
+  // Asserted by POSITION, because "the text is present somewhere" was already true before.
+  click({ pkind: 'changed' });
+  await new Promise((r) => setTimeout(r, 30));
+  const onlyChanged = html('sideBody');
+  const landsAt = onlyChanged.indexOf('Lands in appearance');
+  const bodyAt = onlyChanged.indexOf('data-pbody');
+  assert.ok(landsAt > -1 && bodyAt > -1, 'the card says where it lands and offers the body');
+  assert.ok(landsAt < bodyAt, 'and says where it lands BEFORE the words that will land there');
+  // The room is a chip on the title row, so a queue can be read without opening anything.
+  assert.match(onlyChanged, /class="tag"[^>]*>appearance</, 'the room is a chip on the card');
+  // Spoken, not stored: `who_is_here` is a column name. Proved on a slot that has underscores.
+  const spoken = html('sideBody');
+  assert.doesNotMatch(spoken, /who_is_here/, 'no room name is shown with its underscores');
+  ok('a proposal says where it lands before it says what lands, and wears the room as a chip');
   click({ pkind: 'all' });
   await new Promise((r) => setTimeout(r, 30));
 

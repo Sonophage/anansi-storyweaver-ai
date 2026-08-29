@@ -1151,34 +1151,57 @@ function drawSide() {
  *  own recurring failure is two renderings of one thing drifting apart, and Accept is the last
  *  place that should happen: `POST /api/proposal` reads the BOX, not the model's wording, so a
  *  copy without the textarea would quietly accept something different from what is on screen. */
+/** ONE OFFER, AND WHERE IT WOULD LAND.
+ *
+ *  WHERE IT LANDS IS AT THE TOP, above the words. Seth, 2026-08-29: "where it says where it lands
+ *  that should be up top maybe also a chip of where its gonna go. i.e. appearance or interiority."
+ *  It sat under the textarea, so the destination of a change was read AFTER the change — and on a
+ *  long body it was off the bottom of the card entirely. The room is also a chip on the title row
+ *  now, so a queue of them can be read down the left edge without opening any.
+ *
+ *  The room's name is written the way it is spoken: `who_is_here` is a column name, not a label.
+ *
+ *  THE DELTA AND THE BODY ARE BOTH SHOWN. The delta says what CHANGED and the body is what gets
+ *  written; showing one or the other meant that for a conflict or an update the text about to enter
+ *  canon was never on screen at all — you accepted a summary and got a paragraph you had not read.
+ *  The one that lands is the editable one. POST /api/proposal has honoured an incoming body since
+ *  it was written and nothing ever sent it.
+ *
+ *  No HTML comments in the markup below: a backtick or a `${` inside one is fatal inside a template
+ *  literal, and this file has paid for that five times in one day. */
 function proposalCard(p) {
   const tone = p.kind === 'new' ? 'var(--good)' : p.kind === 'conflict' ? 'var(--bad)' : 'var(--warn)';
+  const room = p.field ? String(p.field).replace(/_/g, ' ') : '';
+  // ALREADY AN ARRAY, usually. `keys` is parsed server-side for the view and arrives as one; the
+  // fake-server fixtures and the older call sites hand over the raw JSON string. This used to sit
+  // inside the retire and state branches, where it only ever met the string form — hoisting it to
+  // the top ran it against every proposal and `JSON.parse([])` is `JSON.parse('')`, which throws.
+  const keys = Array.isArray(p.keys) ? p.keys : JSON.parse(p.keys || '[]');
+  const at = keys[0] ?? '?';
+  const where = p.entryType === 'retire'
+    ? `Stops reaching the model from chapter ${esc(String(at))}. Every chapter before it still has
+       it, and Waiting can bring it back.`
+    : p.entryType === 'state'
+    ? `Replaces the whole description from chapter ${esc(String(at))} on.`
+    : room
+    ? `Lands in ${esc(room)} on ${esc(p.title)}. The rest of the card is left exactly as it is.`
+    : '';
   return `<div class="card" style="gap:8px">
-          <div style="display:flex; align-items:center; gap:8px">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
             <span style="font-size:14.5px; color:var(--ink-bright)">${esc(p.title)}</span>
+            ${room ? `<span class="tag" style="border-color:rgba(217,178,106,.35); color:var(--gold)"
+              >${esc(room)}</span>` : ''}
             <span class="up" style="margin-left:auto; font-size:9.5px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
-          <!-- The delta says what CHANGED and the body is what gets written. Showing the delta OR
-               the body meant that for a conflict or an update the text about to enter canon was
-               never on screen at all: you accepted a summary and got a paragraph you had not read.
-               Both now, and the one that lands is editable. POST /api/proposal has honoured an
-               incoming body since it was written; nothing ever sent it. -->
+          ${where ? `<div style="font-size:11px; line-height:1.45; color:var(--faint)">${where}</div>` : ''}
+          ${p.field && p.target ? `<div style="font-size:11px; line-height:1.45; color:var(--warn)">${esc(p.title)}
+            already has ${/^[aeiou]/i.test(room) ? 'an' : 'a'} ${esc(room)}. Add this beside it, or put
+            it in place of the one there.</div>` : ''}
           ${p.delta && p.delta.trim() !== (p.body ?? '').trim()
             ? `<div style="font-size:12px; line-height:1.45; color:var(--faint)">${esc(p.delta)}</div>` : ''}
-          ${p.entryType === 'retire' ? '' : `<textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} will say"
+          ${p.entryType === 'retire'
+            ? `<div style="font-size:12px; line-height:1.45; color:var(--mute)">${esc(p.body ?? '')}</div>`
+            : `<textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} will say"
             style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>`}
-          ${p.entryType === 'retire' ? `<div style="font-size:12px; line-height:1.45; color:var(--mute)">${
-            esc(p.body ?? '')}</div>
-          <div style="font-size:11px; color:var(--faint)">Stops reaching the model from chapter ${
-            esc(String(JSON.parse(p.keys || '[]')[0] ?? '?'))}. Every chapter before it still has it,
-            and Waiting can bring it back.</div>` : ''}
-          ${p.entryType === 'state' ? `<div style="font-size:11px; color:var(--faint)">In force from chapter ${
-            esc(JSON.parse(p.keys || '[]')[0] ?? '?')}</div>` : ''}
-          ${p.field ? `<div style="font-size:11px; color:var(--faint)">Lands in ${
-            esc(String(p.field).replace(/_/g, ' '))} on ${esc(p.title)}. The rest of the card is
-            left exactly as it is.</div>` : ''}
-          ${p.field && p.target ? `<div style="font-size:11px; color:var(--warn)">${esc(p.title)}
-            already has a ${esc(String(p.field).replace(/_/g, ' '))}. Add this beside it, or put it
-            in place of the one there.</div>` : ''}
           <div style="display:flex; gap:7px">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">${
@@ -1187,7 +1210,7 @@ function proposalCard(p) {
               style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
               border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Replace it</button>` : ''}
             <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
-              border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button></div></div>`;
+              border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">&#10005;</button></div></div>`;
 }
 
 /** ENDING A CHAPTER, ON ITS OWN SCREEN. PLAN-08 Phase 4, and issue #12's ritual step.
