@@ -3,7 +3,7 @@
 //
 // `node --check` with module input parses without executing — no regex stripping, which is
 // how the first version of this test managed to report failures that were its own fault.
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert';
 
@@ -179,6 +179,51 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
       'a finished thread must be liftable from Waiting, the way a mute is');
     assert.match(w, /retiredAtChapter/, 'and it must read the threshold off the view, not guess');
     ok('a finished thread is listed in Waiting with the press that brings it back');
+  }
+
+  // THE BROWSER HARNESS'S OWN SILENCE, MADE AUDIBLE.
+  //
+  // `test/ui/run.sh` is run by hand and its results lived only in the terminal, so `buttons` and
+  // `handlers` sat dead for weeks — dying on their first click, reporting nothing — while the last
+  // line of a run still read "all scenarios green" over sixteen of eighteen. Nothing in the repo
+  // could say otherwise. This does not make the browser run; it makes not running it, and running
+  // it and finding a corpse, both visible from the suite that DOES run.
+  //
+  // Deliberately three different answers, because they are three different states:
+  //   - no file at all       a NOTE. A fresh clone has never run it and that is not a defect.
+  //   - a scenario is stale  a NOTE. Information about this machine, not about the code.
+  //   - a recorded death     a FAILURE. A known corpse being carried is exactly what went wrong.
+  //
+  // NOT a static check that every `data-*` selector in test/ui/ exists in web/app.js. That is the
+  // obvious fix and it would NOT have caught this: `data-act` does exist in app.js, it just moved
+  // behind a press when the card grew a face. The failure was ordering, not absence. A guard that
+  // cannot fire on the thing it was built for reports perfection — F17, pointed at ourselves.
+  {
+    const RESULTS = process.env.ANANSI_UI_RESULTS ?? '/tmp/anansi-ui-results.json';
+    const scenarios = readdirSync(new URL('./ui/', import.meta.url))
+      .filter((f) => f.endsWith('.js')).map((f) => f.replace(/\.js$/, '')).sort();
+    let rec: Record<string, any> | null = null;
+    try { rec = JSON.parse(readFileSync(RESULTS, 'utf8')).scenarios ?? {}; } catch { rec = null; }
+
+    if (!rec) {
+      console.log(`  note  the browser harness has never run on this machine —`
+        + ` ${scenarios.length} scenarios unaccounted for (test/ui/run.sh)`);
+    } else {
+      const dead = Object.values(rec).filter((r: any) => r.died || r.red > 0)
+        .map((r: any) => `${r.name} (${r.died ? `died after ${r.ok} ok` : `${r.red} red`})`);
+      const never = scenarios.filter((n) => !rec![n]);
+      // Staleness against the surface itself: change app.js and every recorded result is a
+      // statement about a version of the app that no longer exists.
+      const appAt = Math.floor(statSync(new URL('../web/app.js', import.meta.url)).mtimeMs / 1000);
+      const stale = Object.values(rec).filter((r: any) => r.at < appAt).map((r: any) => r.name);
+      if (never.length) console.log(`  note  never run here: ${never.join(', ')}`);
+      if (stale.length) console.log(`  note  older than web/app.js: ${stale.join(', ')}`);
+      assert.deepStrictEqual(dead, [],
+        `the browser harness recorded ${dead.length} broken scenario(s): ${dead.join(', ')}. `
+        + `A recorded death is a known corpse being carried — fix it, or delete the scenario and `
+        + `say why. Re-run test/ui/run.sh to clear this.`);
+      ok(`the browser harness recorded ${Object.keys(rec).length} scenario(s), none broken`);
+    }
   }
 
   // Retired panel names still have to resolve, or every bookmark and open tab breaks.

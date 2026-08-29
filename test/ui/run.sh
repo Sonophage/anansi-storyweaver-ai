@@ -50,6 +50,14 @@ scenarios=${*:-}
 # `model` and `ritual` are excluded from the default set: every step waits on a real generation, so it runs
 # in minutes. Ask for it by name: test/ui/run.sh model
 fail=0
+# WHAT THIS RUN SAW, written down. Until 2026-08-28 the results of this harness existed only in the
+# terminal at the moment you ran it, and it is run by hand — so `buttons` and `handlers` sat dead
+# for weeks and nothing in the repo could say so, while the last line still read "all scenarios
+# green" over sixteen of eighteen. `test/web.ts` reads this file and refuses a recorded death.
+# /tmp on purpose, at Seth's call: it is a fact about THIS machine at THIS moment, not about the
+# code, so it does not belong in the tree and must never be committed.
+RESULTS=${ANANSI_UI_RESULTS:-/tmp/anansi-ui-results.json}
+rows=""
 for s in $scenarios; do
   fresh
   out=$(node --experimental-strip-types bench/drive.ts "http://127.0.0.1:$PORT/" "test/ui/$s.js" 2>&1)
@@ -71,11 +79,23 @@ for s in $scenarios; do
       printf '  %-10s DIED after %s ok — did not reach its own verdict\n' "$s" "$ok"
     fi
     printf '%s\n' "$out" | tail -6 | sed 's/^/       /'
+    rows="$rows{\"name\":\"$s\",\"ok\":$ok,\"red\":$red,\"died\":true,\"at\":$(date +%s)},"
     fail=$((fail+1)); continue
   fi
+  rows="$rows{\"name\":\"$s\",\"ok\":$ok,\"red\":$red,\"died\":false,\"at\":$(date +%s)},"
   printf '  %-10s %2s ok, %s red\n' "$s" "$ok" "$red"
   if [ "$red" -gt 0 ]; then fail=$((fail+red)); printf '%s\n' "$out" | grep -E 'RED |FAIL' | sed 's/^/       /'; fi
 done
+# MERGED, NOT OVERWRITTEN. `run.sh panels` must not erase what the other seventeen last reported,
+# or asking for one scenario would silently mark the rest as never run.
+node -e '
+  const fs = require("fs"), f = process.argv[1];
+  const now = JSON.parse("[" + (process.argv[2] || "").replace(/,$/, "") + "]");
+  let was = {}; try { was = JSON.parse(fs.readFileSync(f, "utf8")).scenarios ?? {}; } catch {}
+  for (const r of now) was[r.name] = r;
+  fs.writeFileSync(f, JSON.stringify({ scenarios: was }, null, 1));
+' "$RESULTS" "$rows" 2>/dev/null || echo "  (could not write $RESULTS)"
+
 echo ""
 [ "$fail" -eq 0 ] && echo "  all scenarios green" || echo "  $fail red"
 exit $((fail > 0))

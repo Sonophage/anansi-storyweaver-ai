@@ -126,14 +126,21 @@ human-edited.
 - **A leftover server on a bench port breaks `test/scope.ts`.** It boots its own on 5187-5196; a
   stray debug server on 5188 makes the allowlist test report a broken gate. Kill by port, not by a
   `pkill` on an env var, which never matches.
-- **`buttons` and `handlers` were DEAD in the harness, and the cause was one line of drift.**
-  A card opens on its FACE now; both scenarios reached straight for form controls — the activation
-  chips, `[data-f]`, the wardrobe. Commit `4ae74a9` taught `panels.js` and `phone.js` to press Edit
-  and these two were missed, so they died on their first click and had been reporting nothing since.
-  **`buttons` is repaired: 0 → 17 ok, 0 red.** **`handlers` went 1 → 30 ok and still dies** — the
-  same drift at further sites, each fix uncovering the next. Not finished, and it is three cycles
-  in; whoever picks it up should expect layers rather than one cause.
-  Both now assert the FACE and then the form, so the two views cannot quietly become one again.
+- **THE HARNESS'S OWN SILENCE IS AUDIBLE NOW.** `test/ui/run.sh` records every scenario it runs to
+  `/tmp/anansi-ui-results.json` — merged per scenario, so `run.sh panels` does not erase what the
+  others last said — and `test/web.ts` reads it. Three different answers on purpose: no file is a
+  NOTE (a fresh clone has never run it), a stale scenario is a NOTE (a fact about this machine), and
+  **a recorded death is a FAILURE**. `test/all.ts` now refuses to go green over a known corpse.
+  Deliberately NOT a static check that every `data-*` in `test/ui/` exists in `web/app.js`: that is
+  the obvious fix and it would not have caught this, because `data-act` DOES exist — it moved behind
+  a press. The failure was ordering, not absence, and a guard that cannot fire reports perfection.
+- **`buttons` and `handlers` are repaired: 0 → 17 ok and 1 → 43 ok, both 0 red.** They had been
+  dying on their first click for weeks. One cause and one straggler: a card opens on its FACE now
+  and both reached straight for form controls (commit `4ae74a9` taught `panels.js` and `phone.js`
+  to press Edit; these two were missed) — and in the wardrobe, changing a card's kind saves and
+  REPAINTS, and the repaint landed between filling the two boxes and pressing Add, so the press
+  reached a real button holding empty fields and the only symptom was `an outfit can be added (0)`.
+  Both files assert the face and then the form now, so the two views cannot quietly become one.
 - **Seth runs the browser harness only when he asks for it.** Test what you touched. Be honest that
   a change to a shared view (the card's default, for instance) touches every scenario that opens a
   thread — three broke that way today and only a full pass found them.

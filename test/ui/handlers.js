@@ -342,17 +342,29 @@ const cid = await page.eval("(() => { const b = [...document.querySelectorAll('[
   + "document.querySelector('[data-entry]')?.dataset.entry; })()");
 await page.click('[data-entry="' + cid + '"]');
 await wait(700);
+// EDIT FIRST, AND IN THIS ORDER. The card opens on its face, and the kind chips and the wardrobe
+// are both on the form — so the `?.click()` below found nothing, said nothing about it, and left
+// the card the wrong kind, which is why the wardrobe was not there to drive either. Optional
+// chaining on a driver click is how a step disappears without a red line; asserted rather than
+// hoped for.
+await page.click('[data-cardview="form"]');
+await wait(500);
+ok("the card's form opens, so the kind chips and the wardrobe are on screen",
+   await page.eval("!!document.querySelector('[data-kind=\"character\"]')"));
 // A character, or there is no wardrobe to drive. The fixture's persona is one.
-await page.eval("(() => { document.querySelector('[data-kind=\"character\"]')?.click(); return 1; })()");
+await page.click('[data-kind="character"]');
 await wait(800);
-// The wardrobe is on the FORM, and the card is back on its face after the save above. Same fix as
-// the activation chips at the top of this file.
-await page.eval("(() => { document.querySelector('[data-cardview=\"form\"]')?.click(); return 1; })()");
-await wait(400);
-await page.eval("(() => { document.querySelector('[data-of=\"name\"]').value = 'Plate';"
-  + " document.querySelector('[data-of=\"body\"]').value = 'Scarred half-armour, buckled wrong.';"
-  + " return 1; })()");
-await page.click('[data-addoutfit]');
+// FILL AND PRESS IN ONE EVAL, with nothing between. Changing the kind above saves and repaints,
+// and a repaint landing between the fill and the press wipes the two boxes — which is what this
+// was doing: the click reached a real button holding two empty fields, `upsertOutfit` had nothing
+// to store, and the only sign was `an outfit can be added (0)`. Asserted first, so if the fields
+// are ever empty again the check says THAT rather than blaming the route.
+const filled = await page.eval("(() => { const n = document.querySelector('[data-of=\"name\"]'),"
+  + " b = document.querySelector('[data-of=\"body\"]'); if (!n || !b) return 'no wardrobe on screen';"
+  + " n.value = 'Plate'; b.value = 'Scarred half-armour, buckled wrong.';"
+  + " document.querySelector('[data-addoutfit]').click();"
+  + " return n.value === 'Plate' ? 'ok' : 'the boxes did not hold what was typed'; })()");
+ok(`the wardrobe boxes hold what was typed when Add is pressed (${filled})`, filled === 'ok');
 await wait(900);
 const outfitOf = async () => (await entries()).find((x) => x.id === cid)?.outfits ?? [];
 let fits = await outfitOf();
