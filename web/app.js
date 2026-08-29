@@ -780,7 +780,11 @@ function passageHTML(p, newest, opening) {
     <button data-continue="1" ${S.busy ? 'disabled' : ''}
       title="Carry on with no prompt">Continue &rsaquo;</button></div>` : '';
 
-  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${p.id === S.found ? ' found' : ''}${p.id === S.arrived ? ' arrived' : ''}`
+  // #14. The press that made it, down the margin. Null on everything written before 2026-08-29 —
+  // Seth: "old ones neutral is fine" — and those fall through to the faint outline the newest
+  // passage has always had.
+  const m = MODES.some(([k]) => k === p.mode) ? ` m-${p.mode}` : '';
+  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${m}${p.id === S.found ? ' found' : ''}${p.id === S.arrived ? ' arrived' : ''}`
     // The drop cap goes on plain model narration only. Not on speech — a two-inch quotation mark
     // is not a drop cap — and not on the writer's own passages, which are set differently: on
     // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
@@ -3867,7 +3871,7 @@ async function generate(mode = S.mode) {
       ? 'Write the passage first — Narrate puts your own prose on the page.'
       : 'Type what you want to say first, or press Continue.');
     const w = await api.write(S.storyId, { body: typed, speaker: mode === 'speak' ? who : null,
-      chapterId: V.currentChapter.id });
+      mode, chapterId: V.currentChapter.id });
     if (w.error) return toast(w.error);
     clearComposer();
     // Refetch the chapter you are READING, not the last one — otherwise writing into chapter one
@@ -3910,7 +3914,7 @@ async function generate(mode = S.mode) {
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
   // Regenerate or Delete, and both keep the history, so nothing is lost by committing it.
   const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, chapterId: V.currentChapter.id,
-    directive: YOURS ? undefined : (typed || undefined) });
+    mode, directive: YOURS ? undefined : (typed || undefined) });
   S.busy = false; working(null);
   // PLAN-07 bug 2. `S.busy` went false and nothing redrew, so `#send` kept `data-stop` and its
   // breathing style until some unrelated repaint — the composer offering to stop a call that had

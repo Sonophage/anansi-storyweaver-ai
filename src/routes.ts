@@ -1277,7 +1277,8 @@ export const routes: Record<string, Handler> = {
     // made that one click away; it was reachable from the rail before that.
     const v = viewOf(c.body.storyId, c.body.chapterId);
     if (c.body.body?.trim()) db.addPassage({ storyId: v.id, branchId: v.branchId!,
-      chapterId: v.currentChapter.id, body: c.body.body.trim(), author: 'human', speaker: c.body.speaker ?? null });
+      chapterId: v.currentChapter.id, body: c.body.body.trim(), author: 'human',
+      speaker: c.body.speaker ?? null, mode: c.body.mode });
     return viewOf(v.id);
   },
   'POST /api/accept':  (c) => {
@@ -1288,7 +1289,7 @@ export const routes: Record<string, Handler> = {
       ? db.addVariant(v.id, c.body.variantOf, c.body.body)
       : db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
           body: c.body.body, author: 'model', speaker: c.body.speaker ?? null,
-          directive: c.body.directive ?? null });
+          mode: c.body.mode, directive: c.body.directive ?? null });
     // Tie the take to the call that produced it, so History can say what canon it was written
     // against. Two takes in one slot come from two different prompts, and nothing recorded which.
     if (id && c.body.genId) db.tieGeneration(String(c.body.genId), String(id));

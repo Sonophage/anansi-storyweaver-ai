@@ -300,4 +300,57 @@ if (other) {
   await wait(300);
 }
 
+// ---- #14. THE ACCENT SAYS WHICH PRESS WROTE IT, and the last passage wears it all the way round.
+// Seth: "separate the accent color based on what the response was ... that way when the user reads
+// back through it they can differentiate what was triggered by what action." Written through
+// /api/write rather than by pressing send, because the accent is about what was STORED — this
+// scenario is the one that runs without a generation.
+{
+  const put = (body, mode) => page.eval(`(async () => { await fetch('/api/write', { method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ storyId:'${sid}', body:${JSON.stringify(body)}, mode:${JSON.stringify(mode)} }) });
+    return 1; })()`);
+  await put('He said nothing for a while.', 'narrate');
+  await put('She crossed the room.', 'act');
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
+  await wait(600);
+
+  const seen = await page.eval(`(() => {
+    const resolve = (v) => { const el = document.createElement('span');
+      el.style.color = v; document.body.appendChild(el);
+      const c = getComputedStyle(el).color; el.remove(); return c; };
+    const b = [...document.querySelectorAll('#col .block')];
+    const last = b[b.length - 1], prev = b[b.length - 2];
+    const cs = (e) => e && getComputedStyle(e);
+    const L = cs(last), P = cs(prev);
+    return {
+      lastCls: last?.className ?? '', prevCls: prev?.className ?? '',
+      lastOutline: L?.outlineColor, lastAccent: L?.getPropertyValue('--m').trim(),
+      lastLeft: L?.borderLeftColor, lastPad: L?.paddingLeft,
+      prevLeft: P?.borderLeftColor, prevPad: P?.paddingLeft,
+      // RESOLVED TO THE SAME COLOUR SPACE, or this compares nothing. getComputedStyle gives
+      // outlineColor as rgb(); reading --chip off the root gives the raw token, a hex. The two are
+      // never equal, so the "not the faint chip" assertion below passed with the rule deleted —
+      // caught by falsifying it. A probe element makes the browser resolve the token the same way.
+      chip: resolve('var(--chip)'), accent: resolve('var(--m-act)') }; })()`);
+  ok(`the last passage carries its press (${seen.lastCls.split(' ').filter(c => c.startsWith('m-')).join()})`,
+     /\bm-act\b/.test(seen.lastCls));
+  ok(`  and the one before it carries its own (${seen.prevCls.split(' ').filter(c => c.startsWith('m-')).join()})`,
+     /\bm-narrate\b/.test(seen.prevCls));
+  // THE TWO HALVES OF WHAT HE ASKED FOR, asserted separately: the box is the accent rather than the
+  // faint chip, and the side line is gone from it because the accent is now the whole shape.
+  ok(`  the last one is boxed in its own accent, not the faint chip (${seen.lastOutline})`,
+     !!seen.lastOutline && seen.lastOutline === seen.accent && seen.lastOutline !== seen.chip);
+  ok(`  with no second line down its side (${seen.lastLeft})`, /rgba\(0, 0, 0, 0\)|transparent/.test(seen.lastLeft || ''));
+  // And the one above it is the single line — the state everything returns to as the page grows.
+  ok(`  while the one above it is the one line (${seen.prevLeft})`,
+     !!seen.prevLeft && !/rgba\(0, 0, 0, 0\)|transparent/.test(seen.prevLeft));
+  // THE PROSE MUST NOT MOVE when a passage stops being the newest. The side line is made
+  // transparent and the padding kept for exactly this; dropping either would shift every passage
+  // 16px the moment a newer one landed.
+  ok(`  and the prose does not shift when it moves up (${seen.lastPad} then ${seen.prevPad})`,
+     seen.lastPad === seen.prevPad);
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

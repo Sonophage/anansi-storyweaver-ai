@@ -312,6 +312,14 @@ export function themeVars(key) {
     // the red; amber is derived from the accent so it stays inside the theme.
     '--bad': S.warn, '--good': S.good, '--warn': mix(S.accent, away, .12),
     '--you-rule': mix(S.accent, S.paper, .5), '--speak-rule': S.speak,
+    // #14. One accent per press, so reading back tells you what produced each passage. Derived
+    // from values every theme already tunes rather than four more columns in the table above —
+    // nineteen themes, and a theme that ships three of four accents is the half-applied failure
+    // THEMES exists to prevent. Speak keeps the colour speech already had; Direct keeps the one
+    // the directed margin already had, so nothing on screen changes hue for the two modes that
+    // were already distinguishable.
+    '--m-speak': S.speak, '--m-act': S.good,
+    '--m-direct': mix(S.accent, away, .22), '--m-narrate': S.warn,
     // (--speak-tint / --act-tint lived here. Removed 2026-08-27: only one of the pair was
     // visible, so the row read as broken rather than as distinguishing the two modes.)
     '--head': mix(S.ink, away, .42),

@@ -622,6 +622,20 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
    as one it continued on its own, and until now nothing on the page said which — the directive was
    in the database and had never been shown. */
 .block.directed { padding-left:16px; border-left:1px solid var(--gold-dim); }
+/* #14. ONE ACCENT PER PRESS, down the margin. Seth: "so that when the user reads back through it,
+   they can differentiate what was triggered by what action." The colours come from themeVars, which
+   derives them from what each of the nineteen themes already declares — see the note there.
+
+   Speak and Direct keep the exact colours .speak and .directed already used, so the two modes that
+   were already distinguishable do not change hue; Act and Narrate are the two that had nothing.
+   Nothing written before 2026-08-29 carries a mode, so none of these rules touch it. */
+.block.m-speak   { --m:var(--m-speak); }
+.block.m-act     { --m:var(--m-act); }
+.block.m-direct  { --m:var(--m-direct); }
+.block.m-narrate { --m:var(--m-narrate); }
+.block:is(.m-speak,.m-act,.m-direct,.m-narrate) {
+  padding-left:16px; border-left:1px solid var(--m);
+}
 /* The last one on the page, boxed so the eye finds where the book has got to.
    OUTLINE, not border: an outline takes no space at all, so the box cannot move the prose. The first
    version used a border with padding and negative margins to compensate, and it shifted the document
@@ -629,6 +643,17 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
    46px of drift is exactly the kind of thing a decoration should never cause. */
 #col .block.newest {
   outline:1px solid var(--chip); outline-offset:12px; border-radius:var(--r);
+}
+/* #14, the other half: on the LAST passage the accent goes all the way round and the faint box goes
+   away — "just have the accent be the entire thing so that we know what it is." When it moves up it
+   is the one line down the side again.
+
+   The side line is made TRANSPARENT rather than removed, and the padding stays. Dropping either
+   would move the prose 16px left the moment a newer passage arrived, on every passage, for ever —
+   the same class of shift the outline above exists to avoid. A passage with no mode keeps the faint
+   outline it has always had, which is what "old ones neutral" means on screen. */
+#col .block.newest:is(.m-speak,.m-act,.m-direct,.m-narrate) {
+  outline-color:var(--m); border-left-color:transparent;
 }
 /* Where a search result put you. Fades on its own after a few seconds — a permanent mark on
    whatever you last looked for turns into furniture you stop seeing. */

@@ -101,6 +101,9 @@ export function view(storyId: string, focusChapterId?: string) {
       // model wrote to order from one it wrote on its own, which is the difference Seth wants to
       // see down the margin.
       directed: !!(p.directive && String(p.directive).trim()),
+      // #14. Which of the four presses wrote it, so the page can colour the margin by the action.
+      // Undefined on everything from before 2026-08-29 and the page draws those without an accent.
+      mode: p.mode ?? undefined,
       variants: variants.get(`${p.chapter_id}:${p.slot_key}`) ?? [{ id: p.id, selected: true }],
     })),
     // `entriesFor`, not `entriesOf`: what reaches the model and the screen includes the threads

@@ -1407,4 +1407,30 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
   });
 }
 
+// #14. THE PRESS THAT WROTE IT, stored and handed back. It could not be derived from what was
+// already in the row: Speak leaves a speaker and Direct leaves a directive, but Act and Narrate
+// both write a bare human passage — 1,871 of the live library's 1,990 rows are that shape, which
+// is why the column exists rather than a CASE expression over the old ones.
+ok('a passage remembers which press wrote it, and a reroll is the same press', () => {
+  const s9 = db.createStory(o, { title: 'Mode' });
+  const spoke = db.addPassage({ ...s9, storyId: s9.id, body: 'I will not', mode: 'speak' });
+  const acted = db.addPassage({ ...s9, storyId: s9.id, body: 'She turned away', mode: 'act' });
+  // A value the app does not know must not name a CSS class on the page, so it is stored as null
+  // rather than kept. This is the check that stops the column becoming client-controlled.
+  const junk = db.addPassage({ ...s9, storyId: s9.id, body: 'from nowhere', mode: 'sudo' });
+  // Nothing before 2026-08-29 has one, and the page draws those without an accent.
+  const old = db.addPassage({ ...s9, storyId: s9.id, body: 'before all this' });
+  db.addVariant(s9.id, acted, 'She turned away, slowly');
+
+  const v = story.view(s9.id)!;
+  const at = (b: string) => v.passages.find((p: any) => p.body === b);
+  assert.strictEqual(at('I will not')!.mode, 'speak', 'the mode round-trips to the page');
+  assert.strictEqual(at('from nowhere')!.mode, undefined, 'an unknown mode is refused at the column');
+  assert.strictEqual(at('before all this')!.mode, undefined, 'a passage written without one has none');
+  assert.strictEqual(at('She turned away, slowly')!.mode, 'act',
+    'a reroll is another answer to the same press, so the take keeps its accent');
+  assert.ok(spoke && junk, 'all four rows were written');
+  db.delStory(s9.id);
+});
+
 console.log(`\n${n} checks passed`);

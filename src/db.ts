@@ -117,6 +117,12 @@ function migrate() {
   // A take you regenerated away from. Recorded, not yet fed to the model — see the ponytail
   // marker on `rejectTake`.
   add('passages', 'rejected', 'INTEGER DEFAULT 0');
+  // #14. WHICH PRESS PRODUCED THIS PASSAGE, so the page can colour it by the action rather than by
+  // guesswork. It could not be derived from what was already stored: Speak leaves a speaker and
+  // Direct leaves a directive, but Act and Narrate both write a bare human row and 1,871 of the
+  // library's 1,990 passages are that shape. Seth, asked: "old ones neutral is fine." So this is
+  // null for everything written before today and the page draws those without an accent.
+  add('passages', 'mode', 'TEXT');
   // Which model writes this story. Null means the process default — most stories, most of the
   // time. The router runs --models-max 3 --models-autoload, so a story on a different model
   // usually costs nothing to switch to; one that is asleep costs a load on its first call.
@@ -294,7 +300,9 @@ CREATE TABLE IF NOT EXISTS passages (
   author TEXT NOT NULL,                -- human | model
   speaker TEXT,                        -- null = narration. Set = a named voice.
   body TEXT NOT NULL, is_break INTEGER DEFAULT 0,
- directive TEXT, created_at INTEGER NOT NULL);
+  mode TEXT,                           -- speak | act | direct | narrate. Null on anything written
+                                       -- before 2026-08-29, which the page draws without an accent.
+  directive TEXT, created_at INTEGER NOT NULL);
 -- PARTIAL, per Council #3 S2. A full unique here breaks regenerate.
 CREATE UNIQUE INDEX IF NOT EXISTS passages_sel ON passages(branch_id, ordinal) WHERE selected = 1;
 CREATE INDEX IF NOT EXISTS passages_ch ON passages(chapter_id, slot_key);
@@ -808,6 +816,11 @@ export const branchesOf = (id: string) => q('SELECT * FROM branches WHERE story_
  *  The shift is two statements because `passages_sel` is UNIQUE(branch_id, ordinal) WHERE selected
  *  and is not deferrable: incrementing in place collides with the row above. Everything after the
  *  insertion point moves out to a range nothing occupies, then comes back one higher. */
+/** The four presses, and the only values `passages.mode` may hold. An unknown one is stored as
+ *  null rather than kept: the page turns this into a class name, and a column that accepts anything
+ *  the client sends is a column that decides what CSS runs. */
+const MODES = ['speak', 'act', 'direct', 'narrate'];
+
 export function addPassage(p: any) {
   const id = uid('p-');
   const slot = q('SELECT MAX(slot_key) AS s FROM passages WHERE branch_id = ?').get(p.branchId) as any;
@@ -833,9 +846,10 @@ export function addPassage(p: any) {
     } catch (e) { db.exec('ROLLBACK'); throw e; }
   }
   q(`INSERT INTO passages (id,chapter_id,story_id,branch_id,slot_key,ordinal,author,speaker,body,
-      is_break,directive,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+      is_break,mode,directive,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, p.chapterId, p.storyId, p.branchId, (slot?.s ?? 0) + 1, at,
-      p.author ?? 'model', p.speaker ?? null, p.body, p.isBreak ? 1 : 0, p.directive ?? null, now());
+      p.author ?? 'model', p.speaker ?? null, p.body, p.isBreak ? 1 : 0,
+      MODES.includes(p.mode) ? p.mode : null, p.directive ?? null, now());
   touch(p.storyId);
   return id;
 }
@@ -855,11 +869,12 @@ export function addVariant(storyId: string, passageId: string, body: string, aut
     // The directive rides along, for the reason `speaker` already did: a take is another answer to
     // the same question. It was not even in this INSERT, so every reroll of a directed passage
     // produced an undirected row — the margin mark vanished and a second reroll had nothing left
-    // to inherit.
+    // to inherit. `mode` (#14) is in the same position for the same reason: a reroll is not a
+    // different press, and a take that lost its mode would lose its accent on the page.
     q(`INSERT INTO passages (id,chapter_id,story_id,branch_id,slot_key,ordinal,variant_index,selected,
-        author,speaker,body,is_break,directive,created_at) VALUES (?,?,?,?,?,?,?,1,?,?,?,0,?,?)`)
+        author,speaker,body,is_break,mode,directive,created_at) VALUES (?,?,?,?,?,?,?,1,?,?,?,0,?,?,?)`)
       .run(id, cur.chapter_id, cur.story_id, cur.branch_id, cur.slot_key, cur.ordinal,
-        n + 1, author, cur.speaker, body, cur.directive ?? null, now());
+        n + 1, author, cur.speaker, body, cur.mode ?? null, cur.directive ?? null, now());
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(cur.story_id);
