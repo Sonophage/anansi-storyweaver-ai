@@ -244,6 +244,25 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     ok(`the weave's letters fade for ${fade![1]}s inside a ${hold![1]}ms hold`);
   }
 
+  // A COMMENT CANNOT BE ALLOWED TO CLOSE THE STRING. web/app.js's markup carries HTML comments
+  // INSIDE template literals, so one backtick — or one interpolation — ends the string early: the
+  // file still loads and the function throws when it is called, which renders a panel as nothing.
+  // IT IS A LOCATOR, NOT THE GUARD, and the falsification says so: breaking a comment on purpose
+  // turns the PARSE check above red first, because a closed string is a syntax error and that
+  // check runs earlier. What this adds is the answer to "where" — a parse failure in a 5,000-line
+  // file names a line that is nowhere near the comment that caused it. Worth its ten lines because
+  // on 2026-08-29 the same mistake was made three times in one sitting, twice in markup and once
+  // in a prompt, and the third one cost the least because the parser pointed straight at it.
+  {
+    const bad = [...read('web/app.js').matchAll(/<!--[\s\S]*?-->/g)]
+      .filter((m) => m[0].includes('`') || m[0].includes('${'))
+      .map((m) => m[0].replace(/\s+/g, ' ').slice(0, 60));
+    assert.deepStrictEqual(bad, [],
+      `an HTML comment inside a template literal carries a backtick or an interpolation, which `
+      + `closes the string: ${bad.join(' | ')}`);
+    ok('no HTML comment in the markup can close the string it lives in');
+  }
+
   // Retired panel names still have to resolve, or every bookmark and open tab breaks.
   const was = js.slice(js.indexOf('const PANEL_WAS ='), js.indexOf('};', js.indexOf('const PANEL_WAS =')));
   for (const old of ['inspector', 'cast', 'traj', 'queue', 'branches']) {

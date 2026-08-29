@@ -1020,16 +1020,27 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
   click({ panel: 'threads' }); click({ newlore: '1' });
-  const tray = html('sideBody');
-  for (const slot of ['interiority', 'relationships', 'voice', 'history']) {
-    assert.match(tray, new RegExp(`data-lorekind="${slot}"`), `the tray offers ${slot}`);
+  // TWO STEPS. Fourteen chips at once was every room of every kind in one row, most of them
+  // meaningless for what you were about to write — a place has no voice, a rule has no wardrobe.
+  const first = html('sideBody');
+  for (const k of ['character', 'lore', 'item', 'rule']) {
+    assert.match(first, new RegExp(`data-lorekind="${k}"`), `the kinds are offered first (${k})`);
   }
-  assert.match(tray, /data-lorekind="outfit"/, 'and still the outfit');
-  // THE LIST COMES FROM THE SERVER'S COPY of src/slots.ts, not from a second one in here — a room
-  // the database enforces and the tray does not offer is a room nobody can reach.
-  assert.doesNotMatch(html('sideBody'), /data-lorekind="motivations"/,
-    'and nothing the module does not name');
-  ok('the add-a-thread tray offers every room a card can have, not only the outfit');
+  assert.doesNotMatch(first, /data-lorekind="(interiority|voice|outfit)"/,
+    'and no rooms until a kind is picked');
+
+  click({ lorekind: 'character' });
+  const second = html('sideBody');
+  for (const slot of ['facts', 'role', 'interiority', 'relationships', 'voice', 'history', 'outfit']) {
+    assert.match(second, new RegExp(`data-lorekind="${slot}"`), `a character's rooms follow (${slot})`);
+  }
+  // ONLY THAT KIND'S. `who_is_here` is a place's room and must not be offered for a person, or the
+  // writer types one and the database refuses it after the fact.
+  assert.doesNotMatch(second, /data-lorekind="(who_is_here|scope|provenance)"/,
+    "and only the ones that kind can have");
+  // Read as words, not as column names.
+  assert.doesNotMatch(second, /"[^"]*">[A-Za-z ]*_/, 'labelled without underscores');
+  ok('the tray offers the four kinds, then that kind\'s own rooms, labelled as words');
 }
 
 // #22. The cross-shelf Threads page: one book open, the rest collapsed, and cards that do not

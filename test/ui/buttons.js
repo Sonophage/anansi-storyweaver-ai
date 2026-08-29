@@ -11,7 +11,12 @@ const ok = (label, got) => { if (!got) red++;
 await page.goto("http://127.0.0.1:5179/#" + sid);
 // "Anansi's web" was removed from the story menu on 2026-08-27 — the menu button in the bar is
 // the one door to the workspace now, from anywhere.
-await page.click('#bar [data-railview="workspace"]');
+// Seth took the word Anansi out of the header on 2026-08-29, so INSIDE A STORY the main menu is
+// two taps: the story's name opens the story menu, and the Anansi word at the top of that menu
+// opens the main one. Outside a story the header name still does it in one.
+await page.click('#bar [data-railview="story"], #bar [data-railview="workspace"]');
+await wait(400);
+await page.click('#rail [data-home]');
 await wait(400);
 await page.click('[data-nav="canon"]');
 const cards = await page.eval("document.querySelectorAll('#page [data-entry]').length");
@@ -98,7 +103,12 @@ ok("  and deletes on the second (" + blocksBefore + " -> "
 // ---- 4. the model selector
 // "Anansi's web" was removed from the story menu on 2026-08-27 — the menu button in the bar is
 // the one door to the workspace now, from anywhere.
-await page.click('#bar [data-railview="workspace"]');
+// Seth took the word Anansi out of the header on 2026-08-29, so INSIDE A STORY the main menu is
+// two taps: the story's name opens the story menu, and the Anansi word at the top of that menu
+// opens the main one. Outside a story the header name still does it in one.
+await page.click('#bar [data-railview="story"], #bar [data-railview="workspace"]');
+await wait(400);
+await page.click('#rail [data-home]');
 await wait(400);
 await page.click('[data-nav="prefs"]');
 await wait(1200);

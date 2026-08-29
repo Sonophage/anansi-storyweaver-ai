@@ -318,11 +318,26 @@ ok("  it opens a tray with both ways in", /Write it down/.test(lore) && /read th
   const slots = await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
     + " return [...new Set(Object.values(v.slots || {}).flat().map(x => x.name))].sort(); })()");
   const want = [...new Set(['character', 'item', 'lore', 'rule', ...slots])].sort();
-  console.log("  tray offers: " + offered.join(','));
-  ok("  offering every kind of card and every room one can have",
-     offered.join(',') === want.join(','));
-  ok("    including the ones that were only reachable after the card existed",
-     offered.includes('interiority') && offered.includes('relationships') && offered.includes('voice'));
+  console.log("  tray offers first: " + offered.join(','));
+  // TWO STEPS since 2026-08-29. The four kinds first — fourteen chips at once was every room of
+  // every kind in one row, most of them meaningless for what you were about to write.
+  ok("  offering the four kinds and no rooms yet",
+     offered.join(',') === 'character,item,lore,rule');
+  await page.click('[data-lorekind="character"]');
+  await wait(400);
+  const rooms = await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind)");
+  const want2 = (await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
+    + " return (v.slots.character || []).map(x => x.name); })()"));
+  ok("    then that kind's own rooms, from the server's list and not a copy here",
+     want2.every((r) => rooms.includes(r)));
+  ok("    and none belonging to another kind",
+     !rooms.includes('who_is_here') && !rooms.includes('scope') && !rooms.includes('provenance'));
+  // A way back UP, or picking the wrong kind means closing the tray and starting again.
+  await page.click('[data-lorekind="__kinds"]');
+  await wait(400);
+  ok("    with Back stepping out to the kinds rather than closing the tray",
+     (await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind).sort().join(',')"))
+       === 'character,item,lore,rule');
 }
 await page.click('[data-lorekind="item"]');
 await wait(400);
@@ -336,6 +351,12 @@ ok("  with a line of direction and the search switch",
 
 // ---- 11b. AN OUTFIT HANGS OFF SOMEBODY, so the tray asks whose before it asks anything else.
 // Seth: "a new costume and have it attached to a character from that screen would be phenomenal."
+// The block above left the tray on the KIND row, and Item was chosen after it — so step back up
+// and into Character before reaching for a room only a character has.
+await page.click('[data-lorekind="__kinds"]');
+await wait(300);
+await page.click('[data-lorekind="character"]');
+await wait(400);
 await page.click('[data-lorekind="outfit"]');
 await wait(500);
 ok("picking Outfit asks whose it is", await page.visible('[data-loreowner]'));

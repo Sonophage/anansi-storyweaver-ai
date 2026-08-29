@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelOptions, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelOptions, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -247,7 +247,7 @@ const WTITLES = {
       : `${n} ${n === 1 ? 'thread' : 'threads'} across ${books} ${books === 1 ? 'story' : 'stories'}`];
   },
   import: () => ['Import', 'Character cards, Anansi exports, AI Dungeon'],
-  prefs: () => ['Preferences', 'llama-server, model, slot'],
+  prefs: () => ['What you have written', 'words, passages, takes not chosen'],
   news: () => ['What changed', 'written by Anansi, from the work itself'],
   bug: () => ['Report an issue', 'filed on the repo, without the prose'],
 };
@@ -492,17 +492,13 @@ function drawBar() {
          will open the story menu." Her mark, drawn the way the rail's header draws it — no plate,
          currentColor, so it takes the theme (issue #6). It is on EVERY screen, which is the whole
          property test/ui/phone.js exists to keep: the hole it guards is zero doors, not two. -->
-    <button data-railview="workspace" aria-label="Menu"
-      style="flex:0 0 auto; display:flex; align-items:center; padding:6px 10px 6px 0">
-      <!-- #26. The word IS the logo now, and it carries a wordmark class so nothing has to select
-           it by being the first .serif in the bar: the book's title is the second one, and an
-           ordinal selector would be a trap for every check that reads the header.
-           NO BACKTICKS IN HERE. This comment is inside a template literal and one of them closes
-           the string — the file still loads and the function throws when it is called, so a panel
-           renders as nothing. It happened writing this very comment. -->
-      <span class="serif wordmark" style="display:block; font-size:17px; line-height:1;
-        color:var(--gold)">Anansi</span>
-    </button>
+    <!-- #26, and then Seth on 2026-08-29: "remove the word anansi from the header." The mark was
+         here, then the word that replaced it, and now neither. The door it was is not lost — the
+         main menu is a DOUBLE tap, which is how he described it in checks.md: the story's name
+         opens the story menu, and the word Anansi at the top of THAT menu opens the main one.
+         Outside a story the header name opens the main menu directly, one tap.
+         If that path ever goes, this button has to come back: test/ui/phone.js guards the hole,
+         and the hole it guards is ZERO doors. -->
     <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
       ${inStory ? `<button data-railview="story" aria-label="This story's menu"
         style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">`
@@ -1550,20 +1546,35 @@ const PANELS = {
       // An outfit hangs off a character rather than standing beside one — which is also why this
       // branch asks whose before it asks anything else. Seth: "a new costume and have it attached
       // to a character from that screen would be phenomenal."
-      // #27. Every room, not just the outfit. `V.slots` is the server's copy of `src/slots.ts`,
-      // so this list cannot drift from the one the database enforces.
+      // #27, then Seth on 2026-08-29: "could we have the main types show only i.e. character lore
+      // item rule and the rooms show up after the main ones been selected and only for that type."
+      //
+      // Fourteen chips at once was every room of every kind in one row, most of them meaningless
+      // for whatever you were about to write — a place has no voice and a rule has no wardrobe.
+      // Two steps instead: the four kinds, and then that kind's own rooms. The room list comes from
+      // V.slots, the server's copy of src/slots.ts, so it cannot drift from what the database
+      // enforces — and per KIND, so the second row is only ever what this card can actually have.
       const ROOMS = [...new Set(Object.values(V.slots ?? {}).flat().map((x) => x.name))];
-      const LORE_KINDS = [...KINDS, ...ROOMS];
+      const kindOf = S.lore.kind && !ROOMS.includes(S.lore.kind) ? S.lore.kind
+        : (S.lore.of ?? null);
+      const roomsHere = kindOf ? (V.slots?.[kindOf] ?? []).map((x) => x.name) : [];
+      const LORE_KINDS = kindOf ? [kindOf, ...roomsHere] : KINDS;
       const cast = V.entries.filter((e) => e.entryType === 'character');
       return `<div style="display:flex; flex-direction:column">
-        <button class="btn ghost" data-newlore="1" style="margin-bottom:14px">&lsaquo; Back</button>
+        <!-- Back steps out of the ROOMS to the kinds first, and only closes the tray from there.
+             Two steps needs a way back up, or picking Character by mistake means closing the whole
+             tray and starting again. -->
+        ${kindOf
+          ? `<button class="btn ghost" data-lorekind="__kinds" style="margin-bottom:14px">&lsaquo; Back</button>`
+          : `<button class="btn ghost" data-newlore="1" style="margin-bottom:14px">&lsaquo; Back</button>`}
         <div class="lbl" style="letter-spacing:.1em; margin-top:0">Write it down</div>
         <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px">
           ${LORE_KINDS.map((k) => `<button data-lorekind="${k}" style="flex:1 1 44%; text-align:center;
             font-size:11.5px; padding:8px 0; border-radius:var(--r);
             border:1px solid ${S.lore.kind === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
             background:${S.lore.kind === k ? 'rgba(217,178,106,.12)' : 'transparent'};
-            color:${S.lore.kind === k ? 'var(--gold-lit)' : 'var(--mute)'}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}
+            color:${S.lore.kind === k ? 'var(--gold-lit)' : 'var(--mute)'}">${
+              esc(slotLabel(k)[0].toUpperCase() + slotLabel(k).slice(1))}</button>`).join('')}
         </div>
         ${ROOMS.includes(S.lore.kind) ? ((S.lore.kind === 'outfit' ? cast : V.entries).length ? `
         ${roomForm(V.entries.filter((e) => (V.slots?.[e.entryType] ?? [])
@@ -2311,6 +2322,7 @@ function sparkReview() {
        <label class="lbl">Point of view</label>
        <select class="field" data-sp="pov">${POV.map((o) =>
          `<option value="${esc(o)}" ${o === s.pov ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+       <div class="hint">${esc(POV_EXAMPLE[s.pov] ?? '')}</div>
        <label class="lbl">Spice</label>
        <select class="field" data-sp="spice">${SPICE.map((l, i) =>
          `<option value="${i + 1}" ${Number(s.spice) === i + 1 ? 'selected' : ''}>${i + 1} &middot; ${esc(l)}</option>`).join('')}</select>
@@ -2342,11 +2354,14 @@ function sparkReview() {
              a real answer &mdash; a story narrated from outside has no persona, and you can name one
              on the Story panel once there is a cast.</div>`)
     : `${area('writingStyle', 'Voice of the weave', s.writingStyle,
-         'A sample beats a description of one. Yours is filled in already.', 150)}
+         'How the narration behaves, as instructions.', 150)}
        ${S.prompts?.voice ? `<div style="display:flex; gap:7px; margin:-4px 0 10px">
          <button class="btn ghost" data-spvoice="mine" style="flex:1; font-size:11.5px">Use my default voice</button>
          <button class="btn ghost" data-spvoice="shipped" style="flex:1; font-size:11.5px">Use the shipped one</button>
        </div>` : ''}
+       ${area('styleNote', 'How this book is written', s.styleNote,
+         "This book's genre flavour, kept apart from the voice: romance and science fiction are not "
+         + 'the same writing style. It gets its own block under the voice.', 80)}
        ${area('direction', 'Where this is going', s.direction,
          'Aims the story without disclosing it. Never restated to the reader. Safe to leave empty.', 80)}
        <label style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute); margin-top:14px">
@@ -3166,8 +3181,8 @@ const WPAGES = {
           `<option value="${esc(p)}" ${p === S.blank.pov ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
         <div class="hint">${esc(POV_EXAMPLE[S.blank.pov] ?? '')}</div>
         ${area('writingStyle', 'Voice of the weave',
-               'How the narration behaves, as instructions. Filled in from your default — edit or '
-               + 'clear it, and clearing it now really does mean none.',
+               'How the narration behaves, as instructions. Edit it, or clear it — clearing it '
+               + 'now really does mean none.',
                'Write the narration in contractions…')}
         ${area('voiceSample', 'A sample of your prose',
                'Optional. A few hundred words of your own writing to match the rhythm of. Never '
@@ -3228,14 +3243,16 @@ const WPAGES = {
       background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
     return `<div class="split" style="gap:28px">
       <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px">
+        <!-- Search on its OWN line and left aligned, at Seth's direction 2026-08-29. It was pushed
+             to the right end of the chip row by an auto left margin, so on a narrow screen it
+             wrapped under the chips at whatever width was left over. -->
+        <input class="field" id="lq" value="${esc(S.ledgerQ)}" placeholder="Search every story"
+          style="margin:0; max-width:340px">
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
           ${['all', ...KINDS].map((k) => `<button data-lkind="${k}" style="font-size:12px; padding:8px 16px;
             border-radius:var(--r-pill); ${chip(k === S.ledgerKind)}">${k === 'all' ? 'Everything' : k[0].toUpperCase() + k.slice(1)}</button>`).join('')}
-          <input class="field" id="lq" value="${esc(S.ledgerQ)}" placeholder="Search every story"
-            style="margin-left:auto; max-width:280px">
         </div>
         <div id="books" style="display:flex; flex-direction:column; gap:16px">${ledgerBooks()}</div>
-        ${V ? `<button class="dashed" data-newentry="lore" style="min-height:90px">New entry in ${esc(V.story.title)}</button>` : ''}
       </div>
       <div class="aside" style="border:1px solid var(--edge); border-radius:var(--r);
         background:var(--rail); padding:20px 22px">
@@ -3639,7 +3656,6 @@ function ghost() {
       <div class="weave" aria-hidden="true">${
         Array.from({ length: WEAVE_H }, () =>
           `<div class="wrow">${'<i></i>'.repeat(WEAVE_W)}</div>`).join('')}</div>
-      <span class="head"></span>
       <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
     </div>`;
   shell.appendChild(g);
@@ -3652,7 +3668,7 @@ function ghost() {
       const el = document.getElementById('ghost');
       if (!el || el.classList.contains('leaving')) return;   // it went; so does its animation
       if (t - last > 88) {
-        el.querySelector('.head').textContent = glyphRun();
+
         // Every cell every roll, which is what "them all be random" asks for. The resolve stops
         // this by adding `.solved`, so the grid holds still under the word rather than churning
         // behind it.
@@ -3664,7 +3680,7 @@ function ghost() {
     };
     requestAnimationFrame(tick);
   } else {
-    g.querySelector('.head').textContent = glyphRun();
+
     for (const c of g.querySelectorAll('.weave i')) c.textContent = glyph();
   }
 }
@@ -4252,7 +4268,10 @@ document.addEventListener('click', async (e) => {
     // Replaces New scene, which was removed with the mode set. Two ways to get a fact into the
     // ledger and they belong together: write it down yourself, or have the chapter read for what
     // is already on the page. The second is the ritual's extraction step, on its own.
-    S.lore = S.lore ? null : { kind: 'character' };
+    // OPENS AT STEP ONE. It used to open pre-set to `character`, which was harmless when the row
+    // was four kinds and is not now that picking a kind reveals that kind's rooms: reopening the
+    // tray landed you in the middle of a flow you had not started. Null kind means the four kinds.
+    S.lore = S.lore ? null : { kind: null, of: null };
     if (S.lore) { S.entryId = null; S.historyOf = null; S.panel = 'threads'; }
     syncHash(); paint();
     return;
@@ -4479,7 +4498,17 @@ document.addEventListener('click', async (e) => {
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); return;
   }
-  if (d.lorekind) { S.lore = { ...(S.lore ?? {}), kind: d.lorekind }; paint(); return; }
+  // Pressing a KIND remembers it as `of`, so the second row can be that kind's rooms and nothing
+  // else. Pressing a room leaves `of` where it is, which is what makes Back mean "back to the
+  // rooms of this kind" rather than all the way out.
+  if (d.lorekind) {
+    // The sentinel from the Back button: step out of this kind's rooms, back to the four kinds.
+    if (d.lorekind === '__kinds') { S.lore = { kind: null, of: null }; paint(); return; }
+    const rooms = [...new Set(Object.values(V?.slots ?? {}).flat().map((x) => x.name))];
+    S.lore = { ...(S.lore ?? {}), kind: d.lorekind,
+               of: rooms.includes(d.lorekind) ? (S.lore?.of ?? null) : d.lorekind };
+    paint(); return;
+  }
   // #22. Redraws only #books, the way the filter chips do — repainting the page would destroy the
   // search input mid-query, which is the bug the comment on canon() records.
   if (d.lbook) {
@@ -5242,7 +5271,7 @@ document.addEventListener('click', async (e) => {
     const r = await api.createStory({
       title: s.title || 'Untitled', genre: s.genre, premise: s.premise,
       setting: s.setting, pov: s.pov, spice: Number(s.spice) || 2,
-      writingStyle: s.writingStyle, direction: s.direction,
+      writingStyle: s.writingStyle, styleNote: s.styleNote, direction: s.direction,
       persona: s.persona || null, lockedCharacter: s.lockedCharacter || null,
       // Only what Anansi proposed is policed server-side. A name typed here is never dropped.
       proposedCast: S.spark.proposed ?? [],

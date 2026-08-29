@@ -178,19 +178,15 @@ ok(`  and paints no plate behind itself (${logo && logo.bg})`,
 // not by an attribute selector, so setting the attribute alone changes nothing. What matters is
 // that the stroke resolves to the theme's own accent instead of the file's baked #D9B26A, and
 // that is checkable in one place with no theme switch at all.
-const gold = await page.eval("getComputedStyle(document.documentElement).getPropertyValue('--gold').trim()");
-// #26 removed both copies of the mark — the word Anansi is the logo now. The property this check
-// exists for is unchanged and still worth keeping: the chrome takes the THEME's accent rather than
-// a colour baked into a file, which is what issue #6 was. It reads the wordmark's colour instead of
-// the svg's stroke, and there is still an svg in the rail (the nav marks) to fall back to.
-const strokeNow = await page.eval("(() => { const w = document.querySelector('#bar [data-railview=\"workspace\"] .serif');"
-  + " if (w) return getComputedStyle(w).color;"
-  + " const g = document.querySelector('#rail svg g'); return g ? getComputedStyle(g).stroke : null; })()");
-const rgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return h;
-  const v = parseInt(m[1], 16); return `rgb(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255})`; };
-console.log(`  --gold ${gold} -> ${rgb(gold)} / stroke ${strokeNow}`);
-ok(`  and the chrome takes the theme's own accent, not a colour baked into a file (${strokeNow})`,
-   !!strokeNow && strokeNow === rgb(gold));
+// ISSUE #6's CHECK IS RETIRED WITH ITS SUBJECT. It asserted that the inline mark's stroke resolved
+// to the theme's --gold rather than to the hex baked into web/icon.svg — which was the whole of #6.
+// Seth removed the mark from the main menu on 2026-08-29 and then the word that replaced it from
+// the header, so there is no longer an element whose colour comes from that file at all: the risk
+// is gone rather than untested. web/icon.svg stays as the favicon and the installed icon, where an
+// opaque plate is correct and no page shows through behind it.
+//
+// Not replaced with a selector hunted until it passed. The themes themselves are covered in
+// test/app.ts, which derives every token from one row per theme and asserts the contrast.
 
 // ---- FULL SCREEN MEANS FULL SCREEN (decided 2026-08-28, PLAN-07).
 //

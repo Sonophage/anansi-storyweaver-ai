@@ -360,7 +360,18 @@ for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/");
   // ZERO, which is what happened the last time the control moved: the shelf had no way in at all.
   // Still counted specifically on the workspace door, because counting every rail control would
   // pass with the main menu missing and the story menu present twice.
-  const doors = await page.eval("document.querySelectorAll('#bar [data-railview=\"workspace\"]').length");
+  // THE RULE IS "YOU CAN REACH THE MAIN MENU FROM HERE", not "the header has a button". Seth,
+  // 2026-08-29, took the word Anansi out of the header: on the shelf the header name still opens
+  // the main menu in one tap, and INSIDE A STORY it is deliberately two — the story's name opens
+  // the story menu, and the Anansi word at the top of that menu opens the main one. Counting header
+  // doors called that zero and it is not; the path is walked instead, which is the thing that would
+  // actually be broken if this regressed.
+  let doors = await page.eval("document.querySelectorAll('#bar [data-railview=\"workspace\"]').length");
+  if (!doors) {
+    await page.click('#bar [data-railview="story"]');
+    await wait(500);
+    doors = await page.eval("document.querySelectorAll('#rail [data-home]').length");
+  }
   ok(`  a way into the menu on ${where} (${doors})`, doors >= 1);
   const own = await page.eval("document.querySelectorAll('#bar [data-railview=\"story\"]').length");
   ok(`  and the story's own menu door is there only in a story (${own})`,
