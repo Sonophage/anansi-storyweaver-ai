@@ -419,9 +419,30 @@ async function extract(storyId: string, chapterId?: string) {
     const onto = cls.entry_id ? (v.entries as any[]).find((x) => x.id === cls.entry_id) : null;
     const field = onto && ALL_SLOTS.includes(asked)
       && slotsFor(onto.entryType).some((sl) => sl.name === asked) ? asked : null;
+
+    // A ROOM THAT ALREADY EXISTS IS AN OFFER, NOT AN OVERWRITE. Seth: "rooms the ai should not over
+    // write but offer to add the room, overwrite it. not just over write." Another relationship
+    // beside the one she has and a correction of it are different acts, and the model is not the
+    // one who should choose — so the existing room rides along as `target` and the writer picks.
+    //
+    // AND IT DEDUPES ITSELF. If what the model wrote is what is already in that room, there is
+    // nothing to offer: a proposal you would accept to change nothing is queue noise, and a queue
+    // nobody trusts is one nobody reads. Compared folded, so punctuation and case do not make two
+    // identical rooms look different.
+    const flat = (x: string) => String(x ?? '').toLowerCase().replace(/[^\p{L}\p{N} ]/gu, '')
+      .replace(/\s+/g, ' ').trim();
+    let target: string | null = null;
+    if (field && onto) {
+      const already = (onto.addons ?? []).filter((a: any) => a.slot === field);
+      if (already.some((a: any) => flat(a.body) === flat(e.body))) continue;   // already said
+      // The one it would replace: the live one if there is one, else the newest. An exclusive slot
+      // has at most one live by construction; a plural slot is a judgement and the newest is the
+      // one the writer most recently cared about.
+      target = (already.find((a: any) => a.active) ?? already.at(-1))?.id ?? null;
+    }
     if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
-      activation: e.activation, field })) added++;
+      activation: e.activation, field, target })) added++;
   }
   return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
 }
@@ -1732,8 +1753,14 @@ export const routes: Record<string, Handler> = {
         // The editable box still decides what lands, the same as every other accept: the route has
         // honoured an incoming body since it was written, and `web/app.js` sends it.
         const keys = JSON.parse(p.keys || '[]');
+        // ADD OR REPLACE, AND THE WRITER SAYS WHICH. `p.target` is the room this would stand in for
+        // if they choose that; without `replace` it is a second room beside it. The id is what
+        // makes `upsertAddon` an edit rather than an insert, and it is checked against this story
+        // in there, so a target from another book resolves to nothing and mints a new room instead
+        // of hijacking one.
+        const onto = c.body.replace && p.target ? String(p.target) : '';
         const id = db.upsertAddon(p.story_id, p.entry_id,
-          { slot: p.field, name: p.title, body: c.body.body ?? p.body, keys });
+          { id: onto, slot: p.field, name: p.title, body: c.body.body ?? p.body, keys });
         // A ROOM WITH NO KEYS THAT NOBODY PINNED ON NEVER REACHES THE MODEL. That is the same
         // darkness `src/import.ts:127` refuses for an entry — keys or always-on, never neither —
         // and it is worse here, because the room looks filled in on the card while being invisible

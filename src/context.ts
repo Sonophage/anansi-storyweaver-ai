@@ -211,6 +211,11 @@ const live = (a: Addon, at: number) =>
  *  relationship fires on a rule a character would not. */
 const rooms = (e: Entry, at: number, window: string): string[] =>
   (e.addons ?? [])
+    // FACTS FIRST. It is the room that holds what does not change — the half that used to live in
+    // the body and get overwritten by a chapter-end state — so it reads directly under the body it
+    // is protecting, before the rooms that describe a moment. Everything else keeps the order the
+    // view gave it, which is by slot and then by age.
+    .slice().sort((a, b) => Number(b.slot === 'facts') - Number(a.slot === 'facts'))
     .filter((a) => live(a, at))
     .filter((a) => a.active || fires({ ...e, keys: a.keys ?? [] }, window).length)
     .map((a) => a.slot === 'outfit'

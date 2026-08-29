@@ -83,6 +83,11 @@ function migrate() {
   // nowhere to land until this column existed.
   add('proposals', 'field', 'TEXT');
   add('proposals', 'activation', 'TEXT');
+  // WHICH ROOM THIS WOULD REPLACE, or null for a new one. Seth, 2026-08-29: "rooms the ai should
+  // not over write but offer to add the room, overwrite it. not just over write." A room proposal
+  // for a card that already has that room is a CHOICE — another relationship beside the one she
+  // has, or a correction of it — and the model is not the one who should make it.
+  add('proposals', 'target', 'TEXT');
   // A book can follow another book's threads — a world bible, and the books set in it. One column
   // rather than a `worlds` table on purpose: a world here IS a book, one that happens to hold cards
   // and little prose, so it needs no new ownership scope. `test/scope.ts` exists because every
@@ -171,6 +176,22 @@ function migrate() {
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS proposals_dedupe
              ON proposals(story_id, content_hash) WHERE status = 'open'`);
   } catch { /* nothing to replace */ }
+  // And the exclusivity index, for the same reason: CREATE IF NOT EXISTS does NOTHING when an index
+  // of that name already exists, so adding an exclusive slot to `src/slots.ts` and to the literal in
+  // the schema above would leave every existing database enforcing the OLD list — silently, because
+  // the index is still there and still working, just for four slots instead of six. Compared against
+  // EXCLUSIVE_SLOTS rather than a version number, so it self-heals whenever that list changes.
+  try {
+    const want = `'${[...EXCLUSIVE_SLOTS].sort().join("','")}'`;
+    const idx = db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='index' AND name='addons_one_active'").get() as any;
+    if (idx && !String(idx.sql).includes(want)) {
+      db.exec('DROP INDEX addons_one_active');
+      db.exec(`CREATE UNIQUE INDEX addons_one_active ON addons(entry_id, slot)
+               WHERE active = 1 AND slot IN (${want})`);
+      console.log('  rebuilt addons_one_active for ' + EXCLUSIVE_SLOTS.join(', '));
+    }
+  } catch { /* the table does not exist yet on a fresh database */ }
   // Removed from the schema by the ponytail audit of 2026-08-23 as columns nothing reads. Both
   // were P1 stubs: `system_block_override` for a per-story SYSTEM replacement, `token_counts` for
   // SPEC §7.5's tokenizer-keyed map. Neither feature is built and both remain in the plan — this
@@ -437,7 +458,7 @@ CREATE TABLE IF NOT EXISTS addons (
 -- is the whole reason "src/slots.ts" exists. A screen that merely declines to offer a second one is
 -- a habit, not a rule.
 CREATE UNIQUE INDEX IF NOT EXISTS addons_one_active ON addons(entry_id, slot)
-  WHERE active = 1 AND slot IN ('appearance','outfit','voice');
+  WHERE active = 1 AND slot IN ('appearance','facts','outfit','role','voice');
 CREATE INDEX IF NOT EXISTS addons_story ON addons(story_id);
 CREATE INDEX IF NOT EXISTS addons_entry ON addons(entry_id, slot);
 
@@ -1933,13 +1954,14 @@ export function addProposal(storyId: string, p: any) {
       .join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
-        field,activation,content_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        field,activation,target,content_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(uid('pp-'), storyId, p.chapterId ?? null, p.entry_id ?? null, p.title, p.body,
         p.entryType ?? 'lore', JSON.stringify(p.keys ?? []), p.kind, p.delta ?? null,
         // A slot this proposal aims at, or null for the card's own body. Validated here rather
         // than at each caller, so a model inventing "Motivation" cannot reach the column.
         ALL_SLOTS.includes(String(p.field ?? '')) ? String(p.field) : null,
         p.activation === 'triggered' || p.activation === 'always_on' ? p.activation : null,
+        p.target ?? null,
         hash, now());
     return true;
   } catch { return false; }   // unique index: already proposed, not an error

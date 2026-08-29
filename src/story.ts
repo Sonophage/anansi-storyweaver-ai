@@ -155,6 +155,9 @@ export function view(storyId: string, focusChapterId?: string) {
       // Phase 2 and shipped to nobody until the accept path learned to read it, so the surface
       // could not say where an accepted fact was about to go.
       field: p.field ?? null,
+      // The room this would stand in for, if the writer chooses replace over add. The surface needs
+      // the id to send it back and the NAME to say what it is offering to overwrite.
+      target: p.target ?? null,
     })),
   };
 }

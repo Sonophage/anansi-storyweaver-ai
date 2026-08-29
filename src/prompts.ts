@@ -50,9 +50,9 @@ export const EXTRACT_SCHEMA = {
           // read alongside a log of the calls — `src/routes.ts` checks the answer against
           // `slotsFor(kind)` anyway, so a slot this kind does not have is refused at the door.
           field: { type: 'string',
-                   enum: ['none', 'appearance', 'atmosphere', 'consequences', 'history',
-                          'interiority', 'outfit', 'provenance', 'relationships', 'scope',
-                          'voice', 'what_it_does', 'who_is_here'] },
+                   enum: ['none', 'appearance', 'atmosphere', 'consequences', 'facts', 'history',
+                          'interiority', 'outfit', 'provenance', 'relationships', 'role',
+                          'scope', 'voice', 'what_it_does', 'who_is_here'] },
         },
         required: ['title', 'type', 'body', 'keys', 'activation', 'field'],
       },
@@ -641,9 +641,18 @@ scene — a law of this world, not a person who walks in and out of them.
 And a field. Most of the time this is "none": the fact is a NEW thing and the body describes the
 whole of it. Use a room name instead when the fact is about a card THAT ALREADY EXISTS and belongs
 in one part of it rather than in the whole description — how she looks now, what she is wearing,
-what she is thinking, one relationship, how she sounds, what a place is like now, who is in it,
-what it has been through, where an object came from, what it does, what a rule covers, what
-breaking it costs.
+what she is thinking, one relationship, how she sounds, what her part in the story is, what she has
+been through, what a place is like now, who is in it, what it has been through, where an object
+came from, what it does, what a rule covers, what breaking it costs.
+
+facts IS THE IMPORTANT ONE AND IT IS DIFFERENT FROM THE REST. It holds what is true about this card
+and does not change — a name, an age, an eye colour, where they are from, what they are. Those
+belong there and NOT in the description, because the description is rewritten at the end of a
+chapter and anything only written there is lost when it is. If this chapter establishes something
+permanent about a card that already exists, that is a facts proposal.
+
+Every room can be edited afterwards by the writer, including this one. You are proposing, not
+deciding: nothing you name is written until they accept it.
 
 When you name a room, the title is the card that already exists and the body is JUST that room —
 one paragraph about that one thing. Do not restate the rest of the card. Everything else about them

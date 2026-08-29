@@ -1176,9 +1176,16 @@ function proposalCard(p) {
           ${p.field ? `<div style="font-size:11px; color:var(--faint)">Lands in ${
             esc(String(p.field).replace(/_/g, ' '))} on ${esc(p.title)}. The rest of the card is
             left exactly as it is.</div>` : ''}
+          ${p.field && p.target ? `<div style="font-size:11px; color:var(--warn)">${esc(p.title)}
+            already has a ${esc(String(p.field).replace(/_/g, ' '))}. Add this beside it, or put it
+            in place of the one there.</div>` : ''}
           <div style="display:flex; gap:7px">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
-              border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Accept</button>
+              border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">${
+                p.field && p.target ? 'Add beside it' : 'Accept'}</button>
+            ${p.field && p.target ? `<button data-decide="replace" data-id="${p.id}"
+              style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
+              border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Replace it</button>` : ''}
             <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
               border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button></div></div>`;
 }
@@ -5167,8 +5174,13 @@ document.addEventListener('click', async (e) => {
     // ponytail: an edit lives in the DOM until Accept, so a repaint mid-edit loses it — the same
     // hazard the composer's draft-keeping solves. Keep it in S if that ever bites.
     const edited = document.querySelector(`[data-pbody="${d.id}"]`)?.value;
-    const r = await api.decide({ storyId: S.storyId, id: d.id, accept: d.decide === 'accept',
-      ...(d.decide === 'accept' && edited != null ? { body: edited } : {}) });
+    // Three answers now, not two: accept adds, replace stands in for the room that is already
+    // there, reject does nothing. Both of the first two are an ACCEPT to the route — `replace` only
+    // says which of the two things accepting means.
+    const yes = d.decide === 'accept' || d.decide === 'replace';
+    const r = await api.decide({ storyId: S.storyId, id: d.id, accept: yes,
+      ...(d.decide === 'replace' ? { replace: true } : {}),
+      ...(yes && edited != null ? { body: edited } : {}) });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest();
     toast(d.decide !== 'accept' ? 'Dropped.'

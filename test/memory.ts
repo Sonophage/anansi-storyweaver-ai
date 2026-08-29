@@ -240,6 +240,77 @@ let proposal: any;
 }
 
 {
+  // FACTS: THE ROOM THAT EXISTS BECAUSE THE BODY GETS OVERWRITTEN. Seth, 2026-08-29: "the current
+  // body gets rewritten at chapter end. theres no place to keep the characters main facts that
+  // doesnt get overwritten." `resolveBody` REPLACES the body with the newest state, and its own
+  // comment has warned since it was written that a short state silently drops everything it does
+  // not repeat. Rooms were always immune; there was just no room MEANT for the permanent half.
+  found = [{ title: 'Vel', body: 'Thirty-four. Born on the Long Stair. Grey eyes.',
+             type: 'character', keys: [], activation: 'triggered', field: 'facts' }];
+  const ch: any = db.chapters(story.id).at(-1);
+  await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
+  const prop = db.proposalsOf(story.id).find((p: any) => p.field === 'facts');
+  assert.ok(prop, 'a permanent fact aims at the facts room');
+  assert.strictEqual(prop.target, null, 'and there is nothing there yet to replace');
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: prop.id, accept: true }));
+  const facts = db.addonsOf(story.id).find((a: any) => a.slot === 'facts' && a.entry_id === vel) as any;
+  assert.match(facts.body, /Grey eyes/);
+
+  // THE WHOLE POINT, ASSERTED: a chapter-end state rewrites the body and the facts survive it.
+  // Checked against a SYNTHETIC entry rather than by writing a state into the fixture — this suite
+  // shares one story across every block, and a state written here changed what the retirement test
+  // three blocks down was seeded with. The pure function is what is under test anyway.
+  const { resolveBody: rb } = await import('../src/context.ts');
+  const e: any = { ...db.entriesOf(story.id).find((x: any) => x.id === vel), states: [{ fromChapter: 2, body: 'She is dead.' }] };
+  assert.strictEqual(rb(e as any, 2), 'She is dead.', 'the body is replaced, as it always was');
+  assert.match(facts.body, /Born on the Long Stair/,
+    'and what is true about her is in a room the rewrite cannot reach');
+  ok('facts survive the chapter-end rewrite that replaces the body');
+}
+
+{
+  // A ROOM THAT EXISTS IS AN OFFER, NOT AN OVERWRITE — and an identical one is not even an offer.
+  const ch: any = db.chapters(story.id).at(-1);
+  found = [{ title: 'Vel', body: 'Thirty-four. Born on the Long Stair. Grey eyes.',
+             type: 'character', keys: [], activation: 'triggered', field: 'facts' }];
+  const before = db.proposalsOf(story.id).length;
+  await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
+  assert.strictEqual(db.proposalsOf(story.id).length, before,
+    'the same room said again is queue noise, and is not proposed at all');
+
+  found = [{ title: 'Vel', body: 'Thirty-five now. Born on the Long Stair. Grey eyes.',
+             type: 'character', keys: [], activation: 'triggered', field: 'facts' }];
+  await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
+  const upd = db.proposalsOf(story.id).find((p: any) => p.field === 'facts' && /Thirty-five/.test(p.body));
+  assert.ok(upd, 'a DIFFERENT one is proposed');
+  const existing = db.addonsOf(story.id).find((a: any) => a.slot === 'facts' && a.entry_id === vel) as any;
+  assert.strictEqual(upd.target, existing.id, 'carrying the room it would stand in for');
+
+  // Accepting WITHOUT replace adds beside it; the writer chose "another", not "instead of".
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: upd.id, accept: true }));
+  assert.strictEqual(db.addonsOf(story.id).filter((a: any) => a.slot === 'facts' && a.entry_id === vel).length,
+    2, 'accept adds a second room beside the first');
+  ok('a room that already exists is offered rather than overwritten, and an identical one is not offered');
+}
+
+{
+  // And REPLACE puts it in place of the one that is there, rather than beside it.
+  const ch: any = db.chapters(story.id).at(-1);
+  const mine = db.addonsOf(story.id).filter((a: any) => a.slot === 'facts' && a.entry_id === vel);
+  for (const a of mine.slice(1)) db.delAddon(story.id, a.id);
+  found = [{ title: 'Vel', body: 'Forty. Born on the Long Stair.', type: 'character',
+             keys: [], activation: 'triggered', field: 'facts' }];
+  await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
+  const rep = db.proposalsOf(story.id).find((p: any) => p.field === 'facts' && /Forty/.test(p.body));
+  assert.ok(rep?.target, 'it knows which room it would stand in for');
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: rep.id, accept: true, replace: true }));
+  const after = db.addonsOf(story.id).filter((a: any) => a.slot === 'facts' && a.entry_id === vel);
+  assert.strictEqual(after.length, 1, 'replace leaves one room, not two');
+  assert.match(after[0].body, /Forty/, 'and it is the new one');
+  ok('  and replace stands in for it rather than beside it');
+}
+
+{
   // CLOTHING IS AN OUTFIT, NOT A DESCRIPTION. PLAN-08 #5, and the reason is F36: the prose quotes
   // the ledger, and a guitar came out of a coat pocket because the entry saying she carries one is
   // in every prompt. A coat baked into a character's body follows her into every scene for the
