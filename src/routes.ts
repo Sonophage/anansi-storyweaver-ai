@@ -8,7 +8,7 @@ import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
 import { fileBug, build, commits } from './report.ts';
-import { resolveBody, narrationOnly, retirable, numbersIn } from './context.ts';
+import { resolveBody, cardText, narrationOnly, retirable, numbersIn } from './context.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -229,6 +229,39 @@ function roomOffer(onto: any, field: string | null, body: string): string | null
   return (already.find((a: any) => a.active) ?? already.at(-1))?.id ?? null;
 }
 
+/** One answer, split into the rooms it actually names.
+ *
+ *  THE DEFECT THIS EXISTS FOR, measured on a real chapter end on 2026-08-29: all three characters
+ *  the pass proposed came back with `field: "facts"` and a body holding several rooms at once —
+ *  `appearance: … interiority: …` — so a change to how somebody looks was written into the one room
+ *  that is supposed to hold what never changes. Three for three, in the same shape.
+ *
+ *  The cause was the answer's SHAPE, not the wording: one entry per character with one field each,
+ *  so a chapter that touched two rooms of one person had nowhere to put the second, and `facts` is
+ *  the widest field on the list. The prompt now says a character may appear once per room. This is
+ *  the other half, and it is deterministic on purpose — Rule 5: splitting text the model has
+ *  already labelled is a transform, not a judgement, so code does it and the model is not asked
+ *  twice. Text before the first label stays with the field the model declared.
+ *
+ *  A body with no labels comes back as one piece and nothing changes for it, which is every answer
+ *  that was already the right shape. */
+export function roomPieces(field: string | null, body: string, slots: { name: string }[]) {
+  const names = slots.map((s) => s.name).sort((a, b) => b.length - a.length);
+  const re = new RegExp(`(?:^|\\n)[ \\t]*(${names.join('|')})[ \\t]*:[ \\t]*`, 'gi');
+  const hits = [...body.matchAll(re)];
+  if (!hits.length) return [{ field, body }];
+  const out: { field: string | null; body: string }[] = [];
+  const head = body.slice(0, hits[0]!.index).trim();
+  if (head) out.push({ field, body: head });
+  hits.forEach((h, i) => {
+    const from = h.index! + h[0]!.length;
+    const to = i + 1 < hits.length ? hits[i + 1]!.index! : body.length;
+    const text = body.slice(from, to).trim();
+    if (text) out.push({ field: h[1]!.toLowerCase(), body: text });
+  });
+  return out.length ? out : [{ field, body }];
+}
+
 const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
   const reached = new Set(manifest.blocks
     .filter((b: any) => b.kind.startsWith('CANON') && b.state === 'included').map((b: any) => b.id));
@@ -249,9 +282,7 @@ const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
     // chapter 1, and a passage is judged against the body in force where IT sits.
     .map((e: any) => ({
       id: e.id,
-      body: text.get(e.id) ?? [resolveBody(e, chapterIndex),
-        ...(e.addons ?? []).filter((a: any) => a.active && a.body?.trim())
-          .map((a: any) => `[${(a.name || a.slot).trim()}: ${a.body.trim()}]`)].join('\n').trim(),
+      body: text.get(e.id) ?? cardText(e, chapterIndex),
       reached: reached.has(e.id),
     }))
     .filter((f: any) => f.body.trim());
@@ -393,7 +424,7 @@ async function remember(storyId: string, chapterId: string) {
   if (!cast.length) return { remembered: 0 };
 
   const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
-  const inForce = cast.map((e: any) => `${e.title}: ${resolveBody(e, ch.index)}`).join('\n\n');
+  const inForce = cast.map((e: any) => `${e.title}: ${cardText(e, ch.index)}`).join('\n\n');
 
   const r = await structuredRetry(MEMORY, `${text}\n\n---\n\n${inForce}`, MEMORY_SCHEMA,
     { max_tokens: MEMORY_TOKENS });
@@ -416,21 +447,31 @@ async function remember(storyId: string, chapterId: string) {
     // for — a death, a transformation, a person the chapter genuinely replaced — which is why that
     // path is kept rather than migrated away.
     const asked = String((m as any).field ?? 'none');
-    const field = slotsFor('character').some((sl) => sl.name === asked) ? asked : null;
-    const offer = roomOffer(who, field, m.body);
-    if (offer === 'said') continue;
+    const declared = slotsFor('character').some((sl) => sl.name === asked) ? asked : null;
+    // ONE PROPOSAL PER ROOM. The answer may name several; each lands in its own room and leaves the
+    // others alone, which is the whole reason rooms exist. The dedupe hash is already keyed on
+    // where a proposal WRITES, so two rooms of one character do not collide with each other.
+    for (const piece of roomPieces(declared, m.body, slotsFor('character'))) {
+      // "none" IS A FIELD VALUE, NOT A CHANGE. Seen on 2026-08-29: the model answered one character
+      // with a body of the single word `none`, having put the field's vocabulary in the body. A
+      // proposal made of it is a card edit that would write the word `none` into a room.
+      if (/^none[.\s]*$/i.test(piece.body.trim())) continue;
+      const field = piece.field;
+      const offer = roomOffer(who, field, piece.body);
+      if (offer === 'said') continue;
 
-    if (db.addProposal(storyId, field ? {
-      kind: 'changed', entry_id: who.id, chapterId: ch.id,
-      title: who.title, body: m.body.trim(), entryType: 'character', field, target: offer,
-      delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this chapter',
-      keys: [],
-    } : {
-      kind: 'memory', entry_id: who.id, chapterId: ch.id,
-      title: who.title, body: m.body.trim(), entryType: 'state',
-      delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this chapter',
-      keys: [String(ch.index + 1)],
-    })) remembered++;
+      if (db.addProposal(storyId, field ? {
+        kind: 'changed', entry_id: who.id, chapterId: ch.id,
+        title: who.title, body: piece.body.trim(), entryType: 'character', field, target: offer,
+        delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this chapter',
+        keys: [],
+      } : {
+        kind: 'memory', entry_id: who.id, chapterId: ch.id,
+        title: who.title, body: piece.body.trim(), entryType: 'state',
+        delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this chapter',
+        keys: [String(ch.index + 1)],
+      })) remembered++;
+    }
   }
   return { remembered, chapter: ch.index };
 }
@@ -524,7 +565,7 @@ async function retire(storyId: string, chapterId?: string) {
   // empty list: an empty enum is not a grammar.
   if (!cands.length) return { proposed: 0, eligible: 0, chapter: ch.index };
 
-  const inForce = cands.map((e: any) => `${e.title}: ${resolveBody(e, ch.index)}`).join('\n\n');
+  const inForce = cands.map((e: any) => `${e.title}: ${cardText(e, ch.index)}`).join('\n\n');
   const r = await structuredRetry(RETIRE(String((v.story as any).direction ?? '')),
     `${text}\n\n---\n\n${inForce}`, retireSchema(cands.map((e: any) => e.title)) as any,
     { max_tokens: RETIRE_TOKENS });
@@ -1062,7 +1103,7 @@ export const routes: Record<string, Handler> = {
 
     // The canon already in force, so the thread does not restate or contradict what is known.
     const known = db.entriesOf(v.id).slice(0, 40)
-      .map((e: any) => `${e.title}: ${resolveBody(e, ch.index)}`).join('\n');
+      .map((e: any) => `${e.title}: ${cardText(e, ch.index)}`).join('\n');
     const body = [
       known ? `WHAT IS ALREADY IN THE LEDGER:\n${known}` : '',
       `THIS HAPPENED IN CHAPTER ${ch.index}${ch.title ? ` — ${ch.title}` : ''}. REMEMBER IT:`,

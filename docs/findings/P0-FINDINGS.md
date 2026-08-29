@@ -1861,3 +1861,58 @@ is where the next attempt goes, and it is a narrower question than the one F43 s
 **Precision is untouched at zero false alarms in nine clean chances**, which is what makes 42% worth
 shipping: the failure mode of a numeric checker is crying wolf on every figure in the prose, and
 three of the six numeric cases exist to catch exactly that.
+
+## F46 — the memory pass was asking about a blank card, and the prompt clause written to fix the symptom cost 26 points of placement (2026-08-29)
+
+The first real chapter end after the body→facts migration produced three `changed` proposals and all
+three came back with `field: "facts"` and a body carrying several rooms at once — `appearance: …
+interiority: …`. A fourth character who walked through the lobby and said nothing was proposed as
+changed as well. Three for three, in one shape, which is the signature of a cause rather than a
+wobble.
+
+**The cause was not the prompt.** `remember()` built its cast list from `resolveBody(e, ch.index)` —
+the body alone. Every body in the library moved into a `facts` room that morning, so what the model
+actually received was:
+
+```
+Halloran:
+Wrenn:
+Coyle:
+```
+
+Twenty-four characters, three names and three colons. Asked what had CHANGED about a person it had
+never been shown, the model wrote a description of that person and filed it under the field that
+holds permanent things. **That is the correct answer to the question it was asked.** `factsFor` had
+been fixed the same morning for exactly this reason and the other three callers were missed —
+`remember`, the retirement scan, and what a new thread is told already exists. All four now go
+through `cardText`, which is the assembly the prompt builder itself uses.
+
+**Then the prompt was rewritten to fix the symptom, and it was measured before being believed.**
+Three arms, interleaved, one fixture with four characters — one changed in one room, one in another,
+one in two rooms, and one merely present:
+
+| arm | placed in the right room | landed in `facts` | both rooms of the two-room character | proposed someone unchanged |
+|---|---|---|---|---|
+| the prompt as it stood, no splitting | 38/44 (86%) | 3/44 (7%) | 7/10 | 1/10 |
+| **splitting only** | **36/38 (95%)** | **1/38 (3%)** | 6/10 | 2/10 |
+| splitting + reworded prompt | 37/54 (69%) | 9/54 (17%) | 9/10 | 0/10 |
+
+The rewording — "one entry per room", a narrowed `facts`, a sharper merely-present clause — **made
+the thing it was written to fix worse**: `facts` dumping went from 3% to 17%. It produced more
+proposals (54 against 38) and the extra ones were the bad ones. It bought both-rooms (6→9) and
+intruders (2→0), but those counts are 10-run integers and the difference between 1 and 2 intruders
+is not a result. The clause was deleted, on the precedent of the register clause in SYSTEM that
+measured 98.0 against 98.0.
+
+What shipped is the code half: `roomPieces` splits an answer the model has already labelled into one
+proposal per room. Splitting labelled text is a transform, not a judgement — Rule 5 — so the model is
+not asked twice.
+
+**The denominator is proposals about a character the chapter changed, never runs.** A pass that
+proposes nothing gets no room wrong and would score perfectly. The counts are printed beside every
+percentage so a small denominator cannot hide in one, which is F10's rule.
+
+**n=10 on one fixture.** 95% placement is not a claim about every chapter; it is what one four-person
+fixture measured against one alternative. `bench/rooms.ts check` validates both graders in both
+directions before any of it is believed, and asserts that a run naming every room of every character
+is scored as intruding rather than as recall.

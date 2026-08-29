@@ -265,6 +265,20 @@ export function resolveBody(e: Entry, chapter: number): string {
   return [inForce?.body ?? e.body, ...hints.map((h) => `[not yet known: ${h}]`)].join(' ');
 }
 
+/** THE CARD AS THE MODEL SEES IT: what is in force at this chapter, plus every room switched on.
+ *
+ *  This exists because reading `resolveBody` alone stopped being the same thing as reading the card
+ *  on 2026-08-29, when every body in the library moved into a `facts` room. `factsFor` was fixed
+ *  that morning and the other three callers were not, so the memory pass spent a chapter end asking
+ *  the model what had changed about "Halloran: " — the name, a colon, and nothing. It answered by
+ *  writing a whole description and filing it under `facts`, which is the correct answer to the
+ *  question it was actually asked. The defect read as the model ignoring its instructions.
+ *
+ *  With no window, only rooms that are switched ON are included; pass the chapter's text and rooms
+ *  whose keys fire come too, which is what the prompt builder wants and a cast list does not. */
+export const cardText = (e: Entry, at: number, window = '') =>
+  [resolveBody(e, at), ...rooms(e, at, window)].map((x) => x.trim()).filter(Boolean).join('\n');
+
 // The proximity bound is BUILT (2026-08-25) — see `fires` below. The marker that stood here said
 // to build it "when a real ledger actually false-fires", and COUNCIL-04 recorded two, from a
 // 46-entry ledger where all 46 fired for an eight-person scene:
@@ -643,9 +657,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // EMPTIES DROPPED BEFORE THE JOIN. A card whose permanent half has moved into its `facts` room
   // has an empty body, and joining that with the rooms put a blank line at the top of every one of
   // them — 461 cards, one wasted line each.
-  const bodyOf = (e: Entry) => [resolveBody(e, currentChapter.index),
-                                ...rooms(e, currentChapter.index, recent)]
-    .map((x) => x.trim()).filter(Boolean).join('\n');
+  const bodyOf = (e: Entry) => cardText(e, currentChapter.index, recent);
 
   const pins = input.pins ?? {};
   for (const e of entries) {
