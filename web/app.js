@@ -138,7 +138,7 @@ const S = {
   // one. Set to 'story' on open and back to 'workspace' on leave, so the default still follows
   // you and only a deliberate press disagrees with it.
   railView: 'workspace',
-  entryId: null, historyOf: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
+  entryId: null, historyOf: null, newRoom: null, models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, spark: null, ritual: null, setup: null,
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
@@ -196,7 +196,7 @@ const POV = ['first person, present tense', 'first person, past tense',
 const SNAV = [
   // Search first, at Seth's direction: it is the row you reach for when you are looking rather
   // than deciding, and a thing you look for is a thing you want at the top of the list.
-  ['search', 'search', 'Search'],
+  ['search', 'search', 'Prose search'],
   // Everything this book is waiting on, in one place — see the panel for why one place matters.
   ['waiting', 'threads', 'Waiting'],
   ['story', 'story', 'Story'], ['chapter', 'chapter', 'Chapter'],
@@ -2715,12 +2715,15 @@ function cardFace(e, slots) {
     <div class="hint">It reaches this book's prompts and fires by the same rules. Editing it there
       changes it everywhere, which is the point of following rather than copying.</div></div>`;
 
-  const rooms = (e.addons ?? []).filter((a) => a.slot !== 'outfit');
-  // The outfit room is drawn from `e.outfits` rather than from the addons, so it earns its jump
-  // link the same way — by holding something. See the note in `src/context.ts` on why the coat
-  // still comes from the older table.
-  const shown = slots.filter((sl) => sl.name === 'outfit'
-    ? (e.outfits ?? []).length : rooms.some((a) => a.slot === sl.name));
+  // OUTFIT IS A ROOM LIKE THE REST, and drawing it twice is what Seth found: the slot loop made a
+  // heading named outfit with nothing under it, because outfits were filtered out of `rooms`, and
+  // the coats themselves arrived from `e.outfits` in a second block at the foot of the card. That
+  // split was true while the wardrobe had its own table. It has not had one since the tables were
+  // merged — every outfit is an addon in the `outfit` slot, `e.outfits` is the same rows filtered
+  // by slot, and `setAddonActive` enforces one-at-a-time off EXCLUSIVE_SLOTS the same way wearing
+  // did. So the room draws through the ordinary path and the second block is gone.
+  const rooms = e.addons ?? [];
+  const shown = slots.filter((sl) => rooms.some((a) => a.slot === sl.name));
   return `<div style="display:flex; flex-direction:column">
     ${cardBar('face')}
     ${cardHead(e, shown)}
@@ -2736,12 +2739,6 @@ function cardFace(e, slots) {
         `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag" style="cursor:pointer; ${
           a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
           >${a.active ? 'On' : 'Off'}</button>`, sl.name)).join('')}`).join('')}
-    ${(e.outfits ?? []).length ? `
-      <div data-slotat="outfit" class="lbl" style="letter-spacing:.1em; margin-top:18px">outfit</div>
-      ${e.outfits.map((o) => roomCard(o.name, o.body, [], o.active,
-        `<button data-wear="${esc(e.id)}:${o.active ? '' : esc(o.id)}" class="tag" style="cursor:pointer; ${
-          o.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
-          >${o.active ? 'On' : 'Off'}</button>`, 'outfit')).join('')}` : ''}
     ${shown.length ? '' : '<div class="hint" style="margin-top:18px">No rooms filled in yet. Open the form to write one, or have Anansi.</div>'}
     <button class="btn ghost" data-cardview="form" style="margin-top:20px">Edit this card</button>
   </div>`;
@@ -2814,7 +2811,8 @@ function entryEditor() {
         display:flex; align-items:baseline; gap:8px">${
         esc(sl.name.replace(/_/g, ' '))}${sl.exclusive ? ' <span style="opacity:.5">(one at a time)</span>' : ''}
         <button data-newroom="${esc(sl.name)}" aria-label="Add one" style="margin-left:auto;
-          color:var(--gold); font-size:15px; line-height:1; padding:0 4px">+</button></div>
+          color:var(--gold); font-size:15px; line-height:1; padding:0 4px">${
+          S.newRoom === sl.name ? '&minus;' : '+'}</button></div>
       ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${
         a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
         <div style="display:flex; align-items:center; gap:9px">
@@ -2833,14 +2831,14 @@ function entryEditor() {
           <button class="btn ghost" data-saveaddon="${esc(a.id)}"
             style="flex:0 0 auto; width:auto; padding:12px 20px">Save</button></div>
       </div>`).join('')}
-      <div class="card" style="gap:7px">
+      ${S.newRoom === sl.name ? `<div class="card" style="gap:7px">
         <input class="field" data-newan="${esc(sl.name)}" placeholder="[name it]">
         <textarea class="field" data-newab="${esc(sl.name)}" style="min-height:48px"
           placeholder="[what the model reads]"></textarea>
         <button class="btn ghost" data-addaddon="${esc(sl.name)}">Add</button>
         ${inventTray(sl.name, `Have Anansi write ${esc(sl.name.replace(/_/g, ' '))}`,
                      'what has changed, or nothing at all and let her read the book')}
-      </div>`;
+      </div>` : ''}`;
     }).join('')}
 
     <!-- THE WARDROBE IS A ROOM, and sits with the others rather than under the notes. Seth:
@@ -4432,11 +4430,16 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.newroom) {
-    // The section's own empty card, not a new one: one way to make a room, reached from the top of
-    // the section instead of the bottom.
-    const box = document.querySelector(`[data-newan="${d.newroom}"]`);
-    box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    box?.focus();
+    // ONE SECTION OPEN AT A TIME. Two open boxes are two half-written rooms and a Save that only
+    // takes one of them. Pressing the section already open closes it, so the + is the way out too.
+    S.newRoom = S.newRoom === d.newroom ? null : d.newroom;
+    paint();
+    // After the paint, or the field does not exist to focus yet.
+    if (S.newRoom) {
+      const box = document.querySelector(`[data-newan="${S.newRoom}"]`);
+      box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      box?.focus();
+    }
     return;
   }
   if (d.addonon) {

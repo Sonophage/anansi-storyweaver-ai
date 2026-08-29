@@ -21,12 +21,17 @@ const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean
     (err, stdout, stderr) => done({ s, out: (stdout ?? '') + (stderr ?? ''), ok: !err }));
 }));
 
-let bad = 0;
+// NAME THE ONES THAT FAILED. The summary counted them and stopped there, so a run whose tail read
+// "1 suite(s) FAILED" gave no way to tell which — and the eleven suites each pass when run alone,
+// which is exactly the shape of failure where the name is the whole of the information. Twice on
+// 2026-08-29 this cost a diagnosis; the output was above, but nothing pointed at it.
+const bad: string[] = [];
 for (const r of await Promise.all(runs)) {
   process.stdout.write(`\n── ${r.s} ${'─'.repeat(46 - r.s.length)}\n`);
   process.stdout.write(r.out);
-  if (!r.ok) bad++;
+  if (!r.ok) bad.push(r.s);
 }
 const secs = ((Date.now() - started) / 1000).toFixed(1);
-console.log(bad ? `\n${bad} suite(s) FAILED  ·  ${secs}s` : `\nall suites passed  ·  ${secs}s`);
-process.exit(bad ? 1 : 0);
+console.log(bad.length ? `\n${bad.length} suite(s) FAILED: ${bad.join(', ')}  ·  ${secs}s`
+                       : `\nall suites passed  ·  ${secs}s`);
+process.exit(bad.length ? 1 : 0);

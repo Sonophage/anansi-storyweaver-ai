@@ -31,7 +31,7 @@ ok("  and Trajectory, What the chapter added and Branches are no longer rows of 
 // ---- 2. every row opens a panel with content in it. A nav row pointing at a panel that no
 // longer exists renders an empty tray, which is exactly what a rename gets wrong.
 for (const [k, label] of [['story', 'Story'], ['chapter', 'Chapter'], ['threads', 'Threads'],
-                          ['context', 'Context'], ['search', 'Search'], ['teller', 'Storyteller']]) {
+                          ['context', 'Context'], ['search', 'Prose search'], ['teller', 'Storyteller']]) {
   await page.click(`[data-nav="${k}"]`);
   await wait(500);
   const body = (await page.text('#sideBody') || '').replace(/\s+/g, ' ').trim();
@@ -557,6 +557,17 @@ ok("outfits appear as chips under the character", await page.visible(`[data-wear
 // The Wardrobe form can write one too, for THIS character, and the button says whose it is.
 await page.click(`#page [data-entry="${who.id}"], [data-entry="${who.id}"]`);
 await wait(600);
+// ---- ONE OUTFIT HEADING, WITH THE COATS UNDER IT, asserted on the face this click just opened.
+// Seth, 2026-08-29: "outfit on the card doesnt go under outfit ... theres a blank outfit header and
+// if i scroll all the way to the bottom then i see all the outfits under that." The face filtered
+// outfits out of `rooms` and drew them again in a block of their own, so the slot loop made a
+// heading with nothing beneath it and the real one sat below every other room. Falsified by
+// restoring the filter: heads is 2 and this goes red.
+const dressed = await page.eval(`(() => ({
+  heads: document.querySelectorAll('[data-slotat="outfit"]').length,
+  coats: document.querySelectorAll('[data-goslot="outfit"]:not(.tag)').length }))()`);
+ok(`the face draws one outfit heading, not two (${dressed.heads})`, dressed.heads === 1);
+ok(`  with both coats drawn through the ordinary room path (${dressed.coats})`, dressed.coats === 2);
 await page.click('[data-cardview="form"]');
 await wait(500);
 // NAMED, not "the first one on the page". This read `document.querySelector('[data-invent]')`,
@@ -567,6 +578,33 @@ ok("  the Wardrobe offers to have Anansi write one",
    (await page.eval("!!document.querySelector('[data-invent=\"outfit\"]')")) === true);
 ok(`  named for the character it dresses`,
    (await page.eval("document.querySelector('[data-invent=\"outfit\"]')?.textContent") || '').includes(who.title));
+// ---- THE ADD BOX IS BEHIND THE SECTION'S OWN BUTTON. Seth: "the add a new on under every single
+// section is expanded. hid it under a button or toggle for that section." A character has eight
+// rooms, so the form was eight empty name/body/Add cards stacked between the writer and the rooms
+// that hold something. Asserted on `role`, which this character has nothing in — the empty state he
+// described: the heading, the +, and nothing else. Both branches run: closed, then open.
+{
+  // Its own navigation rather than whatever the wardrobe block left behind: this asserts the empty
+  // state of one section, and inheriting a view is how a check ends up reporting on another card.
+  await page.goto(B + "/#" + sid3 + "/threads");
+  for (let i = 0; i < 40 && !(await page.visible(`[data-entry="${who.id}"]`)); i++) await wait(250);
+  await page.click(`[data-entry="${who.id}"]`);
+  for (let i = 0; i < 40 && !(await page.visible('[data-cardview="form"]')); i++) await wait(250);
+  await page.click('[data-cardview="form"]');
+  for (let i = 0; i < 40 && !(await page.visible('[data-newroom="role"]')); i++) await wait(250);
+  ok('the form gives every room a heading and a + of its own',
+     await page.visible('[data-newroom="role"]'));
+  const box = () => page.eval(`document.querySelectorAll('[data-newan="role"]').length`);
+  ok(`an empty room is its heading and a + — no form until asked (${await box()})`, (await box()) === 0);
+  await page.click('[data-newroom="role"]');
+  await wait(400);
+  ok(`  pressing it opens that section's box, and only that one (${await box()})`, (await box()) === 1);
+  ok(`  and no other section opened with it`,
+     (await page.eval("document.querySelectorAll('[data-newan]').length")) === 1);
+  await page.click('[data-newroom="role"]');
+  await wait(400);
+  ok(`  pressing it again puts it away (${await box()})`, (await box()) === 0);
+}
 // The card goes to another book, from the panel. This repo's recurring failure is the feature that
 // exists, is tested at the db and the route, and has nothing on any screen that reaches it.
 {
