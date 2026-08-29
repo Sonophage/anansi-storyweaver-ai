@@ -6,7 +6,7 @@
 // If canon renders as one concatenated block, P6 re-granularizes the renderer.
 
 export type Kind =
-  | 'SPINE' | 'VOICE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED' | 'STRING'
+  | 'SPINE' | 'VOICE' | 'STYLE' | 'CANON-ALWAYS' | 'CANON-TRIGGERED' | 'STRING'
   | 'EARLIER' | 'PROSE' | 'DIRECTIVE' | 'TAIL' | 'MODE';
 
 // LORE and RECALL were declared here, ordered, tagged and ranked for eviction, and nothing ever
@@ -21,8 +21,14 @@ export type Kind =
 // string is a promise the story has made and not paid — the letter unopened in chapter 6 — and it
 // is writer-facing by default precisely because a model told about an unresolved promise tends to
 // resolve it, which is the writer's move. Summoning one is the writer saying "this is in play now".
+// STYLE sits under VOICE and is not part of it — #18. VOICE is the universal register, this is
+// the book's genre flavour, and folding them would put them in competition for VOICE's 500 tokens.
+// That is COUNCIL-04 #5 exactly: the writing sample was a `keep: false` part of DIRECTIVE under a
+// cap it shared with point of view and the register, so the app's own hint guaranteed it was cut
+// first. It is not DIRECTIVE either — every part of that block is `keep: true`, so it cannot trim
+// and can only refuse.
 export const ORDER: Kind[] = [
-  'SPINE', 'VOICE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'STRING',
+  'SPINE', 'VOICE', 'STYLE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'STRING',
   'EARLIER', 'PROSE', 'DIRECTIVE', 'TAIL', 'MODE',
 ];
 // CANON-REPEAT lived here between DIRECTIVE and TAIL from F15 until F20 measured it at 850
@@ -34,7 +40,7 @@ export const ORDER: Kind[] = [
 // VOICE was a `keep: false` part of DIRECTIVE under a 250-token cap shared with point of view,
 // the chapter's ending and the register — so the app's own hint ("paste a few hundred words")
 // guaranteed the sample was cut, and cut first. COUNCIL-04 #5. 500 tokens holds ~370 words.
-export const CAPS: Partial<Record<Kind, number>> = { SPINE: 400, DIRECTIVE: 250, VOICE: 500 };
+export const CAPS: Partial<Record<Kind, number>> = { SPINE: 400, DIRECTIVE: 250, VOICE: 500, STYLE: 200 };
 
 // EARLIER is the one block that grows monotonically with book length.
 // PLAN-02 put it outside the 45% canon cap, which left the only unbounded block

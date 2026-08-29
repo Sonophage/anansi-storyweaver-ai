@@ -56,6 +56,19 @@ export const SPICE = [
   'on the page, in the book\u2019s voice', 'direct, and the acts named', 'fully explicit',
 ];
 
+/** #20. Six bare strings with no hint anywhere, in three places. Spice already does this properly
+ *  — a prose label per level — and "we need examples so that its easy to understand how something
+ *  would be written" is asking for the same treatment. One line of the thing itself beats any
+ *  description of it. */
+export const POV_EXAMPLE = {
+  'first person, present tense':   'I come up the stair and the rain comes with me.',
+  'first person, past tense':      'I came up the stair and the rain came with me.',
+  'second person, present tense':  'You come up the stair and the rain comes with you.',
+  'third limited, present tense':  'She comes up the stair and the rain comes with her.',
+  'third limited, past tense':     'She came up the stair and the rain came with her.',
+  'third omniscient, past tense':  'She came up the stair; below her, the porter already knew.',
+};
+
 export const STORY_FIELDS = [
   { k: 'title',        label: 'Title' },
   { k: 'genre',        label: 'Genre' },
@@ -63,8 +76,18 @@ export const STORY_FIELDS = [
   { k: 'setting',      label: 'Setting' },
   { k: 'pov',          label: 'Point of view' },
   { k: 'persona',      label: 'You are', hint: 'The character you speak as in Speak mode.' },
+  // #18. These were ONE field with a wrapper that called it a sample while every story in the
+  // library held instructions. The hint was wrong in the same way and is now true of each half.
   { k: 'writingStyle', label: 'Voice of the weave', area: true,
-    hint: 'Paste a few hundred words of your own prose. A sample beats a description of one.' },
+    hint: 'How the narration behaves, as instructions. This is the half F37 measured: on its own '
+        + 'line, naming narration, with the forms spelled out.' },
+  { k: 'voiceSample',  label: 'A sample of your prose', area: true,
+    hint: 'Optional. A few hundred words of your own writing to match the rhythm of. Never '
+        + 'continued, quoted, or taken as fact — and it is the part that gets shortened if the '
+        + 'block runs over.' },
+  { k: 'styleNote',    label: 'How this book is written', area: true,
+    hint: 'This book\'s genre flavour, kept apart from the voice: romance and science fiction are '
+        + 'not the same writing style. It gets its own block under the voice.' },
   { k: 'direction',    label: 'Where this is going', area: true,
     hint: 'Aims the story without disclosing it. Never restated to the reader.' },
   { k: 'stripPatterns', label: 'Strip from output', hint: 'One regex per line. Local models leak scaffolding.' },
@@ -161,7 +184,7 @@ export const modelName = (id) => {
 // separate — so this is dark enough that lightness alone tells them apart, and the check below
 // asserts that rather than trusting the eye that picked it.
 export const BLOCK_COLOR = {
-  SPINE: '#D9B26A', VOICE: '#5C5480', 'CANON-ALWAYS': '#7FB083', 'CANON-TRIGGERED': '#9A8B62',
+  SPINE: '#D9B26A', VOICE: '#5C5480', STYLE: '#3F6B6E', 'CANON-ALWAYS': '#7FB083', 'CANON-TRIGGERED': '#9A8B62',
   STRING: '#B07C9E', EARLIER: '#8A7BA8', PROSE: '#6E8AA0', TAIL: '#5E7A8E',
   DIRECTIVE: '#C99356', MODE: '#635E56',
 };
@@ -175,6 +198,7 @@ export const BLOCK_COLOR = {
 export const BLOCK_ORIGIN = {
   SPINE:             ['Premise & setting',       'story'],
   VOICE:             ['Voice of the weave',      'story'],
+  STYLE:             ['How this book is written', 'story'],
   'CANON-ALWAYS':    ['Threads, always on',      'canon'],
   'CANON-TRIGGERED': ['Threads, on a keyword',   'canon'],
   STRING:            ['Strings you summoned',    'strings'],

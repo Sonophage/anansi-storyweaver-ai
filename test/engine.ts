@@ -449,7 +449,11 @@ ok('an oversized voice sample shortens on a sentence, and DIRECTIVE keeps everyt
   // The sample is now the only flex part of its own block, so going over the cap costs the
   // sample and nothing else. It used to cost point of view, register and the chapter's beat.
   const i = base();
-  i.story.writingStyle = 'The rain came sideways off the water. '.repeat(90);   // ~830 tokens
+  // #18: the SAMPLE is the flex part and the instruction is not. This used to put the prose in
+  // `writingStyle`, which is now the instruction and `keep: true` — so the same text there is an
+  // anchor that cannot be cut, which is the whole point of splitting them.
+  (i.story as any).voiceSample = 'The rain came sideways off the water. '.repeat(90);   // ~830 tokens
+  i.story.writingStyle = 'Write the narration in contractions.';
   i.story.spice = 5;
   i.currentChapter = { id: 'c3', index: 3, title: 'Key', authorsNote: 'He must be forced.' };
   const m = buildContext(i, count);
@@ -458,6 +462,11 @@ ok('an oversized voice sample shortens on a sentence, and DIRECTIVE keeps everyt
   assert.ok(v.tokens <= 500, `must fit the cap, got ${v.tokens}`);
   assert.match(v.text, /water\.$/,
     `the cut lands on a sentence, not mid-word — ends: ${JSON.stringify(v.text.slice(-24))}`);
+  // AND THE INSTRUCTION SURVIVES IT. That is what the split buys: F37 measured the instruction as
+  // the thing that holds the register at 98%, and it used to share a cap with the sample that
+  // could push it out. It is `keep: true` now and this is the check that says so.
+  assert.match(v.text, /contractions/,
+    'the instruction is never what gets cut — it is the half that was measured');
 
   const d = m.blocks.find((b) => b.kind === 'DIRECTIVE')!;
   assert.doesNotMatch(d.reason, /shortened/, 'DIRECTIVE no longer pays for the sample');
@@ -1163,6 +1172,42 @@ ok('  and a blank one is not a rejection', () => {
   const b = base();
   (b as any).rejected = '   ';
   assert.doesNotMatch(render(buildContext(b, count)), /rejected this attempt/i);
+});
+
+// ---- #18: the voice split, and the book's own style -------------------------------------------
+
+ok('the instruction goes in unwrapped, and only a real sample is called one', () => {
+  // The wrapper said "a sample of the writer's own prose… never continue it" over a page of RULES,
+  // which is the wrong frame for the thing F37 measured as load-bearing. It is only said now when
+  // there is something it is true of.
+  const i = base();
+  i.story.writingStyle = 'Write the narration in contractions.';
+  (i.story as any).voiceSample = '';
+  const v = buildContext(i, count).blocks.find((b) => b.kind === 'VOICE')!;
+  assert.match(v.text, /contractions/);
+  assert.doesNotMatch(v.text, /sample of the writer/i,
+    'a story with no specimen must not be told it has one');
+
+  (i.story as any).voiceSample = 'The rain came sideways off the water.';
+  const both = buildContext(i, count).blocks.find((b) => b.kind === 'VOICE')!;
+  assert.match(both.text, /sample of the writer/i, 'and one that has a specimen is told so');
+  assert.match(both.text, /sideways off the water/);
+  assert.match(both.text, /contractions/, 'with the instruction still there');
+});
+
+ok('the book\'s own style is its own block, under the voice', () => {
+  const i = base();
+  (i.story as any).styleNote = 'Noir. Short sentences, wet streets, nobody explains themselves.';
+  const m = buildContext(i, count);
+  const st = m.blocks.find((b) => b.kind === 'STYLE')!;
+  assert.ok(st, 'a style note gets a block of its own');
+  assert.match(st.text, /wet streets/);
+  // UNDER VOICE AND ABOVE CANON, which is the placement argument: it is reference about the prose,
+  // not a fact about the story, and it must not compete with the sample for VOICE's cap.
+  const at = (k: string) => ORDER.indexOf(k as any);
+  assert.ok(at('STYLE') > at('VOICE') && at('STYLE') < at('CANON-ALWAYS'));
+  assert.ok(!buildContext(base(), count).blocks.some((b) => b.kind === 'STYLE'),
+    'and a book without one gets no block at all');
 });
 
 console.log(`\n${n} checks passed`);

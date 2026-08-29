@@ -23,6 +23,9 @@ const toEntry = (r: any, states: any[] = []): Entry => ({
 const toStory = (r: any) => ({
   title: r.title, genre: r.genre, premise: r.premise, setting: r.setting, pov: r.pov,
   persona: r.persona, writingStyle: r.writing_style, direction: r.direction, spice: r.spice,
+  // #18. The instruction is `writingStyle` and always was; these two are the sample and the
+  // book's own genre flavour, and the engine reads all three separately now.
+  voiceSample: r.voice_sample ?? '', styleNote: r.style_note ?? '',
   maxContext: r.max_context, status: r.status, stripPatterns: r.strip_patterns,
   spiceNote: r.spice_note, model: r.model, lockedCharacter: r.locked_character,
   // Whether the surface should ask for the opening passage itself. Absent on a row written before

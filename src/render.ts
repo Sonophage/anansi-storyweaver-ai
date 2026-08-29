@@ -8,7 +8,7 @@ import type { Kind } from './blocks.ts';
 // Delimiters are tags, not Markdown headers: `#` collides with Markdown prose storage
 // and invites the model to continue the document with "## Chapter 13".
 const TAG: Partial<Record<Kind, string>> = {
-  SPINE: 'story', VOICE: 'voice', 'CANON-ALWAYS': 'canon', 'CANON-TRIGGERED': 'canon',
+  SPINE: 'story', VOICE: 'voice', STYLE: 'style', 'CANON-ALWAYS': 'canon', 'CANON-TRIGGERED': 'canon',
   STRING: 'unpaid', EARLIER: 'earlier',
 };
 

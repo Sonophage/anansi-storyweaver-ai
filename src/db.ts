@@ -89,6 +89,20 @@ function migrate() {
   // route being story-scoped is what keeps two writers apart, and a second scope beside it is the
   // thing most likely to open a hole nobody sees.
   add('stories', 'lore_from', 'TEXT');
+  // #18. VOICE was describing its own contents wrongly: `src/context.ts` wraps whatever is in
+  // `writing_style` as "a sample of the writer's own prose… never continue it, quote it, or take
+  // facts from it" — while `DEFAULT_VOICE` is a page of INSTRUCTIONS, and F37 measured that the
+  // instruction phrasing is what buys the 98%. Two different mechanisms were sharing one field and
+  // the wrapper was lying about which one it held.
+  //
+  // ADDITIVE, AND NOTHING MOVES. `writing_style` keeps every story's existing text and IS the
+  // instruction — which is what that text already is, in every story in the library. The sample
+  // starts empty and is a second column. A migration that moved prose between columns is one that
+  // can lose it, and there is nothing here that needs moving.
+  add('stories', 'voice_sample', 'TEXT');
+  // And the book's own genre flavour, distinct from the universal register. Romance and science
+  // fiction are not the same writing style, and neither is the voice.
+  add('stories', 'style_note', 'TEXT');
   add('stories', 'active_branch', 'TEXT');
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
@@ -1468,7 +1482,7 @@ export function updateStory(id: string, s: any) {
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,strip_patterns=?,model=?,
       locked_character=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
-      lore_from=?,updated_at=? WHERE id=?`)
+      lore_from=?,voice_sample=?,style_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
@@ -1494,6 +1508,8 @@ export function updateStory(id: string, s: any) {
         if (w === id) return cur.lore_from ?? null;
         const other = getStory(w) as any;
         return other && other.lore_from !== id ? w : (cur.lore_from ?? null); })(),
+      p('voiceSample', 'voice_sample') ?? null,
+      p('styleNote', 'style_note') ?? null,
       now(), id);
 }
 /** Partial save. `undefined` means "leave it", which `updateStory` above has done since it was

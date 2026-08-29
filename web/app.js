@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelOptions, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelOptions, glyph, still, glyphRun, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -3110,9 +3110,18 @@ const WPAGES = {
         <label class="lbl">Point of view</label>
         <select class="field" data-bf="pov">${POV.map((p) =>
           `<option value="${esc(p)}" ${p === S.blank.pov ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
+        <div class="hint">${esc(POV_EXAMPLE[S.blank.pov] ?? '')}</div>
         ${area('writingStyle', 'Voice of the weave',
-               'Paste a few hundred words of your own prose. A sample beats a description of one.',
-               'Clipped and wet. Short sentences. Weather does the feeling…')}
+               'How the narration behaves, as instructions. Filled in from your default — edit or '
+               + 'clear it, and clearing it now really does mean none.',
+               'Write the narration in contractions…')}
+        ${area('voiceSample', 'A sample of your prose',
+               'Optional. A few hundred words of your own writing to match the rhythm of. Never '
+               + 'continued, quoted, or taken as fact.',
+               'The rain came sideways off the water and he did not hurry…')}
+        ${area('styleNote', 'How this book is written',
+               'This book\'s genre flavour, kept apart from the voice. It gets its own block.',
+               'Noir. Short sentences, wet streets, nobody explains themselves…')}
         <label class="lbl">Spice</label>
         <select class="field" data-bf="spice">${SPICE.map((l, i) =>
           `<option value="${i + 1}" ${Number(S.blank.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}</select>
@@ -5182,8 +5191,18 @@ document.addEventListener('click', async (e) => {
     // Was: create `Untitled` and drop you in the editor. Seth: "if were starting blank then the
     // user needs a screen to fill in all these things themselves". Spark fills these in for you;
     // starting blank should ask for the same ones rather than for none of them.
+    // #20. THE VOICE BOX WAS NOT EMPTY, IT WAS FILLED INVISIBLY. `src/routes.ts` backfills a blank
+    // `writingStyle` from the writer's saved default at creation — so the form showed an empty box
+    // and the story got a page of text nobody had seen. That is worse than empty, and it makes the
+    // fix "show what is already going to happen" rather than "put something in the box".
+    //
+    // `S.prompts.voice.inUse` is the same three-layer answer the server would reach for: this
+    // story's own, then yours, then the shipped one. Editable and clearable like any other field —
+    // clearing it is now a real choice rather than the setting that triggers the hidden fill.
     S.blank = S.blank ?? { title: '', genre: '', premise: '', setting: '',
-                           pov: 'third limited, past tense', writingStyle: '', spice: 2 };
+                           pov: 'third limited, past tense',
+                           writingStyle: S.prompts?.voice?.inUse ?? '',
+                           voiceSample: '', styleNote: '', spice: 2 };
     S.spark = null;
     drawPage();
     document.querySelector('[data-bf="title"]')?.focus();
@@ -5197,6 +5216,9 @@ document.addEventListener('click', async (e) => {
     const story = { title: get('title').trim() || 'Untitled', genre: get('genre').trim(),
       premise: get('premise').trim(), setting: get('setting').trim(),
       pov: get('pov'), writingStyle: get('writingStyle').trim(),
+      // #18. Both halves travel from the form, or a book created here starts with no specimen and
+      // no style however carefully they were typed.
+      voiceSample: get('voiceSample').trim(), styleNote: get('styleNote').trim(),
       spice: Number(get('spice')) || 2 };
     const r = await api.createStory(story);
     if (r.error) return toast(r.error);

@@ -46,6 +46,11 @@ export interface Passage {
 export interface Story {
   title: string; genre: string; premise: string; setting: string;
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
+  /** #18. `writingStyle` is the INSTRUCTION — what every story in the library already holds. These
+   *  two are new and both optional: a specimen of the writer's prose, and this book's own genre
+   *  flavour, which gets its own block under VOICE. */
+  voiceSample?: string;
+  styleNote?: string;
   direction?: string;      // the destination. Rides SPINE — see PROMPTS rev 2 §3.
   spiceNote?: string | null;   // a written-out register, replacing the level's fixed line
   // The one the model never writes. Null on every story until somebody names one. A NAME rather
@@ -557,12 +562,35 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // description of a style rather than a specimen of one, and it was the only truncatable part
   // of DIRECTIVE, so it was sliced 10% at a time until it fit beside three things it does not
   // compete with. The instruction line is kept; the sample is what gets shortened, on a sentence.
-  if (story.writingStyle?.trim()) addAnchor('VOICE', 'voice', [
-    { text: "A sample of the writer's own prose. Match its rhythm, diction and register. "
-          + 'It is not part of this story: never continue it, quote it, or take facts from it.',
-      keep: true },
-    { text: story.writingStyle.trim(), keep: false },
+  // #18. TWO MECHANISMS, AND THEY WERE SHARING ONE FIELD WITH A WRAPPER THAT LIED.
+  //
+  // This wrapped whatever was in `writingStyle` as "a sample of the writer's own prose… never
+  // continue it, quote it, or take facts from it" — while `DEFAULT_VOICE`, which is what every
+  // story in the library actually holds, is a page of INSTRUCTIONS. F37 measured that the
+  // instruction phrasing is what buys the 98%: on its own line, naming narration, with the forms
+  // spelled out. Telling the model that a page of rules is a specimen to imitate is the wrong
+  // frame for the thing that works.
+  //
+  // So they are two parts now. The instruction is `keep: true` and is never trimmed — losing the
+  // register silently is the failure COUNCIL-04 #5 is about. The sample stays the flex part, which
+  // is what it always was, and is only labelled as a sample when there IS one.
+  if (story.writingStyle?.trim() || (story as any).voiceSample?.trim()) addAnchor('VOICE', 'voice', [
+    { text: story.writingStyle?.trim() ?? '', keep: true },
+    { text: (story as any).voiceSample?.trim()
+      ? "A sample of the writer's own prose. Match its rhythm, diction and register. It is not "
+        + `part of this story: never continue it, quote it, or take facts from it.\n`
+        + `${(story as any).voiceSample.trim()}`
+      : '', keep: false },
   ], CAPS.VOICE!);
+
+  // STYLE — how THIS book is written, under the voice and not part of it. #18: the voice is the
+  // universal register and this is the genre flavour, and romance and science fiction are not the
+  // same writing style. Its own block rather than a fold into VOICE, which would put it in
+  // competition for the same 500 tokens the prose sample already loses — and not DIRECTIVE, where
+  // every part is `keep: true` so the block cannot trim and can only refuse.
+  if ((story as any).styleNote?.trim()) addAnchor('STYLE', 'style', [
+    { text: `How this book is written: ${(story as any).styleNote.trim()}`, keep: false },
+  ], CAPS.STYLE!);
 
   // Scan window for triggered entries. Sticky is derived by looking at the recent passages
   // one at a time rather than kept in a table: COUNCIL-03 showed a stored state row cannot
