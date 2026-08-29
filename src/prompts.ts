@@ -149,9 +149,13 @@ the book and this is one chapter of it.
 ` : ''}Below is a chapter's narration, then the ledger cards this chapter names, each with the
 description of it that is currently in force.
 
-Name the cards this chapter FINISHED. A card is finished when the narration commits that it is
-over for good: the character died, the building burned down, the object was destroyed, the rule
-stopped applying.
+Name the cards this chapter FINISHED. A card is finished when the narration commits that the
+PERSON or the LAW is over for good: the character died, or the rule stopped applying.
+
+Only people and rules are ever on the list below. A place is never finished — a building that
+burns is still a place, it still gets walked through, and what it is now belongs in its history.
+An object that is destroyed is still a thing the story refers to. If this chapter ended one of
+those, say nothing here: it is a change to that card, not the end of it.
 
 Rules:
 - Offstage is not finished. A character who leaves the room, the city, or the book for a while is
@@ -161,6 +165,8 @@ Rules:
 - Only the narration commits the story. Dialogue has been removed already, so a character somebody
   SAYS is dead is not dead. A body on the page is.
 - A card that stops mattering is not finished. This is about what is gone, not about what is dull.
+- Somebody leaving a place for the last time is not the place ending, and it is usually not the
+  person ending either.
 - why is one short sentence naming what the narration commits: "her body is on the stair".
 ${direction.trim() ? `- A card the writer named at the top, under WHERE THIS STORY IS GOING, is not
   finished. Leave it out even if this chapter closes its doors, walks it off the page, or says it

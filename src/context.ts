@@ -386,6 +386,19 @@ export function fires(entry: Entry, window: string): string[] {
  *  minimum on the append — SPEC §7.1's floor, owned by `db.keysOf` and restated rather than
  *  imported because this module has no database below it and never will.
  *
+ *  A PLACE IS NEVER FINISHED; IT CHANGES. Seth, 2026-08-29: *"locations usually get revisited. the
+ *  end of chapter should update that its closed or in ruins or burnt or destroyed."* F40 measured
+ *  the scan finishing a building the prose called "closed for the last time" three times out of
+ *  three, in both arms, while correctly leaving a man who walked out alone — it reads a shut
+ *  building as gone and a person walking away as offstage. Both readings are defensible; the
+ *  answer is that the question was wrong. A burned gate still exists, still gets walked through,
+ *  and the model needs to know it is a ruin NOW — which is what `lore`'s `history` and `appearance`
+ *  rooms are for, and what a per-field proposal already writes into them.
+ *
+ *  Items go with places, and for a nearer reason than it looks: a melted key is still a thing the
+ *  story refers to, and what it WAS is its `provenance`. Only a person and a law stop being
+ *  subjects at all.
+ *
  *  ALREADY CARRYING A THRESHOLD. Whatever number is on it, the writer chose it. Re-proposing it
  *  every close turns the queue into noise, and a model revising somebody's decision is not a
  *  proposal, it is an argument.
@@ -401,6 +414,7 @@ export function fires(entry: Entry, window: string): string[] {
 export function retirable(entries: Entry[], window: string, persona?: string | null): Entry[] {
   const who = String(persona ?? '').trim().toLowerCase();
   return entries.filter((e) => {
+    if (e.entryType !== 'character' && e.entryType !== 'rule') return false;
     if (e.retiredAtChapter != null) return false;
     if (who && e.title.trim().toLowerCase() === who) return false;
     const title = e.title.trim();

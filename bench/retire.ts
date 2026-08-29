@@ -29,7 +29,12 @@
 import { retirable, type Entry } from '../src/context.ts';
 import { RETIRE, retireSchema } from '../src/prompts.ts';
 
-type Label = 'finished' | 'offstage' | 'background';
+/** `changed` is the label Seth's rule of 2026-08-29 added: the chapter DID end this thing — the
+ *  building burned, the object was destroyed — and it must still never be proposed as finished,
+ *  because a place gets revisited and an object goes on being referred to. What happened to it
+ *  belongs in its `history` or `provenance` room. It is scored as a card that must not be
+ *  finished, and the gate should refuse it before the model ever sees it. */
+type Label = 'finished' | 'offstage' | 'background' | 'changed';
 interface Card { title: string; body: string; keys: string[]; kind: Entry['entryType']; label: Label }
 interface Case { name: string; direction: string; chapter: string; cards: Card[] }
 
@@ -72,15 +77,20 @@ const CASES: Case[] = [
     ],
   },
   {
-    name: 'a building burns, and a man is only missing',
+    name: 'a building burns, a law is repealed, and a man is only missing',
     direction: 'Halloway comes back in the last act with what he took.',
     chapter:
-      'The Sallow Gate burned to the ground before morning and the stone went to lime. Nobody found '
-      + 'Halloway in it, and nobody found him anywhere else either. The Long Market opened as it '
-      + 'always opens.',
+      'The Sallow Gate burned to the ground before morning and the stone went to lime. The Gate '
+      + 'Toll was struck off the book the same day and nobody has paid it since. Nobody found '
+      + 'Halloway in the fire, and nobody found him anywhere else either. The Long Market opened '
+      + 'as it always opens.',
     cards: [
+      // BURNED, AND STILL NOT FINISHED. The place gets walked through for the rest of the book and
+      // the model needs to know it is a ruin now — which is its `history`, not its absence.
       { title: 'the Sallow Gate', body: '[the Sallow Gate: timber, four centuries, a toll]',
-        keys: ['Sallow Gate'], kind: 'lore', label: 'finished' },
+        keys: ['Sallow Gate'], kind: 'lore', label: 'changed' },
+      { title: 'the Gate Toll', body: '[the Gate Toll: a coin to pass, paid at dawn]',
+        keys: ['Gate Toll'], kind: 'rule', label: 'finished' },
       { title: 'Halloway', body: '[Halloway: took the seal and ran]', keys: ['Halloway'],
         kind: 'character', label: 'offstage' },
       { title: 'the Long Market', body: '[the Long Market: opens at dawn, closes at dusk]',
@@ -146,6 +156,12 @@ if (process.argv[2] === 'check') {
     for (const f of c.cards.filter((x) => x.label === 'finished')) {
       ok(`  and the finished card "${f.title}" took the test rather than being dropped by the gate`,
          admitted.includes(f.title));
+    }
+    // AND THE RULE ITSELF, asserted at the gate rather than hoped for from the model: a place or an
+    // object is never offered, so it cannot be finished however final the prose reads.
+    for (const x of c.cards.filter((x) => x.kind === 'lore' || x.kind === 'item')) {
+      ok(`  and "${x.title}" is never offered, because a ${x.kind === 'lore' ? 'place' : 'thing'} changes rather than ends`,
+         !admitted.includes(x.title));
     }
   }
 

@@ -1653,3 +1653,44 @@ press is visible in three places and reversible in one. A 10% false-finish rate 
 recognisable shape is survivable under those terms and would not be survivable under any kind of
 auto-accept. Do not add one. The next move on the model half is a rule about places specifically —
 a building being shut is not a building being gone — with this probe re-run before it is believed.
+
+## F41 — a place is never finished, it changes. The buildings failure in F40 is gone; what is left underneath is people who leave with final-sounding prose (2026-08-29)
+
+Seth's call, and it is a design answer rather than a prompt fix: *"locations usually get revisited.
+the end of chapter should update that its closed or in ruins or burnt or destroyed."* F40 measured
+the scan finishing a building the prose called "closed for the last time", three times of three, in
+both arms — while correctly leaving alone a man who walked out of the same room. Both readings are
+defensible. The question was wrong.
+
+**Only a person or a law stops being a subject.** `retirable` (`src/context.ts`) now offers only
+`character` and `rule`; a place and an object are never candidates, asserted at the gate in
+`bench/retire.ts check` rather than hoped for from the model. What happened to them belongs in
+`history`, `appearance` or `provenance` — rooms that already exist, that a per-field proposal
+already writes into, and that keep the card firing, which is the point: a burned gate is still
+walked through and the model needs to know it is a ruin **now**.
+
+| | recall | false finishes | places wrongly finished |
+|---|---|---|---|
+| F40, before | 6/6 | 3/30 — 10% | **3** |
+| with the direction | 5/6 — 83% | 3/15 — 20% | **0** |
+| without it | 5/6 — 83% | 4/15 — 27% | **0** |
+
+**THE TWO RATES ARE NOT COMPARABLE AND THE PERCENTAGE IS THE WRONG HEADLINE.** F40's denominator
+included nine chances that were places; every one of them is now refused before the model is asked,
+so the denominator halved and what remains is entirely people. The number that moved is the last
+column. Reading 10% → 20% as a regression is the mistake this table exists to prevent.
+
+**What is left is one shape: a person who leaves with final-sounding prose.** Halloway — *"nobody
+found him in the fire, and nobody found him anywhere else either"* — and Cazalet — *"walked out
+through the yard and did not look back; whatever he had been to that place was over"*. Both are
+alive and both are named in the writer's direction.
+
+**And the direction clause is no longer measuring zero, which is new.** It took Halloway from 3/3
+wrong to 0/3. It also took Cazalet from 1/3 to 3/3 — worse — so the net is 4 against 3 and **n=3 per
+cell is too thin to decide anything**. It is recorded rather than acted on. To decide the clause,
+re-run at n≥8 per arm; the fixture can now see the difference, which it could not before F40's
+fourth case existed.
+
+**Not tuned further, deliberately.** Seth: *"build well, debug the logic later."* Buildings were the
+ask and buildings are answered. The people case is the next prompt experiment and it has a fixture
+waiting for it.

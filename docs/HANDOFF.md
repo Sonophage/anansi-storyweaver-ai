@@ -195,6 +195,12 @@ truth — and the upgrade path: check `exportStory`, take a backup, then drop it
   every position through `view()`/`assemble()` against a COPY of the database — it never opens the
   live book. **Its denominator is the reading: no book has a room yet**, so the "as it stands"
   column is the shape before the feature and only the modelled column is evidence about it.
+- **F41 supersedes F40's headline.** A place is never finished, it changes: `retirable` offers only
+  `character` and `rule`, so a burned building can no longer be retired at all and what happened to
+  it goes in its `history` room. Places wrongly finished: 3 → **0**. The percentage went 10% → 20%
+  because the denominator HALVED — every place was refused before the model was asked — so do not
+  read that as a regression. What is left is people who leave with final-sounding prose, at n=3,
+  which is too thin to tune on.
 - **F40** — the finished-thread scan is right about deaths and wrong about a closed building, and
   the direction clause measures zero. It PROPOSES; nothing is written without a press. **Do not add
   an auto-accept.** `bench/retire.ts` re-runs it; its first three cases could not see the defect at
