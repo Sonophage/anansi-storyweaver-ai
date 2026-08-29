@@ -14,7 +14,7 @@ of it reach the model. Phases 1, 2 and 3 are done. Phase 4 has not started.
 | 1 · the flip + a probe | **done.** F38 is the number. Two changes shipped, two held with reasons. |
 | 2 · the schema, once | **done.** `addons`, `entry_edges`, `retired_at_chapter`, `proposals.field`/`.activation`. |
 | 3 · the context path | **done.** Addons and edges both reach the model; the cap is measured (F39). One thing left over, below. |
-| 4 · chapter end | **the retirement half is done** (F40). Still open: #5's scan proposing new threads, clothing routed to outfits. |
+| 4 · chapter end | **done** (F40, F41). Retirement, per-field updates, clothing as an outfit. The model's judgement is parked, not owed. |
 
 ### What Phase 3 closed, on 2026-08-28
 

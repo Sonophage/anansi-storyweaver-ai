@@ -257,9 +257,23 @@ place the prose calls closed. The `stories.direction` clause, which is the only 
 proposes and nothing is written without a press; **do not add an auto-accept**, and read F40 before
 touching the prompt.
 
-**Still open in this phase:** #5's scan proposing new threads as well as rewriting; clothing landing
-as an outfit on the character rather than as prose in her description; per-field updates instead of
-whole-body overwrites — which needs `proposals.field`, written since Phase 2 and read by nothing.
+**Phase 4 is closed, 2026-08-29.** The three that were open:
+
+- **Per-field updates instead of whole-body overwrites.** `proposals.field` was dead at both ends —
+  written since Phase 2, read by nothing, set by nothing. `EXTRACT_SCHEMA` names a room now, and
+  accepting one writes an addon and leaves the body alone.
+- **Clothing lands as an outfit.** EXTRACT says so outright: *what somebody is wearing changes
+  between one chapter and the next; who they are does not.* A coat written into a description
+  follows her into every scene for the rest of the book, including the ones where she is not
+  wearing it — which is F36's failure with a different object. Accepted clothing goes in the
+  wardrobe, worn, and the description is untouched.
+- **The scan proposing new threads as well as rewriting** was already true: `extract` runs on every
+  close and proposes new cards, and `remember` deliberately never invents a character — that
+  division is the one the two passes were built around.
+
+**What is NOT closed and is not Phase 4's:** the model's judgement. F41 leaves one shape wrong — a
+person who leaves with final-sounding prose — and the direction clause undecided at n=3. Parked on
+Seth's call: build well, debug the logic later. The fixture is waiting in `bench/retire.ts`.
 
 ## One correction to carry into the work
 

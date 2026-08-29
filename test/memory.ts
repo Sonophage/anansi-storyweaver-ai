@@ -240,6 +240,32 @@ let proposal: any;
 }
 
 {
+  // CLOTHING IS AN OUTFIT, NOT A DESCRIPTION. PLAN-08 #5, and the reason is F36: the prose quotes
+  // the ledger, and a guitar came out of a coat pocket because the entry saying she carries one is
+  // in every prompt. A coat baked into a character's body follows her into every scene for the
+  // rest of the book, including the ones where she is not wearing it. As an outfit it is a second
+  // bracket that says she has it ON, and taking it off is one press rather than a rewrite.
+  found = [{ title: 'Vel', body: 'A grey wool coat with the cuffs gone shiny.', type: 'character',
+             keys: [], activation: 'triggered', field: 'outfit' }];
+  const ch: any = db.chapters(story.id).at(-1);
+  db.addPassage({ ...story, storyId: story.id, chapterId: ch.id,
+    body: 'Vel came in wearing the grey coat, the cuffs gone shiny with wear.' });
+  const bodyBefore = (db.entriesOf(story.id).find((e: any) => e.id === vel) as any).body;
+  await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
+  const prop = db.proposalsOf(story.id).find((p: any) => p.field === 'outfit');
+  assert.ok(prop, 'clothing was proposed as an outfit and not as a rewrite of who she is');
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: prop.id, accept: true }));
+
+  const fit = db.outfitsOf(story.id).find((a: any) => a.entry_id === vel) as any;
+  assert.ok(fit, 'accepting it put a coat in the wardrobe');
+  assert.match(fit.body, /grey wool coat/);
+  assert.strictEqual(fit.active, 1, 'and she has it ON — a coat nobody is wearing reaches nothing');
+  assert.strictEqual((db.entriesOf(story.id).find((e: any) => e.id === vel) as any).body, bodyBefore,
+    'and who she is was not rewritten to say what she had on that day');
+  ok('clothing lands in the wardrobe, worn, without touching the description');
+}
+
+{
   // A room with no words of its own and nobody pinning it on never reaches the model — the same
   // darkness `src/import.ts:127` refuses for an entry, and worse here, because the room looks
   // filled in on the card while being invisible to every prompt.

@@ -573,6 +573,12 @@ When you name a room, the title is the card that already exists and the body is 
 one paragraph about that one thing. Do not restate the rest of the card. Everything else about them
 stays exactly as it is.
 
+CLOTHING IS ALWAYS THE outfit ROOM AND NEVER PART OF A DESCRIPTION. What somebody is wearing
+changes between one chapter and the next; who they are does not. A coat written into a character's
+description follows them into every scene for the rest of the book, including the ones where they
+are not wearing it — so if this chapter says what somebody has on, propose it as their outfit, and
+leave their description alone.
+
 Propose nothing rather than pad. Zero proposals is a valid answer.`;
 
 /** Invent one. The button beside a form, so the writer is not staring at an empty Info box for a
