@@ -1091,10 +1091,10 @@ export const canonBehind = (storyId: string, passageId: string): string[] => {
  *  one line each now, and the behaviour they had — one worn at a time, cleared in a transaction —
  *  is `setAddonActive`'s, because `outfit` is an exclusive slot.
  *
- *  ponytail: the `outfits` TABLE still exists and nothing writes it any more. Ceiling: a stale
- *  table that a future import, export or backup could resurrect into a second source of truth.
- *  Upgrade path: check `exportStory`, take a backup, then drop it — this rewrites the file
- *  somebody's novel is in, which is the caution the migration block at the top of this file takes. */
+ *  The `outfits` table was dropped the same day, after a backup and after checking every row had
+ *  reached `addons` — see the migration at the top of this file, which refuses rather than loses.
+ *  `src/import.ts` still reads the old table as a FALLBACK for export files written before the
+ *  move, and that is the last thing in the tree that knows the name. */
 export const outfitsOf = (storyId: string) =>
   q("SELECT * FROM addons WHERE story_id = ? AND slot = 'outfit' ORDER BY created_at").all(storyId) as any[];
 
