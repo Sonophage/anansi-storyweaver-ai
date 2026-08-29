@@ -1818,3 +1818,46 @@ then re-run at n≥50 and either wire it up or delete both halves.
 Without it, `the`, `and`, `a` and the rest of the scaffolding two English paragraphs always share
 put every pair around 0.3 and bury the difference the arms exist to show. Both ends of the scale are
 asserted in `check`: identical takes score 1, unrelated ones under 0.1.
+
+## F45 — doing the comparison in code takes the checker from 0 of 12 wrong counts to 5 of 12, with no false alarms. And the bench was reading noise (2026-08-29)
+
+F43 measured the checker blind to numbers and showed a targeted rule buying nothing, because it is
+not failing to be TOLD — it reads the sentence carrying the count and compares everything in it
+except the count. So the comparison stops being its job.
+
+**`numbersIn` (`src/context.ts`) pulls every number out with the thing it counts**, words and digits
+alike, folded so `crowns` pairs with `crown`. `check()` pairs canon's numbers against the passage's,
+keeps the pairs that disagree, and asks the model one narrow question per pair — the same move that
+took the retirement scan to zero in F42: stop asking for a judgement, ask for a lookup.
+
+| | caught | false alarms |
+|---|---|---|
+| F43, prose rule | **0 of 12** | 0 of 9 |
+| code-driven pairing | **5 of 12 — 42%** | **0 of 9** |
+
+**Three things the code decides, so the model never sees them.** Dialogue never reaches the pairing
+(`narrationOnly`), which kills *"Six crowns, maybe seven," the boy said* deterministically rather
+than by instruction. A number canon says nothing about pairs with nothing. And the right number
+restated is not a disagreement, so there is no question to ask.
+
+**THE BENCH WAS READING NOISE AND THAT IS THE MORE USEFUL HALF OF THIS FINDING.** Every case ran
+exactly ONCE. A prompt edit appeared to swing the numeric class 2/4 → 0/4, which is what exposed it:
+the model is sampled, so a case is a RATE and not a verdict, and at one sample there is no telling a
+change from the weather. `bench/checker.ts` takes a repeat count now and reports flagged-out-of-n
+per case. Every number in F43 and in the first half of this finding was one sample per case.
+
+**A prompt change made on that noise measured worse and was reverted.** The trap example in
+`NUMBERS` collides with a fixture case — it uses "had two crowns in his coat" as a NON-contradiction
+and one fixture case is nearly that sentence — so it looked like an own goal and was rewritten.
+Measured properly at n=3: the original scores 5 of 12, the rewrite 3 of 12, consistent in direction
+on both cases that fire. The collision is real and the rewrite still lost. Reverted, and the
+collision is left standing as the honest state.
+
+**Two cases never fire at all**: *"Two crowns. That was the whole of it"* and *"Three crowns stood
+between him and the door"*. Both state a debt obliquely, without the word for owing. The pairing
+finds them — code sees 2 against 11 and 3 against 11 — and the model declines both, every time. That
+is where the next attempt goes, and it is a narrower question than the one F43 started with.
+
+**Precision is untouched at zero false alarms in nine clean chances**, which is what makes 42% worth
+shipping: the failure mode of a numeric checker is crying wolf on every figure in the prose, and
+three of the six numeric cases exist to catch exactly that.

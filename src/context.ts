@@ -419,6 +419,66 @@ export function fires(entry: Entry, window: string): string[] {
  *  Lives here rather than in `routes.ts` so that `bench/` and `test/engine.ts` can both reach it:
  *  importing it from there would pull `src/db.ts`, which opens the database writable and migrates
  *  it at module load, which is the objection `bench/ledger-audit.ts` already records. */
+/** Every number in a text, with the thing it counts. F43.
+ *
+ *  The checker is BLIND to numbers — 0 of 4 wrong counts against 4 of 4 of everything else — and a
+ *  rule telling it to look bought exactly nothing, because it is not failing to be told. It reads
+ *  "limp in the left knee ... owes Marek eleven crowns", catches the limp and misses the crowns.
+ *  It is failing to COMPARE, so the comparison stops being its job: this pulls the numbers out and
+ *  the model is asked only about pairs that already disagree. The same move that took the
+ *  retirement scan to zero in F42 — stop asking for a judgement, ask for a lookup.
+ *
+ *  WORDS AND DIGITS ARE ONE NUMBER, because "4 crowns" against "eleven crowns" is the case F43
+ *  measured and a digits-only reader would miss half of them. Twenty-one and twenty one both
+ *  compose; nothing above a thousand does, and nothing needs to yet.
+ *
+ *  THE UNIT IS THE NEXT REAL WORD, which is crude and is meant to be: it exists to PAIR a canon
+ *  number with a passage number, and a pair that should not have been made is a question the model
+ *  answers cheaply. A pair that is never made is a contradiction nobody ever sees, so this leans
+ *  towards offering too many. */
+const ONES: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+  ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+  seventeen: 17, eighteen: 18, nineteen: 19,
+};
+const TENS: Record<string, number> = {
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+export function numbersIn(text: string): { value: number; unit: string }[] {
+  const words = (String(text ?? '').toLowerCase().match(/[\p{L}\p{N}'.,-]+/gu) ?? [])
+    .map((w) => w.replace(/^[.,'-]+|[.,'-]+$/g, '')).filter(Boolean);
+  const out: { value: number; unit: string }[] = [];
+  const valueAt = (i: number): { value: number; used: number } | null => {
+    const w = words[i]!;
+    // A digit run, with thousands separators taken out. Not a decimal: "3.5 crowns" is not a
+    // count and pretending it is one invites a pair nobody meant.
+    if (/^\d[\d,]*$/.test(w)) return { value: Number(w.replace(/,/g, '')), used: 1 };
+    // twenty-one, arriving as one token because the hyphen is inside the class above.
+    const hyph = /^([a-z]+)-([a-z]+)$/.exec(w);
+    if (hyph && TENS[hyph[1]!] != null && ONES[hyph[2]!] != null)
+      return { value: TENS[hyph[1]!]! + ONES[hyph[2]!]!, used: 1 };
+    if (TENS[w] != null) {
+      const next = words[i + 1];
+      if (next && ONES[next] != null && ONES[next]! < 10) return { value: TENS[w]! + ONES[next]!, used: 2 };
+      return { value: TENS[w]!, used: 1 };
+    }
+    if (ONES[w] != null) return { value: ONES[w]!, used: 1 };
+    return null;
+  };
+  for (let i = 0; i < words.length; i++) {
+    const v = valueAt(i);
+    if (!v) continue;
+    // The next word that is not itself part of a number. "eleven crowns" and "twenty one crowns"
+    // both land on `crowns`.
+    let j = i + v.used;
+    while (j < words.length && valueAt(j)) j += valueAt(j)!.used;
+    const unit = words[j];
+    if (unit && unit.length >= 3) out.push({ value: v.value, unit: fold(unit) });
+    i = j - 1;
+  }
+  return out;
+}
+
 export function retirable(entries: Entry[], window: string, persona?: string | null): Entry[] {
   const who = String(persona ?? '').trim().toLowerCase();
   return entries.filter((e) => {

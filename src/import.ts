@@ -67,9 +67,11 @@ const tiedStrings = (inc: Incoming) => (inc.strings ?? []).slice(0, MAX_ENTRIES)
     fromChapter: x.fromChapter ?? null, owedBy: x.owedBy ?? null, status: x.status ?? 'open' }));
 
 /** Split a keys field. AI Dungeon writes "a, b, c"; cards write ["a","b"]. The rule itself lives in
- *  `db.keysOf`, which is the write path every route reaches; eight is the cap for an untrusted file
- *  where SPEC §7.1 allows ten from the app. */
-const keysOf = (k: unknown): string[] => db.keysOf(k, 8);
+ *  `db.keysOf`, which is the write path every route reaches. Was eight for an untrusted file
+ *  against SPEC §7.1's ten; both are now 14, because a real export carried cards with 14 keys and
+ *  the gap was throwing 9% of that book's triggers away without a word. Raising here alone would
+ *  have bought nothing — `upsertEntry` re-caps on the way in, so the lower of the two always won. */
+const keysOf = (k: unknown): string[] => db.keysOf(k, 14);
 
 // ---- 1. our own export, round-tripped ----
 
@@ -193,8 +195,12 @@ function fromAiDungeon(j: any): Incoming {
 function fromAiDungeonCards(arr: any[]): Incoming {
   // AI Dungeon's own vocabulary, and it writes the same type in mixed case ("Item", "character").
   // Anything it invents that we have no shelf for is lore, which is the shelf that means "canon".
-  const AS: Record<string, string> = { character: 'character', race: 'character', class: 'character',
-    item: 'item', faction: 'lore', location: 'lore', place: 'lore' };
+  // Seven types in, three out — `character`, `item` and `lore` are the only ones anything renders.
+  // race and class name what somebody IS, not who, so they are world facts rather than people:
+  // filing them as characters put ten races and nine classes in the cast list. Seth's call,
+  // 2026-08-29, on a book with 74 real characters to keep them separable from.
+  const AS: Record<string, string> = { character: 'character', race: 'lore', class: 'lore',
+    item: 'item', weapon: 'item', faction: 'lore', location: 'lore', place: 'lore' };
   const notes: string[] = [];
   let spoilers = 0;
   const entries = cap(arr, MAX_ENTRIES, 'story cards', notes).map((c: any) => {

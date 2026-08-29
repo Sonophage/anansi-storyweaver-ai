@@ -2,13 +2,13 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RELEASE, RELEASE_SCHEMA, RETIRE, retireSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RELEASE, RELEASE_SCHEMA, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
 import { fileBug, build, commits } from './report.ts';
-import { resolveBody, narrationOnly, retirable } from './context.ts';
+import { resolveBody, narrationOnly, retirable, numbersIn } from './context.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -591,6 +591,47 @@ async function check(c: Ctx, storyId: string, passageId: string) {
 
   const { found, error } = await contradictionsIn(facts, passage.body);
   if (error) return { error };
+
+  // THE NUMERIC PASS. F43 measured the checker at 0 of 4 wrong counts while catching 4 of 4 of
+  // everything else, and a rule telling it to look bought nothing — it is not failing to be told,
+  // it is failing to compare. So the comparison happens in code and the model is asked only about
+  // pairs that already disagree.
+  //
+  // NARRATION ONLY, and here it does deterministically what the prompt asks for in words: a boy
+  // guessing "six crowns, maybe seven" is dialogue and never reaches the pairing at all.
+  //
+  // The pairing is GENEROUS on purpose — one word after the number, folded — because a pair that
+  // is never made is a contradiction nobody ever sees, while a pair that should not have been made
+  // is one cheap question. `NUMBERS` is that question, and the trap it names is the reason this is
+  // not a plain assertion: "owes eleven crowns" and "had two crowns in his coat" are both true.
+  const said = numbersIn(narrationOnly(passage.body));
+  const pairs: { canon: number; fact: any; want: number; got: number; unit: string }[] = [];
+  for (const [i, f] of facts.entries()) {
+    for (const c of numbersIn(f.body)) {
+      for (const p of said) {
+        if (p.unit !== c.unit || p.value === c.value) continue;
+        if (pairs.some((x) => x.canon === i && x.want === c.value && x.got === p.value)) continue;
+        pairs.push({ canon: i, fact: f, want: c.value, got: p.value, unit: c.unit });
+      }
+    }
+  }
+  if (pairs.length) {
+    const ask = pairs.map((p, i) =>
+      `${i + 1}. canon: ${p.fact.body}\n   passage says ${p.got} ${p.unit} where canon says ${p.want}`)
+      .join('\n\n');
+    const r = await structuredRetry(NUMBERS, `${ask}\n\n---\n\nPASSAGE:\n${narrationOnly(passage.body)}`,
+      numbersSchema(pairs.length) as any, { max_tokens: 500 });
+    const flat = (x: string) => String(x ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const prose = flat(narrationOnly(passage.body));
+    for (const v of r.data?.verdicts ?? []) {
+      const p = pairs[Number(v?.pair) - 1];
+      // THE QUOTE HAS TO BE IN THE PROSE, the same lookup F42 put in front of the retirement scan.
+      if (!p || !v?.contradicts || flat(v.quote).length < 8 || !prose.includes(flat(v.quote))) continue;
+      if (found.some((x: any) => flat(x.quote) === flat(v.quote))) continue;   // already caught
+      found.push({ canon: p.canon + 1, quote: String(v.quote), why: String(v.why ?? ''),
+                   confidence: 0.9 });
+    }
+  }
 
   db.clearViolations(passageId);   // re-checking replaces, it does not accumulate
 

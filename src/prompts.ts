@@ -495,6 +495,55 @@ export const SPARK_SCHEMA = {
 // pull the numbers out of canon and out of the passage in CODE, and ask the model only about the
 // pairs that disagree, rather than hoping it notices while reading for everything else.
 // `bench/checker.ts` scores the class on its own denominator and is where that gets tried.
+/** ONE NARROW QUESTION PER PAIR OF NUMBERS. F43's answer, and F42's shape.
+ *
+ *  The checker is blind to numbers and a rule telling it to look bought nothing, because it is not
+ *  failing to be told — it reads the sentence carrying the count and compares everything in it
+ *  except the count. So the comparison is done in code (`numbersIn`) and this asks the only part
+ *  code cannot answer: whether the two numbers are about the SAME THING.
+ *
+ *  That question is genuinely hard and it is the whole reason this is not a plain assertion. Canon
+ *  says Aldis owes eleven crowns; a passage saying he had two crowns in his coat is not a
+ *  contradiction, it is a different fact about crowns. Pairing on the word alone would flag it, so
+ *  the pairing is deliberately generous and this is where the generosity is paid for. */
+export const NUMBERS =
+`Below are pairs. Each is a fact from a story's canon that carries a number, and a line from a new
+passage that carries a different number for what might be the same thing.
+
+For each pair, say whether the passage CONTRADICTS canon — whether both cannot be true at once.
+
+The trap is that a matching word is not a matching fact. "The tower has nine floors" and "he
+climbed three floors" are both about floors and both can be true: one is how many there are, one is
+how many he went up. Ask what each number COUNTS, not what word follows it.
+
+But a debt is a debt however it is phrased. If canon says what is owed and the passage says what is
+owed, a different figure is a contradiction — "stood between him and the door", "was the whole of
+it", "against his name" are all ways of saying the same amount.
+
+Say no unless the two numbers count the same thing. quote is the words from the passage, copied
+exactly.`;
+
+/** `pairs` is how many were asked about, so the answer cannot name one that was not. */
+export const numbersSchema = (pairs: number) => ({
+  type: 'object',
+  properties: {
+    verdicts: {
+      type: 'array', maxItems: Math.max(1, pairs),
+      items: {
+        type: 'object',
+        properties: {
+          pair:        { type: 'integer' },
+          contradicts: { type: 'boolean' },
+          quote:       { type: 'string', maxLength: 200 },
+          why:         { type: 'string', maxLength: 160 },
+        },
+        required: ['pair', 'contradicts', 'quote', 'why'],
+      },
+    },
+  },
+  required: ['verdicts'],
+} as const);
+
 export const CHECK =
 `Below are facts established as canon. You are given a passage from the same story.
 

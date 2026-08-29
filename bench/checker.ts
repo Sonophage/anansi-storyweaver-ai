@@ -82,12 +82,23 @@ const sid = existing?.id ?? await (async () => {
   return id;
 })();
 if (!sid) { console.log('  could not create the fixture book'); process.exit(1); }
+// EACH CASE RAN ONCE UNTIL 2026-08-29, and a prompt edit swinging the numeric class 2/4 -> 0/4 is
+// what exposed it: at one sample per case there is no way to tell a change from the weather. The
+// model is sampled, so a case is a RATE and not a verdict. `--only numeric` narrows to the class
+// under test so a comparison costs a minute rather than ten.
+//   node --experimental-strip-types bench/checker.ts [repeats] [--only numeric]
+const REPEATS = Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 1);
+const ONLY_NUM = process.argv.includes('--only') && process.argv.includes('numeric');
 let tp = 0, fp = 0, tn = 0, fn = 0;
+const hits = new Map<string, number>();
 const seen = new Map<string, boolean>();
-for (const c of CASES) {
+for (const c of (ONLY_NUM ? CASES.filter((x) => x.numeric) : CASES)) {
+ let flaggedTimes = 0;
+ for (let rep = 0; rep < REPEATS; rep++) {
   const pid = (await j('/api/write', { storyId: sid, body: c.body })).passages.at(-1).id;
   const r = await j('/api/check', { storyId: sid, passageId: pid });
   const flagged = !r.error && (r.found ?? 0) > 0;
+  if (flagged) flaggedTimes++;
   seen.set(c.label, flagged);
   if (c.contradicts && flagged) tp++;
   else if (c.contradicts) fn++;
@@ -96,8 +107,12 @@ for (const c of CASES) {
   const mark = c.contradicts === flagged ? ' ok ' : 'MISS';
   const detail = flagged ? (r.violations ?? []).filter((v: any) => v.passageId === pid)
     .map((v: any) => `${v.quote?.slice(0, 34)} (${v.confidence})`).join('; ') : '';
-  console.log(`  ${mark} ${c.contradicts ? 'contradicts' : 'clean      '} · ${c.label.padEnd(34)} ${detail}`);
+  if (REPEATS === 1) console.log(`  ${mark} ${c.contradicts ? 'contradicts' : 'clean      '} · ${c.label.padEnd(34)} ${detail}`);
   await j('/api/passage', { storyId: sid, id: pid }, 'DELETE');
+ }
+ hits.set(c.label, flaggedTimes);
+ if (REPEATS > 1) console.log(`  ${c.contradicts ? 'contradicts' : 'clean      '} · `
+   + `${c.label.padEnd(34)} flagged ${flaggedTimes}/${REPEATS}`);
 }
 // THE NUMERIC CLASS ON ITS OWN DENOMINATOR. Folded into the total it is six cases in eighteen and
 // a change to it moves the headline by a third of what it really did — F10's rule, which is that a

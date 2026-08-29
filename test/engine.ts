@@ -1,7 +1,7 @@
 // One runnable check. Fails if the engine's load-bearing behaviour breaks.
 //   node --experimental-strip-types test/engine.ts
 import assert from 'node:assert';
-import { buildContext, resolveBody, fires, retirable } from '../src/context.ts';
+import { buildContext, resolveBody, fires, retirable, numbersIn } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
 import { render } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
@@ -1103,6 +1103,45 @@ ok('THE POINT-OF-VIEW CHARACTER IS NEVER ASKED ABOUT', () => {
     .map((e) => e.title), [], 'matched the way isPov matches — trimmed and folded to lower case');
   assert.deepStrictEqual(retirable([card('Marek', { keys: ['Marek'] })], CHAPTER, 'Aldis')
     .map((e) => e.title), ['Marek'], 'and somebody else being the persona changes nothing');
+});
+
+// ---- F43: pulling the numbers out, so the model is asked a lookup and not a judgement --------
+
+const nums = (t: string) => numbersIn(t).map((x) => `${x.value} ${x.unit}`);
+
+ok('words and digits are the same number', () => {
+  // "4 crowns contradicts eleven crowns" is the case F43 measured the checker missing, and a
+  // digits-only reader would miss half of them on its own.
+  assert.deepStrictEqual(nums('owes Marek eleven crowns'), ['11 crown']);
+  assert.deepStrictEqual(nums('the ledger said 4 crowns against his name'), ['4 crown']);
+  assert.deepStrictEqual(nums('1,200 crowns'), ['1200 crown'], 'thousands separators are not two numbers');
+});
+
+ok('compound numbers compose, hyphenated or not', () => {
+  assert.deepStrictEqual(nums('twenty-one crowns'), ['21 crown']);
+  assert.deepStrictEqual(nums('twenty one crowns'), ['21 crown']);
+  // A bare ten is still a ten. Without this, "twenty crowns" reads as 20 and then loses its unit
+  // to the lookahead that was hoping for a one.
+  assert.deepStrictEqual(nums('twenty crowns'), ['20 crown']);
+});
+
+ok('the unit is folded, so plurals pair with singulars', () => {
+  // The whole point is PAIRING canon against a passage, and canon says "crowns" while a passage
+  // may say "crown". Unfolded, they never meet and the contradiction is invisible.
+  assert.deepStrictEqual(nums('one crown'), ['1 crown']);
+  assert.strictEqual(numbersIn('eleven crowns')[0]!.unit, numbersIn('one crown')[0]!.unit);
+});
+
+ok('a number with nothing to count is not a fact', () => {
+  // A trailing number, or one followed by something too short to be a noun, would otherwise pair
+  // with anything that happened to share an empty unit.
+  assert.deepStrictEqual(nums('he counted to eleven'), []);
+  assert.deepStrictEqual(nums('eleven'), []);
+});
+
+ok('a decimal is not a count', () => {
+  // "3.5 crowns" is a measure, not a tally, and pretending otherwise invites a pair nobody meant.
+  assert.deepStrictEqual(nums('3.5 crowns'), []);
 });
 
 // ---- the rejected take, which is an ARM and not a feature yet -------------------------------

@@ -952,8 +952,11 @@ export const delString = (storyId: string, id: string) =>
  *  matches nothing, which would be silence dressed as a key.
  *
  *  `cap` is a parameter because SPEC allows ten and `import.ts` has always taken eight from an
- *  untrusted file. Both are correct for where they stand. */
-export const keysOf = (k: unknown, cap = 10): string[] =>
+ *  untrusted file. Both were correct for where they stood, and both were too low: a real AI
+ *  Dungeon export on 2026-08-29 carried up to 14 keys on a card, and 58 of its 645 triggers were
+ *  being dropped in silence. DIVERGES from SPEC §7.1, which says ten — the code wins and the spec
+ *  is now wrong. Raised at Seth's direction; the cost is a wider trigger surface on 18 cards. */
+export const keysOf = (k: unknown, cap = 14): string[] =>
   (Array.isArray(k) ? k : String(k ?? '').split(','))
     .map((x) => String(x ?? '').trim())
     .filter((x) => x.length >= 2 && x.length <= 32)
