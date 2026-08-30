@@ -12,6 +12,14 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### A new book can start from threads you already have
+Starting a book blank now offers your whole library: search it, pick the characters,
+places, items or rules you want, and they are copied into the new book when you create it
+— with their trigger words, and without you having to add them afterwards. They are copies,
+so the new book owns them and changing one there does not touch where it came from. And
+every place that asks for a point of view now shows a line of prose in it, including the
+Story panel, which was the last one without.
+
 ### Threads: one book at a time, filtered by room, and the card reads in order
 The cross-story Threads page now opens on the book you were last writing in, with the
 whole shelf one press away, instead of every book at once. Pick a kind and its own rooms

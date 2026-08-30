@@ -89,7 +89,7 @@ const STORY = {
   // default — a book that pinned all four would pass a check that a book that pins one would not.
   look: { theme: 'ink' },
   story: { title: 'The Ashfall Concordat', genre: 'political fantasy', premise: 'Six houses.',
-           setting: 'Ashfall Hall', pov: 'third limited', persona: 'Ilva Marren',
+           setting: 'Ashfall Hall', pov: 'third limited, past tense', persona: 'Ilva Marren',
            writingStyle: 'Cold, spare.', direction: 'She signs, or she burns the hall.',
            spice: 3, status: 'in_progress', 
            // This book asks for its cover at the head of each chapter, which is what makes the
@@ -385,6 +385,9 @@ ok('one New story button, on the bar, and the shelf does not repeat it');
 
 // ---- now open the story, which is where the field names bit ----
 const click = (dataset: any) => listeners.click?.[0]?.({ target: { closest: () => ({ dataset }) } });
+// Typing into a box the app watches by id. Two of them redraw only their own list rather than the
+// page — the ledger's search and #20's thread picker — and that is the behaviour being checked.
+const typeIn = (id: string, value: string) => listeners.input?.[0]?.({ target: { id, value } });
 click({ open: 's-1' });
 await new Promise((r) => setTimeout(r, 40));
 
@@ -1721,5 +1724,73 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   click({ cardview: null });
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
+
+// #20 · STARTING A BOOK FROM THREADS YOU ALREADY HAVE, and the last place a point of view is
+// picked without an example.
+//
+// checks.md: "the seed a story would be using threads from current stories in the users library to
+// help seed or start a story without having to add them later. a jumping off point, or revisiting
+// a location type of thing."
+{
+  const doc = (globalThis as any).document;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 30));
+  // §1 · THE THIRD PLACE. Blank-create and spark step 2 had the example; editing an existing book
+  // did not, and it is the one you come back to.
+  assert.match(html('sideBody'), /She came up the stair and the rain came with her/,
+    'the Story panel shows a line of prose for the point of view it is set to');
+
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ nav: 'create' });
+  click({ blank: '1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const form = html('page');
+  assert.match(form, /id="seedq"/, 'the form offers the library');
+  // Unsearched it shows what is picked and nothing else — the library is hundreds of cards, and a
+  // list of all of them is one nobody reads.
+  assert.doesNotMatch(form, /data-seedpick=/, 'and lists nothing until you look for something');
+
+  // The box rewrites its own list and never the page: the form reads its fields off the DOM when
+  // Create is pressed, so a repaint on a keystroke would throw away everything typed above it.
+  const typed = 'A premise typed before the picker was touched.';
+  const boxes: any = { premise: { value: typed }, title: { value: 'The Winter Signature' } };
+  const wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => {
+    const m = /\[data-bf="(\w+)"\]/.exec(sel);
+    return m ? (boxes[m[1]] ?? { value: '' }) : null;
+  };
+  try {
+    typeIn('seedq', 'Halsey');
+    const list = html('seeds');
+    assert.match(list, /data-seedpick="e-1"/, 'searching finds a thread in another book');
+    assert.match(list, /The Ashfall Concordat/, 'and says which book it lives in');
+    assert.strictEqual(html('page'), form, 'while the form around it is untouched');
+
+    click({ seedpick: 'e-1' });
+    assert.match(html('seeds'), /1 chosen/, 'picking one counts it');
+    assert.strictEqual(html('page'), form, 'and still does not repaint the form');
+
+    POSTED.length = 0;
+    click({ makeblank: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+    const made = POSTED.find((x) => String(x.url) === '/api/stories');
+    assert.ok(made, `the story is created (${POSTED.map((x) => x.url).join(', ')})`);
+    assert.strictEqual(made.body.premise, typed,
+      'carrying what was typed before the picker was touched — the picker must not cost the form');
+
+    // COPIES, NEVER LINKS, and through the route a single card already uses: db.copyEntry refuses
+    // unless BOTH books belong to the caller, and a second copy path would be a second place for
+    // that check to be forgotten.
+    const copied = POSTED.filter((x) => String(x.url).startsWith('/api/entry/copy'));
+    assert.strictEqual(copied.length, 1, 'the chosen thread is copied into the new book');
+    assert.strictEqual(copied[0].body.entryId, 'e-1');
+    assert.strictEqual(copied[0].body.storyId, 's-1', 'from the book it actually lives in');
+    assert.notStrictEqual(copied[0].body.into, 's-1', 'into the new one');
+  } finally { doc.querySelector = wasQS; }
+}
+ok('a book can be started from threads already in the library, and they are copied rather than linked');
 
 console.log(`\n${n} checks passed`);

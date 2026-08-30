@@ -281,6 +281,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
   'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall',
+  'seedpick',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'newroom', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -1851,6 +1852,9 @@ const PANELS = {
       <div class="hint">Drawn from the lore and items in this story's ledger.</div>
       <label class="lbl">Point of view</label>
       ${pick('pov', POV, V.story.pov, 'Not set')}
+      <!-- #20 §1. The third place a point of view is picked, and the last one without an example.
+           Six bare strings say what the camera is called; a line of prose says where it stands. -->
+      <div class="hint">${esc(POV_EXAMPLE[V.story.pov] ?? '')}</div>
       <label class="lbl">You are${helpMark('persona')}</label>
       ${helpBody('persona')}
       ${pick('persona', cast.map((e) => e.title), V.story.persona, 'Nobody — narrate only')}
@@ -3321,6 +3325,51 @@ function entryCard(e) {
     <div class="clamp3" style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(preview)}</div></button>`;
 }
 
+/** #20 §4 · START FROM THREADS YOU ALREADY HAVE.
+ *
+ *  checks.md: *"the seed a story would be using threads from current stories in the users library
+ *  to help seed or start a story without having to add them later. a jumping off point, or
+ *  revisiting a location type of thing."*
+ *
+ *  COPIES, NEVER LINKS, and that is the whole difference from following a world bible. Following is
+ *  one card read by two books; this is a card the new book owns and can change without touching
+ *  where it came from — "revisiting a location" is the same place at a different time, not the
+ *  same row.
+ *
+ *  `POST /api/entry/copy` is the move, unchanged: it is what a single card already uses from the
+ *  card screen, and `db.copyEntry` refuses unless BOTH books belong to the caller. Writing a second
+ *  copy path here would be a second place for that check to be forgotten.
+ *
+ *  It rewrites `#seeds` and nothing else. The form around it reads its fields off the DOM when you
+ *  press Create, so a full repaint on every pick would throw away everything typed so far — the
+ *  same trap the ledger's own search box is written around. */
+function seedList() {
+  if (LEDGER === null) return '<div class="hint" style="margin:0">Reading your threads&hellip;</div>';
+  const chosen = S.blank?.seed ?? [];
+  const q = (S.seedQ ?? '').trim().toLowerCase();
+  const rows = LEDGER.filter((e) => !q
+    || `${e.title} ${e.storyTitle} ${(e.keys || []).join(' ')}`.toLowerCase().includes(q));
+  // The whole library is hundreds of cards. Unsearched it shows what is already picked and says how
+  // to find the rest, rather than a list nobody can read.
+  const show = q ? rows.slice(0, 40) : rows.filter((e) => chosen.includes(e.id));
+  return `${chosen.length ? `<div class="hint" style="margin:0 0 8px">${chosen.length} chosen &mdash;
+    ${esc(chosen.length === 1 ? 'it is copied' : 'they are copied')} into the new book when you
+    create it, with trigger words. What they do NOT carry is the timeline: a change over time is
+    anchored to a chapter number, and chapter seven there is not chapter seven here.</div>` : ''}
+    ${show.length ? `<div style="display:flex; flex-direction:column; gap:6px">${show.map((e) => {
+      const on = chosen.includes(e.id);
+      return `<button data-seedpick="${esc(e.id)}" style="display:flex; align-items:baseline; gap:9px;
+        text-align:left; width:100%; padding:8px 10px; border-radius:var(--r);
+        border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+        background:${on ? 'rgba(217,178,106,.10)' : 'transparent'}">
+        <span style="color:${on ? 'var(--gold-lit)' : 'var(--ink)'}; font-size:13px">${esc(e.title)}</span>
+        <span class="tag" style="opacity:.7">${esc(e.entryType)}</span>
+        <span style="margin-left:auto; font-size:11px; color:var(--faint)">${esc(e.storyTitle)}</span>
+      </button>`;
+    }).join('')}</div>` : `<div class="hint" style="margin:0">${
+      q ? 'Nothing matches that.' : 'Search your library above to find a thread to start from.'}</div>`}`;
+}
+
 // ---------- workspace pages ----------
 function drawPage() {
   const show = S.place === 'workspace';
@@ -3482,6 +3531,19 @@ const WPAGES = {
         ${area('styleNote', 'How this book is written',
                'This book\'s genre flavour, kept apart from the voice. It gets its own block.',
                'Noir. Short sentences, wet streets, nobody explains themselves…')}
+        <!-- #20 §4. Threads you already have, at the moment the book is made rather than after
+             it. checks.md calls it "a jumping off point, or revisiting a location type of thing".
+             The list is behind a search because the library is hundreds of cards, and the box
+             rewrites only its own list: the form reads its fields off the DOM when you press
+             Create, so a repaint here would throw away everything typed above it. -->
+        <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Start from threads you have</div>
+        <input class="field" id="seedq" value="${esc(S.seedQ ?? '')}"
+          placeholder="Search every book for a character, a place, a rule" style="margin:0 0 8px">
+        <div id="seeds">${seedList()}</div>
+        <div class="hint">They are COPIED, not linked &mdash; the new book owns them and can change
+          them without touching where they came from. To share one card between books instead,
+          follow that book's threads from the Story panel.</div>
+
         <label class="lbl">Spice</label>
         <select class="field" data-bf="spice">${SPICE.map((l, i) =>
           `<option value="${i + 1}" ${Number(S.blank.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}</select>
@@ -5745,10 +5807,21 @@ document.addEventListener('click', async (e) => {
     S.blank = S.blank ?? { title: '', genre: '', premise: '', setting: '',
                            pov: 'third limited, past tense',
                            writingStyle: S.prompts?.voice?.inUse ?? '',
-                           voiceSample: '', styleNote: '', spice: 2 };
+                           voiceSample: '', styleNote: '', spice: 2, seed: [] };
+    // #20 §4. The picker reads the whole library, which this page has never needed before.
+    if (LEDGER === null) loadLedger();
     S.spark = null;
     drawPage();
     document.querySelector('[data-bf="title"]')?.focus();
+    return;
+  }
+  // #20 §4. Rewrites `#seeds` alone, never the page: the form reads its fields off the DOM when
+  // Create is pressed, so a repaint here would throw away everything typed above the picker.
+  if (d.seedpick) {
+    const have = S.blank?.seed ?? [];
+    S.blank.seed = have.includes(d.seedpick) ? have.filter((x) => x !== d.seedpick)
+                                             : [...have, d.seedpick];
+    const box = $('seeds'); if (box) box.innerHTML = seedList();
     return;
   }
   if (d.dropblank) { S.blank = null; drawPage(); return; }
@@ -5765,9 +5838,32 @@ document.addEventListener('click', async (e) => {
       spice: Number(get('spice')) || 2 };
     const r = await api.createStory(story);
     if (r.error) return toast(r.error);
-    S.blank = null;
+    const into = r.id ?? r.storyId;
+
+    // #20 §4. THE THREADS COME OVER AFTER THE BOOK EXISTS, one call each through the route a single
+    // card already uses — `db.copyEntry` refuses unless both books belong to the caller, and a
+    // second copy path here would be a second place for that check to be forgotten.
+    //
+    // A failure is REPORTED AND THE REST STILL RUN. The book is already made by this point, so
+    // stopping on the first refusal would leave a story half seeded with nothing on screen saying
+    // which half. `seeded` counts what actually landed rather than what was asked for.
+    const wanted = S.blank.seed ?? [];
+    let seeded = 0;
+    for (const id of wanted) {
+      const from = (LEDGER ?? []).find((e) => e.id === id);
+      if (!from) continue;
+      const c = await api.copyEntry(from.story, into, id);
+      if (!c?.error) seeded++;
+    }
+    S.blank = null; S.seedQ = '';
+    if (wanted.length) {
+      LEDGER = null;                    // the new book's copies are not in the cached list
+      toast(seeded === wanted.length
+        ? `${seeded} thread${seeded === 1 ? '' : 's'} copied in.`
+        : `${seeded} of ${wanted.length} threads copied in — the rest were refused.`);
+    }
     await loadLibrary();
-    await openStory(r.id ?? r.storyId);
+    await openStory(into);
     return;
   }
   if (d.backup) { const r = await api.backup(S.storyId ?? LIB[0]?.id); toast(r.error ?? 'Snapshot written.'); return; }
@@ -6270,6 +6366,14 @@ document.addEventListener('input', (e) => {
   if (e.target.dataset?.setup) {
     S.setup = { title: document.querySelector('[data-setup="title"]')?.value ?? '',
                 note: document.querySelector('[data-setup="note"]')?.value ?? '' };
+    return;
+  }
+  // #20 §4. Its own list only, for the same reason the ledger's box has: the form around it reads
+  // its fields off the DOM when Create is pressed, so a page repaint on a keystroke would throw
+  // away everything typed above.
+  if (e.target.id === 'seedq') {
+    S.seedQ = e.target.value;
+    const box = $('seeds'); if (box) box.innerHTML = seedList();
     return;
   }
   if (e.target.id === 'lq') {
