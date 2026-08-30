@@ -321,7 +321,11 @@ ok('no rule is said twice, in one block or across SYSTEM and the house voice', (
 // which is the thing ship 5 exists to undo.
 ok('SYSTEM keeps the contract and the house voice keeps the craft', () => {
   const craft = [/jaw does not clench/i, /one strong image/i, /vary the rhythm/i,
-                 /viewpoint character can sense/i, /never with a wink/i, /no cliche/i];
+                 /viewpoint character can sense/i, /never with a wink/i, /no cliche/i,
+                 // Added 2026-08-30 when it moved out of SYSTEM. It is in this list rather than
+                 // only in the struck row because this is the list that says WHY it is in the
+                 // voice: craft is the writer's, and a rule they cannot delete is not a default.
+                 /plainly functional exchange/i];
   for (const rx of craft) {
     assert.doesNotMatch(render.SYSTEM, rx,
       `a craft rule is back in SYSTEM (${rx}), where the writer cannot delete it. It belongs in `
@@ -361,10 +365,11 @@ ok('the lines the council struck stay struck, and say why', () => {
      'bans the flat domestic exchange, which is a register this library actually writes in. '
      + 'SETH RULED ON THIS ONE, 2026-08-30, and the gap it left was real: every dialogue rule in '
      + 'DEFAULT_VOICE is about rhythm and none of them said a line should be doing work. A '
-     + 'PERMISSION-SHAPED version now ships in SYSTEM — "A line of dialogue moves information or '
+     + 'PERMISSION-SHAPED version now ships in DEFAULT_VOICE — "A line moves information or '
      + 'deepens what is not said. A plainly functional exchange is legitimate; do not inflate one '
-     + 'into significance." So this row no longer means "no rule of this kind ships". It means '
-     + 'THE BAN does not ship, because the ban is the part that was wrong'],
+     + 'into significance." It spent one commit in SYSTEM and Seth moved it: a rule about how the '
+     + 'prose reads is the writer\'s to delete. So this row no longer means "no rule of this kind '
+     + 'ships". It means THE BAN does not ship, because the ban is the part that was wrong'],
     [/last three passages/i,
      'the model cannot delimit three passages in the prompt it is given, and the sentence after '
      + 'it — "Wait." — addresses a person'],
@@ -380,14 +385,22 @@ ok('the lines the council struck stay struck, and say why', () => {
   // audit caught — a false claim in a record the next session reads instead of checking. So the
   // claim is asserted, not merely written: if the bullet is deleted, this reason must be rewritten
   // in the same commit.
-  // `\s+` and not a space: the bullet wraps in the template literal, and the first version of
-  // this assertion went red on the line break rather than on the thing it checks.
-  assert.match(render.SYSTEM, /A plainly functional exchange\s+is legitimate/,
-    'the struck row for the dialogue ban says a permission-shaped version ships in SYSTEM. It '
-    + 'does not. Fix the bullet or fix the row — a reason that lies is worse than no row.');
-  assert.doesNotMatch(render.SYSTEM, /every line|each line must|must carry/i,
-    'the dialogue bullet has drifted back into a ban. The flat domestic exchange is a register '
-    + 'this library writes in, which is why the original line was struck.');
+  // MATCH AGAINST WHITESPACE-COLLAPSED TEXT, not against the raw constant. These bullets wrap in
+  // a template literal and the wrap point MOVES when the wording is edited — this assertion went
+  // red twice on a line break rather than on the thing it checks, once when the bullet was written
+  // and once when it moved from SYSTEM to the voice and the wrap landed a word later. A check that
+  // fails on reformatting trains people to edit the check.
+  const flat = (t: string) => t.replace(/\s+/g, ' ');
+  assert.match(flat(prompts.DEFAULT_VOICE), /A plainly functional exchange is legitimate/,
+    'the struck row for the dialogue ban says a permission-shaped version ships in DEFAULT_VOICE. '
+    + 'It does not. Fix the bullet or fix the row — a reason that lies is worse than no row.');
+  assert.doesNotMatch(render.SYSTEM, /plainly functional exchange/,
+    'the dialogue rule is back in SYSTEM, where a writer cannot delete it. It was there for one '
+    + 'commit on 2026-08-30 and Seth moved it out.');
+  for (const where of [render.SYSTEM, prompts.DEFAULT_VOICE])
+    assert.doesNotMatch(where, /every line|each line must|must carry/i,
+      'the dialogue rule has drifted back into a ban. The flat domestic exchange is a register '
+      + 'this library writes in, which is why the original line was struck.');
 });
 
 // #11 · Anansi's speaking voice went into TALK on 2026-08-30, and Seth's rule about it was

@@ -12,6 +12,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-30 · Rooms Anansi fills in come back the right size again
 
+### Dialogue has a rule again, and it is yours to change
+Your books each got one more line in their voice, under Dialogue: a line of dialogue should be
+moving information or deepening what is not being said — and a plainly functional exchange is
+allowed. "Do you want coffee?" is a real line and the model should not be dressing it up.
+
+It sits in the voice of every book rather than somewhere out of reach, so you can rewrite it or
+delete it in any book where it is wrong. The two books with no voice of their own pick it up
+from the house voice.
+
 ### A room is one room, not a whole character
 When you ask Anansi to fill in a single room on a card — the interiority, the voice, an
 appearance, a relationship — she was writing you a whole character every time. Three or four

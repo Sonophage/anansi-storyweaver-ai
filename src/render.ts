@@ -42,28 +42,18 @@ const TAG: Partial<Record<Kind, string>> = {
  *  It is the only deletion COUNCIL-06 made with a number behind it. Every other bullet below has
  *  never been measured, and most predate every finding in P0-FINDINGS — which is worth knowing
  *  before anyone deletes a second one on the strength of reading it. */
-/** THE DIALOGUE BULLET IS CRAFT AND IT IS IN HERE ANYWAY, on Seth's instruction, 2026-08-30.
+/** THE DIALOGUE BULLET WAS IN HERE FOR ONE COMMIT AND IS NOT ANY MORE, 2026-08-30.
  *
- *  Recorded rather than quietly done, because it is the one line in this constant that ship 5's
- *  own architecture says should be somewhere else. The reason it is here is the reason ship 5 was
- *  first shipped this way round in 8951779: `DEFAULT_VOICE` reaches a NEW book and a book with an
- *  empty voice. It does not reach the seven books that carry a bespoke voice, which are the books
- *  he actually writes in — those took the craft by a hand-backfill on 2026-08-30, and a second
- *  line would need a second backfill. SYSTEM reaches all nine on the next call.
+ *  It shipped here first, on Seth's instruction, because `DEFAULT_VOICE` does not reach the seven
+ *  books that carry a bespoke voice and SYSTEM reaches all nine on the next call. He moved it the
+ *  same day — *"move it and backfill"* — which is ship 5's rule applied to ship 5's own exception:
+ *  a rule about how the prose READS is the writer's to delete, and the reach problem is answered
+ *  by a backfill, not by making the rule permanent.
  *
- *  So the trade he took is: it cannot be switched off, and it arrives everywhere today. Moving it
- *  to `DEFAULT_VOICE` is one line plus a backfill of seven rows, and is his to call.
- *
- *  WHAT IT REPLACES, and why the wording is not his. COUNCIL-06 struck *"advance information or
- *  deepen subtext"* from his craft block because it BANS the flat domestic exchange — "Do you want
- *  coffee?" — which is a register this library writes in. The gap the strike left was real: the
- *  dialogue rules in `DEFAULT_VOICE` are all about rhythm (sparse, breaking on noise, going
- *  unfinished) and none of them says a line should be doing work. This says it as a default with
- *  the flat exchange explicitly permitted, and it names the failure the ban would have caused —
- *  a model told every line must carry subtext inflates the ones that should not.
- *
- *  The struck row in `test/db.ts` carries this too, so nobody reads the guard as "no rule of this
- *  kind ships" when a rule of this kind does. NOT MEASURED. */
+ *  Recorded rather than erased so the next person to hit the same reach problem knows it was hit,
+ *  answered, and which way it went. The line lives in `DEFAULT_VOICE` under `Dialogue:` and in the
+ *  seven bespoke voices; `test/db.ts` holds it on that side of the division with the rest of the
+ *  craft. */
 /** COUNCIL-06 ship 5 · THE CRAFT IS NOT IN HERE ANY MORE, and that is the point of the ship.
  *
  *  Twelve craft bullets lived here until 2026-08-30 and are now in `DEFAULT_VOICE`, merged with
@@ -103,8 +93,6 @@ Rules:
 - If uncertain about a canon fact, write around it rather than inventing one.
 - New characters are strangers unless the canon says otherwise.
 - Maintain object permanence. Objects do not teleport. Reintroduce through action, not inventory.
-- A line of dialogue moves information or deepens what is not said. A plainly functional exchange
-  is legitimate; do not inflate one into significance.
 - Never break the frame.
 `;
 

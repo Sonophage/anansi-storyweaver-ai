@@ -308,7 +308,9 @@ Sentence and image:
 
 Dialogue:
 - Sparse and functional. It breaks on ambient noise or on the gaps between speakers.
-- Let speakers go unfinished. Thoughts trail; sentences stop mid-breath.`;
+- Let speakers go unfinished. Thoughts trail; sentences stop mid-breath.
+- A line moves information or deepens what is not said. A plainly functional exchange is
+  legitimate; do not inflate one into significance.`;
 
 /** #21 §2 · THE SCAFFOLD, AND NOT THE CAST. Split out of one 3,400-token object on 2026-08-29.
  *
