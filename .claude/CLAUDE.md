@@ -33,6 +33,11 @@ Run it before and after. It needs no llama-server, so there is no excuse for ski
   owners. An audit once found zero ownership checks on 27 routes — that is what the gate is for.
 - **A deliberate shortcut gets a `ponytail:` comment** naming its ceiling. Adding debt means writing
   down the ceiling.
+- **Anything a writer would notice goes in `docs/WHATS-NEW.md`, in the same commit.** That file IS
+  the What changed screen — `GET /api/whatsnew` reads it, there is no model call and no cache.
+  Newest first, `##` is a release (`YYYY-MM-DD · headline`), `###` is one thing in it. Write it for
+  the person who WRITES BOOKS in the app: no file names, no function names, no refactors, no test
+  work. If a commit changes nothing they would notice, it gets no entry.
 
 ## Hard-won rules about measurement
 

@@ -2,12 +2,13 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RELEASE, RELEASE_SCHEMA, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
-import { fileBug, build, commits } from './report.ts';
+import { fileBug, build } from './report.ts';
+import { news } from './news.ts';
 import { resolveBody, cardText, narrationOnly, retirable, numbersIn } from './context.ts';
 import { presets } from './presets.ts';
 import { writeFileSync } from 'node:fs';
@@ -162,7 +163,6 @@ const MEMO_TOKENS = 1200;
 
 /** Up to twelve notes with a sentence each, plus a headline. Larger than it sounds, because the
  *  material is forty commit messages and the model is being asked to throw most of them away. */
-const RELEASE_TOKENS = 1600;
 
 /** One detector, two callers. The check on a saved passage and the repair of a passage on its
  *  way to the page have to agree about what a contradiction is, and when they were two copies of
@@ -1093,42 +1093,27 @@ export const routes: Record<string, Handler> = {
    *  Returns what it has even when the model is down: the notes for an older commit are still
    *  true about everything up to it, and are better than an empty page.
    */
-  'GET /api/whatsnew': async (c: Ctx) => {
-    const b = await build();
-    if (!b.head) return { notes: null, head: null, error: 'this is not a git checkout' };
-    const have = db.notesFor(b.head);
-    if (have && c.query.get('refresh') !== '1')
-      return { notes: have, all: db.allNotes(), head: b.head, written: false };
-
-    // SINCE THE LAST NOTES, and a window of days before there are any. Seth asked to seed it from
-    // three days so nothing already built is missed, and to go forward from there.
-    const from = db.newestNoted();
-    const log = await commits(from ? { since: from } : { days: 3, limit: 200 });
-    if (!log.length) return { notes: have, head: b.head, error: 'nothing new since the last notes' };
-
-    // BODIES FOR THE RECENT ONES, SUBJECTS FOR THE REST. Three days of this repository is 112
-    // commits and 193,000 characters of message — four times the whole slot, so handing it over
-    // whole would overflow, and slicing it would cut a commit in half and hand the model the
-    // fragment. The subjects here are written as sentences ("the prose window closes at the
-    // chapter boundary, and there is a way back"), so a subject alone still says what changed;
-    // the bodies are what say why, and they matter most where the work is freshest.
-    //
-    // ponytail: a fixed 12. A window this size fits with room to spare, and the day a batch does
-    // not, the fix is batching by character count rather than a bigger number here.
-    const DEEP = 12;
-    const body = log.map((x, i) => (i < DEEP && x.body
-      ? `— ${x.subject}\n${x.body}` : `— ${x.subject}`)).join('\n\n').slice(0, 26_000);
-    const r = await structuredRetry(RELEASE, body, RELEASE_SCHEMA,
-      { model: c.defaultModel ?? model(), max_tokens: RELEASE_TOKENS });
-    if (!r.data?.entries) {
-      // The older notes are still true about everything up to the commit they were written from.
-      return { notes: have, all: db.allNotes(), head: b.head,
-               error: r.error ?? 'nothing usable came back' };
-    }
-    db.setNotes(b.head, r.data);
-    // Every batch, newest first — the notes accumulate rather than replacing each other, so what
-    // was written for an older commit stays readable under what was written for this one.
-    return { notes: r.data, all: db.allNotes(), head: b.head, written: true, read: log.length };
+  /** WHAT CHANGED, READ FROM A FILE. #24, and Seth on 2026-08-29: "lets just have it show case
+   *  from one file we serve that we update after each commit and we remove the need for a local
+   *  model to do it."
+   *
+   *  What this replaced: a model call per new commit over up to 26,000 characters of git log,
+   *  cached per HEAD. It bought both of the complaints in checks.md. **Slow** was the design — the
+   *  first view after any commit is a cold call and nothing makes that fast except not doing it.
+   *  **Nothing** was three different failures wearing one face: not a git checkout, no commits
+   *  since the last batch, and an unusable answer, each returning the stale batch with an error
+   *  the panel could not tell apart.
+   *
+   *  Gone with it: `commits()`, the RELEASE prompt and its schema, the `release_notes` table and
+   *  its four accessors. The five batches that table held were written into `docs/WHATS-NEW.md`
+   *  before it was dropped — they are the app's history and they were true when written.
+   *
+   *  No `refresh`, because there is nothing to regenerate; the file is the answer. Still async and
+   *  still shaped `{ notes, all }` so the panel and `web/api.js` did not have to change with it. */
+  'GET /api/whatsnew': async () => {
+    const all = news();
+    if (!all.length) return { notes: null, all: [], error: 'docs/WHATS-NEW.md is missing or empty' };
+    return { notes: all[0], all };
   },
 
   /** Waved away. Not "never tell me again" — the ref carries the state that made it worth saying,

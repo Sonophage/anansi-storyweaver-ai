@@ -165,7 +165,8 @@ export const api = {
   ledger:       ()               => j('/api/ledger'),
   // What changed, in the writer's words. Written by Anansi from the commit log and cached on the
   // commit it was written from, so it updates itself on every commit. `refresh` writes it again.
-  whatsnew:     (refresh)         => j(`/api/whatsnew${refresh ? '?refresh=1' : ''}`),
+  // #24. No refresh: docs/WHATS-NEW.md is the answer, so there is nothing to regenerate.
+  whatsnew:     ()                => j('/api/whatsnew'),
   models:       ()               => j('/api/models'),
   stats:        ()               => j('/api/stats'),
   talk:         (storyId, o)     => j('/api/talk', 'POST', { storyId, ...o }),

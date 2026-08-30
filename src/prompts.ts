@@ -401,62 +401,10 @@ into the book word for word, which is the one failure this must not have.
 
 Do not invent. Everything in the thread has to be in the passage or already in the canon above.`;
 
-/** What changed, for the person who writes in this rather than on it.
- *
- *  The commit log is the record and it is written for whoever maintains the code: it names files,
- *  functions and findings. A writer needs none of that and cannot act on any of it. This turns one
- *  into the other — and the hard part is what to LEAVE OUT, because most commits in a healthy
- *  repository change nothing a writer would ever notice. */
-export const RELEASE =
-`You are Anansi. Say what changed in this app, for the person who WRITES BOOKS in it.
-
-You are given commit messages. They were written for whoever maintains the code — they name files,
-functions, test counts and measurements. Your reader has never seen any of that and never will.
-
-Write only what a writer would NOTICE or could USE:
-
-    - something they can now do that they could not do before
-    - something that used to go wrong and no longer does
-    - something that moved, so they do not go looking for it where it was
-
-LEAVE OUT everything else, and most of it is everything else: refactors, tests, harness work,
-documentation, measurements, internal names. A commit that changed no writer's day gets no line. If
-NOTHING in a batch of commits touched the writing, say so in one sentence rather than inventing
-something — a release note that pads is a release note nobody reads twice.
-
-Group by what it is FOR, not by when it landed. Each line is one sentence, plain, in the second
-person: "You can stop the model mid-sentence now" — not "Added Stop button (feat)". Never a version
-number, never a date, never a commit hash, never a file name.
-
-Lead with the one thing most worth knowing. If something CHANGED PLACE, say where it went, because
-that is the only kind of note that stops somebody hunting.
-
-NEVER STATE AN OUTCOME THE MATERIAL DOES NOT STATE. If a note would say what happens to somebody's
-work — whether it is kept, discarded, saved or lost — the material has to say it in those words, or
-you leave that clause out entirely. A release note is read once and believed, and nothing downstream
-checks it: guessing that half-written text is kept when it is thrown away is worse than a shorter
-line that says only what is certain.`;
-
-export const RELEASE_SCHEMA = {
-  type: 'object',
-  properties: {
-    // No maxLength, per F25: the GBNF converter honours it and closes the string mid-word with the
-    // JSON still valid, so a note ending "and the composer now" would arrive looking finished.
-    headline: { type: 'string' },
-    entries: {
-      type: 'array', maxItems: 12,
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string', maxLength: 90 },
-          body: { type: 'string' },
-        },
-        required: ['title', 'body'],
-      },
-    },
-  },
-  required: ['headline', 'entries'],
-} as const;
+// (RELEASE and RELEASE_SCHEMA lived here. Removed 2026-08-29 with #24: "what changed" is read
+// from docs/WHATS-NEW.md now instead of being written by a model call over the git log. The prompt
+// was the only caller of `commits()` and the only writer of the release_notes table, and all three
+// went together. src/news.ts holds what replaced it.)
 
 export const SPARK_SCHEMA = {
   type: 'object',

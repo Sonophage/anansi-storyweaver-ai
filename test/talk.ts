@@ -273,23 +273,10 @@ ok('a kind that does not exist is refused rather than assembled');
   ok("Anansi's strings go to the proposals queue, and accepting one ties a string not an entry");
 }
 
-// ---- 6·0. What changed, written for the writer rather than for whoever maintains the code
-{
-  const { RELEASE } = await import('../src/prompts.ts');
-  // The whole job is what it LEAVES OUT. Most commits in a healthy repository change nothing a
-  // writer would ever notice, and a release note that lists them is one nobody reads twice.
-  assert.match(RELEASE, /LEAVE OUT everything else/, 'the role has to be told to throw most of it away');
-  assert.match(RELEASE, /refactors, tests, harness work/, 'and told what "everything else" means');
-  assert.match(RELEASE, /say so in one sentence rather than inventing\s+something/,
-    'and told to say nothing happened rather than pad — otherwise a quiet week reads as a busy one');
-  // Written from prose that says one thing and can be read as another. Nothing downstream checks a
-  // release note, so the one guard is that it may not assert an outcome the material never stated:
-  // the first run of this said half-written text is KEPT when Stop throws it away.
-  assert.match(RELEASE, /NEVER STATE AN OUTCOME THE MATERIAL DOES NOT STATE/,
-    'and forbidden from guessing what happens to somebody\'s work');
-  assert.doesNotMatch(RELEASE, /version number|semver/i, 'no versions — this app has none');
-  ok('the release notes are written for the writer, and told what to leave out');
-}
+// (6·0 was six assertions on the RELEASE prompt — what the release-notes writer had to leave out,
+// and the ban on stating an outcome the commit log never stated. Removed 2026-08-29 with #24: the
+// prompt is gone, because what changed is read from docs/WHATS-NEW.md rather than written by a
+// model. `test/app.ts` checks the parser that replaced it.)
 
 // ---- 6a. "remember this": a passage the writer points at, turned into a thread
 //

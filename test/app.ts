@@ -1550,4 +1550,69 @@ ok('a cover can be drawn: the book seeds the words, the writer owns them, and th
 }
 ok('sparking replaces the screen with the wizard rather than sitting it beside an empty box');
 
+// #24 · WHAT CHANGED IS A FILE NOW. Seth, 2026-08-29: "lets just have it show case from one file we
+// serve that we update after each commit and we remove the need for a local model to do it."
+//
+// It was a model call per new commit over up to 26,000 characters of git log, cached per HEAD, and
+// it bought both complaints in checks.md. SLOW was the design — the first view after any commit is
+// a cold call. NOTHING was three failures wearing one face: not a git checkout, no commits since
+// the last batch, and an unusable answer, each returning the stale batch with an error the panel
+// could not tell apart.
+{
+  const { parseNews, news } = await import('../src/news.ts');
+
+  const rel = parseNews([
+    '# What changed',
+    'Preamble above the first release, which belongs to nobody.',
+    '',
+    '## 2026-08-29 · Covers can be drawn',
+    '### A cover can be drawn',
+    'Type what you want and press it.',
+    'The second line of the same paragraph.',
+    '',
+    '### The model row opens a panel',
+    'What it is for, how fast it has written here.',
+    '',
+    '## 2026-08-28 — Threads get rooms',
+    '### Rooms',
+    'One per part of a card.',
+    '',
+    '## A release with no date at all',
+  ].join('\n'));
+
+  assert.strictEqual(rel.length, 3, 'one release per ##, and the preamble is not one of them');
+  assert.strictEqual(rel[0].headline, 'Covers can be drawn');
+  assert.strictEqual(rel[0].entries.length, 2, 'one entry per ###');
+  assert.strictEqual(rel[0].entries[0].title, 'A cover can be drawn');
+  assert.strictEqual(rel[0].entries[0].body,
+    'Type what you want and press it. The second line of the same paragraph.',
+    'a body runs on across lines rather than keeping the hard wrap of the file');
+  // NEWEST FIRST IS THE FILE'S ORDER, not a sort. The panel renders [0] largest, so a file written
+  // oldest-first would put the oldest release at the top at the size of a headline.
+  assert.strictEqual(rel[1].headline, 'Threads get rooms', 'an em dash separates as well as a middot');
+  assert.strictEqual(rel[2].headline, 'A release with no date at all');
+  assert.strictEqual(rel[2].at, null, 'and a heading with no date still parses, it just cannot date itself');
+  assert.deepStrictEqual(rel[2].entries, [], 'a headline on its own is a legitimate release');
+
+  // NOON, NOT MIDNIGHT. `Date.parse` on a bare ISO day is UTC midnight, which is the previous day
+  // west of Greenwich — so every release would have read one day older than it is the moment it
+  // was written, and `ago()` renders that as "yesterday".
+  assert.strictEqual(new Date(rel[0].at!).toISOString().slice(0, 10), '2026-08-29');
+  assert.ok(new Date(rel[0].at!).getDate() === 29,
+    'and it is still the 29th in local time, which is what ago() reads');
+
+  // Nothing throws on rubbish; the panel showing less beats the panel showing an error about a
+  // file the writer cannot see.
+  assert.deepStrictEqual(parseNews(''), []);
+  assert.deepStrictEqual(parseNews('### an entry with no release above it\nbody'), []);
+
+  // AND THE REAL FILE, because a parser that only ever sees its own fixture is a parser that has
+  // not met the thing it parses. This is what the route actually serves.
+  const live = news();
+  assert.ok(live.length >= 5, `docs/WHATS-NEW.md must parse into releases (${live.length})`);
+  assert.ok(live.every((r: any) => r.headline.trim()), 'every release says something');
+  assert.ok(live.some((r: any) => r.entries.length), 'and at least one has entries under it');
+}
+ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real file');
+
 console.log(`\n${n} checks passed`);

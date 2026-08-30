@@ -206,6 +206,18 @@ function migrate() {
   drop('stories', 'system_block_override', 'a P1 stub for a per-story SYSTEM, never read');
   drop('passages', 'token_counts', 'a P1 stub for SPEC §7.5 tokenizer-keyed counts, never read');
   drop('stories', 'strip_patterns', '#26: strip-from-output is ripped, feature and column');
+  // #24. A TABLE rather than a column, so it does not go through `drop` above. Its five batches
+  // were written into docs/WHATS-NEW.md before this shipped; the file is the record now and the
+  // model call that filled this is gone. Guarded on existence so the line is quiet on a database
+  // that never had it, and so re-running is a no-op.
+  try {
+    if ((db.prepare("SELECT count(*) AS c FROM sqlite_master WHERE type='table' AND name='release_notes'")
+           .get() as any).c) {
+      if (!backedUp) { backedUp = true; try { backup(); } catch { /* the drop is safe either way */ } }
+      db.exec('DROP TABLE release_notes');
+      console.log('  dropped release_notes — #24: what changed is docs/WHATS-NEW.md now');
+    }
+  } catch (e: any) { console.log(`  could NOT drop release_notes: ${e?.message}`); }
 
   // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
   // and is idempotent, so by the time this line is reached every outfit is an addon in the `outfit`
@@ -514,14 +526,10 @@ CREATE TABLE IF NOT EXISTS writer_look (
   look TEXT NOT NULL,
   updated_at INTEGER NOT NULL);
 
--- What changed, in the writer's words, keyed on the commit it was written from. Anansi writes it
--- once per commit and it is read from here after that: "every commit updates it" costs one model
--- call per commit rather than one per visit, and a checkout that has not moved cannot produce
--- different notes on two readings.
-CREATE TABLE IF NOT EXISTS release_notes (
-  head TEXT PRIMARY KEY,
-  notes TEXT NOT NULL,
-  built_at INTEGER NOT NULL);
+-- (release_notes lived here, keyed on the commit its batch was written from. Dropped 2026-08-29
+-- with #24: what changed is read from docs/WHATS-NEW.md now rather than written by a model call
+-- over the git log. The five batches it held were written into that file first — they are the
+-- app's history and they were true when written.)
 
 -- What a writer has waved away. Proposals, strings and flags are ROWS and are dismissed by their
 -- own status; these two are COMPUTED — a summary is stale because its prose moved, and the horizon
@@ -655,12 +663,6 @@ export const delCover = (id: string) => { q('DELETE FROM story_covers WHERE stor
 export const storiesOnModel = (model: string): number =>
   (q('SELECT COUNT(*) AS c FROM stories WHERE model = ?').get(model) as any).c;
 
-/** The notes written for this commit, or null. */
-export const notesFor = (head: string): any => {
-  const r = q('SELECT notes FROM release_notes WHERE head = ?').get(head) as any;
-  try { return r ? JSON.parse(r.notes) : null; } catch { return null; }
-};
-/** The commit the newest notes were written for, or null. What the next batch reads FROM. */
 /** The hash the summary was written against, which is what makes a dismissal specific: edit the
  *  chapter and the summary is stale against a NEW hash, so what was waved away comes back. */
 export const summaryHashOf = (chapterId: string): string | null =>
@@ -686,22 +688,8 @@ export const mutedIn = (storyId: string, chapterId: string): Set<string> =>
 export const unmute = (storyId: string, kind: string, ref: string) =>
   q('DELETE FROM dismissals WHERE story_id = ? AND kind = ? AND ref = ?').run(storyId, kind, String(ref));
 
-export const newestNoted = (): string | null =>
-  (q('SELECT head FROM release_notes ORDER BY built_at DESC LIMIT 1').get() as any)?.head ?? null;
-
-/** Every batch, newest first. The notes accumulate: a batch describes the commits since the batch
- *  before it, so the page is the whole history rather than only the latest run. */
-export const allNotes = (): any[] =>
-  (q('SELECT head, notes, built_at FROM release_notes ORDER BY built_at DESC LIMIT 40').all() as any[])
-    .map((r) => { try { return { head: r.head, at: r.built_at, ...JSON.parse(r.notes) }; }
-                  catch { return null; } })
-    .filter(Boolean);
-
-export function setNotes(head: string, notes: any) {
-  q(`INSERT INTO release_notes (head, notes, built_at) VALUES (?,?,?)
-     ON CONFLICT(head) DO UPDATE SET notes = excluded.notes, built_at = excluded.built_at`)
-    .run(head, JSON.stringify(notes), now());
-}
+// (`notesFor`, `newestNoted`, `allNotes` and `setNotes` lived here. Removed 2026-08-29 with #24 —
+// see the note where the table was declared.)
 
 export const lookOf = (ownerId: string): any => {
   const r = q('SELECT look FROM writer_look WHERE owner_id = ?').get(ownerId) as any;

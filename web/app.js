@@ -274,7 +274,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'lbook',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover', 'drawcover', 'usecover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
-  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
+  // (`news` left this list with #24's refresh button — the page is a file read now, so there is
+  //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
+  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
   'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'newroom', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
@@ -3314,17 +3316,16 @@ const WPAGES = {
    *  answer that repaints does not ask again. */
   news() {
     if (NEWS === null && !S.newsBusy) { S.newsBusy = true; loadNews(); }
-    if (S.newsBusy && !NEWS) return '<div class="hint">Anansi is reading the work&hellip;</div>';
-    if (!NEWS) return `<div class="hint">${esc(S.newsError ?? 'Nothing to say yet.')}</div>
-      <button class="btn ghost" data-news="1" style="margin-top:12px; width:auto; padding:0 22px">Try again</button>`;
-    // Every batch, newest first. A batch covers the commits since the batch before it, so this is
-    // the whole history rather than only the latest run — which is the difference between release
-    // notes and a status line.
+    if (S.newsBusy && !NEWS) return '<div class="hint">Reading the notes&hellip;</div>';
+    if (!NEWS) return `<div class="hint">${esc(S.newsError ?? 'Nothing to say yet.')}</div>`;
+    // Every release, newest first — the whole history rather than only the latest, which is the
+    // difference between release notes and a status line.
     const batches = (NEWS.all?.length ? NEWS.all : [NEWS]);
     return `<div class="split"><div style="flex:1; min-width:0">
-      <div class="hint" style="margin:0 0 14px">Written by Anansi from the work itself, not from a
-        list somebody kept — so it is her reading of it, and the commits remain the record. A new
-        batch is written whenever the app changes.</div>
+      <div class="hint" style="margin:0 0 14px">Kept by hand in the repository, written in the same
+        commit as the work it describes. #24: this used to be a model call over the git log, which
+        was slow on the first view after every commit and said nothing on three different failures
+        without telling them apart.</div>
       ${batches.map((b, i) => `<div style="margin-bottom:${i === batches.length - 1 ? 0 : 26}px">
         <div class="serif" style="font-size:${i ? 19 : 25}px; line-height:1.15; color:var(--ink-bright)">${
           esc(b.headline ?? '')}</div>
@@ -3334,9 +3335,6 @@ const WPAGES = {
           <div style="font-size:13.5px; line-height:1.6; color:var(--mute)">${esc(e.body ?? '')}</div>
         </div>`).join('')}
       </div>`).join('')}
-      <button class="btn ghost" data-news="1" ${S.newsBusy ? 'disabled' : ''}
-        style="margin-top:18px; width:auto; padding:0 22px">${
-        S.newsBusy ? 'Reading&hellip;' : 'Read what has changed since'}</button>
     </div></div>`;
   },
   stories() {
@@ -3716,17 +3714,15 @@ function paint() {
 /** The notes, and the error if there are none. Kept beside LEDGER because it is the same shape of
  *  thing: fetched once, rendered from, and null until it arrives. */
 let NEWS = null;
-async function loadNews(refresh) {
+/** #24. A file read, not a model call — so there is no refresh, no cold first view after a commit,
+ *  and the only failure left is the file being missing, which says exactly that. */
+async function loadNews() {
   S.newsBusy = true; S.newsError = null; drawPage();
-  const r = await api.whatsnew(refresh);
+  const r = await api.whatsnew();
   S.newsBusy = false;
-  // Notes AND an error can both come back: the model was down, and what is on screen is what was
-  // written for an older commit — still true about everything up to it, and better than a blank.
   NEWS = r.notes ? { ...r.notes, all: r.all ?? null } : null;
   S.newsError = r.error ?? null;
   drawPage();
-  if (r.error && r.notes) toast(`Showing what is written — ${r.error}`);
-  else if (r.written) toast(`Read ${r.read} commit${r.read === 1 ? '' : 's'}.`);
 }
 
 async function loadLedger() {
@@ -4466,7 +4462,6 @@ document.addEventListener('click', async (e) => {
     if (S.modelMenu && S.models === null) loadModels();
     paint(); return;
   }
-  if (d.news) { await loadNews(true); return; }
   if (d.dismiss) {
     const r = await api.dismiss(S.storyId, d.dismiss, d.ref ?? '');
     if (r.error) return toast(r.error);
