@@ -1,9 +1,10 @@
-# Handoff — 2026-08-30, after the issue-clearing session
+# Handoff — 2026-08-30, after the issue-clearing session and COUNCIL-06
 
-`main` and `serial` are both at **`c12f49a`**, pushed, tree clean. Read `.claude/CLAUDE.md` first;
+`main` and `serial` are both at **`7eaa267`**, pushed, tree clean. Read `.claude/CLAUDE.md` first;
 this file is what a cold session needs on top of it.
 
-**Two issues are open and neither is blocked on code.** Everything else on the board went today.
+**One issue is open: #9, and it is open on purpose.** Everything else on the board is closed.
+§8 is the prompt-stack work that followed the issue clearing; read it before touching a prompt.
 
 ---
 
@@ -50,11 +51,9 @@ admin         sonophage
 
 ## 2 · What is open
 
-**#11 — Anansi's two registers.** Her voice when speaking to *the writer* (a god to a fellow
-storyteller, mischievous) versus when composing prompts *for the model*. **Blocked on Seth**, and on
-one specific thing: a reply of hers that felt wrong, or a line that would have been right. Without
-it the work is tuning against taste and calling it done, which is what F37 exists to prevent. It
-also carries the half of **#7** that was never tracked anywhere else.
+**#11 — closed 2026-08-30 in `7eaa267`.** It was blocked on Seth for exactly one thing — a reply of
+hers that felt wrong, or a line that would have been right — and he supplied a whole voice document
+instead. See §8. It carried the half of **#7** that was never tracked anywhere else.
 
 **#9 — contradictions.** Left open **deliberately**, not unfinished. The repair now looks twice,
 says what it did, and records it; Storyteller shows the fix rate over the takes where something was
@@ -177,3 +176,68 @@ fully merged and are deleted, local and remote, along with the `anansi-night` wo
 **Verification**: `node --experimental-strip-types test/all.ts` — eleven suites.
 `test/ui/run.sh` — **thirteen scenarios, 600 checks**, and it needs chromium and no model. Both were
 green at `c12f49a`.
+
+
+---
+
+## 8 · COUNCIL-06, and the six ships that came out of it
+
+`docs/findings/COUNCIL-06.md` is the record: five seats given the exact `SYSTEM`, `DEFAULT_VOICE`
+and mode prompts read out of source, plus this project's findings. It found that of ~50 standing
+instructions, **four have ever been measured**, and that four items in the proposal it was asked to
+review describe text that does not exist in the app.
+
+Six ships, `5973498` through `7eaa267`. Each that changes bytes on the wire is its own commit, so
+`bench/drift.ts` can attribute a regression to one at a time.
+
+1. **`CAPS.SPINE` 400 → 1000.** Not a preference — at 400 `The Geometry of Absence` was losing the
+   back half of its setting on **every call**, cut mid-sentence. Its spine is ~716 tokens raw.
+2. **Deleted `Match the established voice. Do not escalate register on your own.`** The only
+   deletion in the whole council with a number behind it: F37 measured its arm at 98.0 against 98.0
+   and concluded the model was never overriding the voice field, it was following it exactly.
+3. **The voice is always sent.** Two imported books had an empty `writing_style` and sent no voice
+   at all. `voiceOf(owner)` in `story.ts` is a runtime ladder — story → the writer's saved default →
+   shipped — applied at `assemble()`, not a migration: `db.createStory` has three callers and only
+   one backfilled, so a migration would plug the rows and leave the paths open.
+4. **The prose sample is gone** — prompt, UI and column. F36 is the argument: finished English in a
+   prompt is lifted verbatim into the prose. It was empty on all nine books and never measured.
+   VOICE is one `keep: true` part now, so it can no longer trim — it refuses and says so.
+5. **The craft left `SYSTEM` for `DEFAULT_VOICE`.** Shipped the other way first (`8951779`) and
+   **corrected on Seth's word** in `5c11ee3`: *"it's default for a reason so it can be overridden."*
+   `SYSTEM` 430 → 235 tokens and keeps only what replacing a voice must not switch off — output
+   format, canon arbitration, object permanence, the frame. `CAPS.VOICE` 500 → 1000 in the same
+   commit, because the craft section alone is 274 tokens and VOICE is all-`keep` since ship 4: over
+   cap it is **dropped whole**, not shortened.
+6. **#11, Anansi's speaking voice**, in `TALK` and no other role. See the issue and the header
+   comment above the constant.
+
+### What only Seth can settle
+
+- **The seven bespoke voices were backfilled by hand** on 2026-08-30 — the craft section appended to
+  what each book already said — so nothing lost a rule it had that morning. Backup at
+  `backups/pre-craft-backfill.db`. If any of those books starts reading wrong, that append is the
+  first thing to try removing, and it is his call, not a measurement.
+- **Six lines of his craft block were left out**, each with a stated reason, pinned in `test/db.ts`.
+  Overruling one means deleting its row, which means reading why first. One of them —
+  *"Begin in action or sensation"* — was already shipping and is now gone.
+- **Nothing in ships 1, 3, 4, 5 or 6 is measured.** The honest claim is that the prompt says what he
+  wanted it to say and that he can now change it. Not that the prose reads better.
+
+### Two things noticed and deliberately not fixed
+
+- **`backup failed: ENOENT … backups/anansi-<timestamp>.db` on every boot** — all twelve recorded
+  starts. Nothing writes the automatic on-disk snapshot; the off-disk copy at `/data/anansi-backups`
+  is a separate path and reports fine. Pre-existing, untouched.
+- **The banner says `library 7 stories` while `stories` has 9 rows** and the book export says 9.
+
+### Traps this round paid for
+
+- **`db.updateStory(id, s)` takes TWO arguments.** Calling it as `(id, ownerId, patch)` makes every
+  field fall back to its current value: the backfill printed seven successes having written nothing,
+  and only a read-back caught it. There is no ownership check inside it — `serve.ts` is the gate.
+- **A check can pass while reading the wrong thing.** `/Say ([^.]+)\./` over `TALK` matched a
+  diction list nine lines above the list it was written for, so the images check compared the wrong
+  two sets and went green. It was visible only because the falsification did **not** go red.
+- **Fixtures must grow with the cap they test.** Twice in one day: `repeat(30)` stopped overrunning
+  `SPINE` at 1000 and `repeat(90)` stopped overrunning `VOICE` at 1000. A check that quietly stops
+  reproducing its own condition passes forever.
