@@ -1,44 +1,40 @@
 # Handoff — 2026-08-29, end of the migration-and-measurement day
 
-`main` and `serial` are both at **`6e5652d`**, pushed, tree clean. Read `.claude/CLAUDE.md` first;
-this file is what a cold session needs on top of it.
+`main` and `serial` were both at **`6886f38`** when this session started. Read `.claude/CLAUDE.md`
+first; this file is what a cold session needs on top of it.
 
-**Do these two things, in this order.** Everything else in this file is context for them.
+**Both of the two tasks at the top are done** — the restart, and #25's panel. §1 is kept because the
+procedure it replaced was wrong and the next cold session will otherwise read the old one somewhere.
+Everything below §2 is unchanged context from 2026-08-29.
 
 ---
 
-## 1 · Restart the live server — FIRST, before anything else
+## 1 · The live server — restarted, and the procedure above it was wrong
 
-`serve.ts` loads `src/*.ts` **once, at boot**. `#25`'s work is in `src/` and the running server
-started at **15:53:50** against code that predates it. Only `web/*.js` is served fresh per request.
+**Done, 2026-08-29 16:51:24.** The stale process (started 15:53:50, older than HEAD) is gone and
+the server is back on `https://0.0.0.0:5174` with both writers and the admin in the banner.
 
-**This cost two diagnoses today.** Seth re-ran a worker, got the old answer, and reported the fix as
-broken — twice — because the process was older than the code. Before debugging any report of "it
-still does X", check the server's start time against HEAD:
+**The restart procedure this file carried was obsolete, and following it is worse than not.** It
+said the environment "is not in the repo and must not be" and told you to lift it out of
+`/proc/<pid>/environ` into `/tmp/anansi-restart.sh`. Both halves are now false:
 
-```bash
-ps -eo pid,lstart,args | grep '[s]erve.ts'
-git log -1 --format='%ad' --date='format:%a %b %d %H:%M:%S %Y'
-```
+- `~/.config/systemd/user/anansi.service` exists, is `enabled`, and reads
+  `EnvironmentFile=<repo>/.env`.
+- That `.env` is at the repo root, gitignored (`.gitignore:20`), and its `ANANSI_*` lines are
+  **byte-identical** to what the live process was running with — diffed before the kill, not
+  assumed.
 
-### How to restart it without breaking his setup
-
-**The environment is not in the repo and must not be.** `ANANSI_ALLOW`, `ANANSI_ADMIN`,
-`ANANSI_CERT`, `ANANSI_KEY`, `ANANSI_HOST` and `ANANSI_MODELS` live in the command Seth started it
-with. Capture them from the running process **before** killing it:
+So the restart is:
 
 ```bash
-cp /proc/<pid>/environ /tmp/live.env0            # null-separated, while it is still alive
+sqlite3 anansi.db ".backup 'backups/pre-restart-$(date +%Y-%m-%dT%H%M).db'"   # migrations run at boot
+systemctl --user restart anansi.service
+journalctl --user -u anansi.service -n 20 --no-pager -o cat                   # read the banner
 ```
 
-`/tmp/anansi-restart.sh` already exists and does this correctly — it was generated today from that
-environ with `shlex.quote` on every value, and it `cd`s to the repo and `exec`s node. It survives
-until reboot. Regenerate it the same way if it is gone.
-
-**A restart that loses the environment is worse than no restart:** the first attempt today came back
-on `127.0.0.1` over plain HTTP with no allow-list, so Kia could not reach it and neither could
-Seth's phone, and nothing said so except the startup banner. **Read the banner every time.** It
-should say:
+**Read the banner every time.** The failure this file warned about is real — a restart that loses
+the environment comes back on `127.0.0.1` over plain HTTP with no allow-list and says so nowhere
+else. It should say:
 
 ```
 Anansi        https://0.0.0.0:5174
@@ -46,37 +42,64 @@ writers       zlovlokvi@gmail.com, hellrigelkc@gmail.com
 admin         sonophage
 ```
 
-Back up first — `sqlite3 anansi.db ".backup 'backups/pre-restart.db'"` — because migrations run at
-boot. Two ran today and both are already applied.
+`/tmp/anansi-restart.sh` still exists and still works, but it starts the server **in a terminal
+scope** rather than under the unit — which is how the 15:53:50 process came to be: no
+`Restart=on-failure`, and it dies with the terminal. Prefer the unit.
+
+`serve.ts` still loads `src/*.ts` once at boot, and that is still what makes a stale process report
+a fixed bug as broken. The check is unchanged:
+
+```bash
+systemctl --user show anansi.service -p ActiveEnterTimestamp
+git log -1 --format='%ad' --date='format:%a %b %d %H:%M:%S %Y'
+```
 
 ---
 
-## 2 · Then finish #25: the model info panel
+## 2 · #25's model panel — delivered
 
-The **data is done and shipped**; what is missing is the surface.
+`TITLES.model`, `PANELS.model()`, `data-modelinfo` on each row of the rail's model list, and the
+switch (`data-pickmodel`) moved onto the panel — which is what checks.md asked for: *"a sub
+heading when you click it that opens a panel with the model information … then a switch button
+done there."*
 
-`GET /api/models` now returns `{ id, status, ctxSize, parallel, perSlot, tps, runs }`, merged from
-three sources that each know one thing: the router (what exists, what is loaded), `presets.ini`
-(`ctx-size`, `parallel`, and `perSlot = ctx-size / parallel`), and the `generations` table (measured
-speed). `src/presets.ts` is the parser; `db.modelSpeeds()` is the speed.
+**Four sources, each named on the panel**, because a number whose provenance is off-screen is a
+number nobody can check: the router says loaded/asleep, `presets.ini` says the context and how many
+ways it is cut, the `generations` table says the measured speed and the run count behind it, and the
+id itself says purpose, thinking and decensoring — once decoded.
 
-The rail footer's model rows already show `50k each · 58.4 tok/s` via `modelFacts()` in
-`web/model.js`. **What #25 still asks for** is a panel that opens from a model row carrying:
+- **`modelName` now reads the 2026-08-27 convention.** `MODEL-VERSION-CODE-SIZE[-NN]`, where the
+  CODE segment is the only all-caps one. `Qwen3.6-WNTH-35B-A3B-NN` used to render as
+  "Qwen3.6 WNTH 35B A3B NN" — every fact encoded, none of it read. It now yields
+  `Write · no thinking · decensored · 35B-A3B · novel tier`.
+  **H absent is not "censored"**: presets.ini is explicit that Wayfarer-2 and Muse were trained open
+  and never censored, and the panel says `trained open`. An assertion holds that line.
+- **`BLURB` in `web/model.js` is the only hand-written part**, keyed by the decoded family, and
+  every line of it is quoted from the stanza comments in `/data/models/presets.ini`. A family with
+  no blurb shows the decode alone rather than a guess. `ponytail:` marker on it names the ceiling:
+  a hand-written map is what the last rename emptied silently, so `test/app.ts` walks the ten live
+  preset ids against the map **both ways** and goes red if either side moves alone.
+- **It is the one panel that opens with no story open.** It is about the box, not about a book, and
+  the rail footer that opens it is on screen out on the shelf too. `drawSide`'s gate carries the
+  exception and a test asserts both halves of it.
+- **For the model that is loaded, the running server wins over the file.** `presets.ini` says
+  `ctx-size 100000 / parallel 2` = **50,000**; llama-server rounds its own allocation and reports
+  **50,048**, which is what the rail footer directly under this panel has always shown. Two numbers
+  for one budget, forty-eight apart, an inch apart on screen — this repo's own recurring failure.
+  The file is the plan and the server is the truth, so the loaded model reads `SRV.slot` and the
+  caption names which of the two was read.
 
-- [ ] the prose blurb — hand-written, per the issue; the id already encodes purpose (`RP`/`W`/`A`),
-      thinking (`NT`/`T`), decensored (`H`) and the `-NN` novel tier, and `modelName()` in
-      `web/model.js` decodes some of it already. **Extend that decode; hand-write only the blurb.**
-- [ ] measured speed and per-slot context — both already on the payload, no new plumbing
-- [ ] the switch button — `data-pickmodel` already exists and works
+**Ten falsifications, all red on the named assertion**, then green again: the CODE regex broken, a
+blurb key renamed, the panel showing `ctxSize` instead of `perSlot`, the thin-sample clause dropped,
+the silent-source note blanked, the no-blurb fallback dropped, `drawSide` re-gated on a story, the
+rail row put back to `data-pickmodel`, the running server never preferred, and the running server
+preferred for every model rather than only the loaded one.
 
-**Register the panel properly or it is half a panel**: a name in `TITLES` is what makes a panel
-hash-addressable, `readHash` validates against that map, and `PANELS.<name>()` as a shorthand method
-is what `test/web.ts`'s `panelNames` regex can see. `SNAV` is pinned at eight names by
-`test/web.ts` — do not add to it. Any new `data-` action must go in `ACTIONS` or `test/web.ts`
-refuses the button, which it did twice today, correctly.
+`test/app.ts` 43 checks, `test/web.ts` 25 — the two suites that read `web/`. `bench/sweep.ts` finds
+no dead control for the new action.
 
-**Four surfaces read the model list**: rail footer (`web/app.js` ~360), Storyteller (~2058), the bar
-label, and Preferences — which was deleted in #23, so three.
+**What #25 still does not do:** nothing switches the model from Storyteller or the bar label; those
+two surfaces still read the list without the panel. The issue's own checklist is otherwise met.
 
 ---
 
@@ -179,4 +202,6 @@ Seth has not called it done. **#22** has four items left; **#27** needs the stor
 **#11** are unstarted. **#17** (Pinterest) needs Seth's call on whether a network API belongs in a
 local-first app at all.
 
-`grep -rn "ponytail:" src web bench *.ts *.html` — 14 markers, each naming its own ceiling.
+`grep -rn "ponytail:" src web bench *.ts *.html` — **28** markers, each naming its own ceiling.
+(This file said 14 and `.claude/CLAUDE.md` said 28; the grep says 28, and one of those is the new
+`BLURB` map.)

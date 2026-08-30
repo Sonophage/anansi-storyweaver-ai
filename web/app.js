@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, BLURB, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -131,7 +131,7 @@ function applyLook() {
 
 // ---------- state ----------
 const S = {
-  place: 'workspace', wpage: 'stories', panel: null, mode: 'speak', speaker: null, bigInput: false, arrived: null, seam: null,
+  place: 'workspace', wpage: 'stories', panel: null, modelPick: null, mode: 'speak', speaker: null, bigInput: false, arrived: null, seam: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   // WHICH menu the rail is showing, which is not the same question as where you are. The menu
   // button asks for the workspace one from inside a story; the story's name asks for the story
@@ -235,6 +235,9 @@ TITLES.history = 'History';
 TITLES.setup = 'The next chapter';
 TITLES.ritual = 'Ending the chapter';
 TITLES.anansi = 'Anansi';
+// #25. Opened from a row in the rail's model list, and in TITLES so the link to a model can be
+// pasted like any other panel's. With no model named it reads the one that is writing.
+TITLES.model = 'The model';
 const WTITLES = {
   stories: () => [`My stories`, `${LIB.length} ${LIB.length === 1 ? 'story' : 'stories'}`],
   create: () => ['Create a story', 'Spark a skeleton, or start blank'],
@@ -272,7 +275,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
-  'dismiss', 'goflag', 'dropflag', 'modelmenu',
+  'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'newroom', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -367,7 +370,7 @@ function drawRail() {
       padding:8px 12px 12px; display:flex; flex-direction:column; gap:2px">
       ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
         : S.models.length === 0 ? emptyModels()
-        : S.models.map((m) => `<button data-pickmodel="${esc(m.id)}"
+        : S.models.map((m) => `<button data-modelinfo="${esc(m.id)}"
             style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r);
             width:100%; text-align:left; background:${m.id === SRV.model ? 'rgba(217,178,106,.10)' : 'transparent'}">
             <span style="width:6px; height:6px; border-radius:50%; flex:0 0 auto; background:${
@@ -377,8 +380,9 @@ function drawRail() {
                 color:${m.id === SRV.model ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
               ${modelFacts(m) ? `<span style="font-size:10.5px; color:var(--dim)">${esc(modelFacts(m))}</span>` : ''}</span>
           </button>`).join('')}
-      <div class="hint" style="margin:6px 0 0">Yours, not the box's — a story that names its own
-        model still wins. Switching releases the one you were on.</div>
+      <div class="hint" style="margin:6px 0 0">A press opens what is known about it — what it
+        is for, how fast it has written here, how much context each writer gets — and the switch
+        is on that panel. Yours, not the box's: a story that names its own model still wins.</div>
     </div>` : ''}`;
 }
 
@@ -1129,8 +1133,13 @@ function growFields(root) {
 }
 
 function drawSide() {
+  // Reachable by hash, so it can be the first thing on screen — and it is the only panel whose
+  // contents come from the router rather than from the story that has already been fetched.
+  if (S.panel === 'model' && S.models === null) loadModels();
   const side = $('side');
-  side.hidden = !S.panel || S.place !== 'story';
+  // The model panel is the exception: it is about the box rather than about a book, and the rail
+  // footer that opens it is on screen outside a story too. Every other panel reads V.
+  side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'model');
   if (side.hidden) return;
   $('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
@@ -1322,6 +1331,97 @@ const PANELS = {
    *  whether a book is owed anything.
    */
   ritual() { return ritualPanel(); },
+
+  /** #25 · WHAT IS WRITING THIS, AND WHAT ELSE COULD.
+   *
+   *  checks.md asked for it in one sentence: "a sub heading when you click it that opens a panel
+   *  with the model information, what its good at, what the speed of writing is, context window
+   *  divided by half we already have that information we just need to use it. then a switch button
+   *  done there." Only the last clause was true when it was written — the app had `{id, status}`
+   *  and everything else on screen was string surgery on the id.
+   *
+   *  Four sources, and each one is named on the panel, because a number whose provenance is not on
+   *  screen is a number nobody can check: the ROUTER says whether it is loaded, PRESETS.INI says
+   *  the context and how many ways it is cut, THIS DATABASE says how fast it has actually written
+   *  here, and the ID ITSELF says purpose, thinking and decensoring once it is decoded. The blurb
+   *  is the only hand-written part, and it is quoted from the stanza comments in presets.ini.
+   *
+   *  ABOUT THE BOX, NOT ABOUT A BOOK — hence the one exception in drawSide, and hence the note
+   *  when the open story pins its own model: this switch is real but a pinned story outranks it,
+   *  and a panel that offered a switch without saying so would be lying by omission.
+   */
+  model() {
+    const id = S.modelPick ?? SRV.model;
+    if (!id) return '<div class="hint" style="margin:0">No model is named yet.</div>';
+    const d = modelName(id);
+    const m = (S.models ?? []).find((x) => x.id === id) ?? {};
+    const writing = id === SRV.model;
+    const pinned = V?.story?.model;
+    // TWO NUMBERS FOR ONE THING, forty-eight apart. `presets.ini` says ctx-size 100000 over two
+    // slots; llama-server rounds its own allocation up and reports 50,048, which is the number the
+    // rail footer under this panel already shows. For the model actually loaded the running server
+    // is the truth and the file is the plan, so the loaded one wins and the caption says which was
+    // read. Adjacent surfaces disagreeing about the same budget is this repo's own recurring
+    // failure, and it does not need a third rendering of it to happen again.
+    const live = writing && SRV.slot?.perSlot ? SRV.slot : null;
+    const perSlot = live?.perSlot ?? m.perSlot;
+
+    // A fact and WHERE IT CAME FROM. The absent case says which source is silent rather than
+    // showing a dash, because "the router's file does not mention this one" and "nobody has
+    // written with it" are different things to know and only one of them is worth fixing.
+    const fact = (label, value, note) => `<div style="display:flex; flex-direction:column; gap:2px;
+      padding:10px 0; border-bottom:1px solid var(--line)">
+      <span class="kind">${esc(label)}</span>
+      <span style="font-size:14px; color:${value ? 'var(--ink-bright)' : 'var(--faint)'}">${
+        esc(value || 'not known')}</span>
+      ${note ? `<span style="font-size:11px; color:var(--dim)">${esc(note)}</span>` : ''}</div>`;
+
+    return `<div style="display:flex; flex-direction:column">
+      <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+        <span class="serif" style="font-size:19px; color:var(--ink-bright)">${esc(d.name)}</span>
+        ${writing ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">writing now</span>'
+          : m.status === 'unloaded' ? '<span class="tag">asleep</span>'
+          : m.status === 'loaded' ? '<span class="tag" style="color:var(--good)">loaded</span>' : ''}</div>
+      <!-- The id is what the router answers to and what ANANSI_MODEL takes, so it is on the panel
+           in full rather than one hover away: this is the screen you are on when you need it. -->
+      <div style="font-size:11px; color:var(--dim); margin:3px 0 12px; word-break:break-all">
+        <code>${esc(id)}</code></div>
+
+      ${d.bits?.length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px">${
+        d.bits.map((b) => `<span class="tag">${esc(b)}</span>`).join('')}</div>` : ''}
+
+      ${BLURB[d.name]
+        ? `<div style="font-size:13px; line-height:1.55; color:var(--mute); margin-bottom:6px">${
+            esc(BLURB[d.name])}</div>`
+        : `<div class="hint" style="margin:0 0 6px">Nothing is written down about this one. What is
+            above is decoded from its name; what is below is measured.</div>`}
+
+      ${fact('Context, per writer',
+        perSlot ? `${perSlot.toLocaleString()} tokens` : '',
+        live
+          ? `${live.global.toLocaleString()} across the ${live.slots} ${live.slots === 1 ? 'slot' : 'slots'} the running server opened`
+          : m.perSlot && m.ctxSize && m.parallel
+          ? `${m.ctxSize.toLocaleString()} cut across ${m.parallel} ${m.parallel === 1 ? 'slot' : 'slots'} in the router's preset file`
+          : "the router's preset file does not mention this one")}
+
+      ${fact('Speed, measured here',
+        m.tps ? `${m.tps} tok/s` : '',
+        m.tps
+          ? `median of ${m.runs} ${m.runs === 1 ? 'call' : 'calls'} in this library${m.runs < 5 ? ', which is too few to lean on' : ''}`
+          : 'nothing has been written with it here yet')}
+
+      ${pinned && pinned !== id
+        ? `<div class="hint" style="margin:12px 0 0; color:var(--warn)">This book pins its own model
+            &mdash; <code>${esc(modelName(pinned).name)}</code> &mdash; and a pinned story outranks
+            this switch. Change it in Story.</div>` : ''}
+
+      <div style="margin-top:16px">
+        ${writing
+          ? `<div class="hint" style="margin:0">This is the one writing. Switching to another
+              releases it.</div>`
+          : `<button class="btn" data-pickmodel="${esc(id)}">Write with this one</button>`}
+      </div></div>`;
+  },
 
   waiting() {
     const w = V?.waiting;
@@ -3584,7 +3684,8 @@ async function loadModels() {
   S.allow = r.allow ?? [];
   if (r.active) SRV.model = r.active;
   if (S.wpage === 'prefs') drawPage();
-  if (S.place === 'story' && S.panel === 'teller') drawSide();
+  // The model panel is not gated on a story: it is about the box, and it opens on the shelf too.
+  if (S.panel === 'model' || (S.place === 'story' && S.panel === 'teller')) drawSide();
   loadStats();
 }
 
@@ -5048,6 +5149,11 @@ document.addEventListener('click', async (e) => {
   }
   if (d.clearchat) { S.talk = { ...S.talk, turns: [], draft: null }; drawSide(); return; }
   if (d.storymodel !== undefined) { return; }   // handled on change, below
+  // #25. The row names a model; the panel is where it is read and where it is switched.
+  if (d.modelinfo) {
+    S.modelPick = d.modelinfo; S.modelMenu = false; S.panel = 'model';
+    syncHash(); paint(); return;
+  }
   if (d.pickmodel) {
     if (d.pickmodel === SRV.model) return;
     const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);

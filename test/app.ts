@@ -188,6 +188,18 @@ const POSTED: any[] = [];
         { id: 'e-2', story: 's-2', storyTitle: 'The Salt Ledger', title: 'the Ambersand',
           body: 'A house that lends at ruin.', entryType: 'lore',
           activation: 'triggered', keys: ['Ambersand'], addons: [], outfits: [] }] }
+    // #25. The three-source shape `GET /api/models` actually returns: the router's status, the
+    // preset file's context, and this database's measured speed. The third row is deliberately a
+    // model the preset file does not mention and nobody has written with — the panel has to say
+    // WHICH source is silent rather than print a dash, and a fixture where every field is filled
+    // cannot see that at all. `active` stays the old alias so the rail's own assertions above
+    // keep testing what they were written for.
+    : url.startsWith('/api/models') ? { active: 'write-nt-qwen36-h', allow: [], models: [
+        { id: 'Qwen3.6-WNTH-35B-A3B-NN', status: 'loaded',
+          ctxSize: 100096, parallel: 2, perSlot: 50048, tps: 58.4, runs: 58 },
+        { id: 'Wayfarer-2-RPNT-12B', status: 'unloaded',
+          ctxSize: 32768, parallel: 2, perSlot: 16384, tps: 41.2, runs: 3 },
+        { id: 'Sorcerer-9-WNT-70B', status: 'unloaded' }] }
     : url.startsWith('/api/manifest') ? MANIFEST
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
@@ -227,7 +239,52 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   assert.doesNotMatch(a.name, /GGUF/i, 'the file format is not part of a name');
   assert.doesNotMatch(a.name, /HauhauCS/i, 'and neither is the org, twice');
   assert.strictEqual(modelName('').name, 'no model', 'and no model says so');
+
+  // THE 2026-08-27 CONVENTION. Before #25 an id in it fell through to the Hugging-Face branch and
+  // came out "Qwen3.6 WNTH 35B A3B NN" — every fact still encoded in the id, none of it read.
+  const q = modelName('Qwen3.6-WNTH-35B-A3B-NN');
+  assert.strictEqual(q.name, 'Qwen3.6', 'the family is the name; the code and the size are not');
+  assert.deepStrictEqual(q.bits, ['Write', 'no thinking', 'decensored', '35B-A3B', 'novel tier'],
+    'purpose, thinking, decensoring, size and the novel tier all come out of the id');
+  // Same rule as the alias branch above, and the same reason: thinking left on returned no prose
+  // at all on three runs of four, so a label that drops it hides the setting that decides whether
+  // a passage arrives.
+  assert.match(modelName('GLM-4.7-Flash-RPTH-30B').detail, /(?<!no )thinking/,
+    'T must read as thinking, not as no thinking');
+  // H ABSENT IS NOT CENSORED. presets.ini is explicit that Wayfarer-2 and Muse were trained open
+  // and never censored, which is a different claim from refusing — and the surface must not turn
+  // the one into the other.
+  assert.match(modelName('Wayfarer-2-RPNT-12B').detail, /trained open/);
+  assert.doesNotMatch(modelName('Wayfarer-2-RPNT-12B').detail, /censored/,
+    'a model with no H says what it is, never what it is not');
+  // A Hugging-Face path must not be read as the convention: it is full of capitalised segments and
+  // any of them could be mistaken for a CODE. This one carries MTP, GGUF and a quant.
+  const hf = modelName('HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:Q8_K_P');
+  assert.deepStrictEqual(hf.bits, ['Q8_K_P'], 'a repo path decodes as a repo path, not as a preset');
 }
+ok('a preset id in the 2026-08-27 convention decodes to purpose, thinking, decensoring and tier');
+
+// THE BLURB MAP IS HAND-WRITTEN, AND THE LAST RENAME EMPTIED EVERY MAP LIKE IT SILENTLY. Keyed by
+// the family `modelName` decodes, so this walks the current preset list both ways: a blurb whose
+// key no longer decodes out of any id is dead, and a preset with nothing written about it shows
+// the decode alone. The id list below is /data/models/presets.ini as of 2026-08-29 — when the
+// router's stanzas change, this is the check that says so instead of a panel quietly going blank.
+{
+  const { modelName, BLURB } = await import('../web/model.js');
+  const LIVE = ['Ornith-1.0-RPNTH-35B', 'Qwen3.6-WNTH-35B-A3B-NN', 'Huihui-ThinkingCap-ATH-27B',
+    'Qwen3.8-ATH-27B', 'Gemma-4-WNTH-31B-NN', 'Artemis-1.1-RPNTH-31B-NN', 'GLM-4.7-Flash-RPTH-30B',
+    'Harbinger-RPNTH-24B', 'Wayfarer-2-RPNT-12B', 'Muse-RPNT-12B'];
+  const families = LIVE.map((id) => modelName(id).name);
+  assert.deepStrictEqual(Object.keys(BLURB).filter((k) => !families.includes(k)), [],
+    'these blurbs are keyed to a family no preset decodes to any more');
+  assert.deepStrictEqual(families.filter((f) => !BLURB[f]), [],
+    'these presets are on the box with nothing written down about them');
+  // And the blurbs are quoted from the stanza comments, so they carry the numbers those comments
+  // carry. A blurb that said nothing measurable would be a vibe about a model.
+  assert.match(BLURB['GLM 4.7 Flash'], /enable_thinking/,
+    'the one fact about this model that decides whether prose arrives at all');
+}
+ok('every preset on the box has a blurb, and every blurb still belongs to a preset');
 
 // The writing head is a run of glyphs APPENDED after the prose, never a scramble of the prose
 // itself. The first version rewrote the last sixteen characters of the text on every delta: the
@@ -1145,5 +1202,70 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
     'and a long thread does not stretch its row — the body is clamped in the selectable view');
   ok('the cross-shelf page opens the book you were last in and collapses the rest');
 }
+
+// #25 · THE MODEL PANEL. The block above leaves the app on the workspace with no story open, which
+// is exactly the case this panel has to survive: it is the only panel about the BOX rather than
+// about a book, the rail footer that opens it is on screen out here too, and `drawSide` was gated
+// on `S.place === 'story'` for every other one of them.
+{
+  const side = () => (globalThis as any).document.getElementById('side');
+  click({ modelinfo: 'Qwen3.6-WNTH-35B-A3B-NN' });
+  // The panel can be the first thing on screen, so it asks the router itself; that is a fetch.
+  for (let i = 0; i < 20 && !/tok\/s/.test(html('sideBody')); i++) await new Promise((r) => setTimeout(r, 25));
+
+  assert.strictEqual(side().hidden, false, 'the model panel opens with no story open');
+  const panel = html('sideBody');
+  assert.match(panel, /Qwen3\.6/, 'named by its family, not by the whole id');
+  assert.match(panel, /Qwen3\.6-WNTH-35B-A3B-NN/, 'and the raw id is on the panel, because that is '
+    + 'what the router answers to and what ANANSI_MODEL takes');
+  // PER SLOT, NEVER THE WHOLE WINDOW. checks.md called it "context window divided by half":
+  // 100,096 is what the model is loaded with and 50,048 is what a writer actually gets, and the
+  // panel showing the first would overstate the budget by double.
+  assert.match(panel, /50,048 tokens/, 'the budget one writer gets');
+  assert.doesNotMatch(panel, /100,096 tokens/, 'never the whole window as if it were the budget');
+  // `esc` turns the apostrophe in "router's" into an entity, hence the class rather than the
+  // character — a regex written with the literal apostrophe cannot match the rendered panel.
+  assert.match(panel, /100,096 cut across 2 slots in the router.{0,6}s preset file/,
+    'with which of the four sources it came from beside it');
+  assert.match(panel, /58\.4 tok\/s/, 'measured here, not claimed');
+  assert.match(panel, /median of 58 calls/);
+  assert.doesNotMatch(panel, /too few to lean on/, 'fifty-eight calls is not a thin sample');
+  assert.match(panel, /twelve times the speed/, 'the hand-written blurb, quoted from presets.ini');
+  assert.match(panel, /data-pickmodel="Qwen3\.6-WNTH-35B-A3B-NN"/,
+    'and the switch is on the panel, which is the whole of what checks.md asked for');
+
+  // THE LOADED MODEL'S NUMBER COMES FROM THE RUNNING SERVER, NOT FROM THE FILE. presets.ini says
+  // 100000 over two slots; llama-server rounds its own allocation and reports 50,048, and that is
+  // what the rail footer directly under this panel already shows. The file is the plan and the
+  // server is the truth, so for the one that is loaded the server wins — otherwise two surfaces an
+  // inch apart give two answers to one question, which is this repo's own recurring failure.
+  click({ modelinfo: 'write-nt-qwen36-h' });
+  const loaded = html('sideBody');
+  assert.match(loaded, /50,048 tokens/, 'the running server\'s own figure, not the file\'s 50,000');
+  assert.match(loaded, /100,096 across the 2 slots the running server opened/, 'and it says so');
+  assert.match(loaded, /writing now/, 'and this is the one writing');
+  assert.doesNotMatch(loaded, /data-pickmodel=/, 'so there is nothing to switch to');
+
+  // The exception is an exception. A panel about a BOOK still has nothing to say with no book open.
+  click({ panel: 'story' });
+  assert.strictEqual(side().hidden, true, 'every other panel is still gated on a story being open');
+
+  // A THIN SAMPLE SAYS SO. 41.2 tok/s off three calls and off two hundred are different claims.
+  click({ modelinfo: 'Wayfarer-2-RPNT-12B' });
+  const thin = html('sideBody');
+  assert.match(thin, /median of 3 calls in this library, which is too few to lean on/);
+  assert.match(thin, /trained open/, 'and no H does not read as censored');
+
+  // THE SOURCE THAT IS SILENT IS NAMED. A model the preset file does not carry and nobody has
+  // written with must say which of those two is true — "not known" twice with no reason is a
+  // panel that cannot be acted on, and only one of the two is worth fixing.
+  click({ modelinfo: 'Sorcerer-9-WNT-70B' });
+  const bare = html('sideBody');
+  assert.match(bare, /preset file does not mention this one/);
+  assert.match(bare, /nothing has been written with it here yet/);
+  assert.match(bare, /Nothing is written down about this one/, 'and no blurb is invented for it');
+  assert.match(bare, /Write/, 'while what the id itself encodes is still read');
+}
+ok('the model panel reads the router, the preset file, this database and the id, and names each');
 
 console.log(`\n${n} checks passed`);

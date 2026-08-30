@@ -130,6 +130,22 @@ export const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) =>
 // reasoning and no prose at all, so it is spelled out rather than left as a letter.
 const FAMILY = { qwen36: 'Qwen3.6', qwen38: 'Qwen3.8', tcap27: 'ThinkingCap 27B', ornith: 'Ornith' };
 const ROLE = { write: 'Write', rp: 'Roleplay', agentic: 'Agentic' };
+
+// THE CONVENTION THE PRESETS WERE RENAMED TO ON 2026-08-27, written down at the head of
+// presets.ini: MODEL-VERSION-CODE-SIZE, e.g. Qwen3.6-WNTH-35B-A3B-NN. Everything the id knows is
+// in the CODE segment, which is the only all-caps one:
+//
+//   RP roleplay · W writing · A agentic     NT no thinking · T thinking     H decensored
+//
+// H ABSENT DOES NOT MEAN CENSORED. presets.ini is explicit: absent means trained open and never
+// censored (Wayfarer-2, Muse), which is a different claim from "it refuses" and the surface must
+// not turn one into the other. The -NN suffix is the novel-writing tier from the 2026-08-27 prose
+// bakeoff — the three that scored write 8/10 — and it is a claim about PROSE, not roleplay.
+//
+// Before this, an id in the new convention fell through to the Hugging-Face branch below and came
+// out as "Qwen3.6 WNTH 35B A3B NN": every fact still encoded, none of it read.
+const CODE = /^(RP|W|A)(NT|T)(H?)$/;
+const PURPOSE = { RP: 'Roleplay', W: 'Write', A: 'Agentic' };
 /** The options for a story's model select, in order.
  *
  *  A story pinned to a model the router no longer offers used to produce NO selected option — the
@@ -154,20 +170,86 @@ export const modelOptions = (models, pinned) => {
 };
 
 export const modelName = (id) => {
-  if (!id) return { name: 'no model', detail: '', id: '' };
+  if (!id) return { name: 'no model', detail: '', id: '', bits: [] };
   const alias = /^(write|rp|agentic)-(n?t)-([a-z0-9]+)-([a-z0-9]+)$/.exec(id);
   if (alias) {
     const [, role, think, family, tail] = alias;
+    const bits = [think === 't' ? 'thinking' : 'no thinking', tail === 'h' ? 'uncensored' : tail];
     return { id, name: `${ROLE[role]} \u00b7 ${FAMILY[family] ?? family}`,
-             detail: [think === 't' ? 'thinking' : 'no thinking',
-                      tail === 'h' ? 'uncensored' : tail].join(' \u00b7 ') };
+             detail: bits.join(' \u00b7 '), bits };
+  }
+  // A Hugging-Face path is not in the convention and must not be read as one — it is tried first
+  // so a repo or quant segment can never be mistaken for a CODE.
+  if (!id.includes('/') && !id.includes(':')) {
+    const parts = id.split('-');
+    const at = parts.findIndex((p) => CODE.test(p));
+    if (at > 0) {
+      const [, role, think, heretic] = CODE.exec(parts[at]);
+      const tail = parts.slice(at + 1);
+      const size = tail.filter((t) => t !== 'NN').join('-');
+      const bits = [PURPOSE[role], think === 'T' ? 'thinking' : 'no thinking',
+                    // Never "censored" for the other case. See the note above CODE.
+                    heretic ? 'decensored' : 'trained open'];
+      if (size) bits.push(size);
+      if (tail.includes('NN')) bits.push('novel tier');
+      return { id, name: parts.slice(0, at).join(' '), detail: bits.join(' \u00b7 '), bits };
+    }
   }
   const [repo, quant] = id.split(':');
   const org = repo.includes('/') ? repo.split('/')[0].toLowerCase() : '';
   // The org name is often repeated inside the repo name as well, and once is enough.
   const name = (repo.split('/').pop() ?? repo).replace(/[-_]?GGUF$/i, '')
     .split(/[-_]+/).filter((w) => w.toLowerCase() !== org).join(' ');
-  return { id, name, detail: quant ?? '' };
+  return { id, name, detail: quant ?? '', bits: quant ? [quant] : [] };
+};
+
+/** WHAT A MODEL IS GOOD AT, which is the one thing #25 asks for that nothing can derive.
+ *
+ *  Everything else on the panel is read: the router says what exists, presets.ini says the context,
+ *  the generations table says the speed, and `modelName` decodes purpose and thinking out of the id
+ *  itself. This is the remainder — and every line of it is lifted from the stanza comments in
+ *  /data/models/presets.ini, which is where the A/Bs that put each model on the box are written
+ *  down. Nothing here is a vibe about a model; if it is not in that file it is not on this panel.
+ *
+ *  KEYED BY THE FAMILY `modelName` DECODES, not by the whole id, so a re-quant or a size change
+ *  keeps its blurb. A family that is not here shows no blurb rather than a guess — the same rule
+ *  `modelFacts` follows for a model nobody has written with.
+ *
+ *  ponytail: a hand-written map, so the 2026-08-27 rename would have emptied it silently rather
+ *  than loudly. If the presets are renamed again, grep this map. Upgrade path if that gets old:
+ *  a `blurb =` key per stanza in presets.ini, read by src/presets.ts alongside ctx-size.
+ */
+export const BLURB = {
+  'Qwen3.6': 'The house default. 35B with 3B active, so it writes at roughly twelve times the '
+    + 'speed of the dense models here and still scored write 8/10 in the 2026-08-27 bakeoff. Its '
+    + 'one documented quirk is person: it was the only model in that bakeoff that did not hold '
+    + 'the person constraint.',
+  'Gemma 4': 'Write 8/10 and roleplay 7/10 in the 2026-08-27 bakeoff, and the only model in it '
+    + 'that violated no constraint at all. Same prose score as Qwen3.6 at a fraction of the speed.',
+  'Artemis 1.1': 'The same Gemma 4 base, decensored by roleplay finetune rather than by ablation '
+    + '— it is on the box so that the method is the only variable between the two. Best '
+    + 'register match in the 2026-08-27 bakeoff.',
+  'GLM 4.7 Flash': 'A thinking model that honours enable_thinking:false, verified on this box '
+    + '2026-08-26. Left on, it returned 3,741 characters of reasoning and empty prose to a '
+    + 'two-sentence ask. Anansi sends the switch on every call.',
+  'Ornith 1.0': 'The same architecture and quant as Qwen3.6, abliterated rather than finetuned, '
+    + 'carried as the controlled test where ablation is the only variable. Ablation removes '
+    + 'refusals; it does not move a model’s prose.',
+  'Harbinger': 'Mistral-Small 24B, trained by LatitudeGames for multi-turn adventure — this '
+    + 'is what AI Dungeon serves on its premium tier. In the bakeoff it wrote in AI Dungeon’s '
+    + 'frame rather than the card’s, and omitted the header the write task required.',
+  'Wayfarer 2': 'Mistral-Nemo 12B, trained on text adventures where a character can fail and take '
+    + 'injury; nothing else here is trained for that. Held at 32k rather than its advertised 128k. '
+    + 'It returned 392 words against a 600–800 floor in the bakeoff.',
+  'Muse': 'The same Nemo 12B base as Wayfarer-2, trained instead for long emotional narrative and '
+    + 'relational continuity, with the common AI cliches stripped from its data. Beside '
+    + 'Wayfarer-2 so the finetune is the only variable.',
+  'Qwen3.8': 'A HauhauCS uncensored finetune rather than an ablation. 27.8B dense, so every '
+    + 'parameter moves per token: 12.7 tok/s measured against Qwen3.6’s 51.9. It earns its '
+    + 'place on vision and on a newer base, never on throughput.',
+  'Huihui ThinkingCap': 'An abliterated Qwen3.6 27B with speculative decoding. It emits think '
+    + 'blocks, and enable_thinking:false is UNTESTED on this architecture — which for prose '
+    + 'is the difference between a passage and nothing at all.',
 };
 
 // Block colours are shared so the meter reads the same on both surfaces.

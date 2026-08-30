@@ -157,7 +157,14 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
                     // /data-panel="anansi"/, which matched the COMMENT in app.js explaining that
                     // the panel keeps its door — so the check passed while pointing that door
                     // somewhere else. A check that matches its own documentation is decorative.
-                    anansi: /<button data-panel="anansi"/ };
+                    anansi: /<button data-panel="anansi"/,
+                    // #25. Its door is a row in the rail's model list, which is why the opener is
+                    // `data-modelinfo` and not `data-panel`: the row has to say WHICH model, and a
+                    // panel that opened on whatever was already selected would be the wrong one
+                    // every time you pressed a row that was not the current model. In the BUTTON
+                    // form for the reason spelled out above — app.js explains this panel in a
+                    // comment, and a check that matches its own documentation is decorative.
+                    model: /<button data-modelinfo=/ };
   for (const [name, opens] of Object.entries(byClick)) {
     assert.ok(opens.test(js), `the ${name} panel is not in the rail, so something must set S.panel to it`);
   }
