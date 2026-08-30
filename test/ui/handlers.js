@@ -356,6 +356,17 @@ ok("the card's form opens, so the kind chips and the wardrobe are on screen",
 // A character, or there is no wardrobe to drive. The fixture's persona is one.
 await page.click('[data-kind="character"]');
 await wait(800);
+// THE ADD TRAY IS FOLDED SHUT AND NOTHING IS SELECTED IN IT (2026-08-30), so the outfit pill is
+// pressed before the boxes exist at all. That press is the change: one add path for every room
+// rather than a form per slot plus a second one under the wardrobe. It repaints, so it happens
+// BEFORE the fill below and not between the fill and the press.
+await page.eval(`(() => { const d = document.querySelector('[data-newroom]')?.closest('details');
+  if (d) d.open = true; return 1; })()`);
+await wait(250);
+await page.click('[data-newroom="outfit"]');
+await wait(600);
+ok("the add tray opens the outfit fields when the outfit pill is pressed",
+   await page.eval("!!document.querySelector('[data-of=\"name\"]')"));
 // FILL AND PRESS IN ONE EVAL, with nothing between. Changing the kind above saves and repaints,
 // and a repaint landing between the fill and the press wipes the two boxes — which is what this
 // was doing: the click reached a real button holding two empty fields, `upsertOutfit` had nothing
@@ -394,7 +405,18 @@ await wait(1000);
 fits = await outfitOf();
 ok(`  and pressing it again takes it off (active ${fits[0]?.active})`, fits[0]?.active === false);
 
+// THE CARD'S TAIL SECTIONS ARE FOLDS NOW, SHUT BY DEFAULT (2026-08-30). Seth: "the over time and
+// the brings in with it and another book should be toggle and defaulted as off." Their fields are
+// still in the document, so an eval can read and fill them — but a driver CLICK needs the section
+// opened first, which is the press a writer makes. Idempotent: one already open is left alone
+// rather than toggled shut.
+const openFold = async (name) => {
+  if (!(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
+    await page.click(`[data-fold="${name}"]`);
+  await wait(300);
+};
 // A chapter override, then correcting the chapter it comes into force in.
+await openFold('states');
 await page.eval("(() => { document.querySelector('[data-st=\"fromChapter\"]').value = '2';"
   + " document.querySelector('[data-st=\"body\"]').value = 'He has stopped pretending to be Watch.';"
   + " return 1; })()");

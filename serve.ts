@@ -168,6 +168,15 @@ const handler = async (req: any, res: any) => {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(await readFile(HERE + PAGES[p], 'utf8'));
     }
+    // THE ICON WAS ALREADY THERE AND ALREADY SERVED — app.html has declared it since it was
+    // written and `/web/icon.svg` answers 200 with image/svg+xml. What did NOT answer is the bare
+    // path: a browser that ignores <link rel="icon">, a link preview, a feed reader and some PWA
+    // install paths all ask for /favicon.ico and got a 404. Aliased rather than duplicated as a
+    // real .ico, because two icon files are two things to keep in step with one design.
+    if (p === '/favicon.ico') {
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-cache' });
+      return res.end(await readFile(HERE + 'web/icon.svg', 'utf8'));
+    }
     if (/^\/(web\/)?[\w.-]+\.(js|css|svg|webmanifest)$/.test(p)) {
       // no-cache, because these are read off disk on every request and the whole point of that is
       // that an edit is live without a restart. With no freshness header at all a phone caches

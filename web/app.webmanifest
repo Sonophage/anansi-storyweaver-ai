@@ -1,6 +1,6 @@
 {
-  "name": "Anansi",
-  "short_name": "Anansi",
+  "name": "anansiai",
+  "short_name": "anansiai",
   "start_url": "/phone",
   "scope": "/",
   "display": "standalone",

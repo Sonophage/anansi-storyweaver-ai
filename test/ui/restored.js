@@ -17,7 +17,18 @@ await wait(600);
 // typing is. This section is about the form, so it presses Edit; the assertions are unchanged.
 await page.eval("(() => { document.querySelector('[data-cardview=\"form\"]')?.click(); return 1; })()");
 await wait(600);
+// THE CARD'S TAIL SECTIONS ARE FOLDS NOW, SHUT BY DEFAULT (2026-08-30). Seth: "the over time and
+// the brings in with it and another book should be toggle and defaulted as off." Their fields are
+// still in the document, so an eval can read and fill them — but a driver CLICK needs the section
+// opened first, which is the press a writer makes. Idempotent: one already open is left alone
+// rather than toggled shut.
+const openFold = async (name) => {
+  if (!(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
+    await page.click(`[data-fold="${name}"]`);
+  await wait(300);
+};
 ok("the entry editor offers a progression form", await page.eval("!!document.querySelector('[data-st=\"body\"]')"));
+await openFold('states');
 const before = ((await story()).entries.find((e) => e.id === eid)?.states ?? []).length;
 // Anchor it at the CURRENT chapter, or resolveBody correctly withholds it as not yet open —
 // which is the engine being right and the test being wrong about which chapter it is on.

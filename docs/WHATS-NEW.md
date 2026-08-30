@@ -10,6 +10,62 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · A card you can read, and one place to add to it
+
+### Press a room's text to edit that room
+On a card, the rooms are what you came for. Pressing one used to slide you a little way down the
+same page you were already reading. Now it opens the card for editing with the cursor already in
+that room, ready to type.
+
+### One way to add to a card, and it is shut until you want it
+Adding to a card was a plus button under every heading, plus a separate form for outfits at the
+bottom. It is one fold at the top of the card now, called Add to this card. Open it, press what
+you are adding — facts, appearance, a relationship, an outfit, whatever that kind of card can
+hold — and one set of fields appears for it, with Anansi offered above them. Nothing is chosen
+when it opens, so nothing you type can land in the wrong place.
+
+### A card only shows the rooms it has
+A character can hold eight kinds of thing, so editing one meant scrolling past eight headings and
+six empty boxes before you reached anything you had written. The empty ones are gone. The fold at
+the top is where an empty room gets filled, and everything on the page is something that exists.
+
+### On, then off, in the edit screen too
+Reading down a card while editing it told you what the card has. It now tells you what the model
+will actually be told: everything switched on first, then a line, then everything written down and
+not reaching it. That is a different card once half the rooms are off, and it was only the reading
+view that said so.
+
+### Over time, Brings in with it and Another book fold away
+The three sections at the foot of a card — the timeline, what a card drags in behind it, and
+copying it into another book — are behind their own names now and closed until you open one. They
+were most of the scroll under the rooms and none of them is why you opened a card. Whichever you
+open stays open while you work.
+
+### Save sits at the top of the card and stays there
+It was at the very bottom, under a dozen sections. It is at the top now, beside Read, Edit and
+Exit, and that row stays on screen while the rest of the card scrolls, so Save is one press away
+from wherever you are in it.
+
+### Facts sits above Info
+Closing a chapter rewrites a card's Info. It has never been able to touch Facts, which is what
+Facts is for — the things about someone that stay true. The two were the wrong way round, so the
+box that gets rewritten was the one you met first. Facts is now above it, and each says which is
+which.
+
+### Boxes grow to fit what is in them
+Every text box on a card — a room, an outfit, a change over time, your notes — was a fixed two
+lines with the rest scrolled out of sight. They fit their contents now, up to a limit that keeps
+the buttons under them reachable.
+
+### End a chapter from the prose
+Double tap a paragraph of the chapter you are writing and End this chapter is in the tray with
+Regenerate and Branch. It asks once and closes on the second press. It was only in the Chapter
+panel before, two steps away from the page you are actually on.
+
+### The app is called anansiai in the browser
+The tab, the bookmark and the installed app now say anansiai. The icon is answered on the plain
+address as well, so a link preview or a bookmark that asks for it the old way gets one.
+
 ## 2026-08-30 · Rooms Anansi fills in come back the right size again
 
 ### Say what kind of thing you are reporting

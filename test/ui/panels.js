@@ -401,8 +401,18 @@ if (anyEntry) {
   await page.click('[data-cardview="form"]');
   await wait(400);
   ok("  and Edit this card opens the form", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
-  const formSlots = await page.eval("document.querySelectorAll('[data-slotat]').length");
-  ok(`  where every room is drawn, filled or not (${formSlots} headings)`, formSlots > 1);
+  // NOT EVERY ROOM ANY MORE (2026-08-30). The form drew a heading per slot while it was the only
+  // way to fill an empty one — eight headings and six empty boxes on a character, ahead of
+  // everything actually written down. The add tray at the top is that way now, so the form draws
+  // what the card HOLDS and the pills cover the rest. Falsify by restoring the old loop: heads
+  // becomes pills and this goes red.
+  const formSlots = await page.eval(`(() => ({
+    heads: [...document.querySelectorAll('[data-slotat]')].map(x => x.dataset.slotat),
+    pills: document.querySelectorAll('[data-newroom]').length }))()`);
+  console.log("  form rooms: " + JSON.stringify(formSlots));
+  ok(`  where the rooms it HOLDS are drawn and the empty ones are not (${
+       formSlots.heads.length} of ${formSlots.pills})`,
+     formSlots.pills > 1 && formSlots.heads.length < formSlots.pills);
 
   // ---- THE FACE PRINTS WHAT IS FILLED IN, AND NOTHING ELSE. Seth: "a view of each thread that
   // only prints out what is filled in with option to turn on or off things. instead of filling in."
@@ -428,7 +438,7 @@ if (anyEntry) {
   const face = await page.eval(`(() => ({
     slots: [...document.querySelectorAll('[data-slotat]')].map(x => x.dataset.slotat),
     jumps: [...document.querySelectorAll('[data-goslot].tag')].map(x => x.dataset.goslot),
-    bodyJumps: [...document.querySelectorAll('[data-goslot]:not(.tag)')].map(x => x.dataset.goslot),
+    bodyEdits: [...document.querySelectorAll('[data-editroom]')].map(x => x.dataset.editroom),
     shows: /her fear/.test(document.querySelector('#sideBody')?.textContent || ''),
     hasForm: !!document.querySelector('[data-f="title"]'),
     on: document.querySelector('[data-addonon]')?.textContent.trim() }))()`);
@@ -442,16 +452,61 @@ if (anyEntry) {
   // read as a duplicated link.
   ok(`  with a jump link for each (${face && face.jumps.join(',')})`,
      !!face && face.jumps.length === 1 && face.jumps[0] === 'interiority');
-  // #22: "make the body jump to [data-slotat]". The room's text is the biggest thing on the face
-  // and was the one part of it that did nothing when pressed.
-  ok(`  and the room's own body is a way into it too (${face && face.bodyJumps.join(',')})`,
-     !!face && face.bodyJumps.length === 1 && face.bodyJumps[0] === 'interiority');
+  // #22 made the body a jump to the slot heading; Seth, 2026-08-30: "if i open a full card i want
+  // to be able to hit the text of a room and edit that room." A jump landed you on the face you
+  // were already reading. It carries the ADDON id now, not the slot, because a plural slot holds
+  // three rooms and the heading of the one that holds three is still not the room you pressed.
+  ok(`  and the room's own body is the way INTO it (${face && face.bodyEdits.join(',')})`,
+     !!face && face.bodyEdits.length === 1 && face.bodyEdits[0] === String(made));
+  // Falsify by pointing data-editroom at the slot again: the form opens and this goes red, because
+  // there is no [data-ab="interiority"] to focus. The landing IS the feature; opening the form and
+  // dumping you at the top of it is the thing that was already there.
+  await page.click(`[data-editroom="${made}"]`);
+  await wait(600);
+  const landed = await page.eval(`(() => {
+    const box = document.querySelector('[data-ab="${made}"]');
+    const div = [...document.querySelectorAll('.lbl')].find(x => /Not turned on/.test(x.textContent));
+    return { form: !!document.querySelector('[data-f="title"]'), box: !!box,
+      focused: document.activeElement?.dataset?.ab || null, divider: !!div,
+      under: !!(box && div) && !!(div.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
+  console.log("  landed: " + JSON.stringify(landed));
+  ok("  pressing it opens the form on that room, with the cursor in it",
+     landed.form === true && landed.box === true && landed.focused === String(made));
+  // ---- ON, THEN OFF, IN THE FORM TOO. Seth, 2026-08-30: "would having the order of whats turned
+  // on, off and empty be possible in the edit screen too." Reading down the form said what the card
+  // HAS; it now says what the model will be told first, which is a different card once half the
+  // rooms are off. This room is off at this point in the run, so it belongs BELOW the divider —
+  // and the check below watches it move above it when the switch is pressed. Falsify by dropping
+  // the grouping: the divider goes and both of these red.
+  ok(`  an off room sits under "Not turned on" in the form as well as on the face (${
+       landed.divider}/${landed.under})`, landed.divider === true && landed.under === true);
+  // The three tail sections are folds, and shut. Their contents stay in the document — this is
+  // about what is in front of you, which is the whole of the complaint.
+  const tails = await page.eval(`(() => Object.fromEntries(['states','edges','copy'].map(n => {
+    const s2 = document.querySelector('[data-fold="' + n + '"]');
+    return [n, s2 ? s2.parentElement.open : null]; }))) ()`);
+  console.log("  tail folds: " + JSON.stringify(tails));
+  ok(`  and Over time, Brings in with it and Another book are folded shut (${JSON.stringify(tails)})`,
+     tails.states === false && tails.edges === false && tails.copy === false);
+  await page.click('[data-cardview="face"]');
+  await wait(500);
   // The switch is the writer's half of how a room reaches the model; its keys are the other half.
   ok(`  and the room starts off (${face && face.on})`, !!face && face.on === 'Off');
   await page.click('[data-addonon]');
   await wait(800);
   const flipped = await page.eval("document.querySelector('[data-addonon]')?.textContent.trim()");
   ok(`  turning it on sticks (${flipped})`, flipped === 'On');
+  // THE OTHER HALF OF THE ORDERING, and the reason the pair is worth two lines: a check that only
+  // ever saw the room below the divider would pass against a form that puts EVERYTHING below it.
+  await page.click('[data-cardview="form"]');
+  await wait(600);
+  const regrouped = await page.eval(`(() => ({
+    box: !!document.querySelector('[data-ab="${made}"]'),
+    divider: [...document.querySelectorAll('.lbl')].some(x => /Not turned on/.test(x.textContent)) }))()`);
+  ok(`  and the form moves it up out of "Not turned on" when it goes on (${
+       JSON.stringify(regrouped)})`, regrouped.box === true && regrouped.divider === false);
+  await page.click('[data-cardview="face"]');
+  await wait(500);
 
   await page.click('[data-cardview="form"]');
   await wait(400);
@@ -563,12 +618,25 @@ await wait(600);
 // outfits out of `rooms` and drew them again in a block of their own, so the slot loop made a
 // heading with nothing beneath it and the real one sat below every other room. Falsified by
 // restoring the filter: heads is 2 and this goes red.
+// Counted against what the card actually HOLDS rather than against a literal 2: the seeding above
+// is two coats today and a fixture that grows a third would turn a passing check into a red line
+// about nothing.
+const heldBy = ((await story3()).entries.find((e) => e.id === who.id)?.addons ?? []).length;
 const dressed = await page.eval(`(() => ({
   heads: document.querySelectorAll('[data-slotat="outfit"]').length,
-  coats: document.querySelectorAll('[data-goslot="outfit"]:not(.tag)').length }))()`);
+  coats: document.querySelectorAll('[data-editroom]').length }))()`);
 ok(`the face draws one outfit heading, not two (${dressed.heads})`, dressed.heads === 1);
-ok(`  with both coats drawn through the ordinary room path (${dressed.coats})`, dressed.coats === 2);
+ok(`  with every coat drawn through the ordinary room path (${dressed.coats} of ${heldBy})`,
+   heldBy >= 2 && dressed.coats === heldBy);
 await page.click('[data-cardview="form"]');
+await wait(500);
+// THE ADD TRAY IS WHERE ANANSI IS OFFERED NOW, and it is folded shut — so the outfit pill has to
+// be pressed before there is anything to check. That press is the feature: one add path for every
+// room, instead of a form per slot plus a second one under the wardrobe.
+await page.eval(`(() => { const d = document.querySelector('[data-newroom]')?.closest('details');
+  if (d) d.open = true; return 1; })()`);
+await wait(250);
+await page.click('[data-newroom="outfit"]');
 await wait(500);
 // NAMED, not "the first one on the page". This read `document.querySelector('[data-invent]')`,
 // which was unambiguous while the wardrobe held the only tray on this screen. The card gained one
@@ -578,36 +646,86 @@ ok("  the Wardrobe offers to have Anansi write one",
    (await page.eval("!!document.querySelector('[data-invent=\"outfit\"]')")) === true);
 ok(`  named for the character it dresses`,
    (await page.eval("document.querySelector('[data-invent=\"outfit\"]')?.textContent") || '').includes(who.title));
-// ---- THE ADD BOX IS BEHIND THE SECTION'S OWN BUTTON. Seth: "the add a new on under every single
-// section is expanded. hid it under a button or toggle for that section." A character has eight
-// rooms, so the form was eight empty name/body/Add cards stacked between the writer and the rooms
-// that hold something. Asserted on `role`, which this character has nothing in — the empty state he
-// described: the heading, the +, and nothing else. Both branches run: closed, then open.
+// ---- ONE ADD TRAY, FOLDED SHUT, WITH A PILL PER ROOM. Seth, 2026-08-30: "the portion below
+// outfit where you can enter it or have anansi do it should be a single field with pills to select
+// whats being added ... under a toggle that says add to this card but defualted as closed", and
+// "the card editing experience is overwhelming and im trying to clean it."
+//
+// This replaced eight per-slot + buttons and the outfit form under the wardrobe. Two things are
+// asserted and they are different claims: the tray is SHUT with NOTHING selected when the form
+// opens (his call, so a repaint on the first pill press cannot throw away typing), and an empty
+// room draws no heading at all any more — the form was eight headings and six empty boxes before
+// it reached anything written down, which is the complaint.
 {
   // Its own navigation rather than whatever the wardrobe block left behind: this asserts the empty
-  // state of one section, and inheriting a view is how a check ends up reporting on another card.
+  // state of the tray, and inheriting a view is how a check ends up reporting on another card.
   await page.goto(B + "/#" + sid3 + "/threads");
   for (let i = 0; i < 40 && !(await page.visible(`[data-entry="${who.id}"]`)); i++) await wait(250);
   await page.click(`[data-entry="${who.id}"]`);
   for (let i = 0; i < 40 && !(await page.visible('[data-cardview="form"]')); i++) await wait(250);
   await page.click('[data-cardview="form"]');
   for (let i = 0; i < 40 && !(await page.visible('[data-newroom="role"]')); i++) await wait(250);
-  ok('the form gives every room a heading and a + of its own',
-     await page.visible('[data-newroom="role"]'));
-  const box = () => page.eval(`document.querySelectorAll('[data-newan="role"]').length`);
-  ok(`an empty room is its heading and a + — no form until asked (${await box()})`, (await box()) === 0);
+  const tray = await page.eval(`(() => { const b = document.querySelector('[data-newroom="role"]');
+    const d = b && b.closest('details');
+    return { pill: !!b, open: d ? d.open : null,
+      says: (d?.querySelector('summary')?.textContent || '').trim(),
+      pills: document.querySelectorAll('[data-newroom]').length }; })()`);
+  console.log("  add tray: " + JSON.stringify(tray));
+  ok(`the form offers one add tray with a pill per room (${tray.pills})`,
+     tray.pill === true && tray.pills === 8);
+  ok(`  shut when the form opens, and it says what it is ("${tray.says}")`,
+     tray.open === false && /add to this card/i.test(tray.says));
+  // Falsify by defaulting S.newRoom to a slot: the box appears with nothing pressed and this reds.
+  const box = () => page.eval(`document.querySelectorAll('[data-of="name"]').length`);
+  ok(`  and nothing is selected, so there is no box yet (${await box()})`, (await box()) === 0);
+  // An empty room draws NOTHING in the form now. `role` is a slot this character has never filled,
+  // so a heading for it is the eight-empty-headings problem still being there.
+  ok('  an empty room draws no heading in the form at all',
+     (await page.eval(`!document.querySelector('[data-slotat="role"]')`)) === true);
+  // THE TRAY IS SHUT BY DEFAULT, so the pills are in the document and not reachable by a click
+  // until it is opened — which is the two presses a writer makes and not a workaround for one.
+  await page.eval(`(() => { const d = document.querySelector('[data-newroom]')?.closest('details');
+    if (d) d.open = true; return 1; })()`);
+  await wait(250);
   await page.click('[data-newroom="role"]');
   await wait(400);
-  ok(`  pressing it opens that section's box, and only that one (${await box()})`, (await box()) === 1);
-  ok(`  and no other section opened with it`,
-     (await page.eval("document.querySelectorAll('[data-newan]').length")) === 1);
+  ok(`  pressing a pill opens the one set of fields (${await box()})`, (await box()) === 1);
+  ok('  and the tray is open around them',
+     (await page.eval(`document.querySelector('[data-newroom="role"]').closest('details').open`)) === true);
   await page.click('[data-newroom="role"]');
   await wait(400);
   ok(`  pressing it again puts it away (${await box()})`, (await box()) === 0);
 }
+// ---- SAVE IS AT THE TOP AND THERE IS ONLY ONE. Seth, 2026-08-30: "the save button need to be up
+// top", "move it". Asserted as ONE and as above the body field, not merely as present: a second
+// Save left at the foot is two things to keep in step, and a Save that moved but did not lead is
+// the same scroll it always was.
+{
+  const saves = await page.eval(`(() => { const s = [...document.querySelectorAll('[data-saveentry]')];
+    const body = document.querySelector('[data-f="body"]');
+    return { n: s.length, above: s[0] && body
+      ? s[0].getBoundingClientRect().top < body.getBoundingClientRect().top : null,
+      sticky: s[0] ? getComputedStyle(s[0].parentElement).position : null }; })()`);
+  console.log("  save: " + JSON.stringify(saves));
+  ok(`the form has exactly one Save (${saves.n})`, saves.n === 1);
+  ok('  and it is above the body rather than under a dozen sections', saves.above === true);
+  // Moving it up without pinning it only inverts the scroll: the bar rides #sideBody.
+  ok(`  in a bar that stays put while the form scrolls (${saves.sticky})`, saves.sticky === 'sticky');
+}
+// THE CARD'S TAIL SECTIONS ARE FOLDS NOW, SHUT BY DEFAULT (2026-08-30). Seth: "the over time and
+// the brings in with it and another book should be toggle and defaulted as off." Their fields are
+// still in the document, so an eval can read and fill them — but a driver CLICK needs the section
+// opened first, which is the press a writer makes. Idempotent: one already open is left alone
+// rather than toggled shut.
+const openFold = async (name) => {
+  if (!(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
+    await page.click(`[data-fold="${name}"]`);
+  await wait(300);
+};
 // The card goes to another book, from the panel. This repo's recurring failure is the feature that
 // exists, is tested at the db and the route, and has nothing on any screen that reaches it.
 {
+  await openFold('copy');
   const others = await page.eval(
     "[...document.querySelectorAll('[data-cf] option')].map(o => o.value)");
   ok(`the entry editor offers the writer's other books (${others.length})`, others.length > 0);
@@ -865,6 +983,7 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   await wait(500);
   await page.click('[data-cardview="form"]');
   await wait(500);
+  await openFold('edges');
   const picked = await page.eval("(() => { const sel = document.querySelector('[data-lk=\"child\"]');"
     + " if (!sel) return 'no connect control'; const o = [...sel.options].find(x => x.textContent === 'Ghost Wolf');"
     + " if (!o) return 'the other card is not offered'; sel.value = o.value; return 'ok'; })()");
