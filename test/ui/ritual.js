@@ -41,13 +41,24 @@ ok(`  and it names its steps before anything has run (${plan.replace(/\s+/g,' ')
 await page.click('[data-endchapter="1"]');
 console.log("  ritual running (summarise, remember, extraction, finished)…");
 for (let i = 0; i < 180; i++) {
-  if (await page.visible('[data-panel="setup"]')) break;
+  if (await page.visible('[data-savesetup="1"]')) break;
   await wait(1000);
 }
 
-// ---- what the screen reports when it is done
-ok("the chapter's own screen stays put and hands you on to the next",
-   await page.visible('[data-panel="setup"]'));
+// ---- WHERE THE CLOSE LANDS, which is Council 07's first finding and most of "not fluid".
+// The verb pressed was END, and what follows ending a chapter is starting one. This used to land on
+// the report of the chapter that had just closed — five sections, four re-run buttons and every
+// proposal card — with the next chapter as a ghost button underneath all of it.
+//
+// `[data-savesetup="1"]` and not `[data-panel="setup"]`: the latter is the BUTTON that offers setup
+// and it lives on the report, so the old selector was satisfied by the very screen this assertion
+// now exists to refuse. Save is on the setup panel and nowhere else.
+ok("closing a chapter lands on the next chapter's setup, not on the report",
+   await page.visible('[data-savesetup="1"]'));
+// And the report is one row away rather than gone. The three-state rule it enforces — ran-and-found-
+// nothing, ran-and-failed, never-ran — is why it still exists at all.
+ok("  and what just closed is one row at the top of it",
+   await page.visible('[data-panel="ritual"]'));
 // THE REPORT SURVIVES A RELOAD. It used to be `V.ritualDone`, a client field carried across
 // exactly one refetch and dropped by every other, so the checklist vanished on the next press.
 await page.goto(B + "/#" + sid + "/ritual");
@@ -87,16 +98,36 @@ if (facts.length) {
 // and still reports green — which this file has already done twice.
 const rets = (await story()).proposals.filter((p) => p.entryType === 'retire');
 if (rets.length) {
-  ok(`  ${rets.length} finished thread(s) proposed, each decidable in place`,
-     /data-decide/.test(again));
+  // ON SCREEN AS A COUNT, not as a stack of cards. `/data-decide/` is what this asked for until
+  // 2026-08-30 and it could not have passed: `page.text` returns textContent (bench/drive.ts:240),
+  // so an attribute name was never going to appear in it. It never went red because the model had
+  // not proposed a retirement on this fixture — the guarded-assertion fault this repo has now found
+  // five times, in the file whose own comments warn about it twice.
+  ok(`  ${rets.length} finished thread(s) proposed, and the count is on screen`,
+     new RegExp(`${rets.length} thread${rets.length === 1 ? '' : 's'} proposed as finished`).test(again));
 } else {
   ok("  nothing was proposed as finished, and the screen says so in words",
      /Nothing was proposed as finished/i.test(again));
 }
+// COUNCIL 07, SEAT 4: the cards were rendered here AND on Waiting, which made the report the fifth
+// panel answering "does anything want me" — the exact thing Waiting was built to end. The count
+// stays here, the deciding moved there. Written with an else so it cannot quietly stop running.
+const owed = (await story()).proposals.filter((p) => p.chapterId === closing.id).length;
+if (owed) {
+  ok(`  and the ${owed} proposal(s) are decided on Waiting rather than a second time here`,
+     (await page.visible('[data-panel="waiting"]')) && new RegExp(`Decide the ${owed} proposal`).test(again));
+} else {
+  ok("  and a chapter that proposed nothing offers no queue to decide",
+     !(await page.visible('[data-panel="waiting"]')));
+}
+// The way back when the router was asleep at the close. Four passes, four buttons, one row.
+ok("  and every pass can be run again from the report", await page.visible('[data-summarize="1"]')
+   && await page.visible('[data-remember="1"]') && await page.visible('[data-extract="1"]')
+   && await page.visible('[data-refinished="1"]'));
 
 await page.goto(B + "/#" + sid + "/setup");
 for (let i = 0; i < 40 && !(await page.visible('[data-savesetup="1"]')); i++) await wait(250);
-ok("the setup panel opens when the ritual finishes", await page.visible('[data-savesetup="1"]'));
+ok("the setup panel is reachable on its own hash too", await page.visible('[data-savesetup="1"]'));
 const head = (await page.text('#sideHead') || '');
 ok(`  and it is titled for the next chapter (${JSON.stringify(head.replace(/\s+/g,' ').trim().slice(0,28))})`,
    /next chapter/i.test(head));
@@ -236,5 +267,33 @@ ok("  and the beat reaches DIRECTIVE",
      + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'direct'})})).json();"
      + " return r.prompt; })()")));
 ok("  and it leaves you on the document", !/next chapter/i.test(await page.text('#sideHead') || ''));
+
+// ---- ANANSI OPENS THE NEW CHAPTER, which she had stopped doing after the first one.
+// `openingPassage` guarded on whether the BOOK held prose rather than whether this CHAPTER did —
+// `db.passagesOf` returns the whole branch — so on every book past its first passage it returned
+// early and the setting silently did nothing. It also fired from the CLOSE, which put the one
+// passage that could not carry the chapter's beat at the front of every chapter. It fires from
+// Save now, after the beat exists.
+//
+// Asserted with the fixture's own setting checked FIRST rather than guarded on it: a book with
+// auto-open switched off would make the assertion below meaningless, and a bare `if` around it
+// would let it stop running and still report green — which this file has already done twice.
+const opensItself = (await story()).story.autoOpen !== false;
+ok("the fixture opens its own chapters, so the next check means something", opensItself);
+let opened = [];
+for (let i = 0; i < 150; i++) {
+  const v2 = await story();
+  opened = (v2.passages ?? []).filter((p) => p.chapterId === v2.currentChapter.id && !p.isBreak);
+  if (opened.length) break;
+  await wait(1000);
+}
+ok(`  and Anansi writes the new chapter's opening passage (${opened.length} in the new chapter)`,
+   opened.length > 0);
+// The half the reorder was for: it is written AFTER the beat, so the beat is in the prompt that
+// wrote it. The beat was saved above and the passage came after, so the chapter it belongs to
+// carries both.
+const openedIn = (await story()).currentChapter;
+ok("  and the chapter it opened carries the beat that steers it",
+   /handing the key over/.test(openedIn.authorsNote ?? ''));
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

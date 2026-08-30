@@ -10,6 +10,32 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · Ending a chapter starts the next one
+
+### End this chapter now takes you to the next chapter
+It used to leave you looking at a report on the chapter you had just finished, with the next one
+as a small grey button under all of it. Now it opens the next chapter, with its name and what it
+has to do already suggested for you. What the close found is one line at the top of that page, and
+pressing it opens the whole report.
+
+### The report of what closing found is five lines
+It was five headings, four buttons and every card the close proposed, whether or not it proposed
+any — so a chapter that turned up nothing showed you a list of the nothing. It is five lines now:
+closed, summarised, what changed in the people, what it read, and what it thinks is finished. The
+proposals themselves are decided on Waiting, beside everything else the book is owed, instead of
+being laid out twice in two places. The buttons that run a pass again are still there, in one row
+at the bottom, for a close that happened while the model was asleep.
+
+### The report says which chapter it is about
+It sits one press away from the next chapter's page and both opened with a chapter name in the
+same place. The one looking backwards says closed next to the name now.
+
+### Anansi writes the opening passage of a new chapter again
+If you have her opening your chapters, she quietly stopped after the first one — every chapter
+after that opened on a blank page. She does it again. She also waits until you have said what the
+chapter has to do, so its first passage is written with the same steer as the rest of it, instead
+of being the one passage in the chapter that could not have it.
+
 ## 2026-08-30 · A card you can read, and one place to add to it
 
 ### Press a room's text to edit that room

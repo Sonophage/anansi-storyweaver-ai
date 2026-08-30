@@ -183,10 +183,14 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // door is a `data-panel` button rather than a nav row. The opener asserted here is that button —
   // a panel in this list without one is exactly the unreachable-feature failure the list exists
   // to prevent, and "it used to be in the rail" is not an opener.
-  // `setup` moved from an assignment to a BUTTON on 2026-08-28: the chapter's own screen now hands
-  // you on to the next chapter rather than the close teleporting you there. Asserted in the button
-  // form for the reason spelled out below, which is the stronger of the two.
-  // `ritual` is the chapter's own screen, opened from the Chapter panel's door.
+  // `setup` moved from an assignment to a BUTTON on 2026-08-28, when `fa9a631` gave the ritual a
+  // screen of its own: before that the close teleported you to setup and there was no report to
+  // land on. BOTH are true again since Council 07 — the close assigns `S.panel = 'setup'`, because
+  // the verb pressed was END and what follows ending a chapter is starting one, AND the report
+  // keeps a button back to it. The BUTTON is what is asserted, for the reason spelled out below:
+  // it is the stronger of the two and an assignment can be added without a door existing.
+  // `ritual` is the chapter's own screen, opened from the Chapter panel's door and from the row at
+  // the top of setup that says what the close found.
   const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/,
                     setup: /<button class="btn ghost" data-panel="setup"/,
                     ritual: /S\.panel = 'ritual'/,

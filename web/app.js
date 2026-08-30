@@ -1293,75 +1293,84 @@ function ritualPanel() {
   const facts = ps.filter((p) => !['state', 'string', 'retire'].includes(p.entryType));
   const dot = (tone) => `<span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto;
     background:var(${tone})"></span>`;
-  const step = (tone, label, note, body) => `<div style="margin-bottom:18px">
+  // ONE LINE PER PASS. It was a heading, a sentence, a re-run button and every proposal card the
+  // pass produced, five times over — so a chapter that found nothing rendered a checklist of
+  // absences, and a chapter that found something rendered Waiting a second time. The note is for
+  // the two states a line cannot carry on its own: what the summary SAYS, and what a pass that
+  // FAILED wants you to do about it. Council 07, seats 3 and 4.
+  const line = (tone, label, note) => `<div style="margin-bottom:11px">
     <div style="display:flex; align-items:center; gap:9px">${dot(tone)}
       <span style="font-size:13.5px; color:var(--ink-bright)">${esc(label)}</span></div>
-    <div style="font-size:12px; line-height:1.5; color:var(--faint); margin:5px 0 0 16px">${note}</div>
-    ${body ? `<div style="display:flex; flex-direction:column; gap:9px; margin:10px 0 0 16px">${body}</div>` : ''}</div>`;
+    ${note ? `<div style="font-size:12px; line-height:1.5; color:var(--faint); margin:4px 0 0 16px">${note}</div>` : ''}</div>`;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
   const summary = ch.summary;
   const words = summary ? summary.trim().split(/\s+/).length : 0;
+  // What this chapter left waiting, as ONE number. The cards themselves live on `waiting()`, which
+  // exists precisely to be the one place a proposal is decided — its own note says the problem it
+  // solves is "four panels to find out whether anything wanted you". Rendering them here made this
+  // the fifth. The count still comes off `V.proposals`, so the screen and the queue cannot disagree.
+  const queued = ps.length;
 
-  return `<div class="lbl" style="letter-spacing:.1em">${esc(ch.title || `Chapter ${ch.index}`)}</div>
-    <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin:6px 0 18px">
-      Closing a chapter summarises it, reads it for new facts, remembers what it did to the people
-      in it, and asks which threads it finished. Nothing below becomes canon until you accept it.</div>
+  // PAST TENSE ON THE HEADING. This panel and `setupPanel` sit one press apart in the same tray,
+  // are about two different chapters, and opened with a chapter name in the same style in the same
+  // place. One of them is history and nothing said so.
+  return `<div class="lbl" style="letter-spacing:.1em">${esc(ch.title || `Chapter ${ch.index}`)}${
+      closed ? ' &middot; closed' : ''}</div>
+    <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin:6px 0 18px">${closed
+      ? 'What closing it found. Nothing here is canon until you accept it, and accepting happens on Waiting.'
+      : `Closing a chapter summarises it, reads it for new facts, remembers what it did to the people
+         in it, and asks which threads it finished. Nothing it finds becomes canon until you accept it.`}</div>
 
     ${closed ? '' : `<button class="btn" data-endchapter="1">${
       S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
     <div class="hint">It closes here and the next one opens. The prose stays exactly where it is.</div>`}
 
-    <div style="margin-top:22px">
-    ${step(closed ? '--good' : '--chip', closed ? 'Closed, and the next one opened'
-      : 'Not closed yet', closed ? 'Its prose is whole in the prompt until the next chapter has a passage of its own.'
-      : 'Nothing below has run.')}
+    <div style="margin-top:20px">
+    ${line(closed ? '--good' : '--chip', closed ? 'Closed, and the next one opened' : 'Not closed yet',
+      closed ? '' : 'Nothing below has run.')}
 
-    ${step(summary ? '--good' : closed ? '--warn' : '--chip',
-      summary ? `Summarised in ${words} word${words === 1 ? '' : 's'}` : 'Not summarised',
+    ${line(summary ? '--good' : closed ? '--warn' : '--chip',
+      summary ? `Summarised in ${plural(words, 'word', 'words')}` : 'Not summarised',
       summary ? esc(summary)
-        : closed ? 'The summary did not come back — the router may have been asleep.'
-                 : 'Runs when the chapter closes.',
-      closed && !summary ? '<button class="btn ghost" data-summarize="1">Summarise it now</button>' : '')}
+        : closed ? 'It did not come back — the router may have been asleep. Run it again below.' : '')}
 
-    ${step(of('state').length ? '--good' : '--chip',
-      `Remembered what it did to the people in it${of('state').length ? ` — ${of('state').length} waiting` : ''}`,
-      of('state').length ? 'Each one replaces a description from the next chapter on. Nothing is accepted.'
-        : 'Nothing changed anybody, or the pass has not run.',
-      of('state').map(proposalCard).join('')
-        + '<button class="btn ghost" data-remember="1">Read it for changes again</button>')}
+    ${line(of('state').length ? '--good' : '--chip',
+      of('state').length ? `Remembered — ${plural(of('state').length, 'change', 'changes')} to the people in it`
+        : 'Nothing changed anybody')}
 
-    ${step(facts.length ? '--good' : '--chip',
-      `Read for facts${facts.length ? ` — ${facts.length} proposed` : ''}`,
-      facts.length ? 'Nothing here is canon until you accept it.'
-        : 'No new threads came out of this chapter, or the pass has not run.',
-      facts.map(proposalCard).join('')
-        + '<button class="btn ghost" data-extract="1">Read it for facts again</button>')}
+    ${line(facts.length ? '--good' : '--chip',
+      facts.length ? `Read for facts — ${plural(facts.length, 'proposed', 'proposed')}`
+        : 'No new threads came out of this chapter')}
 
-    ${step(of('retire').length ? '--warn' : '--chip',
-      `What this chapter finished${of('retire').length ? ` — ${of('retire').length} proposed` : ''}`,
-      of('retire').length
-        ? 'Accepting one stops that thread reaching the model from the next chapter on. Every chapter before it still has it, and Waiting can bring it back.'
-        : 'Nothing was proposed as finished. Only threads this chapter NAMES are ever offered, and never the point-of-view character.',
-      of('retire').map(proposalCard).join('')
-        + '<button class="btn ghost" data-refinished="1">Look again for finished threads</button>')}
+    ${line(of('retire').length ? '--warn' : '--chip',
+      of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} proposed as finished`
+        : 'Nothing was proposed as finished')}
+    </div>
 
-    ${step(closed ? '--good' : '--chip', 'On to the next chapter',
-      'Its name, its brief, and who is in it.',
-      '<button class="btn ghost" data-panel="setup">Set up the next chapter</button>')}
-    </div>`;
+    ${queued ? `<button class="btn" data-panel="waiting" style="margin-top:8px">Decide the ${
+      plural(queued, 'proposal', 'proposals')}</button>
+    <div class="hint">On Waiting, beside everything else this book is owed. Nothing is canon until you accept it.</div>` : ''}
+
+    <button class="btn ghost" data-panel="setup" style="margin-top:8px">Set up the next chapter</button>
+    <div class="hint">Its name, its brief, and who is in it.</div>
+
+    ${closed ? `<div class="lbl" style="letter-spacing:.1em; margin-top:24px">Run a pass again</div>
+    <div class="hint" style="margin:0 0 8px">Every pass at chapter end is wrapped so the chapter still
+      closes with the model down. If a line above came back blank, this is the way back.</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px">
+      <button class="btn ghost" data-summarize="1" style="flex:1 1 40%">Summary</button>
+      <button class="btn ghost" data-remember="1" style="flex:1 1 40%">Changes</button>
+      <button class="btn ghost" data-extract="1" style="flex:1 1 40%">Facts</button>
+      <button class="btn ghost" data-refinished="1" style="flex:1 1 40%">Finished</button>
+    </div>` : ''}`;
 }
 
 const PANELS = {
   entry: entryEditor,
-  /** Everything this book is waiting on, in one place.
-   *
-   *  Each part of it was already on the surface somewhere — proposals under Chapter, promises
-   *  under Strings, flags beside the passage they are about, the horizon on a bar — which is
-   *  exactly the problem: four panels to find out whether anything wanted you.
-   *
-   *  Reads `V.waiting`, computed by the engine, so this panel and the shelf cannot disagree about
-   *  whether a book is owed anything.
-   */
+  /** The chapter that just ENDED, as a report. Closing lands on `setup` now rather than here —
+   *  the next chapter is what End was pressed for — so this is the screen that sits behind the
+   *  one row at the top of setup, and behind the door on the Chapter panel. */
   ritual() { return ritualPanel(); },
 
   /** #25 · WHAT IS WRITING THIS, AND WHAT ELSE COULD.
@@ -1455,6 +1464,15 @@ const PANELS = {
       </div></div>`;
   },
 
+  /** Everything this book is waiting on, in one place.
+   *
+   *  Each part of it was already on the surface somewhere — proposals under Chapter, promises
+   *  under Strings, flags beside the passage they are about, the horizon on a bar — which is
+   *  exactly the problem: four panels to find out whether anything wanted you.
+   *
+   *  Reads `V.waiting`, computed by the engine, so this panel and the shelf cannot disagree about
+   *  whether a book is owed anything.
+   */
   waiting() {
     const w = V?.waiting;
     if (!w) return '<div class="hint">Nothing to show yet.</div>';
@@ -2839,6 +2857,13 @@ function setupPanel() {
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
   const form = S.setup ?? { title: ch.title ?? '', note: ch.authorsNote ?? '' };
+  // WHAT JUST CLOSED, as a doorway and not as a screen. Ending a chapter lands here now, because
+  // the next chapter is the thing End was pressed for — so the five-section report it used to land
+  // on sits behind this one row. `S.ritualOf` is session state, so the row is here for the writer
+  // who just closed something and absent for everyone else, which is exactly who it is for.
+  const justClosed = S.ritualOf ? V.chapters.find((c) => c.id === S.ritualOf) : null;
+  const closedQueue = justClosed
+    ? (V.proposals ?? []).filter((p) => p.chapterId === justClosed.id).length : 0;
   // A chapter opens on two empty fields, and an empty field on a panel you did not ask for is a
   // field that stays empty — while the note is the one thing in this app that rides near the
   // generation point on every call. So Anansi fills them in, once. Seth: "chapter information
@@ -2855,6 +2880,15 @@ function setupPanel() {
     nameChapter(ch.id);
   }
   return `<div style="display:flex; flex-direction:column">
+    ${justClosed && justClosed.id !== ch.id ? `<button data-panel="ritual" style="display:flex;
+      align-items:center; gap:9px; width:100%; padding:9px 11px; margin-bottom:15px; text-align:left;
+      border-radius:var(--r); border:1px solid var(--chip); background:transparent">
+      <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--good)"></span>
+      <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
+        text-overflow:ellipsis; white-space:nowrap">${esc(justClosed.title || `Chapter ${justClosed.index}`)} closed${
+        justClosed.summary ? ', summarised' : ''}${closedQueue ? ` &middot; ${closedQueue} waiting` : ''}</span>
+      <span style="flex:0 0 auto; font-size:10px; letter-spacing:.12em; font-variant-caps:all-small-caps;
+        color:var(--label); opacity:.7">what it found</span></button>` : ''}
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(ch.title || `Chapter ${ch.index}`)}</div>
     <div class="hint" style="margin:6px 0 0">Nothing here is required. Leave it and write.</div>
 
@@ -4575,7 +4609,13 @@ async function openingPassage() {
   if (!want || !V || V.id !== want) return;
   if (V.story.autoOpen === false) return;
   // Only into a chapter with no prose in it. A scene break is not prose.
-  if ((V.passages ?? []).some((p) => !p.isBreak)) return;
+  //
+  // BY CHAPTER, which is what the line above has always claimed and did not do. `db.passagesOf`
+  // returns every passage in the story on this branch, so on any book past its first passage this
+  // returned early and the opening was never written — the setting says Anansi writes it, and after
+  // the first chapter she silently did not. `ritualPanel` asks the same question correctly forty
+  // lines above, filtering on `chapterId`. Found by Council 07, seat 4.
+  if ((V.passages ?? []).some((p) => !p.isBreak && p.chapterId === V.currentChapter.id)) return;
   await generate('continue');
 }
 
@@ -6042,9 +6082,13 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId);
     S.setup = null; S.panel = 'context'; syncHash(); paint(); refreshManifest();
     toast(note.trim() ? 'Set. Write when ready.' : 'Saved. No beat set, which is fine.');
+    // AFTER the beat is set, never before. This used to fire from the close, which meant the first
+    // passage of every chapter was the only one written without the line that steers the rest of it.
+    OPEN_WANTED = S.storyId; await openingPassage();
     return;
   }
-  if (d.skipsetup) { S.setup = null; S.panel = 'context'; syncHash(); paint(); return; }
+  if (d.skipsetup) { S.setup = null; S.panel = 'context'; syncHash(); paint();
+    OPEN_WANTED = S.storyId; await openingPassage(); return; }
 
   if (d.savestory) {
     const patch = {};
@@ -6110,8 +6154,18 @@ document.addEventListener('click', async (e) => {
     // refetch dropped — so the checklist vanished on the next unrelated press.
     S.ritualOf = closing.id;
     S.ritual = null; working(null);
+    // LAND ON THE NEXT CHAPTER, not on the report of the one that just ended. The verb pressed was
+    // END, and what comes after ending a chapter is starting one: `setupPanel` asks Anansi for the
+    // new chapter's name and its beat from its own render, and that only ever happened for a writer
+    // who scrolled past five report sections and found a ghost button. The report is not gone — it
+    // is one row at the top of setup, and `S.ritualOf` above still points this panel at the chapter
+    // that closed rather than the empty one that opened. Council 07: it debriefed before it
+    // dispatched.
+    S.panel = 'setup';
     syncHash(); paint(); refreshManifest();
-    if (V.story.autoOpen !== false) { OPEN_WANTED = S.storyId; await openingPassage(); }
+    // THE OPENING PASSAGE IS NOT WRITTEN HERE ANY MORE — see `savesetup`. The beat rides near the
+    // generation point on every call of a chapter, and writing its first passage from this line
+    // wrote the one passage in the chapter that could not have it.
     return;
   }
   // The way back when the router was asleep at the close. Same shape as data-remember.
