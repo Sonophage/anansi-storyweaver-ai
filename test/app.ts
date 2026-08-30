@@ -121,8 +121,19 @@ const STORY = {
     { id: 'p-5', ordinal: 5, body: 'Get out of the doorway.', author: 'human', speaker: 'Envoy Sereth',
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-5', selected: true }] },
   ],
+  // #22 §6 and §8. TWO ROOMS, ONE ON AND ONE OFF, and a finished card — the three states the
+  // face has to tell apart. A fixture where every room is on cannot see the split, and one with
+  // no finished card cannot see where the marker and the control ended up.
   entries: [{ id: 'e-1', title: 'Envoy Sereth', body: '[speaks for Kesh]', entryType: 'character',
-              activation: 'always_on', keys: [], lastEditor: 'human', states: [], notes: '' }],
+              activation: 'always_on', keys: [], lastEditor: 'human', states: [], notes: '',
+              addons: [
+                { id: 'a-on', slot: 'voice', name: 'How she sounds', body: 'Flat, unhurried.',
+                  keys: [], active: true },
+                { id: 'a-off', slot: 'interiority', name: 'What she wants', body: 'To go home.',
+                  keys: ['home'], active: false }] },
+            { id: 'e-done', title: 'Coyle', body: '[a runner, dead]', entryType: 'character',
+              activation: 'triggered', keys: ['Coyle'], lastEditor: 'human', states: [], notes: '',
+              retiredAtChapter: 2, addons: [] }],
   pins: [], arcs: [],
   // What the engine computes in story.ts: the counts the shelf reads, and the stale summaries,
   // which are the part that can be waved away. The panel gates on this being present at all.
@@ -1241,13 +1252,54 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   for (let i = 0; i < 20 && !/data-lbook=/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
   const page = html('page');
   assert.match(page, /data-lbook=/, 'every book is a heading you can press');
-  assert.match(page, /aria-expanded="true"/, 'the one you were last in is open');
-  assert.match(page, /aria-expanded="false"/, 'and the rest are not');
-  assert.strictEqual((page.match(/aria-expanded="true"/g) ?? []).length, 1,
-    'exactly one open, or the page is the wall of grids this replaced');
   assert.match(page, /class="clamp3"/,
     'and a long thread does not stretch its row — the body is clamped in the selectable view');
-  ok('the cross-shelf page opens the book you were last in and collapses the rest');
+
+  // #22 §3. ONE TOGGLE FOR THE WHOLE PANEL, and it opens on the book you were last writing in.
+  // The page used to span the shelf whatever you wanted, which is the wall this issue is about.
+  assert.strictEqual((page.match(/data-lbook=/g) ?? []).length, 1,
+    'it opens on ONE book — the one you were last writing in');
+  assert.match(page, /data-lookall="1"/, 'with the shelf one press away');
+  assert.match(page, /All 2 books/, 'and the press says how many books that is');
+
+  click({ lookall: '1' });
+  const shelf = html('page');
+  assert.ok((shelf.match(/data-lbook=/g) ?? []).length > 1, 'pressing it spans the shelf');
+  assert.match(shelf, /aria-expanded="true"/, 'the one you were last in is open');
+  assert.match(shelf, /aria-expanded="false"/, 'and the rest are not');
+  assert.strictEqual((shelf.match(/aria-expanded="true"/g) ?? []).length, 1,
+    'exactly one open, or the page is the wall of grids this replaced');
+  assert.match(shelf, /data-lookall="0"/, 'and the way back names the book it would go back to');
+
+  // #22 §4. THE ROOMS OF THE PICKED KIND, AND NOTHING UNTIL ONE IS PICKED. Fourteen chips at once
+  // is every room of every kind in one row, most of them meaningless for what you are looking at.
+  assert.doesNotMatch(shelf, /data-lslot=/, 'no room chips while the row says Everything');
+  click({ lkind: 'character' });
+  const chars = html('page');
+  for (const slot of ['interiority', 'relationships', 'voice']) {
+    assert.match(chars, new RegExp(`data-lslot="${slot}"`), `a character's rooms appear (${slot})`);
+  }
+  // ONLY THAT KIND'S. A place has no wardrobe and a rule has no voice.
+  assert.doesNotMatch(chars, /data-lslot="(who_is_here|scope|provenance)"/,
+    'and only the ones that kind can have');
+  assert.match(chars, /data-lslot=""/, 'with a way back to every room of that kind');
+
+  // A room left on from a kind you are no longer looking at is a page that shows nothing for no
+  // visible reason.
+  // Asserted on which chip is SELECTED, not on which chips are drawn. `voice` is not among a
+  // rule's rooms either way, so a check for its absence here passes whether or not the filter was
+  // actually cleared — it would be testing the chip list and reporting on the state.
+  const picked = (h: string) => (h.match(/data-lslot="([^"]*)"[^>]*gold-lit/) ?? [])[1];
+  click({ lslot: 'voice' });
+  assert.strictEqual(picked(html('page')), 'voice', 'the room chip takes the selection');
+  click({ lkind: 'rule' });
+  const rules = html('page');
+  assert.strictEqual(picked(rules), '',
+    'and changing kind puts it back on Any room — a filter left on from a kind you are no longer '
+    + 'looking at is a page that shows nothing for no visible reason');
+  assert.match(rules, /data-lslot="scope"/, 'while the new kind offers its own rooms');
+  click({ lkind: 'all' });
+  ok('the cross-shelf page opens on one book, spans the shelf on a press, and filters by room');
 }
 
 // #25 · THE MODEL PANEL. The block above leaves the app on the workspace with no story open, which
@@ -1614,5 +1666,60 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
   assert.ok(live.some((r: any) => r.entries.length), 'and at least one has entries under it');
 }
 ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real file');
+
+// #22 §6 and §8 · WHAT THE FACE OF A CARD SAYS, AND IN WHAT ORDER.
+//
+// §6, Seth: "after the name comes the body, after the body comes what ever is turned on. all turned
+// off option or non activated option live under a second section under all the activated ones."
+// The face used to interleave them under one heading per room, so reading down it told you what a
+// card HAS rather than what the model will actually be told — and those are different cards once
+// half the rooms are off.
+//
+// §8: "once you click on a card the marked as finished should only show in the edit version."
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'threads' });
+  click({ entry: 'e-1' });
+  await new Promise((r) => setTimeout(r, 30));
+  const face = html('sideBody');
+
+  const onAt = face.indexOf('How she sounds');
+  const offAt = face.indexOf('What she wants');
+  const dividerAt = face.indexOf('Not turned on');
+  assert.ok(onAt > 0 && offAt > 0 && dividerAt > 0, 'both rooms and the divider are on the face');
+  assert.ok(onAt < dividerAt, 'what is turned on comes first');
+  assert.ok(dividerAt < offAt, 'and what is not lives under its own heading, below all of them');
+  // The body still comes before either — name, body, then the rooms.
+  assert.ok(face.indexOf('speaks for Kesh') < onAt, 'the body comes before the rooms');
+  // The jump link has to keep resolving for BOTH: a slot whose only room is off still needs an
+  // anchor, or pressing its chip in the head scrolls to nothing.
+  assert.match(face, /data-slotat="voice"/, 'the on room anchors its slot');
+  assert.match(face, /data-slotat="interiority"/, 'and so does a slot whose only room is off');
+
+  // §8 · READ SAYS WHAT IS TRUE; EDIT IS WHERE YOU CHANGE IT.
+  click({ entry: 'e-done' });
+  await new Promise((r) => setTimeout(r, 30));
+  const done = html('sideBody');
+  assert.match(done, /Finished from chapter 2/, 'the face marks a finished card');
+  assert.doesNotMatch(done, /data-unretire=/, 'and offers no control — that is what the form is for');
+  assert.doesNotMatch(done, /data-retire=/, 'in either direction');
+
+  click({ cardview: 'form' });
+  const form = html('sideBody');
+  // A RETIRED CARD MUST BE BRINGABLE BACK FROM SOMEWHERE. Moving the way back off the face means
+  // the form is now one of the two places that has it — the waiting panel is the other, and
+  // test/web.ts asserts that one for the same reason: a wrong press is otherwise invisible AND
+  // permanent.
+  assert.match(form, /data-unretire="e-done"/, 'the form brings it back');
+  assert.match(form, /Finished from chapter 2/, 'and says what it is bringing back from');
+
+  click({ entry: 'e-1' });
+  click({ cardview: 'form' });
+  assert.match(html('sideBody'), /data-retire="e-1"/,
+    'and a live card is finished from the same place, which is the asymmetry this fixed');
+  click({ cardview: null });
+}
+ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
 
 console.log(`\n${n} checks passed`);

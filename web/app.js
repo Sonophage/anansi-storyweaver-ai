@@ -131,7 +131,10 @@ function applyLook() {
 
 // ---------- state ----------
 const S = {
-  place: 'workspace', wpage: 'stories', panel: null, modelPick: null, drawn: null, mode: 'speak', speaker: null, bigInput: false, arrived: null, seam: null,
+  place: 'workspace', wpage: 'stories', panel: null, modelPick: null, drawn: null,
+  // #22 §3 and §4. Which books this page spans, and which room inside a kind. `ledgerBook` is
+  // null for the whole shelf; `ledgerSlot` is null for every room of the picked kind.
+  ledgerBook: undefined, ledgerSlot: null, mode: 'speak', speaker: null, bigInput: false, arrived: null, seam: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   // WHICH menu the rail is showing, which is not the same question as where you are. The menu
   // button asks for the workspace one from inside a story; the story's name asks for the story
@@ -277,7 +280,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
-  'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory',
+  'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'newroom', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -2399,10 +2402,24 @@ const PANELS = {
 };
 
 /** The grouped, filtered list, kept out of canon() so a keystroke never rewrites the input. */
+/** #22 §3. WHICH BOOKS THIS PAGE IS SHOWING. One toggle for the whole panel: the book you were
+ *  last writing in, or the shelf. It defaults to the one book — a page that opens on twelve books
+ *  is the wall this issue is about — and falls back to the shelf when there is no book to default
+ *  to, which is a session that has not opened one yet.
+ *
+ *  `undefined` means "not chosen", so the default can move with the library without a press
+ *  overriding it forever; `null` is the writer choosing the whole shelf. */
+const ledgerScope = () => (S.ledgerBook === undefined
+  ? (S.storyId ?? LEDGER?.[0]?.story ?? null) : S.ledgerBook);
+
 function ledgerBooks() {
   const q = S.ledgerQ.trim().toLowerCase();
+  const only = ledgerScope();
   const kept = (LEDGER ?? []).filter((e) =>
+    (!only || e.story === only) &&
     (S.ledgerKind === 'all' || e.entryType === S.ledgerKind) &&
+    // #22 §4. A room filter is only ever offered under a kind, so it can only narrow within one.
+    (!S.ledgerSlot || (e.addons ?? []).some((a) => a.slot === S.ledgerSlot)) &&
     (!q || `${e.title} ${e.body} ${(e.keys || []).join(' ')}`.toLowerCase().includes(q)));
   const books = new Map();
   for (const e of kept) {
@@ -2428,7 +2445,8 @@ function ledgerBooks() {
       <button data-open="${sid}" style="margin-left:auto; font-size:11px; letter-spacing:.1em;
         font-variant-caps:all-small-caps; color:var(--gold)">Open story</button></div>
     ${shut ? '' : `<div class="grid">${b.rows.map(entryCard).join('')}</div>`}</div>`; }).join('')
-    || `<div class="hint">${q || S.ledgerKind !== 'all' ? 'Nothing matches that.' : 'No entries yet.'}</div>`;
+    || `<div class="hint">${q || S.ledgerKind !== 'all' || S.ledgerSlot || only
+      ? 'Nothing matches that.' : 'No entries yet.'}</div>`;
 }
 
 /** Same reason: the search input must survive its own keystrokes. */
@@ -2936,18 +2954,40 @@ function cardFace(e, slots) {
   return `<div style="display:flex; flex-direction:column">
     ${cardBar('face')}
     ${cardHead(e, shown)}
-    ${e.retiredAtChapter != null ? `<div class="card" style="flex-direction:row; align-items:center; gap:9px; margin:0 0 10px">
-      <span style="font-size:12px; color:var(--warn)">Finished from chapter ${esc(String(e.retiredAtChapter))}</span>
-      <button data-unretire="${e.id}" style="margin-left:auto; padding:6px 11px; border-radius:var(--r);
-        border:1px solid var(--chip); color:var(--faint); font-size:11px">Bring it back</button></div>` : ''}
+    <!-- #22 §8. A MARKER HERE, THE CONTROLS IN THE FORM. Seth: "once you click on a card the
+         marked as finished should only show in the edit version." Reading a card should say what
+         is true of it; changing what is true of it is what the form is for. The way back is not
+         lost — it moved next to the way out, which is where it belongs. -->
+    ${e.retiredAtChapter != null ? `<div style="font-size:12px; color:var(--warn); margin:0 0 10px">
+      Finished from chapter ${esc(String(e.retiredAtChapter))}.</div>` : ''}
     <div class="hint" style="margin-top:0">${esc(e.body || 'Nothing written down yet.')}</div>
-    ${shown.map((sl) => `
-      <div data-slotat="${esc(sl.name)}" class="lbl" style="letter-spacing:.1em; margin-top:18px">${
-        esc(sl.name.replace(/_/g, ' '))}${sl.exclusive ? '' : ' <span style="opacity:.5">(several)</span>'}</div>
-      ${rooms.filter((a) => a.slot === sl.name).map((a) => roomCard(a.name, a.body, a.keys ?? [], a.active,
-        `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag" style="cursor:pointer; ${
-          a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
-          >${a.active ? 'On' : 'Off'}</button>`, sl.name)).join('')}`).join('')}
+    <!-- #22 §6. WHAT IS ON, THEN WHAT IS NOT. Seth: "after the name comes the body, after the body
+         comes what ever is turned on. all turned off option or non activated option live under a
+         second section under all the activated ones." The card used to interleave them under one
+         heading per room, so reading down it told you what a card HAS rather than what the model
+         will actually be told — and those are different cards once half the rooms are off.
+         data-slotat rides on the ON heading when there is one, because that is where a jump link
+         should land; a slot with nothing on carries it on its heading in the second section, so
+         every jump still resolves. -->
+    ${(() => {
+      const group = (live) => shown.map((sl) => {
+        const mine = rooms.filter((a) => a.slot === sl.name && !!a.active === live);
+        if (!mine.length) return '';
+        const anchorHere = live || !rooms.some((a) => a.slot === sl.name && a.active);
+        return `<div ${anchorHere ? `data-slotat="${esc(sl.name)}"` : ''} class="lbl"
+          style="letter-spacing:.1em; margin-top:18px">${esc(sl.name.replace(/_/g, ' '))}${
+          sl.exclusive ? '' : ' <span style="opacity:.5">(several)</span>'}</div>
+        ${mine.map((a) => roomCard(a.name, a.body, a.keys ?? [], a.active,
+          `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag" style="cursor:pointer; ${
+            a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
+            >${a.active ? 'On' : 'Off'}</button>`, sl.name)).join('')}`;
+      }).join('');
+      const on = group(true), off = group(false);
+      return `${on}${off ? `<div class="lbl" style="letter-spacing:.1em; margin-top:26px;
+          border-top:1px solid var(--line); padding-top:16px; color:var(--faint)">Not turned on</div>
+        <div class="hint" style="margin:0 0 4px">Written down, and not reaching the model &mdash;
+          either switched off, or waiting on a keyword that has not appeared.</div>${off}` : ''}`;
+    })()}
     ${shown.length ? '' : '<div class="hint" style="margin-top:18px">No rooms filled in yet. Open the form to write one, or have Anansi.</div>'}
     <button class="btn ghost" data-cardview="form" style="margin-top:20px">Edit this card</button>
   </div>`;
@@ -3137,10 +3177,21 @@ function entryEditor() {
         <button class="btn ghost" data-revertfield="${h.id}" style="margin-top:6px">Put this back</button></div>`).join('')
         : '<div class="hint">No earlier versions of any field.</div>'}` : ''}
     ${connections(e)}
+    <!-- #22 §8. BOTH STATES LIVE HERE NOW. It was asymmetric: the form offered "Mark this
+         finished" only while a card was live, and the face showed the state only once it was
+         finished — so you could not finish a card from Read, and Edit gave no sign that a card
+         already was. Read carries a quiet marker and no control; this is where both directions are.
+         A RETIRED CARD MUST BE BRINGABLE BACK FROM SOMEWHERE, and test/web.ts asserts exactly that
+         on the waiting panel for the same reason: a wrong press is otherwise invisible AND
+         permanent. Moving the way back off the face means this is now one of the two places. -->
     ${e.retiredAtChapter == null ? `<button data-retire="${e.id}" class="btn ghost"
       style="margin-top:20px">Mark this finished</button>
     <div class="hint">It stops reaching the model from the next chapter on. Every chapter before it
-      still has it, and Waiting can bring it back.</div>` : ''}
+      still has it, and Waiting can bring it back.</div>`
+      : `<button data-unretire="${e.id}" class="btn ghost" style="margin-top:20px">Bring it back</button>
+    <div class="hint">Finished from chapter ${esc(String(e.retiredAtChapter))} &mdash; it stops
+      reaching the model there and every chapter before it still has it. Bringing it back undoes
+      that from now on.</div>`}
     <!-- #27. The whole book read for this ONE thread, which is why the button is here and not
          beside "Read this chapter for facts" in the Chapter panel: that one is about a chapter and
          has no thread in hand, and checks.md asked for the story-wide option to look "only for the
@@ -3514,7 +3565,32 @@ const WPAGES = {
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
           ${['all', ...KINDS].map((k) => `<button data-lkind="${k}" style="font-size:12px; padding:8px 16px;
             border-radius:var(--r-pill); ${chip(k === S.ledgerKind)}">${LKIND_LABEL[k]}</button>`).join('')}
+          <!-- #22 §3. ONE TOGGLE FOR THE WHOLE PANEL, not a checkbox per list. It defaults to the
+               book you were last writing in, because a page that opens on twelve books at once is
+               the wall this issue is about; the shelf is a press away and says how many books it
+               would be. -->
+          ${(() => {
+            const only = ledgerScope();
+            const books = new Set((LEDGER ?? []).map((e) => e.story)).size;
+            const name = (LEDGER ?? []).find((e) => e.story === only)?.storyTitle;
+            if (books < 2 && only) return '';
+            return `<button data-lookall="${only ? '1' : '0'}" style="margin-left:auto; font-size:11px;
+              letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--gold)">${
+              only ? `All ${books} books` : `Only ${esc(name ?? 'this book')}`}</button>`;
+          })()}
         </div>
+        <!-- #22 §4. THE ROOMS OF THE PICKED KIND, and nothing until one is picked. Fourteen chips
+             at once is every room of every kind in one row, most of them meaningless for what you
+             are looking at — a place has no wardrobe, a rule has no voice. The list comes from the
+             server's own SLOTS, read off V.slots, so there is no second copy to keep in step. -->
+        ${S.ledgerKind !== 'all' && (V?.slots?.[S.ledgerKind] ?? []).length ? `
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+            <button data-lslot="" style="font-size:11.5px; padding:6px 13px; border-radius:var(--r-pill);
+              ${chip(!S.ledgerSlot)}">Any room</button>
+            ${(V.slots[S.ledgerKind] ?? []).map((sl) => `<button data-lslot="${esc(sl.name)}"
+              style="font-size:11.5px; padding:6px 13px; border-radius:var(--r-pill);
+              ${chip(S.ledgerSlot === sl.name)}">${esc(sl.name.replace(/_/g, ' '))}</button>`).join('')}
+          </div>` : ''}
         <div id="books" style="display:flex; flex-direction:column; gap:16px">${ledgerBooks()}</div>
       </div>
       <div class="aside" style="border:1px solid var(--edge); border-radius:var(--r);
@@ -5238,7 +5314,15 @@ document.addEventListener('click', async (e) => {
       : `Now writing with ${name(r.active)}.`);
   }
 
-  if (d.lkind) { S.ledgerKind = d.lkind; drawPage(); return; }
+  // #22 §3/§4. Picking a kind clears the room under it: the rooms of `character` mean nothing
+  // once the row says Items, and a filter left on from a kind you are no longer looking at is a
+  // page that shows nothing for no visible reason.
+  if (d.lkind) { S.ledgerKind = d.lkind; S.ledgerSlot = null; drawPage(); return; }
+  if (d.lslot !== undefined) { S.ledgerSlot = d.lslot || null; drawPage(); return; }
+  if (d.lookall !== undefined) {
+    S.ledgerBook = d.lookall === '1' ? null : (S.storyId ?? LEDGER?.[0]?.story ?? null);
+    drawPage(); return;
+  }
   if (d.ctxview) { S.ctxView = d.ctxview; drawSide(); return; }
   if (d.goblock !== undefined) {
     const [kind, id] = d.goblock.split(':');

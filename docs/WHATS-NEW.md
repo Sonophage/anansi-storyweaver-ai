@@ -12,6 +12,18 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### Threads: one book at a time, filtered by room, and the card reads in order
+The cross-story Threads page now opens on the book you were last writing in, with the
+whole shelf one press away, instead of every book at once. Pick a kind and its own rooms
+appear as a second row you can filter by — a person's wardrobe and interiority, a place's
+atmosphere, and nothing that kind cannot have.
+
+A card's face now reads name, body, everything that is turned on, and then a second section
+underneath for everything that is not. That is the difference between what a card holds and
+what the model is actually told. And marking a thread finished, or bringing it back, is on
+the edit form now: reading a card says what is true of it, changing it is what the form is
+for.
+
 ### A thread can be read against the whole book
 On any thread's own screen there is now "Read the whole book for this thread". It goes
 through every passage whose narration names that person, place, item or rule — most recent
