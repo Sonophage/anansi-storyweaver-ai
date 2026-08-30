@@ -248,16 +248,20 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   // strip that is already nowrap with an ellipsis on it, and the size is the longest of them and
   // the least of what was asked for there. It stays in `detail`, which is what builds the
   // Storyteller's options, and it gets its own chip on the panel where there is room.
-  assert.deepStrictEqual(q.bits, ['Write', 'no thinking', 'uncensored', 'novel tier'],
-    'purpose, thinking, decensoring and the novel tier are the badges');
+  assert.deepStrictEqual(q.bits, ['Write', 'uncensored', 'novel tier'],
+    'purpose, decensoring and the novel tier are the badges');
   assert.strictEqual(q.size, '35B-A3B', 'and the size is its own field, not a badge');
-  assert.strictEqual(q.detail, 'Write · no thinking · uncensored · 35B-A3B · novel tier',
-    'while the one-line detail still carries all five, in the order the id spells them');
-  // Same rule as the alias branch above, and the same reason: thinking left on returned no prose
-  // at all on three runs of four, so a label that drops it hides the setting that decides whether
-  // a passage arrives.
-  assert.match(modelName('GLM-4.7-Flash-RPTH-30B').detail, /(?<!no )thinking/,
-    'T must read as thinking, not as no thinking');
+  assert.strictEqual(q.detail, 'Write · uncensored · 35B-A3B · novel tier',
+    'while the one-line detail puts the size back, before the tier the id spells last');
+  // ASYMMETRIC ON PURPOSE, and this is the half that must not go. "no thinking" was dropped on
+  // 2026-08-29 at Seth's word: it rode on eight of the ten presets and said nothing, because the
+  // transport pins enable_thinking:false on every call and not thinking is the normal case. A `T`
+  // model is the other thing entirely — thinking left on returned no prose at all on three runs of
+  // four — so silence means "nothing to watch" and the word means "watch this one".
+  assert.ok(modelName('GLM-4.7-Flash-RPTH-30B').bits.includes('thinking'),
+    'a T model must say so on every surface that shows the badges');
+  assert.doesNotMatch(q.detail, /thinking/,
+    'and an NT model says nothing about it rather than saying the boring half out loud');
   // H ABSENT IS NOT CENSORED. presets.ini is explicit that Wayfarer-2 and Muse were trained open
   // and never censored, which is a different claim from refusing — and the surface must not turn
   // the one into the other.
@@ -1296,7 +1300,7 @@ ok('the model panel reads the router, the preset file, this database and the id,
   // sentence that asked for them. That is the same decorative match test/web.ts already documents,
   // found the same way — by breaking the code on purpose and watching the check not care.
   const visible = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
-  const BADGES = /Write · no thinking · uncensored · novel tier/;
+  const BADGES = /Write · uncensored · novel tier/;
 
   // 1 · THE RAIL'S LABEL — what is writing right now. Read with the list SHUT, so the only place
   // this string can come from is the label itself.
@@ -1313,7 +1317,7 @@ ok('the model panel reads the router, the preset file, this database and the id,
   const list = rail.slice(rail.indexOf('data-modelinfo='));
   assert.ok(list.length > 200, 'the list must actually be open');
   assert.match(list, BADGES, 'every row says what it is for, whether it thinks, and its tier');
-  assert.match(list, /Roleplay · no thinking · trained open/,
+  assert.match(list, /Roleplay · trained open/,
     'and a model with no H reads as trained open, never as censored');
   // Not the size, on this one: the strip is nowrap with an ellipsis, the size is the longest badge
   // and the least of what was asked for here, and it is one press away on the panel. Anchored to
@@ -1334,7 +1338,7 @@ ok('the model panel reads the router, the preset file, this database and the id,
     'with a door to the panel that holds the blurb, the speed and the context');
   // The option text in the select is built from `detail` — the badges with the size put back in,
   // one decode rather than a second list that drifts away from it.
-  assert.match(teller, /<option[^>]*>Qwen3\.6 — Write · no thinking · uncensored · 35B-A3B · novel tier/,
+  assert.match(teller, /<option[^>]*>Qwen3\.6 — Write · uncensored · 35B-A3B · novel tier/,
     'and the select carries the same decode, size included');
 
   STORY.model = wasModel;

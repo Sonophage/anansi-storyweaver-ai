@@ -109,10 +109,18 @@ deliberately, and it still does not.
 So the three are the **rail label**, the **rail list**, and the **Storyteller** — plus the panel.
 
 - `modelName` now returns `bits` (the badges) and `size` **separately**. The badges are purpose,
-  thinking, `uncensored` / `trained open`, and the novel tier; the size is not one of them, because
-  two of the three surfaces are `nowrap` strips with an ellipsis already on them and the size is the
-  longest badge and the least of what was asked for there. `detail` still carries all five in the
-  order the id spells them, and it is what builds the Storyteller's `<option>` text.
+  `uncensored` / `trained open`, and the novel tier; the size is not one of them, because two of the
+  three surfaces are `nowrap` strips with an ellipsis already on them and the size is the longest
+  badge and the least of what was asked for there. `detail` puts the size back, before the tier,
+  and it is what builds the Storyteller's `<option>` text.
+- **`no thinking` is gone; `thinking` is not.** Seth, same day: *"you can remove the no thinking
+  label."* It rode on eight of the ten presets and said nothing while it did — the transport pins
+  `enable_thinking: false` on every call, so not thinking is the normal case and a badge for it is a
+  badge on almost everything. **The house rule is unchanged**: a `T` model is still spelled out on
+  every surface, because it is the difference between a passage and 900 tokens of reasoning and no
+  prose, GLM-4.7-Flash honours the switch and Huihui-ThinkingCap's is UNTESTED on its architecture.
+  Silence means "nothing to watch"; the word means "watch this one". Three more falsifications, all
+  red: the `T` case silenced, `no thinking` put back, and the size moved after the tier.
 - `decensored` became **`uncensored`** — Seth's word, and the word the old alias branch already used.
 - The Storyteller reads **`V.model`**, the model the server already resolved for the story
   (`routes.ts:1044`), not `SRV.model`: that one tracks the ACCOUNT default and `loadModels` rewrites

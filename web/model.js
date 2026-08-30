@@ -191,11 +191,25 @@ export const modelName = (id) => {
       // strip that is already `nowrap` with an ellipsis on it, and "35B-A3B" is the longest of them
       // and the least of what Seth asked to see there: purpose, uncensored, and the novel tier.
       // The size is still in `detail`, which is what the Storyteller's options are built from.
-      const bits = [PURPOSE[role], think === 'T' ? 'thinking' : 'no thinking',
-                    // Never "censored" for the other case. See the note above CODE.
-                    heretic ? 'uncensored' : 'trained open'];
+      //
+      // "NO THINKING" IS GONE, "THINKING" IS NOT. Seth, 2026-08-29: "you can remove the no thinking
+      // label". It rode on eight of the ten presets and said nothing while it did — the transport
+      // pins `enable_thinking: false` on every call, so a model that does not think is the normal
+      // case and a badge for it is a badge on almost everything. THE OTHER HALF STAYS, and the
+      // house rule it comes from is unchanged: a `T` model is the difference between a passage and
+      // 900 tokens of reasoning and no prose at all, and GLM-4.7-Flash honours the switch while
+      // Huihui-ThinkingCap's is UNTESTED on its architecture. Silence here means "nothing to
+      // watch"; the word means "watch this one".
+      const bits = [PURPOSE[role]];
+      if (think === 'T') bits.push('thinking');
+      // Never "censored" for the other case. See the note above CODE.
+      bits.push(heretic ? 'uncensored' : 'trained open');
       if (tail.includes('NN')) bits.push('novel tier');
-      const detail = [...bits.slice(0, 3), size, ...bits.slice(3)].filter(Boolean).join(' \u00b7 ');
+      // The size goes back in for the one-line `detail`, where the Storyteller's options are built
+      // from it — before the tier, which is the last thing the id says.
+      const tier = bits.indexOf('novel tier');
+      const cut = tier < 0 ? bits.length : tier;
+      const detail = [...bits.slice(0, cut), size, ...bits.slice(cut)].filter(Boolean).join(' \u00b7 ');
       return { id, name: parts.slice(0, at).join(' '), detail, bits, size };
     }
   }
