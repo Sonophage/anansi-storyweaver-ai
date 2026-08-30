@@ -1048,6 +1048,7 @@ export const routes: Record<string, Handler> = {
    *  The prose never leaves. The story is named by id and the report says so in its own footer. */
   'POST /api/bug': async (c: Ctx) => fileBug({
     said: String(c.body.said ?? ''),
+    kind: c.body.kind ?? null,
     who: db.loginOf(c.owner) ?? c.owner,
     storyId: c.body.storyId ?? null,
     chapterIndex: c.body.chapterIndex ?? null,

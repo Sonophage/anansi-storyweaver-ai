@@ -159,7 +159,7 @@ const S = {
   help: null,          // which web is open, if any
   // The bug report, kept in state so a repaint mid-typing does not eat it — the same lesson the
   // composer's draft taught seven times.
-  bug: '', bugSending: false, bugUrl: null, bugError: null, lastError: null,
+  bug: '', bugKind: 'bug', bugSending: false, bugUrl: null, bugError: null, lastError: null,
   prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
   promptOpen: null,
   found: null,          // the passage a search result sent you to, marked until you move on
@@ -263,7 +263,7 @@ const WTITLES = {
 // `more` left this list with the ⋯ handle it named. The tray opens on a double click now, which
 // is its own native event and not a delegated action at all.
 const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'home', 'owed', 'help',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home', 'owed', 'help',
   'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
@@ -3974,6 +3974,10 @@ const WPAGES = {
       <div style="font-size:14px; line-height:1.65; color:var(--mute); margin:10px 0 16px">What went
         wrong, and what you were doing when it did. One line is enough &mdash; the report brings the
         rest with it.</div>
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap">${
+        [['bug', 'Something is broken'], ['feature', 'Something I want'], ['question', 'A question']]
+          .map(([k, label]) => '<button class="pill" data-bugkind="' + k + '" aria-pressed="'
+            + (S.bugKind === k) + '">' + label + '</button>').join('')}</div>
       <textarea class="field" data-bug="1" style="min-height:132px"
         placeholder="The tray opened behind the scrim when I double-tapped a paragraph on my phone."
         >${esc(S.bug ?? '')}</textarea>
@@ -5704,11 +5708,17 @@ document.addEventListener('click', async (e) => {
     await loadLibrary(); syncHash(); paint();
     return;
   }
+  if (d.bugkind) {
+    // The typed text is read back off the box before the repaint, for the same reason S.bug exists
+    // at all: a paint mid-typing eats anything the state does not already hold.
+    S.bug = document.querySelector('[data-bug]')?.value ?? S.bug;
+    S.bugKind = d.bugkind; paint(); return;
+  }
   if (d.sendbug) {
     const said = document.querySelector('[data-bug]')?.value ?? '';
     if (!said.trim()) return toast('Say what went wrong first.');
     S.bug = said; S.bugSending = true; S.bugUrl = null; S.bugError = null; paint();
-    const r = await api.bug({ said, storyId: S.storyId ?? null,
+    const r = await api.bug({ said, kind: S.bugKind ?? 'bug', storyId: S.storyId ?? null,
       chapterIndex: V?.currentChapter?.index ?? null,
       agent: navigator.userAgent, lastError: S.lastError ?? null,
       // THE NUMBERS THAT SAY WHAT MOVED. A report about the composer shifting is unanswerable

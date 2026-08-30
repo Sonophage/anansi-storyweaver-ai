@@ -89,4 +89,59 @@ const PREMISE = 'A solitary observer in a rain-slicked city who recognises despe
   ok('an empty report is refused, and a failed one still hands back what was written');
 }
 
+
+// ---- 5. the kind the writer picked, because nobody can tell a broken thing from a wanted thing
+// by an issue's first line. Seth, 2026-08-30: "can we add tags on there so we know if its a bug
+// feature etc."
+{
+  const labelsOf = (args: string[]) => args.filter((_, i) => args[i - 1] === '--label');
+  const fileWith = async (kind: any) => {
+    let saw: string[] = [];
+    const fake = async (_c: string, a: string[]) => { saw = a; return { stdout: 'u' }; };
+    const r = await fileBug({ said: 'x', who: 'seth', kind } as any, fake as any);
+    return { labels: labelsOf(saw), body: r.body };
+  };
+
+  // THE MAPPING IS ONTO LABELS THE REPO ALREADY HAS. `gh` refuses one that does not exist, and a
+  // writer sees that as "filing failed" with nothing to tell them why — which is exactly what
+  // `from-the-app` was doing before this, on every single report.
+  assert.deepStrictEqual((await fileWith('bug')).labels, ['bug', 'from-the-app']);
+  assert.deepStrictEqual((await fileWith('feature')).labels, ['enhancement', 'from-the-app']);
+  assert.deepStrictEqual((await fileWith('question')).labels, ['question', 'from-the-app']);
+
+  // FAIL CLOSED. A stale tab or a hand-made POST must not file under a label that does not exist.
+  for (const junk of [undefined, null, '', 'urgent', 'bug ; rm -rf', 42])
+    assert.deepStrictEqual((await fileWith(junk)).labels, ['bug', 'from-the-app'],
+      `an unusable kind (${JSON.stringify(junk)}) must fall back to bug, not go through`);
+
+  // AND IT IS IN THE BODY, not only in the label. A label can be edited off an issue by anyone;
+  // what the writer actually chose should still be readable underneath.
+  assert.match((await fileWith('feature')).body, /Something I want/);
+  assert.match((await fileWith('question')).body, /A question/);
+  ok('the writer says what kind of report it is, and it reaches gh as a label that exists');
+}
+
+// ---- 6. the retry keeps the kind, which is the half that is easy to lose
+{
+  // `from-the-app` is this app's own convention rather than a GitHub default, so it is the label
+  // most likely to be missing from a fork or a fresh repo. The old code dropped EVERY label on
+  // that failure. Doing that now would silently throw away the tag on exactly the repos where
+  // nobody has set the labels up — which is where an untagged issue list hurts most.
+  let calls: string[][] = [];
+  const fussy = async (_c: string, a: string[]) => {
+    calls.push(a);
+    if (a.includes('from-the-app')) throw new Error("could not add label: 'from-the-app' not found");
+    return { stdout: 'https://github.com/x/y/issues/9' };
+  };
+  const r = await fileBug({ said: 'x', who: 'seth', kind: 'feature' } as any, fussy as any);
+  assert.strictEqual(r.url, 'https://github.com/x/y/issues/9', 'the report still files');
+  assert.strictEqual(calls.length, 2, 'one retry, not a loop');
+  const second = calls[1]!.filter((_, i) => calls[1]![i - 1] === '--label');
+  assert.deepStrictEqual(second, ['enhancement'],
+    'the retry drops the missing label and KEEPS the kind — dropping both is the old behaviour '
+    + 'and it loses the thing the writer picked');
+  ok('a missing repo label costs the report its provenance tag, never its kind');
+}
+
+
 console.log(`\n${n} checks passed`);

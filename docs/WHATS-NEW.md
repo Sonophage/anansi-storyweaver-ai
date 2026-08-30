@@ -12,6 +12,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-30 · Rooms Anansi fills in come back the right size again
 
+### Say what kind of thing you are reporting
+Report an issue now asks which of three it is before you write: something is broken, something
+you want, or a question. It tags the report so the list can be read at a glance instead of
+opening every one to find out.
+
+It also fixes a quiet fault in the same screen. Every report was being filed twice: once with a
+tag that did not exist on the repository, which failed, and then again without it. Nothing was
+lost and you would never have seen it, but no report was carrying a tag at all.
+
 ### Cards are written as notes now, not paragraphs
 Everything Anansi writes into a card — a description, an interiority, a voice, a relationship,
 a whole new thread — used to come back as paragraphs of prose. It reads nicely and it was the

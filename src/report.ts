@@ -18,8 +18,21 @@ import { promisify } from 'node:util';
 const run = promisify(execFile);
 const REPO = process.env.ANANSI_REPO ?? 'Sonophage/anansi-storyweaver-ai';
 
+/** WHAT KIND OF REPORT IT IS, chosen by the writer, because nobody reading the issue list can tell
+ *  a broken thing from a wanted thing by its first line. Seth, 2026-08-30: "can we add tags on
+ *  there so we know if its a bug feature etc."
+ *
+ *  Three, and they map onto labels the repo ALREADY has — `bug`, `enhancement`, `question`. A
+ *  fourth kind means a fourth label, and `gh` refuses a label that does not exist on the repo,
+ *  which is a failure the writer would see as "filing failed" with no way to know why. The area
+ *  labels (harness, spark, threads, ui, models, tooling) are deliberately NOT offered: a writer
+ *  knows what broke, not which module owns it, and guessing wrong is worse than not guessing. */
+export const KINDS = { bug: 'bug', feature: 'enhancement', question: 'question' } as const;
+export type Kind = keyof typeof KINDS;
+
 export interface BugContext {
   said: string;
+  kind?: Kind | null;
   who: string;                     // the account, so a second writer's report is attributable
   storyId?: string | null;
   chapterIndex?: number | null;
@@ -70,6 +83,9 @@ export function compose(c: BugContext, b: Awaited<ReturnType<typeof build>>, sta
     '',
     '---',
     '',
+    `**${{ bug: 'Something is broken', feature: 'Something I want',
+           question: 'A question' }[c.kind ?? 'bug']}**`,
+    '',
     `| | |`,
     `|---|---|`,
     `| reported by | \`${c.who}\` |`,
@@ -109,17 +125,22 @@ export async function fileBug(c: BugContext, exec: Exec = run as any):
   // First line as the title, trimmed — a title is a title, and a paragraph in the list of issues
   // is unreadable.
   const title = said.split('\n')[0].slice(0, 90) + (said.split('\n')[0].length > 90 ? '…' : '');
+  // FAIL CLOSED TO `bug`. An unknown kind is a stale tab or a hand-made request, and a report
+  // filed under a label that does not exist is a report that does not file at all.
+  const kind: Kind = (c.kind && c.kind in KINDS) ? c.kind : 'bug';
+  const label = KINDS[kind];
+  const at = (labels: string[]) => ['issue', 'create', '--repo', REPO,
+    '--title', title, '--body', body, ...labels.flatMap((l) => ['--label', l])];
   try {
-    const { stdout } = await exec('gh', ['issue', 'create', '--repo', REPO,
-      '--title', title, '--body', body, '--label', 'from-the-app'], { timeout: 20_000 });
-    const url = stdout.trim().split('\n').pop() ?? '';
-    return { url, body };
-  } catch (e: any) {
-    // The label is the likeliest failure and it is not worth losing a report over: retry once
-    // without it. `gh` refuses a label that does not exist on the repo.
+    const { stdout } = await exec('gh', at([label, 'from-the-app']), { timeout: 20_000 });
+    return { url: stdout.trim().split('\n').pop() ?? '', body };
+  } catch {
+    // `gh` refuses a label the repo does not have, and `from-the-app` is the one most likely to be
+    // missing — it is this app's own convention rather than a GitHub default. THE RETRY KEEPS THE
+    // KIND, which is the whole point of the feature; dropping both was the old behaviour and it
+    // would have quietly thrown away the tag on every fall-back.
     try {
-      const { stdout } = await exec('gh', ['issue', 'create', '--repo', REPO,
-        '--title', title, '--body', body], { timeout: 20_000 });
+      const { stdout } = await exec('gh', at([label]), { timeout: 20_000 });
       return { url: stdout.trim().split('\n').pop() ?? '', body };
     } catch (e2: any) {
       return { body, error: (e2?.stderr || e2?.message || String(e2)).trim().slice(0, 300) };
