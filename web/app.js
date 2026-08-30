@@ -5321,35 +5321,27 @@ document.addEventListener('click', async (e) => {
   // writer may have rewritten it and not left the field, and sending the stale copy would draw
   // something other than what is on screen — the same trap the proposal queue has.
   if (d.drawcover) {
-    if (d.drawcover === 'shut') { S.drawn = null; drawSide(); return; }
+    if (d.drawcover === 'shut') { revokeShots(); S.drawn = null; drawSide(); return; }
     if (d.drawcover === 'open') {
-      S.drawn = { prompt: coverPrompt(V.story), seeds: [] };
+      S.drawn = { prompt: coverPrompt(V.story), shots: [], busy: 0 };
       drawSide(); return;
     }
+    if (S.drawn?.busy) return;
     const typed = document.querySelector('[data-drawprompt]')?.value.trim() ?? '';
     if (!typed) return toast('Say what to draw first.');
-    // Four fresh seeds every press, so "draw four more" is four more and not the same four again:
-    // the response is cache-control immutable, keyed on prompt and seed.
-    S.drawn = { prompt: typed, seeds: Array.from({ length: 4 }, () => Math.floor(Math.random() * 1e9)) };
-    drawSide();
+    await drawOne(typed);
     return;
   }
   if (d.usecover) {
-    toast('Fetching it…');
+    // A LOCAL blob, not the remote URL: the bytes were kept when they arrived, so the press costs
+    // no second request and cannot be told 429 at the moment the writer has decided.
     let blob;
-    // The one call in this app that can fail because somebody else's box is down, so it says which
-    // of the two happened rather than the generic "could not read that image" readCover would give.
-    try {
-      const r = await fetch(d.usecover);
-      if (!r.ok) throw new Error(String(r.status));
-      blob = await r.blob();
-    } catch (e) {
-      return toast(`Could not fetch that one from pollinations.ai (${e?.message ?? 'no answer'}).`);
-    }
+    try { blob = await (await fetch(d.usecover)).blob(); }
+    catch { return toast('That one is gone — draw again.'); }
     await readCover(blob);
     // AFTER the repaint readCover does, not before it: clearing the state without drawing again
     // leaves the four candidates on screen under the cover that was just set from one of them.
-    S.drawn = null; drawSide();
+    revokeShots(); S.drawn = null; drawSide();
     return;
   }
   if (d.delcover) {
@@ -5706,17 +5698,62 @@ async function readImport(f) {
  *  the response is `cache-control: immutable`, so a grid built from one seed would be one image
  *  four times. `nologo` drops the watermark.
  *
- *  ponytail: no server proxy, so this depends on pollinations keeping its CORS header open — if it
- *  closes, the fetch fails in the browser and nothing on this box can see why. Upgrade path is a
- *  gated route in serve.ts that fetches and returns the bytes, which is also where a token would
- *  go if the anonymous tier is ever worth leaving.
- *
  *  Width, height and model are deliberately NOT sent. Verified against the live endpoint on
  *  2026-08-29: unauthenticated requests come back `x-model-used: sana` at 665x886 whatever is
  *  asked for, so a size control or a model picker here would be a control that does nothing. 665
- *  by 886 is already the 3:4 the covers and the chapter plate use. */
+ *  by 886 is already the 3:4 the covers and the chapter plate use.
+ *
+ *  ponytail: no server proxy, so this depends on pollinations keeping its CORS header open — if it
+ *  closes, the fetch fails in the browser and nothing on this box can see why. Upgrade path is a
+ *  gated route in serve.ts that fetches and returns the bytes, which is also where a token would
+ *  go if the anonymous tier is ever worth leaving. */
 const drawnUrl = (prompt, seed) =>
   `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?nologo=true&seed=${seed}`;
+
+/** ONE AT A TIME, AND THAT IS NOT A PREFERENCE.
+ *
+ *  The first version put four <img> tags in the grid and let the browser load them. Seth got one
+ *  picture and three blanks, and the endpoint says exactly why:
+ *
+ *      429 {"error":"Too Many Requests",
+ *           "message":"Queue full for IP: 1 requests already queued (max: 1)"}
+ *
+ *  The free tier holds ONE request in flight per address. Four parallel loads is one winner and
+ *  three refusals, every time — reproduced with four concurrent curls before this was written.
+ *
+ *  SO IT DRAWS ONE, AND THE WRITER ASKS FOR THE NEXT. Measured against the live endpoint the same
+ *  day: the first came back in 2.6s and every one after it in about 45s, which is the tier being
+ *  throttled rather than the model being slow. A batch of four is therefore two and a half minutes
+ *  of blank grid before anything is choosable. One picture in a few seconds, with a button under
+ *  it, beats that on every axis and is less code besides — the candidates pile up in the grid, and
+ *  the writer stops paying the 45s the moment one of them is good enough.
+ *
+ *  THE BYTES ARE KEPT. `URL.createObjectURL` means picking one costs no second request — the first
+ *  version re-fetched the remote URL on the press, which is one more chance to be told 429 at the
+ *  exact moment the writer has decided. Revoked when the tray is shut or a cover is taken from it,
+ *  or the blobs outlive the panel that showed them. */
+async function drawOne(prompt) {
+  // The prompt can be edited between draws, so the grid would otherwise mix answers to two
+  // different questions with nothing on screen saying which was which.
+  if (S.drawn.prompt !== prompt) { revokeShots(); S.drawn.shots = []; }
+  S.drawn.prompt = prompt;
+  S.drawn.busy = 1;
+  drawSide();
+  const seed = Math.floor(Math.random() * 1e9);
+  try {
+    const r = await fetch(drawnUrl(prompt, seed));
+    if (!r.ok) throw new Error(r.status === 429 ? 'the queue was busy' : `HTTP ${r.status}`);
+    S.drawn.shots.push({ seed, obj: URL.createObjectURL(await r.blob()), err: null });
+  } catch (e) {
+    S.drawn.shots.push({ seed, obj: null, err: e?.message ?? 'no answer' });
+  }
+  S.drawn.busy = 0;
+  drawSide();
+}
+
+const revokeShots = () => {
+  for (const sh of S.drawn?.shots ?? []) if (sh.obj) URL.revokeObjectURL(sh.obj);
+};
 
 /** The draw tray, under the cover buttons. Shut until asked for: it is the one control in this app
  *  that sends any of the book off the machine, so it does not sit open by default and the words
@@ -5725,7 +5762,7 @@ function drawTray() {
   if (!S.drawn) {
     return `<button class="btn ghost" data-drawcover="open" style="margin-top:7px">Have one drawn</button>`;
   }
-  const seeds = S.drawn.seeds ?? [];
+  const shots = S.drawn.shots ?? [];
   return `<div class="card" style="gap:8px; margin-top:7px">
     <div class="lbl" style="letter-spacing:.1em; margin:0">What to draw</div>
     <textarea class="field grow" data-drawprompt style="margin:0; min-height:56px; font-size:12.5px;
@@ -5735,22 +5772,28 @@ function drawTray() {
       besides the model on your own box, so read the line above before you press it. Nothing else
       about the book is sent &mdash; not the premise, not a word of the prose.</div>
     <div style="display:flex; gap:7px">
-      <button class="btn ghost" data-drawcover="go" style="flex:1">${
-        seeds.length ? 'Draw four more' : 'Draw four'}</button>
+      <button class="btn ghost" data-drawcover="go" style="flex:1" ${S.drawn.busy ? 'disabled' : ''}>${
+        S.drawn.busy ? 'Drawing&hellip;' : shots.length ? 'Draw another' : 'Draw one'}</button>
       <button class="btn ghost" data-drawcover="shut" style="flex:0 0 auto; width:auto; padding:12px 20px">Close</button>
     </div>
-    ${seeds.length ? `<div style="display:grid; grid-template-columns:1fr 1fr; gap:7px">${
-      seeds.map((seed) => {
-        const url = drawnUrl(S.drawn.prompt, seed);
+    ${S.drawn.busy ? `<div class="hint" style="margin:0">The free tier holds one request per address
+      and throttles the ones after it &mdash; the first lands in a few seconds, each one after in
+      about forty-five. Ask for another only if none of these will do.</div>` : ''}
+    ${shots.length ? `<div style="display:grid; grid-template-columns:1fr 1fr; gap:7px">${
+      shots.map((sh) => sh.err
+        // A refusal gets a tile of its own rather than a gap. A blank square is the bug Seth saw.
+        ? `<div style="aspect-ratio:3/4; border:1px solid var(--edge); border-radius:var(--r);
+            display:flex; align-items:center; justify-content:center; padding:10px; text-align:center;
+            font-size:11px; color:var(--faint)">did not arrive &mdash; ${esc(sh.err)}</div>`
         // A button rather than a bare image: picking one is an action, and test/web.ts is right to
-        // refuse a control that a click cannot reach.
-        return `<button data-usecover="${esc(url)}" style="padding:0; border-radius:var(--r);
-          overflow:hidden; border:1px solid var(--edge); aspect-ratio:3/4">
-          <img src="${esc(url)}" alt="" loading="lazy"
-            style="width:100%; height:100%; object-fit:cover; display:block"></button>`;
-      }).join('')}</div>
-      <div class="hint" style="margin:0">Press one to make it the cover. It is shrunk and stored the
-        same way a chosen file is.</div>` : ''}
+        // refuse a control that a click cannot reach. The href is the LOCAL blob, so the press
+        // costs no second request.
+        : `<button data-usecover="${esc(sh.obj)}" style="padding:0; border-radius:var(--r);
+            overflow:hidden; border:1px solid var(--edge); aspect-ratio:3/4">
+            <img src="${esc(sh.obj)}" alt=""
+              style="width:100%; height:100%; object-fit:cover; display:block"></button>`).join('')}</div>
+      ${shots.some((sh) => !sh.err) ? `<div class="hint" style="margin:0">Press one to make it the
+        cover. It is shrunk and stored the same way a chosen file is.</div>` : ''}` : ''}
   </div>`;
 }
 

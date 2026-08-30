@@ -148,6 +148,40 @@ call.
 
 ---
 
+## 3 · #17 · a cover can be drawn, and what the free tier actually allows
+
+Pinterest cannot do what #17 asked: its v5 API has no search-all-of-Pinterest endpoint for third
+parties — `/v5/search/pins` reads only the pins you have already saved. `pollinations.ai` does it
+for nothing, and every number below was measured against the live endpoint rather than read off a
+page.
+
+- **No key, no account, no server route.** It answers with an open `access-control-allow-origin`,
+  so the browser fetches the bytes itself. Nothing to gate, no token, no `.env` line.
+- **One request in flight per IP.** `429 {"message":"Queue full for IP: 1 requests already queued
+  (max: 1)"}`. The first build rendered four `<img>` tags and let the browser load them: **one
+  picture, three blank squares**, which is exactly what Seth reported. Reproduced with four
+  concurrent curls, then fixed.
+- **And the ones after the first are throttled.** Four *sequential* draws all return 200, but the
+  first lands in **2.6s** and each one after in **about 45s**. So a batch of four is two and a half
+  minutes of blank grid before anything is choosable — which is why it draws **one per press** and
+  the candidates pile up. Less code than the batch it replaced.
+- **The anonymous tier serves `sana` at 665×886 whatever you ask for.** `width`, `height` and
+  `model` are ignored, so none of them is sent: a parameter the endpoint ignores would read as a
+  control that does something. 665×886 is already the 3:4 the covers and the chapter plate use.
+- **The bytes are kept** as an object URL, so picking one costs no second request — the first build
+  re-fetched the remote URL on the press, which is one more chance to be told 429 at the moment the
+  writer has decided. Revoked when the tray shuts or a cover is taken from it.
+- **A refusal is a tile, not a gap.** A blank square is the bug as it was reported.
+- **The premise never leaves the machine.** Genre and the *first sentence* of the setting only, in
+  a box the writer can rewrite before pressing anything. The prompt is built by code, not by a
+  model call — it is a join of two fields with no judgement in it.
+
+**The check that would have caught it counts CONCURRENT requests, not requests.** A count of
+requests passes either way. `test/app.ts` stubs the endpoint with an in-flight counter and asserts
+the peak is 1; removing the in-flight guard turns it red.
+
+---
+
 ## What changed today, and what it means for anything you touch
 
 ### Every card's body moved into a `facts` room

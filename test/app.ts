@@ -66,6 +66,15 @@ const stored = new Map<string, string>();
 (globalThis as any).window = { addEventListener() {} };
 (globalThis as any).location = { hash: '', pathname: '/' };
 (globalThis as any).history = { replaceState() {} };
+// #17. The draw path keeps the bytes it fetched, so picking one costs no second request. Object
+// URLs are the browser's, not node's — a counter is enough to tell one blob from another and to
+// prove the revoke happens.
+let objN = 0;
+const LIVE_OBJ = new Set<string>();
+(globalThis as any).URL.createObjectURL = (b: any) => {
+  const u = `blob:anansi/${++objN}/${b?.from ?? ''}`; LIVE_OBJ.add(u); return u;
+};
+(globalThis as any).URL.revokeObjectURL = (u: string) => { LIVE_OBJ.delete(u); };
 
 // ---- canned server, shaped exactly like the routes ----
 const SLOT = { global: 100096, slots: 2, perSlot: 50048 };
@@ -160,8 +169,28 @@ const MANIFEST = { manifest: { blocks: [
 ], totals: { budget: 46146, used: 27401, unallocated: 0 }, byKind: {}, overflowed: false }, prompt: '', exact: 21401 };
 
 const POSTED: any[] = [];
+// WHAT WAS ASKED FOR, AND HOW MANY AT ONCE. The second half is the point: the first version of the
+// draw tray rendered four <img> tags and let the browser load them in parallel, and the free tier
+// answers `429 Queue full for IP: 1 requests already queued (max: 1)` — one picture and three
+// blank squares, which is exactly what Seth got. A count of requests would have passed. Only a
+// count of CONCURRENT requests can fail.
+const DRAWN: string[] = [];
+let inFlight = 0, peakFlight = 0;
+// Set by a test to make the Nth drawn request come back 429, so the refusal tile can be checked.
+let refuseNth = 0;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
+  if (url.startsWith('https://image.pollinations.ai/')) {
+    DRAWN.push(url);
+    peakFlight = Math.max(peakFlight, ++inFlight);
+    // A real turn of the loop, so two overlapping calls would actually overlap here.
+    await new Promise((r) => setTimeout(r, 5));
+    inFlight--;
+    if (DRAWN.length === refuseNth) return { ok: false, status: 429 } as any;
+    return { ok: true, status: 200, blob: async () => ({ from: `seed${url.split('seed=')[1]}` }) } as any;
+  }
+  // The bytes kept from a draw, read back when one is pressed. No network in it at all.
+  if (url.startsWith('blob:')) return { ok: true, blob: async () => ({ from: url }) } as any;
   // Three books, not one, and the two extras exist only so the shelf's ORDER can be wrong. With a
   // single story there is no grid to come after the New story button, so an assertion about where
   // that button sits is true wherever the button is put.
@@ -1400,29 +1429,72 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   doc.querySelector = (sel: string) =>
     sel === '[data-drawprompt]' ? { value: '  a drowned lighthouse  ' } : null;
   try {
-    click({ drawcover: 'go' });
-    const drawn = html('sideBody');
-    const urls = [...drawn.matchAll(/data-usecover="([^"]+)"/g)].map((m) => m[1]);
-    assert.strictEqual(urls.length, 4, 'four candidates');
-    // Asserted on the URLs and not on the panel: the panel is the Story form, so the book's title
-    // and its setting field are on it either way and a check against the whole thing could not
-    // fail. What matters is what goes in the request.
-    assert.ok(urls.every((u) => u.includes('a%20drowned%20lighthouse')),
-      'what was typed is what is drawn');
-    assert.ok(urls.every((u) => !u.includes('Ashfall')),
-      'and not what the box was seeded with');
-    // FOUR SEEDS, NOT ONE. The response is cache-control: immutable and keyed on prompt+seed, so a
-    // grid built without varying the seed is one picture shown four times.
-    assert.strictEqual(new Set(urls).size, 4, 'each with its own seed, or it is one image four times');
-    assert.ok(urls.every((u) => /^https:\/\/image\.pollinations\.ai\/prompt\//.test(u)));
-    assert.ok(urls.every((u) => u.includes('nologo=true')), 'and no watermark on a book cover');
-    // No size and no model in the URL: verified 2026-08-29 that the anonymous tier ignores both,
-    // and a parameter that is ignored reads as a control that does something.
-    assert.ok(urls.every((u) => !/width=|height=|model=/.test(u)),
-      'nothing is sent that the anonymous tier ignores');
-  } finally { doc.querySelector = wasQS; }
+    DRAWN.length = 0; peakFlight = 0; inFlight = 0;
+    // A shot is SETTLED when it is on screen, which is what the guard actually watches. Waiting on
+    // DRAWN alone waits for the request to be SENT — the stub records it before it resolves — so a
+    // press timed against that would still land mid-draw and be dropped, and the check would be
+    // testing the wait rather than the guard.
+    const settled = () => [...html('sideBody').matchAll(/data-usecover=|did not arrive/g)].length;
+    const until = async (n: number) => {
+      for (let i = 0; i < 80 && settled() < n; i++) await new Promise((r) => setTimeout(r, 15));
+    };
+    // ONE PER PRESS. Measured against the live endpoint: the first draw lands in 2.6s and every one
+    // after it in about 45s, so a batch of four is two and a half minutes of blank grid before
+    // anything is choosable. The writer asks for the next one, and stops paying the moment one is
+    // good enough.
+    click({ drawcover: 'go' }); await until(1);
+    assert.strictEqual(DRAWN.length, 1, 'one press, one request');
 
+    // A SECOND PRESS WHILE ONE IS IN FLIGHT MUST DO NOTHING. This is the bug as it was reported,
+    // in the only form that survives: the free tier answers
+    // `429 Queue full for IP: 1 requests already queued (max: 1)`, so a second concurrent request
+    // is a refusal rather than a picture. A count of requests passes either way — only the PEAK
+    // can fail, which is why it is what is asserted.
+    click({ drawcover: 'go' });
+    click({ drawcover: 'go' });
+    await until(2);
+    await new Promise((r) => setTimeout(r, 40));
+    assert.strictEqual(peakFlight, 1,
+      'the free tier holds one request per address, so two can never be in flight at once');
+    assert.strictEqual(DRAWN.length, 2, 'the press that arrived mid-draw was dropped, not queued');
+
+    click({ drawcover: 'go' }); await until(3);
+    assert.strictEqual(new Set(DRAWN).size, 3,
+      'each draw has its own seed, or it is one image three times — the response is immutable and '
+      + 'keyed on prompt and seed');
+    assert.ok(DRAWN.every((u) => u.includes('a%20drowned%20lighthouse')),
+      'what was typed is what is drawn');
+    assert.ok(DRAWN.every((u) => !u.includes('Ashfall')), 'and not what the box was seeded with');
+    assert.ok(DRAWN.every((u) => u.startsWith('https://image.pollinations.ai/prompt/')));
+    assert.ok(DRAWN.every((u) => u.includes('nologo=true')), 'and no watermark on a book cover');
+    // Verified against the live endpoint 2026-08-29: the anonymous tier answers `sana` at 665x886
+    // whatever is asked for. A parameter it ignores would read as a control that does something.
+    assert.ok(DRAWN.every((u) => !/width=|height=|model=/.test(u)),
+      'nothing is sent that the anonymous tier ignores');
+
+    // THE BYTES ARE KEPT. Each tile points at a local blob, so pressing one costs no second
+    // request — the first version re-fetched the remote URL on the press, which is one more
+    // chance to be told 429 at the moment the writer has decided.
+    const tiles = [...html('sideBody').matchAll(/data-usecover="([^"]+)"/g)].map((m) => m[1]);
+    assert.strictEqual(tiles.length, 3, 'the candidates pile up rather than replacing each other');
+    assert.ok(tiles.every((u) => u.startsWith('blob:')),
+      'and each points at the bytes already in hand, not back at pollinations');
+
+    // A REFUSAL IS A TILE, NOT A GAP. A blank square is the bug as it was reported, and a grid that
+    // silently comes up short says nothing about why.
+    refuseNth = DRAWN.length + 1;
+    click({ drawcover: 'go' }); await until(4);
+    const mixed = html('sideBody');
+    assert.match(mixed, /did not arrive &mdash; the queue was busy/, 'a 429 says so in its own square');
+    assert.strictEqual([...mixed.matchAll(/data-usecover="/g)].length, 3,
+      'and the three that did arrive are still pressable');
+  } finally { doc.querySelector = wasQS; refuseNth = 0; }
+
+  // The blobs do not outlive the panel that showed them.
+  const before = LIVE_OBJ.size;
+  assert.ok(before > 0, 'there are object urls to let go of');
   click({ drawcover: 'shut' });
+  assert.strictEqual(LIVE_OBJ.size, 0, 'shutting the tray revokes every blob it was holding');
   assert.doesNotMatch(html('sideBody'), /data-drawprompt/, 'and it shuts again');
 }
 ok('a cover can be drawn: the book seeds the words, the writer owns them, and the premise stays home');
