@@ -202,6 +202,30 @@ ok('variants survive the grouped query', () => {
   db.delStory(s3.id);
 });
 
+ok('a book is never written with no voice at all', () => {
+  // COUNCIL-06 ship 3. `context.ts` gates the whole VOICE block on the story's own `writingStyle`
+  // being non-empty, and two books in the live library had it blank — both created by the IMPORTER,
+  // which never ran the backfill that `POST /api/stories` does. They were sending no voice at all
+  // and were carried entirely by SYSTEM.
+  //
+  // DELIBERATELY THROUGH `db.createStory` AND NOT THROUGH THE ROUTE. The route's backfill was never
+  // the hole; the other two callers were. A check that went through `POST /api/stories` would pass
+  // on the strength of the one path that was already correct, which is the shape of a check that
+  // cannot fail for the reason it exists.
+  const bare = db.createStory(o, { title: 'No Voice' });
+  assert.strictEqual(String(db.getStory(bare.id)!.writing_style ?? '').trim(), '',
+    'the fixture must actually have an empty voice, or this is testing nothing');
+
+  const slot = { global: 100096, slots: 4, perSlot: 25024 };
+  const m = story.assemble(story.view(bare.id)!, slot, 'continue', undefined, undefined, 900);
+  const voice = m.manifest.blocks.find((b: any) => b.kind === 'VOICE');
+  assert.ok(voice, 'a book with no voice of its own still gets one');
+  // A distinctive phrase of the shipped voice, so this cannot pass on an empty block that merely
+  // exists. If DEFAULT_VOICE is ever rewritten, change the phrase — do not delete the assertion.
+  assert.match(m.prompt, /Sunless Sea/,
+    'and it is the house voice, not an empty block wearing the name');
+});
+
 ok('firing decides what the model is TOLD — and since COUNCIL-04 #7, only that', () => {
   // It used to decide what gets VERIFIED as well: one rule doing two jobs, failing together, so a
   // character who never fired could be contradicted freely. The check reads the whole ledger now

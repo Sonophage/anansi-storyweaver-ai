@@ -4,6 +4,7 @@ import { buildContext } from './context.ts';
 import type { Input, Entry } from './context.ts';
 import { render, entryText, SYSTEM } from './render.ts';
 import { SLOTS } from './slots.ts';
+import { DEFAULT_VOICE } from './prompts.ts';
 import * as db from './db.ts';
 
 export interface Slot { global: number; slots: number; perSlot: number }
@@ -45,6 +46,18 @@ const toChapter = (c: any) => ({
 });
 
 /** Everything a surface needs to render one story. */
+/** THE VOICE A BOOK IS ACTUALLY WRITTEN IN: its own, then the writer's saved default, then the
+ *  shipped one. Moved here from `routes.ts` on 2026-08-30, COUNCIL-06 ship 3, because it had only
+ *  ever run at story CREATION and `assemble()` is where it has to run to be true on every call.
+ *
+ *  `db.createStory` has three callers and only `POST /api/stories` backfilled: `ledgerInto` and
+ *  the importer did not. Both books in the live library with an empty voice came in through the
+ *  importer, and `context.ts` gates the whole VOICE block on non-empty — so they were sending NO
+ *  VOICE AT ALL, carried entirely by SYSTEM. A migration would have plugged those two rows and
+ *  left all three paths open, and `db.updateStory` writes a blank straight through, so the hole
+ *  could reopen the next time somebody cleared the field. */
+export const voiceOf = (owner: string) => db.promptsOf(owner).voice?.trim() || DEFAULT_VOICE;
+
 export function view(storyId: string, focusChapterId?: string) {
   const s = db.getStory(storyId);
   if (!s) return null;
@@ -62,6 +75,9 @@ export function view(storyId: string, focusChapterId?: string) {
     // second copy in web/ is exactly the drift that module exists to stop. The browser cannot
     // import the .ts, so the server hands it over as data.
     slots: SLOTS,
+    // COUNCIL-06 ship 3. `assemble()` needs it to look up the writer's own default voice — it is
+    // not sent to the browser as anything the surface reads, it is here so the ladder can run.
+    owner: (s as any).owner_id,
     id: storyId, story: toStory(s), chapters,
     // Whether there is a cover, never the cover itself. Top level rather than inside `story` so a
     // surface that posts the story object straight back cannot try to save it as a field.
@@ -237,8 +253,18 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
   // that come after it — which is not a regeneration, it is a summary of the future.
   const passages = upToOrdinal == null ? v.passages
     : v.passages.filter((p) => p.ordinal < upToOrdinal);
+  // COUNCIL-06 ship 3 · A BOOK IS NEVER WRITTEN WITH NO VOICE. `context.ts` gates the whole VOICE
+  // block on this being non-empty, and two books in the live library had it blank — both created by
+  // the importer, which never ran the backfill that `POST /api/stories` does. They were sending no
+  // voice at all.
+  //
+  // Here rather than in `context.ts` because the ladder is story -> the writer's saved default ->
+  // the shipped one, and only this side of the purity line can read the writer's. `buildContext`
+  // stays pure: it receives a story whose voice is already resolved.
+  const withVoice = { ...v.story,
+    writingStyle: (v.story as any).writingStyle?.trim() || voiceOf((v as any).owner) };
   const inp: Input = {
-    story: v.story as any, chapters: v.chapters, passages, arcs: v.arcs,
+    story: withVoice as any, chapters: v.chapters, passages, arcs: v.arcs,
     entries: v.entries.map((e) => ({ ...e, body: entryText(e) })),
     mode: mode as any, directive, speaker, currentChapter: v.currentChapter,
     // Only the summoned ones, and the filter is here rather than in the engine so buildContext

@@ -3738,7 +3738,7 @@ const WPAGES = {
         <div class="hint">${esc(POV_EXAMPLE[S.blank.pov] ?? '')}</div>
         ${area('writingStyle', 'Voice of the weave',
                'How the narration behaves, as instructions. Edit it, or clear it — clearing it '
-               + 'now really does mean none.',
+               + 'falls back to the house voice, which is what an empty book is written in.',
                'Write the narration in contractions…')}
         ${area('voiceSample', 'A sample of your prose',
                'Optional. A few hundred words of your own writing to match the rhythm of. Never '

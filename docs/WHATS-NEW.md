@@ -12,6 +12,20 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### No book is written with no voice, and the spine is not cut short
+Two things about what reaches the model on every call.
+
+Your book's spine — its title, premise, setting and where it is going — had a ceiling
+low enough that one of your books was losing the back half of its setting on every
+single call, cut off mid-sentence. The ceiling is high enough now that the whole thing
+fits, and nothing you have is close to it.
+
+And a book with an empty Voice of the weave used to send no voice at all. Two of yours
+were in that state, both imported rather than created here, so they were being written
+with nothing but the house rules. An empty voice now falls back to the house voice, on
+every call rather than only when a book is made. Clearing the field means the house
+voice, not silence — the hint on the field said otherwise and was wrong.
+
 ### The model is told who is telling the story
 If your book is written in first or second person, Anansi was giving the model two
 instructions that cancelled each other: write in first person as Elias, and never write

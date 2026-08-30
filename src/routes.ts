@@ -6,7 +6,7 @@ import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCH
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
-import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
+import { view, assemble, budgetFor, clean, defaultModePrompts, voiceOf } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, cardText, narrationOnly, retirable, numbersIn, fires } from './context.ts';
@@ -151,7 +151,8 @@ const modesOnly = (all: Record<string, string>) =>
  *  Three layers, and each one is a fallback for the one before it: this story's own writingStyle,
  *  then the writer's default, then the shipped DEFAULT_VOICE — which is why the shipped one is
  *  still worth keeping around after the writer has replaced it. */
-const voiceOf = (owner: string) => db.promptsOf(owner).voice?.trim() || DEFAULT_VOICE;
+// Moved to src/story.ts on 2026-08-30 (COUNCIL-06 ship 3) so `assemble()` can run the ladder on
+// every call rather than only at story creation. Imported below; the comment above still holds.
 
 const TALK_TOKENS = 2400;
 
