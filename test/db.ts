@@ -281,6 +281,62 @@ ok('the lines the council struck stay struck, and say why', () => {
   }
 });
 
+// #11 · Anansi's speaking voice went into TALK on 2026-08-30, and Seth's rule about it was
+// "she only uses it in chat, not in the threads or cards or anything else". This is that rule.
+//
+// TALK is the only role whose output the writer reads and nothing stores. Every other role
+// produces a card body, a summary, a beat or a story field, and every one of those is re-sent to
+// the WRITING model on later calls — so a persona in them is not a style choice, it is
+// contamination. F36 measured what finished English in a prompt does: it is lifted verbatim into
+// the prose. Her register would reach the book through the ledger, and by a route the
+// contradiction checker cannot see.
+ok('the persona is in the chat prompt and in no other', () => {
+  const marks: [RegExp, string][] = [
+    [/civilisations rise and fall/i, 'the scholar framing'],
+    [/you do not boast/i,            'the trickster undercurrent'],
+    [/elevated and precise/i,        'the diction rule'],
+    [/leaning, gesturing/i,          'the no-body constraint'],
+    [/phonetic dialect/i,            'the no-dialect constraint'],
+    [/exclamatory enthusiasm/i,      'the contained-interest constraint'],
+  ];
+  for (const [rx, what] of marks) {
+    assert.match(prompts.TALK, rx, `TALK has lost ${what} (${rx})`);
+  }
+  // Every other prompt in the file, found by asking the module rather than by keeping a list --
+  // a list is the thing that goes stale the day somebody adds a role.
+  const others = Object.entries(prompts)
+    .filter(([k, v]) => typeof v === 'string' && k !== 'TALK' && k !== 'DEFAULT_VOICE');
+  assert.ok(others.length > 8, `expected the other roles to be found, got ${others.length}`);
+  for (const [name, text] of others as [string, string][]) {
+    for (const [rx, what] of marks) {
+      assert.doesNotMatch(text, rx,
+        `${name} carries ${what}. Only TALK may: everything ${name} returns is stored and re-sent `
+        + 'to the writing model, so a register there reaches the book through the ledger.');
+    }
+  }
+});
+
+// The web is Anansi's natural image and this app has taken the words. Thread and String are
+// entries on the writer's screen while they are reading her answer, so the metaphor reads as her
+// filing something rather than as a figure of speech. TALK carries both a list of images to use
+// and a list to avoid, and the two lists contradicting each other is a real way for this to rot:
+// "weave" was on the SAY list until 2026-08-30 and is on the AVOID list now.
+ok('the images Anansi is told to use are not also the ones she is told to avoid', () => {
+  // ONE regex over both lists, not two. Written as two it passed while reading the wrong list:
+  // /Say ([^.]+)\./ matched "Say perhaps, indeed, consider..." nine lines earlier, so the check
+  // compared the diction list against the ban list, found no overlap, and went green with the
+  // real lists never examined. It only showed up because the falsification did NOT go red.
+  const m = prompts.TALK.match(/Say ([^.]+)\.\s+Do NOT use ([^—]+?) as a figure of speech/);
+  assert.ok(m, 'the say-list and the avoid-list must sit in one paragraph and be findable');
+  const [, say, ban] = m!;
+  const wordsOf = (t: string) => t.toLowerCase().match(/[a-z]+/g)!.filter((w) => w !== 'or' && w !== 'and');
+  const banned = new Set(wordsOf(ban!));
+  for (const w of wordsOf(say!)) {
+    assert.ok(!banned.has(w),
+      `TALK tells her to say "${w}" and also not to use it. One of the two lists is wrong.`);
+  }
+});
+
 ok('regenerating a passage does not show the model the passages after it', () => {
   const s2 = db.createStory(o, { title: 'W' });
   // Distinctive bodies, not ordinary words. These were 'first'/'second'/'third'/'fourth', and the

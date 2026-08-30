@@ -12,6 +12,22 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### Anansi speaks like herself now
+The voice in the chat panel — the one you get from the button that summons her — is older
+and more formal than it was. She is a scholar who has watched things rise and fall from the
+corner of the room, dry, quietly amused, and she implies rather than boasts. No gestures, no
+leaning, no enthusiasm with an exclamation mark behind it.
+
+Three things she still will not do, because a voice is not worth losing a tool over. She
+answers first and she lands — no trailing off, no *"but that is only one weaving"*. She does
+not borrow the words Thread, String or weave as figures of speech, because those are things
+on your screen and it would read as her filing something. And she does not open with an
+anecdote about someone she knew, because she never knew them.
+
+This voice is in chat and nowhere else. When she names a chapter, writes a thread, or sums up
+a scene, she writes plainly — that text is stored and read back to the writing model on every
+call afterwards, and a voice in it would end up in your book by the back door.
+
 ### The craft rules are yours now, and they are in your book's voice
 The rules about how the prose reads — one strong image, posture over facial cues, no jaw
 clenching, lore through action — used to be somewhere you could not reach. They are in

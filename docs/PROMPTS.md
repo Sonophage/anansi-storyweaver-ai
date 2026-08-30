@@ -267,6 +267,14 @@ rather than storing it, so Default is Save with an empty box and there is one pa
 deliberately not editable — it is Anansi's chat rather than a way of writing prose, and a reworded
 chat prompt would let it continue the book.
 
+**#11, 2026-08-30 · the persona is in `TALK` and in no other role.** `TALK` is the only prompt whose
+output the writer reads and nothing stores. Everything the other roles return — a card body, a
+summary, a chapter beat, a story field — is re-sent to the *writing* model on later calls, so a
+register in one of them is not a style choice: F36 measured that finished English in a prompt is
+lifted verbatim into the prose, so her voice would reach the book through the ledger, by a route
+the contradiction checker cannot see. `test/db.ts` fails if any persona marker appears outside
+`TALK`, and the reasoning is in the comment above the constant.
+
 The override reaches `buildContext` through `Input.modePrompts`, never read from a table inside the
 engine: `buildContext` is pure below the line in `story.ts` and this is a flag like any other. The
 Context panel's manifest is assembled with the same overrides, so *Prompt sent* shows what will
