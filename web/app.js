@@ -29,7 +29,7 @@ const helpBody = (slug) => {
   if (!h || S.help !== slug) return '';
   return `<div class="card" data-helpbody="${slug}" style="margin:0 0 14px; gap:7px;
       font-size:12.5px; line-height:1.6; color:var(--mute); border-color:rgba(217,178,106,.28)">
-      <div style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+      <div style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
         color:var(--gold-dim)">${esc(h.title)}</div>${h.body}</div>`;
 };
 
@@ -331,6 +331,34 @@ function armed(t, key, ask) {
   return false;
 }
 
+/** ONE MODEL CALL PER BUTTON, AND THE BUTTON SAYS SO. Council 09 §1.
+ *
+ *  Four buttons at the foot of the chapter's own screen each fired a model pass behind a toast and
+ *  nothing else — no disabled, no label, no flag — on the one panel a writer reaches BECAUSE a pass
+ *  came back blank, which is to say the panel whose visitor is most likely to press again. The
+ *  router does not queue: `.claude/CLAUDE.md` measures two concurrent writers fitting and a third
+ *  killing both with HTTP 500, so a second press is not a second wait.
+ *
+ *  A HELPER RATHER THAN A FOURTH COPY, which is the actual finding. `data-invent` already did
+ *  exactly this by hand and is folded in below; `data-scanstory` and `data-memo` are NOT, and that
+ *  is deliberate — they hold the running id in `S` so the disabled state is re-rendered by paint()
+ *  and survives it. This one is for a button whose panel does not repaint mid-call.
+ *
+ *  `disabled` is what stops the second press; the dataset flag is for a click arriving another way.
+ *  Restoring in `finally` can write to a node paint() has already thrown away, which is harmless
+ *  and is why it is not guarded. */
+async function whileWorking(t, label, fn) {
+  if (t?.dataset.busy) return null;
+  const lbl = t?.querySelector('.lbl-txt') ?? t, was = lbl?.textContent;
+  if (t) { t.dataset.busy = '1'; t.disabled = true; }
+  if (lbl) lbl.textContent = label;
+  try { return await fn(); }
+  finally {
+    if (t) { delete t.dataset.busy; t.disabled = false; }
+    if (lbl) lbl.textContent = was;
+  }
+}
+
 // ---------- rail ----------
 function drawRail() {
   // Which menu, not where you are. Inside a story the rail can be showing either one.
@@ -355,13 +383,13 @@ function drawRail() {
   // that pulls up the main menu and its the same amount of clicks."
   const back = '';
   const tail = storyMenu
-    ? `<div class="txt" style="padding:26px 12px 10px; font-size:10px; letter-spacing:.3em;
+    ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.3em;
          font-variant-caps:all-small-caps; color:var(--dim)">Chapters</div>
        ${V.chapters.map((c) => `<button data-chapter="${c.id}" style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis;
          color:${c.id === V.currentChapter.id ? 'var(--gold-lit)' : 'var(--faint)'}"><span class="txt">${
          esc(c.title || `Chapter ${c.index}`)}</span></button>`).join('')}`
-    : (LIB.length ? `<div class="txt" style="padding:26px 12px 10px; font-size:10px; letter-spacing:.3em;
+    : (LIB.length ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.3em;
          font-variant-caps:all-small-caps; color:var(--dim)">Open</div>
        ${LIB.slice(0, 4).map((s) => `<button data-open="${s.id}" style="padding:8px 12px; font-size:13px;
          color:var(--gold-lit); border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis"
@@ -413,7 +441,7 @@ function drawRail() {
              whether it is one of the three that scored write 8/10 in the bakeoff — and all four of
              those are already in the id. One decode, three surfaces: here, the list below, and the
              Storyteller. The size is left out of the badges on purpose; this strip is nowrap. -->
-        ${modelName(SRV.model).bits.length ? `<span style="font-size:10.5px; color:var(--gold-dim);
+        ${modelName(SRV.model).bits.length ? `<span style="font-size:11px; color:var(--gold-dim);
           overflow:hidden; text-overflow:ellipsis">${esc(modelName(SRV.model).bits.join(' \u00b7 '))}</span>` : ''}
         <span style="font-size:11px; color:var(--dim)">${SRV.slot
           ? `slot ${SRV.slot.perSlot.toLocaleString()}` : 'llama-server asleep'}</span>
@@ -430,9 +458,9 @@ function drawRail() {
             <span class="txt" style="min-width:0; display:flex; flex-direction:column; gap:1px">
               <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
                 color:${m.id === SRV.model ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
-              ${modelName(m.id).bits.length ? `<span style="font-size:10px; color:var(--gold-dim);
+              ${modelName(m.id).bits.length ? `<span style="font-size:11px; color:var(--gold-dim);
                 overflow:hidden; text-overflow:ellipsis">${esc(modelName(m.id).bits.join(' \u00b7 '))}</span>` : ''}
-              ${modelFacts(m) ? `<span style="font-size:10.5px; color:var(--dim)">${esc(modelFacts(m))}</span>` : ''}</span>
+              ${modelFacts(m) ? `<span style="font-size:11px; color:var(--dim)">${esc(modelFacts(m))}</span>` : ''}</span>
           </button>`).join('')}
       <div class="hint" style="margin:6px 0 0">A press opens what is known about it — what it
         is for, how fast it has written here, how much context each writer gets — and the switch
@@ -567,7 +595,7 @@ function drawBar() {
       <span class="serif" style="font-size:23px; line-height:1; color:var(--chrome-ink);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block">${esc(title)}</span>
       </button>
-      ${sub ? `<span class="up" style="font-size:10.5px; color:var(--label); white-space:nowrap;
+      ${sub ? `<span class="up" style="font-size:11px; color:var(--label); white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>` : ''}
       <!-- decoded below, after the element exists -->
     </div>
@@ -589,7 +617,7 @@ function drawBar() {
         title="${S.reading ? 'Leave reading mode' : 'Read without the composer, and without the prose taking taps'}"
         style="display:flex; align-items:center; padding:6px 11px; color:${S.reading ? 'var(--gold)' : 'var(--chrome-dim)'}"
         >${mark('book', 17)}</button>
-      <button class="pill" data-appearance="1" aria-pressed="${S.appearance}"
+      <button class="pill" data-appearance="1" aria-label="How the app looks" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
 `
       : `<button class="pill" data-open="new">New story</button>
@@ -700,7 +728,7 @@ function drawAppearance() {
             border:1px solid ${hwkb ? 'var(--gold)' : 'var(--chip)'};
             background:${hwkb ? 'rgba(217,178,106,.10)' : 'transparent'}">
             <span style="font-size:12.5px; color:${hwkb ? 'var(--gold-lit)' : 'var(--mute)'}">Hardware keyboard</span>
-            <span style="margin-left:auto; font-size:10.5px; color:var(--faint)">${hwkb ? 'on' : 'off'}</span>
+            <span style="margin-left:auto; font-size:11px; color:var(--faint)">${hwkb ? 'on' : 'off'}</span>
           </button>
           <span class="hint" style="margin:0">Stops the layout resizing for a keyboard that is not
             there, keeps the caret in the box after a press, and <strong>stops the on-screen
@@ -718,7 +746,7 @@ function drawAppearance() {
 
   el.innerHTML = `
     <div class="sheet-head" style="display:flex; align-items:center; gap:10px">
-      <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--dim)">${
+      <span style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--dim)">${
         inStory ? 'This book' : 'Every book'}</span>
       <button data-appearance="0" style="margin-left:auto; color:var(--faint); font-size:12px" aria-label="Close">✕</button>
     </div>
@@ -745,7 +773,7 @@ function drawAppearance() {
 /** `opening` is the first passage of the chapter: it carries the drop cap, and only when it is
  *  narration — a drop cap on a line of dialogue sets a quotation mark two inches tall. */
 function passageHTML(p, newest, opening) {
-  if (p.isBreak) return `<div class="scenebreak"><i></i><span class="up" style="font-size:10px;
+  if (p.isBreak) return `<div class="scenebreak"><i></i><span class="up" style="font-size:11px;
     color:var(--label); opacity:.8">${esc(p.body || 'Scene')}</span><i></i></div>`;
   const mine = p.author === 'human';
   // Authorship is not the same question as whether this is dialogue. It used to be — Speak was
@@ -771,7 +799,8 @@ function passageHTML(p, newest, opening) {
   // that make sense while reading — roll this again, take it somewhere else, go to another chapter.
   const acts = `<div class="acts">
     ${v.length > 1 ? `<span class="wr" style="display:flex; align-items:center; gap:4px; padding:8px 6px; font-size:12px; color:var(--faint)">
-      <button data-vp="${p.id}">‹</button>${at}/${v.length}<button data-vn="${p.id}">›</button></span>` : ''}
+      <button data-vp="${p.id}" aria-label="The take before this one">‹</button>${at}/${
+        v.length}<button data-vn="${p.id}" aria-label="The take after this one">›</button></span>` : ''}
     <button data-re="${p.id}"><span class="serif" style="color:var(--gold)">↻</span><span class="lbl-txt">Regenerate</span></button>
     <!-- "Remember this." The writer's own recall: the model has forgotten something that happened,
          so you point at the passage it happened in. It goes to Anansi as an INSTRUCTION rather than
@@ -1131,7 +1160,7 @@ function drawDock() {
         <textarea id="input" rows="1" placeholder="${esc(placeholder(who))}"></textarea>
       </div>
       <div id="atlistInput" hidden></div>
-      <span class="deskonly" style="font-size:10.5px; color:var(--label); opacity:.55; padding-bottom:3px">&crarr;</span>
+      <span class="deskonly" style="font-size:11px; color:var(--label); opacity:.55; padding-bottom:3px">&crarr;</span>
       <!-- SEND STAYS SEND. It carried two jobs for as long as Stop had nowhere else to be — the
            argument was that the place your eye is already on is the place you last pressed. Stop
            lives on the veil now, which covers the whole screen and is the only thing you can see
@@ -1283,7 +1312,7 @@ function proposalCard(p) {
             <span style="font-size:14.5px; color:var(--ink-bright)">${esc(p.title)}</span>
             ${room ? `<span class="tag" style="border-color:rgba(217,178,106,.35); color:var(--gold)"
               >${esc(room)}</span>` : ''}
-            <span class="up" style="margin-left:auto; font-size:9.5px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
+            <span class="up" style="margin-left:auto; font-size:11px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
           ${where ? `<div style="font-size:11px; line-height:1.45; color:var(--faint)">${where}</div>` : ''}
           ${p.field && p.target ? `<div style="font-size:11px; line-height:1.45; color:var(--warn)">${esc(p.title)}
             already has ${/^[aeiou]/i.test(room) ? 'an' : 'a'} ${esc(room)}. Add this beside it, or put
@@ -1301,7 +1330,8 @@ function proposalCard(p) {
             ${p.field && p.target ? `<button data-decide="replace" data-id="${p.id}"
               style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
               border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Replace it</button>` : ''}
-            <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
+            <button data-decide="reject" data-id="${p.id}" aria-label="Reject this proposal"
+              style="width:38px; text-align:center; padding:8px 0;
               border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">&#10005;</button></div></div>`;
 }
 
@@ -1563,7 +1593,7 @@ const PANELS = {
       owed.map((x) => `<div class="card" style="margin-bottom:8px; gap:6px">
         <div style="display:flex; align-items:center; gap:9px">
           <span style="font-size:14px; color:var(--ink-bright)">${esc(x.title)}</span>
-          <span class="up" style="margin-left:auto; font-size:9.5px; letter-spacing:.1em; color:var(--faint)">${
+          <span class="up" style="margin-left:auto; font-size:11px; letter-spacing:.1em; color:var(--faint)">${
             x.fromChapter ? `set up in ${x.fromChapter}` : ''}${x.owedBy ? ` · owed by ${x.owedBy}` : ''}</span></div>
         ${x.body ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(x.body)}</div>` : ''}
         <div style="display:flex; gap:7px">
@@ -2219,7 +2249,7 @@ const PANELS = {
               </div>` : ''}
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
                 border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} proposed &mdash; waiting under Chapter</button>` : ''}
-              ${turn.meta ? `<div style="font-size:10.5px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
+              ${turn.meta ? `<div style="font-size:11px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
             </div>`).join('')
           : (() => {
             // The empty state was two paragraphs of explanation over a panel-height void. It said
@@ -2321,12 +2351,12 @@ const PANELS = {
             : ''}</span></div>
         ${x.body ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(x.body)}</div>` : ''}
         <div style="display:flex; gap:6px; flex-wrap:wrap">
-          <button class="btn ghost" data-summon="${x.id}" style="width:auto; padding:0 12px; height:30px; font-size:10.5px">${
+          <button class="btn ghost" data-summon="${x.id}" style="width:auto; padding:0 12px; height:30px; font-size:11px">${
             x.summoned ? 'Put it away' : 'Put it in play'}</button>
           ${x.status === 'open'
-            ? `<button class="btn ghost" data-stringstatus="${x.id}:paid" style="width:auto; padding:0 12px; height:30px; font-size:10.5px">Paid off</button>
-               <button class="btn ghost" data-stringstatus="${x.id}:dropped" style="width:auto; padding:0 12px; height:30px; font-size:10.5px">Let it go</button>`
-            : `<button class="btn ghost" data-stringstatus="${x.id}:open" style="width:auto; padding:0 12px; height:30px; font-size:10.5px">Still open</button>`}
+            ? `<button class="btn ghost" data-stringstatus="${x.id}:paid" style="width:auto; padding:0 12px; height:30px; font-size:11px">Paid off</button>
+               <button class="btn ghost" data-stringstatus="${x.id}:dropped" style="width:auto; padding:0 12px; height:30px; font-size:11px">Let it go</button>`
+            : `<button class="btn ghost" data-stringstatus="${x.id}:open" style="width:auto; padding:0 12px; height:30px; font-size:11px">Still open</button>`}
           <button data-delstring="${x.id}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button>
         </div></div>`;
     };
@@ -2354,7 +2384,8 @@ const PANELS = {
             <div style="display:flex; gap:7px">
               <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
                 border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Tie it</button>
-              <button data-decide="reject" data-id="${p.id}" style="width:38px; text-align:center; padding:8px 0;
+              <button data-decide="reject" data-id="${p.id}" aria-label="Reject this proposal"
+              style="width:38px; text-align:center; padding:8px 0;
                 border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button>
             </div></div>`).join('')}
           <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Owed</div>`;
@@ -2583,7 +2614,7 @@ function ledgerBooks() {
         aria-expanded="${!shut}">
         <span style="color:var(--dim); font-size:12px; width:10px">${shut ? '›' : '⌄'}</span>
         <span class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(b.title)}</span>
-        <span class="up" style="font-size:10px; color:var(--dim)">${b.rows.length} ${b.rows.length === 1 ? 'entry' : 'entries'}</span></button>
+        <span class="up" style="font-size:11px; color:var(--dim)">${b.rows.length} ${b.rows.length === 1 ? 'entry' : 'entries'}</span></button>
       <button data-open="${sid}" style="margin-left:auto; font-size:11px; letter-spacing:.1em;
         font-variant-caps:all-small-caps; color:var(--gold)">Open story</button></div>
     ${shut ? '' : `<div class="grid">${b.rows.map(entryCard).join('')}</div>`}</div>`; }).join('')
@@ -2604,10 +2635,10 @@ function searchHits() {
       data-hitkind="${esc(r.kind ?? 'Prose')}" style="display:flex; flex-direction:column; gap:5px;
       width:100%; text-align:left">
       <span style="display:flex; align-items:center; gap:10px; width:100%">
-        <span class="kind" style="font-size:9.5px">${esc(r.kind ?? 'Prose')}</span>
+        <span class="kind" style="font-size:11px">${esc(r.kind ?? 'Prose')}</span>
         <span style="margin-left:auto; font-size:11px; color:var(--dim)">${esc(r.where ?? '')}</span></span>
       <span style="font-size:13.5px; line-height:1.5; color:var(--ink)">${esc((r.body ?? '').slice(0, 260))}</span></button>
-    ${r.kind === 'Entry' ? '' : `<button data-tolore="${i}" style="align-self:flex-start; font-size:10.5px;
+    ${r.kind === 'Entry' ? '' : `<button data-tolore="${i}" style="align-self:flex-start; font-size:11px;
       letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--gold); padding:2px 0">＋ Add to threads</button>`}
   </div>`).join('');
 }
@@ -2911,7 +2942,7 @@ function setupPanel() {
     <span style="width:14px; flex:0 0 auto; color:${on(e) ? 'var(--gold)' : 'var(--faint)'}">${on(e) ? '✓' : '·'}</span>
     <span style="flex:1; min-width:0; font-size:13px; color:${on(e) ? 'var(--ink)' : 'var(--mute)'};
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(e.title)}</span>
-    <span style="flex:0 0 auto; font-size:10px; letter-spacing:.12em; font-variant-caps:all-small-caps;
+    <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps;
       color:var(--label); opacity:.7">${why(e)}</span></button>`;
 
   const cast = V.entries.filter((e) => e.entryType === 'character' && match(e));
@@ -2950,7 +2981,7 @@ function setupPanel() {
       <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
         text-overflow:ellipsis; white-space:nowrap">${esc(justClosed.title || `Chapter ${justClosed.index}`)} closed${
         justClosed.summary ? ', summarised' : ''}${closedQueue ? ` &middot; ${closedQueue} waiting` : ''}</span>
-      <span style="flex:0 0 auto; font-size:10px; letter-spacing:.12em; font-variant-caps:all-small-caps;
+      <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps;
         color:var(--label); opacity:.7">what it found</span></button>` : ''}
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(ch.title || `Chapter ${ch.index}`)}</div>
     <div class="hint" style="margin:6px 0 0">Nothing here is required. Leave it and write.</div>
@@ -3699,7 +3730,7 @@ function historyPanel() {
           .filter(Boolean);
         if (!(t.canon ?? []).length) return '';
         return `<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:7px">
-          <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+          <span style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
             color:var(--label); opacity:.7; align-self:center">Written against</span>
           ${names.map((nm) => `<span class="tag">${esc(nm)}</span>`).join('')
             || `<span class="tag">${t.canon.length} entries since removed</span>`}</div>`;
@@ -3920,7 +3951,7 @@ const WPAGES = {
     const books = [...byBook.entries()];
     return `<div style="display:flex; flex-direction:column; gap:22px">
       <div style="display:flex; gap:7px; flex-wrap:wrap; align-items:center">
-        <span style="font-size:10px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+        <span style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
           color:var(--dim)">Waiting for you</span>
         ${books.length
           ? books.map(([id, b]) => `<button class="chip" data-owed="${esc(id)}" data-owedpanel="waiting"
@@ -4146,10 +4177,10 @@ const WPAGES = {
                 <span class="chip" style="flex:0 0 auto">${esc(e.entryType)}</span>
                 <span style="display:flex; gap:4px; flex-wrap:wrap; flex:0 1 auto">${
                   e.activation === 'always_on'
-                    ? '<span style="font-size:10.5px; color:var(--dim)">always</span>'
+                    ? '<span style="font-size:11px; color:var(--dim)">always</span>'
                     : e.keys.length ? e.keys.map((k) => `<span class="tag">${esc(k)}</span>`).join('')
-                    : '<span style="font-size:10.5px; color:var(--dim)">no keys</span>'}</span>
-                <span class="tnum" style="margin-left:auto; font-size:10.5px; color:var(--dim); flex:0 0 auto">${e.chars}c</span>
+                    : '<span style="font-size:11px; color:var(--dim)">no keys</span>'}</span>
+                <span class="tnum" style="margin-left:auto; font-size:11px; color:var(--dim); flex:0 0 auto">${e.chars}c</span>
               </div>`).join('')
               : '<div class="hint" style="margin:0">None in this file.</div>'}
           </div>
@@ -5236,12 +5267,12 @@ document.addEventListener('click', async (e) => {
     const tray = t.closest('[data-invtray]') ?? document;
     const dir = tray.querySelector('[data-invdir]')?.value.trim() ?? '';
     const search = !!tray.querySelector('[data-invsearch]')?.checked;
-    const was = t.textContent;
-    t.textContent = search ? 'Looking it up…' : 'Writing…'; t.disabled = true;
     working('direct');
-    const r = await api.invent(S.storyId, { kind: d.invent, entryId: outfitOwner() || undefined,
-      direction: dir || undefined, search });
-    working(null); t.disabled = false; t.textContent = was;
+    const r = await whileWorking(t, search ? 'Looking it up…' : 'Writing…',
+      () => api.invent(S.storyId, { kind: d.invent, entryId: outfitOwner() || undefined,
+        direction: dir || undefined, search }));
+    working(null);
+    if (!r) return;
     if (r.error) return toast(r.error);
     if (r.card) {
       // The open card, rewritten, unsaved. Same bargain as the outfit below and as every other
@@ -6197,9 +6228,14 @@ document.addEventListener('click', async (e) => {
     else if (patch.spice !== undefined) patch.spiceNote = '';
     const r = await api.saveStory(S.storyId, patch);
     if (r.error) return toast(r.error);
+    // COUNCIL 09 §2. This said "Saved." whatever came back, over the two fields on this screen a
+    // writer types by hand. A toast that lies is worse than no toast: the next time the title is
+    // empty you go looking for the fault somewhere it is not.
     const ct = document.querySelector('[data-chapter-title]'), cn = document.querySelector('[data-chapter-note]');
-    if (ct) await api.saveChapter(S.storyId, V.currentChapter.id, { title: ct.value, authorsNote: cn?.value ?? '' });
-    V = await api.story(S.storyId); paint(); toast('Saved.'); refreshManifest(); return;
+    const c = ct && await api.saveChapter(S.storyId, V.currentChapter.id,
+      { title: ct.value, authorsNote: cn?.value ?? '' });
+    V = await api.story(S.storyId); paint(); refreshManifest();
+    return toast(c && c.error ? c.error : 'Saved.');
   }
   // The DOOR. Pressing it opens the chapter's own screen; the close itself is a second press
   // inside, which is the right number before an act that cannot be undone from one button.
@@ -6258,21 +6294,27 @@ document.addEventListener('click', async (e) => {
   }
   // The way back when the router was asleep at the close. Same shape as data-remember.
   if (d.refinished) {
-    toast('Looking for finished threads…');
-    const r = await api.finished(S.storyId, S.ritualOf ?? V.currentChapter.id);
+    const r = await whileWorking(t, 'Looking…',
+      () => api.finished(S.storyId, S.ritualOf ?? V.currentChapter.id));
+    if (!r) return;
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint();
     return toast(r.proposed ? `${r.proposed} proposed as finished, of ${r.eligible} this chapter names`
                             : `Nothing finished, of ${r.eligible ?? 0} this chapter names`);
   }
-  if (d.summarize) { toast('Summarising…'); const r = await api.summarize(S.storyId, V.currentChapter.id);
+  if (d.summarize) {
+    const r = await whileWorking(t, 'Summarising…', () => api.summarize(S.storyId, V.currentChapter.id));
+    if (!r) return;
     if (r.error) return toast(r.error); V = await api.story(S.storyId); paint(); return; }
-  if (d.extract) { toast('Reading the chapter…'); const r = await api.extract(S.storyId, V.currentChapter.id);
+  if (d.extract) {
+    const r = await whileWorking(t, 'Reading the chapter…', () => api.extract(S.storyId, V.currentChapter.id));
+    if (!r) return;
     if (r.error) return toast(r.error); V = await api.story(S.storyId); paint();
     toast(`${r.added ?? 0} proposed.`); return; }
   if (d.remember) {
-    toast('Reading it for what it did to the people in it…');
-    const r = await api.remember(S.storyId, V.currentChapter.id);
+    const r = await whileWorking(t, 'Reading it…',
+      () => api.remember(S.storyId, V.currentChapter.id));
+    if (!r) return;
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint();
     // `remembered: 0` is a real answer and not a failure: nobody in the chapter changed, or the
@@ -6936,7 +6978,7 @@ function atDraw() {
       background:${i === AT.sel ? 'rgba(217,178,106,.10)' : 'transparent'};
       color:${i === AT.sel ? 'var(--gold-lit)' : 'var(--ink)'}; font-size:13px">
       <span>${esc(it.label)}</span>
-      <span style="margin-left:auto; font-size:10px; letter-spacing:.08em;
+      <span style="margin-left:auto; font-size:11px; letter-spacing:.08em;
         font-variant-caps:all-small-caps; color:var(--faint)">${esc(it.kind)} \u00b7 ${esc(it.where)}</span>
     </button>`).join('');
 }

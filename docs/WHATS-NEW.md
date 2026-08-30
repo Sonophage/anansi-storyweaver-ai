@@ -10,6 +10,30 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · Nothing is smaller than eleven, and a pass runs once
+
+### The smallest text in the app got bigger
+Thirty-four places were set below eleven pixels, the smallest of them in small capitals — about a
+seven-pixel letter — and one of those was the chip that says what a proposal is about. Nothing is
+under eleven now. The UI size control under Appearance still moves everything from there, and the
+prose is where it was.
+
+### Re-running a pass at chapter end can only be started once
+Summary, Changes, Facts and Finished each ask the model, which takes a few seconds, and each looked
+exactly as pressable while it was working. Pressing twice sent a second request; pressing three
+times killed both, because the model does not queue. The button now says what it is doing and
+cannot be pressed again until it is done. Have Anansi write behaves the same way and always did.
+
+### Saving the next chapter's setup tells the truth
+It said Saved whether or not the chapter's name and brief were stored. Those are the two things on
+that screen you type by hand, so a failure was silent and reported as a success. It now says what
+actually happened.
+
+### Four buttons that had no name have one
+The take arrows on a rerolled passage, the appearance button and the × that rejects a proposal were
+unlabelled, so a screen reader announced them as nothing. The × is the one that mattered most: it
+is the only unnamed control in the app that throws something away.
+
 ## 2026-08-30 · Every delete asks twice, and two new ones
 
 ### Nothing is deleted on one press any more

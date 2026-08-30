@@ -55,6 +55,38 @@ const ok = (m: string, fn?: unknown) => {
     'a backtick inside an HTML comment closes the template literal that comment lives in, and the '
     + 'panel then renders as nothing at all. Quote identifiers with "double quotes" in markup '
     + 'comments');
+  // COUNCIL 09 §1 · EVERY MODEL CALL FROM A BUTTON GOES THROUGH ONE IN-FLIGHT GUARD.
+  //
+  // Four handlers fired a model pass behind a toast and nothing else, on the panel a writer reaches
+  // BECAUSE a pass came back blank — so the visitor most likely to press twice. The router does not
+  // queue (`.claude/CLAUDE.md`, measured): two concurrent fit, a third kills both with HTTP 500.
+  //
+  // ASSERTED IN SOURCE AND NOT IN A BROWSER, because proving it in a browser needs a model and this
+  // suite deliberately needs none. It is a weaker check than a driver pressing twice and it is the
+  // one that can run before every commit. Falsify by unwrapping any one of the five: the handler
+  // whose name is dropped is printed, not a count.
+  {
+    const guarded = ['summarize', 'extract', 'refinished', 'remember', 'invent'];
+    const loose = guarded.filter((k) => {
+      const m = new RegExp(`if \\(d\\.${k}[^\n]*\\)[\\s\\S]{0,900}?api\\.\\w+\\(`).exec(js);
+      return !m || !/whileWorking\(/.test(m[0]);
+    });
+    assert.deepStrictEqual(loose, [],
+      'a button that calls the model must go through whileWorking(), or a second press is a second '
+      + 'request and the router answers 500 rather than queueing');
+    ok(`${guarded.length} model calls from a button, every one behind the in-flight guard`);
+  }
+
+  // COUNCIL 09 §7 · NOTHING IN THE APP IS SMALLER THAN 11px. The floor was 9.5px in all-small-caps
+  // — roughly a 7px x-height — on the chip that says what a proposal IS. The UI-scale control is a
+  // per-device escape hatch and not an answer to a default nobody can read.
+  {
+    const tiny = [...(js + read('app.html') + read('web/model.js') + read('web/help.js'))
+      .matchAll(/font-size:\s*([0-9.]+)px/g)].map((m) => Number(m[1])).filter((n) => n < 11);
+    assert.deepStrictEqual(tiny, [], 'type below the 11px floor');
+    ok('no type in the app is set below 11px');
+  }
+
   const comments = (js.match(/<!--[\s\S]*?-->/g) ?? []).length;
   assert.ok(comments > 20, `expected the markup comments to be found (${comments})`);
   ok(`${comments} html comments in the markup, none carrying a backtick`);

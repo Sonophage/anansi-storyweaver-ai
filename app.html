@@ -604,7 +604,7 @@ html[data-ui-font="garamond"] .narr { font-family:Garamond,'EB Garamond','Apple 
 html[data-ui-font="system"] .narr { font-family:system-ui,-apple-system,'Segoe UI',sans-serif; font-style:normal; }
 html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo,Consolas,monospace; font-style:normal; }
 .said { max-width:600px; font-size:var(--bubble); line-height:1.65; color:var(--body); text-wrap:pretty; white-space:pre-wrap; }
-.who { font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
+.who { font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
 .block { position:relative; display:flex; flex-direction:column; gap:10px; }
 /* Set like a book: paragraphs run on, and the indent is what separates them rather than a blank
    line. The FIRST paragraph of a passage is flush, which is the convention every printed novel
@@ -862,7 +862,7 @@ html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
 #asRow > .inner { width:100%; display:flex; align-items:center; gap:9px;
   justify-content:space-between; padding:7px 40px;
   border-top-left-radius:var(--r); border-top-right-radius:var(--r);
-  font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
+  font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
 /* NO TINT ON THE ROW. Speak's was mixed 88% toward the paper and was invisible; Act's came off the
    accent and was not — so one of the two modes had a filled bar and the other had nothing, which
    reads as a fault rather than as a distinction. Seth: "remove that background so it mimics the
@@ -902,7 +902,7 @@ html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
 /* `margin-left:auto` on + Thread pushes it right on ONE line; on a wrapped second line it would
    shove it alone to the far edge with a hole beside it. Below the wrap point they simply follow. */
 @media (max-width:560px) { #modes button[data-newlore] { margin-left:0 !important; } }
-#modes button { flex:0 0 auto; font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
+#modes button { flex:0 0 auto; font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
 #modes button[aria-pressed="true"] { color:var(--gold-lit); border-bottom-color:var(--gold); }
 /* Continue is an action, not a mode — it sends on the press. Given the same underline as the four
    selectable modes it read as a fifth thing you pick, which is the one thing it is not. */
@@ -1024,8 +1024,8 @@ textarea.field { resize:vertical; min-height:70px; }
    for the same reason canon flags are: the panel is an index, not a reading surface. */
 .clamp { display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden; }
 [aria-expanded="true"] > .clamp { -webkit-line-clamp:unset; }
-.tag { font-size:9.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; padding:2px 8px; border-radius:var(--r-pill); border:1px solid var(--chip); color:var(--dim); white-space:nowrap; }
-.kind { font-size:10.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--gold-dim); }
+.tag { font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; padding:2px 8px; border-radius:var(--r-pill); border:1px solid var(--chip); color:var(--dim); white-space:nowrap; }
+.kind { font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--gold-dim); }
 .row { display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:12.5px; }
 .btn { padding:12px; text-align:center; border-radius:var(--r-pill); background:var(--gold); color:var(--on-gold); font-size:11px; font-weight:500; letter-spacing:.1em; font-variant-caps:all-small-caps; display:block; width:100%; }
 .btn.ghost { background:none; border:1px solid var(--chip); color:var(--mute); font-weight:400; }
