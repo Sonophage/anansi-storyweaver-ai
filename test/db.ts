@@ -156,6 +156,18 @@ ok('SYSTEM is spent before the budget is offered, because it is on the wire eith
   assert.ok(story.estimate(render.SYSTEM) > 300,
     'SYSTEM costs real tokens — if this ever reads near zero, SYSTEM has moved and the deduction '
     + 'is deducting nothing');
+
+  // SYSTEM IS SENT TO THE MODEL. Every line in it is an instruction, so a note ABOUT the prompt
+  // written inside the prompt is an instruction too — and on 2026-08-30 one nearly went in: an
+  // explanation of why a bullet had been deleted, complete with a finding number and a percentage,
+  // pasted between two rules. It would have reached the model on every call for the life of the
+  // app. Notes about the prompt belong in a code comment above the constant, where they are read
+  // by people and not by the writing model.
+  for (const tell of [/COUNCIL-\d/, /\bF\d\d\b/, /P0-FINDINGS/, /\.ts:\d/, /was here\. Removed/]) {
+    assert.doesNotMatch(render.SYSTEM, tell,
+      `SYSTEM carries what reads as a note about itself (${tell}). It is sent to the model — put `
+      + 'the note in a code comment above the constant instead.');
+  }
 });
 
 ok('regenerating a passage does not show the model the passages after it', () => {

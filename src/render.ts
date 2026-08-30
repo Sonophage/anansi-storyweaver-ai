@@ -20,6 +20,15 @@ const TAG: Partial<Record<Kind, string>> = {
  *  The arbitration rule keys on provenance. PLAN-02 inverted it globally to "the prose
  *  wins", which lets a chapter-30 hallucination outrank a hand-pinned fact — the exact
  *  thing "pin it once and it's still canon at chapter 50" exists to prevent. */
+/** COUNCIL-06 ship 2 · "Match the established voice. Do not escalate register on your own." was a
+ *  bullet here until 2026-08-30. Removed on F37's evidence rather than on taste: its control arm
+ *  measured 98.0% against 98.0%, and the finding's own conclusion is that the model *was never
+ *  overriding the voice field; it was following it exactly*. The line guarded a failure that does
+ *  not occur.
+ *
+ *  It is the only deletion COUNCIL-06 made with a number behind it. Every other bullet below has
+ *  never been measured, and most predate every finding in P0-FINDINGS — which is worth knowing
+ *  before anyone deletes a second one on the strength of reading it. */
 export const SYSTEM = `You are a prose engine for a novel. You write the next passage and nothing else.
 
 Rules:
@@ -33,7 +42,6 @@ Rules:
 - Canon is what is TRUE, never how to say it. Do not reuse its wording. A ledger body is a note to
   you, not a line of the book, and a phrase carried out of it whole is the one thing that makes the
   prose read as assembled. Its facts, your sentences.
-- Match the established voice. Do not escalate register on your own.
 
 Craft:
 - Begin in action or sensation, never in exposition.

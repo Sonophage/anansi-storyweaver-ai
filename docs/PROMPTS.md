@@ -23,7 +23,6 @@ Rules:
   them; never restate them as exposition.
 - Where the prose and the canon disagree, the canon wins and you write to it. If a fact has
   changed, the writer will change the canon.
-- Match the established voice. Do not escalate register on your own.
 ```
 
 **Two changes from revision 1, both deliberate.**
