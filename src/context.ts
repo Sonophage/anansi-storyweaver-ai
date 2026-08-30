@@ -592,8 +592,11 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     //
     // The setting is recoverable and the premise is not: a place has lore entries and CANON blocks
     // of its own, and the premise exists in exactly one place. Nothing in the live library is over
-    // this cap today — SPINE peaks at 343 of 400 — so this changes no prompt that is sent now. It
-    // changes which one survives the day something does.
+    // this cap — measured wrong once, from a stale snapshot, and the correction matters: `The
+    // Geometry of Absence` assembles ~716 tokens of spine and WAS being cut at 400 on every call.
+    // So this swap changed a live prompt rather than a hypothetical one; before it, that book lost
+    // its premise, and after it, its setting. The cap went to 1000 in the same sitting, which is
+    // what stops either from being cut at all.
     { text: story.premise, keep: true },
     { text: `Setting: ${story.setting}`, keep: false },
     { text: story.direction ? `Where this is going: ${story.direction}` : '', keep: true },

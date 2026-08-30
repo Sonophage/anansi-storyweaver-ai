@@ -105,11 +105,16 @@ ok('an anchor that CAN be cut still says it was shortened, and really is shorter
   // premise is the only text in SPINE that names who the book is about, and on the live library it
   // was the shorter of the two by a factor of three. So the fixture fattens the SETTING, and what
   // must survive is the premise.
+  // AND THE FIXTURE GREW WITH THE CAP. `.repeat(30)` made ~514 tokens, which overran 400 and no
+  // longer overruns 1000 — so left alone this check would have gone on passing because the fixture
+  // stopped reproducing the condition, not because the code still held. That is the failure this
+  // project has been bitten by four times; the assertion below is what would have gone quiet.
   const fat = base();
-  fat.story.setting = 'Vantic, in the rain, and the water rises past the archive steps. '.repeat(30);
+  fat.story.setting = 'Vantic, in the rain, and the water rises past the archive steps. '.repeat(80);
   const sp = buildContext(fat, count).blocks.find((b) => b.kind === 'SPINE')!;
-  assert.ok(sp.tokens <= 400, `SPINE is capped at 400 and this is ${sp.tokens}`);
-  assert.match(sp.reason, /anchor shortened to 400 tokens/,
+  assert.ok(sp.tokens > 900, `the fixture must still OVERRUN the cap, and it is only ${sp.tokens}`);
+  assert.ok(sp.tokens <= 1000, `SPINE is capped at 1000 and this is ${sp.tokens}`);
+  assert.match(sp.reason, /anchor shortened to 1000 tokens/,
     `a real cut must still report itself; this said "${sp.reason}"`);
   assert.ok(sp.text.length < fat.story.setting.length,
     'and the text is actually shorter than the setting it was made from');

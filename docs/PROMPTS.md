@@ -49,7 +49,7 @@ SPINE  VOICE  STYLE  CANON-ALWAYS  CANON-TRIGGERED  STRING  EARLIER  PROSE  DIRE
 
 Corrected 2026-08-29 (#18 §4) against `src/blocks.ts`. What was written here missed **VOICE**,
 **STYLE** and **STRING**, and still listed **CANON-REPEAT**, which F20 measured at 850 tokens for
-no gain and which came out then. Caps live in the same file: `SPINE 400 · VOICE 500 · STYLE 200 ·
+no gain and which came out then. Caps live in the same file: `SPINE 1000 · VOICE 500 · STYLE 200 ·
 DIRECTIVE 250`; every other block is uncapped and trimmed by the budget instead.
 
 Delimiters are **tags, not Markdown headers**: `#` collides with Markdown prose storage and invites
@@ -91,7 +91,12 @@ destination is not a claim about *now*, so §7.1's argument against permanent bo
 temporal facts does not reach it. Confirmed by Seth, 2026-08-23. The plan is the stale document.
 
 Title and `premise` and `direction` are `keep: true`; **`Setting:` is the part that shortens** when
-SPINE exceeds its 400-token cap. Anchors are shortened, never deleted.
+SPINE exceeds its **1000**-token cap. Anchors are shortened, never deleted.
+
+**The cap went 400 → 1000 on 2026-08-30, and it was not a preference.** At 400 it was cutting a live
+book on every call: `The Geometry of Absence` assembles ~716 tokens of spine and reported `anchor
+shortened to 400 tokens`, losing its setting mid-sentence. At 1000 the whole spine fits and no other
+book is within 400 of the ceiling.
 
 **COUNCIL-06 swapped those two flags on 2026-08-30, and the reason is worth keeping.** The premise
 was the flex part and the setting was never trimmed, which is backwards on the evidence: across the

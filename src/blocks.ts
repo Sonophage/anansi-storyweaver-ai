@@ -40,7 +40,16 @@ export const ORDER: Kind[] = [
 // VOICE was a `keep: false` part of DIRECTIVE under a 250-token cap shared with point of view,
 // the chapter's ending and the register — so the app's own hint ("paste a few hundred words")
 // guaranteed the sample was cut, and cut first. COUNCIL-04 #5. 500 tokens holds ~370 words.
-export const CAPS: Partial<Record<Kind, number>> = { SPINE: 400, DIRECTIVE: 250, VOICE: 500, STYLE: 200 };
+// SPINE went 400 -> 1000 on 2026-08-30. Not a preference: at 400 it was AMPUTATING a live book on
+// every call. `The Geometry of Absence` assembles a spine of ~716 tokens — a 1,481-character premise
+// and a 1,032-character setting — and the block reported `anchor shortened to 400 tokens`, cutting
+// its setting off mid-sentence at "floor-to-ceiling glass…". 1000 holds the whole of it, and no
+// other book in the library is within 400 of the new ceiling.
+//
+// The cap is a fraction of a 45,700-token budget either way. What it was really doing was deciding
+// which half of a book's own description survived, which is not a thing a number should decide
+// quietly.
+export const CAPS: Partial<Record<Kind, number>> = { SPINE: 1000, DIRECTIVE: 250, VOICE: 500, STYLE: 200 };
 
 // EARLIER is the one block that grows monotonically with book length.
 // PLAN-02 put it outside the 45% canon cap, which left the only unbounded block
