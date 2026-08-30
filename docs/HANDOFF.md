@@ -1,10 +1,12 @@
 # Handoff — 2026-08-30, after the issue-clearing session and COUNCIL-06
 
-`main` and `serial` are both at **`7eaa267`**, pushed, tree clean. Read `.claude/CLAUDE.md` first;
-this file is what a cold session needs on top of it.
+`main` and `serial` are both at **`db80acb`** plus this handoff commit, pushed, tree clean. Read
+`.claude/CLAUDE.md` first; this file is what a cold session needs on top of it.
 
 **One issue is open: #9, and it is open on purpose.** Everything else on the board is closed.
-§8 is the prompt-stack work that followed the issue clearing; read it before touching a prompt.
+Fifteen commits sit on top of the last handoff. §1–§7 are the issue-clearing session; **§8 is the
+prompt stack and you must read it before touching a prompt**; §9 and §10 are two bugs that had been
+in the boot log for days and were only ever going to be found by reading it.
 
 ---
 
@@ -166,16 +168,32 @@ Both were then answered by Seth — `@` dropped, pinning is per-chapter — and 
 `docs/WHATS-NEW.md` is the app's own release notes and was written as the work landed — it is the
 best short account of what a writer would notice.
 
-`grep -rn "ponytail:" src web bench *.ts *.html` — **28** markers, each naming its own ceiling. Two
-are new: the hand-written `BLURB` map, and the cover draw having no server proxy (if pollinations
+`grep -rn "ponytail:" src web bench *.ts *.html` — **28** markers, each naming its own ceiling,
+unchanged across COUNCIL-06: the six ships added no debt and paid none off. Two are from the issue
+clearing: the hand-written `BLURB` map, and the cover draw having no server proxy (if pollinations
 closes its CORS header the fetch fails in the browser and nothing on this box can see why).
 
-Branches: `main` and `serial` only. `night-2026-08-29`, `surface-round-2` and `ui-overhaul` were all
-fully merged and are deleted, local and remote, along with the `anansi-night` worktree.
+Branches: `main` and `serial` only, and level with each other. `night-2026-08-29`,
+`surface-round-2` and `ui-overhaul` were all fully merged and are deleted, local and remote, along
+with the `anansi-night` worktree.
 
-**Verification**: `node --experimental-strip-types test/all.ts` — eleven suites.
-`test/ui/run.sh` — **thirteen scenarios, 600 checks**, and it needs chromium and no model. Both were
-green at `c12f49a`.
+**Nine books, two writers.** Seth owns seven and Kia owns two; the boot banner says which, since
+§10. Seven carry a bespoke voice with the craft section appended (§8); `EXPORT` and
+`Heretics Reign` have an empty voice on purpose and take the house voice at runtime, which is what
+ship 3 is for. Every one of the nine renders a VOICE block between 332 and 472 tokens, checked
+through `assemble()` rather than assumed.
+
+**Verification, both green at `db80acb`:**
+
+```bash
+node --experimental-strip-types test/all.ts   # 11 suites, 374 checks, ~7s, no model needed
+./test/ui/run.sh                              # 17 scenarios, 683 checks; needs chromium, no model
+node --experimental-strip-types bench/sweep.ts # dead code, 14 to look at, none of them new
+```
+
+`test/all.ts` prints its own total — trust that, not this file. **`test/scope.ts` binds a fixed port
+5187 and a fixed `/tmp/anansi-scope.db`, and `test/ui/run.sh` binds 5179**: two overlapping runs
+collide and report failures that are not there. Do not start a second one to hurry the first.
 
 
 ---
@@ -251,6 +269,9 @@ backup, and the banner now reads `library 9 stories · sonophage 7, kia 2`. It h
 
 ### Traps this round paid for
 
+- **A correct number under a wrong label outlives a wrong number.** `library 7 stories` on a box of
+  nine was right for what it measured — one writer's shelf — and I read it as rows going missing
+  and wrote it into this file as a discrepancy before reading the call. §10.
 - **`db.updateStory(id, s)` takes TWO arguments.** Calling it as `(id, ownerId, patch)` makes every
   field fall back to its current value: the backfill printed seven successes having written nothing,
   and only a read-back caught it. There is no ownership check inside it — `serve.ts` is the gate.
@@ -291,3 +312,53 @@ Three assertions, each falsified against a different broken filter, and the seco
 own scenario: under the original bug the ENOENT throws before a silent deletion could be asserted,
 so the fixture for that half is named to sort **below** `anansi-`. One bug, two failure shapes, two
 setups.
+
+
+---
+
+## 10 · The banner counted one shelf and called it the library, `db80acb`
+
+`library 7 stories` on a library of nine, and it had been in the boot log all along. The count was
+`listStories(db.owner(DESK))` — the DESK writer's shelf. Seth has seven and Kia has two. Nothing
+was missing; the word above the number was wrong, and it sat in this file as a suspected
+missing-rows bug until somebody read the line.
+
+`db.storiesPerOwner()` is the whole box, one row per writer who has a book, biggest first. The
+banner sums it and names the shelves only when there is more than one writer, so a solo box still
+reads `library 7 stories`:
+
+```
+  library       9 stories · sonophage 7, kia 2
+```
+
+It counts the way `listStories` counts — no status filter — so the banner and the shelf agree by
+construction rather than by two queries happening to match today.
+
+**Four assertions, and the interesting one is the third.** Scoping the count to one login reds the
+sum; a filter on the count that the shelf does not apply reds the same sum; a filter on the SHELF
+that the count does not apply reds the **per-writer** check, which is the only mutation that
+reaches it — a count agreeing with the table but not with a page would put a number on screen that
+nothing in the app can reproduce. `LEFT JOIN` reds the fourth: a writer with no books must not be a
+row, because a name with no number reads as a bug of its own.
+
+---
+
+## 11 · Where to pick up
+
+Nothing is blocked and nothing is half-done. In rough order of value:
+
+1. **#9 wants time, not code.** The repair looks twice, records what it did, and Storyteller shows
+   the fix rate over the takes where something was actually wrong. A few more chapters of writing
+   and the numbers can answer a question that could not be asked before. §4.
+2. **Two council items are accepted, free, and unshipped**: `<mode>` in `TAG` (`src/render.ts` tags
+   7 of 11 kinds, so PROSE, DIRECTIVE, TAIL and MODE arrive unmarked and the model's last tokens
+   are novel, novel, novel, then an instruction in the same visual register), and the
+   canon-uncertainty clause. One commit, and COUNCIL-06 §5 says to claim nothing for either.
+3. **The base-rate run, COUNCIL-06 §5 item 2.** n = 60, no prompt change, on a three-character
+   fixture, scoring four counters at once. It measures HEADROOM, not effect, and any counter with
+   under ~10 points of room is dead on arrival. Nothing else in the council's queue should be built
+   before it, and §6 of that document lists the detector traps to settle first.
+4. **`backup()` throws on a name collision** — the filename is a millisecond timestamp and
+   `VACUUM INTO` refuses an existing target, so two calls in one tick fail. Nobody hits it at
+   boot-plus-30-minutes; it is written down rather than fixed, and the check for the prune is
+   deliberately staged to avoid it.
