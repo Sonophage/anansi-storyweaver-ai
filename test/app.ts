@@ -246,6 +246,13 @@ let refuseNth = 0;
     // #21. A skeleton, not a created story — which is the whole reason it lands on the page to be
     // edited before anything is written.
     : url.startsWith('/api/style') ? { style: 'Wet streets and short sentences.' }
+    // #18 §3. The library rides beside the modes rather than inside them, which is the shape the
+    // route returns: a saved voice is not a sixth mode and must never be drawn as one.
+    : url.startsWith('/api/prompts') ? { defaults: { continue: 'Carry on.', speak: 'Say it.',
+        act: 'Do it.', direct: 'Make it happen.', narrate: 'Write it.' },
+        yours: {}, voice: { shipped: 'The shipped voice.', mine: null, inUse: 'The shipped voice.' },
+        library: { voice: [{ name: 'Noir', text: 'Wet streets. Nobody explains themselves.' }],
+                   style: [] } }
     : url.startsWith('/api/spark') ? { story: { title: 'The Winter Signature', genre: 'political fantasy',
         premise: 'Six houses have one winter to sign a peace none of them wants.',
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
@@ -1872,5 +1879,70 @@ ok('the shelf marks a book pinned to a model the router no longer serves');
   } finally { doc.querySelector = wasQS; }
 }
 ok('the house style can be re-rolled, into the box and not into the story');
+
+// #18 §3 · THE STYLE LIBRARY, and the writer's default voice getting a surface at last.
+//
+// checks.md: "a new collection of voices or narraration styles that can be pulled from… so i dont
+// have to copy and paste from somewhere else".
+{
+  const doc = (globalThis as any).document;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'teller' });
+  for (let i = 0; i < 40 && !/data-mydefaultvoice/.test(html('sideBody')); i++) {
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  const teller = html('sideBody');
+  // THE DEFAULT VOICE HAD NO SURFACE AT ALL. Only the two spark buttons read it, while the server
+  // quietly backfilled it into any book created with the voice box left blank — a page of text
+  // nobody had seen, reaching the model, with nowhere to go and look at it.
+  assert.match(teller, /data-mydefaultvoice/, 'the default voice has an editor');
+  assert.match(teller, /The shipped voice\./, 'showing what a new book starts from today');
+  assert.match(teller, /data-setvoice="1"/, 'and a way to make one yours');
+  // A SAVED VOICE IS NOT A SIXTH MODE. `assemble` looks overrides up by mode name, so one that is
+  // not a mode is invisible to it — and the editor must not draw it either.
+  assert.doesNotMatch(teller, /data-editprompt="voice:Noir"/, 'and it is not listed as a mode');
+
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 30));
+  const story = html('sideBody');
+  assert.match(story, /data-applylib="voice:Noir"/, 'the saved voice is on the shelf beside the field');
+  assert.match(story, /data-dellib="voice:Noir"/, 'with a way to forget it');
+  assert.match(story, /data-savelib="voice"/, 'and a way to save what is in the box');
+  assert.match(story, /data-savelib="style"/, 'the style field has its own shelf');
+  assert.doesNotMatch(story, /data-applylib="style:/, 'which is empty, and separate from the voice one');
+
+  // APPLYING COPIES INTO THE BOX AND STOPS. A library that saved on apply would overwrite a page of
+  // hand-written voice with one press and no undo.
+  const box: any = { value: 'typed by hand' };
+  const wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => (sel === '[data-story="writingStyle"]' ? box : null);
+  try {
+    POSTED.length = 0;
+    click({ applylib: 'voice:Noir' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.strictEqual(box.value, 'Wet streets. Nobody explains themselves.', 'it copies in');
+    assert.deepStrictEqual(POSTED.map((x) => String(x.url)), [],
+      'and writes nothing anywhere — Save is still the press that keeps it');
+  } finally { doc.querySelector = wasQS; }
+
+  // SAVING TAKES WHAT IS IN THE BOX, not what the story holds: the writer may have just edited it,
+  // and saving the stored value would put something else on the shelf under the name they typed.
+  const named: any = { value: 'Harbour' };
+  const edited: any = { value: 'Short sentences. Weather in every scene.' };
+  doc.querySelector = (sel: string) => (sel === '[data-libname="voice"]' ? named
+    : sel === '[data-story="writingStyle"]' ? edited : null);
+  try {
+    POSTED.length = 0;
+    click({ savelib: 'voice' });
+    await new Promise((r) => setTimeout(r, 40));
+    const sent = POSTED.find((x) => String(x.url) === '/api/prompts');
+    assert.ok(sent, 'it saves through the prompt route rather than a table of its own');
+    assert.strictEqual(sent.body.key, 'voice:Harbour', 'namespaced by kind and name');
+    assert.strictEqual(sent.body.text, 'Short sentences. Weather in every scene.',
+      'carrying what is in the box, not what the story was loaded with');
+  } finally { doc.querySelector = wasQS; }
+}
+ok('a voice can be saved to the library, pulled back into any book, and the default voice has a surface');
 
 console.log(`\n${n} checks passed`);

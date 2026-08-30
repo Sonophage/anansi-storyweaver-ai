@@ -567,6 +567,51 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('prompt overrides are scoped to their owner, and blank is the reset');
 }
 
+// #18 §3. THE STYLE LIBRARY IS THE SAME TABLE WITH A NAMESPACED KEY, which means it inherits the
+// scoping proved above rather than needing its own — and that inheritance is the whole reason a
+// second table was not built. Asserted here anyway: "it reuses the safe thing" is a claim about
+// code, and the check is what makes it a fact.
+{
+  db.setPrompt(alice, 'voice:Noir', 'Wet streets. Nobody explains themselves.');
+  db.setPrompt(bob, 'voice:Noir', "BOB'S NOIR");
+  assert.strictEqual(db.promptsOf(alice)['voice:Noir'], 'Wet streets. Nobody explains themselves.',
+    'two writers can hold the same NAME without touching each other — the key is (owner, key)');
+  assert.strictEqual(db.promptsOf(bob)['voice:Noir'], "BOB'S NOIR");
+  // A saved voice must not become a mode override. `assemble` looks these up BY MODE NAME, so a
+  // key that is not one is invisible to it — the same argument that let the bare `voice` key ride
+  // in this table, and the reason the route hands the library back separately from `yours`.
+  const { routes } = await import('../src/routes.ts');
+  const seen: any = await routes['GET /api/prompts']({ owner: alice, body: {},
+    query: new URLSearchParams() } as any);
+  assert.deepStrictEqual(Object.keys(seen.yours), [],
+    'a saved voice is not a mode, and must not arrive in the map the mode editor draws from');
+  assert.deepStrictEqual(seen.library.voice, [{ name: 'Noir',
+    text: 'Wet streets. Nobody explains themselves.' }], 'it arrives as the library instead');
+  assert.deepStrictEqual(seen.library.style, [], 'and the two shelves are kept apart');
+
+  // Blank deletes a saved one, the same way it resets a mode: there is no third state where a
+  // saved voice exists holding nothing.
+  db.setPrompt(alice, 'voice:Noir', '');
+  assert.strictEqual(db.promptsOf(alice)['voice:Noir'], undefined, 'blank forgets it');
+  assert.strictEqual(db.promptsOf(bob)['voice:Noir'], "BOB'S NOIR", "and leaves bob's alone");
+  ok('the style library is the prompt table namespaced, so it inherits its scoping and its reset');
+}
+
+// A NAME IS PARSED ON THE FIRST COLON, so a name containing one would stop round-tripping —
+// `voice:noir:2` splits two ways. Refused at the route, because the column cannot know that.
+{
+  const { routes } = await import('../src/routes.ts');
+  const post = (key: string, text: string) => routes['POST /api/prompts'](
+    { owner: alice, body: { key, text }, query: new URLSearchParams() } as any) as any;
+  assert.match((await post('voice:', 'x')).error, /needs a name/, 'an empty name is refused');
+  assert.match((await post('style:a:b', 'x')).error, /colon/, 'and so is one carrying a colon');
+  assert.match((await post('voice:' + 'x'.repeat(61), 'x')).error, /too long/);
+  assert.match((await post('nonsense', 'x')).error, /no mode called/,
+    'while a key that is neither a mode nor a shelf is still refused as it always was');
+  assert.strictEqual(db.promptsOf(alice)['style:a:b'], undefined, 'and nothing was written');
+  ok('a library name is validated where the colon means something, not at the column');
+}
+
 // ---- the DISPATCHER refuses, not just the database ----
 //
 // Everything above proves the db-level defence: a foreign id does nothing even past the gate.

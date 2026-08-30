@@ -281,6 +281,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
   'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'applylib', 'savelib', 'dellib', 'setvoice',
   'seedpick',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'newroom', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
@@ -1852,6 +1853,8 @@ const PANELS = {
              this genre does on the page, which the genre and the premise between them do say.
              It fills the box and stops: Save is still the press that keeps it, the same bargain
              every other thing Anansi offers makes. -->
+        ${LIB_FIELD.voice === f.k || LIB_FIELD.style === f.k
+          ? libTray(f.k === LIB_FIELD.voice ? 'voice' : 'style') : ''}
         ${f.k === 'styleNote' ? `<button class="btn ghost" data-restyle="1" ${S.styling ? 'disabled' : ''}
           style="margin:-2px 0 4px; width:auto; padding:0 16px; height:34px; font-size:11.5px">${
           S.styling ? 'Writing&hellip;' : 'Have Anansi write it'}</button>` : ''}`).join('')}
@@ -2366,6 +2369,29 @@ const PANELS = {
           <span style="font-size:13.5px; color:var(--ink)">Thinking is off, and not a setting</span>
           <span class="hint" style="margin:0">With it on this model spent the whole budget reasoning and
             returned no prose on three runs in four. The transport pins it off.</span></span></div>
+      <!-- #18 §3. THE WRITER'S DEFAULT VOICE, which had no surface at all before this. Only the
+           two buttons inside the spark wizard ever read it, and the server quietly backfills it
+           into any book created with the voice box left blank — so a page of text nobody had seen
+           was reaching the model and there was nowhere to go and look at it. Here, because this
+           panel is already the one that says out loud that its contents are shared and not per
+           story. -->
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Your voice, for every book</div>
+      ${S.prompts?.voice ? `
+        <textarea class="field grow" data-mydefaultvoice style="min-height:110px; font-size:12.5px;
+          line-height:1.5">${esc(S.prompts.voice.mine ?? S.prompts.voice.shipped)}</textarea>
+        <div style="display:flex; gap:7px">
+          <button class="btn ghost" data-setvoice="1" style="flex:1">${
+            S.prompts.voice.mine ? 'Save it as your default' : 'Make this your default'}</button>
+        </div>
+        <div class="hint">${S.prompts.voice.mine
+          ? `Yours. A new book starts from this unless you write it one of its own, and emptying the
+             box puts the shipped voice back.`
+          : `The shipped voice, which is what a new book starts from today. Change it and save, and
+             every book you make after that starts from yours instead.`}
+          It is COPIED into a book at creation &mdash; changing it here does not rewrite books that
+          already exist.</div>`
+        : '<div class="hint">Reading it&hellip;</div>'}
+
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">The five modes, in your words</div>
       ${(() => {
         // The shipped wording comes from the server, rendered by the engine itself, so the box
@@ -2736,7 +2762,48 @@ function setupPanel() {
 async function loadPrompts() {
   S.prompts = { defaults: {}, yours: {} };      // set first: a second open must not refetch
   const r = await api.prompts();
-  if (!r.error) { S.prompts = { defaults: r.defaults ?? {}, yours: r.yours ?? {}, voice: r.voice ?? null }; paint(); }
+  if (!r.error) { S.prompts = { defaults: r.defaults ?? {}, yours: r.yours ?? {},
+                                voice: r.voice ?? null, library: r.library ?? null }; paint(); }
+}
+
+/** #18 §3 · THE STYLE LIBRARY, beside the field it fills.
+ *
+ *  checks.md: *"a new collection of voices or narraration styles that can be pulled from… so i dont
+ *  have to copy and paste from somewhere else"*.
+ *
+ *  APPLYING COPIES. The saved text goes into this book's own box and the book keeps it; editing the
+ *  book does not edit the shelf and editing the shelf does not reach back into books already
+ *  written. That is the whole difference between a library and a link, and it is the same bargain
+ *  the thread copier makes on the create form.
+ *
+ *  It writes into the DOM and stops, like every other thing Anansi fills in here: Save is still the
+ *  press that keeps it. A library that saved on apply would overwrite a page of hand-written voice
+ *  with one press and no undo.
+ *
+ *  One tray, two kinds. `voice` is how narration behaves in every book you write; `style` is what
+ *  THIS book's genre does on the page. They are different blocks in the prompt and they are
+ *  different shelves here. */
+const LIB_FIELD = { voice: 'writingStyle', style: 'styleNote' };
+
+function libTray(kind) {
+  const saved = S.prompts?.library?.[kind] ?? [];
+  const what = kind === 'voice' ? 'voice' : 'style';
+  return `<div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:-2px 0 6px">
+    ${saved.map((v) => `<span style="display:flex; align-items:center; border-radius:var(--r-pill);
+      border:1px solid var(--chip)">
+      <button data-applylib="${esc(kind)}:${esc(v.name)}" title="${esc(v.text.slice(0, 220))}"
+        style="font-size:11.5px; padding:6px 4px 6px 12px; color:var(--mute)">${esc(v.name)}</button>
+      <button data-dellib="${esc(kind)}:${esc(v.name)}" aria-label="Forget ${esc(v.name)}"
+        style="font-size:11px; padding:6px 9px 6px 5px; color:var(--faint)">&#10005;</button></span>`).join('')}
+    <input class="field" data-libname="${esc(kind)}" placeholder="[name this ${esc(what)}]"
+      style="margin:0; width:auto; flex:1; min-width:120px; font-size:11.5px; height:32px; padding:0 10px">
+    <button class="btn ghost" data-savelib="${esc(kind)}"
+      style="width:auto; padding:0 14px; height:32px; font-size:11.5px">Save it</button>
+  </div>
+  <div class="hint" style="margin:0 0 10px">${saved.length
+    ? `Press one to copy it into the box above. It is COPIED &mdash; changing the book afterwards
+       does not change what is saved here, and neither does the other way round.`
+    : `Save what is in the box above under a name and it is here for every book you write.`}</div>`;
 }
 
 function ctxTabs() {
@@ -5550,6 +5617,58 @@ document.addEventListener('click', async (e) => {
   // calls into a slot pair that is already shared with the other writer.
   // #18 §2. Fills the box and stops. Written straight into the DOM rather than into V, because
   // V is the saved story — putting an unsaved suggestion there would make Close look like Save.
+  // #18 §3 · THE LIBRARY. Three presses on one shelf, and the global default under them.
+  //
+  // APPLY COPIES INTO THE BOX AND STOPS. A library that saved on apply would overwrite a page of
+  // hand-written voice with one press and no undo — Save is still what keeps it, the same bargain
+  // the re-roll above makes.
+  if (d.applylib) {
+    const [kind, ...rest] = d.applylib.split(':');
+    const name = rest.join(':');
+    const found = (S.prompts?.library?.[kind] ?? []).find((v) => v.name === name);
+    if (!found) return toast('That one is gone — the list is out of date.');
+    const box = document.querySelector(`[data-story="${LIB_FIELD[kind]}"]`);
+    if (box) box.value = found.text;
+    return toast(`${name} copied in. Read it, change it, then Save.`);
+  }
+  // SAVES WHAT IS IN THE BOX, not what is in the story: the writer may have just edited it, and
+  // saving the stored value would put something else on the shelf under the name they typed.
+  if (d.savelib) {
+    const kind = d.savelib;
+    const name = document.querySelector(`[data-libname="${kind}"]`)?.value.trim() ?? '';
+    const text = document.querySelector(`[data-story="${LIB_FIELD[kind]}"]`)?.value.trim() ?? '';
+    if (!name) return toast('Give it a name first.');
+    if (!text) return toast('The box is empty — there is nothing to save.');
+    const r = await api.savePrompt(`${kind}:${name}`, text);
+    if (r.error) return toast(r.error);
+    S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
+                  voice: r.voice ?? S.prompts.voice };
+    drawSide();
+    return toast(`Saved as ${name}.`);
+  }
+  // Blank IS the delete — `db.setPrompt` removes rather than storing empty, so there is no third
+  // state where a saved voice exists holding nothing.
+  if (d.dellib) {
+    const [kind, ...rest] = d.dellib.split(':');
+    const r = await api.savePrompt(`${kind}:${rest.join(':')}`, '');
+    if (r.error) return toast(r.error);
+    S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
+                  voice: r.voice ?? S.prompts.voice };
+    drawSide();
+    return toast('Forgotten.');
+  }
+  // THE WRITER'S GLOBAL DEFAULT VOICE, which had no surface at all until now — only the two spark
+  // buttons ever read it. Empty is the reset: it deletes the override and the shipped one is the
+  // backstop again, which is why the button says what it will fall back to.
+  if (d.setvoice) {
+    const text = document.querySelector('[data-mydefaultvoice]')?.value.trim() ?? '';
+    const r = await api.savePrompt('voice', text);
+    if (r.error) return toast(r.error);
+    S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
+                  voice: r.voice ?? S.prompts.voice };
+    drawSide();
+    return toast(r.reset ? 'Back to the shipped voice.' : 'That is your default now.');
+  }
   if (d.restyle) {
     if (S.styling) return;
     S.styling = true; drawSide();

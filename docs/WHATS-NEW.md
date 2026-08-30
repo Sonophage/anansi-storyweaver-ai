@@ -12,6 +12,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### A library of voices and styles, and your own default voice at last
+Save the voice or the house style you are using under a name, and it is there for every
+book you write — press one to copy it into the book you are in. They are copies: changing
+a book afterwards does not change what is saved, and changing what is saved does not reach
+back into books already written.
+
+Storyteller now also shows the voice every NEW book starts from. It has always existed and
+been quietly copied into books created with the voice box left blank; there was just
+nowhere to read it. Change it and save, and books you make after that start from yours.
+
 ### The shelf tells you when a book cannot write
 A book pinned to a model the router no longer serves used to fail only when you tried to
 write with it, and only said so inside the Storyteller panel. Its card on the shelf now

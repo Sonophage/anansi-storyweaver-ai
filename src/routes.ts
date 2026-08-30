@@ -94,6 +94,47 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
  *  writing prose, and handing it the same box would let a reworded chat prompt continue the book. */
 const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate'];
 
+/** THE STYLE LIBRARY, #18 §3. Named voices and styles you can pull from, and NOT a new table.
+ *
+ *  checks.md: *"a new collection of voices or narraration styles that can be pulled from… so i dont
+ *  have to copy and paste from somewhere else"*.
+ *
+ *  `prompt_overrides(owner_id, key, text)` already does every hard part: per-owner scoping that
+ *  `test/scope.ts` proves one writer cannot cross, blank-is-delete so save and remove are one
+ *  route, and a primary key that makes saving the same name twice an update. A named library is the
+ *  same table with a namespaced key. A second table would have been a second place for the
+ *  ownership check to be forgotten.
+ *
+ *  THE COLON IS THE WHOLE PARSER, so a name may not contain one — otherwise `voice:noir:2` splits
+ *  two ways and the key stops round-tripping. Names are trimmed and capped; the text is not, since
+ *  a voice is a page.
+ *
+ *  NOTHING HERE REACHES A PROMPT BY ITSELF. `assemble` looks overrides up BY MODE NAME, so a key
+ *  that is not one is invisible to it — the same argument that let the bare `voice` key ride in
+ *  this table. Applying one COPIES it into the story's own field, which is what makes it a library
+ *  rather than a link: editing the book must not edit the shelf. */
+const LIB_KINDS = ['voice', 'style'];
+const libKey = (kind: string, name: string) => `${kind}:${name}`;
+const libName = (key: string, kind: string) =>
+  key.startsWith(`${kind}:`) ? key.slice(kind.length + 1) : null;
+
+/** Split a raw override map into the five modes, the bare voice, and the library. Returned apart
+ *  so the editor cannot render a saved style as a sixth mode — which is the failure the `voice` key
+ *  was already kept out of by hand. */
+function libraryOf(all: Record<string, string>) {
+  const out: Record<string, { name: string; text: string }[]> = { voice: [], style: [] };
+  for (const kind of LIB_KINDS) {
+    for (const [key, text] of Object.entries(all)) {
+      const name = libName(key, kind);
+      if (name) out[kind]!.push({ name, text });
+    }
+    out[kind]!.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return out;
+}
+const modesOnly = (all: Record<string, string>) =>
+  Object.fromEntries(Object.entries(all).filter(([k]) => EDITABLE_MODES.includes(k)));
+
 /** The voice of the weave a new story starts with, and it is the writer's to change.
  *
  *  Stored as a prompt override under a key that is deliberately not a mode name, so it reuses
@@ -1414,7 +1455,11 @@ export const routes: Record<string, Handler> = {
    *  prompt that produces nothing produces nothing, and the reset is one press.
    */
   'GET /api/prompts': (c: Ctx) => ({
-    defaults: defaultModePrompts(), yours: db.promptsOf(c.owner),
+    // `yours` is THE MODES, and only them. It used to be the raw override map, which was harmless
+    // while `voice` was the only non-mode key in it; the library would have put every saved style
+    // in there too, one press away from being drawn as a mode nobody can name.
+    defaults: defaultModePrompts(), yours: modesOnly(db.promptsOf(c.owner)),
+    library: libraryOf(db.promptsOf(c.owner)),
     // Separate from the modes map so the editor does not list the voice as a sixth mode. `shipped`
     // is what Default puts back, and it stays the backstop however many times the writer replaces
     // `mine`. `inUse` saves the surface working out the precedence for a Quick apply button.
@@ -1424,10 +1469,22 @@ export const routes: Record<string, Handler> = {
     const key = String(c.body.key ?? '');
     // `voice` rides here too. It is not a mode and never reaches a MODE block — assemble looks
     // overrides up BY MODE NAME, so a key that is not one is invisible to it.
-    if (!EDITABLE_MODES.includes(key) && key !== 'voice')
+    // #18 §3. A library key rides here for the same reason `voice` does: it is not a mode, it
+    // never reaches a MODE block, and blank-is-delete means saving and removing are one route.
+    // The name is validated HERE rather than at the column, because the column cannot know that a
+    // colon is the parser — `voice:noir:2` would split two ways and stop round-tripping.
+    const lib = LIB_KINDS.map((k) => [k, libName(key, k)] as const).find(([, n]) => n !== null);
+    if (lib) {
+      const name = String(lib[1]).trim();
+      if (!name) return { error: 'a saved voice or style needs a name' };
+      if (name.includes(':')) return { error: 'a name cannot contain a colon' };
+      if (name.length > 60) return { error: 'that name is too long — sixty characters at most' };
+    } else if (!EDITABLE_MODES.includes(key) && key !== 'voice') {
       return { error: `there is no mode called "${key}"` };
+    }
     const saved = db.setPrompt(c.owner, key, String(c.body.text ?? ''));
-    return { defaults: defaultModePrompts(), yours: db.promptsOf(c.owner), reset: saved === null,
+    return { defaults: defaultModePrompts(), yours: modesOnly(db.promptsOf(c.owner)),
+      library: libraryOf(db.promptsOf(c.owner)), reset: saved === null,
       voice: { shipped: DEFAULT_VOICE, mine: db.promptsOf(c.owner).voice ?? null, inUse: voiceOf(c.owner) } };
   },
 
