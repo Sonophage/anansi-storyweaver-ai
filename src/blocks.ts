@@ -39,7 +39,14 @@ export const ORDER: Kind[] = [
 // Anchors are never trimmed and are capped at write time (SPEC 7.3).
 // VOICE was a `keep: false` part of DIRECTIVE under a 250-token cap shared with point of view,
 // the chapter's ending and the register — so the app's own hint ("paste a few hundred words")
-// guaranteed the sample was cut, and cut first. COUNCIL-04 #5. 500 tokens holds ~370 words.
+// guaranteed the sample was cut, and cut first. COUNCIL-04 #5.
+//
+// VOICE went 500 -> 1000 on 2026-08-30, for the reason SPINE did: at 500 it was about to start
+// cutting. COUNCIL-06 ship 5 put the craft rules in `DEFAULT_VOICE` where the writer can edit
+// them, which took it from 158 tokens to 432 — 86% of a 500 cap, in the block that ship 4 made
+// all-`keep`, so going over does not shorten it, it DROPS IT. A writer adding four sentences to
+// the voice they were given would have lost the whole block and been told nothing on the surface
+// that matters. 1000 leaves them the room the field implies they have.
 // SPINE went 400 -> 1000 on 2026-08-30. Not a preference: at 400 it was AMPUTATING a live book on
 // every call. `The Geometry of Absence` assembles a spine of ~716 tokens — a 1,481-character premise
 // and a 1,032-character setting — and the block reported `anchor shortened to 400 tokens`, cutting
@@ -49,7 +56,7 @@ export const ORDER: Kind[] = [
 // The cap is a fraction of a 45,700-token budget either way. What it was really doing was deciding
 // which half of a book's own description survived, which is not a thing a number should decide
 // quietly.
-export const CAPS: Partial<Record<Kind, number>> = { SPINE: 1000, DIRECTIVE: 250, VOICE: 500, STYLE: 200 };
+export const CAPS: Partial<Record<Kind, number>> = { SPINE: 1000, DIRECTIVE: 250, VOICE: 1000, STYLE: 200 };
 
 // EARLIER is the one block that grows monotonically with book length.
 // PLAN-02 put it outside the 45% canon cap, which left the only unbounded block

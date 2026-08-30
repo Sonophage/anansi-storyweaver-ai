@@ -29,39 +29,34 @@ const TAG: Partial<Record<Kind, string>> = {
  *  It is the only deletion COUNCIL-06 made with a number behind it. Every other bullet below has
  *  never been measured, and most predate every finding in P0-FINDINGS — which is worth knowing
  *  before anyone deletes a second one on the strength of reading it. */
-/** COUNCIL-06 ship 5 · Seth's craft block, merged rather than appended, 2026-08-30. 18 bullets to
- *  23, 430 tokens to 551, and grouped under four headings — the grouping is topical and NOT the
- *  MANDATORY / STRONG PREFERENCE / NICE TO HAVE tiering the council refused 4-1. The objection
- *  that settled that: the only two rules in here that produce a *sentence* rather than compliance
- *  ("One strong image and let it stand", "Vary the rhythm") both land in the bottom tier, so the
- *  labels would formally tell the model the craft is optional and the format is not. With
- *  `enable_thinking: false` there is no step at which the model ranks constraints anyway.
+/** COUNCIL-06 ship 5 · THE CRAFT IS NOT IN HERE ANY MORE, and that is the point of the ship.
  *
- *  Nine of the block's 25 lines restated a bullet already here, several with drift — "Suggest
- *  rather than explain" against "Suggest rather than state", and so on. The merge took ONE version
- *  of each, never a third phrasing blending both, so a later regression is attributable to a line
- *  somebody actually wrote. `test/db.ts` fails if the other version comes back.
+ *  Twelve craft bullets lived here until 2026-08-30 and are now in `DEFAULT_VOICE`, merged with
+ *  the craft block Seth sent. His reason, and it is the better one: *"it's default for a reason so
+ *  it can be overridden."* A rule in SYSTEM is a rule no writer can delete — they clear the line
+ *  out of the voice field, it keeps arriving from here, and the field stops meaning anything. A
+ *  rule in the voice is theirs. 430 tokens to 235.
  *
- *  Two more were already in `DEFAULT_VOICE` — anchoring the scene in sensation, and unfolding
- *  through ritual, risk and desire — and stayed there. A rule in both places is a rule the writer
- *  cannot switch off: they delete it from the voice, it keeps arriving from here, and the field
- *  stops meaning anything. That is the second half of the same check.
+ *  So the division is: SYSTEM is the contract, the voice is the craft. Output format, canon
+ *  arbitration, object permanence and the frame stay here, because a writer who replaces their
+ *  voice wholesale must not thereby switch off "output prose only" or "the canon wins". Everything
+ *  about how the prose READS is theirs to change.
  *
- *  Six were left out, each with a reason, pinned in `test/db.ts`. One of them was already shipping
- *  and is now gone: "Begin in action or sensation, never in exposition." It is a SCENE-OPENING
- *  rule and Anansi's unit is a mid-scene beat, so it fired on every call — and it contradicts the
- *  narrate mode prompt, which tells the model to pick up mid-thought. Two standing instructions
- *  pointing opposite ways.
+ *  That division is checked in `test/db.ts`, both ways, and so is the five-word overlap between
+ *  the two blocks — a rule said in both places is the un-deletable case wearing a disguise.
  *
- *  NOTHING HERE IS MEASURED. This changes ~10 lines at once, so no per-item credit is attributable
- *  by construction, and the honest claim after it is that the prompt says what the writer wanted it
- *  to say — not that the prose reads better. */
+ *  This was shipped the other way round first, in 8951779, on the argument that SYSTEM reaches all
+ *  nine books and `DEFAULT_VOICE` only reaches new ones. That was true and it was answered by hand
+ *  rather than by architecture: the seven books with their own voice were backfilled, the two with
+ *  an empty one take the house voice at runtime.
+ *
+ *  NOTHING HERE IS MEASURED. The honest claim is that the prompt says what the writer wanted it to
+ *  say and that he can now change it — not that the prose reads better. */
 export const SYSTEM = `You are a prose engine for a novel. You write the next passage and nothing else.
 
 Rules:
 - Output prose only. No preamble, no commentary, no headings, no meta-text.
-- Continue from the last sentence. Never summarize, recap, or rewind.
-- If the input ends mid-sentence, continue seamlessly. Pick up mid-thought.
+- Continue from what came before. Never summarize it.
 - Never resolve a scene the writer has not asked you to resolve.
 - Facts in the canon section are true. Write as though the reader already knows
   them; never restate them as exposition.
@@ -70,29 +65,9 @@ Rules:
 - Canon is what is TRUE, never how to say it. Do not reuse its wording. A ledger body is a note to
   you, not a line of the book, and a phrase carried out of it whole is the one thing that makes the
   prose read as assembled. Its facts, your sentences.
-- Maintain object permanence. Objects do not teleport. Reintroduce through action, not inventory.
-
-Craft:
-- Describe only what the viewpoint character can sense.
-- Show interior state through speech, posture, breath, or action. Never name the emotion.
-- Posture, breath and tone over facial cues. A jaw does not clench in this book.
-- Suggest rather than explain. Silence and implication carry equal weight to the sentence.
-- Let lore arrive through action, dialogue and consequence. Never explain the world; the reader is
-  already in it.
 - New characters are strangers unless the canon says otherwise.
-- Failure, pain, death, and consequence are allowed. Do not protect anyone the scene does not protect.
-- Treat intimacy, violence and dread with gravity — never with a wink, never with a flinch.
-- Never break the frame. No meta-commentary on the story, the writing, or the reader.
-
-Sentence and image:
-- One strong image and let it stand. Stacking them costs both.
-- Precise, sensory language. No cliche, and no phrase you have written before in this passage.
-- Vary the rhythm. A poetic line earns its place by what sits still on either side of it.
-- Balance motion and pause. Tension lives in breath, hesitation, and the space between gestures.
-
-Dialogue:
-- Sparse and functional. Dialogue breaks on ambient noise or on the gaps between speakers.
-- Let speakers go unfinished. Thoughts trail; sentences stop mid-breath.
+- Maintain object permanence. Objects do not teleport. Reintroduce through action, not inventory.
+- Never break the frame.
 `;
 
 // F9 is retired, not fixed by design: dropping the title was measured at n=30 per arm and made

@@ -164,7 +164,11 @@ ok('SYSTEM is spent before the budget is offered, because it is on the wire eith
     'the budget must be short by exactly SYSTEM. Without the deduction the engine believes it '
     + 'has room that render() has already spent, and every ceiling is a fraction of a number '
     + 'that was never true.');
-  assert.ok(story.estimate(render.SYSTEM) > 300,
+  // 150, not 300. COUNCIL-06 ship 5 moved the craft rules out of SYSTEM and into DEFAULT_VOICE,
+  // where the writer can edit them, and SYSTEM went 430 -> 235. The number this guards against is
+  // ZERO — a SYSTEM that has moved somewhere else entirely, leaving the deduction deducting
+  // nothing — so it must sit below where SYSTEM actually is and not act as a floor on its length.
+  assert.ok(story.estimate(render.SYSTEM) > 150,
     'SYSTEM costs real tokens — if this ever reads near zero, SYSTEM has moved and the deduction '
     + 'is deducting nothing');
 
@@ -181,48 +185,72 @@ ok('SYSTEM is spent before the budget is offered, because it is on the wire eith
   }
 });
 
-// COUNCIL-06 ship 5 merged Seth's 25-line craft block into SYSTEM, and nine of its lines restated
-// a bullet that was already there. The merge took one version of each. This is the check that says
-// nobody re-adds the other one later, in either of the two places a craft rule can live.
-ok('no craft rule is said twice, in SYSTEM or across SYSTEM and the house voice', () => {
-  const bullets = render.SYSTEM.split('\n').filter((l) => l.startsWith('- '));
-  assert.ok(bullets.length > 20, `SYSTEM should be a real list, got ${bullets.length} bullets`);
+// COUNCIL-06 ship 5 merged Seth's craft block into `DEFAULT_VOICE`, and nine of its lines restated
+// a bullet that already existed. The merge took one version of each. This is the check that says
+// nobody re-adds the other one later, in either of the two places a standing rule can live.
+ok('no rule is said twice, in one block or across SYSTEM and the house voice', () => {
+  const lines = (t: string) => t.split('\n').filter((l) => l.trim().startsWith('- '));
+  const sys = lines(render.SYSTEM), voice = lines(prompts.DEFAULT_VOICE);
+  assert.ok(sys.length >= 8, `SYSTEM should still be a real list, got ${sys.length}`);
+  assert.ok(voice.length >= 12, `the house voice carries the craft now, got ${voice.length}`);
 
-  const seen = new Map<string, string>();
-  for (const b of bullets) {
-    const key = b.toLowerCase().replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
-    assert.ok(!seen.has(key), `two bullets say the same thing:\n  ${seen.get(key)}\n  ${b}`);
-    seen.set(key, b);
+  for (const [where, ls] of [['SYSTEM', sys], ['DEFAULT_VOICE', voice]] as const) {
+    const seen = new Map<string, string>();
+    for (const b of ls) {
+      const key = b.toLowerCase().replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
+      assert.ok(!seen.has(key), `two ${where} bullets say the same thing:\n  ${seen.get(key)}\n  ${b}`);
+      seen.set(key, b);
+    }
   }
 
-  // AND ACROSS THE TWO BLOCKS. SYSTEM is fixed and the voice is the writer's to edit, so a rule in
-  // both is a rule they cannot turn off — they delete it from the voice, it keeps arriving from
-  // SYSTEM, and the field stops meaning anything. Two of the craft block's lines were already in
-  // `DEFAULT_VOICE` — "anchor every scene in sensation, texture and distance" and "let the story
-  // unfold through ritual, risk and desire" — and were dropped from the merge for this reason.
+  // AND ACROSS THE TWO BLOCKS, which is the whole architecture of ship 5. SYSTEM is fixed and the
+  // voice is the writer's to edit, so a rule in both is a rule they cannot turn off: they delete
+  // it from the voice, it keeps arriving from SYSTEM, and the field stops meaning anything. That
+  // is why the craft moved OUT of SYSTEM rather than being copied into the voice.
   //
-  // Five-word windows rather than whole lines: the pairs above are the same instruction with
-  // different wording either side, which an equality check would not see.
+  // Five-word windows rather than whole lines: two of the craft block's lines were already in
+  // DEFAULT_VOICE as prose — "anchor every scene in sensation, texture and distance" and "let the
+  // story unfold through ritual, risk and desire" — the same instruction with different wording
+  // either side, which an equality check would not see.
   //
   // ITS CEILING, so nobody reads a pass as proof there is no duplication: five words is a floor on
-  // what counts, and a rule restated in four words or in synonyms goes through. A known live
-  // example is SYSTEM's "Pick up mid-thought" against the narrate mode prompt's "Pick up
-  // mid-thought if the last line is unfinished" — four words, same rule, invisible here. Dropping
-  // to four windows produced false positives on ordinary phrasing, so this catches copy-paste and
-  // near-copy-paste and nothing subtler. ponytail: lexical, not semantic; a real one needs the
-  // model and is not worth a call per test run.
+  // what counts, and a rule restated in four words or in synonyms goes through. Dropping to four
+  // produced false positives on ordinary phrasing, so this catches copy-paste and near-copy-paste
+  // and nothing subtler. ponytail: lexical, not semantic; a real one needs the model and is not
+  // worth a call per test run.
   const words = (t: string) => t.toLowerCase().replace(/[^a-z ]+/g, ' ').split(/\s+/).filter(Boolean);
-  const voice = words(prompts.DEFAULT_VOICE);
+  const w = words(prompts.DEFAULT_VOICE);
   const grams = new Set<string>();
-  for (let i = 0; i + 5 <= voice.length; i++) grams.add(voice.slice(i, i + 5).join(' '));
-  for (const b of bullets) {
-    const w = words(b);
-    for (let i = 0; i + 5 <= w.length; i++) {
-      const g = w.slice(i, i + 5).join(' ');
+  for (let k = 0; k + 5 <= w.length; k++) grams.add(w.slice(k, k + 5).join(' '));
+  for (const b of sys) {
+    const bw = words(b);
+    for (let k = 0; k + 5 <= bw.length; k++) {
+      const g = bw.slice(k, k + 5).join(' ');
       assert.ok(!grams.has(g),
-        `SYSTEM and DEFAULT_VOICE both say "${g}". One of them has to give it up — the voice, if `
-        + `the writer should be able to switch it off; SYSTEM, if they should not.\n  ${b}`);
+        `SYSTEM and DEFAULT_VOICE both say "${g}". One has to give it up — the voice, if the `
+        + `writer should be able to switch it off; SYSTEM, if they should not.\n  ${b}`);
     }
+  }
+});
+
+// THE ARCHITECTURE, stated as a check rather than as a comment: craft is the writer's and the
+// output contract is not. A craft rule that drifts back into SYSTEM is not overridable by anyone,
+// which is the thing ship 5 exists to undo.
+ok('SYSTEM keeps the contract and the house voice keeps the craft', () => {
+  const craft = [/jaw does not clench/i, /one strong image/i, /vary the rhythm/i,
+                 /viewpoint character can sense/i, /never with a wink/i, /no cliche/i];
+  for (const rx of craft) {
+    assert.doesNotMatch(render.SYSTEM, rx,
+      `a craft rule is back in SYSTEM (${rx}), where the writer cannot delete it. It belongs in `
+      + 'DEFAULT_VOICE, which is a default precisely so it can be overridden.');
+    assert.match(prompts.DEFAULT_VOICE, rx, `and the house voice has lost one: ${rx}`);
+  }
+  // The other half of the same rule: the contract must NOT be in the voice, where a writer who
+  // replaces it wholesale would silently switch off "output prose only" and canon arbitration.
+  for (const rx of [/Output prose only/i, /the canon wins/i, /Never break the frame/i]) {
+    assert.match(render.SYSTEM, rx, `SYSTEM has lost part of the contract: ${rx}`);
+    assert.doesNotMatch(prompts.DEFAULT_VOICE, rx,
+      `the output contract is in the voice (${rx}), where replacing the voice turns it off`);
   }
 });
 
@@ -247,7 +275,9 @@ ok('the lines the council struck stay struck, and say why', () => {
      + 'it — "Wait." — addresses a person'],
   ];
   for (const [rx, why] of struck) {
-    assert.doesNotMatch(render.SYSTEM, rx, `struck by COUNCIL-06 ship 5 and back in SYSTEM: ${why}`);
+    for (const [where, text] of [['SYSTEM', render.SYSTEM], ['DEFAULT_VOICE', prompts.DEFAULT_VOICE]] as const) {
+      assert.doesNotMatch(text, rx, `struck by COUNCIL-06 ship 5 and back in ${where}: ${why}`);
+    }
   }
 });
 

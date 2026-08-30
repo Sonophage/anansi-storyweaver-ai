@@ -12,21 +12,29 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
-### The standing craft instructions are rewritten
-The rules every book is written under — the ones you never see and cannot edit — were a flat
-list of eighteen. They are twenty-three now, grouped: what the passage has to be, craft,
-sentence and image, and dialogue. Most of the new ones are about the line rather than the
-plot: balance motion and pause, let speakers go unfinished, dialogue that breaks on ambient
-noise, objects that stay where somebody left them.
+### The craft rules are yours now, and they are in your book's voice
+The rules about how the prose reads — one strong image, posture over facial cues, no jaw
+clenching, lore through action — used to be somewhere you could not reach. They are in
+Voice of the weave now, in every book, where you can rewrite any line of them or throw the
+lot out. Seven of your books had them appended to the voice they already had; the two with
+an empty voice pick them up from the house voice. New books start with them.
 
-One rule was taken out rather than added. *Begin in action or sensation* is a rule for
+They were rewritten on the way, from a list you sent: dialogue that breaks on ambient noise,
+speakers who go unfinished, balancing motion against pause, objects that stay where somebody
+left them.
+
+One rule was taken out rather than moved. *Begin in action or sensation* is a rule for
 opening a scene, and almost nothing you press opens a scene — it was firing on every
 three-sentence beat in the middle of one, which is why so many passages started with a body
 part moving. It was also telling the model to start something while Narrate was telling it
 to pick up mid-thought.
 
-Nothing here is measured, and the honest claim is small: the standing instructions now say
-what they were meant to say. Whether the prose is better is a question for you, not for us.
+What stays out of your hands is the short list that would break the app if it were switched
+off: write prose and nothing else, the canon is true, objects do not teleport, never break
+the frame.
+
+Nothing here is measured, and the honest claim is small: the instructions now say what you
+wanted them to say, and you can change them. Whether the prose is better is your call.
 
 ### "A sample of your prose" is gone, and that is on purpose
 The box asked for a few hundred words of your own writing and sent them to the model on

@@ -15,22 +15,28 @@ file and `src/render.ts` / `src/context.ts` disagree, the code is right and this
 ```
 You are a prose engine for a novel. You write the next passage and nothing else.
 
-Rules:            8 bullets — the output contract, canon arbitration, object permanence
-Craft:            9 bullets — perception, interiority, lore, gravity, the frame
-Sentence and image: 4 bullets
-Dialogue:         2 bullets
+Rules:   9 bullets — the output contract, canon arbitration, object permanence, the frame
 ```
 
 **The bullets are not transcribed here on purpose.** Revision 1 quoted a system block with a rule
 that no longer existed, and this section quoted five of the six `Rules:` bullets and none of the
 craft ones for a week without anyone noticing. A partial copy of a prompt is a copy that is wrong.
-Read `export const SYSTEM` in `src/render.ts`; it is 38 lines and it is the only version.
+Read `export const SYSTEM` in `src/render.ts`; it is 17 lines and it is the only version.
 
-**COUNCIL-06 ship 5, 2026-08-30.** Seth's 25-line craft block was merged in, grouped under the four
-headings above — 18 bullets to 23, 430 tokens to 551. Nine of its lines restated a bullet already
-present; the merge took one version of each and `test/db.ts` now fails if the other comes back. Six
-were left out with a reason, also pinned in `test/db.ts`. Two more were already in `DEFAULT_VOICE`
-and stayed there, where the writer can delete them.
+**COUNCIL-06 ship 5, 2026-08-30 · the craft left SYSTEM.** SYSTEM used to carry twelve craft
+bullets. They are in `DEFAULT_VOICE` now, with Seth's craft block merged into them, because
+`SYSTEM` is fixed and the voice is the writer's: *"it's default for a reason so it can be
+overridden."* SYSTEM went 430 tokens to 235 and keeps only what a writer must not be able to
+switch off — output format, canon arbitration, object permanence, the frame.
+
+The split is checked, not merely intended: `test/db.ts` fails if a craft rule turns up in SYSTEM,
+if a contract rule turns up in the voice, or if any five-word window is shared between them.
+
+**The seven books that had their own voice were backfilled by hand** on 2026-08-30, appending the
+craft section to what they already said, so nothing lost the rules SYSTEM used to supply. The two
+with an empty voice take the house voice at runtime and get it that way. `CAPS.VOICE` went 500 to
+1000 in the same commit — the craft section alone is 274 tokens and VOICE is all-`keep` since
+ship 4, so a block over cap is dropped whole rather than shortened.
 
 **Two changes from revision 1, both deliberate.**
 

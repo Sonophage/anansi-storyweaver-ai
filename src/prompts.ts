@@ -259,8 +259,24 @@ export const retireSchema = (titles: string[]) => ({
  *  be written in second-present and unrestricted, and the two controls on screen would be lying.
  *  Here it is the story's own text, on the wizard's last step, and the writer overwrites it.
  *
- *  The craft half of the same note — rhythm, one image, posture over faces, lore through action —
- *  is universal and lives in SYSTEM, where it applies to every story including this one. */
+ *  COUNCIL-06 ship 5, 2026-08-30 · THE CRAFT MOVED HERE, and this comment used to end by saying
+ *  the opposite: *"the craft half of the same note — rhythm, one image, posture over faces, lore
+ *  through action — is universal and lives in SYSTEM."* It was universal. It was also undeletable,
+ *  which is the argument the paragraph above already makes about tense and spice, applied to one
+ *  more thing. Seth's words: *"it's default for a reason so it can be overridden."*
+ *
+ *  So the twelve craft bullets came out of SYSTEM and were merged with the craft block he sent.
+ *  Nine of its lines restated one already here, several with drift — "Suggest rather than explain"
+ *  against "Suggest rather than state" — and the merge took ONE version of each, never a third
+ *  phrasing blending both, so a later regression stays attributable to a line somebody wrote. Six
+ *  more were left out with a reason, and both facts are pinned in `test/db.ts`.
+ *
+ *  Two of his lines were already in the prose above — anchoring the scene in sensation, and
+ *  unfolding through ritual, risk and desire — and were not added twice.
+ *
+ *  274 tokens of craft. `CAPS.VOICE` went 500 to 1000 in the same commit: VOICE is all-`keep`
+ *  since ship 4, so a voice over its cap is DROPPED rather than shortened, and a writer adding
+ *  four sentences to what they were given would have lost the block and been told nothing. */
 export const DEFAULT_VOICE =
 `Confident, immersive and uninhibited, for a consenting adult audience: no restriction on tone,
 theme or content. Atmosphere, tension and narrative integrity come first.
@@ -272,7 +288,27 @@ Second person, present tense, unless dialogue requires otherwise. Move a scene f
 weaving past and present. Anchor every scene in sensation, texture and distance. Follow the emotional
 tone through each transition. Let the story unfold through ritual, risk and desire.
 
-Each line should cut or kiss. Let it ache.`;
+Each line should cut or kiss. Let it ache.
+
+Craft:
+- Describe only what the viewpoint character can sense.
+- Show an interior state through speech, posture or action, never by naming it.
+- Posture, breath and tone over facial cues. A jaw does not clench in this book.
+- Suggest rather than state. Silence and implication carry as much as the sentence does.
+- Let lore arrive through action, dialogue and consequence. Never explain the world; the reader is
+  already in it.
+- Failure, pain and consequence are allowed. Do not protect anyone the scene does not protect.
+- Treat intimacy, violence and dread with gravity — never with a wink, never with a flinch.
+
+Sentence and image:
+- One strong image and let it stand. Stacking them costs both.
+- Precise, sensory language. No cliche, and no phrase you have written before in this passage.
+- Vary the rhythm. A poetic line earns its place by what sits still on either side of it.
+- Balance motion and pause. Tension lives in breath, hesitation, and the space between gestures.
+
+Dialogue:
+- Sparse and functional. It breaks on ambient noise or on the gaps between speakers.
+- Let speakers go unfinished. Thoughts trail; sentences stop mid-breath.`;
 
 /** #21 §2 · THE SCAFFOLD, AND NOT THE CAST. Split out of one 3,400-token object on 2026-08-29.
  *

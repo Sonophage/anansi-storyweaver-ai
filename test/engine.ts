@@ -500,11 +500,11 @@ ok('notes never reach the prompt', () => {
 
 ok('a few hundred words of voice survive whole', () => {
   // COUNCIL-04 #5: this was a `keep: false` part of DIRECTIVE's 250-token cap, so a voice of any
-  // real length was guaranteed to be cut. It has its own 500-token block now. The fencing and the
+  // real length was guaranteed to be cut. It has its own 1000-token block now. The fencing and the
   // placement are checked where the wrapper is — this is only about the length surviving.
   const i = base();
-  const long = 'Write the narration in contractions and never name a colour twice. '.repeat(30);
-  i.story.writingStyle = long.trim();            // ~330 tokens, under the 500 cap
+  const long = 'Write the narration in contractions and never name a colour twice. '.repeat(60);
+  i.story.writingStyle = long.trim();            // ~960 tokens, just under the 1000 cap
   const v = buildContext(i, count).blocks.find((b) => b.kind === 'VOICE')!;
   assert.strictEqual(v.state, 'included');
   assert.doesNotMatch(v.reason, /shortened/, 'a few hundred words must fit whole');
@@ -521,7 +521,10 @@ ok('an oversized voice REFUSES rather than shortening, and DIRECTIVE keeps every
   // The old assertion was `/shortened/`. Left as it was it would have gone on passing only if some
   // trimmable part still existed — which is exactly the thing that was removed.
   const i = base();
-  i.story.writingStyle = 'Write the narration in contractions. '.repeat(90);   // ~830 tokens
+  // AND THE FIXTURE GREW WITH THE CAP AGAIN. `.repeat(90)` made ~830 tokens, which overran 500
+  // and does not overrun 1000, so this check would have gone on passing while no longer
+  // reproducing the condition it exists for.
+  i.story.writingStyle = 'Write the narration in contractions. '.repeat(190);  // ~1750 tokens
   i.story.spice = 5;
   i.currentChapter = { id: 'c3', index: 3, title: 'Key', authorsNote: 'He must be forced.' };
   const m = buildContext(i, count);
