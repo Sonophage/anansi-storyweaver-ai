@@ -277,7 +277,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
-  'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo',
+  'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'newroom', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -3141,6 +3141,18 @@ function entryEditor() {
       style="margin-top:20px">Mark this finished</button>
     <div class="hint">It stops reaching the model from the next chapter on. Every chapter before it
       still has it, and Waiting can bring it back.</div>` : ''}
+    <!-- #27. The whole book read for this ONE thread, which is why the button is here and not
+         beside "Read this chapter for facts" in the Chapter panel: that one is about a chapter and
+         has no thread in hand, and checks.md asked for the story-wide option to look "only for the
+         mentions of the person, location, item, etc." Not offered at chapter end either — the
+         general sweep already runs there, so a story-wide pass at that moment reads the same
+         prose twice. -->
+    <button class="btn ghost" data-scanstory="${esc(e.id)}" ${S.scanning ? 'disabled' : ''}
+      style="margin-top:20px">${S.scanning === e.id
+        ? 'Reading the book&hellip;' : 'Read the whole book for this thread'}</button>
+    <div class="hint">Every passage whose NARRATION names it, most recent first. Dialogue is
+      stripped before it is read &mdash; a character saying a thing is not the story committing to
+      it. Everything it finds waits in the queue; nothing is written.</div>
     ${copyElsewhere(e)}
     <button class="btn" data-saveentry="1" style="margin-top:16px">Save</button>
     <button class="btn ghost" data-fieldhistory="1" style="margin-top:10px">${
@@ -5357,6 +5369,26 @@ document.addEventListener('click', async (e) => {
     // leaves the four candidates on screen under the cover that was just set from one of them.
     revokeShots(); S.drawn = null; drawSide();
     return;
+  }
+  // #27. The one pass that reads the whole book. It can take a while, so the button says so and
+  // refuses a second press rather than queueing one — two of these at once is two full-window
+  // calls into a slot pair that is already shared with the other writer.
+  if (d.scanstory) {
+    if (S.scanning) return;
+    S.scanning = d.scanstory; drawSide();
+    const r = await api.scanStory(S.storyId, d.scanstory);
+    S.scanning = null;
+    if (r.error) { drawSide(); return toast(r.error); }
+    V = await api.story(S.storyId);
+    paint();
+    // WHAT IT COULD SEE, not only what it found. A book is bigger than the window, so the count of
+    // passages actually read rides with the answer — F10's lesson, and the reason a bare "3 found"
+    // could not be acted on.
+    const seen = r.read < r.mentioned ? ` Read the ${r.read} most recent of ${r.mentioned} that name it.`
+      : ` All ${r.mentioned} passage${r.mentioned === 1 ? '' : 's'} that name it.`;
+    return toast(r.added
+      ? `${r.added} proposed for ${r.title}.${seen} Nothing is written until you accept it.`
+      : `Nothing new about ${r.title}.${seen}`);
   }
   if (d.delcover) {
     const r = await api.delCover(S.storyId);

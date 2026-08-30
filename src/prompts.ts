@@ -590,6 +590,36 @@ Drop: atmosphere, description, and anything that only mattered inside one chapte
 
 Present tense. State facts flat. Output the summary and nothing else.`;
 
+/** ONE THREAD, READ ACROSS THE WHOLE BOOK. #27, and checks.md: *"the scan chapter of facts, should
+ *  also be scan story for facts as an additional option and if one of these is selected, its
+ *  looking only for the mentions of the person, location, item, etc."*
+ *
+ *  A separate prompt rather than EXTRACT with a narrowed corpus, because EXTRACT's whole job is to
+ *  find NEW threads and it would come back with every other name in those passages — which is the
+ *  noise this option exists to avoid. F37 is the reason it is phrased the way it is: the subject is
+ *  named on its own line, in the form the answer has to take, rather than mentioned inside a
+ *  paragraph of other rules.
+ *
+ *  THE SUBJECT IS ALSO ENFORCED IN CODE. `extractStory` drops any proposal that does not land on
+ *  this card, so a model that wanders is corrected rather than trusted. A prompt is an instruction;
+ *  the filter is the guarantee.
+ *
+ *  Everything else — the bracket body, the keyword rule, the activation rule and the room rule —
+ *  is EXTRACT's, appended below, so the two cannot drift about what a proposal looks like. */
+export const SCAN_HEAD =
+`Read this book for what it says about ONE thread, and nothing else.
+
+THE SUBJECT IS NAMED ON THE LINE BELOW. Every entry you return has to be about that thread. Another
+character in the same sentence is not the subject; the place they are standing in is not the
+subject. If the narration commits nothing new about the subject, return no entries at all rather
+than returning something about somebody else.
+
+You are reading the WHOLE BOOK at once, not one chapter, so prefer what is settled over what was
+true for a scene: this is the pass that fills in what has been established about them all along and
+never written down.
+
+`;
+
 export const EXTRACT =
 `Read this chapter and propose entries for the story bible.
 

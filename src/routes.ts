@@ -2,14 +2,14 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
-import { resolveBody, cardText, narrationOnly, retirable, numbersIn } from './context.ts';
+import { resolveBody, cardText, narrationOnly, retirable, numbersIn, fires } from './context.ts';
 import { presets } from './presets.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
@@ -570,6 +570,94 @@ async function extract(storyId: string, chapterId?: string) {
       activation: e.activation, field, target })) added++;
   }
   return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
+}
+
+/** THE WHOLE BOOK, READ FOR ONE THREAD. #27, and checks.md: *"the scan chapter of facts, should
+ *  also be scan story for facts as an additional option and if one of these is selected, its
+ *  looking only for the mentions of the person, location, item, etc."*
+ *
+ *  Three things make this different from `extract` above rather than a flag on it:
+ *
+ *  IT IS SCOPED TO ONE THREAD, IN CODE AND NOT ONLY IN THE PROMPT. Passages are filtered to the
+ *  ones whose NARRATION names the subject, using `fires` with the title folded in — the shipped
+ *  matcher, the same one `retirable` and the rooms use, never a second copy of it. Then every
+ *  proposal that does not land on this card is dropped. The prompt says the same thing, and saying
+ *  it twice is the point: a prompt is an instruction and the filter is the guarantee.
+ *
+ *  IT CANNOT READ THE WHOLE BOOK. 2,021 passages is far past a 50,048-token slot, and a name that
+ *  appears everywhere does not narrow it much. So it takes the most RECENT mentions up to a
+ *  character budget and says how many of them it managed — the informative denominator, which this
+ *  project has been bitten by leaving out. Newest first because the settled state of a thread is
+ *  the late state; then back into story order, because the model reads a book forwards.
+ *
+ *  IT IS NOT OFFERED AT CHAPTER END. The general sweep already runs there — `extract` as step 3 of
+ *  the close — so a story-wide pass at that moment is the same prose read twice.
+ *
+ *  Proposals only, like everything else here. Nothing becomes canon until it is accepted. */
+const SCAN_BUDGET = 40_000;
+
+async function extractStory(storyId: string, entryId: string) {
+  const v = viewOf(storyId);
+  const who = (v.entries as any[]).find((e) => e.id === entryId);
+  if (!who) return { error: 'no such thread' };
+
+  const title = String(who.title ?? '').trim();
+  // The same shape `retirable` uses: a card is named by its title as well as by its keywords, and
+  // a card with no keywords at all would otherwise match nothing in its own book.
+  const keys = title.length >= 2 ? [...(who.keys ?? []), title] : (who.keys ?? []);
+  const probe = { ...who, keys };
+
+  // NARRATION FIRST, THEN THE MATCH. A name inside quotation marks is another character saying it,
+  // and this project has a long run of false positives from reading dialogue as narration.
+  const hits = db.passagesOf(v.id)
+    .filter((p: any) => !p.is_break && String(p.body ?? '').trim())
+    .map((p: any) => ({ p, text: narrationOnly(p.body) }))
+    .filter((h: any) => h.text.trim() && fires(probe as any, h.text).length > 0);
+
+  if (!hits.length) {
+    return { error: `the narration never names ${title} — a card the narrator does not commit to `
+      + 'has nothing for this pass to find', mentioned: 0, read: 0 };
+  }
+
+  let used = 0;
+  const taken: any[] = [];
+  for (const h of [...hits].reverse()) {
+    // `&& taken.length` so a single passage longer than the whole budget is still read rather than
+    // producing "0 of 1" and no call at all.
+    if (used + h.text.length > SCAN_BUDGET && taken.length) break;
+    taken.push(h); used += h.text.length;
+  }
+  taken.reverse();
+
+  const r = await structuredRetry(SCAN_HEAD + `THE SUBJECT: ${title}\n\n` + EXTRACT,
+    taken.map((h) => h.text).join('\n\n'), EXTRACT_SCHEMA);
+  if (!r.data?.entries) {
+    return { error: r.error ?? 'the scan returned nothing usable',
+             mentioned: hits.length, read: taken.length };
+  }
+
+  const existing = db.entriesOf(v.id);
+  let added = 0, elsewhere = 0;
+  for (const e of r.data.entries) {
+    if (!e?.title?.trim() || !e?.body?.trim()) continue;
+    const cls = classify(existing, e);
+    if (!cls) continue;
+    // THE GUARANTEE. Anything that would land on another card, or make a new one, is not what was
+    // asked for — counted rather than dropped in silence, so a prompt that starts wandering shows
+    // up as a number on the screen instead of as proposals nobody asked for.
+    if (cls.entry_id !== who.id) { elsewhere++; continue; }
+
+    const asked = String((e as any).field ?? 'none');
+    const field = ALL_SLOTS.includes(asked)
+      && slotsFor(who.entryType).some((sl) => sl.name === asked) ? asked : null;
+    const offer = roomOffer(who, field, e.body);
+    if (offer === 'said') continue;
+    if (db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id, title: e.title.trim(),
+      body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
+      activation: e.activation, field, target: offer })) added++;
+  }
+  return { added, elsewhere, title, mentioned: hits.length, read: taken.length,
+           proposals: db.proposalsOf(v.id) };
 }
 
 /** WHICH CARDS THIS CHAPTER FINISHED. PLAN-08 Phase 4, the fourth worker at chapter end.
@@ -1823,6 +1911,9 @@ export const routes: Record<string, Handler> = {
    *  proposal is held until accepted (design screen 28). Re-running is safe — the unique
    *  index on content hash means the same fact is not proposed twice. */
   'POST /api/extract': async (c) => extract(c.body.storyId, c.body.chapterId),
+  // #27. Entity-scoped by construction: it names a thread rather than a chapter, so there is no
+  // shape of this request that asks for a general story-wide sweep.
+  'POST /api/scanstory': async (c) => extractStory(c.body.storyId, c.body.entryId),
   // Re-runnable: a chapter that closed with the router down gets its memory when it comes back, and
   // the subject hash stops a second run proposing the same character twice.
   'POST /api/remember': async (c: Ctx) => {

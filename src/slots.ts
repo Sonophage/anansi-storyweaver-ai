@@ -12,7 +12,8 @@
 // field held as one blob can only arrive whole.
 //
 // `motivations` is deliberately absent. Seth named four slots for a character and it was not one
-// of them: `interiority` does that work.
+// of them: `interiority` does that work — and on 2026-08-29 he confirmed it does in practice, so
+// this is a settled decision rather than a deferral. #13 carries the exchange.
 
 export type EntryKind = 'character' | 'lore' | 'item' | 'rule';
 

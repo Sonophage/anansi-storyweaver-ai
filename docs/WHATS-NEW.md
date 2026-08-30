@@ -12,6 +12,14 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### A thread can be read against the whole book
+On any thread's own screen there is now "Read the whole book for this thread". It goes
+through every passage whose narration names that person, place, item or rule — most recent
+first — and proposes what the book has established about them and nobody has written down.
+It reads narration only, so a character saying a thing about them is not taken as true, and
+it says how many passages it managed to read out of how many name them. Nothing is written
+until you accept it.
+
 ### The model list says what each one is for
 Press the model at the foot of the menu and every model on the box now says what it is
 for — writing or roleplay, whether it refuses anything, and whether it is one of the three

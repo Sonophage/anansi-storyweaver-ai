@@ -556,6 +556,93 @@ let retProposal: any;
   ok('  and a change to the whole of her is still a state, which is what that path is for');
 }
 
+// ---- #27 · THE WHOLE BOOK, READ FOR ONE THREAD ----
+//
+// checks.md: "the scan chapter of facts, should also be scan story for facts as an additional
+// option and if one of these is selected, its looking only for the mentions of the person,
+// location, item, etc."
+//
+// Its own story, because this pass reads EVERY passage in the book and the fixture needs one long
+// enough to overflow the window — 45,000 characters of it would change what every other block in
+// this file is reading.
+{
+  const s2 = db.createStory(me, { title: 'The Ashfall Concordat', premise: 'Six houses.' });
+  const ilvaId = db.upsertEntry(s2.id, me, { title: 'Ilva', body: '[Ilva: an envoy]',
+    entryType: 'character', keys: [] });          // NO KEYS — she is matched by her own title
+  db.upsertEntry(s2.id, me, { title: 'The Long Stair', body: 'A stair with no landing.',
+    entryType: 'lore', keys: ['stair'] });
+
+  // Four that name her in narration, one that names her only inside quotation marks, and one that
+  // does not name her at all. Each of the four is over a quarter of the 40,000-character budget, so
+  // the oldest cannot fit and the pass has to say so.
+  const filler = 'The hall was cold and the braziers had gone out. '.repeat(240);   // ~11,000
+  db.addPassage({ ...s2, storyId: s2.id, body: `Ilva came up the stair. ${filler}` });
+  db.addPassage({ ...s2, storyId: s2.id, body: `Ilva signed nothing that winter. ${filler}` });
+  db.addPassage({ ...s2, storyId: s2.id, body: `"Ilva will never sign," the porter said.` });
+  db.addPassage({ ...s2, storyId: s2.id, body: `The porter counted the seals alone. ${filler}` });
+  db.addPassage({ ...s2, storyId: s2.id, body: `Ilva burned the third draft. ${filler}` });
+  db.addPassage({ ...s2, storyId: s2.id, body: `Ilva left before the thaw. ${filler}` });
+
+  asked = null;
+  // Three answers: one that belongs to her, one that belongs to another card, and one that is a
+  // thread nobody has. Only the first is hers, and the other two are what the filter is for.
+  found = [
+    { title: 'Ilva', body: '[Ilva: signs nothing, burns her own drafts]', type: 'character',
+      keys: ['Ilva'], field: 'facts' },
+    { title: 'The Long Stair', body: '[The Long Stair: cold, unlit]', type: 'lore', keys: ['stair'] },
+    { title: 'The Porter', body: '[The Porter: counts the seals]', type: 'character', keys: ['porter'] },
+  ];
+  const r: any = await routes['POST /api/scanstory'](ctx({ storyId: s2.id, entryId: ilvaId }));
+  assert.ok(!r.error, r.error);
+
+  // NARRATION ONLY, the rule every pass in this file shares. Her name inside quotation marks is
+  // the porter saying it, and this project has a long run of false positives from reading dialogue
+  // as narration.
+  assert.ok(!asked.user.includes('will never sign'),
+    'a passage that names her only inside dialogue is not read');
+  // AND ONLY THE PASSAGES THAT NAME HER. The porter's own passage is in the same book and must not
+  // be in the ask.
+  assert.ok(!asked.user.includes('counted the seals alone'),
+    'a passage that never names her is not read either');
+  assert.ok(asked.user.includes('Ilva left before the thaw'), 'the most recent mention is read');
+  // MATCHED BY HER TITLE, not only by keywords. She has none, and a card with no keywords that
+  // could not find itself in its own book would be the common case for a character.
+  assert.ok(asked.user.includes('Ilva burned the third draft'), 'and the one before it');
+
+  // THE INFORMATIVE DENOMINATOR. A book is bigger than the window, so what it could SEE rides with
+  // what it found — F10 is the finding that could decide nothing because it never said this.
+  assert.strictEqual(r.mentioned, 4, 'four passages name her in narration');
+  assert.ok(r.read < r.mentioned, `the oldest does not fit the budget (read ${r.read} of ${r.mentioned})`);
+  assert.ok(!asked.user.includes('Ilva came up the stair'),
+    'and the one dropped is the OLDEST — the settled state of a thread is its late state');
+
+  // THE SUBJECT IS ENFORCED IN CODE, NOT ONLY IN THE PROMPT.
+  assert.ok(asked.system.includes('THE SUBJECT: Ilva'), 'the prompt names her on its own line');
+  assert.strictEqual(r.added, 1, 'only what lands on her card is proposed');
+  assert.strictEqual(r.elsewhere, 2,
+    'and what would have landed on another card, or made a new one, is counted rather than written');
+  const props = db.proposalsOf(s2.id) as any[];
+  assert.deepStrictEqual([...new Set(props.map((x) => x.entry_id))], [ilvaId],
+    'nothing reached the queue for any other thread');
+  assert.strictEqual(props[0].field, 'facts', 'and the room the model named is carried');
+  ok('the story-wide scan reads one thread, in narration, newest first, and says how much it saw');
+}
+
+// A card the narrator never commits to has nothing for this pass to find, and says so rather than
+// spending a full-window call to discover it.
+{
+  const s3 = db.createStory(me, { title: 'Sutera II', premise: 'Nothing happens.' });
+  const ghostId = db.upsertEntry(s3.id, me, { title: 'Nobody', body: '[Nobody: unwritten]',
+    entryType: 'character', keys: [] });
+  db.addPassage({ ...s3, storyId: s3.id, body: '"Nobody came," she said.' });
+  asked = null;
+  const r: any = await routes['POST /api/scanstory'](ctx({ storyId: s3.id, entryId: ghostId }));
+  assert.match(r.error, /never names Nobody/, 'it says which card and why');
+  assert.strictEqual(r.mentioned, 0);
+  assert.strictEqual(asked, null, 'and the model was never called');
+  ok('a thread the narration never names costs no call at all');
+}
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several
