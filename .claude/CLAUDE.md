@@ -75,7 +75,11 @@ name, another character's name, a line of dialogue read as a POV break.
 `Qwen3.6-WNTH-35B-A3B-NN` on `:8080`, 50,048 tokens per slot (two slots, `kv_unified`). The whole
 preset list was renamed on 2026-08-27 — the old `write-nt-*` names are gone and the router answers
 `400 model not found` for them. `ANANSI_MODEL` overrides the default in `llama.ts`. A story may also pin its own model in
-`stories.model`, and one in the live library still points at a pre-rename preset, so it will 400.
+`stories.model`. **The dead pin is gone** — checked against the live library 2026-08-30, the only
+book that pins anything is `The Anagram of Ash`, and it pins `Artemis-1.1-RPNTH-31B-NN`, which the
+router serves. The shelf still marks a pin the router has dropped (#18 §5); there is nothing for it
+to mark today. The router runs `--models-max 3` and all three are resident (Qwen3.6 loaded,
+Artemis-1.1 and GLM-4.7-Flash asleep), so a pinned model answers, but a cold one pays a reload.
 **A story's voice field already outranks everything for register — but only if it is written like an
 instruction.** F37: the same rule buried in a long line bought nothing (10.7%), and on its own line
 naming *narration* with the forms spelled out it holds at ~98%, even against a book whose existing
