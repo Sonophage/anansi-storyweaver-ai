@@ -329,6 +329,50 @@ export const quotedSpans = (text: string): [number, number][] =>
 export const narrationOnly = (text: string) =>
   String(text ?? '').replace(QUOTED(), ' ').replace(/[ \t]{2,}/g, ' ');
 
+/** The facts in a piece of ledger text, as a set: the names and the numbers.
+ *
+ *  Used for two different jobs that ask the same question — did the FACTS change, or only the
+ *  wording? `bench/compact.ts` asks it of a rewrite, to refuse one that dropped a name while
+ *  shortening. `db.staleSummariesFor` asks it of a card edit, to decide whether the chapter
+ *  summaries describing that card are now lying.
+ *
+ *  NOT `numbersIn`, and the difference is worth stating rather than blending. That function pairs
+ *  a value with the unit word that follows it, which is what a contradiction check needs and
+ *  exactly wrong here: rewriting "34, owes Marek" as "34, owed to Marek" changes the pair while
+ *  changing no fact, and this would report it as a change on every edit.
+ *
+ *  ponytail: lexical, so it catches a DROP and not a DISTORTION. "thirty-four" for "34" reads as
+ *  a change; a fact restated in other words reads as no change. The upgrade path is a model call
+ *  asking what was lost, which costs one call per comparison — worth it only if this misses things
+ *  in practice. Both callers FLAG rather than act, which is the right way round for that ceiling. */
+const NOT_A_NAME = new Set(['She', 'Her', 'Hers', 'His', 'Him', 'They', 'Their', 'Them', 'Its',
+  'The', 'This', 'That', 'These', 'Those', 'There', 'Then', 'When', 'What', 'Where', 'Which',
+  'Who', 'Whose', 'With', 'Without', 'And', 'But', 'For', 'Not', 'Nothing', 'You', 'Your', 'One',
+  'Only', 'Every', 'Each', 'Both', 'Neither', 'Never', 'Always', 'Even', 'Still', 'After',
+  'Before', 'Since', 'Until', 'While', 'Because', 'Though', 'Although', 'Under', 'Over']);
+
+export const factsIn = (t: string): string[] => [
+  // `\d[\d,.:-]*\d|\d` and NOT `\d[\d,.:-]*`: the greedy form swallows the comma after a number,
+  // so "34," is compared against "34" and a fact that was merely repunctuated reads as lost.
+  ...new Set([...(String(t ?? '').match(/\d[\d,.:-]*\d|\d/g) ?? []),
+              ...(String(t ?? '').match(/\b[A-Z][a-z]{2,}\b/g) ?? []).filter((w) => !NOT_A_NAME.has(w))]),
+];
+
+/** The facts in `before` that `after` no longer carries. Empty means nothing was lost. */
+export const factsLost = (before: string, after: string): string[] =>
+  factsIn(before).filter((k) => !after.includes(k));
+
+/** THERE IS NO `factsChanged`, and the reason is worth keeping. The two-way version was written
+ *  first — a card that GAINED a name has also stopped matching what was written before it — and
+ *  it fired on punctuation: rewriting "34, owes Marek" as "34. Owes Marek" capitalises a verb,
+ *  which reads as a new name, which reads as a changed fact, on an edit that changed nothing.
+ *  No stopword list fixes that; any word can start a sentence.
+ *
+ *  So the question both callers actually ask is the one-way one above, and `db.staleSummariesFor`
+ *  narrows it further: a summary is stale only when a fact IT MENTIONS has left the card. That is
+ *  the condition under which a summary is actually lying, and it cannot be reached by
+ *  repunctuation. */
+
 /** Fold an English word to a crude stem so "runs" and "running" meet.
  *
  *  Deliberately not Snowball. A real stemmer is a dependency and it collapses exactly the

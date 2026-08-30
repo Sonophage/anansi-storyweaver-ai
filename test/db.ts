@@ -1810,3 +1810,86 @@ ok('speed comes from the server timings, and a bad row cannot poison it', () => 
 });
 
 console.log(`\n${n} checks passed`);
+
+// A CARD EDIT CAN STALE A CHAPTER SUMMARY, since 2026-08-30. Seth's question was whether the old
+// context could be dropped when something is swapped, so the change actually fires. Most of that
+// was already built — a summary REPLACES the prose it covers, so the past arrives compacted — but
+// `summaryStale` hashed only the passages, so the ledger could change under a summary and the
+// summary went on contradicting it in every prompt, forever. That is the failure its own comment
+// describes, arriving through a door nobody watched.
+ok('a swap stales the summaries that named what it swapped away, and nothing else', () => {
+  const s = db.createStory(o, { title: 'Stale' });
+  const ch: any = db.chapters(s.id)[0];
+  const fresh = () => !db.summaryStale(db.chapters(s.id).find((c: any) => c.id === ch.id));
+
+  db.addPassage({ ...s, storyId: s.id, chapterId: ch.id, body: 'She wore it into the rain.' });
+  const hash = db.proseHash(db.passagesOfChapter(ch.id).map((p: any) => p.body));
+  db.setSummary(ch.id, 'Halsey wears the Ashford coat to the archive and Marek notices.', 1, hash);
+  assert.ok(fresh(), 'the fixture must start fresh, or every assertion below passes for free');
+
+  const card = db.upsertEntry(s.id, o, { title: 'Halsey', body: '[Halsey: wears the Ashford coat]',
+    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+
+  // 1 · REWORDING IS NOT A SWAP. This is the assertion that decides the whole design: a rule that
+  // stales on any text change would stale half a book every time somebody fixed a comma, and a
+  // stale summary is DROPPED from the prompt until a writer re-runs it. A false positive costs
+  // real context and a model call.
+  db.upsertEntry(s.id, o, { id: card, title: 'Halsey', body: '[Halsey. Wears the Ashford coat.]',
+    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+  assert.ok(fresh(), 'repunctuating a card must not stale anything — no fact left it');
+
+  // 2 · A FACT THE SUMMARY DOES NOT NAME. The coat is gone from the card, but this summary never
+  // mentioned the pocket watch, so it is not lying and must not be thrown away.
+  db.upsertEntry(s.id, o, { id: card, title: 'Halsey',
+    body: '[Halsey: wears the Ashford coat, carries a Vantic pocket watch]',
+    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+  db.upsertEntry(s.id, o, { id: card, title: 'Halsey', body: '[Halsey: wears the Ashford coat]',
+    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+  assert.ok(fresh(), 'dropping a fact no summary mentions must leave that summary alone');
+
+  // 3 · THE SWAP ITSELF. Ashford leaves the card; the summary still says Ashford; it is now a lie
+  // in every later prompt.
+  db.upsertEntry(s.id, o, { id: card, title: 'Halsey', body: '[Halsey: wears the Vantic coat]',
+    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+  assert.ok(!fresh(), 'swapping a fact the summary names must stale it');
+
+  // 4 · A ROOM EDIT COUNTS THE SAME, because since the body moved into `facts` the rooms are where
+  // a card's facts live. Same rule, second door.
+  db.setSummary(ch.id, 'Halsey wears the Ashford coat to the archive and Marek notices.', 1, hash);
+  assert.ok(fresh(), 'reset');
+  const room = db.upsertAddon(s.id, card,
+    { slot: 'facts', name: 'facts', keys: [], body: '[Halsey: the Ashford coat, unlined]' });
+  db.upsertAddon(s.id, card,
+    { id: room, slot: 'facts', name: 'facts', keys: [], body: '[Halsey: the Vantic coat, unlined]' });
+  assert.ok(!fresh(), 'a room edit stales on the same rule as a body edit');
+
+  // 5 · A RENAME IS THE SHARPEST CASE — the summary now names somebody the ledger has never heard
+  // of. The name has to actually LEAVE the card for that to be true: this fixture said
+  // `title: 'Ashley'` over a body still reading `[Halsey: ...]` and correctly did not fire,
+  // because Halsey was still on the card. A bracket body that repeats the title is the normal
+  // shape here, so the rule is doing the right thing and the first fixture was wrong.
+  db.setSummary(ch.id, 'Halsey wears the Ashford coat to the archive and Marek notices.', 1, hash);
+  db.upsertEntry(s.id, o, { id: card, title: 'Halsey', body: '[wears the Vantic coat]',
+    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+  db.setSummary(ch.id, 'Halsey wears the Ashford coat to the archive and Marek notices.', 1, hash);
+  assert.ok(fresh(), 'reset, with the name held only by the title');
+  db.upsertEntry(s.id, o, { id: card, title: 'Ashley', body: '[wears the Vantic coat]',
+    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+  assert.ok(!fresh(), 'renaming a card stales the summaries that used the old name');
+
+  // 6 · THE CEILING, asserted so it is a known limit and not a surprise. A card whose name is a
+  // STOPWORD is invisible to this — and that is not hypothetical: `The Anagram of Ash` carried a
+  // character titled "You" until this morning. Renaming that one would stale nothing.
+  db.setSummary(ch.id, 'You wear the Ashford coat to the archive.', 1, hash);
+  const you = db.upsertEntry(s.id, o, { title: 'You', body: '',
+    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+  assert.ok(fresh(), 'reset');
+  db.upsertEntry(s.id, o, { id: you, title: 'Seth', body: '',
+    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+  assert.ok(fresh(),
+    'DOCUMENTING A LIMIT, NOT A FEATURE: "You" is in the stopword list that stops sentence '
+    + 'openers reading as names, so a character named for one is invisible here. If this ever '
+    + 'goes red somebody has fixed it — delete the assertion, do not restore the limit.');
+
+  db.delStory(s.id);
+});

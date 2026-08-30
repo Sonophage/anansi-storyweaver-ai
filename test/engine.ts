@@ -1,7 +1,7 @@
 // One runnable check. Fails if the engine's load-bearing behaviour breaks.
 //   node --experimental-strip-types test/engine.ts
 import assert from 'node:assert';
-import { buildContext, resolveBody, fires, retirable, numbersIn, narrationOnly, quotedSpans } from '../src/context.ts';
+import { buildContext, resolveBody, fires, retirable, numbersIn, narrationOnly, quotedSpans, factsIn, factsLost } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
 import { render } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
@@ -450,6 +450,38 @@ ok('each mode says the one thing that distinguishes it', () => {
   // A stale tab sending a retired name degrades to the neutral mode instead of a 500.
   assert.ok(/one small beat/.test(modeText({ mode: 'cowrite' as any })),
     'an unknown mode must fall back, not throw');
+});
+
+ok('the fact detector catches a dropped name and ignores a reworded one', () => {
+  // F17: validate the detector before believing the result, both directions. Two callers trust
+  // this — `bench/compact.ts` refuses a rewrite that lost a fact, and `db.staleSummariesFor`
+  // decides whether a chapter summary has started lying. Both used to carry their own copy.
+  const src = '[Halsey: 34, owes Marek 900 crowns, keeps the Martin in its case]';
+  assert.deepStrictEqual(factsIn(src), ['34', '900', 'Halsey', 'Marek', 'Martin']);
+  assert.deepStrictEqual(lostOf(src, '[Halsey: 34, owes Marek 900 crowns, the Martin cased]'), [],
+    'a rewrite that keeps every name and number must not flag');
+  assert.deepStrictEqual(lostOf(src, '[Halsey: 34, owes money, keeps the Martin in its case]'),
+    ['900', 'Marek'], 'a rewrite that drops a number and a name must flag both');
+
+  // THE GREEDY-NUMBER BUG, which was written twice because the detector was written twice. The
+  // pattern was `\d[\d,.:-]*`, which swallowed the comma after a number, so "34," was compared
+  // against "34" and a fact that had merely been repunctuated read as lost.
+  assert.deepStrictEqual(lostOf('[Halsey: 34, ex-Watch]', '[Halsey: 34. Ex-Watch.]'), [],
+    'repunctuation is not a lost fact');
+
+  // SENTENCE OPENERS ARE NOT NAMES. Bracket-form ledger bodies are full of them and they flagged
+  // as lost facts on the first real run of the compaction.
+  const opener = '[Halsey: 34. She keeps the Martin cased. His debt to Marek is 900 crowns.]';
+  assert.deepStrictEqual(lostOf(opener, '[Halsey: 34, the Martin cased, 900 crowns to Marek]'), [],
+    'dropping "She" and "His" is a rewrite, not a lost fact');
+  assert.deepStrictEqual(lostOf(opener, '[Halsey: 34, the Martin cased, a debt of 900]'), ['Marek'],
+    'but a real name in the same sentence is still caught');
+
+  // ITS CEILING, asserted rather than only described: lexical, so it sees a DROP and not a
+  // DISTORTION. If this ever goes red, somebody has made it smarter — delete the assertion.
+  assert.deepStrictEqual(lostOf('[Halsey: 34]', '[Halsey: thirty-four]'), ['34'],
+    'a number turned into a phrase reads as a drop, and that is the limit of a lexical check');
+  function lostOf(a: string, b: string) { return factsLost(a, b); }
 });
 
 ok('a passage that stops mid-line does not hand its dialogue back as narration', () => {

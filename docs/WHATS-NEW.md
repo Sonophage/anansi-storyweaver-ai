@@ -12,6 +12,26 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-30 · Rooms Anansi fills in come back the right size again
 
+### A chapter summary now notices when you change a card under it
+Once a chapter is old enough, the app stops sending its prose and sends its summary instead —
+that is how a long book stays inside the model's memory. But a summary is written once. If you
+went back and changed a character afterwards, the summary carried on describing the old version
+in every single request, forever, and nothing said so.
+
+Now, when you swap a fact out of a card, any chapter summary that named that fact is marked
+Stale and stops being sent until you re-run it. You will see it flagged on the chapter.
+
+It only fires when a fact actually leaves the card. Fixing a comma, rewording a line, or
+tightening a description does not touch your summaries — that would have thrown away half the
+book's memory every time you tidied something.
+
+### Anansi stops mistaking a cut-off line for narration
+When a passage runs out of room mid-sentence, it can end on an open quote mark that never
+closes. Every check that reads only the narration — because dialogue can lie and only the
+narrator commits the story — was reading that dangling speech as narration. So a character's
+line could be flagged as a contradiction, or counted as something the book had established.
+Forty-six passages in your library are in that state. They read correctly now.
+
 ### Dialogue has a rule again, and it is yours to change
 Your books each got one more line in their voice, under Dialogue: a line of dialogue should be
 moving information or deepening what is not being said — and a plainly functional exchange is

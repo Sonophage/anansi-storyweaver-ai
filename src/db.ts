@@ -16,6 +16,7 @@ import { join, dirname } from 'node:path';
 // the partial unique index below names them as a literal. Three copies of one list is the drift
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
 import { ALL_SLOTS, EXCLUSIVE_SLOTS } from './slots.ts';
+import { factsLost } from './context.ts';
 
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
@@ -920,6 +921,47 @@ export const setSummary = (chapterId: string, summary: string, through: number, 
   q('UPDATE chapters SET summary=?, summary_covers_through=?, summary_hash=? WHERE id=?')
     .run(summary, through, hash, chapterId);
 
+/** A CARD EDIT CAN STALE A SUMMARY, and until 2026-08-30 it could not.
+ *
+ *  `summaryStale` below hashes the PASSAGES a summary covers, so it fires when the prose changes
+ *  underneath a summary and never when the ledger does. Its own comment is the argument for this
+ *  function: *"a stale summary otherwise contradicts the prose in every later call, forever."*
+ *  A summary that says Halsey wears the Ashford coat goes on saying it after the card says
+ *  otherwise, in every prompt, for the life of the book -- the same failure through a door
+ *  nobody was watching.
+ *
+ *  THE RULE IS NARROW ON PURPOSE: a summary is stale only when a fact IT MENTIONS has LEFT the
+ *  card. Not when the card changed at all -- that would stale half the book every time somebody
+ *  fixed a comma, and a stale summary is DROPPED from the prompt until a writer re-runs it, so a
+ *  false positive costs real context and a model call. Not two-way either; see the note above
+ *  `factsLost` in context.ts for why a gained fact cannot be told from a capitalised verb.
+ *
+ *  IT MARKS STALE BY NULLING THE HASH, which is what `summaryStale` already treats as stale
+ *  (`if (!chapter.summary_hash) return true`). No column, no migration, and one definition of
+ *  stale rather than two that can disagree.
+ *
+ *  `bench/compact.ts` is the reason this is a fact rule rather than a text rule and it needs no
+ *  exemption: it only ever applies rewrites that dropped no fact, so it stales nothing by
+ *  construction. If it ever does drop one, staling the summary is the correct answer.
+ *
+ *  The writer sees it -- `web/app.js` renders "Stale — excluded from the prompt until it is
+ *  re-run" on the chapter. This is not a silent removal. */
+export function staleSummariesFor(storyId: string, before: string, after: string): number {
+  const gone = factsLost(before, after);
+  if (!gone.length) return 0;
+  const rows = q(`SELECT id, summary FROM chapters
+                  WHERE story_id = ? AND summary IS NOT NULL AND summary_hash IS NOT NULL`)
+    .all(storyId) as any[];
+  let n = 0;
+  for (const r of rows) {
+    if (!gone.some((g) => String(r.summary).includes(g))) continue;
+    q('UPDATE chapters SET summary_hash = NULL WHERE id = ?').run(r.id);
+    n++;
+  }
+  if (n) touch(storyId);
+  return n;
+}
+
 /** True when the covered prose has changed since the summary was written. */
 export function summaryStale(chapter: any): boolean {
   if (!chapter.summary) return false;
@@ -1170,6 +1212,10 @@ export function upsertEntry(storyId: string, o: string, e: any) {
       for (const col of ['persona', 'locked_character'])
         q(`UPDATE stories SET ${col} = ? WHERE id = ? AND ${col} = ?`).run(e.title, storyId, cur.title);
     }
+    // THE TITLE IS PART OF THE COMPARISON. A rename leaves the old name standing in every summary
+    // that used it -- the sharpest version of the failure, because the summary now names somebody
+    // the ledger has never heard of.
+    staleSummariesFor(storyId, `${cur.title}\n${cur.body ?? ''}`, `${e.title}\n${e.body ?? ''}`);
     touch(storyId); return e.id;
   }
   // Reuse a supplied id only if it is actually free. Seeding with known ids is useful; an
@@ -1280,9 +1326,14 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
       .get(a.id, storyId) as any;
     const from = 'fromChapter' in a ? (a.fromChapter ?? null) : (cur?.from_chapter ?? null);
     const till = 'retiredAtChapter' in a ? (a.retiredAtChapter ?? null) : (cur?.retired_at_chapter ?? null);
+    const wasBody = String((q('SELECT body FROM addons WHERE id = ?').get(a.id) as any)?.body ?? '');
     q(`UPDATE addons SET name = ?, body = ?, keys = ?, from_chapter = ?, retired_at_chapter = ?
        WHERE id = ? AND story_id = ?`)
       .run(a.name, a.body, keys, from, till, a.id, storyId);
+    // Since the body moved into `facts` on 2026-08-29 the ROOMS are where a card's facts live, so
+    // a room edit stales a summary on exactly the same rule as a body edit. Read before the write,
+    // because after it the old text is gone -- addons have no revision table.
+    staleSummariesFor(storyId, wasBody, String(a.body ?? ''));
     touch(storyId);
     return a.id;
   }
