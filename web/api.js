@@ -102,6 +102,10 @@ export const api = {
   accept:       (storyId, o)     => j('/api/accept', 'POST', { storyId, ...o }),
   editPassage:  (storyId, id, body) => j('/api/passage', 'POST', { storyId, id, body }),
   // allTakes deletes the whole slot rather than the take on screen. Two intents, one route.
+  // Everything below one passage, and a whole chapter. Both take storyId, which is what the
+  // ownership gate in serve.ts reads.
+  delAfter:     (storyId, id) => j('/api/after', 'DELETE', { storyId, id }),
+  delChapter:   (storyId, id) => j('/api/chapter', 'DELETE', { storyId, id }),
   delPassage:   (storyId, id, allTakes) => j('/api/passage', 'DELETE',
                                              { storyId, id, ...(allTakes ? { allTakes: true } : {}) }),
   pickVariant:  (storyId, id)    => j('/api/variant', 'POST', { storyId, id }),

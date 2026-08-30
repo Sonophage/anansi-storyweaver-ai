@@ -10,6 +10,27 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · Every delete asks twice, and two new ones
+
+### Nothing is deleted on one press any more
+Every delete in the app now arms on the first press and does it on the second, and says so while it
+is waiting. There is no undo anywhere in Anansi, so a press that removes writing was the one press
+that could not be taken back by pressing something else. Ten of them had no confirmation at all,
+including Delete this card, which sits directly under Field history — the button you press when you
+want something back.
+
+### Delete a chapter
+On a chapter's own screen. It takes its prose, its edits, its summary and anything it proposed.
+The chapters after it keep the numbers they have: a change over time is anchored to a chapter
+number, so closing the gap would quietly move it to a different chapter. A book will not delete its
+last chapter, because there would be nowhere left to write.
+
+### Cut the book back to a passage
+Double tap any paragraph and the tray offers to delete everything below it — every passage after
+that one, every take of each, across chapters, and it says how many before you press. The chapters
+it cut into lose their summaries, because a summary of prose that no longer exists is something the
+model would still be told.
+
 ## 2026-08-30 · Ending a chapter starts the next one
 
 ### End this chapter now takes you to the next chapter

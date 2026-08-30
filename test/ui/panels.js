@@ -1007,6 +1007,18 @@ ok("  and it is still there a moment later, not eaten by a repaint",
 
   // AND THE DIRECTION, which is the one thing about this table that cannot be recovered later.
   const edge = edges.find((x) => x.parentId === parent.id && x.childId === childId);
+  // TWO PRESSES (2026-08-30). Seth: "all deletions should have a double tap confirmation." Every
+  // deletion in the app arms on the first press and fires on the second, within four seconds — one
+  // helper, `armed()` in web/app.js, rather than a guard per handler. A driver that presses once now
+  // arms and returns, which is the behaviour and not a fault.
+  // ONE PRESS ARMS, IT DOES NOT FIRE — asserted here rather than accommodated silently. This is
+  // the one place a driver in this file presses a guarded delete, and `armed()` is ONE helper
+  // shared by every deletion in the app, so what holds here holds for the other nine; a test per
+  // action would be the same eleven lines checked nine times.
+  await page.click('[data-unlink="' + edge.id + '"]');
+  await wait(500);
+  ok('  one press on a delete arms it and removes nothing',
+     ((await story3()).edges ?? []).some((x) => x.id === edge.id));
   await page.click('[data-unlink="' + edge.id + '"]');
   await wait(900);
   const gone = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"

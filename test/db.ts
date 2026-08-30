@@ -80,6 +80,84 @@ ok('entries upsert by row existence, not by whether an id was passed', () => {
   assert.strictEqual(db.entriesOf(s.id).length, 1);
   assert.strictEqual((db.entriesOf(s.id)[0] as any).title, 'A2');
 });
+// ---- DELETING A CHAPTER, AND DELETING EVERYTHING BELOW A PASSAGE. Seth, 2026-08-30: "we also
+// need a delete chapter and a way to delete anything after a specific answer", "deletion is
+// deletion", "delete after deletes all prose below."
+//
+// Both lean on the cascade, and a cascade is a RUNTIME setting: `ON DELETE CASCADE` in a schema
+// with `PRAGMA foreign_keys` off is a comment. So the prose going is asserted, not assumed.
+ok('deleting a chapter takes its prose with it, and leaves the numbers where they are', () => {
+  const s2 = db.createStory(o, { title: 'Cut', premise: 'p' }) as any;
+  const base = { storyId: s2.id, branchId: s2.branchId };
+  db.addPassage({ ...base, chapterId: s2.chapterId, body: 'chapter one' });
+  const two = db.endChapter(s2.id, s2.branchId, 'Two') as any;
+  db.addPassage({ ...base, chapterId: two.opened, body: 'chapter two' });
+  const three = db.endChapter(s2.id, s2.branchId, 'Three') as any;
+  db.addPassage({ ...base, chapterId: three.opened, body: 'chapter three' });
+  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => c.idx), [1, 2, 3]);
+
+  assert.strictEqual(db.delChapter(s2.id, two.opened).deleted, 1);
+  assert.strictEqual(db.passagesOf(s2.id).filter((x: any) => x.chapter_id === two.opened).length, 0,
+    'the chapter went and its prose stayed — PRAGMA foreign_keys is off');
+  assert.strictEqual(db.passagesOf(s2.id).length, 2,
+    'and it took prose that was not its own');
+
+  // THE NUMBERS ARE NOT CLOSED UP, and this is the assertion that says so on purpose rather than
+  // by omission. `entry_states.from_chapter`, `addons.from_chapter` and `retired_at_chapter` all
+  // anchor to a chapter INDEX: closing the gap would move a fact that opens at chapter 3 onto a
+  // chapter 3 that is a different chapter, silently, in every book with a timeline in it.
+  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => c.idx), [1, 3],
+    'the hole is the honest result; renumbering would move every timeline in the book');
+
+  // A story with no chapter has nowhere to put the next passage, and every read here falls back
+  // to `chapters.at(-1)`. Refused with a reason rather than silently doing nothing.
+  db.delChapter(s2.id, three.opened);
+  const last = db.delChapter(s2.id, db.chapters(s2.id)[0].id);
+  assert.strictEqual(last.deleted, 0);
+  assert.match(String(last.error), /last chapter/);
+  assert.strictEqual(db.chapters(s2.id).length, 1);
+  db.delStory(s2.id);   // the shelf-counting checks below read every story this owner has
+});
+
+ok('delete-after takes every passage below, every take of each, and only the summaries it cut', () => {
+  const s3 = db.createStory(o, { title: 'Trim', premise: 'p' }) as any;
+  const base = { storyId: s3.id, branchId: s3.branchId };
+  db.addPassage({ ...base, chapterId: s3.chapterId, body: 'chapter one, untouched' });
+  const c2 = db.endChapter(s3.id, s3.branchId, 'Two') as any;
+  const keep = db.addPassage({ ...base, chapterId: c2.opened, body: 'the passage pointed at' });
+  const below = db.addPassage({ ...base, chapterId: c2.opened, body: 'below it' });
+  db.addVariant(s3.id, below, 'below it, rerolled');
+  const c3 = db.endChapter(s3.id, s3.branchId, 'Three') as any;
+  db.addPassage({ ...base, chapterId: c3.opened, body: 'a whole chapter below' });
+  const ch = (id: string) => db.chapters(s3.id).find((c: any) => c.id === id) as any;
+  const c1id = db.chapters(s3.id)[0].id;
+  for (const id of [c1id, c2.opened, c3.opened]) db.setSummary(id, 'a summary', 1, 'h');
+
+  // THREE ROWS AND NOT TWO. A rerolled passage below the cut is three rows at one ordinal; leaving
+  // the unselected ones leaves prose in the database that no screen can reach and that `delSlot`
+  // could later promote back into the book.
+  assert.strictEqual(db.delAfter(s3.id, keep).deleted, 3,
+    'every take below the cut, not only the selected one');
+  // EVERY TAKE, counted through `variantsBySlot` and not `passagesOf`. The latter reads the book
+  // — one row per slot — so an implementation that deleted only the selected take would leave the
+  // rerolled one in the database and this would still say 2. Falsified: adding `AND selected = 1`
+  // to the DELETE has to redden the line that makes the claim, not one three lines further down.
+  const takes = [...db.variantsBySlot(s3.id).values()].reduce((a: number, v: any) => a + v.length, 0);
+  assert.strictEqual(takes, 2, 'what was at or above the cut stays, and nothing else survives');
+
+  // A chapter summary rides in every prompt. One describing prose that no longer exists is the
+  // engine telling the model about a scene the book does not contain.
+  assert.strictEqual(ch(c2.opened).summary, null, 'the chapter it cut into loses its summary');
+  assert.strictEqual(ch(c3.opened).summary, null, 'and so does the chapter it emptied');
+  // The negative case, which is what stops this passing against an implementation that simply
+  // clears every summary in the book.
+  assert.strictEqual(ch(c1id).summary, 'a summary',
+    'a chapter that lost nothing keeps what it had');
+
+  assert.strictEqual(db.delAfter(s3.id, keep).deleted, 0, 'nothing below it the second time');
+  db.delStory(s3.id);
+});
+
 ok('deleting a story cascades', () => {
   db.delStory(s.id);
   assert.strictEqual(db.listStories(o).length, 0);

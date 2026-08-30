@@ -984,6 +984,98 @@ export function editPassage(storyId: string, id: string, body: string) {
   q('DELETE FROM violations WHERE passage_id = ?').run(id);
   touch(cur.story_id);
 }
+/** DELETE A CHAPTER, AND EVERYTHING THAT WAS ONLY EVER ABOUT IT. Seth, 2026-08-30: "we also need
+ *  a delete chapter", and "deletion is deletion".
+ *
+ *  The cascade does most of it: `passages.chapter_id` and `chapter_pins` both declare
+ *  `ON DELETE CASCADE` against `chapters(id)`, and `passage_revisions` cascades from passages, so
+ *  dropping the row takes the prose, its edit history and its pins. `PRAGMA foreign_keys = ON` is
+ *  set at the top of this file, so that is real rather than decorative.
+ *
+ *  What does NOT cascade is what has to be written out: `violations.passage_id` and
+ *  `proposals.chapter_id` carry no foreign key — deliberately, in both cases, because a flag can
+ *  outlive the variant it was raised against and a proposal can outlive the chapter that proposed
+ *  it. Neither survives the chapter itself being gone, so both are explicit here. `generations` is
+ *  a log of what was asked of the model and is deliberately left: it is a record of the request,
+ *  not of the book.
+ *
+ *  THE NUMBERS ARE NOT CLOSED UP, and that is the one decision in here worth arguing about.
+ *  Deleting chapter 4 leaves 1, 2, 3, 5, 6. Renumbering would be tidier on screen and would
+ *  silently move every timeline in the book: `entry_states.from_chapter`, `addons.from_chapter`
+ *  and `entries.retired_at_chapter` all anchor to a chapter INDEX, so closing the gap would move
+ *  a fact that opens at chapter 5 to a chapter 5 that is a different chapter. A visible hole is
+ *  the honest result and `chapters_idx` is only unique, never contiguous.
+ *
+ *  Refuses the last chapter in the branch. A story with no chapter has nowhere to put the next
+ *  passage, and every read here does `chapters.at(-1)` as its fallback. */
+export function delChapter(storyId: string, chapterId: string): { deleted: number; error?: string } {
+  const ch = q('SELECT id, branch_id, idx FROM chapters WHERE id = ? AND story_id = ?')
+    .get(chapterId, storyId) as any;
+  if (!ch) return { deleted: 0, error: 'That chapter is gone already.' };
+  const n = (q('SELECT COUNT(*) AS n FROM chapters WHERE story_id = ? AND branch_id = ?')
+    .get(storyId, ch.branch_id) as any).n;
+  if (n <= 1) return { deleted: 0, error: 'A book keeps its last chapter — there would be nowhere to write.' };
+  db.exec('BEGIN');
+  try {
+    q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
+         (SELECT id FROM passages WHERE chapter_id = ?)`).run(storyId, chapterId);
+    q('DELETE FROM proposals WHERE story_id = ? AND chapter_id = ?').run(storyId, chapterId);
+    q('DELETE FROM chapters WHERE id = ? AND story_id = ?').run(chapterId, storyId);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  touch(storyId);
+  return { deleted: 1 };
+}
+
+/** DELETE EVERY PASSAGE BELOW THIS ONE. Seth, 2026-08-30: "a way to delete anything after a
+ *  specific answer ... delete after deletes all prose below."
+ *
+ *  `ordinal` and not `slot_key`: slot keys are fractional and per chapter, so they say where a
+ *  passage sits inside its chapter and nothing about the book. `ordinal` is monotonic per branch —
+ *  the schema says so and every engine count already uses it — which makes "below" one comparison
+ *  across every chapter rather than a walk through them.
+ *
+ *  EVERY TAKE, not the selected one. A rerolled passage below the cut has three rows at one
+ *  ordinal; leaving the unselected two would leave prose in the database that no screen can reach
+ *  and that `delSlot` could later promote back into the book.
+ *
+ *  SCOPED TO THE BRANCH the passage is on. Another branch's prose is a different line of the story
+ *  and was not what the writer pointed at.
+ *
+ *  THE SUMMARIES OF WHAT IT CUT ARE CLEARED, which is not tidiness. A chapter summary rides in
+ *  every prompt; one describing prose that no longer exists is the engine telling the model about
+ *  a scene the book does not contain. Only chapters that actually lost a passage are touched.
+ *
+ *  ponytail: the chapters themselves stay, including any left holding nothing, and a closed one
+ *  stays closed. Ceiling: an empty chapter at the end of a book is a heading with no prose under
+ *  it. The upgrade is not more logic in here — it is `delChapter` above, which is the other half
+ *  of what was asked for in the same sentence and is one press away on the same screen. */
+export function delAfter(storyId: string, passageId: string): { deleted: number; error?: string } {
+  const cur = q('SELECT branch_id, ordinal FROM passages WHERE id = ? AND story_id = ?')
+    .get(passageId, storyId) as any;
+  if (!cur) return { deleted: 0, error: 'That passage is gone already.' };
+  const doomed = q(`SELECT id, chapter_id FROM passages
+                    WHERE story_id = ? AND branch_id = ? AND ordinal > ?`)
+    .all(storyId, cur.branch_id, cur.ordinal) as any[];
+  if (!doomed.length) return { deleted: 0 };
+  const chapters = [...new Set(doomed.map((p) => p.chapter_id))];
+  db.exec('BEGIN');
+  try {
+    q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
+         (SELECT id FROM passages WHERE story_id = ? AND branch_id = ? AND ordinal > ?)`)
+      .run(storyId, storyId, cur.branch_id, cur.ordinal);
+    q('DELETE FROM passages WHERE story_id = ? AND branch_id = ? AND ordinal > ?')
+      .run(storyId, cur.branch_id, cur.ordinal);
+    const clear = q(`UPDATE chapters SET summary = NULL, summary_tokens = NULL,
+                       summary_covers_through = NULL, summary_hash = NULL
+                     WHERE id = ? AND story_id = ?`);
+    for (const id of chapters) clear.run(id, storyId);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  touch(storyId);
+  return { deleted: doomed.length };
+}
+
 /** Flags belong to the passage. SQLite will not cascade here — violations.passage_id has no
  *  foreign key, because a flag can outlive the variant it was raised against — so the delete
  *  is explicit. Without it, deleting a passage left its flags on screen forever. */

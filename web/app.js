@@ -287,12 +287,48 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
-  'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads'].map((k) => `[data-${k}]`).join(',');
+  'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads',
+  // Deletion that reaches whole runs of prose. Both are two presses, like every other delete.
+  'delafter', 'delchapter'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 4200);
+}
+
+/** EVERY DELETION IS TWO PRESSES. Seth, 2026-08-30: "all deletions should have a double tap
+ *  confirmation." Nothing in this app has an undo, so a press that removes writing is the one kind
+ *  of press that cannot be taken back by pressing something else.
+ *
+ *  ONE HELPER AND NOT A GUARD PER HANDLER, which is the whole point: there were three deletions
+ *  behind a confirmation and eight in front of one, and the eight were not an oversight so much as
+ *  the cost of remembering to write the same eleven lines again. Naming the key is now the entire
+ *  job, so a deletion added later gets the guard by using this rather than by anyone remembering.
+ *
+ *  IN PLACE, NEVER THROUGH paint(). The passage tray's own guard worked this out first and the
+ *  reason still holds: a repaint drops the tray's aria-expanded, so on a phone the second press
+ *  would have nothing left to press.
+ *
+ *  ONE KEY FOR THE WHOLE APP. Arming a second deletion disarms the first, which is correct — two
+ *  armed buttons is a screen where the next press could do either of two irreversible things.
+ *
+ *  The label swap is what a desk sees and the toast is what a phone sees: `.lbl-txt` is hidden on
+ *  a phone and several of these buttons are a bare glyph with no label at all, so those get a ring
+ *  instead of having their × replaced by four words that do not fit. */
+function armed(t, key, ask) {
+  if (S.confirmDel === key) { S.confirmDel = null; if (t) t.style.outline = ''; return true; }
+  S.confirmDel = key;
+  const lbl = t?.querySelector('.lbl-txt'), was = lbl?.textContent;
+  if (lbl) lbl.textContent = 'Press again';
+  else if (t) t.style.outline = '1px solid var(--bad)';
+  toast(ask);
+  setTimeout(() => {
+    if (S.confirmDel !== key) return;
+    S.confirmDel = null;
+    if (lbl) lbl.textContent = was; else if (t) t.style.outline = '';
+  }, 4000);
+  return false;
 }
 
 // ---------- rail ----------
@@ -718,6 +754,10 @@ function passageHTML(p, newest, opening) {
   // chip is the opposite of Narrate's whole point. A passage is spoken if it has a named voice
   // or opens on a quote; who wrote it only decides the label.
   const spoken = !!p.speaker || isSpeech(p.body);
+  // What "below" means, counted here rather than in the label: `ordinal` is monotonic per branch,
+  // so this is the same comparison `db.delAfter` makes, and a count that disagreed with what the
+  // press removes would be worse than no count.
+  const below = (V.passages ?? []).filter((x) => x.ordinal > p.ordinal).length;
   const flags = (V.violations ?? []).filter((f) => f.passageId === p.id);
   const v = p.variants ?? [];
   const at = v.findIndex((x) => x.selected) + 1;
@@ -774,7 +814,16 @@ function passageHTML(p, newest, opening) {
          times, each one looking like it had failed. Only shown when there IS more than one take;
          with one, Delete above already is all of them. -->
     ${v.length > 1 ? `<button class="wr" data-delall="${p.id}" style="color:var(--bad)"><span class="serif">⌫</span><span
-      class="lbl-txt">Delete all ${v.length} takes</span></button>` : ''}</div>`;
+      class="lbl-txt">Delete all ${v.length} takes</span></button>` : ''}
+    <!-- CUT THE BOOK BACK TO HERE. Seth, 2026-08-30: "a way to delete anything after a specific
+         answer ... delete after deletes all prose below." Every passage past this one, every take
+         of each, across chapters, on this branch only.
+         Drawn only when there IS something below it, or the last passage of the book carries a
+         button whose whole job is to do nothing. Two presses like every deletion, and the count
+         is in the label because "everything below" is the one phrase here that a writer cannot
+         check by looking - the passages it means are off the bottom of the screen. -->
+    ${below ? `<button class="wr" data-delafter="${p.id}" style="color:var(--bad)"><span
+      class="serif">⤓</span><span class="lbl-txt">Delete the ${below} below</span></button>` : ''}</div>`;
 
   const body = spoken
     ? `<div class="who">${p.speaker ? esc(p.speaker)
@@ -1363,7 +1412,21 @@ function ritualPanel() {
       <button class="btn ghost" data-remember="1" style="flex:1 1 40%">Changes</button>
       <button class="btn ghost" data-extract="1" style="flex:1 1 40%">Facts</button>
       <button class="btn ghost" data-refinished="1" style="flex:1 1 40%">Finished</button>
-    </div>` : ''}`;
+    </div>` : ''}
+
+    <!-- DELETE THE CHAPTER. Seth, 2026-08-30: "we also need a delete chapter", "deletion is
+         deletion". Here and not on the chapter list, because this is the screen that says what
+         the chapter HAS - its prose, its summary, what it proposed - and that is what the press
+         takes with it. A delete offered from a list is offered without any of that on screen.
+         The numbers are NOT closed up afterwards and the hint says so: a fact that opens at
+         chapter 5 is anchored to the number, so closing the gap would move every timeline in the
+         book to a chapter that is not the one it meant. See src/db.ts delChapter. -->
+    <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete</div>
+    <button class="btn ghost" data-delchapter="${esc(ch.id)}"
+      style="margin-top:4px; color:var(--bad)">Delete ${esc(ch.title || `chapter ${ch.index}`)}</button>
+    <div class="hint">Its prose, its edits, its summary and anything it proposed. There is no undo.
+      The chapters after it keep the numbers they have &mdash; a change over time is anchored to a
+      chapter number, so closing the gap would move it to a different chapter.</div>`;
 }
 
 const PANELS = {
@@ -5125,6 +5188,7 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
   }
   if (d.delstring) {
+    if (!armed(t, 'string:' + d.delstring, 'Press again to drop this open promise.')) return;
     const r = await api.delString(S.storyId, d.delstring);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
@@ -5147,6 +5211,7 @@ document.addEventListener('click', async (e) => {
     return toast(`Chapters ${from}–${to} are one act now.`);
   }
   if (d.delarc) {
+    if (!armed(t, 'arc:' + d.delarc, 'Press again to remove this act. Its chapters keep their own summaries.')) return;
     const r = await api.delArc(S.storyId, d.delarc);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
@@ -5269,6 +5334,7 @@ document.addEventListener('click', async (e) => {
     paint(); refreshManifest(); toast('Saved.'); return;
   }
   if (d.deladdon) {
+    if (!armed(t, 'addon:' + d.deladdon, 'Press again to remove this room.')) return;
     const r = await api.delAddon(S.storyId, d.deladdon);
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
@@ -5309,6 +5375,7 @@ document.addEventListener('click', async (e) => {
     paint(); refreshManifest(); toast('Saved.'); return;
   }
   if (d.deloutfit) {
+    if (!armed(t, 'outfit:' + d.deloutfit, 'Press again to remove this outfit.')) return;
     const r = await api.delAddon(S.storyId, d.deloutfit);
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
@@ -5435,17 +5502,9 @@ document.addEventListener('click', async (e) => {
     // .lbl-txt is hidden there, the tray is icons only.
     const id = d.del || d.delall, every = !!d.delall;
     // The key carries WHICH delete is armed, or confirming "this take" would fire "all of them".
-    const key = (every ? 'all:' : 'one:') + id;
-    if (S.confirmDel !== key) {
-      S.confirmDel = key;
-      const lbl = t.querySelector('.lbl-txt'), was = lbl?.textContent;
-      if (lbl) lbl.textContent = 'Press again';
-      toast(every ? 'Press again to remove every take of this passage.'
-                  : 'Press Delete again to remove it.');
-      setTimeout(() => { if (S.confirmDel === key) { S.confirmDel = null; if (lbl) lbl.textContent = was; } }, 4000);
-      return;
-    }
-    S.confirmDel = null;
+    if (!armed(t, (every ? 'all:' : 'one:') + id,
+      every ? 'Press again to remove every take of this passage.'
+            : 'Press Delete again to remove it.')) return;
     const r = await api.delPassage(S.storyId, id, every); if (r.error) return toast(r.error);
     // The panel may be showing the very passage that just went.
     if (S.historyOf?.id === id) { S.historyOf = null; S.panel = 'context'; }
@@ -5510,7 +5569,9 @@ document.addEventListener('click', async (e) => {
     V = r; paint();
     return toast('Connected. It arrives when this one does.');
   }
-  if (d.unlink) { V = await api.unlink(S.storyId, d.unlink); paint(); return toast('Disconnected.'); }
+  if (d.unlink) {
+    if (!armed(t, 'edge:' + d.unlink, 'Press again to disconnect these two.')) return;
+    V = await api.unlink(S.storyId, d.unlink); paint(); return toast('Disconnected.'); }
 
   if (d.forkthreads) {
     const n = (V.entries ?? []).filter((e) => !e.sharedFrom).length;
@@ -5599,7 +5660,31 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); toast('Saved.'); refreshManifest(); return;
   }
+  if (d.delafter) {
+    // The count comes back from the route rather than being predicted here: the press and the
+    // delete are a round trip apart, and a second writer on the tailnet can add a passage in it.
+    if (!armed(t, 'after:' + d.delafter, 'Press again to delete every passage below this one.')) return;
+    const r = await api.delAfter(S.storyId, d.delafter);
+    if (r.error) return toast(r.error);
+    V = r.deleted !== undefined ? r : await api.story(S.storyId);
+    paint(); refreshManifest();
+    return toast(r.deleted ? `${r.deleted} gone. The book ends here now.` : 'Nothing was below it.');
+  }
+  if (d.delchapter) {
+    if (!armed(t, 'chapter:' + d.delchapter, 'Press again to delete this chapter and everything in it.')) return;
+    const r = await api.delChapter(S.storyId, d.delchapter);
+    if (r.error) return toast(r.error);
+    // The panel was reporting on the chapter that just went, so it cannot stay pointed at it.
+    S.ritualOf = null; S.panel = 'context';
+    V = await api.story(S.storyId); paint(); refreshManifest();
+    return toast('Chapter deleted. The numbers after it are unchanged.');
+  }
+
   if (d.delentry) {
+    // COUNCIL 08 §1. The most destructive press on the card and the only one in this file that
+    // had no guard, sitting directly under Field history — the button you press when you want
+    // something BACK. Two presses apart, opposite outcomes, one of them permanent.
+    if (!armed(t, 'entry:' + S.entryId, 'Press again to delete this card for good.')) return;
     const r = await api.delEntry(S.storyId, S.entryId);
     if (r.error) return toast(r.error);
     S.entryId = null; if (S.panel === 'entry') S.panel = 'threads';
@@ -5840,6 +5925,7 @@ document.addEventListener('click', async (e) => {
   }
   if (d.delstate !== undefined) {
     if (!d.delstate) return toast('That change has no id to remove.');
+    if (!armed(t, 'state:' + d.delstate, 'Press again to remove this change over time.')) return;
     const r = await api.delState(S.storyId, d.delstate);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest(); return;
@@ -5982,6 +6068,7 @@ document.addEventListener('click', async (e) => {
   // Blank IS the delete — `db.setPrompt` removes rather than storing empty, so there is no third
   // state where a saved voice exists holding nothing.
   if (d.dellib) {
+    if (!armed(t, 'lib:' + d.dellib, 'Press again to forget this one.')) return;
     const [kind, ...rest] = d.dellib.split(':');
     const r = await api.savePrompt(`${kind}:${rest.join(':')}`, '');
     if (r.error) return toast(r.error);
@@ -6030,6 +6117,7 @@ document.addEventListener('click', async (e) => {
       : `Nothing new about ${r.title}.${seen}`);
   }
   if (d.delcover) {
+    if (!armed(t, 'cover:' + S.storyId, 'Press again to remove the cover.')) return;
     const r = await api.delCover(S.storyId);
     if (r.error) return toast(r.error);
     V = r; await loadLibrary(); paint();

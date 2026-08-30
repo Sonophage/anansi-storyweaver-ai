@@ -48,6 +48,11 @@ ok("  and reaches the prompt at that chapter",
 // removing it again
 const mine = states.find((s) => /opens at this chapter/.test(s.body))?.id;
 ok("  and the state carries an id so it can be removed", !!mine);
+// TWO PRESSES (2026-08-30). Seth: "all deletions should have a double tap confirmation." Every
+// deletion in the app arms on the first press and fires on the second, within four seconds — one
+// helper, `armed()` in web/app.js, rather than a guard per handler. A driver that presses once now
+// arms and returns, which is the behaviour and not a fault.
+await page.click('[data-delstate="' + mine + '"]');
 await page.click('[data-delstate="' + mine + '"]');
 await wait(800);
 states = (await story()).entries.find((e) => e.id === eid)?.states ?? [];

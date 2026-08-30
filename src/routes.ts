@@ -1707,6 +1707,25 @@ export const routes: Record<string, Handler> = {
                                  : (db.delPassage(c.body.storyId, c.body.id), 1);
     return { ...viewOf(c.body.storyId), deleted: gone };
   },
+  /** Everything below one passage, in its own branch. Seth, 2026-08-30: "delete after deletes all
+   *  prose below." Separate from the route above rather than a flag on it, because the two answer
+   *  different questions — one is about a passage, this is about everywhere the book goes after it
+   *  — and a boolean that turns "remove this" into "remove three chapters" is a mis-set flag away
+   *  from being the worst bug in the app. `storyId` in the body is what puts it behind the
+   *  ownership gate in `serve.ts`, like every other route here. */
+  'DELETE /api/after': (c) => {
+    const r = db.delAfter(c.body.storyId, c.body.id);
+    if (r.error) return { error: r.error };
+    return { ...viewOf(c.body.storyId), deleted: r.deleted };
+  },
+  /** A chapter and everything only ever about it. Refusing the last one is decided in `db.ts` and
+   *  reported here rather than being a silent no-op: a press that does nothing and says nothing is
+   *  indistinguishable from one that missed. */
+  'DELETE /api/chapter': (c) => {
+    const r = db.delChapter(c.body.storyId, c.body.id);
+    if (r.error) return { error: r.error };
+    return { ...viewOf(c.body.storyId), deleted: r.deleted };
+  },
 
   // ---- ledger ----
   'POST /api/entry':   (c) => { db.upsertEntry(c.body.storyId, c.owner, c.body.entry); return viewOf(c.body.storyId); },
