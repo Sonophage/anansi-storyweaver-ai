@@ -330,7 +330,13 @@ ok('SYSTEM keeps the contract and the house voice keeps the craft', () => {
   }
   // The other half of the same rule: the contract must NOT be in the voice, where a writer who
   // replaces it wholesale would silently switch off "output prose only" and canon arbitration.
-  for (const rx of [/Output prose only/i, /the canon wins/i, /Never break the frame/i]) {
+  // COUNCIL-06 §3's other free item, shipped in the same commit as the <mode> fence: "If uncertain
+  // about a canon fact, write around it rather than inventing one." It is contract, not craft —
+  // it settles what to do when the canon does not answer, which is the same question as "the canon
+  // wins" and belongs on the same side of the line. A writer replacing their voice must not
+  // thereby give the model permission to invent. Nothing is claimed for it; it is one free line.
+  for (const rx of [/Output prose only/i, /the canon wins/i, /Never break the frame/i,
+                    /write around it rather than inventing/i]) {
     assert.match(render.SYSTEM, rx, `SYSTEM has lost part of the contract: ${rx}`);
     assert.doesNotMatch(prompts.DEFAULT_VOICE, rx,
       `the output contract is in the voice (${rx}), where replacing the voice turns it off`);

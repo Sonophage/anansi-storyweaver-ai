@@ -466,6 +466,39 @@ ok('render emits only what the manifest included', () => {
   assert.ok(out.indexOf('<story>') < out.indexOf('<canon>'));
 });
 
+ok('the mode instruction is fenced, and the prose it follows is not', () => {
+  // COUNCIL-06 §3, shipped 2026-08-30. `TAG` covered 7 of the 11 kinds and MODE was not one, so a
+  // prompt ended: the last sentence of the book, one newline, then "Carry the scene forward by one
+  // small beat." — an order in the same typographic register as the novel above it, with nothing
+  // saying where one stopped and the other began. Every other block already had that boundary.
+  //
+  // NOTHING IS CLAIMED. F29 has the mode checklist at 10/10, so this is not expected to move a
+  // number and no measurement is owed. What is asserted is that the boundary exists.
+  const i = base();
+  i.mode = 'continue';   // narrate can drop MODE entirely; this mode always has one
+  const out = render(buildContext(i, count));
+
+  const fence = out.match(/<mode>\n([\s\S]*?)\n<\/mode>/);
+  assert.ok(fence, `MODE reached the prompt unfenced. The prompt ends:\n${out.slice(-240)}`);
+  assert.match(fence![1], /one small beat/,
+    'and the fence must hold the mode instruction, not some neighbouring block that drifted in');
+
+  // THE HALF THAT IS THE POINT. A fence that opened one block early would put the sentence the
+  // model continues from inside a marked-up region — which is not a boundary, it is a change to
+  // what the model is imitating. The tail prose must sit OUTSIDE the fence, and before it.
+  const tail = 'Aldis counted the coins twice and came up short.';
+  assert.ok(out.includes(tail), 'the fixture must actually reach TAIL, or this asserts nothing');
+  assert.ok(out.indexOf(tail) < out.indexOf('<mode>'),
+    'the prose must come before the fence opens');
+  assert.ok(!fence![1].includes(tail), 'and must not be inside it');
+
+  // The instruction is the LAST thing in the prompt, so the fence closing it is the last token
+  // the model sees. If another block ever renders after MODE, ORDER changed and this is the check
+  // that says so.
+  assert.ok(out.trimEnd().endsWith('</mode>'),
+    `the prompt must end on the closed fence; it ends "${JSON.stringify(out.slice(-60))}"`);
+});
+
 ok('a fresh summary reaches EARLIER', () => {
   const i = base();
   i.currentChapter = { id: 'c9', index: 9, title: 'now' };

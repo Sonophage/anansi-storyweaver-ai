@@ -7,9 +7,22 @@ import type { Kind } from './blocks.ts';
 
 // Delimiters are tags, not Markdown headers: `#` collides with Markdown prose storage
 // and invites the model to continue the document with "## Chapter 13".
+// COUNCIL-06 · MODE IS FENCED, and PROSE, DIRECTIVE and TAIL are still not. The council accepted
+// one line here and the reason is boundary marking, not XML: this covered 7 of the 11 kinds, so
+// the prompt ended with the sentence the model has to continue and then, one newline later and in
+// the same visual register, an order — novel, novel, novel, "Carry the scene forward by one small
+// beat." Every other block in the stack already says where it stops.
+//
+// The other three stay bare on purpose. TAIL is the prose being continued from and PROSE is the
+// document; a fence around either puts the continuation surface inside a marked-up region, which
+// is a change to what the model is imitating, not a boundary. DIRECTIVE sits between them and its
+// parts already arrive in [square brackets], which is its own marking.
+//
+// NOTHING IS CLAIMED FOR THIS. F29 has the mode checklist at 10/10 — there is no headroom to
+// demonstrate and no measurement is owed.
 const TAG: Partial<Record<Kind, string>> = {
   SPINE: 'story', VOICE: 'voice', STYLE: 'style', 'CANON-ALWAYS': 'canon', 'CANON-TRIGGERED': 'canon',
-  STRING: 'unpaid', EARLIER: 'earlier',
+  STRING: 'unpaid', EARLIER: 'earlier', MODE: 'mode',
 };
 
 /** THE SYSTEM MESSAGE, and it really is one. #18 §4: this used to say `/completion` has no system
@@ -65,6 +78,7 @@ Rules:
 - Canon is what is TRUE, never how to say it. Do not reuse its wording. A ledger body is a note to
   you, not a line of the book, and a phrase carried out of it whole is the one thing that makes the
   prose read as assembled. Its facts, your sentences.
+- If uncertain about a canon fact, write around it rather than inventing one.
 - New characters are strangers unless the canon says otherwise.
 - Maintain object permanence. Objects do not teleport. Reintroduce through action, not inventory.
 - Never break the frame.

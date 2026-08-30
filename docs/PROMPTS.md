@@ -15,13 +15,19 @@ file and `src/render.ts` / `src/context.ts` disagree, the code is right and this
 ```
 You are a prose engine for a novel. You write the next passage and nothing else.
 
-Rules:   9 bullets — the output contract, canon arbitration, object permanence, the frame
+Rules:  10 bullets — the output contract, canon arbitration, object permanence, the frame
 ```
 
 **The bullets are not transcribed here on purpose.** Revision 1 quoted a system block with a rule
 that no longer existed, and this section quoted five of the six `Rules:` bullets and none of the
 craft ones for a week without anyone noticing. A partial copy of a prompt is a copy that is wrong.
-Read `export const SYSTEM` in `src/render.ts`; it is 17 lines and it is the only version.
+Read `export const SYSTEM` in `src/render.ts`; it is 18 lines and it is the only version.
+
+**COUNCIL-06 §3, 2026-08-30 · the canon-uncertainty clause.** One bullet added, the tenth:
+what to do when the canon does not answer. It is contract rather than craft — the writer may
+replace their whole voice without thereby giving the model permission to invent — so it sits
+beside "the canon wins" and `test/db.ts` holds it there. **Nothing is claimed for it.** It was
+accepted by the council as free text with no measurement owed, and none has been taken.
 
 **COUNCIL-06 ship 5, 2026-08-30 · the craft left SYSTEM.** SYSTEM used to carry twelve craft
 bullets. They are in `DEFAULT_VOICE` now, with Seth's craft block merged into them, because
@@ -61,8 +67,11 @@ SPINE  VOICE  STYLE  CANON-ALWAYS  CANON-TRIGGERED  STRING  EARLIER  PROSE  DIRE
 
 Corrected 2026-08-29 (#18 §4) against `src/blocks.ts`. What was written here missed **VOICE**,
 **STYLE** and **STRING**, and still listed **CANON-REPEAT**, which F20 measured at 850 tokens for
-no gain and which came out then. Caps live in the same file: `SPINE 1000 · VOICE 500 · STYLE 200 ·
-DIRECTIVE 250`; every other block is uncapped and trimmed by the budget instead.
+no gain and which came out then. Caps live in the same file: `SPINE 1000 · VOICE 1000 · STYLE 200 ·
+DIRECTIVE 250`; every other block is uncapped and trimmed by the budget instead. **VOICE read 500
+here until 2026-08-30**, which was correct when it was written and stale from COUNCIL-06 ship 5 —
+the craft moved into the voice, taking it to 432 tokens against a 500 cap, in a block that ship 4
+made all-`keep` so an overrun DROPS it rather than shortening it.
 
 Delimiters are **tags, not Markdown headers**: `#` collides with Markdown prose storage and invites
 the model to continue the document with "## Chapter 13". `src/render.ts` maps kinds to tags and is
@@ -71,12 +80,21 @@ the only place ordering becomes text.
 | kind | tag |
 |---|---|
 | SPINE | `<story>` |
-| CANON-ALWAYS, CANON-TRIGGERED, CANON-REPEAT | `<canon>` |
+| CANON-ALWAYS, CANON-TRIGGERED | `<canon>` |
 | EARLIER | `<earlier>` |
 | VOICE | `<voice>` |
 | STYLE | `<style>` |
 | STRING | `<unpaid>` |
-| PROSE, DIRECTIVE, TAIL, MODE | untagged |
+| MODE | `<mode>` |
+| PROSE, DIRECTIVE, TAIL | untagged |
+
+**MODE was tagged 2026-08-30 (COUNCIL-06 §3)** and the other three deliberately were not. Untagged,
+the prompt ended with the last sentence of the novel and then, one newline later and in the same
+visual register, an order. TAIL and PROSE stay bare because they are the surface the model is
+imitating and a fence around them changes what it imitates; DIRECTIVE's parts already arrive in
+square brackets. **Nothing is claimed for it** — F29 has the mode checklist at 10/10, so there is
+no headroom to demonstrate. The row above listed `CANON-REPEAT` until the same day, three lines
+under a paragraph saying it had been deleted.
 
 `LORE` and `RECALL` were removed 2026-08-23: declared, ordered, tagged, and never populated. They
 return with the vector recall that would fill them.
