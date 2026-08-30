@@ -101,17 +101,85 @@ ok('the lockout names the character it locks, and only when one is named', () =>
 // the one `keep: false` part in the anchor, so a long enough premise really is cut — and then
 // "shortened" is the true reason and has to survive.
 ok('an anchor that CAN be cut still says it was shortened, and really is shorter', () => {
+  // COUNCIL-06 INVERTED THIS. The setting is the flex part now and the premise is kept: the
+  // premise is the only text in SPINE that names who the book is about, and on the live library it
+  // was the shorter of the two by a factor of three. So the fixture fattens the SETTING, and what
+  // must survive is the premise.
   const fat = base();
-  fat.story.premise = 'A debt comes due and the archive floods before anyone can read it. '.repeat(30);
+  fat.story.setting = 'Vantic, in the rain, and the water rises past the archive steps. '.repeat(30);
   const sp = buildContext(fat, count).blocks.find((b) => b.kind === 'SPINE')!;
   assert.ok(sp.tokens <= 400, `SPINE is capped at 400 and this is ${sp.tokens}`);
   assert.match(sp.reason, /anchor shortened to 400 tokens/,
     `a real cut must still report itself; this said "${sp.reason}"`);
-  assert.ok(sp.text.length < fat.story.premise.length,
-    'and the text is actually shorter than the premise it was made from');
+  assert.ok(sp.text.length < fat.story.setting.length,
+    'and the text is actually shorter than the setting it was made from');
   // The kept parts survive the cut. Without this, "shortened" could be reported by a branch that
   // threw the whole block away and the reason would still read as correct.
-  assert.match(sp.text, /Setting: Vantic, in the rain/, 'a keep:true part outlives the cut');
+  assert.match(sp.text, /A debt comes due/, 'the premise outlives the cut — it names the book');
+});
+
+ok('the POV instruction follows the grammar it is sent with', () => {
+  // COUNCIL-06. F28 measured the lockout line and it works — acted 76% -> 25% (p = 0.0005), spoke
+  // 20% -> 0%. It was measured in THIRD PERSON and it was being sent in first and second person
+  // too, where it contradicts the line directly above it. Rendered live on the author's library:
+  //
+  //     [Writing: first person, present tense]
+  //     [Elias belongs to the writer: never write their dialogue, action, gesture or thought...]
+  //
+  // followed by the prose it must continue, which is Elias thinking and acting in the first person.
+  // Five of nine books were in that state. This is the check that stops it coming back.
+  const at = (i: Input) => {
+    const d = buildContext(i, count).blocks.find((b) => b.kind === 'DIRECTIVE')!;
+    return d.text;
+  };
+
+  // THIRD PERSON: the measured text, and it must be byte-identical. Rewording the one instruction
+  // in this stack with a strong number behind it is not something to do in passing.
+  const third = base();
+  third.story.pov = 'third limited, past';
+  third.story.lockedCharacter = 'Aldis Fen';
+  assert.match(at(third), /\[Aldis Fen belongs to the writer: never write their dialogue, action, gesture or thought, and never state what they feel, know or decide\./,
+    'third person keeps F28\'s lockout exactly as it was measured');
+  assert.doesNotMatch(at(third), /is telling this story/, 'and does not also get the narrator line');
+
+  // FIRST PERSON: the narration IS the protagonist's, so forbidding their thought forbids the
+  // grammar. The narrator is named instead, and the firewall moves to everyone else's interior —
+  // the half that can be broken in any person.
+  const first = base();
+  first.story.pov = 'first person, present tense';
+  first.story.lockedCharacter = 'Aldis Fen';
+  assert.doesNotMatch(at(first), /belongs to the writer/,
+    'first person must NEVER carry the lockout — it forbids the grammar the line above mandates');
+  assert.match(at(first), /\[Aldis Fen is telling this story\./, 'it names the narrator instead');
+  assert.match(at(first), /Never state what anyone but Aldis Fen thinks, feels or intends/,
+    'and firewalls every other interior');
+  assert.match(at(first), /write the guess as a guess/,
+    'while permitting the guess, which is what makes the rule followable');
+
+  // SECOND PERSON is the same shape and was in the same contradiction — two of the author's books.
+  const second = base();
+  second.story.pov = 'second person, present tense';
+  second.story.lockedCharacter = 'The Captain';
+  assert.doesNotMatch(at(second), /belongs to the writer/, 'second person too');
+  assert.match(at(second), /The Captain is telling this story/);
+
+  // PERSONA IS ENOUGH. `persona` produced no text at all before this — it only force-fired the
+  // card — so a book that named who it plays and did not set a lock said nothing about POV.
+  const p = base();
+  p.story.pov = 'first person, present tense';
+  p.story.lockedCharacter = undefined;
+  (p.story as any).persona = 'Marek Vale';
+  assert.match(at(p), /Marek Vale is telling this story/, 'persona alone names the narrator');
+
+  // AND NEITHER, WHEN THERE IS NOBODY TO NAME. A book with no persona and no lock gets the grammar
+  // line and nothing else — inventing a narrator would be worse than saying nothing.
+  const none = base();
+  none.story.pov = 'first person, present tense';
+  none.story.lockedCharacter = undefined;
+  (none.story as any).persona = undefined;
+  assert.doesNotMatch(at(none), /is telling this story|belongs to the writer/,
+    'no name, no claim about whose story it is');
+  assert.match(at(none), /\[Writing: first person, present tense\]/, 'the grammar line still stands');
 });
 
 ok('DIRECTIVE is never the last block', () => {

@@ -12,6 +12,27 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### The model is told who is telling the story
+If your book is written in first or second person, Anansi was giving the model two
+instructions that cancelled each other: write in first person as Elias, and never write
+Elias's thoughts or actions. Then it showed the model a page of Elias thinking and acting
+and asked it to continue. Five of your nine books were in that state, and it is the reason
+the point of view slipped.
+
+The instruction now follows the grammar. A third-person book keeps the rule exactly as it
+was — it was measured and it works. A first- or second-person book is told who is telling
+the story instead, and that everyone else is written from outside: what they say, do and
+leave behind, never what they think. Where your narrator can only guess, it writes the
+guess as a guess.
+
+A book that names who you play now says so to the model. It never did before.
+
+### The premise survives when the prompt is full
+The story spine could be shortened when a book got long, and the premise was the first
+thing cut while the setting was never touched — which is backwards, because the premise is
+usually the only part that names who the book is about. It is kept now, and the setting is
+what shortens. Nothing in your library is near that limit yet, so nothing changes today.
+
 ### Starting a book is eight steps, in the order the work actually happens
 The wizard used to be five steps that put the cast third, the voice last, and asked for your
 idea on a screen that vanished the moment you pressed Spark. It now runs: your idea, the

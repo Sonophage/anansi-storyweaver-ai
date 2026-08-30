@@ -90,8 +90,16 @@ reaches a prose call" and steers only `summary` and `extract`. COUNCIL-03 overru
 destination is not a claim about *now*, so §7.1's argument against permanent bodies holding
 temporal facts does not reach it. Confirmed by Seth, 2026-08-23. The plan is the stale document.
 
-Title and `Setting:` and `direction` are `keep: true`; the premise is the part that shortens when
+Title and `premise` and `direction` are `keep: true`; **`Setting:` is the part that shortens** when
 SPINE exceeds its 400-token cap. Anchors are shortened, never deleted.
+
+**COUNCIL-06 swapped those two flags on 2026-08-30, and the reason is worth keeping.** The premise
+was the flex part and the setting was never trimmed, which is backwards on the evidence: across the
+live library the premise is the shorter of the two and it is the only text in SPINE that names who
+the book is about, while `Setting:` runs to a thousand characters of atmosphere naming nobody. The
+setting is recoverable — a place has lore entries and CANON blocks of its own — and the premise
+exists in exactly one place. Nothing in the library is over the cap today, so this changed no
+prompt that is sent now; it changed which part survives the day one is.
 
 ---
 
@@ -102,11 +110,34 @@ adjacent to the mode instruction gets written *about* rather than obeyed.
 
 ```
 [Writing: {{pov}}]
-[{{locked character, if one is named}}]
+[{{the POV instruction — see below, it depends on the grammar}}]
 [This chapter must end with: {{authors_note}}]
 [{{register line}}]
-{{the take the writer turned down, if there is one}}
+{{the take the writer turned down, if there is one — nothing in the app sets this; F44}}
 ```
+
+**The second line branches on the person, since COUNCIL-06.** F28 measured the lockout — *"{name}
+belongs to the writer: never write their dialogue, action, gesture or thought…"* — at **acted 76% →
+25% (p = 0.0005)** and **spoke 20% → 0%**. It was measured in **third person** and was being sent in
+first and second person as well, where it says the opposite of the line above it: rendered live,
+`[Writing: first person, present tense]` followed by `[Elias belongs to the writer: never write
+their … thought]`, followed by a page of Elias thinking in the first person. **Five of the nine
+books in the live library were in that state.**
+
+So third person keeps F28's text **byte for byte**, and first or second person gets the rule that
+actually applies to that grammar instead:
+
+```
+[{{teller}} is telling this story. The narration is {{teller}}'s: write only what {{teller}} senses,
+ remembers or decides. Every other character is written from outside — what they say, do and leave
+ behind. Never state what anyone but {{teller}} thinks, feels or intends; where {{teller}} can only
+ guess, write the guess as a guess.]
+```
+
+`{{teller}}` is `locked_character`, falling back to `persona`. Before this, **`persona` produced no
+prompt text at all** — it only force-fired that character's own card into canon (`context.ts`'s
+`isPov`) — so a book that named who the writer plays and set no lock said nothing about POV at all.
+With neither set, neither line is sent: inventing a narrator is worse than saying nothing.
 
 **Voice is NOT in this block, and has not been since COUNCIL-04 #5.** It is `VOICE`, its own block
 with its own 500-token cap, second in `ORDER`; the book's genre flavour is `STYLE` below it at 200.

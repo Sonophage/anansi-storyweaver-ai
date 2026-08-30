@@ -579,8 +579,23 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // (96% vs 93% on the passages that named the key, CI [-15, +8]) — and neither arm
     // reproduced F9's actual failure once in sixty generations.
     { text: `${story.title} — ${story.genre}`, keep: true },
-    { text: story.premise, keep: false },
-    { text: `Setting: ${story.setting}`, keep: true },
+    // COUNCIL-06 · THE PREMISE IS NOT THE THING TO CUT FIRST. It was the only trimmable part of
+    // SPINE, and the setting beside it was never trimmed — which is backwards on the evidence of
+    // the live library: on `The Geometry of Absence` the premise is ~340 characters naming who the
+    // book is about, and `Setting:` is ~1,100 characters of atmosphere naming nobody. Under budget
+    // pressure the block would discard the only text that says whose story this is and keep the
+    // furniture.
+    //
+    // It also matters more since the POV branch below. A first-person book whose premise is cut is
+    // a book where the model is told the narrator's name in DIRECTIVE and has nothing else that
+    // says who anyone is.
+    //
+    // The setting is recoverable and the premise is not: a place has lore entries and CANON blocks
+    // of its own, and the premise exists in exactly one place. Nothing in the live library is over
+    // this cap today — SPINE peaks at 343 of 400 — so this changes no prompt that is sent now. It
+    // changes which one survives the day something does.
+    { text: story.premise, keep: true },
+    { text: `Setting: ${story.setting}`, keep: false },
     { text: story.direction ? `Where this is going: ${story.direction}` : '', keep: true },
   ], CAPS.SPINE!);
 
@@ -855,9 +870,40 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // the standing instructions, it is never evicted, and a fifth block for its ~78 tokens would need
   // a place in ORDER, a colour, a name in BLOCK_ORIGIN and a row in the Context panel.
   const locked = story.lockedCharacter?.trim();
+  /** COUNCIL-06 · THE LOCKOUT WAS AIMED AT THE WRONG TARGET IN FIVE OF NINE BOOKS.
+   *
+   *  F28 measured this line and it works — acted 76% → 25% (p = 0.0005), spoke 20% → 0%. It was
+   *  measured in THIRD PERSON, and it was being sent in first and second person too, where it says
+   *  the opposite of the line above it. Rendered live on `The Geometry of Absence`:
+   *
+   *      [Writing: first person, present tense]
+   *      [Elias belongs to the writer: never write their dialogue, action, gesture or thought…]
+   *
+   *  …followed by the prose it must continue: *"I text her immediately… The phone in my hand
+   *  buzzes once. I look down."* Write as Elias, never write Elias, here is Elias — a mandate, a
+   *  prohibition and a counter-example, in that order, in one block. Five of the nine books in the
+   *  live library were in that state; a sixth renders `[You belongs to the writer… Stop where You
+   *  would act.]` because its persona is the word "You".
+   *
+   *  IN FIRST OR SECOND PERSON THE NARRATION IS THE PROTAGONIST'S BY CONSTRUCTION. "I look down"
+   *  is an action and a thought and cannot be forbidden without forbidding the grammar. So the
+   *  lockout is not weakened there — it is replaced by the rule that actually applies to that
+   *  grammar: the narrator is named, and the firewall moves to everyone ELSE's interior, which is
+   *  the half that can be broken in any person.
+   *
+   *  The third-person text is UNCHANGED, byte for byte. It is the one instruction in this stack
+   *  with a strong measured effect and it is not being reworded in the same commit that moves it.
+   */
+  const firstOrSecond = /^\s*(first|second) person/i.test(story.pov ?? '');
+  const teller = locked || (story as any).persona?.trim();
   addAnchor('DIRECTIVE', 'directive', [
     { text: `[Writing: ${story.pov}]`, keep: true },
-    { text: locked
+    { text: firstOrSecond && teller
+      ? `[${teller} is telling this story. The narration is ${teller}'s: write only what ${teller} `
+        + `senses, remembers or decides. Every other character is written from outside — what they `
+        + `say, do and leave behind. Never state what anyone but ${teller} thinks, feels or intends; `
+        + `where ${teller} can only guess, write the guess as a guess.]`
+      : locked
       ? `[${locked} belongs to the writer: never write their dialogue, action, gesture or thought, `
         + `and never state what they feel, know or decide. Write the world's answer instead — what `
         + `the others say and do, what the room does, what happens to ${locked}. Stop where `
