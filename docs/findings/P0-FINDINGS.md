@@ -1956,3 +1956,160 @@ zero-in-sixty when the true rate was 4%.
 Unresolved and recorded rather than fixed: on that chapter, 6 of 21 proposals still choose `facts`.
 Whether those are wrong is not established — this run has no per-proposal ground truth — and the
 number is here so the next attempt starts from it rather than from an impression.
+
+---
+
+## F48 — the COUNCIL-06 base rate: three of the four counters are dead on arrival, and the only one with room is the one the council already refused to ban (2026-08-30)
+
+COUNCIL-06 §5 item 2, run as commissioned: **n = 60, one arm, no prompt change**, on a fixture with
+three characters in the scene, scoring four counters at once. **This measures HEADROOM, NOT EFFECT.**
+Nothing was changed and nothing is compared. No claim is made here that any prose reads better.
+
+Harness `bench/council06.ts` (`check` / `falsify` / `setup` / `run` / `report`), fixture story
+`C06 base rate` in a throwaway `/tmp/anansi-council06.db` behind a scratch server on **5240**, the
+live library untouched.
+
+| | raw | informative denominator | rate | verdict |
+|---|---|---|---|---|
+| **1 · non-POV interior asserted by the narrator** | 0 named · 6 with pronouns | 60/60 runs name a non-POV character | **0/60 named — under 5%** · 6/60 = 10.0% [4.7–20.1] with pronouns · **5/52 = 9.6% [4.2–20.6] after audit** | **DEAD ON ARRIVAL** |
+| **2 · `said`-tagged share at three or more speakers** | 150 said of 274 tags, over 528 lines | **46/60 runs** have three or more attributed speakers | **54.7% [48.8–60.5] of tags** · 28.4% of lines | **HAS HEADROOM** |
+| **2b · two consecutive unattributed lines** (the rule the council actually kept) | 24 | 46/60 | **52.2% [38–66]** | **HAS HEADROOM** |
+| **3 · a scene-closing beat the writer did not ask for** | 0 | 60/60 — every run ends somewhere | **0/60 — under 5%** | **DEAD ON ARRIVAL** |
+| **4 · object continuity** | 2 | **34/60 runs** name a tracked object in narration | **5.9% [1.6–19.1]** | **DEAD ON ARRIVAL at any affordable n** |
+
+60 usable of 60, zero errors, median narration 1,294 characters, strictly sequential — one request
+in flight, the router's second slot left free.
+
+**What it was measured against, for attribution later.** Commit `064ff14`, model
+`Qwen3.6-WNTH-35B-A3B-NN`, `enable_thinking: false`. The assembled DIRECT prompt for this fixture is
+4,653 bytes, sha256 `0a47f3b809db06ec98c4fc2cdc4e8da82551c4d8a95cbe9646b9dcae9519eb8b` as rendered
+by `bench/prompts.ts <id> --full`. `src/render.ts` moved twice on `serial` after this branch was
+cut — the `<mode>` tag and two new SYSTEM bullets — and **none of that is in these numbers.**
+
+**Nothing sets a seed. This is one arm, run once, and it is not reproducible.** Only arms run
+*simultaneously* are controlled (`bench/ab.ts`), and there is no second arm here.
+
+### The fixture carries no `persona` and no `lockedCharacter`, and that is the measurement
+
+`src/context.ts:902`, shipped in `3cb65c6` as COUNCIL-06 ship 1, **already puts the interiority
+firewall in DIRECTIVE** for any first- or second-person book that names a teller:
+
+> `Never state what anyone but {teller} thinks, feels or intends; where {teller} can only guess,
+> write the guess as a guess.`
+
+So a fixture with a persona would have measured arm B, not a base rate. The rendered prompt was
+checked for that string before the run and it is absent — DIRECTIVE is `[Writing: second person,
+present tense]` and the register line, nothing else.
+
+**This is still not a no-rule baseline, and that matters for reading counter 1.** `DEFAULT_VOICE`
+already carries *"Show an interior state through speech, posture or action, never by naming it"* —
+a general told-not-shown rule that reaches every character. The 9.6% is headroom **on top of a rule
+that is already there and appears to be working.**
+
+**No number here is compared to F21's 82.5%.** F28 forbids it and this fixture makes the reason
+plain: different scene, different cast, a different grammatical person, and F21 counted pronouns on
+the protagonist. The two numbers are not on the same axis.
+
+### Counter 1 · the interiority firewall is dead on arrival, and the shape of the misses says why
+
+The name anchor scored **0 of 60**. That is not "never" — 0 in 60 bounds it under 5% (F12) — and it
+is not the model being clean either. Reading the pronoun hits shows what the model actually does:
+
+> *"It is a question, but he already knows the answer."*
+> *"…though he knows the ledger is locked away."*
+> *"It is louder than he intends."*
+> *"…a nervous tic he thinks you haven't noticed."*
+
+**Every one is a pronoun in a subordinate clause.** The model does not write *"Machek knew"*; it
+writes *"though he knows"*, hung off an action. A name-anchored detector cannot see that shape at
+all, which is why the honest figure is the pronoun one — and in second person the pronoun figure is
+safe, because "you" is the viewpoint and `he|she|they|his|her|their` cannot be it. The POV-drift
+guard confirms it: **0 of 60 runs lack "you" in narration.**
+
+Six flagged; **five survive the audit**. The sixth is a detector defect, below. **5 of 52 = 9.6%
+[4.2–20.6].** Against COUNCIL-06's ~10-point bar that is dead on arrival: an A/B could only ever
+push it toward zero, and F12 is the entire lesson about what a zero buys you. **The burden §1 placed
+on the firewall is not discharged.**
+
+### Counter 2 · the only counter with room, and it is the one the council refused to ban
+
+`said` is **54.7% of tags [48.8–60.5]**, so roughly 124 of 274 tags are something else — *murmurs*,
+*answers*, *begins*, *hisses*, *laughs*. There is a 45-point gap in either direction, which is real
+headroom, and both writer seats predicted the failure mode a ban would cause. The interval is
+narrower than it should be: 274 tags cluster inside 46 runs and no cluster correction was applied,
+so read it as indicative, not exact.
+
+**The rule the council actually kept has more room than the one it refused.** *Never two consecutive
+unattributed lines when three or more are speaking* is broken in **24 of 46 runs — 52.2% [38–66]**.
+That is the counter to pre-register if anything here earns an A/B.
+
+**The denominator is 46, not 60**, and it is a floor: a speaker is counted only where a speech verb
+sits in the same gap, so a crowd whose third voice is never tagged is excluded. **The tag list was
+widened deliberately in the direction that hurts the answer** — every utterance verb missing from it
+inflates the said-share, and `said` is on the list by construction.
+
+### Counter 3 · dead on arrival, and this counter is the one the audit rescued
+
+**0 of 60 — under 5%.** It first read 3 of 60, and **all three were false**: an unanchored
+`\bthe end\b` matched *"to bite the end off"* and *"the end of her sentence"*, and a bare
+`\bis gone\b` matched *"the matchbox is gone"*. Both are fixed and both directions are now asserted.
+Nothing in the run resolved a scene it was told to carry one beat of. COUNCIL-06 §2 kept *"Never
+resolve a scene"* and asked for it to be sharpened from a category to named forms; **there is no
+measurable defect here to sharpen it against.**
+
+### Counter 4 · not decidable at any affordable n
+
+**2 of 34 = 5.9% [1.6–19.1]**, and the interval is the finding. Split by object it is worse:
+
+| object | the right answer in canon or on the page | seen in narration | failed |
+|---|---|---|---|
+| the ledger | locked in the harbourmaster's safe; nobody in the room has a key | 18/60 | **0/18 — under 16.7%** |
+| Machek's coat | on the hook by the door, in the writer's own last passage | 9/60 | **2/9 = 22.2% [6.3–54.7]** |
+| his lighter | through the grating on the quay; he borrows matches | 15/60 | **0/15 — under 20%** |
+
+The coat is the only sub-counter with a signal and 2 of 9 decides nothing. Both failures are the
+same sentence — *"He reaches into his coat…"* while the coat hangs by the door. The fixture would
+have to be rebuilt around objects the prose is forced to touch every run before this counter could
+carry an A/B, and that is a different piece of work from a wording change.
+
+### The detector, validated before any result was believed (F17)
+
+**52 synthetic cases, both directions**, in `bench/council06.ts check` — 35 must flag, 17 must not.
+`bench/council06.ts falsify` then blanks each of the ten detector tables in turn and requires the
+cases to go red; **every table is load-bearing**, none is decorative.
+
+COUNCIL-06 §6 named six traps. **Four were guarded and held. Two were hit for real:**
+
+- **Guarded, held.** `narrationOnly`'s single-quote hole — the fixture is scoped to double quotes
+  and the guard reports **0 of 60** runs in a grammar the strip cannot see. `DEFAULT_VOICE` being
+  second person — anchored on names, and every rate here is stated as a floor. Auxiliaries — cases
+  assert that *"Machek had decided hours ago"* and *"Solveig has known since Tuesday"* flag. Crowd
+  attribution scored raw — counter 2 never touches the strip.
+- **HIT: the guess frame flagged.** Excluding `seems`, `looks` and `appears` from the verb lists was
+  not enough. Run #17 came back with *"as if she is reading a line from a script she hates"* and
+  `she hates` fired inside the guess — the rule's own permission set, scored as a violation. Any
+  `as if` / `as though` / `like a` clause is now cut before the told tests, to the sentence end so an
+  assertion beside a guess still counts.
+- **HIT, and §6 does not name this one: `narrationOnly` goes out of phase on a truncated passage.**
+  A generation that hits the token ceiling stops mid-line, leaving an opening quote with no partner;
+  the strip pairs greedily from the left, so **from that quote to the end of the passage every word
+  of dialogue is returned as narration**. **8 of 60 runs — 13.3% — end that way.** Run #2 scored a
+  non-POV interiority hit on `"He knows we haven't signed the last three entries` — one character
+  talking to another. This is a hole in *every* narration-only check in this project, not just this
+  harness; here it is counted per run and counter 1 is reported with those runs and without them.
+
+**Every live flag was read, not just counted**, and that is where four of the five detector defects
+above came from — three false closings, one false ledger teleport, one false lighter. The synthetic
+cases could not have found them; only the prose could. **A detector that passes its own cases is not
+yet a detector that is right about the run.**
+
+### What this settles for COUNCIL-06's order
+
+**§5.3's "only survivors earn an A/B" leaves one survivor: crowd attribution.** The pre-registered
+counter should be *two consecutive unattributed lines at three or more speakers* (52.2% today), not
+the `said` share, and not a ban — which both writer seats refused and which this run gives no reason
+to revisit. Counters 1, 3 and 4 do not have ten points of room between them at this n, and spending
+100 generations per arm on any of them buys an interval that contains today's number.
+
+**What nobody is entitled to claim from this**: that anything was fixed, that the prose reads better,
+or that any of these three counters is *zero*. They are under 5%, under 5% and under 19%.
