@@ -521,6 +521,31 @@ export const epigraphOf = (passages) => {
   return best;
 };
 
+/** THE FIRST DRAFT OF A COVER PROMPT, built from the book's own fields. #17.
+ *
+ *  WRITTEN BY CODE, NOT BY THE MODEL. It is a join of two fields the story already holds, and the
+ *  house rule is that if code can answer, code answers — a model call here would cost a load and a
+ *  wait to produce a sentence with no judgement in it. The box is editable, so the writer's own
+ *  wording beats both.
+ *
+ *  THE PREMISE IS NOT IN IT, DELIBERATELY. This string leaves the machine: it goes in the URL to
+ *  pollinations.ai. A genre and a place are the kind of thing a cover says out loud anyway; the
+ *  premise is the book. Only the FIRST sentence of the setting, for the same reason and because
+ *  `setting` is four to eight sentences by its own prompt and a URL is not a paragraph.
+ *
+ *  Returns '' for a story with neither field, and the tray then asks for words rather than sending
+ *  a prompt made only of the boilerplate.
+ */
+export const coverPrompt = (story) => {
+  // The split keeps the stop that ended the sentence, and the join below adds another one.
+  const place = String(story?.setting ?? '').trim().split(/(?<=[.!?])\s+/)[0].trim()
+    .replace(/[.\s]+$/, '');
+  const genre = String(story?.genre ?? '').trim();
+  if (!place && !genre) return '';
+  return [place, genre, 'book cover illustration, painted, no lettering']
+    .filter(Boolean).join('. ').slice(0, 300);
+};
+
 /** WHAT THE APP KNOWS ABOUT A MODEL, which until #25 was nothing.
  *
  *  `GET /api/models` returned `{id, status}` and everything else on screen was string surgery on

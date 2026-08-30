@@ -1345,4 +1345,86 @@ ok('the model panel reads the router, the preset file, this database and the id,
 }
 ok('the rail label, the rail list and the Storyteller all read the id the panel reads');
 
+// #17 · HAVE A COVER DRAWN. Seth asked for Pinterest; Pinterest's own API cannot search Pinterest
+// — /v5/search/pins reads only pins you have already saved — so this is the free, keyless thing
+// that does what was actually wanted. Verified against the live endpoint on 2026-08-29 before a
+// line of it was written: open CORS (so no server route), no key, seeds really do vary the image,
+// and the anonymous tier answers `sana` at 665x886 whatever size is asked for.
+{
+  const { coverPrompt } = await import('../web/model.js');
+
+  // THE PREMISE MUST NOT LEAVE THE MACHINE. This string goes into a URL on somebody else's server.
+  // A genre and a place are what a cover says out loud anyway; the premise is the book, and it is
+  // the one field on this panel that has no business in a third party's logs. Only the FIRST
+  // sentence of the setting, which is four to eight sentences by its own prompt.
+  // The premise and the second sentence of the setting share NO words on purpose. They did at
+  // first — both said "six houses" — and the falsification pass showed what that costs: sending
+  // the whole setting tripped the PREMISE assertion, so the check went red for the wrong reason
+  // and would have sent the next reader looking in the wrong field.
+  const p = coverPrompt({ genre: 'political fantasy', premise: 'A signature, or the hall burns.',
+    setting: 'Ashfall Hall, a basalt keep above a dead caldera. Six houses meet there once a year.' });
+  assert.doesNotMatch(p, /signature|burns/, 'the premise never reaches the prompt');
+  assert.doesNotMatch(p, /Six houses|once a year/, 'and neither does the rest of the setting');
+  assert.match(p, /Ashfall Hall/, 'the place does');
+  assert.match(p, /political fantasy/, 'and the genre does');
+  assert.doesNotMatch(p, /\.\./, 'and the sentence stop is not doubled by the join');
+  assert.strictEqual(coverPrompt({ genre: '', setting: '' }), '',
+    'a book with neither field gets no prompt rather than one made only of boilerplate');
+  assert.ok(coverPrompt({ genre: 'x', setting: 'y '.repeat(400) }).length <= 300, 'and it is capped');
+
+  // The tray is SHUT until asked for — it is the only control in the app that sends any of the
+  // book off the machine, so it does not sit open beside a Save button.
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 30));
+  const shut = html('sideBody');
+  assert.match(shut, /data-drawcover="open"/, 'there is a door');
+  assert.doesNotMatch(shut, /data-drawprompt/, 'and it is shut');
+  assert.doesNotMatch(shut, /pollinations\.ai\/prompt/, 'and nothing has been requested');
+
+  click({ drawcover: 'open' });
+  const open = html('sideBody');
+  assert.match(open, /data-drawprompt/, 'the box opens');
+  assert.match(open, /Ashfall Hall/, 'prefilled from the book, by code rather than by a model call');
+  assert.match(open, /pollinations\.ai<\/code>/, 'and it says where the words go before they go');
+  // Not /<img/ — the panel already shows the cover this book has. The candidates are what must
+  // not be there, and they are the things a press would set.
+  assert.doesNotMatch(open, /data-usecover=/, 'but draws nothing until asked');
+
+  // The handler reads the BOX, not the state it was seeded with: the writer may have rewritten it
+  // and not left the field, and drawing the stale copy would draw something other than what is on
+  // screen. Same trap the proposal queue has, and the same fix.
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) =>
+    sel === '[data-drawprompt]' ? { value: '  a drowned lighthouse  ' } : null;
+  try {
+    click({ drawcover: 'go' });
+    const drawn = html('sideBody');
+    const urls = [...drawn.matchAll(/data-usecover="([^"]+)"/g)].map((m) => m[1]);
+    assert.strictEqual(urls.length, 4, 'four candidates');
+    // Asserted on the URLs and not on the panel: the panel is the Story form, so the book's title
+    // and its setting field are on it either way and a check against the whole thing could not
+    // fail. What matters is what goes in the request.
+    assert.ok(urls.every((u) => u.includes('a%20drowned%20lighthouse')),
+      'what was typed is what is drawn');
+    assert.ok(urls.every((u) => !u.includes('Ashfall')),
+      'and not what the box was seeded with');
+    // FOUR SEEDS, NOT ONE. The response is cache-control: immutable and keyed on prompt+seed, so a
+    // grid built without varying the seed is one picture shown four times.
+    assert.strictEqual(new Set(urls).size, 4, 'each with its own seed, or it is one image four times');
+    assert.ok(urls.every((u) => /^https:\/\/image\.pollinations\.ai\/prompt\//.test(u)));
+    assert.ok(urls.every((u) => u.includes('nologo=true')), 'and no watermark on a book cover');
+    // No size and no model in the URL: verified 2026-08-29 that the anonymous tier ignores both,
+    // and a parameter that is ignored reads as a control that does something.
+    assert.ok(urls.every((u) => !/width=|height=|model=/.test(u)),
+      'nothing is sent that the anonymous tier ignores');
+  } finally { doc.querySelector = wasQS; }
+
+  click({ drawcover: 'shut' });
+  assert.doesNotMatch(html('sideBody'), /data-drawprompt/, 'and it shuts again');
+}
+ok('a cover can be drawn: the book seeds the words, the writer owns them, and the premise stays home');
+
 console.log(`\n${n} checks passed`);

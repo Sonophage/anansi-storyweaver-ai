@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, BLURB, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -131,7 +131,7 @@ function applyLook() {
 
 // ---------- state ----------
 const S = {
-  place: 'workspace', wpage: 'stories', panel: null, modelPick: null, mode: 'speak', speaker: null, bigInput: false, arrived: null, seam: null,
+  place: 'workspace', wpage: 'stories', panel: null, modelPick: null, drawn: null, mode: 'speak', speaker: null, bigInput: false, arrived: null, seam: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   // WHICH menu the rail is showing, which is not the same question as where you are. The menu
   // button asks for the workspace one from inside a story; the story's name asks for the story
@@ -272,7 +272,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'lbook',
-  'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover',
+  'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover', 'drawcover', 'usecover',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo', 'news',
   'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo',
@@ -1807,6 +1807,15 @@ const PANELS = {
       </div>
       <div class="hint">Shrunk to 900px wide in the browser and stored in the database, not on disk
         — the nightly backup is one file, and a path would leave the covers out of it.</div>
+      <!-- #17. HAVE ONE DRAWN. Seth asked for Pinterest; Pinterest's API cannot search Pinterest —
+           /v5/search/pins only reads pins you have already saved — so this is the free, keyless
+           thing that does what he actually wanted. No API key, no account, no .env line, and no
+           server route either: pollinations answers with an open access-control-allow-origin, so
+           the browser fetches the bytes itself and hands the blob to readCover, which is the SAME
+           shrink-and-store path a chosen file takes. One picture, one route, one contract.
+           The anonymous tier serves sana at 665x886 and ignores width, height and model, so
+           there are no controls for those: a control that is ignored is a control that lies. -->
+      ${drawTray()}
       ${V.cover ? `<label style="display:flex; align-items:center; gap:9px; margin-top:11px; cursor:pointer">
         <input type="checkbox" data-story="chapterHero" ${V.story.chapterHero ? 'checked' : ''}>
         <span style="font-size:13px; color:var(--ink)">Use it at the head of every chapter</span></label>
@@ -5308,6 +5317,41 @@ document.addEventListener('click', async (e) => {
     paint();
     return;
   }
+  // #17. Open the tray, draw four, shut it. `go` reads the BOX rather than S.drawn.prompt: the
+  // writer may have rewritten it and not left the field, and sending the stale copy would draw
+  // something other than what is on screen — the same trap the proposal queue has.
+  if (d.drawcover) {
+    if (d.drawcover === 'shut') { S.drawn = null; drawSide(); return; }
+    if (d.drawcover === 'open') {
+      S.drawn = { prompt: coverPrompt(V.story), seeds: [] };
+      drawSide(); return;
+    }
+    const typed = document.querySelector('[data-drawprompt]')?.value.trim() ?? '';
+    if (!typed) return toast('Say what to draw first.');
+    // Four fresh seeds every press, so "draw four more" is four more and not the same four again:
+    // the response is cache-control immutable, keyed on prompt and seed.
+    S.drawn = { prompt: typed, seeds: Array.from({ length: 4 }, () => Math.floor(Math.random() * 1e9)) };
+    drawSide();
+    return;
+  }
+  if (d.usecover) {
+    toast('Fetching it…');
+    let blob;
+    // The one call in this app that can fail because somebody else's box is down, so it says which
+    // of the two happened rather than the generic "could not read that image" readCover would give.
+    try {
+      const r = await fetch(d.usecover);
+      if (!r.ok) throw new Error(String(r.status));
+      blob = await r.blob();
+    } catch (e) {
+      return toast(`Could not fetch that one from pollinations.ai (${e?.message ?? 'no answer'}).`);
+    }
+    await readCover(blob);
+    // AFTER the repaint readCover does, not before it: clearing the state without drawing again
+    // leaves the four candidates on screen under the cover that was just set from one of them.
+    S.drawn = null; drawSide();
+    return;
+  }
   if (d.delcover) {
     const r = await api.delCover(S.storyId);
     if (r.error) return toast(r.error);
@@ -5655,6 +5699,59 @@ async function readImport(f) {
   if (p.error) { drawPage(); return toast(p.error); }
   S.imp = { ...S.imp, data, preview: p };
   drawPage();
+}
+
+/** ONE CANDIDATE'S URL. The prompt rides in the PATH, which is what pollinations takes, and the
+ *  seed is the only thing that differs between the four — same prompt, same seed, same picture, and
+ *  the response is `cache-control: immutable`, so a grid built from one seed would be one image
+ *  four times. `nologo` drops the watermark.
+ *
+ *  ponytail: no server proxy, so this depends on pollinations keeping its CORS header open — if it
+ *  closes, the fetch fails in the browser and nothing on this box can see why. Upgrade path is a
+ *  gated route in serve.ts that fetches and returns the bytes, which is also where a token would
+ *  go if the anonymous tier is ever worth leaving.
+ *
+ *  Width, height and model are deliberately NOT sent. Verified against the live endpoint on
+ *  2026-08-29: unauthenticated requests come back `x-model-used: sana` at 665x886 whatever is
+ *  asked for, so a size control or a model picker here would be a control that does nothing. 665
+ *  by 886 is already the 3:4 the covers and the chapter plate use. */
+const drawnUrl = (prompt, seed) =>
+  `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?nologo=true&seed=${seed}`;
+
+/** The draw tray, under the cover buttons. Shut until asked for: it is the one control in this app
+ *  that sends any of the book off the machine, so it does not sit open by default and the words
+ *  that will leave are in a box the writer can read and rewrite before pressing anything. */
+function drawTray() {
+  if (!S.drawn) {
+    return `<button class="btn ghost" data-drawcover="open" style="margin-top:7px">Have one drawn</button>`;
+  }
+  const seeds = S.drawn.seeds ?? [];
+  return `<div class="card" style="gap:8px; margin-top:7px">
+    <div class="lbl" style="letter-spacing:.1em; margin:0">What to draw</div>
+    <textarea class="field grow" data-drawprompt style="margin:0; min-height:56px; font-size:12.5px;
+      line-height:1.45">${esc(S.drawn.prompt)}</textarea>
+    <div class="hint" style="margin:0">These words go to <code>pollinations.ai</code>, from this
+      browser rather than through Anansi. It is the only thing in the app that leaves the machine
+      besides the model on your own box, so read the line above before you press it. Nothing else
+      about the book is sent &mdash; not the premise, not a word of the prose.</div>
+    <div style="display:flex; gap:7px">
+      <button class="btn ghost" data-drawcover="go" style="flex:1">${
+        seeds.length ? 'Draw four more' : 'Draw four'}</button>
+      <button class="btn ghost" data-drawcover="shut" style="flex:0 0 auto; width:auto; padding:12px 20px">Close</button>
+    </div>
+    ${seeds.length ? `<div style="display:grid; grid-template-columns:1fr 1fr; gap:7px">${
+      seeds.map((seed) => {
+        const url = drawnUrl(S.drawn.prompt, seed);
+        // A button rather than a bare image: picking one is an action, and test/web.ts is right to
+        // refuse a control that a click cannot reach.
+        return `<button data-usecover="${esc(url)}" style="padding:0; border-radius:var(--r);
+          overflow:hidden; border:1px solid var(--edge); aspect-ratio:3/4">
+          <img src="${esc(url)}" alt="" loading="lazy"
+            style="width:100%; height:100%; object-fit:cover; display:block"></button>`;
+      }).join('')}</div>
+      <div class="hint" style="margin:0">Press one to make it the cover. It is shrunk and stored the
+        same way a chosen file is.</div>` : ''}
+  </div>`;
 }
 
 // A cover, shrunk before it is sent. 900px wide is what the hero card can use; anything larger is
