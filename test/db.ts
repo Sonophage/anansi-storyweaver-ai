@@ -4,7 +4,8 @@
 // database and run destructive tests against the actual book.
 process.env.ANANSI_DB = '/tmp/anansi-test.db';
 import assert from 'node:assert';
-import { unlinkSync, readFileSync } from 'node:fs';
+import { unlinkSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-test.db' + f); } catch {} }
 const db = await import('../src/db.ts');
 const slots = await import('../src/slots.ts');
@@ -89,6 +90,57 @@ ok('backup writes a readable snapshot', () => {
   assert.ok(b.bytes > 0);
 });
 
+// The bug this is written from, 2026-08-30. The prune filtered on `.endsWith('.db')`, so every
+// database in the directory was a candidate — including the snapshot somebody took by hand before
+// a risky change, which is the one file nobody can regenerate. And names sort: `pre-*` sorts above
+// `anansi-*`, so twelve hand-made files filled all twelve keep-slots and the snapshot the call had
+// just written was the thirteenth. It deleted its own output, then stat'd it, and the server
+// printed `backup failed: ENOENT` on every boot for twelve boots while real backups were eaten.
+//
+// Both halves are asserted separately because they fail separately: a hand-made file must survive,
+// AND the new snapshot must survive being outnumbered by them.
+ok('backup prunes only what it wrote, and never its own new file', () => {
+  const mk = (dir: string, names: string[]) => {
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    for (const n of names) writeFileSync(join(dir, `${n}.db`), 'not really a database');
+  };
+
+  // A · FOREIGN NAMES THAT SORT ABOVE `anansi-`. This is the live failure: twelve hand-made
+  // `pre-restart-*.db` files filled all twelve keep-slots, so the snapshot the call had just
+  // written was the thirteenth and was deleted before its own statSync ran.
+  const a = '/tmp/anansi-test-prune-a';
+  mk(a, ['pre-restart-1', 'pre-restart-2', 'pre-craft-backfill']);
+  let b: ReturnType<typeof db.backup> | undefined, threw: any;
+  try { b = db.backup(a, 3); } catch (e) { threw = e; }
+  assert.ok(!threw,
+    `backup threw instead of returning (${threw?.code ?? threw?.message}). It pruned the snapshot `
+    + 'it had just written and then stat-ed it. This is the boot-time "backup failed: ENOENT".');
+  assert.ok(existsSync(b!.file), `the snapshot is gone: ${b!.file}`);
+
+  // B · FOREIGN NAMES THAT SORT BELOW IT. The worse half, because nothing fails: the call returns
+  // cleanly, the boot log says `backup 8412 KB, keeping 12`, and a snapshot somebody took by hand
+  // before a risky change is quietly gone. Separated from A because under the old filter A threw
+  // before this could ever be asserted.
+  const c = '/tmp/anansi-test-prune-b';
+  mk(c, ['aaa-taken-by-hand']);
+  db.backup(c, 1);
+  assert.ok(existsSync(join(c, 'aaa-taken-by-hand.db')),
+    'backup pruned a file it did not write, and reported success. A hand-made snapshot is the one '
+    + 'file that cannot be regenerated, and this function is not allowed to touch it.');
+
+  // And it still prunes its OWN, or "keeping 12" is a lie in the other direction. Staged by
+  // writing the old snapshots rather than by calling backup in a loop: the name is a millisecond
+  // timestamp and VACUUM INTO refuses an existing target, so four calls in one tick throw on a
+  // collision. That is a real edge and it is not this check's subject.
+  for (const t of ['2026-01-01', '2026-01-02', '2026-01-03', '2026-01-04'])
+    writeFileSync(join(a, `anansi-${t}T00-00-00-000Z.db`), 'older snapshot');
+  db.backup(a, 3);
+  const mine = readdirSync(a).filter((f) => f.startsWith('anansi-'));
+  assert.ok(mine.length <= 3, `keep=3 should leave at most 3 of its own, left ${mine.length}`);
+  assert.ok(existsSync(join(a, 'pre-craft-backfill.db')), 'and pruning its own still spares theirs');
+  for (const d of [a, c]) rmSync(d, { recursive: true, force: true });
+});
 
 // --- regressions for the bugs found in the 2026-08-23 review ---
 const story = await import('../src/story.ts');

@@ -12,6 +12,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### Snapshots stop deleting each other
+The app keeps twelve rolling snapshots of your library and prunes the rest. It was pruning
+the wrong things: any database file sitting in that folder counted toward the twelve,
+including snapshots taken by hand before something risky. With twelve of those in there,
+every new snapshot was deleted the instant it was written — so *Take a snapshot* had been
+reporting a failure, and the automatic one at startup had been failing quietly for days.
+
+It now only ever prunes its own. A snapshot you or anyone else put there by hand is left
+alone. The off-disk copies were never affected; those were being kept correctly the whole
+time.
+
 ### Anansi speaks like herself now
 The voice in the chat panel — the one you get from the button that summons her — is older
 and more formal than it was. She is a scholar who has watched things rise and fall from the

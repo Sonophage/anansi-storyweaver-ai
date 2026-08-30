@@ -1683,13 +1683,27 @@ export function snapshot(path: string) {
   return { file: path, bytes: statSync(path).size };
 }
 
-/** A timestamped snapshot in `dir`, keeping the newest `keep` and pruning the rest. */
+/** A timestamped snapshot in `dir`, keeping the newest `keep` and pruning the rest.
+ *
+ *  IT PRUNES ONLY WHAT IT WROTE. The filter was `.endsWith('.db')` until 2026-08-30, which made
+ *  every database in the directory a candidate — including snapshots taken by hand before a risky
+ *  change, which is exactly the file nobody can regenerate.
+ *
+ *  It went wrong the way that kind of bug does. Names sort, and `pre-*` sorts above `anansi-*`, so
+ *  twelve hand-made `pre-restart-*.db` files filled all twelve keep-slots and the snapshot this
+ *  call had just written was the thirteenth: deleted, then `statSync`ed, and the server printed
+ *  `backup failed: ENOENT` on every boot for twelve boots while the real backups were being eaten.
+ *  `backups/pre-craft-backfill.db` — taken before rewriting seven live books' voices, and named in
+ *  a handoff as the way back — was pruned this way before anyone read the error.
+ *
+ *  So: prefix, not extension. A file this function did not write is not its business. */
 export function backup(dir = join(dirname(FILE), 'backups'), keep = 12) {
   mkdirSync(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const out = join(dir, `anansi-${stamp}.db`);
   snapshot(out);
-  const old = readdirSync(dir).filter((f) => f.endsWith('.db')).sort().reverse().slice(keep);
+  const old = readdirSync(dir).filter((f) => f.startsWith('anansi-') && f.endsWith('.db'))
+    .sort().reverse().slice(keep);
   for (const f of old) { try { unlinkSync(join(dir, f)); } catch { /* already gone */ } }
   return { file: out, bytes: statSync(out).size, pruned: old.length };
 }
