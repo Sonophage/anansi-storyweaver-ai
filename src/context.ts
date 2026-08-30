@@ -297,11 +297,37 @@ export const cardText = (e: Entry, at: number, window = '') =>
  *  another character's name, a line of dialogue read as a POV break — so anything reading a chapter
  *  to decide what is TRUE reads this instead of the raw text.
  *
- *  The checker in routes.ts does the same job differently: it keeps the text whole and filters the
- *  quotes the model came back with, because it needs the offsets. Not refactored into this — two
- *  callers with two genuinely different needs, and the checker's version is the tested one. */
+ *  The checker in routes.ts still does a different JOB — it keeps the text whole and filters the
+ *  quotes the model came back with, because it needs the offsets — but it no longer carries its
+ *  own copy of the pattern. It had one until 2026-08-30 and inherited this function's bug with it,
+ *  which is what a duplicated regex is for. `quotedSpans` below is the shared half; what each
+ *  caller does with the spans is still its own. */
+/** ONE PATTERN, TWO SHAPES, because the bug was in the pattern and it was written out twice.
+ *
+ *  A generation that hits the token ceiling stops mid-line, leaving an opening quote with no
+ *  partner. Until 2026-08-30 the pattern required a closing quote, so that final unterminated span
+ *  was NOT recognised as dialogue and every quality check read it as narration — the one thing
+ *  this function exists to prevent. `bench/council06.ts` measured 8 of 60 generations ending that
+ *  way, and 46 passages in the live library are in that state right now.
+ *
+ *  `(?:["”]|$)` lets the end of the text close a span. Measured against all 1,986 live passages:
+ *  46 change and all 46 are the trailing case. A line-anchored version was tried first and is NOT
+ *  what shipped — it fixes four more but breaks four real speeches that carry a newline inside
+ *  them, which is a worse trade.
+ *
+ *  ITS CEILING, so a pass is not read as proof: a stray quote in the MIDDLE still mispairs every
+ *  quote after it, and there is no fixing that without knowing which of the two is the stray one.
+ *  Single-quote and em-dash dialogue are not seen at all (COUNCIL-06 §6, trap 1). */
+const QUOTED = () => /["“][^"”]*(?:["”]|$)/g;
+
+/** The quoted spans as offsets, for a caller that needs to know WHERE rather than get the text
+ *  back without them. `routes.ts` had its own copy of the pattern for this and inherited the same
+ *  defect: a contradiction found inside the final unterminated line was reported as narration. */
+export const quotedSpans = (text: string): [number, number][] =>
+  [...String(text ?? '').matchAll(QUOTED())].map((m) => [m.index!, m.index! + m[0].length]);
+
 export const narrationOnly = (text: string) =>
-  String(text ?? '').replace(/["“][^"”]*["”]/g, ' ').replace(/[ \t]{2,}/g, ' ');
+  String(text ?? '').replace(QUOTED(), ' ').replace(/[ \t]{2,}/g, ' ');
 
 /** Fold an English word to a crude stem so "runs" and "running" meet.
  *

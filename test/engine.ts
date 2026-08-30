@@ -1,7 +1,7 @@
 // One runnable check. Fails if the engine's load-bearing behaviour breaks.
 //   node --experimental-strip-types test/engine.ts
 import assert from 'node:assert';
-import { buildContext, resolveBody, fires, retirable, numbersIn } from '../src/context.ts';
+import { buildContext, resolveBody, fires, retirable, numbersIn, narrationOnly, quotedSpans } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
 import { render } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
@@ -450,6 +450,43 @@ ok('each mode says the one thing that distinguishes it', () => {
   // A stale tab sending a retired name degrades to the neutral mode instead of a 500.
   assert.ok(/one small beat/.test(modeText({ mode: 'cowrite' as any })),
     'an unknown mode must fall back, not throw');
+});
+
+ok('a passage that stops mid-line does not hand its dialogue back as narration', () => {
+  // Only the narrator commits the story, so every quality check reads `narrationOnly` rather than
+  // the raw text. The pattern required a CLOSING quote, so a generation that ran out of tokens
+  // mid-line left an opening quote with no partner and that whole span came back AS NARRATION —
+  // the one thing this function exists to prevent, in the one case nobody looks at.
+  //
+  // Found by bench/council06.ts: 8 of 60 generations end that way, and 46 passages in the live
+  // library are in that state now.
+  const cut = 'He nodded. "I know," she said. "It was never';
+  assert.doesNotMatch(narrationOnly(cut), /It was never/,
+    'the unterminated final line is dialogue and must be stripped');
+  assert.match(narrationOnly(cut), /He nodded/, 'and the narration around it must survive');
+
+  // THE CONTROL, because a strip that ate everything would also pass the line above. This is the
+  // shape the function has always handled and the change must not touch it.
+  const whole = 'He nodded. "I know," she said. The room went quiet.';
+  assert.match(narrationOnly(whole), /He nodded/);
+  assert.match(narrationOnly(whole), /The room went quiet/, 'narration between speeches survives');
+  assert.doesNotMatch(narrationOnly(whole), /I know/, 'and the speech does not');
+
+  // A SPEECH WITH A NEWLINE IN IT IS STILL ONE SPEECH. A line-anchored version of this fix was
+  // tried first and rejected on measurement: it fixes four more passages in the live library and
+  // breaks four real speeches that carry a hard break, which is the worse trade. This is the case
+  // that decided it.
+  const broken = '"I had you.\nWhat did you want me to do — crush your throat?"';
+  assert.doesNotMatch(narrationOnly(broken), /crush your throat/,
+    'a speech broken across two lines is one quoted span, not narration on the second line');
+
+  // THE OFFSETS AGREE WITH THE STRIP, which is the whole reason they share a pattern. routes.ts
+  // filters the checker's findings by these spans; if they disagreed, a line could be stripped
+  // here and reported as narration there.
+  const spans = quotedSpans(cut);
+  assert.strictEqual(spans.length, 2, `both speeches must be spans, got ${JSON.stringify(spans)}`);
+  assert.strictEqual(cut.slice(spans[1][0], spans[1][1]), '"It was never',
+    'and the second span is the unterminated one, running to the end of the text');
 });
 
 ok('buildContext is pure: same input, same manifest', () => {

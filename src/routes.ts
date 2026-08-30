@@ -9,7 +9,7 @@ import * as imp from './import.ts';
 import { view, assemble, budgetFor, clean, defaultModePrompts, voiceOf } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
-import { resolveBody, cardText, narrationOnly, retirable, numbersIn, fires } from './context.ts';
+import { resolveBody, cardText, narrationOnly, quotedSpans, retirable, numbersIn, fires } from './context.ts';
 import { presets } from './presets.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
@@ -232,9 +232,10 @@ async function contradictionsIn(facts: { id: string; body: string }[], text: str
   // Only narration commits the story to a fact. A character may lie, be wrong, guess, or
   // speak figuratively — the prompt says so and the model flags it anyway, so the filter is
   // here rather than left to instruction. Deterministic, and it costs nothing.
-  const spans: [number, number][] = [];
-  for (const m of text.matchAll(/["“][^"”]*["”]/g))
-    spans.push([m.index!, m.index! + m[0].length]);
+  // The spans come from `context.ts` now. This built them with its own copy of the pattern and
+  // carried the same defect: an unterminated final line was not a span, so a contradiction found
+  // inside it passed this filter and was reported as something the narrator committed.
+  const spans = quotedSpans(text);
   const inDialogue = (quote: string) => {
     const at = text.indexOf(quote.slice(0, 40));
     return at >= 0 && spans.some(([a, b]) => at >= a && at < b);
