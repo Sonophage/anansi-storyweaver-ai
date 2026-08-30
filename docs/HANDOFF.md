@@ -213,21 +213,38 @@ Six ships, `5973498` through `7eaa267`. Each that changes bytes on the wire is i
 
 ### What only Seth can settle
 
-- **The seven bespoke voices were backfilled by hand** on 2026-08-30 — the craft section appended to
-  what each book already said — so nothing lost a rule it had that morning. Backup at
-  `backups/pre-craft-backfill.db`. If any of those books starts reading wrong, that append is the
-  first thing to try removing, and it is his call, not a measurement.
+- **The seven bespoke voices were backfilled by hand** on 2026-08-30 at 08:15Z — the craft section
+  appended to what each book already said — so nothing lost a rule it had that morning. If any of
+  those books starts reading wrong, that append is the first thing to try removing, and it is his
+  call, not a measurement.
+
+  **The state before it is `backups/pre-craft-backfill.db`, and that file is a restored copy.**
+  The original was taken at 08:15Z and then deleted by `backup()`'s own prune — see §9. It was put
+  back from `/data/anansi-backups/anansi-2026-08-30T08-04-28-514Z.db`, the last off-disk snapshot
+  before the backfill, eleven minutes earlier; `integrity_check` is ok and all seven bespoke voices
+  in it are pre-append. **Nothing happened in those eleven minutes**, checked rather than assumed:
+  zero rows written to `passages` or `entries` in the window, and the snapshot matches the live
+  database on every count that the backfill did not touch — 2,026 passages, 465 entries, 21
+  chapters. Ship 4 had already landed at 07:53Z, so `voice_sample` is gone from it too.
+
+  Verify a snapshot rather than trusting its name — the two are eleven minutes apart and only the
+  content says which side of the line it is on:
+
+  ```bash
+  sqlite3 <file> "select title, writing_style like '%Sentence and image:%' from stories"
+  ```
+
+  It is safe where it is now: since `e919c1e` the prune only touches names it wrote, so a
+  hand-named file in `backups/` is left alone. The off-disk copies roll at `keep = 14` and today
+  that is a few hours, so nothing there should be treated as durable.
 - **Six lines of his craft block were left out**, each with a stated reason, pinned in `test/db.ts`.
   Overruling one means deleting its row, which means reading why first. One of them —
   *"Begin in action or sensation"* — was already shipping and is now gone.
 - **Nothing in ships 1, 3, 4, 5 or 6 is measured.** The honest claim is that the prompt says what he
   wanted it to say and that he can now change it. Not that the prose reads better.
 
-### Two things noticed and deliberately not fixed
+### One thing noticed and deliberately not fixed
 
-- **`backup failed: ENOENT … backups/anansi-<timestamp>.db` on every boot** — all twelve recorded
-  starts. Nothing writes the automatic on-disk snapshot; the off-disk copy at `/data/anansi-backups`
-  is a separate path and reports fine. Pre-existing, untouched.
 - **The banner says `library 7 stories` while `stories` has 9 rows** and the book export says 9.
 
 ### Traps this round paid for
@@ -241,3 +258,34 @@ Six ships, `5973498` through `7eaa267`. Each that changes bytes on the wire is i
 - **Fixtures must grow with the cap they test.** Twice in one day: `repeat(30)` stopped overrunning
   `SPINE` at 1000 and `repeat(90)` stopped overrunning `VOICE` at 1000. A check that quietly stops
   reproducing its own condition passes forever.
+
+
+---
+
+## 9 · The backup that was deleting backups, `e919c1e`
+
+`backup failed: ENOENT … backups/anansi-<stamp>.db` had been in the boot log on **all twelve
+recorded starts**. The stat that failed was `backup()`'s own, on the file it had written four lines
+earlier.
+
+The prune filtered on `.endsWith('.db')`, so **every** database in the directory was a candidate
+rather than only the ones it wrote. Names sort, and `pre-` sorts above `anansi-` reversed: twelve
+hand-made `pre-restart-*.db` files filled all twelve keep-slots, so the snapshot each call had just
+written was the thirteenth. One line at the filter — a file this function did not write is not its
+business.
+
+**The half that failed loudly was the safe half.** A hand-made file whose name sorts *below*
+`anansi-` was pruned with no error at all: the call returns, the log says `backup 7104 KB,
+keeping 12`, and a snapshot taken before something risky is gone. That is what happened to
+`pre-craft-backfill.db`, which §8 had named as the way back from a change to seven live books.
+
+**What to take from it beyond the fix.** The repo `backups/` directory is safe to hand-name a file
+in now, and it was not before. `/data/anansi-backups` was never affected — it holds nothing but
+`anansi-*` names — but it rolls at `keep = 14`, and on a day with this many restarts that is a few
+hours of history, not a few days. Neither directory is an archive. Anything that has to survive
+gets copied somewhere neither pruner looks.
+
+Three assertions, each falsified against a different broken filter, and the second one needed its
+own scenario: under the original bug the ENOENT throws before a silent deletion could be asserted,
+so the fixture for that half is named to sort **below** `anansi-`. One bug, two failure shapes, two
+setups.
