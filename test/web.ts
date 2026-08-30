@@ -23,6 +23,43 @@ const ok = (m: string, fn?: unknown) => {
   n++; console.log(`  ok  ${m}`);
 };
 
+// A BACKTICK INSIDE AN HTML COMMENT IN THE MARKUP CLOSES THE TEMPLATE LITERAL IT LIVES IN.
+//
+// Every panel in `web/app.js` is built inside a template literal, and the house style quotes
+// identifiers in backticks — so an explanatory comment written in that style, inside markup, ends
+// the string early. It has cost this project five sittings: three on 2026-08-28 and two more on
+// 2026-08-29, all of them while writing a comment about the code rather than the code.
+//
+// It fails a long way from the cause. The parser reports `Missing } in template expression` or
+// `Unexpected identifier` at whatever word follows the stray backtick, which is usually well above
+// or below the comment that did it, and `src/db.ts` has the same hazard with SQL comments in its
+// schema literal — `test/db.ts` has guarded that half since it happened twice. This is the other
+// half, and it was missing.
+//
+// FIRST, ABOVE THE PARSE CHECK BELOW. A stray backtick usually does break parsing, and that
+// check then reports `Unexpected identifier` at whatever word follows it — a line a long way
+// from the comment that caused it. This one names the comment and its line. It is also the
+// wider net: the record from 2026-08-28 has a backtick leaving the file parseable and breaking
+// the panel only when it was called, which nothing below would catch at all. Both 2026-08-29
+// hits did break parsing — that half is demonstrated, this half is taken from the record.
+//
+// Scoped to HTML comments on purpose. A backtick in ordinary markup or in a `//` comment outside a
+// template literal is fine, and a lint that refused every backtick in the file would refuse the
+// language it is written in.
+{
+  const js = read('web/app.js');
+  const bad = [...js.matchAll(/<!--[\s\S]*?-->/g)]
+    .filter((m) => m[0].includes('`'))
+    .map((m) => `line ${js.slice(0, m.index).split('\n').length}: ${m[0].slice(0, 60)}…`);
+  assert.deepStrictEqual(bad, [],
+    'a backtick inside an HTML comment closes the template literal that comment lives in, and the '
+    + 'panel then renders as nothing at all. Quote identifiers with "double quotes" in markup '
+    + 'comments');
+  const comments = (js.match(/<!--[\s\S]*?-->/g) ?? []).length;
+  assert.ok(comments > 20, `expected the markup comments to be found (${comments})`);
+  ok(`${comments} html comments in the markup, none carrying a backtick`);
+}
+
 for (const f of readdirSync(R + 'web').filter((x) => x.endsWith('.js'))) {
   try {
     execFileSync(process.execPath, ['--input-type=module', '--check'],

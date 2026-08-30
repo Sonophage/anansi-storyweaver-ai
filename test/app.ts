@@ -229,6 +229,13 @@ let refuseNth = 0;
         { id: 'Wayfarer-2-RPNT-12B', status: 'unloaded',
           ctxSize: 32768, parallel: 2, perSlot: 16384, tps: 41.2, runs: 3 },
         { id: 'Sorcerer-9-WNT-70B', status: 'unloaded' }] }
+    // #21. A skeleton, not a created story — which is the whole reason it lands on the page to be
+    // edited before anything is written.
+    : url.startsWith('/api/spark') ? { story: { title: 'The Winter Signature', genre: 'political fantasy',
+        premise: 'Six houses have one winter to sign a peace none of them wants.',
+        setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
+        writingStyle: 'Cold, spare.', persona: 'Ilva Marren' },
+        entries: [{ title: 'Ilva Marren', entryType: 'character', body: 'A envoy with nothing to trade.' }] }
     : url.startsWith('/api/manifest') ? MANIFEST
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
@@ -1498,5 +1505,49 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   assert.doesNotMatch(html('sideBody'), /data-drawprompt/, 'and it shuts again');
 }
 ok('a cover can be drawn: the book seeds the words, the writer owns them, and the premise stays home');
+
+// #21 · ONCE IT HAS SPARKED, THE WIZARD IS THE WHOLE SCREEN. checks.md: "The screen after you click
+// Spark a Selection shares the original input to start a story and the panel that guides you
+// through it. it should only be the panel and nothing else. It is to busy otherwise."
+//
+// The left column was rendered whatever the state and only the aside swapped, so the idea box
+// stayed beside the wizard — and `#idea` has no state binding, so every repaint brought it back
+// EMPTY. A blank second textarea beside the thing it just produced reads as a control that lost
+// your words, and on a phone `.split` stacks, which put it ABOVE the wizard.
+{
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ nav: 'create' });
+  await new Promise((r) => setTimeout(r, 30));
+
+  const before = html('page');
+  assert.match(before, /id="idea"/, 'before it sparks, the idea box is the screen');
+  assert.match(before, /data-spark="1"/, 'with the button that sends it');
+
+  // The handler reads the box out of the DOM, so the stub has to answer for it.
+  doc.getElementById = (id: string) =>
+    id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+  try {
+    click({ spark: '1' });
+    for (let i = 0; i < 40 && !/data-sp=/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+  } finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+
+  const after = html('page');
+  assert.match(after, /data-sp="title"/, 'the wizard is on screen');
+  assert.match(after, /The Winter Signature/, 'holding what came back');
+  // THE POINT OF THE CHANGE. Not /idea/ — the word appears in the prose of the page either way;
+  // the ELEMENT is what must be gone, and it is the element that came back empty every repaint.
+  assert.doesNotMatch(after, /id="idea"/, 'and the idea box is gone, not merely beside it');
+  assert.doesNotMatch(after, /data-spark="1"/, 'along with the button that has nothing left to send');
+  assert.doesNotMatch(after, /class="split"/,
+    'and the two-column layout with it — on a phone that stacks, which put the dead box on top');
+  // (A "rendered exactly once" assertion stood here and was DELETED. Falsifying it — putting
+  // `S.spark ? sparkReview() : ''` back into the aside — left the suite green, because the early
+  // return means the aside is never reached while S.spark is set. It could not fail while the
+  // check above it passes, which is what a redundant guard looks like.)
+}
+ok('sparking replaces the screen with the wizard rather than sitting it beside an empty box');
 
 console.log(`\n${n} checks passed`);

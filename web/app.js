@@ -3438,6 +3438,22 @@ const WPAGES = {
     // POST /api/spark returns { story, entries } — a skeleton, not a created story. The page used
     // to look for r.storyId, find nothing, and repaint: ten seconds of waiting for no visible
     // result. SPEC 8.1 wants the skeleton editable before anything is written, so it lands here.
+    //
+    // #21 · ONCE IT HAS SPARKED, THE WIZARD IS THE WHOLE SCREEN. checks.md: "The screen after you
+    // click Spark a Selection shares the original input to start a story and the panel that guides
+    // you through it. it should only be the panel and nothing else. It is to busy otherwise."
+    //
+    // The left column was rendered whatever the state and only the aside swapped — so the idea box
+    // stayed beside the wizard, and `#idea` has no state binding, so every repaint brought it back
+    // EMPTY. A blank second textarea next to the thing it already produced reads as a control that
+    // lost your words. On a phone `.split` stacks (app.html:1021), which put that empty box ABOVE
+    // the wizard: the first thing on screen, and the wrong thing.
+    if (S.spark) {
+      return `<div style="display:flex; flex-direction:column; gap:16px; max-width:640px">
+        <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">What came back</div>
+        <div class="hint" style="margin:0">Nothing is written until you accept it.</div>
+        ${sparkReview()}</div>`;
+    }
     return `<div class="split">
       <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; max-width:640px">
         <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">Hand him one thread</div>
@@ -3452,10 +3468,13 @@ const WPAGES = {
       </div>
       <div class="aside" style="border:1px solid var(--edge); border-radius:var(--r); background:var(--rail); padding:20px 22px">
         <div class="lbl" style="letter-spacing:.1em">What comes back</div>
-        ${S.spark ? sparkReview() : `${['Title', 'Genre', 'Point of view', 'Spice', 'Cast'].map((l) => `<div class="row">
+        <!-- No S.spark test here any more: the branch above returns before this is reached, so
+             the aside is only ever the empty preview. Two renderings of the review would be two
+             places to keep in step. -->
+        ${['Title', 'Genre', 'Point of view', 'Spice', 'Cast'].map((l) => `<div class="row">
           <span style="color:var(--ink)">${l}</span>
           <span style="margin-left:auto; color:var(--faint)">&mdash;</span></div>`).join('')}
-        <div class="hint" style="margin-top:4px">Nothing is written until you accept it.</div>`}</div></div>`;
+        <div class="hint" style="margin-top:4px">Nothing is written until you accept it.</div></div></div>`;
   },
 
   canon() {
