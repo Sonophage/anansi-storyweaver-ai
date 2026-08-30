@@ -358,7 +358,13 @@ ok('the lines the council struck stay struck, and say why', () => {
     [/combat is emotionally charged/i,
      'genre furniture in a default that has to serve a domestic two-hander as well as a war'],
     [/advance information or deepen subtext/i,
-     'bans the flat domestic exchange, which is a register this library actually writes in'],
+     'bans the flat domestic exchange, which is a register this library actually writes in. '
+     + 'SETH RULED ON THIS ONE, 2026-08-30, and the gap it left was real: every dialogue rule in '
+     + 'DEFAULT_VOICE is about rhythm and none of them said a line should be doing work. A '
+     + 'PERMISSION-SHAPED version now ships in SYSTEM — "A line of dialogue moves information or '
+     + 'deepens what is not said. A plainly functional exchange is legitimate; do not inflate one '
+     + 'into significance." So this row no longer means "no rule of this kind ships". It means '
+     + 'THE BAN does not ship, because the ban is the part that was wrong'],
     [/last three passages/i,
      'the model cannot delimit three passages in the prompt it is given, and the sentence after '
      + 'it — "Wait." — addresses a person'],
@@ -368,6 +374,20 @@ ok('the lines the council struck stay struck, and say why', () => {
       assert.doesNotMatch(text, rx, `struck by COUNCIL-06 ship 5 and back in ${where}: ${why}`);
     }
   }
+
+  // THE OTHER HALF OF THE ROW ABOVE. It now says a permission-shaped dialogue rule ships in
+  // SYSTEM, and a reason that describes something no longer true is the exact failure the #26
+  // audit caught — a false claim in a record the next session reads instead of checking. So the
+  // claim is asserted, not merely written: if the bullet is deleted, this reason must be rewritten
+  // in the same commit.
+  // `\s+` and not a space: the bullet wraps in the template literal, and the first version of
+  // this assertion went red on the line break rather than on the thing it checks.
+  assert.match(render.SYSTEM, /A plainly functional exchange\s+is legitimate/,
+    'the struck row for the dialogue ban says a permission-shaped version ships in SYSTEM. It '
+    + 'does not. Fix the bullet or fix the row — a reason that lies is worse than no row.');
+  assert.doesNotMatch(render.SYSTEM, /every line|each line must|must carry/i,
+    'the dialogue bullet has drifted back into a ban. The flat domestic exchange is a register '
+    + 'this library writes in, which is why the original line was struck.');
 });
 
 // #11 · Anansi's speaking voice went into TALK on 2026-08-30, and Seth's rule about it was

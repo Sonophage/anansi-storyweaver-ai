@@ -15,13 +15,13 @@ file and `src/render.ts` / `src/context.ts` disagree, the code is right and this
 ```
 You are a prose engine for a novel. You write the next passage and nothing else.
 
-Rules:  10 bullets — the output contract, canon arbitration, object permanence, the frame
+Rules:  11 bullets — the output contract, canon arbitration, object permanence, the frame
 ```
 
 **The bullets are not transcribed here on purpose.** Revision 1 quoted a system block with a rule
 that no longer existed, and this section quoted five of the six `Rules:` bullets and none of the
 craft ones for a week without anyone noticing. A partial copy of a prompt is a copy that is wrong.
-Read `export const SYSTEM` in `src/render.ts`; it is 18 lines and it is the only version.
+Read `export const SYSTEM` in `src/render.ts`; it is 20 lines and it is the only version.
 
 **COUNCIL-06 §3, 2026-08-30 · the canon-uncertainty clause.** One bullet added, the tenth:
 what to do when the canon does not answer. It is contract rather than craft — the writer may
