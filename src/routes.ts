@@ -2,7 +2,7 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, CAST, castSchema, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -50,7 +50,10 @@ export const OPEN_ROUTES = new Set([
   // These name no story. `GET /api/search` belongs here because db.search is already
   // owner-scoped in SQL — gating it by story made every search return 400, which is the
   // security fix breaking the feature it was protecting.
-  'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'GET /api/search',
+  // #21 §2. The cast call names no story either — there is no story yet, which is the whole
+  // point of the wizard — so it is open for the same reason the spark is.
+  'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'POST /api/spark/cast',
+  'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
   // Account-wide, like the sampler. Owner-scoped in SQL — every read and write takes c.owner.
@@ -93,6 +96,8 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
 /** The five the writer may rewrite. `talk` is not one of them: it is Anansi's chat, not a way of
  *  writing prose, and handing it the same box would let a reworded chat prompt continue the book. */
 const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate'];
+// #21 §2. The kinds the cast call will answer for. `SLOTS` is keyed by exactly these.
+const KINDS_ALL = Object.keys(SLOTS);
 
 /** THE STYLE LIBRARY, #18 §3. Named voices and styles you can pull from, and NOT a new table.
  *
@@ -170,7 +175,13 @@ const INVENT_TOKENS = 2000;
  *  Rough arithmetic rather than a guess: 12 sentences + 8 sentences + 100 words + 5 x 80 words is
  *  around 800 words of content, and JSON with escaping runs near two tokens a word. 3,400 leaves
  *  room for the model to be generous where it was asked to be. */
-const SPARK_TOKENS = 3400;
+// #21 §2. Was 3,400 for one object carrying the book AND its cast. Two objects now, each asked
+// for on its own: the scaffold is prose-heavy (a premise of eight to twelve sentences, a setting of
+// four to eight, a voice of a hundred words) and the cast is up to eight bodies of forty to eighty.
+// Smaller objects are the point — F25 measured what a truncated one costs, and it is the largest
+// that truncates.
+const SPARK_TOKENS = 2200;
+const CAST_TOKENS = 2000;
 
 /** Every changed character's WHOLE description, in one answer. A state replaces the body rather than
  *  adding to it, so each one is a full restatement and not a line — four characters at 600 characters
@@ -1191,6 +1202,14 @@ export const routes: Record<string, Handler> = {
     return { ...moved, stories: db.listStories(c.owner) };
   },
 
+  /** #21 §2 · STAGE ONE: THE BOOK, WITHOUT ITS CAST.
+   *
+   *  It used to be one 3,400-token object holding both, and `SPARK_SCHEMA` REQUIRED two characters
+   *  — so *"no characters at this point"* was not reachable without a schema change. Nothing was
+   *  re-rollable either: the only retry was throwing the whole skeleton back and retyping the idea.
+   *
+   *  Re-rolling is now just calling this again with the same idea, which is why it takes nothing
+   *  else. */
   'POST /api/spark': async (c) => {
     const idea = String(c.body.idea ?? '').trim();
     if (idea.length < 8) return { error: 'give it a sentence to work from' };
@@ -1201,17 +1220,46 @@ export const routes: Record<string, Handler> = {
       story: {
         title: d.title, premise: d.premise, genre: d.genre, setting: d.setting,
         pov: d.pov, spice: d.spice, writingStyle: d.writingStyle, direction: '',
-        // Proposals, not decisions — propose, but let it be turned off, because a wrong guess about
-        // who the writer plays is worse than no guess. Both are checked against the cast that
-        // actually gets created, in POST /api/stories, so a name off the list cannot survive.
-        persona: d.persona || null, lockedCharacter: d.lockedCharacter || null,
+        persona: null, lockedCharacter: null,
       },
-      // One always-on entry per character, in the bracket format the ledger uses.
-      entries: (d.characters ?? []).map((ch: any) => ({
-        title: ch.name, entryType: 'character', activation: 'always_on',
-        body: `[${ch.name}: ${ch.role}. ${ch.description}]`, keys: [ch.name],
-      })),
+      entries: [],
     };
+  },
+
+  /** #21 §2 · STAGE TWO: THE CAST, for the kinds the writer asked for and no others.
+   *
+   *  Given the scaffold as it stands — which the writer has read and may have rewritten — so the
+   *  cast belongs to the book on screen rather than to the sentence it started from. Asking twice
+   *  gives two casts for one book and costs the premise nothing, which is the re-roll.
+   *
+   *  THE KINDS ARE AN ENUM IN THE SCHEMA, not a request in the prose. The GBNF converter honours
+   *  enums, so a book that wanted places and no people cannot be handed a character by a model that
+   *  felt like writing one — and "none of them" is answered here by not calling this at all.
+   */
+  'POST /api/spark/cast': async (c) => {
+    const kinds = (Array.isArray(c.body.kinds) ? c.body.kinds : [])
+      .map((k: any) => String(k)).filter((k: string) => KINDS_ALL.includes(k));
+    if (!kinds.length) return { error: 'say which kinds of thread you want first' };
+    const st = c.body.story ?? {};
+    const skeleton = [`Title: ${st.title ?? ''}`, `Genre: ${st.genre ?? ''}`,
+      `Setting: ${st.setting ?? ''}`, `Premise: ${st.premise ?? ''}`].join('\n\n');
+    if (!String(st.premise ?? '').trim()) return { error: 'the skeleton has no premise to populate' };
+    const r = await structuredRetry(CAST,
+      `${skeleton}\n\nKINDS WANTED: ${kinds.join(', ')}`, castSchema(kinds),
+      { max_tokens: CAST_TOKENS });
+    if (!r.data?.entries?.length) return { error: r.error ?? 'the cast returned nothing usable' };
+    // The enum makes a wrong kind unreachable through the grammar; this is the belt to that
+    // braces, and it costs one comparison.
+    const entries = (r.data.entries as any[])
+      .filter((e) => e?.name?.trim() && e?.body?.trim() && kinds.includes(e.kind))
+      .map((e) => ({ title: e.name.trim(), entryType: e.kind, activation: 'always_on',
+                     body: `[${e.name.trim()}: ${e.body.trim()}]`, keys: [e.name.trim()] }));
+    if (!entries.length) return { error: 'nothing came back in the kinds you asked for' };
+    // Proposals, not decisions, and only ever a name that is in the cast this call produced —
+    // POST /api/stories checks them again against what actually gets created.
+    const named = new Set(entries.filter((e) => e.entryType === 'character').map((e) => e.title));
+    const pick = (v: unknown) => (named.has(String(v ?? '')) ? String(v) : null);
+    return { entries, persona: pick(r.data.persona), lockedCharacter: pick(r.data.lockedCharacter) };
   },
 
   // ---- one story ----

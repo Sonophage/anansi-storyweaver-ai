@@ -20,18 +20,30 @@ await wait(700);
 // A canned skeleton, in the shape POST /api/spark really returns. Anansi proposes a persona and a
 // locked character, which is what the server polices and what step 4 has to offer.
 await page.eval(`(() => {
+  window.__spark = 0; window.__cast = 0;
   const real = window.fetch;
   window.fetch = (u, o) => {
     const url = String(u);
-    if (url.includes('/api/spark')) return Promise.resolve(new Response(JSON.stringify({
+    // #21 §2. TWO STAGES, TWO SHAPES. The scaffold carries no cast at all — its schema cannot
+    // require one any more, which is what makes "no characters at this point" reachable — and the
+    // cast is its own call, answering entries and the two names at the top level.
+    // Checked for /cast FIRST: it also contains '/api/spark'.
+    if (url.includes('/api/spark/cast')) {
+      window.__cast++;
+      return Promise.resolve(new Response(JSON.stringify({
+        entries: [
+          { title: 'Ilva Marren', entryType: 'character', activation: 'always_on', body: '[Ilva Marren: a tide-clerk.]', keys: ['Ilva'] },
+          { title: 'Kade Ashford', entryType: 'character', activation: 'always_on', body: '[Kade Ashford: a creditor.]', keys: ['Kade'] },
+        ],
+        persona: 'Ilva Marren', lockedCharacter: 'Ilva Marren',
+      }), { headers: { 'Content-Type': 'application/json' } }));
+    }
+    if (url.includes('/api/spark')) { window.__spark++; return Promise.resolve(new Response(JSON.stringify({
       story: { title: 'The Salt Ledger', genre: 'noir, gothic', premise: 'A tide-clerk counts what the sea returns.',
                setting: 'Fallow Quay', pov: 'second person, present tense', spice: 2,
-               writingStyle: 'Clipped and wet.', persona: 'Ilva Marren', lockedCharacter: 'Ilva Marren' },
-      entries: [
-        { title: 'Ilva Marren', entryType: 'character', activation: 'always_on', body: '[Ilva Marren: a tide-clerk.]', keys: ['Ilva'] },
-        { title: 'Kade Ashford', entryType: 'character', activation: 'always_on', body: '[Kade Ashford: a creditor.]', keys: ['Kade'] },
-      ],
-    }), { headers: { 'Content-Type': 'application/json' } }));
+               writingStyle: 'Clipped and wet.', persona: null, lockedCharacter: null },
+      entries: [],
+    }), { headers: { 'Content-Type': 'application/json' } })); }
     // The opening passage fires through the ordinary generate path. Stubbed so this scenario does
     // not wait on a model it was written to run without.
     if (url.includes('/api/generate')) return Promise.resolve(new Response(
@@ -63,7 +75,62 @@ await page.eval(`(() => { const t = document.querySelector('[data-sp="title"]');
   t.value = 'The Drowned Ledger'; return 1; })()`);
 await page.click('[data-sparkstep="3"]');
 await wait(400);
+
+// #21 §2. THE CAST IS ITS OWN CALL, and it does not run until the writer has said what this book
+// needs. The spark used to return one and the schema REQUIRED two of them, so a book that wanted
+// places and no people had to be given people and have them unticked.
+ok("  step 3 arrives empty, and asks what kinds this book needs",
+   (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 0
+   && (await page.eval("document.querySelectorAll('[data-spkind]').length")) === 4);
+ok("  and the scaffold call brought back no cast at all",
+   (await page.eval("window.__cast")) === 0);
+await page.click('[data-spwritecast="1"]');
+await wait(600);
+ok("  writing the cast is a second call, made only when asked",
+   (await page.eval("window.__cast")) === 1);
 ok("  step 3 is the cast", (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 2);
+
+// #21 §2 · EACH STAGE RE-ROLLS ON ITS OWN. This did not exist at all: the only retry was "Throw it
+// back", which nulls the wizard and makes you retype the idea from scratch. Driven here, inside the
+// wizard that is already open, rather than by starting a second book — the fetch stub lives in this
+// page and a reload would take it with it.
+{
+  const sparksBefore = await page.eval("window.__spark");
+
+  // A KIND NOBODY PICKED IS NOT ASKED FOR. "No characters at this point" was unreachable while the
+  // spark schema REQUIRED two of them.
+  await page.click('[data-spkind="character"]');
+  await wait(250);
+  const castsBefore = await page.eval("window.__cast");
+  await page.click('[data-spwritecast="1"]');
+  await wait(400);
+  ok("  asking for the cast with no kind picked never reaches the model",
+     (await page.eval("window.__cast")) === castsBefore);
+  await page.click('[data-spkind="character"]');
+  await wait(250);
+
+  // RE-ROLLING THE SKELETON LEAVES THE CAST WHERE IT IS. It was written against the book, and a
+  // writer asking for another premise has not asked to lose the people in it.
+  await page.click('[data-sparkstep="1"]');
+  await wait(300);
+  await page.click('[data-spreroll="1"]');
+  await wait(700);
+  ok("  the skeleton re-rolls from the same idea, as its own call",
+     (await page.eval("window.__spark")) === sparksBefore + 1);
+  await page.click('[data-sparkstep="3"]');
+  await wait(350);
+  ok("  and the cast it was written for is still standing",
+     (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 2);
+
+  // The re-roll replaced the title, which is what it says it does. Put back the one the assertions
+  // at the end of this file are about.
+  await page.click('[data-sparkstep="1"]');
+  await wait(300);
+  await page.eval(`(() => { const t = document.querySelector('[data-sp="title"]');
+    t.value = 'The Drowned Ledger'; return 1; })()`);
+  await page.click('[data-sparkstep="3"]');
+  await wait(300);
+}
 await page.click('[data-sparkstep="1"]');
 await wait(400);
 ok("  an edit survives leaving the step and coming back",

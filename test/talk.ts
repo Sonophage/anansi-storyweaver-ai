@@ -45,7 +45,17 @@ const srv = createServer((req, res) => {
     // its own title: the proposals table dedupes on the subject, so two roles answering with one
     // name would make the second look like a refusal rather than a duplicate.
     const asksToRemember = /REMEMBER IT:/.test(String(b.messages?.[1]?.content ?? ''));
-    const answer = props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
+    // #21 §2. The cast is its own call now, keyed on its own role rather than on a schema shape:
+    // it answers `entries` and so do two other roles.
+    const asksForCast = /Populate a story that already exists/.test(String(b.messages?.[0]?.content ?? ''));
+    const answer = asksForCast ? { entries: [
+        { name: 'Vel', kind: 'character', body: 'Speaks for the dead god. Owes nothing and says so.' },
+        { name: 'The Long Stair', kind: 'lore', body: 'A stair with no landing, cut into the rock.' },
+        // A kind nobody asked for. The grammar makes this unreachable from a real model; the route
+        // drops it anyway, and this is what proves the belt exists as well as the braces.
+        { name: 'The Bell', kind: 'item', body: 'Rung once a year, badly.' },
+      ], persona: 'Vel', lockedCharacter: 'Somebody Who Is Not In The Cast' }
+      : props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
         setting: 'Sutera', pov: 'third limited, past tense', spice: 2, writingStyle: VOICE,
         characters: [{ name: 'Vel', role: 'the Murmur', description: 'Speaks for the dead god.' },
                      { name: 'Aldis', role: 'a debtor', description: 'Owes more than he can pay.' }] }
@@ -363,6 +373,53 @@ ok('a kind that does not exist is refused rather than assembled');
   ok('a chapter proposes its own name and beat, and writes neither');
 }
 
+// ---- #21 §2 · THE CAST IS ITS OWN CALL, FOR THE KINDS THAT WERE ASKED FOR ----
+//
+// It used to ride on the spark, and `SPARK_SCHEMA` REQUIRED two characters — so "no characters at
+// this point" could not be expressed without a schema change, and a book that wanted three places
+// and no people had to be given people and have them unticked. Nothing was re-rollable either.
+{
+  const { CAST, castSchema } = await import('../src/prompts.ts');
+  calls = [];
+  const cast = (kinds: string[], story: any = { title: 'The Rust Year', genre: 'noir',
+      setting: 'Sutera', premise: PREMISE }) => routes['POST /api/spark/cast']({
+    body: { kinds, story }, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any) as any;
+
+  const r = await cast(['character', 'lore']);
+  assert.ok(!r.error, r.error);
+  // THE KINDS ARE AN ENUM IN THE SCHEMA, which is what a grammar can actually enforce — and the
+  // route drops a stray anyway. The fake answers with an `item` nobody asked for, on purpose.
+  assert.deepStrictEqual(r.entries.map((e: any) => e.entryType), ['character', 'lore'],
+    'only the kinds that were asked for survive');
+  assert.deepStrictEqual(castSchema(['character', 'lore']).properties.entries.items.properties.kind.enum,
+    ['character', 'lore'], 'and the schema says so where the grammar can read it');
+  assert.match(r.entries[0].body, /^\[Vel: /, 'bodies arrive in the bracket format the ledger uses');
+  assert.deepStrictEqual(r.entries[0].keys, ['Vel'], 'and fire on their own name');
+
+  // A NAME THAT IS NOT IN THE CAST POINTS THE BYLINE AT NOBODY. The fake names one on purpose.
+  assert.strictEqual(r.persona, 'Vel', 'a persona that IS in the cast is carried');
+  assert.strictEqual(r.lockedCharacter, null, 'and one that is not is dropped rather than passed on');
+
+  // IT IS GIVEN THE SKELETON AS IT STANDS, which is what makes the cast belong to the book the
+  // writer has read and edited rather than to the sentence it started from — and what makes
+  // asking twice a re-roll rather than a retype.
+  const asked = calls.find((x: any) => /Populate a story/.test(String(x.messages?.[0]?.content ?? '')))!;
+  assert.match(String(asked.messages[1].content), /The Rust Year/, 'the title it was given');
+  assert.match(String(asked.messages[1].content), /KINDS WANTED: character, lore/, 'and the kinds');
+
+  // NONE IS A REAL ANSWER, and it costs no call at all — which is the whole thing the old shape
+  // could not express.
+  calls = [];
+  const none = await cast([]);
+  assert.match(none.error, /which kinds/, 'asking for nothing says so');
+  assert.strictEqual(calls.length, 0, 'and never reaches the model');
+  const bare = await cast(['character'], { title: 'x', premise: '   ' });
+  assert.match(bare.error, /no premise/, 'and a skeleton with nothing in it is refused too');
+  ok('the cast is its own call, for the kinds asked for, against the skeleton as it stands');
+}
+
 // ---- 7. the spark's premise and prose voice come back big enough to write from
 // They were "two or three sentences" and "one sentence" — thinner than the manual form on the same
 // screen asks for, so the skeleton had to be rewritten before the first passage. Three things can
@@ -383,11 +440,22 @@ ok('a kind that does not exist is refused rather than assembled');
     + 'valid, which is F25 and would look like a finished answer');
   assert.strictEqual(skel.story.writingStyle, VOICE, 'and so does the voice of the weave');
 
-  assert.ok(Number(calls[0].max_tokens) >= 3400,
-    `the spark is asked for in ${calls[0].max_tokens} tokens. Since 2026-08-27 it asks for an `
-    + 'eight-to-twelve-sentence premise, a four-to-eight-sentence setting, a hundred words of voice '
-    + 'and up to five characters at forty to eighty words each — roughly 800 words, and JSON with '
-    + 'escaping runs near two tokens a word. Raise the ceiling with the ask, in the same commit.');
+  // #21 §2. THE CEILING CAME DOWN WITH THE ASK, and this check came down with it. The spark asked
+  // for the cast as well until 2026-08-29 — roughly 800 words in one object, which is why the floor
+  // here was 3,400. It asks for the book alone now: a premise of eight to twelve sentences, a
+  // setting of four to eight, and a hundred words of voice, near 400 words, and JSON with escaping
+  // runs about two tokens a word. The rule the number has to satisfy is unchanged, which is why
+  // this is a smaller floor and not a deleted check: room for the ask, whatever the ask is.
+  assert.ok(Number(calls[0].max_tokens) >= 1800,
+    `the spark is asked for in ${calls[0].max_tokens} tokens, and its own prompt asks for about `
+    + '400 words. Raise the ceiling with the ask, in the same commit.');
+  // AND IT NO LONGER ASKS FOR THE CAST AT ALL. This is the half that would otherwise rot quietly:
+  // a prompt that drifts back to requesting characters would be answered, the schema would drop
+  // them, and the tokens would be spent on prose nobody ever sees.
+  assert.deepStrictEqual(skel.entries, [], 'the scaffold call returns no cast');
+  assert.ok(!SPARK_SCHEMA.required.includes('characters' as never),
+    'and cannot require one — "no characters at this point" was unreachable while it did');
+  assert.match(SPARK, /NO CHARACTERS/, 'the prompt says so on its own line');
 
   // EVERY field the writer starts from has to name a length, and the lengths are read out of the
   // prompt rather than pinned as phrases: this asserted "premise is four to six sentences"
@@ -397,7 +465,7 @@ ok('a kind that does not exist is refused rather than assembled');
   for (const [what, re] of [
     ['the premise', /premise is \w+ to \w+ sentences/],
     ['the setting', /setting is \w+ to \w+ sentences/],
-    ['each character', /description is \w+ to \w+ words/],
+    // (the character length band moved to CAST with the cast itself — asserted below)
     ['the voice', /a hundred words or so, not a label/],
   ] as const) assert.match(SPARK, re,
     `${what} needs a length worth filling, or the model gives it a line`);

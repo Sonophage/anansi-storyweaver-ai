@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
+import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -281,6 +281,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
   'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'spkind', 'spwritecast', 'spreroll',
   'applylib', 'savelib', 'dellib', 'setvoice',
   'seedpick',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
@@ -2595,7 +2596,14 @@ function sparkReview() {
   const body = step === 1
     ? `${row('title', 'Title', s.title)}
        ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag on the shelf.')}
-       ${area('premise', 'Premise', s.premise, 'It rides in the spine on every call.', 110)}`
+       ${area('premise', 'Premise', s.premise, 'It rides in the spine on every call.', 110)}
+       <!-- #21 §2. The only retry used to be Throw it back, which nulls the wizard and makes you
+            retype the idea. This asks the same idea again and replaces the skeleton alone — the
+            cast, if one has been written, is left where it is. -->
+       ${S.spark.idea ? `<button class="btn ghost" data-spreroll="1" ${S.spark.sparking ? 'disabled' : ''}
+         style="margin-top:6px">${S.spark.sparking ? 'Thinking&hellip;' : 'Ask again from your idea'}</button>
+       <div class="hint">Same idea, another skeleton. What you have typed here is replaced; the cast
+         is not.</div>` : ''}`
     : step === 2
     ? `${row('setting', 'Setting', s.setting, 'Where it happens. Lore written later can replace this.')}
        <label class="lbl">Point of view</label>
@@ -2608,8 +2616,27 @@ function sparkReview() {
        <div class="hint">Changeable per story at any time, and a written-out register can replace the
          level entirely under Story.</div>`
     : step === 3
-    ? `<div class="hint" style="margin:0 0 10px">${S.spark.entries.length} proposed. Untick anyone you
-         do not want; nothing is written until you accept.</div>
+    ? `<!-- #21 §2. THE CAST IS ITS OWN CALL NOW, and it runs only once the writer has said what
+             kinds of thread this book needs. It used to ride on the spark, where the schema
+             REQUIRED two characters — so a book that wanted three places and no people had to be
+             given people and have them unticked, and "none at this point" was unreachable. -->
+       <div style="display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px">
+         ${KINDS.map((k) => {
+           const on = (S.spark.kinds ?? ['character']).includes(k);
+           return `<button data-spkind="${k}" style="font-size:11.5px; padding:7px 14px;
+             border-radius:var(--r-pill); border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+             background:${on ? 'rgba(217,178,106,.12)' : 'transparent'};
+             color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(KIND_PLURAL[k] ?? k)}</button>`;
+         }).join('')}
+       </div>
+       <button class="btn ghost" data-spwritecast="1" ${S.spark.casting ? 'disabled' : ''}
+         style="margin-bottom:10px">${S.spark.casting ? 'Writing them&hellip;'
+           : S.spark.entries.length ? 'Write a different cast' : 'Write the cast'}</button>
+       <div class="hint" style="margin:0 0 10px">${S.spark.entries.length
+         ? `${S.spark.entries.length} proposed. Untick anyone you do not want; nothing is written
+            until you accept. Asking again replaces them, and costs the rest of the skeleton nothing.`
+         : `Pick what this book needs, then ask. A book with no cast is a real answer &mdash;
+            skip this step and write them as you go.`}</div>
        ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px; gap:7px">
          <div style="display:flex; align-items:center; gap:8px">
            <input class="field" data-spname="${i}" value="${esc(e.title)}" placeholder="Their name"
@@ -3715,8 +3742,9 @@ const WPAGES = {
     // keystroke destroyed the input and swallowed the query, which is how "brass" found nothing.
     // #22: the row names GROUPS, so every name on it is plural. `Character` beside `Everything`
     // read like a filter for one card.
-    const LKIND_LABEL = { all: 'Everything', character: 'Characters', lore: 'Lore',
-                          item: 'Items', rule: 'Rules' };
+    // One map, in web/model.js — #21's wizard offers the same four and two lists would drift on
+    // the first rename.
+    const LKIND_LABEL = { all: 'Everything', ...KIND_PLURAL };
     const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
       background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
     return `<div class="split" style="gap:28px">
@@ -5925,15 +5953,67 @@ document.addEventListener('click', async (e) => {
     const r = await api.spark(idea);
     if (r.error) return toast(r.error);
     // A skeleton, not a story. It goes on screen to be edited or thrown back.
+    // #21 §2. `idea` is KEPT: it is what a re-roll asks again with, and the only retry before this
+    // was throwing the whole wizard away and retyping it. `kinds` is what the cast stage will be
+    // asked for, defaulting to characters because that is what the one-call version always gave.
     S.spark = { story: r.story ?? {}, entries: r.entries ?? [], autoOpen: true,
+      idea, kinds: ['character'], casting: false, sparking: false,
       // What Anansi proposed, kept as it arrived. The server polices ONLY these names, so an edit
       // here must not rewrite them — a persona the writer types is theirs and is never dropped.
       proposed: [r.story?.persona, r.story?.lockedCharacter].filter(Boolean) };
     S.sparkStep = 1;
     if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
     paint();
-    toast(`${(r.entries ?? []).length} in the cast. Nothing written yet.`);
+    toast('The skeleton. The cast is step three, once you say what this book needs.');
     return;
+  }
+  // #21 §2 · THE TWO STAGES THE WRITER DRIVES.
+  //
+  // The spark was one 3,400-token object holding the book AND its cast, and nothing in it could be
+  // asked for again: the only retry was "Throw it back", which nulls the wizard and makes you
+  // retype the idea. Each stage is its own call now, so a good premise with a bad cast costs one
+  // press instead of starting over — and an object that large is the one that truncates, which
+  // F25 measured at an unparseable answer plus a whole structuredRetry.
+  if (d.spkind) {
+    harvestSpark();
+    const have = S.spark.kinds ?? ['character'];
+    S.spark.kinds = have.includes(d.spkind) ? have.filter((k) => k !== d.spkind) : [...have, d.spkind];
+    paint();
+    return;
+  }
+  if (d.spwritecast) {
+    if (S.spark.casting) return;
+    harvestSpark();
+    if (!(S.spark.kinds ?? []).length) return toast('Pick what this book needs first.');
+    S.spark.casting = true; paint();
+    const r = await api.sparkCastCall(S.spark.kinds, S.spark.story);
+    S.spark.casting = false;
+    if (r.error) { paint(); return toast(r.error); }
+    // REPLACES rather than appends: asking again is a different cast for the same book, not more
+    // of the one you already turned down. Anything written by hand with + is replaced too, which
+    // is why the button says so.
+    S.spark.entries = r.entries ?? [];
+    S.spark.story = { ...S.spark.story, persona: r.persona ?? null,
+                      lockedCharacter: r.lockedCharacter ?? null };
+    S.spark.proposed = [r.persona, r.lockedCharacter].filter(Boolean);
+    paint();
+    return toast(`${S.spark.entries.length} proposed. Nothing is written until you accept.`);
+  }
+  if (d.spreroll) {
+    if (S.spark.sparking) return;
+    harvestSpark();
+    const idea = S.spark.idea;
+    if (!idea) return toast('There is no idea to ask again from.');
+    S.spark.sparking = true; paint();
+    const r = await api.spark(idea);
+    S.spark.sparking = false;
+    if (r.error) { paint(); return toast(r.error); }
+    // THE CAST IS LEFT WHERE IT IS. It was written against the book, and a writer re-rolling the
+    // premise has not asked to lose the people in it — the cast has its own button one step over.
+    S.spark.story = { ...(r.story ?? {}), persona: S.spark.story.persona,
+                      lockedCharacter: S.spark.story.lockedCharacter };
+    paint();
+    return toast('Another skeleton, from the same idea.');
   }
   if (d.dropSpark) { S.spark = null; S.sparkStep = 1; paint(); return; }
   // Every move harvests first: a step that is not rendered is not in the DOM, so an edit on the

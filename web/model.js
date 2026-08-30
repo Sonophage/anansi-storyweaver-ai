@@ -16,6 +16,11 @@ export const MODES = [
 
 export const KINDS = ['character', 'lore', 'item', 'rule'];
 
+/** The four kinds as GROUPS, which is how every row that offers them reads: you are filtering or
+ *  asking for characters, not for character. #22 named them on the cross-shelf page and #21 needs
+ *  the same words in the wizard — one map, because two would drift on the first rename. */
+export const KIND_PLURAL = { character: 'Characters', lore: 'Lore', item: 'Items', rule: 'Rules' };
+
 /** The shelf order: archived books last, everything else left where listStories put it.
  *
  *  A stable partition rather than a sort key, because the server already ordered by updated_at and

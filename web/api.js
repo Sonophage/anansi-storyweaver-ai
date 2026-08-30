@@ -78,6 +78,10 @@ export const api = {
   library:      ()               => j('/api/stories'),
   createStory:  (s)              => j('/api/stories', 'POST', s),
   spark:        (idea)           => j('/api/spark', 'POST', { idea }),
+  // #21 §2. The cast, asked for separately and only for the kinds the writer wants. It carries
+  // the skeleton AS IT STANDS, so the cast belongs to the book on screen rather than to the
+  // sentence it started from — which is also what makes asking twice a re-roll.
+  sparkCastCall: (kinds, story)  => j('/api/spark/cast', 'POST', { kinds, story }),
   // `into` sends the book's threads to another of yours before it goes. The prose is the book and
   // goes with it; a cast and a city are work that outlives the story they were written for.
   deleteStory:  (id, into)       => j('/api/stories', 'DELETE', { id, ...(into ? { into } : {}) }),

@@ -12,6 +12,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### Sparking a story is two steps now, and each can be asked again
+Spark used to write the whole skeleton and its cast in one go, and if the cast was wrong
+the only way back was throwing the lot away and retyping your idea. The book and its people
+are separate asks now: you get the title, premise, setting and voice first, and then on the
+cast step you say what this book actually needs — characters, places, items, rules, or
+nothing at all — and ask for those.
+
+Either can be asked again on its own. Re-rolling the skeleton leaves the cast where it is,
+and asking for another cast costs the skeleton nothing. A book with no cast is a real
+answer now; it could not be expressed before.
+
 ### A contradiction that survives its repair now says so, at the take
 Anansi has checked each passage against your canon and corrected it before you see it since
 2026-08-25 — but it never looked twice, so it counted a repair it had ATTEMPTED as a repair

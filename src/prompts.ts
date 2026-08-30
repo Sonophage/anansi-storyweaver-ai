@@ -274,12 +274,25 @@ tone through each transition. Let the story unfold through ritual, risk and desi
 
 Each line should cut or kiss. Let it ache.`;
 
+/** #21 §2 · THE SCAFFOLD, AND NOT THE CAST. Split out of one 3,400-token object on 2026-08-29.
+ *
+ *  One call returned the whole skeleton, cast included, and three things were wrong with that. The
+ *  writer could not say "no characters at this point" — `SPARK_SCHEMA` REQUIRED two of them. Nothing
+ *  was re-rollable, so a good premise with a bad cast meant retyping the idea from scratch. And an
+ *  object that large is the one that truncates: F25 measured what that costs — an unparseable answer
+ *  and a whole `structuredRetry` at about seven seconds, where three small objects fail one at a
+ *  time and cheaply.
+ *
+ *  So this asks for the book and stops. The cast is CAST below, run after the writer has said which
+ *  kinds of card they want — including none. */
 export const SPARK =
 `Turn this idea into a story skeleton.
 
 Return: a title, a premise, a genre as a comma-separated list of two or three tags, a setting, a
-point of view, a spice level from 1 to 5, the voice the prose is written in, and between two and
-five characters with a name, a role, and a description.
+point of view, a spice level from 1 to 5, and the voice the prose is written in.
+
+NO CHARACTERS. They are asked for separately, once the writer has said what kinds of thing this
+book needs. Do not name a cast, and do not write the premise as though one has been chosen for you.
 
 EVERY FIELD BELOW IS SOMETHING THE WRITER STARTS FROM AND SOMETHING THE MODEL READS ON EVERY CALL
 FOR THE LIFE OF THE BOOK. A line is not enough for either. Where a length is given, it is a floor
@@ -302,24 +315,46 @@ tense and the distance are. It is a description of PROSE: "short sentences, weat
 feeling, nobody's interior is ever stated" is the voice; "literary noir" is a genre and is no use
 here.
 
-Infer the spice level from the idea; use 2 when there is no signal.
+Infer the spice level from the idea; use 2 when there is no signal.`;
 
-Each character's description is forty to eighty words, and it is written to be READ BY A MODEL on
-every call, so it is dense and it is specific: what they look like in a way that shows on the page,
-what they want, what it costs them, what they will not do, and how they stand towards at least one
+/** #21 §2 · THE CAST, ASKED FOR SEPARATELY AND ONLY FOR THE KINDS THE WRITER WANTS.
+ *
+ *  It is given the scaffold that was just settled — the title, premise and setting the writer has
+ *  read and may have rewritten — so the cast belongs to the book as it stands rather than to the
+ *  sentence it started from. That is also what makes it re-rollable: the same scaffold asked twice
+ *  gives two casts for one book, and neither costs the premise.
+ *
+ *  THE KINDS ARE THE WRITER'S, and "none" is a real answer the old shape could not express: the
+ *  schema required at least two characters, so a book that wanted three places and no people had to
+ *  be given people and have them unticked. */
+export const CAST =
+`Populate a story that already exists. Its skeleton is below; it was written or approved by the
+writer, and you are not revising it.
+
+Return entries ONLY of the kinds asked for, and nothing of any other kind. If a kind is not listed,
+it is not wanted — that is a decision, not an omission.
+
+  character  a person in the book
+  lore       a place, an institution, a faction, a history
+  item       an object that matters
+  rule       a law of this world, or of this story, that holds until it is broken
+
+Each entry is a name, its kind, and a body of forty to eighty words written to be READ BY A MODEL
+on every call: dense and specific. What it looks like in a way that shows on the page, what it
+wants or what it does, what it costs, what it will not do, and how it stands towards at least one
 of the others. Facts, not atmosphere — "a mysterious past" is nothing; "struck off the register in
-'09 and still signs the forms" is something. Never a finished sentence of the book, because it will
-be in the prompt when the book is being written and a phrase that reads as prose gets lifted whole.
+'09 and still signs the forms" is something. Never a finished sentence of the book: it will be in
+the prompt while the book is written, and a phrase that reads as prose gets lifted whole.
 
-Also name two of those characters, or neither:
+If characters were asked for, also name two of them, or neither:
 
 - persona: the one the writer will speak as. The story's centre, the one with the most to lose.
 - lockedCharacter: the one the writing model must never write for, because the writer will. Usually
   the same as persona, and different only when the idea has an obvious second lead.
 
-Spell both exactly as they appear in your character list, or return the empty string. The empty
-string is a real answer: a story narrated from outside has no persona, and inventing one points the
-writer's byline at somebody who is not in their book. Never name anybody not on that list.`;
+Spell both exactly as they appear in your own list, or return the empty string. The empty string is
+a real answer: a story narrated from outside has no persona, and inventing one points the writer's
+byline at somebody who is not in their book. Never name anybody not on that list.`;
 
 /** The next chapter's name and its beat, proposed the moment the chapter opens.
  *
@@ -422,23 +457,43 @@ export const SPARK_SCHEMA = {
     // is spelled out as literals rather than stated as bounds it would drop.
     spice:   { type: 'integer', enum: [1, 2, 3, 4, 5] },
     writingStyle: { type: 'string' },
-    // Both must be one of the names in `characters` or the empty string. The empty string is a real
-    // answer and the schema allows it on purpose: a story with no protagonist to speak as is
-    // ordinary, and a proposal invented out of nothing would point the byline at nobody.
-    persona: { type: 'string' },
-    lockedCharacter: { type: 'string' },
-    characters: {
-      type: 'array', minItems: 2, maxItems: 5,
+  },
+  // #21 §2. `characters`, `persona` and `lockedCharacter` were HERE and were REQUIRED — which is
+  // why "no characters at this point" was unreachable without a schema change. They moved to
+  // CAST_SCHEMA, which is asked for separately and only for the kinds the writer wants.
+  required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle'],
+} as const;
+
+/** #21 §2 · WHAT THE CAST CALL RETURNS. Built per request rather than declared once, because the
+ *  kinds the writer asked for are an ENUM in it: the GBNF converter honours enums, so a book that
+ *  wanted places and no people cannot be handed a character by a model that felt like writing one.
+ *  The old shape could only ask for characters, and required two of them.
+ *
+ *  `persona` and `lockedCharacter` ride here rather than on the scaffold for the same reason they
+ *  are checked again in POST /api/stories: a name that is not in the cast points the writer's
+ *  byline at nobody, and the cast is what this call decides. */
+export const castSchema = (kinds: string[]) => ({
+  type: 'object',
+  properties: {
+    entries: {
+      type: 'array', minItems: 1, maxItems: 8,
       items: {
         type: 'object',
-        properties: { name: { type: 'string' }, role: { type: 'string' }, description: { type: 'string' } },
-        required: ['name', 'role', 'description'],
+        properties: {
+          name: { type: 'string' },
+          kind: { type: 'string', enum: kinds },
+          // No maxLength, per F25: the converter honours it and closes the string mid-word with
+          // the JSON still valid, so a body ending "and she signs the" would look finished.
+          body: { type: 'string' },
+        },
+        required: ['name', 'kind', 'body'],
       },
     },
+    persona: { type: 'string' },
+    lockedCharacter: { type: 'string' },
   },
-  required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle', 'characters',
-             'persona', 'lockedCharacter'],
-} as const;
+  required: ['entries', 'persona', 'lockedCharacter'],
+}) as const;
 
 /** The check. Runs on a passage the writer has selected, against the canon entries that
  *  actually reached the prompt for it.
