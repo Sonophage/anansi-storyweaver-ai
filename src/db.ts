@@ -1215,7 +1215,10 @@ export function upsertEntry(storyId: string, o: string, e: any) {
     // THE TITLE IS PART OF THE COMPARISON. A rename leaves the old name standing in every summary
     // that used it -- the sharpest version of the failure, because the summary now names somebody
     // the ledger has never heard of.
-    staleSummariesFor(storyId, `${cur.title}\n${cur.body ?? ''}`, `${e.title}\n${e.body ?? ''}`);
+    // `title: body` and not `title\nbody`, so the title lands where `labelOf` looks. Without the
+    // colon a card with an empty body reduced to a bare word at index 0, which the positional rule
+    // reads as a sentence opening and skips — and a rename is the sharpest case there is.
+    staleSummariesFor(storyId, `${cur.title}: ${cur.body ?? ''}`, `${e.title}: ${e.body ?? ''}`);
     touch(storyId); return e.id;
   }
   // Reuse a supplied id only if it is actually free. Seeding with known ids is useful; an

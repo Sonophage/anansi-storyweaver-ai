@@ -345,20 +345,59 @@ export const narrationOnly = (text: string) =>
  *  a change; a fact restated in other words reads as no change. The upgrade path is a model call
  *  asking what was lost, which costs one call per comparison — worth it only if this misses things
  *  in practice. Both callers FLAG rather than act, which is the right way round for that ceiling. */
-const NOT_A_NAME = new Set(['She', 'Her', 'Hers', 'His', 'Him', 'They', 'Their', 'Them', 'Its',
-  'The', 'This', 'That', 'These', 'Those', 'There', 'Then', 'When', 'What', 'Where', 'Which',
-  'Who', 'Whose', 'With', 'Without', 'And', 'But', 'For', 'Not', 'Nothing', 'You', 'Your', 'One',
-  'Only', 'Every', 'Each', 'Both', 'Neither', 'Never', 'Always', 'Even', 'Still', 'After',
-  'Before', 'Since', 'Until', 'While', 'Because', 'Though', 'Although', 'Under', 'Over']);
+/** A CAPITALISED WORD IS A NAME WHEN IT APPEARS SOMEWHERE A SENTENCE DOES NOT BEGIN.
+ *
+ *  This was a stopword list until 2026-08-30 and the list was the wrong shape. It held back 89 of
+ *  the first 140 rewrites in the full compaction — 64% — on words like `Upon`, `During`, `Unlike`,
+ *  `Instead`, `Despite`. Every one of those is a word that can open a sentence, and no list is
+ *  ever finished, because ANY word can open a sentence.
+ *
+ *  The positional rule needs no list. `Emperor` earns its place because the text also says "the
+ *  Emperor's forces"; `During` never appears anywhere but at a full stop. Checked against the 348
+ *  over-band rooms in the two imported books, both directions: all 17 real proper nouns kept
+ *  (Emperor, Legion, Imperium, Primarchs, Astartes, Mechanicus, Warp, Unification, Wars...) and
+ *  all 12 sentence-openers dropped. No misses either way.
+ *
+ *  THE LABEL IS ADDED BACK BY NAME. The card's own name lives at the front — `[Halsey: 34, ...]` —
+ *  which is a position a sentence begins in, so the positional rule alone would ignore the one
+ *  fact that matters most. It costs one regex and it closes the hole the rest of the rule opens.
+ *
+ *  The old list's documented ceiling is gone with it: a character NAMED for a common word is now
+ *  visible, because it is the position that decides and not the spelling. `The Anagram of Ash`
+ *  carried a card called "You" this morning, which the list could not see at all. */
+const labelOf = (t: string): string[] => {
+  const m = /^\s*\[?\s*([^:\]\n]{1,60}?)\s*:/.exec(t);
+  return m ? (m[1]!.match(/\b[A-Z][a-z]{2,}\b/g) ?? []) : [];
+};
 
-export const factsIn = (t: string): string[] => [
-  // `\d[\d,.:-]*\d|\d` and NOT `\d[\d,.:-]*`: the greedy form swallows the comma after a number,
-  // so "34," is compared against "34" and a fact that was merely repunctuated reads as lost.
-  ...new Set([...(String(t ?? '').match(/\d[\d,.:-]*\d|\d/g) ?? []),
-              ...(String(t ?? '').match(/\b[A-Z][a-z]{2,}\b/g) ?? []).filter((w) => !NOT_A_NAME.has(w))]),
-];
+const namesIn = (t: string): string[] => {
+  // THE POSITION IS COMPUTED FROM THE TEXT, not read off an optional capture group. The first
+  // version put `(^|[.;:!?—\n[(]\s*)?` in front of the word and asked whether the group had
+  // participated — and at index 0 V8 reports it as `undefined` even though `^` is what matched
+  // there, so the single most certain sentence-opening in the string read as mid-clause. Slicing
+  // is longer and cannot be wrong about it.
+  const seen = new Map<string, boolean>();
+  for (const m of t.matchAll(/\b([A-Z][a-z]{2,})\b/g)) {
+    const w = m[1]!;
+    const before = t.slice(0, m.index!);
+    const opens = /^\s*$/.test(before) || /[.;:!?—\n[(]\s*$/.test(before);
+    if (!seen.has(w)) seen.set(w, true);
+    if (!opens) seen.set(w, false);
+  }
+  return [...seen].filter(([, onlyAtStart]) => !onlyAtStart).map(([w]) => w);
+};
 
-/** The facts in `before` that `after` no longer carries. Empty means nothing was lost. */
+export const factsIn = (t: string): string[] => {
+  const text = String(t ?? '');
+  return [...new Set([
+    // `\d[\d,.:-]*\d|\d` and NOT `\d[\d,.:-]*`: the greedy form swallows the comma after a
+    // number, so "34," is compared against "34" and a repunctuated fact reads as lost.
+    ...(text.match(/\d[\d,.:-]*\d|\d/g) ?? []),
+    ...labelOf(text),
+    ...namesIn(text),
+  ])];
+};
+
 export const factsLost = (before: string, after: string): string[] =>
   factsIn(before).filter((k) => !after.includes(k));
 

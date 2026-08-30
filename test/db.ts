@@ -1877,19 +1877,21 @@ ok('a swap stales the summaries that named what it swapped away, and nothing els
     entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
   assert.ok(!fresh(), 'renaming a card stales the summaries that used the old name');
 
-  // 6 · THE CEILING, asserted so it is a known limit and not a surprise. A card whose name is a
-  // STOPWORD is invisible to this — and that is not hypothetical: `The Anagram of Ash` carried a
-  // character titled "You" until this morning. Renaming that one would stale nothing.
-  db.setSummary(ch.id, 'You wear the Ashford coat to the archive.', 1, hash);
+  // 6 · THE LIMIT THIS USED TO DOCUMENT IS GONE, and the assertion was deleted the way it asked
+  // to be. It said a card named for a stopword — "You", which `The Anagram of Ash` really carried
+  // — was invisible here, and that if it ever went red somebody had fixed it. Replacing the
+  // stopword list with the positional rule fixed it, and this went red the same hour.
+  //
+  // A NAME IS NOW DECIDED BY WHERE IT SITS, not by how it is spelled, so no spelling is exempt.
   const you = db.upsertEntry(s.id, o, { title: 'You', body: '',
     entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
+  db.setSummary(ch.id, 'You wear the Ashford coat to the archive.', 1, hash);
   assert.ok(fresh(), 'reset');
   db.upsertEntry(s.id, o, { id: you, title: 'Seth', body: '',
     entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-  assert.ok(fresh(),
-    'DOCUMENTING A LIMIT, NOT A FEATURE: "You" is in the stopword list that stops sentence '
-    + 'openers reading as names, so a character named for one is invisible here. If this ever '
-    + 'goes red somebody has fixed it — delete the assertion, do not restore the limit.');
+  assert.ok(!fresh(),
+    'a card named for a common word is renamed like any other, and the summaries that used the '
+    + 'old name are stale. This was a documented ceiling until the stopword list went.');
 
   db.delStory(s.id);
 });

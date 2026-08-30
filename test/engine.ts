@@ -469,13 +469,36 @@ ok('the fact detector catches a dropped name and ignores a reworded one', () => 
   assert.deepStrictEqual(lostOf('[Halsey: 34, ex-Watch]', '[Halsey: 34. Ex-Watch.]'), [],
     'repunctuation is not a lost fact');
 
-  // SENTENCE OPENERS ARE NOT NAMES. Bracket-form ledger bodies are full of them and they flagged
-  // as lost facts on the first real run of the compaction.
+  // SENTENCE OPENERS ARE NOT NAMES, AND THE RULE IS POSITION AND NOT SPELLING. This was a
+  // stopword list until 2026-08-30 and the list held back 89 of the first 140 rewrites in the
+  // full compaction — `Upon`, `During`, `Unlike`, `Instead`, `Despite`. No list is ever finished,
+  // because any word can open a sentence.
   const opener = '[Halsey: 34. She keeps the Martin cased. His debt to Marek is 900 crowns.]';
   assert.deepStrictEqual(lostOf(opener, '[Halsey: 34, the Martin cased, 900 crowns to Marek]'), [],
     'dropping "She" and "His" is a rewrite, not a lost fact');
   assert.deepStrictEqual(lostOf(opener, '[Halsey: 34, the Martin cased, a debt of 900]'), ['Marek'],
     'but a real name in the same sentence is still caught');
+
+  // THE CASE THE LIST COULD NOT REACH, both directions, from the live imported books. `Emperor`
+  // earns its place by appearing where no sentence begins; `During` never appears anywhere else.
+  const forty = 'Upon arrival he served the Emperor. During the Unification Wars the Emperor '
+    + 'named him. Despite the Warp, the Legion held.';
+  const got = factsIn(forty);
+  for (const real of ['Emperor', 'Unification', 'Wars', 'Warp', 'Legion'])
+    assert.ok(got.includes(real), `${real} is a proper noun in this text and must be a fact`);
+  for (const noise of ['Upon', 'During', 'Despite'])
+    assert.ok(!got.includes(noise),
+      `${noise} only ever opens a sentence here and must not read as a name — that is 64% of a `
+      + 'compaction run held back for nothing');
+
+  // THE CARD'S OWN NAME sits where a sentence begins, so the positional rule alone would ignore
+  // the one fact that matters most. The label is added back by name, and `db.staleSummariesFor`
+  // passes `title: body` rather than `title\nbody` so that a rename reaches it.
+  assert.ok(factsIn('[Halsey: 34, owes Marek]').includes('Halsey'),
+    'the opening label is a fact even though it opens the text');
+  assert.ok(factsIn('You: ').includes('You'),
+    'including when the card is named for a common word — this was a documented ceiling and is '
+    + 'not one any more');
 
   // ITS CEILING, asserted rather than only described: lexical, so it sees a DROP and not a
   // DISTORTION. If this ever goes red, somebody has made it smarter — delete the assertion.
