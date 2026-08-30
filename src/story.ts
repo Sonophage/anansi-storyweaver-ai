@@ -218,7 +218,8 @@ export const budgetFor = (story: any, slot: Slot, maxTokens = 900) => {
   // the surface rendered as "Context -168%" and "406 / -242". The guard still refuses; it just
   // no longer refuses with nonsense on screen.
   // PLAN-06 2d. SYSTEM is prepended by `render` and is not a block, so `buildContext` never sees
-  // it and its ~445 tokens of standing instruction were room the engine believed it still had.
+  // it and its standing instruction — 551 tokens as of COUNCIL-06 ship 5, 2026-08-30 — was room
+  // the engine believed it still had.
   // Taken off the budget rather than added to the blocks: a SYSTEM block would need a place in
   // ORDER, a colour, a name in BLOCK_ORIGIN and a row in the panel, which is the same argument
   // `context.ts:548` already used to keep the lockout on DIRECTIVE instead of giving it a block.

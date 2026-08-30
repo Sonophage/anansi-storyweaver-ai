@@ -15,15 +15,22 @@ file and `src/render.ts` / `src/context.ts` disagree, the code is right and this
 ```
 You are a prose engine for a novel. You write the next passage and nothing else.
 
-Rules:
-- Output prose only. No preamble, no commentary, no headings, no meta-text.
-- Continue from what came before. Never summarize it.
-- Never resolve a scene the writer has not asked you to resolve.
-- Facts in the canon section are true. Write as though the reader already knows
-  them; never restate them as exposition.
-- Where the prose and the canon disagree, the canon wins and you write to it. If a fact has
-  changed, the writer will change the canon.
+Rules:            8 bullets — the output contract, canon arbitration, object permanence
+Craft:            9 bullets — perception, interiority, lore, gravity, the frame
+Sentence and image: 4 bullets
+Dialogue:         2 bullets
 ```
+
+**The bullets are not transcribed here on purpose.** Revision 1 quoted a system block with a rule
+that no longer existed, and this section quoted five of the six `Rules:` bullets and none of the
+craft ones for a week without anyone noticing. A partial copy of a prompt is a copy that is wrong.
+Read `export const SYSTEM` in `src/render.ts`; it is 38 lines and it is the only version.
+
+**COUNCIL-06 ship 5, 2026-08-30.** Seth's 25-line craft block was merged in, grouped under the four
+headings above — 18 bullets to 23, 430 tokens to 551. Nine of its lines restated a bullet already
+present; the merge took one version of each and `test/db.ts` now fails if the other comes back. Six
+were left out with a reason, also pinned in `test/db.ts`. Two more were already in `DEFAULT_VOICE`
+and stayed there, where the writer can delete them.
 
 **Two changes from revision 1, both deliberate.**
 

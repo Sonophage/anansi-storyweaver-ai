@@ -101,7 +101,18 @@ ok('the reserve scales with the budget and with the reply length', () => {
   const small = story.budgetFor({ maxContext: 4000 }, slot);
   const full = story.budgetFor({ maxContext: null }, slot);
   assert.ok(full > small && full < 25024);
-  assert.ok(small > 4000 * 0.6, `a 4000-token story kept only ${small}`);
+  // 60% OF THE ROOM SYSTEM LEAVES, not 60% of the cap. This read `4000 * 0.6` until COUNCIL-06
+  // ship 5, when it went red for the wrong reason: SYSTEM grew from 430 tokens to 551 and a
+  // 4,000-token story dropped to 2,309. That is not the margin bug this check was written for —
+  // it is a fixed cost that does not scale and is not supposed to. Conflating the two made this
+  // an undocumented ceiling on SYSTEM's length that would have been discovered by deleting a
+  // rule to make a test pass.
+  const sys = story.estimate(render.SYSTEM);
+  assert.ok(small > (4000 - sys) * 0.6, `a 4000-token story kept only ${small} of ${4000 - sys}`);
+  // The bug itself, stated as the number it produced: a margin sized for the slot took 1,501
+  // tokens off a 4,000-token story. Anything near that is the bug back.
+  assert.ok(small > 4000 - 900 - 1501 - sys + 400,
+    `the margin is being sized for the slot again: ${small}`);
 
   // And the output reserve follows max_tokens, because the guard only counts the prompt.
   // A longer reply with a constant reserve ran prompt+output past the slot, green.
@@ -167,6 +178,76 @@ ok('SYSTEM is spent before the budget is offered, because it is on the wire eith
     assert.doesNotMatch(render.SYSTEM, tell,
       `SYSTEM carries what reads as a note about itself (${tell}). It is sent to the model — put `
       + 'the note in a code comment above the constant instead.');
+  }
+});
+
+// COUNCIL-06 ship 5 merged Seth's 25-line craft block into SYSTEM, and nine of its lines restated
+// a bullet that was already there. The merge took one version of each. This is the check that says
+// nobody re-adds the other one later, in either of the two places a craft rule can live.
+ok('no craft rule is said twice, in SYSTEM or across SYSTEM and the house voice', () => {
+  const bullets = render.SYSTEM.split('\n').filter((l) => l.startsWith('- '));
+  assert.ok(bullets.length > 20, `SYSTEM should be a real list, got ${bullets.length} bullets`);
+
+  const seen = new Map<string, string>();
+  for (const b of bullets) {
+    const key = b.toLowerCase().replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
+    assert.ok(!seen.has(key), `two bullets say the same thing:\n  ${seen.get(key)}\n  ${b}`);
+    seen.set(key, b);
+  }
+
+  // AND ACROSS THE TWO BLOCKS. SYSTEM is fixed and the voice is the writer's to edit, so a rule in
+  // both is a rule they cannot turn off — they delete it from the voice, it keeps arriving from
+  // SYSTEM, and the field stops meaning anything. Two of the craft block's lines were already in
+  // `DEFAULT_VOICE` — "anchor every scene in sensation, texture and distance" and "let the story
+  // unfold through ritual, risk and desire" — and were dropped from the merge for this reason.
+  //
+  // Five-word windows rather than whole lines: the pairs above are the same instruction with
+  // different wording either side, which an equality check would not see.
+  //
+  // ITS CEILING, so nobody reads a pass as proof there is no duplication: five words is a floor on
+  // what counts, and a rule restated in four words or in synonyms goes through. A known live
+  // example is SYSTEM's "Pick up mid-thought" against the narrate mode prompt's "Pick up
+  // mid-thought if the last line is unfinished" — four words, same rule, invisible here. Dropping
+  // to four windows produced false positives on ordinary phrasing, so this catches copy-paste and
+  // near-copy-paste and nothing subtler. ponytail: lexical, not semantic; a real one needs the
+  // model and is not worth a call per test run.
+  const words = (t: string) => t.toLowerCase().replace(/[^a-z ]+/g, ' ').split(/\s+/).filter(Boolean);
+  const voice = words(prompts.DEFAULT_VOICE);
+  const grams = new Set<string>();
+  for (let i = 0; i + 5 <= voice.length; i++) grams.add(voice.slice(i, i + 5).join(' '));
+  for (const b of bullets) {
+    const w = words(b);
+    for (let i = 0; i + 5 <= w.length; i++) {
+      const g = w.slice(i, i + 5).join(' ');
+      assert.ok(!grams.has(g),
+        `SYSTEM and DEFAULT_VOICE both say "${g}". One of them has to give it up — the voice, if `
+        + `the writer should be able to switch it off; SYSTEM, if they should not.\n  ${b}`);
+    }
+  }
+});
+
+// Each of these was in the craft block Seth sent and each was left out with a reason, so leaving
+// them out is a decision and not an oversight. Anyone may overrule any line here — but by deleting
+// its row and reading why first, rather than by pasting the line back and never seeing this.
+ok('the lines the council struck stay struck, and say why', () => {
+  const struck: [RegExp, string][] = [
+    [/begin in action or sensation/i,
+     'a SCENE-OPENING rule that fired on every mid-scene beat, which is what Anansi mostly writes. '
+     + 'It also contradicts the narrate mode prompt, which says to pick up mid-thought.'],
+    [/gestures invoke/i,
+     'three fragments with no form in them, restating the suggest-rather-than-explain bullet'],
+    [/mirrors internal state/i,
+     'pathetic fallacy as a standing instruction: the weather agreeing with the mood on every page'],
+    [/combat is emotionally charged/i,
+     'genre furniture in a default that has to serve a domestic two-hander as well as a war'],
+    [/advance information or deepen subtext/i,
+     'bans the flat domestic exchange, which is a register this library actually writes in'],
+    [/last three passages/i,
+     'the model cannot delimit three passages in the prompt it is given, and the sentence after '
+     + 'it — "Wait." — addresses a person'],
+  ];
+  for (const [rx, why] of struck) {
+    assert.doesNotMatch(render.SYSTEM, rx, `struck by COUNCIL-06 ship 5 and back in SYSTEM: ${why}`);
   }
 });
 

@@ -12,6 +12,22 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### The standing craft instructions are rewritten
+The rules every book is written under — the ones you never see and cannot edit — were a flat
+list of eighteen. They are twenty-three now, grouped: what the passage has to be, craft,
+sentence and image, and dialogue. Most of the new ones are about the line rather than the
+plot: balance motion and pause, let speakers go unfinished, dialogue that breaks on ambient
+noise, objects that stay where somebody left them.
+
+One rule was taken out rather than added. *Begin in action or sensation* is a rule for
+opening a scene, and almost nothing you press opens a scene — it was firing on every
+three-sentence beat in the middle of one, which is why so many passages started with a body
+part moving. It was also telling the model to start something while Narrate was telling it
+to pick up mid-thought.
+
+Nothing here is measured, and the honest claim is small: the standing instructions now say
+what they were meant to say. Whether the prose is better is a question for you, not for us.
+
 ### "A sample of your prose" is gone, and that is on purpose
 The box asked for a few hundred words of your own writing and sent them to the model on
 every call. It was empty on every book here, and the reason to stop offering it is a
