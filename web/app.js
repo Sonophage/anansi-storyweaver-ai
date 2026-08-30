@@ -2435,6 +2435,14 @@ const PANELS = {
         || '<div class="hint">No calls logged for this story yet.</div>'}
       ${ACT?.worstPrefillSeconds ? `<div class="row"><span style="color:var(--ink)">Worst prefill</span>
         <span class="tnum" style="margin-left:auto; color:var(--faint)">${ACT.worstPrefillSeconds}s</span></div>` : ''}
+      <!-- #9. HOW OFTEN THE REPAIR FIRES AND HOW OFTEN IT WORKS. It has corrected contradictions
+           before delivery since 2026-08-25 and nobody could say either number, while eighteen of
+           them reached the flags table anyway. The denominator is the calls where something WAS
+           wrong, not every call — a rate over every call would be a number nobody can act on. -->
+      ${ACT?.mends ? `<div class="row"><span style="color:var(--ink)">Contradictions caught</span>
+        <span class="tnum" style="margin-left:auto; color:${ACT.mends.left ? 'var(--warn)' : 'var(--faint)'}">${
+          ACT.mends.fixed} fixed${ACT.mends.left ? ` · ${ACT.mends.left} left` : ''} of ${
+          ACT.mends.found}, over ${ACT.mends.of} ${ACT.mends.of === 1 ? 'take' : 'takes'}</span></div>` : ''}
       <button class="btn" data-savegen="1" style="margin-top:16px">Save</button></div>`;
   },
 };
@@ -4390,6 +4398,35 @@ async function generate(mode = S.mode) {
   V = await api.story(S.storyId, V.currentChapter.id);
   arrive();
   paint(); pinToSeam(); refreshManifest(); refreshHistory();
+  const said = mendToast(r);
+  if (said) toast(said);
+}
+
+/** #9 · WHAT THE CONTRADICTION REPAIR DID TO THIS TAKE, said at the take.
+ *
+ *  Seth: *"Contradictions are still showing up and they show up late."* They were showing up as
+ *  flags AFTER accept, and the reason was not that nothing checked — the repair has run before
+ *  delivery since 2026-08-25. It ran, it returned its counts, and **the browser threw them away**,
+ *  so a repair that failed looked exactly like a passage with nothing wrong.
+ *
+ *  Late is the complaint, so this is said now: at the take, in the window the writer is already
+ *  reading it in. Silence still means the common case — most passages contradict nothing, `mend`
+ *  returns null, and there is no toast about a thing that did not happen.
+ *
+ *  A REPAIR THAT FAILED IS THE ONE WORTH INTERRUPTING FOR. It is the case where the prose on the
+ *  page is known to be wrong, and until now the only sign was a red line appearing later. */
+function mendToast(r) {
+  const found = Number(r?.found ?? 0);
+  if (!found) return null;
+  const unfixed = Number(r.unfixed ?? 0), mended = Number(r.mended ?? 0);
+  const many = (n) => `${n} contradiction${n === 1 ? '' : 's'}`;
+  if (r.unchecked) return `${many(found)} found and repaired — the second check did not answer, `
+    + 'so whether they are gone is not known.';
+  if (r.refused) return `${many(found)} found, and the repair came back too short to trust — `
+    + 'this take still contradicts the canon. Re-roll it, or fix it by hand.';
+  if (!unfixed) return `${many(mended)} caught and fixed before this landed.`;
+  return `${many(unfixed)} of ${found} survived the repair — this take still contradicts the canon. `
+    + 'Re-roll it, or fix it by hand.';
 }
 
 /** Mark the newest passage so it fades in once, and only once. The flag is cleared on a timer
@@ -4469,9 +4506,11 @@ async function regenerateInto(id) {
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
   V = await api.story(S.storyId, V.currentChapter.id);
   paint(); refreshManifest(); refreshHistory();
-  toast(r.reusedDirective
+  // #9 first: a take that still contradicts the canon outranks a note about which instruction it
+  // re-ran. Both are toasts and only one is read.
+  toast(mendToast(r) ?? (r.reusedDirective
     ? `New take on your instruction: ${String(r.reusedDirective).slice(0, 90)}`
-    : 'New take kept. Both are in History, with the canon each was written against.');
+    : 'New take kept. Both are in History, with the canon each was written against.'));
 }
 
 

@@ -12,6 +12,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### A contradiction that survives its repair now says so, at the take
+Anansi has checked each passage against your canon and corrected it before you see it since
+2026-08-25 — but it never looked twice, so it counted a repair it had ATTEMPTED as a repair
+that had WORKED, and told you nothing either way. Contradictions that survived turned up
+later as red flags, which is exactly the complaint.
+
+The fixed passage is now checked again. If the contradiction is gone you are told it was
+caught; if it survived, you are told at the take, while you are reading it, instead of
+finding a flag after you have accepted it. Storyteller also shows how often this fires and
+how often it works, over the takes where something was actually wrong.
+
 ### A library of voices and styles, and your own default voice at last
 Save the voice or the house style you are using under a name, and it is there for every
 book you write — press one to copy it into the book you are in. They are copies: changing

@@ -206,6 +206,8 @@ function migrate() {
   drop('stories', 'system_block_override', 'a P1 stub for a per-story SYSTEM, never read');
   drop('passages', 'token_counts', 'a P1 stub for SPEC §7.5 tokenizer-keyed counts, never read');
   drop('stories', 'strip_patterns', '#26: strip-from-output is ripped, feature and column');
+  // #9. On a database that already exists the CREATE above does not add it.
+  add('generations', 'mend', 'TEXT');
   // #24. A TABLE rather than a column, so it does not go through `drop` above. Its five batches
   // were written into docs/WHATS-NEW.md before this shipped; the file is the record now and the
   // model call that filled this is gone. Guarded on existence so the line is quiet on a database
@@ -427,7 +429,13 @@ CREATE TABLE IF NOT EXISTS generations (
   id TEXT PRIMARY KEY, story_id TEXT, chapter_id TEXT, passage_id TEXT,
   model TEXT, role TEXT, params TEXT, manifest TEXT,
   prompt_tokens INTEGER, completion_tokens INTEGER, timings TEXT,
-  latency_ms INTEGER, error TEXT, created_at INTEGER NOT NULL);
+  latency_ms INTEGER, error TEXT, created_at INTEGER NOT NULL,
+  -- #9. What the contradiction repair did to this take, as JSON: how many the check found, how
+  -- many were gone when the fixed prose was checked again, and how many survived. NULL is "the
+  -- repair never ran", which is most calls and is not the same as zero — the whole point of
+  -- recording it is that "it fires and it works" was believed for four days without a number
+  -- anywhere to read it off.
+  mend TEXT);
 -- generations is the fastest-growing table and recentGenerations sorts it by time.
 CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at);
 
@@ -2059,8 +2067,17 @@ export function writerStats(o: string) {
 }
 
 export const recentGenerations = (storyId: string, limit = 40) => q(
-  `SELECT id, role, model, prompt_tokens, completion_tokens, latency_ms, timings, error, created_at
+  `SELECT id, role, model, prompt_tokens, completion_tokens, latency_ms, timings, error, created_at,
+          mend
    FROM generations WHERE story_id = ? ORDER BY created_at DESC LIMIT ?`).all(storyId, limit) as any[];
+
+/** #9. What the repair did, written onto the row the generation already has.
+ *
+ *  A second statement rather than an argument to `logGeneration`, because the log happens BEFORE
+ *  the repair — the id has to exist so the take can be tied to it, and a generation that succeeded
+ *  must stay logged even if the repair throws. */
+export const noteMend = (id: string, m: unknown) =>
+  q('UPDATE generations SET mend = ? WHERE id = ?').run(JSON.stringify(m), id);
 
 export function logGeneration(g: any) {
   const gid = uid('g-');

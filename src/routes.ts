@@ -355,10 +355,32 @@ const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
 
 /** Contradictions are the model's mistake, so the model is the one told about them, before the
  *  passage is delivered rather than after it is on the page as a red line for the writer to read
- *  and act on. One attempt: what survives it still becomes a flag at accept, which is the net
- *  that was already there.
+ *  and act on.
  *
- *  Returns null when there is nothing to do, so the caller keeps the prose it had. */
+ *  #9 · IT SAID IT HAD FIXED THEM AND NOBODY EVER CHECKED. Seth: *"Contradictions are still showing
+ *  up and they show up late."* Measured against the live library on 2026-08-29: eighteen violations,
+ *  **every one of them on a model-written passage** — so every one went through this function and
+ *  came out still contradicting. The newest was written the same day, three days after this
+ *  function shipped. The machinery was not missing; it was unverified and invisible.
+ *
+ *  Three things were wrong and all three were silence:
+ *
+ *  IT NEVER RE-CHECKED. `mended: found.length` was a claim that the repair worked, asserted from
+ *  the fact that a repair was attempted. Now the fixed prose goes back through the same detector,
+ *  so `mended` counts contradictions that are actually gone and `unfixed` counts the ones that
+ *  survived their own repair. This project has been bitten by exactly this before: a zero is not an
+ *  absence, and neither is an attempt.
+ *
+ *  THE LENGTH FLOOR KEPT THE BROKEN PROSE AND SAID NOTHING. It is still the guard against a repair
+ *  that rewrites instead of correcting, and it still cannot catch a same-length rewrite — but a
+ *  rejection now reports `unfixed` rather than looking like a clean run.
+ *
+ *  NOTHING WAS RECORDED. The counts were returned to the browser, which ignored them, and were
+ *  written nowhere. Nobody could say how often this fires or how often it works. They ride on the
+ *  generation row now, which is what `bench/` reads.
+ *
+ *  Returns null when there is nothing to do, so the caller keeps the prose it had — which is most
+ *  calls, and the reason the second check costs nothing on the common path. */
 async function mend(v: any, manifest: any, prose: string, using: string, maxTokens: number) {
   const facts = factsFor(v, manifest, v.currentChapter.index);
   const { found } = await contradictionsIn(facts, prose).catch(() => ({ found: [] as any[] }));
@@ -373,8 +395,26 @@ async function mend(v: any, manifest: any, prose: string, using: string, maxToke
     // ponytail: a length floor is the whole guard against a repair that rewrites instead of
     // correcting. It catches the empty answer, the refusal and the one-line summary; it cannot
     // catch a same-length rewrite. Compare sentence-by-sentence if that turns out to happen.
-    if (fixed.length < prose.length * 0.6) return { prose, mended: 0, unfixed: found.length };
-    return { prose: fixed, mended: found.length, unfixed: 0 };
+    if (fixed.length < prose.length * 0.6) {
+      return { prose, found: found.length, mended: 0, unfixed: found.length, refused: true };
+    }
+    // THE SECOND LOOK. One more call, only ever on a passage that was already wrong, and it is the
+    // difference between "a repair was attempted" and "the contradiction is gone".
+    const after = await contradictionsIn(facts, fixed).catch(() => null);
+    // A detector that failed to answer says nothing either way. Reporting 0 there would be the
+    // zero-is-not-an-absence mistake in the one place it costs the most.
+    //
+    // AND `contradictionsIn` HAS TWO WAYS OF FAILING. It throws on a dead router, and it RETURNS
+    // `{ found: [], error }` when the model answers nothing usable — which is the same shape as a
+    // clean passage. Reading only the thrown one was a hole: an unusable answer would have been
+    // read as "nothing left", the repair reported as a success, and the writer told the
+    // contradiction was gone on the strength of a reply nobody could parse. Found by falsifying
+    // this line and watching the check stay green.
+    const left = after && !after.error ? after.found.length : null;
+    return { prose: fixed, found: found.length,
+             mended: left === null ? 0 : found.length - left,
+             unfixed: left ?? found.length,
+             unchecked: left === null };
   } catch { return null; }   // the writer keeps the passage; accept will flag it
 }
 
@@ -437,10 +477,18 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // passage to settle in. `mend` returns null when there is nothing wrong, which is most calls.
     const prose = clean(r.prose);
     const m = await mend(v, manifest, prose, using, Number(c.gen.max_tokens) || 900);
+    // #9. Recorded, not merely returned. These counts were handed to the browser, which ignored
+    // them, and written nowhere — so "the repair fires and it works" went four days without a
+    // number anywhere to read it off, while eighteen contradictions reached the flags table.
+    if (m) db.noteMend(genId, { found: m.found, mended: m.mended, unfixed: m.unfixed,
+                                refused: !!(m as any).refused, unchecked: !!(m as any).unchecked });
     // Handed back so `accept` can tie the take to this call. The manifest is logged here, before
     // any passage exists, so nothing connected a take to the canon it was written against.
     return { prose: m?.prose ?? prose, reasoning: r.reasoning.length,
-             mended: m?.mended ?? 0, unfixed: m?.unfixed ?? 0,
+             // #9. `found` rides too: without it the surface cannot tell "nothing was wrong" from
+             // "everything was repaired", and those are not the same sentence.
+             found: m?.found ?? 0, mended: m?.mended ?? 0, unfixed: m?.unfixed ?? 0,
+             refused: !!(m as any)?.refused, unchecked: !!(m as any)?.unchecked,
              // Only when it was inherited rather than typed: the surface says which instruction it
              // re-ran, because silently re-applying one reads as the model deciding on its own.
              ...(directive && !directive0?.trim() ? { reusedDirective: directive } : {}),
@@ -2121,9 +2169,25 @@ export const routes: Record<string, Handler> = {
         seconds: r.latency_ms == null ? null : +(r.latency_ms / 1000).toFixed(1),
         prefillSeconds: t(r).prompt_ms ? +(t(r).prompt_ms / 1000).toFixed(2) : null,
         prefillRate: t(r).prompt_per_second ? Math.round(t(r).prompt_per_second) : null,
+        // #9. Null on the calls where nothing was wrong, which is most of them — and null is NOT
+        // zero here. A clean run and a run whose repair failed would otherwise read the same in
+        // the one place either is recorded.
+        mend: (() => { try { return r.mend ? JSON.parse(r.mend) : null; } catch { return null; } })(),
       })),
       worstPrefillSeconds: prefills.length ? +(Math.max(...prefills) / 1000).toFixed(2) : null,
       failures: rows.filter((r) => r.error).length,
+      // #9. HOW OFTEN THE REPAIR FIRES AND HOW OFTEN IT WORKS, over the calls on this story. It ran
+      // for four days with nobody able to say either — while eighteen contradictions reached the
+      // flags table, every one of them on a passage that had been through it.
+      // `of` is the informative denominator: the calls where something WAS wrong, not every call.
+      mends: (() => {
+        const m = rows.map((r) => { try { return r.mend ? JSON.parse(r.mend) : null; } catch { return null; } })
+          .filter(Boolean) as any[];
+        if (!m.length) return null;
+        return { of: m.length, found: m.reduce((n, x) => n + (x.found ?? 0), 0),
+                 fixed: m.reduce((n, x) => n + (x.mended ?? 0), 0),
+                 left: m.reduce((n, x) => n + (x.unfixed ?? 0), 0) };
+      })(),
     };
   },
 
