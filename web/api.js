@@ -82,6 +82,9 @@ export const api = {
   // the skeleton AS IT STANDS, so the cast belongs to the book on screen rather than to the
   // sentence it started from — which is also what makes asking twice a re-roll.
   sparkCastCall: (kinds, story)  => j('/api/spark/cast', 'POST', { kinds, story }),
+  // #21 §3 step 5. Reads the whole skeleton back and says what it would change. Proposes
+  // only — there is no story yet for it to write to.
+  sparkReview:  (story, entries) => j('/api/spark/review', 'POST', { story, entries }),
   // `into` sends the book's threads to another of yours before it goes. The prose is the book and
   // goes with it; a cast and a city are work that outlives the story they were written for.
   deleteStory:  (id, into)       => j('/api/stories', 'DELETE', { id, ...(into ? { into } : {}) }),

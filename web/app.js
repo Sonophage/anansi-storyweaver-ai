@@ -281,7 +281,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
   'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
-  'spkind', 'spwritecast', 'spreroll',
+  'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   'applylib', 'savelib', 'dellib', 'setvoice',
   'seedpick',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
@@ -2529,12 +2529,32 @@ function searchHits() {
  *
  *  The fields are harvested into S.spark on every move, because a step that is not rendered is not
  *  in the DOM — the single-scroll version could read every value at accept time and this cannot. */
+/** #21 §3 · THE ORDER SETH ASKED FOR, and both paths use it: "Start it yourself" is the SAME
+ *  wizard, and the only difference is whether each step arrives pre-filled by the model.
+ *  checks.md: "one just circumvents the ai assistence but its still there every step of the way."
+ *
+ *  What it replaced was five steps that put the cast third and the voice last, and asked for the
+ *  idea on a different screen entirely. The order below is the one thing here that is not a
+ *  judgement call — it is the list in #21, in the order it is written:
+ *
+ *    the idea, the book, you, the cast, a second look, the first scene, the opening, and only
+ *    then does the book open.
+ *
+ *  A SECOND LOOK IS FIFTH BECAUSE IT CANNOT BE EARLIER. It is the first moment anything can be
+ *  judged as a whole — the premise was written before the cast existed, and the cast was written
+ *  from a premise the writer may since have rewritten.
+ *
+ *  Accept stays on every step, which is Seth's own call from the five-step version: everything is
+ *  prefilled, so gating eight screens would turn one press into eight. */
 const STEPS = [
-  ['The book', 'What it is.'],
-  ['The world', 'Where it happens, and how it is told.'],
-  ['The cast', 'Who is in it. You can add your own.'],
-  ['You', 'Who you play, and who the model never writes.'],
-  ['The voice', 'How the prose sounds, and who opens it.'],
+  ['Your idea', 'The sentence this came from.'],
+  ['The book', 'What it is, and how the prose sounds.'],
+  ['You', 'Who you play, and how it is told.'],
+  ['The cast', 'What this book needs, if anything.'],
+  ['A second look', 'Anansi reads it back and says what she would change.'],
+  ['The first scene', 'Where it opens, and what the book is aiming at.'],
+  ['The opening', 'Who writes the first passage.'],
+  ['Begin', 'What gets written when you accept.'],
 ];
 
 /** Read whatever this step has on screen back into state. Called before every move, including
@@ -2543,6 +2563,10 @@ function harvestSpark() {
   if (!S.spark) return;
   for (const el of document.querySelectorAll('[data-sp]')) {
     const k = el.dataset.sp;
+    // #21 §3 step 1. The idea is not a field of the STORY — it is what the story was asked for
+    // from, and every re-roll sends exactly it. Writing it into `story` would carry a column
+    // nobody has to POST /api/stories and lose the one thing a re-roll needs.
+    if (k === 'idea') { S.spark.idea = el.value; continue; }
     S.spark.story[k] = k === 'spice' ? Number(el.value) || 2 : el.value;
   }
   for (const c of document.querySelectorAll('[data-spcast]')) {
@@ -2593,20 +2617,58 @@ function sparkReview() {
     </select>${hint ? `<div class="hint">${hint}</div>` : ''}`;
 
   const cast = sparkCast();
+  const reroll = (label) => S.spark.idea
+    ? `<button class="btn ghost" data-spreroll="1" ${S.spark.sparking ? 'disabled' : ''}
+        style="margin-top:6px">${S.spark.sparking ? 'Thinking&hellip;' : esc(label)}</button>` : '';
+
   const body = step === 1
+    // 1 · THE IDEA. It used to live on a different screen and was gone the moment you sparked, so
+    // the one sentence everything came from could not be read, corrected, or asked again from.
+    ? `${area('idea', 'What you gave her', S.spark.idea ?? '',
+         'Every re-roll on the next step asks again from exactly this. Change it and the next '
+         + 'answer changes with it.', 100)}
+       ${reroll('Ask again from this')}`
+    : step === 2
+    // 2 · THE BOOK. Title, genre, premise — and the voice, which was on the last step where it was
+    // read after every decision it should have been informing.
     ? `${row('title', 'Title', s.title)}
        ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag on the shelf.')}
        ${area('premise', 'Premise', s.premise, 'It rides in the spine on every call.', 110)}
-       <!-- #21 §2. The only retry used to be Throw it back, which nulls the wizard and makes you
-            retype the idea. This asks the same idea again and replaces the skeleton alone — the
-            cast, if one has been written, is left where it is. -->
-       ${S.spark.idea ? `<button class="btn ghost" data-spreroll="1" ${S.spark.sparking ? 'disabled' : ''}
-         style="margin-top:6px">${S.spark.sparking ? 'Thinking&hellip;' : 'Ask again from your idea'}</button>
-       <div class="hint">Same idea, another skeleton. What you have typed here is replaced; the cast
-         is not.</div>` : ''}`
-    : step === 2
-    ? `${row('setting', 'Setting', s.setting, 'Where it happens. Lore written later can replace this.')}
-       <label class="lbl">Point of view</label>
+       ${reroll('Ask again from your idea')}
+       ${S.spark.idea ? `<div class="hint">Same idea, another skeleton. What is typed here is
+         replaced; the cast is not.</div>` : ''}
+       ${area('writingStyle', 'Voice of the weave', s.writingStyle,
+         'How the narration behaves, as instructions.', 150)}
+       ${S.prompts?.voice ? `<div style="display:flex; gap:7px; margin:-4px 0 10px">
+         <button class="btn ghost" data-spvoice="mine" style="flex:1; font-size:11.5px">Use my default voice</button>
+         <button class="btn ghost" data-spvoice="shipped" style="flex:1; font-size:11.5px">Use the shipped one</button>
+       </div>` : ''}
+       ${area('styleNote', 'How this book is written', s.styleNote,
+         "This book's genre flavour, kept apart from the voice: romance and science fiction are not "
+         + 'the same writing style. It gets its own block under the voice.', 80)}`
+    : step === 3
+    // 3 · YOU. Before the cast, on purpose — who you play is a decision about the book, not a pick
+    // from a list somebody else wrote. With no cast yet both are free text; once there is one they
+    // become a pick over it, and what you typed is still on offer.
+    ? `${cast.length
+        ? pickOne('persona', 'You are', cast.map((e) => e.title), s.persona, 'Nobody — narrate only',
+            'The character you speak as in Speak mode.')
+        : row('persona', 'You are', s.persona,
+            'The character you speak as in Speak mode. Name them now or leave it — the cast '
+            + 'comes next, and this becomes a pick over it.')}
+       ${cast.length
+        ? pickOne('lockedCharacter', 'The model never writes', cast.map((e) => e.title),
+            s.lockedCharacter, 'Nobody — it may write everyone',
+            'No dialogue, no action, no interior for them.')
+        : row('lockedCharacter', 'The model never writes', s.lockedCharacter,
+            'No dialogue, no action, no interior for them.')}
+       <!-- #21 §3. Both DEFAULT to the one you play, which is the usual answer and was not the
+            default before: the columns stay separate, because a book with a second lead the writer
+            does not speak as is a real shape and spark proposes them independently. -->
+       ${s.persona && s.persona !== s.lockedCharacter
+         ? `<button class="btn ghost" data-splock="1" style="margin-top:2px">Also keep ${esc(s.persona)}
+              off the model</button>` : ''}
+       <label class="lbl" style="margin-top:16px">Point of view</label>
        <select class="field" data-sp="pov">${POV.map((o) =>
          `<option value="${esc(o)}" ${o === s.pov ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
        <div class="hint">${esc(POV_EXAMPLE[s.pov] ?? '')}</div>
@@ -2615,12 +2677,9 @@ function sparkReview() {
          `<option value="${i + 1}" ${Number(s.spice) === i + 1 ? 'selected' : ''}>${i + 1} &middot; ${esc(l)}</option>`).join('')}</select>
        <div class="hint">Changeable per story at any time, and a written-out register can replace the
          level entirely under Story.</div>`
-    : step === 3
-    ? `<!-- #21 §2. THE CAST IS ITS OWN CALL NOW, and it runs only once the writer has said what
-             kinds of thread this book needs. It used to ride on the spark, where the schema
-             REQUIRED two characters — so a book that wanted three places and no people had to be
-             given people and have them unticked, and "none at this point" was unreachable. -->
-       <div style="display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px">
+    : step === 4
+    // 4 · THE CAST, and only the kinds this book needs. #21 §2 made it its own call.
+    ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px">
          ${KINDS.map((k) => {
            const on = (S.spark.kinds ?? ['character']).includes(k);
            return `<button data-spkind="${k}" style="font-size:11.5px; padding:7px 14px;
@@ -2641,40 +2700,68 @@ function sparkReview() {
          <div style="display:flex; align-items:center; gap:8px">
            <input class="field" data-spname="${i}" value="${esc(e.title)}" placeholder="Their name"
              style="margin:0; font-size:14px; color:var(--ink-bright)">
-           <span class="tag" style="flex:0 0 auto">${esc(e.activation === 'always_on' ? 'Always on' : 'Triggered')}</span></div>
+           <span class="tag" style="flex:0 0 auto">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
          <textarea class="field" data-spbody="${i}" placeholder="[Name: what they are, what they want, what it costs]"
            style="margin:0; min-height:64px; font-size:12.5px; line-height:1.45">${esc(e.body ?? '')}</textarea>
          <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint)">
            <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label></div>`).join('')}
        <button class="btn ghost" data-spadd="1" style="margin-top:6px">&#65291; Write one of your own</button>`
-    : step === 4
-    ? (cast.length
-        ? `${pickOne('persona', 'You are', cast.map((e) => e.title), s.persona, 'Nobody \u2014 narrate only',
-             'The character you speak as in Speak mode. Anansi proposed one; it is yours to change.')}
-           ${pickOne('lockedCharacter', 'The model never writes', cast.map((e) => e.title), s.lockedCharacter,
-             'Nobody \u2014 it may write everyone',
-             'No dialogue, no action, no interior for them. Usually the one you play.')}
-           <div class="hint">Both are offered from the cast you kept on the last step, because a name
-             that is not in the book points at nobody.</div>`
-        : `<div class="hint" style="margin:0">You kept nobody, so there is no one to play yet. That is
-             a real answer &mdash; a story narrated from outside has no persona, and you can name one
-             on the Story panel once there is a cast.</div>`)
-    : `${area('writingStyle', 'Voice of the weave', s.writingStyle,
-         'How the narration behaves, as instructions.', 150)}
-       ${S.prompts?.voice ? `<div style="display:flex; gap:7px; margin:-4px 0 10px">
-         <button class="btn ghost" data-spvoice="mine" style="flex:1; font-size:11.5px">Use my default voice</button>
-         <button class="btn ghost" data-spvoice="shipped" style="flex:1; font-size:11.5px">Use the shipped one</button>
-       </div>` : ''}
-       ${area('styleNote', 'How this book is written', s.styleNote,
-         "This book's genre flavour, kept apart from the voice: romance and science fiction are not "
-         + 'the same writing style. It gets its own block under the voice.', 80)}
-       ${area('direction', 'Where this is going', s.direction,
-         'Aims the story without disclosing it. Never restated to the reader. Safe to leave empty.', 80)}
-       <label style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute); margin-top:14px">
+    : step === 5
+    // 5 · A SECOND LOOK. From a button, never on arriving: a model call nobody asked for is what
+    // made "what changed" slow, and #24 is the whole argument.
+    ? `<button class="btn ghost" data-spreview="1" ${S.spark.reviewing ? 'disabled' : ''}
+         style="margin-bottom:10px">${S.spark.reviewing ? 'Reading it back&hellip;'
+           : S.spark.review ? 'Read it back again' : 'Ask what she would change'}</button>
+       ${!S.spark.review ? `<div class="hint" style="margin:0">Nothing has been asked yet. This is the
+         first point where the book can be read as a whole &mdash; the premise was written before
+         the cast existed, and the cast from a premise you may have rewritten since. Skipping it
+         costs nothing.</div>`
+       : (S.spark.review.changes.length || S.spark.review.entries.length)
+       ? `${S.spark.review.changes.map((ch, i) => `<div class="card" style="margin-bottom:8px; gap:6px">
+           <div class="kind">${esc(ch.field)}</div>
+           <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(ch.value)}</div>
+           <div class="hint" style="margin:0">${esc(ch.why)}</div>
+           <button class="btn ghost" data-spapply="${i}" style="width:auto; padding:0 14px; height:32px;
+             font-size:11.5px">Use this instead</button></div>`).join('')}
+          ${S.spark.review.entries.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:14px"
+            >Threads she would add</div>
+            ${S.spark.review.entries.map((e, i) => `<div class="card" style="margin-bottom:8px; gap:6px">
+              <div style="display:flex; align-items:baseline; gap:8px">
+                <span style="font-size:14px; color:var(--ink-bright)">${esc(e.title)}</span>
+                <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
+              <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(e.body)}</div>
+              <button class="btn ghost" data-spaddone="${i}" style="width:auto; padding:0 14px; height:32px;
+                font-size:11.5px">Add to the cast</button></div>`).join('')}` : ''}`
+       : `<div class="hint" style="margin:0">She would not change anything. That is a real answer and
+          it is the one a skeleton that hangs together gets.</div>`}`
+    : step === 6
+    // 6 · THE FIRST SCENE. `direction` already exists and already rides in SPINE; this is the step
+    // that finally asks for it at the moment it means something.
+    ? `${area('direction', 'Where this is going', s.direction,
+         'Aims the story without disclosing it. Never restated to the reader. Safe to leave empty.', 90)}
+       ${row('setting', 'Where it opens', s.setting,
+         'Lore written later can replace this. It is the place the first scene stands in.')}
+       ${cast.length ? `<div class="hint" style="margin-top:10px">Everyone you kept is in the book
+         from the first line &mdash; a spark cast is always-on. Who is in a given SCENE is a
+         chapter's own question, and the chapter screen asks it.</div>` : ''}`
+    : step === 7
+    // 7 · THE OPENING.
+    ? `<label style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute)">
          <input type="checkbox" data-sp-open="1" ${S.spark.autoOpen === false ? '' : 'checked'}>
          Let the model write the opening passage</label>
        <div class="hint">And the first passage of every chapter after it. Changeable per story under
-         Storyteller.</div>`;
+         Storyteller. Leave it off and the first page is yours.</div>`
+    // 8 · BEGIN. What accepting actually writes, said before it is pressed.
+    : `<div class="hint" style="margin:0 0 12px">Nothing has been written yet. Accepting creates all
+         of this at once.</div>
+       ${[[`${esc(s.title || 'Untitled')}`, 'the book, with its premise, voice and style'],
+          [`${cast.length} ${cast.length === 1 ? 'thread' : 'threads'}`,
+           cast.length ? 'in the ledger, always on' : 'nothing in the ledger yet'],
+          [s.persona ? esc(s.persona) : 'Nobody', 'the one you speak as'],
+          [s.lockedCharacter ? esc(s.lockedCharacter) : 'Nobody', 'the one the model never writes'],
+          [S.spark.autoOpen === false ? 'You write it' : 'Anansi writes it', 'the first passage']]
+         .map(([what, why]) => `<div class="row"><span style="color:var(--ink)">${what}</span>
+           <span style="margin-left:auto; color:var(--faint); font-size:11.5px">${why}</span></div>`).join('')}`;
 
   return `<div style="display:flex; gap:5px; margin-bottom:14px">${STEPS.map(([t], i) => `
       <button data-sparkstep="${i + 1}" aria-pressed="${step === i + 1}" style="flex:1; height:5px;
@@ -5958,6 +6045,9 @@ document.addEventListener('click', async (e) => {
     // asked for, defaulting to characters because that is what the one-call version always gave.
     S.spark = { story: r.story ?? {}, entries: r.entries ?? [], autoOpen: true,
       idea, kinds: ['character'], casting: false, sparking: false,
+      // #21 §3 step 5. Null until asked for: it fires from a button, and "not asked yet" and
+      // "asked, and she would change nothing" are different screens.
+      reviewing: false, review: null,
       // What Anansi proposed, kept as it arrived. The server polices ONLY these names, so an edit
       // here must not rewrite them — a persona the writer types is theirs and is never dropped.
       proposed: [r.story?.persona, r.story?.lockedCharacter].filter(Boolean) };
@@ -5998,6 +6088,50 @@ document.addEventListener('click', async (e) => {
     S.spark.proposed = [r.persona, r.lockedCharacter].filter(Boolean);
     paint();
     return toast(`${S.spark.entries.length} proposed. Nothing is written until you accept.`);
+  }
+  // #21 §3 · STEP 3. Both default to the one you play, which is the usual answer. The COLUMNS
+  // stay separate — a book with a second lead the writer does not speak as is a real shape, and
+  // spark proposes them independently — so this is a press, not a rule.
+  if (d.splock) {
+    harvestSpark();
+    S.spark.story.lockedCharacter = S.spark.story.persona ?? null;
+    paint();
+    return;
+  }
+  // #21 §3 · STEP 5. From a button, never on arriving at the step: a model call nobody asked for
+  // is what made "what changed" slow, and #24 is the whole argument.
+  if (d.spreview) {
+    if (S.spark.reviewing) return;
+    harvestSpark();
+    S.spark.reviewing = true; paint();
+    const r = await api.sparkReview(S.spark.story, sparkCast());
+    S.spark.reviewing = false;
+    if (r.error) { paint(); return toast(r.error); }
+    S.spark.review = { changes: r.changes ?? [], entries: r.entries ?? [] };
+    paint();
+    return toast(S.spark.review.changes.length || S.spark.review.entries.length
+      ? 'Read back. Nothing is applied until you press it.'
+      : 'She would not change anything.');
+  }
+  // ONE PRESS, ONE CHANGE, AND IT LEAVES THE LIST. A suggestion still on screen after it has been
+  // taken reads as one you have not decided about yet.
+  if (d.spapply !== undefined) {
+    harvestSpark();
+    const ch = S.spark.review?.changes?.[Number(d.spapply)];
+    if (!ch) return;
+    S.spark.story[ch.field] = ch.value;
+    S.spark.review.changes = S.spark.review.changes.filter((_, i) => i !== Number(d.spapply));
+    paint();
+    return toast(`${ch.field} replaced. It is still yours to edit.`);
+  }
+  if (d.spaddone !== undefined) {
+    harvestSpark();
+    const e = S.spark.review?.entries?.[Number(d.spaddone)];
+    if (!e) return;
+    S.spark.entries = [...S.spark.entries, { ...e, keep: true }];
+    S.spark.review.entries = S.spark.review.entries.filter((_, i) => i !== Number(d.spaddone));
+    paint();
+    return toast(`${e.title} added to the cast.`);
   }
   if (d.spreroll) {
     if (S.spark.sparking) return;

@@ -356,6 +356,79 @@ Spell both exactly as they appear in your own list, or return the empty string. 
 a real answer: a story narrated from outside has no persona, and inventing one points the writer's
 byline at somebody who is not in their book. Never name anybody not on that list.`;
 
+/** #21 §3 · STEP FIVE. Anansi reads the whole skeleton back and says what she would change.
+ *
+ *  checks.md, by way of the step order: *"The model suggests changes to everything so far: new
+ *  cards, revised premise or title."* It is the first moment anything can be judged as a WHOLE —
+ *  the premise was written before the cast existed, and the cast was written from a premise the
+ *  writer may since have rewritten.
+ *
+ *  IT PROPOSES AND NEVER APPLIES. Every suggestion is a press, and a press the writer can skip, for
+ *  the same reason the ledger's proposals are: this is the one screen where the model is arguing
+ *  with the writer's own words rather than filling a blank.
+ *
+ *  A SKELETON THAT IS ALREADY GOOD GETS NOTHING, and that is the answer that has to be reachable
+ *  or every book gets churned once for the sake of having something on the screen. The schema
+ *  allows an empty list; the prompt says so on its own line, in the phrasing F37 measured.
+ *
+ *  It fires from a button, never from arriving on the step. A model call nobody asked for is what
+ *  made "what changed" slow, and #24 is the whole argument. */
+export const REVIEW =
+`Read this story skeleton as a whole and say what you would change about it.
+
+You are reading a book that does not exist yet: a title, a premise, a setting, a voice, and a cast.
+Each part was written before the others were settled, so what you are looking for is where they no
+longer agree — a premise that names nobody in the cast, a setting the premise never uses, a title
+that belongs to a different book than the one described.
+
+RETURN NOTHING RATHER THAN REACH. A skeleton that hangs together needs no changes, and an empty
+list is the correct answer for one. Do not invent a disagreement to have something to say.
+
+For each change: which field, the whole replacement text for it, and one sentence on why. The
+replacement is not a note about the field — it is what the field would say instead, written to the
+same length and in the same voice as what it replaces.
+
+You may also propose entries the skeleton implies and the cast is missing: someone the premise
+names who is not there, the place it happens in, the thing everyone wants. Each is a name, a kind,
+and a body of forty to eighty words in the same dense style as the cast — facts, not atmosphere,
+and never a finished sentence of the book.
+
+Do not propose an entry that is already in the cast under any name.`;
+
+export const REVIEW_SCHEMA = {
+  type: 'object',
+  properties: {
+    changes: {
+      type: 'array', maxItems: 4,
+      items: {
+        type: 'object',
+        properties: {
+          // An enum, because the GBNF converter honours enums: a field name the wizard cannot
+          // apply is a suggestion that reads as a bug rather than as an idea.
+          field: { type: 'string', enum: ['title', 'premise', 'setting', 'direction'] },
+          // No maxLength, per F25: it closes the string mid-word with the JSON still valid.
+          value: { type: 'string' },
+          why: { type: 'string' },
+        },
+        required: ['field', 'value', 'why'],
+      },
+    },
+    entries: {
+      type: 'array', maxItems: 4,
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          kind: { type: 'string', enum: ['character', 'lore', 'item', 'rule'] },
+          body: { type: 'string' },
+        },
+        required: ['name', 'kind', 'body'],
+      },
+    },
+  },
+  required: ['changes', 'entries'],
+} as const;
+
 /** The next chapter's name and its beat, proposed the moment the chapter opens.
  *
  *  A chapter used to open on two blank fields, and a blank field on a panel you did not ask for is

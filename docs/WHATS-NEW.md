@@ -12,6 +12,23 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### Starting a book is eight steps, in the order the work actually happens
+The wizard used to be five steps that put the cast third, the voice last, and asked for your
+idea on a screen that vanished the moment you pressed Spark. It now runs: your idea, the
+book, you, the cast, a second look, the first scene, the opening, and then it begins.
+
+Your idea is kept and editable, so you can change the sentence everything came from and ask
+again from it. Who you play comes BEFORE the cast, because that is a decision about the book
+rather than a pick from a list somebody else wrote — and once there is a cast it becomes a
+pick over it. The last step says exactly what accepting will create, before you press it.
+
+### Anansi will read your skeleton back and say what she would change
+A new fifth step. It is the first moment the book can be read as a whole — your premise was
+written before the cast existed, and the cast from a premise you may have rewritten since.
+She proposes a replacement for a title, premise, setting or direction, and threads the
+skeleton implies and the cast is missing. Every one of them is a press you can skip, and
+nothing is applied until you press it. It only runs when you ask.
+
 ### Sparking a story is two steps now, and each can be asked again
 Spark used to write the whole skeleton and its cast in one go, and if the cast was wrong
 the only way back was throwing the lot away and retyping your idea. The book and its people

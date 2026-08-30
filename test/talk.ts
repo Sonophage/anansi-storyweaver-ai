@@ -48,7 +48,24 @@ const srv = createServer((req, res) => {
     // #21 §2. The cast is its own call now, keyed on its own role rather than on a schema shape:
     // it answers `entries` and so do two other roles.
     const asksForCast = /Populate a story that already exists/.test(String(b.messages?.[0]?.content ?? ''));
-    const answer = asksForCast ? { entries: [
+    // #21 §3 step 5. Its own role again, keyed on its own words.
+    const asksForReview = /say what you would change about it/.test(String(b.messages?.[0]?.content ?? ''));
+    const answer = asksForReview ? {
+        changes: [
+          { field: 'title', value: 'The Tide Clerk', why: 'The premise counts; the title salts.' },
+          // A "change" that returns the field unchanged is not one, and it is the shape a model
+          // reaching for something to say produces. Dropped by the route.
+          { field: 'premise', value: PREMISE, why: 'No notes.' },
+          // A field the wizard cannot apply. Unreachable through the grammar; refused anyway.
+          { field: 'spice', value: '5', why: 'Hotter.' },
+        ],
+        entries: [
+          { name: 'The Quay Office', kind: 'lore', body: 'A room of ledgers above the water.' },
+          // Already in the cast under the same name — the prompt forbids it and this enforces it.
+          { name: 'Vel', kind: 'character', body: 'Speaks for the dead god, again.' },
+        ],
+      }
+      : asksForCast ? { entries: [
         { name: 'Vel', kind: 'character', body: 'Speaks for the dead god. Owes nothing and says so.' },
         { name: 'The Long Stair', kind: 'lore', body: 'A stair with no landing, cut into the rock.' },
         // A kind nobody asked for. The grammar makes this unreachable from a real model; the route
@@ -418,6 +435,47 @@ ok('a kind that does not exist is refused rather than assembled');
   const bare = await cast(['character'], { title: 'x', premise: '   ' });
   assert.match(bare.error, /no premise/, 'and a skeleton with nothing in it is refused too');
   ok('the cast is its own call, for the kinds asked for, against the skeleton as it stands');
+}
+
+// ---- #21 §3 · STEP FIVE: SHE READS THE WHOLE THING BACK ----
+//
+// The first moment anything can be judged together: the premise was written before the cast
+// existed, and the cast was written from a premise the writer may since have rewritten.
+{
+  calls = [];
+  const review = (story: any, entries: any[] = []) => routes['POST /api/spark/review']({
+    body: { story, entries }, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any) as any;
+
+  const r = await review({ title: 'The Salt Ledger', genre: 'noir', setting: 'Sutera',
+    premise: PREMISE, writingStyle: VOICE, direction: '' },
+    [{ title: 'Vel', entryType: 'character', body: '[Vel: speaks for the dead god]' }]);
+  assert.ok(!r.error, r.error);
+
+  // ONLY WHAT THE WIZARD CAN APPLY, and only what is actually a change.
+  assert.deepStrictEqual(r.changes.map((c: any) => c.field), ['title'],
+    'a field the wizard cannot apply is refused, and a value identical to the one it replaces is '
+    + 'not a change — that is the shape a model reaching for something to say produces');
+  assert.strictEqual(r.changes[0].value, 'The Tide Clerk');
+
+  // AND NEVER A THREAD THE CAST ALREADY HAS. The prompt says so; this is what enforces it.
+  assert.deepStrictEqual(r.entries.map((e: any) => e.title), ['The Quay Office'],
+    'a name already in the cast is dropped rather than proposed twice');
+  assert.match(r.entries[0].body, /^\[The Quay Office: /, 'in the bracket format the ledger uses');
+
+  // IT IS GIVEN THE CAST AS WELL AS THE BOOK, which is the only reason it can notice they disagree.
+  const asked = calls.find((x: any) => /say what you would change/.test(String(x.messages?.[0]?.content ?? '')))!;
+  assert.match(String(asked.messages[1].content), /Vel/, 'the cast reaches the ask');
+  assert.match(String(asked.messages[1].content), /The Salt Ledger/, 'and so does the book');
+  assert.match(String(asked.messages[0].content), /RETURN NOTHING RATHER THAN REACH/,
+    'and the role is told an empty answer is the right one for a skeleton that hangs together');
+
+  calls = [];
+  const bare = await review({ title: 'x', premise: '  ' });
+  assert.match(bare.error, /no premise/, 'a skeleton with nothing in it is refused');
+  assert.strictEqual(calls.length, 0, 'and never reaches the model');
+  ok('the second look proposes only what the wizard can apply, and never a thread already in the cast');
 }
 
 // ---- 7. the spark's premise and prose voice come back big enough to write from

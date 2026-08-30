@@ -1601,8 +1601,12 @@ ok('a cover can be drawn: the book seeds the words, the writer owns them, and th
   } finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
 
   const after = html('page');
-  assert.match(after, /data-sp="title"/, 'the wizard is on screen');
-  assert.match(after, /The Winter Signature/, 'holding what came back');
+  // #21 §3. STEP ONE IS THE IDEA NOW, which is the sentence everything came from — it used to live
+  // on a screen that was gone the moment you sparked, so it could not be read, corrected, or asked
+  // again from. The title is step two.
+  assert.match(after, /data-sp="idea"/, 'the wizard is on screen, holding the idea');
+  assert.match(after, /Six houses, one winter\./, 'which is what was typed');
+  assert.match(after, /data-sparkstep="2"/, 'and the book is the step after it');
   // THE POINT OF THE CHANGE. Not /idea/ — the word appears in the prose of the page either way;
   // the ELEMENT is what must be gone, and it is the element that came back empty every repaint.
   assert.doesNotMatch(after, /id="idea"/, 'and the idea box is gone, not merely beside it');

@@ -2,7 +2,7 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, CAST, castSchema, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -53,6 +53,7 @@ export const OPEN_ROUTES = new Set([
   // #21 §2. The cast call names no story either — there is no story yet, which is the whole
   // point of the wizard — so it is open for the same reason the spark is.
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'POST /api/spark/cast',
+  'POST /api/spark/review',
   'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
@@ -182,6 +183,7 @@ const INVENT_TOKENS = 2000;
 // that truncates.
 const SPARK_TOKENS = 2200;
 const CAST_TOKENS = 2000;
+const REVIEW_TOKENS = 1600;
 
 /** Every changed character's WHOLE description, in one answer. A state replaces the body rather than
  *  adding to it, so each one is a full restatement and not a line — four characters at 600 characters
@@ -1260,6 +1262,52 @@ export const routes: Record<string, Handler> = {
     const named = new Set(entries.filter((e) => e.entryType === 'character').map((e) => e.title));
     const pick = (v: unknown) => (named.has(String(v ?? '')) ? String(v) : null);
     return { entries, persona: pick(r.data.persona), lockedCharacter: pick(r.data.lockedCharacter) };
+  },
+
+  /** #21 §3 · STEP FIVE: Anansi reads the skeleton back as a whole.
+   *
+   *  The first moment anything can be judged together — the premise was written before the cast
+   *  existed, and the cast was written from a premise the writer may since have rewritten.
+   *
+   *  PROPOSES, NEVER APPLIES. Each change is one press on the wizard and a press that can be
+   *  skipped, which is the same bargain the ledger's proposals make. Nothing here reaches the story
+   *  at all: there is no story yet.
+   *
+   *  A field it cannot apply is refused here as well as enumerated in the schema — the grammar
+   *  makes it unreachable and this makes it harmless if the grammar ever stops being used. */
+  'POST /api/spark/review': async (c) => {
+    const st = c.body.story ?? {};
+    const cast = Array.isArray(c.body.entries) ? c.body.entries : [];
+    if (!String(st.premise ?? '').trim()) return { error: 'there is no premise to read back' };
+    const APPLIABLE = ['title', 'premise', 'setting', 'direction'];
+    const body = [
+      `Title: ${st.title ?? ''}`,
+      `Genre: ${st.genre ?? ''}`,
+      `Setting: ${st.setting ?? ''}`,
+      `Premise: ${st.premise ?? ''}`,
+      `Where it is going: ${st.direction ?? '(not set)'}`,
+      `Voice: ${st.writingStyle ?? ''}`,
+      cast.length
+        ? `Cast:\n${cast.map((e: any) => `- ${e.title} (${e.entryType}): ${e.body}`).join('\n')}`
+        : 'Cast: nobody yet.',
+    ].join('\n\n');
+    const r = await structuredRetry(REVIEW, body, REVIEW_SCHEMA, { max_tokens: REVIEW_TOKENS });
+    if (!r.data) return { error: r.error ?? 'the second look returned nothing usable' };
+    const have = new Set(cast.map((e: any) => String(e.title ?? '').trim().toLowerCase()));
+    return {
+      changes: (r.data.changes ?? [])
+        .filter((x: any) => APPLIABLE.includes(x?.field) && String(x?.value ?? '').trim())
+        // A "change" that returns the field unchanged is not one, and it is the shape a model
+        // reaching for something to say produces.
+        .filter((x: any) => String(x.value).trim() !== String(st[x.field] ?? '').trim())
+        .map((x: any) => ({ field: x.field, value: String(x.value).trim(), why: String(x.why ?? '').trim() })),
+      // And never one the cast already has — the prompt says so and this is what enforces it.
+      entries: (r.data.entries ?? [])
+        .filter((e: any) => e?.name?.trim() && e?.body?.trim()
+          && !have.has(String(e.name).trim().toLowerCase()))
+        .map((e: any) => ({ title: e.name.trim(), entryType: e.kind, activation: 'always_on',
+                            body: `[${e.name.trim()}: ${e.body.trim()}]`, keys: [e.name.trim()] })),
+    };
   },
 
   // ---- one story ----
