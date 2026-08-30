@@ -261,13 +261,18 @@ const handler = async (req: any, res: any) => {
 };
 
 (TLS ? serveHTTPS(TLS, handler) : serveHTTP(handler)).listen(PORT, HOST, () => {
-  const n = db.listStories(db.owner(DESK)).length;
+  const shelves = db.storiesPerOwner();
+  const n = shelves.reduce((t, w) => t + w.n, 0);
   console.log(`\n  Anansi        http${TLS ? 's' : ''}://${HOST}:${PORT}`);
   console.log(`  writers       ${ALLOW.size ? [...ALLOW.keys()].join(', ') : `${DESK} (loopback only)`}`);
   console.log(`  admin         ${ADMIN}`);
   console.log(`  model         ${model()}`);
   console.log(`  context       ${slot.global} / ${slot.slots} slots = ${slot.perSlot} per slot`);
-  console.log(`  library       ${n} ${n === 1 ? 'story' : 'stories'}`);
+  // WHOSE, when there is more than one writer. This counted only the DESK writer's shelf and
+  // called it the library, so a two-writer box under-reported by however many books the other
+  // writer had, and looked exactly like rows going missing.
+  console.log(`  library       ${n} ${n === 1 ? 'story' : 'stories'}`
+    + (shelves.length > 1 ? ` · ${shelves.map((w) => `${w.login} ${w.n}`).join(', ')}` : ''));
   // A snapshot on boot and every 30 minutes. The database is the only copy of the book,
   // and PLAN-02 deleted Neon without booking anything to replace its durability.
   const swept = db.pruneViolations();

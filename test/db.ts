@@ -85,6 +85,37 @@ ok('deleting a story cascades', () => {
   assert.strictEqual(db.listStories(o).length, 0);
   assert.strictEqual(db.passagesOf(s.id).length, 0);
 });
+// The boot banner read `library 7 stories` on a box holding nine, because it counted
+// `listStories(owner(DESK))` — one writer's shelf — and labelled it the library. It looked like
+// rows going missing and was written into a handoff as a discrepancy before anyone read the line.
+//
+// So the check is the invariant the banner needs and not the SQL: the per-writer counts must SUM
+// to the whole table, and each one must equal what that writer's own shelf returns. A count that
+// agrees with the shelf but not with the table is the original bug; one that agrees with the table
+// but not with a shelf would put a number on screen that no page can reproduce.
+ok('the per-writer counts sum to the library, and each matches that writer\'s shelf', () => {
+  const other = db.owner('kia-test');
+  db.createStory(o, { title: 'Mine 1' });
+  db.createStory(o, { title: 'Mine 2' });
+  db.createStory(other, { title: 'Theirs' });
+
+  const shelves = db.storiesPerOwner();
+  const total = shelves.reduce((t, w) => t + w.n, 0);
+  const rows = db.allStoriesForExport().length;
+  assert.strictEqual(total, rows,
+    `the banner would say ${total} on a library of ${rows}. It counts one shelf and calls it the box.`);
+
+  assert.ok(shelves.length >= 2, 'both writers must appear, or a whole shelf is invisible');
+  for (const w of shelves) {
+    assert.strictEqual(w.n, db.listStories(db.owner(w.login)).length,
+      `${w.login} is counted as ${w.n} but their shelf renders ${db.listStories(db.owner(w.login)).length}`);
+  }
+  // And a writer with no books is not a row: an empty name in a banner reads as a bug.
+  db.owner('ghost-test');
+  assert.ok(!db.storiesPerOwner().some((w) => w.login === 'ghost-test'),
+    'a writer with no books must not appear');
+});
+
 ok('backup writes a readable snapshot', () => {
   const b = db.backup('/tmp/anansi-test-backups', 3);
   assert.ok(b.bytes > 0);

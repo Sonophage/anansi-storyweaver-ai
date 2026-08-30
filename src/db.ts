@@ -1716,6 +1716,20 @@ export function backup(dir = join(dirname(FILE), 'backups'), keep = 12) {
  *  tables carry no story_id, so a hand-written list would have been the thing that silently
  *  leaked them. Stories go before users: stories.owner_id has no CASCADE, so deleting the
  *  other users first would fail the constraint. */
+/** The whole box, one row per writer who has a book, biggest first.
+ *
+ *  The boot banner said `library 7 stories` off `listStories(owner(DESK))`, which is the DESK
+ *  writer's shelf and not the library. There are nine on this box: seven of Seth's and two of
+ *  Kia's. Nothing was wrong with the number — the word above it was wrong, and it read as a
+ *  missing-rows bug for long enough to be written into a handoff as one.
+ *
+ *  Counted the same way `listStories` counts, deliberately: no status filter, so the two agree by
+ *  construction and the banner cannot drift from the shelf it is summing. */
+export const storiesPerOwner = (): { login: string; n: number }[] =>
+  q(`SELECT u.login AS login, COUNT(s.id) AS n FROM users u
+       JOIN stories s ON s.owner_id = u.id
+      GROUP BY u.id ORDER BY n DESC, u.login`).all() as any[];
+
 /** Every story and who owns it, for the scheduled export. Not `listStories`, which is per owner
  *  and shaped for the shelf — this is the whole library, across every writer on the box. */
 export const allStoriesForExport = (): { id: string; ownerId: string; title: string }[] =>

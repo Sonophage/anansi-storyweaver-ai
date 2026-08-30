@@ -243,9 +243,11 @@ Six ships, `5973498` through `7eaa267`. Each that changes bytes on the wire is i
 - **Nothing in ships 1, 3, 4, 5 or 6 is measured.** The honest claim is that the prompt says what he
   wanted it to say and that he can now change it. Not that the prose reads better.
 
-### One thing noticed and deliberately not fixed
+### Nothing left over
 
-- **The banner says `library 7 stories` while `stories` has 9 rows** and the book export says 9.
+Both of the discrepancies this session flagged were real and both are fixed — see §9 for the
+backup, and the banner now reads `library 9 stories · sonophage 7, kia 2`. It had been counting
+`listStories(owner(DESK))`, which is one writer's shelf, and calling it the library.
 
 ### Traps this round paid for
 
