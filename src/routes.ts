@@ -2,7 +2,7 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -1911,6 +1911,32 @@ export const routes: Record<string, Handler> = {
    *  proposal is held until accepted (design screen 28). Re-running is safe — the unique
    *  index on content hash means the same fact is not proposed twice. */
   'POST /api/extract': async (c) => extract(c.body.storyId, c.body.chapterId),
+  /** #18 §2 · WRITE THIS BOOK'S HOUSE STYLE, from its genre and its premise.
+   *
+   *  Proposes, never writes: it hands the words back and the writer presses Save, the same bargain
+   *  `invent` makes for a card. A re-roll that saved would overwrite something typed by hand with
+   *  something nobody had read yet.
+   *
+   *  Genre and premise ONLY. Not the prose, not the ledger, not the voice — a style note written
+   *  from the book's actual sentences would describe the writing that exists rather than the kind
+   *  of book it is meant to be, and the second is what this block is for. It also keeps the call
+   *  small enough that a re-roll is cheap enough to press twice.
+   */
+  'POST /api/style': async (c: Ctx) => {
+    const v = viewOf(c.body.storyId);
+    const genre = String(v.story.genre ?? '').trim();
+    const premise = String(v.story.premise ?? '').trim();
+    if (!genre && !premise) {
+      return { error: 'give it a genre or a premise first — it writes the style from those two' };
+    }
+    const r = await structuredRetry(STYLE_NOTE,
+      `Genre: ${genre || 'not set'}\n\nPremise: ${premise || 'not set'}`, STYLE_SCHEMA,
+      { model: modelFor(v.story, c.defaultModel), temperature: 0.7, max_tokens: 400 });
+    const style = String(r.data?.style ?? '').trim();
+    if (!style) return { error: r.error ?? 'nothing usable came back' };
+    return { style };
+  },
+
   // #27. Entity-scoped by construction: it names a thread rather than a chapter, so there is no
   // shape of this request that asks for a general story-wide sweep.
   'POST /api/scanstory': async (c) => extractStory(c.body.storyId, c.body.entryId),

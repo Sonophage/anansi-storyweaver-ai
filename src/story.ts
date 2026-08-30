@@ -117,10 +117,10 @@ export function view(storyId: string, focusChapterId?: string) {
       // Reads through `db.outfitsOf`, which is the `outfit` slot of `addons` — see the note there.
       outfits: outfits.filter((o: any) => o.entry_id === e.id)
         .map((o: any) => ({ id: o.id, name: o.name, body: o.body, active: !!o.active })),
-      wearing: outfits.filter((o: any) => o.entry_id === e.id && o.active)
-        .map((o: any) => ({ name: o.name, body: o.body }))[0] ?? null,
-      // PLAN-08. The engine reads these; the outfit slot among them is skipped in `context.ts`
-      // because `wearing` above still carries the coat from the older table.
+      // (`wearing` was computed here for every entry on every view. Removed 2026-08-29 with
+      //  #18 §4 — nothing read it. The comment that stood here said the engine skipped the outfit
+      //  slot BECAUSE this carried the coat; that stopped being true on 2026-08-28 when the
+      //  wardrobe became an addon, and `rooms()` has rendered the outfit like any other room since.)
       // Where a followed card actually lives, so the screen can say so and refuse to edit it here.
       sharedFrom: e.shared_from ?? null,
       sharedFromId: e.shared_from_id ?? null,

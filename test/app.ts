@@ -208,10 +208,13 @@ let refuseNth = 0;
   const body = url.startsWith('/api/stories') ? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.' },
       // Two of the three are owed something, and between them five separate things — so a shelf that
       // listed items would show five chips where it must show two.
+      // #18 §5. One book pinned to a model the router no longer serves — the 2026-08-27 rename is
+      // exactly this shape — and one pinned to a model it does, so the mark can be wrong in both
+      // directions rather than only missing.
       { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', updatedAt: 2, words: 400, last: 'He paid.',
-        proposed: 3, unpaid: 1, flags: 0 },
+        proposed: 3, unpaid: 1, flags: 0, model: 'write-nt-qwen36-h' },
       { id: 's-3', title: 'Sutera', status: 'draft', updatedAt: 1, words: 0, last: null,
-        proposed: 0, unpaid: 0, flags: 2 }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
+        proposed: 0, unpaid: 0, flags: 2, model: 'Qwen3.6-WNTH-35B-A3B-NN' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
       look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } }
     : url.startsWith('/api/story') ? STORY
@@ -242,6 +245,7 @@ let refuseNth = 0;
         { id: 'Sorcerer-9-WNT-70B', status: 'unloaded' }] }
     // #21. A skeleton, not a created story — which is the whole reason it lands on the page to be
     // edited before anything is written.
+    : url.startsWith('/api/style') ? { style: 'Wet streets and short sentences.' }
     : url.startsWith('/api/spark') ? { story: { title: 'The Winter Signature', genre: 'political fantasy',
         premise: 'Six houses have one winter to sign a peace none of them wants.',
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
@@ -1792,5 +1796,81 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
   } finally { doc.querySelector = wasQS; }
 }
 ok('a book can be started from threads already in the library, and they are copied rather than linked');
+
+// #18 §5 · A BOOK PINNED TO A MODEL THAT IS GONE SAYS SO ON THE SHELF.
+//
+// The preset list was renamed on 2026-08-27 and the old ids answer `400 model not found`.
+// `modelOptions` already synthesised a gone option for exactly this — but only inside the
+// Storyteller panel, so a book stayed broken until somebody happened to open it and then happened
+// to open that panel. The card is where you look before you press.
+{
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ nav: 'stories' });
+  for (let i = 0; i < 40 && !/model missing/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+  const shelf = html('page');
+
+  const card = (id: string) => {
+    const at = shelf.indexOf(`data-open="${id}"`);
+    return at < 0 ? '' : shelf.slice(at, shelf.indexOf('</button>', at));
+  };
+  assert.match(card('s-2'), /model missing/, 'the book pinned to a preset that is gone is marked');
+  assert.match(card('s-2'), /write-nt-qwen36-h/, 'and the mark carries the id, which is what 400s');
+  assert.doesNotMatch(card('s-3'), /model missing/, 'a book pinned to a model that IS served is not');
+  assert.doesNotMatch(card('s-1'), /model missing/, 'and a book with no pin cannot be broken this way');
+  assert.strictEqual((shelf.match(/model missing/g) ?? []).length, 1, 'exactly the one that is wrong');
+
+  // THE CASE THAT MATTERS MOST CANNOT BE STAGED FROM OUT HERE. By the time the shelf renders in
+  // this file the router has long since answered, so "not asked yet" is unreachable through the
+  // page — and reading it as "not offered" would put a red mark on every book for the second
+  // before the answer lands, which is the loudest possible way to be wrong. The rule is a pure
+  // function in web/model.js for exactly that reason, and this is where it is driven.
+  const { pinIsDead } = await import('../web/model.js');
+  const live = [{ id: 'Qwen3.6-WNTH-35B-A3B-NN' }, { id: 'Muse-RPNT-12B' }];
+  assert.strictEqual(pinIsDead('write-nt-qwen36-h', live), true, 'a pin nothing serves is dead');
+  assert.strictEqual(pinIsDead('Muse-RPNT-12B', live), false, 'a pin something serves is not');
+  assert.strictEqual(pinIsDead(null, live), false, 'and no pin cannot be dead');
+  assert.strictEqual(pinIsDead('write-nt-qwen36-h', null), false,
+    'NOT ASKED YET is not an answer — the list is null until something asks the router');
+  assert.strictEqual(pinIsDead('write-nt-qwen36-h', []), false,
+    'and an empty list is the router being down, or an allowlist matching nothing, which is not '
+    + "this book's fault either");
+}
+ok('the shelf marks a book pinned to a model the router no longer serves');
+
+// #18 §2 · THE HOUSE STYLE HAS A RE-ROLL, and it fills the box rather than saving it.
+{
+  const doc = (globalThis as any).document;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 30));
+  const panel = html('sideBody');
+  assert.match(panel, /data-restyle="1"/, 'the style field has a re-roll');
+  // ONE FIELD, NOT ALL OF THEM. Voice is yours and a premise cannot guess it; the house style is
+  // what a book of this genre does on the page, which the genre and the premise between them say.
+  assert.strictEqual((panel.match(/data-restyle=/g) ?? []).length, 1,
+    'and it is the only field with one');
+
+  const box: any = { value: 'typed by hand' };
+  const wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => (sel === '[data-story="styleNote"]' ? box : null);
+  try {
+    POSTED.length = 0;
+    click({ restyle: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+    assert.ok(POSTED.some((x) => String(x.url) === '/api/style'), 'it asks the route');
+    assert.strictEqual(box.value, 'Wet streets and short sentences.',
+      'and writes what came back into the box');
+    // PROPOSES, NEVER SAVES. A re-roll that wrote to the story would overwrite something typed by
+    // hand with something nobody had read yet — the same bargain every other thing Anansi offers.
+    // Asserted as "one request, and it was that one": naming the save route by URL was the first
+    // version, and it could not fail — a falsification that called a method which does not exist
+    // threw inside the unawaited handler, the box was still filled, and the check stayed green.
+    assert.deepStrictEqual(POSTED.map((x) => String(x.url)), ['/api/style'],
+      'one request, and saving is not among them');
+  } finally { doc.querySelector = wasQS; }
+}
+ok('the house style can be re-rolled, into the box and not into the story');
 
 console.log(`\n${n} checks passed`);

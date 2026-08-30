@@ -564,6 +564,25 @@ export const coverPrompt = (story) => {
  *
  *  Here rather than in `web/app.js` so it can be checked: app.js is imported for its side effects
  *  and exports nothing, so a rule that lives in it can only be tested by driving the whole rail. */
+/** IS THIS BOOK PINNED TO A MODEL THAT IS GONE? #18 §5.
+ *
+ *  The preset list was renamed on 2026-08-27 and every old id answers `400 model not found`. A book
+ *  carrying one is broken and nothing said so outside the Storyteller panel, so it stayed broken
+ *  until somebody happened to open both.
+ *
+ *  ONLY EVER ANSWERED WHEN THE LIST IS KNOWN. `models` is null until something asks the router, and
+ *  reading "not asked yet" as "not offered" would put a red mark on every book on the shelf for the
+ *  second before the answer lands — the loudest possible way to be wrong. An empty list is the
+ *  router being down, or an allowlist matching nothing, which is not this book's fault either.
+ *
+ *  A book with no pin uses whatever the writer is set to and cannot be broken this way.
+ *
+ *  Here rather than in `web/app.js` so it can be checked: app.js is imported for its side effects
+ *  and exports nothing, so a rule that lives in it can only be tested by driving the whole rail —
+ *  and the case that matters most, the list not having arrived, cannot be staged from out there. */
+export const pinIsDead = (pin, models) => !!pin && Array.isArray(models) && models.length > 0
+  && !models.some((m) => m?.id === pin);
+
 export function modelFacts(m) {
   const bits = [];
   if (m?.perSlot) bits.push(`${Math.round(m.perSlot / 1000)}k each`);

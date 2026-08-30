@@ -12,6 +12,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### The shelf tells you when a book cannot write
+A book pinned to a model the router no longer serves used to fail only when you tried to
+write with it, and only said so inside the Storyteller panel. Its card on the shelf now
+carries a mark, with the id that is failing.
+
+### Anansi can write the house style for a book
+The "How this book is written" field has a button now. It writes from the book's genre and
+premise — not from its prose and not from your voice, which are different questions — and
+it fills the box and stops. Reading it and pressing Save is still yours.
+
 ### A new book can start from threads you already have
 Starting a book blank now offers your whole library: search it, pick the characters,
 places, items or rules you want, and they are copied into the new book when you create it

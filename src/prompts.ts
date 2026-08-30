@@ -606,6 +606,44 @@ Present tense. State facts flat. Output the summary and nothing else.`;
  *
  *  Everything else — the bracket body, the keyword rule, the activation rule and the room rule —
  *  is EXTRACT's, appended below, so the two cannot drift about what a proposal looks like. */
+/** THE BOOK'S GENRE FLAVOUR, WRITTEN FROM THE BOOK. #18 §2's re-roll.
+ *
+ *  STYLE is not VOICE and this prompt exists to keep them apart. Voice is the universal register —
+ *  how narration behaves, in every book you write — and it is `keep: true` in its own 500-token
+ *  block. This is the 200-token block under it, and it holds what makes THIS book sound like the
+ *  kind of book it is: romance and science fiction are not the same writing style even in one
+ *  writer's voice.
+ *
+ *  So the ban is on register. If this comes back saying how to punctuate dialogue or whether to use
+ *  contractions, it has written a voice and the two blocks fight over the same ground — which is
+ *  the COUNCIL-04 #5 failure that split them apart in the first place.
+ *
+ *  Short on purpose: the block caps at 200 tokens and a note that overruns is a note that gets cut
+ *  mid-sentence in the prompt, where nobody sees it happen. */
+export const STYLE_NOTE =
+`Write the house style for one book, in three sentences or fewer.
+
+You are given its genre and its premise. Say what a book OF THAT KIND does on the page: the texture
+its scenes have, what it lingers on, what it hurries past, what its chapters are shaped like.
+
+DO NOT WRITE ABOUT REGISTER. Not tense, not person, not contractions, not how dialogue is
+punctuated, not how explicit it is. Those belong to the writer's voice and are set elsewhere; a
+style note that repeats them makes two instructions argue over one sentence of prose.
+
+Do not name the premise back. Do not name characters. Do not address the writer, do not say "this
+book" or "the story" — write the instruction itself, the way a style sheet is written.
+
+Three sentences at the most, and fewer is better.`;
+
+export const STYLE_SCHEMA = {
+  type: 'object',
+  // No maxLength, per F25: the GBNF converter honours it and closes the string mid-word with the
+  // JSON still valid, so a note ending "and the chapters are" would arrive looking finished.
+  properties: { style: { type: 'string' } },
+  required: ['style'],
+  additionalProperties: false,
+} as const;
+
 export const SCAN_HEAD =
 `Read this book for what it says about ONE thread, and nothing else.
 

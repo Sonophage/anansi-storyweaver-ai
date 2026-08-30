@@ -44,8 +44,13 @@ generation point rather than at the top of a 9,000-token prompt.
 existed across two documents.
 
 ```
-SPINE  CANON-ALWAYS  CANON-TRIGGERED  EARLIER  PROSE  DIRECTIVE  CANON-REPEAT  TAIL  MODE
+SPINE  VOICE  STYLE  CANON-ALWAYS  CANON-TRIGGERED  STRING  EARLIER  PROSE  DIRECTIVE  TAIL  MODE
 ```
+
+Corrected 2026-08-29 (#18 §4) against `src/blocks.ts`. What was written here missed **VOICE**,
+**STYLE** and **STRING**, and still listed **CANON-REPEAT**, which F20 measured at 850 tokens for
+no gain and which came out then. Caps live in the same file: `SPINE 400 · VOICE 500 · STYLE 200 ·
+DIRECTIVE 250`; every other block is uncapped and trimmed by the budget instead.
 
 Delimiters are **tags, not Markdown headers**: `#` collides with Markdown prose storage and invites
 the model to continue the document with "## Chapter 13". `src/render.ts` maps kinds to tags and is
@@ -56,6 +61,9 @@ the only place ordering becomes text.
 | SPINE | `<story>` |
 | CANON-ALWAYS, CANON-TRIGGERED, CANON-REPEAT | `<canon>` |
 | EARLIER | `<earlier>` |
+| VOICE | `<voice>` |
+| STYLE | `<style>` |
+| STRING | `<unpaid>` |
 | PROSE, DIRECTIVE, TAIL, MODE | untagged |
 
 `LORE` and `RECALL` were removed 2026-08-23: declared, ordered, tagged, and never populated. They
@@ -94,13 +102,20 @@ adjacent to the mode instruction gets written *about* rather than obeyed.
 
 ```
 [Writing: {{pov}}]
-[Voice: {{writing_style}}]
+[{{locked character, if one is named}}]
 [This chapter must end with: {{authors_note}}]
 [{{register line}}]
+{{the take the writer turned down, if there is one}}
 ```
 
-`writing_style` is the writer's own words from the spark, edited by hand. It is not a dropdown, and
-it is the one part of this block that shortens under the 250-token cap.
+**Voice is NOT in this block, and has not been since COUNCIL-04 #5.** It is `VOICE`, its own block
+with its own 500-token cap, second in `ORDER`; the book's genre flavour is `STYLE` below it at 200.
+The line that stood here — `[Voice: {{writing_style}}]`, described as the one part of DIRECTIVE that
+shortens under the 250-token cap — was true of a shape this engine left behind, and #18 §4 is what
+caught it still being written down.
+
+Everything in DIRECTIVE is `keep: true` except the rejected take, which is the only part that
+shortens. That is why a new block had to be a new block: this one cannot trim, it can only refuse.
 
 ### Register lines by spice level
 

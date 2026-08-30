@@ -905,10 +905,11 @@ ok('a room that is not true yet is not sent, and one that is finished stops bein
 
 ok('the outfit is a room like any other now, and it keeps its own sentence', () => {
   // Until 2026-08-28 the surface wrote a second table and the engine had to SKIP this slot to keep
-  // from sending the coat twice. One table now, one firing path — and `wearing` on the Entry is
-  // dead to the engine, so passing it must change nothing.
+  // from sending the coat twice. One table now, one firing path. This used to pass a `wearing`
+  // field alongside, to prove the engine ignored it; that field was DELETED on 2026-08-29 with
+  // #18 §4, so there is nothing left to pass and nothing left to ignore.
   const b = withAddons([room({ slot: 'outfit', name: 'the grey coat', body: 'wool, shiny cuffs',
-    active: true })], { wearing: { name: 'the grey coat', body: 'wool, shiny cuffs' } } as any);
+    active: true })]);
   assert.strictEqual((b.text.match(/wool, shiny cuffs/g) ?? []).length, 1,
     'the coat belongs in the prompt exactly once');
   // AND IT SAYS SHE HAS IT ON. "[the grey coat: wool]" says only that the coat exists; the

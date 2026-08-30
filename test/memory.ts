@@ -30,6 +30,9 @@ let found: any[] = [{ title: 'The Wrist Strap', body: 'Leather, cut from a saddl
  *  built from the candidates the route offers — so a name that is not among them is how the gate
  *  is driven from the far side. */
 let finished: any[] = [];
+/** And what the STYLE role returns. Fourth key on the same blob, same reason: one fake server, and
+ *  whichever role asked reads the key it wants. #18 §2. */
+let styled = 'Short chapters, weather in every scene, nobody explains themselves.';
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -41,7 +44,7 @@ const srv = createServer((req, res) => {
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
     asked = { system: b.messages?.[0]?.content ?? '', user: b.messages?.[1]?.content ?? '' };
     send({ choices: [{ message: { content: JSON.stringify({ characters: answer, entries: found,
-                                                            finished }) } }],
+                                                            finished, style: styled }) } }],
            usage: { prompt_tokens: 200, completion_tokens: 60 } });
   });
 });
@@ -642,6 +645,41 @@ let retProposal: any;
   assert.strictEqual(asked, null, 'and the model was never called');
   ok('a thread the narration never names costs no call at all');
 }
+
+// #18 §2 · THE HOUSE STYLE IS WRITTEN FROM THE GENRE AND THE PREMISE, AND FROM NOTHING ELSE.
+//
+// STYLE is not VOICE, and this is the pass that has to keep them apart. Voice is the universal
+// register in its own 500-token block; this is the 200-token block under it holding what makes one
+// book sound like the kind of book it is. A style note that talks about tense or contractions makes
+// two instructions argue over one sentence of prose — the COUNCIL-04 #5 failure that split them.
+{
+  const s4 = db.createStory(me, { title: 'The Salt Ledger', genre: 'noir, harbour',
+    premise: 'A clerk who cannot stop counting.',
+    writingStyle: 'Write the narration in contractions.' });
+  db.addPassage({ ...s4, storyId: s4.id, body: 'The tide came in over the stones.' });
+  asked = null;
+  const r: any = await routes['POST /api/style'](ctx({ storyId: s4.id }));
+  assert.ok(!r.error, r.error);
+  assert.ok(asked, 'the model was called');
+  assert.ok(asked.user.includes('noir, harbour'), 'the genre is what it writes from');
+  assert.ok(asked.user.includes('cannot stop counting'), 'and the premise');
+  // NOT THE PROSE. A style note written from the sentences that exist describes the writing there
+  // is, and this block is for the kind of book it is meant to be.
+  assert.ok(!asked.user.includes('tide came in'), 'never the prose itself');
+  // NOT THE VOICE. It is the block this one must not compete with.
+  assert.ok(!asked.user.includes('contractions'), "and never the writer's voice");
+  assert.match(asked.system, /DO NOT WRITE ABOUT REGISTER/,
+    'and the role is told so on its own line, which is the phrasing F37 measured');
+
+  // A book with neither field costs no call: there is nothing to write the style FROM, and saying
+  // so beats spending a request to discover it.
+  const s5 = db.createStory(me, { title: 'Untitled' });
+  asked = null;
+  const bare: any = await routes['POST /api/style'](ctx({ storyId: s5.id }));
+  assert.match(bare.error, /genre or a premise/, 'it says what is missing');
+  assert.strictEqual(asked, null, 'and never asks');
+}
+ok('the house style is written from the genre and the premise, and never from the voice or the prose');
 
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter

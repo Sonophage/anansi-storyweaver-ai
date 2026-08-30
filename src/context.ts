@@ -17,9 +17,10 @@ export interface Entry {
   keys: string[];
   lastEditor: 'human' | 'model';   // decides arbitration (COUNCIL-03 S1)
   states?: EntryState[];           // canon over time — see resolveBody
-  // The outfit being worn, if any. A second bracket rather than an edit to the body, so taking
-  // the plate off does not require rewriting who she is. PLAN-04 04.
-  wearing?: { name: string; body: string } | null;
+  // (`wearing` was here. Removed 2026-08-29 with #18 §4: it was written by `view()` on every
+  //  entry and read by nothing — `buildContext` never touched it and `render.ts`'s `entryText` is
+  //  a bare `return e.body`. The coat reaches the model as the `outfit` room like any other, and
+  //  `rooms()` below is the one place that decides it says "wears" rather than naming the coat.)
   stickyFor?: number;              // stays active this many passages after it last fired
   properNouns?: boolean;           // names do not get folded — see fold()
   retiredAtChapter?: number;       // finished: a dead character, a burned building. PLAN-08

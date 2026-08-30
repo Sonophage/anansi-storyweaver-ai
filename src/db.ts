@@ -448,10 +448,12 @@ CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at
 -- have ONE relationship; it has three, and each wants its own trigger words. A field held as one
 -- blob can only arrive whole.
 --
--- "outfits" is NOT dropped and NOT renamed. Rows are copied into here by the migration below and
--- the old table keeps working untouched, because this rewrites the file somebody's novel is in and
--- a migration that moves data is a migration that can lose it. The drop is a later, separate step
--- taken once reads have run off "addons" for a while.
+-- "outfits" IS DROPPED, and the paragraph here said the opposite until #18 §4 caught it. The move
+-- was deliberately two steps: copy first and leave the old table working, because this rewrites the
+-- file somebody's novel is in and a migration that moves data is a migration that can lose it. The
+-- second step was taken on 2026-08-28 once reads had run off "addons" for a while, and it refuses
+-- to drop while any row is still only in the old table. See migrate(), and the note where the
+-- CREATE used to be, twenty lines above this one.
 --
 -- entry_id is NULLABLE: an addon with no entry belongs to the STORY, which is where a string
 -- lives. "strings.summoned" is already "active" under another name — "only a summoned string

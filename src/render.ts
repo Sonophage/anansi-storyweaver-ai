@@ -12,9 +12,10 @@ const TAG: Partial<Record<Kind, string>> = {
   STRING: 'unpaid', EARLIER: 'earlier',
 };
 
-/** Sent first in the raw completion buffer. `/completion` has no system role, so this
- *  is simply the opening text — PROMPTS §1's "sent as the system message" was written
- *  for a transport this design does not use.
+/** THE SYSTEM MESSAGE, and it really is one. #18 §4: this used to say `/completion` has no system
+ *  role and that PROMPTS §1 was written for a transport the design does not use. Both halves went
+ *  stale — `src/llama.ts` posts to `/v1/chat/completions` with a real `{ role: 'system' }` on every
+ *  path, so PROMPTS §1 describes what happens and this note described what used to.
  *
  *  The arbitration rule keys on provenance. PLAN-02 inverted it globally to "the prose
  *  wins", which lets a chapter-30 hallucination outrank a hand-pinned fact — the exact

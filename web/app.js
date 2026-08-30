@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
+import { MODES, KINDS, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -280,7 +280,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
-  'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall',
+  'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
   'seedpick',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'newroom', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon', 'addaddon',
@@ -1846,7 +1846,15 @@ const PANELS = {
         ${f.k === 'writingStyle' ? helpBody('voice') : ''}
         ${f.area ? `<textarea class="field" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
                  : `<input class="field" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
-        ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}`).join('')}
+        ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}
+        <!-- #18 §2. The one field with a re-roll, because it is the one written FROM two others.
+             Voice is yours and a book's premise cannot guess it; the house style is what a book of
+             this genre does on the page, which the genre and the premise between them do say.
+             It fills the box and stops: Save is still the press that keeps it, the same bargain
+             every other thing Anansi offers makes. -->
+        ${f.k === 'styleNote' ? `<button class="btn ghost" data-restyle="1" ${S.styling ? 'disabled' : ''}
+          style="margin:-2px 0 4px; width:auto; padding:0 16px; height:34px; font-size:11.5px">${
+          S.styling ? 'Writing&hellip;' : 'Have Anansi write it'}</button>` : ''}`).join('')}
       <label class="lbl">Setting</label>
       ${pick('setting', lore.map((e) => e.title), V.story.setting, 'Not set')}
       <div class="hint">Drawn from the lore and items in this story's ledger.</div>
@@ -3053,11 +3061,12 @@ function entryEditor() {
          the form is where you fill things in, so an empty room has to be visible to be fillable.
          That is the opposite of the face above and the reason there are two views at all. -->
     ${slots.filter((sl) => sl.name !== 'outfit').map((sl) => {
-      // OUTFIT IS NOT DRAWN HERE. The Wardrobe below is already the outfit's screen — it writes the
-      // older `outfits` table, which is still what the engine reads for the coat (see the note on
-      // `rooms` in src/context.ts). A section here as well would give one thing two editors that
-      // write different tables, and the writer would have no way to tell which one the model sees.
-      // The same clause comes out of both places on the day the wardrobe moves to addons.
+      // OUTFIT IS NOT DRAWN HERE. The Wardrobe below is the outfit's screen and has the words for
+      // it — wearing one, taking it off, one at a time — which a generic room section does not.
+      // #18 §4: the reason written here used to be that the wardrobe wrote a SECOND TABLE and the
+      // engine read that one. It has not since 2026-08-28; `upsertOutfit` and friends are shims
+      // over the addon writers and the `outfits` table is dropped at boot. Both editors write the
+      // same rows now, so this skip is about the words, not about which table the model reads.
       const mine = (e.addons ?? []).filter((a) => a.slot === sl.name);
       return `
       <div data-slotat="${esc(sl.name)}" class="lbl" style="letter-spacing:.1em; margin-top:20px;
@@ -3095,9 +3104,10 @@ function entryEditor() {
     }).join('')}
 
     <!-- THE WARDROBE IS A ROOM, and sits with the others rather than under the notes. Seth:
-         "outfits should be part of it." It still writes the older outfits table — moved, not
-         rewritten — which is why the room loop above skips the outfit slot rather than drawing a
-         second editor for one thing. data-slotat so the jump link at the top reaches it too. -->
+         "outfits should be part of it." #18 §4: it no longer writes a table of its own — it writes
+         the outfit slot of addons like every other room — so the room loop above skips that slot
+         to avoid TWO EDITORS FOR ONE ROW, not two tables. data-slotat so the jump link reaches
+         it too. -->
     ${e.entryType === 'character' ? `
     <div data-slotat="outfit" class="lbl" style="letter-spacing:.1em; margin-top:20px">outfit <span style="opacity:.5">(one at a time)</span></div>
     <div class="hint" style="margin:0 0 8px">A named outfit is a second bracket on this character
@@ -3382,6 +3392,10 @@ function drawPage() {
 const STATUS = { in_progress: 'Writing', draft: 'Draft', finished: 'Finished', archived: 'Archived' };
 // The pill is the genre when there is one, because that is the tag worth seeing on a shelf;
 // status only shows when a story is finished or parked.
+// #18 §5. `pinIsDead` is in web/model.js: it is a pure rule, and the case that matters most —
+// the router's list not having arrived yet — cannot be staged from outside this file.
+const deadPin = (s) => pinIsDead(s?.model, S.models);
+
 function storyCard(s, i, hero) {
   // Genre is comma-separated and always has been — an AI Dungeon import writes its tag list
   // straight into it, so a card read "horror, nsfw" inside a single pill. One tag per pill.
@@ -3402,6 +3416,15 @@ function storyCard(s, i, hero) {
         max-width:70%">${tags.map((t) => `<span class="tag" style="background:rgba(10,9,12,.6);
         ${gold ? 'border-color:rgba(217,178,106,.35); color:var(--gold)' : ''}">${esc(t)}</span>`).join('')}</span>
       ${hero ? '<span class="tag" style="position:absolute; top:12px; right:14px; background:rgba(10,9,12,.6)">Last written</span>' : ''}
+      <!-- #18 §5. A BOOK PINNED TO A MODEL THE ROUTER NO LONGER SERVES IS BROKEN AND SAYS SO HERE.
+           The preset list was renamed on 2026-08-27 and the old ids answer 400, and modelOptions
+           already synthesises a gone option for exactly this — but only inside the Storyteller
+           panel — so a book stayed broken until somebody happened to open it and then happened to
+           open that panel. The card is where you look before you press. -->
+      ${deadPin(s) ? `<span class="tag" style="position:absolute; bottom:12px; right:14px;
+        background:rgba(10,9,12,.72); border-color:var(--bad); color:var(--bad)"
+        title="${esc(s.model)} — the router no longer serves this. Open the book and pick another in Storyteller."
+        >model missing</span>` : ''}
       <span class="serif" style="position:absolute; bottom:12px; left:16px; right:16px;
         font-size:${hero ? 30 : 21}px; line-height:1.05; color:var(--ink-bright)">${esc(s.title)}</span></span>
     <span style="display:block; padding:14px 16px 16px">
@@ -3450,6 +3473,10 @@ const WPAGES = {
     </div></div>`;
   },
   stories() {
+    // #18 §5. The shelf needs the router's list to know a pin is dead. Asked once — `loadModels`
+    // sets `S.models` to an array either way, so a router that never answers is asked once and not
+    // on every repaint.
+    if (S.models === null) loadModels();
     if (!LIB.length) return `<div class="split"><div style="flex:1">
       <div class="serif" style="font-size:30px; color:var(--ink-bright)">Nothing yet</div>
       <div class="hint">Start one and it becomes the hero of this page.</div>
@@ -3892,7 +3919,9 @@ async function loadModels() {
   S.models = r.error ? [] : (r.models ?? []);
   S.allow = r.allow ?? [];
   if (r.active) SRV.model = r.active;
-  if (S.wpage === 'prefs') drawPage();
+  // #18 §5. The shelf reads this list too now — a book pinned to a model the router no longer
+  // serves is marked on its own card, and the mark cannot be drawn before the answer lands.
+  if (S.wpage === 'prefs' || S.wpage === 'stories') drawPage();
   // The model panel is not gated on a story: it is about the box, and it opens on the shelf too.
   if (S.panel === 'model' || (S.place === 'story' && S.panel === 'teller')) drawSide();
   loadStats();
@@ -5519,6 +5548,18 @@ document.addEventListener('click', async (e) => {
   // #27. The one pass that reads the whole book. It can take a while, so the button says so and
   // refuses a second press rather than queueing one — two of these at once is two full-window
   // calls into a slot pair that is already shared with the other writer.
+  // #18 §2. Fills the box and stops. Written straight into the DOM rather than into V, because
+  // V is the saved story — putting an unsaved suggestion there would make Close look like Save.
+  if (d.restyle) {
+    if (S.styling) return;
+    S.styling = true; drawSide();
+    const r = await api.styleNote(S.storyId);
+    S.styling = false; drawSide();
+    if (r.error) return toast(r.error);
+    const box = document.querySelector('[data-story="styleNote"]');
+    if (box) box.value = r.style;
+    return toast('Written. Read it, change it, then Save.');
+  }
   if (d.scanstory) {
     if (S.scanning) return;
     S.scanning = d.scanstory; drawSide();

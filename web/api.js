@@ -129,6 +129,8 @@ export const api = {
   // #27. Names a THREAD, never a chapter: there is no shape of this call that asks for a
   // general story-wide sweep, which is the option the issue deliberately did not want.
   scanStory:    (storyId, entryId)  => j('/api/scanstory', 'POST', { storyId, entryId }),
+  // #18 §2. Proposes the book's house style from its genre and premise; the writer saves it.
+  styleNote:    (storyId)          => j('/api/style', 'POST', { storyId }),
   // Re-runs the character memory on a chapter that already closed. Chapter close fires this
   // itself; this is the way back when the router was down at the time.
   remember:     (storyId, chapterId) => j('/api/remember', 'POST', { storyId, chapterId }),
