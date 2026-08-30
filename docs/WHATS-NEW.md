@@ -10,6 +10,25 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · Rooms Anansi fills in come back the right size again
+
+### A room is one room, not a whole character
+When you ask Anansi to fill in a single room on a card — the interiority, the voice, an
+appearance, a relationship — she was writing you a whole character every time. Three or four
+hundred characters of it, for one room, on a card that has eight of them. Cards were coming
+back three or four times longer than they should be, and the same person was being described
+over and over in rooms that were supposed to be about one thing each.
+
+She now writes a room the length of a room: forty to eighty words, on that room's own subject,
+and she is told outright that the rest of the card already exists so she does not repeat it.
+Outfits already worked this way and were the only ones that did.
+
+Asking her for a whole new thread is unchanged — that is still the fuller answer you asked for
+back in August, and it should be.
+
+**Cards you already have are untouched.** This only changes what she writes from now on. If a
+card you already own reads long, it will not shrink on its own.
+
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
 ### Snapshots stop deleting each other

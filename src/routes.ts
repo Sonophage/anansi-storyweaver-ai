@@ -1920,7 +1920,7 @@ export const routes: Record<string, Handler> = {
       : refill ? `${kind === 'lore' ? 'place or fact' : kind}, rewriting the card for ${who!.title}`
       : kind === 'lore' ? 'place or fact' : kind;
     const t0 = Date.now();
-    const r = await structuredRetry(INVENT(about, steer, sources.length > 0),
+    const r = await structuredRetry(INVENT(about, steer, sources.length > 0, isAddon),
       prompt.slice(SYSTEM.length), inventSchema(kind),
       { model: modelFor(v.story, c.defaultModel), temperature: 0.9, max_tokens: INVENT_TOKENS });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: modelFor(v.story, c.defaultModel),

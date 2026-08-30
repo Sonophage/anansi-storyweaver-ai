@@ -879,7 +879,7 @@ Propose nothing rather than pad. Zero proposals is a valid answer.`;
  *
  *  `about` names what is being made. `steer` is the writer's own line, and it OUTRANKS the story:
  *  someone who types "she is in mourning" has told you something the canon does not know yet. */
-export const INVENT = (about: string, steer: string, sources: boolean) =>
+export const INVENT = (about: string, steer: string, sources: boolean, isRoom = false) =>
 `You are Anansi. Write ONE ${about} for this writer's story, from the canon and the passages above.
 
 It has to belong to THIS story: its register, its place, its period, the names already in the
@@ -903,6 +903,31 @@ ${about.startsWith('outfit')
 `
     + `The body is added to her entry while the outfit is on, so it must NOT say who she is — the `
     + `ledger already says that, and repeating it costs the same tokens twice. Clothes only.`
+  : isRoom
+  ? `    name  Two or three words the writer would pick it off a list by. Not a sentence, and
+`
+    + `          not their name again.
+`
+    + `    body  Bracket form, FORTY TO EIGHTY WORDS, and only this room's own subject:
+`
+    + `          [interiority: counts doorways when she is lying, will not sit with her back to
+`
+    + `           a window, keeps the debt in round numbers so it sounds smaller]
+`
+    + `    keys  single words that would really appear in the prose — a name, a place, an object.
+`
+    + `          Not the title again, not two words joined by a slash.
+
+`
+    + `THIS IS ONE ROOM OF A CARD, NOT THE CARD. The ledger already holds who they are and every `
+    + `other room holds its own subject, so anything you restate here is paid for twice on every `
+    + `call that reaches this card. A character has eight rooms: at a hundred and fifty words each `
+    + `that is a twelve-hundred-word person, and the whole canon budget goes on one of them.
+
+`
+    + `Forty to eighty words — not one sentence, and not a paragraph of atmosphere. Every clause `
+    + `carries a fact somebody could contradict: a habit, a number, a thing they carry, a thing `
+    + `they refuse. No adjective doing the work of a fact.`
   : `    title  What the thing is called. A name, not a description of it.
 `
     + `    body   [Name: attribute, attribute, attribute, what it does, what it wants, what it
@@ -947,9 +972,28 @@ ${sources
  *  of this route: a 400-cap closed an outfit at `stitched with the same Old Script that binds *W`
  *  and a 600-cap closed a character at `vials of glass filled with the echo of a *`. Both were
  *  valid JSON, so both would have gone into the ledger as half a sentence. Length is the prompt's
- *  job — it asks for a BAND, sixty to a hundred and twenty words, so the answer is a jumping-off
- *  point rather than one line or three paragraphs — and `max_tokens` is the bound, because
- *  running into THAT truncates the object, which does not parse, which structuredRetry can see.
+ *  job — it asks for a BAND, so the answer is a jumping-off point rather than one line or three
+ *  paragraphs — and `max_tokens` is the bound, because running into THAT truncates the object,
+ *  which does not parse, which structuredRetry can see.
+ *
+ *  THERE ARE THREE BANDS AND THAT IS THE FIX OF 2026-08-30. This comment said "sixty to a hundred
+ *  and twenty words" for a week after 7b49bf7 raised the ask to 120-200 at Seth's request, so the
+ *  code and the note beside it disagreed about the one number the route is entirely about.
+ *
+ *    a whole card   120-200 words   what Seth asked for, and right for a thing proposed to the queue
+ *    one room        40-80  words   NEW. It used to fall through to the card band.
+ *    an outfit       40-80  words   unchanged; the only room that ever had its own branch
+ *
+ *  The room band is the bug this fixes. `outfit` was the only addon when the branch was written,
+ *  so every OTHER room — interiority, appearance, voice, relationships, history, role, facts —
+ *  took the whole-card instructions and the whole-card length. A character has eight rooms, so a
+ *  filled-in card was being asked for 960 to 1,600 words, and the live library shows it landing at
+ *  the floor of that: Halsey is 7,113 characters across twelve rooms, about 1,778 tokens, for one
+ *  person, against a canon budget of 45% of the story's whole context.
+ *
+ *  The ceiling does NOT move down with the ask. `INVENT_TOKENS` stays where 7b49bf7 put it: a
+ *  smaller ask inside a larger ceiling is safe, and it is the opposite pairing — a larger ask
+ *  inside a smaller ceiling — that F25 is about.
  *
  *  A title and a trigger word keep their caps: those are names, and a name over eighty characters
  *  is a defect rather than a thought that needed more room. */

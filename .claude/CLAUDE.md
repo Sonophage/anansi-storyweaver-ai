@@ -12,6 +12,13 @@ node --experimental-strip-types test/all.ts     # eleven suites, no model needed
 
 Run it before and after. It needs no llama-server, so there is no excuse for skipping it.
 
+**The suites bind fixed ports, so nothing else may hold them while they run.** `test/scope.ts`
+takes 5187 and boots throwaway servers on **5188, 5189, 5190, 5194 and 5195**; `test/ui/run.sh`
+takes 5179; the live server is on 5174. A stray server on any of those makes `scope.ts` report an
+ownership failure that is not there — a real one answers 200 where the fixture expects 403, which
+reads exactly like the gate being broken. It cost time on 2026-08-30. Do not start a second run to
+hurry the first, and give any scratch server a port well clear of that list.
+
 ## Where the truth lives
 
 **Docs drift from the code. The code wins.** When they disagree, read the code and fix the doc.

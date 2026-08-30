@@ -103,7 +103,7 @@ process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
 
 const db = await import('../src/db.ts');
 const { routes } = await import('../src/routes.ts');
-const { TALK_SCHEMA } = await import('../src/prompts.ts');
+const { TALK_SCHEMA, INVENT } = await import('../src/prompts.ts');
 
 const me = db.owner('talker');
 const story = db.createStory(me, { title: 'Sutera', premise: 'A city on a dead god.' });
@@ -265,6 +265,53 @@ ok('an invented thread lands in the proposals queue, not in the ledger');
     'the keys instruction that F27 says the model still sometimes ignores must not go missing '
     + 'while the body is being widened');
   ok('an invented entry is asked for as a jumping-off point, in the room one needs');
+}
+
+// ---- 5c. A ROOM IS NOT A CARD, and until 2026-08-30 it was asked for as though it were.
+// `outfit` was the only addon when INVENT's branch was written, so every other room —
+// interiority, appearance, voice, relationships, history, role, facts — fell through to the
+// WHOLE-CARD instructions and the whole-card length of 120-200 words. A character has eight
+// rooms. The live library shows what that produced: Halsey is 7,113 characters over twelve
+// rooms, ~1,778 tokens, for one person, against a canon budget that is 45% of the whole context.
+//
+// This is a pure function of its arguments, so it is checked directly rather than through a
+// route — there is no server behaviour in it and staging one would only add ways to pass.
+{
+  const words = (t: string) => {
+    const m = t.match(/(\w+(?: \w+)*) to (\w+(?: \w+)*) words/i);
+    assert.ok(m, `no word band in this prompt at all:\n${t.slice(0, 400)}`);
+    return m![0].toLowerCase();
+  };
+  const card = INVENT('character', '', false, false);
+  const room = INVENT('interiority for Halsey', '', false, true);
+  const fit  = INVENT('outfit for Halsey', '', false, true);
+
+  assert.match(words(card), /hundred and twenty to two hundred/,
+    'the WHOLE-CARD band is what Seth asked for in 7b49bf7 and must not be cut by a room fix');
+  assert.match(words(room), /forty to eighty/,
+    'a room must have its own band. Without one it inherits the card band and eight rooms become '
+    + 'a twelve-hundred-word character.');
+  assert.strictEqual(words(fit), words(room),
+    'an outfit and any other room are the same size of thing — if these ever diverge, one of the '
+    + 'two branches was edited without the other');
+
+  // THE FRAMING, not only the number. The card branch asks for "what it wants, what it costs,
+  // relation to someone already in the ledger" — a whole person. A room asking for that is how a
+  // card ends up saying who someone is eight times over, which costs the same tokens every time
+  // any part of that card fires.
+  assert.match(card, /what it wants, what it/,
+    'the card branch must still ask for a whole thing');
+  assert.doesNotMatch(room, /what it wants, what it/,
+    'a room is being asked for a whole character. That is the bug, not the length.');
+  assert.match(room, /ONE ROOM OF A CARD, NOT THE CARD/,
+    'and it has to SAY so — the model cannot see the other seven rooms from inside this call');
+
+  // The floor survives in the room branch too. A ceiling on its own is what made the bodies one
+  // line in the first place, which is the regression 5b exists to stop and which a new branch
+  // could reintroduce quietly.
+  assert.match(room, /not one sentence/i,
+    'the room branch needs the FLOOR as much as the card branch does');
+  ok('a room is asked for at room size, and told it is a room');
 }
 
 const junk: any = await invent({ kind: 'weapon' });
