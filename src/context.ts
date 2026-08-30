@@ -47,10 +47,10 @@ export interface Passage {
 export interface Story {
   title: string; genre: string; premise: string; setting: string;
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
-  /** #18. `writingStyle` is the INSTRUCTION — what every story in the library already holds. These
-   *  two are new and both optional: a specimen of the writer's prose, and this book's own genre
-   *  flavour, which gets its own block under VOICE. */
-  voiceSample?: string;
+  /** #18. `writingStyle` is the INSTRUCTION — what every story in the library already holds.
+   *  `styleNote` is this book's own genre flavour, which gets its own block under VOICE.
+   *  (`voiceSample`, a specimen of the writer's prose, was here. Removed 2026-08-30, COUNCIL-06
+   *  ship 4 — see the note where VOICE is built.) */
   styleNote?: string;
   direction?: string;      // the destination. Rides SPINE — see PROMPTS rev 2 §3.
   spiceNote?: string | null;   // a written-out register, replacing the level's fixed line
@@ -127,11 +127,10 @@ const SPICE: Record<number, string> = {
    + 'between them, what is said, what changes. Bodies are present and not itemised. Adult '
    + 'characters only.',
   4: 'Register: sex is written directly, in plain words, with the acts named as they happen. It is '
-   + 'a scene like any other and still has to move the story. Vocabulary follows the writing '
-   + 'sample. Adult characters only.',
+   + 'a scene like any other and still has to move the story. Vocabulary follows the voice. Adult '
+   + 'characters only.',
   5: 'Register: fully explicit, in unrestricted detail, for as long as the scene runs. Do not fade, '
-   + 'summarise, cut away or skip ahead. Vocabulary follows the writing sample. Adult characters '
-   + 'only.',
+   + 'summarise, cut away or skip ahead. Vocabulary follows the voice. Adult characters only.',
 };
 
 /** Five modes, and the distinction that matters runs through all of them: in `direct` the
@@ -528,8 +527,9 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   const blocks: Block[] = [];
   /** Anchors never disappear. The parts marked `keep` are always sent; the rest is shortened
    *  from the end until the whole block fits, and the manifest says it was shortened. Losing
-   *  point of view and register silently is far worse than losing the tail of a style sample —
-   *  which is why the sample is the flex part of VOICE and never of DIRECTIVE. */
+   *  point of view and register silently is far worse than losing the tail of a setting — which
+   *  is why SPINE's setting is a flex part and nothing in VOICE or DIRECTIVE is. A block whose
+   *  parts are all `keep` cannot trim; it refuses, and says so. */
   const addAnchor = (kind: Kind, id: string, parts: { text: string; keep: boolean }[], cap: number) => {
     const live = parts.filter((p) => p.text.trim());
     let text = live.map((p) => p.text).join('\n');
@@ -602,29 +602,30 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     { text: story.direction ? `Where this is going: ${story.direction}` : '', keep: true },
   ], CAPS.SPINE!);
 
-  // The sample is sent as PROSE, not as a bracketed value. `[Voice: <300 words>]` reads as a
-  // description of a style rather than a specimen of one, and it was the only truncatable part
-  // of DIRECTIVE, so it was sliced 10% at a time until it fit beside three things it does not
-  // compete with. The instruction line is kept; the sample is what gets shortened, on a sentence.
-  // #18. TWO MECHANISMS, AND THEY WERE SHARING ONE FIELD WITH A WRAPPER THAT LIED.
+  // VOICE — the register, sent as an instruction and nothing else.
   //
-  // This wrapped whatever was in `writingStyle` as "a sample of the writer's own prose… never
-  // continue it, quote it, or take facts from it" — while `DEFAULT_VOICE`, which is what every
-  // story in the library actually holds, is a page of INSTRUCTIONS. F37 measured that the
-  // instruction phrasing is what buys the 98%: on its own line, naming narration, with the forms
-  // spelled out. Telling the model that a page of rules is a specimen to imitate is the wrong
-  // frame for the thing that works.
+  // #18 split this field in two because one wrapper was lying about both halves: it labelled
+  // whatever sat in `writingStyle` "a sample of the writer's own prose… never continue it", while
+  // what every story in the library actually holds is a page of INSTRUCTIONS. F37 measured that
+  // the instruction phrasing is what buys the 98% — on its own line, naming narration, with the
+  // forms spelled out — so telling the model that a page of rules is a specimen to imitate was
+  // the wrong frame for the thing that works. The split kept both. Ship 4 kept only the half
+  // that was measured:
   //
-  // So they are two parts now. The instruction is `keep: true` and is never trimmed — losing the
-  // register silently is the failure COUNCIL-04 #5 is about. The sample stays the flex part, which
-  // is what it always was, and is only labelled as a sample when there IS one.
-  if (story.writingStyle?.trim() || (story as any).voiceSample?.trim()) addAnchor('VOICE', 'voice', [
-    { text: story.writingStyle?.trim() ?? '', keep: true },
-    { text: (story as any).voiceSample?.trim()
-      ? "A sample of the writer's own prose. Match its rhythm, diction and register. It is not "
-        + `part of this story: never continue it, quote it, or take facts from it.\n`
-        + `${(story as any).voiceSample.trim()}`
-      : '', keep: false },
+  // COUNCIL-06 ship 4 · THE PROSE SAMPLE IS GONE, and F36 is the argument. A finished-English line
+  // sitting in every prompt is lifted verbatim into the prose — that finding is a weather-beaten
+  // Martin guitar coming out of a coat pocket because the entry saying she carries one was in the
+  // prompt — and *"the contradiction checker cannot see this class at all"*. A whole paragraph of
+  // the writer's finished prose is the largest possible version of that surface.
+  //
+  // The wrapper said "never continue it, quote it, or take facts from it", which is exactly the
+  // shape of instruction F36 measured as not holding. And nobody was using it: `voice_sample` was
+  // empty on all nine books in the live library and had never been measured.
+  //
+  // VOICE is one part now, and that part is `keep: true` — so like DIRECTIVE the anchor can no
+  // longer trim, only refuse. That is the trade: the register can never be silently shortened.
+  if (story.writingStyle?.trim()) addAnchor('VOICE', 'voice', [
+    { text: story.writingStyle.trim(), keep: true },
   ], CAPS.VOICE!);
 
   // STYLE — how THIS book is written, under the voice and not part of it. #18: the voice is the

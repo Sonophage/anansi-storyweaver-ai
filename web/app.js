@@ -3740,10 +3740,6 @@ const WPAGES = {
                'How the narration behaves, as instructions. Edit it, or clear it — clearing it '
                + 'falls back to the house voice, which is what an empty book is written in.',
                'Write the narration in contractions…')}
-        ${area('voiceSample', 'A sample of your prose',
-               'Optional. A few hundred words of your own writing to match the rhythm of. Never '
-               + 'continued, quoted, or taken as fact.',
-               'The rain came sideways off the water and he did not hurry…')}
         ${area('styleNote', 'How this book is written',
                'This book\'s genre flavour, kept apart from the voice. It gets its own block.',
                'Noir. Short sentences, wet streets, nobody explains themselves…')}
@@ -6220,7 +6216,7 @@ document.addEventListener('click', async (e) => {
     S.blank = S.blank ?? { title: '', genre: '', premise: '', setting: '',
                            pov: 'third limited, past tense',
                            writingStyle: S.prompts?.voice?.inUse ?? '',
-                           voiceSample: '', styleNote: '', spice: 2, seed: [] };
+                           styleNote: '', spice: 2, seed: [] };
     // #20 §4. The picker reads the whole library, which this page has never needed before.
     if (LEDGER === null) loadLedger();
     S.spark = null;
@@ -6247,7 +6243,7 @@ document.addEventListener('click', async (e) => {
       pov: get('pov'), writingStyle: get('writingStyle').trim(),
       // #18. Both halves travel from the form, or a book created here starts with no specimen and
       // no style however carefully they were typed.
-      voiceSample: get('voiceSample').trim(), styleNote: get('styleNote').trim(),
+      styleNote: get('styleNote').trim(),
       spice: Number(get('spice')) || 2 };
     const r = await api.createStory(story);
     if (r.error) return toast(r.error);

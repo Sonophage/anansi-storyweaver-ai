@@ -104,7 +104,8 @@ function migrate() {
   // instruction — which is what that text already is, in every story in the library. The sample
   // starts empty and is a second column. A migration that moved prose between columns is one that
   // can lose it, and there is nothing here that needs moving.
-  add('stories', 'voice_sample', 'TEXT');
+  // (`voice_sample` was added here. Dropped below on 2026-08-30 — COUNCIL-06 ship 4. The add and
+  //  the drop must never both be live, or every boot adds the column, backs up, and drops it.)
   // And the book's own genre flavour, distinct from the universal register. Romance and science
   // fiction are not the same writing style, and neither is the voice.
   add('stories', 'style_note', 'TEXT');
@@ -206,6 +207,9 @@ function migrate() {
   drop('stories', 'system_block_override', 'a P1 stub for a per-story SYSTEM, never read');
   drop('passages', 'token_counts', 'a P1 stub for SPEC §7.5 tokenizer-keyed counts, never read');
   drop('stories', 'strip_patterns', '#26: strip-from-output is ripped, feature and column');
+  drop('stories', 'voice_sample',
+       'COUNCIL-06 ship 4: F36 — a finished line in every prompt is lifted into the prose, and a '
+       + 'whole paragraph of one is the largest version of that. Empty on all nine books');
   // #9. On a database that already exists the CREATE above does not add it.
   add('generations', 'mend', 'TEXT');
   // #24. A TABLE rather than a column, so it does not go through `drop` above. Its five batches
@@ -628,17 +632,17 @@ export function createStory(o: string, s: any) {
   // spice_note, model and locked_character are here so that an imported story arrives whole.
   // Import reads them out of the export; without them on this INSERT they were read and then
   // dropped on the floor, which is a round trip that looks like it works.
-  // #18's two columns are HERE and not only on the UPDATE. The comment above is about exactly this
+  // #18's columns are HERE and not only on the UPDATE. The comment above is about exactly this
   // shape of bug and it happened again the same day the columns were added: the create form sent
   // `voiceSample` and `styleNote`, this INSERT did not list them, and both were read off the form
   // and dropped on the floor. A book made from the blank form started with neither, however
   // carefully they had been typed, and nothing said so.
   q(`INSERT INTO stories (id,owner_id,title,genre,premise,setting,pov,persona,writing_style,
-      voice_sample,style_note,
+      style_note,
       direction,spice,spice_note,max_context,model,locked_character,status,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', tidyGenre(s.genre),
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', tidyGenre(s.genre),
     s.premise ?? '', s.setting ?? '', s.pov ?? 'second person, present tense', s.persona ?? null,
-    s.writingStyle ?? '', s.voiceSample ?? null, s.styleNote ?? null,
+    s.writingStyle ?? '', s.styleNote ?? null,
     s.direction ?? null, s.spice ?? 2, s.spiceNote ?? null,
     s.maxContext ?? null, s.model ?? null, s.lockedCharacter ?? null,
     s.status ?? 'in_progress', t, t);
@@ -1524,7 +1528,7 @@ export function updateStory(id: string, s: any) {
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,model=?,
       locked_character=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
-      lore_from=?,voice_sample=?,style_note=?,updated_at=? WHERE id=?`)
+      lore_from=?,style_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
@@ -1550,7 +1554,6 @@ export function updateStory(id: string, s: any) {
         if (w === id) return cur.lore_from ?? null;
         const other = getStory(w) as any;
         return other && other.lore_from !== id ? w : (cur.lore_from ?? null); })(),
-      p('voiceSample', 'voice_sample') ?? null,
       p('styleNote', 'style_note') ?? null,
       now(), id);
 }

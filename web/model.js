@@ -87,10 +87,6 @@ export const STORY_FIELDS = [
     hint: 'How the narration behaves, as instructions. This is the half F37 measured: on its own '
         + 'line, naming narration, with the forms spelled out. Leave it empty and the book is '
         + 'written in the house voice \u2014 there is no such thing as a book with none.' },
-  { k: 'voiceSample',  label: 'A sample of your prose', area: true,
-    hint: 'Optional. A few hundred words of your own writing to match the rhythm of. Never '
-        + 'continued, quoted, or taken as fact — and it is the part that gets shortened if the '
-        + 'block runs over.' },
   { k: 'styleNote',    label: 'How this book is written', area: true,
     hint: 'This book\'s genre flavour, kept apart from the voice: romance and science fiction are '
         + 'not the same writing style. It gets its own block under the voice.' },

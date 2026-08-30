@@ -498,51 +498,45 @@ ok('notes never reach the prompt', () => {
   assert.ok(!out.includes('chapter nine'));
 });
 
-ok('a few hundred words of voice sample survive whole, and unbracketed', () => {
-  // This is the app's own hint — "paste a few hundred words of your own prose" — taken
-  // literally. Under the old arrangement it was a `keep: false` part of DIRECTIVE's 250-token
-  // cap, so following the instruction guaranteed the sample was cut. COUNCIL-04 #5.
+ok('a few hundred words of voice survive whole', () => {
+  // COUNCIL-04 #5: this was a `keep: false` part of DIRECTIVE's 250-token cap, so a voice of any
+  // real length was guaranteed to be cut. It has its own 500-token block now. The fencing and the
+  // placement are checked where the wrapper is — this is only about the length surviving.
   const i = base();
-  const sample = 'The rain came sideways off the water and nobody looked up. '.repeat(30);
-  i.story.writingStyle = sample.trim();          // ~300 words
-  const m = buildContext(i, count);
-  const v = m.blocks.find((b) => b.kind === 'VOICE')!;
+  const long = 'Write the narration in contractions and never name a colour twice. '.repeat(30);
+  i.story.writingStyle = long.trim();            // ~330 tokens, under the 500 cap
+  const v = buildContext(i, count).blocks.find((b) => b.kind === 'VOICE')!;
   assert.strictEqual(v.state, 'included');
   assert.doesNotMatch(v.reason, /shortened/, 'a few hundred words must fit whole');
-  assert.ok(v.text.includes(sample.trim()), 'the sample is sent verbatim');
-  assert.doesNotMatch(v.text, /\[Voice:/,
-    'not bracketed — [Voice: <prose>] reads as a description of a style, not a specimen');
-  const out = render(m);
-  assert.match(out, /<voice>[\s\S]*<\/voice>/, 'fenced, so it is not read as this story');
-  assert.ok(out.indexOf('<voice>') < out.indexOf('<canon>'),
-    'high in the prompt: prose that is NOT this story must not sit beside the tail');
+  assert.ok(v.text.includes(long.trim()), 'and arrive verbatim');
 });
 
-ok('an oversized voice sample shortens on a sentence, and DIRECTIVE keeps everything', () => {
-  // The sample is now the only flex part of its own block, so going over the cap costs the
-  // sample and nothing else. It used to cost point of view, register and the chapter's beat.
+ok('an oversized voice REFUSES rather than shortening, and DIRECTIVE keeps everything', () => {
+  // COUNCIL-06 ship 4 REVERSED THIS CHECK, and the reversal is the point. VOICE had two parts —
+  // the instruction (keep:true) and the writer's prose sample (keep:false) — so an over-cap block
+  // shortened, and what it cut was the sample. The sample is gone (F36: a finished line in every
+  // prompt is lifted into the prose, and a paragraph of one is the largest version of that).
+  //
+  // So VOICE is one keep:true part now and behaves like DIRECTIVE: it cannot trim, only refuse.
+  // The old assertion was `/shortened/`. Left as it was it would have gone on passing only if some
+  // trimmable part still existed — which is exactly the thing that was removed.
   const i = base();
-  // #18: the SAMPLE is the flex part and the instruction is not. This used to put the prose in
-  // `writingStyle`, which is now the instruction and `keep: true` — so the same text there is an
-  // anchor that cannot be cut, which is the whole point of splitting them.
-  (i.story as any).voiceSample = 'The rain came sideways off the water. '.repeat(90);   // ~830 tokens
-  i.story.writingStyle = 'Write the narration in contractions.';
+  i.story.writingStyle = 'Write the narration in contractions. '.repeat(90);   // ~830 tokens
   i.story.spice = 5;
   i.currentChapter = { id: 'c3', index: 3, title: 'Key', authorsNote: 'He must be forced.' };
   const m = buildContext(i, count);
   const v = m.blocks.find((b) => b.kind === 'VOICE')!;
-  assert.match(v.reason, /shortened/, 'over the cap, it shortens rather than vanishing');
-  assert.ok(v.tokens <= 500, `must fit the cap, got ${v.tokens}`);
-  assert.match(v.text, /water\.$/,
-    `the cut lands on a sentence, not mid-word — ends: ${JSON.stringify(v.text.slice(-24))}`);
-  // AND THE INSTRUCTION SURVIVES IT. That is what the split buys: F37 measured the instruction as
-  // the thing that holds the register at 98%, and it used to share a cap with the sample that
-  // could push it out. It is `keep: true` now and this is the check that says so.
-  assert.match(v.text, /contractions/,
-    'the instruction is never what gets cut — it is the half that was measured');
+  assert.match(v.reason, /nothing in it may be cut/,
+    `an all-keep anchor refuses and says so; this said "${v.reason}"`);
+  assert.doesNotMatch(v.reason, /shortened/,
+    'and it must NOT report a trim it did not perform — that is the false reason context.ts:554 '
+    + 'exists to stop');
+  // THE INSTRUCTION ARRIVES WHOLE OR NOT AT ALL. F37 measured it as the half that holds the
+  // register at 98%; a silently shortened register is the failure COUNCIL-04 #5 is about.
+  assert.match(v.text, /contractions/, 'the instruction is there');
 
   const d = m.blocks.find((b) => b.kind === 'DIRECTIVE')!;
-  assert.doesNotMatch(d.reason, /shortened/, 'DIRECTIVE no longer pays for the sample');
+  assert.doesNotMatch(d.reason, /shortened/, 'and DIRECTIVE still pays for none of it');
   const out = render(m);
   assert.match(out, /third limited/, 'point of view survives');
   assert.match(out, /fully explicit/, 'the register survives');
@@ -1250,23 +1244,30 @@ ok('  and a blank one is not a rejection', () => {
 
 // ---- #18: the voice split, and the book's own style -------------------------------------------
 
-ok('the instruction goes in unwrapped, and only a real sample is called one', () => {
-  // The wrapper said "a sample of the writer's own prose… never continue it" over a page of RULES,
-  // which is the wrong frame for the thing F37 measured as load-bearing. It is only said now when
-  // there is something it is true of.
+ok('the voice goes in unwrapped, and the sample wrapper is never sent again', () => {
+  // #18 made the wrapper conditional — "a sample of the writer's own prose… never continue it"
+  // was only said when there was a sample. COUNCIL-06 ship 4 removed the sample, so the wrapper
+  // has no case left in which it is true, and this is the check that says it is gone.
+  //
+  // The old half of this ("a story WITH a sample is told so") could not fail: it set the field
+  // and asserted the string the same branch prints. What can fail is the negative, and it fails
+  // for a reason — restoring the wrapper is a live F36 surface, so it must go red the moment
+  // anyone puts finished prose back into the block.
   const i = base();
   i.story.writingStyle = 'Write the narration in contractions.';
-  (i.story as any).voiceSample = '';
   const v = buildContext(i, count).blocks.find((b) => b.kind === 'VOICE')!;
-  assert.match(v.text, /contractions/);
-  assert.doesNotMatch(v.text, /sample of the writer/i,
-    'a story with no specimen must not be told it has one');
+  assert.match(v.text, /contractions/, 'the instruction is the block');
+  assert.strictEqual(v.text.trim(), 'Write the narration in contractions.',
+    `and it is the WHOLE block — no wrapper, no label, no framing: ${JSON.stringify(v.text)}`);
+  assert.doesNotMatch(v.text, /sample of the writer/i, 'the wrapper is gone');
+  assert.doesNotMatch(v.text, /\[Voice:/,
+    'not bracketed either — that framing reads as a description of a style, not the rule it is');
 
-  (i.story as any).voiceSample = 'The rain came sideways off the water.';
-  const both = buildContext(i, count).blocks.find((b) => b.kind === 'VOICE')!;
-  assert.match(both.text, /sample of the writer/i, 'and one that has a specimen is told so');
-  assert.match(both.text, /sideways off the water/);
-  assert.match(both.text, /contractions/, 'with the instruction still there');
+  // And it is still fenced and still high in the prompt: whatever is in VOICE is about how to
+  // write, so it must not sit beside the tail where the model reads it as text to continue.
+  const out = render(buildContext(i, count));
+  assert.match(out, /<voice>[\s\S]*<\/voice>/, 'fenced');
+  assert.ok(out.indexOf('<voice>') < out.indexOf('<canon>'), 'above canon');
 });
 
 ok('the book\'s own style is its own block, under the voice', () => {

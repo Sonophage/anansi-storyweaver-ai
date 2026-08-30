@@ -128,7 +128,7 @@ export function fromExport(file: string): Incoming {
         // `lore_from` is deliberately NOT here. It points at another story id, and that id does
         // not exist in the file being imported — a followed book arrives standing on its own,
         // which is the only honest answer.
-        voiceSample: story.voice_sample, styleNote: story.style_note },
+        styleNote: story.style_note },
       entries: cap(entries, MAX_ENTRIES, 'canon entries', notes).map((e) => ({ title: e.title, body: clip(e.body),
         notes: clip(e.notes, 2000), entryType: e.entry_type, activation: e.activation,
         keys: keysOf(e.keys && JSON.parse(e.keys)),

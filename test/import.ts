@@ -88,22 +88,22 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.strictEqual(db.outfitsOf(twice.storyId).length, 2, 'and again, without colliding');
   ok('a wardrobe survives export and import, still wearing what it wore');
 
-// #18's two columns, and the reason this check exists at all: the export payload is a hand-written
-// whitelist whose own comment says anything not named in it is lost SILENTLY. Both were added the
+// #18's columns, and the reason this check exists at all: the export payload is a hand-written
+// whitelist whose own comment says anything not named in it is lost SILENTLY. It was added the
 // same day the columns were, and a book would otherwise have come back through a round trip with
-// its sample and its style gone and nothing saying so.
+// its voice and its style gone and nothing saying so. (`voice_sample` was the third; COUNCIL-06
+// ship 4 dropped the column, so there is nothing left to round-trip.)
 {
   const s2 = db.createStory(owner, { title: 'Voice round trip', writingStyle: 'Narrate in contractions.',
-    voiceSample: 'The rain came sideways off the water.', styleNote: 'Noir. Wet streets.' });
+    styleNote: 'Noir. Wet streets.' });
   db.addPassage({ ...s2, storyId: s2.id, body: 'Something to export.' });
   const { file } = db.exportStory(s2.id, owner, '/tmp/anansi-import-out');
   const back: any = db.getStory(imp.absorb(owner, imp.fromExport(file)).storyId);
   assert.strictEqual(back.writing_style, 'Narrate in contractions.', 'the instruction comes back');
-  assert.strictEqual(back.voice_sample, 'The rain came sideways off the water.', 'and the sample');
   assert.strictEqual(back.style_note, 'Noir. Wet streets.', 'and how the book is written');
   // lore_from is deliberately NOT carried: it names a story id that does not exist in the file.
   assert.strictEqual(back.lore_from ?? null, null, 'a followed book arrives standing on its own');
-  ok('the voice, the sample and the style survive an export and an import');
+  ok('the voice and the style survive an export and an import');
 }
 }
 

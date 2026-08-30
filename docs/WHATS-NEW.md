@@ -12,6 +12,18 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
 
+### "A sample of your prose" is gone, and that is on purpose
+The box asked for a few hundred words of your own writing and sent them to the model on
+every call. It was empty on every book here, and the reason to stop offering it is a
+measured one: finished English sitting in the prompt gets lifted into the prose verbatim,
+whole phrases at a time, and the contradiction check cannot see that happening at all. A
+page of your own finished paragraphs is the largest possible version of that.
+
+**Voice of the weave still does the work**, and it is the half that was actually measured
+— written as an instruction, on its own line, naming narration, it holds the register
+about 98% of the time. Nothing that was in the sample box was carried anywhere; no book
+had anything in it to lose.
+
 ### No book is written with no voice, and the spine is not cut short
 Two things about what reaches the model on every call.
 
