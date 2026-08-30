@@ -48,6 +48,22 @@ book in the library that can exercise `CANON-TRIGGERED` at all. `bench/utilisati
 block sent in **zero of 61 calls** because every entry everywhere was `always_on` with keys that
 echoed their own title.
 
+**To be CHECKED — counted, never read. Added 2026-08-30, Council 09 §1.**
+
+- **The spark wizard's four model calls: `spark`, `spreroll`, `spreview`, `acceptSpark`.** The scan
+  that found the four chapter-end re-runs firing a model pass with no in-flight state flagged these
+  in the same sweep — 40 handlers write, 36 carry no busy flag — and **they were flagged and not
+  read**, so nothing here says whether they are the same fault. The four that WERE read are fixed
+  (`whileWorking`, `ca3d911`) and `test/web.ts` asserts the five it knows about; these four are not
+  in that list, deliberately, because adding a name to a guard list without reading the handler is
+  how a check comes to report perfection.
+  What settles it is reading them: does a second press during a spark send a second request? The
+  router does not queue — two concurrent fit, a third kills both with HTTP 500 — so if they are the
+  same shape it is the same fix and one line each. If they already guard through `S.spark` the way
+  `scanstory` and `memo` guard through their own state, the answer is to say so and add nothing.
+
+---
+
 **Open bugs, scoped and not yet built** — see `docs/plans/PLAN-07-VEIL.md` for the veil half:
 
 - **The hardware-keyboard toggle** is still in the themes footer and belongs only in the UI tab.
