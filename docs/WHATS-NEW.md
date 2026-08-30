@@ -12,6 +12,21 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-30 · Rooms Anansi fills in come back the right size again
 
+### Cards are written as notes now, not paragraphs
+Everything Anansi writes into a card — a description, an interiority, a voice, a relationship,
+a whole new thread — used to come back as paragraphs of prose. It reads nicely and it was the
+wrong thing. A card is only ever read by the model, on every request that touches it, and
+finished sentences in a card get lifted into your book word for word.
+
+So cards come back as notes: clauses split by semicolons, no connective sentences, the bare
+fact instead of "she is" and "he has". The name and what they are stays at the front, because
+that is a fact too.
+
+Shorter, and safer. The same rewrite that took a card from a hundred and fifty words to fifty
+kept every name, number and detail it started with.
+
+Your existing cards are being converted in the same pass.
+
 ### A chapter summary now notices when you change a card under it
 Once a chapter is old enough, the app stops sending its prose and sends its summary instead —
 that is how a long book stays inside the model's memory. But a summary is written once. If you

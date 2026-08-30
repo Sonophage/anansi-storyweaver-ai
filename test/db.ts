@@ -1893,3 +1893,48 @@ ok('a swap stales the summaries that named what it swapped away, and nothing els
 
   db.delStory(s.id);
 });
+
+// EVERY ROLE THAT WRITES A LEDGER BODY WRITES IT IN THE SAME REGISTER, since 2026-08-30.
+// Seth, after reading a batch of compacted rooms beside their originals: "keep the telegram
+// version. thats better and useful for the ai. the rest is fat so all stories should have that
+// and that should be the way they work moving forward."
+//
+// The reason is not only length. A room is read by a MODEL on every call that reaches its card and
+// never by a reader; F36 measured that finished English in a prompt is lifted verbatim into the
+// prose, so a body that cannot be read as a sentence cannot be lifted as one.
+ok('a ledger body is asked for as notes, in every role that writes one', () => {
+  const writers: [string, string][] = [
+    ['MEMORY', prompts.MEMORY],
+    ['EXTRACT', prompts.EXTRACT],
+    ['CAST', prompts.CAST],
+    ['INVENT (a room)', prompts.INVENT('interiority for Halsey', '', false, true)],
+    ['INVENT (a card)', prompts.INVENT('character', '', false, false)],
+  ];
+  for (const [name, text] of writers) {
+    assert.match(text, /NOTES, not prose/,
+      `${name} produces a card body and does not say what register to write it in. One definition, `
+      + 'LEDGER_REGISTER — a second phrasing is how MEMORY and EXTRACT ended up asking for "one '
+      + 'paragraph" while INVENT asked for bracket form.');
+    assert.doesNotMatch(text, /one paragraph/i,
+      `${name} still asks for a paragraph, which is a request for prose`);
+  }
+
+  // NAMED FORMS, NOT A CATEGORY. F37: the same rule as an adjective bought nothing; spelled out
+  // with the forms named it holds. If this is ever reduced to "be concise" it is decoration.
+  assert.match(prompts.LEDGER_REGISTER, /semicolons/,
+    'the register has to name the form, not the quality');
+  assert.match(prompts.LEDGER_REGISTER, /\[Mara: The Initiator\./,
+    'and carry an example, because the example is the half a model can copy');
+
+  // THE LABEL IS A FACT. Two of three rewrites dropped "the Musician" and "The Catalyst" until
+  // the prompt said so — they are what a character is FOR, and the fact detector caught both.
+  assert.match(prompts.LEDGER_REGISTER, /Keep the opening label/,
+    'the role label is a fact and gets dropped when nothing says so');
+
+  // AND IT IS NOT IN THE PROSE PROMPTS. This describes how to write a REFERENCE; the writing model
+  // must never be told its own output is notes.
+  for (const [name, text] of [['SYSTEM', render.SYSTEM], ['DEFAULT_VOICE', prompts.DEFAULT_VOICE]] as const)
+    assert.doesNotMatch(text, /NOTES, not prose/,
+      `${name} tells the WRITING model to produce notes. That is the register for a ledger body, `
+      + 'not for the book.');
+});

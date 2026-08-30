@@ -7,6 +7,36 @@ import { ALL_SLOTS } from './slots.ts';
  *  words" plus a ban on interpretation took the mean from 1,155 characters and 5.5 analytical
  *  tells to 181 and 0.5, on the same chapters in one run, and lost no facts. EARLIER carries these
  *  into every later call, so an analytical summary was the most expensive kind of wrong here. */
+/** THE REGISTER A LEDGER BODY IS WRITTEN IN, and it is the same in every role that writes one.
+ *
+ *  Seth, 2026-08-30, after reading a batch of compacted rooms beside their originals: *"keep the
+ *  telegram version. thats better and useful for the ai. the rest is fat so all stories should
+ *  have that and that should be the way they work moving forward."*
+ *
+ *  The reason is not only length. A room is read by a MODEL, on every call that reaches its card,
+ *  and never by a reader — `INVENT` has said "this is reference, not writing" from the start and
+ *  the prompts then asked for a paragraph anyway. F36 is the argument that settles it: finished
+ *  English in a prompt is lifted verbatim into the prose. A body that cannot be read as a sentence
+ *  cannot be lifted as one, so the compressed form is SAFER as well as cheaper.
+ *
+ *  Named forms rather than a category, which is F37's shape: "notes, not prose" on its own bought
+ *  nothing when the same idea was tried as an adjective. The example carries the semicolons.
+ *
+ *  NOT MEASURED as prose quality. What is measured is that the old form cost 178 words a room
+ *  across 436 imported rooms, and that a compacted room kept every name and number it started
+ *  with. Whether the book reads better is unknown and is not claimed. */
+export const LEDGER_REGISTER =
+`A ledger body is NOTES, not prose. Clauses divided by semicolons or commas; no connective
+sentences; no "she is" or "he has" where the bare fact stands on its own:
+
+    [Mara: The Initiator. 28; sharp features; hair she cuts herself, uneven; charcoal on the
+     fingertips; wants to break the silence, terrified of being ordinary to him; will not make
+     the first move, engineers the situation instead]
+
+Keep the opening label — the name and what they are — it is a fact. Write no sentence you would
+be willing to see printed in the book: a model reads this on every call that reaches the card and
+lifts finished English straight into the prose.`;
+
 export const SUMMARY = (maxWords: number) =>
 `Summarize this chapter for a story bible. Under ${maxWords} words. Shorter is better; a short
 chapter gets a short summary.
@@ -87,8 +117,10 @@ Most changes belong in one room of the card, and the field value names which:
   role           their part in the story, if that is what changed
   facts          something permanent about them that is now established
 
-For those, the body is JUST THAT ROOM — one paragraph about that one thing — and everything else
-about them stays exactly as it is. That is the whole point: a room is edited without touching the
+For those, the body is JUST THAT ROOM — that one thing and nothing else — and everything else
+about them stays exactly as it is.
+
+${LEDGER_REGISTER} That is the whole point: a room is edited without touching the
 rest of the card.
 
 Use "none" only when the change is to who they now ARE as a whole and no single room holds it — a
@@ -383,6 +415,8 @@ wants or what it does, what it costs, what it will not do, and how it stands tow
 of the others. Facts, not atmosphere — "a mysterious past" is nothing; "struck off the register in
 '09 and still signs the forms" is something. Never a finished sentence of the book: it will be in
 the prompt while the book is written, and a phrase that reads as prose gets lifted whole.
+
+${LEDGER_REGISTER}
 
 If characters were asked for, also name two of them, or neither:
 
@@ -833,6 +867,8 @@ or as one scene's mood. A character lying or being wrong is not a fact.
 For each: title, type (character | lore | item | rule), a body in the bracket format
 [Name: attribute, attribute, relation], and up to 4 keywords.
 
+${LEDGER_REGISTER}
+
 A keyword is a word that ACTUALLY APPEARS IN THE PROSE when this thing is present. It is what
 makes the entry reach the model later, so a keyword nobody writes never fires. Repeating the
 title back buys nothing on its own: give what else is said instead — an epithet, the place they
@@ -860,7 +896,7 @@ Every room can be edited afterwards by the writer, including this one. You are p
 deciding: nothing you name is written until they accept it.
 
 When you name a room, the title is the card that already exists and the body is JUST that room —
-one paragraph about that one thing. Do not restate the rest of the card. Everything else about them
+that one thing and nothing else. Do not restate the rest of the card. Everything else about them
 stays exactly as it is.
 
 CLOTHING IS ALWAYS THE outfit ROOM AND NEVER PART OF A DESCRIPTION. What somebody is wearing
@@ -948,6 +984,8 @@ ${about.startsWith('outfit')
     + `paragraph of atmosphere either. Every clause has to carry a fact somebody could contradict: `
     + `a name, a number, a habit, a debt, a thing they carry, a thing they refuse. No adjective `
     + `doing the work of a fact, and no clause that could be true of anyone.`}
+
+${LEDGER_REGISTER}
 
 It is a jumping-off point, not a line to be quoted. Write it so the model can write FROM it — facts,
 textures and relations it turns into prose of its own — and never say it back word for word. Nothing
