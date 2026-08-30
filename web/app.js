@@ -363,6 +363,14 @@ function drawRail() {
       <span class="txt" style="display:flex; flex-direction:column; gap:2px; min-width:0">
         <span style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
           title="${esc(SRV.model || '')}">${esc(modelName(SRV.model).name)}</span>
+        <!-- WHAT IT IS, not only what it is called. #25, and Seth on 2026-08-29: "we need the
+             uncensored writing roleplay and the nn label on all three panels." The family alone
+             ("Qwen3.6") says nothing about whether it writes or roleplays, whether it refuses, or
+             whether it is one of the three that scored write 8/10 in the bakeoff — and all four of
+             those are already in the id. One decode, three surfaces: here, the list below, and the
+             Storyteller. The size is left out of the badges on purpose; this strip is nowrap. -->
+        ${modelName(SRV.model).bits.length ? `<span style="font-size:10.5px; color:var(--gold-dim);
+          overflow:hidden; text-overflow:ellipsis">${esc(modelName(SRV.model).bits.join(' \u00b7 '))}</span>` : ''}
         <span style="font-size:11px; color:var(--dim)">${SRV.slot
           ? `slot ${SRV.slot.perSlot.toLocaleString()}` : 'llama-server asleep'}</span>
       </span></button>
@@ -378,6 +386,8 @@ function drawRail() {
             <span class="txt" style="min-width:0; display:flex; flex-direction:column; gap:1px">
               <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
                 color:${m.id === SRV.model ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
+              ${modelName(m.id).bits.length ? `<span style="font-size:10px; color:var(--gold-dim);
+                overflow:hidden; text-overflow:ellipsis">${esc(modelName(m.id).bits.join(' \u00b7 '))}</span>` : ''}
               ${modelFacts(m) ? `<span style="font-size:10.5px; color:var(--dim)">${esc(modelFacts(m))}</span>` : ''}</span>
           </button>`).join('')}
       <div class="hint" style="margin:6px 0 0">A press opens what is known about it — what it
@@ -1388,7 +1398,7 @@ const PANELS = {
         <code>${esc(id)}</code></div>
 
       ${d.bits?.length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px">${
-        d.bits.map((b) => `<span class="tag">${esc(b)}</span>`).join('')}</div>` : ''}
+        [...d.bits, d.size].filter(Boolean).map((b) => `<span class="tag">${esc(b)}</span>`).join('')}</div>` : ''}
 
       ${BLURB[d.name]
         ? `<div style="font-size:13px; line-height:1.55; color:var(--mute); margin-bottom:6px">${
@@ -2285,6 +2295,31 @@ const PANELS = {
               : `${esc([modelName(o.value).name, modelName(o.value).detail].filter(Boolean).join(' — '))}${
                   o.status === 'loaded' ? ' · awake' : ''}`}</option>`).join('')}
           </select>
+          <!-- THE THIRD SURFACE. Same decode as the rail's label and the rail's list, and the
+               door to the same panel — the one place that says what this model is good at, how
+               fast it has written here, and how much context one writer gets. The option text
+               above carries the detail string, which is these badges with the size put back in; and
+               since a select
+               cannot hold a chip, so the badges are repeated under it for whichever model this
+               story is actually going to use. -->
+          ${(() => {
+            // `V.model` is what the server ALREADY resolved for this story — modelFor(story,
+            // defaultModel) at routes.ts:1044, always set. Re-deriving it here from the pin and the
+            // default would be a second copy of that rule, and the two would eventually disagree
+            // about which model a book is actually written by. NOT `SRV.model`: that one tracks the
+            // ACCOUNT default and `loadModels` rewrites it from `r.active` on every refresh, so a
+            // book with a pin would start naming the wrong model the moment the list reloaded.
+            // No `?? SRV.model` fallback either — this panel only renders inside a story, so the
+            // fallback was a branch nothing could reach and no check could falsify.
+            const using = V.model;
+            const d = modelName(using);
+            return `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:8px">
+              ${d.bits.map((b) => `<span class="tag">${esc(b)}</span>`).join('')}
+              ${d.size ? `<span class="tag">${esc(d.size)}</span>` : ''}
+              <button data-modelinfo="${esc(using)}" style="margin-left:auto; color:var(--gold);
+                font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps"
+                >What it is</button></div>`;
+          })()}
           <div class="hint">${V.story.model
             ? `This story is written by <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
                whatever any other story uses.`

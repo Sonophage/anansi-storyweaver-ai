@@ -170,13 +170,13 @@ export const modelOptions = (models, pinned) => {
 };
 
 export const modelName = (id) => {
-  if (!id) return { name: 'no model', detail: '', id: '', bits: [] };
+  if (!id) return { name: 'no model', detail: '', id: '', bits: [], size: '' };
   const alias = /^(write|rp|agentic)-(n?t)-([a-z0-9]+)-([a-z0-9]+)$/.exec(id);
   if (alias) {
     const [, role, think, family, tail] = alias;
     const bits = [think === 't' ? 'thinking' : 'no thinking', tail === 'h' ? 'uncensored' : tail];
     return { id, name: `${ROLE[role]} \u00b7 ${FAMILY[family] ?? family}`,
-             detail: bits.join(' \u00b7 '), bits };
+             detail: bits.join(' \u00b7 '), bits, size: '' };
   }
   // A Hugging-Face path is not in the convention and must not be read as one — it is tried first
   // so a repo or quant segment can never be mistaken for a CODE.
@@ -187,12 +187,16 @@ export const modelName = (id) => {
       const [, role, think, heretic] = CODE.exec(parts[at]);
       const tail = parts.slice(at + 1);
       const size = tail.filter((t) => t !== 'NN').join('-');
+      // BITS ARE THE BADGES AND THE SIZE IS NOT ONE. Three surfaces put these beside a name in a
+      // strip that is already `nowrap` with an ellipsis on it, and "35B-A3B" is the longest of them
+      // and the least of what Seth asked to see there: purpose, uncensored, and the novel tier.
+      // The size is still in `detail`, which is what the Storyteller's options are built from.
       const bits = [PURPOSE[role], think === 'T' ? 'thinking' : 'no thinking',
                     // Never "censored" for the other case. See the note above CODE.
-                    heretic ? 'decensored' : 'trained open'];
-      if (size) bits.push(size);
+                    heretic ? 'uncensored' : 'trained open'];
       if (tail.includes('NN')) bits.push('novel tier');
-      return { id, name: parts.slice(0, at).join(' '), detail: bits.join(' \u00b7 '), bits };
+      const detail = [...bits.slice(0, 3), size, ...bits.slice(3)].filter(Boolean).join(' \u00b7 ');
+      return { id, name: parts.slice(0, at).join(' '), detail, bits, size };
     }
   }
   const [repo, quant] = id.split(':');
@@ -200,7 +204,7 @@ export const modelName = (id) => {
   // The org name is often repeated inside the repo name as well, and once is enough.
   const name = (repo.split('/').pop() ?? repo).replace(/[-_]?GGUF$/i, '')
     .split(/[-_]+/).filter((w) => w.toLowerCase() !== org).join(' ');
-  return { id, name, detail: quant ?? '', bits: quant ? [quant] : [] };
+  return { id, name, detail: quant ?? '', bits: quant ? [quant] : [], size: '' };
 };
 
 /** WHAT A MODEL IS GOOD AT, which is the one thing #25 asks for that nothing can derive.

@@ -98,8 +98,45 @@ preferred for every model rather than only the loaded one.
 `test/app.ts` 43 checks, `test/web.ts` 25 — the two suites that read `web/`. `bench/sweep.ts` finds
 no dead control for the new action.
 
-**What #25 still does not do:** nothing switches the model from Storyteller or the bar label; those
-two surfaces still read the list without the panel. The issue's own checklist is otherwise met.
+### The same decode on every surface that names a model
+
+Seth, 2026-08-29: *"do the storyteller and bar label surfaces too we need the uncensored writing
+roleplay and the nn label on all three panels."* #25's "bar label" is the rail footer's own label —
+checked against `ca2c613`, the commit the issue was filed against, where `:371-378` was the model
+list and `:360-386` the footer around it. **The header bar has named no model since 2026-08-27**,
+deliberately, and it still does not.
+
+So the three are the **rail label**, the **rail list**, and the **Storyteller** — plus the panel.
+
+- `modelName` now returns `bits` (the badges) and `size` **separately**. The badges are purpose,
+  thinking, `uncensored` / `trained open`, and the novel tier; the size is not one of them, because
+  two of the three surfaces are `nowrap` strips with an ellipsis already on them and the size is the
+  longest badge and the least of what was asked for there. `detail` still carries all five in the
+  order the id spells them, and it is what builds the Storyteller's `<option>` text.
+- `decensored` became **`uncensored`** — Seth's word, and the word the old alias branch already used.
+- The Storyteller reads **`V.model`**, the model the server already resolved for the story
+  (`routes.ts:1044`), not `SRV.model`: that one tracks the ACCOUNT default and `loadModels` rewrites
+  it from `r.active` on every refresh, so a pinned book would start naming the wrong model the
+  moment the list reloaded. Its `?? SRV.model` fallback was deleted after a falsification showed the
+  branch was unreachable — the panel only renders inside a story.
+- It also grows a **door to the model panel** (`data-modelinfo`), which is the other half of what
+  was left undone.
+
+**One of these checks was decorative and the falsification pass caught it.** `assert.match(rail,
+/uncensored/)` stayed **green** with the rail label's badges deleted — because the HTML comment
+above them quotes the sentence that asked for them, and the comment is in the markup. Same failure
+`test/web.ts` documents for `data-panel="anansi"`, found the same way. The checks now strip HTML
+comments before matching, read the label with the list **shut**, and read the list from a slice that
+starts at the first row — the label and a row render the *same* badge string for the same model, so
+a check that cannot tell them apart proves nothing about the one it names.
+
+**Six more falsifications, five red on their named assertion:** the label's badges deleted, the
+list's badges deleted, the Storyteller's chips and door deleted, the size pushed back into the
+badges, and no-H rendered as `censored`. The sixth — the Storyteller re-deriving from `SRV.model` —
+came back **green**, which is what showed the fallback was dead; it was removed rather than tested.
+
+**What #25 still does not do:** nothing else. Every box on the issue is ticked; closing it is Seth's
+call.
 
 ---
 

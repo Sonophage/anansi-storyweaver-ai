@@ -244,8 +244,15 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   // came out "Qwen3.6 WNTH 35B A3B NN" — every fact still encoded in the id, none of it read.
   const q = modelName('Qwen3.6-WNTH-35B-A3B-NN');
   assert.strictEqual(q.name, 'Qwen3.6', 'the family is the name; the code and the size are not');
-  assert.deepStrictEqual(q.bits, ['Write', 'no thinking', 'decensored', '35B-A3B', 'novel tier'],
-    'purpose, thinking, decensoring, size and the novel tier all come out of the id');
+  // BITS ARE THE BADGES, AND THE SIZE IS NOT ONE. Three surfaces put these beside a name in a
+  // strip that is already nowrap with an ellipsis on it, and the size is the longest of them and
+  // the least of what was asked for there. It stays in `detail`, which is what builds the
+  // Storyteller's options, and it gets its own chip on the panel where there is room.
+  assert.deepStrictEqual(q.bits, ['Write', 'no thinking', 'uncensored', 'novel tier'],
+    'purpose, thinking, decensoring and the novel tier are the badges');
+  assert.strictEqual(q.size, '35B-A3B', 'and the size is its own field, not a badge');
+  assert.strictEqual(q.detail, 'Write · no thinking · uncensored · 35B-A3B · novel tier',
+    'while the one-line detail still carries all five, in the order the id spells them');
   // Same rule as the alias branch above, and the same reason: thinking left on returned no prose
   // at all on three runs of four, so a label that drops it hides the setting that decides whether
   // a passage arrives.
@@ -1267,5 +1274,71 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.match(bare, /Write/, 'while what the id itself encodes is still read');
 }
 ok('the model panel reads the router, the preset file, this database and the id, and names each');
+
+// THE SAME DECODE ON EVERY SURFACE THAT NAMES A MODEL. Seth, 2026-08-29: "we need the uncensored
+// writing roleplay and the nn label on all three panels." Before this only the panel decoded the
+// id: the rail's label said "Qwen3.6", its list said "Qwen3.6", and the Storyteller's hint said
+// "Qwen3.6" — a family name that says nothing about whether the thing writes or roleplays, whether
+// it refuses, or whether it is one of the three that scored write 8/10 in the bakeoff. Every one of
+// those four facts was already in the id and none of them was on screen.
+//
+// Driven with a NEW-CONVENTION model pinned, because the rest of this file runs against the old
+// alias — and an alias decodes to two badges, so a fixture that only used one could not tell a
+// surface that reads `bits` from a surface that reads nothing.
+{
+  const wasModel = STORY.model;
+  STORY.model = 'Qwen3.6-WNTH-35B-A3B-NN';
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+
+  // COMMENTS ARE NOT SURFACE. The first version of this asserted /uncensored/ against the whole
+  // rail and stayed GREEN with the badges deleted, because the comment above them quotes the
+  // sentence that asked for them. That is the same decorative match test/web.ts already documents,
+  // found the same way — by breaking the code on purpose and watching the check not care.
+  const visible = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
+  const BADGES = /Write · no thinking · uncensored · novel tier/;
+
+  // 1 · THE RAIL'S LABEL — what is writing right now. Read with the list SHUT, so the only place
+  // this string can come from is the label itself.
+  const label = visible(html('rail'));
+  assert.doesNotMatch(label, /data-modelinfo=/, 'the list is shut, so this is the label alone');
+  assert.match(label, BADGES, 'the label says what it is, not only what it is called');
+
+  // 2 · THE RAIL'S LIST. Sliced from the first row, so an assertion here cannot be satisfied by
+  // the label above it — the two render the same badge string for the same model, and a check
+  // that cannot tell them apart proves nothing about the one it names.
+  click({ modelmenu: '1' });
+  for (let i = 0; i < 20 && !/tok\/s/.test(html('rail')); i++) await new Promise((r) => setTimeout(r, 25));
+  const rail = visible(html('rail'));
+  const list = rail.slice(rail.indexOf('data-modelinfo='));
+  assert.ok(list.length > 200, 'the list must actually be open');
+  assert.match(list, BADGES, 'every row says what it is for, whether it thinks, and its tier');
+  assert.match(list, /Roleplay · no thinking · trained open/,
+    'and a model with no H reads as trained open, never as censored');
+  // Not the size, on this one: the strip is nowrap with an ellipsis, the size is the longest badge
+  // and the least of what was asked for here, and it is one press away on the panel. Anchored to
+  // the badge line — the raw id is in each row's own attribute and carries the size with it, so a
+  // bare /35B-A3B/ could never fail.
+  assert.doesNotMatch(list, /uncensored · 35B-A3B/, 'the size must not be in the badge line here');
+  click({ modelmenu: '1' });
+
+  // 3 · THE STORYTELLER, which is where a book pins its own.
+  click({ panel: 'teller' });
+  await new Promise((r) => setTimeout(r, 30));
+  const teller = visible(html('sideBody'));
+  assert.match(teller, /<span class="tag">Write<\/span>/, 'the badges are chips here, where there is room');
+  assert.match(teller, /<span class="tag">uncensored<\/span>/);
+  assert.match(teller, /<span class="tag">novel tier<\/span>/);
+  assert.match(teller, /<span class="tag">35B-A3B<\/span>/, 'and the size fits on this one');
+  assert.match(teller, /data-modelinfo="Qwen3\.6-WNTH-35B-A3B-NN"/,
+    'with a door to the panel that holds the blurb, the speed and the context');
+  // The option text in the select is built from `detail` — the badges with the size put back in,
+  // one decode rather than a second list that drifts away from it.
+  assert.match(teller, /<option[^>]*>Qwen3\.6 — Write · no thinking · uncensored · 35B-A3B · novel tier/,
+    'and the select carries the same decode, size included');
+
+  STORY.model = wasModel;
+}
+ok('the rail label, the rail list and the Storyteller all read the id the panel reads');
 
 console.log(`\n${n} checks passed`);
