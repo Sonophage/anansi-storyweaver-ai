@@ -10,6 +10,15 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · Switches and pickers keep themselves
+
+### No Save press for a checkbox or a dropdown
+Point of view, the cover switches, the spice picker and the rest of the story panel's toggles now
+save the moment you change them. There is nothing to press afterwards and no message about it.
+
+Anything you TYPE still waits for Save — the title, the premise, the voice, the chapter's name and
+its brief. A text box that saved itself mid-sentence would fight you, so it does not.
+
 ## 2026-08-31 · Enter makes a line
 
 ### The send button is the only thing that sends

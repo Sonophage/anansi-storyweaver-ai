@@ -1198,3 +1198,56 @@ ok("  and it is still there a moment later, not eaten by a repaint",
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");
+
+// ---- AUTOSAVE ON TOGGLES AND PICKERS, AND ONLY THERE (2026-08-31). Seth: "theres alot of things
+// that can be auto saved ... a great example is the check marks for the story banner or choosing
+// the pov and voice", and his scope call was toggles and pickers, not free text.
+//
+// Point of view rather than the banner checkmarks, and that is a fixture fact worth writing down:
+// `chapterHero` and `chapterSticky` only render once the story HAS a cover, and The Silver Key has
+// none — the panel opened, twelve [data-story] controls were on it, and that checkbox was not one
+// of them. POV is a <select> and is always there, and it is Seth's other example.
+//
+// OPENED BY CLICK, NOT BY DEEP LINK, and guarded. The first version waited on an element that was
+// never going to appear, then ran page.eval against null, which threw inside the page and killed
+// the scenario WITHOUT a red line — every assertion below it stopped running and the suite still
+// said green. Proven by putting ok(..., false) on a line and watching the run report 0 red.
+//
+// The read-back is the server's own copy, not the DOM, or this would only prove a select can be
+// set. The text half is asserted as an ABSENCE — the half that passes for the wrong reason — so
+// the picker assertion above it is its validation.
+{
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
+  await page.click('[data-panel="story"], [data-nav="story"]');
+  for (let i = 0; i < 40 && !(await page.visible('[data-story="pov"]')); i++) await wait(250);
+
+  // An option that is not the one already chosen, taken from the select itself rather than assumed.
+  const other = await page.eval(`(() => { const s = document.querySelector('[data-story="pov"]');
+    if (!s) return null;
+    const o = [...s.options].map(o => o.value).filter(v => v && v !== s.value);
+    return o[0] ?? null; })()`);
+  ok(`the story panel is open with a point-of-view picker offering another option (${JSON.stringify(other)})`,
+     typeof other === 'string' && other.length > 0);
+
+  if (other) {
+    await page.eval(`(() => { const s = document.querySelector('[data-story="pov"]');
+      s.value = ${JSON.stringify(other)};
+      s.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    await wait(800);
+    const now = (await story()).story.pov;
+    ok(`  a picker saves itself with no Save pressed (server now says ${JSON.stringify(now)})`, now === other);
+
+    // And free text does not. Typed into and left alone; only the Save press commits it.
+    const title = (await story()).story.title;
+    await page.eval(`(() => { const t = document.querySelector('[data-story="title"]');
+      if (!t) return 0; t.value = 'Autosaved By Mistake';
+      t.dispatchEvent(new Event('input', { bubbles: true }));
+      t.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    await wait(800);
+    const after = (await story()).story.title;
+    ok(`  and typing in a text field does not (still ${JSON.stringify(after)})`, after === title);
+  } else {
+    ok("  AUTOSAVE ASSERTIONS DID NOT RUN — no second option to choose", false);
+  }
+}

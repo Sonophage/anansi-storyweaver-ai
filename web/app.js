@@ -5501,6 +5501,62 @@ async function leaveTo(page) {
   if (page === 'prefs' && S.models === null) loadModels();
 }
 
+/** Commit the Story panel.
+ *
+ *  `only` is the autosave path: ONE control, saved the moment it changes, and nothing else. Seth,
+ *  2026-08-31: "theres alot of things that can be auto saved ... a great example is the check marks
+ *  for the story banner or choosing the pov and voice." His call on scope was toggles and pickers
+ *  only, and this is why that distinction has to live in the patch rather than in the listener: the
+ *  Save press reads EVERY `[data-story]` element, so an autosave that reused it would push whatever
+ *  is half-typed in Premise or the voice to the server every time a checkbox moved. A text field
+ *  that saves mid-sentence fights the writer; a checkbox that needs a Save is just wrong.
+ *
+ *  The chapter's name and its brief are free text and are only committed by the Save press, for the
+ *  same reason.
+ */
+async function commitStory(only = null) {
+  const patch = {};
+  // A checkbox carries its answer in `checked`, not in `value` — `el.value` on an unchecked box
+  // is the string "on", which is truthy, so reading it the same way as a text field saves every
+  // switch as ON whichever way the writer left it.
+  const take = (el) => { patch[el.dataset.story] = el.type === 'checkbox' ? el.checked : el.value; };
+  if (only) take(only); else document.querySelectorAll('[data-story]').forEach(take);
+  // A range carries a string, and `Number('') || 0` on an untouched one would save 0 — which is
+  // a picture turned off rather than a picture left alone. It is always present when it renders,
+  // so the cast is all it needs; the clamp lives in db.updateStory where every caller passes.
+  if (patch.coverOpacity !== undefined) patch.coverOpacity = Number(patch.coverOpacity);
+  // The sixth spice option is a switch, not a level. On `custom` the stored level is left alone
+  // and the written line is what the engine reads; on a level the written line is cleared, or it
+  // would go on silently overriding the level the writer just chose.
+  if (patch.spice === 'custom') delete patch.spice;
+  else if (patch.spice !== undefined) patch.spiceNote = '';
+  const r = await api.saveStory(S.storyId, patch);
+  if (r.error) return toast(r.error);
+  let c = null;
+  if (!only) {
+    const ct = document.querySelector('[data-chapter-title]'), cn = document.querySelector('[data-chapter-note]');
+    c = ct && await api.saveChapter(S.storyId, V.currentChapter.id,
+      { title: ct.value, authorsNote: cn?.value ?? '' });
+  }
+  V = await api.story(S.storyId); paint(); refreshManifest();
+  // COUNCIL 09 §2. This said "Saved." whatever came back, over the two fields on this screen a
+  // writer types by hand. A toast that lies is worse than no toast: the next time the title is
+  // empty you go looking for the fault somewhere it is not.
+  //
+  // Silent on the autosave path. A toast per checkbox is a notification for something the writer
+  // did not ask to be told about; an error still speaks.
+  if (!only) toast(c && c.error ? c.error : 'Saved.');
+}
+
+// A toggle or a picker commits itself. Text does not — see commitStory. `change` and not `input`,
+// because `input` on a <select> fires while the list is still open on some browsers.
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el?.dataset?.story || !S.storyId) return;
+  if (el.type !== 'checkbox' && el.tagName !== 'SELECT') return;
+  void commitStory(el);
+});
+
 // ---------- one delegated listener ----------
 document.addEventListener('click', async (e) => {
   const t = e.target.closest(ACTIONS);
@@ -6634,34 +6690,8 @@ document.addEventListener('click', async (e) => {
   if (d.skipsetup) { S.setup = null; S.setupStep = null; S.panel = 'context'; syncHash(); paint();
     OPEN_WANTED = S.storyId; await openingPassage(); return; }
 
-  if (d.savestory) {
-    const patch = {};
-    // A checkbox carries its answer in `checked`, not in `value` — `el.value` on an unchecked box
-    // is the string "on", which is truthy, so reading it the same way as a text field saves every
-    // switch as ON whichever way the writer left it.
-    document.querySelectorAll('[data-story]').forEach((el) => {
-      patch[el.dataset.story] = el.type === 'checkbox' ? el.checked : el.value;
-    });
-    // A range carries a string, and `Number('') || 0` on an untouched one would save 0 — which is
-    // a picture turned off rather than a picture left alone. It is always present when it renders,
-    // so the cast is all it needs; the clamp lives in db.updateStory where every caller passes.
-    if (patch.coverOpacity !== undefined) patch.coverOpacity = Number(patch.coverOpacity);
-    // The sixth spice option is a switch, not a level. On `custom` the stored level is left alone
-    // and the written line is what the engine reads; on a level the written line is cleared, or it
-    // would go on silently overriding the level the writer just chose.
-    if (patch.spice === 'custom') delete patch.spice;
-    else if (patch.spice !== undefined) patch.spiceNote = '';
-    const r = await api.saveStory(S.storyId, patch);
-    if (r.error) return toast(r.error);
-    // COUNCIL 09 §2. This said "Saved." whatever came back, over the two fields on this screen a
-    // writer types by hand. A toast that lies is worse than no toast: the next time the title is
-    // empty you go looking for the fault somewhere it is not.
-    const ct = document.querySelector('[data-chapter-title]'), cn = document.querySelector('[data-chapter-note]');
-    const c = ct && await api.saveChapter(S.storyId, V.currentChapter.id,
-      { title: ct.value, authorsNote: cn?.value ?? '' });
-    V = await api.story(S.storyId); paint(); refreshManifest();
-    return toast(c && c.error ? c.error : 'Saved.');
-  }
+  if (d.savestory) { await commitStory(); return; }
+
   // The DOOR. Pressing it opens the chapter's own screen; the close itself is a second press
   // inside, which is the right number before an act that cannot be undone from one button.
   if (d.ritual) {
