@@ -420,6 +420,30 @@ ok('each mode says the one thing that distinguishes it', () => {
       `${m} names a length in sentences or words`);
   }
 
+  // THE TARGET IS OFF UNLESS THE WRITER TURNS IT ON, and this is the half that says so. The line
+  // above proves the SHIPPED modes name no length; without this one it would also pass if the
+  // target leaked into every book, because the target is appended after the mode text and these
+  // fixtures set no target. Both directions, or the guard only watches one.
+  // Matches the target LINE, not the word "words" — speak legitimately says "Do not put further
+  // words in that character's mouth", and a check that fires on that is a check that has to be
+  // deleted the first time it goes red for the wrong reason.
+  const AIM = /Aim for roughly \d+ words/i;
+  for (const m of ['continue', 'speak', 'act', 'direct', 'narrate']) {
+    const off = modeText({ mode: m as any, directive: 'He drops it.' });
+    assert.doesNotMatch(off, AIM, `${m} carries a length target with none set`);
+    const on = modeText({ mode: m as any, directive: 'He drops it.', targetWords: 400 });
+    // The whole line, anchored, because both halves of it are load-bearing: on its OWN line per
+    // F37 (buried in a longer one the same rule bought 10.7%), and carrying the permission to come
+    // in under the number, which is the only thing separating a target from the quota F18/F29
+    // measured. A looser match would let either half rot away green.
+    assert.match(on, /^Aim for roughly 400 words, and stop sooner if the beat is done\.$/m,
+      `${m} must carry the target, whole, on its own line`);
+    assert.ok(on.startsWith(off), `${m} must keep its own wording and only gain a line`);
+  }
+  // Talk is Anansi answering the writer, not a passage, and has its own bound.
+  assert.doesNotMatch(modeText({ mode: 'talk' as any, directive: 'Who is she?', targetWords: 400 }),
+    AIM, 'talk must not be given a passage length');
+
   // AND NO PROMPT MAY OFFER A LIST OF SLOTS. Speak said "speech, action, the room" and got back
   // reply, gesture, weather, in that order, every time (COUNCIL-04) — three slots is a shape, and
   // a shape the model can see is a shape it completes. Act had the same defect in other words.

@@ -285,7 +285,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
   'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
-  'applylib', 'savelib', 'dellib', 'setvoice',
+  'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
@@ -2430,11 +2430,12 @@ const PANELS = {
 
   teller() {
     const g = V.gen ?? SRV.gen ?? {};
-    const slider = (label, key, value, max, hint) => `
+    const slider = (label, key, value, max, hint, fmt) => `
       <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px">
         <div style="display:flex; justify-content:space-between; font-size:11px; letter-spacing:.1em;
           font-variant-caps:all-small-caps; color:var(--dim)">
-          <span>${label}</span><span class="tnum" style="color:var(--gold-dim)">${value}</span></div>
+          <span>${label}</span><span class="tnum" style="color:var(--gold-dim)">${
+            fmt ? fmt(value) : value}</span></div>
         <input type="range" data-gen="${key}" min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
           value="${value}" style="width:100%; accent-color:var(--gold)">
         ${hint ? `<div class="hint">${hint}</div>` : ''}</div>`;
@@ -2495,8 +2496,14 @@ const PANELS = {
         'How far the model will reach for a less obvious word. Prose only — structured roles run pinned at 0.2, because a loose sampler under a tight grammar writes valid JSON that says nothing.')}
       ${slider('Focus', 'top_p', g.top_p ?? 0.95, 1,
         'How much of the field it considers at all. Lower is tighter and more predictable.')}
-      ${slider('Passage length', 'max_tokens', g.max_tokens ?? 900, 2000,
-        'The ceiling on one passage. Raising it costs prefill on every call.')}
+      ${slider('Passage length', 'target_words', g.target_words ?? 0, 1000,
+        'Roughly how long a passage should run. Anansi aims for it and is allowed to come in under '
+        + 'it — she is not cut off at it. All the way left leaves the length to her, which is how '
+        + 'every book here was written until now.',
+        // The whole left end of the track is the off position, and the server agrees with it to
+        // the token: anything under 150 stores as zero, so there is no value the writer can set
+        // that reads back as a different one.
+        (n) => (n < 150 ? 'let her decide' : `~${n} words`))}
       <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 0; border-top:1px solid rgba(255,255,255,.04)">
         <span style="width:8px; height:8px; border-radius:50%; background:var(--bad); margin-top:5px; flex:0 0 auto"></span>
         <span style="flex:1; display:flex; flex-direction:column; gap:4px">
@@ -2524,6 +2531,27 @@ const PANELS = {
              every book you make after that starts from yours instead.`}
           It is COPIED into a book at creation &mdash; changing it here does not rewrite books that
           already exist.</div>`
+        : '<div class="hint">Reading it&hellip;</div>'}
+
+      <!-- HOW ANANSI TALKS, and it is a different thing from the box above it. That one is how
+           the BOOK is written; this one is how she answers you. They were the same thing until
+           2026-08-30 by accident: the book's voice was reaching the chat and outranking her own,
+           so a book written in short flat sentences got a short flat Anansi. She is isolated from
+           it now, and her register is here rather than nowhere. NOT copied into anything and not
+           per story - she is one character across the shelf. -->
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">How Anansi talks</div>
+      ${S.prompts?.anansi ? `
+        <textarea class="field grow" data-anansivoice style="min-height:110px; font-size:12.5px;
+          line-height:1.5">${esc(S.prompts.anansi.mine ?? S.prompts.anansi.shipped)}</textarea>
+        <div style="display:flex; gap:7px">
+          <button class="btn ghost" data-setanansi="1" style="flex:1">${
+            S.prompts.anansi.mine ? 'Save how she talks' : 'Make this how she talks'}</button>
+        </div>
+        <div class="hint">${S.prompts.anansi.mine
+          ? `Yours, on every book. Emptying the box puts her shipped voice back.`
+          : `Her shipped voice. Change it and save, and she answers you like this everywhere.`}
+          Her register only &mdash; what she may offer you, and the rule that she never invents a
+          fact the story does not have, is not in this box and cannot be edited away.</div>`
         : '<div class="hint">Reading it&hellip;</div>'}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">The five modes, in your words</div>
@@ -4898,16 +4926,22 @@ async function generate(mode = S.mode) {
  *  page is known to be wrong, and until now the only sign was a red line appearing later. */
 function mendToast(r) {
   const found = Number(r?.found ?? 0);
-  if (!found) return null;
-  const unfixed = Number(r.unfixed ?? 0), mended = Number(r.mended ?? 0);
+  const unfixed = Number(r?.unfixed ?? 0), mended = Number(r?.mended ?? 0);
   const many = (n) => `${n} contradiction${n === 1 ? '' : 's'}`;
-  if (r.unchecked) return `${many(found)} found and repaired — the second check did not answer, `
-    + 'so whether they are gone is not known.';
-  if (r.refused) return `${many(found)} found, and the repair came back too short to trust — `
-    + 'this take still contradicts the canon. Re-roll it, or fix it by hand.';
-  if (!unfixed) return `${many(mended)} caught and fixed before this landed.`;
-  return `${many(unfixed)} of ${found} survived the repair — this take still contradicts the canon. `
-    + 'Re-roll it, or fix it by hand.';
+  const canon = !found ? ''
+    : r.unchecked ? `${many(found)} found and repaired — the second check did not answer, `
+      + 'so whether they are gone is not known.'
+    : r.refused ? `${many(found)} found, and the repair came back too short to trust — `
+      + 'this take still contradicts the canon. Re-roll it, or fix it by hand.'
+    : !unfixed ? `${many(mended)} caught and fixed before this landed.`
+    : `${many(unfixed)} of ${found} survived the repair — this take still contradicts the canon. `
+      + 'Re-roll it, or fix it by hand.';
+  // THE CEILING, FIRST. A take that ran into it is a fact about the prose on the page whether or
+  // not anything in it contradicted the book, and for five days the only sign was a paragraph
+  // that stopped mid-word — 41 of 181 of them, with nothing on screen either time.
+  const cut = r?.cut ? 'This take ran to the ceiling and was cut short, then trimmed back to its '
+    + 'last finished sentence. Re-roll it, or raise Passage length.' : '';
+  return [cut, canon].filter(Boolean).join(' ') || null;
 }
 
 /** Mark the newest passage so it fades in once, and only once. The flag is cleared on a timer
@@ -6191,7 +6225,7 @@ document.addEventListener('click', async (e) => {
     const r = await api.savePrompt(`${kind}:${name}`, text);
     if (r.error) return toast(r.error);
     S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
-                  voice: r.voice ?? S.prompts.voice };
+                  voice: r.voice ?? S.prompts.voice, anansi: r.anansi ?? S.prompts.anansi };
     drawSide();
     return toast(`Saved as ${name}.`);
   }
@@ -6203,7 +6237,7 @@ document.addEventListener('click', async (e) => {
     const r = await api.savePrompt(`${kind}:${rest.join(':')}`, '');
     if (r.error) return toast(r.error);
     S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
-                  voice: r.voice ?? S.prompts.voice };
+                  voice: r.voice ?? S.prompts.voice, anansi: r.anansi ?? S.prompts.anansi };
     drawSide();
     return toast('Forgotten.');
   }
@@ -6215,9 +6249,21 @@ document.addEventListener('click', async (e) => {
     const r = await api.savePrompt('voice', text);
     if (r.error) return toast(r.error);
     S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
-                  voice: r.voice ?? S.prompts.voice };
+                  voice: r.voice ?? S.prompts.voice, anansi: r.anansi ?? S.prompts.anansi };
     drawSide();
     return toast(r.reset ? 'Back to the shipped voice.' : 'That is your default now.');
+  }
+  // HOW SHE TALKS. Same bargain as the box above and the same blank-is-reset, but it is copied
+  // into nothing: the chat reads it live on every call, so a change is in force on the next
+  // question rather than on the next book.
+  if (d.setanansi) {
+    const text = document.querySelector('[data-anansivoice]')?.value.trim() ?? '';
+    const r = await api.savePrompt('anansi', text);
+    if (r.error) return toast(r.error);
+    S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
+                  voice: r.voice ?? S.prompts.voice, anansi: r.anansi ?? S.prompts.anansi };
+    drawSide();
+    return toast(r.reset ? 'Back to her shipped voice.' : 'That is how she talks now.');
   }
   if (d.restyle) {
     if (S.styling) return;

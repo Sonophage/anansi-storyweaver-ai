@@ -10,6 +10,7 @@ import { extname, resolve } from 'node:path';
 import { routes, OPEN_ROUTES, storyIdOf } from './src/routes.ts';
 import type { Ctx } from './src/routes.ts';
 import { slotContext, model } from './src/llama.ts';
+import { capFor } from './src/story.ts';
 import * as db from './src/db.ts';
 
 const PORT = Number(process.env.ANANSI_PORT ?? 5174);
@@ -126,10 +127,18 @@ try { slot = await slotContext(); } catch { /* model asleep; pages still load */
 // no prose on most runs. See P0-FINDINGS F5.
 const GEN: Record<string, any> = {
   temperature: 0.85, top_p: 0.95, min_p: 0.05,
-  // 450, not 900. Two effects, and the second is the one that matters: a passage arrives in half
-  // the time, and the budget engine reserves half as much, so the prompt gets those tokens back.
-  // Raise it per session under Storyteller when a scene actually needs the room.
-  dry_multiplier: 0, xtc_probability: 0, thinking: false, max_tokens: 450,
+  // THE CEILING IS NOT THE SETTING, and for five days it was. This said 450 on the argument that a
+  // passage arrives in half the time and the budget engine reserves half as much — and the log
+  // says what it actually bought: 41 of 181 prose runs at that cap ended exactly ON it, mid-word.
+  // The model is never told the number, so it cannot land under it; lowering the ceiling never
+  // shortened a passage (average 290 at 450 against 335 at 900), it only chopped a quarter of
+  // them. See `capFor` in src/story.ts for the whole table.
+  //
+  // `target_words` is now what the writer sets and the only one of the two she ever sees. Zero is
+  // "let her decide": no number reaches the model, which is the behaviour F29 measured and is
+  // still the default. `max_tokens` is derived from it and exists only to stop a runaway.
+  dry_multiplier: 0, xtc_probability: 0, thinking: false,
+  target_words: 0, max_tokens: capFor(0),
 };
 // Per owner, not per process. Two writers sharing one sampler would share max_tokens with it, and
 // the context budget reserves against that number — one of them raising it would quietly shrink the

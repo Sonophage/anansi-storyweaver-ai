@@ -4,7 +4,7 @@ import { buildContext } from './context.ts';
 import type { Input, Entry } from './context.ts';
 import { render, entryText, SYSTEM } from './render.ts';
 import { SLOTS } from './slots.ts';
-import { DEFAULT_VOICE } from './prompts.ts';
+import { DEFAULT_VOICE, TALK_VOICE } from './prompts.ts';
 import * as db from './db.ts';
 
 export interface Slot { global: number; slots: number; perSlot: number }
@@ -57,6 +57,21 @@ const toChapter = (c: any) => ({
  *  left all three paths open, and `db.updateStory` writes a blank straight through, so the hole
  *  could reopen the next time somebody cleared the field. */
 export const voiceOf = (owner: string) => db.promptsOf(owner).voice?.trim() || DEFAULT_VOICE;
+
+/** HOW ANANSI TALKS, and it is the writer's. Two rungs where the book's voice has three: there is
+ *  no per-story Anansi, because she is one character across the shelf and a book that wanted a
+ *  different one would be a different character rather than a different register.
+ *
+ *  THE KEY IS `anansi` AND NOT `talk`, and that is the whole reason this can exist at all.
+ *  `assemble` looks overrides up BY MODE NAME (`context.ts`, `input.modePrompts?.[input.mode]`),
+ *  so a key called `talk` would be picked up by the MODE block and a reworded chat prompt could
+ *  continue the book — which is exactly what `EDITABLE_MODES` in `routes.ts` refuses. A key that
+ *  is not a mode name is invisible to that lookup, which is the same argument that already lets
+ *  the bare `voice` key ride in this table.
+ *
+ *  Only the CHAT reads this. `INVENT` keeps its own plain prompt: what it returns is stored and
+ *  re-sent to the writing model, and a register in there reaches the book through the ledger. */
+export const anansiOf = (owner: string) => db.promptsOf(owner).anansi?.trim() || TALK_VOICE;
 
 export function view(storyId: string, focusChapterId?: string) {
   const s = db.getStory(storyId);
@@ -227,6 +242,32 @@ export const budgetFor = (story: any, slot: Slot, maxTokens = 900) => {
   return Math.max(0, cap - Math.max(600, maxTokens) - Math.floor(cap * 0.06) - estimate(SYSTEM));
 };
 
+/** The writer sets a TARGET; the transport gets a CEILING. They stopped being the same number on
+ *  2026-08-30, and conflating them is what cut 41 of 181 prose runs off mid-word.
+ *
+ *  MEASURED off the generations log that day, denominator being every run that could have hit its
+ *  cap: at 450 the model landed exactly on it 41 times in 181; at 900 it hit it 0 times in 212,
+ *  averaging 335 tokens against an 845 maximum. Lowering the ceiling never shortened a passage —
+ *  the average was 290 at 450 against 335 at 900 — because the model is never told the number and
+ *  so cannot aim under it. It only chopped a quarter of them. Twice-the-target sits above the
+ *  observed spread, and 900 is the floor because nothing has ever run into it.
+ *
+ *  (The two eras are sequential and not simultaneous arms, so the cross-cap comparison is
+ *  uncontrolled — the 41-in-181 is not, and it is the one this function exists for.)
+ *
+ *  1.4 tokens per word is `estimate`'s 4.2 chars/token at ~5.7 chars per word-and-space, rounded
+ *  UP on purpose: over-estimating tokens buys headroom, and headroom is the whole job here.
+ *
+ *  ponytail: a flat 2x over a flat 1.4 tokens/word, not a fit against the log. Both constants are
+ *  read off one model's history and neither is per-model — a wordier model, or one with a coarser
+ *  tokenizer, gets a ceiling closer to its own output than this assumes. The upgrade path is the
+ *  generations table, which already carries `completion_tokens` and the prompt's word count per
+ *  model: fit the multiplier per model when a second one is in real use. The trigger is a model
+ *  whose runs start landing ON the ceiling — `finish_reason: 'length'`, which the writer is now
+ *  told about, so it will be noticed rather than inferred. */
+export const capFor = (targetWords: number) =>
+  targetWords > 0 ? Math.min(Math.max(Math.round(targetWords * 1.4 * 2), 900), 2000) : 900;
+
 /** The shipped wording of every editable mode, rendered with its placeholders left in.
  *
  *  Built by asking the engine itself rather than by keeping a second copy: a copy is a thing that
@@ -248,7 +289,8 @@ export function defaultModePrompts(): Record<string, string> {
 /** Assemble the prompt. Pure from here down — no I/O below this line. */
 export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
                          mode: string, directive?: string, upToOrdinal?: number, maxTokens = 900,
-                         speaker?: string, modePrompts?: Record<string, string>) {
+                         speaker?: string, modePrompts?: Record<string, string>,
+                         targetWords = 0) {
   // Regenerating passage 3 of 50 must build the context that existed at passage 3. Sending
   // the whole document meant the "new take" was written with knowledge of the 47 passages
   // that come after it — which is not a regeneration, it is a summary of the future.
@@ -280,6 +322,10 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     edges: v.edges ?? [],
     budget: budgetFor(v.story, slot, maxTokens), tailTokens: 220,
     modePrompts,
+    // A number, resolved before the line: `buildContext` stays pure and reads no setting of its
+    // own. Zero means the writer left it on "let her decide", and nothing about length reaches
+    // the model at all — which is the shipped behaviour F29 measured and is still the default.
+    targetWords,
   };
   const manifest = buildContext(inp, estimate);
   return { manifest, prompt: render(manifest) };
@@ -298,4 +344,25 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
  *  flag is missed. */
 export function clean(text: string) {
   return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+}
+
+/** Cut a passage the ceiling truncated back to its last finished sentence.
+ *
+ *  RUNS ONLY ON `finish_reason: 'length'`, and the caller is what enforces that. A passage the
+ *  model ended itself is finished wherever it chose to stop; trimming that would delete prose on
+ *  purpose, and the modes explicitly permit three sentences.
+ *
+ *  The boundary class is `context.ts`'s unfinished-line test PLUS the em dash and the ellipsis.
+ *  Those two are in because the shipped voice asks for them by name — "Let speakers go unfinished.
+ *  Thoughts trail; sentences stop mid-breath." A line ending on a dash is intended prose, and a
+ *  trim that ate it would be the same defect as the guillotine, one clause smaller.
+ *
+ *  RETURNS THE TEXT UNCHANGED WHEN IT FINDS NO BOUNDARY. A passage with no terminal punctuation
+ *  anywhere is not a reason to hand the writer an empty one — that would turn a truncated take
+ *  into a lost take, which is strictly worse than the bug being fixed. */
+export function trimToSentence(text: string) {
+  // Greedy, so it backtracks to the LAST boundary rather than the first, and keeps any closing
+  // quote or bracket sitting after it.
+  const kept = text.match(/^[\s\S]*[.!?…—][)\]"'”’]*/)?.[0].trimEnd();
+  return kept || text;
 }

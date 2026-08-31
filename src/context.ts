@@ -92,6 +92,15 @@ export interface Input {
   // than being read from a table down in the engine, because buildContext is pure below the line
   // in story.ts and this is a flag like any other.
   modePrompts?: Record<string, string>;
+  /** Roughly how long the writer wants a passage, in words. Zero or absent is "let her decide",
+   *  and then NOTHING about length reaches the model — which is the shipped default.
+   *
+   *  READ F18 AND F29 BEFORE TOUCHING THIS. A named length is a length the model fills: F29
+   *  measured Continue's median at 685 chars with "the next 1-2 paragraphs" in the prompt and 291
+   *  without it. So this is a floor as much as a target, it is off unless the writer turns it on,
+   *  and `test/engine.ts` asserts both that the shipped modes still name no length and that this
+   *  one appears only when it is set. */
+  targetWords?: number;
   currentChapter: Chapter;
   budget: number;          // per-slot context, minus output reserve and margin
   tailTokens?: number;     // DIRECTIVE sits this many tokens above the end. P0 finds it.
@@ -711,6 +720,34 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     { text: story.direction ? `Where this is going: ${story.direction}` : '', keep: true },
   ], CAPS.SPINE!);
 
+  /** ANANSI READS THE BOOK; SHE DOES NOT WRITE IT.
+   *
+   *  VOICE, STYLE and DIRECTIVE are instructions to a prose engine, and `talk` is the one mode
+   *  that is not writing prose. Sent to the chat they do not sit there quietly: F37's whole
+   *  finding is that the voice field outranks everything for register, and it lands in the USER
+   *  message, below the canon and next to the ask, while Anansi's own persona is the system
+   *  message. Seth, 2026-08-30, on replies that came back clipped and out of register: *"the
+   *  anansi chatbot should have a seperate voice from anything in the book. it can of course read
+   *  the thread and narrative but it shouldnt be affected by it."*
+   *
+   *  Measured on a live manifest before this gate: 506 tokens of VOICE telling her "short,
+   *  declarative sentences… calm, slightly detached", and a DIRECTIVE carrying
+   *  `[Writing: first person, present tense]` and the spice register, on a call that writes no
+   *  prose at all.
+   *
+   *  SHE KEEPS THE KNOWLEDGE. SPINE, canon, the chapter summaries and the recent passages are
+   *  what she answers FROM and none of them are gated here. What goes is the craft.
+   *
+   *  `POST /api/invent` rides this mode too and is meant to. A card body is a note of fact for
+   *  the writing model to read later, so the book's own finished prose sitting in the call that
+   *  writes one is F36's surface exactly — and F36 says a finished-English line in a prompt comes
+   *  back verbatim in the book, by a route the contradiction checker cannot see.
+   *
+   *  The POV and the persona are the one thing DIRECTIVE was carrying that is a FACT rather than
+   *  an instruction, and dropping it here would leave the chat with nothing that says who is
+   *  telling the story. `POST /api/talk` puts that back in its own words — see the note there. */
+  const prose = input.mode !== 'talk';
+
   // VOICE — the register, sent as an instruction and nothing else.
   //
   // #18 split this field in two because one wrapper was lying about both halves: it labelled
@@ -733,7 +770,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   //
   // VOICE is one part now, and that part is `keep: true` — so like DIRECTIVE the anchor can no
   // longer trim, only refuse. That is the trade: the register can never be silently shortened.
-  if (story.writingStyle?.trim()) addAnchor('VOICE', 'voice', [
+  if (prose && story.writingStyle?.trim()) addAnchor('VOICE', 'voice', [
     { text: story.writingStyle.trim(), keep: true },
   ], CAPS.VOICE!);
 
@@ -742,7 +779,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // same writing style. Its own block rather than a fold into VOICE, which would put it in
   // competition for the same 500 tokens the prose sample already loses — and not DIRECTIVE, where
   // every part is `keep: true` so the block cannot trim and can only refuse.
-  if ((story as any).styleNote?.trim()) addAnchor('STYLE', 'style', [
+  if (prose && (story as any).styleNote?.trim()) addAnchor('STYLE', 'style', [
     { text: `How this book is written: ${(story as any).styleNote.trim()}`, keep: false },
   ], CAPS.STYLE!);
 
@@ -1009,7 +1046,9 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
    */
   const firstOrSecond = /^\s*(first|second) person/i.test(story.pov ?? '');
   const teller = locked || (story as any).persona?.trim();
-  addAnchor('DIRECTIVE', 'directive', [
+  // Not in the chat. Every part of this block is an order to a prose engine — the tense, the
+  // lockout, the chapter's ending, the register — and `talk` writes no prose. See `prose` above.
+  if (prose) addAnchor('DIRECTIVE', 'directive', [
     { text: `[Writing: ${story.pov}]`, keep: true },
     { text: firstOrSecond && teller
       ? `[${teller} is telling this story. The narration is ${teller}'s: write only what ${teller} `
@@ -1039,9 +1078,14 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
 
   // MODE. Omitted only for Narrate on an unfinished line — scoping this to one mode is
   // deliberate: Direct's directive and speak/act's "whose line is it" live ONLY in MODE, and
-  // omitting it also drops the length instruction, which truncates, which looks unfinished,
-  // which omits it again. It latches (COUNCIL-03 S7). Narrate inherits the exception because
-  // it is the mode where the writer deliberately stops mid-sentence for the model to finish.
+  // omitting it also drops the STOP instruction ("stop when the beat is done", "stop at a natural
+  // beat"), so the passage runs on, looks unfinished, and omits it again. It latches
+  // (COUNCIL-03 S7). Narrate inherits the exception because it is the mode where the writer
+  // deliberately stops mid-sentence for the model to finish.
+  //
+  // This used to say "the length instruction", which was true when the modes carried "the next
+  // 1-2 paragraphs" and stopped being true when F29 deleted it. Reworded 2026-08-30: the wording
+  // outlived the thing it named, which is how a comment starts lying.
   const last = passages.at(-1)?.body ?? '';
   const unfinished = last.length > 0 && !/[.!?"'”’]\s*$/.test(last.trimEnd());
   if (!(input.mode === 'narrate' && unfinished)) {
@@ -1050,10 +1094,29 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // The writer's own wording wins, with {{directive}} and {{speaker}} filled the same way the
     // shipped prompts fill them — an override without them is legal and simply mentions neither.
     const own = input.modePrompts?.[input.mode]?.trim();
-    add('MODE', 'mode', own
+    const text = own
       ? own.replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')
            .replace(/\{\{\s*speaker\s*\}\}/g, input.speaker || 'the point-of-view character')
-      : (MODE[input.mode] ?? MODE.continue)(input.directive, input.speaker),
+      : (MODE[input.mode] ?? MODE.continue)(input.directive, input.speaker);
+    // THE LENGTH TARGET, and everything about where it sits is deliberate.
+    //
+    // Appended here rather than written into the MODE map, because those five strings are what
+    // `test/engine.ts:414` guards against ever naming a length again — F18/F29, a named length is
+    // a length the model fills. Keeping them clean keeps that tripwire green AND still guarding,
+    // since `defaultModePrompts` builds them with no target. It rides in an existing block rather
+    // than a new one for the reason `story.ts` already gave for SYSTEM and `context.ts:548` for
+    // DIRECTIVE: a block needs a place in ORDER, a colour, a BLOCK_ORIGIN name and a panel row.
+    //
+    // ON ITS OWN LINE, per F37: the same rule buried in a long line bought 10.7%, and alone on a
+    // line it held at ~98%.
+    //
+    // The second clause is the whole difference between a target and a quota. F29's lesson was
+    // that removing the number gave back "the permission the number was denying, which is to be
+    // short" — so the permission is stated alongside the number instead of being traded for it.
+    // Off for `talk`: Anansi answering the writer is not a passage and has its own bound.
+    const target = Number(input.targetWords) || 0;
+    add('MODE', 'mode', target > 0 && input.mode !== 'talk'
+      ? `${text}\nAim for roughly ${target} words, and stop sooner if the beat is done.` : text,
       own ? `mode:${input.mode} · yours` : `mode:${input.mode}`);
   }
 

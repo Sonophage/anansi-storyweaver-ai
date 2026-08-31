@@ -10,6 +10,46 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · Anansi has a voice of her own again, and it is yours to change
+
+### She stopped answering in your book's voice
+Ask Anansi a question and she was answering in the register your book is written in. A book
+written in short flat sentences got a short flat Anansi; a cold, restrained book got a cold,
+restrained one. Your book's voice was reaching her as an instruction, and it was drowning hers.
+She reads your book exactly as much as she did before — the canon, the chapter summaries, the
+recent passages, who is telling the story — but how it is WRITTEN no longer decides how she talks.
+
+### How Anansi talks is now a box in Preferences
+Under your own default voice, there is a second box: her register. Change it and she answers you
+like that, on every book, from your next question. Empty it and her shipped voice comes back.
+
+What she may offer you is not in that box and cannot be edited away — she still cites what she
+drew on, still says "the story does not say" instead of inventing one, and still keeps her
+suggestions to what you asked for. You are changing how she sounds, not what she is allowed to do.
+
+### Asking her to write a card no longer hands her your prose
+Have Anansi write a character, a place or a room and she writes it as notes for you, not as a
+page of your book. Your book's finished prose used to be sitting in that request, and lines from
+it came back inside the card.
+
+## 2026-08-30 · Passage length is something you ask for, not somewhere she gets cut off
+
+### Passages stop ending mid-word
+Passage length used to be a hard stop. When a passage reached it, it ended — mid-sentence,
+mid-word, wherever the count ran out, and nothing on the page said that was what had happened.
+Nearly a quarter of the passages written since the 26th ended that way. They don't any more.
+
+### The slider is a target now, and you can leave it to her
+Drag it and you are telling Anansi roughly how long you want a passage to run. She aims for it
+and is allowed to come in under it — a beat that wants three sentences still gets three
+sentences. All the way to the left leaves the length to her entirely, which is how every book
+here was written until today, and it is where the slider starts.
+
+### And if a passage ever does run long, she says so
+There is still a ceiling, far above where she normally writes, so a runaway cannot eat the whole
+page. If a passage reaches it, what lands is trimmed back to its last finished sentence and you
+get told it was trimmed — instead of a paragraph that stops for no reason you can see.
+
 ## 2026-08-30 · Ending a chapter is three steps, in the order you do them
 
 ### What the chapter left comes first

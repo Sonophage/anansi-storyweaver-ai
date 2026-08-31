@@ -604,5 +604,82 @@ ok('a kind that does not exist is refused rather than assembled');
   ok('a spark that runs out of room is retried rather than handed back as nothing usable');
 }
 
+// ---- 7. ANANSI READS THE BOOK; THE BOOK DOES NOT SET HER REGISTER
+// Seth, 2026-08-30, on chat answers that came back clipped and flat: "the anansi chatbot should
+// have a seperate voice from anything in the book. it can of course read the thread and narrative
+// but it shouldnt be affected by it."
+//
+// It was reaching her as a 500-token VOICE block in the USER message, below the canon and next to
+// the ask, while her own persona was the system message — and F37's whole finding is that the
+// voice field outranks everything for register. DIRECTIVE went with it: every part of that block
+// is an order to a prose engine, on a call that writes no prose.
+//
+// TWO HALVES THAT REGRESS INDEPENDENTLY, so both are asserted. A guard that is too broad takes the
+// story with the craft, and a chat that cannot see the book is a worse defect than one that talks
+// like it.
+const BOOK_VOICE = 'Every sentence is a stub. The weather does the feeling. Never a subordinate clause.';
+db.updateStory(story.id, { writingStyle: BOOK_VOICE, styleNote: 'Gothic noir, close and cold.',
+  pov: 'first person, present tense', persona: 'Vel', spiceNote: 'Desire is on the page.' });
+
+const isolated = await ask(50_048);
+assert.ok(!isolated.error, isolated.error);
+const sent = String(calls[0].messages?.[1]?.content ?? '');
+assert.ok(!sent.includes(BOOK_VOICE),
+  'the book\'s prose voice is in the chat prompt. It outranks her own register (F37) and it is '
+  + 'what made her answers read like the book instead of like her.');
+assert.ok(!sent.includes('Gothic noir, close and cold.'),
+  'the book\'s STYLE note is in the chat prompt — same failure, smaller block');
+assert.ok(!/\[Writing: /.test(sent) && !/Desire is on the page\./.test(sent),
+  'the DIRECTIVE block is in the chat prompt: the tense and the register are orders to a prose '
+  + 'engine, and this call writes no prose');
+// FALSIFIED ON PURPOSE, 2026-08-30: dropping the `prose` guard in context.ts turns all four of
+// the assertions above red. They are not decorative.
+ok('the book\'s voice, style and prose directives do not reach Anansi');
+
+// The other half. She still has the book — this is what catches a guard that took too much.
+assert.ok(sent.includes('A city on a dead god.'), 'she has lost the premise');
+assert.ok(sent.includes('Vel is the Murmur.'), 'she has lost the canon');
+assert.ok(sent.includes('The lower tiers still pulse.'), 'she has lost the prose');
+// The POV and the persona were DIRECTIVE's only facts, and dropping that block dropped the one
+// statement of who is telling the story. `POST /api/talk` puts them back as a fact rather than as
+// an instruction — the wording differs from DIRECTIVE's on purpose, so this cannot pass by the
+// block quietly coming back.
+assert.match(sent, /written in first person, present tense, and Vel is the one the writer speaks as/,
+  'she is not told whose story this is, which DIRECTIVE used to say and nothing else does');
+ok('she still has the premise, the canon, the prose and who is telling it');
+
+// ---- 8. her register is the writer's, and what keeps her honest is not
+// The contract ships whatever the box says, and it ships FIRST: F37 is why the voice sits closest
+// to the material, since the register nearest the ask is the one that wins.
+const { TALK_CONTRACT, TALK_VOICE } = await import('../src/prompts.ts');
+const shipped = String(calls[0].messages?.[0]?.content ?? '');
+assert.ok(shipped.includes(TALK_CONTRACT), 'the contract is not in the system message');
+assert.ok(shipped.includes(TALK_VOICE), 'her shipped voice is not in the system message');
+assert.ok(shipped.indexOf(TALK_CONTRACT) < shipped.indexOf(TALK_VOICE),
+  'the voice must sit last, closest to the material — that is the whole of F37');
+ok('the chat is sent the contract and then her voice, in that order');
+
+const MINE = 'You are Anansi. You answer in one flat line and you never embellish.';
+db.setPrompt(me, 'anansi', MINE);
+const rewritten = await ask(50_048);
+assert.ok(!rewritten.error, rewritten.error);
+const withMine = String(calls[0].messages?.[0]?.content ?? '');
+assert.ok(withMine.includes(MINE), 'the writer\'s own Anansi voice did not reach the model');
+assert.ok(!withMine.includes(TALK_VOICE), 'and it replaces the shipped one rather than joining it');
+// THE HALF THAT MATTERS. A writer changing her diction must not thereby switch off the rules that
+// keep her from inventing facts on a route that files proposals into the ledger.
+assert.ok(withMine.includes(TALK_CONTRACT),
+  'rewriting her voice switched off the contract. "Do not fill the gap with invention", the '
+  + 'citation rule and "offer nothing you were not asked for" are not the writer\'s to delete.');
+ok('a rewritten voice replaces her register and leaves the contract standing');
+
+// Blank is the reset, the way it already is for the book's voice: `db.setPrompt` deletes on empty
+// rather than storing it, so she can never end up nameless.
+db.setPrompt(me, 'anansi', '   ');
+await ask(50_048);
+assert.ok(String(calls[0].messages?.[0]?.content ?? '').includes(TALK_VOICE),
+  'emptying the box must put her shipped voice back, not leave her with only the contract');
+ok('emptying the box gives her back the voice she shipped with');
+
 srv.close();
 console.log(`\n${n} checks passed`);

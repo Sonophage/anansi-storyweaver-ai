@@ -288,6 +288,58 @@ ok('the reserve scales with the budget and with the reply length', () => {
   assert.strictEqual(short - long, 1400, 'every extra reply token costs a prompt token');
 });
 
+// The ceiling stopped being the setting on 2026-08-30, because it was a guillotine: 41 of 181
+// prose runs at the old 450 default ended exactly ON it, mid-word. What the writer sets is a
+// target; this is the only place it becomes a ceiling.
+ok('the ceiling is derived from the target, and never sits under what the model actually writes', () => {
+  // Off is the default and has to stay well clear: 0 hits in 212 logged runs at 900.
+  assert.strictEqual(story.capFor(0), 900, '"let her decide" must not reintroduce a low ceiling');
+  // The floor holds for small targets — a 200-word target does not license a 560-token ceiling,
+  // because the model's observed maximum was 845 whatever it was asked for.
+  assert.strictEqual(story.capFor(200), 900, 'a small target must not lower the ceiling');
+  // Above the floor it tracks the target at 2x, which sits above the observed spread.
+  assert.strictEqual(story.capFor(400), 1120);
+  // And it is clamped, because the slot is shared: two writers at full budget fit with ~5,700
+  // tokens of margin and oversubscribing does not queue, it returns 500 to both.
+  assert.strictEqual(story.capFor(1000), 2000, 'the outer clamp still holds');
+  // The property that matters more than any single number: the ceiling is never below the floor
+  // and never above the clamp, for every target the slider can produce.
+  for (let w = 0; w <= 1000; w += 10) {
+    const cap = story.capFor(w);
+    assert.ok(cap >= 900 && cap <= 2000, `capFor(${w}) = ${cap} escaped the bounds`);
+    // Headroom, stated as the thing the bug was: the ceiling must leave room ABOVE the target it
+    // was derived from, or it is a guillotine again wearing a different number.
+    assert.ok(cap > w * 1.4, `capFor(${w}) leaves no room above its own target`);
+  }
+});
+
+// A passage the ceiling cut is trimmed back to its last finished sentence. Only ever called on
+// `finish_reason: 'length'` — the caller enforces that, because trimming a take the model ended
+// itself would delete prose on purpose.
+ok('a truncated passage is trimmed to its last finished sentence, and never to nothing', () => {
+  assert.strictEqual(story.trimToSentence('He left. She stayed. Then the'), 'He left. She stayed.');
+  // The voice guide asks for trailing lines by name — "Thoughts trail; sentences stop mid-breath"
+  // — so a dash or an ellipsis IS a finished line here. Eating them would be the same defect as
+  // the guillotine, one clause smaller.
+  //
+  // BOTH FIXTURES CARRY AN EARLIER FULL STOP ON PURPOSE. Written as 'She almost said it —' these
+  // passed whether or not the dash was in the boundary class: with it gone there was no boundary
+  // at all, the no-match fallback returned the string whole, and the check reported the dash
+  // "kept" while testing nothing. With a preceding sentence, dropping the dash walks the trim
+  // back to it and eats the clause, which is the defect stated.
+  assert.strictEqual(story.trimToSentence('He left. She almost said it —'),
+    'He left. She almost said it —');
+  assert.strictEqual(story.trimToSentence('He left. He waited…'), 'He left. He waited…');
+  // Closing punctuation rides along, or every line of dialogue loses its quote mark.
+  assert.strictEqual(story.trimToSentence('"Then go," she said. "I will not st'),
+    '"Then go," she said.');
+  // THE ONE THAT MATTERS MOST. A passage with no boundary anywhere comes back whole: turning a
+  // truncated take into an EMPTY one is strictly worse than the bug being fixed.
+  assert.strictEqual(story.trimToSentence('the rain had not yet'), 'the rain had not yet');
+  // Already finished is left alone rather than walked back to the previous sentence.
+  assert.strictEqual(story.trimToSentence('He left. She stayed.'), 'He left. She stayed.');
+});
+
 // PLAN-06 2a. The check this replaces divided a fixture by 2.74 and compared it to an estimate
 // that divided by 2.8 — it asserted the constant against ITSELF, could not fail while those two
 // numbers agreed, and reported the estimator "within 15%" for as long as it was 59% out against
@@ -522,40 +574,73 @@ ok('the persona is in the chat prompt and in no other', () => {
     [/exclamatory enthusiasm/i,      'the contained-interest constraint'],
   ];
   for (const [rx, what] of marks) {
-    assert.match(prompts.TALK, rx, `TALK has lost ${what} (${rx})`);
+    assert.match(prompts.TALK_VOICE, rx, `TALK_VOICE has lost ${what} (${rx})`);
   }
   // Every other prompt in the file, found by asking the module rather than by keeping a list --
   // a list is the thing that goes stale the day somebody adds a role.
+  //
+  // COUNCIL-07 · TALK_CONTRACT IS DELIBERATELY NOT EXCLUDED HERE, and that is the point of the
+  // split rather than an oversight. The contract ships whatever the writer puts in the voice box,
+  // so a register that leaked into it would be one no writer could delete -- the same argument
+  // `render.ts` makes about SYSTEM. Leaving it in `others` is what proves the division holds.
   const others = Object.entries(prompts)
-    .filter(([k, v]) => typeof v === 'string' && k !== 'TALK' && k !== 'DEFAULT_VOICE');
+    .filter(([k, v]) => typeof v === 'string' && k !== 'TALK_VOICE' && k !== 'DEFAULT_VOICE');
   assert.ok(others.length > 8, `expected the other roles to be found, got ${others.length}`);
+  assert.ok(others.some(([k]) => k === 'TALK_CONTRACT'),
+    'TALK_CONTRACT must be among the prompts checked for a register. If it has been excluded, the '
+    + 'split has stopped meaning anything: the contract is the half a writer cannot edit.');
   for (const [name, text] of others as [string, string][]) {
     for (const [rx, what] of marks) {
       assert.doesNotMatch(text, rx,
-        `${name} carries ${what}. Only TALK may: everything ${name} returns is stored and re-sent `
-        + 'to the writing model, so a register there reaches the book through the ledger.');
+        `${name} carries ${what}. Only TALK_VOICE may: everything ${name} returns is stored and `
+        + 're-sent to the writing model, so a register there reaches the book through the ledger.');
     }
+  }
+});
+
+// COUNCIL-07 · THE CONTRACT IS THE APP'S AND THE VOICE IS THE WRITER'S, checked both ways, the way
+// `render.ts`'s SYSTEM/DEFAULT_VOICE division already is. Seth asked for Anansi's register to be
+// his to edit; the half of that prompt which keeps her honest on a route that files proposals into
+// the ledger had to stay where he cannot delete it by rewriting her diction.
+ok('what keeps Anansi honest is in the contract, not in the box the writer can empty', () => {
+  const contract: [RegExp, string][] = [
+    [/do not fill the gap with invention/i, 'the ban on inventing what the story does not say'],
+    [/Cite what you are drawing on/i,       'the citation rule'],
+    [/Offer nothing you were not asked for/i, 'the ban on handing back a queue of work'],
+    [/as a figure of speech/i,              'the ban on the words that are entries on the screen'],
+    [/leave the field EMPTY/i,              'the rule that an unasked-for directive is not offered'],
+  ];
+  for (const [rx, what] of contract) {
+    assert.match(prompts.TALK_CONTRACT, rx, `TALK_CONTRACT has lost ${what} (${rx})`);
+    assert.doesNotMatch(prompts.TALK_VOICE, rx,
+      `${what} is in TALK_VOICE, which is the box the writer replaces -- rewriting her diction `
+      + 'would switch it off. It belongs in TALK_CONTRACT, which ships whatever the box says.');
   }
 });
 
 // The web is Anansi's natural image and this app has taken the words. Thread and String are
 // entries on the writer's screen while they are reading her answer, so the metaphor reads as her
-// filing something rather than as a figure of speech. TALK carries both a list of images to use
-// and a list to avoid, and the two lists contradicting each other is a real way for this to rot:
-// "weave" was on the SAY list until 2026-08-30 and is on the AVOID list now.
+// filing something rather than as a figure of speech. The contract carries both a list of images
+// to use and a list to avoid, and the two lists contradicting each other is a real way for this to
+// rot: "weave" was on the SAY list until 2026-08-30 and is on the AVOID list now.
+//
+// BOTH LISTS ARE IN TALK_CONTRACT, which is where the split of 2026-08-30 put them and not where
+// diction would suggest. "Say knot, snag, loose end" reads like register, but it is the other half
+// of a ban that exists because Thread and String are things on the writer's screen. Separated, the
+// ban outlives the word it was offering as a replacement, and this check cannot see either list.
 ok('the images Anansi is told to use are not also the ones she is told to avoid', () => {
   // ONE regex over both lists, not two. Written as two it passed while reading the wrong list:
   // /Say ([^.]+)\./ matched "Say perhaps, indeed, consider..." nine lines earlier, so the check
   // compared the diction list against the ban list, found no overlap, and went green with the
   // real lists never examined. It only showed up because the falsification did NOT go red.
-  const m = prompts.TALK.match(/Say ([^.]+)\.\s+Do NOT use ([^—]+?) as a figure of speech/);
+  const m = prompts.TALK_CONTRACT.match(/Say ([^.]+)\.\s+Do NOT use ([^—]+?) as a figure of speech/);
   assert.ok(m, 'the say-list and the avoid-list must sit in one paragraph and be findable');
   const [, say, ban] = m!;
   const wordsOf = (t: string) => t.toLowerCase().match(/[a-z]+/g)!.filter((w) => w !== 'or' && w !== 'and');
   const banned = new Set(wordsOf(ban!));
   for (const w of wordsOf(say!)) {
     assert.ok(!banned.has(w),
-      `TALK tells her to say "${w}" and also not to use it. One of the two lists is wrong.`);
+      `TALK_CONTRACT tells her to say "${w}" and also not to use it. One of the two lists is wrong.`);
   }
 });
 

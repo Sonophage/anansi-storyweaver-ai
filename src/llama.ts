@@ -111,7 +111,7 @@ export async function slotContext(): Promise<{ global: number; slots: number; pe
  *  across two network reads is the classic way a hand-written SSE reader loses a token, and
  *  that case cannot be produced by asking the real model nicely. */
 export async function readSSE(res: Response, onDelta: (d: string) => void) {
-  const out = { prose: '', reasoning: '', usage: {} as any, timings: {} as any };
+  const out = { prose: '', reasoning: '', usage: {} as any, timings: {} as any, finish: '' };
   const reader = res.body!.getReader();
   const dec = new TextDecoder();
   let buf = '';
@@ -137,6 +137,11 @@ export async function readSSE(res: Response, onDelta: (d: string) => void) {
       // Both ride on the final chunk, and only when stream_options asked for usage.
       if (o.usage) out.usage = o.usage;
       if (o.timings) out.timings = o.timings;
+      // WHY THE PASSAGE ENDED, which nothing in this app read until 2026-08-30 — so a take the
+      // ceiling cut off mid-word and a take the model finished arrived on the page identical.
+      // Not on the same chunk as usage: `finish_reason` lands on the last CONTENT chunk, and the
+      // usage-only chunk after it carries `choices: []`. Taken whenever it appears.
+      if (o.choices?.[0]?.finish_reason) out.finish = o.choices[0].finish_reason;
     }
   }
   return { ...out, prose: out.prose.trim() };
@@ -192,6 +197,9 @@ export async function chat(system: string, body: string, opts: Record<string, un
     reasoning: m.reasoning_content ?? '',
     usage: r.usage ?? {},
     timings: r.timings ?? {},
+    // Same field, same meaning, on the path with no writer watching. Both paths return it or
+    // `generate` would trim a streamed take and silently keep a waited-for one truncated.
+    finish: r.choices?.[0]?.finish_reason ?? '',
   };
 }
 
