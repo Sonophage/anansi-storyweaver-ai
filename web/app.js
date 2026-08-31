@@ -306,6 +306,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'seedpick',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
+  // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
+  'pastecast', 'pastebook',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -1874,7 +1876,9 @@ const PANELS = {
             color:${S.lore.kind === k ? 'var(--gold-lit)' : 'var(--mute)'}">${
               esc(slotLabel(k)[0].toUpperCase() + slotLabel(k).slice(1))}</button>`).join('')}
         </div>
-        ${ROOMS.includes(S.lore.kind) ? ((S.lore.kind === 'outfit' ? cast : V.entries).length ? `
+        ${!S.lore.kind ? `<div class="hint" style="margin:0">Pick what you are writing down. Or paste
+          one in below &mdash; a forged thread says what kind it is itself.</div>`
+        : ROOMS.includes(S.lore.kind) ? ((S.lore.kind === 'outfit' ? cast : V.entries).length ? `
         ${roomForm(V.entries.filter((e) => (V.slots?.[e.entryType] ?? [])
             .some((sl) => sl.name === S.lore.kind)), null, S.lore.kind)}
         <div class="hint">It hangs on them unworn, and what Anansi writes lands in the fields rather
@@ -2806,6 +2810,58 @@ function harvestSpark() {
 
 /** The cast as it stands: everything still ticked. Step 4 offers these and nothing else, because a
  *  persona naming somebody you just dropped is the exact stranding pinCast exists to catch. */
+/** #30 · WHAT A FORGED CARD LOOKS LIKE ON THE WAY IN, before there is a story to write it to.
+ *
+ *  The server has the strict reader — `POST /api/thread/paste`, which refuses an unknown kind and
+ *  drops a room the kind does not have. This is the same shape read into the WIZARD, where there is
+ *  no story yet and nothing can be written: it keeps `rooms` untouched and hands them to
+ *  `POST /api/stories` on Accept, which runs them through the server's own `writeRooms`. So the
+ *  rules still live in one place; this only has to get the card into a list on screen.
+ *
+ *  Returns `{ cards, error }`. A fence is stripped for the same reason the route strips one. */
+function readForgedCards(text) {
+  const t = String(text ?? '').trim();
+  if (!t) return { cards: [], error: 'Paste the JSON first.' };
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(t);
+  let j;
+  try { j = JSON.parse(fenced ? fenced[1] : t); }
+  catch (e) { return { cards: [], error: `That is not JSON — ${e.message}` }; }
+  const list = Array.isArray(j) ? j : [j];
+  const cards = [];
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') continue;
+    const kind = String(raw.kind ?? raw.entryType ?? 'character');
+    const title = String(raw.title ?? raw.name ?? '').trim();
+    if (!title || !KINDS.includes(kind)) continue;
+    let body = String(raw.body ?? '').trim();
+    if (body && !body.startsWith('[')) body = `[${title}: ${body}]`;
+    cards.push({ title, entryType: kind, body: body || `[${title}: ]`,
+      keys: Array.isArray(raw.keys) ? raw.keys : [],
+      activation: raw.activation === 'triggered' ? 'triggered' : 'always_on',
+      ...(raw.rooms && typeof raw.rooms === 'object' ? { rooms: raw.rooms } : {}),
+      keep: true });
+  }
+  if (!cards.length) return { cards: [], error: 'Nothing in that paste was a card.' };
+  return { cards, error: null };
+}
+
+/** #30 · A FORGE PROMPT, WHERE THE STEP THAT WANTS IT IS. Seth: "add the copy button and the import
+ *  buttons where it makes the most sense."
+ *
+ *  Admin only, because `GET /api/forge` is — for anyone else `FORGE` is `[]` and this renders
+ *  nothing, which is the right answer rather than a button that would be refused. It is deliberately
+ *  small and grey: the wizard's own controls are what the step is FOR, and this is a side door.
+ *
+ *  `FORGE` may still be null on a cold load straight into the wizard, because the forge page is
+ *  where it is fetched. So it fetches on first sight here too, guarded the same way. */
+const forgeCopy = (key, label) => {
+  if (!SRV.admin) return '';
+  if (FORGE === null) { if (!S.forgeBusy) { S.forgeBusy = true; loadForge(); } return ''; }
+  if (!FORGE.some((f) => f.key === key)) return '';
+  return `<button class="btn ghost" data-forgecopy="${esc(key)}" style="width:auto; padding:0 13px;
+    height:30px; font-size:11px; margin:-2px 0 12px">${esc(label)}</button>`;
+};
+
 const sparkCast = () => (S.spark?.entries ?? [])
   .filter((e) => e.keep !== false && (e.title ?? '').trim());
 
@@ -2904,6 +2960,7 @@ function sparkReview() {
     ? `${row('title', 'Title', s.title)}
        ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag on the shelf.')}
        ${area('premise', 'Premise', s.premise, 'It rides in the spine on every call.', 110)}
+       ${forgeCopy('premise', 'Copy the premise prompt')}
        ${reroll('Ask again from your idea')}
        ${S.spark.idea ? `<div class="hint">Same idea, another skeleton. What is typed here is
          replaced; the cast is not.</div>` : ''}
@@ -2913,6 +2970,7 @@ function sparkReview() {
          <button class="btn ghost" data-spvoice="mine" style="flex:1; font-size:11.5px">Use my default voice</button>
          <button class="btn ghost" data-spvoice="shipped" style="flex:1; font-size:11.5px">Use the shipped one</button>
        </div>` : ''}
+       ${forgeCopy('voice', 'Copy the voice prompt')}
        ${area('styleNote', 'How this book is written', s.styleNote,
          "This book's genre flavour, kept apart from the voice: romance and science fiction are not "
          + 'the same writing style. It gets its own block under the voice.', 80)}
@@ -3002,6 +3060,19 @@ function sparkReview() {
              >${S.spark.recasting === i ? 'Thinking&hellip;' : 'Re-roll this one'}</button>
          </div></div>`).join('')}
        <button class="btn ghost" data-spadd="1" style="margin-top:6px">&#65291; Write one of your own</button>
+
+       <!-- #30 · FORGED SOMEWHERE ELSE. The same paste the story's own + Thread tray takes, except
+            there is no story yet — so it lands in the wizard's cast and is written on Accept with
+            everything else. Rooms ride along and reach the ledger through POST /api/stories. -->
+       ${SRV.admin ? `<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:16px">
+         ${forgeCopy('character', 'Copy the character prompt')}
+         ${forgeCopy('location', 'Copy the place prompt')}
+       </div>` : ''}
+       <textarea class="field" data-castpaste placeholder="Or paste forged JSON &mdash; one card, or a list"
+         style="min-height:60px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
+       <button class="btn ghost" data-pastecast="1">Read it and add to the cast</button>
+       <div class="hint">It joins the cast above, to read and edit before you accept. Nothing is
+         written until then, and its rooms travel with it.</div>
 
        <!-- #28 · FROM THE BOOKS YOU ALREADY HAVE. The same picker the blank-start form uses, and
             the same copy on accept, because "db.copyEntry" refuses unless BOTH books are yours and
@@ -4377,6 +4448,21 @@ const WPAGES = {
         <div style="display:flex; gap:12px; padding-top:6px; flex-wrap:wrap">
           <button class="btn" data-spark="1" style="width:auto; padding:0 28px; height:48px">Spark a skeleton</button>
           <button class="btn ghost" data-blank="1" style="width:auto; padding:0 24px; height:48px">Start blank</button></div>
+
+        <!-- #30 · A WHOLE BOOK IN ONE COMMAND. Seth: "one more copy button and field ... this one
+             would allow me to set a stroy and characters and everything from one command."
+             It fills the WIZARD rather than creating the book, because every other thing a model
+             writes in this app is read before it is kept, and a book is the largest of them. -->
+        ${SRV.admin ? `<div style="border-top:1px solid var(--line); margin-top:22px; padding-top:16px">
+          <div class="lbl" style="letter-spacing:.1em; margin-top:0">Or forge the whole thing elsewhere</div>
+          <div class="hint" style="margin:0 0 9px">One prompt writes the book and its cast together.
+            Paste what comes back and the wizard opens with every field and every card already in
+            it &mdash; still yours to read, edit and accept.</div>
+          ${forgeCopy('book', 'Copy the whole-book prompt')}
+          <textarea class="field" data-bookpaste placeholder="Paste the JSON it gave you"
+            style="min-height:70px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
+          <button class="btn ghost" data-pastebook="1">Open the wizard with this</button>
+        </div>` : ''}
       </div>
       <div class="aside" style="border:1px solid var(--edge); border-radius:var(--r); background:var(--rail); padding:20px 22px">
         <div class="lbl" style="letter-spacing:.1em">What comes back</div>
@@ -7016,9 +7102,13 @@ document.addEventListener('click', async (e) => {
     const brought = !wanted.length ? ''
       : seeded === wanted.length ? `, and ${plural(seeded, 'thread', 'threads')} brought over`
       : `, and ${seeded} of ${wanted.length} brought over — the rest were refused`;
+    // #30. A pasted cast can carry a room its kind does not have; the server drops it and says so.
+    // Surfaced here for the same reason the paste route surfaces it — a card that arrived with half
+    // its rooms and no mention of the other half is the silent loss this whole format avoids.
+    const roomNote = (r.notes ?? []).length ? ` ${r.notes[0]}` : '';
     toast(dropped.length
-      ? `Created. ${dropped.join(' and ')} was not in the cast, so it was left unset.`
-      : `Created with ${keep.length} threads${brought}.`);
+      ? `Created. ${dropped.join(' and ')} was not in the cast, so it was left unset.${roomNote}`
+      : `Created with ${keep.length} threads${brought}.${roomNote}`);
     if (wantOpen) await openingPassage();
     return;
   }
@@ -7047,6 +7137,66 @@ document.addEventListener('click', async (e) => {
   }
   // #20 §4. Rewrites `#seeds` alone, never the page: the form reads its fields off the DOM when
   // Create is pressed, so a repaint here would throw away everything typed above the picker.
+  /** #30 · A CAST PASTED INTO THE WIZARD. There is no story yet, so nothing is written — the cards
+   *  join `S.spark.entries` and ride Accept with everything else, rooms included. */
+  if (d.pastecast) {
+    const box = document.querySelector('[data-castpaste]');
+    const { cards, error } = readForgedCards(box?.value);
+    if (error) return toast(error);
+    harvestSpark();
+    S.spark.entries = [...S.spark.entries, ...cards];
+    paint();
+    const rooms = cards.reduce((k, c) => k + Object.keys(c.rooms ?? {}).length, 0);
+    return toast(`${plural(cards.length, 'card', 'cards')} added to the cast${
+      rooms ? `, with ${plural(rooms, 'room', 'rooms')}` : ''}. Nothing is written until you accept.`);
+  }
+  /** #30 · A WHOLE BOOK, PASTED BEFORE THE WIZARD OPENS. It FILLS the wizard rather than creating
+   *  anything: every other thing a model writes in this app is read before it is kept, and a book
+   *  is the largest of them.
+   *
+   *  The persona is treated as the WRITER'S rather than as proposed — `proposedCast` stays empty —
+   *  because pasting is a deliberate act. `db.pinCast` polices only what the spark offered, so a
+   *  persona named here survives even if the writer unticks the card it points at, the same as one
+   *  typed by hand. */
+  if (d.pastebook) {
+    const box = document.querySelector('[data-bookpaste]');
+    const t = String(box?.value ?? '').trim();
+    if (!t) return toast('Paste the JSON first.');
+    const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(t);
+    let j;
+    try { j = JSON.parse(fenced ? fenced[1] : t); }
+    catch (e) { return toast(`That is not JSON — ${e.message}`); }
+    const st = j?.story ?? j;
+    if (!st || typeof st !== 'object' || !String(st.premise ?? '').trim())
+      return toast('That has no story with a premise in it.');
+    const { cards } = readForgedCards(JSON.stringify(j?.entries ?? []));
+    S.spark = {
+      story: {
+        title: st.title ?? '', genre: st.genre ?? '', premise: st.premise ?? '',
+        setting: st.setting ?? '', pov: POV.includes(st.pov) ? st.pov : POV[0],
+        spice: Number(st.spice) || 2, writingStyle: st.writingStyle ?? '',
+        styleNote: st.styleNote ?? '',
+        persona: String(st.persona ?? '').trim() || null,
+        lockedCharacter: String(st.lockedCharacter ?? '').trim() || null,
+      },
+      entries: cards, autoOpen: true,
+      // No idea to re-roll from: this book did not come from one. The re-roll button hides itself
+      // when `idea` is empty, which is the correct answer rather than a button that cannot work.
+      idea: '', kinds: ['character'], casting: false, sparking: false,
+      castSteer: '', recasting: null, styling: false, styled: true,
+      accepting: false, seed: [],
+      reviewing: false, review: null,
+      // EMPTY ON PURPOSE. Only what ANANSI proposed is policed server-side; a persona the writer
+      // brought is theirs and must never be dropped.
+      proposed: [],
+    };
+    S.sparkStep = 2;
+    if (S.prompts === null) loadPrompts();
+    paint();
+    const rooms = cards.reduce((k, c) => k + Object.keys(c.rooms ?? {}).length, 0);
+    return toast(`${esc(st.title || 'The book')} and ${plural(cards.length, 'card', 'cards')}${
+      rooms ? ` with ${plural(rooms, 'room', 'rooms')}` : ''} — read it, then accept.`);
+  }
   if (d.forgeopen) { S.forgeOpen = S.forgeOpen === d.forgeopen ? null : d.forgeopen; drawPage(); return; }
   if (d.forgecopy) {
     const f = (FORGE ?? []).find((x) => x.key === d.forgecopy);

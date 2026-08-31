@@ -20,10 +20,11 @@ ok("the forge has a row in the rail", await page.eval("!!document.querySelector(
 await page.click('[data-nav="forge"]');
 await wait(800);
 const page1 = (await page.text('#page') || '');
-ok("  and opens on the five prompts",
-   ['A character', 'A place', 'A premise', 'The voice', 'A cover image'].every((t) => page1.includes(t)));
+ok("  and opens on the six prompts",
+   ['A whole book', 'A character', 'A place', 'A premise', 'The voice', 'A cover image']
+     .every((t) => page1.includes(t)));
 ok("  each with a copy button",
-   (await page.eval("document.querySelectorAll('[data-forgecopy]').length")) === 5);
+   (await page.eval("document.querySelectorAll('[data-forgecopy]').length")) === 6);
 
 // A PROMPT IS CLOSED UNTIL ASKED FOR. Five of these rendered flat is a wall nobody reads.
 ok("  and the text itself is behind a press",
@@ -109,5 +110,97 @@ const afterN = await page.eval(`(async () => (await (await fetch('/api/story?sto
 ok(`prose in the box is refused and writes nothing (${beforeN} -> ${afterN})`, beforeN === afterN);
 ok("  and says so rather than failing quietly",
    /not JSON/.test((await page.text('#toast') || '')));
+
+// ---- 4. the wizard: a copy button where the step wants it, and both pastes ----
+//
+// #30. Seth: "add the copy button and the import buttons where it makes the most sense ... and
+// maybe one more copy button and field ... set a story and characters and everything from one
+// command." Three surfaces, and the whole-book one is the reason the other two are worth having.
+await page.goto(B + "/");
+await wait(600);
+await page.click('[data-open="new"]');
+await wait(700);
+
+ok("the create page offers the whole-book prompt and a field for it",
+   (await page.eval("!!document.querySelector('[data-forgecopy=\"book\"]')")) === true
+   && (await page.eval("!!document.querySelector('[data-bookpaste]')")) === true);
+
+const BOOK = JSON.stringify({
+  story: {
+    title: 'The Drowned Ledger', genre: 'noir, gothic',
+    premise: 'A tide-clerk counts what the sea returns, and one return is a body already marked paid.',
+    setting: 'Fallow Quay', pov: 'third limited, past tense', spice: 2,
+    persona: 'Sella Vane', lockedCharacter: 'Sella Vane',
+    writingStyle: 'Write the narration in past tense: she came up the stair.',
+    styleNote: 'Scenes open in the middle. Money is counted on the page.',
+  },
+  entries: [
+    { kind: 'character', title: 'Sella Vane', body: '[Sella Vane: tide-clerk; cannot swim]',
+      keys: ['Sella'], activation: 'always_on',
+      rooms: { facts: { name: 'What is always true', body: '[twenty-nine; left-handed]' },
+               atmosphere: { name: 'Not her room', body: '[a person has no atmosphere]' } } },
+    { kind: 'lore', title: 'the Ambersand', body: '[the Ambersand: counting-house on the north bank]',
+      keys: ['Ambersand'], activation: 'triggered' },
+  ],
+});
+await page.eval(`(() => { document.querySelector('[data-bookpaste]').value = ${JSON.stringify(BOOK)}; return 1; })()`);
+await page.click('[data-pastebook="1"]');
+await wait(900);
+
+// IT FILLS THE WIZARD, IT DOES NOT CREATE THE BOOK. Every other thing a model writes in this app is
+// read before it is kept, and a whole book is the largest of them.
+ok("pasting a book opens the wizard rather than creating anything",
+   (await page.eval("!!document.querySelector('[data-sparkstep]')")) === true);
+const libNow = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.filter(s=>s.title==='The Drowned Ledger').length)()");
+ok(`  and nothing is in the library yet (${libNow})`, libNow === 0);
+ok("  with the story fields filled from the paste",
+   (await page.eval("document.querySelector('[data-sp=\"title\"]')?.value")) === 'The Drowned Ledger'
+   && /past tense/.test(await page.eval("document.querySelector('[data-sp=\"writingStyle\"]')?.value") || ''));
+
+await page.click('[data-sparkstep="3"]');
+await wait(500);
+ok("  and the cast on the cast step",
+   (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 2);
+ok("  which also offers the card prompts and a paste of its own",
+   (await page.eval("!!document.querySelector('[data-forgecopy=\"character\"]')")) === true
+   && (await page.eval("!!document.querySelector('[data-castpaste]')")) === true);
+
+// A card pasted into the CAST step joins the list rather than being written.
+await page.eval(`(() => { document.querySelector('[data-castpaste]').value = ${JSON.stringify(
+  JSON.stringify({ kind: 'item', title: 'the Tide Book', body: '[the Tide Book: every return, in one hand]',
+                   rooms: { what_it_does: '[lists what the sea gave back, and when]' } }))}; return 1; })()`);
+await page.click('[data-pastecast="1"]');
+await wait(700);
+ok("  a card pasted into the cast joins it",
+   (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 3);
+
+await page.click('[data-sparkstep="4"]');
+await wait(500);
+ok("  and the persona came over as a pick off that cast",
+   (await page.eval(`document.querySelector('[data-sp="persona"]')?.value`)) === 'Sella Vane');
+
+// ACCEPT, and the rooms have to survive it — this is the half the wizard could not do before.
+await page.click('[data-accept-spark]');
+await wait(2600);
+const book = await page.eval(`(async () => { const r = await (await fetch('/api/stories')).json();
+  const s = r.stories.find(x => x.title === 'The Drowned Ledger');
+  if (!s) return null;
+  const v = await (await fetch('/api/story?story=' + s.id)).json();
+  const sella = v.entries.find(e => e.title === 'Sella Vane');
+  const tide = v.entries.find(e => e.title === 'the Tide Book');
+  return { entries: v.entries.length, persona: v.story.persona,
+           sellaRooms: (sella?.addons || []).map(a => a.slot).sort().join('|'),
+           tideRooms: (tide?.addons || []).map(a => a.slot).sort().join('|') }; })()`);
+ok(`accepting writes the book, its cast and their rooms (${JSON.stringify(book)})`, !!book);
+if (book) {
+  ok("  all three cards", book.entries === 3);
+  ok(`  the pasted rooms survived Accept (${book.sellaRooms})`, book.sellaRooms === 'facts');
+  ok("  including one pasted at the cast step", book.tideRooms === 'what_it_does');
+  // A character has no `atmosphere`. It was dropped rather than filed under a real room.
+  ok("  and a room that kind has no business with was left out",
+     !book.sellaRooms.includes('atmosphere'));
+  // The persona was the writer's, not Anansi's, so pinCast never had standing to drop it.
+  ok("  and a pasted persona was not policed away", book.persona === 'Sella Vane');
+}
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

@@ -274,6 +274,16 @@ It also quotes `LEDGER_REGISTER` itself rather than paraphrasing it, because a f
 on every call exactly like a written one and F36 is what happens when finished English sits in a
 prompt.
 
+**A SIXTH PROMPT, `book`, WRITES THE WHOLE THING** — story fields and cast together. It fills the
+WIZARD rather than creating anything, because everything else a model writes here is read before it
+is kept and a book is the largest of them. `POST /api/stories` now accepts `rooms` on an entry so a
+pasted cast lands complete; both doors into the format share one `writeRooms` in `src/routes.ts`, so
+the drop-do-not-coerce rule has a single home.
+
+A pasted book's persona is treated as the WRITER'S, not as proposed: `proposedCast` is sent empty,
+so `db.pinCast` never has standing to drop it. Pasting is a deliberate act in a way a model's
+suggestion is not.
+
 **`POST /api/thread/paste` is the only import in this app that writes a card's rooms.** Character
 cards carry none, which is why the format is new rather than borrowed. It is **not** admin-gated,
 deliberately: the page is a workbench, a card in that shape is just a card, and the route names a
@@ -283,6 +293,11 @@ Strict about what it writes, generous about what it reads: a code fence is strip
 is wrapped into the bracket form, but an unknown KIND is refused outright and **a room that kind
 does not have is dropped and named** rather than coerced into a real one. Filing an invented room
 under `facts` would put text into every prompt about that card that the writer never agreed to.
+
+The wizard's steps carry the prompt each one wants — premise, voice, both card prompts — behind
+`forgeCopy()`, which renders nothing for a non-admin because `FORGE` is `[]` for them. The cast step
+takes a paste of its own; `readForgedCards()` in `web/app.js` reads the same shape into the wizard
+where there is no story to write to, and keeps `rooms` untouched for the server to write on Accept.
 
 **`test/all.ts` is TWELVE suites now**, not eleven — `forge.ts` joined it. The browser set is
 eighteen scenarios; `forge.js` needs no model and is in the default run.

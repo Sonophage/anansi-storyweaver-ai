@@ -1018,6 +1018,36 @@ async function check(c: Ctx, storyId: string, passageId: string) {
       reached: x.reached !== 0 })) };
 }
 
+/** THE ROOMS OF A FORGED CARD, WRITTEN. One definition, two callers — `POST /api/thread/paste` and
+ *  the cast that rides `POST /api/stories` when a whole book is pasted at once. Two copies of this
+ *  would be two places for the "drop it, do not coerce it" rule to be forgotten, and that rule is
+ *  the whole safety of the format: filing a room a kind does not have under a real one would put
+ *  text into every prompt about that card which the writer never agreed to.
+ *
+ *  Returns what landed and what did not, because a paste that silently drops half a card is worse
+ *  than one that refuses — `notes` is the importer's own convention for saying so. */
+function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, label: string) {
+  const notes: string[] = [];
+  let made = 0;
+  const here = slotsFor(kind).map((sl) => sl.name);
+  for (const [slot, val] of Object.entries(rooms ?? {})) {
+    if (!here.includes(slot)) {
+      notes.push(`"${label}" offered a "${slot}" — a ${kind} has no such room, so it was left out.`);
+      continue;
+    }
+    const o: any = (val && typeof val === 'object') ? val : { body: String(val ?? '') };
+    const body = String(o.body ?? '').trim();
+    if (!body) continue;
+    const id = db.upsertAddon(storyId, entryId, {
+      slot, name: String(o.name ?? slot.replace(/_/g, ' ')).trim() || slot,
+      body: body.startsWith('[') ? body : `[${body}]`,
+      keys: Array.isArray(o.keys) ? o.keys : [],
+    });
+    if (id) made++;
+  }
+  return { made, notes };
+}
+
 function ledgerInto(c: Ctx, from: string, into: string) {
   const src = db.getStory(from) as any;
   if (!src) return null;
@@ -1188,7 +1218,15 @@ export const routes: Record<string, Handler> = {
     // fixtures, and neither should be quietly restyled.
     const made = db.createStory(c.owner,
       { ...c.body, writingStyle: String(c.body.writingStyle ?? '').trim() || voiceOf(c.owner) });
-    for (const e of c.body.entries ?? []) db.upsertEntry(made.id, c.owner, e);
+    // AN ENTRY MAY CARRY ITS ROOMS. The spark's own cast never does — the model that writes it is
+    // asked for a body and nothing else — but a book forged elsewhere and pasted on the create page
+    // arrives complete, and dropping the rooms on the way in would make "one command" a half one.
+    // Same writer as the paste route, so the drop-do-not-coerce rule has one home.
+    const roomNotes: string[] = [];
+    for (const e of c.body.entries ?? []) {
+      const id = db.upsertEntry(made.id, c.owner, e);
+      if (id && e.rooms) roomNotes.push(...writeRooms(made.id, id, e.entryType ?? 'character', e.rooms, e.title).notes);
+    }
     // AFTER the cast exists, because the persona names one of them and the wizard lets you choose
     // it a step before they are written. A name the model PROPOSED and that did not survive an edit
     // to the cast is dropped here rather than left pointing at nobody, and it is reported so the
@@ -1196,7 +1234,7 @@ export const routes: Record<string, Handler> = {
     // is never policed, because a protagonist is allowed to have no entry.
     const dropped = db.pinCast(made.id, c.body.proposedCast ?? []);
     if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
-    return { ...made, droppedCast: dropped };
+    return { ...made, droppedCast: dropped, ...(roomNotes.length ? { notes: roomNotes } : {}) };
   },
 /** Copy one book's ledger into another, minting the other if `into` is the literal `new`.
  *
@@ -2155,24 +2193,9 @@ export const routes: Record<string, Handler> = {
       });
       if (!id) { notes.push(`Could not write "${title}"${where}.`); continue; }
 
-      let rooms = 0;
-      const here = slotsFor(kind).map((sl) => sl.name);
-      for (const [slot, val] of Object.entries(raw.rooms ?? {})) {
-        if (!here.includes(slot)) {
-          notes.push(`"${title}" offered a "${slot}" — a ${kind} has no such room, so it was left out.`);
-          continue;
-        }
-        const o: any = (val && typeof val === 'object') ? val : { body: String(val ?? '') };
-        const rBody = String(o.body ?? '').trim();
-        if (!rBody) continue;
-        const rid = db.upsertAddon(v.id, id, {
-          slot, name: String(o.name ?? slot.replace(/_/g, ' ')).trim() || slot,
-          body: rBody.startsWith('[') ? rBody : `[${rBody}]`,
-          keys: Array.isArray(o.keys) ? o.keys : [],
-        });
-        if (rid) rooms++;
-      }
-      made.push({ id, title, rooms });
+      const w = writeRooms(v.id, id, kind, raw.rooms, title);
+      notes.push(...w.notes);
+      made.push({ id, title, rooms: w.made });
     }
     if (!made.length) return { error: notes[0] ?? 'nothing in that paste was a card' };
     return { made, notes, ...viewOf(c.body.storyId) };

@@ -135,7 +135,120 @@ const LOCATION_EXAMPLE = `{
 
 export interface ForgePrompt { key: string; title: string; what: string; prompt: string }
 
+const BOOK_EXAMPLE = `{
+  "story": {
+    "title": "The Salt Ledger",
+    "genre": "noir, gothic",
+    "premise": "A tide-clerk counts what the sea returns, and one of the returns is a body the ledger already lists as paid.",
+    "setting": "Fallow Quay, a debt-town built on piles over a dead harbour",
+    "pov": "third limited, past tense",
+    "spice": 2,
+    "persona": "Ilva Marren",
+    "lockedCharacter": "Ilva Marren",
+    "writingStyle": "Write the narration in past tense: she came up the stair, the rain came with her.\\nShort declarative sentences. One image per paragraph and let it stand.\\nName the weather only when it changes what somebody does.",
+    "styleNote": "Scenes open in the middle and end one beat early. Money is counted on the page."
+  },
+  "entries": [
+    {
+      "kind": "character", "title": "Ilva Marren",
+      "body": "[Ilva Marren: tide-clerk; counts what the sea returns; owes the Ambersand nine hundred]",
+      "keys": ["Ilva", "the clerk"], "activation": "always_on",
+      "rooms": {
+        "facts": { "name": "What is always true", "body": "[thirty-one; left-handed; cannot swim]" },
+        "voice": { "name": "How she sounds", "body": "[short sentences; answers a question with a question]" }
+      }
+    },
+    {
+      "kind": "lore", "title": "the Ambersand",
+      "body": "[the Ambersand: counting-house on the north bank; where debts are written down and collected]",
+      "keys": ["Ambersand", "counting-house"], "activation": "triggered",
+      "rooms": { "atmosphere": { "name": "What it is like now", "body": "[lamps out along the bank; wet stone; nobody about]" } }
+    }
+  ]
+}`;
+
 export const FORGE: ForgePrompt[] = [
+  {
+    key: 'book',
+    title: 'A whole book, in one command',
+    what: 'Story and cast together. Paste it on Create a story and the wizard opens with everything filled.',
+    prompt:
+`You are building a WHOLE BOOK for a long-form fiction app called Anansi: the story itself and the
+cast that lives in it, in one answer.
+
+Ask me what the book is about if I have not said. Then write all of it.
+
+Answer with JSON and nothing else. No prose before it, no code fence, no explanation after.
+
+{
+  "story": { ... the fields below ... },
+  "entries": [ ... cards, in the shape below ... ]
+}
+
+THE STORY FIELDS, all of them:
+
+- "title"    the book's title.
+- "genre"    two to four genre words, comma separated. Each becomes its own label on a shelf.
+- "premise"  two or three sentences, under 60 words. It sits at the top of EVERY request that
+             writes a word of this book, so every clause is paid for on every page. Name the person
+             it is about and what is forcing the issue. Not a blurb — nobody is being sold this.
+- "setting"  where it opens, in a sentence or two.
+- "pov"      one of exactly: "first person, present tense", "first person, past tense",
+             "second person, present tense", "third limited, present tense",
+             "third limited, past tense", "third omniscient, past tense".
+- "spice"    1 to 5. 1 nothing sexual, 2 desire but not sex, 3 on the page in the book's voice,
+             4 direct and the acts named, 5 fully explicit.
+- "persona"  the character the writer speaks as. Must be the exact title of one of your entries,
+             or "" if the book is narrated from outside.
+- "lockedCharacter"  the one the writing model must never write for, because the writer will.
+             Usually the same as persona. Must also be one of your entries, or "".
+- "writingStyle"  THE MOST POWERFUL FIELD IN THE APP. It reaches the model as an instruction on
+             every call and outranks the book's own prose for register — measured at about 98%
+             adherence. Rules, not description, and these rules are measured rather than preferred:
+               * ONE RULE PER LINE, separated by \\n. The same rule inside a longer line bought about
+                 10%; on its own line it holds at about 98%.
+               * The register line must NAME NARRATION and spell the forms out — not "past tense"
+                 but "Write the narration in past tense: she came up the stair, the rain came with
+                 her." The forms spelled out are the part that works.
+               * Say what the narration DOES, never what it feels like. "Atmospheric" is unusable.
+               * Six to twelve lines. Every one is paid for on every page.
+               * Nothing about plot, character or setting. This field is HOW it is written.
+- "styleNote"  the book's genre flavour, kept apart from the voice: what a book of this kind does
+             on the page, what it lingers on, what it hurries past. Three sentences at most. Do NOT
+             write about tense, person or explicitness here — those belong to writingStyle, and a
+             style note that repeats them makes two instructions argue over one sentence.
+
+THE ENTRIES. Four to eight of them, and make them the ones the premise actually needs — the people
+it names, the place it happens in, the thing everyone wants, the law that holds until it breaks.
+
+Each entry is exactly the card shape:
+
+{
+  "kind": "character" | "lore" | "item" | "rule",
+  "title": "the name, spelled as the prose spells it",
+  "body": "[Title: the notes]",
+  "keys": ["words that make this card fire"],
+  "activation": "always_on" | "triggered",
+  "rooms": { "<room name>": { "name": "what to call this room", "body": "[the notes]" } }
+}
+
+"lore" covers places, institutions, factions and histories — a city, a counting-house, an order, a
+war are all that kind.
+
+MOST CARDS SHOULD BE "triggered". Only the people and places in nearly every scene are "always_on";
+a book where everything is always on has no context budget left for the prose.
+
+THE ROOMS EACH KIND HAS — use these names exactly, leave out any you have nothing true for:
+
+${(['character', 'lore', 'item', 'rule'] as EntryKind[])
+  .map((k) => `${k}:\n${roomBlock(k)}`).join('\n\n')}
+
+${LEDGER_REGISTER}
+
+EXAMPLE OF THE WHOLE ANSWER, shortened — yours should carry more cards:
+
+${BOOK_EXAMPLE}`,
+  },
   {
     key: 'character',
     title: 'A character',

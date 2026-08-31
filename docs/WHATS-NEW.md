@@ -10,6 +10,30 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · A whole book from one command, and the prompts follow you into the wizard
+
+### One prompt writes the book and its cast together
+The forge has a sixth prompt at the top: **A whole book, in one command**. It asks for everything
+at once — title, genre, premise, setting, point of view, spice, the voice, the house style, who you
+play, who Anansi must never write for, and four to eight cards with their rooms filled.
+
+Paste what comes back on **Create a story** and the wizard opens with all of it already in place.
+It does not create the book — you still walk the steps, change what you want, and press Accept.
+Every card's rooms travel through with it.
+
+### The prompts are where you need them, not only on the forge page
+The wizard's own steps now carry the prompt that belongs to them: the premise prompt beside the
+premise, the voice prompt beside the voice, and both card prompts on the cast step. Each is one
+press to copy.
+
+The cast step also takes a paste of its own, for when you have forged one character rather than a
+whole book. It joins the cast to read and edit like any other, and nothing is written until you
+accept.
+
+### A small thing in + Thread
+Opening the tray without picking a kind showed a stray button with a missing word after it. It says
+what it is for now.
+
 ## 2026-08-30 · The forge: build a thread somewhere else and paste it in
 
 ### A page of prompts to hand another model

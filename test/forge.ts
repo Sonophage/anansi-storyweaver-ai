@@ -94,13 +94,32 @@ const ok = (m: string, fn?: unknown) => {
 // ---- 2. the route is the admin's, and says so rather than answering empty ----
 {
   const mine: any = routes['GET /api/forge'](ctx({}, me, true));
-  assert.strictEqual(mine.prompts.length, 5, 'five prompts');
+  // The KEYS, not the count. A count passes when a prompt is replaced by a different one, and the
+  // set is what the page and the paste both depend on.
+  assert.deepStrictEqual(mine.prompts.map((p: any) => p.key),
+    ['book', 'character', 'location', 'premise', 'voice', 'image'],
+    'the six prompts, book first — it is the one that does everything at once');
   const hers: any = routes['GET /api/forge'](ctx({}, her, false));
   assert.ok(hers.error, 'the second writer is refused');
   assert.ok(!hers.prompts, 'and gets no prompts at all');
   // REFUSED, NOT EMPTIED. "You are not the admin" and "there is nothing here" are different answers
   // and a page that cannot tell them apart reports the feature as broken.
   ok('the forge answers the admin and refuses everyone else by name');
+}
+
+// The whole-book prompt has to carry BOTH halves, or "one command" is a half command: every story
+// field the wizard will fill, and the card shape for the cast. It is the only prompt that names the
+// rooms of all four kinds, because the cast it asks for can be any of them.
+{
+  const b = FORGE.find((f) => f.key === 'book')!.prompt;
+  for (const f of ['title', 'genre', 'premise', 'setting', 'pov', 'spice', 'persona',
+                   'lockedCharacter', 'writingStyle', 'styleNote'])
+    assert.ok(b.includes(`"${f}"`), `the book prompt names the ${f} field`);
+  for (const k of ['character', 'lore', 'item', 'rule'])
+    for (const sl of slotsFor(k)) assert.ok(b.includes(`"${sl.name}"`), `and ${k}'s ${sl.name} room`);
+  assert.match(b, /ONE RULE PER LINE/, 'and carries F37 into the voice field it asks for');
+  assert.ok(b.includes('"story"') && b.includes('"entries"'), 'and asks for both halves at once');
+  ok('the whole-book prompt asks for every story field and every kind\'s rooms');
 }
 
 // ---- 3. the paste writes a card AND its rooms, which no other import path does ----
@@ -203,6 +222,40 @@ const paste = (text: string, o = me) => routes['POST /api/thread/paste'](ctx({ s
   assert.ok(!r.error, 'the second writer may paste into her own book');
   assert.ok(db.entriesOf(hers.id).some((x: any) => x.title === 'Someone'), 'and it lands');
   ok('pasting is not a privilege — the format is open, the workbench is not');
+}
+
+// ---- 5. a whole book, pasted on the create page, keeps its cast's rooms ----
+//
+// The spark's own cast never carries rooms — the model that writes it is asked for a body and
+// nothing else — so this path exists only for a book forged elsewhere. Dropping the rooms on the
+// way in would make "one command" a half one, and nothing on screen would say so.
+{
+  const made: any = routes['POST /api/stories'](ctx({
+    title: 'The Drowned Ledger', genre: 'noir', premise: 'A clerk counts what the sea returns.',
+    writingStyle: 'Write the narration in past tense: she came up the stair.',
+    persona: 'Sella Vane', proposedCast: [],
+    entries: [{
+      title: 'Sella Vane', entryType: 'character', activation: 'always_on',
+      body: '[Sella Vane: tide-clerk; owes the Ambersand]', keys: ['Sella'],
+      rooms: {
+        facts: { name: 'What is always true', body: '[twenty-nine; cannot swim]' },
+        voice: { name: 'How she sounds', body: '[short sentences; never explains twice]' },
+        atmosphere: { name: 'Not her room', body: '[a person has no atmosphere]' },
+      },
+    }],
+  }));
+  assert.ok(made.id, 'the book was created');
+  const e: any = db.entriesOf(made.id).find((x: any) => x.title === 'Sella Vane');
+  assert.ok(e, 'and its cast with it');
+  const rooms = db.addonsOf(made.id).filter((a: any) => a.entry_id === e.id).map((a: any) => a.slot).sort();
+  assert.deepStrictEqual(rooms, ['facts', 'voice'], 'the rooms rode in with the cast');
+  assert.ok((made.notes ?? []).some((x: string) => /atmosphere/.test(x)),
+    'and the one a character has no business with was named, not coerced');
+  // The persona was not in `proposedCast`, so it is the writer's own and pinCast never touches it.
+  // A pasted book's persona is typed, not proposed — the writer chose to paste it.
+  const st: any = db.getStory(made.id);
+  assert.strictEqual(st.persona, 'Sella Vane', 'a pasted persona is the writer\'s and is not policed away');
+  ok('a whole book pasted at once keeps its cast, their rooms, and its persona');
 }
 
 console.log(`\n${n} checks passed`);
