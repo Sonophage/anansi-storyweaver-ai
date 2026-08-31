@@ -10,6 +10,16 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · Enter makes a line
+
+### The send button is the only thing that sends
+Enter used to send what you had typed, and Shift+Enter was supposed to give you a new line. Now
+Enter always makes a new line — in the composer and in Anansi's ask box — and the only thing that
+sends is the send button. The small ↵ hint beside the box has gone with it.
+
+If you were in the middle of picking a name from the @ list, Enter still takes the highlighted one.
+That has not changed.
+
 ## 2026-08-31 · Passages land as soon as they are written
 
 ### Opening a book gets it ready to write

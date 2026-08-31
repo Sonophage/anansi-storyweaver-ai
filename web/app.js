@@ -1189,7 +1189,6 @@ function drawDock() {
         <textarea id="input" rows="1" placeholder="${esc(placeholder(who))}"></textarea>
       </div>
       <div id="atlistInput" hidden></div>
-      <span class="deskonly" style="font-size:11px; color:var(--label); opacity:.55; padding-bottom:3px">&crarr;</span>
       <!-- SEND STAYS SEND. It carried two jobs for as long as Stop had nowhere else to be — the
            argument was that the place your eye is already on is the place you last pressed. Stop
            lives on the veil now, which covers the whole screen and is the only thing you can see
@@ -1209,11 +1208,17 @@ function drawDock() {
   const fit = () => { if (S.bigInput) { ta.style.height = ''; return; }
     ta.style.height = 'auto'; ta.style.height = `${ta.scrollHeight}px`; };
   ta.addEventListener('input', fit);
-  ta.addEventListener('keydown', (e) => {
-    // Enter sends. It used to need Cmd/Ctrl, which meant the button was the only way to send —
-    // in a box you type one line into, that is the wrong default round.
-    if (e.key === 'Enter' && !e.shiftKey && !e.altKey) { e.preventDefault(); generate(); }
-  });
+  // ENTER MAKES A LINE. It used to send unless Shift was held, and Seth reported the modifier not
+  // working — "the shift enter doesnt make a new line it just sends". Driven with real key events
+  // through CDP in test/ui/composer.js, Shift+Enter did NOT send, so whatever he hit is not the
+  // guard on this line and is most likely a keyboard that reports no shiftKey. Removing the send
+  // entirely settles it either way: no Enter of any shape sends now, and the button is the only
+  // thing that does. Seth, 2026-08-31: "enter to create a new line and the send button to be the
+  // thing you use to send the message through."
+  //
+  // No listener at all, rather than one that calls preventDefault on nothing: a textarea already
+  // inserts a newline on Enter, and the @ menu's own handler still takes Enter while its list is
+  // open, which is what you were in the middle of doing.
   // And put the half-written line back, with the caret where it was — restoring the text but not
   // the selection moves the cursor to the end mid-sentence, which is its own small theft.
   if (draft?.text) {
@@ -7698,13 +7703,9 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); return atAccept(); }
     if (e.key === 'Escape') { e.preventDefault(); return atClose(); }
   }
-  // Enter asks, Shift+Enter is a newline — the same bargain the composer makes. Below the block
-  // above on purpose: while the list is open Enter takes the highlighted name, because that is
-  // what you were in the middle of doing.
-  if (e.target?.id === 'askBox' && e.key === 'Enter' && !e.shiftKey && !e.altKey) {
-    e.preventDefault();
-    document.querySelector('[data-ask]')?.click();
-  }
+  // Ask used to send on Enter, the same bargain the composer made, and it goes for the same reason
+  // — the button sends, Enter makes a line. The @ block above still takes Enter while its list is
+  // open, because that is what you were in the middle of doing.
 });
 
 // THE MIRROR SCROLLS WITH THE BOX. You read the mirror; the textarea under it is transparent and

@@ -416,3 +416,57 @@ await wait(400);
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");
+
+// ---- ENTER AND SHIFT+ENTER (2026-08-31). Seth: "remove the shift little icon in the input box,
+// also for enter to create a new line and the send button to be the thing you use to send", and
+// "right now the shift enter doesnt make a new line it just sends".
+//
+// Driven with real key events through CDP, because the whole question is what the browser reports
+// on the event — `e.shiftKey` — and no DOM harness can answer that.
+//
+// THE DETECTOR IS VALIDATED BEFORE ANY OF IT IS BELIEVED: window.fetch is patched to count calls to
+// /api/generate and refuse them, and the FIRST assertion presses the send button and requires the
+// count to rise. A counter that cannot see a real send would report both key tests green with the
+// bug fully present, which is the exact shape this project has been bitten by.
+{
+  await page.eval(`(() => {
+    window.__gen = 0;
+    const real = window.fetch;
+    window.fetch = (u, o) => {
+      if (String(u).includes('/api/generate')) { window.__gen++; return Promise.reject(new Error('blocked by test')); }
+      return real(u, o);
+    };
+    return 1; })()`);
+  const gen = () => page.eval("window.__gen");
+
+  // The value is set directly rather than typed. `page.type` clicks the selector first and the
+  // composer's textarea is transparent under `#inputMirror`, so the characters went nowhere and the
+  // box was empty — the app then refused the send with "Say what happens next", and the detector
+  // read that as "a send makes no call". The app was right and the test was wrong.
+  await page.eval("(() => { const t = document.querySelector('#input'); t.value = 'one'; t.focus(); return 1; })()");
+  // A dispatched bubbling click, not page.click: at phone width the CDP tap did not land on the
+  // button at all — a listener added to #send counted zero — so the detector was reporting on a
+  // press that never happened. The delegated handler lives on `document` and matches with
+  // closest(), so a bubbling MouseEvent exercises the same path a real press does, and the
+  // synthetic-tap guard only drops a click that FOLLOWS a tap it delivered, which there is none of.
+  await page.eval("(() => { document.querySelector('#send').dispatchEvent(new MouseEvent('click', { bubbles: true })); return 1; })()");
+  await wait(400);
+  const diag = await page.eval(`(() => ({
+    gen: window.__gen,
+    disabled: !!document.querySelector('#send')?.disabled,
+    value: document.querySelector('#input')?.value,
+    toast: document.querySelector('#toast')?.textContent?.slice(0,60) ?? null,
+    patched: String(window.fetch).includes('__gen') })) ()`);
+  ok(`the detector can see a send at all ${JSON.stringify(diag)}`, diag.gen === 1);
+
+  await page.eval("(() => { window.__gen = 0; const t = document.querySelector('#input'); t.value = 'two'; t.focus(); return 1; })()");
+  await page.key('Enter', 13, 8);                 // 8 is CDP's Shift bit
+  ok(`  Shift+Enter does not send (${await gen()} generate calls)`, (await gen()) === 0);
+
+  await page.eval("(() => { window.__gen = 0; const t = document.querySelector('#input'); t.focus(); return 1; })()");
+  await page.key('Enter', 13, 0);
+  ok(`  and plain Enter does not send either (${await gen()} generate calls)`, (await gen()) === 0);
+
+  ok("  and the ↵ hint is gone from the composer",
+     !(await page.eval("(() => !!document.querySelector('#dock .deskonly'))()")));
+}
