@@ -12,7 +12,7 @@
 // Most changes need one or two suites, and a single suite has always run alone:
 //   node --experimental-strip-types test/engine.ts
 import { execFile } from 'node:child_process';
-const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'mend.ts', 'memory.ts', 'report.ts', 'talk.ts', 'forge.ts', 'web.ts', 'app.ts'];
+const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'check.ts', 'memory.ts', 'report.ts', 'talk.ts', 'forge.ts', 'web.ts', 'app.ts'];
 const started = Date.now();
 
 const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean }>((done) => {

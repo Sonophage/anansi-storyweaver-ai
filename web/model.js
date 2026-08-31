@@ -50,7 +50,11 @@ export const waiting = (list) => {
   return [
     kind('proposed', 'thread proposed', 'threads proposed', 'chapter'),
     kind('unpaid', 'promise unpaid', 'promises unpaid', 'strings'),
-    kind('flags', 'flag', 'flags', 'chapter'),
+    // NOT flags. Seth, 2026-08-31: "that flag can be opened but it can be silently ignored, it
+    // doesn't have to go in the waiting menu option or the rail at all. if the writer keeps
+    // writing then it can silently be ignored." A contradiction is worth recording and worth
+    // finding when you go looking; it is not worth a count on the way past. Proposals and unpaid
+    // promises stay, because both are work the writer asked for and has not been handed back yet.
   ].filter(Boolean);
 };
 

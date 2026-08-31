@@ -2629,14 +2629,6 @@ const PANELS = {
         || '<div class="hint">No calls logged for this story yet.</div>'}
       ${ACT?.worstPrefillSeconds ? `<div class="row"><span style="color:var(--ink)">Worst prefill</span>
         <span class="tnum" style="margin-left:auto; color:var(--faint)">${ACT.worstPrefillSeconds}s</span></div>` : ''}
-      <!-- #9. HOW OFTEN THE REPAIR FIRES AND HOW OFTEN IT WORKS. It has corrected contradictions
-           before delivery since 2026-08-25 and nobody could say either number, while eighteen of
-           them reached the flags table anyway. The denominator is the calls where something WAS
-           wrong, not every call — a rate over every call would be a number nobody can act on. -->
-      ${ACT?.mends ? `<div class="row"><span style="color:var(--ink)">Contradictions caught</span>
-        <span class="tnum" style="margin-left:auto; color:${ACT.mends.left ? 'var(--warn)' : 'var(--faint)'}">${
-          ACT.mends.fixed} fixed${ACT.mends.left ? ` · ${ACT.mends.left} left` : ''} of ${
-          ACT.mends.found}, over ${ACT.mends.of} ${ACT.mends.of === 1 ? 'take' : 'takes'}</span></div>` : ''}
       <button class="btn" data-savegen="1" style="margin-top:16px">Save</button></div>`;
   },
 };
@@ -5194,7 +5186,7 @@ async function generate(mode = S.mode) {
   V = await api.story(S.storyId, V.currentChapter.id);
   arrive();
   paint(); pinToSeam(); refreshManifest(); refreshHistory();
-  const said = mendToast(r);
+  const said = takeToast(r);
   if (said) toast(said);
 }
 
@@ -5211,24 +5203,15 @@ async function generate(mode = S.mode) {
  *
  *  A REPAIR THAT FAILED IS THE ONE WORTH INTERRUPTING FOR. It is the case where the prose on the
  *  page is known to be wrong, and until now the only sign was a red line appearing later. */
-function mendToast(r) {
-  const found = Number(r?.found ?? 0);
-  const unfixed = Number(r?.unfixed ?? 0), mended = Number(r?.mended ?? 0);
-  const many = (n) => `${n} contradiction${n === 1 ? '' : 's'}`;
-  const canon = !found ? ''
-    : r.unchecked ? `${many(found)} found and repaired — the second check did not answer, `
-      + 'so whether they are gone is not known.'
-    : r.refused ? `${many(found)} found, and the repair came back too short to trust — `
-      + 'this take still contradicts the canon. Re-roll it, or fix it by hand.'
-    : !unfixed ? `${many(mended)} caught and fixed before this landed.`
-    : `${many(unfixed)} of ${found} survived the repair — this take still contradicts the canon. `
-      + 'Re-roll it, or fix it by hand.';
-  // THE CEILING, FIRST. A take that ran into it is a fact about the prose on the page whether or
-  // not anything in it contradicted the book, and for five days the only sign was a paragraph
-  // that stopped mid-word — 41 of 181 of them, with nothing on screen either time.
-  const cut = r?.cut ? 'This take ran to the ceiling and was cut short, then trimmed back to its '
-    + 'last finished sentence. Re-roll it, or raise Passage length.' : '';
-  return [cut, canon].filter(Boolean).join(' ') || null;
+function takeToast(r) {
+  // A take that ran into the ceiling is a fact about the prose on the page, and for five days the
+  // only sign was a paragraph that stopped mid-word — 41 of 181 of them, with nothing on screen.
+  //
+  // The contradiction half of this used to live here too, reporting what the blocking repair in
+  // `generate` had done. That repair is gone (2026-08-31): the check runs detached on accept now
+  // and files a flag, so there is nothing to say at this moment and nothing to interrupt for.
+  return r?.cut ? 'This take ran to the ceiling and was cut short, then trimmed back to its '
+    + 'last finished sentence. Re-roll it, or raise Passage length.' : null;
 }
 
 /** Mark the newest passage so it fades in once, and only once. The flag is cleared on a timer
@@ -5310,7 +5293,7 @@ async function regenerateInto(id) {
   paint(); refreshManifest(); refreshHistory();
   // #9 first: a take that still contradicts the canon outranks a note about which instruction it
   // re-ran. Both are toasts and only one is read.
-  toast(mendToast(r) ?? (r.reusedDirective
+  toast(takeToast(r) ?? (r.reusedDirective
     ? `New take on your instruction: ${String(r.reusedDirective).slice(0, 90)}`
     : 'New take kept. Both are in History, with the canon each was written against.'));
 }

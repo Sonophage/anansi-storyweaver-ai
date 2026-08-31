@@ -10,6 +10,28 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · Passages land as soon as they are written
+
+### The wait at the end of every passage is gone
+A take used to pause for about a second and a half after the last word, while the app checked it
+against your ledger and quietly rewrote anything that contradicted it. That pause is gone. The
+passage is yours the moment the model finishes writing it.
+
+The check still happens. It runs when you keep a take, in the background, and it does not hold
+anything up — you can carry straight on writing while it thinks.
+
+### A contradiction is now a flag, not a silent rewrite
+Before, the app would try to fix a contradiction on its own and tell you afterwards. Now it marks
+the passage and leaves the prose alone. Open the flag when you want to see what it caught; ignore
+it and it will sit there quietly. Nothing about it changes your words for you.
+
+This is a real trade and worth knowing: the app no longer repairs anything by itself. What it
+catches, it shows you, and the fix is yours.
+
+### Flags no longer nag from the shelf
+The strip above your books counts threads proposed and promises unpaid. It no longer counts flags.
+A flag is there when you go looking for it, not on your way past.
+
 ## 2026-08-30 · A whole book from one command, and the prompts follow you into the wizard
 
 ### One prompt writes the book and its cast together

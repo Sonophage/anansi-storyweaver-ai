@@ -703,7 +703,7 @@ ok('a book is never written with no voice at all', () => {
 ok('firing decides what the model is TOLD — and since COUNCIL-04 #7, only that', () => {
   // It used to decide what gets VERIFIED as well: one rule doing two jobs, failing together, so a
   // character who never fired could be contradicted freely. The check reads the whole ledger now
-  // and marks each flag with whether the entry reached the prompt (see test/mend.ts §5). What is
+  // and marks each flag with whether the entry reached the prompt (see test/check.ts §3). What is
   // asserted here is the half that did not change: the MANIFEST still carries only what fired.
   const s6 = db.createStory(o, { title: 'C' });
   db.addPassage({ ...s6, storyId: s6.id, body: 'He kept his hand on the coat all the way down.' });

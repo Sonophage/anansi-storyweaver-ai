@@ -3,7 +3,7 @@ import { count, chat, structuredRetry, model, models, checkModel, allowList, mod
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -394,71 +394,6 @@ const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
     .filter((f: any) => f.body.trim());
 };
 
-/** Contradictions are the model's mistake, so the model is the one told about them, before the
- *  passage is delivered rather than after it is on the page as a red line for the writer to read
- *  and act on.
- *
- *  #9 · IT SAID IT HAD FIXED THEM AND NOBODY EVER CHECKED. Seth: *"Contradictions are still showing
- *  up and they show up late."* Measured against the live library on 2026-08-29: eighteen violations,
- *  **every one of them on a model-written passage** — so every one went through this function and
- *  came out still contradicting. The newest was written the same day, three days after this
- *  function shipped. The machinery was not missing; it was unverified and invisible.
- *
- *  Three things were wrong and all three were silence:
- *
- *  IT NEVER RE-CHECKED. `mended: found.length` was a claim that the repair worked, asserted from
- *  the fact that a repair was attempted. Now the fixed prose goes back through the same detector,
- *  so `mended` counts contradictions that are actually gone and `unfixed` counts the ones that
- *  survived their own repair. This project has been bitten by exactly this before: a zero is not an
- *  absence, and neither is an attempt.
- *
- *  THE LENGTH FLOOR KEPT THE BROKEN PROSE AND SAID NOTHING. It is still the guard against a repair
- *  that rewrites instead of correcting, and it still cannot catch a same-length rewrite — but a
- *  rejection now reports `unfixed` rather than looking like a clean run.
- *
- *  NOTHING WAS RECORDED. The counts were returned to the browser, which ignored them, and were
- *  written nowhere. Nobody could say how often this fires or how often it works. They ride on the
- *  generation row now, which is what `bench/` reads.
- *
- *  Returns null when there is nothing to do, so the caller keeps the prose it had — which is most
- *  calls, and the reason the second check costs nothing on the common path. */
-async function mend(v: any, manifest: any, prose: string, using: string, maxTokens: number) {
-  const facts = factsFor(v, manifest, v.currentChapter.index);
-  const { found } = await contradictionsIn(facts, prose).catch(() => ({ found: [] as any[] }));
-  if (!found.length) return null;
-  const broken = found.map((x: any) =>
-    `- Canon: ${facts[x.canon - 1]?.body}\n  You wrote: "${x.quote}"`).join('\n');
-  try {
-    const r = await chat(MEND, `${broken}\n\nPASSAGE:\n${prose}`,
-      { temperature: 0.3, max_tokens: maxTokens, model: using,
-        chat_template_kwargs: { enable_thinking: false } });
-    const fixed = clean(r.prose);
-    // ponytail: a length floor is the whole guard against a repair that rewrites instead of
-    // correcting. It catches the empty answer, the refusal and the one-line summary; it cannot
-    // catch a same-length rewrite. Compare sentence-by-sentence if that turns out to happen.
-    if (fixed.length < prose.length * 0.6) {
-      return { prose, found: found.length, mended: 0, unfixed: found.length, refused: true };
-    }
-    // THE SECOND LOOK. One more call, only ever on a passage that was already wrong, and it is the
-    // difference between "a repair was attempted" and "the contradiction is gone".
-    const after = await contradictionsIn(facts, fixed).catch(() => null);
-    // A detector that failed to answer says nothing either way. Reporting 0 there would be the
-    // zero-is-not-an-absence mistake in the one place it costs the most.
-    //
-    // AND `contradictionsIn` HAS TWO WAYS OF FAILING. It throws on a dead router, and it RETURNS
-    // `{ found: [], error }` when the model answers nothing usable — which is the same shape as a
-    // clean passage. Reading only the thrown one was a hole: an unusable answer would have been
-    // read as "nothing left", the repair reported as a success, and the writer told the
-    // contradiction was gone on the strength of a reply nobody could parse. Found by falsifying
-    // this line and watching the check stay green.
-    const left = after && !after.error ? after.found.length : null;
-    return { prose: fixed, found: found.length,
-             mended: left === null ? 0 : found.length - left,
-             unfixed: left ?? found.length,
-             unchecked: left === null };
-  } catch { return null; }   // the writer keeps the passage; accept will flag it
-}
-
 /** A reroll of a directed passage re-runs the instruction that made it.
  *
  *  `direct` is the only mode whose template takes the directive — speak and act take a speaker and
@@ -514,29 +449,26 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
       params: c.gen, manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
-    // The streamed draft is provisional — the client discards the ghost and saves what this
-    // returns — so the correction happens here, in the window the writer already expects the
-    // passage to settle in. `mend` returns null when there is nothing wrong, which is most calls.
-    // THE CEILING STILL EXISTS, so it still has to be visible when it fires. `capFor` puts it well
+    // THE CEILING, so it still has to be visible when it fires. `capFor` puts it well
     // above anything measured, but a runaway can reach it — and until now that arrived as a
     // paragraph that stopped mid-word with nothing on screen to say why. Trimmed to the last
     // finished sentence so what lands reads as prose, and flagged so the writer is told it was
     // trimmed rather than left to wonder where the rest went.
     const cut = r.finish === 'length';
     const prose = cut ? trimToSentence(clean(r.prose)) : clean(r.prose);
-    const m = await mend(v, manifest, prose, using, Number(c.gen.max_tokens) || 900);
-    // #9. Recorded, not merely returned. These counts were handed to the browser, which ignored
-    // them, and written nowhere — so "the repair fires and it works" went four days without a
-    // number anywhere to read it off, while eighteen contradictions reached the flags table.
-    if (m) db.noteMend(genId, { found: m.found, mended: m.mended, unfixed: m.unfixed,
-                                refused: !!(m as any).refused, unchecked: !!(m as any).unchecked });
+    // THE CONTRADICTION CHECK IS NOT ON THIS PATH ANY MORE. It was a blocking `mend` here on every
+    // generation: F30 measured a flat 1,456 ms of it — about a third of a warm take — firing 0
+    // repairs in 6. It also ran on every variant, which is the thing SPEC §8.4 says not to do.
+    // `POST /api/accept` already runs the same detector, detached, on the take the writer actually
+    // kept, and files a flag from it. Seth, 2026-08-31: "remove it from the critical path. instead
+    // just add a flag after ... if the writer keeps writing then it can silently be ignored."
+    //
+    // The repair went with it, and that is a real loss stated plainly: a rewrite cannot happen once
+    // the prose is on the page. `mend` and the MEND prompt are in git if the fix is ever wanted as
+    // a button ON the flag rather than as a wait before the passage.
     // Handed back so `accept` can tie the take to this call. The manifest is logged here, before
     // any passage exists, so nothing connected a take to the canon it was written against.
-    return { prose: m?.prose ?? prose, reasoning: r.reasoning.length, cut,
-             // #9. `found` rides too: without it the surface cannot tell "nothing was wrong" from
-             // "everything was repaired", and those are not the same sentence.
-             found: m?.found ?? 0, mended: m?.mended ?? 0, unfixed: m?.unfixed ?? 0,
-             refused: !!(m as any)?.refused, unchecked: !!(m as any)?.unchecked,
+    return { prose, reasoning: r.reasoning.length, cut,
              // Only when it was inherited rather than typed: the surface says which instruction it
              // re-ran, because silently re-applying one reads as the model deciding on its own.
              ...(directive && !directive0?.trim() ? { reusedDirective: directive } : {}),
@@ -2492,25 +2424,9 @@ export const routes: Record<string, Handler> = {
         seconds: r.latency_ms == null ? null : +(r.latency_ms / 1000).toFixed(1),
         prefillSeconds: t(r).prompt_ms ? +(t(r).prompt_ms / 1000).toFixed(2) : null,
         prefillRate: t(r).prompt_per_second ? Math.round(t(r).prompt_per_second) : null,
-        // #9. Null on the calls where nothing was wrong, which is most of them — and null is NOT
-        // zero here. A clean run and a run whose repair failed would otherwise read the same in
-        // the one place either is recorded.
-        mend: (() => { try { return r.mend ? JSON.parse(r.mend) : null; } catch { return null; } })(),
       })),
       worstPrefillSeconds: prefills.length ? +(Math.max(...prefills) / 1000).toFixed(2) : null,
       failures: rows.filter((r) => r.error).length,
-      // #9. HOW OFTEN THE REPAIR FIRES AND HOW OFTEN IT WORKS, over the calls on this story. It ran
-      // for four days with nobody able to say either — while eighteen contradictions reached the
-      // flags table, every one of them on a passage that had been through it.
-      // `of` is the informative denominator: the calls where something WAS wrong, not every call.
-      mends: (() => {
-        const m = rows.map((r) => { try { return r.mend ? JSON.parse(r.mend) : null; } catch { return null; } })
-          .filter(Boolean) as any[];
-        if (!m.length) return null;
-        return { of: m.length, found: m.reduce((n, x) => n + (x.found ?? 0), 0),
-                 fixed: m.reduce((n, x) => n + (x.mended ?? 0), 0),
-                 left: m.reduce((n, x) => n + (x.unfixed ?? 0), 0) };
-      })(),
     };
   },
 

@@ -214,7 +214,13 @@ let refuseNth = 0;
       { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', updatedAt: 2, words: 400, last: 'He paid.',
         proposed: 3, unpaid: 1, flags: 0, model: 'write-nt-qwen36-h' },
       { id: 's-3', title: 'Sutera', status: 'draft', updatedAt: 1, words: 0, last: null,
-        proposed: 0, unpaid: 0, flags: 2, model: 'Qwen3.6-WNTH-35B-A3B-NN' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
+        // unpaid: 2 since 2026-08-31. This book used to be owed ONLY its two flags, and flags
+        // stopped counting toward the strip that day — so without a kind that still counts, the
+        // second book falls off and this stops testing grouping at all. It has to WIN a kind, not
+        // merely have one: `waiting()` returns one row per kind naming the book with the most of
+        // it, so a tie with The Salt Ledger's 1 would still name that book and draw one chip. The
+        // flags stay, so the fixture still proves they contribute nothing.
+        proposed: 0, unpaid: 2, flags: 2, model: 'Qwen3.6-WNTH-35B-A3B-NN' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
       look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } }
     : url.startsWith('/api/story') ? STORY
@@ -1069,8 +1075,18 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ];
   const w = waiting(shelf);
   assert.deepStrictEqual(w.map((x: any) => x.label),
-    ['5 threads proposed', '2 promises unpaid', '1 flag'],
+    ['5 threads proposed', '2 promises unpaid'],
     'it counts across books, and says one thread rather than one threads');
+
+  // AND FLAGS ARE NOT IN IT, on purpose, since 2026-08-31. The contradiction check moved off the
+  // generation path and files a flag detached; Seth's rule for that flag is that it "can be
+  // silently ignored ... if the writer keeps writing". A count on the strip is the opposite of
+  // that. `s-2` carries a flag in the fixture above and must contribute nothing here.
+  assert.ok(!w.some((x: any) => x.key === 'flags'),
+    'a flag never joins the waiting strip — it is found when you go looking, not on the way past');
+  assert.deepStrictEqual(
+    waiting([{ id: 's', title: 'x', proposed: 0, unpaid: 0, flags: 7 }] as any), [],
+    'and a book whose only outstanding thing is flags shows no strip at all');
 
   // One press has to go where the work is. Sending you to a list of places the work might be is
   // the thing this replaces.
@@ -1095,8 +1111,9 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   await new Promise((r) => setTimeout(r, 40));
   const page = html('page');
   const chips = page.match(/data-owed="/g) ?? [];
-  // Two books are owed something, between them three kinds of thing. By ITEM that is three chips
-  // and by BOOK it is two, so the count is what tells the two renderings apart.
+  // Two books are owed something, between them three items across two counted kinds — and two
+  // flags that deliberately count for nothing. By ITEM that is three chips and by BOOK it is two,
+  // so the count is what tells the two renderings apart.
   assert.strictEqual(chips.length, 2,
     `the shelf must group by book: two books are owed something, and it drew ${chips.length} chips`);
   assert.match(page, /data-owedpanel="waiting"/,

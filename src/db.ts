@@ -2279,9 +2279,6 @@ export const recentGenerations = (storyId: string, limit = 40) => q(
  *  A second statement rather than an argument to `logGeneration`, because the log happens BEFORE
  *  the repair — the id has to exist so the take can be tied to it, and a generation that succeeded
  *  must stay logged even if the repair throws. */
-export const noteMend = (id: string, m: unknown) =>
-  q('UPDATE generations SET mend = ? WHERE id = ?').run(JSON.stringify(m), id);
-
 export function logGeneration(g: any) {
   const gid = uid('g-');
   q(`INSERT INTO generations (id,story_id,chapter_id,passage_id,model,role,params,manifest,
