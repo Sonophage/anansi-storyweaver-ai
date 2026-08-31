@@ -434,7 +434,13 @@ ok('SYSTEM keeps the contract and the house voice keeps the craft', () => {
   // the loop above exists to prevent for craft. That is the trade he chose.
   for (const rx of [/Output prose only/i, /the canon wins/i, /Never break the frame/i,
                     /write around it rather than inventing/i,
-                    /No litotes/i, /No double-negation emphasis/i, /Contractions are correct/i]) {
+                    /No litotes/i, /No double-negation emphasis/i, /Contractions are correct/i,
+                    // The FORMS, added 2026-08-30 at Seth's ask and guarded separately from the
+                    // rule. F37 is the reason there is a difference worth guarding: the same rule
+                    // as an adjective bought 10.7% and the version naming the forms holds at ~98%,
+                    // so a rewrite that keeps the sentence and drops the examples is a rewrite that
+                    // keeps the appearance of the finding and throws the finding away.
+                    /not unkind/i]) {
     assert.match(render.SYSTEM, rx, `SYSTEM has lost part of the contract: ${rx}`);
     assert.doesNotMatch(prompts.DEFAULT_VOICE, rx,
       `the output contract is in the voice (${rx}), where replacing the voice turns it off`);

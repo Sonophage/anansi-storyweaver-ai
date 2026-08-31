@@ -91,7 +91,8 @@ Rules:
   you, not a line of the book, and a phrase carried out of it whole is the one thing that makes the
   prose read as assembled. Its facts, your sentences.
 - If uncertain about a canon fact, write around it rather than inventing one.
-- No litotes. Don't negate before affirming. No double-negation emphasis.
+- No litotes. Don't negate before affirming. No double-negation emphasis. Never "not unkind",
+  "no small thing", "hardly a surprise".
 - Contractions are correct in narration as well as in dialogue.
 - New characters are strangers unless the canon says otherwise.
 - Maintain object permanence. Objects do not teleport. Reintroduce through action, not inventory.

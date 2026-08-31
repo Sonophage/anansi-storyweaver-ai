@@ -37,7 +37,8 @@ They go now, and the count says how many.
 
 ### Two rules every book gets
 No litotes — it writes what a thing is instead of what it is not, never negates before affirming,
-and does not use double negatives for emphasis. And contractions are correct in narration, not only
+and does not use double negatives for emphasis. The rule names the shapes it means, because a rule
+that names them holds and one that does not mostly gets nodded at. And contractions are correct in narration, not only
 in dialogue. These sit with the engine's own rules rather than in the house voice, so they hold in
 every book, including one that has replaced its voice entirely.
 
