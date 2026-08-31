@@ -174,6 +174,7 @@ const S = {
   talk: { turns: [], busy: false, search: false, draft: null, searchable: null },
   blank: null,          // the Start blank form, when it is open
   forgeHere: false,     // the JSON paste on the create screen, which starts shut
+  fromBook: null,       // the book whose 'start a book here' box is open, on Threads
 };
 let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 let MANIERR = null;   // why there is no manifest, when there is none
@@ -311,7 +312,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
-  'pastecast', 'pastebook', 'forgehere', 'newworld', 'worldstory',
+  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -2682,8 +2683,18 @@ function ledgerBooks() {
         <span style="color:var(--dim); font-size:12px; width:10px">${shut ? '›' : '⌄'}</span>
         <span class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(b.title)}</span>
         <span class="up" style="font-size:11px; color:var(--dim)">${b.rows.length} ${b.rows.length === 1 ? 'entry' : 'entries'}</span></button>
-      <button data-open="${sid}" style="margin-left:auto; font-size:11px; letter-spacing:.1em;
+      <button data-fromhere="${S.fromBook === sid ? '' : sid}" style="margin-left:auto; font-size:11px;
+        letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--mute)">${
+        S.fromBook === sid ? 'Never mind' : 'Start a book here'}</button>
+      <button data-open="${sid}" style="font-size:11px; letter-spacing:.1em;
         font-variant-caps:all-small-caps; color:var(--gold)">Open story</button></div>
+    ${S.fromBook === sid ? `<div style="display:flex; gap:7px; align-items:center">
+      <input class="field" id="from-${esc(sid)}" placeholder="Name a book that follows these threads"
+        style="margin:0; max-width:320px; height:34px; font-size:12.5px">
+      <button class="btn ghost" data-startfrom="${esc(sid)}"
+        style="width:auto; padding:0 14px; height:34px; font-size:12px; white-space:nowrap">Start it</button>
+      <span class="hint" style="margin:0">It follows these cards rather than copying them.</span>
+    </div>` : ''}
     ${shut ? '' : `<div class="grid">${b.rows.map(entryCard).join('')}</div>`}</div>`; }).join('')
     || `<div class="hint">${q || S.ledgerKind !== 'all' || S.ledgerSlot || only
       ? 'Nothing matches that.' : 'No entries yet.'}</div>`;
@@ -4175,37 +4186,20 @@ function seedList() {
 
 // ---------- workspace pages ----------
 
-/** World books, on the Threads page and nowhere else.
- *
- *  A world book IS a story — `is_world` is the only thing that distinguishes it — so this reuses
- *  storyCard for the look Seth asked for, and every editor, the search, the export and the
- *  ownership gate already work on it because they work on stories.
- *
- *  Starting a book here FOLLOWS the world rather than copying it: `db.storyFromWorld` sets
- *  `lore_from`, and `entriesFor` has merged a followed book's cards in since that column existed.
+/** Making a world book. WHERE world books display is still open — Seth, 2026-08-31: "whether that
+ *  means its a story like card in threads or if its in stories we should plan" — so this is only
+ *  the door that makes one. A world book with cards in it already appears in the list below like
+ *  any other book, because that list is grouped by book and a world book is a book.
  */
 function worldStrip() {
-  const worlds = LIB.filter((s) => s.is_world);
-  return `<div style="display:flex; flex-direction:column; gap:14px">
-    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
-      <span class="lbl" style="letter-spacing:.1em; margin:0">World books</span>
-      <input class="field" id="worldName" placeholder="Name a world"
-        style="margin:0; max-width:220px; height:36px; font-size:13px">
-      <button class="btn ghost" data-newworld="1"
-        style="width:auto; padding:0 16px; height:36px; font-size:12.5px">New world book</button>
-    </div>
-    ${worlds.length ? `<div class="grid">${worlds.map((w, i) => `<div
-      style="display:flex; flex-direction:column; gap:8px">
-      ${storyCard(w, i, false)}
-      <div style="display:flex; gap:7px">
-        <input class="field" id="from-${esc(w.id)}" placeholder="Name a book set here"
-          style="margin:0; height:34px; font-size:12.5px">
-        <button class="btn ghost" data-worldstory="${esc(w.id)}"
-          style="width:auto; padding:0 14px; height:34px; font-size:12px; white-space:nowrap">Start a book</button>
-      </div></div>`).join('')}</div>`
-      : `<div class="hint" style="margin:0">A world book holds cards and no prose &mdash; a cast, a
-         map, a set of rules that outlives one story. Books started from it read its cards, and can
-         still disagree with it where they mean to.</div>`}
+  return `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <span class="lbl" style="letter-spacing:.1em; margin:0">World book</span>
+    <input class="field" id="worldName" placeholder="Name a world"
+      style="margin:0; max-width:220px; height:36px; font-size:13px">
+    <button class="btn ghost" data-newworld="1"
+      style="width:auto; padding:0 16px; height:36px; font-size:12.5px">New world book</button>
+    <span class="hint" style="margin:0">Cards and no prose &mdash; a cast, a map, a set of rules
+      that outlives one story.</span>
   </div>`;
 }
 
@@ -7262,14 +7256,17 @@ document.addEventListener('click', async (e) => {
     drawPage();
     return toast(`"${name}" is a world book. Put its cards in it, then start a book here.`);
   }
-  if (d.worldstory) {
-    const name = $(`from-${d.worldstory}`)?.value?.trim();
+  // One button, both states: `data-fromhere` carries the book id to open and '' to shut.
+  if (d.fromhere !== undefined) { S.fromBook = d.fromhere || null; drawPage(); return; }
+  if (d.startfrom) {
+    const name = $(`from-${d.startfrom}`)?.value?.trim();
     if (!name) return toast('Name the book first.');
-    const r = await api.bookFromWorld(d.worldstory, name);
+    const r = await api.bookFrom(d.startfrom, name);
     if (r.error) return toast(r.error);
+    S.fromBook = null;
     LIB = (await api.library()).stories ?? LIB;
     await openStory(r.id);
-    return toast('It follows the world book. Its cards are already in the prompt.');
+    return toast('It follows those threads. Their cards are already in its prompt.');
   }
   if (d.pastebook) {
     const box = document.querySelector('[data-bookpaste]');

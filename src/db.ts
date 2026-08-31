@@ -816,17 +816,20 @@ export function entriesFor(id: string) {
   return [...own, ...shared];
 }
 
-/** Start a book from a world book: a new story that FOLLOWS it rather than copying its cards.
+/** Start a book from another book's threads: a new story that FOLLOWS it rather than copying.
  *
  *  Following, not copying, and that is the whole decision. A copy is a fork the moment either side
  *  is edited, and the point of a bible is that six books set in it say the same thing about the
  *  same character. `entriesFor` already merges the followed cards in and already lets this story's
  *  own card win a title collision, so a book can still disagree with the world where it means to.
  */
-export function storyFromWorld(ownerId: string, worldId: string, title: string) {
-  const w = getStory(worldId) as any;
+export function storyFollowing(ownerId: string, sourceId: string, title: string) {
+  const w = getStory(sourceId) as any;
   if (!w || w.owner_id !== ownerId) return null;
-  if (!w.is_world) return null;
+  // ANY book you own, not only a world book. A world book is the case where the source happens to
+  // hold no prose; `entriesFor` never cared which it was, and Seth asked for this beside every book
+  // on the Threads page rather than only beside the bibles.
+  if (sourceId === '' ) return null;
   const id = createStory(ownerId, {
     title,
     // The world's own premise and setting are the shared ground, so they seed the book rather than
@@ -835,7 +838,7 @@ export function storyFromWorld(ownerId: string, worldId: string, title: string) 
     pov: w.pov ?? 'third', spice: w.spice, writingStyle: w.writing_style ?? '',
     styleNote: w.style_note ?? '',
   });
-  q('UPDATE stories SET lore_from = ? WHERE id = ?').run(worldId, id.id);
+  q('UPDATE stories SET lore_from = ? WHERE id = ?').run(sourceId, id.id);
   return id;
 }
 

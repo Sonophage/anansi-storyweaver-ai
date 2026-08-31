@@ -2027,7 +2027,7 @@ ok('a book started from a world book reads its cards, and can still disagree wit
   db.upsertEntry(world.id, me, { title: 'The Warden', body: 'She has never left the ninth ring.' });
   db.upsertEntry(world.id, me, { title: 'Ring Law', body: 'Nobody descends without a writ.' });
 
-  const book = db.storyFromWorld(me, world.id, 'A Writ for the Ninth');
+  const book = db.storyFollowing(me, world.id, 'A Writ for the Ninth');
   assert.ok(book, 'the book is made');
   // FOLLOWS, does not copy. A copy is a fork the moment either side is edited, and a bible exists
   // so that several books set in it say the same thing about the same character.
@@ -2045,10 +2045,20 @@ ok('a book started from a world book reads its cards, and can still disagree wit
     "and it is the book's own, not the world's");
 
   // REFUSALS, both of them. A world that is not yours, and a story that is not a world.
-  assert.strictEqual(db.storyFromWorld(them, world.id, 'Not Yours'), null,
-    'another writer cannot start a book from your world book');
-  assert.strictEqual(db.storyFromWorld(me, book!.id, 'From A Novel'), null,
-    'and an ordinary story is not a world book to start from');
+  assert.strictEqual(db.storyFollowing(them, world.id, 'Not Yours'), null,
+    'another writer cannot start a book from your threads');
+  // ANY book you own, since 2026-08-31 — not only a world book. Seth asked for this beside every
+  // book on the Threads page, and `entriesFor` never cared which kind the source was.
+  const sequel = db.storyFollowing(me, book!.id, 'The Second Writ');
+  assert.ok(sequel, 'an ordinary book can be followed too');
+  // AND FOLLOWING DOES NOT CHAIN, which is worth pinning because it could surprise: the sequel
+  // follows a book that follows a world, and it reads only the book's OWN cards. `entriesFor` goes
+  // one level and no further. Whether it should chase the chain is a decision nobody has made; this
+  // asserts what it actually does so a change to it is a deliberate one.
+  assert.deepStrictEqual(db.entriesFor(sequel!.id).map((e: any) => e.title).sort(), ['The Warden'],
+    'a book that follows a book that follows a world reads only the middle one — no chain');
+  assert.match(db.entriesFor(sequel!.id)[0].body, /left the ninth ring in the spring/,
+    "and it is that book's own version of the card, not the world's");
 });
 
 console.log(`\n${n} checks passed`);

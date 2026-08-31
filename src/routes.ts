@@ -1462,17 +1462,17 @@ export const routes: Record<string, Handler> = {
     return { id: made.id };
   },
 
-  /** And a book set in one. It FOLLOWS the world rather than copying it — see db.storyFromWorld:
-   *  a copy is a fork the moment either side is edited, and a bible exists so that six books set
-   *  in it say the same thing about the same character.
+  /** A book that follows another book's threads. It FOLLOWS rather than copies — see
+   *  db.storyFollowing: a copy is a fork the moment either side is edited, and the point of a
+   *  shared set of cards is that the books using it say the same thing about the same character.
    *
-   *  Named by `storyId`, so the ownership gate in serve.ts has already checked that this world is
-   *  this writer's before the handler runs. */
-  'POST /api/world/story': (c: Ctx) => {
+   *  Any book you own, world book or not. Named by `storyId`, so the ownership gate in serve.ts has
+   *  already checked it is yours before this handler runs. */
+  'POST /api/story/from': (c: Ctx) => {
     const title = String(c.body.title ?? '').trim();
     if (!title) return { error: 'the new book needs a name' };
-    const made = db.storyFromWorld(c.owner, String(c.body.storyId), title);
-    if (!made) return { error: 'that is not a world book you own' };
+    const made = db.storyFollowing(c.owner, String(c.body.storyId), title);
+    if (!made) return { error: 'that is not a book you own' };
     return { id: made.id };
   },
 
