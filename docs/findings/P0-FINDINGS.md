@@ -2118,7 +2118,7 @@ or that any of these three counters is *zero*. They are under 5%, under 5% and u
 
 ## F49 — MTP self-speculation is 20% SLOWER on this model, and the cold/warm prefill split from F24 reproduces exactly a week later (2026-08-31)
 
-`scratchpad/mtp.mjs`, 6 trials per arm plus a discarded warmup, one fixture of 25 KB of real prose
+`bench/decode.ts`, 6 trials per arm plus a discarded warmup, one fixture of 25 KB of real prose
 from the library (~5,867 prompt tokens), `max_tokens: 400`, temperature 0.85, thinking off, router
 otherwise idle. The metric is llama.cpp's own `timings.predicted_per_second`.
 
@@ -2159,7 +2159,7 @@ attacking. Nothing here touches it — speculation changes decode, and the cold 
 
 ## F50 — `--cache-reuse` measures exactly zero on the case it exists for, and the flag really was on the command line (2026-08-31)
 
-`scratchpad/reuse.mjs`, three calls per arm, `max_tokens: 1`, the same 25 KB of real prose F49 used.
+`bench/reuse.ts`, three calls per arm, `max_tokens: 1`, the same 25 KB of real prose F49 used.
 The metric is `timings.prompt_n` on call 2: tokens the server actually had to process.
 
 **The case.** F16 proved appending to a prompt is nearly free. The case it did NOT test is Anansi's
