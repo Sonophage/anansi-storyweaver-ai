@@ -2198,3 +2198,54 @@ it, and `src/blocks.ts` decides that order. CANON-ALWAYS sits fourth of eleven. 
 canon behind the prose it does not need to precede would make an accept cheap — but block order is
 a prompt-quality decision that F15/F20 already measured once, and it must not be re-cut for a cache.
 Noted, not proposed.
+
+---
+
+## F51 — writing as your own character doubles the rate the model acts for him IN THE PASSAGES THAT MENTION HIM, and changes nothing over all passages, because it also makes him get mentioned far less (2026-08-31)
+
+`bench/lockout.ts`, arms C and D, 65 generations each, run **simultaneously** against the one
+router — the only controlled comparison this project has. Both arms have the lockout ON. They differ
+in one thing: arm D's recent prose contains two passages the WRITER wrote in which Aldis Fen speaks
+and acts. Arm C's does not.
+
+**Why this was asked.** Seth, 2026-08-31: *"if the user does indeed write as their own character the
+ai takes that as a soft permission and begins to start writing actions and speech for that
+character."* F28 measured the lockout and could not see this case: its two arms differ by the
+lockout itself, and neither carries a line of his in the prose.
+
+Every rate is a FLOOR — the counters are anchored on his name and never on a pronoun, so they
+undercount, equally in both arms. Denominator is the informative one (F10): runs that name him in
+narration, because a run that never mentions him could not have written him.
+
+| | writer silent (C) | writer speaks as him (D) | two-tailed Fisher |
+|---|---|---|---|
+| names him in narration at all | **36 / 65 · 55.4%** | **20 / 65 · 30.8%** | **p = 0.008** |
+| acted, of those | 8 / 36 · **22.2%** | 10 / 20 · **50.0%** | **p = 0.042** |
+| any of told/spoke/acted, of those | 10 / 36 · 27.8% | 12 / 20 · 60.0% | p = 0.024 |
+| spoke, of those | 2 / 36 · 5.6% | 2 / 20 · 10.0% | p = 0.611 |
+| acted, over ALL 65 | 8 / 65 · 12.3% | 10 / 65 · 15.4% | **p = 0.800** |
+
+**Two effects, pointing opposite ways, and they cancel.** In the passages that mention him, action
+for him roughly doubles — 22% to 50%. But he is mentioned in only 31% of arm D's passages against
+55% of arm C's, and over the full denominator the rate of the model acting for him does not move at
+all: 12.3% against 15.4%, p = 0.80.
+
+**What this does and does not confirm.**
+
+- CONFIRMED, conditionally: with the writer's own lines for him in the window, the model acts for
+  him in **half** the passages that mention him. Fifty per cent is a bad number whatever is causing
+  it, and it is the number a writer actually meets when he is in the scene.
+- NOT CONFIRMED: that writing as him makes the model write him MORE overall. It does not, on 65
+  runs an arm. The absolute rate is flat.
+- NOT CONFIRMED AT ALL: the speech half of the report. 5.6% against 10.0%, p = 0.61, on two events
+  against two. The lockout holds dialogue near zero in both arms; what leaks is action.
+
+**The confound, stated rather than resolved.** Because arm D names him so much less, the runs that
+DO name him are a different subset — plausibly the ones where he is central, which would carry more
+action for any character. This measurement cannot separate "writing as him licenses acting for him"
+from "the passages where he still appears are the ones he was always going to act in". Separating
+them needs a fixture where the naming rate is held fixed, which this one does not do.
+
+**No prompt change on this evidence.** F10, F15, F20, F43 and F44 are all prompt fixes that measured
+zero and three were reverted. The conditional 50% is worth attacking; the right next measurement is
+one that holds the naming rate fixed, so a clause can be judged against the number it is aimed at.
