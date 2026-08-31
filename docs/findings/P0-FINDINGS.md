@@ -2246,6 +2246,32 @@ action for any character. This measurement cannot separate "writing as him licen
 from "the passages where he still appears are the ones he was always going to act in". Separating
 them needs a fixture where the naming rate is held fixed, which this one does not do.
 
+### The obvious explanation was tested on the stored prose and is wrong
+
+The first thing to suspect was the instrument. Every counter here is anchored on his NAME, and in
+arm D the writer has just written him twice by name — so the model has a fresh referent and could
+simply be reaching for "he" instead. That would make the naming gap an artifact, the conditional
+50% the true number, and the flat over-all rate the illusion. It is the opposite framing of the
+table above and it needed no new generations to check: the 130 runs were already on disk.
+
+| per 1,000 words of output | writer silent (C) | writer speaks as him (D) |
+|---|---|---|
+| his name | 10.5 | **6.3** |
+| he / him / his | 52.0 | **28.2** |
+| pronoun : name ratio | 4.96 | **4.50** |
+
+**Refuted.** Arm D is not pronoun-heavy, it is him-light: name density and pronoun density BOTH fall
+by about half, and the ratio between them barely moves. The model is not referring to him
+differently, it is writing about him less. The name-anchored detector is not biased between the
+arms, and the denominator difference in the table above is real behaviour.
+
+Which makes the shape of the result coherent rather than merely confusing: with the writer visibly
+handling him, the model writes AROUND him — and on the occasions it does bring him in, the lockout
+has less grip on it.
+
 **No prompt change on this evidence.** F10, F15, F20, F43 and F44 are all prompt fixes that measured
-zero and three were reverted. The conditional 50% is worth attacking; the right next measurement is
-one that holds the naming rate fixed, so a clause can be judged against the number it is aimed at.
+zero and three were reverted. The conditional 50% is worth attacking. But note what the follow-up
+now has to be: "hold the naming rate fixed" would mean forcing him into every passage with the
+directive, which measures a different thing from what a writer meets. The better next measurement is
+over ALL runs with a continuous metric — how much of the passage is his action, by density — rather
+than a binary over a denominator that the treatment itself moves.
