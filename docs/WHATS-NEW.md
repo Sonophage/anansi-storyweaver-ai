@@ -10,6 +10,20 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · Threads is a shelf now
+
+### Your books, as books, at the top of Threads
+Threads opens with a shelf of your books drawn the same way the Stories shelf draws them, world
+books among them. Pressing one shows just that book's cards underneath; pressing it again widens
+back to every book. The one you are looking at wears a gold ring.
+
+### Start a book from any book's threads, beside the book
+Every book on the page has **Start a book here** next to Open story. Name it and it opens already
+reading that book's cards. It follows them rather than copying, so changing a card later changes it
+everywhere — and the new book can still disagree by writing its own card with the same name.
+
+It is not only for world books. Any book you own can be followed.
+
 ## 2026-08-31 · World books
 
 ### A book that is only cards

@@ -312,7 +312,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
-  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom',
+  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'lselect',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -2653,6 +2653,33 @@ const PANELS = {
 const ledgerScope = () => (S.ledgerBook === undefined
   ? (S.storyId ?? LEDGER?.[0]?.story ?? null) : S.ledgerBook);
 
+/** THE SHELF ON THE THREADS PAGE. Seth, 2026-08-31: "lets do a, but as a shelf with the book look
+ *  so its different from just threads."
+ *
+ *  Every book you own, world books among them, drawn as the same card the Stories shelf draws — so
+ *  the page opens as a shelf rather than as a list, and a world book finally has one place it looks
+ *  like what it is. Pressing a card SCOPES the list below to that book; pressing the picked one
+ *  again widens back to every book.
+ *
+ *  It reuses `S.ledgerBook`, which has scoped this page since #22 — the card is a second door to a
+ *  state that already existed, not a new one.
+ */
+function ledgerShelf() {
+  const books = shelfOrder(LIB);
+  const only = ledgerScope();
+  if (!books.length) return '';
+  return `<div style="display:flex; flex-direction:column; gap:12px">
+    <div style="display:flex; gap:10px; align-items:baseline">
+      <span class="lbl" style="letter-spacing:.1em; margin:0">Every book</span>
+      <button data-lookall="${only ? '1' : '0'}" style="font-size:11px; letter-spacing:.1em;
+        font-variant-caps:all-small-caps; color:${only ? 'var(--gold)' : 'var(--dim)'}">${
+        only ? 'show them all' : 'showing them all'}</button>
+    </div>
+    <div class="grid">${books.map((b, i) =>
+      storyCard(b, i, false, 'lselect', b.id === only)).join('')}</div>
+  </div>`;
+}
+
 function ledgerBooks() {
   const q = S.ledgerQ.trim().toLowerCase();
   const only = ledgerScope();
@@ -4220,7 +4247,7 @@ const WORLD_TAG = 'World book';
 // the router's list not having arrived yet — cannot be staged from outside this file.
 const deadPin = (s) => pinIsDead(s?.model, S.models);
 
-function storyCard(s, i, hero) {
+function storyCard(s, i, hero, act = 'open', sel = false) {
   // Genre is comma-separated and always has been — an AI Dungeon import writes its tag list
   // straight into it, so a card read "horror, nsfw" inside a single pill. One tag per pill.
   const tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
@@ -4228,7 +4255,11 @@ function storyCard(s, i, hero) {
   if (s.is_world) tags = [WORLD_TAG];
   else if (!tags.length) tags.push(STATUS[s.status] || 'Writing');
   // Archived is dimmed rather than hidden: it is still your book and still one tap away.
-  return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}"
+  // BOTH ATTRIBUTE NAMES SPELLED OUT, not `data-${act}`. test/web.ts reads action names out of
+  // the source with a regex, so a computed attribute name is invisible to it and every story
+  // card was reported as a button that does nothing.
+  return `<button class="storycard${hero ? ' hero' : ''}${sel ? ' picked' : ''}" ${
+    act === 'lselect' ? `data-lselect="${s.id}"` : `data-open="${s.id}"`}
     style="${s.status === 'archived' ? 'opacity:.42; filter:saturate(.5)' : ''}">
     <span class="art" style="display:block; background:${
       // Single quotes: this whole thing goes inside style="…", and a double quote in the URL ends
@@ -4555,6 +4586,7 @@ const WPAGES = {
         <!-- Search on its OWN line and left aligned, at Seth's direction 2026-08-29. It was pushed
              to the right end of the chip row by an auto left margin, so on a narrow screen it
              wrapped under the chips at whatever width was left over. -->
+        ${ledgerShelf()}
         ${worldStrip()}
         <div style="border-top:1px solid var(--line); margin-top:4px"></div>
         <input class="field" id="lq" value="${esc(S.ledgerQ)}" placeholder="Search every story"
@@ -6449,6 +6481,9 @@ document.addEventListener('click', async (e) => {
   // page that shows nothing for no visible reason.
   if (d.lkind) { S.ledgerKind = d.lkind; S.ledgerSlot = null; drawPage(); return; }
   if (d.lslot !== undefined) { S.ledgerSlot = d.lslot || null; drawPage(); return; }
+  // A card on the Threads shelf scopes the list under it. Pressing the picked one widens back to
+  // every book, so the card is both the way in and the way out.
+  if (d.lselect) { S.ledgerBook = ledgerScope() === d.lselect ? null : d.lselect; drawPage(); return; }
   if (d.lookall !== undefined) {
     S.ledgerBook = d.lookall === '1' ? null : (S.storyId ?? LEDGER?.[0]?.story ?? null);
     drawPage(); return;

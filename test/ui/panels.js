@@ -1251,3 +1251,55 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
     ok("  AUTOSAVE ASSERTIONS DID NOT RUN — no second option to choose", false);
   }
 }
+
+// ---- THE THREADS PAGE IS A SHELF (2026-08-31). Seth: "lets do a, but as a shelf with the book look
+// so its different from just threads." Every book, world books among them, drawn as the same card
+// the Stories shelf draws; pressing one scopes the list under it, pressing it again widens back.
+//
+// GUARDED AND DISPATCHED. Twice today a block like this reported green by not running: a CDP tap
+// that missed, then a page.eval against an element that was not there, which throws inside the page
+// and kills the scenario with no red line. So the first assertion is that we are on the page at all,
+// and every press is a dispatched bubbling click, which the delegated handler on `document` takes.
+{
+  await page.goto(B + "/#");
+  await wait(600);
+  await page.eval(`(() => { const b = document.querySelector('[data-nav="canon"]');
+    if (b) b.dispatchEvent(new MouseEvent('click', { bubbles: true })); return !!b; })()`);
+  for (let i = 0; i < 40 && !(await page.visible('#books')); i++) await wait(250);
+  const here = await page.eval("!!document.querySelector('#books')");
+  ok('the Threads page opens', here === true);
+
+  if (here) {
+    const shelf = await page.eval(`(() => {
+      const cards = [...document.querySelectorAll('#page .storycard')];
+      return { cards: cards.length, select: cards.filter(c => c.dataset.lselect).length,
+               opens: cards.filter(c => c.dataset.open).length }; })()`);
+    ok(`  and draws book cards on it (${JSON.stringify(shelf)})`, shelf.cards > 0);
+    // The card SELECTS here, it does not open the story — that is the difference between this shelf
+    // and the one on Stories, and a card that opened would take you off the page.
+    ok('  every one of them selects rather than opens',
+       shelf.cards > 0 && shelf.select === shelf.cards && shelf.opens === 0);
+
+    // A card that is NOT already the one in scope. The page opens scoped to the book you last
+    // wrote in, so the first card is usually picked already and pressing it would toggle OFF —
+    // which is correct behaviour and made the first version of this assertion fail for the wrong
+    // reason. Both directions are asserted below, because the toggle is the feature.
+    const other = await page.eval(`(() => [...document.querySelectorAll('#page .storycard')]
+      .filter(c => !c.classList.contains('picked')).map(c => c.dataset.lselect)[0] ?? null)()`);
+    const press = (id) => page.eval(`(() => { document.querySelector('[data-lselect="${id}"]')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true })); return 1; })()`);
+    const isPicked = (id) => page.eval(`(() => !!document.querySelector('[data-lselect="${id}"]')
+      ?.classList.contains('picked'))()`);
+    if (other) {
+      await press(other); await wait(500);
+      ok(`  pressing an unpicked card marks it as the one being shown (${other})`,
+         (await isPicked(other)) === true);
+      await press(other); await wait(500);
+      ok('  and pressing it again widens back to every book', (await isPicked(other)) === false);
+    } else {
+      ok('  TOGGLE NOT TESTED — every card was already picked, which cannot happen', false);
+    }
+  } else {
+    ok('  SHELF ASSERTIONS DID NOT RUN — the Threads page never opened', false);
+  }
+}
