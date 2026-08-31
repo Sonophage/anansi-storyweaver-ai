@@ -10,6 +10,36 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · Ending a chapter is three steps, in the order you do them
+
+### What the chapter left comes first
+Closing a chapter now opens on the cards it proposed, on their own, with nothing else on the page.
+Decide them, or leave them — what you leave stays in Waiting. If it proposed nothing the step is
+skipped rather than shown empty.
+
+### Then the next chapter, title and beat together
+Its own page: what it is called and where it has to end up, side by side, with a box to steer what
+Anansi suggests before she suggests it. Save and write is right there — you never have to go
+further than this to start writing.
+
+### Then anyone new, if you want them
+A third step that reads the beat you just set and offers to have Anansi write a card for it, with
+the beat already in the box as the steer. Who is in the chapter moved here too, next to the cards
+themselves rather than under the title.
+
+It was all one page before — a title, a beat, a search box and the whole ledger in two ticked lists
+— and nothing said which to do first. Nothing here is required and every step still has Skip, just
+write.
+
+### Cutting the book back also takes the chapters it empties
+Delete everything below a passage used to leave the later chapters standing with nothing in them.
+They go now, and the count says how many.
+
+### The house voice has two more rules
+No litotes: it writes what a thing is instead of what it is not. And contractions are correct in
+narration, not only in dialogue. Both are in the house voice rather than the engine's rules, so a
+book with its own voice still decides for itself.
+
 ## 2026-08-30 · Nothing is smaller than eleven, and a pass runs once
 
 ### The smallest text in the app got bigger

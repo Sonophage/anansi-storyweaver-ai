@@ -249,6 +249,29 @@ await wait(900);
 if (await page.visible('[data-setup="title"]')) {
   const always = await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
     + " return v.entries.find(e => e.activation === 'always_on' && e.entryType === 'character')?.id ?? ''; })()");
+  // ---- THE RITUAL IS THREE STEPS NOW (2026-08-30). Seth: "it should show the cards that are
+  // proposed to be added first as a single panel. then the premise of the next chapter is set in
+  // another page. then the option of adding new cards based on that premise then it begins ...
+  // right now it out of order and all in one page."
+  //
+  // A COLD LOAD OPENS ON THE PREMISE, not on step one: `S.setupStep` is session state and only a
+  // chapter close sets it, so somebody navigating to #story/setup on purpose lands on the step
+  // they came for. Asserted rather than assumed, because it is the reason the ledger controls
+  // below are no longer on the first thing you see.
+  const cold = await page.eval(`(() => ({
+    title: !!document.querySelector('[data-setup="title"]'),
+    note: !!document.querySelector('[data-setup="note"]'),
+    steer: !!document.querySelector('[data-setup="steer"]'),
+    ledger: !!document.getElementById('setupQ'),
+    steps: document.querySelectorAll('[data-setupstep]').length }))()`);
+  console.log("  setup cold: " + JSON.stringify(cold));
+  ok(`  it opens on the premise, with title and beat together (${cold.steps} steps offered)`,
+     cold.title && cold.note && cold.steps >= 3);
+  // "title and premise should be together with the option to influence."
+  ok('  and a box to steer what Anansi suggests', cold.steer === true);
+  ok('  with the ledger NOT on that step', cold.ledger === false);
+  await page.click('[data-setupstep="more"]');
+  await wait(600);
   ok("the setup page offers a filter over the ledger", await page.visible('#setupQ'));
   if (always) {
     ok("  and an always-on character is listed as a control, not as a note",

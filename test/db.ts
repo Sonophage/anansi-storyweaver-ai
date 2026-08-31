@@ -136,8 +136,14 @@ ok('delete-after takes every passage below, every take of each, and only the sum
   // THREE ROWS AND NOT TWO. A rerolled passage below the cut is three rows at one ordinal; leaving
   // the unselected ones leaves prose in the database that no screen can reach and that `delSlot`
   // could later promote back into the book.
-  assert.strictEqual(db.delAfter(s3.id, keep).deleted, 3,
-    'every take below the cut, not only the selected one');
+  const cut = db.delAfter(s3.id, keep);
+  assert.strictEqual(cut.deleted, 3, 'every take below the cut, not only the selected one');
+  // AND THE CHAPTER IT EMPTIED. Chapter three held one passage and that passage was below the cut,
+  // so what is left of it is a heading with no prose under it. Chapter two is NOT counted: the cut
+  // lands in it and everything at or above the passage pointed at stays, so it is never empty.
+  assert.strictEqual(cut.emptied, 1, 'the chapter left holding nothing goes with the prose');
+  assert.deepStrictEqual(db.chapters(s3.id).map((c: any) => c.idx), [1, 2],
+    'and only that one — the cut chapter and everything before it stay');
   // EVERY TAKE, counted through `variantsBySlot` and not `passagesOf`. The latter reads the book
   // — one row per slot — so an implementation that deleted only the selected take would leave the
   // rerolled one in the database and this would still say 2. Falsified: adding `AND selected = 1`
@@ -148,7 +154,7 @@ ok('delete-after takes every passage below, every take of each, and only the sum
   // A chapter summary rides in every prompt. One describing prose that no longer exists is the
   // engine telling the model about a scene the book does not contain.
   assert.strictEqual(ch(c2.opened).summary, null, 'the chapter it cut into loses its summary');
-  assert.strictEqual(ch(c3.opened).summary, null, 'and so does the chapter it emptied');
+  assert.strictEqual(ch(c3.opened), undefined, 'the emptied chapter is gone, summary and all');
   // The negative case, which is what stops this passing against an implementation that simply
   // clears every summary in the book.
   assert.strictEqual(ch(c1id).summary, 'a summary',
@@ -403,7 +409,13 @@ ok('SYSTEM keeps the contract and the house voice keeps the craft', () => {
                  // Added 2026-08-30 when it moved out of SYSTEM. It is in this list rather than
                  // only in the struck row because this is the list that says WHY it is in the
                  // voice: craft is the writer's, and a rule they cannot delete is not a default.
-                 /plainly functional exchange/i];
+                 /plainly functional exchange/i,
+                 // Added 2026-08-30 at Seth's ask: "no litotes and that it can use contractions".
+                 // Craft, so the voice holds them and SYSTEM must not — a writer who replaces their
+                 // voice is replacing how the book SOUNDS, and these two are that and nothing else.
+                 // Spelled out with the forms named, per F37: the same rule as an adjective bought
+                 // 10.7% and the version naming the forms holds at ~98%.
+                 /No litotes/i, /Contractions are correct/i];
   for (const rx of craft) {
     assert.doesNotMatch(render.SYSTEM, rx,
       `a craft rule is back in SYSTEM (${rx}), where the writer cannot delete it. It belongs in `

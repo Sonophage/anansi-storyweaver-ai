@@ -40,24 +40,47 @@ ok(`  and it names its steps before anything has run (${plan.replace(/\s+/g,' ')
 
 await page.click('[data-endchapter="1"]');
 console.log("  ritual running (summarise, remember, extraction, finished)…");
+// The step rail is what says the setup panel is up, whichever step it opened on.
 for (let i = 0; i < 180; i++) {
-  if (await page.visible('[data-savesetup="1"]')) break;
+  if (await page.visible('[data-setupstep="premise"]')) break;
   await wait(1000);
 }
 
-// ---- WHERE THE CLOSE LANDS, which is Council 07's first finding and most of "not fluid".
-// The verb pressed was END, and what follows ending a chapter is starting one. This used to land on
-// the report of the chapter that had just closed — five sections, four re-run buttons and every
-// proposal card — with the next chapter as a ghost button underneath all of it.
+// ---- WHERE THE CLOSE LANDS. Council 07 moved it off the report of the chapter that had just
+// closed and onto the next chapter's setup. Seth, 2026-08-30, took it one step further: "it should
+// show the cards that are proposed to be added first as a single panel. then the premise of the
+// next chapter is set in another page. then the option of adding new cards based on that premise
+// then it begins ... right now it out of order and all in one page."
 //
-// `[data-savesetup="1"]` and not `[data-panel="setup"]`: the latter is the BUTTON that offers setup
-// and it lives on the report, so the old selector was satisfied by the very screen this assertion
-// now exists to refuse. Save is on the setup panel and nowhere else.
-ok("closing a chapter lands on the next chapter's setup, not on the report",
-   await page.visible('[data-savesetup="1"]'));
+// So the close lands at the TOP of a three-step ritual: what the chapter LEFT is decided before
+// what the next one is FOR, because a proposal accepted after the beat is written is a card the
+// beat could not have been written with. Step one is SKIPPED when the close proposed nothing —
+// a step whose whole content is "nothing to decide" is a press that returns nothing — so this
+// accepts either landing and says which one it got.
+//
+// NOT VERIFIED BY A RUN when it was written: this file needs a model and is not in test/ui/run.sh,
+// so the three assertions below were reasoned from the source and have not been watched to pass.
+// Whoever runs this next should treat a red here as the test being wrong before the app is.
+const landed = await page.eval(`(() => ({
+  step: document.querySelector('[data-setupstep][disabled]') ? 'premise-or-later' : 'cards-offered',
+  cards: !!document.querySelector('[data-acceptall], [data-decide]'),
+  save: !!document.querySelector('[data-savesetup="1"]'),
+  rail: document.querySelectorAll('[data-setupstep]').length }))()`);
+console.log("  landed: " + JSON.stringify(landed));
+ok(`closing a chapter lands at the top of the ritual, not on the report (${landed.rail} steps)`,
+   landed.rail >= 3 && (landed.cards || landed.save));
 // And the report is one row away rather than gone. The three-state rule it enforces — ran-and-found-
-// nothing, ran-and-failed, never-ran — is why it still exists at all.
-ok("  and what just closed is one row at the top of it",
+// nothing, ran-and-failed, never-ran — is why it still exists at all. It is on step one when there
+// was something to decide and on the premise otherwise, so it is asked for after stepping there.
+if (!(await page.visible('[data-savesetup="1"]'))) {
+  await page.click('[data-setupstep="premise"]');
+  await wait(600);
+}
+ok("  and the premise step is one press away, with Save on it",
+   await page.visible('[data-savesetup="1"]'));
+// The row survives the re-ordering deliberately: step one is skipped when the close proposed
+// nothing, so a report that only lived there would have had no door in the ritual at all.
+ok("  and what just closed is still one row on it",
    await page.visible('[data-panel="ritual"]'));
 // THE REPORT SURVIVES A RELOAD. It used to be `V.ritualDone`, a client field carried across
 // exactly one refetch and dropped by every other, so the checklist vanished on the next press.

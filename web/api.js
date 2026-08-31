@@ -97,7 +97,7 @@ export const api = {
   endChapter:   (storyId, o)     => j('/api/chapter/end', 'POST', { storyId, ...o }),
   // What the chapter about to be written should be called and what it has to do. Proposes only —
   // the setup panel fills its two fields with this and nothing is saved until you press Save.
-  proposeChapter: (storyId, chapterId) => j('/api/chapter/propose', 'POST', { storyId, chapterId }),
+  proposeChapter: (storyId, chapterId, steer) => j('/api/chapter/propose', 'POST', { storyId, chapterId, steer }),
   write:        (storyId, o)     => j('/api/write', 'POST', { storyId, ...o }),
   accept:       (storyId, o)     => j('/api/accept', 'POST', { storyId, ...o }),
   editPassage:  (storyId, id, body) => j('/api/passage', 'POST', { storyId, id, body }),

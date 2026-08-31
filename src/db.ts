@@ -1046,13 +1046,18 @@ export function delChapter(storyId: string, chapterId: string): { deleted: numbe
  *  every prompt; one describing prose that no longer exists is the engine telling the model about
  *  a scene the book does not contain. Only chapters that actually lost a passage are touched.
  *
- *  ponytail: the chapters themselves stay, including any left holding nothing, and a closed one
- *  stays closed. Ceiling: an empty chapter at the end of a book is a heading with no prose under
- *  it. The upgrade is not more logic in here — it is `delChapter` above, which is the other half
- *  of what was asked for in the same sentence and is one press away on the same screen. */
-export function delAfter(storyId: string, passageId: string): { deleted: number; error?: string } {
-  const cur = q('SELECT branch_id, ordinal FROM passages WHERE id = ? AND story_id = ?')
-    .get(passageId, storyId) as any;
+ *  AND THE CHAPTERS IT EMPTIES GO WITH IT. This was left as a `ponytail:` ceiling on 2026-08-30 —
+ *  "an empty chapter at the end of a book is a heading with no prose under it" — and Seth asked for
+ *  it finished the same day. Only chapters AFTER the cut and only ones now holding nothing: the
+ *  chapter the cut lands in keeps everything at or above the passage pointed at, so it is never
+ *  empty, and a chapter before the cut was never touched. The branch keeps its last chapter for the
+ *  reason `delChapter` refuses to take one: there would be nowhere to write. */
+export function delAfter(storyId: string, passageId: string):
+    { deleted: number; emptied?: number; error?: string } {
+  let emptied = 0;
+  const cur = q(`SELECT p.branch_id, p.ordinal, c.idx FROM passages p
+                 JOIN chapters c ON c.id = p.chapter_id
+                 WHERE p.id = ? AND p.story_id = ?`).get(passageId, storyId) as any;
   if (!cur) return { deleted: 0, error: 'That passage is gone already.' };
   const doomed = q(`SELECT id, chapter_id FROM passages
                     WHERE story_id = ? AND branch_id = ? AND ordinal > ?`)
@@ -1070,10 +1075,26 @@ export function delAfter(storyId: string, passageId: string): { deleted: number;
                        summary_covers_through = NULL, summary_hash = NULL
                      WHERE id = ? AND story_id = ?`);
     for (const id of chapters) clear.run(id, storyId);
+    // The empty ones after the cut. `NOT EXISTS` rather than a count, and `idx > ?` rather than
+    // "not the cut's own chapter": a chapter BEFORE the cut that happened to be empty already was
+    // empty before this press and is not this press's business.
+    emptied = (q(`SELECT COUNT(*) AS n FROM chapters
+                  WHERE story_id = ? AND branch_id = ? AND idx > ?
+                    AND NOT EXISTS (SELECT 1 FROM passages p WHERE p.chapter_id = chapters.id)`)
+      .get(storyId, cur.branch_id, cur.idx) as any).n;
+    if (emptied) {
+      q(`DELETE FROM proposals WHERE story_id = ? AND chapter_id IN
+           (SELECT id FROM chapters WHERE story_id = ? AND branch_id = ? AND idx > ?
+              AND NOT EXISTS (SELECT 1 FROM passages p WHERE p.chapter_id = chapters.id))`)
+        .run(storyId, storyId, cur.branch_id, cur.idx);
+      q(`DELETE FROM chapters WHERE story_id = ? AND branch_id = ? AND idx > ?
+           AND NOT EXISTS (SELECT 1 FROM passages p WHERE p.chapter_id = chapters.id)`)
+        .run(storyId, cur.branch_id, cur.idx);
+    }
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(storyId);
-  return { deleted: doomed.length };
+  return { deleted: doomed.length, emptied };
 }
 
 /** Flags belong to the passage. SQLite will not cascade here — violations.passage_id has no

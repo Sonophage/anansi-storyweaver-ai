@@ -1455,6 +1455,10 @@ export const routes: Record<string, Handler> = {
         ? `UNPAID PROMISES: ${(v.strings ?? []).filter((x: any) => x.status === 'open')
             .map((x: any) => x.title).join('; ')}` : '',
       tail.trim() ? `THE PROSE ENDS:\n${tail.trim()}` : '',
+      // The writer's own steer, LAST and closest to the instruction, which is where this repo's
+      // measured findings put anything that has to be obeyed. Optional: the button asked for a
+      // suggestion with no way to say what it should be about until 2026-08-30.
+      String(c.body.steer ?? '').trim() ? `THE WRITER WANTS THIS CHAPTER TO: ${String(c.body.steer).trim()}` : '',
       `NAME CHAPTER ${ch.index}.`,
     ].filter(Boolean).join('\n\n');
 

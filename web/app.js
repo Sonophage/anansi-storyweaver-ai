@@ -141,7 +141,10 @@ const S = {
   // one. Set to 'story' on open and back to 'workspace' on leave, so the default still follows
   // you and only a deliberate press disagrees with it.
   railView: 'workspace',
-  entryId: null, historyOf: null, newRoom: null, folds: {}, propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
+  entryId: null, historyOf: null, newRoom: null, folds: {},
+  // The ritual's three steps, and the kind chip on the third. Null means "premise", which is what
+  // a cold load at #story/setup opens on: only a chapter close starts at the top.
+  setupStep: null, setupKind: 'character', setupSteer: '', propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, spark: null, ritual: null, setup: null,
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
@@ -289,7 +292,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads',
   // Deletion that reaches whole runs of prose. Both are two presses, like every other delete.
-  'delafter', 'delchapter'].map((k) => `[data-${k}]`).join(',');
+  'delafter', 'delchapter',
+  // The chapter-end ritual's steps, and the kind of card its third step offers to write.
+  'setupstep', 'setupkind'].map((k) => `[data-${k}]`).join(',');
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -994,7 +999,10 @@ function drawDoc() {
 async function nameChapter(chapterId) {
   if (S.naming) return;
   S.naming = true; drawSide();
-  const r = await api.proposeChapter(S.storyId, chapterId);
+  // THE WRITER'S STEER, if there is one. Seth: "title and premise should be together with the
+  // option to influence." Read off S rather than the DOM for the reason the two boxes are: this
+  // runs across a repaint and the field it came from has been rebuilt by the time it returns.
+  const r = await api.proposeChapter(S.storyId, chapterId, (S.setupSteer ?? '').trim() || undefined);
   S.naming = false;
   // An answer with no title is not an answer. Checking only `r.error` wrote `undefined` into
   // the title box, and the next read of it threw on `.trim()` — the panel stopped rendering at
@@ -1381,7 +1389,6 @@ function ritualPanel() {
     <div style="display:flex; align-items:center; gap:9px">${dot(tone)}
       <span style="font-size:13.5px; color:var(--ink-bright)">${esc(label)}</span></div>
     ${note ? `<div style="font-size:12px; line-height:1.5; color:var(--faint); margin:4px 0 0 16px">${note}</div>` : ''}</div>`;
-  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
   const summary = ch.summary;
   const words = summary ? summary.trim().split(/\s+/).length : 0;
@@ -2919,6 +2926,25 @@ function sparkReview() {
  *  persisted: a fresh session on a chapter still blank is a chapter worth offering again. */
 const NAMED = new Set();
 
+/** THE RITUAL IS THREE STEPS AND IT WAS ONE PAGE. Seth, 2026-08-30: "it should show the cards that
+ *  are proposed to be added first as a single panel. then the premise of the next chapter is set in
+ *  another page. then the option of adding new cards based on that premise then it begins ... right
+ *  now it out of order and all in one page."
+ *
+ *  The order is the argument. What the chapter LEFT is decided before what the next one is FOR,
+ *  because a proposal accepted after the beat is written is a card the beat could not have been
+ *  written with; and new cards come after the beat, because the beat is what says who is needed.
+ *  One page could hold all three and did — a title box, a beat box, a search field and the whole
+ *  ledger in two ticked lists — and gave no sign which of them to do first.
+ *
+ *  THE STEP RAIL IS NOT A WIZARD'S CAGE. Every step carries "just write", because Seth's own rule
+ *  for this panel has not changed: nothing here is required. `S.setupStep` is session state, so a
+ *  cold load at `#story/setup` opens on the premise — the step somebody navigating here on purpose
+ *  came for — and only a chapter close starts at the top. */
+// Two panels count things now. One definition, at the top of both.
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next chapter'], ['more', 'Anyone new']];
+
 function setupPanel() {
   const ch = V?.currentChapter;
   if (!ch) return '<div class="hint">No chapter open.</div>';
@@ -2951,13 +2977,12 @@ function setupPanel() {
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
   const form = S.setup ?? { title: ch.title ?? '', note: ch.authorsNote ?? '' };
-  // WHAT JUST CLOSED, as a doorway and not as a screen. Ending a chapter lands here now, because
-  // the next chapter is the thing End was pressed for — so the five-section report it used to land
-  // on sits behind this one row. `S.ritualOf` is session state, so the row is here for the writer
-  // who just closed something and absent for everyone else, which is exactly who it is for.
   const justClosed = S.ritualOf ? V.chapters.find((c) => c.id === S.ritualOf) : null;
-  const closedQueue = justClosed
-    ? (V.proposals ?? []).filter((p) => p.chapterId === justClosed.id).length : 0;
+  // WHAT IS THERE TO DECIDE. Scoped to the chapter that just closed when there is one, because that
+  // is what step one is about; everything pending otherwise, so the step is not empty for a writer
+  // who opened this panel with a queue from yesterday.
+  const queue = justClosed ? (V.proposals ?? []).filter((p) => p.chapterId === justClosed.id)
+                           : (V.proposals ?? []);
   // A chapter opens on two empty fields, and an empty field on a panel you did not ask for is a
   // field that stays empty — while the note is the one thing in this app that rides near the
   // generation point on every call. So Anansi fills them in, once. Seth: "chapter information
@@ -2973,16 +2998,100 @@ function setupPanel() {
     NAMED.add(ch.id);
     nameChapter(ch.id);
   }
+
+  // The cards step is skipped when there is nothing in it rather than drawn empty: a step whose
+  // whole content is "nothing to decide" is a press the writer pays for and gets nothing back.
+  let step = SETUP_STEPS.some(([k]) => k === S.setupStep) ? S.setupStep : 'premise';
+  if (step === 'cards' && !queue.length) step = 'premise';
+
+  const rail = `<div style="display:flex; gap:6px; margin-bottom:15px">
+    ${SETUP_STEPS.map(([k, l], i) => {
+      const dead = k === 'cards' && !queue.length;
+      const here = k === step;
+      return `<button data-setupstep="${k}" ${dead ? 'disabled' : ''} style="flex:1; text-align:left;
+        padding:7px 9px; border-radius:var(--r); font-size:11px; letter-spacing:.06em;
+        border:1px solid ${here ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+        background:${here ? 'rgba(217,178,106,.10)' : 'transparent'};
+        color:${dead ? 'var(--ink-ghost)' : here ? 'var(--gold-lit)' : 'var(--mute)'};
+        opacity:${dead ? '.5' : '1'}">${i + 1} &middot; ${esc(l)}${
+        k === 'cards' && queue.length ? ` <span style="color:var(--gold)">${queue.length}</span>` : ''}</button>`;
+    }).join('')}</div>`;
+
+  const skip = `<button class="btn ghost" data-skipsetup="1" style="margin-top:8px">Skip &mdash; just write</button>`;
+  // WHAT JUST CLOSED, one row, on every step that is not itself about it. Council 07 put this row
+  // at the top of setup and the reason has not changed — the report is one press away rather than
+  // the thing you land on. Re-ordering the panel nearly lost it: step one is SKIPPED when the close
+  // proposed nothing, and the report would then have had no door anywhere in the ritual.
+  const closedRow = justClosed && justClosed.id !== ch.id ? `<button data-panel="ritual" style="display:flex;
+    align-items:center; gap:9px; width:100%; padding:9px 11px; margin-bottom:15px; text-align:left;
+    border-radius:var(--r); border:1px solid var(--chip); background:transparent">
+    <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--good)"></span>
+    <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
+      text-overflow:ellipsis; white-space:nowrap">${esc(justClosed.title || `Chapter ${justClosed.index}`)} closed${
+      justClosed.summary ? ', summarised' : ''}${queue.length ? ` &middot; ${queue.length} waiting` : ''}</span>
+    <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps;
+      color:var(--label); opacity:.7">what it found</span></button>` : '';
+
+  // ---- 1 · WHAT IT LEFT. The chapter that just closed, as decisions and nothing else.
+  if (step === 'cards') return `<div style="display:flex; flex-direction:column">
+    ${rail}
+    <div class="serif" style="font-size:21px; color:var(--ink-bright)">${
+      esc(justClosed?.title || `Chapter ${justClosed?.index ?? ''}`)} left ${
+      plural(queue.length, 'card', 'cards')}</div>
+    <div class="hint" style="margin:6px 0 0">Nothing here is canon until you accept it, and nothing
+      here is required &mdash; what you leave stays in Waiting.</div>
+    ${justClosed ? `<div style="margin-top:12px">${closedRow}</div>` : ''}
+    ${queue.some((p) => p.kind === 'new') ? `<button class="btn ghost" data-acceptall="new"
+      style="margin-top:8px">Add all ${plural(queue.filter((p) => p.kind === 'new').length, 'new card', 'new cards')}</button>
+    <div class="hint">Only the new ones. A conflict and a change both write into cards you already
+      have, so those stay one at a time.</div>` : ''}
+    <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">
+      ${queue.map(proposalCard).join('')}</div>
+    <button class="btn" data-setupstep="premise" style="margin-top:16px">Next &mdash; the next chapter</button>
+    ${skip}
+  </div>`;
+
+  // ---- 3 · ANYONE NEW. After the beat, because the beat is what says who is needed.
+  if (step === 'more') {
+    const kind = S.setupKind ?? 'character';
+    return `<div style="display:flex; flex-direction:column">
+      ${rail}
+      <div class="serif" style="font-size:21px; color:var(--ink-bright)">Anyone new</div>
+      <div class="hint" style="margin:6px 0 0">Anansi reads the beat you just set and proposes a card
+        for it. It goes to Waiting like everything else she offers; nothing is canon until you accept it.</div>
+      <div style="display:flex; gap:6px; margin-top:12px">${KINDS.map((k) => `<button data-setupkind="${k}"
+        style="flex:1; text-align:center; font-size:11px; padding:8px 0; border-radius:var(--r);
+        border:1px solid ${k === kind ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+        background:${k === kind ? 'rgba(217,178,106,.10)' : 'transparent'};
+        color:${k === kind ? 'var(--gold-lit)' : 'var(--mute)'}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+      <!-- THE BEAT IS THE STEER, prefilled rather than described. Seth asked for "the option of
+           adding new cards based on that premise", and a box that says "based on the premise" while
+           being empty is a box the writer has to retype the premise into. It is editable, because
+           the whole point of a steer is that it is yours. -->
+      ${inventTray(kind, `Have Anansi write ${kind === 'character' ? 'someone' : 'something'} for this chapter`,
+        'what this chapter needs', form.note.trim())}
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Who is in it</div>
+      <div class="hint" style="margin:0 0 8px">Ticked means it is sent for this chapter whether or not
+        anyone says its name. Unticking an always-on entry holds it back for this chapter only. Both
+        cost or save their canon on every call, so tick what is actually in the room.</div>
+      <input class="field" id="setupQ" value="${esc(S.setupQ ?? '')}"
+        placeholder="Find someone or something in this story's ledger">
+      <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Who</div>
+      ${cast.length ? cast.map((e) => row(e, 'pin')).join('')
+        : `<div class="hint" style="margin:0">${q ? 'Nobody matches that.' : 'No characters yet.'}</div>`}
+      <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Where, and what</div>
+      ${places.length ? places.map((e) => row(e, 'place')).join('')
+        : `<div class="hint" style="margin:0">${q ? 'Nothing matches that.' : 'No threads yet.'}</div>`}
+      <div class="hint">The story's setting is in the spine on every call regardless
+        &mdash; ${esc(V.story.setting || 'not set')}.</div>
+      <button class="btn" data-savesetup="1" style="margin-top:16px">Start writing</button>
+    </div>`;
+  }
+
+  // ---- 2 · THE NEXT CHAPTER. Title and beat together, and a way to steer what Anansi suggests.
   return `<div style="display:flex; flex-direction:column">
-    ${justClosed && justClosed.id !== ch.id ? `<button data-panel="ritual" style="display:flex;
-      align-items:center; gap:9px; width:100%; padding:9px 11px; margin-bottom:15px; text-align:left;
-      border-radius:var(--r); border:1px solid var(--chip); background:transparent">
-      <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--good)"></span>
-      <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
-        text-overflow:ellipsis; white-space:nowrap">${esc(justClosed.title || `Chapter ${justClosed.index}`)} closed${
-        justClosed.summary ? ', summarised' : ''}${closedQueue ? ` &middot; ${closedQueue} waiting` : ''}</span>
-      <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps;
-        color:var(--label); opacity:.7">what it found</span></button>` : ''}
+    ${rail}
+    ${closedRow}
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(ch.title || `Chapter ${ch.index}`)}</div>
     <div class="hint" style="margin:6px 0 0">Nothing here is required. Leave it and write.</div>
 
@@ -2991,35 +3100,25 @@ function setupPanel() {
       S.naming ? 'Anansi is naming it…' : 'Untitled'}">
 
     <label class="lbl">What happens next</label>
-    <textarea class="field" data-setup="note" style="min-height:80px"
+    <textarea class="field grow" data-setup="note" style="min-height:80px; max-height:40vh"
       placeholder="${S.naming ? 'and saying what it has to do…' : 'Where this chapter has to end up'}"
       >${esc(form.note)}</textarea>
-    <button class="btn ghost" data-name="${ch.id}" ${S.naming ? 'disabled' : ''} style="margin-top:7px">${
-      S.naming ? 'Thinking&hellip;' : (!placeholder || form.note.trim())
-        ? 'Have Anansi suggest another' : 'Have Anansi name it'}</button>
     <div class="hint">${form.note.trim() ? 'Rides near the generation point on every call.'
       : '<strong>Not set.</strong> Rides near the generation point when it is.'}</div>
 
-    <label class="lbl">In this chapter</label>
-    <input class="field" id="setupQ" value="${esc(S.setupQ ?? '')}"
-      placeholder="Find someone or something in this story's ledger">
+    <!-- THE OPTION TO INFLUENCE. Seth: "title and premise should be together with the option to
+         influence." It was one button that took whatever came back. A steer is the difference
+         between accepting a suggestion and asking for one, and it is the same shape as the box in
+         every other place Anansi is asked for something in this app. -->
+    <input class="field" data-setup="steer" value="${esc(S.setupSteer ?? '')}"
+      placeholder="Steer it — a turn you want, someone who has to be in it" style="margin-top:14px">
+    <button class="btn ghost" data-name="${ch.id}" ${S.naming ? 'disabled' : ''} style="margin-top:7px">${
+      S.naming ? 'Thinking&hellip;' : (!placeholder || form.note.trim())
+        ? 'Have Anansi suggest another' : 'Have Anansi name it'}</button>
 
-    <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Who</div>
-    ${cast.length ? cast.map((e) => row(e, 'pin')).join('')
-      : `<div class="hint" style="margin:0">${q ? 'Nobody matches that.' : 'No characters yet.'}</div>`}
-
-    <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Where, and what</div>
-    ${places.length ? places.map((e) => row(e, 'place')).join('')
-      : `<div class="hint" style="margin:0">${q ? 'Nothing matches that.' : 'No threads yet.'}</div>`}
-
-    <div class="hint">Ticked means it is sent for this chapter whether or not anyone says its name.
-      Unticking an always-on entry holds it back for this chapter only. Both cost or save their
-      canon on every call, so tick what is actually in the room.</div>
-    <div class="hint">The story's setting is in the spine on every call regardless
-      &mdash; ${esc(V.story.setting || 'not set')}.</div>
-
-    <button class="btn" data-savesetup="1" style="margin-top:16px">Save and write</button>
-    <button class="btn ghost" data-skipsetup="1" style="margin-top:8px">Skip &mdash; just write</button>
+    <button class="btn" data-savesetup="1" style="margin-top:20px">Save and write</button>
+    <button class="btn ghost" data-setupstep="more" style="margin-top:8px">Next &mdash; anyone new</button>
+    ${skip}
   </div>`;
 }
 
@@ -3146,7 +3245,7 @@ function roomForm(cast, who, slot = 'outfit', openMine = false) {
     </details>`;
 }
 
-function inventTray(kind, label, placeholder) {
+function inventTray(kind, label, placeholder, value = '') {
   const searchable = V?.searchable !== false;
   // data-invtray, because there can now be TWO of these on one screen — the card's own and the
   // wardrobe's — and `document.querySelector('[data-invdir]')` takes the first one it finds. That
@@ -3155,7 +3254,7 @@ function inventTray(kind, label, placeholder) {
   return `<div data-invtray style="display:flex; flex-direction:column; gap:7px; margin-top:4px;
       padding-top:9px; border-top:1px solid var(--line)">
     <textarea class="field" data-invdir placeholder="${esc(placeholder)}"
-      style="min-height:44px; font-size:12.5px"></textarea>
+      style="min-height:44px; font-size:12.5px">${esc(value)}</textarea>
     <div style="display:flex; align-items:center; gap:9px">
       <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
         searchable ? 'var(--mute)' : 'var(--faint)'}"
@@ -6199,14 +6298,19 @@ document.addEventListener('click', async (e) => {
     const r = await api.saveChapter(S.storyId, V.currentChapter.id, { title, authorsNote: note });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId);
-    S.setup = null; S.panel = 'context'; syncHash(); paint(); refreshManifest();
+    S.setup = null; S.setupStep = null; S.panel = 'context'; syncHash(); paint(); refreshManifest();
     toast(note.trim() ? 'Set. Write when ready.' : 'Saved. No beat set, which is fine.');
     // AFTER the beat is set, never before. This used to fire from the close, which meant the first
     // passage of every chapter was the only one written without the line that steers the rest of it.
     OPEN_WANTED = S.storyId; await openingPassage();
     return;
   }
-  if (d.skipsetup) { S.setup = null; S.panel = 'context'; syncHash(); paint();
+  // Moving between the ritual's steps. The panel reads its fields off S rather than off the DOM,
+  // so stepping away and back does not lose a half-typed beat — which is the whole reason the
+  // fields were moved onto S in the first place, three faults ago.
+  if (d.setupstep) { S.setupStep = d.setupstep; S.panel = 'setup'; syncHash(); paint(); return; }
+  if (d.setupkind) { S.setupKind = d.setupkind; paint(); return; }
+  if (d.skipsetup) { S.setup = null; S.setupStep = null; S.panel = 'context'; syncHash(); paint();
     OPEN_WANTED = S.storyId; await openingPassage(); return; }
 
   if (d.savestory) {
@@ -6286,6 +6390,11 @@ document.addEventListener('click', async (e) => {
     // that closed rather than the empty one that opened. Council 07: it debriefed before it
     // dispatched.
     S.panel = 'setup';
+    // AT THE TOP OF THE RITUAL, not in the middle of it. Council 07 landed the close on setup; this
+    // is the same argument one step further — what the chapter LEFT is decided before what the next
+    // one is FOR, because a proposal accepted after the beat is written is a card the beat could
+    // not have been written with. The step falls through to the premise when nothing was proposed.
+    S.setupStep = 'cards';
     syncHash(); paint(); refreshManifest();
     // THE OPENING PASSAGE IS NOT WRITTEN HERE ANY MORE — see `savesetup`. The beat rides near the
     // generation point on every call of a chapter, and writing its first passage from this line
@@ -7115,6 +7224,10 @@ document.addEventListener('input', (e) => {
   if (e.target.dataset?.setup) {
     S.setup = { title: document.querySelector('[data-setup="title"]')?.value ?? '',
                 note: document.querySelector('[data-setup="note"]')?.value ?? '' };
+    // Kept apart from the two that get SAVED. The steer is an instruction to Anansi about what to
+    // suggest, never a field on the chapter, and folding it into S.setup would send it to
+    // saveChapter as a third column that does not exist.
+    S.setupSteer = document.querySelector('[data-setup="steer"]')?.value ?? '';
     return;
   }
   // #20 §4. Its own list only, for the same reason the ledger's box has: the form around it reads
