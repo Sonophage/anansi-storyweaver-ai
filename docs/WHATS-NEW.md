@@ -10,6 +10,18 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · The app remembers your model and wakes it for you
+
+### Your model is yours, and it survives a restart
+The model you pick is now kept with your account instead of in the server's memory, so restarting
+Anansi no longer quietly puts you back on the house default. A book that names its own model still
+wins over it, as before.
+
+### It starts waking up as you arrive
+Opening Anansi begins loading your model in the background, before you have picked a book. The
+model goes to sleep after fifteen minutes of quiet, and waking it is the longest wait in the app —
+this moves that wait to while you are still looking at your shelf.
+
 ## 2026-08-31 · A quieter create screen
 
 ### The empty panel beside Create a story is gone

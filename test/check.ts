@@ -181,5 +181,31 @@ const ok = (m: string, fn?: unknown) => {
   ok('  and a second open inside the window costs no call at all');
 }
 
+// ---- 5. OPENING THE APP WAKES THE WRITER'S OWN MODEL (2026-08-31). Seth: "also need a last model
+// selected per user so that warms up when they come to the app." The router sleeps a model at 900
+// seconds, so the first thing a writer does in the morning otherwise waits on a 26 GiB load.
+//
+// GET /api/stories is the app's first call. The warm is detached and throttled per writer, and it
+// shares one in-flight flag with the story prewarm above — so this waits for that one to finish
+// before it starts, or it would measure the guard rather than the feature.
+{
+  await new Promise((r) => setTimeout(r, 2000));
+  calls = [];
+  const shelf = () => routes['GET /api/stories'](ctx({}));
+  shelf();
+  await new Promise((r) => setTimeout(r, 1500));
+  const warm = calls.filter((c) => c.kind === 'prose');
+  assert.strictEqual(warm.length, 1, `opening the app wakes the model once, and it made ${warm.length} calls; all kinds seen: ${JSON.stringify(calls.map((c) => c.kind))}`);
+  assert.strictEqual(warm[0].maxTokens, 1, 'and asks for one token — this is a wake, not a generation');
+  ok('opening the app wakes the writer\'s model, once and detached');
+
+  calls = [];
+  shelf(); shelf();
+  await new Promise((r) => setTimeout(r, 300));
+  assert.deepStrictEqual(calls, [],
+    'and a shelf that repaints inside the window wakes nothing — the throttle is per writer');
+  ok('  and a repaint inside the window costs no call at all');
+}
+
 console.log(`\n${n} checks passed`);
 srv.close();

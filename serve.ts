@@ -148,9 +148,13 @@ const GEN: Record<string, any> = {
 // the context budget reserves against that number — one of them raising it would quietly shrink the
 // other's prompt. routes.ts already calls this account-wide; this is what makes that true.
 const gens = new Map<string, Record<string, any>>();
-// The writer's fallback model, same reasoning. A story that names its own still wins; this is only
-// what a story with none falls back to, so switching model cannot land on the other's prose.
-const models = new Map<string, string>();
+// The writer's fallback model lived HERE, in a Map, until 2026-08-31 — which meant every restart
+// of this process put both writers back on the process default, silently. It is a column on their
+// row now (`users.default_model`), read and written through db, because it survives a reboot and
+// because it decides which model is woken when they open the app.
+//
+// A story that names its own model still wins; this is only what a story with none falls back to,
+// so switching model cannot land on the other writer's prose.
 
 // One responsive surface. desk.html and phone.html were deleted on 2026-08-23 once app.html
 // reached parity; /phone stays mapped so an installed phone home-screen icon keeps working.
@@ -220,13 +224,12 @@ const handler = async (req: any, res: any) => {
       body: req.method === 'GET' ? {} : await readBody(req),
       query: url.searchParams, owner: OWNER, slot, gen: gens.get(OWNER) ?? GEN,
       setGen: (g) => { const next = { ...(gens.get(OWNER) ?? GEN), ...g }; gens.set(OWNER, next); ctx.gen = next; },
-      defaultModel: models.get(OWNER) ?? null,
-      setDefaultModel: (id) => { models.set(OWNER, id); ctx.defaultModel = id; },
+      defaultModel: db.defaultModelOf(OWNER),
+      setDefaultModel: (id) => { db.setDefaultModel(OWNER, id); ctx.defaultModel = id; },
       // What the OTHER writers are currently set to. The map lives here, so the release policy in
       // routes.ts cannot answer this on its own — and getting it wrong means taking a model out
       // from under somebody mid-book.
-      otherDefaults: () => [...models.entries()]
-        .filter(([who]) => who !== OWNER).map(([, id]) => id).filter(Boolean),
+      otherDefaults: () => db.otherDefaultModels(OWNER),
       admin: OWNER === db.owner(ADMIN),
     };
 

@@ -1011,6 +1011,37 @@ function ledgerInto(c: Ctx, from: string, into: string) {
 //   - never while a generation is in flight on that model
 //   - never two at once, across all writers, because `warming` is module-global on purpose
 //   - never twice for one story inside PREWARM_EVERY, or a repainting client warms in a loop
+// AND THE MODEL ITSELF, when a writer opens the app. `prewarm` below warms one BOOK's prompt and
+// only once a book is open; this is the step before it. The router sleeps a model at 900 seconds,
+// so the writer who comes back in the morning waits for a 26 GiB load before anything else can
+// happen — and which model that is is now their own saved choice rather than the process default,
+// which is why this could not be done before `users.default_model` existed.
+//
+// Seth, 2026-08-31: "also need a last model selected per user so that warms up when they come to
+// the app."
+//
+// SYSTEM is the system message on purpose rather than a throwaway string: it is the prefix every
+// generation on this box shares, so waking the model also leaves that prefix in the cache.
+//
+// It shares `warming` with prewarm — one warm at a time across the whole server — because both are
+// conveniences and F13 is unforgiving: the two slots do not queue, they die with a 500.
+const MODEL_WARM_EVERY = 10 * 60_000;
+const modelWarmedAt = new Map<string, number>();
+function warmModel(c: Ctx) {
+  const using = c.defaultModel ?? model();
+  if (warming || busyOn(using) > 0) return;
+  if (Date.now() - (modelWarmedAt.get(c.owner) ?? 0) < MODEL_WARM_EVERY) return;
+  warming = true;
+  modelWarmedAt.set(c.owner, Date.now());
+  void (async () => {
+    try {
+      await chat(SYSTEM, 'ok', { model: using, max_tokens: 1, temperature: 0,
+        chat_template_kwargs: { enable_thinking: false } });
+    } catch { /* a warm that fails costs the writer nothing; the real call reports for itself */ }
+    finally { warming = false; }
+  })();
+}
+
 const PREWARM_EVERY = 5 * 60_000;
 const warmedAt = new Map<string, number>();
 let warming = false;
@@ -1038,7 +1069,7 @@ function prewarm(c: Ctx, v: any) {
 
 export const routes: Record<string, Handler> = {
   // ---- library ----
-  'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: c.defaultModel ?? model(),
+  'GET /api/stories':    (c) => (warmModel(c), { stories: db.listStories(c.owner), model: c.defaultModel ?? model(),
     // Still reported: `admin` decides who may stop the router. It no longer decides who sees The
     // Web — that opened to everyone on 2026-08-31.
     admin: c.admin,

@@ -213,6 +213,11 @@ function migrate() {
        + 'whole paragraph of one is the largest version of that. Empty on all nine books');
   // #9. On a database that already exists the CREATE above does not add it.
   add('generations', 'mend', 'TEXT');
+  // THE WRITER'S OWN MODEL, kept across restarts. It lived in a Map in serve.ts, so every restart
+  // of the server put both writers back on the process default — and since 2026-08-31 it also
+  // decides which model is woken when they open the app, which is a decision worth surviving a
+  // reboot. A story that names its own model still wins over this; see `modelFor`.
+  add('users', 'default_model', 'TEXT');
   // #24. A TABLE rather than a column, so it does not go through `drop` above. Its five batches
   // were written into docs/WHATS-NEW.md before this shipped; the file is the record now and the
   // model call that filled this is gone. Guarded on existence so the line is quiet on a database
@@ -608,6 +613,22 @@ export function owner(login = 'sonophage'): string {
   q('INSERT INTO users (id, login, name, created_at) VALUES (?,?,?,?)').run(id, login, login, now());
   return id;
 }
+
+/** The writer's fallback model, and the one woken when they open the app. Null means they have
+ *  never chosen: the caller falls back to the process default rather than this deciding for them. */
+export const defaultModelOf = (ownerId: string): string | null =>
+  (q('SELECT default_model FROM users WHERE id = ?').get(ownerId) as any)?.default_model ?? null;
+
+export const setDefaultModel = (ownerId: string, id: string | null) =>
+  q('UPDATE users SET default_model = ? WHERE id = ?').run(id, ownerId);
+
+/** What the OTHER writers are set to. The release policy in routes.ts needs it — getting it wrong
+ *  means taking a model out from under somebody mid-book — and it must read every account, not
+ *  only the ones who have made a request since this process started. That was the bug in the Map:
+ *  a writer who had not visited since the last restart looked like a writer with no model. */
+export const otherDefaultModels = (ownerId: string): string[] =>
+  (q('SELECT default_model FROM users WHERE id != ? AND default_model IS NOT NULL')
+    .all(ownerId) as any[]).map((r) => r.default_model).filter(Boolean);
 
 /** The account name behind an owner id. The reports and anything else that has to SAY who did
  *  something need the login rather than the id, which means nothing to a human reading it later. */

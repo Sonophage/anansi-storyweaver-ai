@@ -1994,6 +1994,28 @@ ok('speed comes from the server timings, and a bad row cannot poison it', () => 
   db.delStory(s1.id);
 });
 
+// ---- THE WRITER'S MODEL SURVIVES A RESTART (2026-08-31). It lived in a Map in serve.ts, so every
+// restart put both writers back on the process default without saying so — and since the same day
+// it also decides which model is woken when they open the app, which is not a decision that should
+// evaporate on a reboot.
+ok("the writer's own model is kept on their row, and the others can be read back", () => {
+  const a = db.owner('modelkeeper');
+  const b = db.owner('secondwriter');
+  assert.strictEqual(db.defaultModelOf(a), null,
+    'a writer who has never chosen has no model of their own — null, so the caller falls back');
+  db.setDefaultModel(a, 'Artemis-1.1-RPNTH-31B-NN');
+  assert.strictEqual(db.defaultModelOf(a), 'Artemis-1.1-RPNTH-31B-NN', 'and a choice is kept');
+
+  // THE OTHER WRITERS, read from the table and not from who happens to have made a request since
+  // this process started. That was the bug in the Map: a writer who had not visited since the last
+  // restart looked like a writer with no model, and the release policy would take it out from
+  // under them.
+  db.setDefaultModel(b, 'GLM-4.7-Flash-RPTH-30B');
+  assert.deepStrictEqual(db.otherDefaultModels(a), ['GLM-4.7-Flash-RPTH-30B'],
+    "one writer's view of the others names the second writer's model");
+  assert.ok(!db.otherDefaultModels(a).includes('Artemis-1.1-RPNTH-31B-NN'), 'and never their own');
+});
+
 console.log(`\n${n} checks passed`);
 
 // A CARD EDIT CAN STALE A CHAPTER SUMMARY, since 2026-08-30. Seth's question was whether the old
