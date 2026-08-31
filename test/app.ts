@@ -1128,6 +1128,24 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     + `(live ${live}, header ${head}, archived ${put})`);
   ok('archived books sit under their own header at the end of the shelf');
 
+// ---- A WORLD BOOK IS NOT A BOOK WITH WORK IN IT (2026-08-31). It is a story with `is_world` set,
+// so without the filter it would be counted like any other. Given MORE waiting than the real book,
+// so a filter that failed would name the world book and this could not pass by accident.
+{
+  const { waiting: w } = await import('../web/model.js');
+  const rows: any[] = [
+    { id: 's-real', title: 'A Real Book', status: 'in_progress', proposed: 1, unpaid: 1, flags: 0 },
+    { id: 's-w', title: 'The Tessellate', status: 'in_progress', proposed: 9, unpaid: 9, flags: 0,
+      is_world: 1 },
+  ];
+  const out = w(rows);
+  assert.ok(!out.some((x: any) => x.storyId === 's-w'),
+    'the waiting strip never points at a world book, even when it carries the higher count');
+  assert.deepStrictEqual(out.map((x: any) => x.total), [1, 1],
+    "and the world book's nine of each are not added in");
+  ok('a world book is not counted as a book with work waiting in it');
+}
+
 // ---- PICKING A MODEL DOES NOT OPEN ITS PANEL UNDER THE MENU (2026-08-31). Seth: "when selecting a
 // model the option to select it and its information is hidden behind the menu to view the models."
 // The press comes from the rail's own list, and every `data-nav` row has closed the rail on overlay

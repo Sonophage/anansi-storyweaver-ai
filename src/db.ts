@@ -218,6 +218,13 @@ function migrate() {
   // decides which model is woken when they open the app, which is a decision worth surviving a
   // reboot. A story that names its own model still wins over this; see `modelFor`.
   add('users', 'default_model', 'TEXT');
+  // A WORLD BOOK IS A STORY YOU NEVER WRITE PROSE IN. Everything it needs already existed —
+  // entries are story-scoped, `lore_from` already lets one book read another's cards, and
+  // `entriesFor` already merges them with the follower winning a title collision. The only thing
+  // missing was a way to say "this one is a bible, not a book", so it keeps off the shelf and
+  // lives on the Threads page instead. Seth, 2026-08-31: "a way to create a world book. one that
+  // is just the cards in that book ... better yet in threads with the same look as the stories."
+  add('stories', 'is_world', 'INTEGER DEFAULT 0');
   // #24. A TABLE rather than a column, so it does not go through `drop` above. Its five batches
   // were written into docs/WHATS-NEW.md before this shipped; the file is the record now and the
   // model call that filled this is gone. Guarded on existence so the line is quiet on a database
@@ -807,6 +814,38 @@ export function entriesFor(id: string) {
     .filter((e: any) => !mine.has(String(e.title).trim().toLowerCase()))
     .map((e: any) => ({ ...e, shared_from: src.title, shared_from_id: from }));
   return [...own, ...shared];
+}
+
+/** Start a book from a world book: a new story that FOLLOWS it rather than copying its cards.
+ *
+ *  Following, not copying, and that is the whole decision. A copy is a fork the moment either side
+ *  is edited, and the point of a bible is that six books set in it say the same thing about the
+ *  same character. `entriesFor` already merges the followed cards in and already lets this story's
+ *  own card win a title collision, so a book can still disagree with the world where it means to.
+ */
+export function storyFromWorld(ownerId: string, worldId: string, title: string) {
+  const w = getStory(worldId) as any;
+  if (!w || w.owner_id !== ownerId) return null;
+  if (!w.is_world) return null;
+  const id = createStory(ownerId, {
+    title,
+    // The world's own premise and setting are the shared ground, so they seed the book rather than
+    // leaving it blank. Everything here is editable the moment it opens.
+    premise: w.premise ?? '', setting: w.setting ?? '', genre: w.genre ?? '',
+    pov: w.pov ?? 'third', spice: w.spice, writingStyle: w.writing_style ?? '',
+    styleNote: w.style_note ?? '',
+  });
+  q('UPDATE stories SET lore_from = ? WHERE id = ?').run(worldId, id.id);
+  return id;
+}
+
+/** A world book: a story flagged as a bible, which keeps it off the shelf and puts it on Threads.
+ *  Everything else about it is an ordinary story, deliberately — its cards are `entries` rows like
+ *  any other, so every editor, the search, the export and the ownership gate already work on it. */
+export function createWorld(ownerId: string, s: any) {
+  const made = createStory(ownerId, { ...s, status: 'in_progress' });
+  q('UPDATE stories SET is_world = 1 WHERE id = ?').run(made.id);
+  return made;
 }
 
 /** The books that would lose cards if this one went. */

@@ -311,7 +311,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
-  'pastecast', 'pastebook', 'forgehere',
+  'pastecast', 'pastebook', 'forgehere', 'newworld', 'worldstory',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -4174,6 +4174,41 @@ function seedList() {
 }
 
 // ---------- workspace pages ----------
+
+/** World books, on the Threads page and nowhere else.
+ *
+ *  A world book IS a story — `is_world` is the only thing that distinguishes it — so this reuses
+ *  storyCard for the look Seth asked for, and every editor, the search, the export and the
+ *  ownership gate already work on it because they work on stories.
+ *
+ *  Starting a book here FOLLOWS the world rather than copying it: `db.storyFromWorld` sets
+ *  `lore_from`, and `entriesFor` has merged a followed book's cards in since that column existed.
+ */
+function worldStrip() {
+  const worlds = LIB.filter((s) => s.is_world);
+  return `<div style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+      <span class="lbl" style="letter-spacing:.1em; margin:0">World books</span>
+      <input class="field" id="worldName" placeholder="Name a world"
+        style="margin:0; max-width:220px; height:36px; font-size:13px">
+      <button class="btn ghost" data-newworld="1"
+        style="width:auto; padding:0 16px; height:36px; font-size:12.5px">New world book</button>
+    </div>
+    ${worlds.length ? `<div class="grid">${worlds.map((w, i) => `<div
+      style="display:flex; flex-direction:column; gap:8px">
+      ${storyCard(w, i, false)}
+      <div style="display:flex; gap:7px">
+        <input class="field" id="from-${esc(w.id)}" placeholder="Name a book set here"
+          style="margin:0; height:34px; font-size:12.5px">
+        <button class="btn ghost" data-worldstory="${esc(w.id)}"
+          style="width:auto; padding:0 14px; height:34px; font-size:12px; white-space:nowrap">Start a book</button>
+      </div></div>`).join('')}</div>`
+      : `<div class="hint" style="margin:0">A world book holds cards and no prose &mdash; a cast, a
+         map, a set of rules that outlives one story. Books started from it read its cards, and can
+         still disagree with it where they mean to.</div>`}
+  </div>`;
+}
+
 function drawPage() {
   const show = S.place === 'workspace';
   $('page').hidden = !show;
@@ -4183,6 +4218,8 @@ function drawPage() {
 }
 
 const STATUS = { in_progress: 'Writing', draft: 'Draft', finished: 'Finished', archived: 'Archived' };
+// A world book wears its own word instead of 'Writing': it holds no prose and never will.
+const WORLD_TAG = 'World book';
 // The pill is the genre when there is one, because that is the tag worth seeing on a shelf;
 // status only shows when a story is finished or parked.
 // #18 §5. `pinIsDead` is in web/model.js: it is a pure rule, and the case that matters most —
@@ -4194,7 +4231,8 @@ function storyCard(s, i, hero) {
   // straight into it, so a card read "horror, nsfw" inside a single pill. One tag per pill.
   const tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
   const gold = !!tags.length || s.status === 'in_progress';
-  if (!tags.length) tags.push(STATUS[s.status] || 'Writing');
+  if (s.is_world) tags = [WORLD_TAG];
+  else if (!tags.length) tags.push(STATUS[s.status] || 'Writing');
   // Archived is dimmed rather than hidden: it is still your book and still one tap away.
   return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}"
     style="${s.status === 'archived' ? 'opacity:.42; filter:saturate(.5)' : ''}">
@@ -4326,7 +4364,9 @@ const WPAGES = {
     // already dims them, but a dimmed card at the end of one grid still reads as part of the shelf.
     // Seth, 2026-08-31: "archived stories should be visually different and set under a different
     // header calling it out as archived."
-    const ordered = shelfOrder(LIB);
+    // World books are not on the shelf. They are cards without a book, and they live on Threads —
+    // Seth, 2026-08-31: "better yet in threads with the same look as the stories."
+    const ordered = shelfOrder(LIB.filter((s) => !s.is_world));
     const live = ordered.filter((s) => s?.status !== 'archived');
     const shelved = ordered.filter((s) => s?.status === 'archived');
     // The hero comes from the LIVE books. A shelf with nothing but archived books has no hero at
@@ -4521,6 +4561,8 @@ const WPAGES = {
         <!-- Search on its OWN line and left aligned, at Seth's direction 2026-08-29. It was pushed
              to the right end of the chip row by an auto left margin, so on a narrow screen it
              wrapped under the chips at whatever width was left over. -->
+        ${worldStrip()}
+        <div style="border-top:1px solid var(--line); margin-top:4px"></div>
         <input class="field" id="lq" value="${esc(S.ledgerQ)}" placeholder="Search every story"
           style="margin:0; max-width:340px">
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
@@ -7211,6 +7253,24 @@ document.addEventListener('click', async (e) => {
   // The door on the create screen. `data-forgehere` carries '1' to open and '' to shut, so the one
   // button is both and there is no second action name for closing.
   if (d.forgehere !== undefined) { S.forgeHere = d.forgehere === '1'; drawPage(); return; }
+  if (d.newworld) {
+    const name = $('worldName')?.value?.trim();
+    if (!name) return toast('Name the world first.');
+    const r = await api.newWorld(name, '');
+    if (r.error) return toast(r.error);
+    LIB = (await api.library()).stories ?? LIB;
+    drawPage();
+    return toast(`"${name}" is a world book. Put its cards in it, then start a book here.`);
+  }
+  if (d.worldstory) {
+    const name = $(`from-${d.worldstory}`)?.value?.trim();
+    if (!name) return toast('Name the book first.');
+    const r = await api.bookFromWorld(d.worldstory, name);
+    if (r.error) return toast(r.error);
+    LIB = (await api.library()).stories ?? LIB;
+    await openStory(r.id);
+    return toast('It follows the world book. Its cards are already in the prompt.');
+  }
   if (d.pastebook) {
     const box = document.querySelector('[data-bookpaste]');
     const t = String(box?.value ?? '').trim();

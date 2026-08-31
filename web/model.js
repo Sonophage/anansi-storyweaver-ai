@@ -38,7 +38,9 @@ export const shelfOrder = (list) => [...(list ?? [])].sort((a, b) =>
  *  Archived books are left out on purpose. Putting one away is the act that means "stop showing me
  *  this", and a strip that then nags about its unpaid promises has not listened. */
 export const waiting = (list) => {
-  const live = (list ?? []).filter((s) => s && s.status !== 'archived');
+  // Archived books are left out for the reason below; world books are left out because they hold
+  // no prose and nothing can be waiting in them.
+  const live = (list ?? []).filter((s) => s && s.status !== 'archived' && !s.is_world);
   const kind = (key, one, many, panel) => {
     const total = live.reduce((n, s) => n + (Number(s[key]) || 0), 0);
     if (!total) return null;

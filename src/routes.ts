@@ -55,6 +55,8 @@ export const OPEN_ROUTES = new Set([
   // #21 §2. The cast call names no story either — there is no story yet, which is the whole
   // point of the wizard — so it is open for the same reason the spark is.
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'POST /api/spark/cast',
+  // Making a world book names no story yet, the same as making an ordinary one.
+  'POST /api/world',
   'POST /api/spark/review', 'POST /api/spark/style',
   'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
@@ -1452,6 +1454,28 @@ export const routes: Record<string, Handler> = {
       searchable: searchConfigured(),
       budget: budgetFor(v.story, c.slot, Number(c.gen.max_tokens) || 900) };
   },
+  /** A world book. Just the cards: no prose is ever written in it, and it stays off the shelf. */
+  'POST /api/world': (c: Ctx) => {
+    const title = String(c.body.title ?? '').trim();
+    if (!title) return { error: 'a world book needs a name' };
+    const made = db.createWorld(c.owner, { title, premise: c.body.premise ?? '' });
+    return { id: made.id };
+  },
+
+  /** And a book set in one. It FOLLOWS the world rather than copying it — see db.storyFromWorld:
+   *  a copy is a fork the moment either side is edited, and a bible exists so that six books set
+   *  in it say the same thing about the same character.
+   *
+   *  Named by `storyId`, so the ownership gate in serve.ts has already checked that this world is
+   *  this writer's before the handler runs. */
+  'POST /api/world/story': (c: Ctx) => {
+    const title = String(c.body.title ?? '').trim();
+    if (!title) return { error: 'the new book needs a name' };
+    const made = db.storyFromWorld(c.owner, String(c.body.storyId), title);
+    if (!made) return { error: 'that is not a world book you own' };
+    return { id: made.id };
+  },
+
   'POST /api/story':     async (c) => {
     // A story may name its own model, so this is the one field that has to be checked against the
     // world before it is stored. Refused here rather than at generation time, where the failure

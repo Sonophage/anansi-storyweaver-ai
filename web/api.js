@@ -77,6 +77,10 @@ const jStream = async (u, b, onDelta, signal) => {
 export const api = {
   library:      ()               => j('/api/stories'),
   createStory:  (s)              => j('/api/stories', 'POST', s),
+  // A world book, and a book set in one. The second names the world as `storyId` so the ownership
+  // gate in serve.ts checks it before the handler runs.
+  newWorld:     (title, premise)  => j('/api/world', 'POST', { title, premise }),
+  bookFromWorld: (storyId, title) => j('/api/world/story', 'POST', { storyId, title }),
   spark:        (idea)           => j('/api/spark', 'POST', { idea }),
   // #21 §2. The cast, asked for separately and only for the kinds the writer wants. It carries
   // the skeleton AS IT STANDS, so the cast belongs to the book on screen rather than to the

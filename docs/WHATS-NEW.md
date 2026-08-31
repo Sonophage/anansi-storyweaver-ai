@@ -10,6 +10,21 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · World books
+
+### A book that is only cards
+Threads now has **World books** at the top. Make one, put a cast, a map, a set of rules in it, and
+it holds them without ever holding prose. It stays off your Stories shelf and it never appears in
+what is waiting for you, because there is nothing to write in it.
+
+### Start a book set in one, in one press
+Every world book has a box beside it: name a book, press Start a book, and it opens already reading
+that world's cards. It **follows** the world rather than copying it — change the world later and
+every book set in it changes with it.
+
+Where a book needs to disagree, it can: write a card with the same name in the book itself and the
+book's version wins. That is how a character who leaves the city in one story stays put in the rest.
+
 ## 2026-08-31 · The app remembers your model and wakes it for you
 
 ### Your model is yours, and it survives a restart

@@ -2016,6 +2016,41 @@ ok("the writer's own model is kept on their row, and the others can be read back
   assert.ok(!db.otherDefaultModels(a).includes('Artemis-1.1-RPNTH-31B-NN'), 'and never their own');
 });
 
+// ---- A WORLD BOOK IS A STORY YOU NEVER WRITE PROSE IN (2026-08-31). Seth: "a way to create a
+// world book. one that is just the cards in that book ... and an easy way to create a story from
+// that lore book." Nothing new was needed underneath: entries are story-scoped, `lore_from` already
+// lets one book read another's cards, and `entriesFor` already merges them.
+ok('a book started from a world book reads its cards, and can still disagree with it', () => {
+  const me = db.owner('worldwright');
+  const them = db.owner('someone-else');
+  const world = db.createWorld(me, { title: 'The Tessellate', premise: 'A city of nine rings.' });
+  db.upsertEntry(world.id, me, { title: 'The Warden', body: 'She has never left the ninth ring.' });
+  db.upsertEntry(world.id, me, { title: 'Ring Law', body: 'Nobody descends without a writ.' });
+
+  const book = db.storyFromWorld(me, world.id, 'A Writ for the Ninth');
+  assert.ok(book, 'the book is made');
+  // FOLLOWS, does not copy. A copy is a fork the moment either side is edited, and a bible exists
+  // so that several books set in it say the same thing about the same character.
+  assert.strictEqual(db.entriesOf(book!.id).length, 0, 'it holds no cards of its own');
+  const seen = db.entriesFor(book!.id).map((e: any) => e.title).sort();
+  assert.deepStrictEqual(seen, ['Ring Law', 'The Warden'],
+    'and both of the world\'s cards reach its prompt');
+
+  // The follower's own card wins a title collision — the book is allowed to say something
+  // different from the bible, which is the whole reason this is a merge and not a copy.
+  db.upsertEntry(book!.id, me, { title: 'The Warden', body: 'She left the ninth ring in the spring.' });
+  const warden = db.entriesFor(book!.id).filter((e: any) => e.title === 'The Warden');
+  assert.strictEqual(warden.length, 1, 'one Warden, not two');
+  assert.match(warden[0].body, /left the ninth ring in the spring/,
+    "and it is the book's own, not the world's");
+
+  // REFUSALS, both of them. A world that is not yours, and a story that is not a world.
+  assert.strictEqual(db.storyFromWorld(them, world.id, 'Not Yours'), null,
+    'another writer cannot start a book from your world book');
+  assert.strictEqual(db.storyFromWorld(me, book!.id, 'From A Novel'), null,
+    'and an ordinary story is not a world book to start from');
+});
+
 console.log(`\n${n} checks passed`);
 
 // A CARD EDIT CAN STALE A CHAPTER SUMMARY, since 2026-08-30. Seth's question was whether the old
