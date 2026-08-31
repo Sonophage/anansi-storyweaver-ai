@@ -35,10 +35,11 @@ write.
 Delete everything below a passage used to leave the later chapters standing with nothing in them.
 They go now, and the count says how many.
 
-### The house voice has two more rules
-No litotes: it writes what a thing is instead of what it is not. And contractions are correct in
-narration, not only in dialogue. Both are in the house voice rather than the engine's rules, so a
-book with its own voice still decides for itself.
+### Two rules every book gets
+No litotes — it writes what a thing is instead of what it is not, never negates before affirming,
+and does not use double negatives for emphasis. And contractions are correct in narration, not only
+in dialogue. These sit with the engine's own rules rather than in the house voice, so they hold in
+every book, including one that has replaced its voice entirely.
 
 ## 2026-08-30 · Nothing is smaller than eleven, and a pass runs once
 

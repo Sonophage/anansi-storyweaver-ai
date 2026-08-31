@@ -409,13 +409,7 @@ ok('SYSTEM keeps the contract and the house voice keeps the craft', () => {
                  // Added 2026-08-30 when it moved out of SYSTEM. It is in this list rather than
                  // only in the struck row because this is the list that says WHY it is in the
                  // voice: craft is the writer's, and a rule they cannot delete is not a default.
-                 /plainly functional exchange/i,
-                 // Added 2026-08-30 at Seth's ask: "no litotes and that it can use contractions".
-                 // Craft, so the voice holds them and SYSTEM must not — a writer who replaces their
-                 // voice is replacing how the book SOUNDS, and these two are that and nothing else.
-                 // Spelled out with the forms named, per F37: the same rule as an adjective bought
-                 // 10.7% and the version naming the forms holds at ~98%.
-                 /No litotes/i, /Contractions are correct/i];
+                 /plainly functional exchange/i];
   for (const rx of craft) {
     assert.doesNotMatch(render.SYSTEM, rx,
       `a craft rule is back in SYSTEM (${rx}), where the writer cannot delete it. It belongs in `
@@ -429,8 +423,18 @@ ok('SYSTEM keeps the contract and the house voice keeps the craft', () => {
   // it settles what to do when the canon does not answer, which is the same question as "the canon
   // wins" and belongs on the same side of the line. A writer replacing their voice must not
   // thereby give the model permission to invent. Nothing is claimed for it; it is one free line.
+  // LITOTES AND CONTRACTIONS ARE IN SYSTEM, on Seth's call, 2026-08-30. They were put in the voice
+  // first on the reasoning above — craft is the writer's — and he overruled it: "i want it in
+  // system". He is right about the shape. Both are PROHIBITIONS AND PERMISSIONS ON THE OUTPUT, not
+  // descriptions of how a book should sound: "no double-negation emphasis" is the same kind of
+  // sentence as "never break the frame", where "vary the rhythm" is not. And a book with its own
+  // voice replaces the voice; the point of these two is that no book gets to opt out.
+  //
+  // The cost is stated rather than hidden: a writer cannot delete them, which is the exact thing
+  // the loop above exists to prevent for craft. That is the trade he chose.
   for (const rx of [/Output prose only/i, /the canon wins/i, /Never break the frame/i,
-                    /write around it rather than inventing/i]) {
+                    /write around it rather than inventing/i,
+                    /No litotes/i, /No double-negation emphasis/i, /Contractions are correct/i]) {
     assert.match(render.SYSTEM, rx, `SYSTEM has lost part of the contract: ${rx}`);
     assert.doesNotMatch(prompts.DEFAULT_VOICE, rx,
       `the output contract is in the voice (${rx}), where replacing the voice turns it off`);

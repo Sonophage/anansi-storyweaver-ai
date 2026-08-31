@@ -335,10 +335,6 @@ Craft:
 Sentence and image:
 - One strong image and let it stand. Stacking them costs both.
 - Precise, sensory language. No cliche, and no phrase you have written before in this passage.
-- No litotes. Not "not unkind", not "not without her reasons", not "no small thing", not "hardly
-  a surprise". Say the thing itself.
-- Contractions are correct here, in narration as much as in dialogue: don't, wasn't, it's, they'd,
-  couldn't. Write the expanded form only where the sentence wants that weight.
 - Vary the rhythm. A poetic line earns its place by what sits still on either side of it.
 - Balance motion and pause. Tension lives in breath, hesitation, and the space between gestures.
 
