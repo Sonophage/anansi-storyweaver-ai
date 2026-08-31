@@ -2113,3 +2113,44 @@ to revisit. Counters 1, 3 and 4 do not have ten points of room between them at t
 
 **What nobody is entitled to claim from this**: that anything was fixed, that the prose reads better,
 or that any of these three counters is *zero*. They are under 5%, under 5% and under 19%.
+
+---
+
+## F49 — MTP self-speculation is 20% SLOWER on this model, and the cold/warm prefill split from F24 reproduces exactly a week later (2026-08-31)
+
+`scratchpad/mtp.mjs`, 6 trials per arm plus a discarded warmup, one fixture of 25 KB of real prose
+from the library (~5,867 prompt tokens), `max_tokens: 400`, temperature 0.85, thinking off, router
+otherwise idle. The metric is llama.cpp's own `timings.predicted_per_second`.
+
+**Why this was tried.** The GGUF is `...Native-MTP-Preserved-...` and two other presets in the same
+file — `[Qwen3.8-ATH-27B]` and `[Huihui-ThinkingCap-ATH-27B]` — already run `spec-type = draft-mtp`
+with `spec-draft-n-max = 5`. The writing model never had those lines, and nothing in docs/, bench/
+or src/ had ever mentioned speculation. Decode is where a warm generation's time goes, so it looked
+like the one untried knob on the part that costs.
+
+| arm | median decode | range | prefill, warm |
+|---|---|---|---|
+| `spec-type` absent | **58.2 tok/s** | 57.7–58.5 | 320–332 ms |
+| `spec-type = draft-mtp`, `spec-draft-n-max = 5` | **46.5 tok/s** | 42.9–47.8 | 385–397 ms |
+
+**The ranges do not overlap.** Decode is 20% slower and prefill is about 20% slower too.
+
+**The spread is the tell.** Arm A varies by 0.8 tok/s across six trials; arm B by 4.9. That is a
+draft accepted on some passages and rejected on others, with the rejected work costing more than
+the accepted work saves. The model is a 35B **A3B** mixture-of-experts — roughly 3B active
+parameters per token — so a token is already cheap to produce and the speculation overhead has
+nothing to hide behind. Speculative decoding pays when decode is memory-bound and expensive per
+token; this decode is neither.
+
+**Reverted the same day.** The two lines are out of `[Qwen3.6-WNTH-35B-A3B-NN]`.
+
+**What this does NOT say.** One fixture, one temperature, one `spec-draft-n-max`. It does not show
+that MTP is useless on the ATH presets, which are dense 27B models where the arithmetic is
+different, and it does not rule out a smaller draft-n helping. It bounds THIS configuration and no
+other. It also says nothing about prose quality: speculative decoding is supposed to be
+output-identical in distribution, and no output was compared.
+
+**F24 reproduces, a week on, on the nose.** The same run measured cold prefill at 5,867 tokens in
+**7,320 ms** and every warm call after it at 4 tokens in **320–332 ms**. F24's 7,771 ms / 349 ms is
+still the live picture, so the cold-start cost is current and is the one latency number left worth
+attacking. Nothing here touches it — speculation changes decode, and the cold wait is prefill.
