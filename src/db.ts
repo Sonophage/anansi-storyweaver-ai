@@ -1535,7 +1535,6 @@ export function wearOutfit(storyId: string, entryId: string, outfitId: string | 
   return outfitId;
 }
 
-export const delOutfit = (storyId: string, id: string) => delAddon(storyId, id);
 
 /** Drop a persona or a locked character that names nobody in this story.
  *

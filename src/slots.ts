@@ -83,5 +83,3 @@ export const EXCLUSIVE_SLOTS = [...new Set(Object.values(SLOTS)
   .flatMap((s) => s.filter((x) => x.exclusive).map((x) => x.name)))].sort();
 
 export const slotsFor = (kind: string) => SLOTS[kind as EntryKind] ?? [];
-export const isExclusive = (kind: string, slot: string) =>
-  !!slotsFor(kind).find((s) => s.name === slot)?.exclusive;
