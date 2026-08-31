@@ -14,6 +14,10 @@ import { capFor } from './src/story.ts';
 import * as db from './src/db.ts';
 
 const PORT = Number(process.env.ANANSI_PORT ?? 5174);
+// A dev server serves the same app.html as the live one from the same source, and two identical
+// windows on two ports is how a scratch edit lands in a real book. Set ANANSI_DEV to stamp the
+// shell, which is the only thing that shows the banner in app.html.
+const DEV = !!process.env.ANANSI_DEV;
 // Loopback unless told otherwise. Set ANANSI_HOST to the tailnet address to let a second writer
 // in: whois needs the peer's real IP, so a `tailscale serve` proxy in front of this would make
 // every request arrive as 127.0.0.1, which is to say as you.
@@ -175,7 +179,10 @@ const handler = async (req: any, res: any) => {
     }
     if (PAGES[p]) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      return res.end(await readFile(HERE + PAGES[p], 'utf8'));
+      const html = await readFile(HERE + PAGES[p], 'utf8');
+      // Anchored to the whole line: a CSS comment up in app.html's head says ``zoom` on <body>`, and
+      // a plain string replace stamps THAT and leaves the real tag alone. It did, on the first try.
+      return res.end(DEV ? html.replace(/^<body>$/m, '<body data-dev>') : html);
     }
     // THE ICON WAS ALREADY THERE AND ALREADY SERVED — app.html has declared it since it was
     // written and `/web/icon.svg` answers 200 with image/svg+xml. What did NOT answer is the bare

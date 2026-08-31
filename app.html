@@ -1191,6 +1191,17 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 #inputRow { position:relative; }
 
 #toast[hidden] { display:none; }
+
+/* The dev-server banner. In flow above the header rather than floating over it: a strip that
+   pushes the app down is one you cannot mistake for part of the app, and nothing here overlaps
+   the bar, the rail or the composer. Hidden unless serve.ts stamped <body data-dev>, so the
+   live server on 5174 serves this same file with no banner in it. */
+#devbar { display:none; }
+body[data-dev] #devbar {
+  display:block; flex:0 0 auto; text-align:center; padding:4px 12px;
+  background:var(--chip); color:var(--warn); border-bottom:1px solid var(--edge);
+  font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+}
 </style>
 </head>
 <body>
@@ -1214,6 +1225,7 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 
   <main id="doc">
     <div id="wash"></div>
+    <div id="devbar">development server</div>
     <header id="bar"></header>
     <!-- The context meter, full width and immediately under the header. It was a 74px rule inside
          the running head, which put the one number that says whether the book still fits into the
