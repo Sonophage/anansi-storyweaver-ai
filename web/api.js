@@ -90,6 +90,11 @@ export const api = {
   // The house style before the book exists. Same prompt as `styleNote`, which reads it off a story
   // that has been created; this one is handed the two facts directly.
   sparkStyle:   (genre, premise) => j('/api/spark/style', 'POST', { genre, premise }),
+  // The forge: prompts to hand a different model. Admin only — the route refuses anyone else, so a
+  // caller that gets `error` back is not a failure, it is the answer.
+  forge:        ()               => j('/api/forge'),
+  // And the way back in. One card or a list; rooms travel with it.
+  pasteThread:  (storyId, text)  => j('/api/thread/paste', 'POST', { storyId, text }),
   // #21 §3 step 5. Reads the whole skeleton back and says what it would change. Proposes
   // only — there is no story yet for it to write to.
   sparkReview:  (story, entries) => j('/api/spark/review', 'POST', { story, entries }),

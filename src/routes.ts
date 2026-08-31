@@ -2,6 +2,7 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
+import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
@@ -60,6 +61,9 @@ export const OPEN_ROUTES = new Set([
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
   // Account-wide, like the sampler. Owner-scoped in SQL — every read and write takes c.owner.
   'GET /api/prompts', 'POST /api/prompts',
+  // Names no story — it is about the FORMAT, not about a book. Open means the gate does not run, so
+  // the handler asks the admin question itself; that check is the whole of its protection.
+  'GET /api/forge',
   // About the APP, not about a book — it names no story because there is none to name.
   'GET /api/whatsnew',
   // Open because setting your OWN default names no story, and the gate refuses a request that
@@ -1028,6 +1032,9 @@ function ledgerInto(c: Ctx, from: string, into: string) {
 export const routes: Record<string, Handler> = {
   // ---- library ----
   'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: c.defaultModel ?? model(),
+    // The rail hides the forge for anyone who is not the admin. The GATE is on `GET /api/forge`,
+    // which asks the question itself; this is only so the row is not drawn and then refused.
+    admin: c.admin,
     slot: c.slot, gen: c.gen,
     // The writer's own default look. It rides this call because this is the first thing every
     // surface asks for, so there is no second round trip before the app can paint itself.
@@ -1699,6 +1706,20 @@ export const routes: Record<string, Handler> = {
     return { ...promptsPayload(c.owner), reset: saved === null };
   },
 
+  /** THE FORGE. Prompts to hand a different model, so what it writes drops into this app whole.
+   *
+   *  OPEN, AND THEN IT ASKS THE ADMIN QUESTION ITSELF — the same shape `POST /api/look` uses and
+   *  for the same reason. It names no story, so the ownership gate would refuse it outright; being
+   *  on the open list means the gate does not run AT ALL, so the check below is the whole of its
+   *  protection. `c.admin` is the flag that already decides who may stop the router.
+   *
+   *  A refusal rather than an empty list. "You are not the admin" and "there are no prompts" are
+   *  different answers and a screen that cannot tell them apart says the feature is broken. */
+  'GET /api/forge': (c: Ctx) => {
+    if (!c.admin) return { error: 'the forge is the admin\'s workbench' };
+    return { prompts: FORGE };
+  },
+
   // ---- prose ----
   'POST /api/write':   (c) => {
     // The chapter you are READING is the chapter you write into. Without this the route always
@@ -2075,6 +2096,87 @@ export const routes: Record<string, Handler> = {
   'POST /api/addon/on': (c) => { db.setAddonActive(c.body.storyId, c.body.id, !!c.body.on);
                                  return viewOf(c.body.storyId); },
   'DELETE /api/addon':  (c) => { db.delAddon(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+
+  /** A FORGED THREAD, PASTED IN. The other half of the forge: `GET /api/forge` hands out the shape,
+   *  this reads it back.
+   *
+   *  NOT ADMIN-GATED, and that is deliberate. The forge PAGE is the admin's workbench, but a card
+   *  in this shape is just a card — the second writer pasting one into her own book is the ordinary
+   *  case, and refusing it would make the format a privilege rather than a format. It names a story,
+   *  so the ownership gate covers it like every other route that does.
+   *
+   *  STRICT ABOUT WHAT IT WRITES, GENEROUS ABOUT WHAT IT READS. It accepts one object or an array,
+   *  and a room as either a string or a {name, body} pair, because a foreign model asked for JSON
+   *  will hand back a near-miss and re-prompting for a comma is not a good use of anyone's evening.
+   *  What it will NOT do is invent: an unknown kind is refused outright, and an unknown room is
+   *  DROPPED AND NAMED rather than coerced into a real one — `notes` is the importer's own
+   *  convention for "what did not come through", and silently filing a made-up room under `facts`
+   *  would put text in a prompt the writer never agreed to.
+   *
+   *  Nothing here is a proposal. The writer pasted it, so it lands. */
+  'POST /api/thread/paste': (c: Ctx) => {
+    const v = viewOf(c.body.storyId);
+    const text = String(c.body.text ?? '').trim();
+    if (!text) return { error: 'paste the JSON first' };
+    // A model asked for bare JSON hands back a fence about a third of the time. Strip one if it is
+    // the whole of the wrapper; do not go hunting for JSON inside prose, which is how you end up
+    // importing an example the model wrote in its explanation.
+    const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(text);
+    let j: any;
+    try { j = JSON.parse(fenced ? fenced[1] : text); }
+    catch (e: any) { return { error: `that is not JSON — ${e?.message ?? e}` }; }
+
+    const list = Array.isArray(j) ? j : [j];
+    if (!list.length) return { error: 'that is an empty list' };
+    if (list.length > 40) return { error: `that is ${list.length} cards — 40 at a time is the ceiling` };
+
+    const notes: string[] = [];
+    const made: { id: string; title: string; rooms: number }[] = [];
+    for (const [i, raw] of list.entries()) {
+      const where = list.length > 1 ? ` (card ${i + 1})` : '';
+      if (!raw || typeof raw !== 'object') { notes.push(`Skipped something that is not a card${where}.`); continue; }
+      const kind = String(raw.kind ?? raw.entryType ?? 'character').trim();
+      if (!SLOTS[kind as keyof typeof SLOTS]) {
+        notes.push(`Skipped "${String(raw.title ?? 'untitled')}"${where}: there is nothing called a "${kind}".`);
+        continue;
+      }
+      const title = String(raw.title ?? raw.name ?? '').trim();
+      if (!title) { notes.push(`Skipped a ${kind} with no title${where}.`); continue; }
+      // The bracket form is what every card in this app carries and what the register asks for. A
+      // model that answered in plain prose gets wrapped rather than refused; the brackets are the
+      // convention, and one that arrives without them is a formatting miss, not a bad card.
+      let body = String(raw.body ?? '').trim();
+      if (body && !body.startsWith('[')) body = `[${title}: ${body}]`;
+      const id = db.upsertEntry(v.id, c.owner, {
+        id: '', title, body: body || `[${title}: ]`,
+        entryType: kind,
+        activation: raw.activation === 'triggered' ? 'triggered' : 'always_on',
+        keys: Array.isArray(raw.keys) ? raw.keys : [],
+      });
+      if (!id) { notes.push(`Could not write "${title}"${where}.`); continue; }
+
+      let rooms = 0;
+      const here = slotsFor(kind).map((sl) => sl.name);
+      for (const [slot, val] of Object.entries(raw.rooms ?? {})) {
+        if (!here.includes(slot)) {
+          notes.push(`"${title}" offered a "${slot}" — a ${kind} has no such room, so it was left out.`);
+          continue;
+        }
+        const o: any = (val && typeof val === 'object') ? val : { body: String(val ?? '') };
+        const rBody = String(o.body ?? '').trim();
+        if (!rBody) continue;
+        const rid = db.upsertAddon(v.id, id, {
+          slot, name: String(o.name ?? slot.replace(/_/g, ' ')).trim() || slot,
+          body: rBody.startsWith('[') ? rBody : `[${rBody}]`,
+          keys: Array.isArray(o.keys) ? o.keys : [],
+        });
+        if (rid) rooms++;
+      }
+      made.push({ id, title, rooms });
+    }
+    if (!made.length) return { error: notes[0] ?? 'nothing in that paste was a card' };
+    return { made, notes, ...viewOf(c.body.storyId) };
+  },
 
   // PLAN-08 Phase 3's missing half. The engine has read `entry_edges` since 2026-08-28 — a card
   // whose parent reached the prompt is pulled in behind it, worth `confidence` against a direct

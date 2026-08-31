@@ -163,6 +163,8 @@ const S = {
   // The bug report, kept in state so a repaint mid-typing does not eat it — the same lesson the
   // composer's draft taught seven times.
   bug: '', bugKind: 'bug', bugSending: false, bugUrl: null, bugError: null, lastError: null,
+  // The forge: which prompt is open, and whether it has been asked for yet.
+  forgeOpen: null, forgeBusy: false,
   prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
   promptOpen: null,
   found: null,          // the passage a search result sent you to, marked until you move on
@@ -176,7 +178,10 @@ let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null
 let MANIERR = null;   // why there is no manifest, when there is none
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
 // separate status route, and activity returns only generation rows.
-let SRV = { model: null, slot: null, gen: {} };
+let SRV = { model: null, slot: null, gen: {}, admin: false };
+// The forge's prompts, fetched once. null is 'not asked yet' and [] is 'asked and refused',
+// which are different screens — the second means this account is not the admin.
+let FORGE = null;
 
 // Hardcoded on purpose: point of view is a craft decision with a small set of real answers.
 const POV = ['first person, present tense', 'first person, past tense',
@@ -226,7 +231,15 @@ const WNAV = [
   // Above Report an issue, which is where Seth put it: the two are the same conversation from
   // opposite ends — here is what changed, and here is what is wrong with it.
   ['news', 'book', 'What changed'], ['bug', 'bug', 'Report an issue'],
+  // #29. The admin's workbench: prompts to hand another model. In this list rather than appended by
+  // `wnav()` below, because a row built somewhere else is a row `test/web.ts` cannot see — its
+  // reachability check reads THIS array, and a page it cannot find is reported as having no door.
+  ['forge', 'threads', 'The forge'],
 ];
+/** The rail as this account sees it. The forge is the admin's workbench — Seth, 2026-08-30, "for my
+ *  account alone" — so the row is not drawn for the second writer. The GATE is on the route, which
+ *  refuses her outright; this only keeps a door she cannot open off her wall. */
+const wnav = () => WNAV.filter(([k]) => k !== 'forge' || SRV.admin);
 const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
 // Panels the rail does not list: they open by clicking a thing, not a nav row. Being in here is
 // what makes a panel REACHABLE BY HASH as well as titled — `readHash` validates the name against
@@ -259,6 +272,7 @@ const WTITLES = {
   prefs: () => ['What you have written', 'words, passages, takes not chosen'],
   news: () => ['What changed', 'written by Anansi, from the work itself'],
   bug: () => ['Report an issue', 'filed on the repo, without the prose'],
+  forge: () => ['The forge', 'prompts to hand another model, so what it writes lands whole'],
 };
 
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
@@ -290,6 +304,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'sprecast', 'spstyle',
   'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
+  // The forge: open one prompt, copy it, and paste a forged thread back in.
+  'forgeopen', 'forgecopy', 'pastethread',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -372,7 +388,7 @@ function drawRail() {
   // Which menu, not where you are. Inside a story the rail can be showing either one.
   const inStory = S.place === 'story' && V;
   const storyMenu = inStory && S.railView === 'story';
-  const rows = storyMenu ? SNAV : WNAV;
+  const rows = storyMenu ? SNAV : wnav();
   const active = storyMenu ? S.panel : S.wpage;
   const item = ([k, g, l]) => {
     const on = k === active;
@@ -1873,6 +1889,19 @@ const PANELS = {
                      'a rival cartographer, or nothing at all and let it choose')}
         <div class="hint">It goes to the proposals queue under Chapter, like everything else Anansi
           offers. Nothing is canon until you accept it.</div>`}
+
+        <!-- #29 · A THREAD FORGED SOMEWHERE ELSE. Seth: "have the add a new thread allow the
+             import if its done correctly." The shape comes off the forge page; the route reads it
+             and writes the card WITH ITS ROOMS, which no other import path in this app can do.
+             Admin-only would be wrong here: the page that hands out the format is a workbench, but
+             a card in that format is just a card. -->
+        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or paste one in</div>
+        <textarea class="field" data-pastebox placeholder="Paste JSON from the forge &mdash; one card, or a list of them"
+          style="min-height:74px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
+        <button class="btn ghost" data-pastethread="1">Read it and add</button>
+        <div class="hint">This lands straight in the ledger with its rooms, rather than going to the
+          proposals queue &mdash; you wrote it elsewhere, so it is yours already. The prompt that
+          produces this shape is on ${SRV.admin ? 'The forge' : 'the forge page'}.</div>
 
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or read the chapter</div>
         <button class="btn ghost" data-loreread="1">Scan ${esc(V.currentChapter.title || `chapter ${V.currentChapter.index}`)} for facts</button>
@@ -4138,6 +4167,50 @@ const ART = [
 ];
 
 const WPAGES = {
+  /** THE FORGE. Prompts to hand a different model, so what it writes drops into this app whole.
+   *
+   *  Seth, 2026-08-30: "the prompts should say that what it is and what format it should be written
+   *  so i can use another ai to forge these thing and have the ouput be perfect for my system."
+   *
+   *  The text is built SERVER-SIDE from `src/slots.ts`, so the rooms a character prompt names are
+   *  the rooms the database has. A copy of that list in here is the drift `slots.ts` exists to stop,
+   *  and this page is exactly where it would have been written.
+   *
+   *  One open at a time. Five prompts of this length rendered flat is a wall nobody reads, and the
+   *  press that matters is Copy, not scroll. */
+  forge() {
+    if (FORGE === null && !S.forgeBusy) { S.forgeBusy = true; loadForge(); }
+    if (FORGE === null) return '<div class="hint">Reading the forge&hellip;</div>';
+    if (!FORGE.length) return `<div class="hint">${esc(S.forgeError ?? 'The forge is the admin\u2019s workbench.')}</div>`;
+    return `<div style="display:flex; flex-direction:column; gap:14px; max-width:760px">
+      <div class="hint" style="margin:0">Hand one of these to any model you like, then bring the
+        answer back. The two card prompts come back as JSON that <strong>+ Thread</strong> reads
+        directly, rooms and all; the other three come back as text you paste into the fields
+        yourself. The rooms named below are read from this database, so they cannot go stale.</div>
+      ${FORGE.map((f) => {
+        const open = S.forgeOpen === f.key;
+        return `<div class="card" style="gap:0; padding:0; overflow:hidden">
+          <button data-forgeopen="${esc(f.key)}" style="display:flex; align-items:baseline; gap:11px;
+            width:100%; text-align:left; padding:13px 15px; background:transparent">
+            <span style="font-size:14.5px; color:${open ? 'var(--gold-lit)' : 'var(--ink-bright)'}">${esc(f.title)}</span>
+            <span style="flex:1; min-width:0; font-size:11.5px; color:var(--faint); overflow:hidden;
+              text-overflow:ellipsis; white-space:nowrap">${esc(f.what)}</span>
+            <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; color:var(--label);
+              font-variant-caps:all-small-caps">${open ? 'close' : 'read'}</span>
+          </button>
+          <div style="display:flex; gap:8px; padding:0 15px 13px">
+            <button class="btn ghost" data-forgecopy="${esc(f.key)}"
+              style="width:auto; padding:0 18px; height:34px">Copy the prompt</button>
+          </div>
+          ${open ? `<pre style="margin:0; padding:13px 15px; border-top:1px solid var(--line);
+            background:var(--rail); font-size:11.5px; line-height:1.55; color:var(--mute);
+            white-space:pre-wrap; word-break:break-word; max-height:52vh; overflow-y:auto"
+            >${esc(f.prompt)}</pre>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  },
+
   /** What changed, in the writer's words. Anansi writes it from the commit log and it is cached on
    *  the commit it was written from, so it updates itself on every commit with no hook and no build
    *  step. The fetch is fired from the render the way the cross-book ledger's is, guarded so an
@@ -4596,6 +4669,17 @@ async function loadNews() {
   drawPage();
 }
 
+/** The forge's prompts, once per session. A REFUSAL IS AN ANSWER: the route says no to anyone who
+ *  is not the admin, and an empty list is how that reaches the page — which is why FORGE starts at
+ *  null and not at [], because "not asked yet" and "asked and told no" are different screens. */
+async function loadForge() {
+  const r = await api.forge();
+  S.forgeBusy = false;
+  S.forgeError = r.error ?? null;
+  FORGE = r.error ? [] : (r.prompts ?? []);
+  drawPage();
+}
+
 async function loadLedger() {
   const r = await api.ledger();
   LEDGER = r.error ? [] : (r.entries ?? []);
@@ -4625,7 +4709,7 @@ async function loadLibrary() {
   const r = await api.library();
   if (r.error) return toast(r.error);
   LIB = r.stories ?? [];
-  SRV = { model: r.model ?? null, slot: r.slot ?? null, gen: r.gen ?? {} };
+  SRV = { model: r.model ?? null, slot: r.slot ?? null, gen: r.gen ?? {}, admin: !!r.admin };
   // The server is the authority on your default; the cache was only there to paint before this
   // answered. A writer on a second device gets their own settings rather than the shipped ones.
   if (r.look && Object.keys(r.look).length) { Object.assign(MYLOOK, r.look); cacheMine(); }
@@ -4655,7 +4739,8 @@ async function openStory(id) {
   if (S.models === null) loadModels();   // the Storyteller panel needs the list to offer one
   if (S.prompts === null) loadPrompts();
 
-  SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen };
+  SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen,
+          admin: r.admin === undefined ? SRV.admin : !!r.admin };
   if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
   const a = await api.activity(id);
   if (OPENING !== id) return;                   // and again: this is the second await, not the first
@@ -6962,6 +7047,40 @@ document.addEventListener('click', async (e) => {
   }
   // #20 §4. Rewrites `#seeds` alone, never the page: the form reads its fields off the DOM when
   // Create is pressed, so a repaint here would throw away everything typed above the picker.
+  if (d.forgeopen) { S.forgeOpen = S.forgeOpen === d.forgeopen ? null : d.forgeopen; drawPage(); return; }
+  if (d.forgecopy) {
+    const f = (FORGE ?? []).find((x) => x.key === d.forgecopy);
+    if (!f) return;
+    // Same fallback the chat's draft copy uses: a clipboard write can be refused outright and
+    // saying "Copied." when it was is the toast that lies.
+    try { await navigator.clipboard.writeText(f.prompt); toast(`${f.title} \u2014 prompt copied.`); }
+    catch { toast('Could not reach the clipboard \u2014 open it and copy by hand.'); }
+    return;
+  }
+  /** A FORGED THREAD, PASTED BACK IN. Seth: "have the add a new thread allow the import if its done
+   *  correctly." The route does the reading; this hands it the text and reports what landed.
+   *
+   *  It says what did NOT come through as well as what did. `notes` is the importer's own
+   *  convention for that, and a paste of six cards where one named a room that does not exist is
+   *  the case a bare "6 added" would lie about. */
+  if (d.pastethread) {
+    const box = document.querySelector('[data-pastebox]');
+    const text = box?.value ?? '';
+    if (!text.trim()) return toast('Paste the JSON first.');
+    const r = await whileWorking(t, 'Reading\u2026', () => api.pasteThread(S.storyId, text));
+    if (!r) return;
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    const made = r.made ?? [];
+    const rooms = made.reduce((n, m) => n + m.rooms, 0);
+    S.lore = null; S.entryId = made.length === 1 ? made[0].id : S.entryId;
+    if (made.length === 1) { S.cardView = 'read'; S.panel = 'entry'; }
+    paint(); refreshManifest();
+    toast(`${plural(made.length, 'thread', 'threads')} woven in${
+      rooms ? `, with ${plural(rooms, 'room', 'rooms')}` : ''}.${
+      (r.notes ?? []).length ? ` ${r.notes[0]}` : ''}`);
+    return;
+  }
   if (d.seedpick) {
     const into = S.blank ?? S.spark;
     if (!into) return;

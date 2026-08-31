@@ -10,6 +10,29 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · The forge: build a thread somewhere else and paste it in
+
+### A page of prompts to hand another model
+There is a new page in the menu called The forge. It holds five prompts — a character, a place,
+a premise, the voice, and a cover image — each with a copy button. Hand one to whatever model you
+like, tell it who or what you want, and bring the answer back.
+
+The prompts do the explaining for you: what the thing is in this app, what belongs in each part of
+it, and exactly what shape to answer in. The character and place prompts list the rooms this
+database actually has, read from the database itself, so they cannot go stale as the app changes.
+
+### A character forged elsewhere arrives whole, rooms and all
+The two card prompts come back as JSON, and **+ Thread** has a box to paste it into. It lands
+straight in the ledger — not in the proposals queue, because you wrote it, so it is yours already
+— with its trigger words, whether it is always on, and every room filled: what is always true,
+how they sound, who they are to each other. No other way into this app fills those.
+
+You can paste a whole cast at once. If something in the paste does not fit — a room a place does
+not have, a kind that is not one of the four — it is left out and named rather than quietly filed
+somewhere it does not belong.
+
+The other three prompts come back as text. Paste those into the fields yourself.
+
 ## 2026-08-30 · Starting a book: the cast comes first, and it argues back
 
 ### You say who you are after you know who is in it

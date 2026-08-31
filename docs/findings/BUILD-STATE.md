@@ -216,6 +216,12 @@ silently replaced by the default panel, and the alias was dead code for the one 
 **Two panels are not nav rows** and open by clicking a thing: the ledger entry editor, and history.
 
 **Outside a story — five pages**: My stories, Create a story, Worlds & lorebooks, Import, Preferences.
+**A sixth, admin only, since 2026-08-30**: The forge — five prompts to hand a foreign model, built
+server-side from `src/slots.ts` so the rooms they name are the rooms the database has. Gated on
+`c.admin`, the flag that already decides who may stop the router; the rail row is filtered for
+everyone else and `GET /api/forge` refuses them by name. Its return path is
+`POST /api/thread/paste`, which is NOT admin-gated — the page is a workbench, a card in that shape
+is just a card — and which is the only import in the app that writes a card's rooms.
 
 **The mode set was replaced on 2026-08-24** at Seth's direction: Continue, Speak, Act, Direct,
 Narrate. The measurement above it — all four of Co-Write, Direct, Full Auto and New Scene

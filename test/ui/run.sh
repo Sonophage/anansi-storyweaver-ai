@@ -46,7 +46,7 @@ fresh() {
 # EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
 # green for a scenario nobody asked about — twice, per docs/HANDOFF.md.
 scenarios=${*:-}
-[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard"
+[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge"
 # `model` and `ritual` are excluded from the default set: every step waits on a real generation, so it runs
 # in minutes. Ask for it by name: test/ui/run.sh model
 fail=0
