@@ -33,7 +33,23 @@ const DIRECTIVE = "Sabel crosses the bridge and stops in front of him.";
 // So the fixture is built so the pronoun cannot be ambiguous: one man in the story, and he is the
 // locked one. Every "he", "him" and "his" in the output is Aldis Fen. The cost is that this
 // measures a one-man scene, and prose with two men in it is not covered by it.
-const TITLES = { A: 'LOCK control', B: 'LOCK on' };
+const TITLES = { A: 'LOCK control', B: 'LOCK on',
+  // F51's pair, added 2026-08-31. Both have the lockout ON; they differ only in whether the WRITER
+  // has already written him speaking and acting. Seth: "if the user does indeed write as their own
+  // character the ai takes that as a soft permission and begins to start writing actions and
+  // speech for that character."
+  //
+  // F28 could not see this. Its arms differ by the lockout itself and neither carries a line of his
+  // in the prose, so the case Seth reported was outside the fixture.
+  C: 'LOCK on, writer silent', D: 'LOCK on, writer speaks as him' };
+const LOCKED = new Set(['B', 'C', 'D']);
+// The one difference between C and D. Written through /api/write, so they are the writer's own
+// passages in the recent-prose block, which is where in-context examples outweigh an instruction.
+const WRITER_SPEAKS = new Set(['D']);
+const HIS_OWN = [
+  '"You can tell her I have eleven crowns," Aldis Fen said. "I do not have them today."',
+  'Aldis Fen pushed off the post and stepped out into the rain to meet her, favouring the left knee.',
+];
 
 // ---- the detectors ----
 //
@@ -165,8 +181,11 @@ if (arm === 'setup') {
       'The rain had not stopped for three days. Aldis Fen stood under the fishmonger\'s awning and watched Sabel cross the bridge, unhurried, the way collectors walk when they know where you sleep.',
       'He had counted the coins twice that morning. He counted them again now, in his pocket, by feel. The number did not improve.',
     ]) await j('/api/write', { storyId: made.id, body });
-    // The one difference. Arm A leaves it null, which is every story in the app today.
-    if (k === "B") await j("/api/story", { id: made.id, story: { lockedCharacter: WHO } });
+    // The writer's own lines for him, in arm D only. AFTER the two shared passages, so they are
+    // the most recent prose in the window — which is the position that makes them examples.
+    if (WRITER_SPEAKS.has(k)) for (const body of HIS_OWN) await j('/api/write', { storyId: made.id, body });
+    // Arm A leaves the lockout null, which is every story in the app today. B, C and D set it.
+    if (LOCKED.has(k)) await j("/api/story", { id: made.id, story: { lockedCharacter: WHO } });
     const back = await j(`/api/story?story=${made.id}`, undefined, 'GET');
     console.log(`  ${k}: ${title} — ${made.id}  locked=${JSON.stringify(back.story?.lockedCharacter ?? null)}`);
   }
@@ -177,7 +196,7 @@ if (arm === 'setup') {
 }
 
 if (arm === 'report') {
-  for (const k of ['A', 'B']) {
+  for (const k of (process.env.ARMS ?? 'A,B').split(',')) {
     // RE-SCORED from the stored prose, never from the fields written at generation time. The
     // detectors were wrong twice and both fixes landed after the runs; a report that trusted the
     // stored verdict would have gone on printing the wrong numbers from the right prose, and
@@ -190,7 +209,7 @@ if (arm === 'report') {
     const pc = (f: (r: any) => boolean) => about.length
       ? `${(about.filter(f).length / about.length * 100).toFixed(1)}% (${about.filter(f).length}/${about.length})`
       : 'n/a';
-    console.log(`  ${TITLES[k as 'A' | 'B']}: ${rows.length} usable, ${about.length} NAME him in narration`);
+    console.log(`  ${TITLES[k as keyof typeof TITLES]}: ${rows.length} usable, ${about.length} NAME him in narration`);
     console.log('    (every rate below is a floor — pronouns are not counted. Say "under X%".)');
     console.log(`    told   ${pc((r) => r.told)}`);
     console.log(`    spoke  ${pc((r) => r.spoke)}`);
