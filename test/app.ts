@@ -395,7 +395,13 @@ assert.match(html('page'), /The Ashfall Concordat/);
 ok('one New story button, on the bar, and the shelf does not repeat it');
 
 // ---- now open the story, which is where the field names bit ----
-const click = (dataset: any) => listeners.click?.[0]?.({ target: { closest: () => ({ dataset }) } });
+// The fake carries what `whileWorking` touches as well as the dataset, because a handler behind the
+// in-flight guard reads its own button: `querySelector('.lbl-txt')`, `disabled`, `textContent`. It
+// used to be `{ dataset }` alone, and `spark` joining that guard on 2026-08-30 turned this helper
+// into a TypeError rather than an assertion — a harness too thin to drive the thing it is driving.
+const click = (dataset: any) => listeners.click?.[0]?.({
+  target: { closest: () => ({ dataset, querySelector: () => null, disabled: false, textContent: '' }) },
+});
 // Typing into a box the app watches by id. Two of them redraw only their own list rather than the
 // page — the ledger's search and #20's thread picker — and that is the behaviour being checked.
 const typeIn = (id: string, value: string) => listeners.input?.[0]?.({ target: { id, value } });

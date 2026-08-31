@@ -44,15 +44,19 @@ await page.click('[data-nav="chapter"]');
 await wait(600);
 const chapter = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 for (const [what, re] of [['the chapter name', /Name/], ['how it must end', /must end with/],
-                          ['where the story is going', /Where this is going/],
                           ['what the chapter added', /What this chapter added/],
                           ['the summaries', /Summaries in context/], ['branches', /Branches/],
                           ['and closing it', /End this chapter/]]) {
   ok(`Chapter holds ${what}`, re.test(chapter));
 }
 ok("  and the fields are real inputs, not labels",
-   await page.eval("!!document.querySelector('[data-chapter-title]') && !!document.querySelector('[data-chapter-note]')"
-     + " && !!document.querySelector('[data-story=\"direction\"]')"));
+   await page.eval("!!document.querySelector('[data-chapter-title]') && !!document.querySelector('[data-chapter-note]')"));
+// "Where this is going" was the third row here until 2026-08-30. Asserted GONE rather than dropped
+// from the list above, because a removal nobody checks is a removal that comes back: this box was
+// on two surfaces and in four prompts, and the whole point was that a writer never meets it again.
+ok("  and no longer offers Where this is going, on this panel or any other",
+   !/Where this is going/.test(chapter)
+     && await page.eval("!document.querySelector('[data-story=\"direction\"]')"));
 
 // ---- 3b. The hatch. The prose window closes at the chapter boundary on 2026-08-27, so this is
 // the only way back to a chapter the model has stopped seeing. `keep_whole` had been honoured by
@@ -114,25 +118,34 @@ ok("  and the fields are real inputs, not labels",
   ok(`a thread opens in an editor (${opened})`, !!b2);
   ok(`  and its body is not cut off (${b2 ? b2.chars + " chars, " + b2.client + "px of " + b2.scroll : "no field"})`,
      !!b2 && b2.scroll <= b2.client + 4);
-  // PUT THE PAGE BACK. Section 4 below is written against the Chapter panel and reaches straight
-  // for [data-story="direction"] — this block navigated away, so it found nothing and threw, and
-  // took the remaining 124 assertions with it. A section that moves the page owes the next one the
-  // state it was handed.
+  // PUT THE PAGE BACK. Section 4 below is written against the Chapter panel — this block navigated
+  // away, so it found nothing and threw, and took the remaining 124 assertions with it. A section
+  // that moves the page owes the next one the state it was handed.
+  //
+  // It waited on [data-story="direction"] until that field was removed; the chapter's own beat box
+  // is the thing that is always on this panel now.
   await page.goto(B + "/#" + sid + "/chapter");
-  for (let i = 0; i < 40 && !(await page.visible('[data-story="direction"]')); i++) await wait(250);
+  for (let i = 0; i < 40 && !(await page.visible('[data-chapter-note]')); i++) await wait(250);
 }
 
 // ---- 4. Saving from Chapter must not blank the story. updateStory was a full-row UPDATE, so a
 // panel holding one [data-story] field bound undefined to every other column — the Trajectory
 // panel's Save answered 500 for exactly this reason.
+//
+// THE CASE GOT SHARPER WHEN `direction` WENT. This panel held exactly one [data-story] field and
+// now holds NONE, so its Save sends an EMPTY patch — which is the most extreme version of the same
+// question, and the one a full-row UPDATE would answer by wiping the book. The chapter's own two
+// fields still have to land, or Save on this panel does nothing at all.
 const before = (await story()).story;
-await page.eval("(() => { const el = document.querySelector('[data-story=\"direction\"]');"
-  + " el.value = 'She hands the key over and keeps the debt.'; return 1; })()");
+await page.eval("(() => { const t = document.querySelector('[data-chapter-title]');"
+  + " const n = document.querySelector('[data-chapter-note]');"
+  + " t.value = 'The Debt Falls Due'; n.value = 'She hands the key over and keeps the debt.'; return 1; })()");
 await page.click('[data-savestory="1"]');
 await wait(1200);
 const after = (await story()).story;
-ok(`saving from Chapter lands the field (${JSON.stringify((after.direction || '').slice(0, 34))})`,
-   /keeps the debt/.test(after.direction || ''));
+const ch4 = (await story()).currentChapter ?? {};
+ok(`saving from Chapter lands the chapter's own fields (${JSON.stringify(String(ch4.title || '').slice(0, 34))})`,
+   ch4.title === 'The Debt Falls Due' && /keeps the debt/.test(ch4.authorsNote || ''));
 ok("  and does NOT blank the story it did not mention",
    after.title === before.title && after.genre === before.genre && after.premise === before.premise);
 ok(`  including the ones a select holds (pov ${JSON.stringify(after.pov)}, spice ${after.spice})`,

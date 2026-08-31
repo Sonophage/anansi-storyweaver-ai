@@ -171,37 +171,29 @@ export const MEMORY_SCHEMA = {
  *  Seeded with the description in force, the way MEMORY is and for the same reason: the model has
  *  to judge the card as the book currently has it, not as it was first written.
  *
- *  THE DIRECTION IS THE POINT, and this is the first time `stories.direction` has ever reached
- *  this file — until now it existed only in SPINE, on the prose path. A character who walks off
- *  the page in chapter 7 and is the whole of chapter 30 is offstage, not finished, and the closing
- *  chapter cannot tell you which. Nothing else in the input can either.
+ *  IT ONCE CARRIED `stories.direction` AND NO LONGER DOES. The destination was the only thing in
+ *  the input that could tell an offstage character from a finished one — a character who walks off
+ *  the page in chapter 7 and is the whole of chapter 30 — so it was worth a clause.
  *
- *  MEASURED, AND IT BOUGHT NOTHING SO FAR — F40. `bench/retire.ts` runs both arms, with the
- *  direction and with it blank, and they came back identical: 3 false finishes in 30 chances,
- *  both arms, across TWO placements of this clause (in the rules list, and at the head as a named
- *  veto with the rule restated below). The one card it gets wrong is a PLACE the prose calls
- *  closed — the scan reads a shut building as gone and a person walking away as offstage, and
- *  nothing the writer says about the destination moves either.
+ *  F40 MEASURED THE CLAUSE AND IT BOUGHT NOTHING. `bench/retire.ts` ran both arms, with the
+ *  direction and with it blank, and they came back identical: 3 false finishes in 30 chances, both
+ *  arms, across TWO placements (in the rules list, and at the head as a named veto with the rule
+ *  restated below). The one card it gets wrong is a PLACE the prose calls closed, and nothing the
+ *  writer says about the destination moves that.
  *
- *  It is not deleted on that evidence and the departure is deliberate: F20 removed CANON-REPEAT on
- *  850 generations per arm, and 30 chances is not a comparable foundation for taking out the only
- *  mechanism aimed at this. What the number does buy is that nobody may claim the clause WORKS.
- *  To retire it honestly, re-run at n>=200 per arm with more than one card of the failing shape.
- *  The next thing to try is a rule about places specifically, not another placement of this one.
+ *  The field itself was removed from the app on 2026-08-30 — Seth: *"we can remove the where this
+ *  is going from the app no ones going to use it. ive asked."* So the clause went with it, and F40
+ *  is the reason that costs nothing measurable rather than a hope that it does. The failing shape
+ *  is still open: the next thing to try is a rule about PLACES specifically, which never needed the
+ *  direction to be written.
  *
  *  THE ASYMMETRY IS DELIBERATE AND IT IS THE WHOLE PROMPT. Missing a finished card costs one card
  *  firing a few chapters too long, which F39 priced at a rounding error against the ceiling.
  *  Finishing a card that is merely offstage removes a character from the book with the card still
  *  sitting on screen looking alive. So every rule below leans the same way, and the last line says
  *  so outright. */
-export const RETIRE = (direction: string) =>
-`${direction.trim() ? `WHERE THIS STORY IS GOING, in the writer's own words:
-${direction.trim()}
-
-A card named there is NOT finished. Skip it, whatever this chapter does to it. The writer knows
-the book and this is one chapter of it.
-
-` : ''}Below is a chapter's narration, then the ledger cards this chapter names, each with the
+export const RETIRE =
+`Below is a chapter's narration, then the ledger cards this chapter names, each with the
 description of it that is currently in force.
 
 Name the cards this chapter FINISHED. A card is finished when the narration commits that the
@@ -227,10 +219,7 @@ Rules:
 - IF YOU CANNOT FIND SUCH A SENTENCE, THE CARD IS NOT FINISHED. A sentence about somebody leaving,
   or about a thing being over, or about nobody finding them, is not a sentence about a person
   ending. Leave the card out rather than quoting the nearest thing to it.
-${direction.trim() ? `- A card the writer named at the top, under WHERE THIS STORY IS GOING, is not
-  finished. Leave it out even if this chapter closes its doors, walks it off the page, or says it
-  is over. The writer has already told you it comes back.
-` : ''}
+
 Name nothing rather than guess. An empty answer is the usual answer.`;
 
 /** THE CARD NAMES ARE AN ENUM, built from the candidates the caller is about to offer. The sampler
@@ -477,7 +466,7 @@ export const REVIEW_SCHEMA = {
         properties: {
           // An enum, because the GBNF converter honours enums: a field name the wizard cannot
           // apply is a suggestion that reads as a bug rather than as an idea.
-          field: { type: 'string', enum: ['title', 'premise', 'setting', 'direction'] },
+          field: { type: 'string', enum: ['title', 'premise', 'setting'] },
           // No maxLength, per F25: it closes the string mid-word with the JSON still valid.
           value: { type: 'string' },
           why: { type: 'string' },

@@ -52,7 +52,6 @@ export interface Story {
    *  (`voiceSample`, a specimen of the writer's prose, was here. Removed 2026-08-30, COUNCIL-06
    *  ship 4 — see the note where VOICE is built.) */
   styleNote?: string;
-  direction?: string;      // the destination. Rides SPINE — see PROMPTS rev 2 §3.
   spiceNote?: string | null;   // a written-out register, replacing the level's fixed line
   // The one the model never writes. Null on every story until somebody names one. A NAME rather
   // than an entry id, because a protagonist with no ledger entry is common in second person.
@@ -686,12 +685,18 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     blocks.push({ kind, id, text, tokens: count(text), state: 'included', reason, firedBy });
   };
 
-  // SPINE — reference material at the top. Carries `direction` because a destination
-  // is not a claim about *now*, so SPEC 7.1's argument against permanent bodies holding
-  // temporal facts does not reach it (COUNCIL-03 S5 — the novelist won this).
+  // SPINE — reference material at the top.
+  //
+  // IT CARRIED `direction` UNTIL 2026-08-30 and no longer does. COUNCIL-03 §5 had won it a place
+  // here — a destination is not a claim about *now*, so SPEC 7.1's argument against permanent
+  // bodies holding temporal facts did not reach it — but the field itself came out of the app at
+  // Seth's direction: "no ones going to use it. ive asked." A block cannot carry a box nobody
+  // fills. The column is still in the schema and still holds what two books wrote in it; nothing
+  // reads it.
+  //
   // Anchors are built from parts so that going over the cap shortens the LONG part rather
-  // than deleting the block. Deleting SPINE loses the premise and the destination; deleting
-  // DIRECTIVE loses point of view, register and the chapter's ending.
+  // than deleting the block. Deleting SPINE loses the premise; deleting DIRECTIVE loses point of
+  // view, register and the chapter's ending.
   addAnchor('SPINE', 'spine', [
     // The title stays. F12: dropping it was measured at n=30 per arm and made no difference
     // (96% vs 93% on the passages that named the key, CI [-15, +8]) — and neither arm
@@ -717,7 +722,6 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // what stops either from being cut at all.
     { text: story.premise, keep: true },
     { text: `Setting: ${story.setting}`, keep: false },
-    { text: story.direction ? `Where this is going: ${story.direction}` : '', keep: true },
   ], CAPS.SPINE!);
 
   /** ANANSI READS THE BOOK; SHE DOES NOT WRITE IT.

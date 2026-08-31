@@ -112,15 +112,30 @@ avoid. F15's apparent halving at n=300 was noise.
 {{title}} — {{genre}}
 {{premise}}
 Setting: {{setting}}
-Where this is going: {{direction}}
 ```
 
-**`direction` reaches every prose call, and that is correct.** PLAN-02 §3 and §8 say it "never
-reaches a prose call" and steers only `summary` and `extract`. COUNCIL-03 overruled that — a
-destination is not a claim about *now*, so §7.1's argument against permanent bodies holding
-temporal facts does not reach it. Confirmed by Seth, 2026-08-23. The plan is the stale document.
+**`direction` IS GONE FROM THIS BLOCK, and from the app, since 2026-08-30.** Seth: *"we can remove
+the where this is going from the app no ones going to use it. ive asked."* The box is off the
+new-book steps and off the Chapter panel, and nothing reads `stories.direction` any more — not
+SPINE, not `RETIRE`, not `/api/chapter/propose`, not the spark review's appliable fields.
 
-Title and `premise` and `direction` are `keep: true`; **`Setting:` is the part that shortens** when
+The history matters because this line moved twice. PLAN-02 §3 and §8 said it "never reaches a prose
+call" and steered only `summary` and `extract`; COUNCIL-03 overruled that on the argument that a
+destination is not a claim about *now*, so §7.1 does not reach it, and Seth confirmed it on
+2026-08-23. That was true until the field was removed for a reason neither document anticipated:
+not that it was in the wrong block, but that writers do not fill it in.
+
+**The column was kept.** Two books in the live library had written in it, and deleting a column here
+is the awkward direction of a migration. It is retained data with no reader, marked `ponytail:` in
+`src/db.ts`. Two checks hold that line: `test/engine.ts` builds a story row that still carries a
+destination and asserts SPINE does not, and `test/web.ts` asserts no surface offers the field.
+
+`RETIRE` lost its copy of it in the same change, and **F40 is why that cost nothing measurable.**
+`bench/retire.ts` ran both arms at 30 chances — with the direction and with it blank — and they came
+back identical: 3 false finishes either way, across two placements of the clause. The failing shape
+is a PLACE the prose calls closed, and nothing the writer said about the destination moved it.
+
+Title and `premise` are `keep: true`; **`Setting:` is the part that shortens** when
 SPINE exceeds its **1000**-token cap. Anchors are shortened, never deleted.
 
 **The cap went 400 → 1000 on 2026-08-30, and it was not a preference.** At 400 it was cutting a live

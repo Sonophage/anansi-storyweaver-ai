@@ -195,7 +195,7 @@ The desk and phone surfaces are gone — one responsive `app.html` replaced both
 | | holds |
 |---|---|
 | **Story** | the book: title, genre, premise, setting, point of view, who you are, style, register, export, delete |
-| **Chapter** | the one you are writing: its name, how it must end, where the story is going, what it proposed for the ledger, the summaries in context, its branches, and closing it |
+| **Chapter** | the one you are writing: its name, how it must end, what it proposed for the ledger, the summaries in context, its branches, and closing it. *"Where this is going" was the third row until 2026-08-30, when the field came out of the whole app* |
 | **Threads** | every card in this story, grouped by kind — characters, lore, items, rules |
 | **Context** | what the model is about to be sent, and why each block is in or out |
 | **Search** | prose, entries and summaries |

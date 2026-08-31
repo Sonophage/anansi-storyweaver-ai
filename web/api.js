@@ -81,7 +81,15 @@ export const api = {
   // #21 §2. The cast, asked for separately and only for the kinds the writer wants. It carries
   // the skeleton AS IT STANDS, so the cast belongs to the book on screen rather than to the
   // sentence it started from — which is also what makes asking twice a re-roll.
-  sparkCastCall: (kinds, story)  => j('/api/spark/cast', 'POST', { kinds, story }),
+  //
+  // `steer` is the writer's own line about what this cast should be. `replacing` names the cards
+  // that are staying put, which is what turns the same call into a ONE-CARD re-roll: ask for one
+  // kind, say who is already taken, splice the answer in.
+  sparkCastCall: (kinds, story, steer, replacing) =>
+    j('/api/spark/cast', 'POST', { kinds, story, steer, replacing }),
+  // The house style before the book exists. Same prompt as `styleNote`, which reads it off a story
+  // that has been created; this one is handed the two facts directly.
+  sparkStyle:   (genre, premise) => j('/api/spark/style', 'POST', { genre, premise }),
   // #21 §3 step 5. Reads the whole skeleton back and says what it would change. Proposes
   // only — there is no story yet for it to write to.
   sparkReview:  (story, entries) => j('/api/spark/review', 'POST', { story, entries }),

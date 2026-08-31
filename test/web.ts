@@ -66,7 +66,13 @@ const ok = (m: string, fn?: unknown) => {
   // one that can run before every commit. Falsify by unwrapping any one of the five: the handler
   // whose name is dropped is printed, not a count.
   {
-    const guarded = ['summarize', 'extract', 'refinished', 'remember', 'invent'];
+    // `spark` and `acceptSpark` joined this list on 2026-08-30, which is the day they became true.
+    // They were the two Council 09 §1 flagged and nobody had read, and reading them found no guard
+    // at all: a double press on Accept sent two POST /api/stories and created TWO BOOKS. They were
+    // deliberately kept OUT of this list while that was so — naming a handler here without reading
+    // it is how a check comes to report perfection — and they are in it now because they are fixed.
+    const guarded = ['summarize', 'extract', 'refinished', 'remember', 'invent',
+                     'spark', 'acceptSpark'];
     const loose = guarded.filter((k) => {
       const m = new RegExp(`if \\(d\\.${k}[^\n]*\\)[\\s\\S]{0,900}?api\\.\\w+\\(`).exec(js);
       return !m || !/whileWorking\(/.test(m[0]);
@@ -75,6 +81,61 @@ const ok = (m: string, fn?: unknown) => {
       'a button that calls the model must go through whileWorking(), or a second press is a second '
       + 'request and the router answers 500 rather than queueing');
     ok(`${guarded.length} model calls from a button, every one behind the in-flight guard`);
+  }
+
+  // #28 · THE WIZARD GUARDS ITS OWN, THROUGH STATE RATHER THAN THROUGH whileWorking().
+  //
+  // Two idioms, and which one is right depends on whether the panel repaints mid-call. The wizard
+  // repaints — every one of these calls ends in paint() — so a disabled attribute written by
+  // whileWorking would be thrown away by the next render. They hold a flag on S.spark instead and
+  // return early on re-entry, and the button reads that flag for its own disabled state.
+  //
+  // `spark` AND `acceptSpark` ARE DELIBERATELY NOT ON THIS LIST, and that is not an oversight to be
+  // tidied by adding them. Both were read on 2026-08-30 answering docs/checklist.md's open item:
+  // NEITHER GUARDS. A double press on "Accept and start writing" sends two requests and creates two
+  // stories. Naming them here would make this check report perfection over a live defect, which is
+  // the exact failure that item was written about. They belong in the list on the day they are
+  // fixed and not before.
+  //
+  // IT LOOKS FOR THE EARLY RETURN, NOT FOR THE FLAG. The first version of this check searched the
+  // window for `S.spark.<flag>` and passed with the guard deleted, because the line that SETS the
+  // flag two statements later matched it just as well. Falsified by unwrapping `sprecast`: it
+  // stayed green. A check that cannot go red is decorative.
+  {
+    const spark: [string, string][] = [
+      ['spwritecast', 'if (d.spwritecast) {'],
+      ['spreroll', 'if (d.spreroll) {'],
+      ['spreview', 'if (d.spreview) {'],
+      ['sprecast', 'if (d.sprecast !== undefined) {'],
+      // Its handler is one line and delegates; the guard lives in the function, with the call.
+      ['spstyle', 'async function sparkStyle('],
+    ];
+    const loose = spark.filter(([k, start]) => {
+      const at = js.indexOf(start);
+      if (at < 0) return true;
+      const call = js.indexOf('api.', at);
+      if (call < 0) return true;
+      return !/if \([^)]*S\.spark[^)]*\) return;/.test(js.slice(at, call));
+    }).map(([k]) => k);
+    assert.deepStrictEqual(loose, [],
+      'a wizard button that calls the model must return early while one of its own calls is in '
+      + 'flight — the router does not queue, and this panel repaints, so the guard has to be state');
+    ok(`${spark.length} model calls in the wizard, every one guarded through S.spark`);
+  }
+
+  // #28 · "WHERE THIS IS GOING" STAYS GONE. It was on two panels and in four prompts, and it came
+  // out of all of them on 2026-08-30 — Seth: "no ones going to use it. ive asked."
+  //
+  // The COLUMN was kept, so the live library still holds two books that wrote in it, and that is
+  // what makes a static check worth having: the data is still there to be read back by accident.
+  // test/engine.ts asserts the prompt half from the other end — a story row carrying a destination
+  // whose SPINE does not.
+  {
+    const surfaces = [...js.matchAll(/data-(?:story|sp|bf)="direction"/g)].map((m) => m[0]);
+    assert.deepStrictEqual(surfaces, [], 'no surface may offer the destination field again');
+    assert.ok(!/'direction'/.test(read('web/model.js')),
+      'and STORY_FIELDS must not list it, or the Story panel grows the box back');
+    ok('the destination field is gone from every surface, and the column is retained data');
   }
 
   // COUNCIL 09 §7 · NOTHING IN THE APP IS SMALLER THAN 11px. The floor was 9.5px in all-small-caps

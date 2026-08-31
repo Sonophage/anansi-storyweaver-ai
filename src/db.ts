@@ -267,7 +267,13 @@ CREATE TABLE IF NOT EXISTS stories (
   title TEXT NOT NULL, genre TEXT, premise TEXT, setting TEXT, pov TEXT,
   persona TEXT,              -- who you are in it. The "You · Ilva Marren" byline.
   locked_character TEXT,     -- the one the model never writes. See migrate().
-  writing_style TEXT, direction TEXT, spice INTEGER DEFAULT 2,
+  writing_style TEXT,
+  -- ponytail: "direction" is RETAINED DATA AND NOTHING READS IT. The Where this is going box came
+  -- out of every surface and every prompt on 2026-08-30 — Seth: "no ones going to use it. ive
+  -- asked." The column stays because two books in the live library had written in it and deleting
+  -- a column here is the awkward direction of a migration (see the note above). Ceiling: it is
+  -- write-only dead weight on the row. Upgrade path: drop it once nobody wants the text back.
+  direction TEXT, spice INTEGER DEFAULT 2,
   max_context INTEGER,
   status TEXT DEFAULT 'in_progress',   -- in_progress | finished | draft
   active_branch TEXT,                  -- which path you are writing on

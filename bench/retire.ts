@@ -36,6 +36,11 @@ import { RETIRE, retireSchema } from '../src/prompts.ts';
  *  finished, and the gate should refuse it before the model ever sees it. */
 type Label = 'finished' | 'offstage' | 'background' | 'changed';
 interface Card { title: string; body: string; keys: string[]; kind: Entry['entryType']; label: Label }
+// `direction` is FIXTURE PROSE ONLY since 2026-08-30. It used to be the A/B arm — RETIRE carried
+// the writer's destination and this harness measured whether that helped. F40 says it did not, and
+// the clause was deleted with the field. It is kept on the cases because it is what each scenario
+// IS about in one line, and because a later arm aimed at the same failure will want somewhere to
+// say so. Nothing reads it into a prompt; the check below asserts that.
 interface Case { name: string; direction: string; chapter: string; cards: Card[] }
 
 const entryOf = (c: Card): Entry => ({
@@ -186,9 +191,13 @@ if (process.argv[2] === 'check') {
   ok('an empty answer is a miss and not a pass',
      JSON.stringify(score(one, [])) === JSON.stringify({ recall: 0, wrong: 0 }));
 
-  // The direction arm has to be a real arm, or the with/without comparison compares one thing.
-  ok('the direction reaches the prompt when there is one', RETIRE(one.direction).includes(one.direction));
-  ok('  and the blank arm carries no trace of it', !RETIRE('').includes('WHERE THIS STORY IS GOING'));
+  // THE CLAUSE IS GONE AND MUST STAY GONE. This was two checks proving the A/B arms differed; it is
+  // one check that the arm which lost has not grown back. RETIRE is a plain string now, so calling
+  // it would throw — which is the loudest possible version of this check and the reason the harness
+  // could not have been left as it was.
+  ok('the prompt carries no destination clause and never names one',
+     typeof RETIRE === 'string' && !RETIRE.includes('WHERE THIS STORY IS GOING')
+       && !RETIRE.includes(one.direction));
 
   // A grammar, not a suggestion: the card names are an enum, which is why the report can score on
   // exact titles and the route needs no fuzzy matcher.
@@ -210,12 +219,16 @@ const RUNS = Number(process.argv[2] ?? 3);
 
 const pad = (s: any, n: number) => String(s).padEnd(n).slice(0, n);
 let gateDropped = 0;
+// ONE ARM. It was two until 2026-08-30 — with the writer's destination in the prompt and without —
+// and F40 measured them identical at 30 chances each, across two placements of the clause. The
+// field has since been removed from the app, so there is nothing left to compare and the number
+// that mattered was never the comparison: it is the false-finish rate, which is what a rule aimed
+// at the open failure would have to beat.
 const arms: Record<string, { recall: number; recallOf: number; wrong: number; wrongOf: number }> = {
-  'with the direction': { recall: 0, recallOf: 0, wrong: 0, wrongOf: 0 },
-  'without it':         { recall: 0, recallOf: 0, wrong: 0, wrongOf: 0 },
+  'as shipped': { recall: 0, recallOf: 0, wrong: 0, wrongOf: 0 },
 };
 
-console.log(`\n  RETIRE — ${RUNS} run${RUNS === 1 ? '' : 's'} per case per arm,`
+console.log(`\n  RETIRE — ${RUNS} run${RUNS === 1 ? '' : 's'} per case,`
   + ` ${CASES.length} cases, no database\n`);
 
 for (const c of CASES) {
@@ -233,14 +246,14 @@ for (const c of CASES) {
     + ` — ${admittedFinished.length} finished, ${admittedLive.length} live`
     + (dropped.length ? `  GATE DROPPED A FINISHED CARD: ${dropped.map((d) => d.title).join(', ')}` : ''));
 
-  for (const [arm, dir] of [['with the direction', c.direction], ['without it', '']] as const) {
+  for (const arm of ['as shipped'] as const) {
     let recall = 0, wrong = 0, invalid = 0;
     // WHICH card, not just how many. "It finished one live card" and "it finished a different one
     // every run" are different defects with different fixes, and a rate cannot tell them apart.
     const culprits = new Map<string, number>();
     for (let i = 0; i < RUNS; i++) {
       const inForce = cands.map((e) => `${e.title}: ${e.body}`).join('\n\n');
-      const r = await structured(RETIRE(dir), `${c.chapter}\n\n---\n\n${inForce}`,
+      const r = await structured(RETIRE, `${c.chapter}\n\n---\n\n${inForce}`,
         retireSchema(titles), { max_tokens: 400 });
       const named: string[] = (r.data?.finished ?? []).map((f: any) => String(f?.card ?? ''));
       // A name that was never offered means the sampler is not honouring the enum, and then every
@@ -273,8 +286,11 @@ console.log(`\n  THE FALSE-FINISH NUMBER IS THE ONE THAT DECIDES THIS, not recal
 console.log(`  everything scores full recall. Missing a finished card costs one card firing a few`);
 console.log(`  chapters too long; finishing a live one removes a character from the book with the`);
 console.log(`  card still on screen looking alive.`);
-console.log(`\n  If the two arms match, the direction clause in RETIRE is decoration and the honest`);
-console.log(`  move is to delete it — F20 is the precedent, and it deleted a whole block.`);
+console.log(`\n  F40 ran this as an A/B on the writer's destination and the two arms matched, so the`);
+console.log(`  clause was decoration and it was deleted with the field on 2026-08-30 — F20 is the`);
+console.log(`  precedent, and it deleted a whole block. WHAT IS STILL OPEN is the failing shape: a`);
+console.log(`  PLACE the prose calls closed. A rule about places is the next thing to try, and this`);
+console.log(`  number is what it has to beat.`);
 console.log(`\n  Ceilings: the fixture is not this writer's prose; the labels are one reader's`);
 console.log(`  judgement of what "finished" means; and the gate is per chapter, so a card the`);
 console.log(`  closing chapter never names is out of scope for this feature entirely.\n`);

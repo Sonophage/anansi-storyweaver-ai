@@ -285,6 +285,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
   'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
+  // #28. One card re-rolled rather than the whole cast, and the house style written from the
+  // genre before the book exists.
+  'sprecast', 'spstyle',
   'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
@@ -1933,7 +1936,7 @@ const PANELS = {
       ${rows.map((r) => `<option value="${esc(r)}" ${r === current ? 'selected' : ''}>${esc(r)}</option>`).join('')}
       ${current && !rows.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)} — not a thread</option>` : ''}
     </select>`;
-    const fields = STORY_FIELDS.filter((f) => !['direction', 'setting', 'pov', 'persona'].includes(f.k));
+    const fields = STORY_FIELDS.filter((f) => !['setting', 'pov', 'persona'].includes(f.k));
     return `<div style="display:flex; flex-direction:column">
       <button class="btn" data-savestory="1" style="margin-bottom:22px">Save</button>
       <div class="lbl" style="letter-spacing:.1em; margin-top:0">The cover</div>
@@ -2120,10 +2123,6 @@ const PANELS = {
       <label class="lbl">This chapter must end with</label>
       <textarea class="field" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
       <div class="hint">Reaches the model as the chapter's brief. It is not shown to the reader.</div>
-      <label class="lbl">Where this is going</label>
-      <textarea class="field serif" data-story="direction" style="font-style:italic; font-size:15.5px;
-        min-height:96px; line-height:1.6">${esc(V.story.direction ?? '')}</textarea>
-      <div class="hint">Aims the story without disclosing it. Never restated to the reader.</div>
       <button class="btn" data-savestory="1" style="margin-top:14px">Save</button>
       <button class="btn ghost" data-ritual="1" style="margin-top:10px">End this chapter</button>
       <div class="hint">Opens the chapter's own screen, where it closes.</div>
@@ -2707,13 +2706,27 @@ function searchHits() {
  *
  *  Accept stays on every step, which is Seth's own call from the five-step version: everything is
  *  prefilled, so gating eight screens would turn one press into eight. */
+/** THE CAST IS SET BEFORE YOU SAY WHO YOU ARE IN IT. Seth, 2026-08-30: *"the who you never speak
+ *  as and the who you are should come AFTER the cast has been set."*
+ *
+ *  This reverses a decision that was written down and argued for on the old step 3 — that who you
+ *  play is a decision about the book rather than a pick from a list somebody else wrote. The
+ *  argument was not wrong about what the writer is deciding; it was wrong about the order that
+ *  makes deciding it easy. `persona` and `locked_character` are stored as NAMES (`src/db.ts`), and
+ *  a name typed before the cast exists is a name the server then has to police and often drop —
+ *  `db.pinCast` nulls both when they match nobody, and the accept toast exists to say so.
+ *
+ *  Asking after the cast makes the usual answer a pick over a list that is already right, and the
+ *  cast call proposes both itself, so the field arrives filled. Typing a name is still reachable:
+ *  skip the cast step and both fall back to free text, which is the shape a book with no ledger
+ *  has. */
 const STEPS = [
   ['Your idea', 'The sentence this came from.'],
   ['The book', 'What it is, and how the prose sounds.'],
-  ['You', 'Who you play, and how it is told.'],
   ['The cast', 'What this book needs, if anything.'],
+  ['You', 'Who you play, out of the cast you just set.'],
   ['A second look', 'Anansi reads it back and says what she would change.'],
-  ['The first scene', 'Where it opens, and what the book is aiming at.'],
+  ['The first scene', 'Where it opens.'],
   ['The opening', 'Who writes the first passage.'],
   ['Begin', 'What gets written when you accept.'],
 ];
@@ -2727,7 +2740,12 @@ function harvestSpark() {
     // #21 §3 step 1. The idea is not a field of the STORY — it is what the story was asked for
     // from, and every re-roll sends exactly it. Writing it into `story` would carry a column
     // nobody has to POST /api/stories and lose the one thing a re-roll needs.
-    if (k === 'idea') { S.spark.idea = el.value; continue; }
+    //
+    // `castSteer` is the same kind of thing: the writer's line about what the cast should be, sent
+    // with the cast call and never with the book. It is held in state rather than read off the DOM
+    // at press time the way `inventTray` reads its own — the cast step repaints on every kind chip,
+    // and a repaint would eat what was typed.
+    if (k === 'idea' || k === 'castSteer') { S.spark[k] = el.value; continue; }
     S.spark.story[k] = k === 'spice' ? Number(el.value) || 2 : el.value;
   }
   for (const c of document.querySelectorAll('[data-spcast]')) {
@@ -2762,6 +2780,46 @@ function harvestSpark() {
 const sparkCast = () => (S.spark?.entries ?? [])
   .filter((e) => e.keep !== false && (e.title ?? '').trim());
 
+/** #28 · WRITE THIS BOOK'S HOUSE STYLE FROM ITS GENRE AND PREMISE.
+ *
+ *  The Story panel has had this since #18 (`data-restyle`), reading the two facts off a story that
+ *  exists. In the wizard there is no story, so `POST /api/spark/style` is handed them directly —
+ *  same prompt, same schema, one definition of what a style note is.
+ *
+ *  `auto` is the once-only fill on arriving at the step. It differs from a press in two ways only:
+ *  it says nothing when it succeeds, and it says nothing when it fails. A box that filled itself is
+ *  not an event, and an autofill nobody asked for that could not reach the router is not a problem
+ *  the writer has — the button is still there, and pressing it will say what went wrong.
+ *
+ *  IT FILLS THE BOX AND SAVES NOTHING, which is the rule everywhere in this app that a model writes
+ *  into a field. There is no story to save to yet either. */
+async function sparkStyle(auto) {
+  if (!S.spark || S.spark.styling) return;
+  const s = S.spark.story ?? {};
+  const genre = String(s.genre ?? '').trim();
+  const premise = String(s.premise ?? '').trim();
+  if (!genre && !premise) {
+    if (!auto) toast('Give it a genre or a premise first — it writes the style from those two.');
+    return;
+  }
+  // Set BEFORE the await and only cleared after it: this is what stops the once-only autofill
+  // firing again on the repaint the call itself causes.
+  S.spark.styling = true;
+  if (auto) S.spark.styled = true;
+  // NO PAINT ON THE AUTO PATH. The autofill is called FROM the render, so painting here would be a
+  // paint inside a paint — the inner one writes the DOM and the outer one immediately overwrites it
+  // with the string it was already building. Nothing needs to look busy for a call nobody pressed,
+  // and the paint after the answer is the one that matters. A press repaints, so its button can go
+  // dead while it waits.
+  if (!auto) paint();
+  const r = await api.sparkStyle(genre, premise);
+  S.spark.styling = false;
+  if (r.error || !r.style) { paint(); if (!auto) toast(r.error ?? 'nothing usable came back'); return; }
+  S.spark.story.styleNote = r.style;
+  paint();
+  if (!auto) toast('Written. Read it, change it &mdash; nothing is saved until you accept.');
+}
+
 function sparkReview() {
   const s = S.spark.story ?? {};
   const step = S.sparkStep ?? 1;
@@ -2778,8 +2836,30 @@ function sparkReview() {
     </select>${hint ? `<div class="hint">${hint}</div>` : ''}`;
 
   const cast = sparkCast();
+  // ONE BUSY FLAG FOR THE WHOLE STEP. The router does not queue — two concurrent calls fit and a
+  // third kills both with HTTP 500 — so a button that is not the one you pressed still has to go
+  // dead while a call is out.
+  const busy = !!(S.spark.casting || S.spark.sparking || S.spark.styling
+                  || S.spark.recasting !== null && S.spark.recasting !== undefined);
+
+  // #28 · TWO THINGS THIS STEP NEEDS BEFORE IT CAN DRAW. Both fire from the render and both are
+  // once-only, which is the shape `nameChapter` already uses for the chapter's two fields.
+  //
+  // The style autofill is a model call the writer did not press for, and #24 is the standing
+  // argument against those. It is allowed here for the reason the chapter's is: this box is EMPTY
+  // on a screen the writer did not open on, and an empty box on a step you are passing through is
+  // a box that stays empty. `styled` is set inside `sparkStyle` before its await, so the repaint it
+  // causes cannot start a second one.
+  if (step === 2 && !S.spark.styled && !S.spark.styling && !(s.styleNote ?? '').trim()
+      && ((s.genre ?? '').trim() || (s.premise ?? '').trim())) sparkStyle(true);
+  // The library, for the picker on the cast step. `loadLedger` paints when it lands.
+  if (step === 3 && LEDGER === null) loadLedger();
+  // `busy` and not `sparking` alone: step 2 carries TWO model buttons now — this one and the house
+  // style — so a re-roll pressed while the style is being written would be a second concurrent call
+  // on a router that does not queue. The style button already read the shared flag; this is the
+  // other direction of the same rule.
   const reroll = (label) => S.spark.idea
-    ? `<button class="btn ghost" data-spreroll="1" ${S.spark.sparking ? 'disabled' : ''}
+    ? `<button class="btn ghost" data-spreroll="1" ${busy ? 'disabled' : ''}
         style="margin-top:6px">${S.spark.sparking ? 'Thinking&hellip;' : esc(label)}</button>` : '';
 
   const body = step === 1
@@ -2806,17 +2886,25 @@ function sparkReview() {
        </div>` : ''}
        ${area('styleNote', 'How this book is written', s.styleNote,
          "This book's genre flavour, kept apart from the voice: romance and science fiction are not "
-         + 'the same writing style. It gets its own block under the voice.', 80)}`
-    : step === 3
-    // 3 · YOU. Before the cast, on purpose — who you play is a decision about the book, not a pick
-    // from a list somebody else wrote. With no cast yet both are free text; once there is one they
-    // become a pick over it, and what you typed is still on offer.
+         + 'the same writing style. It gets its own block under the voice.', 80)}
+       <!-- #28. Anansi fills this once, on arriving here with a genre and a premise and an empty
+            box, then never again unasked — the same bargain the chapter's two fields make. The
+            button is the other half of "be able to be rerolled to fit the story", and neither
+            saves: this is a skeleton and nothing here is written until Accept. -->
+       <button class="btn ghost" data-spstyle="1" ${busy ? 'disabled' : ''}
+         style="margin:-4px 0 10px; font-size:11.5px">${S.spark.styling ? 'Thinking&hellip;'
+           : s.styleNote ? 'Write another' : 'Have Anansi write it'}</button>`
+    : step === 4
+    // 4 · YOU. AFTER the cast, at Seth's direction — see the note on STEPS. The usual answer is now
+    // a pick over a list that is already right, and the cast call proposes both, so the fields
+    // arrive filled. Skip the cast and both fall back to free text, which is the shape a book with
+    // no ledger has and the only way this branch is now reached.
     ? `${cast.length
         ? pickOne('persona', 'You are', cast.map((e) => e.title), s.persona, 'Nobody — narrate only',
             'The character you speak as in Speak mode.')
         : row('persona', 'You are', s.persona,
-            'The character you speak as in Speak mode. Name them now or leave it — the cast '
-            + 'comes next, and this becomes a pick over it.')}
+            'The character you speak as in Speak mode. You set no cast, so name them here or '
+            + 'leave it empty.')}
        ${cast.length
         ? pickOne('lockedCharacter', 'The model never writes', cast.map((e) => e.title),
             s.lockedCharacter, 'Nobody — it may write everyone',
@@ -2838,8 +2926,16 @@ function sparkReview() {
          `<option value="${i + 1}" ${Number(s.spice) === i + 1 ? 'selected' : ''}>${i + 1} &middot; ${esc(l)}</option>`).join('')}</select>
        <div class="hint">Changeable per story at any time, and a written-out register can replace the
          level entirely under Story.</div>`
-    : step === 4
-    // 4 · THE CAST, and only the kinds this book needs. #21 §2 made it its own call.
+    : step === 3
+    // 3 · THE CAST, and only the kinds this book needs. #21 §2 made it its own call.
+    //
+    // #28 · THREE THINGS WERE ADDED HERE 2026-08-30, all from one sentence of Seth's: *"i should
+    // be able to reroll characters or direct it based on my input. also i should be abel to set up
+    // lore books or pull from already existing lore if i want to pull that information."*
+    //
+    // The steer, a re-roll on each card, and the library. Setting up a lore book needed nothing
+    // new — `lore` has been one of the kind chips since #21 §2, so asking for places instead of
+    // people was already a press.
     ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px">
          ${KINDS.map((k) => {
            const on = (S.spark.kinds ?? ['character']).includes(k);
@@ -2849,12 +2945,17 @@ function sparkReview() {
              color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(KIND_PLURAL[k] ?? k)}</button>`;
          }).join('')}
        </div>
-       <button class="btn ghost" data-spwritecast="1" ${S.spark.casting ? 'disabled' : ''}
+       ${area('castSteer', 'What this cast should be', S.spark.castSteer ?? '',
+         'Optional, and it reaches every ask on this step &mdash; the whole cast and any one card '
+         + 'you re-roll. Name what the book needs from them: a rival who is family, nobody over '
+         + 'thirty, a city that is a character.', 56)}
+       <button class="btn ghost" data-spwritecast="1" ${busy ? 'disabled' : ''}
          style="margin-bottom:10px">${S.spark.casting ? 'Writing them&hellip;'
            : S.spark.entries.length ? 'Write a different cast' : 'Write the cast'}</button>
        <div class="hint" style="margin:0 0 10px">${S.spark.entries.length
          ? `${S.spark.entries.length} proposed. Untick anyone you do not want; nothing is written
-            until you accept. Asking again replaces them, and costs the rest of the skeleton nothing.`
+            until you accept. Asking again replaces all of them &mdash; to change one, re-roll that
+            one.`
          : `Pick what this book needs, then ask. A book with no cast is a real answer &mdash;
             skip this step and write them as you go.`}</div>
        ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px; gap:7px">
@@ -2864,9 +2965,22 @@ function sparkReview() {
            <span class="tag" style="flex:0 0 auto">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
          <textarea class="field" data-spbody="${i}" placeholder="[Name: what they are, what they want, what it costs]"
            style="margin:0; min-height:64px; font-size:12.5px; line-height:1.45">${esc(e.body ?? '')}</textarea>
-         <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint)">
-           <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label></div>`).join('')}
-       <button class="btn ghost" data-spadd="1" style="margin-top:6px">&#65291; Write one of your own</button>`
+         <div style="display:flex; align-items:center; gap:8px">
+           <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint)">
+             <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label>
+           <button class="btn ghost" data-sprecast="${i}" ${busy ? 'disabled' : ''}
+             style="margin-left:auto; width:auto; padding:0 13px; height:30px; font-size:11.5px"
+             >${S.spark.recasting === i ? 'Thinking&hellip;' : 'Re-roll this one'}</button>
+         </div></div>`).join('')}
+       <button class="btn ghost" data-spadd="1" style="margin-top:6px">&#65291; Write one of your own</button>
+
+       <!-- #28 · FROM THE BOOKS YOU ALREADY HAVE. The same picker the blank-start form uses, and
+            the same copy on accept, because "db.copyEntry" refuses unless BOTH books are yours and
+            a second copy path is a second place for that check to be forgotten. -->
+       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Or bring threads you already have</div>
+       <input class="field" id="seedq" value="${esc(S.seedQ ?? '')}"
+         placeholder="Search every book for a character, a place, a rule&hellip;">
+       <div id="seeds">${seedList()}</div>`
     : step === 5
     // 5 · A SECOND LOOK. From a button, never on arriving: a model call nobody asked for is what
     // made "what changed" slow, and #24 is the whole argument.
@@ -2896,11 +3010,9 @@ function sparkReview() {
        : `<div class="hint" style="margin:0">She would not change anything. That is a real answer and
           it is the one a skeleton that hangs together gets.</div>`}`
     : step === 6
-    // 6 · THE FIRST SCENE. `direction` already exists and already rides in SPINE; this is the step
-    // that finally asks for it at the moment it means something.
-    ? `${area('direction', 'Where this is going', s.direction,
-         'Aims the story without disclosing it. Never restated to the reader. Safe to leave empty.', 90)}
-       ${row('setting', 'Where it opens', s.setting,
+    // 6 · THE FIRST SCENE. It asked for "Where this is going" as well until 2026-08-30, when that
+    // field came out of the whole app — Seth: "no ones going to use it. ive asked."
+    ? `${row('setting', 'Where it opens', s.setting,
          'Lore written later can replace this. It is the place the first scene stands in.')}
        ${cast.length ? `<div class="hint" style="margin-top:10px">Everyone you kept is in the book
          from the first line &mdash; a spark cast is always-on. Who is in a given SCENE is a
@@ -3932,7 +4044,11 @@ function entryCard(e) {
  *  same trap the ledger's own search box is written around. */
 function seedList() {
   if (LEDGER === null) return '<div class="hint" style="margin:0">Reading your threads&hellip;</div>';
-  const chosen = S.blank?.seed ?? [];
+  // #28. BOTH STARTS USE IT. It was written for the blank form and the spark wizard needed the same
+  // thing — Seth: "i should be abel to ... pull from already existing lore if i want to pull that
+  // information." Only one of the two is ever non-null, so which object holds the picks is the only
+  // difference between them.
+  const chosen = (S.blank ?? S.spark)?.seed ?? [];
   const q = (S.seedQ ?? '').trim().toLowerCase();
   const rows = LEDGER.filter((e) => !q
     || `${e.title} ${e.storyTitle} ${(e.keys || []).join(' ')}`.toLowerCase().includes(q));
@@ -6524,11 +6640,24 @@ document.addEventListener('click', async (e) => {
   if (d.branch) { const r = await api.switchBranch(S.storyId, d.branch); if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); return; }
 
+  /** COUNCIL 09 §1, answered and then fixed. This handler and `acceptSpark` below were the two the
+   *  checklist flagged and nobody had read: both fired a model call — this one — or a WRITE — that
+   *  one — with no in-flight state at all. A second press sent a second request, and the router does
+   *  not queue: two concurrent fit and a third kills both with HTTP 500.
+   *
+   *  `whileWorking` AND NOT A FLAG ON `S`, which is the other idiom in this file. Which one is right
+   *  depends on whether the panel repaints mid-call, and this one does not: nothing here paints
+   *  until the answer is back. So the button can carry its own disabled state, the way `invent` and
+   *  the four chapter-end re-runs do — and `test/web.ts` already asserts that list, so adding a name
+   *  to it is a check rather than a claim.
+   *
+   *  The toast went with it. It said "Spinning…" beside a button that still looked pressable, which
+   *  is the surface telling you to press again. */
   if (d.spark) {
     const idea = $('idea')?.value.trim();
     if (!idea) return toast('Give him a thread first.');
-    toast('Spinning…');
-    const r = await api.spark(idea);
+    const r = await whileWorking(t, 'Spinning…', () => api.spark(idea));
+    if (!r) return;
     if (r.error) return toast(r.error);
     // A skeleton, not a story. It goes on screen to be edited or thrown back.
     // #21 §2. `idea` is KEPT: it is what a re-roll asks again with, and the only retry before this
@@ -6536,6 +6665,20 @@ document.addEventListener('click', async (e) => {
     // asked for, defaulting to characters because that is what the one-call version always gave.
     S.spark = { story: r.story ?? {}, entries: r.entries ?? [], autoOpen: true,
       idea, kinds: ['character'], casting: false, sparking: false,
+      // #28. The writer's line about the cast, sent with every ask on that step. `recasting` holds
+      // the INDEX being re-rolled rather than a boolean, because the button that says "Thinking…"
+      // has to be the one that was pressed.
+      castSteer: '', recasting: null,
+      // The house style: `styling` is the call in flight, `styled` is the once-only autofill having
+      // happened. Two flags, because "asked and came back empty" must not ask again forever.
+      styling: false, styled: false,
+      // Council 09 §1. The create is in flight — declared here rather than sprung into existence in
+      // the handler, because an undefined field is a field nobody can find. It guards the WHOLE of
+      // accept, which outlives the one call `whileWorking` can hold the button for.
+      accepting: false,
+      // Threads picked out of the library, copied in after the book exists. Same shape as the
+      // blank-start form's, which is what lets both share `seedList`.
+      seed: [],
       // #21 §3 step 5. Null until asked for: it fires from a button, and "not asked yet" and
       // "asked, and she would change nothing" are different screens.
       reviewing: false, review: null,
@@ -6563,11 +6706,11 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.spwritecast) {
-    if (S.spark.casting) return;
+    if (S.spark.casting || S.spark.recasting !== null || S.spark.styling) return;
     harvestSpark();
     if (!(S.spark.kinds ?? []).length) return toast('Pick what this book needs first.');
     S.spark.casting = true; paint();
-    const r = await api.sparkCastCall(S.spark.kinds, S.spark.story);
+    const r = await api.sparkCastCall(S.spark.kinds, S.spark.story, S.spark.castSteer);
     S.spark.casting = false;
     if (r.error) { paint(); return toast(r.error); }
     // REPLACES rather than appends: asking again is a different cast for the same book, not more
@@ -6580,7 +6723,54 @@ document.addEventListener('click', async (e) => {
     paint();
     return toast(`${S.spark.entries.length} proposed. Nothing is written until you accept.`);
   }
-  // #21 §3 · STEP 3. Both default to the one you play, which is the usual answer. The COLUMNS
+  /** #28 · ONE CARD RE-ROLLED, and the others left exactly where they are.
+   *
+   *  Seth: *"i should be able to reroll characters or direct it based on my input."* Re-rolling the
+   *  whole cast already existed and is the wrong tool for a cast that is right except for one
+   *  person — it replaces the ones you had already read and kept.
+   *
+   *  NO NEW ROUTE AND NO NEW SCHEMA. `POST /api/spark/cast` is asked for the ONE kind, told which
+   *  names are staying so it does not hand back somebody already on screen, and the first entry it
+   *  returns is spliced in. Everything else about the call is unchanged.
+   *
+   *  PERSONA AND LOCKED CHARACTER ARE NOT TOUCHED. The whole-cast re-roll overwrites both, because
+   *  it decided them; this one has no standing to. If the re-rolled card WAS the persona, the name
+   *  is now stale — `harvestSpark`'s rename propagation does not fire here because the name did not
+   *  change in the box, it was replaced wholesale — so the old name is cleared rather than left
+   *  pointing at somebody who is no longer in the book. */
+  if (d.sprecast !== undefined) {
+    if (S.spark.casting || S.spark.recasting !== null || S.spark.styling) return;
+    harvestSpark();
+    const i = Number(d.sprecast);
+    const was = S.spark.entries[i];
+    if (!was) return;
+    const keptNames = S.spark.entries
+      .filter((e, j) => j !== i && (e.title ?? '').trim())
+      .map((e) => e.title.trim());
+    S.spark.recasting = i; paint();
+    const r = await api.sparkCastCall([was.entryType], S.spark.story, S.spark.castSteer, keptNames);
+    S.spark.recasting = null;
+    if (r.error) { paint(); return toast(r.error); }
+    const one = (r.entries ?? [])[0];
+    if (!one) { paint(); return toast('Nothing came back in that kind.'); }
+    // `keep` rides across: a card you had already ticked off stays ticked off after a re-roll, and
+    // one you had kept stays kept.
+    S.spark.entries = S.spark.entries.map((e, j) => (j === i ? { ...one, keep: e.keep } : e));
+    for (const k of ['persona', 'lockedCharacter'])
+      if (S.spark.story[k] === was.title) S.spark.story[k] = null;
+    S.spark.proposed = (S.spark.proposed ?? []).filter((x) => x !== was.title);
+    paint();
+    return toast(`${one.title} instead. The rest of the cast is untouched.`);
+  }
+  /** #28 · THE HOUSE STYLE, WRITTEN FROM THE GENRE. Seth: *"the genre voice should be autofilled
+   *  and be able to be rerolled to fit the story."*
+   *
+   *  Same call whether it was asked for or filled itself — `auto` only decides what the toast says
+   *  and whether a failure is worth interrupting for. An autofill that could not reach the router
+   *  is not something the writer asked for, so it fails quietly and leaves the box empty and the
+   *  button there. */
+  if (d.spstyle) { harvestSpark(); await sparkStyle(false); return; }
+  // #21 §3 · STEP 4. Both default to the one you play, which is the usual answer. The COLUMNS
   // stay separate — a book with a second lead the writer does not speak as is a real shape, and
   // spark proposes them independently — so this is a press, not a rule.
   if (d.splock) {
@@ -6592,7 +6782,7 @@ document.addEventListener('click', async (e) => {
   // #21 §3 · STEP 5. From a button, never on arriving at the step: a model call nobody asked for
   // is what made "what changed" slow, and #24 is the whole argument.
   if (d.spreview) {
-    if (S.spark.reviewing) return;
+    if (S.spark.reviewing || S.spark.sparking || S.spark.casting || S.spark.styling) return;
     harvestSpark();
     S.spark.reviewing = true; paint();
     const r = await api.sparkReview(S.spark.story, sparkCast());
@@ -6625,7 +6815,7 @@ document.addEventListener('click', async (e) => {
     return toast(`${e.title} added to the cast.`);
   }
   if (d.spreroll) {
-    if (S.spark.sparking) return;
+    if (S.spark.sparking || S.spark.casting || S.spark.recasting !== null || S.spark.styling) return;
     harvestSpark();
     const idea = S.spark.idea;
     if (!idea) return toast('There is no idea to ask again from.');
@@ -6661,7 +6851,30 @@ document.addEventListener('click', async (e) => {
     toast(d.spvoice === 'mine' ? 'Your voice.' : 'The shipped voice.');
     return;
   }
+  /** THE WORST OF THE TWO, because what it repeats is not a model call but a WRITE. Unguarded, a
+   *  double press on "Accept and start writing" sent two `POST /api/stories` and created TWO BOOKS
+   *  — the second one silently, behind the first, with the same title and the same cast. Nothing on
+   *  screen said so, and the shelf is where you would find out.
+   *
+   *  `S.spark` is nulled at the end, so the second press also has nothing left to read: the guard
+   *  covers that too rather than letting it throw partway through a create that already happened.
+   *
+   *  TWO GUARDS, COVERING DIFFERENT HALVES OF THE SAME PRESS. `whileWorking` holds the button while
+   *  `createStory` is in flight, which is the moment the second book gets made — and it releases as
+   *  soon as that call answers, while this handler goes on for several more awaits: a saveStory, one
+   *  copyEntry per picked thread, then loadLibrary and openStory. A press landing in THAT window
+   *  would start a second create with the button no longer busy, so `S.spark.accepting` holds the
+   *  whole sequence.
+   *
+   *  `accepting` is cleared on every failure path, because a create that was refused has to be
+   *  pressable again. It is never cleared on success: `S.spark` is nulled instead, and the
+   *  `!S.spark` test refuses a press arriving after the book is already open.
+   *
+   *  `whileWorking` for the same reason as `spark` above — this screen does not repaint until the
+   *  book is made — and it is in `test/web.ts`'s list now that it is true. */
   if (d.acceptSpark) {
+    if (!S.spark || S.spark.accepting) return;
+    S.spark.accepting = true;
     // From STATE, not from the DOM: accept is available on every step, so most of these fields are
     // not on screen when it is pressed. harvestSpark folds in whatever is.
     harvestSpark();
@@ -6672,27 +6885,55 @@ document.addEventListener('click', async (e) => {
     // check that a blank card never reaches the ledger stayed green with either filter deleted,
     // which is a check proving nothing.
     const keep = sparkCast().map(({ keep: _k, ...e }) => e);
-    const r = await api.createStory({
+    const r = await whileWorking(t, 'Creating&hellip;', () => api.createStory({
       title: s.title || 'Untitled', genre: s.genre, premise: s.premise,
       setting: s.setting, pov: s.pov, spice: Number(s.spice) || 2,
-      writingStyle: s.writingStyle, styleNote: s.styleNote, direction: s.direction,
+      writingStyle: s.writingStyle, styleNote: s.styleNote,
       persona: s.persona || null, lockedCharacter: s.lockedCharacter || null,
       // Only what Anansi proposed is policed server-side. A name typed here is never dropped.
       proposedCast: S.spark.proposed ?? [],
       entries: keep,
-    });
-    if (r.error) return toast(r.error);
+    }));
+    // `whileWorking` answers null on a re-entrant press and the state guard above should already
+    // have refused it — this is the belt to that braces, and it must not clear `accepting`, or the
+    // press that IS working would be unguarded from here on.
+    if (!r) return;
+    if (r.error) { S.spark.accepting = false; return toast(r.error); }
     // auto_open defaults on in the column, so this is only ever a call to turn it OFF.
     if (S.spark.autoOpen === false) await api.saveStory(r.id, { autoOpen: false });
+
+    // #28 · THE PICKED THREADS COME OVER AFTER THE BOOK EXISTS, one call each through the route a
+    // single card already uses — `db.copyEntry` refuses unless both books belong to the caller, and
+    // a second copy path here would be a second place for that check to be forgotten. Lifted from
+    // the blank-start form, which has done it this way since #20 §4.
+    //
+    // A failure is REPORTED AND THE REST STILL RUN. The book is made by this point, so stopping on
+    // the first refusal would leave a story half seeded with nothing on screen saying which half.
+    const wanted = S.spark.seed ?? [];
+    let seeded = 0;
+    for (const id of wanted) {
+      const from = (LEDGER ?? []).find((e) => e.id === id);
+      if (!from) continue;
+      const cp = await api.copyEntry(from.story, r.id, id);
+      if (!cp?.error) seeded++;
+    }
+    if (wanted.length) LEDGER = null;   // the new book's copies are not in the cached list
+
     const wantOpen = S.spark.autoOpen !== false;
     const dropped = r.droppedCast ?? [];
-    S.spark = null; S.sparkStep = 1;
+    S.spark = null; S.sparkStep = 1; S.seedQ = '';
     await loadLibrary();
     await openStory(r.id);
     if (wantOpen) OPEN_WANTED = r.id;
+    // One line, and it says what actually happened rather than what was asked for. A partial copy
+    // is named as one: Council 09 §2 is that a toast which fires unconditionally is a toast that
+    // lies.
+    const brought = !wanted.length ? ''
+      : seeded === wanted.length ? `, and ${plural(seeded, 'thread', 'threads')} brought over`
+      : `, and ${seeded} of ${wanted.length} brought over — the rest were refused`;
     toast(dropped.length
       ? `Created. ${dropped.join(' and ')} was not in the cast, so it was left unset.`
-      : `Created with ${keep.length} threads.`);
+      : `Created with ${keep.length} threads${brought}.`);
     if (wantOpen) await openingPassage();
     return;
   }
@@ -6722,9 +6963,11 @@ document.addEventListener('click', async (e) => {
   // #20 §4. Rewrites `#seeds` alone, never the page: the form reads its fields off the DOM when
   // Create is pressed, so a repaint here would throw away everything typed above the picker.
   if (d.seedpick) {
-    const have = S.blank?.seed ?? [];
-    S.blank.seed = have.includes(d.seedpick) ? have.filter((x) => x !== d.seedpick)
-                                             : [...have, d.seedpick];
+    const into = S.blank ?? S.spark;
+    if (!into) return;
+    const have = into.seed ?? [];
+    into.seed = have.includes(d.seedpick) ? have.filter((x) => x !== d.seedpick)
+                                          : [...have, d.seedpick];
     const box = $('seeds'); if (box) box.innerHTML = seedList();
     return;
   }

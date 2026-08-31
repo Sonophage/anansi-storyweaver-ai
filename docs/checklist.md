@@ -48,19 +48,35 @@ book in the library that can exercise `CANON-TRIGGERED` at all. `bench/utilisati
 block sent in **zero of 61 calls** because every entry everywhere was `always_on` with keys that
 echoed their own title.
 
-**To be CHECKED — counted, never read. Added 2026-08-30, Council 09 §1.**
+**READ 2026-08-30, and the answer is split. Was: "to be CHECKED — counted, never read."**
 
-- **The spark wizard's four model calls: `spark`, `spreroll`, `spreview`, `acceptSpark`.** The scan
-  that found the four chapter-end re-runs firing a model pass with no in-flight state flagged these
-  in the same sweep — 40 handlers write, 36 carry no busy flag — and **they were flagged and not
-  read**, so nothing here says whether they are the same fault. The four that WERE read are fixed
-  (`whileWorking`, `ca3d911`) and `test/web.ts` asserts the five it knows about; these four are not
-  in that list, deliberately, because adding a name to a guard list without reading the handler is
-  how a check comes to report perfection.
-  What settles it is reading them: does a second press during a spark send a second request? The
-  router does not queue — two concurrent fit, a third kills both with HTTP 500 — so if they are the
-  same shape it is the same fix and one line each. If they already guard through `S.spark` the way
-  `scanstory` and `memo` guard through their own state, the answer is to say so and add nothing.
+- **The spark wizard's model calls.** The question was whether a second press during a spark sends a
+  second request. It was asked of four handlers — `spark`, `spreroll`, `spreview`, `acceptSpark` —
+  and reading them gives two different answers.
+
+  **`spreroll` and `spreview` already guard**, through `S.spark.sparking` and `S.spark.reviewing`,
+  as does `spwritecast`, which was not on the list. They use state rather than `whileWorking` and
+  that is correct here: this panel repaints on every call, so a `disabled` attribute written by
+  `whileWorking` would be thrown away by the next render. `test/web.ts` now asserts the idiom for
+  all five wizard calls — the three above plus `sprecast` and `spstyle`, added #28 — and it looks
+  for the early RETURN, not for the flag. The first version of that check searched the handler for
+  `S.spark.<flag>` and passed with the guard deleted, because the line that SETS the flag matched
+  just as well. Falsified by unwrapping each one.
+
+  **`spark` and `acceptSpark` did not guard, and it was a live defect. FIXED 2026-08-30.** Neither
+  had any re-entry check. A double press on "Accept and start writing" sent two `POST /api/stories`
+  and **created two books** — silently, same title, same cast, and the shelf was where you found
+  out. A double press on "Spark a skeleton" sent two model calls.
+
+  Both go through `whileWorking` now, not a state flag, because neither screen repaints mid-call —
+  and they are in `test/web.ts`'s `guarded` list, which they were kept out of while the defect
+  stood. Accept carries a SECOND guard as well, `S.spark.accepting`: `whileWorking` releases the
+  button when `createStory` answers, and that handler runs on through a saveStory, a copyEntry per
+  picked thread, and loadLibrary/openStory — a press landing in that window would have started a
+  second create with the button no longer busy.
+
+  **Proved by pressing, not only by grep.** `test/ui/wizard.js` dispatches two synchronous clicks at
+  each button and asserts one request and ONE BOOK. Falsified against the pre-fix code: 2 and 2.
 
 ---
 

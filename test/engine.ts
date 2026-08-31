@@ -17,7 +17,11 @@ const entry = (id: string, body: string, o: Partial<Entry> = {}): Entry => ({
 const base = (): Input => ({
   story: { title: 'The Silver Key', genre: 'fantasy noir', premise: 'A debt comes due.',
            setting: 'Vantic, in the rain', pov: 'third limited, past', spice: 2,
-           writingStyle: 'clipped, wet, unsentimental', direction: 'Marek chooses the archive.' },
+           // `direction` STAYS ON THIS FIXTURE ON PURPOSE, and it is the whole of the test below.
+           // The field came out of the app on 2026-08-30 but the column was kept, so the live
+           // library still holds two books that wrote in it. A row that carries one is exactly the
+           // case that must not leak into a prompt, and a fixture without it could not fail.
+           writingStyle: 'clipped, wet, unsentimental', direction: 'Marek chooses the archive.' } as any,
   chapters: [
     { id: 'c1', index: 1, title: 'Debt', summary: 'Aldis borrows from Marek.' },
     { id: 'c2', index: 2, title: 'Rain', summary: 'The archive floods.' },
@@ -201,9 +205,21 @@ ok('a triggered entry fires on its keyword; an unmentioned one does not', () => 
   assert.ok(!ids.includes('e-ghost'), 'Ghost Wolf must not fire');
 });
 
-ok('the destination reaches SPINE', () => {
+// Was 'the destination reaches SPINE', and it was true from COUNCIL-03 §5 until 2026-08-30, when
+// the field came out of the app at Seth's direction: "no ones going to use it. ive asked."
+//
+// INVERTED RATHER THAN DELETED, because the interesting case survived the removal. The column was
+// kept — two books in the live library had written in it — so the question is no longer "does the
+// destination reach the prompt" but "can retained data reach the prompt", and the answer has to
+// stay no. Deleting this check would have left that unasked.
+ok('a destination still in the row never reaches SPINE', () => {
   const m = buildContext(base(), count);
-  assert.match(m.blocks.find((b) => b.kind === 'SPINE')!.text, /Where this is going/);
+  const spine = m.blocks.find((b) => b.kind === 'SPINE')!.text;
+  assert.match(spine, /The Silver Key/, 'the spine is still assembled from the rest');
+  assert.match(spine, /Setting: Vantic/, 'and still carries the setting it trims');
+  assert.doesNotMatch(spine, /Where this is going/, 'the label is gone');
+  assert.doesNotMatch(spine, /Marek chooses the archive/,
+    'and so is the text — stories.direction is retained data and nothing may read it into a prompt');
 });
 
 ok('the chapter beat reaches DIRECTIVE', () => {

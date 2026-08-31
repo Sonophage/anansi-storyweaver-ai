@@ -10,6 +10,54 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-30 · Starting a book: the cast comes first, and it argues back
+
+### You say who you are after you know who is in it
+Who you speak as, and who Anansi must never write for, used to be asked before there was a cast
+to choose from — so you typed a name and hoped. They come after the cast now. Both are a pick off
+the list you just made, already filled in with what Anansi proposed, and you can change either.
+Skip the cast step and they go back to being boxes you type in.
+
+### Tell her what the cast should be, and re-roll them one at a time
+There is a box on the cast step for what this book needs from its people: nobody over thirty, a
+rival who is family, a city that is a character. Whatever you write there reaches every ask on the
+step.
+
+Each proposed card now has its own re-roll. Asking for a different cast replaces all of them, which
+is the wrong thing when four are right and one is not — so re-roll the one, and the others stay
+exactly where they are, along with the name in "You are". She is told who is staying, so she will
+not hand you somebody you already have under a new name.
+
+### Bring threads from books you already have
+The cast step can search every book on your shelf. Pick a character, a place, a rule, and it is
+copied into the new book when you create it — the same as starting blank has always allowed, now
+where the rest of the cast is decided. A copy, not a link: both books keep their own from then on,
+and what does not travel is the timeline, because chapter seven there is not chapter seven here.
+
+Asking for a lore book instead of people was always a press — the kinds on that step are
+characters, places and facts, things, and rules — and now you can seed one from what you have.
+
+### How this book is written fills itself in
+The style box on the second step used to arrive empty and mostly stayed empty. Anansi writes it
+now, once, from the genre and the premise, and there is a button to ask for another. It is the
+book's flavour and not its voice — those are two boxes and they stay two boxes. Nothing is saved
+until you accept, so read it and change it first.
+
+### Pressing Create twice no longer makes two books
+Pressing "Accept and start writing" a second time before the first had finished created a second
+book behind the first — same title, same cast, nothing on screen saying so, and the shelf was where
+you found out. Both that button and "Spark a skeleton" now go dead while they are working.
+
+### "Where this is going" is gone
+The box that asked where the book was aiming has been removed, from the new-book steps and from
+the Chapter panel. It was optional, most books left it empty, and it was quietly riding along in
+every request to the model. What you had already written in it is not deleted — it is simply not
+asked for and not used any more.
+
+If you were using it to keep a character from being marked finished at the end of a chapter, that
+is worth knowing: nothing replaces it there yet. It was measured and it was not doing that job —
+the same number of characters were wrongly marked finished with it as without.
+
 ## 2026-08-30 · Anansi has a voice of her own again, and it is yours to change
 
 ### She stopped answering in your book's voice

@@ -90,8 +90,6 @@ export const STORY_FIELDS = [
   { k: 'styleNote',    label: 'How this book is written', area: true,
     hint: 'This book\'s genre flavour, kept apart from the voice: romance and science fiction are '
         + 'not the same writing style. It gets its own block under the voice.' },
-  { k: 'direction',    label: 'Where this is going', area: true,
-    hint: 'Aims the story without disclosing it. Never restated to the reader.' },
 ];
 
 export const isSpeech = (t) => /^["“]/.test(String(t).trim());

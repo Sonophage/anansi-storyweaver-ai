@@ -23,7 +23,13 @@ const toEntry = (r: any, states: any[] = []): Entry => ({
 });
 const toStory = (r: any) => ({
   title: r.title, genre: r.genre, premise: r.premise, setting: r.setting, pov: r.pov,
-  persona: r.persona, writingStyle: r.writing_style, direction: r.direction, spice: r.spice,
+  persona: r.persona, writingStyle: r.writing_style, spice: r.spice,
+  // RETAINED DATA, NOT A FIELD. The "Where this is going" box came out of every surface and every
+  // prompt on 2026-08-30 — Seth: "no ones going to use it. ive asked." The column was kept because
+  // two books in the live library had written in it, so it still travels to the client where an
+  // export or a curious reader can find it. NOTHING RENDERS IT, and nothing may: `test/web.ts`
+  // asserts no surface offers the field and `test/engine.ts` asserts it never reaches a prompt.
+  direction: r.direction,
   // #18. The instruction is `writingStyle` and always was; these two are the sample and the
   // book's own genre flavour, and the engine reads all three separately now.
   styleNote: r.style_note ?? '',

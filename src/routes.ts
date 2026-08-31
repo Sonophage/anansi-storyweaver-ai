@@ -54,7 +54,7 @@ export const OPEN_ROUTES = new Set([
   // #21 §2. The cast call names no story either — there is no story yet, which is the whole
   // point of the wizard — so it is open for the same reason the spark is.
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'POST /api/spark/cast',
-  'POST /api/spark/review',
+  'POST /api/spark/review', 'POST /api/spark/style',
   'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
@@ -825,7 +825,7 @@ async function retire(storyId: string, chapterId?: string) {
   if (!cands.length) return { proposed: 0, eligible: 0, chapter: ch.index };
 
   const inForce = cands.map((e: any) => `${e.title}: ${cardText(e, ch.index)}`).join('\n\n');
-  const r = await structuredRetry(RETIRE(String((v.story as any).direction ?? '')),
+  const r = await structuredRetry(RETIRE,
     `${text}\n\n---\n\n${inForce}`, retireSchema(cands.map((e: any) => e.title)) as any,
     { max_tokens: RETIRE_TOKENS });
   if (!r.data?.finished) return { proposed: 0, eligible: cands.length, error: r.error ?? null };
@@ -1253,7 +1253,7 @@ export const routes: Record<string, Handler> = {
     return {
       story: {
         title: d.title, premise: d.premise, genre: d.genre, setting: d.setting,
-        pov: d.pov, spice: d.spice, writingStyle: d.writingStyle, direction: '',
+        pov: d.pov, spice: d.spice, writingStyle: d.writingStyle,
         persona: null, lockedCharacter: null,
       },
       entries: [],
@@ -1269,6 +1269,18 @@ export const routes: Record<string, Handler> = {
    *  THE KINDS ARE AN ENUM IN THE SCHEMA, not a request in the prose. The GBNF converter honours
    *  enums, so a book that wanted places and no people cannot be handed a character by a model that
    *  felt like writing one — and "none of them" is answered here by not calling this at all.
+   *
+   *  TWO OPTIONAL ARGUMENTS, BOTH ADDED 2026-08-30. Seth: *"i should be able to reroll characters
+   *  or direct it based on my input."*
+   *
+   *  `steer` is the writer's own line and it goes LAST, closest to the instruction, which is where
+   *  this repo's measured findings put anything that has to be obeyed — the same placement
+   *  `POST /api/chapter/propose` and `INVENT` already use, and the same 600-character clamp.
+   *
+   *  `replacing` is what makes a ONE-CARD re-roll possible without a second route or a second
+   *  schema: ask for one kind, name the cards that are staying, and splice the answer in. Without
+   *  it the model re-proposes the people already on screen, because the premise is the same premise
+   *  and nothing in the call said they were taken.
    */
   'POST /api/spark/cast': async (c) => {
     const kinds = (Array.isArray(c.body.kinds) ? c.body.kinds : [])
@@ -1278,8 +1290,15 @@ export const routes: Record<string, Handler> = {
     const skeleton = [`Title: ${st.title ?? ''}`, `Genre: ${st.genre ?? ''}`,
       `Setting: ${st.setting ?? ''}`, `Premise: ${st.premise ?? ''}`].join('\n\n');
     if (!String(st.premise ?? '').trim()) return { error: 'the skeleton has no premise to populate' };
+    const steer = String(c.body.steer ?? '').trim().slice(0, 600);
+    const replacing = (Array.isArray(c.body.replacing) ? c.body.replacing : [])
+      .map((x: any) => String(x ?? '').trim()).filter(Boolean).slice(0, 12);
     const r = await structuredRetry(CAST,
-      `${skeleton}\n\nKINDS WANTED: ${kinds.join(', ')}`, castSchema(kinds),
+      [`${skeleton}\n\nKINDS WANTED: ${kinds.join(', ')}`,
+       replacing.length ? `ALREADY IN THIS BOOK, and not to be proposed again under any name: ${
+         replacing.join('; ')}` : '',
+       steer ? `THE WRITER WANTS THIS CAST TO: ${steer}` : '',
+      ].filter(Boolean).join('\n\n'), castSchema(kinds),
       { max_tokens: CAST_TOKENS });
     if (!r.data?.entries?.length) return { error: r.error ?? 'the cast returned nothing usable' };
     // The enum makes a wrong kind unreachable through the grammar; this is the belt to that
@@ -1294,6 +1313,32 @@ export const routes: Record<string, Handler> = {
     const named = new Set(entries.filter((e) => e.entryType === 'character').map((e) => e.title));
     const pick = (v: unknown) => (named.has(String(v ?? '')) ? String(v) : null);
     return { entries, persona: pick(r.data.persona), lockedCharacter: pick(r.data.lockedCharacter) };
+  },
+
+  /** THE HOUSE STYLE, BEFORE THERE IS A BOOK TO READ IT OFF. Seth, 2026-08-30: *"the genre voice
+   *  should be autofilled and be able to be rerolled to fit the story."*
+   *
+   *  Same prompt and same schema as `POST /api/style`, which is the whole point — there is one
+   *  definition of what a style note is and this is not a second one. The only difference is where
+   *  the two facts come from: that route reads them out of the database, and in the wizard there is
+   *  no story to read.
+   *
+   *  A SEPARATE ROUTE RATHER THAN A STORYLESS BRANCH ON THE OTHER ONE. `POST /api/style` is gated,
+   *  and the gate refuses a request naming no story; putting it in OPEN_ROUTES to let the wizard
+   *  through would turn the gate off for the calls that DO name a book, which is the opposite of
+   *  what it is for. This one names no story for the same reason the spark and the cast do not. */
+  'POST /api/spark/style': async (c) => {
+    const genre = String(c.body.genre ?? '').trim();
+    const premise = String(c.body.premise ?? '').trim();
+    if (!genre && !premise) {
+      return { error: 'give it a genre or a premise first — it writes the style from those two' };
+    }
+    const r = await structuredRetry(STYLE_NOTE,
+      `Genre: ${genre || 'not set'}\n\nPremise: ${premise || 'not set'}`, STYLE_SCHEMA,
+      { temperature: 0.7, max_tokens: 400 });
+    const style = String(r.data?.style ?? '').trim();
+    if (!style) return { error: r.error ?? 'nothing usable came back' };
+    return { style };
   },
 
   /** #21 §3 · STEP FIVE: Anansi reads the skeleton back as a whole.
@@ -1311,13 +1356,12 @@ export const routes: Record<string, Handler> = {
     const st = c.body.story ?? {};
     const cast = Array.isArray(c.body.entries) ? c.body.entries : [];
     if (!String(st.premise ?? '').trim()) return { error: 'there is no premise to read back' };
-    const APPLIABLE = ['title', 'premise', 'setting', 'direction'];
+    const APPLIABLE = ['title', 'premise', 'setting'];
     const body = [
       `Title: ${st.title ?? ''}`,
       `Genre: ${st.genre ?? ''}`,
       `Setting: ${st.setting ?? ''}`,
       `Premise: ${st.premise ?? ''}`,
-      `Where it is going: ${st.direction ?? '(not set)'}`,
       `Voice: ${st.writingStyle ?? ''}`,
       cast.length
         ? `Cast:\n${cast.map((e: any) => `- ${e.title} (${e.entryType}): ${e.body}`).join('\n')}`
@@ -1477,7 +1521,6 @@ export const routes: Record<string, Handler> = {
     const body = [
       `THE BOOK: ${v.story.title}. ${v.story.premise ?? ''}`,
       v.story.setting ? `SETTING: ${v.story.setting}` : '',
-      v.story.direction ? `WHERE IT IS GOING: ${v.story.direction}` : '',
       before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
         `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
       (v.strings ?? []).filter((x: any) => x.status === 'open').length
