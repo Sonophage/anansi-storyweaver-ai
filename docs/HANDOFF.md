@@ -291,6 +291,34 @@ eighteen scenarios; `forge.js` needs no model and is in the default run.
 
 ## 11 · Where this session leaves off
 
+**THE ONE THING ONLY SETH CAN VERIFY, and it is the whole point of §10.** The five forge prompts
+have never been run through a foreign model. Not once. What is tested is their STRUCTURE — that the
+character prompt names this database's character rooms and not a place's, that both carry
+`LEDGER_REGISTER` itself, that the voice prompt states F37's per-line rule — and separately that the
+paste route reads well-formed JSON correctly, driven from fixtures I wrote by hand.
+
+**The round trip is unverified.** Nobody has taken the character prompt, given it to GPT or Gemini
+or a local model, and pasted what came back into `+ Thread`. So the open question is not "does the
+parser work" — it does, eleven checks and six falsifications say so — but **"does a real model,
+reading that prompt cold, produce something the parser accepts and a writer wants?"** Those are
+different questions and only the first one has an answer.
+
+What would settle it, in one sitting: forge one character and one place through whatever model is
+to hand, paste both, and read the cards. Three things to watch for, because they are what the
+fixtures could not test —
+
+- **Does it answer with bare JSON?** The prompt says no fence and no preamble. The route strips one
+  fence as a kindness; it does not go hunting for JSON inside prose, and it should not have to.
+- **Are the rooms the right SIZE?** `LEDGER_REGISTER` asks for notes, not prose. A model that writes
+  a paragraph per room produces a card that is technically valid and quietly ruins the context
+  budget — nothing refuses it, and F36 is what happens when finished English rides in a prompt.
+- **Are the keys real?** The prompt says trigger words must be words that actually appear in prose,
+  not the card's own title repeated. That was the F27 failure — every invented key was the title
+  again — and a foreign model has every reason to make the same mistake.
+
+If any of those come back wrong, the fix is prompt copy in `src/forge.ts` and nothing else; the
+route and the tests do not move.
+
 1. **The image prompt knows nothing about a specific book.** It asks the foreign model for your
    genre and setting rather than reading them from the open story, the way `web/model.js`'s cover
    prompt already does in one line. Deliberate — the forge is a workspace page with no story open —
