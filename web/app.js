@@ -231,15 +231,18 @@ const WNAV = [
   // Above Report an issue, which is where Seth put it: the two are the same conversation from
   // opposite ends — here is what changed, and here is what is wrong with it.
   ['news', 'book', 'What changed'], ['bug', 'bug', 'Report an issue'],
-  // #29. The admin's workbench: prompts to hand another model. In this list rather than appended by
-  // `wnav()` below, because a row built somewhere else is a row `test/web.ts` cannot see — its
-  // reachability check reads THIS array, and a page it cannot find is reported as having no door.
-  ['forge', 'threads', 'The forge'],
+  // #29. Prompts to hand another model. In this list rather than appended by `wnav()` below,
+  // because a row built somewhere else is a row `test/web.ts` cannot see — its reachability check
+  // reads THIS array, and a page it cannot find is reported as having no door.
+  //
+  // "The Web", in the case the other rows use. Seth, 2026-08-31: "the case in the menu needs to
+  // match the other menu items so it should be name The Web."
+  ['forge', 'threads', 'The Web'],
 ];
-/** The rail as this account sees it. The forge is the admin's workbench — Seth, 2026-08-30, "for my
- *  account alone" — so the row is not drawn for the second writer. The GATE is on the route, which
- *  refuses her outright; this only keeps a door she cannot open off her wall. */
-const wnav = () => WNAV.filter(([k]) => k !== 'forge' || SRV.admin);
+/** The rail as this account sees it. Everything in WNAV, for everyone: The Web was admin-only from
+ *  2026-08-30 until Seth tested it as the second writer — "allow this to not only be for the admin.
+ *  i tested it. it can go to everyone" — and the route opened with it. */
+const wnav = () => WNAV;
 const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
 // Panels the rail does not list: they open by clicking a thing, not a nav row. Being in here is
 // what makes a panel REACHABLE BY HASH as well as titled — `readHash` validates the name against
@@ -415,11 +418,10 @@ function drawRail() {
          border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis;
          color:${c.id === V.currentChapter.id ? 'var(--gold-lit)' : 'var(--faint)'}"><span class="txt">${
          esc(c.title || `Chapter ${c.index}`)}</span></button>`).join('')}`
-    : (LIB.length ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.3em;
-         font-variant-caps:all-small-caps; color:var(--dim)">Open</div>
-       ${LIB.slice(0, 4).map((s) => `<button data-open="${s.id}" style="padding:8px 12px; font-size:13px;
-         color:var(--gold-lit); border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis"
-         ><span class="txt">${esc(s.title)}</span></button>`).join('')}` : '');
+    // NO "Open" LIST HERE. It reprinted the first four books in a rail whose first row is already
+    // My stories, which is the same door with a complete list behind it. Seth, 2026-08-31: "the
+    // open option in the main menu that should be removed."
+    : '';
 
   $('rail').innerHTML = `
     <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
@@ -1910,7 +1912,7 @@ const PANELS = {
         <button class="btn ghost" data-pastethread="1">Read it and add</button>
         <div class="hint">This lands straight in the ledger with its rooms, rather than going to the
           proposals queue &mdash; you wrote it elsewhere, so it is yours already. The prompt that
-          produces this shape is on ${SRV.admin ? 'The forge' : 'the forge page'}.</div>
+          produces this shape is on The Web.</div>
 
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or read the chapter</div>
         <button class="btn ghost" data-loreread="1">Scan ${esc(V.currentChapter.title || `chapter ${V.currentChapter.index}`)} for facts</button>
@@ -4319,7 +4321,17 @@ const WPAGES = {
     // listStories is ordered by updated_at, so the first row is the one written into last. It
     // gets the hero; adding a story is the next thing on the page, then the rest. Archived books
     // sink to the end first, so an archived book never takes the hero slot.
-    const [hero, ...rest] = shelfOrder(LIB);
+    // SPLIT, not merely sorted. shelfOrder already sinks archived books to the end and storyCard
+    // already dims them, but a dimmed card at the end of one grid still reads as part of the shelf.
+    // Seth, 2026-08-31: "archived stories should be visually different and set under a different
+    // header calling it out as archived."
+    const ordered = shelfOrder(LIB);
+    const live = ordered.filter((s) => s?.status !== 'archived');
+    const shelved = ordered.filter((s) => s?.status === 'archived');
+    // The hero comes from the LIVE books. A shelf with nothing but archived books has no hero at
+    // all rather than promoting one — putting a book away is the act that means stop showing me
+    // this, and the hero slot is the loudest place on the screen.
+    const [hero, ...rest] = live;
     // What is waiting, across every book. The shelf is the only screen that can see across them, and
     // until this it could not see into one — so coming back after a day told you nothing about what
     // you had left half-done.
@@ -4346,12 +4358,18 @@ const WPAGES = {
           : `<span style="font-size:11.5px; color:var(--faint); font-style:italic">nothing is
               asking for you &mdash; which is either peace or a warning, and I never know which</span>`}
       </div>
-      ${storyCard(hero, 0, true)}
+      ${hero ? storyCard(hero, 0, true) : ''}
       <!-- The dashed New story cell went with #19: it was a book-shaped hole in a shelf of books
            and it took a column from the ones that are real. The bar's pill lost deskonly in the
            same change, so a phone still has a door. -->
       ${rest.length ? `<div class="grid">
         ${rest.map((s, i) => storyCard(s, i + 1, false)).join('')}
+      </div>` : ''}
+      ${shelved.length ? `<div data-shelf="archived" style="display:flex; flex-direction:column; gap:12px;
+          margin-top:10px; padding-top:22px; border-top:1px solid var(--line)">
+        <span style="font-size:11px; letter-spacing:.3em; font-variant-caps:all-small-caps;
+          color:var(--dim)">Archived</span>
+        <div class="grid">${shelved.map((s, i) => storyCard(s, live.length + i, false)).join('')}</div>
       </div>` : ''}</div>`;
   },
 

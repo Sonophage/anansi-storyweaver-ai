@@ -220,7 +220,12 @@ let refuseNth = 0;
         // merely have one: `waiting()` returns one row per kind naming the book with the most of
         // it, so a tie with The Salt Ledger's 1 would still name that book and draw one chip. The
         // flags stay, so the fixture still proves they contribute nothing.
-        proposed: 0, unpaid: 2, flags: 2, model: 'Qwen3.6-WNTH-35B-A3B-NN' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
+        proposed: 0, unpaid: 2, flags: 2, model: 'Qwen3.6-WNTH-35B-A3B-NN' },
+      // A FOURTH, PUT AWAY. Added 2026-08-31 with the archived section: the shelf splits live
+      // books from archived ones under their own header, and with no archived book in the
+      // fixture that split renders identically either way and the assertion below cannot fail.
+      { id: 's-4', title: 'The Drowned Almanac', status: 'archived', updatedAt: 0, words: 60,
+        last: 'It ended.', proposed: 0, unpaid: 0, flags: 0 }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
       look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } }
     : url.startsWith('/api/story') ? STORY
@@ -1101,6 +1106,28 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.deepStrictEqual(waiting([{ id: 's', title: 'x', proposed: 0, unpaid: 0, flags: 0 }] as any), [],
     'and a shelf with nothing outstanding shows no strip rather than three zeroes');
   ok('the shelf says what is waiting, per kind, in the book it is waiting in');
+
+// ---- ARCHIVED BOOKS GET THEIR OWN END OF THE SHELF (2026-08-31). Seth: "archived stories should be
+// visually different and set under a different header calling it out as archived." They were already
+// sorted last and already drawn dimmed; what was missing is that a dimmed card at the end of one
+// grid still reads as part of the shelf.
+{
+  click({ leave: '1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const page = html('page');
+  // The SECTION, by its own hook — not the word "Archived", which storyCard already prints as the
+  // status badge on the card itself. Matching the word passed with the split disabled.
+  const head = page.indexOf('data-shelf="archived"');
+  const put = page.indexOf('The Drowned Almanac');
+  const live = page.indexOf('The Ashfall Concordat');
+  assert.ok(head > 0, 'the shelf opens an archived section when a book is put away');
+  // ORDER, not mere presence: the header has to come BEFORE the archived book and AFTER the live
+  // ones, or "it says Archived somewhere on the page" would pass with the book still in the grid.
+  assert.ok(live < head && head < put,
+    `the live books come first, then the Archived header, then the book put away `
+    + `(live ${live}, header ${head}, archived ${put})`);
+  ok('archived books sit under their own header at the end of the shelf');
+}
 
 // And the SHELF renders it by book rather than by item. `waiting()` still returns one row per
 // waiting thing — that is what the story's own Waiting panel is written against — but a shelf of

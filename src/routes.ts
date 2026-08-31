@@ -1039,8 +1039,8 @@ function prewarm(c: Ctx, v: any) {
 export const routes: Record<string, Handler> = {
   // ---- library ----
   'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: c.defaultModel ?? model(),
-    // The rail hides the forge for anyone who is not the admin. The GATE is on `GET /api/forge`,
-    // which asks the question itself; this is only so the row is not drawn and then refused.
+    // Still reported: `admin` decides who may stop the router. It no longer decides who sees The
+    // Web — that opened to everyone on 2026-08-31.
     admin: c.admin,
     slot: c.slot, gen: c.gen,
     // The writer's own default look. It rides this call because this is the first thing every
@@ -1731,12 +1731,11 @@ export const routes: Record<string, Handler> = {
    *  on the open list means the gate does not run AT ALL, so the check below is the whole of its
    *  protection. `c.admin` is the flag that already decides who may stop the router.
    *
-   *  A refusal rather than an empty list. "You are not the admin" and "there are no prompts" are
-   *  different answers and a screen that cannot tell them apart says the feature is broken. */
-  'GET /api/forge': (c: Ctx) => {
-    if (!c.admin) return { error: 'the forge is the admin\'s workbench' };
-    return { prompts: FORGE };
-  },
+   *  NO LONGER ADMIN-ONLY. It was the admin's workbench on Seth's call of 2026-08-30; he tested it
+   *  as the second writer on 2026-08-31 and reversed that — "allow this to not only be for the
+   *  admin. i tested it. it can go to everyone." The prompts are a static list in the source and
+   *  name no story, so there is nothing here to scope to an owner. */
+  'GET /api/forge': () => ({ prompts: FORGE }),
 
   // ---- prose ----
   'POST /api/write':   (c) => {

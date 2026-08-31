@@ -10,6 +10,21 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · The shelf, the menu, and The Web
+
+### Books you have put away sit at their own end of the shelf
+Archived books used to fade out at the bottom of the same grid as everything else. They now sit
+below a line, under a heading that says Archived. If every book you have is archived, none of them
+is promoted to the big card at the top.
+
+### The Web is open to everyone, and is called The Web
+It was called The forge and only your account could see it. It has the same name as the other menu
+rows now, and any writer can open it.
+
+### The menu no longer repeats your books
+The workspace menu listed your four most recent books under Open, directly below My stories — the
+same door twice, and the second one only showed four. It has gone.
+
 ## 2026-08-31 · Switches and pickers keep themselves
 
 ### No Save press for a checkbox or a dropdown

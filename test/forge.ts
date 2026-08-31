@@ -91,7 +91,7 @@ const ok = (m: string, fn?: unknown) => {
   ok('the text prompts ask for text, in a shape with named lines');
 }
 
-// ---- 2. the route is the admin's, and says so rather than answering empty ----
+// ---- 2. the route answers everyone, with the same six prompts ----
 {
   const mine: any = routes['GET /api/forge'](ctx({}, me, true));
   // The KEYS, not the count. A count passes when a prompt is replaced by a different one, and the
@@ -100,11 +100,15 @@ const ok = (m: string, fn?: unknown) => {
     ['book', 'character', 'location', 'premise', 'voice', 'image'],
     'the six prompts, book first — it is the one that does everything at once');
   const hers: any = routes['GET /api/forge'](ctx({}, her, false));
-  assert.ok(hers.error, 'the second writer is refused');
-  assert.ok(!hers.prompts, 'and gets no prompts at all');
-  // REFUSED, NOT EMPTIED. "You are not the admin" and "there is nothing here" are different answers
-  // and a page that cannot tell them apart reports the feature as broken.
-  ok('the forge answers the admin and refuses everyone else by name');
+  // NOT REFUSED, since 2026-08-31. It was the admin's workbench from 2026-08-30 until Seth tested
+  // it as the second writer and reversed the call: "allow this to not only be for the admin. i
+  // tested it. it can go to everyone." Asserted as the SAME prompts rather than merely as no
+  // error, because a route that answered her an empty list would satisfy "no error" and still give
+  // her a page with nothing on it.
+  assert.ok(!hers.error, `the second writer is answered, not refused (${hers.error})`);
+  assert.deepStrictEqual(hers.prompts.map((p: any) => p.key), mine.prompts.map((p: any) => p.key),
+    'and gets the same six prompts the admin does — the list is static and names no story');
+  ok('The Web answers every writer with the same six prompts');
 }
 
 // The whole-book prompt has to carry BOTH halves, or "one command" is a half command: every story
