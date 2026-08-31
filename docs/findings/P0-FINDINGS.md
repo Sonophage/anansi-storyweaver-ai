@@ -2154,3 +2154,47 @@ output-identical in distribution, and no output was compared.
 **7,320 ms** and every warm call after it at 4 tokens in **320–332 ms**. F24's 7,771 ms / 349 ms is
 still the live picture, so the cold-start cost is current and is the one latency number left worth
 attacking. Nothing here touches it — speculation changes decode, and the cold wait is prefill.
+
+---
+
+## F50 — `--cache-reuse` measures exactly zero on the case it exists for, and the flag really was on the command line (2026-08-31)
+
+`scratchpad/reuse.mjs`, three calls per arm, `max_tokens: 1`, the same 25 KB of real prose F49 used.
+The metric is `timings.prompt_n` on call 2: tokens the server actually had to process.
+
+**The case.** F16 proved appending to a prompt is nearly free. The case it did NOT test is Anansi's
+real bad one: accepting a canon proposal INSERTS an entry into a block near the front, so every
+block after it — EARLIER, PROSE, TAIL, which is most of the prompt — is reprocessed. The probe
+sends a prompt, then the same prompt with one paragraph inserted after the first 1,200 characters.
+
+| call | no flag | `cache-reuse = 256` |
+|---|---|---|
+| 1 · original prompt, cold | 5,856 tok / 7,405 ms | 5,856 tok / 7,405 ms |
+| 2 · **one paragraph inserted mid-prompt** | **5,885 tok / 7,432 ms** | **5,885 tok / 7,381 ms** |
+| 3 · the same prompt again | 4 tok / 327 ms | 4 tok / 327 ms |
+
+**Identical.** Not smaller, not larger.
+
+**Call 2 is the finding whether or not the flag works.** A one-paragraph insertion near the front of
+the prompt costs a FULL COLD PREFILL — 5,885 tokens, 7.4 seconds — with the first 1,200 characters
+byte-identical and roughly 30 tokens changed. Accepting a proposal throws the whole cache away.
+Call 3 is the control on the instrument: the same prompt a second time is 4 tokens, so the cache is
+working exactly as F16 described, and it is prefix reuse only.
+
+**The detector was validated before the result was believed.** A preset key the router silently
+dropped would produce this same table. It did not drop it — `/v1/models` reports the live argv as
+`/usr/bin/llama-server --cache-reuse 256 --host ... --flash-attn on --kv-unified ...`. The flag
+reached llama-server and llama-server did nothing with it.
+
+**What this does NOT say.** It does not explain why. Reuse-by-shifting has to move KV entries to new
+positions, and this server runs `--flash-attn on` with `--kv-unified`; whether either disables it
+was not tested, and one chunk size (256) was tried. It bounds THIS configuration.
+
+**Reverted the same day.**
+
+**What is left of the mid-prompt cost.** Nothing at the router level, on this evidence. The lever
+that remains is in the app: an insertion into a block near the FRONT invalidates everything behind
+it, and `src/blocks.ts` decides that order. CANON-ALWAYS sits fourth of eleven. Moving accepted
+canon behind the prose it does not need to precede would make an accept cheap — but block order is
+a prompt-quality decision that F15/F20 already measured once, and it must not be re-cut for a cache.
+Noted, not proposed.
