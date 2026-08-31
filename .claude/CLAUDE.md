@@ -7,17 +7,19 @@ add a dependency without asking.
 ## Before you change anything
 
 ```bash
-node --experimental-strip-types test/all.ts     # eleven suites, no model needed — it prints its own total
+node --experimental-strip-types test/all.ts     # twelve suites, no model needed — it prints its own total
 ```
 
 Run it before and after. It needs no llama-server, so there is no excuse for skipping it.
 
 **The suites bind fixed ports, so nothing else may hold them while they run.** `test/scope.ts`
 takes 5187 and boots throwaway servers on **5188, 5189, 5190, 5194 and 5195**; `test/ui/run.sh`
-takes 5179; the live server is on 5174. A stray server on any of those makes `scope.ts` report an
-ownership failure that is not there — a real one answers 200 where the fixture expects 403, which
-reads exactly like the gate being broken. It cost time on 2026-08-30. Do not start a second run to
-hurry the first, and give any scratch server a port well clear of that list.
+takes 5179; the live server is on 5174, **over HTTPS** — `curl http://…:5174` is refused with the
+same `000` a dead server gives, so reach it with `curl -sk https://…`. A stray server on any of
+those makes `scope.ts` report an ownership failure that is not there — a real one answers 200 where
+the fixture expects 403, which reads exactly like the gate being broken. It cost time on 2026-08-30.
+Do not start a second run to hurry the first, and give any scratch server a port well clear of that
+list.
 
 ## Where the truth lives
 
@@ -26,7 +28,7 @@ hurry the first, and give any scratch server a port well clear of that list.
 1. `docs/findings/P0-FINDINGS.md` — measured numbers. These override `docs/SPEC.md` and the plans
    wherever they conflict, and several already do.
 2. `docs/findings/BUILD-STATE.md` — done / half-built / not started, audited against source.
-3. `grep -rn "ponytail:" src web bench *.ts *.html` — the debt ledger. Twenty-eight markers as of 2026-08-28. Each names what
+3. `grep -rn "ponytail:" src web bench *.ts *.html` — the debt ledger. Thirty-five markers as of 2026-08-30. Each names what
    is missing, why it was left, and the upgrade path.
 
 ## Conventions that are not negotiable

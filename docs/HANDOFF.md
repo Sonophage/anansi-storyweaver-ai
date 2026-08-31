@@ -1,5 +1,10 @@
 # Handoff — 2026-08-30, after the prompt-stack and ledger session
 
+> **A LATER SESSION THE SAME DAY added §9 and §10** — the new-story ritual, and the forge. Two
+> commits, `85ae5b3` and `92350c2`, both pushed. Everything above them is still true; §9 corrects
+> one thing this file does not mention, which is that `stories.direction` no longer reaches any
+> prompt. Read §10 before adding a room to `src/slots.ts`.
+
 **There is one branch now: `main`.** `serial` was deleted, local and remote, at the end of this
 session on Seth's word — it had been level with `main` all day and a second name for the same commit
 is a thing to keep in step for nothing. Read `.claude/CLAUDE.md` first; this file is what a cold
@@ -166,6 +171,11 @@ before and after each of four applies, which is §4's fact rule paying for itsel
   the four inert blocks of 2026-08-24. Put the summary last.
 - **A `curl` in the same command as a `systemctl restart` returns `000`.** It is a race, not a
   failure. It looked exactly like a failed start.
+- **And so does `curl http://…:5174`, for a completely different reason.** The live server runs
+  **HTTPS** — the banner says so, `ANANSI_CERT` and `ANANSI_KEY` are in the unit's environment — so
+  plain HTTP against it is refused with the same `000` a dead server gives. Use
+  `curl -sk https://127.0.0.1:5174/…`. Paid for again on 2026-08-30: three curls read as "nothing
+  is listening" while the server was up and healthy.
 - **A ceiling assertion should say how to retire it.** The one documenting that a card named for a
   stopword was invisible said *"if this ever goes red somebody has fixed it — delete the assertion,
   do not restore the limit."* It went red the same hour. That instruction is why it was deleted
@@ -215,3 +225,80 @@ those makes `scope.ts` report an ownership failure that is not there. It cost ti
    would let the chapter-close pass update what it writes.
 5. **`backup()` throws on a name collision** — millisecond timestamp, `VACUUM INTO` refuses an
    existing target. Nobody hits it; written down rather than fixed.
+
+---
+
+## 9 · The new-story ritual, reordered — `85ae5b3`
+
+The **spark wizard**, not `ritualPanel()`/`setupPanel()`. Both are called "the ritual" in this
+codebase and its own test files disagree about which: `test/ui/wizard.js` is the new-story one,
+`test/ui/ritual.js` is the chapter-end one. Reaching for the wrong file costs a session's first
+twenty minutes.
+
+**The cast is set before you say who you are in it.** Steps 3 and 4 traded places, reversing #21 §3,
+which had argued the opposite in a comment that is now rewritten rather than left contradicting the
+code. The argument was right about what the writer is deciding and wrong about the order: `persona`
+and `locked_character` hold NAMES, so asking before a cast exists is asking for a name `db.pinCast`
+then has to police and often drop.
+
+**The cast step takes a steer and re-rolls one card at a time.** The one-card re-roll needed no new
+route and no schema change — `POST /api/spark/cast` is asked for a single kind and told which names
+are staying, and the answer is spliced in. `seedList()` serves both starts now, so threads can be
+pulled out of any book on the shelf.
+
+**`stories.direction` is gone from the app and this file predates that.** No surface offers it, and
+it reaches no prompt — not SPINE, not `RETIRE`, not `/api/chapter/propose`. **The column is kept**
+and marked `ponytail:`: two books had written in it. Two checks hold the line — `test/engine.ts`
+builds a story row that still carries a destination and asserts SPINE does not; `test/web.ts`
+asserts no surface offers the field. F40 is why `RETIRE` losing its clause cost nothing measurable.
+
+**Council 09 §1 is closed, and the answer was half a defect.** `spreroll`, `spreview` and
+`spwritecast` guarded; **`spark` and `acceptSpark` did not**, and a double press on Accept created
+TWO BOOKS. Both go through `whileWorking` now, and Accept carries `S.spark.accepting` as well
+because `whileWorking` releases when `createStory` answers while that handler runs on through a
+saveStory, a copy per seeded thread, and `loadLibrary`/`openStory`.
+
+---
+
+## 10 · The forge — `92350c2`
+
+An **admin-only** page of five prompts to hand a foreign model, and a paste that reads the answer
+back. Gated on `c.admin`, the flag that already decides who may stop the router.
+
+**`src/forge.ts` is generated from `src/slots.ts` and must stay that way.** A prompt naming the
+rooms of a character IS a copy of the slot table, and copies of that list drifting is the entire
+reason that module exists. **Adding a room to `SLOTS` without adding a line to `ROOM_MEANING` fails
+`test/forge.ts`** — that is the intended failure, not an obstacle; write the English.
+
+It also quotes `LEDGER_REGISTER` itself rather than paraphrasing it, because a forged card is read
+on every call exactly like a written one and F36 is what happens when finished English sits in a
+prompt.
+
+**`POST /api/thread/paste` is the only import in this app that writes a card's rooms.** Character
+cards carry none, which is why the format is new rather than borrowed. It is **not** admin-gated,
+deliberately: the page is a workbench, a card in that shape is just a card, and the route names a
+story so the ordinary gate covers it. Asserted from the far side with a second owner.
+
+Strict about what it writes, generous about what it reads: a code fence is stripped and a bare body
+is wrapped into the bracket form, but an unknown KIND is refused outright and **a room that kind
+does not have is dropped and named** rather than coerced into a real one. Filing an invented room
+under `facts` would put text into every prompt about that card that the writer never agreed to.
+
+**`test/all.ts` is TWELVE suites now**, not eleven — `forge.ts` joined it. The browser set is
+eighteen scenarios; `forge.js` needs no model and is in the default run.
+
+---
+
+## 11 · Where this session leaves off
+
+1. **The image prompt knows nothing about a specific book.** It asks the foreign model for your
+   genre and setting rather than reading them from the open story, the way `web/model.js`'s cover
+   prompt already does in one line. Deliberate — the forge is a workspace page with no story open —
+   but wiring it to the open book is small if it turns out to be wanted.
+2. **`loreFrom` is still not in the wizard.** A book can follow another's ledger from the Story
+   panel; the new-story ritual only offers the copy. About six lines, and it was left out rather
+   than guessed at.
+3. **Nothing replaces `direction` for the retirement pass.** It was the only input that could tell
+   offstage from finished, F40 says the clause bought nothing, and the failing shape is still open:
+   a PLACE the prose calls closed. A rule about places specifically is the next thing to try, and
+   `bench/retire.ts` — one arm now — is what it has to beat.
