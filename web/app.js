@@ -6378,6 +6378,12 @@ document.addEventListener('click', async (e) => {
   // #25. The row names a model; the panel is where it is read and where it is switched.
   if (d.modelinfo) {
     S.modelPick = d.modelinfo; S.modelMenu = false; S.panel = 'model';
+    // AND SHUT THE RAIL BEHIND YOU, the same line every `data-nav` row has run for as long as the
+    // rail has been an overlay. This press comes FROM the rail's own model list, so without it the
+    // panel it opens is drawn underneath the menu you opened it from. Seth, 2026-08-31: "when
+    // selecting a model the option to select it and its information is hidden behind the menu to
+    // view the models. it should be on top."
+    if (overlay()) S.rail = false;
     syncHash(); paint(); return;
   }
   if (d.pickmodel) {

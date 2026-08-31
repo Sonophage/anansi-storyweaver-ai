@@ -1127,6 +1127,28 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     `the live books come first, then the Archived header, then the book put away `
     + `(live ${live}, header ${head}, archived ${put})`);
   ok('archived books sit under their own header at the end of the shelf');
+
+// ---- PICKING A MODEL DOES NOT OPEN ITS PANEL UNDER THE MENU (2026-08-31). Seth: "when selecting a
+// model the option to select it and its information is hidden behind the menu to view the models."
+// The press comes from the rail's own list, and every `data-nav` row has closed the rail on overlay
+// widths for as long as the rail has been one. This one did not.
+{
+  const wide = (globalThis as any).matchMedia;
+  (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });   // phone width
+  try {
+    const rootNow = (globalThis as any).document.documentElement;
+    // `data-rail` TOGGLES, so one click is not "open" — it is "the other one". The first version of
+    // this pressed once, closed an already-open rail, and then passed with the fix deleted. The
+    // precondition is asserted for that reason: a test whose setup silently failed reports the
+    // thing it was watching for as fixed.
+    if (rootNow.dataset.uiRail !== 'open') click({ rail: '1' });
+    assert.strictEqual(rootNow.dataset.uiRail, 'open', 'the rail is open before a model is picked');
+    click({ modelinfo: 'Qwen3.6-WNTH-35B-A3B-NN' });
+    assert.strictEqual(rootNow.dataset.uiRail, 'closed',
+      'the rail shuts when a model is picked from it, or the panel opens underneath the menu');
+  } finally { (globalThis as any).matchMedia = wide; }
+  ok('picking a model from the rail closes the rail behind it');
+}
 }
 
 // And the SHELF renders it by book rather than by item. `waiting()` still returns one row per

@@ -10,6 +10,13 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · Picking a model shows you the model
+
+### The model's page no longer opens underneath the list
+Pressing a model in the menu opens what is known about it, and the switch to use it. On a narrow
+screen that page was drawn behind the menu you had just pressed, so it looked like nothing had
+happened. The menu now steps out of the way.
+
 ## 2026-08-31 · The shelf, the menu, and The Web
 
 ### Books you have put away sit at their own end of the shelf
