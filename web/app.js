@@ -173,6 +173,7 @@ const S = {
   lore: null,           // the + Lore tray above the composer, when it is open
   talk: { turns: [], busy: false, search: false, draft: null, searchable: null },
   blank: null,          // the Start blank form, when it is open
+  forgeHere: false,     // the JSON paste on the create screen, which starts shut
 };
 let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
 let MANIERR = null;   // why there is no manifest, when there is none
@@ -310,7 +311,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
-  'pastecast', 'pastebook',
+  'pastecast', 'pastebook', 'forgehere',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -4468,26 +4469,33 @@ const WPAGES = {
              would allow me to set a stroy and characters and everything from one command."
              It fills the WIZARD rather than creating the book, because every other thing a model
              writes in this app is read before it is kept, and a book is the largest of them. -->
-        ${SRV.admin ? `<div style="border-top:1px solid var(--line); margin-top:22px; padding-top:16px">
-          <div class="lbl" style="letter-spacing:.1em; margin-top:0">Or forge the whole thing elsewhere</div>
-          <div class="hint" style="margin:0 0 9px">One prompt writes the book and its cast together.
-            Paste what comes back and the wizard opens with every field and every card already in
-            it &mdash; still yours to read, edit and accept.</div>
-          ${forgeCopy('book', 'Copy the whole-book prompt')}
-          <textarea class="field" data-bookpaste placeholder="Paste the JSON it gave you"
-            style="min-height:70px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
-          <button class="btn ghost" data-pastebook="1">Open the wizard with this</button>
-        </div>` : ''}
+        <!-- BEHIND A DOOR, since 2026-08-31. A monospace JSON box sat open under the two buttons
+             that are the actual way in, on the screen you meet before a book exists. Seth: "the
+             paste as json needs to be hidden under a toggle or a button that opens that option."
+             And no longer admin-only: The Web opened to every writer the same day, so a writer who
+             can copy the prompt can use what it gives back. -->
+        <div style="border-top:1px solid var(--line); margin-top:22px; padding-top:16px">
+          <button class="btn ghost" data-forgehere="${S.forgeHere ? '' : '1'}"
+            aria-expanded="${S.forgeHere ? 'true' : 'false'}"
+            style="width:auto; padding:0 18px; height:38px; font-size:12.5px">${
+              S.forgeHere ? 'Never mind' : 'Forge the whole thing elsewhere'}</button>
+          ${S.forgeHere ? `<div style="margin-top:14px">
+            <div class="hint" style="margin:0 0 9px">One prompt writes the book and its cast
+              together. Paste what comes back and the wizard opens with every field and every card
+              already in it &mdash; still yours to read, edit and accept.</div>
+            ${forgeCopy('book', 'Copy the whole-book prompt')}
+            <textarea class="field" data-bookpaste placeholder="Paste the JSON it gave you"
+              style="min-height:70px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
+            <button class="btn ghost" data-pastebook="1">Open the wizard with this</button>
+          </div>` : ''}
+        </div>
       </div>
-      <div class="aside" style="border:1px solid var(--edge); border-radius:var(--r); background:var(--rail); padding:20px 22px">
-        <div class="lbl" style="letter-spacing:.1em">What comes back</div>
-        <!-- No S.spark test here any more: the branch above returns before this is reached, so
-             the aside is only ever the empty preview. Two renderings of the review would be two
-             places to keep in step. -->
-        ${['Title', 'Genre', 'Point of view', 'Spice', 'Cast'].map((l) => `<div class="row">
-          <span style="color:var(--ink)">${l}</span>
-          <span style="margin-left:auto; color:var(--faint)">&mdash;</span></div>`).join('')}
-        <div class="hint" style="margin-top:4px">Nothing is written until you accept it.</div></div></div>`;
+      </div>`;
+      // "What comes back" stood here: a panel of five labels — Title, Genre, Point of view, Spice,
+      // Cast — each with an em-dash beside it, always empty, because the branch above returns
+      // before this line whenever there is anything real to show. It described the form instead of
+      // filling it. Seth, 2026-08-31: "the what comes back in create a story needs to be removed."
+      //
   },
 
   canon() {
@@ -7200,6 +7208,9 @@ document.addEventListener('click', async (e) => {
    *  because pasting is a deliberate act. `db.pinCast` polices only what the spark offered, so a
    *  persona named here survives even if the writer unticks the card it points at, the same as one
    *  typed by hand. */
+  // The door on the create screen. `data-forgehere` carries '1' to open and '' to shut, so the one
+  // button is both and there is no second action name for closing.
+  if (d.forgehere !== undefined) { S.forgeHere = d.forgehere === '1'; drawPage(); return; }
   if (d.pastebook) {
     const box = document.querySelector('[data-bookpaste]');
     const t = String(box?.value ?? '').trim();

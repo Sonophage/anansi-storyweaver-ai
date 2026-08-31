@@ -10,6 +10,17 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · A quieter create screen
+
+### The empty panel beside Create a story is gone
+It listed Title, Genre, Point of view, Spice and Cast with a dash beside each and never filled any
+of them in — the real review has its own screen and always did.
+
+### Pasting a forged book is behind a door
+The JSON box now sits behind a button that says **Forge the whole thing elsewhere**. Press it when
+you want it; it stays out of the way when you do not. It is open to every writer now, not only the
+admin, the same as The Web.
+
 ## 2026-08-31 · Picking a model shows you the model
 
 ### The model's page no longer opens underneath the list

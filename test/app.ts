@@ -1148,6 +1148,32 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       'the rail shuts when a model is picked from it, or the panel opens underneath the menu');
   } finally { (globalThis as any).matchMedia = wide; }
   ok('picking a model from the rail closes the rail behind it');
+
+// ---- THE CREATE SCREEN (2026-08-31). Seth: "the what comes back in create a story needs to be
+// removed. the paste as json needs to be hidden under a toggle or a button that opens that option."
+{
+  click({ leave: '1' });
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ nav: 'create' });
+  await new Promise((r) => setTimeout(r, 40));
+  // The screen is the one we think it is, asserted before anything is read off it: the two
+  // absence checks below would both pass on a blank page.
+  assert.match(html('page'), /id="idea"/, 'the create screen is open');
+  const shut = html('page');
+  assert.ok(!/What comes back/.test(shut),
+    'the empty What comes back panel is gone from the create screen');
+  // The BOX, not the button: the door has to be there and the JSON field behind it.
+  assert.ok(!/data-bookpaste/.test(shut), 'and the JSON paste box is not on screen by default');
+  assert.ok(/data-forgehere/.test(shut), 'but the door that opens it is');
+
+  click({ forgehere: '1' });
+  const open = html('page');
+  assert.ok(/data-bookpaste/.test(open), 'pressing it opens the paste box');
+  click({ forgehere: '' });
+  assert.ok(!/data-bookpaste/.test(html('page')), 'and pressing it again shuts it');
+  ok('create offers the paste behind a door, and no longer describes itself in an empty panel');
+}
 }
 }
 
