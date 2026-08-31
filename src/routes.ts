@@ -991,6 +991,51 @@ function ledgerInto(c: Ctx, from: string, into: string) {
   return moved ? { ...moved, into: target } : null;
 }
 
+// ---- prewarm ----
+// THE COLD PREFILL IS THE LARGEST WAIT A WRITER MEETS, and streaming does not touch it: that time
+// is prompt processing, before any token exists. Measured on this box 2026-08-31, three times, and
+// it agrees with F24 a week on: 5,867 prompt tokens in 7,320 ms cold, 4 tokens in 320-334 ms warm.
+// The router sleeps a model after 900 seconds, so every return from a break pays the cold number.
+//
+// So opening a book sends the book's own prompt with nothing to generate, and llama-server keeps
+// the KV prefix. The seven seconds happen while the writer is reading the page rather than after
+// they press Continue.
+//
+// Mode is `continue` with no directive. Only DIRECTIVE and MODE differ between the modes and both
+// sit at the TAIL, so warming with continue warms every block ahead of them — which is all of the
+// expensive ones — and prefix reuse does the rest whatever they press.
+//
+// THREE GUARDS, AND EVERY ONE OF THEM IS F13: the two slots do not queue. Oversubscribing the
+// unified cache kills both requests with an HTTP 500, so a convenience that races a real
+// generation would cost a passage to save a wait.
+//   - never while a generation is in flight on that model
+//   - never two at once, across all writers, because `warming` is module-global on purpose
+//   - never twice for one story inside PREWARM_EVERY, or a repainting client warms in a loop
+const PREWARM_EVERY = 5 * 60_000;
+const warmedAt = new Map<string, number>();
+let warming = false;
+function prewarm(c: Ctx, v: any) {
+  const using = modelFor(v.story, c.defaultModel);
+  if (warming || busyOn(using) > 0) return;
+  if (Date.now() - (warmedAt.get(v.id) ?? 0) < PREWARM_EVERY) return;
+  warming = true;
+  warmedAt.set(v.id, Date.now());
+  void (async () => {
+    try {
+      const { manifest, prompt } = assemble(v, c.slot, 'continue', undefined, undefined,
+        Number(c.gen.max_tokens) || 900, undefined, db.promptsOf(c.owner),
+        Number(c.gen.target_words) || 0);
+      // A book that cannot fit is a book whose real call is going to refuse anyway. Warming it
+      // would send a prompt the server rejects and teach the cache nothing.
+      if (manifest.overflowed) return;
+      await chat(SYSTEM, prompt.slice(SYSTEM.length),
+        { model: using, max_tokens: 1, temperature: 0,
+          chat_template_kwargs: { enable_thinking: false } });
+    } catch { /* a warm that fails costs the writer nothing, and the real call reports for itself */ }
+    finally { warming = false; }
+  })();
+}
+
 export const routes: Record<string, Handler> = {
   // ---- library ----
   'GET /api/stories':    (c) => ({ stories: db.listStories(c.owner), model: c.defaultModel ?? model(),
@@ -1366,6 +1411,9 @@ export const routes: Record<string, Handler> = {
   // ---- one story ----
   'GET /api/story':      (c) => {
     const v = viewOf(c.query.get('story')!, c.query.get('chapter') ?? undefined);
+    prewarm(c, v);
+    // Detached, and guarded three ways above. Opening the book is the moment the writer is least
+    // likely to be waiting on anything, and the moment their next prompt is most predictable.
     // `model` is what will actually write THIS story — the story's own if it names one.
     return { ...v, model: modelFor(v.story, c.defaultModel), defaultModel: c.defaultModel ?? model(), slot: c.slot, gen: c.gen,
       // Whether Anansi's web search is available at all. Reported here so the checkbox is right

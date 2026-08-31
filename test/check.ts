@@ -39,7 +39,7 @@ const srv = createServer((req, res) => {
     const system = b.messages?.[0]?.content ?? '';
     const user = b.messages?.[1]?.content ?? '';
     const kind = b.response_format ? 'check' : 'prose';
-    calls.push({ kind, system, user });
+    calls.push({ kind, system, user, maxTokens: b.max_tokens });
     const content =
       kind === 'check' ? JSON.stringify({ contradictions: Array.from({ length: reply.found },
           () => ({ canon: reply.canon ?? 1, quote: reply.inDialogue ? `"${BROKEN}"` : BROKEN,
@@ -148,6 +148,37 @@ const ok = (m: string, fn?: unknown) => {
   const seen: any = db.violationsOf(story.id).find((v: any) => v.passage_id === passageId);
   assert.strictEqual(seen.reached, 1, 'canon it was shown and contradicted anyway');
   ok('  and the flag it stores records which of the two faults it is');
+}
+
+// ---- 4. OPENING A BOOK WARMS ITS PROMPT, and does it once.
+// The cold prefill is ~7.3s against ~0.33s warm and the router sleeps the model at 900s, so this
+// is the largest wait a writer meets. It has to be one call, detached, and it must not repeat on
+// every repaint — a client that paints twice would otherwise warm twice.
+{
+  calls = [];
+  const open = () => routes['GET /api/story']({ body: {}, query: new URLSearchParams(`story=${story.id}`),
+    owner: me, slot: { global: 8192, slots: 1, perSlot: 8192 },
+    gen: { max_tokens: 400, temperature: 0.85 }, setGen: () => {} } as any);
+
+  open();
+  await new Promise((r) => setTimeout(r, 300));
+  const warm = calls.filter((c) => c.kind === 'prose');
+  assert.strictEqual(warm.length, 1, `opening a book warms it once, and it made ${warm.length} calls`);
+  assert.strictEqual(warm[0].maxTokens, 1,
+    'and asks for one token — this is a prefill, not a generation');
+  assert.match(warm[0].user, /Vel is the Murmur/,
+    'and it sends the real prompt, or it warms a prefix nothing will reuse');
+  ok('opening a book warms its prompt once, with nothing to generate');
+
+  calls = [];
+  open(); open();
+  // 300ms, not 60. At 60 this assertion passed with the throttle DISABLED — the warm call
+  // had been started and simply had not reached the fake yet, so an empty `calls` proved
+  // nothing. Long enough that a call which is going to happen has happened.
+  await new Promise((r) => setTimeout(r, 300));
+  assert.deepStrictEqual(calls, [],
+    'and re-opening inside the throttle warms nothing — a repainting client must not warm in a loop');
+  ok('  and a second open inside the window costs no call at all');
 }
 
 console.log(`\n${n} checks passed`);

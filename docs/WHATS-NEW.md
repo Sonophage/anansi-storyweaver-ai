@@ -12,6 +12,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-08-31 · Passages land as soon as they are written
 
+### Opening a book gets it ready to write
+The first passage after you sit down used to take a long time before a single word appeared —
+sometimes half a minute or more — because the model had to read your whole book back before it
+could add to it. Every passage after that was quick, and then you would go and make coffee and the
+slow one would come back.
+
+Now opening the book starts that reading straight away, in the background, while you are still
+looking at the page. By the time you press Continue it is usually already done. Nothing waits on
+it, nothing shows, and if you start writing immediately it simply gets out of the way.
+
 ### The wait at the end of every passage is gone
 A take used to pause for about a second and a half after the last word, while the app checked it
 against your ledger and quietly rewrote anything that contradicted it. That pause is gone. The
