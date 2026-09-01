@@ -1472,4 +1472,43 @@ ok('the lockout can be held back or let go without losing who it names', () => {
     'switched off, the line is gone from the prompt entirely');
 });
 
+// ---- F53 · THE WRITER'S OWN PASSAGES ARE MARKED IN THE PROSE (2026-08-31). F51's mechanism: the
+// recent-prose block is a flat run of text with no marking of who wrote what, so the lockout
+// forbids writing the locked character while the prose two hundred tokens later shows recent
+// examples of exactly that. `story.ts` has put `author` on every passage since the view was
+// written; the engine simply never declared it.
+ok("the writer's own passages are marked, and only while a lockout is in force", () => {
+  const build = (o: { proseAuthor?: boolean; locked?: string; on?: boolean }) => {
+    const b = base();
+    const inp = {
+      ...b,
+      story: { ...b.story, lockedCharacter: o.locked, lockoutOn: o.on },
+      passages: [
+        { id: 'p1', ordinal: 1, body: 'The rain kept on.', author: 'model' },
+        { id: 'p2', ordinal: 2, body: '"I have eleven crowns," he said.', author: 'human' },
+      ],
+      proseAuthor: o.proseAuthor,
+    };
+    return render(buildContext(inp as any, count));
+  };
+  const MARK = /the writer's own, not yours/;
+
+  assert.match(build({ proseAuthor: true, locked: 'Mira Vance' }), MARK,
+    'flag on and a lockout in force: the writer\'s passage is marked');
+  // AND ONLY THE WRITER'S. A marker on everything says nothing.
+  const out = build({ proseAuthor: true, locked: 'Mira Vance' });
+  assert.strictEqual((out.match(new RegExp(MARK.source, 'g')) ?? []).length, 1,
+    'exactly one passage is marked — the one the writer wrote');
+  assert.match(out, /The rain kept on\./, "and the model's own passage is left alone");
+
+  assert.doesNotMatch(build({ proseAuthor: false, locked: 'Mira Vance' }), MARK,
+    'flag off: nothing is marked, which is what ships today');
+  // GATED ON THE LOCKOUT, not only on the flag. Marking authorship in every book's prompt is a far
+  // larger change than the one under measurement, and it would be measured by nothing.
+  assert.doesNotMatch(build({ proseAuthor: true }), MARK,
+    'no locked character: nothing is marked even with the flag on');
+  assert.doesNotMatch(build({ proseAuthor: true, locked: 'Mira Vance', on: false }), MARK,
+    'lockout switched off: nothing is marked either');
+});
+
 console.log(`\n${n} checks passed`);

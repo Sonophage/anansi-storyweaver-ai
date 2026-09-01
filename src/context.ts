@@ -43,6 +43,12 @@ export interface Chapter {
 export interface Passage {
   id: string; ordinal: number; body: string; isBreak?: boolean;
   chapterId?: string;              // which chapter it belongs to — decides what stays whole
+  /** Who wrote it. `story.ts` has put this on every passage since the view was written and the
+   *  engine has never declared it, so it arrived and was invisible — which is F51's whole
+   *  mechanism: the recent-prose block is a flat run of text with no marking of who wrote what,
+   *  the lockout forbids writing the locked character, and the prose two hundred tokens later
+   *  shows recent examples of exactly that with no way to tell they are the writer's. */
+  author?: 'human' | 'model' | string;
 }
 export interface Story {
   title: string; genre: string; premise: string; setting: string;
@@ -81,6 +87,14 @@ export interface Input {
    *  recent examples of exactly that thing, with no way to tell they are the writer's. It reaches
    *  here through Input and never through process.env, because buildContext is pure. */
   lockoutClause?: boolean;
+  /** F53. Mark the writer's OWN passages in the prose the model is continuing, so the lockout has
+   *  something concrete to point at rather than a rule contradicted by recent examples.
+   *
+   *  Only ever applied while a lockout is actually in force — that is the case it was measured for,
+   *  and it keeps a new marker out of every other book's prompt. Flagged because it is under
+   *  measurement, and because F35 is the standing warning: give this model new vocabulary and it
+   *  turns it into section headers, so the marker leaking into output is itself a thing to count. */
+  proseAuthor?: boolean;
   /** A take the writer rejected and is regenerating away from, if the caller chose to send it.
    *
    *  OFF BY DEFAULT AND THAT IS THE POINT. `db.rejectTake` has recorded rejections since it was
@@ -1022,8 +1036,19 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     tail.unshift(whole[i]); acc += t;
   }
   const head = whole.slice(0, whole.length - tail.length);
+  // F53. One short bracketed line above the writer's own passages, in the app's existing bracket
+  // idiom — canon entries and the lockout line are already written this way, so it is not new
+  // vocabulary. TAIL is marked as well as PROSE: the writer's most recent lines are usually in the
+  // tail, which is exactly the position that makes them read as precedent.
+  //
+  // Gated on the lockout being in force. Marking authorship in every book's prompt is a much larger
+  // change than the one being measured, and it would be measured by nothing.
+  const lockedNow = story.lockoutOn === false ? '' : story.lockedCharacter?.trim();
+  const marking = !!input.proseAuthor && !!lockedNow;
+  const mark = (p: Passage) => marking && p.author === 'human'
+    ? `[the writer's own, not yours]\n${p.body}` : p.body;
   for (const p of head)
-    add('PROSE', p.id, p.body, p.chapterId && pulled.has(p.chapterId) ? 'pulled back' : 'recent prose');
+    add('PROSE', p.id, mark(p), p.chapterId && pulled.has(p.chapterId) ? 'pulled back' : 'recent prose');
 
   // The lockout. One line, and it is a prohibition with a destination — a bare "do not write him"
   // gets worked around (he is described from outside, or the scene stalls waiting for him), so the
@@ -1096,7 +1121,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       : '', keep: false },
   ], CAPS.DIRECTIVE!);
 
-  for (const p of tail) add('TAIL', p.id, p.body, 'tail prose');
+  for (const p of tail) add('TAIL', p.id, mark(p), 'tail prose');
 
   // MODE. Omitted only for Narrate on an unfinished line — scoping this to one mode is
   // deliberate: Direct's directive and speak/act's "whose line is it" live ONLY in MODE, and

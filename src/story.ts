@@ -321,6 +321,7 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     // Input — the same rule the voice ladder above follows. Two servers against one router is how
     // this project runs an A/B, so the arm has to be a process-level thing.
     lockoutClause: process.env.ANANSI_LOCKOUT_CLAUSE === '1',
+    proseAuthor: process.env.ANANSI_PROSE_AUTHOR === '1',
     // Only the summoned ones, and the filter is here rather than in the engine so buildContext
     // never has to know what a string's status means.
     strings: (v as any).strings?.filter((x: any) => x.summoned && x.status === 'open') ?? [],
