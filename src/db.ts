@@ -2078,6 +2078,23 @@ export function exportStory(storyId: string, ownerId: string, dir = join(dirname
   try {
     copy.exec('PRAGMA foreign_keys = ON;');
     copy.prepare('DELETE FROM stories WHERE id != ?').run(storyId);
+    /* THE OTHER WRITERS' PROMPT OVERRIDES GO BEFORE THE WRITERS DO.
+     *
+     * `prompt_overrides.owner_id REFERENCES users(id)` with NO cascade, so deleting a user who has
+     * one raises FOREIGN KEY constraint failed and takes the whole export with it. `writer_look`
+     * cascades and needs no help; this is the only table that does.
+     *
+     * IT FAILED ASYMMETRICALLY, which is why nobody noticed. Exporting the DESK's own book deletes
+     * the other writers, and they have no overrides — fine. Exporting THEIR book deletes the desk,
+     * who does. So from the moment the desk saved its first override, every book it did not own
+     * stopped being exported off-disk and the only sign was one line at boot naming the first
+     * failure. Measured on the live library 2026-09-01: the override was saved 2026-08-31 21:09 and
+     * four of nine books had failed silently since — including both of the second writer's, which
+     * is the half that matters, because hers are the ones the desk cannot see.
+     *
+     * `!= ownerId` and not a blanket delete: the export keeps the owner's own overrides, which is
+     * consistent with keeping their user row — how the book reads is part of the book. */
+    copy.prepare('DELETE FROM prompt_overrides WHERE owner_id != ?').run(ownerId);
     copy.prepare('DELETE FROM users WHERE id != ?').run(ownerId);
     copy.exec('VACUUM;');
   } finally { copy.close(); }

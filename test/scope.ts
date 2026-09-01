@@ -412,6 +412,39 @@ ok('a story cannot be deleted by someone who does not own it');
   out.close();
   assert.throws(() => db.exportStory(bStory.id, alice), /no such story/, "alice must not export bob's story");
   ok('export carries one story, its history, and nobody else');
+
+  /* AND THE OTHER DIRECTION, which is where it was broken (2026-09-01).
+   *
+   * Everything above exports ALICE's book, and that direction always worked. `exportStory` deletes
+   * every user but the owner, and `prompt_overrides.owner_id REFERENCES users(id)` has NO cascade —
+   * so deleting a writer who kept an override raises FOREIGN KEY constraint failed and loses the
+   * whole export. Exporting alice's book deletes bob, who has no overrides: fine. Exporting BOB's
+   * book deletes alice, who does.
+   *
+   * That asymmetry is the only reason it survived. Found on the live library rather than here: the
+   * desk saved an override at 2026-08-31 21:09 and from that moment four books of nine stopped
+   * exporting off-disk, both of the second writer's among them, with one line at boot naming the
+   * first failure. Hers are exactly the ones the desk cannot notice missing.
+   */
+  // Straight through db: this block runs long before the route helpers are defined, and the row is
+  // the whole point rather than the path that writes it.
+  db.setPrompt(alice, 'voice', 'Alice keeps an override.');
+  const bOut = db.exportStory(bStory.id, bob, '/tmp/anansi-export-test');
+  assert.ok(bOut?.file, "bob's book must export while alice keeps a prompt override");
+  const bDb = new DatabaseSync(bOut.file);
+  try {
+    const users = (bDb.prepare('SELECT id FROM users').all() as any[]).map((u: any) => u.id);
+    assert.deepStrictEqual(users, [bob], "only bob rides in bob's export");
+    const foreign = (bDb.prepare('SELECT owner_id FROM prompt_overrides').all() as any[])
+      .filter((r: any) => r.owner_id !== bob);
+    assert.deepStrictEqual(foreign, [], "and none of alice's overrides travel in it");
+  } finally { bDb.close(); }
+  unlinkSync(bOut.file);
+  // PUT IT BACK. The prompts block further down asserts that a writer starts with no voice of their
+  // own, and this file shares one database top to bottom — leaving the row behind reddens an
+  // assertion four hundred lines away about something else entirely. A blank deletes it (db.ts:1328).
+  db.setPrompt(alice, 'voice', '');
+  ok("a second writer's book exports while the desk keeps prompt overrides");
 }
 
 // The OPEN routes bypass the gate, so their only protection is the SQL. Nothing asserted that.
