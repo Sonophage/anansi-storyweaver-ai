@@ -482,9 +482,15 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
 @media (max-width:719px) { #bar { padding:calc(16px + env(safe-area-inset-top, 0px)) 20px 14px; gap:14px; } }
 
 .pill { border:1px solid var(--chrome-line); padding:8px 14px; border-radius:var(--r); font-size:12px; color:var(--chrome-dim); white-space:nowrap; }
-/* The picked card on the Threads shelf. A ring rather than a wash: the card carries cover art and
-   tinting it would fight the picture it is there to show. */
-.storycard.picked { outline:2px solid var(--gold); outline-offset:2px; }
+/* The hero band above a book's threads, when its group is open. The cover if it has one, a wash if
+   it does not — the band has to read as the book either way. */
+.lbanner { position:relative; display:flex; align-items:flex-end; gap:12px; min-height:104px;
+  border-radius:var(--r); overflow:hidden; padding:14px 16px; background:var(--rail);
+  border:1px solid var(--line); }
+.lbanner .art { position:absolute; inset:0; background-size:cover; background-position:center; }
+.lbanner .fade { position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(10,9,12,.15) 0%, rgba(10,9,12,.82) 100%); }
+.lbanner > .txt { position:relative; display:flex; flex-direction:column; gap:4px; min-width:0; }
 .pill[aria-pressed="true"] { background:var(--gold); border-color:var(--gold); color:var(--on-gold); }
 .deskonly { display:block; }
 @media (max-width:719px) { .deskonly { display:none; } }

@@ -278,7 +278,10 @@ const WTITLES = {
   prefs: () => ['What you have written', 'words, passages, takes not chosen'],
   news: () => ['What changed', 'written by Anansi, from the work itself'],
   bug: () => ['Report an issue', 'filed on the repo, without the prose'],
-  forge: () => ['The forge', 'prompts to hand another model, so what it writes lands whole'],
+  // "The Web", to match the menu row. Renamed there on 2026-08-31 and missed here, so the row
+  // said one thing and the page it opened said another. Seth: "the web, on the menu it says the
+  // web on tha page it does not."
+  forge: () => ['The Web', 'prompts to hand another model, so what it writes lands whole'],
 };
 
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
@@ -313,7 +316,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
-  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'lselect', 'demo', 'holdback',
+  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'demo', 'holdback',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -2710,30 +2713,30 @@ const PANELS = {
 const ledgerScope = () => (S.ledgerBook === undefined
   ? (S.storyId ?? LEDGER?.[0]?.story ?? null) : S.ledgerBook);
 
-/** THE SHELF ON THE THREADS PAGE. Seth, 2026-08-31: "lets do a, but as a shelf with the book look
- *  so its different from just threads."
+/** The hero band above a book's threads, drawn only while its group is open.
  *
- *  Every book you own, world books among them, drawn as the same card the Stories shelf draws — so
- *  the page opens as a shelf rather than as a list, and a world book finally has one place it looks
- *  like what it is. Pressing a card SCOPES the list below to that book; pressing the picked one
- *  again widens back to every book.
+ *  Seth, 2026-08-31: "add a hero banner above the threads when the toggle is open." It replaced a
+ *  shelf of cards at the top of the page, which he had me take out — "remove the view of the books
+ *  on this end they do nothing ... the start a book here next to the titles is good enough."
  *
- *  It reuses `S.ledgerBook`, which has scoped this page since #22 — the card is a second door to a
- *  state that already existed, not a new one.
+ *  So this is not a second way in. It is the book saying which book you are looking at, at the
+ *  moment you have opened it, and it is the one place a world book is drawn with its own face.
  */
-function ledgerShelf() {
-  const books = shelfOrder(LIB);
-  const only = ledgerScope();
-  if (!books.length) return '';
-  return `<div style="display:flex; flex-direction:column; gap:12px">
-    <div style="display:flex; gap:10px; align-items:baseline">
-      <span class="lbl" style="letter-spacing:.1em; margin:0">Every book</span>
-      <button data-lookall="${only ? '1' : '0'}" style="font-size:11px; letter-spacing:.1em;
-        font-variant-caps:all-small-caps; color:${only ? 'var(--gold)' : 'var(--dim)'}">${
-        only ? 'show them all' : 'showing them all'}</button>
-    </div>
-    <div class="grid">${books.map((b, i) =>
-      storyCard(b, i, false, 'lselect', b.id === only)).join('')}</div>
+function ledgerBanner(sid, title) {
+  const b = (LIB ?? []).find((x) => x.id === sid);
+  const tag = b?.is_world ? WORLD_TAG : (STATUS[b?.status] || 'Writing');
+  const words = Number(b?.words) || 0;
+  return `<div class="lbanner">
+    ${b?.cover ? `<span class="art" style="background-image:url('${api.coverUrl(sid, b.cover)}')"></span>
+      <span class="fade"></span>` : ''}
+    <span class="txt">
+      <span style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+        color:${b?.is_world ? 'var(--gold)' : 'var(--label)'}">${esc(tag)}</span>
+      <span class="serif" style="font-size:22px; line-height:1.1; color:var(--ink-bright)">${esc(title)}</span>
+      ${b?.is_world
+        ? `<span style="font-size:11.5px; color:var(--mute)">Lore only &mdash; nothing is written in it.</span>`
+        : words ? `<span style="font-size:11.5px; color:var(--mute)">${words.toLocaleString()} words</span>` : ''}
+    </span>
   </div>`;
 }
 
@@ -2779,7 +2782,8 @@ function ledgerBooks() {
         style="width:auto; padding:0 14px; height:34px; font-size:12px; white-space:nowrap">Start it</button>
       <span class="hint" style="margin:0">It follows these cards rather than copying them.</span>
     </div>` : ''}
-    ${shut ? '' : `<div class="grid">${b.rows.map(entryCard).join('')}</div>`}</div>`; }).join('')
+    ${shut ? '' : `${ledgerBanner(sid, b.title)}
+      <div class="grid">${b.rows.map(entryCard).join('')}</div>`}</div>`; }).join('')
     || `<div class="hint">${q || S.ledgerKind !== 'all' || S.ledgerSlot || only
       ? 'Nothing matches that.' : 'No entries yet.'}</div>`;
 }
@@ -4304,7 +4308,7 @@ const WORLD_TAG = 'World book';
 // the router's list not having arrived yet — cannot be staged from outside this file.
 const deadPin = (s) => pinIsDead(s?.model, S.models);
 
-function storyCard(s, i, hero, act = 'open', sel = false) {
+function storyCard(s, i, hero) {
   // Genre is comma-separated and always has been — an AI Dungeon import writes its tag list
   // straight into it, so a card read "horror, nsfw" inside a single pill. One tag per pill.
   const tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
@@ -4316,11 +4320,7 @@ function storyCard(s, i, hero, act = 'open', sel = false) {
   if (s.is_world) { tags.length = 0; tags.push(WORLD_TAG); }
   else if (!tags.length) tags.push(STATUS[s.status] || 'Writing');
   // Archived is dimmed rather than hidden: it is still your book and still one tap away.
-  // BOTH ATTRIBUTE NAMES SPELLED OUT, not `data-${act}`. test/web.ts reads action names out of
-  // the source with a regex, so a computed attribute name is invisible to it and every story
-  // card was reported as a button that does nothing.
-  return `<button class="storycard${hero ? ' hero' : ''}${sel ? ' picked' : ''}" ${
-    act === 'lselect' ? `data-lselect="${s.id}"` : `data-open="${s.id}"`}
+  return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}"
     style="${s.status === 'archived' ? 'opacity:.42; filter:saturate(.5)' : ''}">
     <span class="art" style="display:block; background:${
       // Single quotes: this whole thing goes inside style="…", and a double quote in the URL ends
@@ -4375,8 +4375,10 @@ const WPAGES = {
    *  press that matters is Copy, not scroll. */
   forge() {
     if (FORGE === null && !S.forgeBusy) { S.forgeBusy = true; loadForge(); }
-    if (FORGE === null) return '<div class="hint">Reading the forge&hellip;</div>';
-    if (!FORGE.length) return `<div class="hint">${esc(S.forgeError ?? 'The forge is the admin\u2019s workbench.')}</div>`;
+    if (FORGE === null) return '<div class="hint">Reading the web&hellip;</div>';
+    // NOT "the admin's workbench" any more — it opened to every writer on 2026-08-31, so an empty
+    // list here means the list is empty, not that you were refused.
+    if (!FORGE.length) return `<div class="hint">${esc(S.forgeError ?? 'No prompts here yet.')}</div>`;
     return `<div style="display:flex; flex-direction:column; gap:14px; max-width:760px">
       <div class="hint" style="margin:0">Hand one of these to any model you like, then bring the
         answer back. The two card prompts come back as JSON that <strong>+ Thread</strong> reads
@@ -4647,7 +4649,6 @@ const WPAGES = {
         <!-- Search on its OWN line and left aligned, at Seth's direction 2026-08-29. It was pushed
              to the right end of the chip row by an auto left margin, so on a narrow screen it
              wrapped under the chips at whatever width was left over. -->
-        ${ledgerShelf()}
         ${worldStrip()}
         <div style="border-top:1px solid var(--line); margin-top:4px"></div>
         <input class="field" id="lq" value="${esc(S.ledgerQ)}" placeholder="Search every story"
@@ -4914,9 +4915,12 @@ async function loadNews() {
   drawPage();
 }
 
-/** The forge's prompts, once per session. A REFUSAL IS AN ANSWER: the route says no to anyone who
- *  is not the admin, and an empty list is how that reaches the page — which is why FORGE starts at
- *  null and not at [], because "not asked yet" and "asked and told no" are different screens. */
+/** The Web's prompts, once per session. FORGE starts at null and not at [] because "not asked yet"
+ *  and "asked and got nothing" are different screens, and an error is kept apart from both.
+ *
+ *  It used to say a refusal was the third case: the route answered only the admin. That stopped
+ *  being true on 2026-08-31 when Seth tested it as the second writer — "allow this to not only be
+ *  for the admin. i tested it. it can go to everyone." */
 async function loadForge() {
   const r = await api.forge();
   S.forgeBusy = false;
@@ -6559,9 +6563,6 @@ document.addEventListener('click', async (e) => {
   // page that shows nothing for no visible reason.
   if (d.lkind) { S.ledgerKind = d.lkind; S.ledgerSlot = null; drawPage(); return; }
   if (d.lslot !== undefined) { S.ledgerSlot = d.lslot || null; drawPage(); return; }
-  // A card on the Threads shelf scopes the list under it. Pressing the picked one widens back to
-  // every book, so the card is both the way in and the way out.
-  if (d.lselect) { S.ledgerBook = ledgerScope() === d.lselect ? null : d.lselect; drawPage(); return; }
   if (d.lookall !== undefined) {
     S.ledgerBook = d.lookall === '1' ? null : (S.storyId ?? LEDGER?.[0]?.story ?? null);
     drawPage(); return;

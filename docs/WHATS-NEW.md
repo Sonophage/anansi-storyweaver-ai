@@ -10,6 +10,20 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · A banner over the threads you open
+
+### The book you are looking at, above its own cards
+Opening a book's threads now draws its cover as a band above them, with the book's name on it. A
+world book says so on the band and adds that nothing is written in it.
+
+### The row of book cards at the top of Threads is gone
+It did nothing you could not do from the titles below it. **Start a book here** stays where it was,
+beside each book's name.
+
+### The Web is called The Web on its own page
+The menu row was renamed and the page it opens was not, so they disagreed. The page no longer says
+it is the admin's workbench either — it has been open to every writer since this morning.
+
 ## 2026-08-31 · Threads opens again
 
 ### The Threads page no longer hangs on "Reading the threads…"

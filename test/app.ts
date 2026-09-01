@@ -43,7 +43,12 @@ for (const id of ['rail', 'bar', 'appearance', 'read', 'col', 'page', 'dock', 'd
                   'side', 'sideHead', 'sideBody', 'toast', 'scrim', 'input', 'q', 'idea',
                   // The context meter, the reading it opens, and the speaker strip. All three sit
                   // OUTSIDE the two elements their draw functions used to write into.
-                  'ctxbar', 'ctxread', 'asRow', 'runhead']) el(id);
+                  'ctxbar', 'ctxread', 'asRow', 'runhead',
+                  // #books, added 2026-08-31. The Threads page redraws ONLY this element when a
+                  // book group is opened — not the whole page — so without it registered here a
+                  // press on a group did nothing the harness could see, and an assertion about
+                  // what a group contains read the page as it was before the press.
+                  'books']) el(id);
 
 const listeners: Record<string, Function[]> = {};
 (globalThis as any).document = {
@@ -247,7 +252,12 @@ let refuseNth = 0;
           activation: 'always_on', keys: [], addons: [], outfits: [] },
         { id: 'e-2', story: 's-2', storyTitle: 'The Salt Ledger', title: 'the Ambersand',
           body: 'A house that lends at ruin.', entryType: 'lore',
-          activation: 'triggered', keys: ['Ambersand'], addons: [], outfits: [] }] }
+          activation: 'triggered', keys: ['Ambersand'], addons: [], outfits: [] },
+        // A card in the WORLD BOOK, so it has a group on the Threads page at all — the list is
+        // grouped by book and built from entries, so a world book with no cards is not on it.
+        { id: 'e-3', story: 's-5', storyTitle: 'The Tessellate', title: 'Ring Law',
+          body: 'Nobody descends without a writ.', entryType: 'rule',
+          activation: 'always_on', keys: [], addons: [], outfits: [] }] }
     // #25. The three-source shape `GET /api/models` actually returns: the router's status, the
     // preset file's context, and this database's measured speed. The third row is deliberately a
     // model the preset file does not mention and nobody has written with — the panel has to say
@@ -1134,29 +1144,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     + `(live ${live}, header ${head}, archived ${put})`);
   ok('archived books sit under their own header at the end of the shelf');
 
-// ---- A WORLD BOOK CAN BE DRAWN AS A CARD (2026-08-31). It could not: storyCard assigned to a
-// `const`, so every world book threw, drawPage died inside loadLedger, and the Threads page sat on
-// "Reading the threads…". Rendering one is the whole assertion — if it throws, nothing below runs.
-{
-  // THE THREADS PAGE, not Stories. World books are deliberately kept off the Stories shelf — they
-  // are cards without a book — so the only place a world-book CARD is drawn is the shelf on
-  // Threads, which is where the crash actually happened.
-  click({ leave: '1' });
-  click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 40));
-  click({ nav: 'canon' });
-  await new Promise((r) => setTimeout(r, 60));
-  const page = html('page');
-  assert.doesNotMatch(page, /Reading the threads/,
-    'the Threads page finishes loading — it hung here for ever when storyCard threw');
-  assert.match(page, /The Tessellate/, 'the world book is drawn on the shelf at all');
-  assert.match(page, /World book/, 'and wears its own tag rather than a writing status');
-  // AND NOT the genre it happens to carry — the tag replaces, it does not append, or a world book
-  // reads as a fantasy novel with a note.
-  const card = page.slice(page.indexOf('The Tessellate') - 900, page.indexOf('The Tessellate'));
-  assert.ok(!/>fantasy</.test(card), "its genre pill is replaced by the world tag, not joined by it");
-  ok('a world book renders as a card, tagged as what it is');
-}
+
 
 // ---- A WORLD BOOK IS NOT A BOOK WITH WORK IN IT (2026-08-31). It is a story with `is_world` set,
 // so without the filter it would be counted like any other. Given MORE waiting than the real book,
@@ -1448,7 +1436,10 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.strictEqual((page.match(/data-lbook=/g) ?? []).length, 1,
     'it opens on ONE book — the one you were last writing in');
   assert.match(page, /data-lookall="1"/, 'with the shelf one press away');
-  assert.match(page, /All 2 books/, 'and the press says how many books that is');
+  // THREE since 2026-08-31, when a world book joined the ledger fixture so the hero-banner
+  // assertions at the foot of this file have a world book to open. The number is the count of
+  // books with cards in them, so adding one to the fixture is meant to change it.
+  assert.match(page, /All 3 books/, 'and the press says how many books that is');
 
   click({ lookall: '1' });
   const shelf = html('page');
@@ -2123,4 +2114,44 @@ ok('the house style can be re-rolled, into the box and not into the story');
 }
 ok('a voice can be saved to the library, pulled back into any book, and the default voice has a surface');
 
+// ---- THE HERO BANNER ABOVE AN OPEN BOOK'S THREADS (2026-08-31).
+// LAST IN THE FILE ON PURPOSE: it presses `lookall`, which is sticky, and two assertions above
+// are about the page opening on ONE book. Run from the middle it broke both of them. Seth: "add a hero banner above
+// the threads when the toggle is open", replacing a shelf of cards at the top he had removed —
+// "the start a book here next to the titles is good enough."
+//
+// It is also the one place a world book is drawn with its own face, which is why the crash that hung
+// this page belongs here now: storyCard assigned to a `const` for world books and threw, drawPage
+// died inside loadLedger, and the page sat on "Reading the threads…" for ever.
+{
+  click({ leave: '1' });
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ nav: 'canon' });
+  await new Promise((r) => setTimeout(r, 60));
+  // THE PAGE OPENS ON ONE BOOK — the one you were last writing in — so every other book has no
+  // group at all until this. The first version of this test pressed a group that was not on the
+  // page and read the word "World book" off the New-world-book row instead, which passed.
+  click({ lookall: '1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const page = html('page');
+  assert.doesNotMatch(page, /Reading the threads/,
+    'the Threads page finishes loading — it hung here for ever when a world book threw');
+
+  // The first group is open by default, and every other is a heading you press. The banner belongs
+  // to the OPEN one, so a banner per book would be the failure this counts.
+  const banners = page.match(/class="lbanner"/g) ?? [];
+  assert.strictEqual(banners.length, 1,
+    `one banner, on the book that is open — drew ${banners.length}`);
+
+  // Open the world book's group and it wears its own tag rather than a writing status.
+  click({ lbook: 's-5' });
+  await new Promise((r) => setTimeout(r, 40));
+  // #books, not #page: opening a group repaints only that element.
+  const opened = html('books');
+  assert.match(opened, /class="lbanner"/, 'the world book gets a banner too');
+  assert.match(opened, /World book/, 'tagged as what it is, not as Writing');
+  assert.match(opened, /Lore only/, 'and it says there is nothing written in it');
+  ok("a book's threads open under a hero banner, and a world book wears its own");
+}
 console.log(`\n${n} checks passed`);
