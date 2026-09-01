@@ -338,7 +338,24 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     // Input — the same rule the voice ladder above follows. Two servers against one router is how
     // this project runs an A/B, so the arm has to be a process-level thing.
     lockoutClause: process.env.ANANSI_LOCKOUT_CLAUSE === '1',
-    proseAuthor: process.env.ANANSI_PROSE_AUTHOR === '1',
+    /* SHIPPED ON, 2026-09-01, at Seth's word. F53 measured it: marking the writer's own passages
+     * HALVES the model's action for the locked character (2.47 -> 1.16 per 1,000 words of narration,
+     * p = 0.00001, 650 generations an arm against a simultaneous control). The mechanism is that he
+     * leaves the subject slot — the only slot an action can live in — while staying just as present
+     * as an object and a possessive. Action per subject-slot mention does not move at all, so this
+     * does not teach the model different verbs; it stops him being the one doing things, which is
+     * what the lockout line asks for in words.
+     *
+     * READ BEFORE SHIPPING, not just measured: a random sample of the marked arm's prose is coherent
+     * and focused on the world answering. Median passage 67 -> 61 words, 9% shorter, and the sample
+     * does not read thin. Violations are HALVED, NOT GONE — one of six sampled passages still had him
+     * act — so this is a rate improvement and the flag is not a fix.
+     *
+     * `!== '0'` RATHER THAN DELETED, because the off switch is what the next measurement needs:
+     * F53 and F54 have never been run together, and F28's interiority conclusion is owed a re-score
+     * against a lockout-off arm. A shipped default with a way to turn it off on one server is what
+     * makes those runnable. */
+    proseAuthor: process.env.ANANSI_PROSE_AUTHOR !== '0',
     // F54, under measurement. Seth's question, 2026-09-01: the name where the line says "their".
     lockoutNamed: process.env.ANANSI_LOCKOUT_NAMED === '1',
     // F55. The same naming with the second clause in noun form, so no mental verb touches the name.

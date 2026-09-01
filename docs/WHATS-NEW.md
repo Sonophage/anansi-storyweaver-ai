@@ -10,6 +10,26 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · The character you hold back is held back harder
+
+### Anansi now knows which lines in your book are yours
+When you hold a character back, the model is told not to write them — and then handed the recent
+prose, which may contain you writing them yourself. Those two things fought each other, and the prose
+usually won.
+
+Your own passages are now marked as yours in what the model reads. It changes the result more than it
+sounds: measured over 1,300 passages, the model acting for a held-back character **fell by half**.
+
+The way it works is worth knowing, because it explains what you will see. It does not make the model
+avoid your character's name — they stay just as present. What changes is that they stop being the one
+*doing* things: the scene comes to them, the room answers around them, and the writing stops where
+they would act. Which is what holding someone back was always meant to mean.
+
+It is not a guarantee. Half is a rate, not zero — the model will still occasionally write them, and
+when it does the fix is the same as it ever was: re-roll, or write the line yourself.
+
+This only applies while a character is actually held back. Every other book's prompt is unchanged.
+
 ## 2026-09-01 · Send it and walk away
 
 ### A passage you asked for finishes even if you put the phone down

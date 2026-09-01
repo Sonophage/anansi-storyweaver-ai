@@ -1504,8 +1504,11 @@ ok("the writer's own passages are marked, and only while a lockout is in force",
     'exactly one passage is marked — the one the writer wrote');
   assert.match(out, /The rain kept on\./, "and the model's own passage is left alone");
 
+  // SHIPPED ON since 2026-09-01 — `story.ts` now reads `ANANSI_PROSE_AUTHOR !== '0'`. This asserts
+  // the ENGINE still honours an explicit false, which is what the off switch drives and what the
+  // next A/B needs: F53 and F54 have not been measured together, and F28 is owed a re-score.
   assert.doesNotMatch(build({ proseAuthor: false, locked: 'Mira Vance' }), MARK,
-    'flag off: nothing is marked, which is what ships today');
+    'an explicit false still marks nothing, which is what the off switch has to do');
   // GATED ON THE LOCKOUT, not only on the flag. Marking authorship in every book's prompt is a far
   // larger change than the one under measurement, and it would be measured by nothing.
   assert.doesNotMatch(build({ proseAuthor: true }), MARK,

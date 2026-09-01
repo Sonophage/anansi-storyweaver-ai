@@ -2412,9 +2412,13 @@ re-scoring F51's stored prose, because they came from different detectors.
   43,705). That is small and it is not nothing: a lockout that works by suppressing agency could be
   making thinner scenes, and no one has read these 1,300 passages for that.
 
-**Not shipped yet.** `ANANSI_PROSE_AUTHOR` still defaults off. Turning it on is a change to the
-prompt of every book that names a locked character, which is the class of change F20 is the standing
-warning about, and it is Seth's call rather than a consequence of this number.
+**SHIPPED 2026-09-01.** `ANANSI_PROSE_AUTHOR` now defaults ON (`!== '0'` in `src/story.ts`), at
+Seth's word once the prose had been read rather than only measured: a random sample of the marked
+arm is coherent and focused on the world answering, median passage 67 -> 61 words, and it does not
+read thin. Violations are **halved, not gone** — one of six sampled passages still had him act — so
+this is a rate improvement and not a fix. The off switch is kept because the next measurements need
+it: F53 and F54 have never been run together, and F28's interiority conclusion is owed a re-score
+against a lockout-off arm.
 
 **Statistics.** Every p-value here comes from `bench/stats.ts`, which takes **counts and exposures,
 never rates** — exact Fisher for the 2x2s and an exact conditional-binomial (Poisson) test for the
