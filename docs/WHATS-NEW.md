@@ -10,6 +10,32 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · You say where a change goes
+
+### Anansi can finally name the room, and she has to
+Ask her in the chat to pad out a card and she used to have no way of saying which part of it she
+meant — so accepting the offer rewrote the card's whole description and everything else you had
+written there went with it. She now names the room, the same as the passes that run when a chapter
+closes: appearance, voice, interiority, one relationship, history, role. The change lands in that
+one room and the rest of the card is left exactly as it is.
+
+She is also told outright that **What is always true** is not the answer for most changes. It is for
+what never changes.
+
+### And if she picks the wrong one, you move it
+Every offer about a card you already have now carries **Goes in** — a picker with that card's own
+rooms in it, and *the card's own Info* at the top for a change that really is to the whole
+description. Move it before you accept it. A place is offered a place's rooms; a person is offered a
+person's.
+
+Beside it: **the words that wake it**, so a room arrives already keyed instead of arriving switched
+off. And **Make it a state instead, from chapter N** — for a change that should replace the
+description from a point in the book rather than edit it, which is a different thing and only you
+know which one you meant.
+
+What you choose is saved as soon as you choose it, edits to the words included, so nothing is lost
+if you come back to it later.
+
 ## 2026-09-01 · A thread can have a picture
 
 ### Optional, and it stays optional

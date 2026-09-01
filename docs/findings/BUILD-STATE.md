@@ -1,4 +1,4 @@
-# Build state — 2026-09-01 (sixth pass)
+# Build state — 2026-09-01 (sixth pass, re-counted after the room-selector work)
 
 > **STATUS: LIVE.** Audited against the code, not from memory — twice this document has been wrong
 > because someone wrote it from recall. If it disagrees with the source, the source wins and this
@@ -18,15 +18,25 @@ one — it looks finished from the UI), and **not started**.
 | Overflow guard that names the block the server would drop | `src/context.ts` §6.4 |
 | Canon 45% cap and the EARLIER ceiling | `src/blocks.ts` |
 | Plain keyword activation, scanning prose **and the directive** | `src/context.ts` |
-| Persistence: **21 tables** (`grep -c "CREATE TABLE" src/db.ts`; this row said 15 until 2026-08-28), cascade deletes, partial indexes on `selected` and on the worn outfit | `src/db.ts` |
+| Persistence: **23 tables** (`grep -c "CREATE TABLE" src/db.ts`; this row said 15 until 2026-08-28 and 21 until 2026-09-01), cascade deletes, partial indexes on `selected` and on the worn outfit | `src/db.ts` |
 | Variants — regenerate keeps every take, nothing deleted | `db.addVariant` / `selectVariant` |
 | Chapters with manual start and end; breaks are real passages | `db.endChapter` |
 | Chapter summaries (manual trigger) | `POST /api/summarize` |
 | One responsive surface on one engine, one API, one field schema | `app.html`, `web/api.js`, `web/model.js` |
 | `generations` logged on every call, including failures | `db.logGeneration` |
-| **44** engine checks that run with no model up — the suite prints its own total, so read it there rather than here | `test/engine.ts` |
+| **84** engine checks that run with no model up — the suite prints its own total, so read it there rather than here, and this row was still saying 44 on 2026-09-01 | `test/engine.ts` |
 | Per-story export to a standalone database | `db.exportStory` |
 | Import: Anansi exports, AI Dungeon (both halves of a real export), character cards V1/V2/V3 | `src/import.ts`, wired to the Import screen |
+| Every pass that files a proposal names the **room** it lands in, and the writer can move it, key it, or take it as a state instead | `roomAsked` and `POST /api/proposal/where` in `src/routes.ts` |
+
+The room row is new on 2026-09-01 and it is worth stating why, because it is the shape of defect
+this document exists to catch. `EXTRACT_SCHEMA` and `MEMORY_SCHEMA` have carried a `field` since
+PLAN-08 Phase 4 and the accept path has honoured it since; `TALK_SCHEMA` never had one. So the chat
+— the one pass a writer talks to directly — could not say which part of a card it meant, every
+proposal it filed resolved to `proposalTarget`'s `body` branch, and accepting one ran `upsertEntry`
+and **replaced the card's whole description**. Nothing was broken; a field was simply absent from
+one of three schemas, and the two that had it made the feature look finished. Measured on the live
+library the same day: `field` was NULL on 34 of 41 open proposals.
 
 ---
 
@@ -53,8 +63,8 @@ one — it looks finished from the UI), and **not started**.
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
 | **The lockout** | The line itself, measured and strong (F28: acted 76% -> 25%, p = 0.0005). **F53 shipped nothing but resolved something**: marking the writer's own passages halves the model's action for the locked character (p = 0.00001) by moving him out of the subject slot, not by changing his verbs | **Two flags are built, measured and OFF.** `ANANSI_PROSE_AUTHOR` (F53) and `ANANSI_LOCKOUT_CLAUSE` (F52, inconclusive). A third, `ANANSI_LOCKOUT_NAMED` (F54), is under measurement as of 2026-09-01. Turning any of them on is a prompt change for every book naming a locked character — F20 is the standing warning — and it is Seth's call, not a consequence of a p-value. **Interiority is the unmeasured half**: F28 said the lockout does nothing measurable to it, but that was read with a NAME-ANCHORED counter that is blind to `he knew` and `his chest` — widening it on F53's prose found 25 events where the narrow one found 6. F28's conclusion needs re-scoring before it is trusted, and its stored prose is gone, so that needs a fresh run. |
-| **Deleting a chapter** | `DELETE /api/chapter`, a two-press confirm, and the hint explaining why the numbers do not close up | **The door is mislabelled, which is issue #31 — filed as "there is no way to delete a chapter".** The button exists only in `ritualPanel()`, which is reached by pressing **End this chapter**. Nobody hunting for delete presses the button that closes one. The feature is whole; its only entrance is named after a different act. |
-| **Tests** | **418 across twelve suites** (82 engine, 93 db, 44 scope, 13 import, 16 stream, 8 check, 30 memory, 6 report, 22 talk, 13 forge, 29 web, 62 app) — plus **771 driven-browser checks across eighteen scenarios** (18 buttons, 10 tray, 42 composer, 17 hwkb, 40 at, 16 veil, 71 surfaces, 44 handlers, 18 search, 13 restored, 14 hostile, 11 limits, 35 import, 62 modes, 226 panels, 53 phone, 47 wizard, 34 forge), **all green on 2026-09-01 against `321748c`+2, which is the first browser run this merged tree has had** — `c4d052c` recorded that run as owed and it stayed owed for a day — plus `model` and `ritual`, which wait on real generations and are not in the default set, and the model evals in `bench/` | No HTTP-level suite yet. The client-contract check **runs both ways**: every `api.js` method needs a caller in `app.js`, and every route in `routes.ts` needs a method in `api.js` or a named entry in `NO_CLIENT`. It caught both of the forge's routes arriving doorless on 2026-08-30, which is the failure it was written for. **The row above was wrong in every column until 2026-09-01** — it said 405 and named a `mend` suite that is now `check.ts`, and it had `at` at 32 when the `@@` scenario had already taken it to 40. A test-count row written from memory is the same failure this document keeps recording. |
+| ~~Deleting a chapter~~ | `DELETE /api/chapter`, a two-press confirm, and the hint explaining why the numbers do not close up | **Done, and it was never the feature that was missing.** #31 was filed as "there is no way to delete a chapter" and the only door was inside **End this chapter** — nobody hunting for delete presses the button that closes one. The Chapter panel names it now. A mislabelled entrance reads exactly like an absent feature, which is the second time that has happened here. |
+| **Tests** | **443 across twelve suites** (84 engine, 95 db, 48 scope, 13 import, 16 stream, 8 check, 30 memory, 6 report, 27 talk, 13 forge, 31 web, 72 app) — plus **782 driven-browser checks across eighteen scenarios** (18 buttons, 10 tray, 42 composer, 17 hwkb, 40 at, 16 veil, 71 surfaces, 44 handlers, 18 search, 13 restored, 14 hostile, 11 limits, 35 import, 62 modes, 226 panels, 53 phone, 58 wizard, 34 forge), **all green on 2026-09-01 against `3b4ee35`** — plus `model` and `ritual`, which wait on real generations and are not in the default set, `cover` and `entrypic`, which need `ANANSI_SEARCH` and the open web, and the model evals in `bench/` | No HTTP-level suite yet. The client-contract check **runs both ways**: every `api.js` method needs a caller in `app.js`, and every route in `routes.ts` needs a method in `api.js` or a named entry in `NO_CLIENT`. It caught both of the forge's routes arriving doorless on 2026-08-30, which is the failure it was written for. **This row has now been wrong twice in two days** — it said 405 and named a `mend` suite that is `check.ts`, then it said 418/771 with `wizard` at 47 after the wizard rework had already taken it to 58. It is derived: run the two harnesses and read their own totals rather than this cell. |
 
 ---
 
@@ -67,7 +77,7 @@ from the code rather than remembered:
 grep -rn "ponytail:" src web bench *.ts *.html
 ```
 
-**Thirty-nine markers as of 2026-09-01**, counted by grep, not recalled: `db.ts` 8, `app.js` 7, `context.ts` 6, `routes.ts` 5, `model.js` 2, `serve.ts` 2, `bench/council06.ts` 2, and one each in `story.ts`, `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`, `bench/decode.ts`, `bench/ledger-audit.ts`. **`test` joined the documented grep on 2026-08-31**: there has been a marker in `test/db.ts` the whole time that the published command could not see, so the count read 38 when it was 39. (This row said twenty-four, and `.claude/CLAUDE.md` said thirty-five, until 2026-08-31.) The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. One was added with rejected takes: the flag is recorded and shown but not sent to the model, because feeding a rejected take to the prompt is a prompt change and F20 is what those cost to justify. Each remaining marker names what is missing, why it was left, and the upgrade path.
+**Forty-three markers as of 2026-09-01**, counted by grep, not recalled: `app.js` 8, `db.ts` 8, `routes.ts` 7, `context.ts` 6, `model.js` 2, `serve.ts` 2, `bench/council06.ts` 2, and one each in `llama.ts`, `story.ts`, `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`, `bench/decode.ts`, `bench/ledger-audit.ts`. **`test` joined the documented grep on 2026-08-31**: there has been a marker in `test/db.ts` the whole time that the published command could not see, so the count read 38 when it was 39. (This row said twenty-four until 2026-08-31 and thirty-nine until 2026-09-01; `.claude/CLAUDE.md` said thirty-five.) The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. One was added with rejected takes: the flag is recorded and shown but not sent to the model, because feeding a rejected take to the prompt is a prompt change and F20 is what those cost to justify. Each remaining marker names what is missing, why it was left, and the upgrade path.
 Nothing in this list is a surprise; the point is that adding to it requires writing down the ceiling.
 
 | Where | What is unfinished |

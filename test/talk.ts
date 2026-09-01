@@ -40,6 +40,10 @@ const srv = createServer((req, res) => {
     // Keyed on the QUESTION, not on the schema: TALK_SCHEMA always carries `strings` now, so a
     // schema-shaped check made every answer the short one and broke the truncation assertions.
     const asksForStrings = /set up and not paid/.test(String(b.messages?.[1]?.content ?? ''));
+    // A CHANGE TO A CARD THAT EXISTS, naming the room it belongs in. Keyed on the writer's own
+    // words, like the two branches around it. Before 2026-09-01 TALK_SCHEMA had no `field` for this
+    // answer to put a room in, which is the defect section 6c is about.
+    const asksToPad = /inner life/.test(String(b.messages?.[1]?.content ?? ''));
     // "Remember this" wants the same SHAPE as an invented entry — title, body, keys — so the
     // schema cannot tell them apart. Keyed on the question, like the strings case above, and with
     // its own title: the proposals table dedupes on the subject, so two roles answering with one
@@ -50,7 +54,10 @@ const srv = createServer((req, res) => {
     const asksForCast = /Populate a story that already exists/.test(String(b.messages?.[0]?.content ?? ''));
     // #21 §3 step 5. Its own role again, keyed on its own words.
     const asksForReview = /say what you would change about it/.test(String(b.messages?.[0]?.content ?? ''));
-    const answer = asksForReview ? {
+    const answer = asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
+        entries: [{ title: 'Vel', type: 'character', field: 'interiority',
+                    body: 'She is more afraid of being right than of being wrong.', keys: ['Vel'] }] }
+      : asksForReview ? {
         changes: [
           { field: 'title', value: 'The Tide Clerk', why: 'The premise counts; the title salts.' },
           // A "change" that returns the field unchanged is not one, and it is the shape a model
@@ -680,6 +687,170 @@ await ask(50_048);
 assert.ok(String(calls[0].messages?.[0]?.content ?? '').includes(TALK_VOICE),
   'emptying the box must put her shipped voice back, not leave her with only the contract');
 ok('emptying the box gives her back the voice she shipped with');
+
+// ---- 6c · PADDING A CARD IN CONVERSATION LANDS IN THE ROOM IT NAMES ----
+//
+// Seth, 2026-09-01: *"if i ask anansi through the chat that i want to pad the card or add more info
+// it wants to add it to facts, not info, it doesnt matter if it belongs to a room it all goes to
+// facts."*
+//
+// The cause was structural, not a prompt losing an argument: `TALK_SCHEMA.entries` had no `field`
+// at all, and the talk route passed none. So `proposalTarget` resolved every chat proposal to
+// `body`, and accepting one ran `upsertEntry` — which REWRITES THE WHOLE DESCRIPTION. Extraction
+// and the memory pass had both had a room since PLAN-08 Phase 4; the chat was the pass that
+// could not answer the question.
+//
+// Both halves are asserted, because they regress independently: the schema can lose the field
+// again, and the route can stop passing it — which is precisely how PLAN-08 Phase 2's `activation`
+// landed null on every proposal with three green suites unable to see it.
+{
+  // The schema half. Structural on purpose: a fake model cannot tell you whether a field exists,
+  // only what it did with one.
+  const item = (TALK_SCHEMA.properties.entries as any).items;
+  assert.ok(item.properties.field, 'TALK_SCHEMA.entries has no `field`, so the chat cannot name a '
+    + 'room and every proposal it files rewrites the whole card');
+  assert.ok(item.required.includes('field'),
+    'and it has to be REQUIRED, or the model omits it and nothing has changed');
+  for (const slot of ['interiority', 'appearance', 'voice', 'facts', 'none'])
+    assert.ok(item.properties.field.enum.includes(slot), `the enum is missing ${slot}`);
+
+  // THE CONTRACT HAS TO SAY WHAT THE ROOMS ARE. An enum on the wire is a list of tokens; the model
+  // cannot tell interiority from facts without being told what each one holds, and `facts` is the
+  // widest name on the list — routes.ts:375 records three-for-three landing there when the answer
+  // had nowhere else to go.
+  const { TALK_CONTRACT: TC } = await import('../src/prompts.ts');
+  assert.match(TC, /what they think, fear or want/, 'the contract has to say what interiority is');
+  assert.match(TC, /"facts" is not the default/,
+    'and say facts is not the default, which is the exact failure being fixed');
+  assert.match(TC, /REWRITES THE WHOLE DESCRIPTION/,
+    'and say what "none" costs, because that is the branch this defect was hiding in');
+
+  // The route half, end to end.
+  calls = [];
+  const velBefore = db.entriesOf(story.id).find((e: any) => e.title === 'Vel') as any;
+  const padded: any = await routes['POST /api/talk']({
+    body: { storyId: story.id, said: 'Pad Vel out a little — more about her inner life.' },
+    query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+  assert.ok(!padded.error, padded.error);
+  assert.strictEqual(padded.proposed, 1, 'the change is proposed, not written');
+
+  const prop = db.proposalsOf(story.id).find((x: any) => x.title === 'Vel') as any;
+  assert.ok(prop, 'the change to Vel is in the queue');
+  assert.strictEqual(prop.entry_id, velBefore.id, 'pointed at the card that already exists');
+  assert.strictEqual(prop.field, 'interiority',
+    `the room the chat named did not survive the route — it arrived as ${prop.field}`);
+  assert.strictEqual(db.proposalTarget(prop), 'room:interiority',
+    'and the accept path has to agree, or the room is decoration');
+  ok('a change the chat proposes carries the room it named');
+
+  // ACCEPTING IT ADDS A ROOM AND LEAVES THE DESCRIPTION ALONE. This is the writer-visible claim,
+  // and it is the one that was false: the same proposal used to replace Vel's whole body.
+  const roomsBefore = db.addonsOf(story.id).length;
+  await routes['POST /api/proposal']({ body: { storyId: story.id, id: prop.id, accept: true },
+    query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {} } as any);
+  const velAfter = db.entriesOf(story.id).find((e: any) => e.id === velBefore.id) as any;
+  assert.strictEqual(velAfter.body, velBefore.body,
+    'accepting a room change rewrote the card\'s description. That IS the bug.');
+  const rooms = db.addonsOf(story.id);
+  assert.strictEqual(rooms.length, roomsBefore + 1, 'and it made exactly one room');
+  const made = rooms.at(-1) as any;
+  assert.strictEqual(made.slot, 'interiority', 'in the room the chat named');
+  assert.strictEqual(made.entry_id, velBefore.id, 'on Vel');
+  ok('accepting it fills one room and leaves the rest of the card exactly as it was');
+}
+
+// ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----
+//
+// The other half of the same fix. A room the model chose badly could only be rejected and the whole
+// thing retyped by hand — so the screen now offers the room, the trigger words, and the choice
+// between a change and a state, and `POST /api/proposal/where` is where the first two land.
+//
+// It is a route and not client state for one reason: `proposals.target` — the room a Replace would
+// stand in for — has to be recomputed for the room CHOSEN, and `roomOffer` holds the rule for
+// picking it. Deciding that on the screen would put one rule in two places.
+{
+  const move = (o: any) => routes['POST /api/proposal/where']({
+    body: { storyId: story.id, ...o }, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {} } as any) as any;
+  const decide = (o: any) => routes['POST /api/proposal']({
+    body: { storyId: story.id, ...o }, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {} } as any) as any;
+
+  const vel = db.entriesOf(story.id).find((e: any) => e.title === 'Vel') as any;
+  // `addProposal` answers true or false, not an id — false meaning the dedupe index already holds
+  // this subject. So the row is read back by its body, which is what makes each fixture distinct.
+  const fresh = (field: string | null, body: string) => {
+    assert.ok(db.addProposal(story.id, { kind: 'changed', entry_id: vel.id, title: 'Vel',
+      body, entryType: 'character', keys: ['Vel'], field, delta: 'grew quiet' }),
+      'the fixture proposal was deduped away — give it a body of its own');
+    const row = db.proposalsOf(story.id).find((x: any) => x.body === body);
+    assert.ok(row, 'the fixture proposal is not in the queue');
+    return row;
+  };
+
+  // A ROOM THE WRITER PICKS OVERRIDES THE ONE THE MODEL DID. The model said facts; this is the
+  // press that says voice.
+  let p = fresh('facts', 'She has stopped raising her voice.');
+  await move({ id: p.id, field: 'voice', keys: ['Vel', 'Murmur'] });
+  p = db.proposal(story.id, p.id);
+  assert.strictEqual(p.field, 'voice', 'the writer\'s room did not stick');
+  assert.deepStrictEqual(JSON.parse(p.keys), ['Vel', 'Murmur'],
+    'and the trigger words are the writer\'s too — a room nobody keyed mostly never fires');
+  ok('the writer moves a proposal to another room, and keys it');
+
+  // EMPTY IS THE CARD'S OWN BODY, the same as `none` from the model — so a change the model put in
+  // a room can be pulled back out to the description.
+  await move({ id: p.id, field: '' });
+  assert.strictEqual(db.proposal(story.id, p.id).field, null);
+  assert.strictEqual(db.proposalTarget(db.proposal(story.id, p.id)), 'body',
+    'and the accept path agrees it is the description now');
+
+  // A SLOT THIS KIND DOES NOT HAVE IS REFUSED, not stored. `provenance` belongs to an item; a
+  // character with one would be a room no screen draws and no prompt sends.
+  await move({ id: p.id, field: 'provenance' });
+  assert.strictEqual(db.proposal(story.id, p.id).field, null,
+    'a slot a character does not have was accepted — the enum cannot say "per kind", so this is '
+    + 'the only place that refusal happens');
+
+  // THE EDITED BODY RIDES ALONG, which is what makes the repaint after a move safe: the decide
+  // handler's own note has warned since it was written that a repaint mid-edit loses the box.
+  await move({ id: p.id, field: 'voice', body: 'She has stopped raising it at all.' });
+  assert.strictEqual(db.proposal(story.id, p.id).body, 'She has stopped raising it at all.',
+    'moving a proposal threw away the words the writer had already changed');
+  ok('an empty room means the description, a room the kind lacks is refused, and the edit survives');
+
+  // A CHANGE OR A STATE, and only the writer knows which. A change edits the description; a state
+  // replaces it from a chapter on. Same proposal, two mechanisms.
+  // `statesForStory` answers a Map keyed by entry, not a list.
+  const velStates = () => db.statesForStory(story.id).get(vel.id) ?? [];
+  const statesBefore = velStates().length;
+  // No room on this one: it is a change to the whole description, which is exactly the shape a
+  // writer turns into a state. It also has to hash differently from the fixture above — the
+  // dedupe index keys on the subject and the target, so two `room:facts` changes to Vel are one.
+  const q = fresh(null, 'The god has stopped answering her.');
+  await decide({ id: q.id, accept: true, asState: 3 });
+  const states = velStates();
+  assert.strictEqual(states.length, statesBefore + 1,
+    'accepting with asState made no state — it took the room branch instead');
+  const st = states.at(-1) as any;
+  assert.strictEqual(st.from_chapter, 3, 'from the chapter the writer typed, not the model\'s keys');
+  assert.strictEqual(st.entry_id, vel.id, 'on the card it was proposed against');
+
+  // AND A STATE NEEDS A CARD TO BE A STATE OF. A `new` proposal has none, so the flag is ignored
+  // rather than making a state of nothing.
+  assert.ok(db.addProposal(story.id, { kind: 'new', entry_id: null, title: 'The Rust Gate',
+    body: 'A gate nobody has opened.', entryType: 'lore', keys: ['gate'] }));
+  const orphan = db.proposalsOf(story.id).find((x: any) => x.title === 'The Rust Gate') as any;
+  await decide({ id: orphan.id, accept: true, asState: 2 });
+  assert.strictEqual(velStates().length, states.length,
+    'a state was made for a card that does not exist');
+  assert.ok(db.entriesOf(story.id).some((e: any) => e.title === 'The Rust Gate'),
+    'and the proposal still landed as the card it was');
+  ok('the writer can accept a change as a state instead, and a state needs a card to be a state of');
+}
 
 srv.close();
 console.log(`\n${n} checks passed`);

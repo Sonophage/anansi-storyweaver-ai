@@ -369,6 +369,36 @@ function roomOffer(onto: any, field: string | null, body: string): string | null
   return (already.find((a: any) => a.active) ?? already.at(-1))?.id ?? null;
 }
 
+/** WHICH ROOM A PROPOSED CHANGE LANDS IN, asked once for every pass that can name one.
+ *
+ *  Three refusals, all of them here rather than at the column, because `db.addProposal` can only
+ *  check that the name is a slot SOMEWHERE — it cannot know whose card this is:
+ *
+ *    - `none`, or anything not a slot, means the card's own body. The normal answer.
+ *    - A room needs a card that ALREADY EXISTS to be a room OF. A brand-new thread has no rooms
+ *      yet and its body is the whole of it, so a field on a `new` proposal is dropped.
+ *    - A slot this KIND does not have — `voice` on a rule, `provenance` on a character — is
+ *      refused against `slotsFor`, which is the same list the screen draws from. The enums in
+ *      EXTRACT_SCHEMA and TALK_SCHEMA cannot express "per kind" and this is where that is enforced.
+ *
+ *  IT WAS INLINE IN EXTRACTION AND THE CHAT COULD NOT ASK AT ALL, which is the defect this
+ *  function is the fix for. Seth, 2026-09-01: *"if i ask anansi through the chat that i want to pad
+ *  the card or add more info it wants to add it to facts, not info, it doesnt matter if it belongs
+ *  to a room it all goes to facts."* TALK_SCHEMA had no `field`, so every card the chat padded
+ *  resolved to `proposalTarget`'s `body` branch and `upsertEntry` REWROTE THE WHOLE DESCRIPTION.
+ *  Two passes deciding this in two places is how they disagree, so there is one.
+ *
+ *  `said` is a room that already holds this answer, which both callers skip. */
+function roomAsked(entries: any[], cls: any, e: any) {
+  const asked = String(e.field ?? 'none');
+  const onto = cls.entry_id ? entries.find((x: any) => x.id === cls.entry_id) : null;
+  const field = onto && ALL_SLOTS.includes(asked)
+    && slotsFor(onto.entryType).some((sl) => sl.name === asked) ? asked : null;
+  // A room that already exists is an OFFER — see `roomOffer` for the whole argument.
+  const offer = roomOffer(onto, field, e.body);
+  return { field, target: offer === 'said' ? null : offer, said: offer === 'said' };
+}
+
 /** One answer, split into the rooms it actually names.
  *
  *  THE DEFECT THIS EXISTS FOR, measured on a real chapter end on 2026-08-29: all three characters
@@ -712,24 +742,8 @@ async function extract(storyId: string, chapterId?: string) {
     // because this line did not carry it. Found by a real extraction on 2026-08-28, not by any
     // check — three green suites had no way to see it. `db.addProposal` validates the value.
     // PLAN-08 Phase 4. WHICH ROOM, if the model named one and it is a room this card can have.
-    // Three refusals, all of them here rather than at the column, because `db.addProposal` can only
-    // check that the name is a slot SOMEWHERE — it cannot know whose card this is:
-    //
-    //   - `none`, or anything not a slot, means the card's own body. The normal answer.
-    //   - A room needs a card that ALREADY EXISTS to be a room OF. A brand-new thread has no rooms
-    //     yet and its body is the whole of it, so a field on a `new` proposal is dropped.
-    //   - A slot this KIND does not have — `voice` on a rule, `provenance` on a character — is
-    //     refused against `slotsFor`, which is the same list the screen draws from. The enum in
-    //     EXTRACT_SCHEMA cannot express "per kind" and this is where that is enforced.
-    const asked = String((e as any).field ?? 'none');
-    const onto = cls.entry_id ? (v.entries as any[]).find((x) => x.id === cls.entry_id) : null;
-    const field = onto && ALL_SLOTS.includes(asked)
-      && slotsFor(onto.entryType).some((sl) => sl.name === asked) ? asked : null;
-
-    // A room that already exists is an OFFER — see `roomOffer` for the whole argument.
-    const offer = roomOffer(onto, field, e.body);
-    if (offer === 'said') continue;
-    const target = offer;
+    const { field, target, said } = roomAsked(v.entries as any[], cls, e);
+    if (said) continue;
     if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
       activation: e.activation, field, target })) added++;
@@ -2320,9 +2334,14 @@ export const routes: Record<string, Handler> = {
       const cls = classify(existing, e);
       if (!cls) continue;
       const cite = sources.length ? ` [${sources[0].url}]` : '';
+      // THE ROOM THE CHAT NAMED, through the same door extraction uses. Before 2026-09-01 this
+      // line passed no field and TALK_SCHEMA had none to pass, so padding a card in conversation
+      // replaced its whole description — see `roomAsked`.
+      const { field, target, said } = roomAsked(v.entries as any[], cls, e);
+      if (said) continue;
       if (db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id, title: e.title.trim(),
         body: e.body.trim() + cite, entryType: e.type, keys: e.keys ?? [],
-        activation: e.activation })) proposed++;
+        activation: e.activation, field, target })) proposed++;
     }
 
     return { reply: r.data.reply ?? '', directive: r.data.directive || null,
@@ -2722,6 +2741,20 @@ export const routes: Record<string, Handler> = {
     for (const id of ids) {
       const p = db.proposal(c.body.storyId, id);
       if (!p) continue;
+      // MAKE IT A STATE INSTEAD, if the writer said so on the card. A change and a state are the
+      // same sentence pointed at two different mechanisms — a change edits the description, a state
+      // replaces it from a chapter on — and only the writer knows which they meant. Not persisted,
+      // because it is chosen in the same breath as Accept; `entry_type` keeps the model's answer so
+      // the proposal reads unchanged if they reject it instead.
+      //
+      // A state is a state OF a card, so an existing card is required. The chapter rides in `keys`,
+      // which is where the state branch below already looks for it, and it is checked as an integer
+      // there for the reason stated there.
+      const asState = Number(c.body.asState);
+      if (c.body.accept && p.entry_id && Number.isInteger(asState) && asState > 0) {
+        p.entry_type = 'state';
+        p.keys = JSON.stringify([String(asState)]);
+      }
       // WHERE THIS WRITES, asked once and from the same function the dedupe asks. The branches
       // below used to test `entry_type` and `field` themselves, which meant two places decided
       // what a proposal DOES and nothing made them agree — and the dedupe is only correct if it
@@ -2791,6 +2824,40 @@ export const routes: Record<string, Handler> = {
       }
       db.setProposalStatus(c.body.storyId, id, c.body.accept ? 'accepted' : 'rejected');
     }
+    return viewOf(c.body.storyId);
+  },
+
+  /** MOVE A PROPOSAL before deciding it: the room it lands in, and the words that wake the card.
+   *
+   *  A SEPARATE ROUTE AND NOT A FIELD ON ACCEPT, for one reason: `proposals.target` — the room a
+   *  Replace would stand in for — has to be recomputed for the room chosen, and `roomOffer`'s rule
+   *  for picking it is the live one else the newest. Deciding that on the client would put the same
+   *  rule in two places, which is exactly the drift `roomAsked` was just written to end. So the
+   *  writer's choice goes to the server, the row changes, and the card re-renders from real data
+   *  with the right buttons on it — Add beside it and Replace it appear or do not because the row
+   *  says so, not because the screen guessed.
+   *
+   *  It also means the choice survives a reload, which a flag on Accept would not.
+   *
+   *  An empty `field` is the card's own body, the same as `none` from the model. */
+  'POST /api/proposal/where': (c) => {
+    const p = db.proposal(c.body.storyId, c.body.id);
+    if (!p) return { error: 'no such proposal' };
+    const v = viewOf(c.body.storyId);
+    const onto = p.entry_id ? (v.entries as any[]).find((x) => x.id === p.entry_id) : null;
+    const asked = String(c.body.field ?? '');
+    // The same three refusals `roomAsked` makes, and for the same reasons — a room needs a card to
+    // be a room of, and a slot this kind does not have would make a room no screen draws.
+    const field = onto && ALL_SLOTS.includes(asked)
+      && slotsFor(onto.entryType).some((sl) => sl.name === asked) ? asked : null;
+    const offer = roomOffer(onto, field, c.body.body ?? p.body);
+    const keys = Array.isArray(c.body.keys)
+      ? c.body.keys.map((k: any) => String(k).trim()).filter(Boolean).slice(0, 8)
+      : JSON.parse(p.keys || '[]');
+    // THE BODY RIDES ALONG, so the repaint the client does after this cannot lose an edit part-way
+    // written — the hazard the decide handler's own note has warned about since it was written.
+    db.setProposalWhere(c.body.storyId, c.body.id,
+      { field, target: offer === 'said' ? null : offer, keys, body: String(c.body.body ?? p.body) });
     return viewOf(c.body.storyId);
   },
 

@@ -157,7 +157,14 @@ const STORY = {
                   keys: ['home'], active: false }] },
             { id: 'e-done', title: 'Coyle', body: '[a runner, dead]', entryType: 'character',
               activation: 'triggered', keys: ['Coyle'], lastEditor: 'human', states: [], notes: '',
-              retiredAtChapter: 2, addons: [] }],
+              retiredAtChapter: 2, addons: [] },
+            // A PLACE, and not only for variety: `pr-4` proposes a change to it, and until
+            // 2026-09-01 nothing on screen read the card a proposal pointed AT — so the queue
+            // rendered a change to a card the view did not hold and nothing noticed. The room
+            // selector reads it, and a place's rooms are not a character's.
+            { id: 'e-2', title: 'The stair', body: '[the lower stair: unlit]', entryType: 'lore',
+              activation: 'triggered', keys: ['stair'], lastEditor: 'human', states: [], notes: '',
+              addons: [] }],
   pins: [], arcs: [],
   // What the engine computes in story.ts: the counts the shelf reads, and the stale summaries,
   // which are the part that can be waved away. The panel gates on this being present at all.
@@ -302,6 +309,9 @@ let stubPassageId: string | undefined = undefined;
       // The writer's default look rides the library call, which is the first thing asked for.
       look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } })
     : url.startsWith('/api/story') ? STORY
+    // Moving a proposal answers with the VIEW, the way the accept path does — the client sets `V`
+    // from it and repaints, which is how the room's buttons come back correct.
+    : url === '/api/proposal/where' ? STORY
     // The chapter naming its own next chapter. Answered properly rather than with {}, because an
     // empty answer is a different case and it has its own guard.
     : url.startsWith('/api/chapter/propose') ? { chapterId: 'c-2', title: 'The Rust Year',
@@ -1041,6 +1051,103 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const spoken = html('sideBody');
   assert.doesNotMatch(spoken, /who_is_here/, 'no room name is shown with its underscores');
   ok('a proposal says where it lands before it says what lands, and wears the room as a chip');
+
+  // WHERE IT GOES IS A CONTROL, NOT A CHIP. Seth, 2026-09-01: *"if i ask anansi through the chat
+  // that i want to pad the card or add more info it wants to add it to facts, not info, it doesnt
+  // matter if it belongs to a room it all goes to facts."* The room was read-only here, so a
+  // proposal aimed at the wrong part of a card could only be rejected and the whole thing retyped.
+  // The server half — the chat could not name a room at all — is in `test/talk.ts` 6c.
+  assert.match(onlyChanged, /data-pwhere="pr-3"/, 'a change to a card that exists offers the room');
+  assert.match(onlyChanged, /<option value="appearance" selected/,
+    'showing the room the model chose as the one selected, or the control lies about the state');
+  // EVERY ROOM THIS KIND HAS AND NO OTHER. Read from `V.slots` — the server's copy of
+  // src/slots.ts — for the reason the card form reads them from there: a hand-written list on the
+  // screen drifts from the one the database enforces.
+  for (const room of ['facts', 'role', 'interiority', 'voice', 'history'])
+    assert.match(onlyChanged, new RegExp(`<option value="${room}"`), `no way to send it to ${room}`);
+  assert.doesNotMatch(onlyChanged, /<option value="provenance"/,
+    'a character is being offered an item\'s room');
+  // The trigger words, editable. A room nobody keyed mostly never fires — the same rule the
+  // accept path enforces by switching on a keyless room.
+  assert.match(onlyChanged, /data-pkeys="pr-3"/, 'the words that wake the card are editable');
+  // A change or a state, which the writer decides and the model cannot.
+  assert.match(onlyChanged, /data-pstate="pr-3"/, 'and it can be taken as a state instead');
+  assert.match(onlyChanged, /data-pchap="pr-3"/, 'from a chapter the writer names');
+  ok('a change to an existing card offers its rooms, its trigger words, and the state option');
+
+  // SPOKEN, NOT STORED, the same rule the chip above already follows. Proved on a slot that has
+  // underscores, which means a lore card — a character has none. `pr-4` is a change to the stair.
+  click({ pkind: 'conflict' });
+  await new Promise((r) => setTimeout(r, 30));
+  const onlyConflict2 = html('sideBody');
+  assert.match(onlyConflict2, /data-pwhere="pr-4"/, 'a conflict on an existing card offers rooms too');
+  assert.match(onlyConflict2, /<option value="who_is_here"[^>]*>who is here</,
+    'a room name is offered to the writer with its underscores showing');
+  assert.doesNotMatch(onlyConflict2, /<option value="interiority"/,
+    'a place is being offered a character\'s room');
+
+  // A ROOM NEEDS A CARD TO BE A ROOM OF. `pr-1` is a brand-new thread: its body IS the whole of
+  // it, the server drops a field on one (`roomAsked`), and offering a control that cannot work is
+  // worse than offering none.
+  click({ pkind: 'new' });
+  await new Promise((r) => setTimeout(r, 30));
+  const fresh = html('sideBody');
+  assert.match(fresh, /data-pbody="pr-1"/, 'the new thread is on screen');
+  assert.doesNotMatch(fresh, /data-pwhere="pr-1"/,
+    'a card that does not exist yet is being offered rooms it cannot have');
+  assert.doesNotMatch(fresh, /data-pstate="pr-1"/, 'nor a state of nothing');
+  ok('a proposal for a card that does not exist yet is offered no room and no state');
+
+  // MOVING IT GOES TO THE SERVER. `proposals.target` — the room a Replace would stand in for — is
+  // recomputed for the room chosen, and that rule lives in `roomOffer`. Deciding it here would
+  // put one rule in two places, which is the drift the fix exists to end.
+  click({ pkind: 'changed' });
+  await new Promise((r) => setTimeout(r, 30));
+  {
+    const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+    const doc = (globalThis as any).document;
+    const wasQS = doc.querySelector;
+    doc.querySelector = (sel: string) =>
+      sel === '[data-pwhere="pr-3"]' ? { value: 'interiority' }
+      : sel === '[data-pkeys="pr-3"]' ? { value: 'Aldis, thinner' }
+      : sel === '[data-pbody="pr-3"]' ? { value: 'She is thinner than she was.' } : null;
+    try {
+      POSTED.length = 0;
+      changeIn({ dataset: { pwhere: 'pr-3' } });
+      await new Promise((r) => setTimeout(r, 60));
+      const sent = POSTED.find((x) => String(x.url) === '/api/proposal/where');
+      assert.ok(sent, 'changing the room posted nothing — the choice lived only on screen');
+      assert.strictEqual(sent.body.field, 'interiority', 'and carries the room chosen');
+      assert.deepStrictEqual(sent.body.keys, ['Aldis', 'thinner'],
+        'and the trigger words, split on commas rather than sent as one string');
+      // THE EDITED BODY RIDES ALONG, which is what makes the repaint after a move safe: the decide
+      // handler's own note has warned since it was written that a repaint mid-edit loses the box.
+      assert.strictEqual(sent.body.body, 'She is thinner than she was.',
+        'moving a proposal would throw away the words already changed');
+
+      // Editing the keys alone goes through the same door.
+      POSTED.length = 0;
+      changeIn({ dataset: { pkeys: 'pr-3' } });
+      await new Promise((r) => setTimeout(r, 60));
+      assert.ok(POSTED.some((x) => String(x.url) === '/api/proposal/where'),
+        'editing the trigger words saved nothing');
+      ok('moving a proposal or keying it is saved on the server, edit and all');
+
+      // AND THE STATE BOX REACHES THE ROUTE. Accept-time rather than saved: it is chosen in the
+      // same breath as the press.
+      doc.querySelector = (sel: string) =>
+        sel === '[data-pstate="pr-3"]' ? { checked: true }
+        : sel === '[data-pchap="pr-3"]' ? { value: '4' } : null;
+      POSTED.length = 0;
+      click({ decide: 'accept', id: 'pr-3' });
+      await new Promise((r) => setTimeout(r, 60));
+      const took = POSTED.find((x) => String(x.url) === '/api/proposal');
+      assert.ok(took, 'accepting posts to the route');
+      assert.strictEqual(took.body.asState, 4,
+        'the state box was ticked and the chapter typed, and neither reached the route');
+      ok('taking a change as a state instead sends the chapter it starts from');
+    } finally { doc.querySelector = wasQS; }
+  }
 
 // #25. Three sources merge into one row and each may be missing. Checked here rather than by
 // driving the rail, which is why it lives in web/model.js at all.

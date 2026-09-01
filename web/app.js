@@ -1535,6 +1535,21 @@ function proposalCard(p) {
   // the top ran it against every proposal and `JSON.parse([])` is `JSON.parse('')`, which throws.
   const keys = Array.isArray(p.keys) ? p.keys : JSON.parse(p.keys || '[]');
   const at = keys[0] ?? '?';
+  // WHERE IT GOES, AND THE WRITER DECIDES. Seth, 2026-09-01: *"if i ask anansi through the chat
+  // that i want to pad the card or add more info it wants to add it to facts, not info, it doesnt
+  // matter if it belongs to a room it all goes to facts."* The room was a read-only chip here, so a
+  // proposal aimed at the wrong part of a card could only be rejected and retyped by hand.
+  //
+  // Only for a change to a card that EXISTS. A room needs a card to be a room of, and a retirement,
+  // a state and a string are not rooms of anything — the server refuses all four cases anyway
+  // (`roomAsked`), and offering a control that cannot work is worse than offering none.
+  //
+  // The rooms come from `V.slots`, the server's copy of `src/slots.ts`, for the reason the card
+  // form reads them from there: a hand-written list on the screen drifts from the one the database
+  // enforces. A kind with no slots yields no select.
+  const onto = p.entryId ? (V.entries ?? []).find((x) => x.id === p.entryId) : null;
+  const canMove = !!onto && !['retire', 'state', 'string'].includes(p.entryType);
+  const rooms = canMove ? (V.slots?.[onto.entryType] ?? []).map((sl) => sl.name) : [];
   const where = p.entryType === 'retire'
     ? `Stops reaching the model from chapter ${esc(String(at))}. Every chapter before it still has
        it, and Waiting can bring it back.`
@@ -1559,6 +1574,22 @@ function proposalCard(p) {
             ? `<div style="font-size:12px; line-height:1.45; color:var(--mute)">${esc(p.body ?? '')}</div>`
             : `<textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} will say"
             style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>`}
+          ${rooms.length ? `<div style="display:flex; gap:7px; flex-wrap:wrap; align-items:center">
+            <label style="font-size:11px; color:var(--faint)" for="pw-${p.id}">Goes in</label>
+            <select class="field" id="pw-${p.id}" data-pwhere="${p.id}"
+              style="margin:0; flex:1; min-width:130px; padding:6px 8px; font-size:11.5px">
+              <option value=""${p.field ? '' : ' selected'}>the card's own Info</option>
+              ${rooms.map((r) => `<option value="${r}"${p.field === r ? ' selected' : ''}
+                >${esc(r.replace(/_/g, ' '))}</option>`).join('')}</select>
+            <input class="field" data-pkeys="${p.id}" value="${esc(keys.join(', '))}"
+              placeholder="words that wake it" aria-label="Trigger words for ${esc(p.title)}"
+              style="margin:0; flex:1; min-width:130px; padding:6px 8px; font-size:11.5px"></div>
+          <label style="display:flex; gap:7px; align-items:center; font-size:11px; color:var(--faint)">
+            <input type="checkbox" data-pstate="${p.id}">
+            <span>Make it a state instead, from chapter</span>
+            <input class="field" type="number" min="1" data-pchap="${p.id}"
+              value="${V.currentChapter?.index ?? 1}" aria-label="State from chapter"
+              style="margin:0; width:56px; padding:4px 6px; font-size:11.5px"></label>` : ''}
           <div style="display:flex; gap:7px">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">${
@@ -7798,8 +7829,14 @@ document.addEventListener('click', async (e) => {
     // there, reject does nothing. Both of the first two are an ACCEPT to the route — `replace` only
     // says which of the two things accepting means.
     const yes = d.decide === 'accept' || d.decide === 'replace';
+    // A CHANGE OR A STATE, and only the writer knows which they meant: a change edits the
+    // description, a state replaces it from a chapter on. Sent at Accept rather than saved, because
+    // it is chosen in the same breath — the route keeps the model's entry_type either way.
+    const asState = document.querySelector(`[data-pstate="${d.id}"]`)?.checked
+      ? Number(document.querySelector(`[data-pchap="${d.id}"]`)?.value) : 0;
     const r = await api.decide({ storyId: S.storyId, id: d.id, accept: yes,
       ...(d.decide === 'replace' ? { replace: true } : {}),
+      ...(yes && asState > 0 ? { asState } : {}),
       ...(yes && edited != null ? { body: edited } : {}) });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest();
@@ -8709,7 +8746,29 @@ async function readCover(f) {
   toast('Cover set.');
 }
 
+/** MOVING A PROPOSAL, and it goes to the server rather than being held on screen.
+ *
+ *  `proposals.target` — the room a Replace would stand in for — has to be recomputed for the room
+ *  chosen, and the rule for picking it (the live one, else the newest) lives in `roomOffer`.
+ *  Deciding that here would put one rule in two places. So the choice is saved, the view comes
+ *  back, and the card redraws with the right buttons because the ROW says so.
+ *
+ *  The edited body rides along, which is why the repaint is safe: the old note on the decide
+ *  handler warned that a repaint mid-edit loses what is in the box, and for this control it no
+ *  longer can — what is on screen is what gets saved. */
+async function moveProposal(id) {
+  const r = await api.moveprop({ storyId: S.storyId, id,
+    field: document.querySelector(`[data-pwhere="${id}"]`)?.value ?? '',
+    keys: (document.querySelector(`[data-pkeys="${id}"]`)?.value ?? '')
+      .split(',').map((k) => k.trim()).filter(Boolean),
+    body: document.querySelector(`[data-pbody="${id}"]`)?.value });
+  if (r.error) return toast(r.error);
+  V = r; paint();
+}
+
 document.addEventListener('change', (e) => {
+  const moved = e.target.dataset?.pwhere ?? e.target.dataset?.pkeys;
+  if (moved) return void moveProposal(moved);
   if (e.target.dataset?.cover) return void readCover(e.target.files?.[0]);
   // A picture chosen from disk for one thread. Same shrink, different destination.
   if (e.target.dataset?.picfile) return void readEntryImage(e.target.dataset.picfile, e.target.files?.[0]);

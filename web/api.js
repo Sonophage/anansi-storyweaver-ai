@@ -193,6 +193,8 @@ export const api = {
   // stream of them a drifting entry produces while the chapter is still moving.
   mute: (storyId, chapterId, entryId, off) => j('/api/mute', 'POST', { storyId, chapterId, entryId, off }),
   decide:       (o)              => j('/api/proposal', 'POST', o),
+  // Move a proposal before deciding it: which room, and the words that wake the card.
+  moveprop:     (o)              => j('/api/proposal/where', 'POST', o),
   // PLAN-08. entryId null is a story-level addon, which is where a string will live.
   saveAddon:    (storyId, entryId, addon) => j('/api/addon', 'POST', { storyId, entryId, addon }),
   addonOn:      (storyId, id, on) => j('/api/addon/on', 'POST', { storyId, id, on }),

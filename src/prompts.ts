@@ -1168,6 +1168,24 @@ You may also offer, when the writer's message calls for it and not otherwise:
 
 - THREADS — entries for the story bible. Only facts that are now permanently true. A character
   lying or being wrong is not a fact. Offer none rather than pad.
+
+  WHERE IT BELONGS ON THE CARD, in field. A card that already exists is named rooms, and a thread
+  about one of them lands in that one and leaves the rest of the card untouched:
+
+    appearance     how they look          interiority    what they think, fear or want
+    voice          how they sound         relationships  one relationship, and only that one
+    history        what they have been through
+    role           their part in the story
+    facts          something permanent and unchanging — a birth year, a handedness
+    atmosphere / who_is_here / scope / consequences / provenance / what_it_does — for places,
+    rules and objects
+
+  Then the body is JUST THAT ROOM: that one thing and nothing else.
+
+  "facts" is not the default and is the wrong answer for most changes — it is for what never
+  changes. Use "none" only for a card that does not exist yet, or when the change is to who they
+  now ARE as a whole and no single room holds it, because "none" REWRITES THE WHOLE DESCRIPTION
+  with what you return.
 - STRINGS — promises the story has made and not paid. A letter nobody has opened, a debt nobody
   has called in, a name somebody flinched at. What makes it a string rather than a thread is that
   it is UNRESOLVED: "Aldis owns a letter" is a thread, "Aldis has not opened the letter" is a
@@ -1318,8 +1336,18 @@ export const TALK_SCHEMA = {
           type: { type: 'string', enum: ['character', 'lore', 'item', 'rule'] },
           body: { type: 'string', maxLength: 600 },
           keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
+          // WHICH ROOM OF AN EXISTING CARD, or `none` for the card's own body. Added 2026-09-01,
+          // and the same enum EXTRACT_SCHEMA carries for the same reason — free text would let the
+          // model write `Motivation` into one card and `motivations` into the next. It was ABSENT
+          // here until then, so `proposalTarget` resolved every chat proposal to `body` and
+          // accepting one replaced the card's whole description. `roomAsked` in `src/routes.ts`
+          // refuses a slot this card's kind does not have; the enum cannot say "per kind".
+          field: { type: 'string',
+                   enum: ['none', 'appearance', 'atmosphere', 'consequences', 'facts', 'history',
+                          'interiority', 'outfit', 'provenance', 'relationships', 'role',
+                          'scope', 'voice', 'what_it_does', 'who_is_here'] },
         },
-        required: ['title', 'type', 'body', 'keys'],
+        required: ['title', 'type', 'body', 'keys', 'field'],
       },
     },
   },

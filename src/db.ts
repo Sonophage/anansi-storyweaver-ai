@@ -2409,6 +2409,22 @@ export const proposal = (storyId: string, id: string) =>
 export const setProposalStatus = (storyId: string, id: string, status: string) =>
   q('UPDATE proposals SET status = ? WHERE id = ? AND story_id = ?').run(status, id, storyId);
 
+/** MOVE A PROPOSAL — which room it lands in, and the words that wake the card.
+ *
+ *  Both were read-only on screen until 2026-09-01: a proposal in the wrong room could only be
+ *  rejected and the whole thing retyped by hand, which is what Seth hit when the chat kept padding
+ *  cards into one place. `field` and `target` are set together on purpose — the room a change would
+ *  stand in for is a property of the room CHOSEN, so writing one without the other leaves the
+ *  Replace button offering to overwrite a room the proposal no longer points at.
+ *
+ *  Scoped by story like every other write here. The route validates the slot against the card's
+ *  kind before calling: this function cannot know whose card it is. */
+export const setProposalWhere = (storyId: string, id: string,
+                                 w: { field: string | null; target: string | null; keys: string[];
+                                      body: string }) =>
+  q('UPDATE proposals SET field = ?, target = ?, keys = ?, body = ? WHERE id = ? AND story_id = ?')
+    .run(w.field, w.target, JSON.stringify(w.keys), w.body, id, storyId);
+
 /** HOW FAST EACH MODEL ACTUALLY WRITES, from what it has actually written. #25 asked for a speed
  *  field and `presets.ini` has none; hand-writing one is a number that goes stale the first time a
  *  quant changes and says nothing when it does.
