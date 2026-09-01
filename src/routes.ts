@@ -26,6 +26,9 @@ export interface Ctx {
   // The writer's own fallback model, and whether they run the box. Both come from serve.ts:
   // `admin` is an identity question and the sampler map already lives there.
   defaultModel: string | null; setDefaultModel: (id: string) => void;
+  /** Whether this writer is currently looking at the demo library, and the switch for it. The
+   *  account it resolves to is decided in serve.ts and is never named by the client. */
+  demo: boolean; setDemo: (on: boolean) => void;
   /** What every OTHER writer currently defaults to. Only the release policy uses it. */
   otherDefaults?: () => string[];
   admin: boolean;
@@ -57,6 +60,8 @@ export const OPEN_ROUTES = new Set([
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'POST /api/spark/cast',
   // Making a world book names no story yet, the same as making an ordinary one.
   'POST /api/world',
+  // Looking at the demo library names no story, and it is how you get BACK from it too.
+  'POST /api/demo',
   'POST /api/spark/review', 'POST /api/spark/style',
   'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
@@ -1074,7 +1079,7 @@ export const routes: Record<string, Handler> = {
   'GET /api/stories':    (c) => (warmModel(c), { stories: db.listStories(c.owner), model: c.defaultModel ?? model(),
     // Still reported: `admin` decides who may stop the router. It no longer decides who sees The
     // Web — that opened to everyone on 2026-08-31.
-    admin: c.admin,
+    admin: c.admin, demo: c.demo,
     slot: c.slot, gen: c.gen,
     // The writer's own default look. It rides this call because this is the first thing every
     // surface asks for, so there is no second round trip before the app can paint itself.
@@ -1475,6 +1480,10 @@ export const routes: Record<string, Handler> = {
     if (!made) return { error: 'that is not a book you own' };
     return { id: made.id };
   },
+
+  /** Look at the demo library, or stop looking at it. Both writers can, which is the point: it is
+   *  a shared showcase, not a second private account. The body carries only on or off. */
+  'POST /api/demo': (c: Ctx) => { c.setDemo(!!c.body.on); return { demo: !!c.body.on }; },
 
   'POST /api/story':     async (c) => {
     // A story may name its own model, so this is the one field that has to be checked against the

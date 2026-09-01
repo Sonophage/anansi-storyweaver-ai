@@ -6,7 +6,7 @@
 // arriving without either.
 process.env.ANANSI_DB = '/tmp/anansi-scope.db';
 import assert from 'node:assert';
-import { unlinkSync } from 'node:fs';
+import { unlinkSync, readFileSync } from 'node:fs';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-scope.db' + f); } catch {} }
 const db = await import('../src/db.ts');
 const { routes, OPEN_ROUTES, storyIdOf } = await import('../src/routes.ts');
@@ -960,6 +960,44 @@ ok('a story cannot be deleted by someone who does not own it');
   db.delSlot(aStory.id, steered);
   db.delSlot(aStory.id, plain);
   ok('a reroll re-runs the instruction that made the passage, and only that passage');
+}
+
+// ---- THE DEMO SWITCH RESOLVES TO ONE ACCOUNT AND CANNOT BE AIMED (2026-08-31) ----
+//
+// Seth: "can we do the demo account as a switch in my menu both accounts should be able to reach
+// it." It is the only thing in this app that serves a request as somebody other than the writer who
+// made it, so it is the only thing that has to be proved incapable of being pointed anywhere else.
+//
+// The gate lives in serve.ts and the two-owner section above exercises it over HTTP. What is
+// decidable HERE is the contract: the route carries a boolean and nothing else, so there is no
+// account name on the wire to aim.
+{
+  const demo = db.owner('demo');
+  const dStory = db.createStory(demo, { title: "The demo's book" });
+
+  let asked: boolean | null = null;
+  const dctx = (body: any) => ({ body, query: new URLSearchParams(), owner: alice, admin: false,
+    demo: false, setDemo: (on: boolean) => { asked = on; },
+    slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {} }) as any;
+  routes['POST /api/demo'](dctx({ on: true, account: 'bob', owner: bob, login: 'bob' }));
+  assert.strictEqual(asked, true, 'the switch is set from `on` alone');
+  // AND NOTHING ELSE IN THE BODY REACHED ANYTHING. If a later edit reads an account off the
+  // request, this is the assertion that has to be deleted to let it through.
+  assert.match(String(routes['POST /api/demo']), /setDemo\(!!c\.body\.on\)/,
+    'the handler reads `on` and no other field');
+
+  // Being the demo account is still being ONE account, gated like everybody else.
+  assert.ok(!db.ownsStory(aStory.id, demo), "the demo account does not own Alice's book");
+  assert.ok(!db.ownsStory(dStory.id, alice), "and Alice does not own the demo's");
+  assert.ok(db.ownsStory(dStory.id, demo), 'the demo account owns its own');
+
+  // It is a library, not a role. serve.ts computes `admin` from the REAL identity, and that is
+  // asserted at the source because it cannot be reached from here.
+  const serve = readFileSync(new URL('../serve.ts', import.meta.url), 'utf8');
+  assert.match(serve, /admin: REAL === db\.owner\(ADMIN\)/,
+    'admin is decided by the real writer, never by the account being looked at');
+  assert.doesNotMatch(serve, /admin: OWNER === db\.owner\(ADMIN\)/, 'and not by the borrowed one');
+  ok('the demo switch reaches exactly one account, grants nothing, and cannot be aimed');
 }
 
 console.log(`\n${n} checks passed`);

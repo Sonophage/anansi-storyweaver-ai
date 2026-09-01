@@ -148,6 +148,10 @@ const GEN: Record<string, any> = {
 // the context budget reserves against that number — one of them raising it would quietly shrink the
 // other's prompt. routes.ts already calls this account-wide; this is what makes that true.
 const gens = new Map<string, Record<string, any>>();
+// Which writers are currently looking at the demo library rather than their own. Real owner ids,
+// and the only thing that can ever be looked at is the one account below.
+const demoViewers = new Set<string>();
+const demoOwner = () => db.owner(process.env.ANANSI_DEMO ?? 'demo');
 // The writer's fallback model lived HERE, in a Map, until 2026-08-31 — which meant every restart
 // of this process put both writers back on the process default, silently. It is a column on their
 // row now (`users.default_model`), read and written through db, because it survives a reboot and
@@ -176,8 +180,20 @@ const handler = async (req: any, res: any) => {
   try {
     // Before the pages, not only before the API: a request this server will not answer should not
     // get the app shell either.
-    const OWNER = await ownerOf(req.socket.remoteAddress ?? '', req.headers as any);
-    if (!OWNER) {
+    const REAL = await ownerOf(req.socket.remoteAddress ?? '', req.headers as any);
+    // THE DEMO LIBRARY, AS A SWITCH. Seth, 2026-08-31: "can we do the demo account as a switch in
+    // my menu both accounts should be able to reach it." A writer who has flipped it is served the
+    // demo account's library instead of their own for as long as it is on.
+    //
+    // IT CAN RESOLVE TO EXACTLY ONE ACCOUNT AND THE CLIENT NEVER NAMES IT. The only thing the
+    // toggle carries is on or off; `demoOwner()` is computed here. That is the whole of its
+    // safety — an account name over the wire would be a request to be somebody, and every route in
+    // this app is gated on who you are.
+    //
+    // In memory rather than on the row: it is a way of LOOKING at the app, not a fact about the
+    // writer, and a restart putting everyone back in their own library is the right failure.
+    const OWNER = REAL && demoViewers.has(REAL) ? demoOwner() : REAL;
+    if (!OWNER || !REAL) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('not a writer here\n');
     }
@@ -230,7 +246,11 @@ const handler = async (req: any, res: any) => {
       // routes.ts cannot answer this on its own — and getting it wrong means taking a model out
       // from under somebody mid-book.
       otherDefaults: () => db.otherDefaultModels(OWNER),
-      admin: OWNER === db.owner(ADMIN),
+      // THE REAL IDENTITY DECIDES THIS, never the demo one. Admin is who may stop the router;
+      // borrowing the demo library must not borrow that, and the demo account must never grant it.
+      admin: REAL === db.owner(ADMIN),
+      demo: demoViewers.has(REAL),
+      setDemo: (on: boolean) => { if (on) demoViewers.add(REAL); else demoViewers.delete(REAL); },
     };
 
     // One gate, fail closed. A route that names a story must be a story you own; a route

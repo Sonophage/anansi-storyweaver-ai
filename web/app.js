@@ -181,7 +181,7 @@ let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null
 let MANIERR = null;   // why there is no manifest, when there is none
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
 // separate status route, and activity returns only generation rows.
-let SRV = { model: null, slot: null, gen: {}, admin: false };
+let SRV = { model: null, slot: null, gen: {}, admin: false, demo: false };
 // The forge's prompts, fetched once. null is 'not asked yet' and [] is 'asked and refused',
 // which are different screens — the second means this account is not the admin.
 let FORGE = null;
@@ -313,7 +313,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
-  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'lselect',
+  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'lselect', 'demo',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -397,6 +397,18 @@ function drawRail() {
   const inStory = S.place === 'story' && V;
   const storyMenu = inStory && S.railView === 'story';
   const rows = storyMenu ? SNAV : wnav();
+  // THE DEMO LIBRARY, as a switch rather than a second login. Seth, 2026-08-31: "can we do the demo
+  // account as a switch in my menu both accounts should be able to reach it." Only on the workspace
+  // menu: it swaps which library you are looking at, which is a thing you do from outside a book.
+  const demoRow = storyMenu ? '' : `<button data-demo="${SRV.demo ? '0' : '1'}"
+    aria-pressed="${SRV.demo}" style="display:flex; align-items:center; gap:13px; padding:11px 12px;
+    border-radius:var(--r); margin-top:10px; white-space:nowrap; overflow:hidden; width:100%;
+    background:${SRV.demo ? 'rgba(217,178,106,.10)' : 'transparent'};
+    border:1px solid ${SRV.demo ? 'rgba(217,178,106,.28)' : 'var(--line)'}">
+    <span style="width:19px; height:19px; display:flex; align-items:center; justify-content:center;
+      flex:0 0 auto; color:${SRV.demo ? 'var(--gold)' : 'var(--faint)'}">${mark('book')}</span>
+    <span class="txt" style="font-size:13px; color:${SRV.demo ? 'var(--gold-lit)' : 'var(--mute)'}">${
+      SRV.demo ? 'Leave the demo library' : 'Demo library'}</span></button>`;
   const active = storyMenu ? S.panel : S.wpage;
   const item = ([k, g, l]) => {
     const on = k === active;
@@ -421,10 +433,10 @@ function drawRail() {
          border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis;
          color:${c.id === V.currentChapter.id ? 'var(--gold-lit)' : 'var(--faint)'}"><span class="txt">${
          esc(c.title || `Chapter ${c.index}`)}</span></button>`).join('')}`
-    // NO "Open" LIST HERE. It reprinted the first four books in a rail whose first row is already
+    // NO "Open" LIST HERE, only the demo switch. It reprinted the first four books in a rail whose first row is already
     // My stories, which is the same door with a complete list behind it. Seth, 2026-08-31: "the
     // open option in the main menu that should be removed."
-    : '';
+    : demoRow;
 
   $('rail').innerHTML = `
     <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
@@ -4896,7 +4908,7 @@ async function loadLibrary() {
   const r = await api.library();
   if (r.error) return toast(r.error);
   LIB = r.stories ?? [];
-  SRV = { model: r.model ?? null, slot: r.slot ?? null, gen: r.gen ?? {}, admin: !!r.admin };
+  SRV = { model: r.model ?? null, slot: r.slot ?? null, gen: r.gen ?? {}, admin: !!r.admin, demo: !!r.demo };
   // The server is the authority on your default; the cache was only there to paint before this
   // answered. A writer on a second device gets their own settings rather than the shipped ones.
   if (r.look && Object.keys(r.look).length) { Object.assign(MYLOOK, r.look); cacheMine(); }
@@ -7299,6 +7311,19 @@ document.addEventListener('click', async (e) => {
   // The door on the create screen. `data-forgehere` carries '1' to open and '' to shut, so the one
   // button is both and there is no second action name for closing.
   if (d.forgehere !== undefined) { S.forgeHere = d.forgehere === '1'; drawPage(); return; }
+  // The demo library. Everything on screen belongs to the library you were looking at, so this
+  // drops the open book and reloads the shelf rather than trying to reconcile the two.
+  if (d.demo !== undefined) {
+    const on = d.demo === '1';
+    const r = await api.setDemo(on);
+    if (r.error) return toast(r.error);
+    SRV.demo = !!r.demo;
+    S.storyId = null; V = null; S.place = 'workspace'; S.wpage = 'stories';
+    LEDGER = null; syncHash();
+    await loadLibrary();
+    paint();
+    return toast(on ? 'Showing the demo library. Your own books are untouched.' : 'Back in your own library.');
+  }
   if (d.newworld) {
     const name = $('worldName')?.value?.trim();
     if (!name) return toast('Name the world first.');

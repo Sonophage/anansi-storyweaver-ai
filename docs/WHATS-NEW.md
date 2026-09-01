@@ -10,6 +10,17 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · A demo library, one press away
+
+### Show the app without showing your books
+The workspace menu has **Demo library** at the foot of it. Press it and the whole app switches to a
+demo account with two books and their cards in it — nothing of yours on screen, nothing of yours at
+risk. Press **Leave the demo library** to come back.
+
+Both writers can use it; it is the same shared showcase for each of you, not a second private
+account. Your own library is untouched while you are in it, and closing Anansi puts you back in
+your own books.
+
 ## 2026-08-31 · Hold them back, or don't
 
 ### A switch on the character the model must not write
