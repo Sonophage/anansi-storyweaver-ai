@@ -337,6 +337,8 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     proseAuthor: process.env.ANANSI_PROSE_AUTHOR === '1',
     // F54, under measurement. Seth's question, 2026-09-01: the name where the line says "their".
     lockoutNamed: process.env.ANANSI_LOCKOUT_NAMED === '1',
+    // F55. The same naming with the second clause in noun form, so no mental verb touches the name.
+    lockoutNoun: process.env.ANANSI_LOCKOUT_NOUN === '1',
     // Only the summoned ones, and the filter is here rather than in the engine so buildContext
     // never has to know what a string's status means.
     strings: (v as any).strings?.filter((x: any) => x.summoned && x.status === 'open') ?? [],

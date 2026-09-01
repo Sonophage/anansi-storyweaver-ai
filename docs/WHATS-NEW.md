@@ -10,6 +10,24 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · A new cast keeps what it was written with
+
+### A character's description no longer gets overwritten by chapter one
+When a book is made — sparked, or pasted in from the forge — each card's description now goes into
+its **facts** room instead of into **Info**.
+
+It matters because those two are not the same kind of box. The pass that runs when you close a
+chapter rewrites Info; that is what Info is for, and it is how Anansi keeps a character current. It
+has never been able to touch a room. So a cast written into Info at creation was a cast whose
+original description the first closed chapter quietly replaced.
+
+Facts is the room that survives. Your cast's spine sits there now, Info starts empty, and the first
+chapter-end update writes into an empty box rather than over the top of what you started with.
+
+Nothing changes about what the model is sent: facts reads in the same place the body did. What
+changes is what is still there at chapter twelve. A book pasted in that already wrote its own facts
+keeps the one it brought.
+
 ## 2026-09-01 · Reading the whole book, and changing your mind about an instruction
 
 ### Reading mode shows every chapter at once

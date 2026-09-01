@@ -1237,10 +1237,37 @@ export const routes: Record<string, Handler> = {
     // asked for a body and nothing else — but a book forged elsewhere and pasted on the create page
     // arrives complete, and dropping the rooms on the way in would make "one command" a half one.
     // Same writer as the paste route, so the drop-do-not-coerce rule has one home.
+    /* ISSUE #39 · A NEW CARD'S DESCRIPTION GOES IN `facts`, NOT IN THE BODY.
+     *
+     * Seth, 2026-09-01: "On story creation facts should be filled in [not] info since info is what
+     * anansi uses to update the character. Facts are basically ever green."
+     *
+     * WHY THIS IS RIGHT AND NOT A PREFERENCE. The chapter-end memory pass REWRITES the body — that
+     * is what it is for — and it has never been able to touch a room. So a cast written at creation
+     * into the body is a cast whose description is overwritten by the first chapter that closes,
+     * which is the exact defect `facts` was added for on 2026-08-29: "theres no place to keep the
+     * characters main facts that doesnt get overwritten."
+     *
+     * `facts` renders BARE and directly under the body (context.ts `rooms`), so this moves the text
+     * without changing a byte of what the model is sent on the first call. What changes is what
+     * survives chapter one.
+     *
+     * NOT BOTH, and that was checked before it was chosen: facts renders IN ADDITION to the body, so
+     * filling both would send the same sentence to the model twice on every call until the first
+     * chapter closed.
+     *
+     * AN EXPLICIT `rooms.facts` WINS. A book forged elsewhere may have written one on purpose, and
+     * silently replacing it with the body would be the paste losing information it carried. */
     const roomNotes: string[] = [];
     for (const e of c.body.entries ?? []) {
-      const id = db.upsertEntry(made.id, c.owner, e);
-      if (id && e.rooms) roomNotes.push(...writeRooms(made.id, id, e.entryType ?? 'character', e.rooms, e.title).notes);
+      const body = String(e.body ?? '').trim();
+      const hasOwnFacts = !!String(e.rooms?.facts?.body ?? e.rooms?.facts ?? '').trim();
+      const moveToFacts = !!body && !hasOwnFacts;
+      // Written with an EMPTY body, so Anansi's first chapter-end update has the room it expects and
+      // nothing to overwrite. The card's own screen draws facts above Info for this reason already.
+      const id = db.upsertEntry(made.id, c.owner, moveToFacts ? { ...e, body: '' } : e);
+      const rooms = moveToFacts ? { ...(e.rooms ?? {}), facts: { body } } : e.rooms;
+      if (id && rooms) roomNotes.push(...writeRooms(made.id, id, e.entryType ?? 'character', rooms, e.title).notes);
     }
     // AFTER the cast exists, because the persona names one of them and the wizard lets you choose
     // it a step before they are written. A name the model PROPOSED and that did not survive an edit

@@ -115,6 +115,24 @@ export interface Input {
    *  says in as many words that it is not to be reworded casually. Reaches here through Input and
    *  never through process.env, because buildContext is pure. */
   lockoutNamed?: boolean;
+  /** F55. The name, but in NOUN form, so no mental verb sits next to it.
+   *
+   *  F54 measured `lockoutNamed` and found both halves of one result: action fell about a third
+   *  (p = 0.008), and the narrow interiority counter went from 1 run in 650 to 11 — every one of
+   *  them the construction `${locked} felt ...`, six of those near-verbatim repeats of "felt the
+   *  shift in the air", and not one of them `knew`, `decided`, `feared` or `hoped`.
+   *
+   *  The increase is the verb FELT, and the verb FELT is what F54's line puts directly beside his
+   *  name: "never state what X feels, knows or decides." F35 is the standing warning that this model
+   *  does something with the vocabulary you hand it; here the vocabulary was the prohibition's own.
+   *
+   *  So this changes the SECOND clause only, from a verb the name governs to nouns it possesses.
+   *  The first clause was already in noun form and is untouched. The naming stays; the adjacency
+   *  goes. If action still falls and `felt` does not rise, this is the version to ship.
+   *
+   *  IMPLIES NAMING and supersedes the verb form when both are set — additive rather than a value on
+   *  `lockoutNamed`, so F54's exact wording stays in the tree and reproducible. */
+  lockoutNoun?: boolean;
   /** A take the writer rejected and is regenerating away from, if the caller chose to send it.
    *
    *  OFF BY DEFAULT AND THAT IS THE POINT. `db.rejectTake` has recorded rejections since it was
@@ -1137,15 +1155,19 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       // F54. The two clauses that carry the prohibition, with the NAME in place of the pronoun.
       // Same clauses, same order, same length either way — only the referent changes, so an arm
       // that moves is the naming and not a rewrite.
-      ? `[${locked} belongs to the writer: never write ${input.lockoutNamed ? `${locked}'s` : 'their'} `
+      // F54 named the character; F55 puts the second clause in NOUN form so no mental verb sits
+      // beside the name. `named` is true for either, because the noun form is a naming too.
+      ? (() => { const named = input.lockoutNamed || input.lockoutNoun;
+                 return `[${locked} belongs to the writer: never write ${named ? `${locked}'s` : 'their'} `
         + `dialogue, action, gesture or thought, `
-        + `and never state what ${input.lockoutNamed ? `${locked} feels, knows or decides` : 'they feel, know or decide'}.`
+        + `and never state ${input.lockoutNoun ? `${locked}'s thoughts, knowledge or decisions`
+            : named ? `what ${locked} feels, knows or decides` : 'what they feel, know or decide'}.`
         + (input.lockoutClause
           ? ` Where ${locked} speaks or acts in the passages above, the writer wrote it — that is `
             + `not permission and not a pattern to continue.` : '')
         + ` Write the world's answer instead — what `
         + `the others say and do, what the room does, what happens to ${locked}. Stop where `
-        + `${locked} would act.]`
+        + `${locked} would act.]`; })()
       : '', keep: true },
     { text: currentChapter.authorsNote ? `[This chapter must end with: ${currentChapter.authorsNote}]` : '', keep: true },
     // A written-out register replaces the level's fixed line. Five lines cannot say

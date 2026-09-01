@@ -1566,4 +1566,43 @@ ok('the lockout can name the character instead of saying their/they, and only wh
     'and the flag does not smuggle the lockout back into first person');
 });
 
+
+// ---- F55 · THE NAME IN NOUN FORM, so no mental verb sits beside it (2026-09-01).
+//
+// F54 named the character and got both halves of one result: action down about a third, and the
+// narrow interiority counter up from 1 run in 650 to 11 — all eleven the construction "<name>
+// felt ...", none of them knew/decided/feared. The verb FELT is what F54's line puts directly next
+// to the name. This moves the second clause to nouns the name possesses instead.
+ok('the lockout can put its second clause in noun form, with no mental verb beside the name', () => {
+  const build = (o: { named?: boolean; noun?: boolean }) => {
+    const b = base();
+    return render(buildContext({ ...b,
+      story: { ...b.story, pov: 'third limited, past tense', lockedCharacter: 'Mira Vance' },
+      lockoutNamed: o.named, lockoutNoun: o.noun } as any, count));
+  };
+  const WHO = 'Mira Vance';
+
+  const noun = build({ noun: true });
+  assert.match(noun, new RegExp(`never state ${WHO}'s thoughts, knowledge or decisions`),
+    'the noun form states the prohibition as things she possesses');
+  // THE WHOLE POINT: the name must not be followed by a mental verb anywhere in the line.
+  assert.doesNotMatch(noun, new RegExp(`${WHO}\\s+(feels|knows|decides|felt|knew|decided)`),
+    'and no mental verb follows the name — that adjacency is what F54 measured going wrong');
+  // It is still a NAMING. F54's win came from the name being there at all.
+  assert.match(noun, new RegExp(`never write ${WHO}'s dialogue`),
+    'the first clause still names her, so F55 keeps whatever F54 won');
+  assert.doesNotMatch(noun, /their dialogue/, 'and no pronoun form survives');
+
+  // F54's EXACT WORDING IS STILL REACHABLE, because a finding cites it and the next run may need it.
+  assert.match(build({ named: true }), new RegExp(`what ${WHO} feels, knows or decides`),
+    "F54's verb wording is unchanged and still selectable");
+  // The noun form wins when both are set, which is what the flag doc promises.
+  assert.match(build({ named: true, noun: true }), new RegExp(`${WHO}'s thoughts, knowledge`),
+    'noun supersedes verb when both are on');
+  // And OFF is still the shipped pronoun line, byte for byte.
+  const off = build({});
+  assert.match(off, /never write their dialogue, action, gesture or thought/, 'off: shipped wording');
+  assert.match(off, /never state what they feel, know or decide/, 'off: second clause too');
+});
+
 console.log(`\n${n} checks passed`);

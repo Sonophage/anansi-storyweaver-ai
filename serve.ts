@@ -198,7 +198,16 @@ const handler = async (req: any, res: any) => {
       return res.end('not a writer here\n');
     }
     if (PAGES[p]) {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      // no-cache, FOR THE SAME REASON THE JS BRANCH BELOW SAYS IT: these are read off disk on every
+      // request so an edit is live without a restart, and with no freshness header at all a phone
+      // caches heuristically. The JS branch has carried this header and that comment since it was
+      // written; this one did not, so the page could be a day old while its script was current.
+      //
+      // It cost a real diagnosis on 2026-09-01. Seth reported "no target set" still on screen hours
+      // after the line was deleted, and the string did not exist anywhere in the tree — the page in
+      // front of him predated the commit. Half a stale surface is worse than a wholly stale one:
+      // "it still says X" and "X is not in the code" are both true and point nowhere.
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       const html = await readFile(HERE + PAGES[p], 'utf8');
       // Anchored to the whole line: a CSS comment up in app.html's head says ``zoom` on <body>`, and
       // a plain string replace stamps THAT and leaves the real tag alone. It did, on the first try.

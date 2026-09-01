@@ -864,6 +864,52 @@ ok('a story cannot be deleted by someone who does not own it');
   ok("the voice of the weave is per writer, resets to the shipped one, and starts a new story");
 }
 
+// ---- A NEW CARD'S DESCRIPTION LANDS IN `facts`, NOT IN THE BODY (issue #39, 2026-09-01).
+//
+// Seth: "On story creation facts should be filled in [not] info since info is what anansi uses to
+// update the character. Facts are basically ever green."
+//
+// The chapter-end pass REWRITES the body and has never been able to touch a room, so a cast written
+// into the body at creation is a cast whose description chapter one overwrites — the exact defect
+// `facts` was added for. Driven through the real route, because the move happens there and not in db.
+{
+  // Its own ctx: the helper above lives inside the previous block and builds no query, and
+  // GET /api/story needs one.
+  const ctx = (owner: string, body: any = {}, query = '') => ({ body,
+    query: new URLSearchParams(query), owner,
+    slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  const cast = [
+    { title: 'Aldis Fen', entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human',
+      body: '[Aldis Fen: 34, ex-Watch sergeant, owes Marek eleven crowns]' },
+    // ALREADY CARRIES ITS OWN facts — a book forged elsewhere may have written one on purpose, and
+    // the body must not silently replace it.
+    { title: 'Marek Vale', entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human',
+      body: '[Marek Vale: a moneylender]',
+      rooms: { facts: { body: '[Marek Vale: patient, never raises her voice]' } } },
+  ];
+  const book: any = routes['POST /api/stories'](ctx(alice, { title: 'Facts At Birth', entries: cast }));
+  const v: any = routes['GET /api/story'](ctx(alice, {}, `story=${book.id}`));
+
+  const aldis = v.entries.find((e: any) => e.title === 'Aldis Fen');
+  assert.ok(aldis, 'the cast was written');
+  assert.strictEqual(String(aldis.body ?? '').trim(), '',
+    'Info is left EMPTY, so the first chapter-end update has nothing to overwrite');
+  const factsOf = (e: any) => (e.addons ?? []).filter((a: any) => a.slot === 'facts')
+    .map((a: any) => String(a.body ?? '').trim());
+  assert.deepStrictEqual(factsOf(aldis), ['[Aldis Fen: 34, ex-Watch sergeant, owes Marek eleven crowns]'],
+    'and the description is in facts, which no pass rewrites');
+
+  // The one that brought its own keeps it, and its body is NOT moved on top of it.
+  const marek = v.entries.find((e: any) => e.title === 'Marek Vale');
+  assert.deepStrictEqual(factsOf(marek), ['[Marek Vale: patient, never raises her voice]'],
+    'an explicit rooms.facts wins over the body — a paste does not lose what it carried');
+  assert.strictEqual(String(marek.body ?? '').trim(), '[Marek Vale: a moneylender]',
+    'and that entry keeps its body, because nothing was moved out of it');
+
+  ok('a new cast lands in facts, Info stays empty, and an explicit facts is not overwritten (#39)');
+}
+
 // The cover arrives as a data URL in a JSON body, which means the prefix is a claim the sender
 // makes about bytes the server has not looked at. Every refusal below is a thing a browser will
 // never send and an ordinary curl can: a PNG called a JPEG, a PNG relabelled, nothing at all, and
