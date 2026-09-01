@@ -632,6 +632,59 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   ok(`${groups.length} button groups say which one is chosen, from the state that colours them`);
 }
 
+/** EVERY FIELD IN THE APP HAS A NAME, and this is the check that keeps it that way.
+ *
+ *  `<label class="lbl">Spice</label>` followed by a select LOOKS labelled and is not: with no
+ *  `for`/`id` there is nothing joining them, so the control has no accessible name and tapping the
+ *  word does not focus it. Sixty-eight controls were in that state on 2026-09-01. Three ways to be
+ *  named, and all three count:
+ *
+ *    - `aria-label` on the control — for the boxes with no visible label at all
+ *    - `id` matched by a `for` somewhere in the file — the pairing, for the ones that do
+ *    - WRAPPED in a label — `<label><input type="checkbox"> Hold them back</label>` needs neither,
+ *      and every checkbox in this app is written that way
+ *
+ *  THE POINT IS THE REGRESSION, not the sixty-eight. Fixing them once is an afternoon; the next
+ *  control arrives unnamed unless something refuses it, and nothing did. So this asserts an empty
+ *  list rather than a count going down.
+ *
+ *  COMMENTS ARE STRIPPED FIRST, and that is not tidiness: two of the sixty-eight were the word
+ *  select inside a `//` comment explaining how a picker works, and a checker that reports those
+ *  teaches you to skim its output.
+ *
+ *  IT DOES NOT CHECK THAT IDS ARE UNIQUE, and that is deliberate rather than missing. `seedq` and
+ *  `idea` each appear twice — the wizard and the blank-book form, the two halves of the create page
+ *  — and only one of the two is ever mounted, which the note at the `idea` box already states. The
+ *  helper ids look duplicated too (`f-sp-${k}` three times) and are the input, textarea and select
+ *  branches of one helper, of which exactly one renders per key. Asserting uniqueness here would
+ *  need to know which screen is mounted, so it would report four things that are fine. */
+{
+  const raw = read('web/app.js');
+  // Blank out comments, keeping the byte count so reported line numbers stay true.
+  const blanked = raw
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (m, p1) => p1 + ' '.repeat(m.length - p1.length));
+  const fors = new Set([...raw.matchAll(/\bfor="([^"]+)"/g)].map((m) => m[1]));
+  const nameless: string[] = [];
+  for (const m of blanked.matchAll(/<(input|select|textarea)\b[^>]*>/g)) {
+    const tag = m.group?.[0] ?? m[0];
+    if (/type="(hidden|file)"/.test(tag)) continue;
+    if (/aria-label(?:ledby)?="/.test(tag)) continue;
+    const id = /\bid="([^"]+)"/.exec(tag);
+    if (id && fors.has(id[1])) continue;
+    // Wrapped? A label that opens before this control and closes after it names it.
+    const open = blanked.lastIndexOf('<label', m.index!);
+    const shut = open < 0 ? -1 : blanked.indexOf('</label>', open);
+    if (open >= 0 && shut > m.index!) continue;
+    const line = raw.slice(0, m.index!).split('\n').length;
+    nameless.push(`line ${line}: ${tag.replace(/\s+/g, ' ').slice(0, 96)}`);
+  }
+  assert.deepStrictEqual(nameless, [],
+    'these controls have no accessible name: no aria-label, no id paired to a for=, and not wrapped '
+    + 'in a label. A visible word above a box is not a label unless something joins them');
+  ok(`every field in the app has a name — aria-label, a paired for/id, or a wrapping label`);
+}
+
 assert.match(read('web/app.js'), /t === root \|\| t === document\.body/,
   'the delegation must refuse <html> and <body> as action targets');
 ok('the delegation refuses html and body outright');

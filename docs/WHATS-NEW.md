@@ -13,9 +13,12 @@ Everything below this line was written by that model call, before it was removed
 ## 2026-09-01 · Small corrections to how the app reads
 
 ### Tapping a label puts you in the field
-Every field in the story wizard, and the typed fields under Story, are now joined to the word above
-them. Tapping the label focuses the box — which matters most on a phone, where the labels are the
-easiest thing to hit.
+**Every** field in the app is now joined to the word above it — the wizard, Story, Chapter, a
+thread's card, its rooms, its timeline, the blank-book form, the trays. Tapping the label focuses the
+box, which matters most on a phone where the labels are the easiest thing to hit.
+
+The boxes that never had a word above them — the paste boxes, the sliders, the search fields, the
+steer lines — are now named too. Nothing looks different; they just have names now.
 
 ### The rail says which row you are on, and the chapter list which chapter
 It was a colour and nothing else. Same for the **coat chips** under a character on Threads and the

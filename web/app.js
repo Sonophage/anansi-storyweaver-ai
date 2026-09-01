@@ -1098,7 +1098,7 @@ function passageHTML(p, newest, opening) {
    * NO BACKTICKS IN THE COMMENT ABOVE OR ANYWHERE IN HERE: one ends the template literal. */
   const rr = S.reroll?.id === p.id ? `<div class="rerollbox">
     <div class="lbl" style="letter-spacing:.1em; margin:0 0 6px">Re-roll from this instruction</div>
-    <textarea class="field" data-rerollbox="1" rows="2"
+    <textarea class="field" data-rerollbox="1" rows="2" aria-label="The instruction to re-roll from"
       style="margin:0">${esc(S.reroll.text ?? '')}</textarea>
     <div class="hint" style="margin:6px 0 9px">Change it and the new take is written from what you
       change it to. Leave it and you get another take on the same instruction. The passage you have
@@ -1375,7 +1375,7 @@ function drawDock() {
     // pushed to one side.
     else asRow.innerHTML = `<div class="inner"><span>${
       S.mode === 'act' ? 'acting as' : 'speaking as'}</span>
-      <select id="asWhom">
+      <select id="asWhom" aria-label="${S.mode === 'act' ? 'Who you are acting as' : 'Who you are speaking as'}">
         <option value=""${S.speaker ? '' : ' selected'}>${esc(me)}</option>
         ${cast.filter((e) => e.title !== me).map((e) => `<option value="${esc(e.title)}"${
           e.title === S.speaker ? ' selected' : ''}>${esc(e.title)}</option>`).join('')}
@@ -1435,7 +1435,8 @@ function drawDock() {
         >${mark('expand', 18)}</button>
       <div id="inputWrap">
         <div id="inputMirror" aria-hidden="true"></div>
-        <textarea id="input" rows="1" placeholder="${esc(placeholder(who))}"></textarea>
+        <textarea id="input" rows="1" aria-label="What happens next"
+          placeholder="${esc(placeholder(who))}"></textarea>
       </div>
       <div id="atlistInput" hidden></div>
       <!-- SEND STAYS SEND. It carried two jobs for as long as Stop had nowhere else to be — the
@@ -2185,7 +2186,8 @@ const PANELS = {
              Admin-only would be wrong here: the page that hands out the format is a workbench, but
              a card in that format is just a card. -->
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or paste one in</div>
-        <textarea class="field" data-pastebox placeholder="Paste JSON from the forge &mdash; one card, or a list of them"
+        <textarea class="field" data-pastebox aria-label="Paste a thread as JSON"
+          placeholder="Paste JSON from the forge &mdash; one card, or a list of them"
           style="min-height:74px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
         <button class="btn ghost" data-pastethread="1">Read it and add</button>
         <div class="hint">This lands straight in the ledger with its rooms, rather than going to the
@@ -2256,7 +2258,13 @@ const PANELS = {
     // labelled rather than silently dropped.
     const lore = V.entries.filter((e) => e.entryType === 'lore' || e.entryType === 'item');
     const cast = V.entries.filter((e) => e.entryType === 'character');
-    const pick = (key, rows, current, blank) => `<select class="field" data-story="${key}">
+    // EMITS ITS OWN LABEL, like the wizard's `row`, `area` and `pickOne`. It took the label from
+    // the call site at first and the pairing then lived in two places, one of which was a template
+    // expression the source-level check in test/web.ts cannot match against a literal `for`.
+    // `body` is the ? explainer, which belongs between the label and the control.
+    const pick = (key, label, rows, current, blank, body = '') => `<label class="lbl" for="f-story-${key}">${label}</label>
+      ${body}
+      <select class="field" id="f-story-${key}" data-story="${key}">
       <option value="">${blank}</option>
       ${rows.map((r) => `<option value="${esc(r)}" ${r === current ? 'selected' : ''}>${esc(r)}</option>`).join('')}
       ${current && !rows.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)} — not a thread</option>` : ''}
@@ -2298,9 +2306,10 @@ const PANELS = {
         <span style="font-size:13px; color:var(--ink)">Keep it behind the prose while you read</span></label>
       <div class="hint">It stays put and the writing moves over it, fading left to right into the
         page. Instead of a plate at the head of the chapter that scrolls away with it.</div>
-      ${V.story.chapterSticky ? `<label class="lbl" style="letter-spacing:.1em; margin-top:12px">How much of it shows</label>
+      ${V.story.chapterSticky ? `<label class="lbl" for="f-story-coverOpacity"
+          style="letter-spacing:.1em; margin-top:12px">How much of it shows</label>
         <div style="display:flex; align-items:center; gap:12px">
-          <input type="range" min="0" max="100" step="5" style="flex:1"
+          <input type="range" min="0" max="100" step="5" style="flex:1" id="f-story-coverOpacity"
             data-story="coverOpacity" value="${V.story.coverOpacity ?? 30}">
           <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
             >${V.story.coverOpacity ?? 30}%</span></div>
@@ -2322,21 +2331,17 @@ const PANELS = {
         ${f.k === 'styleNote' ? `<button class="btn ghost" data-restyle="1" ${S.styling ? 'disabled' : ''}
           style="margin:-2px 0 4px; width:auto; padding:0 16px; height:34px; font-size:11.5px">${
           S.styling ? 'Writing&hellip;' : 'Have Anansi write it'}</button>` : ''}`).join('')}
-      <label class="lbl">Setting</label>
-      ${pick('setting', lore.map((e) => e.title), V.story.setting, 'Not set')}
+      ${pick('setting', 'Setting', lore.map((e) => e.title), V.story.setting, 'Not set')}
       <div class="hint">Drawn from the lore and items in this story's ledger.</div>
-      <label class="lbl">Point of view</label>
-      ${pick('pov', POV, V.story.pov, 'Not set')}
+      ${pick('pov', 'Point of view', POV, V.story.pov, 'Not set')}
       <!-- #20 §1. The third place a point of view is picked, and the last one without an example.
            Six bare strings say what the camera is called; a line of prose says where it stands. -->
       <div class="hint">${esc(POV_EXAMPLE[V.story.pov] ?? '')}</div>
-      <label class="lbl">You are${helpMark('persona')}</label>
-      ${helpBody('persona')}
-      ${pick('persona', cast.map((e) => e.title), V.story.persona, PERSONA_NONE)}
+      ${pick('persona', `You are${helpMark('persona')}`, cast.map((e) => e.title), V.story.persona,
+        PERSONA_NONE, helpBody('persona'))}
       <div class="hint">${PERSONA_HINT}</div>
-      <label class="lbl">The model never writes${helpMark('locked')}</label>
-      ${helpBody('locked')}
-      ${pick('lockedCharacter', cast.map((e) => e.title), V.story.lockedCharacter, LOCKED_NONE)}
+      ${pick('lockedCharacter', `The model never writes${helpMark('locked')}`,
+        cast.map((e) => e.title), V.story.lockedCharacter, LOCKED_NONE, helpBody('locked'))}
       ${V.story.lockedCharacter ? holdBack(V.story.lockedCharacter, V.story.lockoutOn !== false,
         'data-story') : ''}
       <div class="hint">${lockoutHint(V.story.lockedCharacter, V.story.lockoutOn !== false)}
@@ -2765,12 +2770,16 @@ const PANELS = {
       ${done.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Tied off</div>
         ${done.map(row).join('')}` : ''}
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Tie a new one</div>
-      <input class="field" data-st2="title" placeholder="The letter he has not opened">
-      <textarea class="field" data-st2="body" placeholder="What was promised, and to whom"
+      <input class="field" data-st2="title" aria-label="What to call the promise"
+        placeholder="The letter he has not opened">
+      <textarea class="field" data-st2="body" aria-label="What was promised, and to whom"
+        placeholder="What was promised, and to whom"
         style="min-height:52px; margin-top:6px"></textarea>
       <div style="display:flex; gap:6px; margin-top:6px">
-        <input class="field" data-st2="fromChapter" value="${here}" placeholder="From chapter" style="flex:1">
-        <input class="field" data-st2="owedBy" placeholder="Owed by chapter" style="flex:1">
+        <input class="field" data-st2="fromChapter" aria-label="The chapter it was set up in"
+          value="${here}" placeholder="From chapter" style="flex:1">
+        <input class="field" data-st2="owedBy" aria-label="The chapter it should be paid by"
+          placeholder="Owed by chapter" style="flex:1">
       </div>
       <button class="btn" data-newstring="1" style="margin-top:8px">Tie it</button>
       <div class="hint">Anansi proposes these too &mdash; they arrive in the queue under Chapter with
@@ -2783,7 +2792,7 @@ const PANELS = {
     // wrong default in the one place you already know where you are — and it is how "add to
     // threads" could quietly put one in a different story.
     return `<div style="display:flex; flex-direction:column">
-      <input class="field" id="q" value="${esc(S.query)}" placeholder="Search ${
+      <input class="field" id="q" aria-label="Search the prose" value="${esc(S.query)}" placeholder="Search ${
         S.searchAll ? 'every story' : esc(V?.story.title ?? 'this story')}">
       <label style="display:flex; align-items:center; gap:8px; margin:10px 0 4px; font-size:12px; color:var(--mute)">
         <input type="checkbox" id="searchAll" ${S.searchAll ? 'checked' : ''}>
@@ -2800,7 +2809,8 @@ const PANELS = {
           font-variant-caps:all-small-caps; color:var(--dim)">
           <span>${label}</span><span class="tnum" style="color:var(--gold-dim)">${
             fmt ? fmt(value) : value}</span></div>
-        <input type="range" data-gen="${key}" min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
+        <input type="range" data-gen="${key}" aria-label="${esc(label)}"
+          min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
           value="${value}" style="width:100%; accent-color:var(--gold)">
         ${hint ? `<div class="hint">${hint}</div>` : ''}</div>`;
     return `<div style="display:flex; flex-direction:column">
@@ -2821,7 +2831,7 @@ const PANELS = {
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Model</div>
       ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
         : S.models.length === 0 ? emptyModels()
-        : `<select class="field" data-storymodel="1">
+        : `<select class="field" data-storymodel="1" aria-label="The model this book is written with">
             ${modelOptions(S.models, V.story.model).map((o) => `<option value="${esc(o.value)}"${
               o.selected ? ' selected' : ''}>${
               !o.value ? `Default &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
@@ -2884,7 +2894,8 @@ const PANELS = {
            story. -->
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Your voice, for every book</div>
       ${S.prompts?.voice ? `
-        <textarea class="field grow" data-mydefaultvoice style="min-height:110px; font-size:12.5px;
+        <textarea class="field grow" data-mydefaultvoice aria-label="Your voice, for every book"
+          style="min-height:110px; font-size:12.5px;
           line-height:1.5">${esc(S.prompts.voice.mine ?? S.prompts.voice.shipped)}</textarea>
         <div style="display:flex; gap:7px">
           <button class="btn ghost" data-setvoice="1" style="flex:1">${
@@ -2907,7 +2918,8 @@ const PANELS = {
            per story - she is one character across the shelf. -->
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">How Anansi talks</div>
       ${S.prompts?.anansi ? `
-        <textarea class="field grow" data-anansivoice style="min-height:110px; font-size:12.5px;
+        <textarea class="field grow" data-anansivoice aria-label="How Anansi talks"
+          style="min-height:110px; font-size:12.5px;
           line-height:1.5">${esc(S.prompts.anansi.mine ?? S.prompts.anansi.shipped)}</textarea>
         <div style="display:flex; gap:7px">
           <button class="btn ghost" data-setanansi="1" style="flex:1">${
@@ -2936,7 +2948,8 @@ const PANELS = {
               ${mine ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">yours</span>' : ''}
               <span style="margin-left:auto; color:var(--faint); font-size:12px">${open ? '\u2212' : '+'}</span>
             </button>
-            ${open ? `<textarea class="field" data-prompttext style="min-height:132px; font-family:ui-monospace,monospace;
+            ${open ? `<textarea class="field" data-prompttext aria-label="The whole instruction for ${esc(k)}"
+                style="min-height:132px; font-family:ui-monospace,monospace;
                 font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
               <div class="hint" style="margin:0">Replaces the whole instruction for this mode.
                 ${k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
@@ -3066,7 +3079,8 @@ function ledgerBooks() {
       <button data-open="${sid}" style="font-size:11px; letter-spacing:.1em;
         font-variant-caps:all-small-caps; color:var(--gold)">Open story</button></div>
     ${S.fromBook === sid ? `<div style="display:flex; gap:7px; align-items:center">
-      <input class="field" id="from-${esc(sid)}" placeholder="Name a book that follows these threads"
+      <input class="field" id="from-${esc(sid)}" aria-label="Name a book that follows these threads"
+        placeholder="Name a book that follows these threads"
         style="margin:0; max-width:320px; height:34px; font-size:12.5px">
       <button class="btn ghost" data-startfrom="${esc(sid)}"
         style="width:auto; padding:0 14px; height:34px; font-size:12px; white-space:nowrap">Start it</button>
@@ -3466,12 +3480,12 @@ function sparkReview() {
        ${s.persona && s.persona !== s.lockedCharacter
          ? `<button class="btn ghost" data-splock="1" style="margin-top:2px">Also keep ${esc(s.persona)}
               off the model</button>` : ''}
-       <label class="lbl" style="margin-top:16px">Point of view</label>
-       <select class="field" data-sp="pov">${POV.map((o) =>
+       <label class="lbl" for="f-sp-pov" style="margin-top:16px">Point of view</label>
+       <select class="field" id="f-sp-pov" data-sp="pov">${POV.map((o) =>
          `<option value="${esc(o)}" ${o === s.pov ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
        <div class="hint">${esc(POV_EXAMPLE[s.pov] ?? '')}</div>
-       <label class="lbl">Spice</label>
-       <select class="field" data-sp="spice">${SPICE.map((l, i) =>
+       <label class="lbl" for="f-sp-spice">Spice</label>
+       <select class="field" id="f-sp-spice" data-sp="spice">${SPICE.map((l, i) =>
          `<option value="${i + 1}" ${Number(s.spice) === i + 1 ? 'selected' : ''}>${i + 1} &middot; ${esc(l)}</option>`).join('')}</select>
        <div class="hint">Changeable per story at any time, and a written-out register can replace the
          level entirely under Story.</div>`
@@ -3503,11 +3517,13 @@ function sparkReview() {
          threads is a real answer &mdash; skip this step and write them as you go.</div>`}
        ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px; gap:7px">
          <div style="display:flex; align-items:center; gap:8px">
-           <input class="field" data-spname="${i}" value="${esc(e.title)}" placeholder="Their name"
+           <input class="field" data-spname="${i}" aria-label="Name of thread ${i + 1}"
+             value="${esc(e.title)}" placeholder="Their name"
              style="margin:0; font-size:14px; color:var(--ink-bright)">
            <span class="tag" style="flex:0 0 auto">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
-         <textarea class="field" data-spbody="${i}" placeholder="[Name: what they are, what they want, what it costs]"
-           style="margin:0; min-height:64px; font-size:12.5px; line-height:1.45">${esc(e.body ?? '')}</textarea>
+         <textarea class="field" data-spbody="${i}" aria-label="What thread ${i + 1} says" placeholder="[Name: what they are, what they want, what it costs]"
+           style="margin:0; min-height:64px; font-size:12.5px; line-height:1.45"
+           >${esc(e.body ?? '')}</textarea>
          <div style="display:flex; align-items:center; gap:8px">
            <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint)">
              <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label>
@@ -3543,7 +3559,8 @@ function sparkReview() {
          ${forgeCopy('character', 'Copy the character prompt')}
          ${forgeCopy('location', 'Copy the place prompt')}
        </div>` : ''}
-       <textarea class="field" data-castpaste placeholder="Or paste forged JSON &mdash; one card, or a list"
+       <textarea class="field" data-castpaste aria-label="Paste threads as JSON"
+         placeholder="Or paste forged JSON &mdash; one card, or a list"
          style="min-height:60px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
        <button class="btn ghost" data-pastecast="1">Read it and add to the threads</button>
        <div class="hint">It joins the threads above, to read and edit before you accept. Nothing is
@@ -3553,7 +3570,8 @@ function sparkReview() {
             the same copy on accept, because "db.copyEntry" refuses unless BOTH books are yours and
             a second copy path is a second place for that check to be forgotten. -->
        <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Or bring threads you already have</div>
-       <input class="field" id="seedq" value="${esc(S.seedQ ?? '')}"
+       <input class="field" id="seedq" aria-label="Search every book for threads to bring in"
+         value="${esc(S.seedQ ?? '')}"
          placeholder="Search every book for a character, a place, a rule&hellip;">
        <div id="seeds">${seedList()}</div>
 
@@ -3565,7 +3583,7 @@ function sparkReview() {
             Threads page already sets — no new route, no new column, one behaviour for one word.
             NO BACKTICKS IN HERE: one closes the template literal holding this markup. -->
        <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Or set it in a book you already have</div>
-       <select class="field" data-spfollow="1" style="margin:0">
+       <select class="field" data-spfollow="1" aria-label="The book this one is set in" style="margin:0">
          <option value="">Stands on its own</option>
          ${(LIB ?? []).map((b) => `<option value="${esc(b.id)}"${
            S.spark.follow === b.id ? ' selected' : ''}>Follows ${esc(b.title)}${
@@ -3846,7 +3864,8 @@ function setupPanel() {
       <div class="hint" style="margin:0 0 8px">Ticked means it is sent for this chapter whether or not
         anyone says its name. Unticking an always-on entry holds it back for this chapter only. Both
         cost or save their canon on every call, so tick what is actually in the room.</div>
-      <input class="field" id="setupQ" value="${esc(S.setupQ ?? '')}"
+      <input class="field" id="setupQ" aria-label="Find a thread in this story's ledger"
+        value="${esc(S.setupQ ?? '')}"
         placeholder="Find someone or something in this story's ledger">
       <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Who</div>
       ${cast.length ? cast.map((e) => row(e, 'pin')).join('')
@@ -3867,12 +3886,12 @@ function setupPanel() {
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(ch.title || `Chapter ${ch.index}`)}</div>
     <div class="hint" style="margin:6px 0 0">Nothing here is required. Leave it and write.</div>
 
-    <label class="lbl">Title</label>
-    <input class="field" data-setup="title" value="${esc(form.title)}" placeholder="${
+    <label class="lbl" for="f-setup-title">Title</label>
+    <input class="field" id="f-setup-title" data-setup="title" value="${esc(form.title)}" placeholder="${
       S.naming ? 'Anansi is naming it…' : 'Untitled'}">
 
-    <label class="lbl">What happens next</label>
-    <textarea class="field grow" data-setup="note" style="min-height:80px; max-height:40vh"
+    <label class="lbl" for="f-setup-note">What happens next</label>
+    <textarea class="field grow" id="f-setup-note" data-setup="note" style="min-height:80px; max-height:40vh"
       placeholder="${S.naming ? 'and saying what it has to do…' : 'Where this chapter has to end up'}"
       >${esc(form.note)}</textarea>
     <div class="hint">${form.note.trim() ? 'Rides near the generation point on every call.'
@@ -3882,7 +3901,8 @@ function setupPanel() {
          influence." It was one button that took whatever came back. A steer is the difference
          between accepting a suggestion and asking for one, and it is the same shape as the box in
          every other place Anansi is asked for something in this app. -->
-    <input class="field" data-setup="steer" value="${esc(S.setupSteer ?? '')}"
+    <input class="field" data-setup="steer" aria-label="Steer what Anansi suggests"
+      value="${esc(S.setupSteer ?? '')}"
       placeholder="Steer it — a turn you want, someone who has to be in it" style="margin-top:14px">
     <button class="btn ghost" data-name="${ch.id}" ${S.naming ? 'disabled' : ''} style="margin-top:7px">${
       S.naming ? 'Thinking&hellip;' : (!placeholder || form.note.trim())
@@ -3930,7 +3950,8 @@ function libTray(kind) {
         style="font-size:11.5px; padding:6px 4px 6px 12px; color:var(--mute)">${esc(v.name)}</button>
       <button data-dellib="${esc(kind)}:${esc(v.name)}" aria-label="Forget ${esc(v.name)}"
         style="font-size:11px; padding:6px 9px 6px 5px; color:var(--faint)">&#10005;</button></span>`).join('')}
-    <input class="field" data-libname="${esc(kind)}" placeholder="[name this ${esc(what)}]"
+    <input class="field" data-libname="${esc(kind)}" aria-label="Name this ${esc(what)}"
+      placeholder="[name this ${esc(what)}]"
       style="margin:0; width:auto; flex:1; min-width:120px; font-size:11.5px; height:32px; padding:0 10px">
     <button class="btn ghost" data-savelib="${esc(kind)}"
       style="width:auto; padding:0 14px; height:32px; font-size:11.5px">Save it</button>
@@ -4002,17 +4023,20 @@ const slotLabel = (slot) => String(slot).replace(/_/g, ' ');
 function roomForm(cast, who, slot = 'outfit', openMine = false) {
   const [namePh, bodyPh] = SLOT_HINT[slot] ?? ['[What it is called]', '[what the model reads]'];
   return `
-    ${who ? '' : `<label class="lbl">Whose</label>
-    <select class="field" data-loreowner>${cast.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}</select>`}
+    ${who ? '' : `<label class="lbl" for="f-loreowner">Whose</label>
+    <select class="field" id="f-loreowner" data-loreowner>${cast.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}</select>`}
     ${inventTray(slot, who ? `Have Anansi write ${esc(who.title)}'s ${esc(slotLabel(slot))}`
                            : 'Have Anansi write one',
                  'mourning, or travelling light, or whatever you already had in mind')}
     <details class="fold outfitmine" ${openMine ? 'open' : ''}>
       <summary>Write it myself</summary>
-      <input class="field" data-of="name" placeholder="${esc(namePh)}">
-      <textarea class="field grow" data-of="body" style="min-height:58px; max-height:40vh"
+      <input class="field" data-of="name" aria-label="What to call this ${esc(slotLabel(slot))}"
+        placeholder="${esc(namePh)}">
+      <textarea class="field grow" data-of="body" aria-label="What the model reads"
+        style="min-height:58px; max-height:40vh"
         placeholder="${esc(bodyPh)}"></textarea>
-      <input class="field" data-of="keys" placeholder="Words that bring it in, comma separated">
+      <input class="field" data-of="keys" aria-label="Words that bring it in, comma separated"
+        placeholder="Words that bring it in, comma separated">
       <button class="btn ghost" data-addoutfit="${esc(slot)}">Add ${esc(slotLabel(slot))}</button>
     </details>`;
 }
@@ -4025,7 +4049,8 @@ function inventTray(kind, label, placeholder, value = '') {
   // is a bug that produces a plausible answer to the wrong question.
   return `<div data-invtray style="display:flex; flex-direction:column; gap:7px; margin-top:4px;
       padding-top:9px; border-top:1px solid var(--line)">
-    <textarea class="field" data-invdir placeholder="${esc(placeholder)}"
+    <textarea class="field" data-invdir aria-label="Steer what Anansi writes"
+      placeholder="${esc(placeholder)}"
       style="min-height:44px; font-size:12.5px">${esc(value)}</textarea>
     <div style="display:flex; align-items:center; gap:9px">
       <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
@@ -4162,9 +4187,9 @@ function connections(e) {
         border:1px solid var(--chip); color:var(--faint); font-size:11px">Disconnect</button></div>`).join('')
       || '<div class="hint" style="margin:0 0 9px">Nothing yet.</div>'}
     ${others.length ? `<div style="display:flex; gap:7px; align-items:center">
-      <select class="field" data-lk="child" style="margin:0; flex:1">${
+      <select class="field" data-lk="child" aria-label="The thread to connect" style="margin:0; flex:1">${
         others.map((x) => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join('')}</select>
-      <select class="field" data-lk="conf" style="margin:0; flex:1">${
+      <select class="field" data-lk="conf" aria-label="How strongly it pulls the other in" style="margin:0; flex:1">${
         PULL.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select></div>
       <button class="btn ghost" data-link="1" style="margin-top:8px">Connect</button>` : ''}`);
 }
@@ -4335,13 +4360,15 @@ function roomSection(e, sl, live = null, anchor = true) {
     ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${
       a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
       <div style="display:flex; align-items:center; gap:9px">
-        <input class="field" data-an="${esc(a.id)}" value="${esc(a.name)}"
+        <input class="field" data-an="${esc(a.id)}" aria-label="What to call this ${esc(slotLabel(sl.name))}"
+          value="${esc(a.name)}"
           style="margin:0; font-size:13px; color:var(--ink-bright)">
         <button data-deladdon="${esc(a.id)}" style="flex:0 0 auto; color:var(--bad); font-size:12px"
           aria-label="Remove">&#10005;</button></div>
-      <textarea class="field grow" data-ab="${esc(a.id)}"
+      <textarea class="field grow" data-ab="${esc(a.id)}" aria-label="What ${esc(a.name)} says"
         style="margin:0; min-height:52px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(a.body)}</textarea>
-      <input class="field" data-ak="${esc(a.id)}" value="${esc((a.keys ?? []).join(', '))}"
+      <input class="field" data-ak="${esc(a.id)}" aria-label="Words that wake ${esc(a.name)}"
+        value="${esc((a.keys ?? []).join(', '))}"
         placeholder="[trigger words, comma separated]" style="margin:0; font-size:12px">
       <div style="display:flex; gap:7px">
         <button class="btn ghost" data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" style="flex:1; ${
@@ -4411,8 +4438,8 @@ function entryEditor() {
     ${cardBar('form')}
     ${cardHead(e, shown)}
     ${addTray(e, slots)}
-    <label class="lbl">Name</label>
-    <input class="field" data-f="title" value="${esc(e.title ?? '')}">
+    <label class="lbl" for="f-card-title">Name</label>
+    <input class="field" id="f-card-title" data-f="title" value="${esc(e.title ?? '')}">
     <label class="lbl">Type</label>
     <div style="display:flex; gap:6px">${KINDS.map((k) => `<button data-kind="${k}"
       style="flex:1; text-align:center; font-size:11.5px; padding:8px 0; border-radius:var(--r);
@@ -4436,13 +4463,13 @@ function entryEditor() {
          engine's Entry type has no such field. It is for the writer's eye. -->
     ${entryPicture(e)}
 
-    <label class="lbl">Info</label>
+    <label class="lbl" for="f-card-body">Info</label>
     <!-- GROWS. It was a fixed 96px box, and an invented thread's body went from 60-120 words to
          120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
          sign there was more. Measured: 656 characters, 94px of box, 283px of content. Nothing was
          lost, it scrolled, and it read as cut off, which is what Seth reported. Capped so a very
          long one still leaves the buttons under it reachable. -->
-    <textarea class="field grow" data-f="body" style="min-height:150px; max-height:52vh"
+    <textarea class="field grow" id="f-card-body" data-f="body" style="min-height:150px; max-height:52vh"
       >${esc(e.body ?? '')}</textarea>
     <div class="hint">This is what the model reads, and the chapter-end pass rewrites it. Bracket
       form keeps it short: [Name: trait, trait]. What must survive a rewrite goes in facts, above.</div>
@@ -4453,8 +4480,8 @@ function entryEditor() {
          screen that hid it, and there was no reason to ever flip the chip on an entry whose keys
          you could not read. Keys are what an entry WOULD fire on, so authoring them before the
          switch is the only safe order. -->
-    <label class="lbl">Trigger words</label>
-    <input class="field" data-f="keys" value="${esc((e.keys ?? []).join(', '))}">
+    <label class="lbl" for="f-card-keys">Trigger words</label>
+    <input class="field" id="f-card-keys" data-f="keys" value="${esc((e.keys ?? []).join(', '))}">
     <div class="hint">${e.activation === 'always_on'
       ? 'Not used while this is always-on — it is sent on every call either way. Write them anyway: '
         + 'they are what it would fire on the moment you switch it to a keyword, and this is the '
@@ -4537,8 +4564,9 @@ function entryEditor() {
     ${inventTray(e.entryType, 'Have Anansi write this card',
                  'what has changed about them, or nothing at all and let her read the book')}
     <div class="hint">It fills the fields above, unsaved. Nothing changes until you press Save.</div>
-    <label class="lbl">Your notes</label>
-    <textarea class="field grow" data-f="notes" style="min-height:64px; max-height:40vh">${esc(e.notes ?? '')}</textarea>
+    <label class="lbl" for="f-card-notes">Your notes</label>
+    <textarea class="field grow" id="f-card-notes" data-f="notes"
+      style="min-height:64px; max-height:40vh">${esc(e.notes ?? '')}</textarea>
     <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
 
 
@@ -4557,18 +4585,22 @@ function entryEditor() {
         <button data-delstate="${st.id ?? ''}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
       <textarea class="field grow" data-stb="${st.id ?? ''}" aria-label="What is true from that chapter on"
         style="margin:0; min-height:56px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(st.body)}</textarea>
-      <input class="field" data-stl="${st.id ?? ''}" value="${esc(st.label ?? '')}"
+      <input class="field" data-stl="${st.id ?? ''}" aria-label="If hinted, what the reader may sense"
+        value="${esc(st.label ?? '')}"
         placeholder="If hinted, what the reader may sense" style="margin:0">
       <button class="btn ghost" data-savestate="${st.id ?? ''}">Save this change</button></div>`).join('')}
     <div class="card" style="gap:7px">
       <div style="display:flex; gap:7px">
-        <input class="field" data-st="fromChapter" type="number" min="1" placeholder="Chapter" style="width:96px">
-        <select class="field" data-st="beforeMode">
+        <input class="field" data-st="fromChapter" type="number" min="1" aria-label="From chapter"
+          placeholder="Chapter" style="width:96px">
+        <select class="field" data-st="beforeMode" aria-label="Before that chapter">
           <option value="hide">hidden before</option>
           <option value="hint">hinted before</option>
         </select></div>
-      <textarea class="field grow" data-st="body" placeholder="What is true from that chapter on" style="min-height:56px; max-height:40vh"></textarea>
-      <input class="field" data-st="label" placeholder="If hinted, what the reader may sense">
+      <textarea class="field grow" data-st="body" aria-label="What is true from that chapter on"
+        placeholder="What is true from that chapter on" style="min-height:56px; max-height:40vh"></textarea>
+      <input class="field" data-st="label" aria-label="If hinted, what the reader may sense"
+        placeholder="If hinted, what the reader may sense">
       <button class="btn ghost" data-addstate="1">Add a change over time</button></div>`)}
     ${S.fieldHistory ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Field history</div>
       ${S.fieldHistory.length ? S.fieldHistory.map((h) => `<div class="card" style="margin-bottom:8px">
@@ -4633,7 +4665,7 @@ function copyElsewhere(e) {
       your books, with its trigger words. What it does NOT carry is the timeline: a change over time
       is anchored to a chapter number, and chapter seven there is not chapter seven here.</div>
     <div class="card" style="gap:7px">
-      <select class="field" data-cf="into">${others.map((s2) =>
+      <select class="field" data-cf="into" aria-label="The book to copy it into">${others.map((s2) =>
         `<option value="${esc(s2.id)}">${esc(s2.title)}</option>`).join('')}</select>
       <button class="btn ghost" data-copyentry="1">Copy it there</button></div>`
     : `<div class="hint" style="margin:0">You have one book. A card can be copied into another when
@@ -5118,7 +5150,7 @@ const WPAGES = {
         <!-- The same id the create page uses, so data-spark reads this box with no second path
              through the handler. Only one of the two screens is ever mounted. -->
         <div class="sparkline">
-          <textarea id="idea" class="field serif" rows="1"
+          <textarea id="idea" class="field serif" rows="1" aria-label="The idea to spark a book from"
             placeholder="A clerk finds his own name in a ledger of debts owed to a harbour&hellip;"
             ></textarea>
           <button class="btn" data-spark="1" style="width:auto; padding:0 22px; height:42px"
@@ -5191,11 +5223,11 @@ const WPAGES = {
     // straight into the editor, which is the one moment you know least about the story and the
     // worst time to be given a blinking cursor.
     if (S.blank) {
-      const f = (k, label, hint) => `<label class="lbl">${label}</label>
-        <input class="field" data-bf="${k}" value="${esc(S.blank[k] ?? '')}">
+      const f = (k, label, hint) => `<label class="lbl" for="f-bf-${k}">${label}</label>
+        <input class="field" id="f-bf-${k}" data-bf="${k}" value="${esc(S.blank[k] ?? '')}">
         ${hint ? `<div class="hint">${hint}</div>` : ''}`;
-      const area = (k, label, hint, ph) => `<label class="lbl">${label}</label>
-        <textarea class="field" data-bf="${k}" placeholder="${esc(ph ?? '')}"
+      const area = (k, label, hint, ph) => `<label class="lbl" for="f-bf-${k}">${label}</label>
+        <textarea class="field" id="f-bf-${k}" data-bf="${k}" placeholder="${esc(ph ?? '')}"
           style="min-height:88px">${esc(S.blank[k] ?? '')}</textarea>
         ${hint ? `<div class="hint">${hint}</div>` : ''}`;
       return `<div style="display:flex; flex-direction:column; gap:0; max-width:640px">
@@ -5208,8 +5240,8 @@ const WPAGES = {
         ${area('premise', 'Premise', 'One or two sentences. It rides in the spine on every call.',
                'A broke ex-sergeant owes a moneylender more than he can pay…')}
         ${f('setting', 'Setting', 'Where it happens. Lore written later can replace this.')}
-        <label class="lbl">Point of view</label>
-        <select class="field" data-bf="pov">${POV.map((p) =>
+        <label class="lbl" for="f-bf-pov">Point of view</label>
+        <select class="field" id="f-bf-pov" data-bf="pov">${POV.map((p) =>
           `<option value="${esc(p)}" ${p === S.blank.pov ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
         <div class="hint">${esc(POV_EXAMPLE[S.blank.pov] ?? '')}</div>
         ${area('writingStyle', 'Voice of the weave',
@@ -5225,15 +5257,16 @@ const WPAGES = {
              rewrites only its own list: the form reads its fields off the DOM when you press
              Create, so a repaint here would throw away everything typed above it. -->
         <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Start from threads you have</div>
-        <input class="field" id="seedq" value="${esc(S.seedQ ?? '')}"
+        <input class="field" id="seedq" aria-label="Search every book for threads to start from"
+          value="${esc(S.seedQ ?? '')}"
           placeholder="Search every book for a character, a place, a rule" style="margin:0 0 8px">
         <div id="seeds">${seedList()}</div>
         <div class="hint">They are COPIED, not linked &mdash; the new book owns them and can change
           them without touching where they came from. To share one card between books instead,
           follow that book's threads from the Story panel.</div>
 
-        <label class="lbl">Spice</label>
-        <select class="field" data-bf="spice">${SPICE.map((l, i) =>
+        <label class="lbl" for="f-bf-spice">Spice</label>
+        <select class="field" id="f-bf-spice" data-bf="spice">${SPICE.map((l, i) =>
           `<option value="${i + 1}" ${Number(S.blank.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}</select>
         <div class="hint">Changeable per story at any time, and a written-out register can replace
           the level entirely under Story.</div>
@@ -5270,7 +5303,8 @@ const WPAGES = {
         <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">Hand him one thread</div>
         <div style="font-size:14px; line-height:1.65; color:var(--mute)">Spark takes an idea and returns a skeleton.
           Every field stays editable, and the cast comes back as ledger entries you accept or drop.</div>
-        <textarea id="idea" class="field serif" placeholder="Six houses have one winter to sign a peace none of them wants…"
+        <textarea id="idea" class="field serif" aria-label="The idea to spark a book from"
+          placeholder="Six houses have one winter to sign a peace none of them wants…"
           style="font-size:17px; line-height:1.6; min-height:130px"></textarea>
         <div class="hint">A sentence is enough. A paragraph is better.</div>
         <div style="display:flex; gap:12px; padding-top:6px; flex-wrap:wrap">
@@ -5296,7 +5330,8 @@ const WPAGES = {
               together. Paste what comes back and the wizard opens with every field and every card
               already in it &mdash; still yours to read, edit and accept.</div>
             ${forgeCopy('book', 'Copy the whole-book prompt')}
-            <textarea class="field" data-bookpaste placeholder="Paste the JSON it gave you"
+            <textarea class="field" data-bookpaste aria-label="Paste a whole book as JSON"
+              placeholder="Paste the JSON it gave you"
               style="min-height:70px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
             <button class="btn ghost" data-pastebook="1">Open the wizard with this</button>
           </div>` : ''}
@@ -5341,7 +5376,8 @@ const WPAGES = {
              shelf. World books that already exist are unaffected and still draw here.
              NO BACKTICKS IN HERE — one ends the template literal holding this markup. -->
         <div style="border-top:1px solid var(--line); margin-top:4px"></div>
-        <input class="field" id="lq" value="${esc(S.ledgerQ)}" placeholder="Search every story"
+        <input class="field" id="lq" aria-label="Search the threads in every story"
+          value="${esc(S.ledgerQ)}" placeholder="Search every story"
           style="margin:0; max-width:340px">
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
           ${['all', ...KINDS].map((k) => `<button data-lkind="${k}" style="font-size:12px; padding:8px 16px;
@@ -5441,7 +5477,7 @@ const WPAGES = {
         </div>
         ${(P.notes ?? []).map((n) => `<div class="hint">${esc(n)}</div>`).join('')}
         <div>
-          <div class="lbl">Where it goes</div>
+          <label class="lbl" for="impinto">Where it goes</label>
           <select id="impinto" class="field" style="max-width:460px">
             <option value=""${I.into ? '' : ' selected'}>A new story &mdash; ${esc(P.story?.title ?? 'untitled')}</option>
             ${LIB.map((x) => `<option value="${esc(x.id)}"${x.id === I.into ? ' selected' : ''}
@@ -5484,7 +5520,7 @@ const WPAGES = {
         [['bug', 'Something is broken'], ['feature', 'Something I want'], ['question', 'A question']]
           .map(([k, label]) => '<button class="pill" data-bugkind="' + k + '" aria-pressed="'
             + (S.bugKind === k) + '">' + label + '</button>').join('')}</div>
-      <textarea class="field" data-bug="1" style="min-height:132px"
+      <textarea class="field" data-bug="1" aria-label="What went wrong" style="min-height:132px"
         placeholder="The tray opened behind the scrim when I double-tapped a paragraph on my phone."
         >${esc(S.bug ?? '')}</textarea>
       <button class="btn" data-sendbug="1" style="margin-top:12px; width:auto; padding:0 28px; height:46px">${
@@ -8889,7 +8925,8 @@ function coverFinder() {
   return `<div class="card" style="gap:8px; margin-top:7px">
     <div class="lbl" style="letter-spacing:.1em; margin:0">What to look for</div>
     <div style="display:flex; gap:7px">
-      <input class="field" data-findq value="${esc(f.q ?? '')}" style="margin:0; flex:1"
+      <input class="field" data-findq aria-label="What to look for"
+        value="${esc(f.q ?? '')}" style="margin:0; flex:1"
         placeholder="a canal city at night">
       <button class="btn ghost" data-findcover="go" ${f.busy ? 'disabled' : ''}
         style="flex:0 0 auto; width:auto; padding:12px 18px">${f.busy ? 'Looking&hellip;' : 'Look'}</button>
@@ -8918,7 +8955,8 @@ function drawTray() {
   const shots = S.drawn.shots ?? [];
   return `<div class="card" style="gap:8px; margin-top:7px">
     <div class="lbl" style="letter-spacing:.1em; margin:0">What to draw</div>
-    <textarea class="field grow" data-drawprompt style="margin:0; min-height:56px; font-size:12.5px;
+    <textarea class="field grow" data-drawprompt aria-label="What to draw"
+      style="margin:0; min-height:56px; font-size:12.5px;
       line-height:1.45">${esc(S.drawn.prompt)}</textarea>
     <div class="hint" style="margin:0">These words go to <code>pollinations.ai</code>, from this
       browser rather than through Anansi. It is the only thing in the app that leaves the machine
