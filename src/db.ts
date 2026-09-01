@@ -2520,6 +2520,19 @@ export const recentGenerations = (storyId: string, limit = 40) => q(
  *  A second statement rather than an argument to `logGeneration`, because the log happens BEFORE
  *  the repair — the id has to exist so the take can be tied to it, and a generation that succeeded
  *  must stay logged even if the repair throws. */
+/** WHAT A REPAIR DID, on the generation row that paid for it. Issue #9.
+ *
+ *  Restored 2026-09-01 with the repair button. The counts existed once and were returned to a
+ *  browser that ignored them and written nowhere, so for four days nobody could say how often the
+ *  repair fired or how often it worked while eighteen contradictions reached the flags table.
+ *
+ *  A CLEAN RUN RECORDS NOTHING AT ALL, not a zero: this is only called when something WAS wrong,
+ *  which is the informative denominator. `mended` is `found - left`, so it goes NEGATIVE when the
+ *  second look finds more than the first — 2 of the 12 rows in the live library do, which is the
+ *  repair having introduced a contradiction. That is a fact worth keeping, not a number to clamp. */
+export const noteMend = (id: string, m: unknown) =>
+  q('UPDATE generations SET mend = ? WHERE id = ?').run(JSON.stringify(m), id);
+
 export function logGeneration(g: any) {
   const gid = uid('g-');
   q(`INSERT INTO generations (id,story_id,chapter_id,passage_id,model,role,params,manifest,

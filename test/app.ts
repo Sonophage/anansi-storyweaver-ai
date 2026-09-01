@@ -170,7 +170,13 @@ const STORY = {
   // which are the part that can be waved away. The panel gates on this being present at all.
   waiting: { proposals: 2, strings: 1, flags: 1,
              stale: [{ id: 'c-1', index: 1, title: 'Ashfall', ref: 'hash-1' }] },
-  violations: [{ id: 'v-1', passageId: 'p-2', entryId: 'e-1', quote: 'x', reason: 'gloves', confidence: 0.8 }],
+  violations: [{ id: 'v-1', passageId: 'p-2', entryId: 'e-1', quote: 'x', reason: 'gloves', confidence: 0.8 },
+               // #9. A NEVER-SENT flag, which is the other fault wearing the same red line: the
+               // engine did not give the model this canon, so the fix is a trigger word and not a
+               // rewrite. It must not be offered the repair button. Added 2026-09-01 — the fixture
+               // had only the ordinary kind, so nothing could tell the two apart on screen.
+               { id: 'v-2', passageId: 'p-2', entryId: 'e-2', quote: 'y', reason: 'the stair',
+                 confidence: 0.8, reached: false }],
   strings: [{ id: 'st-1', title: 'The letter he has not opened', body: 'Sent by his brother',
               fromChapter: 1, owedBy: 4, status: 'open', summoned: false }],
   proposals: [{ id: 'pr-2', entryId: null, title: 'The debt nobody has called in',
@@ -692,6 +698,34 @@ assert.match(html('col'), /class="block speak"/, 'quoted prose is a speech block
 ok('Regenerate and Continue sit under the last passage, once');
 assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you block');
 assert.match(html('col'), /Contradiction · Envoy Sereth/, 'a violation must surface on its passage');
+// ISSUE #9 · THE REPAIR IS A PRESS, AND ONLY ON THE FAULT A REWRITE CAN FIX.
+//
+// Two different faults wear the same red line, and the flag row already says which is which. A
+// CONTRADICTION is canon the model was shown and broke — a rewrite is the answer. A NEVER-SENT flag
+// is canon the engine did not give it, and asking the model to correct prose against something it
+// was never told is asking it to guess; the fix there is a trigger word or always-on.
+//
+// The fixture carries one of each, and the two are separated by `reached`. The button must follow
+// that field and not the presence of a flag — offering it on a never-sent flag would spend a model
+// call to produce prose the checker will flag again for the same reason.
+{
+  const col = html('col');
+  assert.match(col, /Never sent · The stair/, 'the fixture really carries a never-sent flag too');
+  const acts = [...col.matchAll(/<div class="flagacts">[\s\S]*?<\/div>/g)].map((m) => m[0]);
+  assert.strictEqual(acts.length, 2, `two flags, two action rows, and there are ${acts.length}`);
+  const withRepair = acts.filter((a) => /data-repair=/.test(a));
+  assert.strictEqual(withRepair.length, 1,
+    'exactly one of the two flags may offer the repair — the contradiction, not the never-sent one');
+  assert.match(withRepair[0], /data-repair="p-2"/, 'and it names the passage it would correct');
+  // The other way round, asserted rather than assumed: whichever row has no repair must be the
+  // never-sent one, or the gate is inverted and reads as working.
+  const without = acts.find((a) => !/data-repair=/.test(a))!;
+  assert.match(without, /data-mute="e-2"/,
+    'the row with no repair is the never-sent flag, whose fix is a trigger word');
+  // Both faults keep the presses that DO apply to them.
+  for (const a of acts) assert.match(a, /data-dropflag=/, 'either kind can be dismissed');
+}
+ok('a contradiction can be corrected in place; a never-sent flag is not offered a rewrite (#9)');
 // Act and Narrate write HUMAN passages that are narration, not dialogue. Before the mode set,
 // author === 'human' was a safe proxy for "this is a line of speech", because Speak was the only
 // way to write one — so the renderer keyed off authorship. It is not a proxy any more, and

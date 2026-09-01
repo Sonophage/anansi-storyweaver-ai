@@ -10,6 +10,32 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · You can ask Anansi to correct a contradiction
+
+### Let Anansi correct it, on the flag itself
+Open a red contradiction line and there is a third press: **Let Anansi correct it**. She rewrites
+only the sentences that break canon, then **checks her own work** and tells you what actually
+happened — *"2 of 3 corrected, one still contradicts"*, not just *"corrected"*.
+
+The correction arrives as a **new take**, so the version you had is one press away under History.
+Nothing is overwritten.
+
+### It says so when it fails, which is the whole point
+A repair that did not work used to look exactly like a passage with nothing wrong. Now:
+
+- if it comes back shorter than the passage, it was a rewrite rather than a correction, and it is
+  refused — nothing is changed
+- if the checker cannot read its own answer, nothing is claimed and the flags you had stay on screen
+- if it made things worse, it says that too
+
+### And not on a flag a rewrite cannot fix
+A **Never sent** line means the model was never given that thread — the fix there is a trigger word
+or switching it always-on, not a rewrite. Those flags are not offered the button.
+
+### Storyteller says whether it is worth pressing
+A new **Corrections** row, counted over the takes you asked to correct rather than over every call:
+how many came out clean, how many made it worse, how many were refused.
+
 ## 2026-09-01 · Hold them back, while you are still setting up
 
 ### The switch is in the wizard now, not only under Story

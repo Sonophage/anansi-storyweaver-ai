@@ -402,7 +402,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
-  'dismiss', 'goflag', 'dropflag', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -1055,6 +1055,11 @@ function passageHTML(p, newest, opening) {
         ? `Never sent · ${esc(e?.title ?? 'canon')} contradicts this, and the model was not shown it`
         : `Contradiction · ${esc(e?.title ?? 'canon')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>
       <div class="flagacts">
+        <!-- Issue #9, and only on a contradiction the model was actually SHOWN. A never-sent flag
+             is fixed with a trigger word or always-on, not with a rewrite: asking the model to
+             correct prose against canon it was never given is asking it to guess, and the line
+             above already says whose fault it is. -->
+        ${unseen ? '' : `<button data-repair="${f.passageId}">Let Anansi correct it</button>`}
         <button data-dropflag="${f.id}">Dismiss this one</button>
         ${f.entryId ? `<button data-mute="${f.entryId}">Ignore ${esc(e?.title ?? 'it')} in this chapter</button>` : ''}
       </div>`;
@@ -2922,6 +2927,31 @@ const PANELS = {
         || '<div class="hint">No calls logged for this story yet.</div>'}
       ${ACT?.worstPrefillSeconds ? `<div class="row"><span style="color:var(--ink)">Worst prefill</span>
         <span class="tnum" style="margin-left:auto; color:var(--faint)">${ACT.worstPrefillSeconds}s</span></div>` : ''}
+      ${(() => {
+        // ISSUE #9 · HOW OFTEN CORRECTING ACTUALLY WORKS, in this book, from this book's own calls.
+        //
+        // Over the takes where something WAS wrong, never over every call — a repair is only ever
+        // asked for on a passage that is already flagged, and a rate over all generations would say
+        // "2%" about a thing that works a quarter of the time it is asked. This is the row that
+        // could not exist before: the counts were returned to a browser that ignored them and
+        // written nowhere, so for four days nobody could say whether the repair did anything while
+        // eighteen contradictions reached the flags table.
+        const r = ACT?.repairs;
+        if (!r) return '';
+        // WORSE IS ITS OWN NUMBER and is never folded into "did nothing". Two of the twelve runs
+        // recorded before the repair came off the critical path made the passage worse, and that is
+        // the single strongest argument for this being a press rather than a default.
+        const parts = [`${r.clean} of ${r.asked} came out clean`];
+        if (r.worse) parts.push(`${r.worse} made it worse`);
+        if (r.refused) parts.push(`${r.refused} refused as a rewrite`);
+        if (r.unchecked) parts.push(`${r.unchecked} unverified`);
+        return `<div class="row"><span style="color:var(--ink)">Corrections</span>
+          <span class="tnum" style="margin-left:auto; color:var(--faint)">${esc(parts.join(' · '))}</span></div>
+          <div class="hint" style="margin-top:0">Counted over the ${r.asked} ${
+            r.asked === 1 ? 'take' : 'takes'} you asked to correct, not over every call — that is the
+            only denominator the number means anything against. ${r.found} contradictions went in and
+            ${r.mended} came out fixed.</div>`;
+      })()}
       </div>`;
   },
 };
@@ -6961,6 +6991,43 @@ document.addEventListener('click', async (e) => {
     setTimeout(() => document.querySelector(`[data-edit="${d.goflag}"]`)
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
     return;
+  }
+  /** ISSUE #9 · THE REPAIR, AS A PRESS. Seth chose this out of three on 2026-09-01: leave the
+   *  flags alone, put the repair on the flag, or put it back on the critical path.
+   *
+   *  It was automatic and blocking on every generation until 2026-08-31 — F30 measured a flat
+   *  1,456 ms of it, a third of a warm take, for 0 repairs in 6 — and the 12 runs the live library
+   *  recorded before it was removed say why it should not be automatic: 21 contradictions found, 7
+   *  mended, 14 surviving their own repair, and 2 of 12 where the second look found MORE than the
+   *  first. It helps about a quarter of the time and sometimes makes things worse.
+   *
+   *  WHICH IS WHY THE TOAST SAYS WHAT HAPPENED, in numbers, every time. "Corrected" over a repair
+   *  that fixed one of three is the exact lie this issue is about: a failed repair used to look
+   *  identical to a passage with nothing wrong. Four outcomes, four sentences.
+   *
+   *  The repair lands as a new TAKE, so the original is one press away in History. */
+  if (d.repair) {
+    const r = await whileWorking(t, 'Correcting&hellip;',
+      () => api.repair({ storyId: S.storyId, passageId: d.repair }));
+    if (!r) return;
+    if (r.error) return toast(r.error);
+    if (r.nothing) return toast('Nothing to correct — the canon and the prose agree.');
+    V = r.view ?? await api.story(S.storyId, V.currentChapter.id);
+    paint();
+    // A detector that could not answer says nothing either way, and the flags are left standing.
+    // Reporting "fixed" here off an unparseable reply is one line from telling the writer their
+    // prose is clean on no evidence at all.
+    return toast(r.unchecked
+      ? 'Rewritten, but the checker could not read the result, so nothing is claimed — the flags '
+        + 'below are the ones it went in with, carried over.'
+      : r.unfixed === 0
+      ? `Corrected. ${r.found === 1 ? 'The contradiction is' : `All ${r.found} are`} gone, and the `
+        + 'take before it is in History.'
+      : r.mended > 0
+      ? `${r.mended} of ${r.found} corrected. ${r.unfixed === 1 ? 'One still contradicts'
+          : `${r.unfixed} still contradict`} canon — the flags below are what survived.`
+      : 'The repair changed nothing that mattered: it still contradicts canon. The take before it '
+        + 'is in History.');
   }
   if (d.dropflag) {
     const r = await api.dismissFlag(S.storyId, d.dropflag);

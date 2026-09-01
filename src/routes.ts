@@ -3,7 +3,7 @@ import { count, chat, structuredRetry, model, models, checkModel, allowList, mod
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -2130,6 +2130,124 @@ export const routes: Record<string, Handler> = {
       return { ...viewOf(c.body.storyId), error: 'the first path cannot be removed' };
     return viewOf(c.body.storyId);
   },
+  /** REPAIR ONE PASSAGE, BECAUSE THE WRITER PRESSED IT. Issue #9, option 2, chosen by Seth on
+   *  2026-09-01 out of three: leave it, a button on the flag, or back on the critical path.
+   *
+   *  WHY IT IS A PRESS. The repair WAS automatic and blocking on every generation until 2026-08-31.
+   *  F30 measured it at a flat 1,456 ms — about a third of a warm take — firing 0 repairs in 6, and
+   *  Seth's instruction was *"remove it from the critical path. instead just add a flag after."*
+   *  That removal stands; nothing waits on this. What the 12 recorded runs in the live library say
+   *  about the repair itself is the other half of the argument: 21 contradictions found, 7 mended,
+   *  14 surviving their own repair, and **2 of 12 with `mended: -1`** — the second look found MORE
+   *  than the first, so the repair introduced one. A thing that helps a quarter of the time and
+   *  occasionally makes it worse is a thing the writer chooses, not a thing that happens to them.
+   *
+   *  IT LANDS AS A VARIANT, NOT AS AN OVERWRITE, and that is the one design decision here. The
+   *  passage is already kept and already on the page — the writer's own prose in every sense that
+   *  matters — so a repair that replaced it in place would be the model editing something a person
+   *  accepted, with the original gone. `addVariant` is the mechanism History and the take switcher
+   *  already use: the original take stays, the repair becomes the selected one, and one press on
+   *  History puts it back. No new table and no new way to lose prose.
+   *
+   *  THE SECOND LOOK IS NOT OPTIONAL. `mended: found.length` was the original defect — a claim the
+   *  repair worked, asserted from the fact one was attempted. The fixed prose goes back through the
+   *  same detector, `db.clearViolations` + re-flag leaves exactly what survived on the board, and
+   *  `unchecked` is recorded when the detector could not answer, because a zero is not an absence.
+   *
+   *  `contradictionsIn` FAILS TWO WAYS and both are handled: it throws on a dead router and it
+   *  RETURNS `{found: [], error}` on an unparseable answer — the same shape a clean passage makes.
+   *  Reading only the thrown one would report "the contradiction is gone" off a reply nobody could
+   *  parse, one line from the writer being told their prose was fixed when nothing had been read. */
+  'POST /api/repair': async (c) => {
+    const storyId = String(c.body.storyId);
+    const v = need(view(storyId), 'no such story');
+    const passageId = String(c.body.passageId ?? '');
+    const passage = v.passages.find((p: any) => p.id === passageId);
+    if (!passage) return { error: 'no such passage' };
+    if (passage.isBreak) return { error: 'a chapter break has nothing to repair' };
+
+    // The canon this passage was actually shown, as of its own ordinal — the same rebuild `check`
+    // does, and for the same reason: checking a passage against canon it never saw blames the
+    // writer for the engine's omissions.
+    const asOf = assemble(v, c.slot, 'direct', undefined, passage.ordinal);
+    const chapter = v.chapters.find((ch: any) => ch.id === passage.chapterId) ?? v.currentChapter;
+    const mutes = db.mutedIn(storyId, chapter.id);
+    const facts = factsFor(v, asOf.manifest, chapter.index, true)
+      .filter((f: any) => !f.id || !mutes.has(f.id));
+    if (!facts.length) return { error: 'no canon reached this passage, so there is nothing to check it against' };
+
+    const before = await contradictionsIn(facts, passage.body).catch(() => null);
+    if (!before || before.error) return { error: 'the checker could not answer, so nothing was changed' };
+    if (!before.found.length) return { found: 0, mended: 0, unfixed: 0, nothing: true };
+
+    const broken = before.found.map((x: any) =>
+      `- Canon: ${facts[x.canon - 1]?.body}\n  You wrote: "${x.quote}"`).join('\n');
+    const using = modelFor(v.story, c.defaultModel);
+    const t0 = Date.now();
+    const genId = db.logGeneration({ storyId, chapterId: chapter.id, model: using, role: 'repair',
+      manifest: asOf.manifest, latencyMs: 0, error: null });
+    let r;
+    try {
+      r = await chat(MEND, `${broken}\n\nPASSAGE:\n${passage.body}`,
+        { temperature: 0.3, max_tokens: Math.max(600, asOf.reserved ?? 900), model: using,
+          chat_template_kwargs: { enable_thinking: false } });
+    } catch {
+      return { error: 'the model could not be reached, so nothing was changed' };
+    }
+    const fixed = clean(r.prose);
+
+    // ponytail: a length floor is the whole guard against a repair that REWRITES instead of
+    // correcting. It catches the empty answer, the refusal and the one-line summary; it cannot see
+    // a same-length rewrite, and the live library is full of exactly that shape. Compare
+    // sentence-by-sentence if it turns out to matter. A refusal writes nothing and says so.
+    if (fixed.length < passage.body.length * 0.6) {
+      const m = { found: before.found.length, mended: 0, unfixed: before.found.length,
+                  refused: true, unchecked: false };
+      db.noteMend(String(genId), { ...m, latencyMs: Date.now() - t0 });
+      return { ...m, error: 'the repair came back shorter than the passage, so it was a rewrite '
+        + 'rather than a correction. Nothing was changed.' };
+    }
+
+    const after = await contradictionsIn(facts, fixed).catch(() => null);
+    const left = after && !after.error ? after.found.length : null;
+    const m = { found: before.found.length,
+                mended: left === null ? 0 : before.found.length - left,
+                unfixed: left ?? before.found.length,
+                refused: false, unchecked: left === null };
+    db.noteMend(String(genId), { ...m, latencyMs: Date.now() - t0 });
+
+    // The repair becomes the selected take and the original stays in History.
+    const variant = db.addVariant(storyId, passageId, fixed);
+    if (!variant) return { ...m, error: 'the repair could not be saved, so nothing was changed' };
+
+    // WHAT SURVIVED, ON THE BOARD. Re-flagging against the NEW take is what makes the number
+    // honest — the flags the writer is looking at are the ones still true of the prose on screen.
+    db.clearViolations(variant);
+    if (left !== null) {
+      for (const x of after!.found) {
+        const f = facts[x.canon - 1];
+        db.addViolation(storyId, { passageId: variant, entryId: f?.id, quote: x.quote,
+          reason: x.why, confidence: x.confidence, reached: f?.reached !== false });
+      }
+    } else {
+      // THE CHECKER COULD NOT ANSWER, SO THE FLAGS COME FORWARD UNCHANGED — and this is not
+      // tidiness, it is the whole of #9 in one branch. `db.violationsOf` lists flags on the
+      // SELECTED take only, so a repair that lands a new take and files nothing against it EMPTIES
+      // THE BOARD: the writer sees no red line and reads that as fixed. That is precisely the
+      // silence this issue is about — "a repair that failed looked exactly like a passage with
+      // nothing wrong" — and I reintroduced it here until `test/check.ts` caught it.
+      //
+      // So nothing is claimed and nothing is lost: the contradictions it went in with are carried
+      // onto the take now on screen. A zero is not an absence, and neither is an unread reply.
+      for (const x of before.found) {
+        const f = facts[x.canon - 1];
+        db.addViolation(storyId, { passageId: variant, entryId: f?.id, quote: x.quote,
+          reason: x.why, confidence: x.confidence, reached: f?.reached !== false });
+      }
+    }
+    return { ...m, passageId: variant, view: viewOf(storyId) };
+  },
+
   'POST /api/check':     (c) => check(c, c.body.storyId, c.body.passageId),
   'POST /api/violation': (c) => { db.setViolationStatus(c.body.storyId, c.body.id, c.body.status ?? 'dismissed');
     return viewOf(c.body.storyId); },
@@ -2893,6 +3011,7 @@ export const routes: Record<string, Handler> = {
   'GET /api/activity': (c) => {
     const rows = db.recentGenerations(c.query.get('story')!);
     const t = (r: any) => { try { return JSON.parse(r.timings || '{}'); } catch { return {}; } };
+    const m = (r: any) => { try { return r.mend ? JSON.parse(r.mend) : null; } catch { return null; } };
     const prefills = rows.map(t).map((x) => x.prompt_ms).filter((x) => x > 0);
     return {
       runs: rows.map((r) => ({
@@ -2901,9 +3020,34 @@ export const routes: Record<string, Handler> = {
         seconds: r.latency_ms == null ? null : +(r.latency_ms / 1000).toFixed(1),
         prefillSeconds: t(r).prompt_ms ? +(t(r).prompt_ms / 1000).toFixed(2) : null,
         prefillRate: t(r).prompt_per_second ? Math.round(t(r).prompt_per_second) : null,
+        // #9. WHAT A REPAIR DID, on the row that paid for it. `recentGenerations` has selected this
+        // column all along and nothing mapped it, which is the shape of the original defect: the
+        // counts were returned to a browser that ignored them and stored nowhere, so for four days
+        // nobody could say how often the repair fired or how often it worked.
+        mend: m(r),
       })),
       worstPrefillSeconds: prefills.length ? +(Math.max(...prefills) / 1000).toFixed(2) : null,
       failures: rows.filter((r) => r.error).length,
+      /** HOW OFTEN THE REPAIR WORKS, over the takes where something WAS wrong.
+       *
+       *  The informative denominator, not a rate over every call — F10's rule, and here it is the
+       *  difference between "the repair works 2% of the time" and "the repair works a quarter of the
+       *  time it is asked". A repair is only ever asked for on a passage that is already flagged.
+       *
+       *  `clean` counts the ones where nothing survived; `worse` counts the ones where the second
+       *  look found MORE than the first, which is `mended` going negative. Two of the twelve rows in
+       *  the live library are `worse`, and a summary that hid that would be the wrong summary. */
+      repairs: (() => {
+        const runs = rows.map(m).filter((x: any) => x && typeof x.found === 'number');
+        if (!runs.length) return null;
+        return { asked: runs.length,
+                 clean: runs.filter((x: any) => x.unfixed === 0 && !x.unchecked && !x.refused).length,
+                 worse: runs.filter((x: any) => x.mended < 0).length,
+                 refused: runs.filter((x: any) => x.refused).length,
+                 unchecked: runs.filter((x: any) => x.unchecked).length,
+                 found: runs.reduce((a: number, x: any) => a + x.found, 0),
+                 mended: runs.reduce((a: number, x: any) => a + x.mended, 0) };
+      })(),
     };
   },
 

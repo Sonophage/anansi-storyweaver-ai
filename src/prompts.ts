@@ -770,6 +770,33 @@ sentence on why they cannot both hold, and your confidence from 0 to 1.
 
 Report nothing rather than reach. Most passages contradict nothing.`;
 
+/** REPAIR ONE PASSAGE, ON DEMAND. Restored 2026-09-01 as the button #9 asked for.
+ *
+ *  It was on the critical path of every generation until 2026-08-31, when Seth said *"remove it
+ *  from the critical path. instead just add a flag after"* — F30 had measured it at a flat 1,456 ms,
+ *  about a third of a warm take, firing 0 repairs in 6. The removal was right and stands: nothing
+ *  waits on this now.
+ *
+ *  WHAT THE 12 RECORDED RUNS SAID, before the removal, read off the live library on 2026-09-01:
+ *  21 contradictions found, 7 mended, 14 survived their own repair; 3 of 12 passages came out
+ *  clean; and **2 of 12 recorded `mended: -1`** — the re-check found MORE than the first pass, so
+ *  the repair introduced a contradiction it did not have. That is the argument for this being a
+ *  press rather than a default, and the reason the second look below is not optional.
+ *
+ *  "Change ONLY the sentences that are wrong" is the whole instruction. A repair that rewrites is
+ *  the failure mode the length floor in `POST /api/repair` guards, and the floor cannot see a
+ *  same-length rewrite — which is what the live library was full of. */
+export const MEND =
+`You wrote the passage below and it contradicts canon. Each contradiction is given as the
+canon fact and the words of yours that break it.
+
+Rewrite the passage so those words agree with canon. Change ONLY the sentences that are
+wrong. Every other sentence comes back word for word — same events, same order, same
+rhythm, same length. Do not improve anything. Do not add or remove a scene.
+
+Output the corrected passage and nothing else: no preamble, no list of what you changed,
+no apology.`;
+
 export const checkSchema = (n: number) => ({
   type: 'object',
   properties: {

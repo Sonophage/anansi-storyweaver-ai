@@ -24,6 +24,11 @@ const BROKEN = 'She was no longer the Murmur, and the city knew it.';
 /** What the fake was asked, in order, so a test can assert which calls were made at all. */
 let calls: any[] = [];
 let reply: any = { prose: BROKEN, found: 1, inDialogue: false, canon: 1 };
+// THE SECOND LOOK NEEDS THE DETECTOR TO ANSWER DIFFERENTLY THE SECOND TIME, which one global
+// `found` cannot express. When this is set, each check call shifts one answer off it: `[1, 0]` is
+// a repair that worked, `[1, 1]` one that did not, `[1, 2]` one that made it worse. Null means
+// every check answers `reply.found`, which is what every test before the repair ones relies on.
+let foundSeq: (number | 'junk')[] | null = null;
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -40,8 +45,15 @@ const srv = createServer((req, res) => {
     const user = b.messages?.[1]?.content ?? '';
     const kind = b.response_format ? 'check' : 'prose';
     calls.push({ kind, system, user, maxTokens: b.max_tokens });
+    // Shifted BEFORE the content is built, so a sequence that runs out falls back rather than
+    // silently repeating the last answer.
+    const seq = kind === 'check' && foundSeq?.length ? foundSeq.shift()! : null;
+    // An unparseable answer is the OTHER way `contradictionsIn` fails: it returns `{found: [], error}`,
+    // which is the same shape a clean passage makes. `unchecked` is what must come out of it.
+    if (seq === 'junk') return send({ choices: [{ message: { content: 'not json at all' } }],
+      usage: { prompt_tokens: 200, completion_tokens: 5 } });
     const content =
-      kind === 'check' ? JSON.stringify({ contradictions: Array.from({ length: reply.found },
+      kind === 'check' ? JSON.stringify({ contradictions: Array.from({ length: seq ?? reply.found },
           () => ({ canon: reply.canon ?? 1, quote: reply.inDialogue ? `"${BROKEN}"` : BROKEN,
                    why: 'She cannot both be and not be the Murmur.', confidence: 0.9 })) })
       : reply.inDialogue ? `Vel spoke. "${BROKEN}"` : reply.prose;
@@ -205,6 +217,174 @@ const ok = (m: string, fn?: unknown) => {
   assert.deepStrictEqual(calls, [],
     'and a shelf that repaints inside the window wakes nothing — the throttle is per writer');
   ok('  and a repaint inside the window costs no call at all');
+}
+
+// ---- 5 · THE REPAIR, AS A PRESS ON THE FLAG. Issue #9, option 2 of three, chosen by Seth on
+// 2026-09-01. The blocking repair came off the critical path on 2026-08-31 and stays off — test 1
+// above is the guard for that — so this is the same machinery reached by a button instead.
+//
+// WHAT THE LIVE LIBRARY SAID about the repair before it was removed, from the 12 recorded runs:
+// 21 contradictions found, 7 mended, 14 surviving their own repair, 3 of 12 passages coming out
+// clean, and 2 of 12 recording `mended: -1` — the second look finding MORE than the first. Every
+// one of those outcomes is a case below, because every one of them is a different sentence to say
+// to the writer, and saying the wrong one is the whole of #9.
+{
+  const FIXED = 'She was the Murmur still, and the city knew it.';
+  // A "REPAIR" THAT LEFT THE BROKEN LINE IN, which is what 14 of the 21 contradictions in the live
+  // library look like. It has to be the fixture rather than just a different `found`, because
+  // `contradictionsIn` refuses a quote it cannot find in the text (`text.includes(quote…)`) — so a
+  // second look at prose the offending sentence has LEFT reports zero however the fake answers.
+  // That filter is why the first version of this test could not express "still wrong": it passed
+  // for the wrong reason.
+  const STILL = `${BROKEN} The city knew it and said nothing about it either way.`;
+  const repair = (passageId: string) =>
+    routes['POST /api/repair'](ctx({ storyId: story.id, passageId })) as any;
+  const flagsOn = (id: string) => db.violationsOf(story.id).filter((v: any) => v.passage_id === id);
+  // A fresh passage per case: the repair adds a VARIANT, so reusing one would stack takes and make
+  // the ordinal assertions read someone else's row.
+  const broken = () => db.addPassage({ ...story, storyId: story.id, body: BROKEN })!;
+
+  // THE SECOND LOOK EXISTS AT ALL. `mended: found.length` was the original defect — a claim the
+  // repair worked, asserted from the fact that one was attempted. Three calls in this order or the
+  // number is a guess.
+  foundSeq = [1, 0];
+  reply = { ...reply, prose: FIXED, found: 1, inDialogue: false, canon: 1 };
+  let p = broken();
+  calls = [];
+  let r = await repair(p);
+  assert.ok(!r.error, r.error);
+  assert.deepStrictEqual(calls.map((c) => c.kind), ['check', 'prose', 'check'],
+    'the repair must look, fix, and LOOK AGAIN — without the third call `mended` is a claim');
+  // `\s+` because the prompt wraps between "are" and "wrong".
+  assert.match(calls[1].system, /Change ONLY the sentences that are\s+wrong/,
+    'and the fix is asked for as a correction, not as a rewrite');
+  assert.match(calls[1].user, /Canon: /, 'with the canon it broke');
+  assert.match(calls[1].user, new RegExp(BROKEN.slice(0, 20)), 'and the words that broke it');
+  ok('the repair looks, corrects, and looks again');
+
+  // A REPAIR THAT WORKED. The prose lands as a new TAKE, so the original is one press away.
+  assert.strictEqual(r.found, 1);
+  assert.strictEqual(r.mended, 1);
+  assert.strictEqual(r.unfixed, 0);
+  assert.ok(r.passageId && r.passageId !== p, 'the repair is a new take, not an overwrite');
+  // `passagesOf` returns the SELECTED take per slot, so the two are counted through the slot map
+  // the take switcher itself reads. This is the assertion that says nothing was overwritten.
+  const slotOf = (id: string) => [...db.variantsBySlot(story.id).values()]
+    .find((takes: any[]) => takes.some((x: any) => x.id === id)) ?? [];
+  const takes = slotOf(r.passageId);
+  assert.strictEqual(takes.length, 2, `the slot should hold two takes and holds ${takes.length}`);
+  assert.ok(takes.some((x: any) => x.id === p && !x.selected),
+    'the take before the repair is still there, unselected — one press away in History');
+  assert.ok(takes.some((x: any) => x.id === r.passageId && x.selected),
+    'and the correction is the one on screen');
+  assert.strictEqual(db.passagesOf(story.id).find((x: any) => x.id === r.passageId)?.body, FIXED);
+  assert.deepStrictEqual(flagsOn(r.passageId), [], 'nothing is flagged on the corrected take');
+  ok('  a repair that worked lands as a take, and the one before it survives');
+
+  // A REPAIR THAT DID NOT. This is the case that used to look identical to a clean run, and it is
+  // 14 of the 21 contradictions in the live library.
+  foundSeq = [1, 1];
+  reply = { ...reply, prose: STILL };
+  p = broken();
+  r = await repair(p);
+  assert.strictEqual(r.mended, 0, 'nothing was mended and it must not claim otherwise');
+  assert.strictEqual(r.unfixed, 1);
+  assert.strictEqual(flagsOn(r.passageId).length, 1,
+    'and what survived is on the board, against the take that is now on screen');
+  ok('  a repair that survived its own repair says so, and re-flags the new take');
+
+  // A REPAIR THAT MADE IT WORSE. `mended` is `found - left`, so this is NEGATIVE — and it must
+  // stay negative. Two of the twelve rows in the live library are exactly this, and clamping it to
+  // zero would turn "the repair introduced a contradiction" into "the repair did nothing".
+  foundSeq = [1, 2];
+  reply = { ...reply, prose: STILL };
+  p = broken();
+  r = await repair(p);
+  assert.strictEqual(r.mended, -1,
+    'a second look finding more than the first is the repair breaking something, and the number '
+    + 'has to be able to say so');
+  assert.strictEqual(r.unfixed, 2);
+  assert.strictEqual(flagsOn(r.passageId).length, 2);
+  ok('  a repair that made it worse records a negative count rather than a zero');
+
+  // THE LENGTH FLOOR. The guard against a repair that rewrites instead of correcting: it catches
+  // the empty answer, the refusal and the one-line summary. Nothing is written and it says why.
+  foundSeq = [1];
+  reply = { ...reply, prose: 'She changed.' };
+  p = broken();
+  const before = db.passagesOf(story.id).length;
+  r = await repair(p);
+  assert.ok(r.refused, 'a repair shorter than 60% of the passage is a rewrite and must be refused');
+  assert.match(String(r.error), /rewrite rather than a correction/);
+  assert.strictEqual(r.mended, 0);
+  assert.strictEqual(db.passagesOf(story.id).length, before,
+    'and a refused repair writes NOTHING — not a variant, not a flag');
+  ok('  a repair that came back as a rewrite is refused and nothing is written');
+
+  // THE DETECTOR'S OTHER FAILURE. `contradictionsIn` RETURNS `{found: [], error}` on an answer it
+  // cannot parse, which is the same shape a clean passage makes. Reading that as "nothing left"
+  // would tell the writer the contradiction is gone on the strength of a reply nobody could read.
+  // FOUR answers, and each one is a lesson. The `runCheck` below is itself a check call and shifts
+  // one off — getting that wrong sent the junk to the repair's FIRST look, which is a different
+  // branch that refuses outright and never reaches `unchecked`. And `structuredRetry` gives an
+  // unparseable answer a SECOND GO, so one junk reply is not a failed detector: both attempts have
+  // to fail before `contradictionsIn` returns its error shape. The sequence IS the fixture.
+  foundSeq = [1, 1, 'junk', 'junk'];
+  reply = { ...reply, prose: STILL };
+  p = broken();
+  await runCheck(p);                       // put a flag on it first, so "left standing" means something
+  const stood = flagsOn(p).length;
+  assert.strictEqual(stood, 1, 'the fixture really flagged the passage before the repair');
+  r = await repair(p);
+  assert.ok(r.unchecked, 'a detector that could not answer says nothing either way');
+  assert.strictEqual(r.mended, 0, 'and 0 mended, never `found`, because nothing was confirmed');
+  assert.strictEqual(r.unfixed, 1, 'the ones it went in with are still assumed to be there');
+  // THE BOARD MUST NOT GO QUIET. `db.violationsOf` lists flags on the SELECTED take only, so a
+  // repair that lands a new take and files nothing against it leaves the writer looking at no red
+  // line at all — which reads as fixed. That is the exact silence #9 is about, and this route had
+  // it until this assertion was written. The flags it went in with come forward instead.
+  assert.strictEqual(flagsOn(r.passageId).length, stood,
+    'the contradictions it went in with must be carried onto the take now on screen — an empty '
+    + 'board says "fixed" on no evidence at all');
+  assert.strictEqual((db as any).violationsOf(story.id)
+    .filter((v: any) => v.passage_id === p).length, 0,
+    'and they are not double-counted against the take nobody is looking at');
+  ok('  a checker that cannot read its own answer claims nothing and leaves the board loud');
+
+  // WRITTEN DOWN AND READABLE. For four days the counts were returned to a browser that ignored
+  // them and stored nowhere, so nobody could say how often the repair fires or how often it works
+  // — while eighteen contradictions reached the flags table. Asserted through the route a writer's
+  // screen actually reads, not through a helper written for this test: a record nothing reads is
+  // the same defect wearing a different hat.
+  {
+    const runs: any = routes['GET /api/activity']({ body: {},
+      query: new URLSearchParams(`story=${story.id}`), owner: me,
+      slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {} } as any);
+    const mended = runs.runs.filter((x: any) => x.role === 'repair' && x.mend);
+    assert.ok(mended.length >= 4,
+      `every repair above should have left a record and ${mended.length} did`);
+    assert.strictEqual(runs.runs.filter((x: any) => x.role === 'repair').length, mended.length,
+      'a repair with no record is a repair nobody can account for');
+
+    // THE INFORMATIVE DENOMINATOR — F10's rule. A repair is only ever asked for on a passage that
+    // is already flagged, so the rate that means anything is over those, never over every call.
+    const rep = runs.repairs;
+    assert.ok(rep, 'the summary exists once anything has been repaired');
+    assert.strictEqual(rep.asked, mended.length, 'and counts only the takes that were repaired');
+    assert.ok(rep.clean >= 1, 'the one that worked is counted');
+    assert.strictEqual(rep.worse, 1,
+      'the repair that made it worse is counted AS worse — a summary that folded it into "did '
+      + 'nothing" would hide the one outcome that argues against doing this automatically');
+    assert.strictEqual(rep.refused, 1, 'and the rewrite that was refused is its own outcome');
+    assert.strictEqual(rep.unchecked, 1, 'as is the answer nobody could read');
+    // A clean generation records NOTHING, not a zero: those are different facts and reading one as
+    // the other is exactly what hid this for four days.
+    assert.ok(runs.runs.some((x: any) => x.role === 'prose' && !x.mend),
+      'an ordinary generation carries no mend record at all');
+    ok('  and what it did is readable where a writer can see it, over the right denominator');
+  }
+
+  foundSeq = null;
 }
 
 console.log(`\n${n} checks passed`);
