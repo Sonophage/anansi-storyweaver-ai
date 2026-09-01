@@ -95,6 +95,26 @@ export interface Input {
    *  measurement, and because F35 is the standing warning: give this model new vocabulary and it
    *  turns it into section headers, so the marker leaking into output is itself a thing to count. */
   proseAuthor?: boolean;
+  /** F54. Say the NAME where the lockout line currently says "their" and "they".
+   *
+   *  Seth, 2026-09-01: *"what if instead of their we put the name in instead."*
+   *
+   *  The line names the locked character three times already and then leans on a pronoun for the
+   *  two clauses that carry the actual prohibition — "never write THEIR dialogue", "never state what
+   *  THEY feel". A pronoun needs a referent resolved; a name does not, and F37 is the standing
+   *  evidence that this model pays attention to explicitness in exactly this way (the same rule
+   *  buried in a line bought nothing at 10.7%; spelled out on its own line naming the thing, it held
+   *  at ~98%).
+   *
+   *  THE FIRST/SECOND-PERSON BRANCH ALREADY WRITES THIS WAY — it names the teller five times and
+   *  uses no pronoun for them at all — so this is not a new idiom, it is the third-person branch
+   *  catching up with the one beside it.
+   *
+   *  A FLAG BECAUSE IT IS UNDER MEASUREMENT. The third-person text is the one instruction in this
+   *  stack with a strong measured effect (F28: acted 76% -> 25%, p = 0.0005), and COUNCIL-06's note
+   *  says in as many words that it is not to be reworded casually. Reaches here through Input and
+   *  never through process.env, because buildContext is pure. */
+  lockoutNamed?: boolean;
   /** A take the writer rejected and is regenerating away from, if the caller chose to send it.
    *
    *  OFF BY DEFAULT AND THAT IS THE POINT. `db.rejectTake` has recorded rejections since it was
@@ -198,7 +218,22 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
     + 'Write the one thing that follows from it — what it costs, or what it gets.\n'
     + `Do not decide what ${who || 'that character'} does next. Do not restate the action.`,
 
-  direct: (d) => `Write what happens next: ${d}\n\n`
+  /* Seth's wording, 2026-09-01, verbatim: "the direct command by default should say Re write what
+   * happens based on this: {{directive}}". The opening line was `Write what happens next:`.
+   *
+   * ONE LINE CHANGED, and the three below it are untouched, because those three are what F29 cut
+   * this prompt down to and they are not being reworded in the same breath.
+   *
+   * WHY IT MATTERS THAT THIS LINE IS ALSO THE REROLL'S LINE. `inherit()` in routes.ts turns a
+   * regenerate of a directed passage back into mode `direct` carrying the stored directive, so this
+   * one string is both the first pass and every re-roll of it. That is why "Re write" reads
+   * correctly on a re-roll — and it is also the open question, since a FIRST Direct press now says
+   * rewrite when there is nothing yet to rewrite. Flagged to Seth rather than split on my own
+   * judgement: splitting it means two strings to keep in step and a second thing for the prompts
+   * editor to show.
+   *
+   * Spelling kept as given, "Re write" and not "Rewrite". */
+  direct: (d) => `Re write what happens based on this: ${d}\n\n`
     + 'Cover that and nothing beyond it. Do not narrate past the instruction, and do not resolve it\n'
     + 'faster than the scene wants. The length follows the instruction: a small one is a small\npassage.',
 
@@ -1099,8 +1134,12 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
         + `say, do and leave behind. Never state what anyone but ${teller} thinks, feels or intends; `
         + `where ${teller} can only guess, write the guess as a guess.]`
       : locked
-      ? `[${locked} belongs to the writer: never write their dialogue, action, gesture or thought, `
-        + `and never state what they feel, know or decide.`
+      // F54. The two clauses that carry the prohibition, with the NAME in place of the pronoun.
+      // Same clauses, same order, same length either way — only the referent changes, so an arm
+      // that moves is the naming and not a rewrite.
+      ? `[${locked} belongs to the writer: never write ${input.lockoutNamed ? `${locked}'s` : 'their'} `
+        + `dialogue, action, gesture or thought, `
+        + `and never state what ${input.lockoutNamed ? `${locked} feels, knows or decides` : 'they feel, know or decide'}.`
         + (input.lockoutClause
           ? ` Where ${locked} speaks or acts in the passages above, the writer wrote it — that is `
             + `not permission and not a pattern to continue.` : '')

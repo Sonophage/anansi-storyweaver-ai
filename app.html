@@ -1055,6 +1055,18 @@ textarea.field { resize:vertical; min-height:70px; }
    transform that would break sticky. (Do not write the at-rule name for that animation in here:
    test/web.ts counts declarations by scanning this file, and a mention in a comment reads as a
    second declaration. It cost a red on 2026-08-31.) */
+/* ISSUE #38 · THE RE-ROLL INSTRUCTION, UNDER THE PASSAGE IT PRODUCED. Seth, 2026-09-01: "I should
+   be able to edit the regenerate command."
+
+   Inside .block, so it inherits the column width and sits with the paragraph rather than floating
+   over it. Its own ground and a gold edge, because it is a control in a column of prose and has to
+   read as one — the passage above it is the thing being replaced. */
+.rerollbox {
+  margin:14px 0 4px; padding:12px 14px; border-radius:var(--r);
+  border:1px solid rgba(217,178,106,.32); background:var(--sheet);
+}
+.rerollbox textarea { min-height:52px; }
+
 .savebar {
   position:sticky; top:0; z-index:2; background:var(--rail);
   margin:0 -22px 18px; padding:12px 22px; border-bottom:1px solid var(--line);

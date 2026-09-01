@@ -10,6 +10,44 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Reading the whole book, and changing your mind about an instruction
+
+### Reading mode shows every chapter at once
+Reading mode used to show the chapter you were in and nothing else, so getting through a book meant
+pressing the pager between every chapter. It now draws the whole book in one scroll, from chapter one
+to where you stopped.
+
+Writing still shows one chapter, on purpose: it keeps the page light and the chapter you are working
+in is the one you want under the composer. The toggle is the same one it always was.
+
+### The instruction behind a passage can be changed before you re-roll it
+Regenerating a passage you had written with Direct re-ran the same instruction, every time. If the
+instruction was the problem, you could re-roll for ever and get another version of the same wrong
+idea.
+
+Pressing Regenerate on one of those now opens the instruction underneath the passage, with what you
+typed still in it. Change it and the new take is written from the change; leave it and you get
+another take on the same instruction, as before. The passage you already have is kept either way.
+
+A passage written with Continue, Speak, Act or Narrate has no instruction to show, so it re-rolls on
+the press exactly as it did.
+
+### Direct says what it does
+The instruction Direct sends now opens **Re write what happens based on this:** rather than "Write
+what happens next". It is the same line a re-roll of a directed passage uses, which is where the
+wording matters most. If you have written your own version of the Direct prompt, yours is untouched.
+
+### A chapter can be deleted from the Chapter panel
+Deleting a chapter was already possible, and its only door was the chapter's own screen — which you
+reach by pressing **End this chapter**. Nobody looking for delete presses the button that closes one,
+so it read as missing. It is on the Chapter panel now, where you were looking, and it is the same two
+presses with the same warning about the numbers not closing up.
+
+### One less line on My stories
+The band across the top said "no target set" beside the chapter and word count. There is no target to
+set — that setting is how long one passage runs, not how long a book is — so the line only explained
+why something you never asked for is absent. It is gone.
+
 ## 2026-08-31 · The sliders keep themselves too
 
 ### Surprise, Focus and Passage length save when you let go

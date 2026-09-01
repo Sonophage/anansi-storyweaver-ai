@@ -113,7 +113,19 @@ const STORY = {
   branchId: 'b-1',
   branches: [{ id: 'b-1', name: 'main', parentId: null, forkOrdinal: null, isPrimary: true, active: true }],
   passages: [
+    // A PASSAGE IN THE CLOSED CHAPTER, added 2026-09-01. Every passage in this fixture used to sit
+    // in `c-2`, the open one — so chapter c-1 was a heading with nothing under it, and issue #37's
+    // checks ("reading mode draws every chapter") could not tell a real second chapter from an empty
+    // one. Two of those assertions were vacuous against the old fixture and one of them was skipped
+    // entirely by its own `if`. Proven by breaking the code three ways and watching only two go red.
+    { id: 'p-0', ordinal: 0, body: 'Ashfall took the road in under a day.', author: 'model',
+      speaker: null, isBreak: false, chapterId: 'c-1', variantIndex: 1,
+      variants: [{ id: 'p-0', selected: true }] },
+    // DIRECTED, since 2026-09-01: issue #38 opens the instruction a passage was written from, so
+    // the fixture needs a passage that HAS one and others that do not — the press behaves
+    // differently for each and a fixture where every passage is the same tests one branch.
     { id: 'p-1', ordinal: 1, body: 'The hall smells of cold iron.', author: 'model', speaker: null,
+      directed: true, directive: 'have the envoy arrive early',
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-1', selected: true }] },
     { id: 'p-2', ordinal: 2, body: '"You came alone."', author: 'model', speaker: 'Envoy Sereth',
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-2', selected: true }] },
@@ -185,6 +197,8 @@ const MANIFEST = { manifest: { blocks: [
 ], totals: { budget: 46146, used: 27401, unallocated: 0 }, byKind: {}, overflowed: false }, prompt: '', exact: 21401 };
 
 const POSTED: any[] = [];
+// Which generations the stub actually served, so a test can assert that none ran.
+const GENERATED: string[] = [];
 // WHAT WAS ASKED FOR, AND HOW MANY AT ONCE. The second half is the point: the first version of the
 // draw tray rendered four <img> tags and let the browser load them in parallel, and the free tier
 // answers `429 Queue full for IP: 1 requests already queued (max: 1)` — one picture and three
@@ -204,6 +218,27 @@ let shelfOverride: any = null;
 let endPasses: any = undefined;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
+  /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
+   * /api/generate with {}, so `res.body` was undefined and `jStream` threw on `getReader()` — which
+   * meant no test in this file could press Continue or Regenerate at all. Issue #38's checks need to
+   * press Regenerate and assert that nothing generates, and "nothing generates" cannot be told apart
+   * from "generating crashes the suite" without this.
+   *
+   * One delta then the final line, which is exactly the shape serve.ts writes: `{d}` fragments and a
+   * last object identical to what the non-streaming route returns. */
+  if (url.startsWith('/api/generate') && init?.body?.includes('"stream":true')) {
+    GENERATED.push(url);
+    const lines = [JSON.stringify({ d: 'The hall answers. ' }),
+                   JSON.stringify({ prose: 'The hall answers.', genId: 'g-stub', seconds: 1.1,
+                                    manifest: MANIFEST.manifest })].join('\n') + '\n';
+    return { ok: true, status: 200, body: {
+      getReader() {
+        let sent = false;
+        return { read: async () => sent ? { done: true }
+          : (sent = true, { done: false, value: new TextEncoder().encode(lines) }) };
+      },
+    } } as any;
+  }
   if (url.startsWith('https://image.pollinations.ai/')) {
     DRAWN.push(url);
     peakFlight = Math.max(peakFlight, ++inFlight);
@@ -2407,4 +2442,98 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   }
   ok('Story, Chapter and Storyteller each pin one Save above their fields (#33)');
 }
+
+// ---- THE RE-ROLL INSTRUCTION IS EDITABLE (issue #38). Seth, 2026-09-01: "I should be able to edit
+// the regenerate command."
+//
+// A re-roll of a directed passage re-runs its stored instruction (`inherit()` in routes.ts). The
+// writer could neither see it nor change it, so a passage written from a bad steer could only be
+// re-rolled into the same bad steer for ever.
+//
+// The ABSENCE is asserted first and it is the half that would pass for the wrong reason: an
+// undirected passage has no instruction to show and must still re-roll on one press.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+
+  // p-2 carries no directive: pressing Regenerate must not open an editor.
+  POSTED.length = 0;
+  click({ re: 'p-2' });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.doesNotMatch(html('col'), /data-rerollbox/,
+    'an undirected passage opens no editor — it re-rolls on the press, as it always has');
+
+  // p-1 carries one: pressing Regenerate opens it, prefilled, and generates nothing yet.
+  POSTED.length = 0;
+  click({ re: 'p-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const doc = html('col');
+  assert.match(doc, /data-rerollbox/, 'a directed passage opens its instruction for editing');
+  assert.match(doc, /have the envoy arrive early/, 'prefilled with the instruction that made it');
+  assert.match(doc, /data-rerollgo="p-1"/, 'with a Re-roll button naming that passage');
+  assert.match(doc, /data-rerollx/, 'and a way out that changes nothing');
+  assert.strictEqual(POSTED.filter((x: any) => String(x.url).startsWith('/api/generate')).length, 0,
+    'and opening the editor generates NOTHING — the press used to fire immediately');
+
+  // Cancel leaves the passage alone.
+  click({ rerollx: '1' });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.doesNotMatch(html('col'), /data-rerollbox/, 'Cancel closes it');
+  assert.strictEqual(POSTED.filter((x: any) => String(x.url).startsWith('/api/generate')).length, 0,
+    'and Cancel generates nothing either');
+  ok('the re-roll instruction opens for editing, prefilled, and only on a passage that has one (#38)');
+}
+
+
+// ---- READING MODE SHOWS EVERY CHAPTER (issue #37). Seth, 2026-09-01: "In reading mode I should be
+// able to view all chapters without having to swap."
+//
+// Writing draws one chapter on purpose — 358 passages in the DOM, and no way to jump. Reading is
+// where that trade goes the other way. `view()` has always sent every passage in the book, so this
+// is a render change and costs no request.
+//
+// BOTH DIRECTIONS, because "shows everything" is easy to get by accident: the writing view must
+// still be scoped to one chapter, or this "fix" is a regression in the mode people spend hours in.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 60));
+
+  const chapters = STORY.chapters.length;
+  assert.ok(chapters > 1, `the fixture needs more than one chapter to tell these apart (${chapters})`);
+
+  // Writing: one chapter's band only.
+  const writing = html('col');
+  const bandsWriting = (writing.match(/class="band"/g) ?? []).length;
+  assert.strictEqual(bandsWriting, 1, 'writing draws exactly one chapter band');
+
+  // Reading: one band per chapter.
+  click({ readmode: '1' });
+  await new Promise((r) => setTimeout(r, 60));
+  const reading = html('col');
+  const bandsReading = (reading.match(/class="band"/g) ?? []).length;
+  assert.strictEqual(bandsReading, chapters,
+    `reading draws a band for every chapter (${bandsReading} of ${chapters})`);
+  // And the prose of a chapter that is NOT the one being written has to actually be on the page —
+  // a band per chapter with no passages under it would satisfy the count and show nothing.
+  // NOT GUARDED. `if (other) {...}` with no else is invisible to a count-based harness, and this
+  // fixture had no such passage until 2026-09-01 — so the check existed and never ran.
+  const other = STORY.passages.find((p: any) => p.chapterId !== STORY.currentChapter.id);
+  assert.ok(other, 'the fixture must hold a passage outside the open chapter, or this proves nothing');
+  assert.ok(reading.includes(String(other.body).slice(0, 24)),
+    'and the prose from another chapter is on the page, not just its heading');
+  assert.doesNotMatch(writing, new RegExp(String(other.body).slice(0, 24).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    'while the writing view does NOT show it — that is the scoping this must not regress');
+  // ONE NEWEST. Only one paragraph in the document animates; a per-chapter "newest" would replay
+  // the arrival animation once per chapter on every repaint.
+  assert.strictEqual((reading.match(/\bnewest\b/g) ?? []).length, 1,
+    'exactly one passage in the whole read is marked newest');
+
+  // Back to writing, and back to one chapter.
+  click({ readmode: '0' });
+  await new Promise((r) => setTimeout(r, 60));
+  assert.strictEqual((html('col').match(/class="band"/g) ?? []).length, 1,
+    'leaving reading mode scopes the column back to one chapter');
+  ok('reading mode draws every chapter, writing draws one, and only one passage is newest (#37)');
+}
+
 console.log(`\n${n} checks passed`);

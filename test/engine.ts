@@ -468,9 +468,12 @@ ok('each mode says the one thing that distinguishes it', () => {
   assert.match(modeText({ mode: 'speak' as any }), /any one of\s*\n?those is a whole answer/,
     'and Speak says explicitly that one thing is a whole answer');
 
-  // Direct's text is an instruction and must appear as one.
+  // Direct's text is an instruction and must appear as one. Matched on the directive and the colon
+  // that introduces it rather than on the opening words: Seth reworded that line on 2026-09-01
+  // ("Re write what happens based on this:") and this assertion is about the directive REACHING the
+  // template, not about which verb the line opens with.
   assert.match(modeText({ mode: 'direct' as any, directive: 'He drops it.' }),
-    /what happens next: He drops it\./);
+    /based on this: He drops it\./);
 
   // Speak and Act name the speaker, and forbid the two failure modes each has: talking on in
   // that character's voice, and deciding what they do next.
@@ -1509,6 +1512,58 @@ ok("the writer's own passages are marked, and only while a lockout is in force",
     'no locked character: nothing is marked even with the flag on');
   assert.doesNotMatch(build({ proseAuthor: true, locked: 'Mira Vance', on: false }), MARK,
     'lockout switched off: nothing is marked either');
+});
+
+// ---- F54 · THE NAME WHERE THE LOCKOUT SAYS "THEIR" (2026-09-01). Seth: "what if instead of their
+// we put the name in instead." The line names him three times and then carries the two clauses that
+// actually prohibit anything on a pronoun.
+ok('the lockout can name the character instead of saying their/they, and only when asked', () => {
+  const build = (o: { named?: boolean; locked?: string; pov?: string; persona?: string }) => {
+    const b = base();
+    const inp = {
+      ...b,
+      story: { ...b.story, pov: o.pov ?? 'third limited, past tense',
+               lockedCharacter: o.locked, persona: o.persona },
+      lockoutNamed: o.named,
+    };
+    return render(buildContext(inp as any, count));
+  };
+  const WHO = 'Mira Vance';
+
+  // OFF is the shipped line, byte for byte. COUNCIL-06 says this text is not to be reworded
+  // casually, so the default has to be provably untouched.
+  const off = build({ locked: WHO });
+  assert.match(off, /never write their dialogue, action, gesture or thought/,
+    'flag off: the shipped pronoun wording, unchanged');
+  assert.match(off, /never state what they feel, know or decide/,
+    'flag off: the second clause too');
+
+  const on = build({ named: true, locked: WHO });
+  assert.match(on, new RegExp(`never write ${WHO}'s dialogue, action, gesture or thought`),
+    'flag on: the possessive carries the name');
+  assert.match(on, new RegExp(`never state what ${WHO} feels, knows or decides`),
+    'flag on: and the verbs agree — feels, not feel');
+  // NO PRONOUN LEFT IN THE PROHIBITION. The whole point is that nothing has to be resolved, so a
+  // stray "their" would defeat the arm while still looking like it worked.
+  assert.doesNotMatch(on, /never write their dialogue/, 'flag on: no pronoun form survives');
+  assert.doesNotMatch(on, /what they feel, know or decide/, 'flag on: nor in the second clause');
+  // The rest of the line is untouched — same clauses, same order. An arm that moves has to be the
+  // naming and not a rewrite.
+  for (const s of ['belongs to the writer', "Write the world's answer instead",
+                   'what the room does', 'would act']) {
+    assert.ok(on.includes(s), `flag on: "${s}" is still in the line`);
+  }
+
+  // GATED ON A LOCKOUT EXISTING. No locked character means no line at all, flag or not.
+  assert.doesNotMatch(build({ named: true }), /belongs to the writer/,
+    'no locked character: the flag adds nothing');
+  // AND IT MUST NOT TOUCH THE FIRST/SECOND-PERSON BRANCH, which is a different instruction and
+  // already names its teller everywhere. COUNCIL-06 moved the firewall there deliberately.
+  const first = build({ named: true, locked: WHO, pov: 'first person, present tense' });
+  assert.match(first, new RegExp(`${WHO} is telling this story`),
+    'first person still gets the narrator rule, not the lockout');
+  assert.doesNotMatch(first, /belongs to the writer/,
+    'and the flag does not smuggle the lockout back into first person');
 });
 
 console.log(`\n${n} checks passed`);

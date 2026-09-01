@@ -931,7 +931,12 @@ ok('a story cannot be deleted by someone who does not own it');
     { storyId: aStory.id, regenerateOf: steered, mode: 'continue' }));
   assert.match(m1.prompt, /have him lose his nerve/,
     'rerolling a directed passage sends the instruction that made it');
-  assert.match(m1.prompt, /Write what happens next: have him lose his nerve/,
+  // The Direct template's opening line, which Seth reworded on 2026-09-01 — "Re write what happens
+  // based on this:" — because this one string is also every re-roll of a directed passage, which is
+  // exactly what this assertion is about. Matched loosely on the directive plus the words around it
+  // rather than on the whole sentence: the point here is that the instruction reaches the template
+  // that carries it, not what that template's first line says this week.
+  assert.match(m1.prompt, /based on this: have him lose his nerve/,
     'and sends it through the one mode template that carries a directive');
 
   // A directive in the request is the writer typing a new one, and it wins. Mode `direct` with it,
@@ -953,7 +958,7 @@ ok('a story cannot be deleted by someone who does not own it');
     chapterId: aStory.chapterId, body: 'The hall is cold.', author: 'model' })!;
   const m4: any = await routes['POST /api/manifest'](ctx(alice,
     { storyId: aStory.id, regenerateOf: plain, mode: 'continue' }));
-  assert.doesNotMatch(m4.prompt, /Write what happens next/,
+  assert.doesNotMatch(m4.prompt, /based on this:/,
     'a passage with no instruction is not forced into Direct');
   assert.match(m4.prompt, /Carry the scene forward/, 'it rerolls in the mode it was asked for');
 

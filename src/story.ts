@@ -139,6 +139,19 @@ export function view(storyId: string, focusChapterId?: string) {
       // model wrote to order from one it wrote on its own, which is the difference Seth wants to
       // see down the margin.
       directed: !!(p.directive && String(p.directive).trim()),
+      /* ISSUE #38. THE INSTRUCTION ITSELF, not just whether there was one. Seth, 2026-09-01: "I
+       * should be able to edit the regenerate command."
+       *
+       * A re-roll of a directed passage re-runs its stored instruction — `inherit()` in routes.ts —
+       * and until now the writer could neither see that instruction nor change it, so a passage
+       * written from a bad steer could only be re-rolled into the same bad steer for ever.
+       *
+       * SENT ONLY WHERE THERE IS ONE, which is what keeps this off the weight ledger. A directive is
+       * capped at 400 characters by EXTRACT's schema and most passages have none — `directed` above
+       * has always been the common case being false. The alternative was a per-passage fetch on the
+       * Regenerate press, which is a new route and a round trip to read the writer's own sentence
+       * back to them. */
+      directive: p.directive && String(p.directive).trim() ? String(p.directive) : undefined,
       // #14. Which of the four presses wrote it, so the page can colour the margin by the action.
       // Undefined on everything from before 2026-08-29 and the page draws those without an accent.
       mode: p.mode ?? undefined,
@@ -322,6 +335,8 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     // this project runs an A/B, so the arm has to be a process-level thing.
     lockoutClause: process.env.ANANSI_LOCKOUT_CLAUSE === '1',
     proseAuthor: process.env.ANANSI_PROSE_AUTHOR === '1',
+    // F54, under measurement. Seth's question, 2026-09-01: the name where the line says "their".
+    lockoutNamed: process.env.ANANSI_LOCKOUT_NAMED === '1',
     // Only the summoned ones, and the filter is here rather than in the engine so buildContext
     // never has to know what a string's status means.
     strings: (v as any).strings?.filter((x: any) => x.summoned && x.status === 'open') ?? [],

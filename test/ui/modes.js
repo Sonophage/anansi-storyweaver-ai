@@ -97,7 +97,10 @@ ok("  and names no paragraph count — F18: a named length is a length it fills"
 ok("  and carries no directive, because it has no box", !/IGNORE ME/.test(cont));
 
 const direct = await modeBlock('direct', null, 'He drops the key.');
-ok("Direct passes your text as an instruction", /what happens next: He drops the key\./.test(direct));
+// Matched on the directive and the colon that introduces it, not on the line's opening verb: Seth
+// reworded that to "Re write what happens based on this:" on 2026-09-01, and what this asserts is
+// that the typed text REACHES the template that carries a directive.
+ok("Direct passes your text as an instruction", /based on this: He drops the key\./.test(direct));
 
 const speak = await modeBlock('speak', 'Aldis Fen');
 ok(`Speak names who spoke (${JSON.stringify(speak.slice(0, 62))})`, /spoken as Aldis Fen/.test(speak));

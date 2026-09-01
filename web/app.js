@@ -149,6 +149,9 @@ const S = {
   // Issue #32. Which of the chapter close's four passes did not run, by name, and why. Null means
   // no chapter has been closed this session; an empty object means all four ran.
   ritualPasses: null,
+  // Issue #38. The passage whose re-roll instruction is open for editing, and the text in it.
+  // Null means no editor is open, which is every press on an undirected passage.
+  reroll: null,
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
   ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
@@ -327,6 +330,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads',
   // Deletion that reaches whole runs of prose. Both are two presses, like every other delete.
   'delafter', 'delchapter',
+  // #38. The editable re-roll instruction: go, and cancel.
+  'rerollgo', 'rerollx',
   // The chapter-end ritual's steps, and the kind of card its third step offers to write.
   'setupstep', 'setupkind'].map((k) => `[data-${k}]`).join(',');
 
@@ -980,7 +985,25 @@ function passageHTML(p, newest, opening) {
     // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
     // sat on its own with the text running away from it.
     + (newest ? ' newest' : '') + (opening && !spoken && !mine ? ' opening' : '');
-  return `<div class="${cls}">${body}${acts}${flagged}</div>${carry}`;
+  /* ISSUE #38. THE INSTRUCTION THIS PASSAGE WAS WRITTEN FROM, OPEN FOR EDITING.
+   *
+   * Under the passage rather than in the tray: the tray is a strip of verbs and this is a sentence
+   * you read against the paragraph it produced. Rendered from S.reroll rather than held in the DOM,
+   * so a repaint cannot lose it — the same rule the composer and the search boxes follow.
+   *
+   * NO BACKTICKS IN THE COMMENT ABOVE OR ANYWHERE IN HERE: one ends the template literal. */
+  const rr = S.reroll?.id === p.id ? `<div class="rerollbox">
+    <div class="lbl" style="letter-spacing:.1em; margin:0 0 6px">Re-roll from this instruction</div>
+    <textarea class="field" data-rerollbox="1" rows="2"
+      style="margin:0">${esc(S.reroll.text ?? '')}</textarea>
+    <div class="hint" style="margin:6px 0 9px">Change it and the new take is written from what you
+      change it to. Leave it and you get another take on the same instruction. The passage you have
+      now is kept either way, in History.</div>
+    <div style="display:flex; gap:8px">
+      <button class="btn" data-rerollgo="${esc(p.id)}" style="flex:1">Re-roll</button>
+      <button class="btn ghost" data-rerollx="1" style="width:110px">Cancel</button>
+    </div></div>` : '';
+  return `<div class="${cls}">${body}${acts}${flagged}${rr}</div>${carry}`;
 }
 
 function drawDoc() {
@@ -1055,18 +1078,49 @@ function drawDoc() {
     </div>`;
     return;
   }
-  col.innerHTML = `
-    ${plate}
+  /* ONE CHAPTER, DRAWN. Pulled out of drawDoc on 2026-09-01 so reading mode can draw all of them
+   * without a second copy of this markup — issue #37, "In reading mode I should be able to view all
+   * chapters without having to swap".
+   *
+   * `last` marks the newest passage in the BOOK, not in the chapter: only one paragraph in the
+   * document animates, and in a continuous read that has to be the final one rather than one per
+   * chapter. `first` is per chapter, because the drop cap belongs to each chapter's opening line. */
+  const chapterHTML = (c, list, plateFor, isLastChapter) => `
+    ${plateFor}
     <div class="band">
       <div style="font-size:11.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label)">
-        Chapter ${ch.index}</div>
-      ${plate ? '' : `<div class="serif band-title">${esc(ch.title || `Chapter ${ch.index}`)}</div>`}
-      ${epi ? `<div class="band-epi"><i></i><span class="serif">${esc(epi)}</span></div>` : ''}
+        Chapter ${c.index}</div>
+      ${plateFor ? '' : `<div class="serif band-title">${esc(c.title || `Chapter ${c.index}`)}</div>`}
+      ${(() => { const e = epigraphOf(list); return e ? `<div class="band-epi"><i></i><span class="serif">${esc(e)}</span></div>` : ''; })()}
       <div class="band-rule"></div>
     </div>
-    ${ps.map((p, i) => passageHTML(p, i === ps.length - 1, i === 0)).join('') || `<div class="narr" style="opacity:.6">${
-      V.chapters.length > 1 ? 'Nothing in this chapter yet.' : 'Nothing written yet. The composer is below.'}</div>`}
-`;
+    ${list.map((p, i) => passageHTML(p, isLastChapter && i === list.length - 1, i === 0)).join('')
+      || `<div class="narr" style="opacity:.6">${
+        V.chapters.length > 1 ? 'Nothing in this chapter yet.' : 'Nothing written yet. The composer is below.'}</div>`}`;
+
+  /* ISSUE #37 · READING MODE SHOWS THE WHOLE BOOK. Seth, 2026-09-01.
+   *
+   * Writing still draws ONE chapter, for the reason the note at the top of this function gives: at
+   * 358 passages the browser holds the whole book and you cannot jump. Reading is the case where
+   * that trade goes the other way — you came to read, not to press a pager between chapters — and
+   * `view()` has always sent every passage in the book, so this costs no request.
+   *
+   * ponytail: the whole book in the DOM while reading, with no windowing. Ceiling: a book long
+   * enough that building this string janks the toggle — 358 passages is ~200KB of markup and does
+   * not, measured on the dev library. Upgrade path is to render the chapter you are in plus its
+   * neighbours and extend on scroll, which needs a scroll listener this function does not have.
+   */
+  const whole = S.reading && V.chapters.length > 1;
+  col.innerHTML = whole
+    ? V.chapters.map((c, i) => chapterHTML(
+        c,
+        V.passages.filter((x) => x.chapterId === c.id),
+        // The cover rides each chapter's head when the book asks for it, which is what the setting
+        // says it does. One image, N divs, and the browser fetches it once.
+        plate,
+        i === V.chapters.length - 1,
+      )).join('')
+    : chapterHTML(ch, ps, plate, true);
   if (tip) read.scrollTop = read.scrollHeight;
 
   // THE RUNNING HEAD IS GONE, 2026-08-27. It opened on scroll, moved the prose down to make room
@@ -2257,6 +2311,21 @@ const PANELS = {
       <div class="hint">Reaches the model as the chapter's brief. It is not shown to the reader.</div>
       <button class="btn ghost" data-ritual="1" style="margin-top:14px">End this chapter</button>
       <div class="hint">Opens the chapter's own screen, where it closes.</div>
+
+      <!-- ISSUE #31, filed as "there is no way to delete a chapter". There was one, and it is the
+           same button as below — but its ONLY door was the chapter's own screen, which you reach by
+           pressing "End this chapter". Nobody hunting for delete presses the button that closes one,
+           so the feature read as missing. Seth, 2026-09-01: "31 in the chapter panel."
+
+           The same data-delchapter, so there is one handler, one confirm and one warning about the
+           numbers not closing up. A second copy of that logic is the drift this file keeps
+           recording; a second DOOR onto it is what was actually missing. -->
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete</div>
+      <button class="btn ghost" data-delchapter="${esc(ch.id)}"
+        style="margin-top:4px; color:var(--bad)">Delete ${esc(ch.title || `chapter ${ch.index}`)}</button>
+      <div class="hint">Its prose, its edits, its summary and anything it proposed. There is no undo.
+        The chapters after it keep the numbers they have &mdash; a change over time is anchored to a
+        chapter number, so closing the gap would move it to a different chapter.</div>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">What this chapter added</div>
       <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Nothing here is canon until you accept it.</div>
@@ -4521,10 +4590,11 @@ function resumeBand(s) {
         <span class="kind" style="display:flex; align-items:baseline; gap:12px; color:var(--label)">
           <span>chapter ${at || 1} of ${chapters}</span>
           <span style="color:var(--faint)">${(s.chapter_words ?? 0).toLocaleString()} words this chapter</span>
-          <!-- A book has no target length in this app: target_words is how long ONE passage runs,
-               not how long the book is. Saying so beats drawing a bar against a number that does
-               not exist. -->
-          <span style="margin-left:auto; color:var(--faint)">no target set</span></span>
+          <!-- "no target set" STOOD HERE AND IS GONE. Seth, 2026-09-01: "on the my stories the
+               header on says no target set." It was there to explain why no progress bar is drawn:
+               a book has no target length in this app, because target_words is how long ONE passage
+               runs. But a writer does not need the absence of a feature narrated to them on the
+               first screen they see. Saying nothing beats explaining nothing. --></span>
         <!-- ONE CHAPTER GETS NO SEGMENTS. A single segment fills the width and is drawn in the
              lit colour, which reads as a progress bar at 100% on a book that has barely started —
              and it would be saying that two lines under "no target set". The row of words above
@@ -5687,7 +5757,11 @@ async function regenerateLast() {
   await regenerateInto(last.id);
 }
 
-async function regenerateInto(id) {
+/** @param steer  Issue #38. The instruction to re-roll WITH, when the writer has edited it.
+ *                Undefined means "use whatever the passage was written from", which is
+ *                `inherit()` on the server and is how this has always behaved. An explicit
+ *                directive in the request wins there, so sending it is the whole mechanism. */
+async function regenerateInto(id, steer) {
   if (S.busy) return;
   S.busy = true; drawDock(); drawBar(); working('reroll');
   // A reroll of the LAST passage writes at the bottom, so the ghost belongs there too. Rerolling
@@ -5703,6 +5777,11 @@ async function regenerateInto(id) {
   if (atEnd) ghost();
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode: S.mode, regenerateOf: id, chapterId: V.currentChapter.id,
+    // #38. An edited instruction rides as `directive` and `mode: 'direct'` — that pair is what the
+    // MODE block carries, and a directive sent under any other mode reaches a template that never
+    // mentions it. Without a steer nothing changes: the mode stays whatever the composer says and
+    // the server inherits the passage's own instruction.
+    ...(steer ? { mode: 'direct', directive: steer } : {}),
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined },
     () => {}, STOP.signal);
   STOP = null;
@@ -6467,7 +6546,9 @@ document.addEventListener('click', async (e) => {
   if (d.readmode !== undefined) {
     S.reading = d.readmode === '1';
     root.dataset.reading = S.reading ? '1' : '0';
-    drawBar();
+    // #37. The column is what changes now — reading mode draws every chapter — so this redraws it
+    // rather than only the bar. It used to be a pure chrome toggle.
+    drawBar(); drawDoc();
     return;
   }
 
@@ -6485,7 +6566,24 @@ document.addEventListener('click', async (e) => {
     S.mode = d.mode; drawDock();
     refreshManifest(); return;
   }
-  if (d.re) { await regenerateInto(d.re); return; }
+  if (d.re) {
+    // #38. A directed passage opens its instruction to be edited first; an undirected one has
+    // nothing to show, so it re-rolls on the press exactly as before.
+    const p = (V.passages ?? []).find((x) => x.id === d.re);
+    if (p?.directive) { S.reroll = { id: d.re, text: p.directive }; drawDoc(); syncTray(); return; }
+    await regenerateInto(d.re); return;
+  }
+  // #38. Re-roll with whatever is in the box — edited or not — and close the editor.
+  if (d.rerollgo) {
+    const box = document.querySelector('[data-rerollbox]');
+    const steer = (box?.value ?? '').trim();
+    if (!steer) return toast('Say what should happen, or press Cancel to leave it as it was.');
+    const id = S.reroll?.id ?? d.rerollgo;
+    S.reroll = null; drawDoc();
+    await regenerateInto(id, steer);
+    return;
+  }
+  if (d.rerollx) { S.reroll = null; drawDoc(); syncTray(); return; }
   if (d.reroll !== undefined) { await regenerateLast(); return; }
   if (d.send) { await generate(); return; }   // the button's only path; ⌘↵ is the shortcut
   if (d.del || d.delall) {
