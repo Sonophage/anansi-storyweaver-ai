@@ -2275,3 +2275,50 @@ now has to be: "hold the naming rate fixed" would mean forcing him into every pa
 directive, which measures a different thing from what a writer meets. The better next measurement is
 over ALL runs with a continuous metric — how much of the passage is his action, by density — rather
 than a binary over a denominator that the treatment itself moves.
+
+---
+
+## F52 — the clause aimed at F51's mechanism moves both numbers a third of the way and neither is distinguishable from noise (2026-08-31)
+
+`bench/lockout.ts D`, 65 generations an arm, two servers against one router, **the same story on
+both** — arm D's, the one where the writer has already written the locked character speaking and
+acting. The arms differ by one sentence in the lockout line and nothing else, which makes this a
+tighter comparison than F51's (that one needed two stories).
+
+**The mechanism F51 named.** `src/context.ts`'s `Passage` interface carries no author. The database
+has `passages.author` — `'human'` or `'model'` — and it never reaches `buildContext`. So the
+recent-prose block is a flat run of text with no marking of who wrote what: the lockout forbids
+writing the locked character, and the prose two hundred tokens later shows recent examples of
+exactly that, with no way for the model to know they are the writer's.
+
+**The clause**, added to the existing lockout line and gated on `Input.lockoutClause`:
+
+> Where ${locked} speaks or acts in the passages above, the writer wrote it — that is not permission
+> and not a pattern to continue.
+
+Verified through `POST /api/manifest` on both servers before a single generation: absent on one,
+present on the other.
+
+| per 1,000 words of narration | no clause | with clause | events | two-tailed |
+|---|---|---|---|---|
+| his action | **2.54** | **1.69** | 12 vs 9 | **p = 0.388** |
+| his name | **6.57** | **3.95** | 31 vs 21 | **p = 0.072** |
+| binary, acted, of runs naming him | 52.2% (12/23) | 50.0% (9/18) | | — |
+
+**Nothing here resolves.** Both densities fall by about a third, which is the direction the clause
+was aimed at, and neither is distinguishable from noise at 21 and 52 total events. The conditional
+binary rate — the number F51 made the case for attacking — does not move at all: 52% against 50%.
+
+**An error worth recording.** The first pass computed the name-mention p from the ROUNDED densities
+printed by the report and got 0.047, which reads as significant. Recounted exactly, it is **0.072**.
+A number derived from a rounded number is not a measurement, and this one crossed the line that
+decides what gets shipped.
+
+**Not shipped.** `ANANSI_LOCKOUT_CLAUSE` defaults off, so the live prompt is unchanged. The arm
+stays in the tree because this finding cites it and because the next run needs it.
+
+**What it would take.** Resolving a one-third change in a Poisson rate sitting at ~10 events an arm
+needs roughly ten times the events: about 650 generations an arm, an hour or two of router time.
+That is the open decision — spend it, or accept that a clause is not obviously the answer and go
+after the mechanism itself by putting authorship into the prompt (the F51 option B, which risks F35:
+give this model new vocabulary and it turns it into section headers).
