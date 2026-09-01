@@ -5827,7 +5827,13 @@ async function commitStory(only = null) {
   //
   // Guarded here rather than in the listener because the listener does not know what survives the
   // shaping — that knowledge lives in this function and only here.
-  if (!Object.keys(patch).length) return;
+  //
+  // `only` AND NOT the Save press. An empty patch from a Save is legitimate and load-bearing: the
+  // Chapter panel holds no [data-story] field at all since `direction` went, so its Save sends {}
+  // and exists entirely to land the chapter's own title and beat and to say it saved. Guarding
+  // both paths made Save on that panel do nothing and stay silent about it — caught by
+  // test/ui/panels.js §4, whose comment had already named this exact case.
+  if (only && !Object.keys(patch).length) return;
   const r = await api.saveStory(S.storyId, patch);
   if (r.error) return toast(r.error);
   let c = null;
