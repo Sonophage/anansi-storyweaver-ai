@@ -10,6 +10,19 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Anansi remembers whether she looks things up
+
+### The Search the web switch stays where you left it
+Ticking **Search the web** in Anansi's ask box lasted until the next reload and then went back off.
+If you were researching for an hour you re-ticked it every refresh.
+
+It is remembered now, on this device. Not synced between your phone and the desk on purpose: the desk
+may be able to reach a search endpoint where a phone on mobile data cannot, so it is a fact about
+where you are sitting rather than about you.
+
+It still starts **off** the first time. That switch sends your question somewhere else, and the first
+time is yours to decide.
+
 ## 2026-09-01 · The buttons say which one is chosen
 
 ### A selected button is now readable, not only visible

@@ -2619,4 +2619,33 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   ok('Stop tells the server, now that a dropped connection does not');
 }
 
+
+// ---- ANANSI'S WEB SEARCH REMEMBERS WHETHER IT IS ON (2026-09-01).
+//
+// Seth: "i really only need it for search." The switch was `S.talk.search`, set on the checkbox and
+// stored nowhere, so it reset to off on every reload — a writer researching for an hour re-ticked it
+// after every refresh. Per DEVICE and not per writer, the same argument the hardware-keyboard flag
+// makes: the desk may have a search endpoint reachable where a phone on mobile data does not.
+{
+  const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+  const KEY = 'anansi.websearch';
+  (globalThis as any).localStorage.setItem(KEY, '0');
+
+  changeIn({ dataset: { websearch: '1' }, checked: true });
+  assert.strictEqual((globalThis as any).localStorage.getItem(KEY), '1',
+    'ticking it is remembered, or the choice dies with the page');
+
+  changeIn({ dataset: { websearch: '1' }, checked: false });
+  assert.strictEqual((globalThis as any).localStorage.getItem(KEY), '0',
+    'and unticking it is remembered too — a one-way memory is worse than none');
+
+  // THE DEFAULT IS STILL OFF, and that is not the same question as whether the choice persists.
+  // This one sends the writer's question to a third party, so the first time is theirs to decide.
+  const { readFileSync: readSrc } = await import('node:fs');
+  const fresh = readSrc(new URL('../web/app.js', import.meta.url), 'utf8');
+  assert.match(fresh, /localStorage\.getItem\(WEBSEARCH\) === '1'/,
+    'the stored value is read back as a strict "1", so an empty store reads as OFF');
+  ok("whether Anansi looks things up is remembered per device, and still starts off");
+}
+
 console.log(`\n${n} checks passed`);

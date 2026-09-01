@@ -57,6 +57,22 @@ const overlay = () => matchMedia('(max-width:1099px)').matches;
 // keyboard is the opposite: it is a fact about the MACHINE, not the writer. Synced, turning it on
 // at the desk would make a phone refocus the composer after every press and hold the soft keyboard
 // open over the prose. So it lives in localStorage alone and never rides /api/stories.
+/* WHETHER ANANSI LOOKS THINGS UP, remembered per device. 2026-09-01.
+ *
+ * It was `S.talk.search`, set on the checkbox and stored nowhere, so it reset to off on every
+ * reload — and this is a switch a writer either wants on for a whole session of research or does not
+ * want at all. Having to re-tick it after each reload is the kind of friction that makes a feature
+ * feel broken rather than optional.
+ *
+ * PER DEVICE AND NOT PER WRITER, the same argument the hardware-keyboard flag makes below: the desk
+ * has a search endpoint reachable and a phone on mobile data may not, so this is a fact about where
+ * you are sitting. It also needs no column, no route and no migration.
+ *
+ * THE DEFAULT STAYS OFF. Persisting a choice is not the same as changing a default, and this one
+ * sends the writer's question to a third party — that decision belongs to them every first time.
+ */
+const WEBSEARCH = 'anansi.websearch';
+
 const HW = 'anansi.hwkb';
 let hwkb = false;
 try { hwkb = localStorage.getItem(HW) === '1'; } catch { /* no storage */ }
@@ -97,6 +113,13 @@ const applyHwkb = () => {
     if (hwkb) ta.setAttribute('inputmode', 'none'); else ta.removeAttribute('inputmode');
   }
 };
+function readWebSearch() {
+  try { return localStorage.getItem(WEBSEARCH) === '1'; } catch { return false; }
+}
+const setWebSearch = (on) => {
+  try { localStorage.setItem(WEBSEARCH, on ? '1' : '0'); } catch { /* no storage */ }
+};
+
 const setHwkb = (on) => { hwkb = on; try { localStorage.setItem(HW, on ? '1' : '0'); } catch { /* no storage */ } applyHwkb(); };
 applyHwkb();
 
@@ -180,7 +203,7 @@ const S = {
   searchAll: false,     // inside a story, search that story only unless asked otherwise
   setupQ: '',           // filter over the ledger on the next-chapter setup page
   lore: null,           // the + Lore tray above the composer, when it is open
-  talk: { turns: [], busy: false, search: false, draft: null, searchable: null },
+  talk: { turns: [], busy: false, search: readWebSearch(), draft: null, searchable: null },
   blank: null,          // the Start blank form, when it is open
   forgeHere: false,     // the JSON paste on the create screen, which starts shut
   ledgerBusy: false,    // the cross-book ledger being fetched for an @@ search
@@ -8477,6 +8500,7 @@ document.addEventListener('change', (e) => {
   if (e.target.dataset?.websearch) {
     // Never redraws the panel: the question you are part-way through typing lives in the DOM.
     S.talk.search = e.target.checked;
+    setWebSearch(S.talk.search);
     return;
   }
   if (e.target.dataset?.storymodel) {
