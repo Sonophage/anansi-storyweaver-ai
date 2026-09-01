@@ -2860,9 +2860,13 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // against `c-2`, the open one — so without this the landing rule has nothing to fire on and the
   // assertion below would pass on the session state the close handler sets, which is the half that
   // does NOT survive a reload and therefore not the half worth testing.
-  STORY.proposals.push({ id: 'pr-old', entryId: null, title: 'The ferryman',
-    body: 'He takes coin from one hand only.', entryType: 'lore', keys: [], kind: 'new',
-    delta: 'New fact.', chapterId: 'c-1' } as any);
+  //
+  // `changed` AND NOT `new`, because those go to two different steps now: a change writes into a
+  // card you already have, which is What it left; a new thread is Anyone new. Both landings are
+  // asserted below.
+  STORY.proposals.push({ id: 'pr-old', entryId: 'e-1', title: 'Envoy Sereth',
+    body: 'She has stopped waiting.', entryType: 'character', keys: [], kind: 'changed',
+    delta: 'stopped waiting', chapterId: 'c-1' } as any);
   side = await closeChapter();
   assert.match(side, /data-setupstep="cards"/, 'the setup panel has a cards step');
   // THE STEP THAT IS LIT, not merely present. Read off the rail's own highlight, which is what a
@@ -2896,18 +2900,106 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     'with no remembered step and a proposal still open against a closed chapter, the panel opens on '
     + 'the cards — this is the half a reload used to lose');
 
-  // AND THE OTHER WAY. Take the closed chapter's proposal away and the same cold open lands on the
-  // next chapter, because proposals against the chapter you are WRITING are not a debrief: they came
-  // from the chat or from "remember this", and a writer who opened this to name their chapter must
-  // not be dropped into a decision list. A rule that always says "cards" would pass the check above.
+  /* AND A NEW THREAD FROM THAT SAME CLOSE LANDS ON ANYONE NEW, not on What it left. Seth,
+   * 2026-09-01: "the new cards that are suggested are still landing under what is left instead of
+   * anyone new panel." The step names were already the split and the queue ignored them. */
   STORY.proposals = STORY.proposals.filter((p: any) => p.id !== 'pr-old');
+  STORY.proposals.push({ id: 'pr-new', entryId: null, title: 'The ferryman',
+    body: 'He takes coin from one hand only.', entryType: 'lore', keys: [], kind: 'new',
+    delta: 'New face.', chapterId: 'c-1' } as any);
+  click({ skipsetup: '1' });
+  await new Promise((r) => setTimeout(r, 20));
+  click({ panel: 'setup' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepStrictEqual(litStep(html('sideBody')), ['more'],
+    'a close that proposed only NEW threads opens on Anyone new, where they now live');
+  const anyoneNew = html('sideBody');
+  assert.match(anyoneNew, /The ferryman/, 'and the card is on that step');
+  assert.match(anyoneNew, /data-invent=/, 'beside the tray that asks for another — the same thing');
+
+  /* AND THE TWO KINDS DO NOT BLEED, which needs BOTH present at once: with only new threads the
+   * panel redirects off the empty cards step, so "the ferryman is not on the cards step" was true
+   * for the wrong reason and would have passed on no split at all. */
+  STORY.proposals.push({ id: 'pr-old', entryId: 'e-1', title: 'Envoy Sereth',
+    body: 'She has stopped waiting.', entryType: 'character', keys: [], kind: 'changed',
+    delta: 'stopped waiting', chapterId: 'c-1' } as any);
+  click({ setupstep: 'cards' });
+  await new Promise((r) => setTimeout(r, 30));
+  const whatLeft = html('sideBody');
+  assert.deepStrictEqual(litStep(whatLeft), ['cards'], 'the cards step is reachable with a change on it');
+  assert.match(whatLeft, /stopped waiting/, 'and holds what the chapter changed');
+  assert.doesNotMatch(whatLeft, /The ferryman/,
+    'a new thread must not also sit under What it left — that step is what changed');
+  // The count on the rail is per step, so each says what IT owes rather than the whole queue.
+  assert.match(whatLeft, /1 &middot; What it left <span[^>]*>1</, 'one change owed on step one');
+  assert.match(whatLeft, /3 &middot; Anyone new <span[^>]*>1</, 'and one new thread on step three');
+
+  click({ setupstep: 'more' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.doesNotMatch(html('sideBody'), /stopped waiting/,
+    'and a change must not sit under Anyone new either');
+  STORY.proposals = STORY.proposals.filter((p: any) => !['pr-new', 'pr-old'].includes(p.id));
   click({ skipsetup: '1' });
   await new Promise((r) => setTimeout(r, 20));
   click({ panel: 'setup' });
   await new Promise((r) => setTimeout(r, 30));
   assert.deepStrictEqual(litStep(html('sideBody')), ['premise'],
     'and with nothing owed from a closed chapter it opens on the next chapter');
-  ok('a close lands the writer on the cards it proposed, and a reload still does');
+  /* ANYONE NEW IS THE ACCENTED PRESS ON THE BEAT STEP, AND IT IS FIRST. Seth, 2026-09-01: "make the
+   * anyone new button the accented one and move it to the top above save and write."
+   *
+   * Asserted as an ORDER and as an exclusive accent, not as "the button exists": it was already
+   * there, below Save and write, wearing the ghost style. A check for its presence was green
+   * throughout. */
+  click({ setupstep: 'premise' });
+  await new Promise((r) => setTimeout(r, 30));
+  const beat = html('sideBody');
+  const at = (re) => beat.search(re);
+  const anyone = at(/<button class="btn" data-setupstep="more"/);
+  const saveWrite = at(/data-savesetup="1"/);
+  assert.ok(anyone > -1, 'Anyone new is the accented button — class "btn", not "btn ghost"');
+  assert.ok(saveWrite > -1, 'and Save and write is still there');
+  assert.ok(anyone < saveWrite, 'with Anyone new above it');
+  assert.match(beat, /<button class="btn ghost" data-savesetup="1"/,
+    'Save and write gives up the accent — one accent per screen, and it is the way out rather than '
+    + 'the way through');
+  /* AND A QUEUE FROM FURTHER BACK IS NOT A DEBRIEF. The fallback is the chapter BEFORE this one and
+   * only that one: a writer on chapter three with undecided cards from chapter one should not be
+   * dropped into that debrief every time they open this panel cold. A queue ignored for two chapters
+   * is what Waiting is for.
+   *
+   * Needs THREE chapters to be visible at all — with two, "the previous chapter" and "any other
+   * chapter" are the same chapter, and a rule that accepted either passed every check above. Both
+   * the list and the pointer are restored, so nothing after this block sees the third. */
+  {
+    const wasChapters = STORY.chapters, wasCurrent = STORY.currentChapter;
+    const wasProps = STORY.proposals;
+    const c3 = { id: 'c-3', index: 3, title: 'The Writ', summary: null, authorsNote: null,
+                 status: 'open', coversThrough: null, summaryStale: false, keepWhole: false };
+    STORY.chapters = [...wasChapters, c3] as any;
+    STORY.currentChapter = c3 as any;
+    // ONLY THE FAR ONE. The fixture's own proposals are all on c-2, which IS the chapter before c-3
+    // — so leaving them in makes c-2 a real debrief and the panel is right to open on it. That is
+    // what the first version of this asserted against, and the code was correct.
+    STORY.proposals = [{ id: 'pr-far', entryId: 'e-1', title: 'Envoy Sereth',
+      body: 'Two chapters ago.', entryType: 'character', keys: [], kind: 'changed',
+      delta: 'old news', chapterId: 'c-1' }] as any;
+    // `ritual` CLEARS `S.ritualOf` — the one action that does — so this is the cold load the data
+    // fallback exists for. Without it the pointer from the close above still names c-2 and wins,
+    // correctly, and the fallback under test is never reached.
+    click({ ritual: '1' });
+    await new Promise((r) => setTimeout(r, 20));
+    click({ skipsetup: '1' });
+    await new Promise((r) => setTimeout(r, 20));
+    click({ panel: 'setup' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.deepStrictEqual(litStep(html('sideBody')), ['premise'],
+      'a queue from two chapters back is not a debrief — it opens on the next chapter');
+    assert.doesNotMatch(html('sideBody'), /Two chapters ago/, 'and does not draw it');
+    STORY.proposals = wasProps;
+    STORY.chapters = wasChapters; STORY.currentChapter = wasCurrent;
+  }
+  ok('a close lands the writer on the cards it proposed, a reload still does, and Anyone new leads');
 }
 
 // ---- A PANEL'S SAVE IS AT THE TOP AND PINNED (issue #33). Seth, 2026-08-31: "All save buttons

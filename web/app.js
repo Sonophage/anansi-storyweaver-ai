@@ -3783,12 +3783,49 @@ function setupPanel() {
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
   const form = S.setup ?? { title: ch.title ?? '', note: ch.authorsNote ?? '' };
-  const justClosed = S.ritualOf ? V.chapters.find((c) => c.id === S.ritualOf) : null;
+  /* WHICH CHAPTER THIS PANEL IS DEBRIEFING, from the data when the session cannot say.
+   *
+   * `S.ritualOf` is set by the close and is the right answer while it lives — but it is session
+   * state, so a reload leaves it null, and the panel then had no idea a debrief was owed. That is
+   * the state Seth was in when the cards looked lost.
+   *
+   * A `ritualOf` NAMING THE CURRENT CHAPTER IS IGNORED, which is the second half: a chapter you are
+   * writing has not just closed, so proposals against it are not a debrief — they arrive from the
+   * chat and from "remember this" mid-chapter. Without that clause a stale pointer at the open
+   * chapter would scope the queue to it and hide the real debrief behind it.
+   *
+   * THE FALLBACK IS THE CHAPTER BEFORE THIS ONE AND ONLY THAT ONE, which is what "just closed"
+   * means. Any chapter still owing would have done the same job today — the live library has one open
+   * proposal and it is on the chapter being written — but it would mean a writer on chapter twelve
+   * with three undecided cards from chapter three being dropped into that debrief every time they
+   * opened this panel cold. A queue ignored for nine chapters is not a debrief; that is what Waiting
+   * is for.
+   *
+   * With that, the whole panel — its queue, its counts and where it opens — is independent of session
+   * state, because a proposal is a row and survives everything. */
+  const prev = V.chapters.find((c) => c.index === V.currentChapter.index - 1);
+  const owing = prev && (V.proposals ?? []).some((p) => p.chapterId === prev.id) ? prev : null;
+  const justClosed = (S.ritualOf && S.ritualOf !== V.currentChapter.id
+      ? V.chapters.find((c) => c.id === S.ritualOf) : null) ?? owing ?? null;
   // WHAT IS THERE TO DECIDE. Scoped to the chapter that just closed when there is one, because that
   // is what step one is about; everything pending otherwise, so the step is not empty for a writer
   // who opened this panel with a queue from yesterday.
   const queue = justClosed ? (V.proposals ?? []).filter((p) => p.chapterId === justClosed.id)
                            : (V.proposals ?? []);
+  /* TWO KINDS OF OFFER, TWO STEPS. Seth, 2026-09-01: *"the new cards that are suggested are still
+   * landing under what is left instead of anyone new panel the new cards should show up under
+   * anyone new."*
+   *
+   * The step names were already the split and the queue ignored them: everything landed on step one.
+   * The sharpest version of the bug is on step three — a writer presses "Have Anansi write someone"
+   * in the tray THERE, and the card she proposes appeared two steps away, with a toast pointing at a
+   * different panel.
+   *
+   * So: a `new` card is a thread this book does not have, which is what ANYONE NEW means whether she
+   * offered it at the close or you asked for it a moment ago. Everything else — a change, a conflict,
+   * a state, a retirement — writes into a thread you already have, which is what the chapter LEFT. */
+  const fresh = queue.filter((p) => p.kind === 'new');
+  const left = queue.filter((p) => p.kind !== 'new');
   // A chapter opens on two empty fields, and an empty field on a panel you did not ask for is a
   // field that stays empty — while the note is the one thing in this app that rides near the
   // generation point on every call. So Anansi fills them in, once. Seth: "chapter information
@@ -3830,14 +3867,21 @@ function setupPanel() {
    * The step is still skipped when it is empty rather than drawn empty — a step whose whole content
    * is "nothing to decide" is a press the writer pays for and gets nothing back.
    */
-  const debrief = (V.proposals ?? []).some((p) => p.chapterId && p.chapterId !== V.currentChapter.id);
+  // `justClosed` is a debrief by construction now — it is either the chapter the close named or the
+  // newest one still owing, and neither can be the chapter being written. So the landing step is
+  // simply whichever kind of offer is waiting, and What it left comes first when both are.
+  const isDebrief = !!justClosed && justClosed.id !== V.currentChapter.id;
   let step = SETUP_STEPS.some(([k]) => k === S.setupStep) ? S.setupStep
-             : (debrief ? 'cards' : 'premise');
-  if (step === 'cards' && !queue.length) step = 'premise';
+             : isDebrief && left.length ? 'cards'
+             : isDebrief && fresh.length ? 'more' : 'premise';
+  // The cards step holds only the changes now, so an empty one is empty of THOSE — a close that
+  // proposed nothing but new threads used to be sent here and find nothing.
+  if (step === 'cards' && !left.length) step = fresh.length ? 'more' : 'premise';
 
   const rail = `<div style="display:flex; gap:6px; margin-bottom:15px">
     ${SETUP_STEPS.map(([k, l], i) => {
-      const dead = k === 'cards' && !queue.length;
+      const owed = k === 'cards' ? left.length : k === 'more' ? fresh.length : 0;
+      const dead = k === 'cards' && !left.length;
       const here = k === step;
       return `<button data-setupstep="${k}" ${dead ? 'disabled' : ''} style="flex:1; text-align:left;
         padding:7px 9px; border-radius:var(--r); font-size:11px; letter-spacing:.06em;
@@ -3845,7 +3889,7 @@ function setupPanel() {
         background:${here ? 'rgba(217,178,106,.10)' : 'transparent'};
         color:${dead ? 'var(--ink-ghost)' : here ? 'var(--gold-lit)' : 'var(--mute)'};
         opacity:${dead ? '.5' : '1'}">${i + 1} &middot; ${esc(l)}${
-        k === 'cards' && queue.length ? ` <span style="color:var(--gold)">${queue.length}</span>` : ''}</button>`;
+        owed ? ` <span style="color:var(--gold)">${owed}</span>` : ''}</button>`;
     }).join('')}</div>`;
 
   const skip = `<button class="btn ghost" data-skipsetup="1" style="margin-top:8px">Skip &mdash; just write</button>`;
@@ -3867,20 +3911,19 @@ function setupPanel() {
   if (step === 'cards') return `<div style="display:flex; flex-direction:column">
     ${rail}
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${
-      esc(justClosed?.title || `Chapter ${justClosed?.index ?? ''}`)} left ${
-      plural(queue.length, 'card', 'cards')}</div>
+      esc(justClosed?.title || `Chapter ${justClosed?.index ?? ''}`)} changed ${
+      plural(left.length, 'card', 'cards')}</div>
     <div class="hint" style="margin:6px 0 0">Nothing here is canon until you accept it, and nothing
       here is required &mdash; what you leave stays in Waiting.</div>
     <!-- Issue #32, ABOVE the queue. An empty queue is the thing being explained, so the
          explanation has to arrive before the writer reads the emptiness as "no facts here". -->
     <div style="margin-top:12px">${passReport()}</div>
     ${justClosed ? `<div style="margin-top:12px">${closedRow}</div>` : ''}
-    ${queue.some((p) => p.kind === 'new') ? `<button class="btn ghost" data-acceptall="new"
-      style="margin-top:8px">Add all ${plural(queue.filter((p) => p.kind === 'new').length, 'new card', 'new cards')}</button>
-    <div class="hint">Only the new ones. A conflict and a change both write into cards you already
-      have, so those stay one at a time.</div>` : ''}
+    ${fresh.length ? `<button class="btn ghost" data-setupstep="more" style="margin-top:8px"
+      >${plural(fresh.length, 'new thread', 'new threads')} as well &mdash; under Anyone new</button>` : ''}
     <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">
-      ${queue.map(proposalCard).join('')}</div>
+      ${left.map(proposalCard).join('')
+        || '<div class="hint" style="margin:0">Nothing it changed about a thread you already have.</div>'}</div>
     <button class="btn" data-setupstep="premise" style="margin-top:16px">Next &mdash; the next chapter</button>
     ${skip}
   </div>`;
@@ -3904,6 +3947,18 @@ function setupPanel() {
            the whole point of a steer is that it is yours. -->
       ${inventTray(kind, `Have Anansi write ${kind === 'character' ? 'someone' : 'something'} for this chapter`,
         'what this chapter needs', form.note.trim())}
+      <!-- THE NEW THREADS, HERE. Anansi's offers land in one queue wherever they came from, and a
+           card asked for in the tray directly above this used to appear two steps away. Both sources
+           are the same thing to a writer: a thread this book does not have yet. -->
+      ${fresh.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">${
+        plural(fresh.length, 'new thread', 'new threads')} waiting</div>
+      <div class="hint" style="margin:0 0 8px">Nothing is canon until you accept it, and what you
+        leave stays in Waiting.</div>
+      ${fresh.length > 1 ? `<button class="btn ghost" data-acceptall="new" style="margin-bottom:10px"
+        >Add all ${plural(fresh.length, 'new card', 'new cards')}</button>
+      <div class="hint" style="margin:0 0 8px">Only the new ones. A change writes into a card you
+        already have, so those stay one at a time under What it left.</div>` : ''}
+      <div style="display:flex; flex-direction:column; gap:9px">${fresh.map(proposalCard).join('')}</div>` : ''}
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Who is in it</div>
       <div class="hint" style="margin:0 0 8px">Ticked means it is sent for this chapter whether or not
         anyone says its name. Unticking an always-on entry holds it back for this chapter only. Both
@@ -3952,8 +4007,14 @@ function setupPanel() {
       S.naming ? 'Thinking&hellip;' : (!placeholder || form.note.trim())
         ? 'Have Anansi suggest another' : 'Have Anansi name it'}</button>
 
-    <button class="btn" data-savesetup="1" style="margin-top:20px">Save and write</button>
-    <button class="btn ghost" data-setupstep="more" style="margin-top:8px">Next &mdash; anyone new</button>
+    <!-- ANYONE NEW IS THE ACCENTED PRESS AND IT COMES FIRST, at Seth's direction 2026-09-01: "make
+         the anyone new button the accented one and move it to the top above save and write." The
+         beat is what says who is needed, so the step after writing the beat is the one worth
+         offering — Save and write is the way OUT of the ritual, not the way through it. One accent
+         per screen, so Save and write gives it up rather than competing. -->
+    <button class="btn" data-setupstep="more" style="margin-top:20px">Next &mdash; anyone new${
+      fresh.length ? ` (${fresh.length})` : ''}</button>
+    <button class="btn ghost" data-savesetup="1" style="margin-top:8px">Save and write</button>
     ${skip}
   </div>`;
 }

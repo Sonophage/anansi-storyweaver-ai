@@ -36,10 +36,18 @@ you just are not handed the bibliography.
 Reading mode draws every chapter, and they had run together — chapter one's last paragraph into
 chapter two's heading. There is a proper break between them now, and each chapter has its own anchor.
 
-### And ending a chapter lands you on what it left
-The cards a close proposes are on the first step of the new chapter's setup, which is where they
-belong — but the panel opened on the second step, so they sat behind a number you had to press
-backwards to reach. It opens where the work is, and still does after a reload.
+### Ending a chapter lands you on what it left, and new threads live under Anyone new
+Two things a close proposes, and they are different things: a **change** writes into a thread you
+already have — that is **What it left**. A **new thread** is one this book does not have yet — that
+is **Anyone new**, whether Anansi offered it when the chapter closed or you asked for one in the tray
+on that step a moment ago. They used to all pile onto the first step, which was worst on Anyone new
+itself: you pressed *Have Anansi write someone* and the card appeared two steps away.
+
+Each step counts what it owes, and the panel opens on whichever is waiting — still after a reload. A
+queue you left from two chapters back is not a debrief; that stays in Waiting.
+
+**Anyone new** is now the accented press on the beat step, above **Save and write**: the beat is what
+says who is needed, so it is the step worth offering next. Save and write is the way out.
 
 ## 2026-09-01 · The rooms of a card say what they are for
 
