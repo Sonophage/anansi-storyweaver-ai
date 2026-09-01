@@ -18,10 +18,17 @@ import type { Slot } from './story.ts';
 
 export interface Ctx {
   body: any; query: URLSearchParams; owner: string; slot: Slot;
-  /** Aborts when the writer's connection goes — which is what Stop does. Only the streaming
-   *  generate honours it: a non-streaming route that gave up halfway through its writes would
-   *  leave half a change behind, and losing a client is not a reason to do that. */
+  /** Aborts when the writer presses Stop, and ONLY then.
+   *
+   *  It used to abort when the connection went, which made hanging up the cancel — so a phone that
+   *  dropped mid-passage killed the generation, which is bugs.md #9. `POST /api/stop` is the cancel
+   *  now; a reader who stops reading is just a reader who stops reading. */
   signal?: AbortSignal;
+  /** Abort this writer's live generation, if there is one. Answers whether there was.
+   *
+   *  Lives in serve.ts because the AbortController does: the registry is keyed by owner, so this
+   *  cannot reach another writer's call. */
+  stopLive?: () => boolean;
   gen: Record<string, any>; setGen: (g: Record<string, any>) => void;
   // The writer's own fallback model, and whether they run the box. Both come from serve.ts:
   // `admin` is an identity question and the sampler map already lives there.
@@ -62,6 +69,8 @@ export const OPEN_ROUTES = new Set([
   'POST /api/world',
   // Looking at the demo library names no story, and it is how you get BACK from it too.
   'POST /api/demo',
+  // Names no story and cannot reach another writer's generation — see the route.
+  'POST /api/stop',
   'POST /api/spark/review', 'POST /api/spark/style',
   'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
@@ -419,6 +428,11 @@ function inherit(c: Ctx, mode: string, directive?: string) {
 
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
+  // ASKING FOR THE NEXT PASSAGE CLAIMS WHAT IS ALREADY THERE — "only claimed after the next
+  // message". Before `viewOf`, so the prompt is built with the claim already made rather than
+  // against a book that is about to change under it. Only when a writer is here: a bench harness
+  // counting generations is not standing behind anything.
+  if (onDelta) db.claimPassages(c.body.storyId);
   const { mode, directive } = inherit(c, mode0, directive0);
   // Generating into the chapter you are reading, for the same reason writing does — and it also
   // decides the CONTEXT: revising chapter three should see chapter three, not the whole book.
@@ -473,9 +487,43 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // The repair went with it, and that is a real loss stated plainly: a rewrite cannot happen once
     // the prose is on the page. `mend` and the MEND prompt are in git if the fix is ever wanted as
     // a button ON the flag rather than as a wait before the passage.
+    /* PERSISTED HERE, UNCLAIMED, WHEN SOMEBODY IS WATCHING — bugs.md #9.
+     *
+     * Seth: "i should be able to send and go elsewhere since the command already sent." Until now
+     * `/api/generate` wrote nothing: the passage came into existence only when the CLIENT made a
+     * second call to `/api/accept`, so a browser that went away between the last token and that
+     * call lost a passage the server had already paid for.
+     *
+     * ONLY ON THE STREAMING PATH, and this line is load-bearing rather than tidy. `onDelta` is
+     * present exactly when a writer is watching — and every bench harness in `bench/` calls this
+     * route NON-streaming, hundreds of times, and never accepts. Persisting unconditionally would
+     * append a passage per call and grow the fixture underneath the measurement: F51 through F55 are
+     * 650 generations an arm against one story, so the arm would be writing its own book. The one
+     * distinction that separates "a writer is here" from "a harness is counting" is the one the
+     * comment on `c.signal` above already draws.
+     *
+     * UNCLAIMED, because the writer has not written past it yet. Seth's design: "unclaimed and
+     * offered, and only claimed after the next message my thought being editing, regeneration or
+     * branching com into play." The row is REAL — it renders, it reaches the prompt, History and
+     * branches work on it — which is what makes those three things possible before deciding.
+     *
+     * The take is tied to this generation the same way `accept` ties it, so History can still say
+     * which canon it was written against. */
+    let landed: string | null = null;
+    if (onDelta && prose.trim()) {
+      landed = c.body.regenerateOf
+        ? db.addVariant(v.id, String(c.body.regenerateOf), prose)
+        : db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
+            body: prose, author: 'model', speaker: c.body.speaker ?? null,
+            mode, directive: directive ?? null, claimed: false });
+      if (landed) db.tieGeneration(String(genId), String(landed));
+      // A re-roll away from a take is a judgement about the take, not just a replacement — the same
+      // rule `accept` follows.
+      if (c.body.regenerateOf && c.body.rejected !== false) db.rejectTake(v.id, String(c.body.regenerateOf));
+    }
     // Handed back so `accept` can tie the take to this call. The manifest is logged here, before
     // any passage exists, so nothing connected a take to the canon it was written against.
-    return { prose, reasoning: r.reasoning.length, cut,
+    return { prose, reasoning: r.reasoning.length, cut, passageId: landed,
              // Only when it was inherited rather than typed: the surface says which instruction it
              // re-ran, because silently re-applying one reads as the model deciding on its own.
              ...(directive && !directive0?.trim() ? { reusedDirective: directive } : {}),
@@ -1583,6 +1631,16 @@ export const routes: Record<string, Handler> = {
 
   /** Waved away. Not "never tell me again" — the ref carries the state that made it worth saying,
    *  so editing the chapter or writing past the horizon brings it back. */
+  /** STOP. The only thing that cancels a generation.
+   *
+   *  bugs.md #9. Stop was `STOP?.abort()` on the fetch, so it and a dropped connection were one
+   *  event and the server could not tell them apart — which is why a backgrounded tab lost the
+   *  passage. Now the connection may go without consequence and this is the cancel.
+   *
+   *  NAMES NO STORY, and it does not need to: the registry in serve.ts is keyed by owner, so the
+   *  only call this can reach is the caller's own. That is why it is on the open list. */
+  'POST /api/stop': (c: Ctx) => ({ stopped: c.stopLive?.() ?? false }),
+
   'POST /api/dismiss': (c: Ctx) => {
     const kind = String(c.body.kind ?? '');
     if (!['stale', 'horizon'].includes(kind))
@@ -1669,6 +1727,8 @@ export const routes: Record<string, Handler> = {
       ...(note.length >= 40 ? {} : { noteMissing: true }) };
   },
   'POST /api/chapter/end': async (c) => {
+    // Closing a chapter is standing behind everything in it.
+    db.claimPassages(c.body.storyId);
     const v = viewOf(c.body.storyId);
     // A break is a real passage so NEW SCENE has something to fire on and ordinals stay dense.
     db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
@@ -1845,7 +1905,17 @@ export const routes: Record<string, Handler> = {
   'GET /api/forge': () => ({ prompts: FORGE }),
 
   // ---- prose ----
+  /* CLAIMING. Seth, 2026-09-01: "only claimed after the next message."
+   *
+   * The three acts that mean a writer has read what is there and is going on: typing a line, asking
+   * for the next passage, and closing the chapter. BY STORY rather than by passage — someone who
+   * comes back to three and carries on has stood behind all three, and making them confirm each one
+   * is a chore invented by the data model.
+   *
+   * Called at the TOP of each, before anything is written or any prompt is built, so the passage
+   * being claimed is in the context of the call that claims it rather than arriving a beat later. */
   'POST /api/write':   (c) => {
+    db.claimPassages(c.body.storyId);
     // The chapter you are READING is the chapter you write into. Without this the route always
     // took chapters.at(-1), so paging back to chapter one and typing put the passage at the end
     // of the last chapter — off-screen, and generated against the wrong context. Chapter paging

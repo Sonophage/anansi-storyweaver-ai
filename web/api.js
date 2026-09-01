@@ -80,6 +80,11 @@ export const api = {
   // A world book, and a book set in one. The second names the world as `storyId` so the ownership
   // gate in serve.ts checks it before the handler runs.
   setDemo:      (on)             => j('/api/demo', 'POST', { on }),
+  /* STOP. The button used to be `STOP?.abort()` on the fetch and nothing else, which meant hanging
+   * up WAS the cancel — so a phone that dropped mid-passage killed the generation instead of coming
+   * back to it (bugs.md #9). The abort still happens, to stop this page reading; this is what tells
+   * the SERVER the writer meant it. */
+  stop:         ()               => j('/api/stop', 'POST', {}),
   newWorld:     (title, premise)  => j('/api/world', 'POST', { title, premise }),
   bookFrom:     (storyId, title)  => j('/api/story/from', 'POST', { storyId, title }),
   spark:        (idea)           => j('/api/spark', 'POST', { idea }),

@@ -131,6 +131,13 @@ const STORY = {
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-2', selected: true }] },
     { id: 'p-3', ordinal: 3, body: '"I came alone because."', author: 'human', speaker: null,
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-3', selected: true }] },
+    // UNCLAIMED, added 2026-09-01. bugs.md #9: the server persists a generation at completion now, so
+    // a passage can land while the browser is away. This is one of those — model-authored, real, and
+    // not yet stood behind. Every other passage here omits `claimed`, which reads as claimed and is
+    // what an older server sends.
+    { id: 'p-4', ordinal: 4, body: 'The bell rang once and nobody came down for it.', author: 'model',
+      speaker: null, claimed: false, isBreak: false, chapterId: 'c-2', variantIndex: 1,
+      variants: [{ id: 'p-4', selected: true }] },
     // Narrate: the writer's OWN prose. A human passage that is not a line of dialogue.
     { id: 'p-4', ordinal: 4, body: 'The rain had stopped, and she counted the bells.', author: 'human',
       speaker: null, isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-4', selected: true }] },
@@ -216,6 +223,9 @@ let shelfOverride: any = null;
 // closes a chapter. Undefined means it says nothing, which is both the all-ran case and the case
 // of an older server.
 let endPasses: any = undefined;
+// bugs.md #9. Which row the stubbed generation says it landed, or undefined for an older server that
+// lands nothing and leaves the client to accept.
+let stubPassageId: string | undefined = undefined;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
@@ -230,6 +240,11 @@ let endPasses: any = undefined;
     GENERATED.push(url);
     const lines = [JSON.stringify({ d: 'The hall answers. ' }),
                    JSON.stringify({ prose: 'The hall answers.', genId: 'g-stub', seconds: 1.1,
+                                    // bugs.md #9. The real route lands the passage itself and reports
+                                    // which row it is, so the page knows it was here for it. Set per
+                                    // test rather than fixed: a constant here leaked into every other
+                                    // block that drives a generation and marked their passage watched.
+                                    ...(stubPassageId ? { passageId: stubPassageId } : {}),
                                     manifest: MANIFEST.manifest })].join('\n') + '\n';
     return { ok: true, status: 200, body: {
       getReader() {
@@ -2534,6 +2549,74 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.strictEqual((html('col').match(/class="band"/g) ?? []).length, 1,
     'leaving reading mode scopes the column back to one chapter');
   ok('reading mode draws every chapter, writing draws one, and only one passage is newest (#37)');
+}
+
+
+// ---- A PASSAGE THAT ARRIVED WHILE YOU WERE AWAY SAYS SO (bugs.md #9, 2026-09-01).
+//
+// Seth: "i should be able to send and go elsewhere since the command already sent." The server
+// persists a generation at completion now, so the passage survives the browser going away — and his
+// design for the state it lands in: "unclaimed and offered, and only claimed after the next message
+// my thought being editing, regeneration or branching com into play."
+//
+// THE HARD PART IS NOT SHOWING IT TOO OFTEN. Every take is unclaimed until the next thing is
+// written, so marking all of them would put "written while you were away" on prose the writer just
+// watched appear. What is marked is `claimed === false` MINUS what this page saw arrive.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 60));
+  const doc = html('col');
+
+  assert.match(doc, /class="cameback"/, 'an unclaimed passage this page did not watch is marked');
+  assert.match(doc, /written while you were away/, 'and says what happened in words');
+  // EXACTLY ONE. Every other fixture passage omits `claimed`, which an older server also omits, and
+  // undefined must read as claimed rather than marking the whole book.
+  assert.strictEqual((doc.match(/class="cameback"/g) ?? []).length, 1,
+    'and only that one — a missing `claimed` field reads as claimed, not as unclaimed');
+  // The prose is THERE, not hidden behind a decision. The row is real; that is the design.
+  assert.match(doc, /The bell rang once and nobody came down for it\./,
+    'the passage itself is on the page — it is in the book, not in a holding pen');
+  // And its tray is the ordinary one, because editing, re-rolling and branching are exactly what
+  // the writer might do before standing behind it.
+  assert.match(doc, /data-re="p-4"/, 'it can be re-rolled like any other passage');
+  assert.match(doc, /data-del="p-4"/, 'and discarded, which is what declining it means');
+
+  ok('a passage written while you were away is marked, once, and is otherwise an ordinary passage');
+
+  // AND WATCHING ONE UNMARKS IT. Re-rolling p-4 is being here for it: the route reports the row it
+  // landed, the page remembers it, and the line goes even though the row is still unclaimed —
+  // claiming happens on the next thing WRITTEN, not on having looked.
+  //
+  // This is the half that had no test until it was falsified: deleting the `WATCHED.add` reddened
+  // nothing, because no check had ever driven a generation to completion here.
+  // The server reports that THIS is the row it landed, which is what makes the page a witness.
+  stubPassageId = 'p-4';
+  POSTED.length = 0;
+  click({ re: 'p-4' });
+  // Long enough for the whole chain: the streamed generation, the refetch of the story, and the
+  // repaint. 80ms was not, and the failure looked exactly like the marker never clearing.
+  for (let i = 0; i < 40 && /class="cameback"/.test(html('col')); i++) {
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  assert.doesNotMatch(html('col'), /class="cameback"/,
+    'a passage this page watched arrive is not marked as having arrived while away');
+  stubPassageId = undefined;
+  ok('and watching one arrive unmarks it, without claiming it');
+}
+
+// ---- STOP TELLS THE SERVER, because hanging up no longer cancels (bugs.md #9).
+//
+// Stop was `STOP?.abort()` on the fetch and nothing else, which made "the writer changed their mind"
+// and "the phone lost signal" the same event at the server — and that is precisely why a backgrounded
+// tab lost the passage. A closed connection is now harmless, so Stop has to say so out loud or it
+// would leave the generation running and land a passage the writer just asked not to have.
+{
+  POSTED.length = 0;
+  click({ stop: '1' });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.ok(POSTED.find((x: any) => String(x.url) === '/api/stop'),
+    'Stop posts to /api/stop — the abort alone would not reach the server');
+  ok('Stop tells the server, now that a dropped connection does not');
 }
 
 console.log(`\n${n} checks passed`);

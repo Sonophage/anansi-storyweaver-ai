@@ -10,6 +10,30 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Send it and walk away
+
+### A passage you asked for finishes even if you put the phone down
+Pressing Continue and then backgrounding the app used to lose the passage. Not "wrote it and threw it
+away" — the writing itself stopped, part way through, because the app treated your browser going
+quiet as you cancelling.
+
+Now the command really is sent. Anansi finishes the passage on the machine, whether or not anything
+is still listening, and it is there when you come back.
+
+### What arrived while you were gone says so
+A passage that landed with nobody watching carries one quiet line under it: *written while you were
+away — carry on and it is yours*. It is a real passage, not a decision waiting to be made: you can
+read it, edit it, re-roll it, branch from it or delete it exactly like any other. Writing the next
+thing is what makes it yours, and the line goes.
+
+Nothing is marked if you were sitting there watching it arrive. And a reload counts as coming back,
+which is the point.
+
+### Stop still stops
+Because hanging up no longer cancels anything, Stop now tells Anansi you meant it. Pressing it does
+what it always did: the half-written passage goes, nothing is kept, and what you typed stays where
+it was.
+
 ## 2026-09-01 · A new cast keeps what it was written with
 
 ### A character's description no longer gets overwritten by chapter one

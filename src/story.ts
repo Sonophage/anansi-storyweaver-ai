@@ -135,6 +135,10 @@ export function view(storyId: string, focusChapterId?: string) {
     passages: db.passagesOf(storyId).map((p: any) => ({
       id: p.id, ordinal: p.ordinal, body: p.body, author: p.author, speaker: p.speaker,
       isBreak: !!p.is_break, chapterId: p.chapter_id, variantIndex: p.variant_index,
+      // Whether the writer has written PAST this one yet. See db.ts's `claimed` column: a passage
+      // the server persisted while nobody was listening is real but not yet stood behind, and the
+      // surface marks it until the next thing written claims it.
+      claimed: p.claimed !== 0,
       // Stored since the schema was written and never shown. It is what distinguishes a passage the
       // model wrote to order from one it wrote on its own, which is the difference Seth wants to
       // see down the margin.

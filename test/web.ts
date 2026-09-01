@@ -551,6 +551,34 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
 }
 
 // And the guard that makes it safe even if a name collides again.
+// ---- THE GENERATION PERSISTS ONLY WHEN A WRITER IS WATCHING (bugs.md #9, 2026-09-01).
+//
+// `generate()` lands the passage itself now, unclaimed, so a browser that goes away does not lose it.
+// That write MUST be gated on `onDelta` — present exactly when a writer is streaming — because every
+// harness in `bench/` calls POST /api/generate NON-streaming, hundreds of times, and never accepts.
+// Ungated, F51 through F55 would each append 650 passages to the one story they measure and the arm
+// would be writing its own book underneath the measurement.
+//
+// STRUCTURAL, and that is stated rather than hidden: driving the real route needs a live model, which
+// test/all.ts must not require. So this asserts the SHAPE of the guard. It is weaker than a
+// behavioural check and it is the strongest thing available without llama-server — and the invariant
+// is worth a weak check, because the failure is silent and corrupts findings rather than crashing.
+{
+  const src = read('src/routes.ts');
+  const i = src.indexOf('let landed: string | null = null;');
+  assert.ok(i > 0, 'the persist block has moved — find it and re-point this check');
+  const block = src.slice(i, i + 900);
+  assert.match(block, /if \(onDelta && prose\.trim\(\)\)/,
+    'the persist is gated on onDelta — without it every bench run appends to the story it measures');
+  // And the row it writes must be unclaimed, or the writer never gets offered it.
+  assert.match(block, /claimed: false/, 'and it lands unclaimed');
+  // The non-streaming path must reach no db write of its own inside generate.
+  const before = src.slice(src.indexOf('async function generate('), i);
+  assert.doesNotMatch(before, /db\.addPassage\(/,
+    'nothing in generate writes a passage before the guarded block');
+  ok('a generation persists only when a writer is streaming, and lands unclaimed');
+}
+
 assert.match(read('web/app.js'), /t === root \|\| t === document\.body/,
   'the delegation must refuse <html> and <body> as action targets');
 ok('the delegation refuses html and body outright');

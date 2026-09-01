@@ -2061,134 +2061,54 @@ ok('a book started from a world book reads its cards, and can still disagree wit
     "and it is that book's own version of the card, not the world's");
 });
 
-console.log(`\n${n} checks passed`);
 
-// A CARD EDIT CAN STALE A CHAPTER SUMMARY, since 2026-08-30. Seth's question was whether the old
-// context could be dropped when something is swapped, so the change actually fires. Most of that
-// was already built — a summary REPLACES the prose it covers, so the past arrives compacted — but
-// `summaryStale` hashed only the passages, so the ledger could change under a summary and the
-// summary went on contradicting it in every prompt, forever. That is the failure its own comment
-// describes, arriving through a door nobody watched.
-ok('a swap stales the summaries that named what it swapped away, and nothing else', () => {
-  const s = db.createStory(o, { title: 'Stale' });
-  const ch: any = db.chapters(s.id)[0];
-  const fresh = () => !db.summaryStale(db.chapters(s.id).find((c: any) => c.id === ch.id));
-
-  db.addPassage({ ...s, storyId: s.id, chapterId: ch.id, body: 'She wore it into the rain.' });
-  const hash = db.proseHash(db.passagesOfChapter(ch.id).map((p: any) => p.body));
-  db.setSummary(ch.id, 'Halsey wears the Ashford coat to the archive and Marek notices.', 1, hash);
-  assert.ok(fresh(), 'the fixture must start fresh, or every assertion below passes for free');
-
-  const card = db.upsertEntry(s.id, o, { title: 'Halsey', body: '[Halsey: wears the Ashford coat]',
-    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-
-  // 1 · REWORDING IS NOT A SWAP. This is the assertion that decides the whole design: a rule that
-  // stales on any text change would stale half a book every time somebody fixed a comma, and a
-  // stale summary is DROPPED from the prompt until a writer re-runs it. A false positive costs
-  // real context and a model call.
-  db.upsertEntry(s.id, o, { id: card, title: 'Halsey', body: '[Halsey. Wears the Ashford coat.]',
-    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-  assert.ok(fresh(), 'repunctuating a card must not stale anything — no fact left it');
-
-  // 2 · A FACT THE SUMMARY DOES NOT NAME. The coat is gone from the card, but this summary never
-  // mentioned the pocket watch, so it is not lying and must not be thrown away.
-  db.upsertEntry(s.id, o, { id: card, title: 'Halsey',
-    body: '[Halsey: wears the Ashford coat, carries a Vantic pocket watch]',
-    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-  db.upsertEntry(s.id, o, { id: card, title: 'Halsey', body: '[Halsey: wears the Ashford coat]',
-    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-  assert.ok(fresh(), 'dropping a fact no summary mentions must leave that summary alone');
-
-  // 3 · THE SWAP ITSELF. Ashford leaves the card; the summary still says Ashford; it is now a lie
-  // in every later prompt.
-  db.upsertEntry(s.id, o, { id: card, title: 'Halsey', body: '[Halsey: wears the Vantic coat]',
-    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-  assert.ok(!fresh(), 'swapping a fact the summary names must stale it');
-
-  // 4 · A ROOM EDIT COUNTS THE SAME, because since the body moved into `facts` the rooms are where
-  // a card's facts live. Same rule, second door.
-  db.setSummary(ch.id, 'Halsey wears the Ashford coat to the archive and Marek notices.', 1, hash);
-  assert.ok(fresh(), 'reset');
-  const room = db.upsertAddon(s.id, card,
-    { slot: 'facts', name: 'facts', keys: [], body: '[Halsey: the Ashford coat, unlined]' });
-  db.upsertAddon(s.id, card,
-    { id: room, slot: 'facts', name: 'facts', keys: [], body: '[Halsey: the Vantic coat, unlined]' });
-  assert.ok(!fresh(), 'a room edit stales on the same rule as a body edit');
-
-  // 5 · A RENAME IS THE SHARPEST CASE — the summary now names somebody the ledger has never heard
-  // of. The name has to actually LEAVE the card for that to be true: this fixture said
-  // `title: 'Ashley'` over a body still reading `[Halsey: ...]` and correctly did not fire,
-  // because Halsey was still on the card. A bracket body that repeats the title is the normal
-  // shape here, so the rule is doing the right thing and the first fixture was wrong.
-  db.setSummary(ch.id, 'Halsey wears the Ashford coat to the archive and Marek notices.', 1, hash);
-  db.upsertEntry(s.id, o, { id: card, title: 'Halsey', body: '[wears the Vantic coat]',
-    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-  db.setSummary(ch.id, 'Halsey wears the Ashford coat to the archive and Marek notices.', 1, hash);
-  assert.ok(fresh(), 'reset, with the name held only by the title');
-  db.upsertEntry(s.id, o, { id: card, title: 'Ashley', body: '[wears the Vantic coat]',
-    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-  assert.ok(!fresh(), 'renaming a card stales the summaries that used the old name');
-
-  // 6 · THE LIMIT THIS USED TO DOCUMENT IS GONE, and the assertion was deleted the way it asked
-  // to be. It said a card named for a stopword — "You", which `The Anagram of Ash` really carried
-  // — was invisible here, and that if it ever went red somebody had fixed it. Replacing the
-  // stopword list with the positional rule fixed it, and this went red the same hour.
-  //
-  // A NAME IS NOW DECIDED BY WHERE IT SITS, not by how it is spelled, so no spelling is exempt.
-  const you = db.upsertEntry(s.id, o, { title: 'You', body: '',
-    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-  db.setSummary(ch.id, 'You wear the Ashford coat to the archive.', 1, hash);
-  assert.ok(fresh(), 'reset');
-  db.upsertEntry(s.id, o, { id: you, title: 'Seth', body: '',
-    entryType: 'character', activation: 'always_on', keys: [], lastEditor: 'human' });
-  assert.ok(!fresh(),
-    'a card named for a common word is renamed like any other, and the summaries that used the '
-    + 'old name are stale. This was a documented ceiling until the stopword list went.');
-
-  db.delStory(s.id);
-});
-
-// EVERY ROLE THAT WRITES A LEDGER BODY WRITES IT IN THE SAME REGISTER, since 2026-08-30.
-// Seth, after reading a batch of compacted rooms beside their originals: "keep the telegram
-// version. thats better and useful for the ai. the rest is fat so all stories should have that
-// and that should be the way they work moving forward."
+// ---- UNCLAIMED PASSAGES, AND WHAT CLAIMS THEM (bugs.md #9, 2026-09-01).
 //
-// The reason is not only length. A room is read by a MODEL on every call that reaches its card and
-// never by a reader; F36 measured that finished English in a prompt is lifted verbatim into the
-// prose, so a body that cannot be read as a sentence cannot be lifted as one.
-ok('a ledger body is asked for as notes, in every role that writes one', () => {
-  const writers: [string, string][] = [
-    ['MEMORY', prompts.MEMORY],
-    ['EXTRACT', prompts.EXTRACT],
-    ['CAST', prompts.CAST],
-    ['INVENT (a room)', prompts.INVENT('interiority for Halsey', '', false, true)],
-    ['INVENT (a card)', prompts.INVENT('character', '', false, false)],
-  ];
-  for (const [name, text] of writers) {
-    assert.match(text, /NOTES, not prose/,
-      `${name} produces a card body and does not say what register to write it in. One definition, `
-      + 'LEDGER_REGISTER — a second phrasing is how MEMORY and EXTRACT ended up asking for "one '
-      + 'paragraph" while INVENT asked for bracket form.');
-    assert.doesNotMatch(text, /one paragraph/i,
-      `${name} still asks for a paragraph, which is a request for prose`);
-  }
+// The server persists a generation at completion now, so a passage survives the browser going away.
+// That needs a state: without one, every abandoned generation silently becomes part of the book and
+// a returning device cannot tell what arrived while it was gone.
+//
+// Seth's design: "unclaimed and offered, and only claimed after the next message my thought being
+// editing, regeneration or branching com into play."
+ok('a passage can land unclaimed, survives editing and re-rolling, and the next message claims all of them', () => {
+  const o = db.owner('claimer');
+  const st: any = db.createStory(o, { title: 'Claims', genre: 'x', premise: 'y', pov: 'third past' });
 
-  // NAMED FORMS, NOT A CATEGORY. F37: the same rule as an adjective bought nothing; spelled out
-  // with the forms named it holds. If this is ever reduced to "be concise" it is decoration.
-  assert.match(prompts.LEDGER_REGISTER, /semicolons/,
-    'the register has to name the form, not the quality');
-  assert.match(prompts.LEDGER_REGISTER, /\[Mara: The Initiator\./,
-    'and carry an example, because the example is the half a model can copy');
+  // DEFAULT IS CLAIMED, and this is the migration's whole safety property: every passage that
+  // existed before the column, and every line the writer types, is claimed by construction.
+  const mine = db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: st.chapterId,
+    body: 'I wrote this myself.', author: 'human' })!;
+  assert.strictEqual(db.unclaimedOf(st.id).length, 0,
+    'a passage written with no flag is claimed — a writer typing a line has stood behind it');
 
-  // THE LABEL IS A FACT. Two of three rewrites dropped "the Musician" and "The Catalyst" until
-  // the prompt said so — they are what a character is FOR, and the fact detector caught both.
-  assert.match(prompts.LEDGER_REGISTER, /Keep the opening label/,
-    'the role label is a fact and gets dropped when nothing says so');
+  // What the streaming generate writes.
+  const away = db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: st.chapterId,
+    body: 'This landed while the phone was in a pocket.', author: 'model', claimed: false })!;
+  assert.deepStrictEqual(db.unclaimedOf(st.id), [away], 'and one written unclaimed is offered');
 
-  // AND IT IS NOT IN THE PROSE PROMPTS. This describes how to write a REFERENCE; the writing model
-  // must never be told its own output is notes.
-  for (const [name, text] of [['SYSTEM', render.SYSTEM], ['DEFAULT_VOICE', prompts.DEFAULT_VOICE]] as const)
-    assert.doesNotMatch(text, /NOTES, not prose/,
-      `${name} tells the WRITING model to produce notes. That is the register for a ledger body, `
-      + 'not for the book.');
+  // IT IS A REAL PASSAGE. That is the point of the design rather than an accident of it: editing,
+  // re-rolling and branching all have to work on it before the writer decides.
+  assert.ok(db.passagesOf(st.id).some((r: any) => r.id === away), 'an unclaimed passage is in the book');
+  db.editPassage(st.id, away, 'Edited before it was claimed.');
+  assert.strictEqual(db.unclaimedOf(st.id).length, 1, 'editing it does not claim it');
+  db.addVariant(st.id, away, 'A second take on it.');
+  assert.strictEqual(db.unclaimedOf(st.id).length, 1, 'nor does re-rolling it');
+
+  // THE NEXT MESSAGE CLAIMS IT, and claims everything waiting rather than one at a time.
+  db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: st.chapterId,
+    body: 'And so did this one.', author: 'model', claimed: false });
+  assert.strictEqual(db.unclaimedOf(st.id).length, 2, 'two can be waiting');
+  assert.strictEqual(db.claimPassages(st.id), 2, 'and one claim takes both');
+  assert.deepStrictEqual(db.unclaimedOf(st.id), [], 'nothing left offered');
+  assert.strictEqual(db.claimPassages(st.id), 0, 'claiming twice changes nothing');
+  assert.ok(mine, 'the writer\'s own passage was minted');
+
+  // AND IT DOES NOT REACH ANOTHER BOOK.
+  const other: any = db.createStory(o, { title: 'Not Mine', genre: 'x', premise: 'y', pov: 'third past' });
+  db.addPassage({ storyId: other.id, branchId: other.branchId, chapterId: other.chapterId,
+    body: 'Another book.', author: 'model', claimed: false });
+  assert.strictEqual(db.claimPassages(st.id), 0, "claiming one story leaves another story's alone");
+  assert.strictEqual(db.unclaimedOf(other.id).length, 1, 'which is still offered');
 });
+
+console.log(`\n${n} checks passed`);

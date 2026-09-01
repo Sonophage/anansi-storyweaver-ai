@@ -53,6 +53,16 @@ const DESK = process.env.ANANSI_USER ?? 'sonophage';
 const ADMIN = process.env.ANANSI_ADMIN ?? DESK;
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const run = promisify(execFile);
+/* THE LIVE GENERATION PER WRITER, so `POST /api/stop` has something to cancel.
+ *
+ * Needed because a closed connection no longer cancels anything (see the note by `gone` below):
+ * Stop used to be `STOP?.abort()` on the fetch and nothing else, which made "the writer changed
+ * their mind" and "the phone lost signal" the same event. Now only this cancels.
+ *
+ * KEYED BY OWNER, one deep. The composer disables itself while a call is in flight, so two at once
+ * would be a re-roll racing a Continue — and if that ever happens, stopping the newer one is the
+ * behaviour a writer expects from a button they just pressed. */
+const live = new Map<string, AbortController>();
 const whois = new Map<string, { login: string | null; at: number }>();
 const MISS_TTL = 60_000;   // how long a "no identity" answer is trusted
 // And how long a HIT is trusted. It used to be the life of the process, so a tailnet address that
@@ -175,6 +185,9 @@ const send = (res: any, code: number, body: unknown) => {
 };
 
 const handler = async (req: any, res: any) => {
+  // Declared out here because the `finally` at the bottom has to see it: the registration happens
+  // deep inside the try, after the owner is resolved and the route is known.
+  const generatingRef = { on: false, owner: '' };
   const url = new URL(req.url!, 'http://x');
   const p = url.pathname;
   try {
@@ -242,10 +255,33 @@ const handler = async (req: any, res: any) => {
     //
     // `writableEnded` is what separates the two ways a response closes: a normal finish, and a
     // client that went away. Aborting on both would abort every request as it succeeded.
+    /* A CLOSED CONNECTION NO LONGER CANCELS THE GENERATION, and that is bugs.md #9.
+     *
+     * This used to read `res.on('close', () => { if (!res.writableEnded) gone.abort(); })`, so a
+     * browser going away aborted the call to llama-server — the passage was not written and thrown
+     * away, it was CUT OFF. Seth: "i should be able to send and go elsewhere since the command
+     * already sent." It could not, because hanging up WAS the cancel.
+     *
+     * The deeper problem was that it could not be anything else: Stop was `STOP?.abort()` on the
+     * fetch and nothing more, so "the writer changed their mind" and "the radio died in a lift"
+     * arrived at this line as the same event. There is a `POST /api/stop` now and it is the only
+     * thing that cancels; a dropped reader is just a reader who stopped reading, and `generate`
+     * persists what it finishes writing.
+     *
+     * `res.on('close')` still matters for the WRITE side — see the stream branch, which stops
+     * pushing into a socket nobody is holding. */
     const gone = new AbortController();
-    res.on('close', () => { if (!res.writableEnded) gone.abort(); });
+    let readerGone = false;
+    res.on('close', () => { readerGone = true; });
+    // Only the generation route registers: it is the only one long enough to want stopping, and a
+    // registry that held every request would have `/api/stop` cancelling a story fetch.
+    const generating = key === 'POST /api/generate';
+    if (generating) { live.set(OWNER, gone); generatingRef.on = true; generatingRef.owner = OWNER; }
     const ctx: Ctx = {
       signal: gone.signal,
+      // Abort THIS writer's generation. Theirs and no one else's — the map is keyed by owner, so a
+      // second writer's call is unreachable from here by construction rather than by a check.
+      stopLive: () => { const c = live.get(OWNER); if (!c) return false; c.abort(); return true; },
       body: req.method === 'GET' ? {} : await readBody(req),
       query: url.searchParams, owner: OWNER, slot, gen: gens.get(OWNER) ?? GEN,
       setGen: (g) => { const next = { ...(gens.get(OWNER) ?? GEN), ...g }; gens.set(OWNER, next); ctx.gen = next; },
@@ -291,10 +327,18 @@ const handler = async (req: any, res: any) => {
       // something UNBOUNDED — an export, a whole-book download — at which point the memory is the
       // file. Upgrade path is to make `send` async and await it in the producers, and the trigger
       // is a new `__stream` route whose payload is not a story view.
-      const send = (o: unknown) => res.write(JSON.stringify(o) + '\n');
+      // A DROPPED READER IS NOT AN ERROR. Writing to a closed response throws
+      // ERR_STREAM_DESTROYED, which would have taken the handler down mid-generation and lost the
+      // passage the whole change exists to keep — so the producer goes on producing and this simply
+      // stops pushing. The generation finishes and persists itself.
+      const send = (o: unknown) => {
+        if (readerGone || res.writableEnded) return;
+        try { res.write(JSON.stringify(o) + '\n'); } catch { /* the reader went away mid-write */ }
+      };
       try { send(await out.__stream(send)); }
       catch (e: any) { send({ error: e?.message ?? String(e) }); }
-      return res.end();
+      if (!res.writableEnded) res.end();
+      return;
     }
     if (out && out.__raw) {
       // A download when it names a filename, and inline otherwise — a cover is fetched by an <img>,
@@ -314,6 +358,12 @@ const handler = async (req: any, res: any) => {
     // something impossible" from "the server broke" when both arrive as the same number.
     const code = typeof e?.code === 'number' && e.code >= 400 && e.code < 600 ? e.code : 500;
     send(res, code, { error: e?.message ?? String(e) });
+  } finally {
+    // ALWAYS, and in a `finally` rather than on each exit: there are four ways out of the block
+    // above — stream, raw, json, throw — and a registry that leaked one entry would leave the next
+    // Stop aborting a controller for a call that already finished. `delete` of an absent key is
+    // free, so this needs no guard beyond the flag.
+    if (generatingRef.on) live.delete(generatingRef.owner);
   }
 };
 

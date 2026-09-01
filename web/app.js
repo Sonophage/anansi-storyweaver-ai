@@ -294,6 +294,19 @@ const WTITLES = {
 // names are visible in one place next to the data-ui-* look attributes they must not collide with.
 // `more` left this list with the ⋯ handle it named. The tray opens on a double click now, which
 // is its own native event and not a delegated action at all.
+/** PASSAGES THIS PAGE WATCHED ARRIVE, by id.
+ *
+ *  bugs.md #9. Every take now lands UNCLAIMED and is claimed by the next thing written, which is
+ *  Seth's design — so "unclaimed" on its own is true of a passage you are looking at right now and
+ *  marking all of them would put "not yet kept" on prose you just watched appear.
+ *
+ *  What is worth marking is a passage that landed while you were NOT here: the phone was in a pocket,
+ *  the server finished the job anyway. This is how the page tells those apart. Session-only and
+ *  deliberately so — after a reload nothing was watched, which is exactly right: a reload IS coming
+ *  back to it.
+ */
+const WATCHED = new Set();
+
 const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home', 'owed', 'help',
   'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
@@ -1003,7 +1016,20 @@ function passageHTML(p, newest, opening) {
       <button class="btn" data-rerollgo="${esc(p.id)}" style="flex:1">Re-roll</button>
       <button class="btn ghost" data-rerollx="1" style="width:110px">Cancel</button>
     </div></div>` : '';
-  return `<div class="${cls}">${body}${acts}${flagged}${rr}</div>${carry}`;
+  /* WHAT ARRIVED WHILE YOU WERE AWAY, bugs.md #9. `claimed === false` is every take until the next
+   * thing is written; WATCHED removes the ones this page saw appear, so what is left is a passage
+   * the server finished for you with nobody looking.
+   *
+   * A LINE, NOT A DECISION. Seth: "unclaimed and offered, and only claimed after the next message my
+   * thought being editing, regeneration or branching com into play." Everything you would do to it —
+   * edit, re-roll, branch, delete — is already on its tray, because the row is real. So this says
+   * where it came from and gets out of the way; writing the next thing claims it.
+   *
+   * `p.claimed === false` and not `!p.claimed`: an older server sends no such field, and undefined
+   * must read as claimed rather than marking the whole book. */
+  const away = p.claimed === false && !WATCHED.has(p.id) && !mine
+    ? `<div class="cameback">written while you were away &mdash; carry on and it is yours</div>` : '';
+  return `<div class="${cls}">${body}${away}${acts}${flagged}${rr}</div>${carry}`;
 }
 
 function drawDoc() {
@@ -5670,9 +5696,17 @@ async function generate(mode = S.mode) {
   if (r.error) { S.busy = false; drawDock(); working(null); return toast(r.error); }
   MANI = r.manifest;
   MANI_EXACT = true;    // routes.ts:258 replaced totals.used with count(prompt) before sending it
+  // This page was here for it, so it is not "written while you were away" even though it is not yet
+  // claimed. See WATCHED.
+  if (r.passageId) WATCHED.add(r.passageId);
   // Kept as it arrives. Discard and Keep are gone: a take you dislike is one ⋯ away from
   // Regenerate or Delete, and both keep the history, so nothing is lost by committing it.
-  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, chapterId: V.currentChapter.id,
+  //
+  // THE SERVER LANDED IT ALREADY, unclaimed — bugs.md #9. This used to be the only thing that wrote
+  // the passage, which is why a browser that went away between the last token and this line lost it.
+  // `r.passageId` says the row exists; accept is only called when it does not, which is an older
+  // server answering a newer page.
+  const a2 = r.passageId ? {} : await api.accept(S.storyId, { body: r.prose, genId: r.genId, chapterId: V.currentChapter.id,
     mode, directive: YOURS ? undefined : (typed || undefined) });
   S.busy = false; working(null);
   // PLAN-07 bug 2. `S.busy` went false and nothing redrew, so `#send` kept `data-stop` and its
@@ -5792,7 +5826,9 @@ async function regenerateInto(id, steer) {
     return toast('Stopped. The take you had is untouched.');
   }
   if (r.error) { S.busy = false; drawDock(); drawBar(); working(null); return toast(r.error); }
-  const a2 = await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id, rejected: true,
+  if (r.passageId) WATCHED.add(r.passageId);
+  // Same as `generate` above: the server has already written this take, as a variant, unclaimed.
+  const a2 = r.passageId ? {} : await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id, rejected: true,
     chapterId: V.currentChapter.id });
   S.busy = false; working(null);
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
@@ -6207,7 +6243,15 @@ document.addEventListener('click', async (e) => {
   // Abort only. Everything that has to be put back — the ghost, the busy flag, the composer —
   // is put back by whichever call was in flight, on its own aborted path, so there is exactly
   // one place that knows how to end a generation.
-  if (d.stop) { STOP?.abort(); return; }
+  if (d.stop) {
+    // TELL THE SERVER FIRST, then stop reading. bugs.md #9: a closed connection no longer cancels
+    // anything, so the abort alone would leave the generation running and land an unclaimed passage
+    // the writer had just asked not to have. Order matters — abort first and the request carrying
+    // the stop would be racing a generation that is already finishing.
+    void api.stop();
+    STOP?.abort();
+    return;
+  }
   // The hatch. The prose window closes at the chapter boundary, so this is the only way back to a
   // chapter the model has stopped seeing — `keep_whole` has been honoured by the engine since it
   // was written and had no control anywhere.

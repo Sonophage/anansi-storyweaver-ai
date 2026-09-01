@@ -125,6 +125,22 @@ function migrate() {
   // library's 1,990 passages are that shape. Seth, asked: "old ones neutral is fine." So this is
   // null for everything written before today and the page draws those without an accent.
   add('passages', 'mode', 'TEXT');
+  /* UNCLAIMED — written by the model and not yet stood behind by the writer.
+   *
+   * bugs.md #9: "i should be able to send and go elsewhere since the command already sent." The
+   * generation is persisted by the SERVER at completion now, so a passage survives the browser
+   * going away. That makes a state necessary: without it, every abandoned generation silently
+   * becomes part of the book and a returning device cannot tell what arrived while it was gone.
+   *
+   * Seth's design, 2026-09-01: "unclaimed and offered, and only claimed after the next message my
+   * thought being editing, regeneration or branching com into play." The row is REAL — it renders,
+   * it reaches the prompt, History and branches and re-rolls all work on it — because those are
+   * exactly the things a writer does to a passage before deciding about it. What the flag carries is
+   * whether they have written PAST it yet.
+   *
+   * DEFAULT 1, so every passage that existed before this column is claimed. A migration that
+   * defaulted to 0 would have offered the writer their whole back catalogue. */
+  add('passages', 'claimed', 'INTEGER DEFAULT 1');
   // Which model writes this story. Null means the process default — most stories, most of the
   // time. The router runs --models-max 3 --models-autoload, so a story on a different model
   // usually costs nothing to switch to; one that is asleep costs a load on its first call.
@@ -972,13 +988,35 @@ export function addPassage(p: any) {
     } catch (e) { db.exec('ROLLBACK'); throw e; }
   }
   q(`INSERT INTO passages (id,chapter_id,story_id,branch_id,slot_key,ordinal,author,speaker,body,
-      is_break,mode,directive,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      is_break,mode,directive,claimed,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, p.chapterId, p.storyId, p.branchId, (slot?.s ?? 0) + 1, at,
       p.author ?? 'model', p.speaker ?? null, p.body, p.isBreak ? 1 : 0,
-      MODES.includes(p.mode) ? p.mode : null, p.directive ?? null, now());
+      MODES.includes(p.mode) ? p.mode : null, p.directive ?? null,
+      // CLAIMED UNLESS THE CALLER SAYS OTHERWISE. Only the server-side persist of a live generation
+      // passes 0; the writer's own prose, a break, an import and every older caller are claimed by
+      // construction — a writer typing a line has already stood behind it.
+      p.claimed === false ? 0 : 1, now());
   touch(p.storyId);
   return id;
 }
+
+/** STAND BEHIND EVERYTHING UNCLAIMED IN A STORY, and answer how many that was.
+ *
+ *  Called by the acts that mean "I have read this and I am going on": writing a line, asking for the
+ *  next passage, closing a chapter. Seth, 2026-09-01: "only claimed after the next message."
+ *
+ *  BY STORY AND NOT BY PASSAGE, deliberately. A writer who comes back to three passages and carries
+ *  on has stood behind all three; making them claim each one is a chore invented by the data model.
+ */
+export function claimPassages(storyId: string): number {
+  const r = q('UPDATE passages SET claimed = 1 WHERE story_id = ? AND claimed = 0').run(storyId);
+  return Number(r.changes ?? 0);
+}
+
+/** What is waiting to be stood behind, oldest first. Ids only — the view already carries the prose. */
+export const unclaimedOf = (storyId: string): string[] =>
+  (q('SELECT id FROM passages WHERE story_id = ? AND claimed = 0 ORDER BY ordinal').all(storyId) as any[])
+    .map((r) => r.id);
 
 /** Regenerate writes a NEW variant into the same slot and deletes nothing (SPEC §9).
  *  Write order matters: unset the incumbent first, then insert. The partial unique index
