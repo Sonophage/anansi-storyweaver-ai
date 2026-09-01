@@ -169,6 +169,28 @@ ok("  the book JSON goes into the box", pasted === true);
 await page.click('[data-pastebook="1"]');
 await wait(900);
 
+/* GO TO A WIZARD STEP BY NAME, not by index. #40 reordered the wizard on 2026-09-01 and this file
+ * clicked `data-sparkstep="3"` expecting the cast — which became "A second look", so the paste box
+ * was not on screen and the scenario DIED at a page.eval against null.
+ *
+ * wizard.js got this helper in the same change and this file was missed, because the grep that found
+ * the index clicks was scoped to wizard.js instead of test/ui. The full eighteen-scenario pass is
+ * what caught it. The dots carry aria-label from the step title; Back and Next carry data-sparkstep
+ * too and no label, which is why the selector is narrowed.
+ */
+const goStep = async (title) => {
+  const n = await page.eval(`(() => { const b = [...document.querySelectorAll('[data-sparkstep][aria-label]')]
+    .find(e => (e.getAttribute('aria-label') || '') === ${JSON.stringify(title)});
+    return b ? b.dataset.sparkstep : null; })()`);
+  if (!n) {
+    const have = await page.eval(`JSON.stringify([...document.querySelectorAll('[data-sparkstep][aria-label]')]
+      .map(e => e.getAttribute('aria-label')))`);
+    throw new Error(`no wizard step called ${JSON.stringify(title)} — the steps are ${have}`);
+  }
+  await page.click(`[data-sparkstep="${n}"]`);
+  await wait(450);
+};
+
 // IT FILLS THE WIZARD, IT DOES NOT CREATE THE BOOK. Every other thing a model writes in this app is
 // read before it is kept, and a whole book is the largest of them.
 ok("pasting a book opens the wizard rather than creating anything",
@@ -179,9 +201,8 @@ ok("  with the story fields filled from the paste",
    (await page.eval("document.querySelector('[data-sp=\"title\"]')?.value")) === 'The Drowned Ledger'
    && /past tense/.test(await page.eval("document.querySelector('[data-sp=\"writingStyle\"]')?.value") || ''));
 
-await page.click('[data-sparkstep="3"]');
-await wait(500);
-ok("  and the cast on the cast step",
+await goStep("The threads");
+ok("  and the threads on the threads step",
    (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 2);
 ok("  which also offers the card prompts and a paste of its own",
    (await page.eval("!!document.querySelector('[data-forgecopy=\"character\"]')")) === true
@@ -196,8 +217,7 @@ await wait(700);
 ok("  a card pasted into the cast joins it",
    (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 3);
 
-await page.click('[data-sparkstep="4"]');
-await wait(500);
+await goStep("You");
 ok("  and the persona came over as a pick off that cast",
    (await page.eval(`document.querySelector('[data-sp="persona"]')?.value`)) === 'Sella Vane');
 
@@ -217,7 +237,15 @@ ok(`accepting writes the book, its cast and their rooms (${JSON.stringify(book)}
 if (book) {
   ok("  all three cards", book.entries === 3);
   ok(`  the pasted rooms survived Accept (${book.sellaRooms})`, book.sellaRooms === 'facts');
-  ok("  including one pasted at the cast step", book.tideRooms === 'what_it_does');
+  /* BOTH ROOMS, since #39 on 2026-09-01. This read `=== 'what_it_does'` and now expects facts
+   * beside it: story creation moves a new card's DESCRIPTION into the evergreen facts room, because
+   * the chapter-end pass rewrites the body and has never been able to touch a room.
+   *
+   * So this assertion is stronger than it was, not weaker — it proves the pasted room survived
+   * Accept AND that the body landed in facts without overwriting what the paste carried. Caught by
+   * the full eighteen-scenario pass; scope.ts covers the route directly and could not see it. */
+  ok(`  including one pasted at the cast step, beside its facts (${book.tideRooms})`,
+     book.tideRooms === 'facts|what_it_does');
   // A character has no `atmosphere`. It was dropped rather than filed under a real room.
   ok("  and a room that kind has no business with was left out",
      !book.sellaRooms.includes('atmosphere'));

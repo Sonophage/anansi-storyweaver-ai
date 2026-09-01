@@ -166,8 +166,8 @@ export const density = (prose: string) => {
      *   - he occupies it half as often. The action count falls with the exposure, and the per-slot
      *     rate is flat.
      *
-     * These are not the same claim and the aggregate cannot tell them apart. `subj` is the
-     * denominator that can. */
+     * These are not the same claim and the aggregate cannot tell them apart. `he` plus the name is
+     * the denominator that can — the f53 report prints it as SUBJECT SLOT. */
     he: all(/\bhe\b/i),          // subject slot, pronoun
     him: all(/\bhim\b/i),        // object — present, not acting
     hisPoss: all(/\bhis\b/i),    // possessive — present, not acting

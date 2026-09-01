@@ -582,6 +582,48 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   ok('a generation persists only when a writer is streaming, and lands unclaimed');
 }
 
+/* A LIT BUTTON SAYS IT IS LIT (2026-09-01). Fourteen button groups drew a selected state as a
+ * colour and told a screen reader nothing, so which theme, which kind, which view was chosen was
+ * visible and not readable.
+ *
+ * THE ATTRIBUTE MUST REUSE THE CONDITION THE COLOUR USES, and that is the actual check here rather
+ * than "has an aria-pressed". Adding these, I wrote `S.loreKind` for the lore chips where the style
+ * reads `S.lore.kind` — a field that does not exist. The attribute would have been permanently
+ * false under a button that looked lit, which is worse than no attribute: it states the opposite of
+ * what is on screen, confidently. Caught by reading each tag against its own style, not by any test,
+ * which is why there is now a test.
+ *
+ * Scoped to the five that were fixed. A sixth group added later will not be caught by this, and that
+ * is honest rather than ideal: the general form needs a parser, and a regex over markup is what
+ * BUILD-STATE 3b warns about ("Do not audit a surface with a pattern; read the object").
+ */
+{
+  const js = read('web/app.js');
+  const groups: [string, string][] = [
+    ['theme', 'look.theme'],
+    ['ctxview', 'S.ctxView'],
+    ['setupkind', 'kind'],
+    ['lorekind', 'S.lore.kind'],
+    ['spkind', 'on'],
+  ];
+  const wrong: string[] = [];
+  for (const [key, state] of groups) {
+    const at = js.indexOf(`<button data-${key}="\${k}"`);
+    if (at < 0) { wrong.push(`${key}: tag not found — re-point this check`); continue; }
+    const tag = js.slice(at, at + 420);
+    const press = /aria-pressed="\$\{([^}]+)\}"/.exec(tag);
+    if (!press) { wrong.push(`${key}: no aria-pressed`); continue; }
+    // The state the COLOUR is decided by has to be the state the attribute is decided by. Compared
+    // on the identifier rather than the whole expression, because `a === b` and `b === a` are both
+    // written in this file and both are correct.
+    if (!press[1].includes(state)) wrong.push(`${key}: aria-pressed reads ${press[1]}, colour reads ${state}`);
+  }
+  assert.deepStrictEqual(wrong, [],
+    'a button group\'s aria-pressed must be decided by the same state its colour is, or it tells a '
+    + 'screen reader the opposite of what is on screen');
+  ok(`${groups.length} button groups say which one is chosen, from the state that colours them`);
+}
+
 assert.match(read('web/app.js'), /t === root \|\| t === document\.body/,
   'the delegation must refuse <html> and <body> as action targets');
 ok('the delegation refuses html and body outright');

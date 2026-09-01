@@ -794,7 +794,7 @@ function drawAppearance() {
 
   const body = tab === 'theme'
     ? `<div style="display:flex; flex-direction:column; gap:7px">${themes.map(([k, t]) => `
-        <button data-theme="${k}" style="display:flex; align-items:center; gap:11px; padding:8px 10px;
+        <button data-theme="${k}" aria-pressed="${k === look.theme}" style="display:flex; align-items:center; gap:11px; padding:8px 10px;
           border-radius:var(--r); border:1px solid ${look.theme === k ? 'var(--gold)' : 'var(--chip)'}; width:100%">
           ${swatch(t)}
           <span style="font-size:13px; color:${look.theme === k ? 'var(--ink)' : 'var(--mute)'}">${esc(t.label)}</span>
@@ -2039,7 +2039,7 @@ const PANELS = {
           : `<button class="btn ghost" data-newlore="1" style="margin-bottom:14px">&lsaquo; Back</button>`}
         <div class="lbl" style="letter-spacing:.1em; margin-top:0">Write it down</div>
         <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px">
-          ${LORE_KINDS.map((k) => `<button data-lorekind="${k}" style="flex:1 1 44%; text-align:center;
+          ${LORE_KINDS.map((k) => `<button data-lorekind="${k}" aria-pressed="${S.lore.kind === k}" style="flex:1 1 44%; text-align:center;
             font-size:11.5px; padding:8px 0; border-radius:var(--r);
             border:1px solid ${S.lore.kind === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
             background:${S.lore.kind === k ? 'rgba(217,178,106,.12)' : 'transparent'};
@@ -3653,7 +3653,7 @@ function setupPanel() {
       <div class="serif" style="font-size:21px; color:var(--ink-bright)">Anyone new</div>
       <div class="hint" style="margin:6px 0 0">Anansi reads the beat you just set and proposes a card
         for it. It goes to Waiting like everything else she offers; nothing is canon until you accept it.</div>
-      <div style="display:flex; gap:6px; margin-top:12px">${KINDS.map((k) => `<button data-setupkind="${k}"
+      <div style="display:flex; gap:6px; margin-top:12px">${KINDS.map((k) => `<button data-setupkind="${k}" aria-pressed="${k === kind}"
         style="flex:1; text-align:center; font-size:11px; padding:8px 0; border-radius:var(--r);
         border:1px solid ${k === kind ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
         background:${k === kind ? 'rgba(217,178,106,.10)' : 'transparent'};
@@ -3764,7 +3764,7 @@ function libTray(kind) {
 }
 
 function ctxTabs() {
-  const t = (k, l) => `<button data-ctxview="${k}" style="flex:1; text-align:center; font-size:11.5px;
+  const t = (k, l) => `<button data-ctxview="${k}" aria-pressed="${k === S.ctxView}" style="flex:1; text-align:center; font-size:11.5px;
     padding:8px 0; border-radius:var(--r); border:1px solid ${S.ctxView === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
     background:${S.ctxView === k ? 'rgba(217,178,106,.12)' : 'transparent'};
     color:${S.ctxView === k ? 'var(--gold-lit)' : 'var(--mute)'}">${l}</button>`;

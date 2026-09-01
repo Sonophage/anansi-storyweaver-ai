@@ -10,6 +10,15 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · The buttons say which one is chosen
+
+### A selected button is now readable, not only visible
+Five sets of buttons showed which one was picked by colour alone — the theme list, the Blocks/Prompt
+switch on Context, the kind chips in the wizard and on the chapter's setup screen, and the kinds on a
+lore card. A screen reader had no way to tell which was on.
+
+They say so now. Nothing looks different.
+
 ## 2026-09-01 · The threads suggest themselves, and what you keep is kept
 
 ### They are written for you on the way in
