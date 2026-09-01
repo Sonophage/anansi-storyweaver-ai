@@ -332,9 +332,13 @@ if (arm === 'density') {
  */
 if (arm === 'f53') {
   const { fisher, poisson, per1000 } = await import('./stats.ts');
+  // LABELS FROM THE ENVIRONMENT, because this mode is not F53's alone. F54 compares the same story
+  // under two WORDINGS of the lockout line ("their" against the name), and a report headed
+  // "no marker / marked" would describe the wrong experiment while printing the right numbers —
+  // which is the shape of every mislabelled finding this project has had to correct.
   const dirs: [string, string][] = [
-    ['no marker', process.env.F53_CTL ?? '/tmp/f53-ctl'],
-    ['marked', process.env.F53_TRT ?? '/tmp/f53-trt'],
+    [process.env.ARM_A ?? 'no marker', process.env.F53_CTL ?? '/tmp/f53-ctl'],
+    [process.env.ARM_B ?? 'marked', process.env.F53_TRT ?? '/tmp/f53-trt'],
   ];
   const arms = dirs.map(([label, dir]) => {
     const all = readFileSync(`${dir}/D.jsonl`, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
@@ -356,9 +360,10 @@ if (arm === 'f53') {
   });
   const [c, m] = arms;
 
-  console.log(`\n  F53 — does marking the writer's own passages stop the model writing the`);
-  console.log(`  locked character? Arm D on both sides: the writer has already written him`);
-  console.log(`  speaking and acting, which is F51's case.\n`);
+  console.log(`\n  ${process.env.ARM_TITLE ?? "F53 — does marking the writer's own passages stop the "
+    + 'model writing the locked character?'}`);
+  console.log(`  Arm D on both sides: the writer has already written him speaking and acting,`);
+  console.log(`  which is F51's case.\n`);
   for (const a of arms) {
     console.log(`  ${a.label.padEnd(10)} ${a.rows.length} usable of ${a.n}`
       + `${a.errors ? ` (${a.errors} errored)` : ''}, ${a.t.words} words of narration`);

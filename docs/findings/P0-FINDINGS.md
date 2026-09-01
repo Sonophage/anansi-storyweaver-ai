@@ -2421,3 +2421,83 @@ never rates** — exact Fisher for the 2x2s and an exact conditional-binomial (P
 densities. It exists because of F52's recorded error: a p computed from its own rounded printed
 densities read 0.047 where the truth was 0.072. Its self-check reproduces F51's published 0.042 and
 0.008 from that finding's own counts.
+
+## F54 — saying the NAME where the lockout said "their" cuts his action by a third, and teaches the model one stereotyped sentence lifted straight out of the instruction (2026-09-01)
+
+`bench/lockout.ts f53` with `ARM_A`/`ARM_B`, **650 generations an arm**, two servers against the one
+router, **simultaneously**, the **same story on both** — arm D again, so this sits directly beside
+F52 and F53. 0 errored generations. F53's marker is **OFF on both arms**, so this measures the
+wording and nothing else.
+
+**Seth's question, 2026-09-01:** *"what if instead of their we put the name in instead."* The line
+names the locked character three times and then hands the two clauses that carry the actual
+prohibition to a pronoun. The first/second-person branch beside it has always named its teller five
+times and used no pronoun at all, so this was the third-person branch catching up.
+
+| | `their` | named | events | two-tailed |
+|---|---|---|---|---|
+| **his action, either anchor** | **2.80** | **1.93** | 120 vs 86 | **p = 0.008** |
+| his action, name-anchored | 2.10 | 1.50 | 90 vs 67 | **p = 0.038** |
+| his action, pronoun-anchored | 0.70 | 0.43 | 30 vs 19 | p = 0.115 |
+| **SUBJECT SLOT (name + `he`)** | **6.60** | **5.38** | 283 vs 240 | **p = 0.020** |
+| subject `he` | 1.87 | 1.17 | 80 vs 52 | **p = 0.009** |
+| object `him` | 10.31 | 10.49 | 442 vs 468 | p = 0.82 |
+| possessive `his` | 19.43 | 19.77 | 833 vs 882 | p = 0.74 |
+| his name | 4.74 | 4.21 | 203 vs 188 | p = 0.27 |
+| action per subject-slot mention | 42.4% | 35.8% | 120/283 vs 86/240 | p = 0.24 |
+| names him at all, of runs | 180/650 | 171/650 | | p = 0.62 |
+
+**It works, by the same mechanism F53 found and about half as hard.** Action falls roughly a third
+(p = 0.008 pooled). The subject slot falls with it while object and possessive stay flat, so this is
+the same story F53 told: he is moved out of the agent position and left in the scene as something
+happening to. Unlike F53, **naming itself barely moves** (p = 0.27) — so this effect is not the
+name-anchored-counter artifact that F53 had to rule out, and the pooled action number is not
+inflated by a falling denominator.
+
+**AND IT TEACHES THE MODEL ONE SENTENCE, WHICH IS THE COST.** The narrow interiority counter goes
+**1/650 runs to 11/650, p = 0.0065**, and every one of the eleven is the same construction:
+
+> Aldis felt the shift in the air.
+> Aldis felt the weight of the silence.
+> Aldis felt the damp seep through his coat.
+
+Six of the eleven are near-verbatim repeats of *"felt the shift in the air"*. Zero are `knew`,
+`decided`, `feared` or `hoped` — the increase is entirely the verb **`felt`**, which is the verb the
+new line puts directly beside his name: *"never state what Aldis Fen **feels**, knows or decides."*
+**This is F35's warning arriving exactly as F35 describes it** — give this model new vocabulary and it
+does something with it — with the twist that the vocabulary here is the prohibition's own wording.
+
+**A CORRECTION TO THE FIRST READING OF THAT, recorded because it changed the verdict.** The narrow
+counter's 1 → 11 reads as an elevenfold regression. Counted **three ways** — his name, bare `he`, and
+the possessive body forms (`his mind`, `his chest`) that the narrow counter cannot see — it is
+**11 → 18, p = 0.27, not distinguishable from noise**. The `their` arm expresses interiority as *"his
+chest tightened"* (9 of its 11); the named arm expresses it as *"Aldis felt…"* (11 of its 18). So the
+treatment **relabels** interiority into the named form far more than it adds any, and the honest
+statement is: the total did not significantly move, and the *form* did.
+
+That is the same blindness F53 recorded against F28, met from the other side. A name-anchored counter
+is not a measure of the defect; it is a measure of the defect *in one grammatical dress*.
+
+**Speech unresolved, four findings running.** 6/180 → 4/171, p = 0.75.
+
+**No leak.** The instruction's own text appears in 0 of 1,300 generations' output.
+
+**What this does NOT establish.**
+
+- **One story, one directive, one model, one scene shape**, as with F51-F53. The fixture holds one
+  man so pronouns resolve.
+- **Every rate is a floor.** The action verb list is curated; the interiority list is 14 verbs.
+- **Prose quality unread.** The named arm wrote 4% MORE words (44,603 against 42,869) — the opposite
+  sign from F53's 5.5% fewer, and neither has been read for whether the scenes are better.
+- **F53 and F54 have not been measured together.** Both move the subject slot and both are off by
+  default; whether they stack, or whether the second buys nothing once the first is on, is the open
+  question and needs a third arm.
+
+**Not shipped.** `ANANSI_LOCKOUT_NAMED` defaults off, beside `ANANSI_PROSE_AUTHOR` and
+`ANANSI_LOCKOUT_CLAUSE`. Three built, measured, dark flags on one instruction is itself a state worth
+naming.
+
+**The obvious next move, and it is cheap.** The harm is an adjacency: `Aldis Fen` next to `feels`. Say
+it in noun form — *"never state Aldis Fen's thoughts, knowledge or decisions"* — and the priming
+target disappears while the naming stays. That is one more arm on a harness that is already warm, and
+it would decide whether F54 ships as written, ships reworded, or does not ship.
