@@ -70,6 +70,15 @@ export interface Input {
   // without being told whose line it is.
   speaker?: string;
   pins?: Record<string, 'force_in' | 'force_out'>;   // per-chapter overrides, SPEC §7.4 step 7
+  /** F52. One extra sentence on the lockout line, telling the model that the locked character's
+   *  lines in the prose above were written BY the writer and are not a pattern to continue.
+   *
+   *  A FLAG BECAUSE IT IS UNDER MEASUREMENT, not because it is a setting. F51 found the mechanism:
+   *  `Passage` carries no author, so the recent-prose block is a flat run of text with no marking of
+   *  who wrote what — the lockout forbids the thing, and the prose two hundred tokens later shows
+   *  recent examples of exactly that thing, with no way to tell they are the writer's. It reaches
+   *  here through Input and never through process.env, because buildContext is pure. */
+  lockoutClause?: boolean;
   /** A take the writer rejected and is regenerating away from, if the caller chose to send it.
    *
    *  OFF BY DEFAULT AND THAT IS THE POINT. `db.rejectTake` has recorded rejections since it was
@@ -1061,7 +1070,11 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
         + `where ${teller} can only guess, write the guess as a guess.]`
       : locked
       ? `[${locked} belongs to the writer: never write their dialogue, action, gesture or thought, `
-        + `and never state what they feel, know or decide. Write the world's answer instead — what `
+        + `and never state what they feel, know or decide.`
+        + (input.lockoutClause
+          ? ` Where ${locked} speaks or acts in the passages above, the writer wrote it — that is `
+            + `not permission and not a pattern to continue.` : '')
+        + ` Write the world's answer instead — what `
         + `the others say and do, what the room does, what happens to ${locked}. Stop where `
         + `${locked} would act.]`
       : '', keep: true },

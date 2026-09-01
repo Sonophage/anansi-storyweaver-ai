@@ -107,6 +107,31 @@ export const score = (prose: string) => {
   };
 };
 
+/** F52's metric: CONTINUOUS, and over every run rather than over the ones that name him.
+ *
+ *  F51 is the reason. Its binary rate sits on a denominator the treatment itself moves — the arm
+ *  where the writer had spoken as him named him in 30.8% of passages against 55.4% — so a rate over
+ *  "runs that name him" cannot be compared between arms at all. Density can: it asks how much of
+ *  the output is him, and how much of it is him acting, per thousand words of narration.
+ *
+ *  Same regexes as `score`, made global. Sharing them is the point: two copies would drift and the
+ *  binary and the density would stop describing the same thing.
+ */
+export const density = (prose: string) => {
+  const narr = strip(prose);
+  const words = (narr.match(/\w+/g) ?? []).length;
+  const all = (r: RegExp) => (narr.match(new RegExp(r.source, r.flags.replace('g', '') + 'g')) ?? []).length;
+  return {
+    words,
+    names: all(new RegExp(NAME, 'i')),
+    acts: all(ACTED),
+    // Pronouns are NOT attributed to him — the fixture cannot guarantee the referent and F51's own
+    // note says the model re-genders the other characters. Reported so the ratio is visible, never
+    // counted as his action.
+    pronouns: all(/\b(he|him|his)\b/i),
+  };
+};
+
 // ---- the detectors are validated before any result is believed (CLAUDE.md) ----
 // A check that never fires reports perfection; one that always fires reports disaster. Both
 // directions, and the awkward cases are the point of the list.
@@ -192,6 +217,31 @@ if (arm === 'setup') {
   console.log('\n  now run both arms AT THE SAME TIME:');
   console.log('    node --experimental-strip-types bench/lockout.ts A 40 &');
   console.log('    node --experimental-strip-types bench/lockout.ts B 40 &');
+  process.exit(0);
+}
+
+if (arm === 'density') {
+  // F52's report. Continuous and over EVERY run, for the reason in `density` above: F51's binary
+  // rate sits on a denominator the treatment moves, so only this can be compared between arms.
+  for (const k of (process.env.ARMS ?? 'C,D').split(',')) {
+    const rows = readFileSync(`${OUTDIR}/${k}.jsonl`, 'utf8').trim().split('\n')
+      .map((l) => JSON.parse(l)).filter((r: any) => !r.error && r.prose);
+    const t = rows.map((r: any) => density(String(r.prose)))
+      .reduce((a, b) => ({ words: a.words + b.words, names: a.names + b.names,
+                           acts: a.acts + b.acts, pronouns: a.pronouns + b.pronouns }),
+              { words: 0, names: 0, acts: 0, pronouns: 0 });
+    const per = (n: number) => (n / Math.max(t.words, 1) * 1000).toFixed(2);
+    // The binary rate too, so this can be read against F51 rather than replacing it silently.
+    const scored = rows.map((r: any) => score(String(r.prose)));
+    const about = scored.filter((x) => x.about);
+    console.log(`  ${k}: ${rows.length} runs, ${t.words} words of narration`);
+    console.log(`    his action per 1,000 words   ${per(t.acts)}   (${t.acts} in all)`);
+    console.log(`    his name per 1,000 words     ${per(t.names)}`);
+    console.log(`    he/him/his per 1,000 words   ${per(t.pronouns)}  (not attributed — see density)`);
+    console.log(`    binary, of runs naming him:  acted ${about.length
+      ? (about.filter((x) => x.acted).length / about.length * 100).toFixed(1) + '%' : 'n/a'}`
+      + ` (${about.filter((x) => x.acted).length}/${about.length} of ${rows.length})`);
+  }
   process.exit(0);
 }
 
