@@ -2612,6 +2612,44 @@ export const routes: Record<string, Handler> = {
    *  one's cover in the file — a book leaves and comes back with its face. The markdown and JSON
    *  exports carry the set_at and not the bytes, because both are for reading elsewhere. Base64 it
    *  into the JSON if that export ever has to be a full round trip. */
+  /** A PICTURE ON A THREAD. Seth, 2026-09-01: "lets add an optional image field."
+   *
+   *  The same three routes the cover has, validated the same way and for the same reason: the
+   *  data-URL prefix is a claim and the magic bytes are the file, so a PNG relabelled as JPEG is
+   *  refused rather than stored and served back with the wrong header.
+   *
+   *  GATED like every route that names a story — `storyIdOf` finds `storyId` in the body, so the
+   *  dispatcher has already checked the book is this writer's before any of this runs. `setEntryImage`
+   *  then refuses a thread that is not IN that book, which is the second half of the same question.
+   */
+  'POST /api/entry/image': (c: Ctx) => {
+    const url = String(c.body.dataUrl ?? '');
+    const b64 = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(url)?.[1];
+    if (!b64) throw Object.assign(new Error('the picture must be a base64 JPEG data URL'), { code: 400 });
+    const buf = Buffer.from(b64, 'base64');
+    if (!buf.length) throw Object.assign(new Error('that picture is empty'), { code: 400 });
+    if (buf.length > MAX_COVER) throw Object.assign(
+      new Error(`that picture is ${Math.round(buf.length / 1000)}KB, over the 1MB ceiling`), { code: 400 });
+    if (!(buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff))
+      throw Object.assign(new Error('that is not a JPEG'), { code: 400 });
+    if (!db.setEntryImage(c.body.storyId, String(c.body.id ?? ''), buf))
+      throw Object.assign(new Error('that thread is not in this book'), { code: 404 });
+    return viewOf(c.body.storyId);
+  },
+  'DELETE /api/entry/image': (c: Ctx) => {
+    db.delEntryImage(c.body.storyId, String(c.body.id ?? ''));
+    return viewOf(c.body.storyId);
+  },
+  /** Served as bytes, inline, with a long cache: the URL carries the `set_at`, so it names one
+   *  version of one picture and can never go stale. Same bargain GET /api/cover makes. */
+  'GET /api/entry/image': (c: Ctx) => {
+    const sid = c.query.get('story') ?? '';
+    const jpeg = db.entryImageBytes(sid, c.query.get('entry') ?? '');
+    if (!jpeg) throw Object.assign(new Error('no picture on that thread'), { code: 404 });
+    return { __raw: { type: 'image/jpeg', body: Buffer.from(jpeg),
+      headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } } };
+  },
+
   'POST /api/cover': (c: Ctx) => {
     const url = String(c.body.dataUrl ?? '');
     // Validated at the boundary, not trusted from the surface: the prefix is a claim, the magic

@@ -2111,4 +2111,56 @@ ok('a passage can land unclaimed, survives editing and re-rolling, and the next 
   assert.strictEqual(db.unclaimedOf(other.id).length, 1, 'which is still offered');
 });
 
+
+// ---- AN OPTIONAL PICTURE ON A THREAD (2026-09-01). Seth: "lets add an optional image field."
+//
+// A SIDE TABLE, for the reason story_covers is one: entriesOf and entriesFor select e.*, so a BLOB
+// on entries would ride in every view, every ledger page and every prompt assembly whether or not
+// anything drew it.
+//
+// AND KEYED (entry_id, story_id), matching chapter_pins and entry_states. That composite is what
+// closes SPEC 7.1's cross-story leak, and a picture reachable through the wrong book would be
+// exactly that leak wearing a new column.
+ok('a thread can carry an optional picture, scoped to its own book', () => {
+  const o = db.owner('picowner');
+  const a: any = db.createStory(o, { title: 'Has Pictures', genre: 'x', premise: 'y', pov: 'third past' });
+  const b: any = db.createStory(o, { title: 'Has None', genre: 'x', premise: 'y', pov: 'third past' });
+  const mine = db.upsertEntry(a.id, o, { title: 'Aldis', body: '[a man]' })!;
+  const theirs = db.upsertEntry(b.id, o, { title: 'Sabel', body: '[a collector]' })!;
+
+  // OPTIONAL MEANS ABSENT IS NORMAL, and that is the state most cards are in.
+  assert.strictEqual(db.entryImageAt(a.id, mine), null, 'a thread starts with no picture');
+  assert.deepStrictEqual(db.entryImagesOf(a.id), {}, 'and the book reports none');
+
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+  assert.strictEqual(db.setEntryImage(a.id, mine, jpeg), true, 'a picture can be set');
+  assert.ok(db.entryImageAt(a.id, mine), 'and read back');
+  assert.deepStrictEqual(Object.keys(db.entryImagesOf(a.id)), [mine], 'and listed for the book');
+  assert.deepStrictEqual([...(db.entryImageBytes(a.id, mine) ?? [])], [...jpeg], 'byte for byte');
+
+  // THE SCOPE. Asking book B for book A's thread must answer nothing, not the picture.
+  assert.strictEqual(db.entryImageAt(b.id, mine), null,
+    "another book cannot read this book's picture");
+  assert.strictEqual(db.entryImageBytes(b.id, mine), null, 'nor its bytes');
+  assert.deepStrictEqual(db.entryImagesOf(b.id), {}, 'nor see it in its own list');
+
+  // AND A THREAD THAT IS NOT IN THIS BOOK IS REFUSED, rather than written and left to the FK.
+  assert.strictEqual(db.setEntryImage(a.id, theirs, jpeg), false,
+    "a thread from another book cannot be given a picture through this one");
+  assert.strictEqual(db.entryImageAt(b.id, theirs), null, 'and nothing was written for it');
+
+  // REPLACING keeps one row, so a card cannot accumulate pictures.
+  db.setEntryImage(a.id, mine, new Uint8Array([0xff, 0xd8, 0xff, 9]));
+  assert.deepStrictEqual(Object.keys(db.entryImagesOf(a.id)), [mine], 'setting again replaces');
+  assert.deepStrictEqual([...(db.entryImageBytes(a.id, mine) ?? [])], [0xff, 0xd8, 0xff, 9], 'with the new bytes');
+
+  // AND IT GOES WITH THE THREAD. The cascade is the whole reason the FK is composite.
+  db.delEntryImage(a.id, mine);
+  assert.strictEqual(db.entryImageAt(a.id, mine), null, 'removing it removes it');
+  db.setEntryImage(a.id, mine, jpeg);
+  db.delEntry(a.id, mine);
+  assert.strictEqual(db.entryImageAt(a.id, mine), null,
+    'and deleting the thread takes its picture with it rather than orphaning a blob');
+});
+
 console.log(`\n${n} checks passed`);

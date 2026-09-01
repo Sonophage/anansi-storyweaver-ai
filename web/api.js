@@ -228,5 +228,11 @@ export const api = {
   // `v` is the set_at the shelf was told about, and the route answers immutable for it, so a
   // cover is fetched once per change rather than once per paint.
   coverUrl:     (id, v)          => `/api/cover?story=${id}&v=${v}`,
+  /* A PICTURE ON A THREAD. Mirrors the cover's three exactly: a JPEG data URL in, a version-keyed
+   * URL out, and a delete. The `v` is the set_at, so the URL names one version and can be cached
+   * for a year — the route says so in its own headers. */
+  setEntryImage: (storyId, id, dataUrl) => j('/api/entry/image', 'POST', { storyId, id, dataUrl }),
+  delEntryImage: (storyId, id)         => j('/api/entry/image', 'DELETE', { storyId, id }),
+  entryImageUrl: (storyId, id, v)      => `/api/entry/image?story=${storyId}&entry=${id}&v=${v}`,
   exportUrl:    (id, format)     => `/api/export?story=${id}&format=${format}`,
 };

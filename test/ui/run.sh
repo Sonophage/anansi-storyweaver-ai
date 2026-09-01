@@ -47,8 +47,8 @@ fresh() {
 # green for a scenario nobody asked about — twice, per docs/HANDOFF.md.
 scenarios=${*:-}
 [ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge"
-# `cover` is excluded too, and for a second reason: it needs ANANSI_SEARCH pointing at a working
-# endpoint AND the open web. Run it by name, with that variable set on the test server.
+# `cover` and `entrypic` are excluded too, and for a second reason: they need ANANSI_SEARCH pointing
+# at a working endpoint AND the open web. Run them by name, with that variable set on the test server.
 # `model` and `ritual` are excluded from the default set: every step waits on a real generation, so it runs
 # in minutes. Ask for it by name: test/ui/run.sh model
 fail=0

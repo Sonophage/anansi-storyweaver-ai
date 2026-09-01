@@ -613,6 +613,23 @@ CREATE TABLE IF NOT EXISTS story_covers (
   jpeg BLOB NOT NULL,
   set_at INTEGER NOT NULL);
 
+-- A PICTURE ON A THREAD. Seth, 2026-09-01: "lets add an optional image field."
+--
+-- A SIDE TABLE AND NOT A COLUMN, for the reason story_covers is one: entriesOf and entriesFor
+-- select e.*, so a BLOB on entries would ride in every view, every ledger page and every prompt
+-- assembly whether or not anything drew it. The view is told the set_at only, which keys an
+-- immutable URL the browser can cache.
+--
+-- (id, story_id) AND NOT id ALONE, matching the composite key every other entry-scoped table
+-- uses: chapter_pins and entry_states both reference entries that way, and it is what closes
+-- SPEC 7.1's cross-story leak. A picture on a thread must not be reachable through another book.
+CREATE TABLE IF NOT EXISTS entry_images (
+  entry_id TEXT PRIMARY KEY,
+  story_id TEXT NOT NULL,
+  jpeg BLOB NOT NULL,
+  set_at INTEGER NOT NULL,
+  FOREIGN KEY (entry_id, story_id) REFERENCES entries(id, story_id) ON DELETE CASCADE);
+
 `);
 
 migrate();
@@ -774,6 +791,33 @@ export function setCover(id: string, jpeg: Uint8Array) {
     .run(id, jpeg, now());
 }
 export const delCover = (id: string) => { q('DELETE FROM story_covers WHERE story_id = ?').run(id); };
+
+/* A PICTURE ON A THREAD. The same three functions the cover has, and the same shape of answer: the
+ * `set_at` is what a surface is told, because it keys a URL that never changes content. */
+export const entryImageAt = (storyId: string, entryId: string): number | null =>
+  (q('SELECT set_at FROM entry_images WHERE entry_id = ? AND story_id = ?')
+    .get(entryId, storyId) as any)?.set_at ?? null;
+/** Every thread in this book that has a picture, as id -> set_at. One query for the whole view
+ *  rather than one per card: a book with sixty threads would otherwise pay sixty. */
+export const entryImagesOf = (storyId: string): Record<string, number> =>
+  Object.fromEntries((q('SELECT entry_id, set_at FROM entry_images WHERE story_id = ?')
+    .all(storyId) as any[]).map((r) => [r.entry_id, r.set_at]));
+export const entryImageBytes = (storyId: string, entryId: string): Uint8Array | null =>
+  (q('SELECT jpeg FROM entry_images WHERE entry_id = ? AND story_id = ?')
+    .get(entryId, storyId) as any)?.jpeg ?? null;
+/** Refuses a thread that is not in this book rather than writing a row the FK would reject with a
+ *  message about constraints. Same guard the pin writer uses, and for the same reason. */
+export function setEntryImage(storyId: string, entryId: string, jpeg: Uint8Array): boolean {
+  const own = q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId);
+  if (!own) return false;
+  q(`INSERT INTO entry_images (entry_id, story_id, jpeg, set_at) VALUES (?,?,?,?)
+     ON CONFLICT(entry_id) DO UPDATE SET jpeg = excluded.jpeg, set_at = excluded.set_at`)
+    .run(entryId, storyId, jpeg, now());
+  return true;
+}
+export const delEntryImage = (storyId: string, entryId: string) => {
+  q('DELETE FROM entry_images WHERE entry_id = ? AND story_id = ?').run(entryId, storyId);
+};
 
 /** The writer's default look, or null. */
 /** How many books, ANY writer's, are pinned to this model. `modelFor` puts the story ahead of the

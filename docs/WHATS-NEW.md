@@ -10,6 +10,26 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · A thread can have a picture
+
+### Optional, and it stays optional
+Every card now has a **Picture** row. Find one on the web, choose a file, or leave it — no picture is
+the normal state and it says so rather than showing you an empty frame. **Remove it** takes it off
+again.
+
+It is shrunk to 900px and stored in the book like a cover, so it travels with an export and comes
+back with a restore.
+
+### It is for your eye, not the model's
+A picture is never sent to the model. Not as a room, not in the body, not anywhere — there is no
+field on the thing the engine reads that could carry one. A card is still words as far as the writing
+is concerned.
+
+### And it belongs to its own book
+A thread followed from a world book keeps the picture where the thread lives. A picture set in one
+book is not reachable through another, which is the same rule its cards and its timeline already
+follow.
+
 ## 2026-09-01 · A cover found on the web, and Anansi can look things up
 
 ### She can search, and it is one switch everywhere

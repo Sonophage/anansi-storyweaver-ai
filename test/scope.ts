@@ -12,6 +12,11 @@ const db = await import('../src/db.ts');
 const { routes, OPEN_ROUTES, storyIdOf, isPrivateHost } = await import('../src/routes.ts');
 
 const alice = db.owner('alice'), bob = db.owner('bob');
+/** A ctx for the blocks that need one before the per-block helpers appear further down. */
+const ctxI = (owner: string, body: any = {}, query = '') => ({ body,
+  query: new URLSearchParams(query), owner,
+  slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+  defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
 const aStory = db.createStory(alice, { title: "Alice's book" });
 const bStory = db.createStory(bob, { title: "Bob's book" });
 const aPassage = db.addPassage({ ...aStory, storyId: aStory.id, body: 'Alice wrote this.' });
@@ -1081,6 +1086,35 @@ ok('a story cannot be deleted by someone who does not own it');
   assert.match(serve, /admin: REAL === db\.owner\(ADMIN\)/,
     'admin is decided by the real writer, never by the account being looked at');
   assert.doesNotMatch(serve, /admin: OWNER === db\.owner\(ADMIN\)/, 'and not by the borrowed one');
+/* A THREAD'S PICTURE IS SCOPED TO ITS BOOK (2026-09-01). Seth: "lets add an optional image field."
+ *
+ * The gate already refuses another writer's storyId, so what is left to prove is the half INSIDE a
+ * book you do own: a thread id from a DIFFERENT book must not be given a picture through this one,
+ * and must not be readable through it either. `entry_images` is keyed (entry_id, story_id) for
+ * exactly that, the same composite chapter_pins and entry_states use to close SPEC 7.1's leak.
+ */
+{
+  const mine = db.upsertEntry(aStory.id, alice, { title: 'Alice thread', body: '[hers]' })!;
+  const jpeg = 'data:image/jpeg;base64,' + Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]).toString('base64');
+
+  const okSet: any = routes['POST /api/entry/image'](ctxI(alice, { storyId: aStory.id, id: mine, dataUrl: jpeg }));
+  assert.ok(okSet?.entryImages?.[mine], 'a thread in your own book takes a picture');
+
+  // BOB'S THREAD, THROUGH ALICE'S BOOK. The gate lets this through — alice owns the storyId she
+  // named — so the refusal has to come from the scope on the write.
+  const bEntry = db.upsertEntry(bStory.id, bob, { title: 'Bob thread', body: '[his]' })!;
+  assert.throws(() => routes['POST /api/entry/image'](ctxI(alice,
+    { storyId: aStory.id, id: bEntry, dataUrl: jpeg })), /not in this book/,
+    "a thread from another book cannot be given a picture through one you own");
+  assert.strictEqual(db.entryImageAt(bStory.id, bEntry), null, 'and nothing was written for it');
+
+  // NOR READ. Asking for alice's picture with bob's story id must 404 rather than serve the bytes.
+  assert.throws(() => routes['GET /api/entry/image'](
+    ctxI(alice, {}, `story=${bStory.id}&entry=${mine}`)), /no picture/,
+    "a picture is not reachable through another book's id");
+  ok("a thread's picture belongs to its own book, on the write and on the read");
+}
+
 /* THE IMAGE PROXY REFUSES WHAT IT MUST (2026-09-01). Seth asked for image search on covers and
  * threads; an arbitrary image on the web sends no CORS header, so the browser cannot read its bytes
  * and the SERVER has to fetch it. That is an SSRF shape: the client names a URL and this process

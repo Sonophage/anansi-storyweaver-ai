@@ -184,6 +184,8 @@ const S = {
   // #cover image search, 2026-09-01. The picker's own state: the phrase, the rows, and which press
   // is in flight. Null means the tray is shut.
   found: null,
+  // The picture finder on ONE card: which thread it belongs to, the phrase, the rows. Null is shut.
+  entryPic: null,
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
   ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
@@ -205,7 +207,9 @@ const S = {
   forgeOpen: null, forgeBusy: false,
   prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
   promptOpen: null,
-  found: null,          // the passage a search result sent you to, marked until you move on
+  found: null,
+  // The picture finder on ONE card: which thread it belongs to, the phrase, the rows. Null is shut.
+  entryPic: null,          // the passage a search result sent you to, marked until you move on
   searchAll: false,     // inside a story, search that story only unless asked otherwise
   setupQ: '',           // filter over the ledger on the next-chapter setup page
   lore: null,           // the + Lore tray above the composer, when it is open
@@ -356,6 +360,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // A cover found on the web rather than drawn, 2026-09-01.
   'findcover', 'takeweb',
+  // A picture on a thread: find, look, take, remove, close.
+  'picfind', 'picgo', 'pictake', 'picdel', 'picshut',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
@@ -4225,6 +4231,14 @@ function entryEditor() {
          overwritten". So the field that survives the chapter was sitting UNDER the field that does
          not, and the order taught the wrong habit every time this screen opened. -->
     ${roomSection(e, slots.find((sl) => sl.name === 'facts'))}
+
+    <!-- AN OPTIONAL PICTURE. Seth, 2026-09-01: "lets add an optional image field."
+         OPTIONAL is the whole shape of it: no picture is the normal state and shows one quiet line
+         rather than an empty frame, because a card is words and this is a nicety on top of them.
+         The picture never reaches the model — it is not a room, it is not in the body, and the
+         engine's Entry type has no such field. It is for the writer's eye. -->
+    ${entryPicture(e)}
+
     <label class="lbl">Info</label>
     <!-- GROWS. It was a fixed 96px box, and an invented thread's body went from 60-120 words to
          120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
@@ -7449,6 +7463,45 @@ document.addEventListener('click', async (e) => {
     await readCover(blob);
     return;
   }
+  /* A PICTURE ON A THREAD — the same four moves the cover finder makes, on one card. */
+  if (d.picfind) {
+    const e = (V.entries ?? []).find((x) => x.id === d.picfind);
+    S.entryPic = { id: d.picfind, q: (e?.title ?? '').slice(0, 60), rows: [], busy: false, asked: false };
+    drawSide(); return;
+  }
+  if (d.picshut) { S.entryPic = null; drawSide(); return; }
+  if (d.picgo) {
+    if (S.entryPic?.busy) return;
+    const q = document.querySelector('[data-picq]')?.value.trim() ?? '';
+    if (!q) return toast('Say what to look for first.');
+    S.entryPic = { ...S.entryPic, q, busy: true }; drawSide();
+    const r = await api.images(q, 12);
+    S.entryPic = { ...S.entryPic, busy: false, asked: true, rows: r.error ? [] : (r.results ?? []) };
+    drawSide();
+    if (r.error) return toast(r.error);
+    if (!S.entryPic.rows.length) return toast('Nothing came back for that.');
+    return;
+  }
+  if (d.pictake) {
+    const id = S.entryPic?.id;
+    if (!id || S.entryPic.taking) return;
+    S.entryPic = { ...S.entryPic, taking: true }; drawSide();
+    // Through Anansi, because the browser cannot read an arbitrary image's bytes — see coverFinder.
+    const got = await api.image(d.pictake);
+    S.entryPic = { ...S.entryPic, taking: false };
+    if (got.error) { drawSide(); return toast(got.error); }
+    let blob;
+    try { blob = await (await fetch(got.dataUrl)).blob(); }
+    catch { drawSide(); return toast('Those bytes did not arrive.'); }
+    await readEntryImage(id, blob);
+    return;
+  }
+  if (d.picdel) {
+    const r = await api.delEntryImage(S.storyId, d.picdel);
+    if (r.error) return toast(r.error);
+    V = r; S.entryPic = null; drawSide();
+    return toast('Picture removed.');
+  }
   if (d.usecover) {
     // A LOCAL blob, not the remote URL: the bytes were kept when they arrived, so the press costs
     // no second request and cannot be told 429 at the moment the writer has decided.
@@ -8467,6 +8520,58 @@ const revokeShots = () => {
 /** The draw tray, under the cover buttons. Shut until asked for: it is the one control in this app
  *  that sends any of the book off the machine, so it does not sit open by default and the words
  *  that will leave are in a box the writer can read and rewrite before pressing anything. */
+/** THE OPTIONAL PICTURE ON A THREAD, and the finder for it.
+ *
+ *  Deliberately the smaller sibling of the cover's tray: same three ways in — a file, the web, or
+ *  nothing — and the same `readEntryImage` shrink-and-store path, but drawn as one row rather than a
+ *  section, because a card is words and the picture is a nicety on top of them.
+ *
+ *  IT NEVER REACHES THE MODEL. `entry_images` is a side table, the view carries only a `set_at`, and
+ *  `context.ts`'s Entry type has no image field — so there is nowhere for it to leak into a prompt
+ *  even by accident. That is worth stating because every other thing on this form does reach it.
+ */
+function entryPicture(e) {
+  const at = V.entryImages?.[e.id];
+  const f = S.entryPic?.id === e.id ? S.entryPic : null;
+  return `<div style="display:flex; flex-direction:column; gap:7px; margin:4px 0 14px">
+    <label class="lbl" style="margin:0">Picture <span style="color:var(--faint)">&mdash; optional</span></label>
+    ${at ? `<div style="display:flex; gap:9px; align-items:flex-start">
+      <img src="${api.entryImageUrl(S.storyId, e.id, at)}" alt=""
+        style="width:96px; height:96px; object-fit:cover; border-radius:var(--r);
+        border:1px solid var(--edge)">
+      <div style="display:flex; flex-direction:column; gap:6px; flex:1">
+        <button class="btn ghost" data-picfind="${esc(e.id)}" style="width:auto; padding:8px 14px;
+          font-size:11.5px">Find another</button>
+        <button class="btn ghost" data-picdel="${esc(e.id)}" style="width:auto; padding:8px 14px;
+          font-size:11.5px; color:var(--bad)">Remove it</button>
+      </div>
+    </div>` : `<div style="display:flex; gap:7px; align-items:center">
+      <button class="btn ghost" data-picfind="${esc(e.id)}" style="width:auto; padding:8px 14px;
+        font-size:11.5px">Find one on the web</button>
+      <label class="btn ghost" style="width:auto; padding:8px 14px; font-size:11.5px; cursor:pointer;
+        margin:0">Choose a file<input type="file" accept="image/*" data-picfile="${esc(e.id)}"
+        style="display:none"></label>
+    </div>
+    <div class="hint" style="margin:0">Nothing is required here. It is for your eye only &mdash; a
+      picture is never sent to the model.</div>`}
+    ${f ? `<div class="card" style="gap:8px; margin:0">
+      <div style="display:flex; gap:7px">
+        <input class="field" data-picq value="${esc(f.q ?? '')}" style="margin:0; flex:1"
+          placeholder="what to look for">
+        <button class="btn ghost" data-picgo="1" ${f.busy ? 'disabled' : ''}
+          style="flex:0 0 auto; width:auto; padding:12px 18px">${f.busy ? 'Looking&hellip;' : 'Look'}</button>
+      </div>
+      ${(f.rows ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:6px">
+        ${f.rows.map((r) => `<button data-pictake="${esc(r.img)}" title="${esc(r.title)}"
+          style="width:72px; height:72px; padding:0; border-radius:var(--r); overflow:hidden;
+          border:1px solid var(--edge); background:var(--field) center/cover no-repeat;
+          background-image:url('${esc(r.thumb || r.img)}')"></button>`).join('')}
+      </div>` : f.asked ? '<div class="hint" style="margin:0">Nothing came back for that.</div>' : ''}
+      <button class="btn ghost" data-picshut="1">Close</button>
+    </div>` : ''}
+  </div>`;
+}
+
 /** THE COVER: drawn, or FOUND. Seth, 2026-09-01: "can the image search be added to the covers".
  *
  *  Two doors, one tray. Finding one is a different act from having one drawn — a photograph of a real
@@ -8549,6 +8654,33 @@ function drawTray() {
 // A cover, shrunk before it is sent. 900px wide is what the hero card can use; anything larger is
 // bytes in a database that back up every night for no visible gain. `createImageBitmap` decodes off
 // the main thread and needs no <img> in the document to do it.
+/** SHRINK AND STORE A THREAD'S PICTURE. The same 900px shrink `readCover` does, posted to the
+ *  thread's own route instead of the book's.
+ *
+ *  NOT A PARAMETER ON readCover, and that was weighed: readCover carries cover-specific toasts and a
+ *  cover-specific failure message, and threading a destination through it would have made both
+ *  callers read conditionals. Two short functions that each say what they do beat one that asks.
+ *  If a third picture destination ever appears, the shrink is the part worth extracting.
+ */
+async function readEntryImage(entryId, f) {
+  if (!f) return;
+  toast('Shrinking the picture…');
+  let bmp;
+  try { bmp = await createImageBitmap(f); }
+  catch { return toast('That file is not an image this browser can read.'); }
+  const scale = Math.min(1, 900 / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  cv.getContext('2d').drawImage(bmp, 0, 0, w, h);
+  bmp.close?.();
+  const dataUrl = cv.toDataURL('image/jpeg', 0.82);
+  const r = await api.setEntryImage(S.storyId, entryId, dataUrl);
+  if (r.error) return toast(r.error);
+  V = r; S.entryPic = null; drawSide();
+  toast('Picture set.');
+}
+
 async function readCover(f) {
   if (!f) return;
   // Before the decode, not after it: a camera original spends its time here, and a toast that
@@ -8579,6 +8711,8 @@ async function readCover(f) {
 
 document.addEventListener('change', (e) => {
   if (e.target.dataset?.cover) return void readCover(e.target.files?.[0]);
+  // A picture chosen from disk for one thread. Same shrink, different destination.
+  if (e.target.dataset?.picfile) return void readEntryImage(e.target.dataset.picfile, e.target.files?.[0]);
   if (e.target.dataset?.story === 'spice') {
     const box = $('spiceCustom');
     if (box) box.hidden = e.target.value !== 'custom';

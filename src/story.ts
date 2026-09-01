@@ -104,6 +104,11 @@ export function view(storyId: string, focusChapterId?: string) {
     // Whether there is a cover, never the cover itself. Top level rather than inside `story` so a
     // surface that posts the story object straight back cannot try to save it as a field.
     cover: db.coverAt(storyId),
+    /* WHICH THREADS HAVE A PICTURE, as id -> set_at. Never the bytes: entry_images is a side table
+     * precisely so a BLOB does not ride in every view, and the set_at keys an immutable URL.
+     *
+     * One query for the book rather than one per card — a book with sixty threads would pay sixty. */
+    entryImages: db.entryImagesOf(storyId),
     // The book's own look, or null for "follow the writer's default". Top level and not inside
     // `story` for the same reason `cover` is: a surface that posts the story object straight back
     // must not be able to save it as a field of the book's text.
