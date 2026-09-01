@@ -194,6 +194,10 @@ const DRAWN: string[] = [];
 let inFlight = 0, peakFlight = 0;
 // Set by a test to make the Nth drawn request come back 429, so the refusal tile can be checked.
 let refuseNth = 0;
+// Set by a test to answer GET /api/stories with something other than the library below — an empty
+// shelf, a sleeping router. Pressing the logo reloads the library, so a test can change what comes
+// back and then ask for it. Null means "the fixture", which is every other test here.
+let shelfOverride: any = null;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   if (url.startsWith('https://image.pollinations.ai/')) {
@@ -210,7 +214,11 @@ let refuseNth = 0;
   // Three books, not one, and the two extras exist only so the shelf's ORDER can be wrong. With a
   // single story there is no grid to come after the New story button, so an assertion about where
   // that button sits is true wherever the button is put.
-  const body = url.startsWith('/api/stories') ? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.' },
+  const body = url.startsWith('/api/stories') ? (shelfOverride ?? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.',
+        // OWED SOMETHING, on purpose. What is waiting is drawn on the band now, which means it is
+        // drawn for the hero book and nowhere else — so a hero owed nothing makes the chips
+        // untestable, and the assertion would pass against a band that could never draw one.
+        proposed: 2, unpaid: 1, flags: 0 },
       // Two of the three are owed something, and between them five separate things — so a shelf that
       // listed items would show five chips where it must show two.
       // #18 §5. One book pinned to a model the router no longer serves — the 2026-08-27 rename is
@@ -238,7 +246,7 @@ let refuseNth = 0;
       { id: 's-5', title: 'The Tessellate', status: 'in_progress', updatedAt: 5, words: 0,
         last: null, proposed: 0, unpaid: 0, flags: 0, is_world: 1, genre: 'fantasy' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
-      look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } }
+      look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } })
     : url.startsWith('/api/story') ? STORY
     // The chapter naming its own next chapter. Answered properly rather than with {}, because an
     // empty answer is a different case and it has its own guard.
@@ -413,7 +421,17 @@ assert.match(html('page'), /The Ashfall Concordat/);
 // the one that remains is not hidden on a narrow screen.
 {
   const shelf = html('page');
-  assert.ok(shelf.indexOf('storycard hero') >= 0, 'the newest book is the hero');
+  // THE BAND, NOT A HERO CARD. The newest book used to be a full-width `.storycard.hero` at 3/4 —
+  // about a thousand pixels of cover on a laptop, with every other book under the fold and the one
+  // thing you came back for, where you stopped, not on the screen at all. It is now a band that
+  // carries the sentence you stopped on and one gold action.
+  assert.ok(shelf.indexOf('class="resumeband"') >= 0, 'the newest book gets the resume band');
+  assert.doesNotMatch(shelf, /storycard hero/,
+    'and no hero card survives beside it — two answers to "which book" is one too many');
+  // The band's job is the sentence. A band that renders with the chrome and no prose in it is the
+  // old shelf wearing a new shape, and it would pass every structural check above.
+  assert.match(shelf, /data-carryon="/, 'the band carries the one gold action');
+  assert.match(shelf, /Where you left off/, 'and says what it is showing you');
   assert.doesNotMatch(shelf, /data-open="new"/,
     'the shelf itself offers no New story button — the rail is the one door');
   assert.match(html('bar'), /<button class="pill" data-open="new"/,
@@ -1241,27 +1259,31 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 }
 }
 
-// And the SHELF renders it by book rather than by item. `waiting()` still returns one row per
-// waiting thing — that is what the story's own Waiting panel is written against — but a shelf of
-// four books listing every item is a wall of chips saying the same three words. Seth: "just bring
-// up the titles of the stories that have notifications".
+// WHAT IS OWED SITS ON THE BAND, BESIDE THE BOOK IT IS ABOUT. It used to be a strip across the top
+// of the page listing a book title and a number. That number was a count of KINDS and never of
+// items — it counted the rows `waiting()` returns, and `waiting()` returns at most one per kind —
+// so a book with nine proposals said "· 1". On the band there is one book to speak for, so the
+// chips can say the kind and the real count.
 {
   click({ leave: '1' });
   await new Promise((r) => setTimeout(r, 40));
   const page = html('page');
-  const chips = page.match(/data-owed="/g) ?? [];
-  // Two books are owed something, between them three items across two counted kinds — and two
-  // flags that deliberately count for nothing. By ITEM that is three chips and by BOOK it is two,
-  // so the count is what tells the two renderings apart.
-  assert.strictEqual(chips.length, 2,
-    `the shelf must group by book: two books are owed something, and it drew ${chips.length} chips`);
-  assert.match(page, /data-owedpanel="waiting"/,
-    'and each one opens that book\'s Waiting panel, which is where the detail lives');
-  assert.match(page, /The Salt Ledger/, 'named by the book, not by the kind of thing waiting');
-  assert.ok(!/threads proposed/.test(page),
-    'and the kinds stay in the panel — the shelf says which book, not what kind');
+  // The KIND, with its own number, which is the whole reason this moved. A digit alone was the
+  // old strip's failure and an assertion that only counted chips could not see it.
+  assert.match(page, /2 threads proposed/, 'the chip says what is waiting, not how many kinds');
+  assert.match(page, /1 promise unpaid/, 'and singular reads as singular');
+  // Each kind opens the panel that DECIDES it. The old strip sent every chip to 'waiting'
+  // regardless, because it had thrown the kind away before it drew anything.
+  assert.match(page, /data-owed="s-1" data-owedpanel="chapter"/, 'proposals open the chapter panel');
+  assert.match(page, /data-owed="s-1" data-owedpanel="strings"/, 'promises open Strings');
+  // THE COST, WRITTEN DOWN. The Salt Ledger is owed three proposals and a promise and is not the
+  // hero, so the shelf now says nothing about it — an owed thing reads as information beside its
+  // book and as a notification at the top of a page, and this is the price of choosing the first.
+  // If a later change puts a cross-book indicator back, this is the assertion that should fail.
+  assert.ok(!/data-owed="s-2"/.test(page),
+    'a book that is not the hero shows nothing owed on the shelf — deliberate, and the trade');
 }
-ok('the shelf groups what is waiting by book, and opens the book that is waiting');
+ok('what is owed is drawn on the band, by kind, and opens the panel that decides it');
 }
 
 // The webs and their prose, kept in step. This is the check that fails when somebody adds a help
@@ -2113,6 +2135,53 @@ ok('the house style can be re-rolled, into the box and not into the story');
   } finally { doc.querySelector = wasQS; }
 }
 ok('a voice can be saved to the library, pulled back into any book, and the default voice has a surface');
+
+// FIRST RUN — the one screen where the model being asleep is likeliest and worst.
+//
+// This app is local, so day one is the day llama-server is most likely down, and the first press
+// is the worst possible place to find that out. The line is CONDITIONAL, and a conditional that is
+// only ever seen in one state is not a conditional: both branches are driven here, because the
+// failure that matters is the screen telling a writer with a loaded model that it is asleep.
+//
+// Driven through the logo, which reloads the library — the only door in this harness that asks
+// for /api/stories again after the first paint.
+{
+  const shelf = (over: any) => { shelfOverride = over; };
+  try {
+    // Nothing on the shelf, and the router down.
+    shelf({ stories: [], model: null, slot: null, gen: STORY.gen, look: null });
+    click({ home: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+    const cold = html('page');
+    assert.match(cold, /Nothing on the shelf yet/, 'an empty shelf is the idea box, not a heading');
+    assert.match(cold, /id="idea"/, 'and the box is on it, rather than a button that goes to find one');
+    // The same id and the same action the create page uses, so there is one spark path and not two.
+    assert.match(cold, /data-spark="1"/, 'the gold press sparks from here directly');
+    assert.doesNotMatch(cold, /class="grid"|class="shelfgrid"|dashed/,
+      'no empty grid and no dashed cells — there is nothing to put in them');
+    assert.match(cold, /The model is asleep/, 'a sleeping router is said out loud before the first press');
+    assert.match(cold, /Wake the model first/, 'with somewhere to go about it');
+
+    // The same screen with the model up. THIS is the half that fails silently: a line printed
+    // unconditionally passes every assertion above and lies to everyone whose model is running.
+    shelf({ stories: [], model: 'Qwen3.6-WNTH-35B-A3B-NN', slot: SLOT, gen: STORY.gen, look: null });
+    click({ home: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+    const warm = html('page');
+    assert.match(warm, /Nothing on the shelf yet/, 'still the idea box');
+    assert.doesNotMatch(warm, /The model is asleep/,
+      'and it does not claim a loaded model is asleep');
+    assert.doesNotMatch(warm, /Wake the model first/,
+      'nor offer to wake something already awake');
+    assert.match(warm, /Nothing here leaves the machine/, 'the local promise is made either way');
+  } finally {
+    shelfOverride = null;
+    click({ home: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+  }
+}
+ok('a first run is the idea box, and says the model is asleep only when it is');
+
 
 // ---- THE HERO BANNER ABOVE AN OPEN BOOK'S THREADS (2026-08-31).
 // LAST IN THE FILE ON PURPOSE: it presses `lookall`, which is sticky, and two assertions above

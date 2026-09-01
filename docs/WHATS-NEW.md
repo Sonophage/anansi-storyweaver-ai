@@ -150,6 +150,54 @@ save the moment you change them. There is nothing to press afterwards and no mes
 Anything you TYPE still waits for Save — the title, the premise, the voice, the chapter's name and
 its brief. A text box that saved itself mid-sentence would fight you, so it does not.
 
+## 2026-08-31 · My stories opens on where you stopped
+
+### The last book you wrote in now shows you the sentence you stopped on
+My stories used to open on a cover. The book you were last writing in took up most of the screen as
+a picture, the rest of your shelf sat below it out of sight, and the one thing you came back for —
+where you actually stopped — was not on the page at all. You had to open the book to find out.
+
+Now that book gets a band across the top: the chapter you are in, the last sentence of your own
+prose, how far through the chapter you are, and one gold **Carry on writing** that puts you back at
+the end of the book with the cursor already in the box. **Read from chapter one** is beside it when
+you want the other thing.
+
+The sentence is always narration. If the last thing written was a character speaking, the band says
+so rather than putting their words where the narrator's would go.
+
+### Starting with no books is now the box you type into
+The empty shelf used to be a heading, a sentence, and a button that took you somewhere else to find
+the place to type. It is the place to type: a line to give me, a gold **Spark it**, and underneath
+it the two quieter ways in — start it yourself, or bring a book in.
+
+If llama-server is not running, it says so there, before you press anything, and offers to go and
+wake it. When the model is up it says nothing about it.
+
+### The band and the shelf fit a phone
+The cover goes to the top with the title set on it, the sentence you stopped on runs underneath, and
+**Carry on writing** takes the full width. What a book is waiting on splits into two chips side by
+side. The shelf stays two across.
+
+### What a book is waiting on now sits next to the book
+The strip along the top of My stories listed the books that wanted something from you and a number
+beside each one. That number was never the number of things waiting — a book with nine proposed
+threads said "1" — and it did not say what kind of thing it was.
+
+The chips have moved onto the band, where there is one book to talk about, so they can say it
+properly: **2 threads proposed**, **1 promise unpaid**, and pressing one opens the panel that
+decides that kind rather than a general list.
+
+The trade is real and worth knowing: only the book on the band shows what it is owed. For any other
+book, open it and its Waiting panel says the same thing.
+
+### Every book on the shelf says where you left it
+Under the cover, a card now reads *left off · chapter 12*, when you last touched it, and the last
+sentence of narration from it. A book you have not written in yet says so plainly instead of
+counting to zero.
+
+The covers stay the shape of a page, and the shelf sits four across under the band, so the books
+below the first one are on screen when you arrive rather than a scroll away.
+
 ## 2026-08-31 · Enter makes a line
 
 ### The send button is the only thing that sends

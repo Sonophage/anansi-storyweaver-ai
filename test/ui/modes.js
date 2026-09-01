@@ -54,17 +54,15 @@ ok("'Each take is kept' is gone", !/Each take is kept/.test(dock));
 ok("the last-take line is gone", !/Last take|Ready$/m.test(dock));
 ok("  and #takeRow is not rendered at all", await page.eval("!document.getElementById('takeRow')"));
 
-// ---- 3. Enter sends. It needed Cmd/Ctrl, so the button was the only way.
-// Asserted on the handler rather than by sending, because sending calls the model.
-ok("plain Enter is wired to send", await page.eval(
-  "(() => { const ta = document.getElementById('input'); let sent = false;"
-  + " const g = window.__origGen; ta.focus();"
-  + " const e = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });"
-  + " ta.dispatchEvent(e); return e.defaultPrevented; })()"));
-ok("  and Shift+Enter is left alone for a newline", await page.eval(
-  "(() => { const ta = document.getElementById('input');"
-  + " const e = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true, cancelable: true });"
-  + " ta.dispatchEvent(e); return !e.defaultPrevented; })()"));
+// ---- 3. Enter. This asserted "plain Enter is wired to send" and went red on 2026-08-31, when
+// Enter became a newline and the send button became the only thing that sends. The rule was
+// re-tested in test/ui/composer.js in that same commit — with real CDP key events, because the
+// question is what the browser reports on `e.shiftKey`, and behind a detector that is validated by
+// pressing send first. This block was left behind asserting the old contract.
+//
+// DELETED RATHER THAN REWRITTEN. A second copy here would be a second place to update the next
+// time the composer's keys change, and it would be the weaker of the two — it asked the handler
+// whether it had called preventDefault rather than whether anything was sent.
 
 // ---- 4. switching mode must not eat the line. Seventh instance of this bug.
 await page.click('[data-mode="direct"]');

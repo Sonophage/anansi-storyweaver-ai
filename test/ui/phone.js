@@ -22,7 +22,7 @@ const cards = await page.eval("document.querySelectorAll('[data-open]:not([data-
 ok(`the shelf has a story to tap (${cards})`, cards >= 1);
 
 const before = await page.eval("(() => document.querySelector('#page')?.innerHTML.length ?? 0)()");
-await page.click("#page .storycard[data-open]");
+await page.click("#page [data-open]");
 await wait(1400);
 
 // The bug, stated as the thing that must be true: tapping a card opens that story.
@@ -199,7 +199,7 @@ await page.eval(`(() => {
   const real = window.fetch;
   window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__hits++; return real(u, o); };
   return 1; })()`);
-await page.tapDrift("#page .storycard[data-open]", 24);
+await page.tapDrift("#page [data-open]", 24);
 await wait(1500);
 const drifted = await page.eval("(() => ({ hits: window.__hits, blocks: document.querySelectorAll('.block').length }))()");
 ok(`a tap that drifts 24px opens the story now (${drifted.blocks} blocks)`, drifted.blocks > 0);
@@ -219,7 +219,7 @@ await page.eval(`(() => { window.__hits = 0;
   const real = window.fetch;
   window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__hits++; return real(u, o); };
   return 1; })()`);
-await page.tapDrift("#page .storycard[data-open]", 14);
+await page.tapDrift("#page [data-open]", 14);
 await wait(1500);
 const both = await page.eval("(() => ({ hits: window.__hits, blocks: document.querySelectorAll('.block').length }))()");
 ok(`  a 14px drift, where the browser fires too, is still ONE action (${both.hits})`, both.hits === 1);
@@ -232,7 +232,7 @@ await page.eval(`(() => { window.__hits = 0;
   const real = window.fetch;
   window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__hits++; return real(u, o); };
   return 1; })()`);
-await page.tapDrift("#page .storycard[data-open]", 0);
+await page.tapDrift("#page [data-open]", 0);
 await wait(1500);
 const clean = await page.eval("(() => ({ hits: window.__hits, blocks: document.querySelectorAll('.block').length }))()");
 ok(`  a tap with no drift still opens it exactly once (${clean.hits})`, clean.hits === 1 && clean.blocks > 0);
@@ -247,7 +247,7 @@ await page.eval(`(() => { window.__opened = 0; const real = window.fetch;
   return 1; })()`);
 // Two big steps and no pause: a finger travelling 12px at a time and gone. Six small ones with a
 // pause is a slow drag that stopped, which is a press, and the app is right to treat it as one.
-await page.tapDrift("#page .storycard[data-open]", 24, 0, 2);
+await page.tapDrift("#page [data-open]", 24, 0, 2);
 await wait(1200);
 ok("  a flick that lifts while still moving is never a press, even at a tapping distance",
    (await page.eval("window.__opened")) === 0);
@@ -260,7 +260,7 @@ await wait(800);
 await page.eval(`(() => { window.__opened = 0; const real = window.fetch;
   window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__opened++; return real(u, o); };
   return 1; })()`);
-await page.tapDrift("#page .storycard[data-open]", 45);
+await page.tapDrift("#page [data-open]", 45);
 await wait(1200);
 // WHAT THIS DOES NOT PROVE. It stays green with the distance ceiling widened to 200 AND the scroll
 // check deleted, so neither of those is what refuses this gesture — most likely the page scrolls
@@ -280,7 +280,7 @@ await page.eval(`(() => { window.__hits = 0;
   const real = window.fetch;
   window.fetch = (u, o) => { if (String(u).includes('/api/story?story=')) window.__hits++; return real(u, o); };
   return 1; })()`);
-await page.tapDrift("#page .storycard[data-open]", 80);
+await page.tapDrift("#page [data-open]", 80);
 await wait(1200);
 ok("  and 80px of movement is still a scroll, not a press",
    (await page.eval("window.__hits")) === 0);
@@ -328,7 +328,7 @@ ok("  the chevron closes it again",
 // rule nobody can see is the failure worth catching.
 await page.goto(B + "/");
 await wait(700);
-await page.click("#page .storycard[data-open]");
+await page.click("#page [data-open]");
 await wait(1400);
 const margins = await page.eval(`(() => {
   const blk = document.querySelector('#col .block');
@@ -350,7 +350,7 @@ ok(`  and the last passage is boxed so the eye finds it (${margins.boxed})`, mar
 // hamburger removed the shelf had no way to open the menu at all.
 for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/"); }],
                            ["a story", async () => { await page.goto(B + "/"); await wait(500);
-                             await page.click("#page .storycard[data-open]"); }]]) {
+                             await page.click("#page [data-open]"); }]]) {
   await go();
   await wait(1200);
   // AT LEAST ONE door to the MAIN menu, on every screen. This asked for exactly one until

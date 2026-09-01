@@ -119,6 +119,28 @@ export const bookParagraphs = (body) => String(body ?? '')
   .filter(Boolean);
 export const ago = (t) => { const d = (Date.now() - t) / 864e5;
   return d < 1 ? 'today' : d < 2 ? 'yesterday' : `${Math.floor(d)} days ago`; };
+
+/** How long since a book was touched, at the resolution the shelf needs.
+ *
+ *  NOT an extension of `ago()`, which is day-precision and has to stay that way: `src/news.ts`
+ *  stamps a release at noon UTC on purpose, so an hour-precise `ago()` would render a release
+ *  written this morning as happening in three hours' time. A release is a date. A book was
+ *  touched at a moment, and "4 hours ago" is the difference between coming back to the same
+ *  sitting and coming back to a different day.
+ *
+ *  Clamps at zero rather than counting forwards: a clock that moved backwards is not something
+ *  the shelf should narrate.
+ */
+export const touchedAgo = (t) => {
+  if (!t) return '';
+  const mins = Math.max(0, (Date.now() - Number(t)) / 6e4);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${Math.floor(mins)} minutes ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? 'yesterday' : `${days} days ago`;
+};
 // Escapes quotes as well as tags: this is interpolated into value="..." attributes on both
 // surfaces, so a character named  The "Bell"  used to truncate its own name field on edit.
 export const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) =>
@@ -497,6 +519,50 @@ export const mark = (name, size = 19, colour = 'currentColor') =>
       (MARK[name] ?? MARK.story).split('M').filter(Boolean)
         .map((d) => `<path d="M${d}"></path>`).join('')}</svg>`;
 
+/** A passage with every quoted span taken out of it.
+
+ *  Dialogue may lie and characters may be wrong; only the narrator commits the story. Every
+ *  quality check in this repo strips speech before it reads anything, and so must every surface
+ *  that lifts a line OUT of a passage and prints it somewhere the narrator would stand — a
+ *  chapter's epigraph, the shelf's left-off line. Ignoring this produced a long run of false
+ *  positives once: a place name, another character's name, a line of dialogue read as a POV break.
+ *
+ *  ONE definition, because there are now two callers. It was written inline inside `epigraphOf`,
+ *  and the shelf needed the same rule — a second copy of a regex this fiddly is a guarantee the
+ *  two surfaces will disagree about what counts as speech.
+ *
+ *  ponytail: the closing class is `["\u201d]` while the opening one is `["\u201c]`, so a passage
+ *  that opens and closes with the SAME curly quote is not stripped. Every passage this app writes
+ *  is straight-quoted or properly paired; the upgrade is a paired-delimiter scan if an import ever
+ *  brings in the other convention.
+ */
+export const narrationOf = (body) => String(body ?? '').replace(/["\u201c][^"\u201d]*["\u201d]/g, ' ');
+
+/** The last sentences of NARRATION in a passage tail, for the shelf.
+
+ *  `last_body` from `listStories` is the end of the newest passage, prefixed with an ellipsis by
+ *  the query when it had to cut. That prefix is why the first match is dropped: `[^.!?]+[.!?]`
+ *  happily matches the half-sentence the cut left behind, and printing it starts the writer's own
+ *  prose in the middle of a word.
+ *
+ *  REJECTS WHOLE SENTENCES rather than stripping spans, which is where this differs from
+ *  `narrationOf` above and why it does not simply call it. Stripping `"Not tonight," he said.`
+ *  leaves ` he said.` — an attribution with its dialogue removed, which then passes every test
+ *  and prints on the card as the last thing the writer wrote. A sentence that contains speech is
+ *  speech, so the whole sentence goes. The lowercase test catches the same fragment arriving from
+ *  a passage that had already been stripped upstream.
+ *
+ *  Returns '' when the tail is all speech. That is a real state and the caller has to say so out
+ *  loud — falling back to the dialogue would print the exact thing this refused.
+ */
+export const leftOffLine = (body, sentences = 1) => {
+  const raw = String(body ?? '');
+  const whole = [...raw.matchAll(/[^.!?]+[.!?]/g)].map((m) => m[0].trim());
+  if (raw.startsWith('\u2026')) whole.shift();
+  return whole.filter((l) => l && !/["\u201c\u201d]/.test(l) && /^[^a-z]/.test(l))
+    .slice(-sentences).join(' ');
+};
+
 /** A line from the chapter's own prose, to stand at its head.
  *
  *  The design's band carries an epigraph and its note says it is "pulled from its own prose". Two
@@ -516,7 +582,7 @@ export const epigraphOf = (passages) => {
   const after = (passages ?? []).slice(1);
   let best = '';
   for (const p of after) {
-    const prose = String(p?.body ?? '').replace(/["“][^"”]*["”]/g, ' ');
+    const prose = narrationOf(p?.body);
     for (const m of prose.matchAll(/[^.!?]+[.!?]/g)) {
       const line = m[0].trim();
       if (line.length < 24 || line.length > 90) continue;

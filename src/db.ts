@@ -654,9 +654,46 @@ export const loginOf = (ownerId: string): string | null =>
  *  shelf all of it was invisible. Counted per story rather than as one total, so the strip can send
  *  you to the book it is about rather than making you go and look.
  *
- *  ponytail: three correlated subqueries per row. At a shelf of a dozen books that is nothing; if
- *  this ever gets slow the fix is one grouped join per table rather than a cache. */
+ *  THE RESUME FIELDS. The shelf's job is "back into the book I was in", and until this it could
+ *  answer only with a cover and three counts — nothing that says where you stopped. `last_body` is
+ *  the tail of the newest passage, `last_chapter_*` is where that passage sits, and the two word
+ *  sums feed the band's chapter meter.
+ *
+ *  CURRENT BRANCH IS NOT A COLUMN. `stories.active_branch` is null on every book that has never
+ *  been forked, and `activeBranchOf` falls back to the primary branch. The `cur` CTE does that
+ *  fallback ONCE per row, so the four subqueries reading it cannot disagree about which branch
+ *  they are on — a COALESCE repeated per subquery is four chances to get it wrong.
+ *
+ *  `is_break = 0` is load-bearing twice. A chapter break is a passage row, so without it the tail
+ *  of a book that has just closed a chapter is the break rather than the last thing written, and
+ *  the word sums count a row with no words in it.
+ *
+ *  NOTE the older `chapters` count is deliberately left cross-branch — it is what the card has
+ *  always shown. `chapter_count` is the branch-scoped one the meter needs, and on a forked book
+ *  the two are different numbers on purpose.
+ *
+ *  ponytail: eleven correlated subqueries and two CTEs per row now, where there were seven. At a
+ *  shelf of a dozen books that is nothing; if this ever gets slow the fix is one grouped join per
+ *  table rather than a cache. */
 export const listStories = (o: string) => q(`
+  WITH cur AS (
+    SELECT s.id AS sid,
+           COALESCE(s.active_branch,
+             (SELECT b.id FROM branches b WHERE b.story_id = s.id AND b.is_primary = 1)) AS bid
+      FROM stories s WHERE s.owner_id = ?),
+  tip AS (
+    SELECT cur.sid AS sid, p.chapter_id AS cid,
+           -- The TAIL, marked when it is one. The client takes the last sentences off this,
+           -- and the first of them is cut in half whenever the passage ran past 600 chars —
+           -- so say so in the string itself rather than making the client guess from its
+           -- length, which is wrong for a passage that happens to be exactly 600.
+           CASE WHEN LENGTH(p.body) > 600 THEN char(8230) || substr(p.body, -600)
+                ELSE p.body END AS body
+      FROM cur JOIN passages p ON p.id = (
+        SELECT p2.id FROM passages p2
+          WHERE p2.story_id = cur.sid AND p2.branch_id = cur.bid
+            AND p2.selected = 1 AND p2.is_break = 0
+          ORDER BY p2.ordinal DESC LIMIT 1))
   SELECT s.*, (SELECT COUNT(*) FROM passages p WHERE p.story_id = s.id AND p.selected = 1) AS passages,
          (SELECT COUNT(*) FROM chapters c WHERE c.story_id = s.id) AS chapters,
          (SELECT COUNT(*) FROM entries e WHERE e.story_id = s.id) AS entries,
@@ -664,8 +701,20 @@ export const listStories = (o: string) => q(`
          (SELECT COUNT(*) FROM strings st WHERE st.story_id = s.id AND st.status = 'open') AS unpaid,
          (SELECT COUNT(*) FROM violations v JOIN passages p ON p.id = v.passage_id
            WHERE v.story_id = s.id AND v.status = 'open' AND p.selected = 1) AS flags,
-         (SELECT sc.set_at FROM story_covers sc WHERE sc.story_id = s.id) AS cover
-  FROM stories s WHERE s.owner_id = ? ORDER BY s.updated_at DESC`).all(o);
+         (SELECT sc.set_at FROM story_covers sc WHERE sc.story_id = s.id) AS cover,
+         tip.body AS last_body, ch.idx AS last_chapter_idx, ch.title AS last_chapter_title,
+         (SELECT COUNT(*) FROM chapters c
+           WHERE c.story_id = s.id AND c.branch_id = cur.bid) AS chapter_count,
+         (SELECT SUM(LENGTH(p.body) - LENGTH(REPLACE(p.body, ' ', '')) + 1) FROM passages p
+           WHERE p.chapter_id = tip.cid AND p.selected = 1 AND p.is_break = 0) AS chapter_words,
+         (SELECT SUM(LENGTH(p.body) - LENGTH(REPLACE(p.body, ' ', '')) + 1) FROM passages p
+           WHERE p.story_id = s.id AND p.branch_id = cur.bid
+             AND p.selected = 1 AND p.is_break = 0) AS words,
+         (SELECT COUNT(*) FROM stories f WHERE f.lore_from = s.id) AS followers
+    FROM stories s JOIN cur ON cur.sid = s.id
+    LEFT JOIN tip ON tip.sid = s.id
+    LEFT JOIN chapters ch ON ch.id = tip.cid
+   ORDER BY s.updated_at DESC`).all(o);
 
 export function createStory(o: string, s: any) {
   const id = uid('s-'), b = uid('b-'), c = uid('c-'), t = now();
