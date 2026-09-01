@@ -313,7 +313,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
-  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'lselect', 'demo',
+  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'lselect', 'demo', 'holdback',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -426,7 +426,12 @@ function drawRail() {
   // again. Seth: "anansies web can be removed from the story menu since we already have a button
   // that pulls up the main menu and its the same amount of clicks."
   const back = '';
-  const tail = storyMenu
+  const tail = storyMenu && V?.story?.is_world
+    // A world book has no chapters to list and nothing to write in. What it has is its lore, and
+    // the rail says so rather than showing an empty Chapters heading.
+    ? `<div class="hint" style="padding:22px 12px 10px; margin:0">A world book. Its lore is here to
+         be read and edited, and to start books from &mdash; there is nothing to write in it.</div>`
+    : storyMenu
     ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.3em;
          font-variant-caps:all-small-caps; color:var(--dim)">Chapters</div>
        ${V.chapters.map((c) => `<button data-chapter="${c.id}" style="padding:8px 12px; font-size:13px;
@@ -1006,6 +1011,24 @@ function drawDoc() {
   // the header". The class says which of the two this chapter is.
   $('doc')?.classList.toggle('plated', !!plate);
   $('doc')?.classList.toggle('behind', !!stick);
+  // A WORLD BOOK HAS NO CHAPTER TO SET. Falling through would print "Chapter 1" over an empty
+  // column, which is the thing that made a world book look like a book with nothing in it.
+  if (V.story?.is_world) {
+    const cards = V.entries?.length ?? 0;
+    col.innerHTML = `<div style="max-width:620px; margin:0 auto; padding:48px 0;
+      display:flex; flex-direction:column; gap:14px">
+      <div class="serif" style="font-size:28px; line-height:1.1; color:var(--ink-bright)">${esc(V.story.title)}</div>
+      <div style="font-size:14px; line-height:1.7; color:var(--mute)">A world book. It holds lore and
+        nothing else &mdash; no chapters, no prose, nothing to write in. ${cards
+          ? `Its ${cards} ${cards === 1 ? 'card is' : 'cards are'} in Threads, on the left.`
+          : 'Put its first card in from Threads, on the left.'}</div>
+      <div class="hint" style="margin:0">Start a book set here from the Threads page, beside this
+        book's name. The new book READS these cards rather than copying them, so editing one here
+        changes it in every book set in this world &mdash; and a book can still disagree by writing
+        its own card with the same name.</div>
+    </div>`;
+    return;
+  }
   col.innerHTML = `
     ${plate}
     <div class="band">
@@ -1175,8 +1198,20 @@ function drawDock() {
            tray has its own button inside the list, so nothing lost a way in. Seth: "threads in the
            composer should open to all the threads in that story ... which isnt necessary because
            we have that on the input." -->
+      <!-- HOLD THEM BACK, where you are actually writing. It is a per-scene decision and it lived
+           three panels deep. Seth, 2026-08-31: "allow that option to be toggleble in the input bar
+           as a faded or unfaded option in the input bar beside threads so i dont have to enter all
+           these menus." Faded is off, lit is on, and it only exists when the book names somebody —
+           a switch for a setting you have not made is a control with no meaning. -->
+      ${V.story.lockedCharacter ? `<button data-holdback="${V.story.lockoutOn === false ? '1' : '0'}"
+        aria-pressed="${V.story.lockoutOn !== false}"
+        title="${V.story.lockoutOn === false
+          ? `The model may write ${esc(V.story.lockedCharacter)}. Press to hold them back.`
+          : `${esc(V.story.lockedCharacter)} is yours — the model will not write them. Press to let it.`}"
+        style="flex:0 0 auto; margin-left:auto; opacity:${V.story.lockoutOn === false ? '.42' : '1'};
+        color:${V.story.lockoutOn === false ? 'var(--faint)' : 'var(--gold)'}">Hold back</button>` : ''}
       <button data-goblock="threads:" title="Everything written down in this story"
-        style="flex:0 0 auto; margin-left:auto">Threads</button>
+        style="flex:0 0 auto; ${V.story.lockedCharacter ? '' : 'margin-left:auto'}">Threads</button>
       <!-- THREE PLACES, THREE JOBS. Seth, 2026-08-28: "on the menu threads is seen in three
            places. main menu, threads for all books. composer menu, threads for only the current
            story. button next to anansi near the input should be + threads. add threads."
@@ -4851,7 +4886,14 @@ function paint() {
   applyLook();
   root.dataset.uiRail = S.rail ? 'open' : 'closed';
   drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide();
-  if (S.place === 'story' && V) { drawDoc(); drawDock(); } else { $('dock').hidden = true; }
+  // A WORLD BOOK HAS NO WRITING SURFACE. It is a collection of lore and nothing else — Seth,
+  // 2026-08-31: "the world book should be a collection of lore. no entries no chapters just lore.
+  // so that its an easy starting off point if i want to write something else or as someone else or
+  // as a different premise in that world." The first build made it a story with an empty Chapter 1
+  // and a composer, which is a book with nothing in it, not a world.
+  const world = S.place === 'story' && V && !!V.story?.is_world;
+  if (S.place === 'story' && V && !world) { drawDoc(); drawDock(); }
+  else { $('dock').hidden = true; if (world) drawDoc(); }
 }
 
 /** The notes, and the error if there are none. Kept beside LEDGER because it is the same shape of
@@ -4940,7 +4982,10 @@ async function openStory(id) {
 
   SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen,
           admin: r.admin === undefined ? SRV.admin : !!r.admin };
-  if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
+  // A WORLD BOOK OPENS ON ITS LORE. There is nothing else in it — no prose, no chapters — so the
+  // Context panel would report on a prompt that will never be built.
+  if (V.story?.is_world) { if (!S.panel || S.panel === 'context') S.panel = 'threads'; }
+  else if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
   const a = await api.activity(id);
   if (OPENING !== id) return;                   // and again: this is the second await, not the first
   ACT = a.error ? null : a;
@@ -7313,6 +7358,19 @@ document.addEventListener('click', async (e) => {
   if (d.forgehere !== undefined) { S.forgeHere = d.forgehere === '1'; drawPage(); return; }
   // The demo library. Everything on screen belongs to the library you were looking at, so this
   // drops the open book and reloads the shelf rather than trying to reconcile the two.
+  // The composer's own copy of the Story panel's switch. Saves the one field and repaints the dock
+  // only — a full repaint here would empty the line you are part-way through writing, which is the
+  // rule the autosave path had to learn today.
+  if (d.holdback !== undefined) {
+    const on = d.holdback === '1';
+    const r = await api.saveStory(S.storyId, { lockoutOn: on });
+    if (r.error) return toast(r.error);
+    V.story = { ...V.story, lockoutOn: on };
+    drawDock();
+    return toast(on
+      ? `Holding ${V.story.lockedCharacter} back. The model will not write them.`
+      : `Letting the model write ${V.story.lockedCharacter} for now.`);
+  }
   if (d.demo !== undefined) {
     const on = d.demo === '1';
     const r = await api.setDemo(on);

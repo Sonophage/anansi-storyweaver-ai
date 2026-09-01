@@ -10,6 +10,23 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · A world book is lore, and Hold back is on the composer
+
+### A world book has no chapters and nothing to write in
+The first version made one as a story with an empty Chapter 1 and a composer, which is a book with
+nothing in it rather than a world. Opening one now shows what it is: its lore, and a line saying so.
+No chapter heading, no prose column, no composer, and the menu lists its lore instead of chapters.
+
+It is the starting point it was meant to be. Put a cast, a map, a set of rules in it, then start
+books set there from the Threads page. Each one reads this lore rather than copying it, so you can
+write a different story, as a different person, on a different premise, and they all agree about the
+world.
+
+### Hold back is beside Threads now
+The switch for the character the model must not write sits on the composer row, next to Threads.
+Lit means held back, faded means the model may write them. One press, mid-scene, without opening a
+panel. It only appears once a book names someone.
+
 ## 2026-08-31 · A demo library, one press away
 
 ### Show the app without showing your books

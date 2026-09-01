@@ -1167,6 +1167,34 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   } finally { (globalThis as any).matchMedia = wide; }
   ok('picking a model from the rail closes the rail behind it');
 
+// ---- HOLD BACK, IN THE COMPOSER (2026-08-31). Seth: "allow that option to be toggleble in the
+// input bar as a faded or unfaded option in the input bar beside threads so i dont have to enter
+// all these menus." It is a per-scene decision that lived three panels deep.
+{
+  const open = async () => { click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40)); };
+  const dock = () => html('dockCol');
+
+  // NAMED NOBODY, NO CONTROL. A switch for a setting you have not made is a control with no
+  // meaning, and this is the assertion that catches it appearing for every book.
+  STORY.story.lockedCharacter = null;
+  await open();
+  assert.ok(!/data-holdback/.test(dock()), 'no locked character, no Hold back in the composer');
+
+  STORY.story.lockedCharacter = 'Aldis Fen';
+  STORY.story.lockoutOn = true;
+  await open();
+  assert.match(dock(), /data-holdback="0"/,
+    'named and held: the button offers to LET GO, so pressing it turns the lockout off');
+  assert.match(dock(), /aria-pressed="true"/, 'and reads as on');
+
+  STORY.story.lockoutOn = false;
+  await open();
+  assert.match(dock(), /data-holdback="1"/, 'let go: the button offers to hold them back again');
+  // FADED IS THE OFF STATE, which is the whole of what he asked for on the surface.
+  assert.match(dock(), /opacity:\.42/, 'and it is drawn faded');
+  ok('Hold back sits in the composer, faded when off, and only when the book names someone');
+}
+
 // ---- THE CREATE SCREEN (2026-08-31). Seth: "the what comes back in create a story needs to be
 // removed. the paste as json needs to be hidden under a toggle or a button that opens that option."
 {
