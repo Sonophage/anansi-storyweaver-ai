@@ -100,6 +100,11 @@ export const api = {
   // The house style before the book exists. Same prompt as `styleNote`, which reads it off a story
   // that has been created; this one is handed the two facts directly.
   sparkStyle:   (genre, premise) => j('/api/spark/style', 'POST', { genre, premise }),
+  /* #40. ONE field of the skeleton, asked again — title, genre or premise. Sent the skeleton the
+   * writer has KEPT and their own idea, so a re-rolled title belongs to the book on screen rather
+   * than to a better one the model would rather have been given. */
+  sparkField:   (field, story, idea, entries) =>
+    j('/api/spark/field', 'POST', { field, story, idea, entries }),
   // The forge: prompts to hand a different model. Admin only — the route refuses anyone else, so a
   // caller that gets `error` back is not a failure, it is the answer.
   forge:        ()               => j('/api/forge'),

@@ -152,6 +152,9 @@ const S = {
   // Issue #38. The passage whose re-roll instruction is open for editing, and the text in it.
   // Null means no editor is open, which is every press on an undirected passage.
   reroll: null,
+  // #40. Which skeleton field is being re-rolled right now, or null. One at a time: the router does
+  // not queue and a second concurrent call kills both with HTTP 500.
+  spField: null,
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
   ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
@@ -331,6 +334,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
   'sprecast', 'spstyle',
+  // #40 stage 2. One field of the skeleton, asked again.
+  'spfield',
   'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
@@ -3197,6 +3202,20 @@ function sparkReview() {
   // style — so a re-roll pressed while the style is being written would be a second concurrent call
   // on a router that does not queue. The style button already read the shared flag; this is the
   // other direction of the same rule.
+  /* #40 stage 2 · ONE FIELD, ASKED AGAIN. Seth: "I should be able to reroll the title the genre and
+   * the premise individually." Beside the field rather than at the foot of the step, because it is
+   * about that field and a button at the bottom is about the whole screen.
+   *
+   * `busy` covers it as well as the whole-skeleton re-roll: the router does not queue, so a title
+   * asked for while the premise is being written is a third concurrent call.
+   *
+   * HARVEST FIRST, in the handler — what is on screen is what the re-roll should be written against,
+   * including edits the writer has just made and not navigated away from. */
+  const rerollField = (k) => `<button data-spfield="${k}" ${busy || S.spark.spField ? 'disabled' : ''}
+      style="background:none; border:0; padding:2px 0 0; cursor:pointer; font-size:11px;
+      letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--gold-dim)"
+    >${S.spark.spField === k ? 'thinking&hellip;' : 'ask again for this'}</button>`;
+
   const reroll = (label) => S.spark.idea
     ? `<button class="btn ghost" data-spreroll="1" ${busy ? 'disabled' : ''}
         style="margin-top:6px">${S.spark.sparking ? 'Thinking&hellip;' : esc(label)}</button>` : '';
@@ -3214,8 +3233,11 @@ function sparkReview() {
          'Every re-roll here asks again from exactly this. Change it and the next answer changes '
          + 'with it.', 60)}
        ${row('title', 'Title', s.title)}
+       ${rerollField('title')}
        ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag on the shelf.')}
+       ${rerollField('genre')}
        ${area('premise', 'Premise', s.premise, 'It rides in the spine on every call.', 110)}
+       ${rerollField('premise')}
        ${forgeCopy('premise', 'Copy the premise prompt')}
        ${reroll('Ask again from your idea')}
        ${S.spark.idea ? `<div class="hint">Same idea, another skeleton. What is typed here is
@@ -7737,6 +7759,31 @@ document.addEventListener('click', async (e) => {
   if (d.dropSpark) { S.spark = null; S.sparkStep = 1; paint(); return; }
   // Every move harvests first: a step that is not rendered is not in the DOM, so an edit on the
   // step being left would be lost the moment it stops being drawn.
+  /* #40 stage 2. One field of the skeleton, asked again.
+   *
+   * `harvestSpark()` FIRST, or the call is written against the state as it was when the step last
+   * painted rather than against what is on screen — the writer edits the premise and presses "ask
+   * again for this" on the title, and the title should belong to the premise they can see.
+   *
+   * The guard is state and not `whileWorking`, for the reason the rest of this panel's calls use
+   * state: the wizard repaints, and a disabled attribute written onto a button would be thrown away
+   * by the next render. `S.spark.spField` is read by the buttons for their own disabled state.
+   */
+  if (d.spfield) {
+    if (!S.spark || S.spark.spField) return;
+    harvestSpark();
+    S.spark.spField = d.spfield;
+    paint();
+    const r = await api.sparkField(d.spfield, S.spark.story ?? {}, S.spark.idea ?? '',
+                                  S.spark.entries ?? []);
+    S.spark.spField = null;
+    if (r.error) { paint(); return toast(r.error); }
+    // Written into state, never into the DOM: this panel repaints and a value poked into the input
+    // would be thrown away by the next render — the fault this file has recorded seven times.
+    S.spark.story = { ...(S.spark.story ?? {}), [r.field]: r.value };
+    paint();
+    return toast(`A different ${r.field}. The rest is untouched.`);
+  }
   if (d.sparkstep) { harvestSpark(); S.sparkStep = Number(d.sparkstep); paint(); return; }
   if (d.spadd) {
     harvestSpark();

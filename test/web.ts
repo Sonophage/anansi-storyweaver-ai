@@ -109,6 +109,9 @@ const ok = (m: string, fn?: unknown) => {
       ['sprecast', 'if (d.sprecast !== undefined) {'],
       // Its handler is one line and delegates; the guard lives in the function, with the call.
       ['spstyle', 'async function sparkStyle('],
+      // #40 stage 2. One field of the skeleton, asked again — same rule, same reason: this panel
+      // repaints, so the guard has to be state rather than a disabled attribute.
+      ['spfield', 'if (d.spfield) {'],
     ];
     const loose = spark.filter(([k, start]) => {
       const at = js.indexOf(start);

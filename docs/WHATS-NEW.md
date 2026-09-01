@@ -10,6 +10,19 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Ask again for just the title
+
+### The title, the genre and the premise each re-roll on their own
+Under each of the three there is now **ask again for this**. It rewrites that one field and leaves
+the other two exactly as you have them — so a premise you are happy with survives a title you are
+not.
+
+What it writes is told about the fields you kept, and about your original idea, so a new title
+belongs to the book on screen rather than to a better one it would rather have been given. Editing
+the idea first and then asking changes what comes back.
+
+The whole-skeleton re-roll is still there, at the foot of the step, for when nothing is right.
+
 ## 2026-09-01 · Making a story, in seven steps instead of eight
 
 ### The screen that read your own sentence back to you is gone

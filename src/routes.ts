@@ -3,7 +3,7 @@ import { count, chat, structuredRetry, model, models, checkModel, allowList, mod
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -72,6 +72,8 @@ export const OPEN_ROUTES = new Set([
   // Names no story and cannot reach another writer's generation — see the route.
   'POST /api/stop',
   'POST /api/spark/review', 'POST /api/spark/style',
+  // #40. One field of the skeleton, asked again. Names no story — there is not one yet.
+  'POST /api/spark/field',
   'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
@@ -1393,6 +1395,47 @@ export const routes: Record<string, Handler> = {
       },
       entries: [],
     };
+  },
+
+  /** ONE FIELD, ASKED AGAIN — issue #40 stage 2, 2026-09-01. Seth: "I should be able to reroll the
+   *  title the genre and the premise individually."
+   *
+   *  Handed the skeleton the writer has KEPT, minus the field being replaced. Three reasons that
+   *  matters: a title written without the premise beside it is a title for another book; the model
+   *  cannot echo the thing it is replacing if it is not shown it; and the writer's own idea rides
+   *  along, so re-rolling after editing the idea asks from the edit.
+   *
+   *  A CLOSED LIST OF FIELDS, checked here. `field` reaches a prompt and a schema, and "whatever the
+   *  client sent" is how a route grows an injection point. Only the three Seth named are re-rollable
+   *  — setting, pov, spice and the voice all have their own controls that are better than a re-roll.
+   *
+   *  NAMES NO STORY: there is no story yet, which is the whole point of the wizard. Open for the
+   *  same reason POST /api/spark and POST /api/spark/cast are.
+   */
+  'POST /api/spark/field': async (c: Ctx) => {
+    const FIELDS = ['title', 'genre', 'premise'];
+    const field = String(c.body.field ?? '');
+    if (!FIELDS.includes(field)) return { error: `nothing re-rolls the ${field || 'unnamed'} field` };
+    const st = c.body.story ?? {};
+    // What it is allowed to see. The field being replaced is left out on purpose, and `entries` is
+    // included because a premise rewritten without the cast in view contradicts it.
+    const seen = [
+      c.body.idea ? `THE WRITER'S IDEA: ${String(c.body.idea).slice(0, 600)}` : '',
+      ...FIELDS.filter((k) => k !== field && String(st[k] ?? '').trim())
+        .map((k) => `${k.toUpperCase()}: ${st[k]}`),
+      st.setting ? `SETTING: ${st.setting}` : '',
+      st.pov ? `POINT OF VIEW: ${st.pov}` : '',
+      st.writingStyle ? `VOICE: ${String(st.writingStyle).slice(0, 700)}` : '',
+      (c.body.entries ?? []).length
+        ? `THE THREADS: ${(c.body.entries ?? []).map((e: any) => e.title).filter(Boolean).join(', ')}`
+        : '',
+      `\nWRITE THE ${field.toUpperCase()}.`,
+    ].filter(Boolean).join('\n\n');
+    const r = await structuredRetry(SPARK_FIELD, seen, SPARK_FIELD_SCHEMA,
+      { max_tokens: field === 'premise' ? SPARK_TOKENS : 200 });
+    const value = String(r.data?.value ?? '').trim();
+    if (!value) return { error: r.error ?? 'nothing usable came back' };
+    return { field, value };
   },
 
   /** #21 §2 · STAGE TWO: THE CAST, for the kinds the writer asked for and no others.

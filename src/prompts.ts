@@ -575,6 +575,56 @@ Do not invent. Everything in the thread has to be in the passage or already in t
 // was the only caller of `commits()` and the only writer of the release_notes table, and all three
 // went together. src/news.ts holds what replaced it.)
 
+/** ONE FIELD OF THE SKELETON, ASKED AGAIN — issue #40, 2026-09-01.
+ *
+ *  Seth: "I should be able to reroll the title the genre and the premise individually." `SPARK`
+ *  returns the whole skeleton, so re-rolling one field meant re-rolling all of them and losing the
+ *  three the writer had kept.
+ *
+ *  ONE PROMPT FOR ALL THREE, parameterised by which field, rather than three prompts. F20 is the
+ *  standing warning about what a prompt change costs to justify, and three of them for one feature
+ *  is three times that bill for no measured gain — the differences between "write a title" and
+ *  "write a premise" are already written down in SPARK, and this quotes them rather than restating
+ *  them badly.
+ *
+ *  IT IS HANDED WHAT THE WRITER HAS KEPT, which is the whole point and not a nicety: a title
+ *  re-rolled without the premise beside it is a title for a different book. The field being asked
+ *  for is excluded from what it is shown, so it cannot simply echo the thing being replaced.
+ */
+export const SPARK_FIELD =
+`Rewrite ONE field of a story skeleton, and return only that field.
+
+Everything else below is settled and the writer has kept it. What you write has to belong to THAT
+book — not to a better one you would rather have been given.
+
+DO NOT return the other fields, do not comment on them, and do not restate the field you are
+replacing. Return the replacement text and nothing else.
+
+The rules for the field you are writing are the same ones the skeleton was written under:
+
+  title    a real title, not a description of the book. No subtitle, no colon.
+  genre    two or three tags, comma separated, lowercase.
+  premise  eight to twelve sentences, and it is what the writer writes from: who wants what, what
+           stands in the way, what it costs them, who else wants something incompatible, what has
+           already happened before page one, and where the story opens. A premise, not a blurb: no
+           marketing language and no rhetorical questions.
+
+COME BACK DIFFERENT. The writer pressed this because they did not want what was there — so a
+rewrite that says the same thing in other words has failed, even if it is good.`;
+/* SMOKE-READ, n=5, informal and said so: five title re-rolls against one skeleton came back as five
+ * distinct titles, one of which ("The Ledger of Salt" for "The Salt Ledger") was a straight
+ * reshuffle. So the "come back different" line holds about four times in five on a sample far too
+ * small to be a finding. Four of the five shared the word "Ledger", and that is NOT the failure it
+ * first looked like: the premise names a ledger, so the word is the book's and not an echo of the
+ * title it is replacing. Worth re-reading if re-rolls start feeling repetitive; not worth a bench. */
+
+export const SPARK_FIELD_SCHEMA = {
+  type: 'object',
+  properties: { value: { type: 'string' } },
+  required: ['value'],
+  additionalProperties: false,
+} as const;
+
 export const SPARK_SCHEMA = {
   type: 'object',
   properties: {
