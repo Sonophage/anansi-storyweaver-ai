@@ -518,6 +518,54 @@ await wait(400);
 ok("  and one press puts the one you play back into it",
    (await page.eval(`document.querySelector('[data-sp="lockedCharacter"]')?.value`)) === 'Ilva Vane');
 
+// #40 · THE TWO PICKERS MATCH THE STORY PANEL'S, which is the last item on that issue: "You are and
+// never write in the screen after should be the same." Two of the three differences were wording;
+// the third was a whole control. Hold-them-back shipped 2026-08-31 under Story and nowhere else, so
+// a book set up here could not be told "lock her, but off for this scene" until after it existed.
+ok("  naming somebody offers the Hold-them-back switch, the way Story does",
+   (await page.eval(`!!document.querySelector('[data-sp="lockoutOn"]')`)) === true);
+ok("  and it starts on, because holding them back is what naming them means",
+   (await page.eval(`document.querySelector('[data-sp="lockoutOn"]')?.checked`)) === true);
+// The panel's wording, from the panel's own constants. Read off the page rather than from the
+// source: two separately typed copies is the defect, so what matters is what a writer sees.
+{
+  const you = await page.eval("document.querySelector('#page')?.innerText || ''");
+  ok("  the blank option is worded as the panel words it",
+     /it may write anyone/.test(you) && !/it may write everyone/.test(you));
+  ok("  and the hint says what holding her back actually stops, in all three states",
+     /nothing about what Ilva Vane feels or knows/.test(you));
+  ok("  and says why it is a separate setting from You are",
+     /A separate setting from/.test(you));
+}
+// CLEARING THE NAME TAKES THE SWITCH WITH IT: there is nothing to hold back, and a switch for
+// nobody is a control that reads as broken. Off the step and back on, because a `data-sp` change
+// does not repaint the wizard — the block above clears the same field the same way for the same
+// reason, and `harvestSpark` is what carries the value across the move.
+await page.eval(`(() => { const l = document.querySelector('[data-sp="lockedCharacter"]');
+  l.value = ''; l.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+await go("The threads");
+await wait(300);
+await go("You");
+await wait(400);
+ok("  and clearing the name takes the switch away with it",
+   (await page.eval(`!!document.querySelector('[data-sp="lockoutOn"]')`)) === false);
+await page.click('[data-splock="1"]');
+await wait(400);
+
+// TURNED OFF HERE, AND IT HAS TO SURVIVE ACCEPT. Two ways this fails silently and both are real:
+// every other `data-sp` control is a text box or a select, so reading `el.value` off a checkbox
+// gives the string "on" and the switch is permanently ON; and `createStory`'s INSERT did not list
+// `lockout_on`, whose column default is 1 — the right answer for a new book, and therefore the
+// perfect hiding place for a dropped field. The assertion is on the created book, not on the box.
+// TOLERATES A MISSING BOX ON PURPOSE. Dereferencing it killed the scenario when the switch was
+// removed to check that its own assertion fires — and a dead scenario hides every assertion after
+// it, which is the false green run.sh's own notes are about. It reports rather than throwing.
+const unticked = await page.eval(`(() => { const b = document.querySelector('[data-sp="lockoutOn"]');
+  if (!b) return false;
+  b.checked = false; b.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+ok("  and the switch can be turned off before the book exists", unticked === true);
+await wait(300);
+
 // #21 §3 · STEP 8 SAYS WHAT ACCEPTING WILL WRITE, before it is pressed.
 await go("Begin");
 await wait(400);
@@ -540,7 +588,7 @@ const made = await page.eval(`(async () => { const r = await (await fetch('/api/
   if (!s) return null;
   const v = await (await fetch('/api/story?story=' + s.id)).json();
   return { title: v.story.title, persona: v.story.persona, locked: v.story.lockedCharacter,
-           entries: v.entries.length, pov: v.story.pov,
+           entries: v.entries.length, pov: v.story.pov, lockoutOn: v.story.lockoutOn,
            names: v.entries.map(e => e.title).sort().join('|') }; })()`);
 ok(`accepting from step 2 creates the story with every step's answers (${JSON.stringify(made)})`, !!made);
 if (made) {
@@ -553,6 +601,10 @@ if (made) {
   // Anansi proposed Ilva for both. She stayed, so both stand — the drop only fires on a name that
   // left the cast, which is what the server's proposedCast list is for.
   ok("  and the locked character with it", made.locked === 'Ilva Vane');
+  // #40. Switched off on step 4 and it stayed off. False, not undefined and not true: the column
+  // defaults to 1, so `true` here is exactly what a dropped field looks like.
+  ok(`  and Hold-them-back was switched off in the wizard and stayed off (${made.lockoutOn})`,
+     made.lockoutOn === false);
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

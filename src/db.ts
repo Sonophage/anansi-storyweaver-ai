@@ -759,14 +759,20 @@ export function createStory(o: string, s: any) {
   // `voiceSample` and `styleNote`, this INSERT did not list them, and both were read off the form
   // and dropped on the floor. A book made from the blank form started with neither, however
   // carefully they had been typed, and nothing said so.
+  // #40, 2026-09-01: `lockout_on` joins the list, because the wizard offers the switch now. It is
+  // the third time this INSERT has dropped a field the form sent — see both comments above — so it
+  // is worth saying what the shape of the bug is: the column defaults to 1, which is the right
+  // answer for a new book, and that default is exactly what hides a missing column. Turning the
+  // switch OFF in the wizard was the only case that could show it.
   q(`INSERT INTO stories (id,owner_id,title,genre,premise,setting,pov,persona,writing_style,
       style_note,
-      direction,spice,spice_note,max_context,model,locked_character,status,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', tidyGenre(s.genre),
+      direction,spice,spice_note,max_context,model,locked_character,lockout_on,status,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', tidyGenre(s.genre),
     s.premise ?? '', s.setting ?? '', s.pov ?? 'second person, present tense', s.persona ?? null,
     s.writingStyle ?? '', s.styleNote ?? null,
     s.direction ?? null, s.spice ?? 2, s.spiceNote ?? null,
     s.maxContext ?? null, s.model ?? null, s.lockedCharacter ?? null,
+    s.lockoutOn === false ? 0 : 1,
     s.status ?? 'in_progress', t, t);
   q('INSERT INTO branches (id,story_id,name,is_primary,created_at) VALUES (?,?,?,1,?)').run(b, id, 'main', t);
   q('INSERT INTO chapters (id,story_id,branch_id,idx,title,status,created_at) VALUES (?,?,?,1,?,?,?)')

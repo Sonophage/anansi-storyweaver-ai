@@ -10,6 +10,19 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Hold them back, while you are still setting up
+
+### The switch is in the wizard now, not only under Story
+Naming somebody as the one **the model never writes** offers **Hold them back** right there, on the
+same step. Turn it off for a book where you want the model to write them after all — the name stays,
+so turning it back on is one press rather than picking them again. It used to live only under Story,
+which meant a book could not be set up that way until after it existed.
+
+### And the two pickers say the same thing in both places
+**You are** and **The model never writes** were worded differently in the wizard and under Story —
+down to *anyone* against *everyone* — and the wizard gave you one line where Story gives you three.
+Now it is one set of words, wherever you meet them, with the same **?** explainers.
+
 ## 2026-09-01 · You say where a change goes
 
 ### Anansi can finally name the room, and she has to

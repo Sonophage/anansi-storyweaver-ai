@@ -229,6 +229,42 @@ let SRV = { model: null, slot: null, gen: {}, admin: false, demo: false };
 let FORGE = null;
 
 // Hardcoded on purpose: point of view is a craft decision with a small set of real answers.
+/** THE TWO CHARACTER PICKERS, WORDED ONCE. #40, and the last thing on it: *"You are and never
+ *  write in the screen after should be the same."*
+ *
+ *  They were two screens' worth of separately typed strings — "it may write everyone" in the wizard
+ *  against "it may write anyone" under Story, a one-line hint against a three-state one, and the
+ *  Hold-them-back switch on one screen and not the other. The pickers describe the same two columns
+ *  and a writer meets the wizard's copy once and the panel's for the life of the book, so the panel
+ *  is the version and this is where it lives. */
+const PERSONA_NONE = 'Nobody — narrate only';
+const PERSONA_HINT = 'The character you speak as in Speak mode. Drawn from the cast.';
+const LOCKED_NONE = 'Nobody — it may write anyone';
+
+/** What the lockout is doing right now, in the writer's words. Three states and never two: named
+ *  and held, named and released, and nobody named. `esc` is applied by the caller's template. */
+const lockoutHint = (name, on) => name && on
+  ? `No dialogue, no action, no gesture, and nothing about what ${esc(name)} feels or knows. It
+     writes the world's answer and stops where they would act.`
+  : name
+  ? `Held back is OFF, so the model may write ${esc(name)} like anyone else.`
+  : `Name someone and the model will not write their dialogue, their actions or their inner
+     state — it writes what happens around them instead. Usually the one you play.`;
+
+/** The Hold-them-back switch, on both screens. `attr` is the autosave hook the screen uses —
+ *  `data-story` saves straight to the book, `data-sp` rides the wizard's skeleton until Accept. */
+const holdBack = (name, on, attr) => `<label style="display:flex; align-items:center; gap:10px;
+    margin:10px 0 2px; font-size:13px; color:var(--ink)">
+    <input type="checkbox" ${attr}="lockoutOn" ${on ? 'checked' : ''}>
+    Hold them back</label>
+  <div class="hint" style="margin-top:0">Turn this off for a scene where you want the model to
+    write ${esc(name)} after all. The name stays, so turning it back on is one press rather than
+    picking them again.</div>`;
+
+/** Why the two are separate columns, said on both screens because it is the question both raise. */
+const LOCKED_ASIDE = `A separate setting from <em>You are</em> on purpose: you may hand yourself a
+  different character for a scene without also handing over the one you were keeping.`;
+
 const POV = ['first person, present tense', 'first person, past tense',
   'second person, present tense', 'third limited, present tense',
   'third limited, past tense', 'third omniscient, past tense'];
@@ -2278,28 +2314,15 @@ const PANELS = {
       <div class="hint">${esc(POV_EXAMPLE[V.story.pov] ?? '')}</div>
       <label class="lbl">You are${helpMark('persona')}</label>
       ${helpBody('persona')}
-      ${pick('persona', cast.map((e) => e.title), V.story.persona, 'Nobody — narrate only')}
-      <div class="hint">The character you speak as in Speak mode. Drawn from the cast.</div>
+      ${pick('persona', cast.map((e) => e.title), V.story.persona, PERSONA_NONE)}
+      <div class="hint">${PERSONA_HINT}</div>
       <label class="lbl">The model never writes${helpMark('locked')}</label>
       ${helpBody('locked')}
-      ${pick('lockedCharacter', cast.map((e) => e.title), V.story.lockedCharacter,
-             'Nobody — it may write anyone')}
-      ${V.story.lockedCharacter ? `<label style="display:flex; align-items:center; gap:10px;
-        margin:10px 0 2px; font-size:13px; color:var(--ink)">
-        <input type="checkbox" data-story="lockoutOn" ${V.story.lockoutOn === false ? '' : 'checked'}>
-        Hold them back</label>
-      <div class="hint" style="margin-top:0">Turn this off for a scene where you want the model to
-        write ${esc(V.story.lockedCharacter)} after all. The name stays, so turning it back on is one
-        press rather than picking them again.</div>` : ''}
-      <div class="hint">${V.story.lockedCharacter && V.story.lockoutOn !== false
-        ? `No dialogue, no action, no gesture, and nothing about what ${esc(V.story.lockedCharacter)}
-           feels or knows. It writes the world's answer and stops where they would act.`
-        : V.story.lockedCharacter
-        ? `Held back is OFF, so the model may write ${esc(V.story.lockedCharacter)} like anyone else.`
-        : `Name someone and the model will not write their dialogue, their actions or their inner
-           state — it writes what happens around them instead. Usually the one you play.`}
-        A separate setting from <em>You are</em> on purpose: you may hand yourself a different
-        character for a scene without also handing over the one you were keeping.</div>
+      ${pick('lockedCharacter', cast.map((e) => e.title), V.story.lockedCharacter, LOCKED_NONE)}
+      ${V.story.lockedCharacter ? holdBack(V.story.lockedCharacter, V.story.lockoutOn !== false,
+        'data-story') : ''}
+      <div class="hint">${lockoutHint(V.story.lockedCharacter, V.story.lockoutOn !== false)}
+        ${LOCKED_ASIDE}</div>
       <label class="lbl">Spice${helpMark('spice')}</label>
       ${helpBody('spice')}
       ${(() => {
@@ -3105,6 +3128,10 @@ function harvestSpark() {
     // at press time the way `inventTray` reads its own — the cast step repaints on every kind chip,
     // and a repaint would eat what was typed.
     if (k === 'idea' || k === 'castSteer') { S.spark[k] = el.value; continue; }
+    // A CHECKBOX ANSWERS ON `checked`, NOT ON `value`. Every `data-sp` was a text box or a select
+    // until Hold-them-back arrived here on 2026-09-01, and `el.value` on an unchecked box is the
+    // string "on" — so reading it the old way would have made the switch permanently, invisibly ON.
+    if (el.type === 'checkbox') { S.spark.story[k] = el.checked; continue; }
     S.spark.story[k] = k === 'spice' ? Number(el.value) || 2 : el.value;
   }
   for (const c of document.querySelectorAll('[data-spcast]')) {
@@ -3243,7 +3270,11 @@ function sparkReview() {
   const area = (k, label, value, hint, min) => `<label class="lbl">${label}</label>
     <textarea class="field" data-sp="${k}" style="min-height:${min ?? 70}px">${esc(value ?? '')}</textarea>
     ${hint ? `<div class="hint">${hint}</div>` : ''}`;
-  const pickOne = (k, label, options, value, none, hint) => `<label class="lbl">${label}</label>
+  // `body` is the `?` explainer, which belongs between the label and the control the way the Story
+  // panel puts it. The label may carry markup now — it holds the help mark — so it is not escaped
+  // here; every caller passes a literal.
+  const pickOne = (k, label, options, value, none, hint, body = '') => `<label class="lbl">${label}</label>
+    ${body}
     <select class="field" data-sp="${k}">
       <option value="">${esc(none)}</option>
       ${options.map((o) => `<option value="${esc(o)}" ${o === value ? 'selected' : ''}>${esc(o)}</option>`).join('')}
@@ -3338,18 +3369,24 @@ function sparkReview() {
     // a pick over a list that is already right, and the cast call proposes both, so the fields
     // arrive filled. Skip the cast and both fall back to free text, which is the shape a book with
     // no ledger has and the only way this branch is now reached.
+    // #40's last item, 2026-09-01: the two pickers are worded and behaved like the Story panel's,
+    // from the same `PERSONA_*`/`LOCKED_*` constants and the same `lockoutHint` and `holdBack`. The
+    // `?` explainers are the panel's too — the wizard is where a writer meets these words FIRST and
+    // it was the screen with no explanation of them.
     ? `${cast.length
-        ? pickOne('persona', 'You are', cast.map((e) => e.title), s.persona, 'Nobody — narrate only',
-            'The character you speak as in Speak mode.')
+        ? pickOne('persona', `You are${helpMark('persona')}`, cast.map((e) => e.title), s.persona,
+            PERSONA_NONE, PERSONA_HINT, helpBody('persona'))
         : row('persona', 'You are', s.persona,
             'The character you speak as in Speak mode. You set no cast, so name them here or '
             + 'leave it empty.')}
        ${cast.length
-        ? pickOne('lockedCharacter', 'The model never writes', cast.map((e) => e.title),
-            s.lockedCharacter, 'Nobody — it may write everyone',
-            'No dialogue, no action, no interior for them.')
+        ? pickOne('lockedCharacter', `The model never writes${helpMark('locked')}`,
+            cast.map((e) => e.title), s.lockedCharacter, LOCKED_NONE,
+            `${lockoutHint(s.lockedCharacter, s.lockoutOn !== false)} ${LOCKED_ASIDE}`,
+            helpBody('locked'))
         : row('lockedCharacter', 'The model never writes', s.lockedCharacter,
-            'No dialogue, no action, no interior for them.')}
+            `${lockoutHint(s.lockedCharacter, s.lockoutOn !== false)} ${LOCKED_ASIDE}`)}
+       ${s.lockedCharacter ? holdBack(s.lockedCharacter, s.lockoutOn !== false, 'data-sp') : ''}
        <!-- #21 §3. Both DEFAULT to the one you play, which is the usual answer and was not the
             default before: the columns stay separate, because a book with a second lead the writer
             does not speak as is a real shape and spark proposes them independently. -->
@@ -8160,6 +8197,12 @@ document.addEventListener('click', async (e) => {
       setting: s.setting, pov: s.pov, spice: Number(s.spice) || 2,
       writingStyle: s.writingStyle, styleNote: s.styleNote,
       persona: s.persona || null, lockedCharacter: s.lockedCharacter || null,
+      // #40. A NAMED FIELD LIST IS A SECOND PLACE TO FORGET, and this is the third time that has
+      // cost something — `db.createStory`'s own two comments are about the same shape at the INSERT.
+      // Adding a wizard control means adding it HERE and there, and `lockout_on` defaults to 1, so
+      // a book with the switch turned off looked identical to one where the field never arrived.
+      // Only ever sent as false; on is the column's default and the usual answer.
+      lockoutOn: s.lockoutOn !== false,
       // Only what Anansi proposed is policed server-side. A name typed here is never dropped.
       proposedCast: S.spark.proposed ?? [],
       entries: keep,

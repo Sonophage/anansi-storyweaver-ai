@@ -660,22 +660,95 @@ ok('a story cannot be deleted by someone who does not own it');
 // A real server, because the gate is four lines inside serve.ts's request handler and testing a
 // copy of it would prove a copy. Spawned as a child on a spare port against this database, as
 // the OTHER writer.
-{
-  const { spawn } = await import('node:child_process');
-  const PORT = 5187;
+/** BOOT A REAL SERVER, AND SAY SO IF IT DID NOT.
+ *
+ *  This file spawned throwaway servers with `stdio: 'ignore'` and a wait loop that gave up after
+ *  ~10s without a word, so a child that died at boot arrived as a bare `TypeError: fetch failed /
+ *  ECONNREFUSED 127.0.0.1:5187` forty lines into the run. It cost time twice on 2026-09-01, and
+ *  the second time was worse than the first, because a scope failure is the one failure in this
+ *  project you are told to distrust — `.claude/CLAUDE.md` says a stray server on one of these
+ *  ports reads exactly like the ownership gate being broken. A harness that cannot tell you which
+ *  it is fails the project's own fail-loud rule inside the file that enforces it.
+ *
+ *  BOTH CAUSES ARE THE SAME SHAPE and neither was visible: back-to-back runs leave the previous
+ *  child holding the port, the new one dies with `EADDRINUSE`, and nothing is listening. Now the
+ *  child's own stderr comes back with the refusal.
+ *
+ *  It waits for the port and then asserts it, rather than proceeding on hope. */
+const { spawn } = await import('node:child_process');
+
+/** IS ANYTHING ALREADY ON THIS PORT — asked BEFORE spawning, which is the only place it can be
+ *  answered without a race.
+ *
+ *  `.claude/CLAUDE.md` documents this failure and even names the symptom: *"a real one answers 200
+ *  where the fixture expects 403, which reads exactly like the gate being broken."* That is what it
+ *  does. Reproduced deliberately on 2026-09-01 by squatting 5188: the suite reported `200 !== 403`
+ *  from the allowlist block and said nothing about the port.
+ *
+ *  CHECKING THE CHILD AFTERWARDS CANNOT WORK, and that was the first attempt. A squatter answers
+ *  the health check in under a millisecond, so the loop succeeds before the child has finished
+ *  starting Node — `srv.exitCode` is still null, the `EADDRINUSE` has not happened yet, and every
+ *  assertion below then runs against the stranger. Asking first has no timing in it at all. */
+async function assertPortFree(port: number) {
+  const { connect } = await import('node:net');
+  const taken = await new Promise<boolean>((done) => {
+    const c = connect({ port, host: '127.0.0.1' });
+    const end = (v: boolean) => { c.destroy(); done(v); };
+    c.setTimeout(600, () => end(false));
+    c.on('connect', () => end(true));
+    c.on('error', () => end(false));
+  });
+  assert.ok(!taken, `something is already listening on 127.0.0.1:${port}, so this suite cannot boot `
+    + `its own server there and nothing below would test the gate. A real server answers 200 where `
+    + `these fixtures expect 403, which reads exactly like the ownership gate being broken — see `
+    + `.claude/CLAUDE.md. Find it with \`ss -ltnp | grep ${port}\` and stop it. This suite owns `
+    + `5187, 5188, 5189, 5190, 5194, 5195 and 5196 while it runs.`);
+}
+
+async function bootServer(port: number, env: Record<string, string>) {
+  await assertPortFree(port);
   const srv = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], {
     cwd: new URL('..', import.meta.url).pathname,
-    env: { ...process.env, ANANSI_PORT: String(PORT), ANANSI_DB: '/tmp/anansi-scope.db',
-           ANANSI_USER: 'bob', ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service' },
-    stdio: 'ignore',
+    env: { ...process.env, ANANSI_PORT: String(port), ANANSI_DB: '/tmp/anansi-scope.db',
+           ANANSI_USER: 'bob', ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service', ...env },
+    stdio: ['ignore', 'ignore', 'pipe'],
   });
-  const url = `http://127.0.0.1:${PORT}`;
+  let cry = '';
+  srv.stderr?.on('data', (d) => { cry += d; });
+  const url = `http://127.0.0.1:${port}`;
+  let up = false;
+  for (let i = 0; i < 40; i++) {
+    try { await fetch(url + '/', { signal: AbortSignal.timeout(500) }); up = true; break; }
+    catch { await new Promise((r) => setTimeout(r, 250)); }
+  }
+  // TWO WAYS TO FAIL, and the second is the one that actually happened. Nothing answering is the
+  // obvious case. The other is that the port answers and OUR SERVER IS NOT WHAT ANSWERED — a
+  // leftover child from a back-to-back run, or a scratch server on one of these ports. The health
+  // check cannot tell those apart, because a squatter replies too; the child's exit code can, and
+  // an `EADDRINUSE` death is exactly what it reports. Every assertion below would otherwise run
+  // against a stranger's server and read as the ownership gate being broken.
+  const why = `Check the port first — \`ss -ltn | grep ${port}\` — and remember .claude/CLAUDE.md: `
+    + `a stray server on one of these ports reads exactly like the gate failing. The child said:\n`
+    + `${cry.trim() || '(nothing)'}`;
+  // A late death — the port was free, the child started and then failed anyway. This cannot catch
+  // a squatter (see `assertPortFree` for why), and it is not trying to.
+  if (srv.exitCode !== null) {
+    assert.fail(`the server for port ${port} died at boot (exit ${srv.exitCode}), so nothing below `
+      + `tests the gate. ${why}`);
+  }
+  if (!up) {
+    srv.kill();
+    assert.fail(`no server came up on ${port} in 10s, so nothing below tests the gate. ${why}`);
+  }
+  return { srv, url };
+}
+
+{
+  const PORT = 5187;
+  const { srv, url } = await bootServer(PORT, {});
   const post = (path: string, body: unknown) => fetch(url + path, { method: 'POST',
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   try {
-    for (let i = 0; i < 40; i++) {
-      try { await fetch(url + '/', { signal: AbortSignal.timeout(500) }); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
-    }
     // Alice's story, asked for by the server running as bob. Her prose is read BEFORE rather than
     // written down here: earlier checks in this file edit it, and an expected value copied from
     // the top of the file would be asserting the fixture rather than the gate.
@@ -716,21 +789,7 @@ ok('a story cannot be deleted by someone who does not own it');
 // touch, and this proves who gets to be one. Two servers, because a check that only ever sees a 403
 // cannot tell a working allowlist from a broken server — the second one is the control.
 {
-  const { spawn } = await import('node:child_process');
-  const boot = async (port: number, allow: string) => {
-    const srv = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], {
-      cwd: new URL('..', import.meta.url).pathname,
-      env: { ...process.env, ANANSI_PORT: String(port), ANANSI_DB: '/tmp/anansi-scope.db',
-             ANANSI_USER: 'bob', ANANSI_ALLOW: allow,
-             ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service' },
-      stdio: 'ignore',
-    });
-    const url = `http://127.0.0.1:${port}`;
-    for (let i = 0; i < 40; i++) {
-      try { await fetch(url + '/', { signal: AbortSignal.timeout(500) }); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
-    }
-    return { srv, url };
-  };
+  const boot = (port: number, allow: string) => bootServer(port, { ANANSI_ALLOW: allow });
 
   // Bob is the desk here, and the allowlist names only alice. The desk is checked like anyone
   // else, so bob is refused on his own machine.
@@ -775,19 +834,8 @@ ok('a story cannot be deleted by someone who does not own it');
 // Who may stop the router, and whose model a switch lands on. Both are the same lesson: the gate
 // answers "is this your story", and neither of these questions is that one.
 {
-  const { spawn } = await import('node:child_process');
   const boot = async (port: number, admin: string) => {
-    const srv = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], {
-      cwd: new URL('..', import.meta.url).pathname,
-      env: { ...process.env, ANANSI_PORT: String(port), ANANSI_DB: '/tmp/anansi-scope.db',
-             ANANSI_USER: 'bob', ANANSI_ADMIN: admin,
-             ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service' },
-      stdio: 'ignore',
-    });
-    const url = `http://127.0.0.1:${port}`;
-    for (let i = 0; i < 40; i++) {
-      try { await fetch(url + '/', { signal: AbortSignal.timeout(500) }); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
-    }
+    const { srv, url } = await bootServer(port, { ANANSI_ADMIN: admin });
     const post = (path: string, body: unknown) => fetch(url + path, { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     return { srv, post };
