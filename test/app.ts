@@ -154,7 +154,17 @@ const STORY = {
                 { id: 'a-on', slot: 'voice', name: 'How she sounds', body: 'Flat, unhurried.',
                   keys: [], active: true },
                 { id: 'a-off', slot: 'interiority', name: 'What she wants', body: 'To go home.',
-                  keys: ['home'], active: false }] },
+                  keys: ['home'], active: false }],
+              // TWO OUTFITS, ONE WORN AND ONE NOT, added 2026-09-01. The chips carry their state in
+              // a border colour and the label is the coat's name either way, so aria is the only
+              // place it can live — and a card with no outfit made the check that proves it a
+              // guarded block that never ran and reported green. One of each makes a constant
+              // answer fail in both directions.
+              outfits: [
+                { id: 'o-worn', slot: 'outfit', name: 'Mourning grey', body: '[grey, unpinned]',
+                  keys: [], active: true },
+                { id: 'o-hung', slot: 'outfit', name: 'Travelling coat', body: '[oiled canvas]',
+                  keys: [], active: false }] },
             { id: 'e-done', title: 'Coyle', body: '[a runner, dead]', entryType: 'character',
               activation: 'triggered', keys: ['Coyle'], lastEditor: 'human', states: [], notes: '',
               retiredAtChapter: 2, addons: [] },
@@ -2145,6 +2155,80 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   click({ cardview: null });
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
+
+// ---- POLISH PASS, 2026-09-01 · WHAT IS ON AND WHERE YOU ARE, SAID AND NOT ONLY COLOURED.
+//
+// Four controls carried their state in a colour and nothing else: the rail's open row, the current
+// chapter, the outfit chips on a card face, and the seed picker. Everything else that looked
+// stateful already says so in its own label ("Worn — take it off", "In play — put it away"), which
+// is why this is four and not seventeen.
+//
+// ASSERTED AS A PAIRING, never as a presence. The lore chips shipped with `aria-pressed` keyed to
+// `S.loreKind` while the style read `S.lore.kind`, so it sat permanently false under a lit button
+// and a check for "aria-pressed exists" was green throughout. So each assertion below ties the
+// attribute to the same condition the colour uses.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+
+  // THE RAIL: exactly one row is the one you are on. `aria-current`, not `aria-pressed` — these
+  // are places you go, one of which you are at, rather than switches.
+  const rail = html('rail');
+  const current = [...rail.matchAll(/data-nav="([a-z]+)"([^>]*)/g)]
+    .filter((m) => /aria-current="page"/.test(m[2])).map((m) => m[1]);
+  assert.strictEqual(current.length, 1,
+    `exactly one rail row is current and ${current.length} claim to be`);
+  // AND IT IS THE LIT ONE. This is the pairing: the gold background and the aria have to name the
+  // same row, or the attribute is decoration that happens to be present.
+  const lit = [...rail.matchAll(/data-nav="([a-z]+)"([^>]*?)>/g)]
+    .filter((m) => /rgba\(217,178,106,\.08\)/.test(m[2])).map((m) => m[1]);
+  assert.deepStrictEqual(current, lit, 'the row that reads as current must be the row that is lit');
+
+  // THE CHAPTER LIST: same rule, and the fixture has more than one chapter so it can fail.
+  click({ railview: 'story' });
+  await new Promise((r) => setTimeout(r, 30));
+  const chapters = [...html('rail').matchAll(/data-chapter="([^"]+)"([^>]*?)>/g)];
+  if (chapters.length > 1) {
+    const marked = chapters.filter((m) => /aria-current="true"/.test(m[2])).map((m) => m[1]);
+    assert.strictEqual(marked.length, 1, 'one chapter is the one you are writing');
+    assert.strictEqual(marked[0], 'c-2', 'and it is the open one, not the first in the list');
+  }
+
+  // THE FULL WORN CONTROL SAYS ITS STATE IN WORDS, which is why it needs no aria and the chip on
+  // the Threads list does. Asserted so the reasoning cannot be quietly undone: strip the label down
+  // to the coat's name and this fails, and the control would then need what the chip needs.
+  // The CHIP's pairing is checked in test/web.ts against its own source, alongside the five other
+  // button groups — the Threads list keeps a tray open across this file's earlier blocks and the
+  // panel could not be reached from here without unwinding it.
+  click({ entry: 'e-1' });
+  click({ cardview: 'form' });
+  await new Promise((r) => setTimeout(r, 30));
+  const worn = html('sideBody');
+  assert.match(worn, /data-wear="e-1:o-worn"[^>]*>\s*Worn — take it off/,
+    'the coat that is on says so in its label');
+  assert.match(worn, /data-wear="e-1:o-hung"[^>]*>\s*Wear this/, 'and the one that is not');
+  click({ cardview: null });
+  click({ backentry: '1' });
+  ok('the rail and the chapter list say which one is on, and the aria matches the colour');
+
+  // ---- AND A LABEL IS PAIRED TO ITS CONTROL, not merely sitting above it.
+  //
+  // `<label class="lbl">X</label>` followed by an input LOOKS labelled and is not: nothing joins
+  // them, so the box has no accessible name and tapping the word does not focus it. Fixed in the
+  // three wizard helpers and the Story panel's field loop, which is where most of this app's fields
+  // come from — four sites rather than the sixty-odd call sites.
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 30));
+  const story = html('sideBody');
+  const fors = [...story.matchAll(/<label[^>]*\bfor="([^"]+)"/g)].map((m) => m[1]);
+  const ids = new Set([...story.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+  assert.ok(fors.length >= 3, `the Story panel should pair its fields and pairs ${fors.length}`);
+  // EVERY `for` RESOLVES. A `for` naming an id that is not on the page is worse than none: it reads
+  // as done and names nothing.
+  const dangling = fors.filter((f) => !ids.has(f));
+  assert.deepStrictEqual(dangling, [], 'every label points at a control that is actually there');
+  ok('the Story panel pairs each label to its field, and every pairing resolves');
+}
 
 // ---- ISSUE #36 · THREE FACES, ONE CARD AT A TIME.
 //

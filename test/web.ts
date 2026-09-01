@@ -599,16 +599,24 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
  */
 {
   const js = read('web/app.js');
-  const groups: [string, string][] = [
+  // The third column is the literal the tag opens with, for the groups whose key is not `${k}`.
+  // Added 2026-09-01 with two more groups, which is the extension the note above said this check
+  // would not catch on its own — so it was widened rather than left to be honest about a gap.
+  const groups: [string, string, string?][] = [
     ['theme', 'look.theme'],
     ['ctxview', 'S.ctxView'],
     ['setupkind', 'kind'],
     ['lorekind', 'S.lore.kind'],
     ['spkind', 'on'],
+    // The outfit chips under a character on the Threads list. Worn is a BORDER COLOUR and the label
+    // is the coat's name either way, so aria is the only place the state can live.
+    ['wear', 'o.active', '<button data-wear="${e.id}:${o.id}" class="tag"'],
+    // The cross-book thread picker: chosen is a border and a background, and nothing in the label.
+    ['seedpick', 'on', '<button data-seedpick="${esc(e.id)}"'],
   ];
   const wrong: string[] = [];
-  for (const [key, state] of groups) {
-    const at = js.indexOf(`<button data-${key}="\${k}"`);
+  for (const [key, state, open] of groups) {
+    const at = js.indexOf(open ?? `<button data-${key}="\${k}"`);
     if (at < 0) { wrong.push(`${key}: tag not found — re-point this check`); continue; }
     const tag = js.slice(at, at + 420);
     const press = /aria-pressed="\$\{([^}]+)\}"/.exec(tag);

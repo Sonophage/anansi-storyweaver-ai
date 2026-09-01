@@ -10,6 +10,21 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Small corrections to how the app reads
+
+### Tapping a label puts you in the field
+Every field in the story wizard, and the typed fields under Story, are now joined to the word above
+them. Tapping the label focuses the box — which matters most on a phone, where the labels are the
+easiest thing to hit.
+
+### The rail says which row you are on, and the chapter list which chapter
+It was a colour and nothing else. Same for the **coat chips** under a character on Threads and the
+threads you tick when starting a book from another one: which is on was in the border and nowhere a
+screen reader could reach it.
+
+Nothing moved and nothing looks different — this is the app saying out loud what it was only
+showing.
+
 ## 2026-09-01 · A shared thread, decided one thread at a time
 
 Following a world book used to be all or nothing: every thread in it reached your book, live, and no

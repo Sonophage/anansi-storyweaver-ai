@@ -539,7 +539,9 @@ function drawRail() {
   const active = storyMenu ? S.panel : S.wpage;
   const item = ([k, g, l]) => {
     const on = k === active;
-    return `<button data-nav="${k}" style="display:flex; align-items:center; gap:13px; padding:11px 12px;
+    // WHICH ROW IS THE OPEN ONE, said and not only coloured. `aria-current` and not
+    // `aria-pressed`: these are places you go, one of which you are on, rather than switches.
+    return `<button data-nav="${k}"${on ? ' aria-current="page"' : ''} style="display:flex; align-items:center; gap:13px; padding:11px 12px;
       border-radius:var(--r); margin-bottom:3px; white-space:nowrap; overflow:hidden; width:100%;
       background:${on ? 'rgba(217,178,106,.08)' : 'transparent'};
       border:1px solid ${on ? 'rgba(217,178,106,.22)' : 'transparent'}">
@@ -561,7 +563,8 @@ function drawRail() {
     : storyMenu
     ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.3em;
          font-variant-caps:all-small-caps; color:var(--dim)">Chapters</div>
-       ${V.chapters.map((c) => `<button data-chapter="${c.id}" style="padding:8px 12px; font-size:13px;
+       ${V.chapters.map((c) => `<button data-chapter="${c.id}"${
+         c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis;
          color:${c.id === V.currentChapter.id ? 'var(--gold-lit)' : 'var(--faint)'}"><span class="txt">${
          esc(c.title || `Chapter ${c.index}`)}</span></button>`).join('')}`
@@ -2218,7 +2221,14 @@ const PANELS = {
         <div class="lbl" style="letter-spacing:.1em; margin-top:6px">${label}</div>
         ${V.entries.filter((e) => e.entryType === k).map((e) => entryCard(e)
           + ((e.outfits ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:5px; margin:-4px 0 10px 2px">
+            <!-- WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's
+                 name either way, so there was no non-visual way to tell which one is on. The full
+                 control lower down says it in words ("Worn — take it off"); this chip cannot, so it
+                 says it in aria. Read off the SAME o.active the style reads, deliberately: the
+                 lore chips once had aria-pressed keyed to a different field from their colour and
+                 sat permanently false under a lit button. -->
             ${e.outfits.map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
+              aria-pressed="${!!o.active}"
               style="cursor:pointer; ${o.active
                 ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${esc(o.name)}</button>`).join('')}
             ${e.outfits.some((o) => o.active)
@@ -2297,10 +2307,10 @@ const PANELS = {
         <div class="hint">At full strength a picture under text is unreadable and at nothing it is
           not there. It saves itself when you let go.</div>` : ''}` : ''}
 
-      ${fields.map((f) => `<label class="lbl">${f.label}${f.k === 'writingStyle' ? helpMark('voice') : ''}</label>
+      ${fields.map((f) => `<label class="lbl" for="f-story-${f.k}">${f.label}${f.k === 'writingStyle' ? helpMark('voice') : ''}</label>
         ${f.k === 'writingStyle' ? helpBody('voice') : ''}
-        ${f.area ? `<textarea class="field" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
-                 : `<input class="field" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
+        ${f.area ? `<textarea class="field" id="f-story-${f.k}" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
+                 : `<input class="field" id="f-story-${f.k}" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
         ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}
         <!-- #18 §2. The one field with a re-roll, because it is the one written FROM two others.
              Voice is yours and a book's premise cannot guess it; the house style is what a book of
@@ -3320,24 +3330,31 @@ function sparkReview() {
   // writer sitting on the old step 8 would otherwise land past the end and render nothing.
   const step = Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEPS.length);
   const key = STEPS[step - 1][0];
-  const row = (k, label, value, hint) => `<label class="lbl">${label}</label>
-    <input class="field" data-sp="${k}" value="${esc(value ?? '')}">
+  /* THE LABEL IS PAIRED TO THE CONTROL, not merely sitting above it. `<label class="lbl">X</label>`
+   * followed by an input LOOKS labelled and is not: with no `for`/`id` there is nothing joining
+   * them, so a screen reader reads an unnamed box and tapping the word does not focus the field.
+   *
+   * Fixed in the three helpers rather than at their call sites, which is why it is three lines
+   * instead of thirty: every text, area and pick in this wizard comes through here. The `f-sp-`
+   * prefix keeps these clear of the handful of short ids this file already looks up by name. */
+  const row = (k, label, value, hint) => `<label class="lbl" for="f-sp-${k}">${label}</label>
+    <input class="field" id="f-sp-${k}" data-sp="${k}" value="${esc(value ?? '')}">
     ${hint ? `<div class="hint">${hint}</div>` : ''}`;
-  const area = (k, label, value, hint, min) => `<label class="lbl">${label}</label>
-    <textarea class="field" data-sp="${k}" style="min-height:${min ?? 70}px">${esc(value ?? '')}</textarea>
+  const area = (k, label, value, hint, min) => `<label class="lbl" for="f-sp-${k}">${label}</label>
+    <textarea class="field" id="f-sp-${k}" data-sp="${k}" style="min-height:${min ?? 70}px">${esc(value ?? '')}</textarea>
     ${hint ? `<div class="hint">${hint}</div>` : ''}`;
   // `body` is the `?` explainer, which belongs between the label and the control the way the Story
   // panel puts it. The label may carry markup now — it holds the help mark — so it is not escaped
   // here; every caller passes a literal.
-  const pickOne = (k, label, options, value, none, hint, body = '') => `<label class="lbl">${label}</label>
+  const pickOne = (k, label, options, value, none, hint, body = '') => `<label class="lbl" for="f-sp-${k}">${label}</label>
     ${body}
-    <select class="field" data-sp="${k}">
+    <select class="field" id="f-sp-${k}" data-sp="${k}">
       <option value="">${esc(none)}</option>
       ${options.map((o) => `<option value="${esc(o)}" ${o === value ? 'selected' : ''}>${esc(o)}</option>`).join('')}
     </select>${hint ? `<div class="hint">${hint}</div>` : ''}`;
 
   const cast = sparkCast();
-  // #40. What the writer has ticked and untickedon the threads step. `keep === false` is an
+  // #40. What the writer has ticked and unticked on the threads step. `keep === false` is an
   // explicit untick; anything else is kept, which is what a freshly proposed thread arrives as.
   const kept = (S.spark.entries ?? []).filter((e) => e.keep !== false).length;
   const dropped = (S.spark.entries ?? []).length - kept;
@@ -4745,7 +4762,8 @@ function seedList() {
     anchored to a chapter number, and chapter seven there is not chapter seven here.</div>` : ''}
     ${show.length ? `<div style="display:flex; flex-direction:column; gap:6px">${show.map((e) => {
       const on = chosen.includes(e.id);
-      return `<button data-seedpick="${esc(e.id)}" style="display:flex; align-items:baseline; gap:9px;
+      // Chosen is a border and a background and nothing in the label, so it says so.
+      return `<button data-seedpick="${esc(e.id)}" aria-pressed="${on}" style="display:flex; align-items:baseline; gap:9px;
         text-align:left; width:100%; padding:8px 10px; border-radius:var(--r);
         border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
         background:${on ? 'rgba(217,178,106,.10)' : 'transparent'}">
