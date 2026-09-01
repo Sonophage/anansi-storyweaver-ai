@@ -28,11 +28,12 @@ list.
 1. `docs/findings/P0-FINDINGS.md` — measured numbers. These override `docs/SPEC.md` and the plans
    wherever they conflict, and several already do.
 2. `docs/findings/BUILD-STATE.md` — done / half-built / not started, audited against source.
-3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Forty-six markers as
+3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Forty-nine markers as
    of 2026-09-01**, counted by that command, not recalled: `app.js` 9, `db.ts` 9, `routes.ts` 8,
-   `context.ts` 6, `model.js` 2, `serve.ts` 2, `council06.ts` 2, and one each in `llama.ts`, `story.ts`,
-   `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`, `bench/decode.ts`,
-   `bench/ledger-audit.ts`. Each names what is missing, why it was left, and the upgrade path.
+   `context.ts` 6, `bench/cast.ts` 3, `model.js` 2, `serve.ts` 2, `council06.ts` 2, and one each in
+   `llama.ts`, `story.ts`, `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`,
+   `bench/decode.ts`, `bench/ledger-audit.ts`. Each names what is missing, why it was left, and the
+   upgrade path.
    (`test` joined the command on 2026-08-31 — there has been a marker in `test/db.ts` the whole
    time and the documented grep could not see it, so the count read 38.)
 

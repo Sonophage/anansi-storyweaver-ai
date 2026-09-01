@@ -305,13 +305,78 @@ const rooms = (e: Entry, at: number, window: string): string[] =>
     .filter((a) => live(a, at))
     .filter((a) => a.active || fires({ ...e, keys: a.keys ?? [] }, window).length)
     .map((a) => {
-      if (a.slot === 'outfit') return `[${(e.title || '').trim() || 'They'} wears: ${a.body.trim()}]`;
-      // FACTS READS BARE. It is the card's spine — the half the body used to hold — so it belongs
-      // in the prompt the way the body did, not labelled as a room of it. Wrapping it produced
-      // "[You: [You: protagonist…" on every migrated card, because a body is already written in
-      // the bracket format and the wrapper added a second name and a second bracket around it.
+      // FACTS READS BARE, AND IS THEREFORE FIRST — it is the one room that keeps its own brackets,
+      // because a facts body IS the card format (`[Seth: protagonist…]`, `[Location: gray
+      // apartment…]`). Every other room is wrapped by the branches below, so it is unwrapped once
+      // here rather than per branch.
       if (a.slot === 'facts') return a.body.trim();
-      return `[${(a.name || a.slot).trim()}: ${a.body.trim()}]`;
+
+      const who = (e.title || '').trim();
+      // ONE STRIP FOR EVERY WRAPPED ROOM. 43 of the live library's non-facts rooms are stored as
+      // `[short sentences; …]` — that is the form `src/forge.ts` teaches a foreign model to write a
+      // card in, so it is the normal case and not a data error. Wrapping the wrapper gives
+      // `[How she got here: [bought The Monarch…]]`, which is the `[You: [You: …]]` defect the
+      // facts branch above was written to avoid, arriving through eleven other slots instead.
+      //
+      // ONLY WHEN THE BRACKETS ACTUALLY PAIR AS AN OUTER WRAPPER, which is what the `indexOf`
+      // asks: the first `]` has to be the last character. `[a] and [b]` has its first `]` in the
+      // middle, so a greedy `^\[(.*)\]$` would eat it into `a] and [b` — a body corrupted on its
+      // way into the prompt, silently. Refusing anything ambiguous costs a stray pair of brackets
+      // and cannot damage a body.
+      const raw = a.body.trim();
+      const body = raw.startsWith('[') && raw.indexOf(']') === raw.length - 1
+        ? raw.slice(1, -1).trim() : raw;
+      const label = (a.name || '').trim();
+
+      if (a.slot === 'outfit') return `[${who || 'They'} wears: ${body}]`;
+      // VOICE IS THE SECOND SLOT WHERE THE ROOM'S NAME IS NOT WHAT THE MODEL NEEDS TO BE TOLD, and
+      // the argument is the outfit's one line above, applied to the other room it fits.
+      //
+      // `[voice: clipped, never swears]` is a NOTE ABOUT how she sounds. F37 measured that exact
+      // distinction and it is the largest effect in P0-FINDINGS: the same rule buried in a line
+      // bought 10.7%, and written as an instruction on its own line, naming the thing to produce
+      // with the forms spelled out, it holds at ~98%. Every character voice in the library was
+      // arriving in the losing shape — a description filed between `[interiority: …]` and
+      // `[relationships: …]` inside a canon card.
+      //
+      // It names DIALOGUE, not the character, because that is the half F37 says has to be explicit:
+      // the room governs what comes out of their mouth and nothing about the narration around it.
+      //
+      // NOTHING IS CLAIMED FOR IT YET. `bench/cast.ts` is the detector and its baseline is 11
+      // chapters, which decides nothing — this is F37's shape applied to the one place that was
+      // not using it, and it is owed a measurement before anyone calls it a fix.
+      if (a.slot === 'voice') return `[When ${who || 'they'} speaks, write the dialogue this way: ${body}]`;
+
+      // INTERIORITY IS THE THIRD ROOM WHOSE NAME IS NOT WHAT THE MODEL NEEDS TO BE TOLD, and its
+      // own definition in `src/forge.ts` is why: "What they will not say out loud, AND WHAT THEY DO
+      // INSTEAD of saying it." That second clause is the behaviour half, and `[Product or predator:
+      // Feels real only when holding the knife…]` says nothing about what that text is for.
+      //
+      // IT DOES NOT RESTATE THE CRAFT RULE. `DEFAULT_VOICE` already carries "Show an interior state
+      // through speech, posture or action, never by naming it" — repeating it here would be a rule
+      // the writer cannot delete by editing their own voice, which is the trap `render.ts` sets out
+      // at length. The frame names the target; the voice keeps the craft.
+      //
+      // AND IT KEEPS THE WRITER'S LABEL, WHERE VOICE DROPS IT. That is not a style choice, it is
+      // `SLOTS`: voice is exclusive and there is only ever one, so "How she sounds" adds nothing.
+      // Interiority is not — a character carries three at once, and the live library's labels are
+      // what tell them apart ("Product or predator", "The life that stops at the door"). Dropping
+      // them would render three rooms under three identical frames.
+      if (a.slot === 'interiority') {
+        const tail = label && !(who && label.toLowerCase() === who.toLowerCase()) ? ` — ${label}` : '';
+        return `[What ${who || 'they'} will not say, and what they do instead${tail}: ${body}]`;
+      }
+
+      // A LABEL THAT REPEATS THE CARD'S OWN TITLE IS NOT A LABEL. Two `role` rooms in the live
+      // library are named after their character, so Seth's card arrived carrying `[Seth: protagonist,
+      // a loner…]` from facts and `[Seth: abducted; hooded; dragged from apartment…]` from role,
+      // with nothing to say which was which. Falling back to the room's own name says at least
+      // what kind of fact it is, which is what a canon room needs — these are what is TRUE, and
+      // SYSTEM's "canon is what is true, never how to say it" is why they get a label and not an
+      // instruction the way voice and interiority do.
+      const frame = !label || (who && label.toLowerCase() === who.toLowerCase())
+        ? a.slot.replace(/_/g, ' ') : label;
+      return `[${frame}: ${body}]`;
     });
 
 /** The body as it stands at a given chapter.

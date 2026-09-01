@@ -1156,6 +1156,118 @@ ok('the outfit is a room like any other now, and it keeps its own sentence', () 
     'a worn outfit reads as worn, not as a coat that exists somewhere');
 });
 
+ok('a voice room reaches the prompt as an instruction about dialogue, not as a note', () => {
+  // F37 is the reason this has a shape at all rather than riding the generic `[name: body]` branch.
+  // The finding: the same rule buried in a line bought 10.7%, and written as an instruction naming
+  // the thing to produce it holds at ~98%. `[voice: clipped]` is the losing shape, and every
+  // character voice in the live library was arriving in it.
+  const b = withAddons([room({ slot: 'voice', name: 'How she sounds', body: 'clipped, never swears',
+    active: true })], { title: 'Aldis Fen' } as any);
+  assert.match(b.text, /When Aldis Fen speaks, write the dialogue this way: clipped, never swears/,
+    'the room has to name the character and the thing to produce, or it is a description again');
+  assert.doesNotMatch(b.text, /\[voice:|\[How she sounds:/,
+    'and must not also arrive in the generic room form — that would send it twice');
+});
+
+ok('  and a voice already written in the bracket form is not double-wrapped', () => {
+  // Five of the six voice rooms in the live library are stored as `[short sentences; …]`, because
+  // that is the form `src/forge.ts` teaches a foreign model to write a card in. Wrapping the
+  // wrapper is the `[You: [You: …]]` defect the `facts` branch already carries a comment about.
+  const b = withAddons([room({ slot: 'voice', body: '[short sentences; laughs when afraid]',
+    active: true })], { title: 'Aldis Fen' } as any);
+  assert.match(b.text, /this way: short sentences; laughs when afraid\]/);
+  assert.doesNotMatch(b.text, /\[\[|: \[short/, 'one set of brackets, not two');
+});
+
+ok('  and the unwrapping is every room, not just voice', () => {
+  // 43 non-facts rooms in the live library are stored wrapped, across eleven slots — the strip
+  // belongs in the shared path or ten other rooms keep the defect voice was fixed for.
+  const b = withAddons([room({ slot: 'history', name: 'How she got here',
+    body: '[bought The Monarch three years ago]', active: true })]);
+  assert.match(b.text, /\[How she got here: bought The Monarch three years ago\]/);
+});
+
+ok('  and a body whose brackets do not pair is left exactly alone', () => {
+  // The case that decides the strip is an indexOf and not `^\[(.*)\]$`. Greedy, that pattern eats
+  // "[a] and [b]" into "a] and [b" — a body corrupted on the way into the prompt, silently.
+  const b = withAddons([room({ slot: 'history', name: 'Two places',
+    body: '[the mill] and [the bridge]', active: true })]);
+  assert.match(b.text, /\[Two places: \[the mill\] and \[the bridge\]\]/,
+    'an ambiguous pair costs a stray bracket; eating one costs the writer their text');
+});
+
+ok('  and facts keeps its own brackets, because the body IS the card format', () => {
+  const b = withAddons([room({ slot: 'facts', body: '[Aldis Fen: 34, ex-Watch sergeant]',
+    active: true })]);
+  assert.match(b.text, /\[Aldis Fen: 34, ex-Watch sergeant\]/, 'facts is not unwrapped');
+});
+
+ok('an interiority room reaches the prompt naming what it is for', () => {
+  // ROOM_MEANING defines the room as "what they will not say out loud, and what they do instead of
+  // saying it" — the behaviour half. `[Product or predator: …]` sends the text with no frame.
+  const b = withAddons([room({ slot: 'interiority', name: 'Product or predator',
+    body: 'wants to be the breaker, not the sold', active: true })], { title: 'Aldis Fen' } as any);
+  assert.match(b.text,
+    /\[What Aldis Fen will not say, and what they do instead — Product or predator: wants to be the breaker/);
+});
+
+ok('  and the label survives, because a character carries three interiority rooms at once', () => {
+  // The difference from voice, and it comes straight out of `SLOTS`: voice is exclusive, so "How
+  // she sounds" adds nothing and is dropped. Interiority is not exclusive — drop the labels and
+  // three rooms arrive under three identical frames with nothing to tell them apart.
+  const b = withAddons([
+    room({ id: 'a1', slot: 'interiority', name: 'Product or predator', body: 'wants to be the breaker',
+      active: true }),
+    room({ id: 'a2', slot: 'interiority', name: 'The life that stops at the door',
+      body: 'nobody waiting for a call', active: true }),
+  ], { title: 'Aldis Fen' } as any);
+  assert.match(b.text, /— Product or predator: wants to be the breaker/);
+  assert.match(b.text, /— The life that stops at the door: nobody waiting for a call/);
+});
+
+ok('  and an interiority room labelled with the card title drops the empty label', () => {
+  const b = withAddons([room({ slot: 'interiority', name: 'Aldis Fen', body: 'wants to be the breaker',
+    active: true })], { title: 'Aldis Fen' } as any);
+  assert.match(b.text, /\[What Aldis Fen will not say, and what they do instead: wants to be the breaker\]/,
+    'no dangling dash when the label says nothing');
+});
+
+ok('  and it does not restate the craft rule the voice already carries', () => {
+  // DEFAULT_VOICE says "Show an interior state through speech, posture or action, never by naming
+  // it". Saying it here too would be a rule the writer cannot delete by editing their own voice —
+  // render.ts sets out at length why that is the failure, not the safety net.
+  const b = withAddons([room({ slot: 'interiority', body: 'wants to be the breaker', active: true })]);
+  assert.doesNotMatch(b.text, /never by naming|posture or action|show it in/i);
+});
+
+ok('a room labelled with its own card title falls back to the room, not the name twice', () => {
+  // Live defect this exists for: two `role` rooms are named after their character, both switched
+  // on, so Seth's card carried "[Seth: protagonist, a loner…]" from facts AND "[Seth: abducted;
+  // hooded…]" from role, with nothing saying which was which.
+  const b = withAddons([room({ slot: 'role', name: 'Aldis Fen', body: 'the one who pays late',
+    active: true })], { title: 'Aldis Fen' } as any);
+  assert.match(b.text, /\[role: the one who pays late\]/, 'the room names itself instead');
+  // The card's own body opens `[Aldis Fen: 34, ex-Watch sergeant]` and is SUPPOSED to — that is the
+  // card format. What must not happen is the room opening a second block under the same name, which
+  // is what the live `role` rooms on Seth and Halsey were doing.
+  assert.doesNotMatch(b.text, /\[Aldis Fen: the one who pays late/,
+    'the title must not open two different blocks on one card');
+  assert.strictEqual((b.text.match(/\[Aldis Fen:/g) ?? []).length, 1, 'the body, and only the body');
+});
+
+ok('  and a real label is still the writer\'s, not overridden', () => {
+  const b = withAddons([room({ slot: 'role', name: 'What she is here to do',
+    body: 'the one who pays late', active: true })], { title: 'Aldis Fen' } as any);
+  assert.match(b.text, /\[What she is here to do: the one who pays late\]/);
+});
+
+ok('  and a voice nobody switched on stays out, like any other room', () => {
+  // The guard that makes the two above mean anything. Asserted rather than assumed: five of the
+  // six live voice rooms are `active=0` with no keys, so this branch is the one they take.
+  assert.doesNotMatch(withAddons([room({ slot: 'voice', body: 'clipped, never swears',
+    active: false })]).text, /clipped|speaks, write/);
+});
+
 ok('  and an outfit nobody is wearing stays out of the prompt', () => {
   // The half that makes the above mean anything: an unworn coat is a coat in a cupboard, and it
   // used to be excluded by `wearing` being null rather than by the room being switched off.

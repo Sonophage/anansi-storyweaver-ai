@@ -10,6 +10,41 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · The rooms of a card say what they are for
+
+### A character's voice is an instruction, not a note
+Fill in a character's **voice** and it used to reach the storyteller filed alongside their
+appearance and their history — a description of how they sound, sitting among the other things that
+are true about them. It now arrives as a direction about their dialogue, naming them: *when she
+speaks, write it this way*.
+
+This is the same change that made the book's own voice field work, applied to the people in it. A
+rule written as a note gets read as background; written as an instruction, it gets followed. If you
+have voices written already, they start working harder on the next passage without you touching
+them.
+
+Two things worth knowing. A voice only reaches the story if the room is **switched on**, the same
+as an outfit — a voice you wrote but never turned on has never been sent. And this is a change to
+how the instruction is worded, not a promise about the result: whether two people in a scene now
+sound further apart is being measured, and is not yet known.
+
+### What they will not say now arrives as what they do
+The **interiority** room is where you put what a character keeps back and what they do instead of
+saying it. It used to reach the story under whatever you had titled it, so a room called *Product
+or predator* arrived as a heading with no clue what it was for. It now says whose it is and what
+it is for, and keeps your title after it — so three of them on one character stay told apart.
+
+### A room named after its own character stops saying the name twice
+If you titled a room with the character's own name, their card arrived carrying two blocks that both
+opened *"Seth:"* — one their description, one the room — with nothing to say which was which. The
+room now names itself instead. Nothing to change on your side; the cards that did this are fixed
+where they stand.
+
+### Rooms written in brackets no longer arrive inside two sets
+A room whose text you had already written as `[like this]` was reaching the story wrapped a second
+time. Forty-three rooms across the library were in that state. They now arrive with one set of
+brackets, the way they read on the card.
+
 ## 2026-09-01 · Small corrections to how the app reads
 
 ### Tapping a label puts you in the field
