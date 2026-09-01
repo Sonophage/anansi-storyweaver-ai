@@ -2322,3 +2322,102 @@ needs roughly ten times the events: about 650 generations an arm, an hour or two
 That is the open decision — spend it, or accept that a clause is not obviously the answer and go
 after the mechanism itself by putting authorship into the prompt (the F51 option B, which risks F35:
 give this model new vocabulary and it turns it into section headers).
+
+## F53 — marking the writer's own passages HALVES the model's action for the locked character, and the mechanism is the subject slot: he stops doing things and stays just as present as something done to (2026-09-01)
+
+`bench/lockout.ts f53`, **650 generations an arm**, two servers against the one router,
+**simultaneously**, the **same story on both** — arm D, where the writer has already written the
+locked character speaking and acting. 0 errored generations. The arms differ by one server flag,
+`ANANSI_PROSE_AUTHOR=1`, and nothing else.
+
+This is F51's **option B** and F52's open decision: F52 attacked the mechanism with a *sentence*
+and moved both numbers a third with nothing resolving; this attacks it by marking authorship in the
+prose itself. It resolves.
+
+**The treatment.** `src/context.ts` prefixes each of the writer's own passages in the recent-prose
+block with `[the writer's own, not yours]`, gated on a lockout being in force. Verified through
+`POST /api/manifest` on both servers **before** the run and again **after** it — 4 markers on the
+treatment, 0 on the control, both times, so the arms did not drift.
+
+| per 1,000 words of narration | no marker | marked | events | two-tailed |
+|---|---|---|---|---|
+| **his action, either anchor** | **2.47** | **1.16** | 108 vs 48 | **p = 0.00001** |
+| his action, name-anchored | 1.83 | 0.85 | 80 vs 35 | **p = 0.0001** |
+| his action, pronoun-anchored | 0.64 | 0.31 | 28 vs 13 | **p = 0.041** |
+| **his name** | **4.90** | **2.32** | 214 vs 96 | **p < 0.00001** |
+| subject `he` | 2.10 | 1.04 | 92 vs 43 | **p = 0.0001** |
+| **SUBJECT SLOT (name + `he`)** | **7.00** | **3.37** | 306 vs 139 | **p < 0.00001** |
+| object `him` | 11.00 | 11.48 | 481 vs 474 | p = 0.52 |
+| possessive `his` | 20.77 | 20.46 | 908 vs 845 | p = 0.76 |
+| he/him/his together | 33.88 | 32.98 | 1481 vs 1362 | p = 0.48 |
+| **action per subject-slot mention** | **35.3%** | **34.5%** | 108/306 vs 48/139 | **p = 0.93** |
+
+**THE MECHANISM, AND IT IS NOT WHAT A SINGLE NUMBER WOULD HAVE SAID.** His action halves. But the
+rate at which he acts *given that he is the grammatical subject at all* does not move — 35.3%
+against 34.5%, p = 0.93. What halves is how often he occupies the subject slot, which is the only
+slot an action can live in. Meanwhile he is **just as present**: object `him` and possessive `his`
+are both flat, and so is the three-pronoun total.
+
+So the marker does not teach the model different verbs. It moves him out of the agent position and
+leaves him in the scene as the thing being looked at, walked toward, rained on. That is what the
+lockout line asks for in words — *"It writes the world's answer and stops where they would act"* —
+and F53 is the first measurement in this chain showing it actually happening.
+
+**Robust to the anchor, which matters here more than usual.** Naming halves under the treatment, and
+every counter in this harness is name-anchored, so a falling action count could have been purely
+mechanical — the detector with fewer places to fire. It is not: the **pronoun-anchored** counter
+shares no token with his name and still halves (0.64 → 0.31, p = 0.041). The aggregate is reported
+as "either anchor" for power and both halves are given so neither has to be taken on trust.
+
+**Speech still does not resolve, and that is now three findings running.** 4/191 → 5/93 of the runs
+that name him, p = 0.16. Over all runs it is 4/650 against 5/650. The honest statement is a bound,
+not a rate: **under about 6% of the passages that name him, in either arm.** F51 could not resolve
+speech, F52 could not, and 650 an arm cannot either, because the events are single digits at any
+sample this fixture will produce.
+
+**An instrument fault found and fixed mid-analysis, which changed the one alarming number.** On the
+first pass speech read 0/98 → 4/59, p = 0.019 — a defect appearing where the control had none. Before
+reporting it, `SPOKE` was checked against the shape that could fake it and **it fired on another
+character speaking**:
+
+> `"Eleven crowns," she said to Aldis Fen, who said nothing.` → counted as him speaking
+
+The first pattern allowed 30 free characters between the closing quote and his name, so another
+speaker's attribution fitted inside the window. Tightening that gap to punctuation and whitespace
+also exposed a **blind spot in the same counter**: inverted attribution, `"Eleven crowns," said
+Aldis Fen.`, matched neither of the two original patterns at all — and adding it found **two hits in
+the control arm the old detector had missed**. Both fixes together take speech from p = 0.019 to
+p = 0.16. The counter now carries 21 validated cases, six of them for this class, in both directions.
+
+**This has a consequence for F51.** Its published speech figures (2/36 and 2/20) were measured with
+the blind instrument and are likely understated. Its conclusion — that speech was *"NOT CONFIRMED AT
+ALL"* — is unaffected, but a later run must not compare its own speech numbers against F51's without
+re-scoring F51's stored prose, because they came from different detectors.
+
+**No leak.** F35's warning is that new vocabulary becomes section headers. The marker appears in
+**0 of 1,300** generations' output, in either arm.
+
+**What this does NOT establish.**
+
+- **The fixture marks every passage.** All four of arm D's passages were written through
+  `/api/write`, so all four are `author='human'` and all four are marked. A real book is mostly
+  model-authored, so the marker would sit on a minority of passages and carry a *contrast* this
+  fixture has none of. Whether that makes the effect stronger (a contrast is informative) or weaker
+  (less of the window is marked) is not measured here, and it is the first thing a follow-up should
+  vary.
+- **One story, one directive, one model, one scene shape.** The fixture deliberately holds one man
+  in the scene so pronouns resolve; prose with two men in it is outside everything above.
+- **Every rate is a floor.** The verb list is curated and an action phrased outside it is invisible.
+- **Prose quality was not read.** The treatment arm wrote **5.5% fewer words** (41,285 against
+  43,705). That is small and it is not nothing: a lockout that works by suppressing agency could be
+  making thinner scenes, and no one has read these 1,300 passages for that.
+
+**Not shipped yet.** `ANANSI_PROSE_AUTHOR` still defaults off. Turning it on is a change to the
+prompt of every book that names a locked character, which is the class of change F20 is the standing
+warning about, and it is Seth's call rather than a consequence of this number.
+
+**Statistics.** Every p-value here comes from `bench/stats.ts`, which takes **counts and exposures,
+never rates** — exact Fisher for the 2x2s and an exact conditional-binomial (Poisson) test for the
+densities. It exists because of F52's recorded error: a p computed from its own rounded printed
+densities read 0.047 where the truth was 0.072. Its self-check reproduces F51's published 0.042 and
+0.008 from that finding's own counts.

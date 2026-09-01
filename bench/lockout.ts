@@ -71,10 +71,34 @@ const HIS_OWN = [
 const NAME = String.raw`(?:Aldis(?:\s+Fen)?|Fen)`;
 
 /** Dialogue attributed to him. Runs on the WHOLE prose — quoted speech is the thing being counted,
- *  so this is the one check that must not strip it. */
+ *  so this is the one check that must not strip it.
+ *
+ *  THE GAP AFTER A CLOSING QUOTE IS PUNCTUATION AND WHITESPACE, NEVER WORDS, and that is the second
+ *  version of this. The first allowed 30 free characters between the quote and his name, which let
+ *  ANOTHER speaker's attribution sit in the gap:
+ *
+ *      "Eleven crowns," she said to Aldis Fen, who said nothing.     -> counted as him speaking
+ *      "Eleven crowns," she told Aldis, and he said nothing at all.  -> counted as him speaking
+ *
+ *  Both are the opposite of him speaking, and both are inside the old window. Found on 2026-08-31
+ *  while checking F53's one alarming number — speech going from 0 runs to 4 in the marked arm —
+ *  before reporting it. The four real hits survive the fix; the point is that they no longer have to
+ *  be taken on trust. Three cases in CASES hold this shut.
+ *
+ *  The cost is a tighter floor: `"Eleven crowns," a wet and furious Aldis said.` is now missed. That
+ *  is the right trade — every rate here is already a floor, and a false POSITIVE on the speech
+ *  counter is the one error that would invent a defect rather than undercount one.
+ */
+const ATTRIB = 'said|asked|muttered|murmured|whispered|replied|answered|growled|added|managed|breathed';
+// Punctuation and space only. No \w, so no other character's attribution can hide in here.
+const GAP = String.raw`["”][\s,;:—–-]{0,3}`;
 const SPOKE = [
-  new RegExp(String.raw`["“][^"”]{2,}["”][^.!?]{0,30}\b${NAME}\b[^.!?]{0,20}\b(said|asked|muttered|murmured|whispered|replied|answered|told|growled|added|managed|breathed)\b`, 'i'),
-  new RegExp(String.raw`\b${NAME}\b[^.!?"“]{0,30}\b(said|asked|muttered|murmured|whispered|replied|answered|growled|added|managed|breathed)\b[^"“]{0,12}["“]`, 'i'),
+  // "Eleven crowns," Aldis said.
+  new RegExp(String.raw`["“][^"”]{2,}${GAP}\b${NAME}\b[\s,]{0,3}(?:\w+\s){0,1}\b(${ATTRIB}|told)\b`, 'i'),
+  // "Eleven crowns," said Aldis.
+  new RegExp(String.raw`["“][^"”]{2,}${GAP}\b(?:${ATTRIB})\b\s+\b${NAME}\b`, 'i'),
+  // Aldis said, "Eleven crowns."   — attribution before the quote, unchanged.
+  new RegExp(String.raw`\b${NAME}\b[^.!?"“]{0,30}\b(${ATTRIB})\b[^"“]{0,12}["“]`, 'i'),
 ];
 
 /** The narrator stating his interior. F21's TOLD list, re-anchored on the name. */
@@ -129,6 +153,24 @@ export const density = (prose: string) => {
     // note says the model re-genders the other characters. Reported so the ratio is visible, never
     // counted as his action.
     pronouns: all(/\b(he|him|his)\b/i),
+
+    /* ---- F53's exposure split. ADDED FIELDS, and `pronouns` above is deliberately left alone:
+     * F52's `density` mode prints it and changing it would silently move a published number.
+     *
+     * WHY SPLIT AT ALL. Lumping he/him/his hides the thing that turned out to matter. "his knee"
+     * and "she looked at him" put him on the page WITHOUT him doing anything; only the subject slot
+     * — bare "he", or his name — can carry an action. So a treatment could halve his action count
+     * two entirely different ways:
+     *
+     *   - he occupies the subject slot as often, and does fewer things in it. A behaviour change.
+     *   - he occupies it half as often. The action count falls with the exposure, and the per-slot
+     *     rate is flat.
+     *
+     * These are not the same claim and the aggregate cannot tell them apart. `subj` is the
+     * denominator that can. */
+    he: all(/\bhe\b/i),          // subject slot, pronoun
+    him: all(/\bhim\b/i),        // object — present, not acting
+    hisPoss: all(/\bhis\b/i),    // possessive — present, not acting
   };
 };
 
@@ -158,6 +200,31 @@ const CASES: [string, Partial<ReturnType<typeof score>>, string][] = [
    + 'as a rate — the model re-genders the other characters, so "he" cannot be resolved.'],
   ['The room waited. Nobody moved.', { acted: false, spoke: false, told: false },
    'the good case — the world answering, and him not in it'],
+  // ---- F53. THE SHAPE THAT COULD HAVE FAKED F53'S ONE ALARMING NUMBER.
+  //
+  // F53 found speech going from 0 runs to 4 in the marked arm, which is the half of the defect Seth
+  // reported and the half F51 could never resolve. Before believing 4, the question is whether SPOKE
+  // can fire on somebody ELSE speaking while his name happens to sit between the quote and a second
+  // `said` — "…," she said to Aldis Fen, who said nothing. Its first pattern allows 30 characters
+  // between the closing quote and his name and 20 more before the verb, so this is not a paranoid
+  // case, it is inside the window.
+  //
+  // The four real hits were read by eye and every one was a bare `Aldis said` directly after his own
+  // line, so F53's number does not rest on this. These cases are here so the next run does not have
+  // to take that on trust.
+  ['"Eleven crowns," she said to Aldis Fen, who said nothing.', { spoke: false },
+   'ANOTHER character speaking, with his name between the quote and a second `said`'],
+  ['"Eleven crowns," Sabel said. Aldis said nothing.', { spoke: false },
+   'his name beside `said nothing` is silence, not dialogue'],
+  ['"Eleven crowns," she told Aldis, and he said nothing at all.', { spoke: false },
+   'told AT him, not by him'],
+  // AND THE POSITIVES FOR THE TIGHTENED PATTERNS, so the fix above is not just an exclusion. A
+  // guard that only ever refuses is a counter that reports zero.
+  ['"Eleven crowns," said Aldis Fen.', { spoke: true, about: true },
+   'verb before the name — the inverted attribution the old pair could not see at all'],
+  ['"Eleven crowns," Aldis quietly said.', { spoke: true },
+   'one adverb between the name and the verb is still his line'],
+  ['"Eleven crowns," Aldis Fen said.', { spoke: true }, 'full name, plainest form'],
 ];
 
 if (process.argv[2] === 'check') {
@@ -242,6 +309,126 @@ if (arm === 'density') {
       ? (about.filter((x) => x.acted).length / about.length * 100).toFixed(1) + '%' : 'n/a'}`
       + ` (${about.filter((x) => x.acted).length}/${about.length} of ${rows.length})`);
   }
+  process.exit(0);
+}
+
+/** F53. Two OUTDIRs rather than two arm letters, because both arms are the same story.
+ *
+ *  The treatment is a server flag — `ANANSI_PROSE_AUTHOR=1` marks the writer's own passages in the
+ *  recent-prose block — so the arms cannot be told apart by which fixture they read. They are told
+ *  apart by which server answered, which means each writes to its own directory:
+ *
+ *    ANANSI_URL=…:5301 ANANSI_OUT=/tmp/f53-ctl  node … bench/lockout.ts D 650 &   # flag off
+ *    ANANSI_URL=…:5302 ANANSI_OUT=/tmp/f53-trt  node … bench/lockout.ts D 650 &   # flag on
+ *    F53_CTL=/tmp/f53-ctl F53_TRT=/tmp/f53-trt  node … bench/lockout.ts f53
+ *
+ *  VERIFY THE TREATMENT THROUGH POST /api/manifest BEFORE GENERATING, the way F52 did — the whole
+ *  comparison is void if both servers were sending the same prompt, and nothing downstream of here
+ *  could tell.
+ *
+ *  Every p-value comes from `bench/stats.ts`, which takes COUNTS. F52's recorded error was a p
+ *  computed from its own rounded printed densities: 0.047 rather than the true 0.072, either side
+ *  of the line that decides what ships.
+ */
+if (arm === 'f53') {
+  const { fisher, poisson, per1000 } = await import('./stats.ts');
+  const dirs: [string, string][] = [
+    ['no marker', process.env.F53_CTL ?? '/tmp/f53-ctl'],
+    ['marked', process.env.F53_TRT ?? '/tmp/f53-trt'],
+  ];
+  const arms = dirs.map(([label, dir]) => {
+    const all = readFileSync(`${dir}/D.jsonl`, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    // RE-SCORED from the stored prose, never from the fields written at generation time — the same
+    // rule `report` follows, and for the same reason: the detectors have been wrong twice and both
+    // fixes landed after a run.
+    const rows = all.filter((r: any) => !r.error && r.prose)
+      .map((r: any) => ({ ...r, ...score(String(r.prose)), d: density(String(r.prose)) }));
+    const t = rows.reduce((a: any, r: any) => ({
+      words: a.words + r.d.words, names: a.names + r.d.names,
+      acts: a.acts + r.d.acts, pronouns: a.pronouns + r.d.pronouns,
+      he: a.he + r.d.he, him: a.him + r.d.him, hisPoss: a.hisPoss + r.d.hisPoss,
+    }), { words: 0, names: 0, acts: 0, pronouns: 0, he: 0, him: 0, hisPoss: 0 });
+    const about = rows.filter((r: any) => r.about);
+    return { label, dir, errors: all.length - rows.length, n: all.length, rows, t, about,
+             acted: about.filter((r: any) => r.acted).length,
+             spoke: about.filter((r: any) => r.spoke).length,
+             told: about.filter((r: any) => r.told).length };
+  });
+  const [c, m] = arms;
+
+  console.log(`\n  F53 — does marking the writer's own passages stop the model writing the`);
+  console.log(`  locked character? Arm D on both sides: the writer has already written him`);
+  console.log(`  speaking and acting, which is F51's case.\n`);
+  for (const a of arms) {
+    console.log(`  ${a.label.padEnd(10)} ${a.rows.length} usable of ${a.n}`
+      + `${a.errors ? ` (${a.errors} errored)` : ''}, ${a.t.words} words of narration`);
+  }
+  // THE INFORMATIVE DENOMINATOR IS NOT COMPARABLE HERE AND F51 IS WHY — the treatment can move how
+  // often he is named at all, so the binary rate sits on a denominator the treatment shifts. It is
+  // printed because F51 and F52 both print it; the density rows are what can be compared.
+  console.log(`\n  DENSITY — per 1,000 words of narration. This is the comparable metric.`);
+  const row = (what: string, k1: number, k2: number) => {
+    const p = poisson(k1, c.t.words, k2, m.t.words);
+    console.log(`    ${what.padEnd(14)} ${per1000(k1, c.t.words).padStart(6)} `
+      + `-> ${per1000(k2, m.t.words).padStart(6)}   (${k1} vs ${k2} events)   p = ${p.toFixed(4)}`
+      + `${p < 0.05 ? '  *' : ''}`);
+  };
+  row('his action', c.t.acts, m.t.acts);
+  row('his name', c.t.names, m.t.names);
+  row('he/him/his', c.t.pronouns, m.t.pronouns);
+
+  /* AND THE ONE THAT SEPARATES TWO DIFFERENT WINS, which the three rows above cannot.
+   *
+   * Every counter here is anchored on his NAME (see the note on NAME: a pronoun's referent cannot
+   * be resolved by a regex, and this model re-genders the other characters). So if a treatment
+   * makes the model write his name less often, action-per-1,000-WORDS falls whether or not he acts
+   * less — the detector had fewer places it could fire. That is F51's denominator problem arriving
+   * inside the metric F52 introduced to escape it.
+   *
+   * Action per NAME MENTION is the discriminator:
+   *   - it FALLS  -> when he is on the page, he acts less. The lockout got stronger.
+   *   - it HOLDS  -> he simply gets named less. The defect is unchanged and the win is cosmetic;
+   *                  worse, a flat pronoun density means he is just as present, only less nameable.
+   * Read this row together with he/him/his. */
+  console.log(`\n  WHERE HE SITS IN THE SENTENCE — the split that says which of two stories this is.`);
+  row('subject "he"', c.t.he, m.t.he);
+  row('object "him"', c.t.him, m.t.him);
+  row('possessive', c.t.hisPoss, m.t.hisPoss);
+  {
+    // The subject slot is the only place an action can live, so name + bare "he" is the exposure
+    // the action count should be read against — not total words, and not total pronouns.
+    const cs = c.t.names + c.t.he, ms = m.t.names + m.t.he;
+    row('SUBJECT SLOT', cs, ms);
+    const p = poisson(c.t.acts, Math.max(cs, 1), m.t.acts, Math.max(ms, 1));
+    const r = (k: number, d: number) => d ? (k / d * 100).toFixed(1) + '%' : 'n/a';
+    console.log(`\n    his action per subject-slot mention  ${r(c.t.acts, cs).padStart(6)} `
+      + `-> ${r(m.t.acts, ms).padStart(6)}   (${c.t.acts}/${cs} vs ${m.t.acts}/${ms})`
+      + `   p = ${p.toFixed(4)}${p < 0.05 ? '  *' : ''}`);
+    console.log(`    ^ FALLS  = when he is the subject, he does fewer things. A behaviour change.`);
+    console.log(`      HOLDS  = he is the subject half as often, and does the same things in it.`);
+    console.log(`               The action count still halves; the mechanism is agency, not verbs.`);
+  }
+  console.log(`\n  BINARY — of the runs that name him in narration. Denominator moves; read with care.`);
+  const bin = (what: string, k1: number, k2: number) => {
+    const p = fisher(k1, c.about.length - k1, k2, m.about.length - k2);
+    const pc = (k: number, d: number) => d ? `${(k / d * 100).toFixed(1)}%` : 'n/a';
+    console.log(`    ${what.padEnd(14)} ${pc(k1, c.about.length).padStart(6)} `
+      + `-> ${pc(k2, m.about.length).padStart(6)}   (${k1}/${c.about.length} vs ${k2}/${m.about.length})`
+      + `   p = ${p.toFixed(4)}${p < 0.05 ? '  *' : ''}`);
+  };
+  bin('acted', c.acted, m.acted);
+  bin('spoke', c.spoke, m.spoke);
+  bin('told', c.told, m.told);
+  console.log(`\n    names him at all  ${c.about.length}/${c.rows.length} -> ${m.about.length}/${m.rows.length}`
+    + `   p = ${fisher(c.about.length, c.rows.length - c.about.length,
+                       m.about.length, m.rows.length - m.about.length).toFixed(4)}`);
+  // A LEAK CHECK, and F35 is why it is here: give this model new vocabulary and it turns it into
+  // section headers. The marker must never appear in the output it is meant to explain.
+  const leak = (a: any) => a.rows.filter((r: any) => /writer's own|not yours/i.test(String(r.prose))).length;
+  console.log(`\n  MARKER LEAK into the prose (F35's warning): `
+    + `${leak(c)} of ${c.rows.length} unmarked, ${leak(m)} of ${m.rows.length} marked`);
+  console.log(`\n  Every rate is a FLOOR — the counters are anchored on his name, never a pronoun,`);
+  console.log(`  and they undercount equally in both arms. Say "under X%".\n`);
   process.exit(0);
 }
 
