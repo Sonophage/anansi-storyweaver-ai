@@ -1175,6 +1175,40 @@ ok("  and it is still there a moment later, not eaten by a repaint",
       body: JSON.stringify({ storyId:id, summarise:false, remember:false, extract:false, retire:false }) });
     return id; })()`);
   ok(`a story with one closed chapter and an empty new one (${sid6})`, /^s-/.test(String(sid6)));
+
+  // ---- ISSUE #32. The close REPORTS on its own four passes.
+  //
+  // Every pass is wrapped so a chapter can close with the model down, and that wrapper used to be a
+  // bare `catch {}` — so "no facts arrived" and "the facts pass never ran" were the same screen.
+  //
+  // THE SHAPE, NOT THE OUTCOME. Whether these four succeed depends on a model this harness does not
+  // own: llama-server may or may not be up on the machine running this. So this asserts that the
+  // route accounts for every pass it was asked to run, and that a skipped one is absent rather than
+  // reported as a failure. Asserting "facts failed" would go green or red with the weather.
+  const closed6 = await page.eval(`(async () => {
+    const r = await (await fetch('/api/stories', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ title:'Which Passes', genre:'test', premise:'x', pov:'third past' }) })).json();
+    const id = r.storyId ?? r.id ?? (r.stories && r.stories.at(-1).id);
+    await fetch('/api/write', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ storyId:id, body:'The bell rang once and nobody came down for it.' }) });
+    // Two asked for, two refused, so the absent pair is a real distinction rather than an empty set.
+    const end = await (await fetch('/api/chapter/end', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ storyId:id, remember:false, retire:false }) })).json();
+    return JSON.stringify({ passes: end.passes ?? null, hasExtracted: 'extracted' in end }); })()`);
+  const p6 = JSON.parse(closed6);
+  ok(`  the close reports its passes (${JSON.stringify(p6.passes)})`,
+     p6.passes && typeof p6.passes === 'object');
+  // The two that were asked for are accounted for either way — null if they ran, a string if not.
+  for (const k of ['summary', 'facts']) {
+    ok(`  ${k} is accounted for (${JSON.stringify(p6.passes?.[k])})`,
+       p6.passes && k in p6.passes
+       && (p6.passes[k] === null || typeof p6.passes[k] === 'string'));
+  }
+  // AND THE ONES NOT ASKED FOR ARE NOT THERE. `remember:false` must read as "not wanted", never as
+  // "failed" — a report that lists a pass the writer turned off is a false alarm every close.
+  for (const k of ['memory', 'finished']) {
+    ok(`  ${k} was refused, so it is absent rather than failed`, !(p6.passes && k in p6.passes));
+  }
   // NAMES, NOT NUMBERS. A new story's chapters carry titles ("Chapter One"), so asserting the
   // string "Chapter 1" tested the naming convention rather than which chapter was on screen.
   const chs = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid6}')).json())
@@ -1270,35 +1304,26 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
   ok('the Threads page opens', here === true);
 
   if (here) {
+    // ---- THE CARD SHELF IS GONE, AND THAT IS THE ASSERTION NOW (2026-08-31).
+    //
+    // `c095b74` put a shelf of book cards at the top of this page and this block tested it:
+    // `data-lselect`, a picked class, a toggle that widened back to every book. `4c69923` took the
+    // shelf out again two hours later — "It did nothing you could not do from the titles below it"
+    // — and left these assertions behind, so `panels` went three red at HEAD against a feature that
+    // was deliberately removed. Third time in this repo: see `7c5fca7`, "Two scenarios left behind
+    // by their own commits".
+    //
+    // Asserting the ABSENCE rather than deleting the block, because the removal is a decision. If a
+    // card shelf comes back here it should come back on purpose, with this line changed to say so.
     const shelf = await page.eval(`(() => {
       const cards = [...document.querySelectorAll('#page .storycard')];
-      return { cards: cards.length, select: cards.filter(c => c.dataset.lselect).length,
-               opens: cards.filter(c => c.dataset.open).length }; })()`);
-    ok(`  and draws book cards on it (${JSON.stringify(shelf)})`, shelf.cards > 0);
-    // The card SELECTS here, it does not open the story — that is the difference between this shelf
-    // and the one on Stories, and a card that opened would take you off the page.
-    ok('  every one of them selects rather than opens',
-       shelf.cards > 0 && shelf.select === shelf.cards && shelf.opens === 0);
-
-    // A card that is NOT already the one in scope. The page opens scoped to the book you last
-    // wrote in, so the first card is usually picked already and pressing it would toggle OFF —
-    // which is correct behaviour and made the first version of this assertion fail for the wrong
-    // reason. Both directions are asserted below, because the toggle is the feature.
-    const other = await page.eval(`(() => [...document.querySelectorAll('#page .storycard')]
-      .filter(c => !c.classList.contains('picked')).map(c => c.dataset.lselect)[0] ?? null)()`);
-    const press = (id) => page.eval(`(() => { document.querySelector('[data-lselect="${id}"]')
-      ?.dispatchEvent(new MouseEvent('click', { bubbles: true })); return 1; })()`);
-    const isPicked = (id) => page.eval(`(() => !!document.querySelector('[data-lselect="${id}"]')
-      ?.classList.contains('picked'))()`);
-    if (other) {
-      await press(other); await wait(500);
-      ok(`  pressing an unpicked card marks it as the one being shown (${other})`,
-         (await isPicked(other)) === true);
-      await press(other); await wait(500);
-      ok('  and pressing it again widens back to every book', (await isPicked(other)) === false);
-    } else {
-      ok('  TOGGLE NOT TESTED — every card was already picked, which cannot happen', false);
-    }
+      return { cards: cards.length, select: cards.filter(c => c.dataset.lselect).length }; })()`);
+    ok(`  and no longer carries a shelf of book cards (${JSON.stringify(shelf)})`,
+       shelf.select === 0);
+    // What replaced it: the book you are looking at wears a banner, and the books below are titles.
+    // One banner, not one per book — which is the failure the app-level check counts too.
+    const banners = await page.eval("document.querySelectorAll('#books .lbanner').length");
+    ok(`  the open book wears a banner instead (${banners})`, banners === 1);
   } else {
     ok('  SHELF ASSERTIONS DID NOT RUN — the Threads page never opened', false);
   }

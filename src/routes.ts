@@ -1648,15 +1648,37 @@ export const routes: Record<string, Handler> = {
       body: c.body.note ?? '', author: 'human', isBreak: true });
     const closing = v.currentChapter.id;
     const r = db.endChapter(v.id, v.branchId!, c.body.nextTitle);
+
+    /** WHICH OF THE FOUR PASSES DID NOT RUN, and why. Issue #32: "Facts are not being written
+     *  based on the last chapter anymore."
+     *
+     *  Every pass here was wrapped in a bare `catch {}` so that a chapter can still close with the
+     *  model down — which is right, and which also meant a writer got an empty queue and no reason
+     *  for it. The surface's own comment claimed "the screen says which one did not run"; nothing
+     *  was handed back for it to say, and the client threw the two returned values away.
+     *
+     *  Both channels, because these functions use both: `summarise` and `remember` THROW, while
+     *  `extract` and `retire` also RETURN `{ error }` for the cases they can name themselves
+     *  ("nothing to read in this chapter"). Reporting only thrown errors would have left the most
+     *  common silent case silent.
+     */
+    const passes: Record<string, string | null> = {};
+    const run = async (name: string, want: boolean, fn: () => Promise<any>) => {
+      if (!want) return null;
+      try {
+        const out = await fn();
+        passes[name] = out?.error ?? null;
+        return out;
+      } catch (e: any) {
+        passes[name] = e?.message ?? 'the model did not answer';
+        return null;
+      }
+    };
     // Summarise on close rather than on a button nobody remembers. Summaries are what bound
     // the context without the budget engine; leaving it manual leaves the bound optional.
-    if (c.body.summarise !== false) {
-      try { await summarise(c, v.id, closing); } catch { /* model asleep; the button still works */ }
-    }
+    await run('summary', c.body.summarise !== false, () => summarise(c, v.id, closing));
     // The character memory, on the same terms: a chapter must be able to close with the model down.
-    if (c.body.remember !== false) {
-      try { await remember(v.id, closing); } catch { /* same */ }
-    }
+    await run('memory', c.body.remember !== false, () => remember(v.id, closing));
     // And read it for facts. The comment above summarise applies to this word for word: the ledger
     // is the only tier that survives compaction — prose falls out of the chapter window, summaries
     // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
@@ -1670,20 +1692,14 @@ export const routes: Record<string, Handler> = {
     // step 3, so moving it here without handing the answer back would have run the extractor
     // twice per close — one wasted model call, and a surface that reports on a different pass
     // from the one that happened.
-    let extracted: any = null;
-    if (c.body.extract !== false) {
-      try { extracted = await extract(v.id, closing); } catch { /* same */ }
-    }
+    const extracted = await run('facts', c.body.extract !== false, () => extract(v.id, closing));
     // And ask which of them the chapter FINISHED. Last of the four deliberately: it is the only
     // step that takes something away, and a writer reading the queue should meet what the chapter
     // added before what it ended. Nothing is written here either — a retirement is a proposal, and
     // accepting one is the only decision in the app that changes what the model is told for the
     // rest of the book.
-    let retired: any = null;
-    if (c.body.retire !== false) {
-      try { retired = await retire(v.id, closing); } catch { /* same */ }
-    }
-    return { ...r, extracted, retired, ...viewOf(v.id) };
+    const retired = await run('finished', c.body.retire !== false, () => retire(v.id, closing));
+    return { ...r, extracted, retired, passes, ...viewOf(v.id) };
   },
 
   // ---- history & revert. §7.4's safety argument is "you can revert" — this is the revert. ----

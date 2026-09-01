@@ -28,8 +28,13 @@ list.
 1. `docs/findings/P0-FINDINGS.md` — measured numbers. These override `docs/SPEC.md` and the plans
    wherever they conflict, and several already do.
 2. `docs/findings/BUILD-STATE.md` — done / half-built / not started, audited against source.
-3. `grep -rn "ponytail:" src web bench *.ts *.html` — the debt ledger. Thirty-five markers as of 2026-08-30. Each names what
-   is missing, why it was left, and the upgrade path.
+3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Thirty-nine markers as
+   of 2026-08-31**, counted by that command, not recalled: `db.ts` 8, `app.js` 7, `context.ts` 6,
+   `routes.ts` 5, `model.js` 2, `serve.ts` 2, `council06.ts` 2, and one each in `story.ts`,
+   `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`, `bench/decode.ts`,
+   `bench/ledger-audit.ts`. Each names what is missing, why it was left, and the upgrade path.
+   (`test` joined the command on 2026-08-31 — there has been a marker in `test/db.ts` the whole
+   time and the documented grep could not see it, so the count read 38.)
 
 ## Conventions that are not negotiable
 

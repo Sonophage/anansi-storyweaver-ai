@@ -146,6 +146,9 @@ const S = {
   // a cold load at #story/setup opens on: only a chapter close starts at the top.
   setupStep: null, setupKind: 'character', setupSteer: '', propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, spark: null, ritual: null, setup: null,
+  // Issue #32. Which of the chapter close's four passes did not run, by name, and why. Null means
+  // no chapter has been closed this session; an empty object means all four ran.
+  ritualPasses: null,
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
   ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
@@ -317,7 +320,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
-  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'demo', 'holdback',
+  'pastecast', 'pastebook', 'forgehere', 'fromhere', 'startfrom', 'demo', 'holdback',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -326,6 +329,25 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'delafter', 'delchapter',
   // The chapter-end ritual's steps, and the kind of card its third step offers to write.
   'setupstep', 'setupkind'].map((k) => `[data-${k}]`).join(',');
+
+/** The number printed beside a slider, for the sliders whose number is not just their value.
+ *
+ *  HERE RATHER THAN INSIDE THE RENDERER, and that is the whole point of it being a map: a slider
+ *  now saves itself on release, and a drag must NOT repaint — the Story panel holds Premise and
+ *  the voice as free text, and repainting it mid-drag is the bug 0469792 fixed. So the readout is
+ *  updated in place by the `input` listener, which needs the same rule the renderer used. One
+ *  definition, read by both; a second copy would be two rules for one number.
+ *
+ *  Keyed by the control's own name, so `data-gen` and `data-story` sliders share it. A slider with
+ *  no entry here prints its raw value, which is what every other one wants.
+ */
+const READOUT = {
+  // The whole left end of the track is the off position, and the server agrees with it to the
+  // token: anything under 150 stores as zero, so there is no value the writer can set that reads
+  // back as a different one.
+  target_words: (n) => (Number(n) < 150 ? 'let her decide' : `~${n} words`),
+  coverOpacity: (n) => `${n}%`,
+};
 
 let toastT = null, searchT = null, foundT = null;
 function toast(msg) {
@@ -2032,7 +2054,10 @@ const PANELS = {
     </select>`;
     const fields = STORY_FIELDS.filter((f) => !['setting', 'pov', 'persona'].includes(f.k));
     return `<div style="display:flex; flex-direction:column">
-      <button class="btn" data-savestory="1" style="margin-bottom:22px">Save</button>
+      <!-- Issue #33. It was already at the top of this panel; now it stays there. Everything on
+           this screen except the typed fields saves itself, so what this commits is the title, the
+           premise, the setting and the voice — the four things you can be part-way through. -->
+      <div class="savebar"><button class="btn" data-savestory="1">Save</button></div>
       <div class="lbl" style="letter-spacing:.1em; margin-top:0">The cover</div>
       ${V.cover ? `<img src="${api.coverUrl(S.storyId, V.cover)}" alt=""
         style="width:100%; height:120px; object-fit:cover; border-radius:var(--r); border:1px solid var(--edge)">` : ''}
@@ -2071,7 +2096,7 @@ const PANELS = {
           <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
             >${V.story.coverOpacity ?? 30}%</span></div>
         <div class="hint">At full strength a picture under text is unreadable and at nothing it is
-          not there. Save to see it.</div>` : ''}` : ''}
+          not there. It saves itself when you let go.</div>` : ''}` : ''}
 
       ${fields.map((f) => `<label class="lbl">${f.label}${f.k === 'writingStyle' ? helpMark('voice') : ''}</label>
         ${f.k === 'writingStyle' ? helpBody('voice') : ''}
@@ -2220,14 +2245,17 @@ const PANELS = {
     const pchip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
       background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
     return `<div style="display:flex; flex-direction:column">
-      <label class="lbl">Name</label>
+      <!-- Issue #33. This sat under the two fields, which is four screens up from the bottom of
+           the panel on a phone once the proposals and summaries are drawn below it. Both fields
+           here are free text and neither autosaves, so this is the only thing that commits them. -->
+      <div class="savebar"><button class="btn" data-savestory="1">Save</button></div>
+      <label class="lbl" style="margin-top:0">Name</label>
       <input class="field" data-chapter-title="1" value="${esc(ch.title ?? '')}"
         placeholder="Chapter ${ch.index}">
       <label class="lbl">This chapter must end with</label>
       <textarea class="field" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
       <div class="hint">Reaches the model as the chapter's brief. It is not shown to the reader.</div>
-      <button class="btn" data-savestory="1" style="margin-top:14px">Save</button>
-      <button class="btn ghost" data-ritual="1" style="margin-top:10px">End this chapter</button>
+      <button class="btn ghost" data-ritual="1" style="margin-top:14px">End this chapter</button>
       <div class="hint">Opens the chapter's own screen, where it closes.</div>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">What this chapter added</div>
@@ -2532,7 +2560,7 @@ const PANELS = {
 
   teller() {
     const g = V.gen ?? SRV.gen ?? {};
-    const slider = (label, key, value, max, hint, fmt) => `
+    const slider = (label, key, value, max, hint, fmt = READOUT[key]) => `
       <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px">
         <div style="display:flex; justify-content:space-between; font-size:11px; letter-spacing:.1em;
           font-variant-caps:all-small-caps; color:var(--dim)">
@@ -2542,6 +2570,12 @@ const PANELS = {
           value="${value}" style="width:100%; accent-color:var(--gold)">
         ${hint ? `<div class="hint">${hint}</div>` : ''}</div>`;
     return `<div style="display:flex; flex-direction:column">
+      <!-- Issue #33. This was the last thing on the longest panel in the app — under the model
+           list, the sampler, the thinking note and this story's calls. The three sliders save
+           themselves on release now, so pressing this is a confirmation rather than the only way to
+           commit them; it stays because a settings screen with no Save reads as one that did not
+           take. -->
+      <div class="savebar"><button class="btn" data-savegen="1">Save</button></div>
       <div style="display:flex; align-items:flex-start; gap:12px; padding:0 0 4px">
         <span style="width:8px; height:8px; border-radius:50%; background:var(--warn); margin-top:5px; flex:0 0 auto"></span>
         <span style="flex:1; display:flex; flex-direction:column; gap:4px">
@@ -2601,11 +2635,7 @@ const PANELS = {
       ${slider('Passage length', 'target_words', g.target_words ?? 0, 1000,
         'Roughly how long a passage should run. Anansi aims for it and is allowed to come in under '
         + 'it — she is not cut off at it. All the way left leaves the length to her, which is how '
-        + 'every book here was written until now.',
-        // The whole left end of the track is the off position, and the server agrees with it to
-        // the token: anything under 150 stores as zero, so there is no value the writer can set
-        // that reads back as a different one.
-        (n) => (n < 150 ? 'let her decide' : `~${n} words`))}
+        + 'every book here was written until now.')}
       <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 0; border-top:1px solid rgba(255,255,255,.04)">
         <span style="width:8px; height:8px; border-radius:50%; background:var(--bad); margin-top:5px; flex:0 0 auto"></span>
         <span style="flex:1; display:flex; flex-direction:column; gap:4px">
@@ -2699,7 +2729,7 @@ const PANELS = {
         || '<div class="hint">No calls logged for this story yet.</div>'}
       ${ACT?.worstPrefillSeconds ? `<div class="row"><span style="color:var(--ink)">Worst prefill</span>
         <span class="tnum" style="margin-left:auto; color:var(--faint)">${ACT.worstPrefillSeconds}s</span></div>` : ''}
-      <button class="btn" data-savegen="1" style="margin-top:16px">Save</button></div>`;
+      </div>`;
   },
 };
 
@@ -3285,6 +3315,40 @@ const NAMED = new Set();
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next chapter'], ['more', 'Anyone new']];
 
+/** Issue #32. The four passes a chapter close runs, and what a writer calls each one.
+ *
+ *  Keyed by the name the route reports. A pass that is absent from `S.ritualPasses` was not asked
+ *  for; one whose value is null ran; one with a string failed and the string is why.
+ */
+const PASSES = [['summary', 'the summary'], ['memory', 'the character memory'],
+                ['facts', 'the facts pass'], ['finished', 'the finished-threads scan']];
+
+/** Which of them did not run, in the order they run in. Empty when everything ran, which is the
+ *  normal case — so every caller can treat length as "is there anything to say". */
+const missedPasses = () => PASSES
+  .filter(([k]) => S.ritualPasses?.[k])
+  .map(([k, label]) => ({ label, why: String(S.ritualPasses[k]) }));
+
+/** The same thing on the report, where it stays after the toast has gone.
+ *
+ *  A ROW PER FAILURE, naming the pass and the reason. The alternative — one line saying "something
+ *  did not run" — is the shape the queue already had: you can see nothing arrived and cannot tell
+ *  whether that is the chapter or the model.
+ */
+function passReport() {
+  const missed = missedPasses();
+  if (!missed.length) return '';
+  return `<div style="display:flex; flex-direction:column; gap:6px; margin:0 0 14px; padding:10px 12px;
+    border-radius:var(--r); border:1px solid rgba(200,112,90,.35); background:rgba(200,112,90,.07)">
+    <span style="font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps;
+      color:var(--bad)">${missed.length === 1 ? 'One pass did not run' : `${missed.length} passes did not run`}</span>
+    ${missed.map((m) => `<span style="font-size:12.5px; line-height:1.5; color:var(--mute)">
+      <span style="color:var(--ink)">${esc(m.label)}</span> &mdash; ${esc(m.why)}</span>`).join('')}
+    <span class="hint" style="margin:0">Nothing was lost: the chapter closed and the prose is
+      untouched. Each pass has its own button on this screen, so run it again when the model is
+      back up.</span></div>`;
+}
+
 function setupPanel() {
   const ch = V?.currentChapter;
   if (!ch) return '<div class="hint">No chapter open.</div>';
@@ -3380,6 +3444,9 @@ function setupPanel() {
       plural(queue.length, 'card', 'cards')}</div>
     <div class="hint" style="margin:6px 0 0">Nothing here is canon until you accept it, and nothing
       here is required &mdash; what you leave stays in Waiting.</div>
+    <!-- Issue #32, ABOVE the queue. An empty queue is the thing being explained, so the
+         explanation has to arrive before the writer reads the emptiness as "no facts here". -->
+    <div style="margin-top:12px">${passReport()}</div>
     ${justClosed ? `<div style="margin-top:12px">${closedRow}</div>` : ''}
     ${queue.some((p) => p.kind === 'new') ? `<button class="btn ghost" data-acceptall="new"
       style="margin-top:8px">Add all ${plural(queue.filter((p) => p.kind === 'new').length, 'new card', 'new cards')}</button>
@@ -4275,22 +4342,6 @@ function seedList() {
 
 // ---------- workspace pages ----------
 
-/** Making a world book. WHERE world books display is still open — Seth, 2026-08-31: "whether that
- *  means its a story like card in threads or if its in stories we should plan" — so this is only
- *  the door that makes one. A world book with cards in it already appears in the list below like
- *  any other book, because that list is grouped by book and a world book is a book.
- */
-function worldStrip() {
-  return `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
-    <span class="lbl" style="letter-spacing:.1em; margin:0">World book</span>
-    <input class="field" id="worldName" placeholder="Name a world"
-      style="margin:0; max-width:220px; height:36px; font-size:13px">
-    <button class="btn ghost" data-newworld="1"
-      style="width:auto; padding:0 16px; height:36px; font-size:12.5px">New world book</button>
-    <span class="hint" style="margin:0">Cards and no prose &mdash; a cast, a map, a set of rules
-      that outlives one story.</span>
-  </div>`;
-}
 
 function drawPage() {
   const show = S.place === 'workspace';
@@ -4846,7 +4897,13 @@ const WPAGES = {
         <!-- Search on its OWN line and left aligned, at Seth's direction 2026-08-29. It was pushed
              to the right end of the chip row by an auto left margin, so on a narrow screen it
              wrapped under the chips at whatever width was left over. -->
-        ${worldStrip()}
+        <!-- THE "NAME A WORLD" BOX IS GONE, issue #34. Seth, 2026-08-31: "Name a worl and it's
+             button should be removed from threads." Making one is parked rather than moved: the
+             route and "api.newWorld" both stay, "newWorld" is in test/web.ts's DEFERRED with the
+             reason, and any book can already be followed from "Start a book here" below — so what
+             a world book adds over that is the "is_world" flag that keeps it off the Stories
+             shelf. World books that already exist are unaffected and still draw here.
+             NO BACKTICKS IN HERE — one ends the template literal holding this markup. -->
         <div style="border-top:1px solid var(--line); margin-top:4px"></div>
         <input class="field" id="lq" value="${esc(S.ledgerQ)}" placeholder="Search every story"
           style="margin:0; max-width:340px">
@@ -5940,13 +5997,62 @@ async function commitStory(only = null) {
   if (!only) toast(c && c.error ? c.error : 'Saved.');
 }
 
+/** The sampler, saved the moment a slider is let go.
+ *
+ *  Every `[data-gen]` control is a range, so this panel had no autosave at all when the toggles
+ *  and pickers got theirs — the whole of Storyteller sat behind its Save button, which is the
+ *  "settings" half of Seth's report, 2026-08-31: "buttons settings dropdown all that require the
+ *  user to click save before anything happens."
+ *
+ *  ALL OF THEM, not only the one that moved. `api.settings` takes the whole sampler and the route
+ *  merges what it is given, so sending one field would be correct too — but the Save button has
+ *  always sent all of them, and reading the panel is what makes this the same write it replaces.
+ *
+ *  Silent. A toast per slider release is a notification for something the writer did not ask to be
+ *  told about; an error still speaks, the same bargain commitStory makes.
+ */
+async function commitGen(quiet = true) {
+  const gen = {};
+  document.querySelectorAll('[data-gen]').forEach((el) => { gen[el.dataset.gen] = Number(el.value); });
+  if (!Object.keys(gen).length) return;
+  const r = await api.settings(S.storyId, gen);
+  if (r.error) return toast(r.error);
+  if (!quiet) toast('Saved.');
+}
+
 // A toggle or a picker commits itself. Text does not — see commitStory. `change` and not `input`,
-// because `input` on a <select> fires while the list is still open on some browsers.
+// because `input` on a <select> fires while the list is still open on some browsers — and on a
+// RANGE `change` is the release rather than every pixel of the drag, which is what makes one
+// slider one call.
 document.addEventListener('change', (e) => {
   const el = e.target;
-  if (!el?.dataset?.story || !S.storyId) return;
-  if (el.type !== 'checkbox' && el.tagName !== 'SELECT') return;
+  if (!S.storyId) return;
+  // The sampler's own path: a different route, and it reads the whole panel rather than one field.
+  if (el?.dataset?.gen !== undefined) return void commitGen();
+  if (!el?.dataset?.story) return;
+  // `range` joins the list on 2026-08-31. `coverOpacity` is a [data-story] slider and was excluded
+  // by this guard, so "how much of the cover shows" was the one control on the Story panel that
+  // still needed Save — its own hint said so, which is how it read as deliberate for a day.
+  if (el.type !== 'checkbox' && el.type !== 'range' && el.tagName !== 'SELECT') return;
   void commitStory(el);
+});
+
+/** The number beside a slider, while it is moving.
+ *
+ *  Nothing else redraws it: the save happens on release and deliberately does not repaint, so
+ *  without this the figure sat at its old value through the whole drag and only caught up on the
+ *  next unrelated paint — a control that looks stuck while you are dragging it.
+ *
+ *  `input`, not `change`, because this is the half that has to follow the finger. The write is
+ *  still on release.
+ */
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (el?.type !== 'range') return;
+  const key = el.dataset.gen ?? el.dataset.story;
+  if (!key) return;
+  const out = el.parentElement?.querySelector('.tnum');
+  if (out) out.textContent = READOUT[key] ? READOUT[key](el.value) : el.value;
 });
 
 // ---------- one delegated listener ----------
@@ -7151,6 +7257,13 @@ document.addEventListener('click', async (e) => {
     const closing = V.currentChapter;
     const r = await api.endChapter(S.storyId, {});
     if (r.error) { S.ritual = null; working(null); paint(); return toast(r.error); }
+    // WHICH OF THE FOUR DID NOT RUN. Issue #32: "Facts are not being written based on the last
+    // chapter anymore." The four passes are each wrapped server-side so a chapter can close with
+    // the model down, and until now that meant an empty queue with no reason given — the comment
+    // above claimed this screen says which one failed, and nothing was handed back for it to say.
+    // Kept for the report to draw, and said once here, because a writer who closed a chapter and
+    // got no facts needs to know it was the model and not the chapter.
+    S.ritualPasses = r.passes ?? null;
     V = await api.story(S.storyId);
     // The panel stays on the chapter that just closed and recomputes its whole report from `V`.
     // refetch dropped — so the checklist vanished on the next unrelated press.
@@ -7170,6 +7283,12 @@ document.addEventListener('click', async (e) => {
     // not have been written with. The step falls through to the premise when nothing was proposed.
     S.setupStep = 'cards';
     syncHash(); paint(); refreshManifest();
+    // AND SAY IT, once, if anything did not run. The report keeps it (see `passReport`); this is
+    // the sentence the writer reads without going looking, because "no facts were proposed" and
+    // "the facts pass never ran" look identical on the queue.
+    const missed = missedPasses();
+    if (missed.length) toast(`Chapter closed, but ${missed.map((m) => m.label).join(' and ')} `
+      + `did not run — ${missed[0].why}`);
     // THE OPENING PASSAGE IS NOT WRITTEN HERE ANY MORE — see `savesetup`. The beat rides near the
     // generation point on every call of a chapter, and writing its first passage from this line
     // wrote the one passage in the chapter that could not have it.
@@ -7628,15 +7747,6 @@ document.addEventListener('click', async (e) => {
     paint();
     return toast(on ? 'Showing the demo library. Your own books are untouched.' : 'Back in your own library.');
   }
-  if (d.newworld) {
-    const name = $('worldName')?.value?.trim();
-    if (!name) return toast('Name the world first.');
-    const r = await api.newWorld(name, '');
-    if (r.error) return toast(r.error);
-    LIB = (await api.library()).stories ?? LIB;
-    drawPage();
-    return toast(`"${name}" is a world book. Put its cards in it, then start a book here.`);
-  }
   // One button, both states: `data-fromhere` carries the book id to open and '' to shut.
   if (d.fromhere !== undefined) { S.fromBook = d.fromhere || null; drawPage(); return; }
   if (d.startfrom) {
@@ -7789,11 +7899,10 @@ document.addEventListener('click', async (e) => {
     drawPage();
     return;
   }
-  if (d.savegen) {
-    const gen = {};
-    document.querySelectorAll('[data-gen]').forEach((el) => { gen[el.dataset.gen] = Number(el.value); });
-    const r = await api.settings(S.storyId, gen); toast(r.error ?? 'Saved.'); return;
-  }
+  // The sliders save themselves on release now, so this is a confirmation rather than the only
+  // way to commit them. ONE PATH, not two: the button calls what the autosave calls, or the two
+  // would drift the way the story panel's Save and its autosave nearly did.
+  if (d.savegen) return void commitGen(false);
 });
 
 $('scrim').addEventListener('click', () => {

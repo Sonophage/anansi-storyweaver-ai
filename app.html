@@ -1038,6 +1038,31 @@ textarea.field { resize:vertical; min-height:70px; }
 .row { display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:12.5px; }
 .btn { padding:12px; text-align:center; border-radius:var(--r-pill); background:var(--gold); color:var(--on-gold); font-size:11px; font-weight:500; letter-spacing:.1em; font-variant-caps:all-small-caps; display:block; width:100%; }
 .btn.ghost { background:none; border:1px solid var(--chip); color:var(--mute); font-weight:400; }
+
+/* ISSUE #33 · A PANEL'S OWN SAVE, PINNED WHERE IT CAN BE REACHED. Seth, 2026-08-31: "All save
+   buttons must be at the top and should be sticky."
+
+   NOT A NEW PATTERN — the card form's head has done exactly this since it was written
+   (`cardHead` in app.js: sticky, top 0, --rail behind it). This is that, named, so the three
+   panels with a whole-panel Save stop each writing their own copy of it.
+
+   THE NEGATIVE GUTTER IS LOAD-BEARING. #sideBody carries 22px of side padding, so a bar left at
+   its content width covers the middle of the form and lets it slide past in the 22px either side.
+   Pulled out to the panel edges and re-padded, the bar is opaque all the way across.
+
+   `top:0` holds against #sideBody because that is the scroll container — it carries `.scroll`, and
+   the settle animation on its children ends at `transform:none`, so nothing here inherits a lasting
+   transform that would break sticky. (Do not write the at-rule name for that animation in here:
+   test/web.ts counts declarations by scanning this file, and a mention in a comment reads as a
+   second declaration. It cost a red on 2026-08-31.) */
+.savebar {
+  position:sticky; top:0; z-index:2; background:var(--rail);
+  margin:0 -22px 18px; padding:12px 22px; border-bottom:1px solid var(--line);
+}
+/* The button carries its own inline margins at every call site; inside the bar the padding is the
+   spacing, so they are overridden here rather than removed one by one. */
+.savebar > .btn { margin:0 !important; }
+@media (max-width:719px) { .savebar { margin:0 -20px 14px; padding:10px 20px; } }
 /* THE LONG WAY ROUND, FOLDED. A <details>, because the browser already has this and a state flag
    plus a repaint would throw away whatever is half-typed inside the fold. The default marker goes
    — it is a black triangle no theme here would own — and the chevron is text, so it takes the

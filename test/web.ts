@@ -487,6 +487,13 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     saveAddon: 'PLAN-08: the addon editor is the next slice (2026-08-28)',
     addonOn:   'PLAN-08: the addon editor is the next slice (2026-08-28)',
     delAddon:  'PLAN-08: the addon editor is the next slice (2026-08-28)',
+    // Issue #34, 2026-08-31. Seth: "Name a worl and it's button should be removed from threads."
+    // The strip that made a world book is off the Threads page and nothing replaced it, at his
+    // call — PARKED, not deleted, so that bringing it back is one function rather than a route, a
+    // method and a screen. Everything underneath still works: `POST /api/world` is live, existing
+    // world books draw on Threads and keep their tag, and `storyFollowing` never cared whether the
+    // book it follows is one. What has no door is making a NEW one.
+    newWorld: 'issue #34: the Name-a-world strip came off Threads and nothing replaced it (2026-08-31)',
   };
   const orphans = defined.filter((d) => !new RegExp(`\\bapi\\.${d}\\b`).test(app) && !(d in DEFERRED));
   assert.deepStrictEqual(orphans, [],

@@ -10,6 +10,42 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · The sliders keep themselves too
+
+### Surprise, Focus and Passage length save when you let go
+The whole of Storyteller sat behind its Save button. The three sliders now keep themselves the
+moment you let go of one, and the number beside each follows your finger while you drag rather than
+catching up later. The Save button is still there and still says Saved when you press it — it just
+is not the only way any more.
+
+### And how much of the cover shows
+The same slider on the Story panel was the one control left on that screen that still needed a Save
+press. It does not. Its hint used to say "Save to see it", which is how it read as deliberate for a
+day; it saves itself now like every other switch and picker there.
+
+Anything you TYPE still waits for Save — the title, the premise, the voice, the chapter's name and
+its brief. That has not changed and is not going to: a text box that saved itself mid-sentence would
+fight you.
+
+### When closing a chapter cannot finish, it says which part
+Closing a chapter runs four things: the summary, the character memory, the facts pass, and the scan
+for threads the chapter finished. Each one can fail on its own — usually because the model is asleep
+— and the chapter still closes, which is right. But you were told nothing, so a chapter that
+proposed no facts looked exactly like a chapter whose facts pass never ran.
+
+Now the screen says which one did not run and why, in a box above the queue, and it says plainly
+that nothing was lost and the prose is untouched. Each pass has its own button on that screen, so
+you can run it again once the model is back.
+
+### @ is this book, @@ is every book
+Typing `@` in the composer offers this book's threads and chapters. Typing `@@` widens it to every
+book you have, which is what `@` used to do on its own. The narrow menu carries a line telling you
+`@@` is there.
+
+### Choosing a custom register sticks
+Picking the sixth spice option — the one where you write the register line yourself — snapped back
+to the level you had before, and the box you were meant to type into vanished with it. Fixed.
+
 ## 2026-08-31 · A banner over the threads you open
 
 ### The book you are looking at, above its own cards

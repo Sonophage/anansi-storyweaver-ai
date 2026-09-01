@@ -198,6 +198,10 @@ let refuseNth = 0;
 // shelf, a sleeping router. Pressing the logo reloads the library, so a test can change what comes
 // back and then ask for it. Null means "the fixture", which is every other test here.
 let shelfOverride: any = null;
+// Issue #32. What `POST /api/chapter/end` says about its own four passes, for the one test that
+// closes a chapter. Undefined means it says nothing, which is both the all-ran case and the case
+// of an older server.
+let endPasses: any = undefined;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   if (url.startsWith('https://image.pollinations.ai/')) {
@@ -293,6 +297,10 @@ let shelfOverride: any = null;
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
         writingStyle: 'Cold, spare.', persona: 'Ilva Marren' },
         entries: [{ title: 'Ilva Marren', entryType: 'character', body: 'A envoy with nothing to trade.' }] }
+    // Issue #32. What the chapter close reports about its own four passes. `undefined` is the
+    // normal answer — every pass ran — and a route that predates the field returns nothing at all,
+    // which has to read the same way.
+    : url.startsWith('/api/chapter/end') ? { ...STORY, passes: endPasses }
     : url.startsWith('/api/manifest') ? MANIFEST
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
@@ -449,7 +457,15 @@ const click = (dataset: any) => listeners.click?.[0]?.({
 });
 // Typing into a box the app watches by id. Two of them redraw only their own list rather than the
 // page — the ledger's search and #20's thread picker — and that is the behaviour being checked.
-const typeIn = (id: string, value: string) => listeners.input?.[0]?.({ target: { id, value } });
+//
+// EVERY LISTENER, NOT `[0]`. This was `listeners.input?.[0]`, which silently means "whichever one
+// app.js happens to register first". A second document-level `input` listener landed above the
+// original on 2026-08-31 — the live readout beside a slider — and every typeIn in this file started
+// dispatching to THAT one instead, so nothing typed reached the app at all and the failure surfaced
+// four hundred lines away as `nodes.get('seeds')` being undefined. A harness that depends on
+// registration order tests a different program every time someone adds a listener.
+const typeIn = (id: string, value: string) =>
+  (listeners.input ?? []).forEach((f: Function) => f({ target: { id, value } }));
 click({ open: 's-1' });
 await new Promise((r) => setTimeout(r, 40));
 
@@ -2222,5 +2238,173 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(opened, /World book/, 'tagged as what it is, not as Writing');
   assert.match(opened, /Lore only/, 'and it says there is nothing written in it');
   ok("a book's threads open under a hero banner, and a world book wears its own");
+}
+
+// ---- WHAT AUTOSAVES, AND WHAT STILL WAITS FOR SAVE (2026-08-31). Seth: "toggles and pickers are
+// not autosaving."
+//
+// The story panel's checkboxes and selects did. Two kinds did NOT, and both are the word he used:
+//
+//   - a RANGE. `coverOpacity` is a [data-story] slider and the listener's guard admitted only
+//     checkbox and SELECT, so it fell through. Its own hint said "Save to see it", which is how it
+//     read as deliberate.
+//   - the whole SAMPLER. Every [data-gen] control is a range and the panel had no autosave path at
+//     all — Surprise, Focus and Passage length sat behind Storyteller's Save button.
+//
+// Driven through the real `change` listener rather than by calling commitStory, because the guard
+// that dropped both of these IS the listener. `test/ui/panels.js` covers the same ground with a
+// browser and a real tap; this is the half that runs with nothing installed.
+{
+  const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+  const doc = (globalThis as any).document;
+  const wasQSA = doc.querySelectorAll;
+  // Both paths are gated on a book being open — `if (!S.storyId) return` — and the block before
+  // this one leaves the app on Threads. Asserted rather than assumed: without this the whole
+  // section passes for the wrong reason if the guard is ever what breaks.
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  // The sampler reads the whole panel, so the fake has to BE a panel of sliders.
+  const gens = [
+    { dataset: { gen: 'temperature' }, type: 'range', value: '1.1' },
+    { dataset: { gen: 'top_p' }, type: 'range', value: '0.9' },
+    { dataset: { gen: 'target_words' }, type: 'range', value: '600' },
+  ];
+  doc.querySelectorAll = (sel: string) => (sel === '[data-gen]' ? gens : []) as any;
+  try {
+    POSTED.length = 0;
+    changeIn(gens[0]);
+    await new Promise((r) => setTimeout(r, 30));
+    const gen = POSTED.find((p: any) => String(p.url) === '/api/settings');
+    assert.ok(gen, 'letting go of a sampler slider saves it with no Save pressed');
+    // ALL THREE, because that is what the Save button always sent and what the route merges.
+    assert.strictEqual(gen.body.temperature, 1.1, 'and it carries the slider that moved');
+    assert.strictEqual(gen.body.target_words, 600, 'and the rest of the panel with it');
+    // Numbers, not strings: `Number(el.value)` is the whole reason this is not a spread.
+    assert.strictEqual(typeof gen.body.top_p, 'number', 'as numbers, not the strings a range gives');
+
+    POSTED.length = 0;
+    changeIn({ dataset: { story: 'coverOpacity' }, type: 'range', value: '55' });
+    await new Promise((r) => setTimeout(r, 30));
+    const cov = POSTED.find((p: any) => String(p.url) === '/api/story');
+    assert.ok(cov, 'and so does the cover slider on the story panel');
+    assert.strictEqual(cov.body.story.coverOpacity, 55, 'as a number the column can clamp');
+
+    // The two that already worked, asserted here so a future guard cannot drop them quietly.
+    POSTED.length = 0;
+    changeIn({ dataset: { story: 'lockoutOn' }, type: 'checkbox', checked: false });
+    await new Promise((r) => setTimeout(r, 30));
+    const box = POSTED.find((p: any) => String(p.url) === '/api/story');
+    assert.ok(box, 'a checkbox still saves itself');
+    assert.strictEqual(box.body.story.lockoutOn, false,
+      'and reads `checked`, not `value` — an unchecked box\'s value is the string "on"');
+
+    POSTED.length = 0;
+    changeIn({ dataset: { story: 'pov' }, tagName: 'SELECT', type: 'select-one', value: 'first' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.ok(POSTED.find((p: any) => String(p.url) === '/api/story'), 'a picker still saves itself');
+
+    // AND THE ABSENCE, which is the half that passes for the wrong reason. Text must still wait:
+    // a box that saved itself mid-sentence would fight the writer.
+    POSTED.length = 0;
+    changeIn({ dataset: { story: 'premise' }, type: 'text', value: 'half a th' });
+    changeIn({ dataset: { story: 'title' }, tagName: 'TEXTAREA', type: 'textarea', value: 'half a ti' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.strictEqual(POSTED.filter((p: any) => String(p.url) === '/api/story').length, 0,
+      'and typing into free text still commits nothing until Save');
+  } finally { doc.querySelectorAll = wasQSA; }
+  ok('sliders save themselves — the sampler and the cover — and free text still waits for Save');
+}
+
+// ---- WHEN A CHAPTER CLOSE'S PASSES DO NOT RUN, THE SCREEN SAYS SO (issue #32). Seth: "Facts are
+// not being written based on the last chapter anymore."
+//
+// Four model passes run on close — summary, character memory, facts, finished threads — and each is
+// wrapped server-side so a chapter can still close with the model down. That wrapper was a bare
+// `catch {}` returning null, and the client discarded the two values the route did hand back, so a
+// writer got an empty queue and no reason. The handler's own comment claimed "the screen says which
+// one did not run", which was the thing it did not do.
+//
+// The EMPTY case is asserted first and it is the half that matters: a report drawn when nothing
+// failed would be a permanent red box on a screen a writer sees after every chapter.
+{
+  const closeChapter = async () => {
+    click({ endchapter: 'ask' });            // arms
+    click({ endchapter: 'ask' });            // and closes
+    await new Promise((r) => setTimeout(r, 60));
+    return html('sideBody');
+  };
+
+  endPasses = undefined;
+  let side = await closeChapter();
+  assert.doesNotMatch(side, /did not run/,
+    'a close where everything ran draws no failure report');
+
+  // One pass down. The reason is the model's own words, so it has to be printed rather than
+  // classified — "the model did not answer" and "nothing to read in this chapter" send a writer
+  // to two different places.
+  endPasses = { summary: null, memory: null, facts: 'the model did not answer', finished: null };
+  side = await closeChapter();
+  assert.match(side, /One pass did not run/, 'a failed pass is reported, and counted');
+  assert.match(side, /the facts pass/, 'named as the writer knows it');
+  assert.match(side, /the model did not answer/, 'with the reason, verbatim');
+  // NOT AS A LOST CHAPTER. The prose is committed before any of the four run, and a writer who
+  // reads this box has to know that before they go looking for their words.
+  assert.match(side, /Nothing was lost/, 'and says the chapter itself closed');
+  // The three that ran are not listed. A report that names all four every time is a report nobody
+  // reads to the end.
+  assert.doesNotMatch(side, /the character memory/, 'and a pass that ran is not in the list');
+
+  endPasses = { summary: 'llama-server is not running', facts: 'llama-server is not running' };
+  side = await closeChapter();
+  assert.match(side, /2 passes did not run/, 'two failures are counted as two');
+  assert.match(side, /the summary/, 'both are named');
+  assert.match(side, /the facts pass/, 'both are named');
+
+  endPasses = undefined;
+  ok('a chapter close reports which of its four passes did not run, and why (#32)');
+}
+
+// ---- A PANEL'S SAVE IS AT THE TOP AND PINNED (issue #33). Seth, 2026-08-31: "All save buttons
+// must be at the top and should be sticky."
+//
+// Three panels have a Save that commits the WHOLE panel, and all three are long enough to scroll on
+// a phone: Story, Chapter and Storyteller. Storyteller's was the last element on the longest panel
+// in the app.
+//
+// SCOPED, and the scope is the point. The card form's head has been sticky since it was written, so
+// it is the pattern rather than a fourth copy. The per-item saves — one per outfit, per state, per
+// addon, per mode prompt — stay beside the thing they save: there are many of them on one screen
+// and "at the top" has no meaning for a button that belongs to the third card in a list. Seth's
+// call, asked and answered 2026-08-31.
+{
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(css, /\.savebar\s*\{[^}]*position:\s*sticky/,
+    '.savebar must actually be sticky — the class is the whole mechanism');
+  assert.match(css, /\.savebar\s*\{[^}]*top:\s*0/, 'and pinned to the top of the scrolling panel');
+  // #sideBody is the scroll container, and it is only that because it carries `.scroll`. Sticky
+  // against a non-scrolling ancestor silently does nothing, which is the failure this catches.
+  assert.match(css, /id="sideBody" class="scroll"/,
+    '#sideBody must carry .scroll or nothing in the panel can be sticky against it');
+
+  for (const [panel, label] of [['story', 'Story'], ['chapter', 'Chapter'], ['teller', 'Storyteller']]) {
+    click({ panel });
+    await new Promise((r) => setTimeout(r, 40));
+    const body = html('sideBody');
+    const bar = body.match(/<div class="savebar">[\s\S]*?<\/div>/)?.[0] ?? '';
+    assert.ok(bar, `the ${label} panel draws a .savebar`);
+    assert.match(bar, /data-save(story|gen)="1"/, `and the ${label} panel's Save is inside it`);
+    // AT THE TOP, which is the half a class name cannot promise. Measured as a position in the
+    // markup rather than trusted: the bar has to come before the first field on the panel.
+    const barAt = body.indexOf('class="savebar"');
+    const firstField = body.search(/class="field"|type="range"/);
+    assert.ok(firstField === -1 || barAt < firstField,
+      `the ${label} panel's Save must come before its first field `
+      + `(bar at ${barAt}, first field at ${firstField})`);
+    // AND EXACTLY ONE. Moving a button is how you end up with two of it.
+    assert.strictEqual((body.match(/data-save(story|gen)="1"/g) ?? []).length, 1,
+      `the ${label} panel has exactly one whole-panel Save`);
+  }
+  ok('Story, Chapter and Storyteller each pin one Save above their fields (#33)');
 }
 console.log(`\n${n} checks passed`);
