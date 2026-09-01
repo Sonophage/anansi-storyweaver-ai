@@ -1080,6 +1080,28 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 @media (max-width:1099px) { .shelfgrid { grid-template-columns:repeat(3,1fr); } }
 @media (max-width:719px) { .shelfgrid { grid-template-columns:repeat(2,1fr); gap:12px; } }
 
+/* FIRST RUN. Centred in the page rather than pinned to the top, because there is nothing above it
+   to be under and a heading alone at the top of an empty screen reads as a page that failed to
+   load. */
+.firstrun { display:flex; flex-direction:column; justify-content:center; gap:26px;
+  min-height:min(560px, 70vh); max-width:900px; }
+/* The one gold line on the screen. A border under the input rather than a box around it: this is
+   the thing to type in, and a field among three outlined buttons is not obviously that. */
+.sparkline { display:flex; align-items:flex-end; gap:16px; border-bottom:1px solid var(--gold);
+  padding-bottom:14px; }
+.sparkline > textarea { flex:1; min-width:0; background:none; border:0; padding:0; resize:none;
+  font-size:17px; line-height:1.55; color:var(--ink); min-height:27px; field-sizing:content; }
+.sparkline > textarea:focus { outline:none; }
+.firstways { display:flex; gap:10px; flex-wrap:wrap; }
+.firstways > .btn { width:auto; padding:9px 14px; height:auto; font-size:12px; letter-spacing:0;
+  font-variant-caps:normal; font-weight:400; border-radius:var(--r); }
+@media (max-width:719px) {
+  .firstrun { gap:22px; min-height:0; }
+  .firstrun .serif { font-size:34px; }
+  .firstways { flex-direction:column; }
+  .firstways > .btn { width:100%; text-align:center; }
+}
+
 /* THE RESUME BAND. Structural only: everything that depends on which book it is drawing stays
    inline in resumeBand().
 
@@ -1109,11 +1131,15 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   padding:18px 30px 16px; }
 /* The band's own type. In CSS rather than inline on the spans because a phone has to make all
    three of these smaller at once, and a media query cannot reach an inline style. */
+.resumeband .bandhead { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
 .resumeband .bandtitle { font-size:36px; line-height:1.02; color:var(--ink-bright); }
 .resumeband .bandchapter { font-size:19px; font-style:italic; color:var(--label); }
 .resumeband .bandprose { font-style:italic; font-size:17px; line-height:1.6; color:var(--narr);
   text-wrap:pretty; }
 .resumeband .bandgo { width:auto; padding:0 24px; height:38px; }
+.resumeband .bandacts { display:flex; align-items:center; gap:10px; margin-top:auto; flex-wrap:wrap; }
+.resumeband .bandgap { flex:1; }
+.resumeband .bandchips { display:flex; gap:8px; }
 .resumeband .quote { display:flex; align-items:flex-start; gap:16px; max-width:680px; min-width:0; }
 .resumeband .quote > .rule { width:1px; align-self:stretch; background:var(--gold-dim); opacity:.5;
   flex:0 0 auto; }
@@ -1142,6 +1168,17 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   /* The gold action takes the width, because that is where a thumb is. The second button keeps its
      own row rather than being dropped — reading from the top is not a desk-only intention. */
   .resumeband .bandgo { width:100%; padding:0 16px; }
+  /* The title over the cover. `bottom` measured from the band's own box puts the head's baseline
+     block on the art's bottom edge — the art is the first 132px of a stacked band, so
+     `calc(100% - 132px)` is that edge and nothing has to know the title's own height. */
+  .resumeband { position:relative; }
+  .resumeband .bandhead { position:absolute; left:16px; right:16px; bottom:calc(100% - 132px);
+    padding-bottom:9px; }
+  /* The two chips take a row of their own and split it, because at 353px they do not sit beside
+     two buttons and wrapping them one per line is three rows of chrome under the prose. */
+  .resumeband .bandgap { display:none; }
+  .resumeband .bandchips { width:100%; gap:7px; }
+  .resumeband .bandchips > .chip { flex:1; text-align:center; }
 }
 /* 3:4, the shape of a page. Set as an aspect-ratio rather than a height so the card holds its
    proportions at every column width the grid resolves to. */

@@ -189,6 +189,10 @@ const DRAWN: string[] = [];
 let inFlight = 0, peakFlight = 0;
 // Set by a test to make the Nth drawn request come back 429, so the refusal tile can be checked.
 let refuseNth = 0;
+// Set by a test to answer GET /api/stories with something other than the library below — an empty
+// shelf, a sleeping router. Pressing the logo reloads the library, so a test can change what comes
+// back and then ask for it. Null means "the fixture", which is every other test here.
+let shelfOverride: any = null;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   if (url.startsWith('https://image.pollinations.ai/')) {
@@ -205,7 +209,7 @@ let refuseNth = 0;
   // Three books, not one, and the two extras exist only so the shelf's ORDER can be wrong. With a
   // single story there is no grid to come after the New story button, so an assertion about where
   // that button sits is true wherever the button is put.
-  const body = url.startsWith('/api/stories') ? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.',
+  const body = url.startsWith('/api/stories') ? (shelfOverride ?? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.',
         // OWED SOMETHING, on purpose. What is waiting is drawn on the band now, which means it is
         // drawn for the hero book and nowhere else — so a hero owed nothing makes the chips
         // untestable, and the assertion would pass against a band that could never draw one.
@@ -231,7 +235,7 @@ let refuseNth = 0;
       { id: 's-4', title: 'The Drowned Almanac', status: 'archived', updatedAt: 0, words: 60,
         last: 'It ended.', proposed: 0, unpaid: 0, flags: 0 }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
-      look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } }
+      look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } })
     : url.startsWith('/api/story') ? STORY
     // The chapter naming its own next chapter. Answered properly rather than with {}, because an
     // empty answer is a different case and it has its own guard.
@@ -2082,5 +2086,51 @@ ok('the house style can be re-rolled, into the box and not into the story');
   } finally { doc.querySelector = wasQS; }
 }
 ok('a voice can be saved to the library, pulled back into any book, and the default voice has a surface');
+
+// FIRST RUN — the one screen where the model being asleep is likeliest and worst.
+//
+// This app is local, so day one is the day llama-server is most likely down, and the first press
+// is the worst possible place to find that out. The line is CONDITIONAL, and a conditional that is
+// only ever seen in one state is not a conditional: both branches are driven here, because the
+// failure that matters is the screen telling a writer with a loaded model that it is asleep.
+//
+// Driven through the logo, which reloads the library — the only door in this harness that asks
+// for /api/stories again after the first paint.
+{
+  const shelf = (over: any) => { shelfOverride = over; };
+  try {
+    // Nothing on the shelf, and the router down.
+    shelf({ stories: [], model: null, slot: null, gen: STORY.gen, look: null });
+    click({ home: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+    const cold = html('page');
+    assert.match(cold, /Nothing on the shelf yet/, 'an empty shelf is the idea box, not a heading');
+    assert.match(cold, /id="idea"/, 'and the box is on it, rather than a button that goes to find one');
+    // The same id and the same action the create page uses, so there is one spark path and not two.
+    assert.match(cold, /data-spark="1"/, 'the gold press sparks from here directly');
+    assert.doesNotMatch(cold, /class="grid"|class="shelfgrid"|dashed/,
+      'no empty grid and no dashed cells — there is nothing to put in them');
+    assert.match(cold, /The model is asleep/, 'a sleeping router is said out loud before the first press');
+    assert.match(cold, /Wake the model first/, 'with somewhere to go about it');
+
+    // The same screen with the model up. THIS is the half that fails silently: a line printed
+    // unconditionally passes every assertion above and lies to everyone whose model is running.
+    shelf({ stories: [], model: 'Qwen3.6-WNTH-35B-A3B-NN', slot: SLOT, gen: STORY.gen, look: null });
+    click({ home: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+    const warm = html('page');
+    assert.match(warm, /Nothing on the shelf yet/, 'still the idea box');
+    assert.doesNotMatch(warm, /The model is asleep/,
+      'and it does not claim a loaded model is asleep');
+    assert.doesNotMatch(warm, /Wake the model first/,
+      'nor offer to wake something already awake');
+    assert.match(warm, /Nothing here leaves the machine/, 'the local promise is made either way');
+  } finally {
+    shelfOverride = null;
+    click({ home: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+  }
+}
+ok('a first run is the idea box, and says the model is asleep only when it is');
 
 console.log(`\n${n} checks passed`);

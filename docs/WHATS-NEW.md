@@ -108,6 +108,19 @@ you want the other thing.
 The sentence is always narration. If the last thing written was a character speaking, the band says
 so rather than putting their words where the narrator's would go.
 
+### Starting with no books is now the box you type into
+The empty shelf used to be a heading, a sentence, and a button that took you somewhere else to find
+the place to type. It is the place to type: a line to give me, a gold **Spark it**, and underneath
+it the two quieter ways in — start it yourself, or bring a book in.
+
+If llama-server is not running, it says so there, before you press anything, and offers to go and
+wake it. When the model is up it says nothing about it.
+
+### The band and the shelf fit a phone
+The cover goes to the top with the title set on it, the sentence you stopped on runs underneath, and
+**Carry on writing** takes the full width. What a book is waiting on splits into two chips side by
+side. The shelf stays two across.
+
 ### What a book is waiting on now sits next to the book
 The strip along the top of My stories listed the books that wanted something from you and a number
 beside each one. That number was never the number of things waiting — a book with nine proposed

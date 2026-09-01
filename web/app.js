@@ -4389,7 +4389,12 @@ function resumeBand(s) {
              An empty right-hand side is honest; a 0% is not. -->
         ${pct === null ? '' : `<span class="kind" style="color:var(--label)">context ${pct}%</span>`}
       </span>
-      <span style="display:flex; align-items:baseline; gap:14px; flex-wrap:wrap">
+      <!-- ONE node, moved rather than duplicated. On a phone this sits over the bottom of the
+           cover, which is what the design draws and what buys back the height the stacked layout
+           costs — done by taking it out of flow in the media query, not by rendering the title
+           twice and hiding one. Two copies of a book's title in the DOM is two things to keep in
+           step and two things a text assertion counts. -->
+      <span class="bandhead">
         <span class="serif bandtitle">${esc(s.title)}</span>
         ${chapter ? `<span class="serif bandchapter">${esc(chapter)}</span>` : ''}
       </span>
@@ -4413,10 +4418,11 @@ function resumeBand(s) {
         ${chapters > 1 ? `<span class="bandmeter">${Array.from({ length: chapters }, (_, i) =>
           `<i class="${i + 1 === at ? 'now' : i + 1 < at ? 'done' : ''}"></i>`).join('')}</span>` : ''}
       </span>` : ''}
-      <span style="display:flex; align-items:center; gap:10px; margin-top:auto; flex-wrap:wrap">
+      <span class="bandacts">
         <button class="btn bandgo" data-carryon="${esc(s.id)}">Carry on writing</button>
         <button class="btn ghost bandgo" data-readfrom="${esc(s.id)}">Read from chapter one</button>
-        <span style="flex:1"></span>
+        <span class="bandgap"></span>
+        <span class="bandchips">
         <!-- WHAT IS OWED, BESIDE THE BOOK IT IS ABOUT. This replaces the page-level strip: an owed
              thing reads as information next to its book and as a notification at the top of a page.
              The counts come off the row rather than off waiting(), which collapses every book
@@ -4427,6 +4433,7 @@ function resumeBand(s) {
         ${Number(s.unpaid) ? `<button class="chip" data-owed="${esc(s.id)}" data-owedpanel="strings"
           style="font-size:11.5px; padding:6px 12px">${s.unpaid} promise${
           s.unpaid === 1 ? '' : 's'} unpaid</button>` : ''}
+        </span>
       </span>
     </span>
   </div>`;
@@ -4538,11 +4545,44 @@ const WPAGES = {
     // sets `S.models` to an array either way, so a router that never answers is asked once and not
     // on every repaint.
     if (S.models === null) loadModels();
-    if (!LIB.length) return `<div class="split"><div style="flex:1">
-      <div class="serif" style="font-size:30px; color:var(--ink-bright)">Nothing yet</div>
-      <div class="hint">Start one and it becomes the hero of this page.</div>
-      <button class="btn" data-open="new" style="width:auto; padding:0 28px; height:48px; margin-top:16px">Create a story</button>
-    </div></div>`;
+    // FIRST RUN. The idea box IS the screen — no empty grid, no dashed cells, no tour. A shelf
+    // page with nothing on it used to be a heading, a sentence and a button that took you somewhere
+    // else to find the box; this is the box.
+    //
+    // AND THE MODEL IS ASLEEP MORE OFTEN HERE THAN ANYWHERE. This app is local, so day one is the
+    // day llama-server is least likely to be up, and the first press is the worst place to
+    // discover it. `SRV.slot` is the same signal the rail's dot reads, so the two cannot disagree.
+    // Conditional, because a first run with a loaded model must not claim it is asleep.
+    if (!LIB.length) {
+      const asleep = !SRV.slot;
+      return `<div class="firstrun">
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <span class="serif" style="font-size:44px; line-height:1.06; color:var(--ink-bright)"
+            >Nothing on the shelf yet.</span>
+          <span style="font-size:15px; line-height:1.6; color:var(--mute); max-width:620px">Give me a
+            sentence and I will hand you back a title, a premise, a voice and a cast &mdash; none of
+            it written down until you accept it.</span>
+        </div>
+        <!-- The same id the create page uses, so data-spark reads this box with no second path
+             through the handler. Only one of the two screens is ever mounted. -->
+        <div class="sparkline">
+          <textarea id="idea" class="field serif" rows="1"
+            placeholder="A clerk finds his own name in a ledger of debts owed to a harbour&hellip;"
+            ></textarea>
+          <button class="btn" data-spark="1" style="width:auto; padding:0 22px; height:42px"
+            >Spark it</button>
+        </div>
+        <div class="firstways">
+          <button class="btn ghost" data-blank="1">Start it myself, blank</button>
+          <button class="btn ghost" data-nav="import">Import a book or a character card</button>
+          ${asleep ? `<button class="btn ghost" data-nav="prefs"
+            style="border-color:var(--gold-dim); color:var(--gold-dim)">Wake the model first</button>` : ''}
+        </div>
+        <span style="font-size:11.5px; line-height:1.6; color:var(--faint); max-width:560px">${asleep
+          ? 'The model is asleep, so sparking will take a moment while it loads. Nothing here leaves the machine.'
+          : 'Nothing here leaves the machine.'}</span>
+      </div>`;
+    }
     // listStories is ordered by updated_at, so the first row is the one written into last. It
     // gets the hero; adding a story is the next thing on the page, then the rest. Archived books
     // sink to the end first, so an archived book never takes the hero slot.
