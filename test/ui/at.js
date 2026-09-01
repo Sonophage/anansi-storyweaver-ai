@@ -281,6 +281,22 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
 // with one book on the shelf both lists would be identical and every assertion below would pass
 // while saying nothing.
 {
+  // A SECOND BOOK, MADE HERE. The fixture is one story, so without this the wide list has nothing
+  // to reach and every assertion below would pass by having nothing to find — which is what the
+  // first run of this did. handlers.js makes its own extra books for the same reason.
+  await page.eval(`(async () => {
+    const has = (await (await fetch('/api/stories')).json()).stories.some(s => s.title === 'The Second Shelf');
+    if (has) return 'already';
+    const r = await (await fetch('/api/stories', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'The Second Shelf', premise: 'Another book entirely.' }) })).json();
+    await fetch('/api/entry', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storyId: r.id, entry: { id: '', entryType: 'character',
+        activation: 'always_on', keys: [], lastEditor: 'human', title: 'Silvermark',
+        body: '[Silvermark: a name that exists only in the other book]' } }) });
+    return r.id; })()`);
+  await page.goto(B + "/#" + sid + "/anansi");
+  for (let i = 0; i < 40 && !(await page.visible('#askBox')); i++) await wait(250);
   const shelf = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.map(s=>s.title))()");
   ok(`the shelf has more than one book, or this cannot be measured (${shelf.length})`, shelf.length > 1);
 

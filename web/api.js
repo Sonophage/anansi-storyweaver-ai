@@ -79,6 +79,7 @@ export const api = {
   createStory:  (s)              => j('/api/stories', 'POST', s),
   // A world book, and a book set in one. The second names the world as `storyId` so the ownership
   // gate in serve.ts checks it before the handler runs.
+  setDemo:      (on)             => j('/api/demo', 'POST', { on }),
   newWorld:     (title, premise)  => j('/api/world', 'POST', { title, premise }),
   bookFrom:     (storyId, title)  => j('/api/story/from', 'POST', { storyId, title }),
   spark:        (idea)           => j('/api/spark', 'POST', { idea }),
