@@ -2301,6 +2301,35 @@ export const routes: Record<string, Handler> = {
    *  Nothing in the source story changes, so the source view is not returned — the destination's is,
    *  which is what a caller standing in the destination would want and costs the other caller
    *  nothing, since it does not repaint. */
+  /** ISSUE #36 · A FOLLOWED CARD, PER CARD. Three presses, one mechanism: a local row that carries
+   *  the origin it came from. See the migration note in `src/db.ts` for the three states and why
+   *  there is no mirroring.
+   *
+   *  All three name a story the writer owns, so the dispatcher's gate covers them; the db functions
+   *  check the SOURCE book's owner as well, which the gate cannot see. */
+  'POST /api/entry/unlink': (c) => {
+    const made = db.unlinkEntry(String(c.body.storyId), c.owner, String(c.body.entryId ?? ''));
+    if (!made) return { error: 'that card is not one this book follows, or this book has already '
+      + 'made its own decision about it' };
+    return { entryId: made, ...viewOf(c.body.storyId) };
+  },
+  /** Hand it back, and say which version survives. `keep: 'mine'` writes this book's wording up
+   *  into the world book first, so every book following it gets what was written here. */
+  'POST /api/entry/relink': (c) => {
+    const r = db.relinkEntry(String(c.body.storyId), c.owner, String(c.body.entryId ?? ''),
+      c.body.keep === 'mine' ? 'mine' : 'theirs');
+    if (!r) return { error: 'that card has no book to go back to — the original is gone, so this '
+      + 'copy is the only one left' };
+    return { ...r, ...viewOf(c.body.storyId) };
+  },
+  /** Remove it from this book without touching the book it lives in. */
+  'POST /api/entry/drop': (c) => {
+    const made = db.dropFollowed(String(c.body.storyId), c.owner, String(c.body.entryId ?? ''));
+    if (!made) return { error: 'that card is not one this book follows, or this book has already '
+      + 'made its own decision about it' };
+    return { dropped: made, ...viewOf(c.body.storyId) };
+  },
+
   'POST /api/entry/copy': (c) => {
     const from = String(c.body.storyId ?? '');
     const into = String(c.body.into ?? '');

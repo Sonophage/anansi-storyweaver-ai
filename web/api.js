@@ -194,6 +194,10 @@ export const api = {
   mute: (storyId, chapterId, entryId, off) => j('/api/mute', 'POST', { storyId, chapterId, entryId, off }),
   // Issue #9: correct one passage against canon, on demand. A model call, so it is slow.
   repair:       (o)              => j('/api/repair', 'POST', o),
+  // #36. A followed card, per card: take it over, hand it back, or take it out of this book.
+  takeover:     (o)              => j('/api/entry/unlink', 'POST', o),
+  relink:       (o)              => j('/api/entry/relink', 'POST', o),
+  dropfollowed: (o)              => j('/api/entry/drop', 'POST', o),
   decide:       (o)              => j('/api/proposal', 'POST', o),
   // Move a proposal before deciding it: which room, and the words that wake the card.
   moveprop:     (o)              => j('/api/proposal/where', 'POST', o),

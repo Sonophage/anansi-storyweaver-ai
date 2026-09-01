@@ -10,6 +10,39 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · A shared thread, decided one thread at a time
+
+Following a world book used to be all or nothing: every thread in it reached your book, live, and no
+single one could be excepted. Now each card decides for itself, and every choice is reversible.
+
+### Edit a shared thread from either book
+Open a followed thread here and its description is editable, with **Save to <the world book>**. It
+writes the one card — so every book following that world sees the change. There is one thread, not
+two copies being kept in step, which is why it cannot drift.
+
+Its rooms, its timeline and what wakes it are still edited in the book it lives in.
+
+### Make it this book's own
+**Make it this book's own** copies the thread here exactly as it stands — rooms, wardrobe and all —
+and stops it following. From then on it is an ordinary thread of this book: edit it, give it states,
+delete it, and the world book never knows. Changes there stop reaching it.
+
+The card remembers where it came from, so there are two ways back:
+
+- **Send this version up and follow again** — your wording goes into the world book, every book
+  following it gets it, and this book goes back to reading the shared card
+- **Drop this copy and follow again** — throw yours away and take the world's
+
+### Or take it out of this book only
+**Remove it from this book** stops the thread reaching your prompts and leaves it completely
+untouched where it lives. Threads you have taken out are listed under **Part of a world**, each with
+**Bring it back**.
+
+### And when a book is deleted, its threads can go home
+Deleting a book that follows a world offers **Send them home** first, by name. A thread you took over
+lands back **on the card it came from** rather than beside it, so nothing is doubled — and anything
+written in this book arrives in the world as a new thread.
+
 ## 2026-09-01 · You can ask Anansi to correct a contradiction
 
 ### Let Anansi correct it, on the flag itself

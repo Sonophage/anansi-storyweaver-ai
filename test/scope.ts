@@ -283,6 +283,95 @@ ok('a story cannot be deleted by someone who does not own it');
     db.updateStory(book, { loreFrom: world });
     assert.deepStrictEqual(db.followersOf(world).map((x: any) => x.title), ['The Anagram of Ash'],
       'and the world knows who would lose threads if it went');
+
+    /* ISSUE #36 · THE PER-CARD DOORS ARE SCOPED THE SAME WAY THE READ PATH IS.
+     *
+     * Three new operations reach ACROSS books by design — take a followed card over, hand it back,
+     * take it out of this book — and one of them WRITES to the other book. So each has to check the
+     * owner of the source as well as the destination, which the dispatcher's gate cannot do: it
+     * resolves one `storyId` and this is the second book.
+     *
+     * The write-through in `upsertEntry` is the sharpest of the four. It turns a save against a
+     * foreign id into a save in the book that id lives in, and without the owner check that is a
+     * writer editing somebody else's canon by pointing at it. */
+    {
+      const foreign = db.entriesOf(bStory.id)[0] as any;
+      assert.ok(foreign, "bob's book really has a card to aim at");
+
+      // Alice's book follows HER world, so bob's card is not one it follows. Every door refuses it.
+      assert.strictEqual(db.unlinkEntry(book, alice, foreign.id), null,
+        'a card from a book this one does not follow cannot be taken over');
+      assert.strictEqual(db.dropFollowed(book, alice, foreign.id), null,
+        'nor removed, which would write a tombstone claiming a stranger\'s card');
+
+      /* AND THE WRITE-THROUGH DOES NOT CROSS OWNERS.
+       *
+       * THIS HAS TO BE SET UP AGAINST BOB'S BOOK OR IT PROVES NOTHING, and the first version of it
+       * did not: while `book` follows Alice's own world, the redirect never fires for a card of
+       * bob's at all — the lookup is scoped to the followed book — so deleting the owner check left
+       * every assertion green. Falsified on 2026-09-01 and rewritten.
+       *
+       * The state below is the one the check exists for and the one `entriesFor` already refuses on
+       * the read side: `lore_from` naming a book somebody else owns. The column is set on a story
+       * the owner controls, but a source can change hands and an import can write it, and a WRITE
+       * crossing owners through here is a writer editing another writer's canon by pointing at it. */
+      db.updateStory(book, { loreFrom: bStory.id });
+      const was = foreign.body;
+      db.upsertEntry(book, alice, { id: foreign.id, title: foreign.title, body: 'ALICE WAS HERE',
+        entryType: foreign.entry_type, activation: 'always_on' });
+      assert.strictEqual((db.entriesOf(bStory.id).find((e: any) => e.id === foreign.id) as any).body,
+        was, "a save aimed through a followed book somebody else owns must not reach their card");
+      // It fell through to minting a card in her own book, which is the safe answer — not silence.
+      assert.ok(db.entriesOf(book).some((e: any) => e.body === 'ALICE WAS HERE'),
+        'and the write lands in her own book instead of vanishing');
+      db.delEntry(book, (db.entriesOf(book).find((e: any) => e.body === 'ALICE WAS HERE') as any).id);
+      // Taking one of bob's cards over through that column is refused for the same reason.
+      assert.strictEqual(db.unlinkEntry(book, alice, foreign.id), null,
+        "a card in a followed book somebody else owns cannot be taken over either");
+      assert.strictEqual(db.dropFollowed(book, alice, foreign.id), null, 'nor tombstoned');
+      db.updateStory(book, { loreFrom: world });
+
+      // The same three, aimed the right way, from the wrong writer. `bob` owns neither book here.
+      const hers = db.entriesOf(world)[0] as any;
+      assert.strictEqual(db.unlinkEntry(book, bob, hers.id), null,
+        'and none of the three can be driven by a writer who owns neither book');
+      assert.strictEqual(db.dropFollowed(book, bob, hers.id), null);
+      const took = db.unlinkEntry(book, alice, hers.id)!;
+      assert.ok(took, 'she can take her own world\'s card over');
+      assert.strictEqual(db.relinkEntry(book, bob, took, 'mine'), null,
+        'and bob cannot hand her copy back, which would write into her world book');
+      assert.match((db.entriesOf(world).find((e: any) => e.id === hers.id) as any).body,
+        /a house that lends at ruin/, 'her world card is untouched');
+      db.relinkEntry(book, alice, took, 'theirs');
+
+      /* AND HANDING A COPY BACK CANNOT WRITE INTO A BOOK SOMEBODY ELSE OWNS.
+       *
+       * `keep: 'mine'` writes this book's wording UP onto the origin, so it is the one operation
+       * here that edits another book on purpose. `ownsStory(storyId, o)` refuses a writer who does
+       * not own the follower — which is what caught the first version of this — but that is not the
+       * check being tested. The one being tested is on the SOURCE, and reaching it needs a copy
+       * whose origin now lives in someone else's book.
+       *
+       * `unlinkEntry` will not make that state, so it is built here directly, which is precisely
+       * what "the source changed hands" or an import writing `lore_from` looks like from the inside.
+       * Falsified on 2026-09-01: without this the check reads as covered and is not. */
+      const mine2 = db.unlinkEntry(book, alice, hers.id)!;
+      assert.ok(mine2, 'a copy of her own world card, to point somewhere else');
+      const bobCard = db.entriesOf(bStory.id)[0] as any;
+      const bobWas = bobCard.body;
+      db.rawSetOrigin(book, mine2, bobCard.id);
+      db.updateStory(book, { loreFrom: bStory.id });
+      db.upsertEntry(book, alice, { id: mine2, title: 'Rewritten', body: 'ALICE WROTE THIS',
+        entryType: 'lore', activation: 'always_on' });
+      assert.strictEqual(db.relinkEntry(book, alice, mine2, 'mine'), null,
+        'handing a copy back into a book she does not own must be refused outright');
+      assert.strictEqual((db.entriesOf(bStory.id).find((e: any) => e.id === bobCard.id) as any).body,
+        bobWas, "and his card must be byte-for-byte what it was");
+      db.updateStory(book, { loreFrom: world });
+      db.rawSetOrigin(book, mine2, null);
+      db.delEntry(book, mine2);
+    }
+    ok('the per-card follow doors check the owner of BOTH books, including the write-through (#36)');
   }
   ok('a book can follow another book\'s threads, one hop, same owner, its own cards winning');
 

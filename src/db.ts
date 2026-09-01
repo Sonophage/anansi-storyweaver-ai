@@ -113,6 +113,34 @@ function migrate() {
   add('stories', 'active_branch', 'TEXT');
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
+  /* ISSUE #36 · A FOLLOWED CARD, PER CARD.
+   *
+   * `stories.lore_from` is one column and therefore one answer for a whole ledger: a book follows
+   * another book's threads, all of them, live, and no card can be excepted. Seth's ask was per-card:
+   * *"I should be able to delete it from the copied story without runing it for the current story
+   * I.e. Unlinking it. I should aslo have an option to update the card bi drectionally or only one
+   * way."* And his design for it, 2026-09-01: *"on unlink it would just make a copy of the card in
+   * that state but keep the original id in case it gets reconnected and then resynced."*
+   *
+   * THREE STATES ON ONE COLUMN, and the shape of them is what keeps this small:
+   *
+   *   no row at all   the card is READ THROUGH from the book this one follows. There is one card,
+   *                   so it cannot drift — "in sync always" by construction rather than by a
+   *                   mirror that has to be maintained. Editing it from here now writes to where it
+   *                   lives, which is the bidirectional half of the ask.
+   *   sync = 'off'    a real row of this book's own, carrying `origin_id`: the copy taken at the
+   *                   moment of unlinking. It diverges from here on, and the origin is remembered
+   *                   so it can be reconnected.
+   *   sync = 'dropped'  a tombstone. This book does not want that card. No content, never rendered,
+   *                   never exported — it exists only to stop the read-through putting it back.
+   *
+   * NO MIRRORING AND NO CONFLICT RULE, deliberately. The obvious build of "bidirectional" is a copy
+   * on each side kept equal by fanning every write out to the other, which needs a direction, a
+   * last-write-wins rule, and the same fan-out again in `upsertAddon` for the rooms. Reading through
+   * a single card needs none of those and cannot be out of step.
+   */
+  add('entries', 'origin_id', 'TEXT');
+  add('entries', 'sync', 'TEXT');
   // A spice LEVEL picks one of five fixed lines. This replaces the line outright when a
   // story needs something the five do not say.
   add('stories', 'spice_note', 'TEXT');
@@ -729,7 +757,7 @@ export const listStories = (o: string) => q(`
           ORDER BY p2.ordinal DESC LIMIT 1))
   SELECT s.*, (SELECT COUNT(*) FROM passages p WHERE p.story_id = s.id AND p.selected = 1) AS passages,
          (SELECT COUNT(*) FROM chapters c WHERE c.story_id = s.id) AS chapters,
-         (SELECT COUNT(*) FROM entries e WHERE e.story_id = s.id) AS entries,
+         (SELECT COUNT(*) FROM entries e WHERE e.story_id = s.id AND ${LIVE('e.')}) AS entries,
          (SELECT COUNT(*) FROM proposals pr WHERE pr.story_id = s.id AND pr.status = 'open') AS proposed,
          (SELECT COUNT(*) FROM strings st WHERE st.story_id = s.id AND st.status = 'open') AS unpaid,
          (SELECT COUNT(*) FROM violations v JOIN passages p ON p.id = v.passage_id
@@ -900,7 +928,40 @@ const openChapterOf = (id: string) => q(
 export const passagesOf = (id: string) => q(
   'SELECT * FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1 ORDER BY ordinal')
   .all(id, activeBranchOf(id)) as any[];
-export const entriesOf = (id: string) => q('SELECT * FROM entries WHERE story_id = ? ORDER BY rowid').all(id) as any[];
+/** #36 · A TOMBSTONE IS NOT A CARD, said once in SQL so the next reader of `entries` inherits it.
+ *
+ *  A `dropped` row exists only to say "this book does not want the followed card with this origin".
+ *  It keeps its TITLE — the screen has to be able to offer it back by name — and nothing else, so
+ *  every query that means "cards" has to exclude it or it surfaces as an empty card with a name.
+ *
+ *  FOUR READERS WERE MISSED on the first pass and found by grepping `FROM entries` rather than by a
+ *  check: the cross-story Threads page, the shelf's per-book card count, `pinCast`'s title set (a
+ *  dropped card's name would count as still in the cast) and SEARCH (a title hit with no body). That
+ *  is why this is a shared fragment and not a condition written out four times: the fifth reader is
+ *  the one nobody remembers.
+ *
+ *  Prefix it with the alias when the query has one — `LIVE('e.')`. */
+const LIVE = (a = '') => `(${a}sync IS NULL OR ${a}sync != 'dropped')`;
+
+/** Cards this book OWNS. Read by DELETE, copy, export and the ownership checks — see `entriesFor`
+ *  for why that matters.
+ *
+ *  #36. A `dropped` row is a TOMBSTONE and not a card: it says only "this book does not want the
+ *  followed card with this origin". Excluding it here is what keeps it out of the ledger screen, out
+ *  of an export, out of a copy-to-another-book, and out of every prompt — everything that reads this
+ *  function means cards, and a tombstone is not one. `droppedOrigins` is the one reader that wants
+ *  them. */
+export const entriesOf = (id: string) => q(
+  `SELECT * FROM entries WHERE story_id = ? AND ${LIVE()} ORDER BY rowid`).all(id) as any[];
+
+/** #36. The origins this book has taken over or thrown out: any local row that CLAIMS a followed
+ *  card, whether it is a copy of it or a tombstone against it. `entriesFor` uses this to stop the
+ *  read-through drawing a card twice, or drawing one the writer removed.
+ *
+ *  Tombstones are included, which is the whole reason this is separate from `entriesOf`. */
+export const claimedOrigins = (id: string) => new Set(
+  (q('SELECT origin_id FROM entries WHERE story_id = ? AND origin_id IS NOT NULL').all(id) as any[])
+    .map((r) => String(r.origin_id)));
 
 /** This book's cards AND the ones it follows, each foreign card carrying the book it lives in.
  *
@@ -930,7 +991,13 @@ export function entriesFor(id: string) {
   // say something different about a character from the bible, and losing that silently to a
   // world-level card would be the worst kind of surprise.
   const mine = new Set(own.map((e: any) => String(e.title).trim().toLowerCase()));
+  // #36. A CARD THIS BOOK HAS CLAIMED IS NOT READ THROUGH AGAIN. Unlinking copies the card here and
+  // records its origin, so without this the writer would see both — the copy they are editing and
+  // the world's original beside it, same name, drifting. A tombstone claims an origin too, and
+  // suppressing it is the whole of what a tombstone does.
+  const claimed = claimedOrigins(id);
   const shared = entriesOf(from)
+    .filter((e: any) => !claimed.has(String(e.id)))
     .filter((e: any) => !mine.has(String(e.title).trim().toLowerCase()))
     .map((e: any) => ({ ...e, shared_from: src.title, shared_from_id: from }));
   return [...own, ...shared];
@@ -980,7 +1047,7 @@ export const followersOf = (id: string) =>
 export const ledgerOf = (ownerId: string) => q(`
   SELECT e.*, s.title AS story_title, s.id AS story
   FROM entries e JOIN stories s ON s.id = e.story_id
-  WHERE s.owner_id = ? ORDER BY s.updated_at DESC, e.rowid`).all(ownerId) as any[];
+  WHERE s.owner_id = ? AND ${LIVE('e.')} ORDER BY s.updated_at DESC, e.rowid`).all(ownerId) as any[];
 
 /** Every ROOM this owner has, across every book. #22's blocker: the cross-story Threads page could
  *  not show a room or switch one on because `GET /api/ledger` had never sent one — a page that
@@ -1475,6 +1542,35 @@ export function upsertEntry(storyId: string, o: string, e: any) {
   // silently wrote nothing.
   const cur = e.id ? q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(e.id, storyId) as any : null;
 
+  /* #36 · EDITING A FOLLOWED CARD EDITS IT WHERE IT LIVES. This is the bidirectional half of the
+   * issue, and it is a redirect rather than a mirror: there is one card, so it cannot drift.
+   *
+   * BEFORE THIS, THE SAME SAVE MINTED A DUPLICATE. The scoped lookup above correctly does not find
+   * a followed card — it belongs to the other book — so the INSERT at the foot of this function ran
+   * and this book got a second card with the same name. `web/app.js`'s own note called that "the
+   * quiet kind of wrong: two cards with one name, drifting, and the writer believing they edited
+   * the shared one", and drew a read-only face rather than risk it.
+   *
+   * THE OWNER CHECK IS THE WHOLE GUARD, and it is the same one `entriesFor` makes: following is set
+   * on a book the owner controls, but `lore_from` could be written by an import or the source could
+   * change hands, and a write crossing owners through here is a leak rather than a coherence bug.
+   * The card must live in the book this one actually follows — not any book — so a stale or hostile
+   * id resolves to nothing and falls through to minting a card here, which is the safe answer.
+   *
+   * An UNLINKED copy never reaches this: it is a row of this book's own, so `cur` is found above. */
+  if (e.id && !cur) {
+    const st = q('SELECT lore_from, owner_id FROM stories WHERE id = ?').get(storyId) as any;
+    const from = st?.lore_from;
+    const there = from ? q('SELECT story_id FROM entries WHERE id = ? AND story_id = ?')
+      .get(e.id, from) as any : null;
+    const src = there ? q('SELECT owner_id FROM stories WHERE id = ?').get(from) as any : null;
+    // Not if this book has taken the card over or thrown it out — then the id is a card of another
+    // book that this one has stopped following per-card, and writing to it would edit the world
+    // through a door the writer closed.
+    if (there && src?.owner_id === st.owner_id && !claimedOrigins(storyId).has(String(e.id)))
+      return upsertEntry(from, o, e);
+  }
+
   // PLAN-06 2e, the half the evidence supports. A `triggered` entry with no keys never reaches the
   // model again and looks perfect on the screen — the class named at `:881` — and until now the
   // rule that prevents it lived in `import.ts` alone, on one of six paths into this function. The
@@ -1760,8 +1856,8 @@ export function wearOutfit(storyId: string, entryId: string, outfitId: string | 
 export function pinCast(storyId: string, proposed: string[] = []): string[] {
   if (!proposed.length) return [];
   const fromModel = new Set(proposed.map((s) => String(s)));
-  const titles = new Set((q('SELECT title FROM entries WHERE story_id = ?').all(storyId) as any[])
-    .map((r) => r.title));
+  const titles = new Set((q(`SELECT title FROM entries WHERE story_id = ? AND ${LIVE()}`)
+    .all(storyId) as any[]).map((r) => r.title));
   const cur = q('SELECT persona, locked_character FROM stories WHERE id = ?').get(storyId) as any;
   if (!cur) return [];
   const cleared: string[] = [];
@@ -1834,6 +1930,115 @@ export function copyEntry(fromStoryId: string, toStoryId: string, o: string, ent
   return made;
 }
 
+/** #36 · TAKE A FOLLOWED CARD OVER: copy it here, as it stands, and remember where it came from.
+ *
+ *  Seth's design, 2026-09-01: *"on unlink it would just make a copy of the card in that state but
+ *  keep the original id in case it gets reconnected and then resynced."* `origin_id` is that id, and
+ *  it is the whole mechanism — everything else about the row is an ordinary card of this book, so
+ *  every existing path (edit, room, state, outfit, export, delete) works on it with no new code.
+ *
+ *  `copyEntry` is reused rather than reimplemented, so the rooms and the worn outfit travel and the
+ *  timeline deliberately does not — read the note at the foot of it before changing that.
+ *
+ *  Refused if this book has already claimed that origin, whether by taking it over or by throwing
+ *  it out: two rows claiming one card is two rows the read-through cannot choose between. */
+export function unlinkEntry(storyId: string, o: string, originId: string) {
+  const st = getStory(storyId) as any;
+  const from = st?.lore_from;
+  // `ownsStory(from, o)` is BELT TO `copyEntry`'S BRACES — it refuses unless both books are the
+  // caller's, and falsifying this line on 2026-09-01 left the cross-owner check green because of
+  // that. Kept anyway: this function reads `from` before handing it over, and a reader should not
+  // have to open `copyEntry` to know the source is checked.
+  if (!from || !ownsStory(storyId, o) || !ownsStory(from, o)) return null;
+  if (claimedOrigins(storyId).has(String(originId))) return null;
+  const made = copyEntry(from, storyId, o, originId);
+  if (!made) return null;
+  q("UPDATE entries SET origin_id = ?, sync = 'off' WHERE id = ? AND story_id = ?")
+    .run(originId, made, storyId);
+  return made;
+}
+
+/** #36 · HAND IT BACK. Reconnecting drops this book's row and lets the read-through return, so the
+ *  world's card is the one card again — in sync always, because there is only one.
+ *
+ *  TWO DIRECTIONS, AND THE WRITER SAYS WHICH. `theirs` throws this book's version away and takes the
+ *  world's. `mine` writes this book's version up into the world book FIRST, so every book following
+ *  it gets what was written here — which is the "resynced" half of the ask.
+ *
+ *  It also un-drops a tombstone: the same press, because the row being removed is the same row.
+ *  `keep: 'mine'` on a tombstone is refused below rather than pushing an emptied card up.
+ *
+ *  ponytail: `mine` pushes the CARD — title, body, keys, activation — and not its rooms. Replacing
+ *  the origin's rooms would mean deleting rooms that every other follower of that book reads, from a
+ *  press made inside one of them; adding them would leave two of each. The ceiling is that a room
+ *  written after unlinking stays here. Copy the card to the world book instead if the rooms matter,
+ *  which is what `POST /api/entry/copy` already does.
+ *
+ *  Refused when the origin is gone: reconnecting to nothing would delete the only copy left. */
+export function relinkEntry(storyId: string, o: string, id: string, keep: 'mine' | 'theirs') {
+  const cur = q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(id, storyId) as any;
+  if (!cur?.origin_id || !ownsStory(storyId, o)) return null;
+  const from = (getStory(storyId) as any)?.lore_from;
+  if (!from || !ownsStory(from, o)) return null;
+  if (!q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(cur.origin_id, from)) return null;
+  if (keep === 'mine' && cur.sync !== 'dropped') {
+    upsertEntry(from, o, { id: cur.origin_id, title: cur.title, body: cur.body, notes: cur.notes,
+      entryType: cur.entry_type, activation: cur.activation, keys: JSON.parse(cur.keys || '[]'),
+      lastEditor: 'human', allowNoKeys: true });
+  }
+  // A HARD delete, not `delEntry`: that one leaves a tombstone for exactly this kind of row, which
+  // would suppress the card we are handing back and make reconnecting a no-op.
+  q('DELETE FROM addons WHERE entry_id = ? AND story_id = ?').run(id, storyId);
+  q('DELETE FROM entries WHERE id = ? AND story_id = ?').run(id, storyId);
+  touch(storyId);
+  return { origin: String(cur.origin_id), pushed: keep === 'mine' && cur.sync !== 'dropped' };
+}
+
+/** #36 · REMOVE A FOLLOWED CARD FROM THIS BOOK, without touching the book it lives in. The original
+ *  ask, in Seth's words: *"I should be able to delete it from the copied story without runing it for
+ *  the current story I.e. Unlinking it."*
+ *
+ *  A tombstone and not a delete, because there is nothing here to delete — the card belongs to the
+ *  other book. The row carries the origin and no content; `entriesOf` keeps it out of every path
+ *  that means "cards" and `claimedOrigins` keeps it in the one that means "what this book has
+ *  decided". `relinkEntry` removes it and the card comes back.
+ *
+ *  Reached for a card that is still read through. An unlinked copy is a row of this book's own, so
+ *  `delEntry` handles it and lands in the same state. */
+export function dropFollowed(storyId: string, o: string, originId: string) {
+  const from = (getStory(storyId) as any)?.lore_from;
+  if (!from || !ownsStory(storyId, o) || !ownsStory(from, o)) return null;
+  const e = q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(originId, from) as any;
+  if (!e) return null;
+  if (claimedOrigins(storyId).has(String(originId))) return null;
+  const id = uid('e-');
+  const t = now();
+  // The TITLE is kept. A tombstone with no name cannot be listed as "removed from this book", and
+  // the screen has to be able to offer it back by name.
+  q(`INSERT INTO entries (id,story_id,owner_id,title,body,notes,entry_type,activation,keys,
+      last_editor,field_editors,origin_id,sync,created_at,updated_at)
+     VALUES (?,?,?,?,'',NULL,?,'triggered','[]','human','{}',?,'dropped',?,?)`)
+    .run(id, storyId, o, e.title, e.entry_type, originId, t, t);
+  touch(storyId);
+  return id;
+}
+
+/** TEST SEAM, and it is here rather than in the suite because the suite cannot reach the column.
+ *
+ *  `relinkEntry`'s check on the SOURCE book's owner is only reachable from a state the ordinary
+ *  doors refuse to create: a local copy whose `origin_id` now lives in somebody else's book. That
+ *  state is real — a source can change hands, and an import can write `lore_from` — but nothing in
+ *  the app produces it, so falsifying that check left it green until `test/scope.ts` could build it.
+ *
+ *  Scoped like every other write here, so it cannot reach across books even as a seam. */
+export const rawSetOrigin = (storyId: string, id: string, originId: string | null) =>
+  q('UPDATE entries SET origin_id = ? WHERE id = ? AND story_id = ?').run(originId, id, storyId);
+
+/** #36 · WHAT THIS BOOK HAS REMOVED, by name, so the screen can offer it back. */
+export const droppedFollowed = (storyId: string) => q(
+  "SELECT id, title, origin_id FROM entries WHERE story_id = ? AND sync = 'dropped' ORDER BY title")
+  .all(storyId) as any[];
+
 /** Every card in one book, copied into another, with the connections between them.
  *
  *  This exists for the day a book is deleted: the prose is the book and goes with it, but the
@@ -1848,7 +2053,31 @@ export function copyLedger(fromStoryId: string, toStoryId: string, o: string) {
   if (!ownsStory(fromStoryId, o) || !ownsStory(toStoryId, o)) return null;
   if (fromStoryId === toStoryId) return null;
   const map = new Map<string, string>();
+  /* #36 · A CARD GOING HOME IS AN UPDATE, NOT A SECOND COPY.
+   *
+   * Seth, 2026-09-01: *"if a book is deleted. it can ask the question to merge those cards to the
+   * original."* The world book this one follows is one of the destinations this offers, and it is the
+   * obvious one — so the cards most likely to travel are exactly the ones this book TOOK OVER from
+   * it. Copying those blind would put a second Vel in the bible beside the first, with one name and
+   * two bodies, and the follower's own edits in the copy nothing reads.
+   *
+   * `origin_id` is what makes this answerable: the row already knows which card in the destination
+   * it came from. So it lands ON that card. A card born in this book has no origin and is copied as
+   * it always was.
+   *
+   * Only when the origin is still THERE. A card whose origin has since been deleted is a plain copy;
+   * writing to a missing id would mint one anyway, but saying so here is cheaper than finding out. */
   for (const e of entriesOf(fromStoryId)) {
+    const home = e.origin_id
+      && q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(e.origin_id, toStoryId)
+      ? String(e.origin_id) : null;
+    if (home) {
+      upsertEntry(toStoryId, o, { id: home, title: e.title, body: e.body, notes: e.notes,
+        entryType: e.entry_type, activation: e.activation, keys: JSON.parse(e.keys || '[]'),
+        lastEditor: 'human', allowNoKeys: true });
+      map.set(e.id, home);
+      continue;
+    }
     const made = copyEntry(fromStoryId, toStoryId, o, e.id);
     if (made) map.set(e.id, made);
   }
@@ -1865,7 +2094,29 @@ export function delEntry(storyId: string, id: string) {
   // Read the title BEFORE the delete: after it there is nothing left to match the story's persona
   // against, and a persona pointing at a character who no longer exists is worse than an empty one
   // — the byline shows a name the ledger cannot explain.
-  const cur = q('SELECT title FROM entries WHERE id = ? AND story_id = ?').get(id, storyId) as any;
+  const cur = q('SELECT title, origin_id FROM entries WHERE id = ? AND story_id = ?')
+    .get(id, storyId) as any;
+  /* #36 · DELETING AN UNLINKED COPY LEAVES A TOMBSTONE, because a plain DELETE would not delete it.
+   *
+   * The row came from the book this one follows, so removing it hands the card straight back to the
+   * read-through in `entriesFor` and it reappears — with the writer's own edits gone and the world's
+   * wording back. That is the worst available outcome and it looks like the delete silently failed.
+   *
+   * So the row stays, emptied, marked `dropped`, still holding its origin. `entriesOf` excludes it
+   * from every path that means "cards", and `claimedOrigins` keeps it in the one path that means
+   * "what this book has decided about the world's cards". Reconnecting deletes the tombstone, and
+   * then the card comes back on purpose.
+   *
+   * A card born in this book has no origin and is deleted outright, as it always was. */
+  if (cur?.origin_id) {
+    q(`UPDATE entries SET sync = 'dropped', body = '', notes = NULL, keys = '[]', updated_at = ?
+       WHERE id = ? AND story_id = ?`).run(now(), id, storyId);
+    q('DELETE FROM addons WHERE entry_id = ? AND story_id = ?').run(id, storyId);
+    for (const col of ['persona', 'locked_character'])
+      q(`UPDATE stories SET ${col} = NULL WHERE id = ? AND ${col} = ?`).run(storyId, cur.title);
+    touch(storyId);
+    return { changes: 1 };
+  }
   const r = q('DELETE FROM entries WHERE id = ? AND story_id = ?').run(id, storyId);
   if (cur) {
     for (const col of ['persona', 'locked_character'])
@@ -1983,7 +2234,7 @@ export const search = (o: string, term: string, storyId?: string) => {
     UNION ALL
     SELECT 'Entry', e.story_id, s.title, e.title, e.body, e.id
       FROM entries e JOIN stories s ON s.id = e.story_id
-     WHERE s.owner_id = ? AND (e.title LIKE ? OR e.body LIKE ?) ${scope('e')}
+     WHERE s.owner_id = ? AND (e.title LIKE ? OR e.body LIKE ?) AND ${LIVE('e.')} ${scope('e')}
     UNION ALL
     SELECT 'Summary', c.story_id, s.title, 'ch ' || c.idx, c.summary, c.id
       FROM chapters c JOIN stories s ON s.id = c.story_id

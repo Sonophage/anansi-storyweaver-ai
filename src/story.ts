@@ -184,6 +184,10 @@ export function view(storyId: string, focusChapterId?: string) {
       // Where a followed card actually lives, so the screen can say so and refuse to edit it here.
       sharedFrom: e.shared_from ?? null,
       sharedFromId: e.shared_from_id ?? null,
+      // #36. The card this row was taken from, and whether it still tracks it. `sharedFrom` above
+      // means "read through from another book"; `originId` means "this book's own copy of one".
+      // They are never both set, which is what the screen keys its two faces off.
+      originId: e.origin_id ?? null,
       addons: (e.shared_from ? db.addonsOf(e.shared_from_id) : addons)
         .filter((a: any) => a.entry_id === e.id).map((a: any) => ({
         id: a.id, slot: a.slot, name: a.name, body: a.body,
@@ -211,6 +215,11 @@ export function view(storyId: string, focusChapterId?: string) {
       id: x.id, title: x.title, body: x.body ?? '', fromChapter: x.from_chapter,
       owedBy: x.owed_by, status: x.status, summoned: !!x.summoned,
     })),
+    // #36. What this book has REMOVED from what it follows. Tombstones are not cards — `entriesOf`
+    // keeps them out of `entries` above — so without this line a removed card is invisible and
+    // unrecoverable from the screen, which is a one-way door.
+    dropped: db.droppedFollowed(storyId).map((d: any) => ({ id: d.id, title: d.title,
+      originId: d.origin_id })),
     proposals: db.proposalsOf(storyId).map((p: any) => ({
       id: p.id, entryId: p.entry_id, title: p.title, body: p.body, entryType: p.entry_type,
       keys: JSON.parse(p.keys || '[]'), kind: p.kind, delta: p.delta, chapterId: p.chapter_id,

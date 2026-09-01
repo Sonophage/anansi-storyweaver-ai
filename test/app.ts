@@ -164,7 +164,19 @@ const STORY = {
             // selector reads it, and a place's rooms are not a character's.
             { id: 'e-2', title: 'The stair', body: '[the lower stair: unlit]', entryType: 'lore',
               activation: 'triggered', keys: ['stair'], lastEditor: 'human', states: [], notes: '',
-              addons: [] }],
+              addons: [] },
+            // #36. THREE FACES, and the fixture has to carry all three or only one is drawn.
+            // A card READ THROUGH from the book this one follows: `sharedFrom` set, no local row.
+            { id: 'e-shared', title: 'The Ambersand', body: '[a house that lends at ruin]',
+              entryType: 'lore', activation: 'always_on', keys: [], lastEditor: 'human', states: [],
+              notes: '', addons: [], sharedFrom: 'The Ash Cycle', sharedFromId: 's-9' },
+            // And one this book TOOK OVER: an ordinary card of its own that remembers the origin.
+            { id: 'e-took', title: 'Vantic law', body: '[nobody descends without a writ]',
+              entryType: 'rule', activation: 'always_on', keys: [], lastEditor: 'human', states: [],
+              notes: '', addons: [], originId: 'e-origin' }],
+  follows: { id: 's-9', title: 'The Ash Cycle' },
+  // A thread taken OUT of this book: a tombstone, listed by name so it can come back.
+  dropped: [{ id: 'e-stone', title: 'The Quay Office', originId: 'e-origin-2' }],
   pins: [], arcs: [],
   // What the engine computes in story.ts: the counts the shelf reads, and the stale summaries,
   // which are the part that can be waved away. The panel gates on this being present at all.
@@ -2133,6 +2145,67 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   click({ cardview: null });
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
+
+// ---- ISSUE #36 · THREE FACES, ONE CARD AT A TIME.
+//
+// Following a world book was all or nothing: `stories.lore_from` is one column, so every thread in
+// it reached this book, live, and no single one could be excepted. Seth's ask was per card, and his
+// design was a copy that remembers where it came from. Three states, three faces, and each face has
+// to offer only the presses that can actually work from where the card lives.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'threads' });
+
+  // ---- READ THROUGH from the book this one follows. One card, not two copies kept in step.
+  click({ entry: 'e-shared' });
+  await new Promise((r) => setTimeout(r, 30));
+  const shared = html('sideBody');
+  assert.match(shared, /This thread lives in The Ash Cycle/, 'the face says where it lives');
+  // THE BODY IS EDITABLE AND SAVES TO THE OTHER BOOK. It could not before: `upsertEntry` is scoped
+  // by story, so a save from here did not resolve the id and MINTED A DUPLICATE — two cards with
+  // one name, drifting, and the writer believing they had edited the shared one. That is why this
+  // face was read-only, and `db.upsertEntry`'s redirect is what makes the box safe.
+  assert.match(shared, /data-followedbody="e-shared"/, 'its description can be edited here');
+  assert.match(shared, /data-savefollowed="e-shared"/, 'and saved');
+  assert.match(shared, /Save to The Ash Cycle/, 'saying which book the save lands in');
+  assert.match(shared, /data-takeover="e-shared"/, 'it can be taken over');
+  assert.match(shared, /data-dropfollow="e-shared"/, 'or taken out of this book');
+  // AND NOT THE PRESSES THAT CANNOT WORK FROM HERE. `upsertAddon`, the states and the outfits all
+  // require the card to belong to THIS story and correctly refuse otherwise, so drawing those
+  // controls on a followed card would draw presses that silently do nothing.
+  assert.doesNotMatch(shared, /data-invent=/, 'no room controls on a card that lives elsewhere');
+  assert.doesNotMatch(shared, /data-addstate=/, 'and no timeline');
+  // Nor the presses that belong to a card this book took over — it has not taken this one over.
+  assert.doesNotMatch(shared, /data-sendup=/, 'nothing to send up: this is not a copy');
+  assert.doesNotMatch(shared, /data-handback=/, 'and nothing to hand back');
+
+  // ---- TAKEN OVER. An ordinary card of this book that remembers the origin, so there are two
+  // ways back and the face has to offer both — keeping this version or keeping the world's.
+  click({ entry: 'e-took' });
+  await new Promise((r) => setTimeout(r, 30));
+  const took = html('sideBody');
+  assert.match(took, /This book's own copy, taken from The Ash Cycle/,
+    'the face says it is a copy and where from — otherwise it is indistinguishable from a card '
+    + 'born here and the connection it still holds is invisible');
+  assert.match(took, /data-sendup="e-took"/, 'this version can go up and follow again');
+  assert.match(took, /data-handback="e-took"/, 'or be dropped in favour of the shared one');
+  assert.doesNotMatch(took, /data-takeover="e-took"/, 'it is already taken over');
+  assert.doesNotMatch(took, /data-savefollowed="e-took"/,
+    'and it saves through the ordinary card form, not through the followed-card box');
+
+  // ---- TAKEN OUT. A tombstone is not a card, so it is not in `entries` at all — it is listed by
+  // name under Part of a world. Without that list, removing a thread is a one-way door with no
+  // undo on any screen.
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 30));
+  const story = html('sideBody');
+  assert.match(story, /Taken out of this book/, 'what this book has removed is named');
+  assert.match(story, /The Quay Office/, 'by title');
+  assert.match(story, /data-bringback="e-stone"/, 'with the way back beside it');
+  ok('a followed thread can be edited, taken over, or taken out — and each face offers only what '
+    + 'works from where the card lives (#36)');
+}
 
 // #20 · STARTING A BOOK FROM THREADS YOU ALREADY HAVE, and the last place a point of view is
 // picked without an example.

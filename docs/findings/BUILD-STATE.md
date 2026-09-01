@@ -28,6 +28,32 @@ one — it looks finished from the UI), and **not started**.
 | Per-story export to a standalone database | `db.exportStory` |
 | Import: Anansi exports, AI Dungeon (both halves of a real export), character cards V1/V2/V3 | `src/import.ts`, wired to the Import screen |
 | Every pass that files a proposal names the **room** it lands in, and the writer can move it, key it, or take it as a state instead | `roomAsked` and `POST /api/proposal/where` in `src/routes.ts` |
+| A followed card decided **per card**: taken over, handed back either way, or taken out of one book alone | `entries.origin_id` / `entries.sync`, `unlinkEntry` / `relinkEntry` / `dropFollowed` |
+| Correcting one passage against canon, on a press, with the repair checked and the counts kept | `POST /api/repair`, `GET /api/activity`'s `repairs` |
+
+**Three issues closed on 2026-09-01, and each one's cause is worth keeping.**
+
+`#36`'s obstacle was that `stories.lore_from` is ONE column, so following was one answer for a whole
+ledger and no card could be excepted. The fix is three states on `entries.sync` and, crucially, no
+mirroring: "in sync always" is the ABSENCE of a copy — one card, read through, which cannot drift.
+The obvious build is two copies kept equal by fanning every write out, which needs a direction, a
+last-write-wins rule, and the same fan-out again in `upsertAddon`. Editing a followed card used to
+mint a duplicate here (the scoped lookup in `upsertEntry` did not resolve a foreign id), which is why
+that card face had been read-only; the write now redirects to where the card lives.
+
+`#9` asked for the opposite of what shipped the day before. The blocking repair came off the
+critical path on 2026-08-31 at Seth's instruction after F30 measured a flat 1,456 ms for 0 repairs in
+6. It is back as a press, with the argument from the 12 runs the live library recorded: 21
+contradictions found, 7 mended, **14 surviving their own repair**, and **2 of 12 with `mended: -1`**
+— the second look finding more than the first. A defect found by its own test: `db.violationsOf`
+lists flags on the SELECTED take only, so an unverifiable repair landed a new take, filed nothing,
+and emptied the board — the exact silence #9 is about.
+
+`#40`'s remainder was three separately typed strings and one missing control, and **three layers
+dropped the value**: `harvestSpark` read every field as `el.value` (on a checkbox, the string "on"),
+`acceptSpark`'s named field list omitted it, and `createStory`'s INSERT did not list `lockout_on`,
+whose column default of 1 is the right answer for a new book and therefore the perfect hiding place.
+That INSERT has now dropped a field the form sent three times.
 
 The room row is new on 2026-09-01 and it is worth stating why, because it is the shape of defect
 this document exists to catch. `EXTRACT_SCHEMA` and `MEMORY_SCHEMA` have carried a `field` since
@@ -64,7 +90,7 @@ library the same day: `field` was NULL on 34 of 41 open proposals.
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
 | **The lockout** | The line itself, measured and strong (F28: acted 76% -> 25%, p = 0.0005). **F53 shipped nothing but resolved something**: marking the writer's own passages halves the model's action for the locked character (p = 0.00001) by moving him out of the subject slot, not by changing his verbs | **Two flags are built, measured and OFF.** `ANANSI_PROSE_AUTHOR` (F53) and `ANANSI_LOCKOUT_CLAUSE` (F52, inconclusive). A third, `ANANSI_LOCKOUT_NAMED` (F54), is under measurement as of 2026-09-01. Turning any of them on is a prompt change for every book naming a locked character — F20 is the standing warning — and it is Seth's call, not a consequence of a p-value. **Interiority is the unmeasured half**: F28 said the lockout does nothing measurable to it, but that was read with a NAME-ANCHORED counter that is blind to `he knew` and `his chest` — widening it on F53's prose found 25 events where the narrow one found 6. F28's conclusion needs re-scoring before it is trusted, and its stored prose is gone, so that needs a fresh run. |
 | ~~Deleting a chapter~~ | `DELETE /api/chapter`, a two-press confirm, and the hint explaining why the numbers do not close up | **Done, and it was never the feature that was missing.** #31 was filed as "there is no way to delete a chapter" and the only door was inside **End this chapter** — nobody hunting for delete presses the button that closes one. The Chapter panel names it now. A mislabelled entrance reads exactly like an absent feature, which is the second time that has happened here. |
-| **Tests** | **443 across twelve suites** (84 engine, 95 db, 48 scope, 13 import, 16 stream, 8 check, 30 memory, 6 report, 27 talk, 13 forge, 31 web, 72 app) — plus **782 driven-browser checks across eighteen scenarios** (18 buttons, 10 tray, 42 composer, 17 hwkb, 40 at, 16 veil, 71 surfaces, 44 handlers, 18 search, 13 restored, 14 hostile, 11 limits, 35 import, 62 modes, 226 panels, 53 phone, 58 wizard, 34 forge), **all green on 2026-09-01 against `3b4ee35`** — plus `model` and `ritual`, which wait on real generations and are not in the default set, `cover` and `entrypic`, which need `ANANSI_SEARCH` and the open web, and the model evals in `bench/` | No HTTP-level suite yet. The client-contract check **runs both ways**: every `api.js` method needs a caller in `app.js`, and every route in `routes.ts` needs a method in `api.js` or a named entry in `NO_CLIENT`. It caught both of the forge's routes arriving doorless on 2026-08-30, which is the failure it was written for. **This row has now been wrong twice in two days** — it said 405 and named a `mend` suite that is `check.ts`, then it said 418/771 with `wizard` at 47 after the wizard rework had already taken it to 58. It is derived: run the two harnesses and read their own totals rather than this cell. |
+| **Tests** | **456 across twelve suites** (84 engine, 97 db, 49 scope, 13 import, 16 stream, 15 check, 30 memory, 6 report, 27 talk, 13 forge, 32 web, 74 app) — plus the eighteen driven-browser scenarios, whose per-scenario numbers live in `/tmp/anansi-ui-results.json` because they are a fact about this machine at this moment and not about the code | No HTTP-level suite yet. The client-contract check **runs both ways**: every `api.js` method needs a caller in `app.js`, and every route in `routes.ts` needs a method in `api.js` or a named entry in `NO_CLIENT`. It caught `POST /api/repair` arriving doorless on 2026-09-01, which is the failure it was written for. **This row has been wrong three times in three days** — 405 naming a `mend` suite that is `check.ts`, then 418/771 with `wizard` at 47 after the rework took it to 58. It is DERIVED: run the two harnesses and read their own totals rather than this cell, and do not copy the browser counts in here again. |
 
 ---
 
@@ -77,7 +103,7 @@ from the code rather than remembered:
 grep -rn "ponytail:" src web bench *.ts *.html
 ```
 
-**Forty-three markers as of 2026-09-01**, counted by grep, not recalled: `app.js` 8, `db.ts` 8, `routes.ts` 7, `context.ts` 6, `model.js` 2, `serve.ts` 2, `bench/council06.ts` 2, and one each in `llama.ts`, `story.ts`, `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`, `bench/decode.ts`, `bench/ledger-audit.ts`. **`test` joined the documented grep on 2026-08-31**: there has been a marker in `test/db.ts` the whole time that the published command could not see, so the count read 38 when it was 39. (This row said twenty-four until 2026-08-31 and thirty-nine until 2026-09-01; `.claude/CLAUDE.md` said thirty-five.) The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. One was added with rejected takes: the flag is recorded and shown but not sent to the model, because feeding a rejected take to the prompt is a prompt change and F20 is what those cost to justify. Each remaining marker names what is missing, why it was left, and the upgrade path.
+**Forty-six markers as of 2026-09-01**, counted by grep, not recalled: `app.js` 9, `db.ts` 9, `routes.ts` 8, `context.ts` 6, `model.js` 2, `serve.ts` 2, `bench/council06.ts` 2, and one each in `llama.ts`, `story.ts`, `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`, `bench/decode.ts`, `bench/ledger-audit.ts`. **`test` joined the documented grep on 2026-08-31**: there has been a marker in `test/db.ts` the whole time that the published command could not see, so the count read 38 when it was 39. (This row said twenty-four until 2026-08-31 and thirty-nine until 2026-09-01; `.claude/CLAUDE.md` said thirty-five.) The ponytail audit of 2026-08-23 cut two phantom block kinds, two unread columns and a retired harness, and added one: `/api/import` was the only route in the tree with no caller. That one is gone again — the Import screen calls it now. One was added with rejected takes: the flag is recorded and shown but not sent to the model, because feeding a rejected take to the prompt is a prompt change and F20 is what those cost to justify. Each remaining marker names what is missing, why it was left, and the upgrade path.
 Nothing in this list is a surprise; the point is that adding to it requires writing down the ceiling.
 
 | Where | What is unfinished |

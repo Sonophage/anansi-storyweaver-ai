@@ -2061,6 +2061,200 @@ ok('a book started from a world book reads its cards, and can still disagree wit
     "and it is that book's own version of the card, not the world's");
 });
 
+// ---- ISSUE #36 · A FOLLOWED CARD, PER CARD.
+//
+// `stories.lore_from` is one column and therefore one answer for a whole ledger. Seth's ask was per
+// card: "I should be able to delete it from the copied story without runing it for the current story
+// I.e. Unlinking it. I should aslo have an option to update the card bi drectionally or only one
+// way." And his design for it, 2026-09-01: "on unlink it would just make a copy of the card in that
+// state but keep the original id in case it gets reconnected and then resynced ... that also means
+// that if a book is deleted. it can ask the question to merge those cards to the original."
+//
+// THREE STATES ON ONE COLUMN, and what makes it small is that "in sync always" is not maintained —
+// it is the ABSENCE of a copy. There is one card, read through, so it cannot drift. The obvious
+// build is two copies kept equal by fanning every write out, which needs a direction, a
+// last-write-wins rule, and the same fan-out again for the rooms.
+ok('a followed card can be taken over, handed back, or taken out of one book alone (#36)', () => {
+  const me = db.owner('per-card');
+  const world = db.createWorld(me, { title: 'The Ninefold', premise: 'Nine rings.' });
+  const warden = db.upsertEntry(world.id, me, { title: 'The Warden',
+    body: 'She has never left the ninth ring.', activation: 'always_on' })!;
+  db.upsertAddon(world.id, warden, { slot: 'voice', name: 'How she sounds', body: 'Flat.', keys: [] });
+  const law = db.upsertEntry(world.id, me, { title: 'Ring Law', body: 'Nobody descends.',
+    activation: 'always_on' })!;
+  const book = db.storyFollowing(me, world.id, 'A Writ')!;
+  const titles = (id: string) => db.entriesFor(id).map((e: any) => e.title).sort();
+  assert.deepStrictEqual(titles(book.id), ['Ring Law', 'The Warden'], 'both reach it to begin with');
+
+  // ---- BIDIRECTIONAL, by there being one card. Editing a followed card from the follower used to
+  // MINT A DUPLICATE: `upsertEntry` is scoped by story, so the id did not resolve and the INSERT at
+  // the foot of it ran. That is why the card face was read-only. It writes to where the card lives
+  // now, and this is the assertion that says so.
+  db.upsertEntry(book.id, me, { id: warden, title: 'The Warden',
+    body: 'She has never left the ninth ring, and says so often.', activation: 'always_on' });
+  assert.strictEqual(db.entriesOf(book.id).length, 0,
+    'editing a followed card from the follower must not leave a card in the follower — that is the '
+    + 'duplicate the old read-only face existed to avoid');
+  assert.match((db.entriesOf(world.id).find((e: any) => e.id === warden) as any).body,
+    /and says so often/, 'the edit landed on the card where it lives');
+  assert.deepStrictEqual(titles(book.id), ['Ring Law', 'The Warden'], 'and there is still one Warden');
+
+  // ---- TAKE IT OVER. A copy here, as it stands, remembering where it came from.
+  const mine = db.unlinkEntry(book.id, me, warden)!;
+  assert.ok(mine, 'the card is copied into this book');
+  assert.strictEqual((db.entriesOf(book.id).find((e: any) => e.id === mine) as any).origin_id, warden,
+    'carrying the id of the card it came from — the whole mechanism');
+  // ONE Warden, not two. `entriesFor` must stop reading the origin through, or the writer sees the
+  // copy they are editing and the world's original beside it, same name, drifting.
+  assert.deepStrictEqual(titles(book.id), ['Ring Law', 'The Warden'],
+    'the read-through must stop for a card this book has taken over');
+  const room = db.addonsOf(book.id).filter((a: any) => a.entry_id === mine);
+  assert.strictEqual(room.length, 1, 'the rooms came with it');
+  assert.strictEqual(room[0].slot, 'voice');
+  // Taking the same one over twice is refused: two rows claiming one card is two rows the
+  // read-through cannot choose between.
+  assert.strictEqual(db.unlinkEntry(book.id, me, warden), null, 'and it cannot be taken twice');
+
+  // IT IS AN ORDINARY CARD NOW, which is the point of doing it this way: every existing path works
+  // on it with no new code. Editing it stays here and does NOT reach the world.
+  db.upsertEntry(book.id, me, { id: mine, title: 'The Warden', body: 'She left in the spring.',
+    activation: 'always_on' });
+  assert.match((db.entriesOf(world.id).find((e: any) => e.id === warden) as any).body,
+    /and says so often/, 'the world card is untouched — this is the one-way half of the ask');
+  assert.match((db.entriesFor(book.id).find((e: any) => e.title === 'The Warden') as any).body,
+    /left in the spring/, 'and the book reads its own');
+
+  // ---- SEND IT HOME AND FOLLOW AGAIN. The copy goes, the world gets this wording, and every book
+  // following that world sees it.
+  const sent = db.relinkEntry(book.id, me, mine, 'mine')!;
+  assert.ok(sent?.pushed, 'the version here was pushed up');
+  assert.strictEqual(sent.origin, warden, 'and it says which card it went onto');
+  assert.strictEqual(db.entriesOf(book.id).length, 0, 'the copy is gone');
+  assert.match((db.entriesOf(world.id).find((e: any) => e.id === warden) as any).body,
+    /left in the spring/, "the world card carries the follower's wording now");
+  assert.deepStrictEqual(titles(book.id), ['Ring Law', 'The Warden'],
+    'and the book is reading the shared card again');
+  assert.strictEqual(db.addonsOf(book.id).length, 0, 'with no orphan rooms left behind');
+
+  // ---- OR DROP THE COPY AND KEEP THE WORLD'S. The other direction, and it must not write upward.
+  const again = db.unlinkEntry(book.id, me, warden)!;
+  db.upsertEntry(book.id, me, { id: again, title: 'The Warden', body: 'A local invention.',
+    activation: 'always_on' });
+  db.relinkEntry(book.id, me, again, 'theirs');
+  assert.match((db.entriesOf(world.id).find((e: any) => e.id === warden) as any).body,
+    /left in the spring/, "keeping theirs must not push the follower's wording up");
+  assert.match((db.entriesFor(book.id).find((e: any) => e.title === 'The Warden') as any).body,
+    /left in the spring/, 'and the book reads the world again');
+
+  // ---- TAKE IT OUT OF THIS BOOK ALONE. #36's original sentence. A tombstone, because there is
+  // nothing here to delete: the card belongs to the other book.
+  const stone = db.dropFollowed(book.id, me, law)!;
+  assert.ok(stone, 'the removal is recorded');
+  assert.deepStrictEqual(titles(book.id), ['The Warden'], 'and Ring Law stops reaching this book');
+  assert.strictEqual(db.entriesOf(world.id).length, 2, 'while the world still has both cards');
+  // A TOMBSTONE IS NOT A CARD. `entriesOf` is what DELETE, export, copy and the ownership checks
+  // read, and every one of them means cards — a tombstone appearing there would export an empty
+  // card, offer it for copying, and draw it on the ledger screen.
+  assert.strictEqual(db.entriesOf(book.id).length, 0, 'and it is not a card of this book');
+  assert.deepStrictEqual(db.droppedFollowed(book.id).map((x: any) => x.title), ['Ring Law'],
+    'but it is listed by name, or removing a card is a one-way door with no undo on any screen');
+  // Reversible, through the same door as handing a copy back — it is the same row being removed.
+  db.relinkEntry(book.id, me, stone, 'theirs');
+  assert.deepStrictEqual(titles(book.id), ['Ring Law', 'The Warden'], 'bringing it back works');
+
+  // ---- DELETING THE COPY LEAVES A TOMBSTONE, or the delete undoes itself. This is the trap: the
+  // row came from the other book, so removing it hands the card straight back to the read-through
+  // and it reappears with the writer's edits gone and the world's wording back.
+  const third = db.unlinkEntry(book.id, me, law)!;
+  db.delEntry(book.id, third);
+  assert.deepStrictEqual(titles(book.id), ['The Warden'],
+    'deleting a taken-over card must not let the read-through put it straight back');
+  assert.deepStrictEqual(db.droppedFollowed(book.id).map((x: any) => x.title), ['Ring Law'],
+    'it became a tombstone, and can be brought back');
+  db.relinkEntry(book.id, me, db.droppedFollowed(book.id)[0].id, 'theirs');
+
+  // ---- A TOMBSTONE IS NOT A CARD, IN EVERY READER THAT MEANS CARDS.
+  //
+  // It keeps its TITLE so the screen can offer it back by name, and nothing else. FOUR readers were
+  // missed on the first pass and found by grepping `FROM entries` rather than by any check: the
+  // cross-story Threads page listed it as an empty card, the shelf counted it in a book's thread
+  // total, `pinCast` counted its name as still in the cast, and SEARCH returned it as a title hit
+  // with no body. `LIVE` is one fragment so the fifth reader inherits the rule; this asserts all of
+  // them, because a shared fragment nobody applies is the same bug with a nicer comment.
+  {
+    const stoneTitle = 'The Deep Cistern';
+    const cistern = db.upsertEntry(world.id, me, { title: stoneTitle, body: 'It floods.',
+      activation: 'always_on' })!;
+    assert.ok(db.entriesFor(book.id).some((e: any) => e.title === stoneTitle),
+      'the fixture card reaches the book first');
+    db.dropFollowed(book.id, me, cistern);
+
+    assert.ok(!db.entriesOf(book.id).some((e: any) => e.title === stoneTitle),
+      'entriesOf — what DELETE, copy, export and the ownership checks read');
+    assert.ok(!db.entriesFor(book.id).some((e: any) => e.title === stoneTitle),
+      'entriesFor — what the prompt and the screen read');
+    assert.ok(!db.ledgerOf(me).some((e: any) => e.story === book.id && e.title === stoneTitle),
+      'ledgerOf — the cross-story Threads page, which listed it as an empty card');
+    const shelf = db.listStories(me).find((x: any) => x.id === book.id) as any;
+    assert.strictEqual(shelf.entries, db.entriesOf(book.id).length,
+      "listStories — the shelf's per-book thread count must agree with the cards there are");
+    assert.ok(!db.search(me, stoneTitle, book.id).some((r: any) => r.kind === 'Entry'),
+      'search — a tombstone kept its title, so it came back as a hit with no body');
+    // pinCast: a dropped card's name must not count as still in the cast.
+    db.updateStory(book.id, { persona: stoneTitle });
+    assert.deepStrictEqual(db.pinCast(book.id, [stoneTitle]), [stoneTitle],
+      'pinCast must clear a persona naming a thread this book has taken out');
+
+    // AND IT IS STILL OFFERABLE BY NAME, which is the one place it must appear.
+    assert.ok(db.droppedFollowed(book.id).some((x: any) => x.title === stoneTitle),
+      'the removed list is the one reader that wants it');
+    db.relinkEntry(book.id, me, db.droppedFollowed(book.id)
+      .find((x: any) => x.title === stoneTitle)!.id, 'theirs');
+    assert.ok(db.entriesFor(book.id).some((e: any) => e.title === stoneTitle), 'and it comes back');
+    db.dropFollowed(book.id, me, cistern);
+    db.relinkEntry(book.id, me, db.droppedFollowed(book.id)[0].id, 'theirs');
+  }
+
+  // ---- A CARD BORN HERE IS DELETED OUTRIGHT, as it always was. No origin, no tombstone.
+  const local = db.upsertEntry(book.id, me, { title: 'The Writ Clerk', body: 'He stamps things.',
+    activation: 'always_on' })!;
+  db.delEntry(book.id, local);
+  assert.strictEqual(db.droppedFollowed(book.id).length, 0, 'a card of its own leaves no tombstone');
+  assert.ok(!titles(book.id).includes('The Writ Clerk'), 'and it is simply gone');
+});
+
+// ---- ISSUE #36 · SENDING A BOOK'S THREADS HOME WHEN IT IS DELETED.
+//
+// Seth: "if a book is deleted. it can ask the question to merge those cards to the original and if
+// we want to add any newly created cards to the lore book." The rescue picker already offered every
+// book on the shelf; what it could not do is land a taken-over card back ON the card it came from.
+ok('threads sent home land on the card they came from, and new ones arrive as new (#36)', () => {
+  const me = db.owner('homeward');
+  const world = db.createWorld(me, { title: 'The Ninefold Again', premise: 'Nine rings.' });
+  const warden = db.upsertEntry(world.id, me, { title: 'The Warden', body: 'Never left.',
+    activation: 'always_on' })!;
+  const book = db.storyFollowing(me, world.id, 'A Second Writ')!;
+
+  const mine = db.unlinkEntry(book.id, me, warden)!;
+  db.upsertEntry(book.id, me, { id: mine, title: 'The Warden', body: 'Left in the spring.',
+    activation: 'always_on' });
+  db.upsertEntry(book.id, me, { title: 'The Ninth Gate', body: 'It has one hinge.',
+    activation: 'always_on' });
+
+  const moved = db.copyLedger(book.id, world.id, me)!;
+  assert.strictEqual(moved.cards, 2, 'both threads travel');
+  // ONE Warden in the world, not two. Copying a taken-over card blind would put a second one beside
+  // the first with one name and two bodies, and the follower's edits in the copy nothing reads.
+  const wardens = db.entriesOf(world.id).filter((e: any) => e.title === 'The Warden');
+  assert.strictEqual(wardens.length, 1, `one Warden in the world and there are ${wardens.length}`);
+  assert.match(wardens[0].body, /Left in the spring/, "carrying the follower's wording");
+  assert.strictEqual(wardens[0].id, warden, 'on the same row, so every other follower sees it');
+  // And a card written in the follower is genuinely new to the world.
+  assert.ok(db.entriesOf(world.id).some((e: any) => e.title === 'The Ninth Gate'),
+    'a thread born in the book arrives in the world as a new card');
+  assert.strictEqual(db.entriesOf(world.id).length, 2, 'two cards, not three');
+});
+
 
 // ---- UNCLAIMED PASSAGES, AND WHAT CLAIMS THEM (bugs.md #9, 2026-09-01).
 //

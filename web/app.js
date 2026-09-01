@@ -386,6 +386,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'carryon', 'readfrom',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
+  // #36. A followed card, per card. `unlink` was taken by the entry-LINKS feature years of commits
+  // ago, so these say what they do to a followed thread instead of reusing that word.
+  'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
   'newstring', 'delstring', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
@@ -2356,9 +2359,23 @@ const PANELS = {
       </select>
       <div class="hint">${V.follows
         ? `Every thread in ${esc(V.follows.title)} reaches this book too, and fires by the same
-           rules. They are the same cards, not copies — edit one there and it changes here.`
+           rules. They are the same cards, not copies — edit one there, or here, and it changes in
+           both. Any single thread can be taken over or taken out on its own card.`
         : `A world bible is just a book that holds threads. Follow it and its cast, its places and
            its rules reach this book without being copied into it.`}</div>
+      <!-- #36. WHAT THIS BOOK HAS TAKEN OUT, by name. Removing a followed thread writes a tombstone
+           rather than deleting anything, so it is reversible — but only if it is listed somewhere,
+           or "remove" is a one-way door with no undo on any screen. -->
+      ${(V.dropped ?? []).length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:18px"
+        >Taken out of this book</div>
+      ${V.dropped.map((x) => `<div class="row">
+        <span style="color:var(--ink)">${esc(x.title)}</span>
+        <button data-bringback="${esc(x.id)}" style="margin-left:auto; padding:6px 11px;
+          border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11px"
+          >Bring it back</button></div>`).join('')}
+      <div class="hint" style="margin-top:0">Still in ${esc(V.follows?.title ?? 'the book it lives in')},
+        untouched. This book just stopped seeing ${
+        V.dropped.length === 1 ? 'it' : 'them'}.</div>` : ''}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
@@ -2394,13 +2411,22 @@ const PANELS = {
           go with it. A cast, a city and its rules outlive the book they were written for.</div>
         <select class="field" data-rescue="1" style="margin:0">
           <option value="">Let them go too</option>
+          <!-- #36. THE BOOK THIS ONE FOLLOWS, FIRST AND BY NAME. Seth: "if a book is deleted. it
+               can ask the question to merge those cards to the original and if we want to add any
+               newly created cards to the lore book." It was already in the list below, as one book
+               among however many are on the shelf — which is not the same as being asked. A card
+               this book took over lands back ON the card it came from rather than beside it. -->
+          ${V.follows ? `<option value="${esc(V.follows.id)}">Send them home to ${
+            esc(V.follows.title)}</option>` : ''}
           <option value="new">Move them into a new book</option>
-          ${LIB.filter((x) => x.id !== S.storyId)
+          ${LIB.filter((x) => x.id !== S.storyId && x.id !== V.follows?.id)
             .map((x) => `<option value="${esc(x.id)}">Move them into ${esc(x.title)}</option>`).join('')}
         </select>
         <div class="hint" style="margin:0">Each card arrives with its rooms, its wardrobe and the
           connections between the ones that travel. Its changes over time do not: chapter nine
-          there is not chapter nine here. Strings and prose stay with the book.</div></div>` : ''}</div>`;
+          there is not chapter nine here. Strings and prose stay with the book.${V.follows
+            ? ` Threads taken over from ${esc(V.follows.title)} go back onto the card they came from,
+              so nothing is doubled — anything written here is new to it.` : ''}</div></div>` : ''}</div>`;
   },
 
   // The chapter you are writing, whole: its name, how it has to end, where the story is going,
@@ -4127,10 +4153,25 @@ function connections(e) {
 }
 
 function cardFace(e, slots) {
-  // A FOLLOWED CARD IS READ HERE AND EDITED WHERE IT LIVES. Saving it from this book would not
-  // change the world's copy — `upsertEntry` is scoped by story, so the id would not resolve and a
-  // DUPLICATE would be minted in this book instead. That is the quiet kind of wrong: two cards
-  // with one name, drifting, and the writer believing they edited the shared one.
+  /* A FOLLOWED CARD. Issue #36, and what changed on 2026-09-01.
+   *
+   * THE BODY IS EDITABLE HERE NOW, and it saves to the book the card lives in. It could not before:
+   * `upsertEntry` is scoped by story, so a save from here did not resolve the id and MINTED A
+   * DUPLICATE — two cards with one name, drifting, and the writer believing they had edited the
+   * shared one. That is why this face was read-only. `db.upsertEntry` redirects the write to where
+   * the card lives now, so there is one card and it cannot be out of step: the bidirectional half
+   * of Seth's ask, done by having one copy rather than by keeping two equal.
+   *
+   * THE ROOMS AND THE TIMELINE ARE STILL EDITED THERE, and that is not an oversight. `upsertAddon`,
+   * the states and the outfits all require the card to belong to THIS story and correctly refuse
+   * otherwise, so drawing those controls here would draw presses that silently do nothing. Open
+   * that book, or take the card over.
+   *
+   * ponytail: the whole card is one box short of editable — title, keys and activation are the
+   * world's. The ceiling is that renaming a followed character or changing what wakes it is a trip
+   * to the other book. Widening it means auditing every control on the full face against a foreign
+   * story id, which is the audit this comment exists instead of.
+   */
   if (e.sharedFrom) return `<div style="display:flex; flex-direction:column">
     ${cardHead(e, [])}
     <div class="card" style="flex-direction:row; align-items:center; gap:9px; margin:0 0 10px">
@@ -4138,9 +4179,23 @@ function cardFace(e, slots) {
       <button data-open="${esc(e.sharedFromId)}" style="margin-left:auto; padding:6px 11px;
         border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11px"
         >Open that book</button></div>
-    <div class="hint" style="margin-top:0">${esc(e.body || 'Nothing written down yet.')}</div>
-    <div class="hint">It reaches this book's prompts and fires by the same rules. Editing it there
-      changes it everywhere, which is the point of following rather than copying.</div></div>`;
+    <textarea class="field" data-followedbody="${e.id}" aria-label="What ${esc(e.title)} says"
+      style="min-height:110px; font-size:12.5px; line-height:1.55">${esc(e.body ?? '')}</textarea>
+    <button class="btn ghost" data-savefollowed="${e.id}" style="margin-bottom:12px">Save to ${
+      esc(e.sharedFrom)}</button>
+    <div class="hint" style="margin-top:0">One card, not two: saving writes it in
+      <strong>${esc(e.sharedFrom)}</strong>, so every book following that one sees the change. Its
+      rooms, its timeline and what wakes it are edited there.</div>
+    <div style="display:flex; gap:7px; margin-top:12px">
+      <button data-takeover="${e.id}" style="flex:1; padding:8px 0; text-align:center;
+        border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:11.5px"
+        >Make it this book's own</button>
+      <button data-dropfollow="${e.id}" style="flex:1; padding:8px 0; text-align:center;
+        border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px"
+        >Remove it from this book</button></div>
+    <div class="hint">Taking it over copies it here as it stands — rooms, outfit and all — and it
+      stops following. Removing it leaves it untouched where it lives and only stops this book from
+      seeing it. Both are reversible.</div></div>`;
 
   // OUTFIT IS A ROOM LIKE THE REST, and drawing it twice is what Seth found: the slot loop made a
   // heading named outfit with nothing under it, because outfits were filtered out of `rooms`, and
@@ -4160,6 +4215,33 @@ function cardFace(e, slots) {
          lost — it moved next to the way out, which is where it belongs. -->
     ${e.retiredAtChapter != null ? `<div style="font-size:12px; color:var(--warn); margin:0 0 10px">
       Finished from chapter ${esc(String(e.retiredAtChapter))}.</div>` : ''}
+    <!-- #36. A CARD THIS BOOK TOOK OVER. It is an ordinary card now — every control below works on
+         it — and this says where it came from and offers it back, in both directions: keep the
+         world's version, or send this book's up so every book following it gets what was written
+         here. Without this line a taken-over card is indistinguishable from one born here and the
+         connection the copy still holds is invisible.
+         GATED ON "V.follows" AS WELL: a book that has since stopped following anything still has
+         the copy and still has its origin, and there is nowhere to hand it back TO. Offering the
+         presses there would offer two that can only fail.
+         NO BACKTICKS IN HERE. One inside an HTML comment closes the template literal holding this
+         markup, and it has cost this file six days out of the last ten. It killed the handlers
+         scenario on 2026-09-01, and "node --check" did NOT see it — only importing the module does,
+         which is what test/web.ts's first assertion is for. This very comment had one, in the
+         sentence warning about them. -->
+    ${e.originId && V.follows ? `<div class="card" style="gap:8px; margin:0 0 10px">
+      <span style="font-size:12px; color:var(--faint)">This book's own copy, taken from ${
+        esc(V.follows?.title ?? 'the book it follows')}. It stopped following when you took
+        it over, so changes there no longer reach it.</span>
+      <div style="display:flex; gap:7px">
+        <button data-sendup="${e.id}" style="flex:1; padding:7px 0; text-align:center;
+          border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:11px"
+          >Send this version up and follow again</button>
+        <button data-handback="${e.id}" style="flex:1; padding:7px 0; text-align:center;
+          border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11px"
+          >Drop this copy and follow again</button></div>
+      <span class="hint" style="margin:0">Either way this book goes back to reading the shared card.
+        Rooms written here stay here — send the whole card across instead if they matter.</span>
+    </div>` : ''}
     <div class="hint" style="margin-top:0">${esc(e.body || 'Nothing written down yet.')}</div>
     <!-- #22 §6. WHAT IS ON, THEN WHAT IS NOT. Seth: "after the name comes the body, after the body
          comes what ever is turned on. all turned off option or non activated option live under a
@@ -7151,6 +7233,58 @@ document.addEventListener('click', async (e) => {
     const r = await api.saveEntry(S.storyId, patch);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest(); return;
+  }
+  /* ISSUE #36 · A FOLLOWED CARD, PER CARD. Four presses over one mechanism — a local row that
+   * remembers the card it came from. `src/db.ts`'s migration note holds the three states.
+   *
+   * Every one of these repaints from the view the route returns, because all four change what
+   * `entriesFor` merges: the card either appears, disappears, or changes which book it belongs to,
+   * and a stale `V` would draw the face for a state the server has left. */
+  if (d.savefollowed) {
+    // ONE CARD, NOT TWO. `db.upsertEntry` redirects a write against a followed card to the book it
+    // lives in — before that this save minted a duplicate here and the writer believed they had
+    // edited the shared one. The id is the world's card id, which is what the redirect keys off.
+    const e = (V.entries ?? []).find((x) => x.id === d.savefollowed);
+    if (!e) return;
+    const body = document.querySelector(`[data-followedbody="${d.savefollowed}"]`)?.value;
+    const r = await api.saveEntry(S.storyId, { ...e, id: e.id, body: body ?? e.body,
+      allowNoKeys: true });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint(); refreshManifest();
+    return toast(`Saved in ${e.sharedFrom}. Every book following it sees this.`);
+  }
+  if (d.takeover) {
+    const r = await api.takeover({ storyId: S.storyId, entryId: d.takeover });
+    if (r.error) return toast(r.error);
+    // The copy is a NEW row with a new id, so the open card has to follow it or the form is
+    // pointing at a card this book no longer draws.
+    S.entryId = r.entryId ?? S.entryId;
+    V = r; paint(); refreshManifest();
+    return toast("Yours now. It stopped following, so changes there no longer reach it.");
+  }
+  if (d.dropfollow) {
+    if (!armed(t, 'dropfollow:' + d.dropfollow,
+      'Press again to take it out of this book. It stays where it lives.')) return;
+    const r = await api.dropfollowed({ storyId: S.storyId, entryId: d.dropfollow });
+    if (r.error) return toast(r.error);
+    S.entryId = null; V = r; paint(); refreshManifest();
+    return toast('Out of this book. Untouched where it lives, and you can bring it back.');
+  }
+  if (d.handback || d.sendup) {
+    const mine = !!d.sendup;
+    const id = d.handback || d.sendup;
+    const r = await api.relink({ storyId: S.storyId, entryId: id, keep: mine ? 'mine' : 'theirs' });
+    if (r.error) return toast(r.error);
+    S.entryId = r.origin ?? null; V = r; paint(); refreshManifest();
+    return toast(mine
+      ? 'Sent up and following again. Every book following that one has this wording now.'
+      : 'Following again. This copy is gone and the shared card is back.');
+  }
+  if (d.bringback) {
+    const r = await api.relink({ storyId: S.storyId, entryId: d.bringback, keep: 'theirs' });
+    if (r.error) return toast(r.error);
+    V = r; paint(); refreshManifest();
+    return toast('Back in this book.');
   }
   if (d.saveentry) {
     const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
