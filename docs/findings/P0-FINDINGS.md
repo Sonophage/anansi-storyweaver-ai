@@ -2501,3 +2501,63 @@ naming.
 it in noun form — *"never state Aldis Fen's thoughts, knowledge or decisions"* — and the priming
 target disappears while the naming stays. That is one more arm on a harness that is already warm, and
 it would decide whether F54 ships as written, ships reworded, or does not ship.
+
+## F55 — the noun form buys nothing measurable, and the run accidentally proved that this fixture's BASELINE drifts: the same control arm moved by half between two runs, p = 0.004 (2026-09-01)
+
+`bench/lockout.ts f53` with `ARM_A=their ARM_B=noun`, **650 generations an arm**, simultaneous, same
+story (arm D), F53's marker off on both, 0 errored generations. Verified through `POST /api/manifest`
+before and after: the treatment says *"never state Aldis Fen's thoughts, knowledge or decisions"*, the
+control says *"never state what they feel, know or decide"*, and **neither** contains the name-plus-
+mental-verb adjacency F54 identified.
+
+**The wording result: nothing moves.**
+
+| per 1,000 words | `their` | noun | events | two-tailed |
+|---|---|---|---|---|
+| his action | 1.22 | 1.17 | 40 vs 43 | p = 0.91 |
+| SUBJECT SLOT | 5.19 | 5.56 | 170 vs 204 | p = 0.53 |
+| his name | 3.39 | 3.52 | 111 vs 129 | p = 0.80 |
+| object `him` | 13.02 | 12.24 | 427 vs 449 | p = 0.36 |
+| possessive `his` | 20.68 | 22.55 | 678 vs 827 | p = 0.10 |
+| told (interiority, narrow) | 1.9% | 5.2% | 2/106 vs 6/116 | p = 0.28 |
+
+**AND THIS IS WHY THAT IS NOT A REFUTATION OF F54.** F55's control arm and F54's control arm are the
+SAME ARM — same fixture, same directive, same `their` wording, same model, 650 generations each. They
+do not agree:
+
+| the identical control arm | F54's run | F55's run | |
+|---|---|---|---|
+| words of narration | 42,869 | 32,785 | |
+| his action per 1,000 words | **2.10** | **1.22** | **p = 0.004** |
+| names him at all | 180/650 | 106/650 | |
+| action events to test on | 90 | 40 | |
+
+**The baseline moved by nearly half, and the move is significant.** Nothing was changed between the
+runs but the clock: no seed is set anywhere in this project, and the router's state — which model is
+resident, which is asleep, what the shared cache holds — is not controlled either.
+
+Two consequences, and the second is the useful one:
+
+- **F55 is UNDERPOWERED, not negative.** It has 83 action events against F54's 157. Asked directly:
+  if the noun form had produced F54's exact 31% reduction, F55's arms would have read 40 against 31,
+  which is **p = 0.15**. So this run could not have detected the effect it was built to check for. The
+  honest statement is *no evidence either way*, and it is not evidence of absence.
+- **ABSOLUTE DENSITIES IN F51-F55 ARE NOT COMPARABLE ACROSS FINDINGS.** Only the within-run contrast
+  is. This is CLAUDE.md's own rule — *"only A/B arms run simultaneously are controlled"* — arriving
+  with a number attached for the first time, and it is a stronger warning than the rule reads: the
+  drift is not a rounding difference, it is 72% on the metric these findings are built on.
+
+**What still stands.** F53's halving (p = 0.00001, 156 events) and F54's third (p = 0.008, 206 events)
+were both measured WITHIN a run against a simultaneous control, so both survive this. What does not
+survive is any sentence comparing F53's numbers to F54's, or either to F55's.
+
+**What this says about shipping.** Nothing new about the noun form, which is the question it was run
+for. `ANANSI_LOCKOUT_NOUN` joins the other two flags, off. Three measured-and-dark flags on one
+instruction — plus a baseline that moves by half between runs — is the state to fix before adding a
+fourth wording.
+
+**The next run should be bigger, not different.** The lesson is not "try another phrasing", it is that
+this fixture yields ~40-90 action events per 650 generations and that is too few to separate a third
+from noise reliably. Either raise n per arm to the point where the drift is small against the effect,
+or change the fixture so the counter fires more often — a scene where the locked character is more
+likely to be named would do it, at the cost of comparability with everything above.
