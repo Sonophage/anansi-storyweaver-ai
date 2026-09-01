@@ -1605,4 +1605,31 @@ ok('the lockout can put its second clause in noun form, with no mental verb besi
   assert.match(off, /never state what they feel, know or decide/, 'off: second clause too');
 });
 
+
+// ---- A CARD WITH AN EMPTY BODY AND EVERYTHING IN `facts` RENDERS CLEAN (issue #39, 2026-09-01).
+//
+// Story creation now puts a new card's description in the facts room and leaves Info empty, because
+// the chapter-end pass rewrites Info and cannot touch a room. That makes "entry with no body" the
+// NORMAL shape for every freshly made book rather than a corner case — and nothing asserted what
+// the prompt looks like in that shape. An empty bracket or a stray blank line in the canon block
+// would be on every new book's every call.
+ok('a card with no body renders its facts bare, with no empty bracket left behind', () => {
+  const b = base();
+  const out = render(buildContext({ ...b,
+    entries: [{ id: 'e1', title: 'Aldis Fen', body: '', entryType: 'character',
+                activation: 'always_on', keys: [],
+                addons: [{ id: 'a1', slot: 'facts', name: 'facts', active: 1, keys: [],
+                           body: '[Aldis Fen: 34, ex-Watch sergeant]' }] }],
+  } as any, count));
+
+  assert.match(out, /\[Aldis Fen: 34, ex-Watch sergeant\]/,
+    'the facts room reaches the prompt, which is the whole point of moving it there');
+  // BARE, not wrapped. `rooms()` special-cases facts so it reads where the body read; wrapping it
+  // produced "[You: [You: protagonist" on migrated cards once already.
+  assert.doesNotMatch(out, /\[facts: /, 'and reads bare, not labelled as a room');
+  // The empty body must leave NOTHING behind.
+  assert.doesNotMatch(out, /\[\s*\]/, 'no empty bracket where the body would have been');
+  assert.doesNotMatch(out, /\n\n\n/, 'and no gap left by the missing body');
+});
+
 console.log(`\n${n} checks passed`);
