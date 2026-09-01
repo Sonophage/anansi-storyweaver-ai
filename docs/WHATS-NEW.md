@@ -10,6 +10,22 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Making a story, in seven steps instead of eight
+
+### The screen that read your own sentence back to you is gone
+The wizard opened on a page showing the idea you had just typed. It now opens on the book itself —
+title, genre, premise, voice — and your idea sits at the top of it as one line you can still edit.
+It has to stay somewhere: every re-roll asks again from exactly that sentence, so changing it changes
+what comes back.
+
+### The cast is called the threads
+Same screen, same cards, the name it has everywhere else in the app.
+
+### A second look comes earlier, where it can still change something
+Anansi's read-back used to come after you had picked who you play. It now comes straight after the
+threads — which matters, because one of the things she offers is threads the book implies and the
+list is missing. Those arrive before you choose your character out of that list, instead of after.
+
 ## 2026-09-01 · The character you hold back is held back harder
 
 ### Anansi now knows which lines in your book are yours

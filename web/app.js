@@ -2978,16 +2978,42 @@ function searchHits() {
  *  cast call proposes both itself, so the field arrives filled. Typing a name is still reachable:
  *  skip the cast step and both fall back to free text, which is the shape a book with no ledger
  *  has. */
+/** THE WIZARD'S STEPS, NAMED AND NEVER NUMBERED — issue #40, 2026-09-01.
+ *
+ *  They were `step === 1`, `step === 2` and so on, in a chain whose SOURCE ORDER was already 1, 2,
+ *  4, 3, 5... because "You" had been moved after the cast and only the condition moved with it. The
+ *  first thing this reorder had to do was renumber seven branches, three arrival effects and a test
+ *  suite that clicks step indices — which is exactly the hazard `.claude/CLAUDE.md` names first and
+ *  in capitals: "Blocks are named, never numbered. Three incompatible numberings once existed
+ *  across two docs." A wizard is a block order by another name.
+ *
+ *  So the key is the first element and the body switches on it. Reordering is now editing this
+ *  array and nothing else; the number a writer sees is this array's index, computed.
+ *
+ *  WHAT CHANGED IN THE ORDER, all Seth 2026-09-01:
+ *    - `idea` is gone as a screen — "skip step one it's just showing me what I already wrote". It
+ *      survives as an editable line at the top of `book`, because every re-roll asks again from
+ *      exactly it and deleting the screen would have deleted the input.
+ *    - `cast` is `threads` — "Don't call it the cast call it the threads".
+ *    - `look` moved UP, to after `threads` and before `you` — "a second look should come after cast
+ *      and before you select who you are". It reads title, premise, setting, voice and cast, and
+ *      never persona, so it loses nothing by moving; and it can PROPOSE missing threads, which
+ *      until now arrived after the writer had already picked a persona out of the cast.
+ */
 const STEPS = [
-  ['Your idea', 'The sentence this came from.'],
-  ['The book', 'What it is, and how the prose sounds.'],
-  ['The cast', 'What this book needs, if anything.'],
-  ['You', 'Who you play, out of the cast you just set.'],
-  ['A second look', 'Anansi reads it back and says what she would change.'],
-  ['The first scene', 'Where it opens.'],
-  ['The opening', 'Who writes the first passage.'],
-  ['Begin', 'What gets written when you accept.'],
+  ['book',    'The book',        'What it is, and how the prose sounds.'],
+  ['threads', 'The threads',     'What this book needs, if anything.'],
+  ['look',    'A second look',   'Anansi reads it back and says what she would change.'],
+  ['you',     'You',             'Who you play, and who she never writes.'],
+  ['scene',   'The first scene', 'Where it opens.'],
+  ['opening', 'The opening',     'Who writes the first passage.'],
+  ['begin',   'Begin',           'What gets written when you accept.'],
 ];
+
+/** The 1-based position of a named step, for the places that jump to one by intent rather than by
+ *  arrow. Named lookup and not a literal: `S.sparkStep = 2` meant "the book" until 2026-09-01
+ *  reordered the array above, and then it silently meant "the threads". */
+const stepAt = (k) => Math.max(1, STEPS.findIndex(([x]) => x === k) + 1);
 
 /** Read whatever this step has on screen back into state. Called before every move, including
  *  Accept: an edit on the step you are standing on is lost otherwise. */
@@ -3132,7 +3158,10 @@ async function sparkStyle(auto) {
 
 function sparkReview() {
   const s = S.spark.story ?? {};
-  const step = S.sparkStep ?? 1;
+  // Clamped, because S.sparkStep survives a reload and the array got shorter on 2026-09-01: a
+  // writer sitting on the old step 8 would otherwise land past the end and render nothing.
+  const step = Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEPS.length);
+  const key = STEPS[step - 1][0];
   const row = (k, label, value, hint) => `<label class="lbl">${label}</label>
     <input class="field" data-sp="${k}" value="${esc(value ?? '')}">
     ${hint ? `<div class="hint">${hint}</div>` : ''}`;
@@ -3160,10 +3189,10 @@ function sparkReview() {
   // on a screen the writer did not open on, and an empty box on a step you are passing through is
   // a box that stays empty. `styled` is set inside `sparkStyle` before its await, so the repaint it
   // causes cannot start a second one.
-  if (step === 2 && !S.spark.styled && !S.spark.styling && !(s.styleNote ?? '').trim()
+  if (key === 'book' && !S.spark.styled && !S.spark.styling && !(s.styleNote ?? '').trim()
       && ((s.genre ?? '').trim() || (s.premise ?? '').trim())) sparkStyle(true);
   // The library, for the picker on the cast step. `loadLedger` paints when it lands.
-  if (step === 3 && LEDGER === null) loadLedger();
+  if (key === 'threads' && LEDGER === null) loadLedger();
   // `busy` and not `sparking` alone: step 2 carries TWO model buttons now — this one and the house
   // style — so a re-roll pressed while the style is being written would be a second concurrent call
   // on a router that does not queue. The style button already read the shared flag; this is the
@@ -3172,17 +3201,19 @@ function sparkReview() {
     ? `<button class="btn ghost" data-spreroll="1" ${busy ? 'disabled' : ''}
         style="margin-top:6px">${S.spark.sparking ? 'Thinking&hellip;' : esc(label)}</button>` : '';
 
-  const body = step === 1
-    // 1 · THE IDEA. It used to live on a different screen and was gone the moment you sparked, so
-    // the one sentence everything came from could not be read, corrected, or asked again from.
-    ? `${area('idea', 'What you gave her', S.spark.idea ?? '',
-         'Every re-roll on the next step asks again from exactly this. Change it and the next '
-         + 'answer changes with it.', 100)}
-       ${reroll('Ask again from this')}`
-    : step === 2
-    // 2 · THE BOOK. Title, genre, premise — and the voice, which was on the last step where it was
-    // read after every decision it should have been informing.
-    ? `${row('title', 'Title', s.title)}
+  const body = key === 'book'
+    /* THE BOOK. Title, genre, premise — and the voice, which was on the last step where it was
+     * read after every decision it should have been informing.
+     *
+     * THE IDEA IS THE FIRST LINE OF IT NOW, not a screen. Seth, 2026-09-01: "skip step one it's just
+     * showing me what I already wrote." It could not simply be deleted: it is not a field of the
+     * story, it is what the story was asked FOR, and every re-roll sends exactly it — so a screen
+     * that echoed him was carrying the one input a re-roll needs. As a line it does both: he stops
+     * reading his own sentence back, and he can still edit it and ask again from the change. */
+    ? `${area('idea', 'From your idea', S.spark.idea ?? '',
+         'Every re-roll here asks again from exactly this. Change it and the next answer changes '
+         + 'with it.', 60)}
+       ${row('title', 'Title', s.title)}
        ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag on the shelf.')}
        ${area('premise', 'Premise', s.premise, 'It rides in the spine on every call.', 110)}
        ${forgeCopy('premise', 'Copy the premise prompt')}
@@ -3206,8 +3237,8 @@ function sparkReview() {
        <button class="btn ghost" data-spstyle="1" ${busy ? 'disabled' : ''}
          style="margin:-4px 0 10px; font-size:11.5px">${S.spark.styling ? 'Thinking&hellip;'
            : s.styleNote ? 'Write another' : 'Have Anansi write it'}</button>`
-    : step === 4
-    // 4 · YOU. AFTER the cast, at Seth's direction — see the note on STEPS. The usual answer is now
+    : key === 'you'
+    // YOU. AFTER the cast, at Seth's direction — see the note on STEPS. The usual answer is now
     // a pick over a list that is already right, and the cast call proposes both, so the fields
     // arrive filled. Skip the cast and both fall back to free text, which is the shape a book with
     // no ledger has and the only way this branch is now reached.
@@ -3238,8 +3269,8 @@ function sparkReview() {
          `<option value="${i + 1}" ${Number(s.spice) === i + 1 ? 'selected' : ''}>${i + 1} &middot; ${esc(l)}</option>`).join('')}</select>
        <div class="hint">Changeable per story at any time, and a written-out register can replace the
          level entirely under Story.</div>`
-    : step === 3
-    // 3 · THE CAST, and only the kinds this book needs. #21 §2 made it its own call.
+    : key === 'threads'
+    // THE THREADS, and only the kinds this book needs. #21 §2 made it its own call.
     //
     // #28 · THREE THINGS WERE ADDED HERE 2026-08-30, all from one sentence of Seth's: *"i should
     // be able to reroll characters or direct it based on my input. also i should be abel to set up
@@ -3257,18 +3288,18 @@ function sparkReview() {
              color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(KIND_PLURAL[k] ?? k)}</button>`;
          }).join('')}
        </div>
-       ${area('castSteer', 'What this cast should be', S.spark.castSteer ?? '',
-         'Optional, and it reaches every ask on this step &mdash; the whole cast and any one card '
+       ${area('castSteer', 'What these threads should be', S.spark.castSteer ?? '',
+         'Optional, and it reaches every ask on this step &mdash; all the threads and any one of them '
          + 'you re-roll. Name what the book needs from them: a rival who is family, nobody over '
          + 'thirty, a city that is a character.', 56)}
        <button class="btn ghost" data-spwritecast="1" ${busy ? 'disabled' : ''}
          style="margin-bottom:10px">${S.spark.casting ? 'Writing them&hellip;'
-           : S.spark.entries.length ? 'Write a different cast' : 'Write the cast'}</button>
+           : S.spark.entries.length ? 'Write different threads' : 'Write the threads'}</button>
        <div class="hint" style="margin:0 0 10px">${S.spark.entries.length
          ? `${S.spark.entries.length} proposed. Untick anyone you do not want; nothing is written
             until you accept. Asking again replaces all of them &mdash; to change one, re-roll that
             one.`
-         : `Pick what this book needs, then ask. A book with no cast is a real answer &mdash;
+         : `Pick what this book needs, then ask. A book with no threads is a real answer &mdash;
             skip this step and write them as you go.`}</div>
        ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px; gap:7px">
          <div style="display:flex; align-items:center; gap:8px">
@@ -3295,8 +3326,8 @@ function sparkReview() {
        </div>` : ''}
        <textarea class="field" data-castpaste placeholder="Or paste forged JSON &mdash; one card, or a list"
          style="min-height:60px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
-       <button class="btn ghost" data-pastecast="1">Read it and add to the cast</button>
-       <div class="hint">It joins the cast above, to read and edit before you accept. Nothing is
+       <button class="btn ghost" data-pastecast="1">Read it and add to the threads</button>
+       <div class="hint">It joins the threads above, to read and edit before you accept. Nothing is
          written until then, and its rooms travel with it.</div>
 
        <!-- #28 · FROM THE BOOKS YOU ALREADY HAVE. The same picker the blank-start form uses, and
@@ -3306,8 +3337,8 @@ function sparkReview() {
        <input class="field" id="seedq" value="${esc(S.seedQ ?? '')}"
          placeholder="Search every book for a character, a place, a rule&hellip;">
        <div id="seeds">${seedList()}</div>`
-    : step === 5
-    // 5 · A SECOND LOOK. From a button, never on arriving: a model call nobody asked for is what
+    : key === 'look'
+    // A SECOND LOOK. From a button, never on arriving: a model call nobody asked for is what
     // made "what changed" slow, and #24 is the whole argument.
     ? `<button class="btn ghost" data-spreview="1" ${S.spark.reviewing ? 'disabled' : ''}
          style="margin-bottom:10px">${S.spark.reviewing ? 'Reading it back&hellip;'
@@ -3334,22 +3365,22 @@ function sparkReview() {
                 font-size:11.5px">Add to the cast</button></div>`).join('')}` : ''}`
        : `<div class="hint" style="margin:0">She would not change anything. That is a real answer and
           it is the one a skeleton that hangs together gets.</div>`}`
-    : step === 6
-    // 6 · THE FIRST SCENE. It asked for "Where this is going" as well until 2026-08-30, when that
+    : key === 'scene'
+    // THE FIRST SCENE. It asked for "Where this is going" as well until 2026-08-30, when that
     // field came out of the whole app — Seth: "no ones going to use it. ive asked."
     ? `${row('setting', 'Where it opens', s.setting,
          'Lore written later can replace this. It is the place the first scene stands in.')}
        ${cast.length ? `<div class="hint" style="margin-top:10px">Everyone you kept is in the book
          from the first line &mdash; a spark cast is always-on. Who is in a given SCENE is a
          chapter's own question, and the chapter screen asks it.</div>` : ''}`
-    : step === 7
-    // 7 · THE OPENING.
+    : key === 'opening'
+    // THE OPENING.
     ? `<label style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute)">
          <input type="checkbox" data-sp-open="1" ${S.spark.autoOpen === false ? '' : 'checked'}>
          Let the model write the opening passage</label>
        <div class="hint">And the first passage of every chapter after it. Changeable per story under
          Storyteller. Leave it off and the first page is yours.</div>`
-    // 8 · BEGIN. What accepting actually writes, said before it is pressed.
+    // BEGIN. What accepting actually writes, said before it is pressed.
     : `<div class="hint" style="margin:0 0 12px">Nothing has been written yet. Accepting creates all
          of this at once.</div>
        ${[[`${esc(s.title || 'Untitled')}`, 'the book, with its premise, voice and style'],
@@ -3361,12 +3392,12 @@ function sparkReview() {
          .map(([what, why]) => `<div class="row"><span style="color:var(--ink)">${what}</span>
            <span style="margin-left:auto; color:var(--faint); font-size:11.5px">${why}</span></div>`).join('')}`;
 
-  return `<div style="display:flex; gap:5px; margin-bottom:14px">${STEPS.map(([t], i) => `
+  return `<div style="display:flex; gap:5px; margin-bottom:14px">${STEPS.map(([, t], i) => `
       <button data-sparkstep="${i + 1}" aria-pressed="${step === i + 1}" style="flex:1; height:5px;
         border-radius:99px; background:${i + 1 <= step ? 'var(--gold)' : 'var(--chip)'}"
         aria-label="${esc(t)}"></button>`).join('')}</div>
-    <div class="lbl" style="letter-spacing:.1em; margin:0">${step} of ${STEPS.length} &middot; ${esc(STEPS[step - 1][0])}</div>
-    <div class="hint" style="margin:2px 0 12px">${esc(STEPS[step - 1][1])}</div>
+    <div class="lbl" style="letter-spacing:.1em; margin:0">${step} of ${STEPS.length} &middot; ${esc(STEPS[step - 1][1])}</div>
+    <div class="hint" style="margin:2px 0 12px">${esc(STEPS[step - 1][2])}</div>
     ${body}
     <div style="display:flex; gap:8px; margin-top:18px">
       ${step > 1 ? `<button class="btn ghost" data-sparkstep="${step - 1}" style="flex:0 0 96px">Back</button>` : ''}
@@ -7933,7 +7964,8 @@ document.addEventListener('click', async (e) => {
       // brought is theirs and must never be dropped.
       proposed: [],
     };
-    S.sparkStep = 2;
+    // The book, by name. A pasted skeleton lands on the screen that shows what arrived.
+    S.sparkStep = stepAt('book');
     if (S.prompts === null) loadPrompts();
     paint();
     const rooms = cards.reduce((k, c) => k + Object.keys(c.rooms ?? {}).length, 0);

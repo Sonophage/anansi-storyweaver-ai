@@ -100,20 +100,71 @@ await wait(1200);
 ok(`  a double press on Spark sends ONE request (${await page.eval("window.__spark")})`,
    (await page.eval("window.__spark")) === 1);
 
-// EIGHT STEPS: the idea, the book, THE CAST, YOU, a second look, the first scene, the opening, and
-// only then does the book open. #21 §3 had you before the cast; #28 swapped them at Seth's
-// direction on 2026-08-30, because both of the fields on "you" hold a character's NAME.
-const steps = await page.eval("document.querySelectorAll('[data-sparkstep]').length");
-ok(`the skeleton arrives as steps, not one scroll (${steps} step controls)`, steps >= 8);
+// SEVEN STEPS, and they are asserted BY NAME because that is now what the app keys off.
+//
+// The order, after #40 on 2026-09-01: the book, the threads, a second look, you, the first scene,
+// the opening, begin. What changed from eight: the idea screen went — Seth, "skip step one it's just
+// showing me what I already wrote" — and it survives as a field on the book step, because every
+// re-roll asks again from exactly it. The second look moved UP, to after the threads and before you,
+// so the threads it proposes arrive before the writer picks a persona out of them.
+//
+// #21 §3 had you before the cast; #28 swapped them on 2026-08-30, because both fields on "you" hold
+// a character's NAME. That still holds — you is still after the threads.
 
-ok("  step 1 is the idea it came from, kept and editable",
+/* GO TO A STEP BY NAME, not by index — issue #40, 2026-09-01.
+ *
+ * Every navigation here was `page.click('[data-sparkstep="4"]')`. The wizard was reordered on
+ * 2026-09-01 (the idea screen went, the second look moved up) and every one of those numbers then
+ * pointed at a different screen: the suite DIED after 7 ok rather than reporting which. The app's
+ * own step conditions were renumbered into names in the same change for exactly this reason, and a
+ * test that still counts screens undoes half of that.
+ *
+ * The dots carry `aria-label` set from the step's title, which is what makes this possible without a
+ * new attribute. Throws with the list it CAN see, so a renamed step names itself instead of failing
+ * as a click on nothing.
+ */
+const go = async (title) => {
+  const n = await page.eval(`(() => { const b = [...document.querySelectorAll('[data-sparkstep]')]
+    .find(e => (e.getAttribute('aria-label') || '') === ${JSON.stringify(title)});
+    return b ? b.dataset.sparkstep : null; })()`);
+  if (!n) {
+    const have = await page.eval(`JSON.stringify([...document.querySelectorAll('[data-sparkstep]')]
+      .map(e => e.getAttribute('aria-label')))`);
+    throw new Error(`no wizard step called ${JSON.stringify(title)} — the steps are ${have}`);
+  }
+  await page.click(`[data-sparkstep="${n}"]`);
+  await wait(450);
+};
+
+// THE DOTS, WHICH ARE THE ONES THAT NAME THEMSELVES. Back and Next carry `data-sparkstep` too —
+// they are how you move — so a bare selector counts nine things and reports eight steps plus an
+// empty name. The indicator row is the labelled one, and `go()` already matches on the label.
+const stepNames = JSON.parse(await page.eval(
+  `JSON.stringify([...document.querySelectorAll('[data-sparkstep][aria-label]')]
+     .map(e => e.getAttribute('aria-label')))`));
+ok(`the skeleton arrives as steps, not one scroll (${stepNames.length} step controls)`,
+   stepNames.length === 7);
+// THE ORDER ITSELF, asserted. It is the thing #40 changed and the thing a later reorder would
+// change again by accident — the array in app.js is now the only place it lives.
+ok(`  in order: ${stepNames.join(' -> ')}`,
+   JSON.stringify(stepNames) === JSON.stringify(['The book', 'The threads', 'A second look',
+     'You', 'The first scene', 'The opening', 'Begin']));
+// AND THE IDEA SCREEN IS GONE, which is the ask. Asserted as an absence so putting it back is a red.
+ok('  the idea is no longer a screen of its own', !stepNames.includes('Your idea'));
+
+// THE IDEA IS A LINE ON THE FIRST STEP NOW, not a screen. It could not simply be deleted: it is
+// what the story was asked FOR and every re-roll sends exactly it, so the screen that echoed him was
+// carrying the one input a re-roll needs.
+ok("  the idea it came from is on the first step, kept and editable",
    (await page.eval("document.querySelector('[data-sp=\"idea\"]')?.value")) === 'a tide-clerk who counts what the sea gives back');
+ok("  and the book's own fields are on that same step, not one further in",
+   (await page.eval("!!document.querySelector('[data-sp=\"title\"]')")) === true);
 // Accept on every step is the decision Seth made: everything is prefilled, so gating eight screens
 // would turn one press into eight.
 ok("  and Accept is already on the first step, not held back to the last",
    (await page.eval("!!document.querySelector('[data-accept-spark]')")) === true);
 
-await page.click('[data-sparkstep="2"]');
+await go("The book");
 await wait(700);
 ok("  step 2 is the book, and the voice is on it rather than five steps later",
    (await page.eval("!!document.querySelector('[data-sp=\"title\"]')")) === true
@@ -134,10 +185,13 @@ ok("  and the scaffold call brought back no cast at all", (await page.eval("wind
   // ONCE, AND THIS IS THE ASSERTION. The box is STILL EMPTY, so the only thing stopping a second
   // ask is the flag. Without it every repaint of this step is another model call, and the router
   // does not queue — two concurrent fit and a third kills both with HTTP 500.
-  await page.click('[data-sparkstep="1"]');
-  await wait(300);
-  await page.click('[data-sparkstep="2"]');
-  await wait(700);
+  // AWAY AND BACK, and away has to be a DIFFERENT step or this proves nothing. It was
+  // `sparkstep=1` then `sparkstep=2`, and step 1 became the book itself on 2026-09-01 — so the
+  // mechanical rewrite of this file turned it into clicking one step twice, which never unmounts the
+  // box and would have passed with the once-only flag deleted.
+  await go("The threads");
+  await go("The book");
+  await wait(400);
   ok("  and does not ask again on every visit, though the box it would fill is still empty",
      (await page.eval("window.__style")) === 1);
 
@@ -154,12 +208,12 @@ ok("  and the scaffold call brought back no cast at all", (await page.eval("wind
 // paginating a form that used to read every field at accept time.
 await page.eval(`(() => { const t = document.querySelector('[data-sp="title"]');
   t.value = 'The Drowned Ledger'; return 1; })()`);
-await page.click('[data-sparkstep="3"]');
+await go("The threads");
 await wait(400);
 ok("  step 3 arrives empty, and asks what kinds this book needs",
    (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 0
    && (await page.eval("document.querySelectorAll('[data-spkind]').length")) === 4);
-await page.click('[data-sparkstep="2"]');
+await go("The book");
 await wait(400);
 ok("  an edit survives leaving the step and coming back",
    (await page.eval("document.querySelector('[data-sp=\"title\"]')?.value")) === 'The Drowned Ledger');
@@ -170,13 +224,13 @@ ok("  an edit survives leaving the step and coming back",
 //
 // The free-text fallback is still reachable and this is the case that reaches it: skipping the cast
 // step leaves nothing to pick from, which is the shape a book with no ledger has.
-await page.click('[data-sparkstep="4"]');
+await go("You");
 await wait(400);
 ok("  step 4 is a field you type into while the cast step has been skipped",
    (await page.eval("document.querySelector('[data-sp=\"persona\"]')?.tagName")) === 'INPUT');
 
 // #21 §2 · THE CAST IS ITS OWN CALL, and does not run until the writer says what this book needs.
-await page.click('[data-sparkstep="3"]');
+await go("The threads");
 await wait(400);
 await page.click('[data-spwritecast="1"]');
 await wait(600);
@@ -218,11 +272,11 @@ ok("  step 3 is the cast", (await page.eval("document.querySelectorAll('[data-sp
      replacing === '["Ilva Marren"]' && kinds === '["character"]');
   // The persona was Ilva and Ilva stayed, so it is untouched — a per-card re-roll has no standing
   // to decide who you play.
-  await page.click('[data-sparkstep="4"]');
+  await go("You");
   await wait(400);
   ok("  and the one you play is untouched by it",
      (await page.eval(`document.querySelector('[data-sp="persona"]')?.value`)) === 'Ilva Marren');
-  await page.click('[data-sparkstep="3"]');
+  await go("The threads");
   await wait(400);
   // Put the cast back to the two the assertions further down are written against.
   await page.click('[data-spwritecast="1"]');
@@ -254,7 +308,7 @@ ok("  the cast step can also pull threads out of books you already have",
 
 // And once there IS a cast, step 4 becomes a pick over it — which is now the ORDINARY path rather
 // than the one you reach by walking backwards.
-await page.click('[data-sparkstep="4"]');
+await go("You");
 await wait(400);
 ok("  and once there is one, step 4 becomes a pick over it",
    (await page.eval("document.querySelector('[data-sp=\"persona\"]')?.tagName")) === 'SELECT');
@@ -264,7 +318,7 @@ ok("  and once there is one, step 4 becomes a pick over it",
 
   // A KIND NOBODY PICKED IS NOT ASKED FOR. "No characters at this point" was unreachable while the
   // spark schema REQUIRED two of them.
-  await page.click('[data-sparkstep="3"]');
+  await go("The threads");
   await wait(300);
   await page.click('[data-spkind="character"]');
   await wait(250);
@@ -278,20 +332,20 @@ ok("  and once there is one, step 4 becomes a pick over it",
 
   // RE-ROLLING THE SKELETON LEAVES THE CAST WHERE IT IS. It was written against the book, and a
   // writer asking for another premise has not asked to lose the people in it.
-  await page.click('[data-sparkstep="1"]');
+  await go("The book");
   await wait(300);
   await page.click('[data-spreroll="1"]');
   await wait(700);
   ok("  the skeleton re-rolls from the same idea, as its own call",
      (await page.eval("window.__spark")) === sparksBefore + 1);
-  await page.click('[data-sparkstep="3"]');
+  await go("The threads");
   await wait(350);
   ok("  and the cast it was written for is still standing",
      (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 2);
 
   // The re-roll replaced the title, which is what it says it does. Put back the one the assertions
   // at the end of this file are about.
-  await page.click('[data-sparkstep="2"]');
+  await go("The book");
   await wait(300);
   await page.eval(`(() => { const t = document.querySelector('[data-sp="title"]');
     t.value = 'The Drowned Ledger'; return 1; })()`);
@@ -299,7 +353,7 @@ ok("  and once there is one, step 4 becomes a pick over it",
 
 // #21 §3 · STEP 5 · A SECOND LOOK, and it fires from a BUTTON. A model call nobody asked for is
 // what made "what changed" slow, and #24 is the whole argument against it.
-await page.click('[data-sparkstep="5"]');
+await go("A second look");
 await wait(400);
 ok("  step 5 asks nothing until it is asked", (await page.eval("window.__review")) === 0);
 await page.click('[data-spreview="1"]');
@@ -312,18 +366,18 @@ await page.click('[data-spapply="0"]');
 await wait(400);
 ok("  taking one applies it and takes it off the list",
    (await page.eval("document.querySelectorAll('[data-spapply]').length")) === 0);
-await page.click('[data-sparkstep="2"]');
+await go("The book");
 await wait(400);
 ok("  and the field it replaced carries the new words",
    (await page.eval("document.querySelector('[data-sp=\"title\"]')?.value")) === 'The Tide Clerk');
 // Put the title back for the assertions at the end.
 await page.eval(`(() => { const t = document.querySelector('[data-sp="title"]');
   t.value = 'The Drowned Ledger'; return 1; })()`);
-await page.click('[data-sparkstep="5"]');
+await go("A second look");
 await wait(400);
 await page.click('[data-spaddone="0"]');
 await wait(400);
-await page.click('[data-sparkstep="3"]');
+await go("The threads");
 await wait(400);
 ok("  and a thread she suggested joins the cast when you say so",
    (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 3);
@@ -333,7 +387,7 @@ await page.eval("(() => { document.querySelector('[data-spcast=\"2\"]').checked 
 // Step 4 may only offer people who are still in the cast: a persona naming somebody just dropped is
 // exactly the stranding the server's pinCast exists to catch, and the surface should not create it.
 await page.eval("(() => { document.querySelector('[data-spcast=\"1\"]').checked = false; return 1; })()");
-await page.click('[data-sparkstep="4"]');
+await go("You");
 await wait(400);
 const offered = await page.eval(`(() => [...document.querySelectorAll('[data-sp="persona"] option')]
   .map(o => o.value).filter(Boolean).join('|'))()`);
@@ -344,7 +398,7 @@ ok("  and Nobody stays available, because a story can be narrated from outside",
 // The cast is EDITABLE, and renaming somebody there has to carry what points at them. The cast call
 // proposed Ilva for both persona and locked character; renaming her must not leave step 4 offering
 // a name the cast no longer contains and silently falling back to Nobody.
-await page.click('[data-sparkstep="3"]');
+await go("The threads");
 await wait(400);
 ok("  a proposed character can be edited in place",
    (await page.eval("!!document.querySelector('[data-spname=\"0\"]')")) === true
@@ -358,7 +412,7 @@ await wait(400);
 ok("  writing one of your own gives you a field to type in, not a row called Untitled",
    (await page.eval("document.querySelectorAll('[data-spname]').length")) === 4
    && (await page.eval("document.querySelector('[data-spname=\"3\"]')?.value")) === '');
-await page.click('[data-sparkstep="4"]');
+await go("You");
 await wait(400);
 const afterRename = await page.eval(`(() => [...document.querySelectorAll('[data-sp="persona"] option')]
   .map(o => o.value).filter(Boolean).join('|'))()`);
@@ -370,9 +424,9 @@ ok("  and the persona followed her rather than falling back to Nobody",
 // lead the writer does not speak as is a real shape, so it is a press rather than a rule.
 await page.eval(`(() => { const l = document.querySelector('[data-sp="lockedCharacter"]');
   l.value = ''; l.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
-await page.click('[data-sparkstep="3"]');
+await go("The threads");
 await wait(300);
-await page.click('[data-sparkstep="4"]');
+await go("You");
 await wait(400);
 ok("  the model-never-writes field can be cleared on its own",
    (await page.eval(`document.querySelector('[data-sp="lockedCharacter"]')?.value`)) === '');
@@ -382,7 +436,7 @@ ok("  and one press puts the one you play back into it",
    (await page.eval(`document.querySelector('[data-sp="lockedCharacter"]')?.value`)) === 'Ilva Vane');
 
 // #21 §3 · STEP 8 SAYS WHAT ACCEPTING WILL WRITE, before it is pressed.
-await page.click('[data-sparkstep="8"]');
+await go("Begin");
 await wait(400);
 const begin = await page.eval("document.querySelector('#page')?.innerText || ''");
 ok("  the last step says what will be created rather than asking for more",
