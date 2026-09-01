@@ -55,6 +55,14 @@ await page.eval(`(() => {
     if (url.includes('/api/spark/cast')) {
       window.__cast++;
       const sent = JSON.parse(o.body); window.__castBody = sent;
+      // #40, 2026-09-01 · THE FIRST ONE FAILS ON PURPOSE, the same idiom the style call above uses.
+      // Leaving the book step now ASKS for the threads by itself, so a stub that always answered
+      // would make "the step arrives empty" and the free-text persona fallback unreachable — and
+      // both are real states: they are what a writer gets when the model is down. The failing first
+      // call is also the case the castTried flag exists for.
+      // NO BACKTICKS IN HERE: this whole stub lives inside a page.eval template literal.
+      if (window.__cast === 1) return Promise.resolve(new Response(
+        JSON.stringify({ error: 'no model in this scenario' }), { headers: { 'Content-Type': 'application/json' } }));
       // #28. A ONE-CARD RE-ROLL names who is staying, and the stub answers it the way the route
       // does: one entry, of the kind asked for, who is not one of them. Answering with the same
       // two would make the re-roll assertion pass while doing nothing.
@@ -224,8 +232,21 @@ ok("  every kind is on from the start, not characters alone",
 ok("  the step arrives empty, and asks what kinds this book needs",
    (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 0
    && (await page.eval("document.querySelectorAll('[data-spkind]').length")) === 4);
-ok("  and no cast has been asked for yet",
-   (await page.eval("window.__cast")) === 0);
+/* #40 · AND THE THREADS SUGGEST THEMSELVES on leaving the book. Seth: "having them suggested is
+ * good." Fired on LEAVING rather than arriving, which is what keeps it inside #24's rule — pressing
+ * on IS the ask. The stub refused this first one, so what is on screen is the model-down state.
+ */
+ok(`  the threads asked for themselves on the way in (${await page.eval("window.__cast")} call)`,
+   (await page.eval("window.__cast")) === 1);
+ok("  and the step is empty because that call could not reach the model",
+   (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 0);
+// ONCE, EVEN AFTER A FAILURE. `castTried` and not `entries.length`: paging back and forth must not
+// re-ask on a router that does not queue.
+await go("The book");
+await go("The threads");
+await wait(500);
+ok("  and does not ask again on the next visit, though it came back with nothing",
+   (await page.eval("window.__cast")) === 1);
 await go("The book");
 await wait(400);
 ok("  an edit survives leaving the step and coming back",
@@ -261,14 +282,33 @@ ok("  the kind chips deselect, leaving characters alone",
 // how you ask again — this is that second, explicit ask, and the first that the stub answers.
 await page.click('[data-spwritecast="1"]');
 await wait(600);
-ok("  writing the cast is a second call, made only when asked", (await page.eval("window.__cast")) === 1);
+// The autofill on the way in was call one and the stub refused it; this is the button, and it is
+// call two. "Its own call" is still the property — it is not folded into the scaffold — but it is no
+// longer "only when asked", which #40 changed on purpose.
+ok("  writing the threads is its own call, and the button asks again",
+   (await page.eval("window.__cast")) === 2);
 ok("  step 3 is the cast", (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 2);
 
 // #28 · THE STEER REACHES THE CALL. Seth: "i should be able to reroll characters or direct it based
 // on my input." A box the writer types into that never leaves the browser is the failure this
 // asserts against, so the check is on the REQUEST BODY and not on the field's value.
+/* #40, 2026-09-01 · WHAT YOU TICKED SURVIVES THE ASK. Seth: "the writer can state what they need
+ * after choosing what stays or goes."
+ *
+ * THIS ASSERTION CHANGED MEANING and that is worth saying rather than burying. It used to prove the
+ * steer reached the request while the whole list was REPLACED — the old contract, whose own comment
+ * read "REPLACES rather than appends". Under the new one the ticked threads ride as `replacing` (the
+ * argument the one-card re-roll has used since #28) and only the unticked are rewritten. Ticking was
+ * pointless on the one press where it mattered most: you read two, kept one, asked again, lost both.
+ *
+ * The steer half is unchanged and still checked ON THE REQUEST BODY, because a box the writer types
+ * into that never leaves the browser is the failure it was written against.
+ */
 {
   const before = await page.eval("window.__cast");
+  // Drop the second and keep the first. Set through the DOM the way the other keep-checkbox
+  // assertions in this file do — harvestSpark reads these on the way out.
+  await page.eval(`(() => { document.querySelector('[data-spcast="1"]').checked = false; return 1; })()`);
   await page.eval(`(() => { const t = document.querySelector('[data-sp="castSteer"]');
     t.value = 'nobody over thirty, and one of them owes the sea'; return 1; })()`);
   await page.click('[data-spwritecast="1"]');
@@ -277,6 +317,13 @@ ok("  step 3 is the cast", (await page.eval("document.querySelectorAll('[data-sp
   ok(`  the steer typed on this step reaches the cast call (${sent.slice(0, 60)}…)`,
      (await page.eval("window.__cast")) === before + 1
      && /owes the sea/.test(sent));
+  // THE KEPT ONE IS NAMED AS TAKEN, or the model hands back somebody already on screen.
+  ok(`  and the one still ticked rides as taken, not as something to rewrite`,
+     /"replacing":\["Ilva Marren"\]/.test(sent));
+  const names = await page.eval(`(() => [...document.querySelectorAll('[data-spname]')]
+    .map(n => n.value).join('|'))()`);
+  ok(`  the ticked thread survived and the unticked one was replaced (${names})`,
+     names === 'Ilva Marren|Ossian Rede');
 }
 
 // #28 · ONE CARD RE-ROLLED, and the rest left standing. Re-rolling the whole cast already existed
@@ -305,9 +352,18 @@ ok("  step 3 is the cast", (await page.eval("document.querySelectorAll('[data-sp
      (await page.eval(`document.querySelector('[data-sp="persona"]')?.value`)) === 'Ilva Marren');
   await go("The threads");
   await wait(400);
-  // Put the cast back to the two the assertions further down are written against.
+  /* PUT THE CAST BACK to the two the assertions below are written against — and under #40's rule
+   * that means UNTICKING EVERYTHING FIRST. Ask-again keeps what is ticked, so pressing it with both
+   * ticked would have added a third rather than replaced the pair. Unticking all of them is how you
+   * ask for a genuinely different cast now, which is the same press it always was with one step in
+   * front of it. */
+  await page.eval(`(() => { for (const c of document.querySelectorAll('[data-spcast]')) c.checked = false;
+    return 1; })()`);
   await page.click('[data-spwritecast="1"]');
   await wait(700);
+  ok("  unticking everything and asking again is a different cast, not more of it",
+     (await page.eval(`(() => [...document.querySelectorAll('[data-spname]')]
+       .map(n => n.value).join('|'))()`)) === 'Ilva Marren|Kade Ashford');
 }
 
 // #28 · AND THE LIBRARY IS ON THIS STEP. Seth: "i should be abel to set up lore books or pull from

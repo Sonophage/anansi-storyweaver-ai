@@ -10,6 +10,27 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · The threads suggest themselves, and what you keep is kept
+
+### They are written for you on the way in
+Pressing on from the book now asks for the threads while you are still reading the next heading. They
+are there, or arriving, when you land — instead of a screen with a button on it.
+
+If Anansi cannot be reached the step is simply empty and says nothing happened, and it does not
+ask again every time you walk past.
+
+### Say what you need after you have seen what you got
+The steer box moved below the list, because that is when you have something to say. Read what she
+proposed, untick what you do not want, then tell her what the book actually needs.
+
+### Asking again keeps what you ticked
+This is the part that was wrong before: asking again replaced everything, so reading six threads,
+keeping four and asking for two more lost all six. Now the ones still ticked stay exactly as they
+are and only the ones you unticked get rewritten. The button says which.
+
+With nothing unticked it asks for **more** alongside what you have, and says so. To get a genuinely
+different set, untick them all first.
+
 ## 2026-09-01 · Threads, with their triggers, and a world to set them in
 
 ### Characters, places, items and rules are all asked for from the start

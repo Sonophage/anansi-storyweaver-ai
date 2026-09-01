@@ -3182,6 +3182,10 @@ function sparkReview() {
     </select>${hint ? `<div class="hint">${hint}</div>` : ''}`;
 
   const cast = sparkCast();
+  // #40. What the writer has ticked and untickedon the threads step. `keep === false` is an
+  // explicit untick; anything else is kept, which is what a freshly proposed thread arrives as.
+  const kept = (S.spark.entries ?? []).filter((e) => e.keep !== false).length;
+  const dropped = (S.spark.entries ?? []).length - kept;
   // ONE BUSY FLAG FOR THE WHOLE STEP. The router does not queue — two concurrent calls fit and a
   // third kills both with HTTP 500 — so a button that is not the one you pressed still has to go
   // dead while a call is out.
@@ -3315,19 +3319,10 @@ function sparkReview() {
              color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(KIND_PLURAL[k] ?? k)}</button>`;
          }).join('')}
        </div>
-       ${area('castSteer', 'What these threads should be', S.spark.castSteer ?? '',
-         'Optional, and it reaches every ask on this step &mdash; all the threads and any one of them '
-         + 'you re-roll. Name what the book needs from them: a rival who is family, nobody over '
-         + 'thirty, a city that is a character.', 56)}
-       <button class="btn ghost" data-spwritecast="1" ${busy ? 'disabled' : ''}
-         style="margin-bottom:10px">${S.spark.casting ? 'Writing them&hellip;'
-           : S.spark.entries.length ? 'Write different threads' : 'Write the threads'}</button>
-       <div class="hint" style="margin:0 0 10px">${S.spark.entries.length
-         ? `${S.spark.entries.length} proposed. Untick anyone you do not want; nothing is written
-            until you accept. Asking again replaces all of them &mdash; to change one, re-roll that
-            one.`
-         : `Pick what this book needs, then ask. A book with no threads is a real answer &mdash;
-            skip this step and write them as you go.`}</div>
+       ${S.spark.entries.length ? '' : `<button class="btn ghost" data-spwritecast="1" ${busy ? 'disabled' : ''}
+         style="margin-bottom:10px">${S.spark.casting ? 'Writing them&hellip;' : 'Write the threads'}</button>
+       <div class="hint" style="margin:0 0 10px">Pick what this book needs, then ask. A book with no
+         threads is a real answer &mdash; skip this step and write them as you go.</div>`}
        ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px; gap:7px">
          <div style="display:flex; align-items:center; gap:8px">
            <input class="field" data-spname="${i}" value="${esc(e.title)}" placeholder="Their name"
@@ -3342,6 +3337,25 @@ function sparkReview() {
              style="margin-left:auto; width:auto; padding:0 13px; height:30px; font-size:11.5px"
              >${S.spark.recasting === i ? 'Thinking&hellip;' : 'Re-roll this one'}</button>
          </div></div>`).join('')}
+       <!-- #40, 2026-09-01 · SUGGESTED FIRST, THEN KEPT OR DROPPED, THEN STEERED. Seth: "having them
+            suggested is good and then the writer can state what they need after choosing what stays
+            or goes." So this box sits UNDER the list it is about, not above it: before you have read
+            anything it is a brief written blind, and after you have ticked and unticked it is an
+            addendum to what survived. -->
+       ${S.spark.entries.length ? `
+       ${area('castSteer', 'Now say what else you need', S.spark.castSteer ?? '',
+         'Optional. It reaches every ask on this step, including a single thread you re-roll: a rival '
+         + 'who is family, nobody over thirty, a city that is a character.', 56)}
+       <button class="btn ghost" data-spwritecast="1" ${busy ? 'disabled' : ''}
+         style="margin-bottom:6px">${S.spark.casting ? 'Writing them&hellip;'
+           : dropped ? `Keep the ${kept} ticked and ask again for the rest`
+           : 'Ask for more'}</button>
+       <div class="hint" style="margin:0 0 10px">${dropped
+         ? `The ${kept === 1 ? 'one' : kept} you have ticked stay exactly as they are. The ${dropped}
+            you unticked are replaced by whatever comes back.`
+         : `Everything is ticked, so nothing is replaced &mdash; this asks for MORE alongside them.
+            Untick the ones you do not want first and they are what gets rewritten.`}</div>` : ''}
+
        <button class="btn ghost" data-spadd="1" style="margin-top:6px">&#65291; Write one of your own</button>
 
        <!-- #30 · FORGED SOMEWHERE ELSE. The same paste the story's own + Thread tray takes, except
@@ -6305,19 +6319,39 @@ async function writeCast(quiet = false) {
     if (!quiet) toast('Pick what this book needs first.');
     return;
   }
+  /* #40, 2026-09-01 · WHAT IS TICKED SURVIVES. Seth: "the writer can state what they need after
+   * choosing what stays or goes."
+   *
+   * This used to REPLACE the whole list, which made ticking pointless on the one press where it
+   * should matter most — you read six threads, kept four, asked again for the other two, and lost
+   * all six. The kept titles ride as `replacing`, which is the argument the ONE-CARD re-roll has
+   * used since #28: it tells the model who is already taken so it does not hand back somebody
+   * already on screen. Same argument, longer list.
+   *
+   * A LIST WITH NOTHING UNTICKED ASKS FOR MORE, and the button says so rather than pretending. That
+   * falls out of the same rule instead of being a second branch: everyone is named as taken, so
+   * whatever comes back is additional.
+   */
+  const keepers = (S.spark.entries ?? []).filter((e) => e.keep !== false);
+  const keptNames = keepers.map((e) => String(e.title ?? '').trim()).filter(Boolean);
   S.spark.casting = true; paint();
-  const r = await api.sparkCastCall(S.spark.kinds, S.spark.story, S.spark.castSteer);
+  const r = await api.sparkCastCall(S.spark.kinds, S.spark.story, S.spark.castSteer,
+                                    keptNames.length ? keptNames : undefined);
   S.spark.casting = false;
   if (r.error) { paint(); return toast(r.error); }
-  // REPLACES rather than appends: asking again is a different cast for the same book, not more
-  // of the one you already turned down. Anything written by hand with + is replaced too, which
-  // is why the button says so.
-  S.spark.entries = withTriggers(r.entries ?? []);
-  S.spark.story = { ...S.spark.story, persona: r.persona ?? null,
-                    lockedCharacter: r.lockedCharacter ?? null };
-  S.spark.proposed = [r.persona, r.lockedCharacter].filter(Boolean);
+  const fresh = withTriggers(r.entries ?? []);
+  S.spark.entries = [...keepers, ...fresh];
+  // The two names only when there were no keepers — otherwise a re-roll would reassign who you play
+  // out from under a cast you had just curated, which a per-card re-roll has never been allowed to do.
+  if (!keptNames.length) {
+    S.spark.story = { ...S.spark.story, persona: r.persona ?? null,
+                      lockedCharacter: r.lockedCharacter ?? null };
+    S.spark.proposed = [r.persona, r.lockedCharacter].filter(Boolean);
+  }
   paint();
-  if (!quiet) toast(`${S.spark.entries.length} proposed. Nothing is written until you accept.`);
+  if (!quiet) toast(keptNames.length
+    ? `${fresh.length} more, beside the ${keptNames.length} you kept.`
+    : `${S.spark.entries.length} proposed. Nothing is written until you accept.`);
 }
 
 // ---------- one delegated listener ----------
@@ -7689,7 +7723,7 @@ document.addEventListener('click', async (e) => {
     S.spark = { story: r.story ?? {}, entries: r.entries ?? [], autoOpen: true,
       // #40. All kinds on from the start — Seth: "Characters rules and lore shoul all be auto
       // selected from the start."
-      idea, kinds: [...KINDS], casting: false, sparking: false, follow: null,
+      idea, kinds: [...KINDS], casting: false, sparking: false, follow: null, castTried: false,
       // #28. The writer's line about the cast, sent with every ask on that step. `recasting` holds
       // the INDEX being re-rolled rather than a boolean, because the button that says "Thinking…"
       // has to be the one that was pressed.
@@ -7871,37 +7905,33 @@ document.addEventListener('click', async (e) => {
   }
   if (d.sparkstep) {
     harvestSpark();
+    const was = STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEPS.length) - 1][0];
     S.sparkStep = Number(d.sparkstep);
     paint();
-    /* THE THREADS DO NOT ASK FOR THEMSELVES YET, and this is where that would go — one line, and
-     * `writeCast(true)` is already extracted and quiet-capable for it:
+    /* #40 · THE THREADS SUGGEST THEMSELVES. Seth, 2026-09-01: "having them suggested is good and
+     * then the writer can state what they need after choosing what stays or goes."
      *
-     *   if (was === 'book' && STEPS[S.sparkStep - 1]?.[0] === 'threads'
-     *       && !S.spark.casting && !S.spark.castTried && (S.spark.kinds ?? []).length) {
-     *     S.spark.castTried = true; void writeCast(true);
-     *   }
+     * FIRED ON LEAVING THE BOOK, NOT ON ARRIVING AT THE THREADS, and that distinction is what makes
+     * it allowed rather than a violation. The second look states the general rule: "From a button,
+     * never on arriving: a model call nobody asked for is what made 'what changed' slow, and #24 is
+     * the whole argument." Pressing on from the book IS the ask, and the call is in flight while the
+     * writer reads the next heading instead of after they land on it.
      *
-     * NOT LANDED, deliberately, and the reason is worth reading before switching it on. Seth asked
-     * for it — "This in theory should be autofilled" — and it collides with a decision the same
-     * person made two days earlier, which #21 §2 states in capitals: "THE CAST IS ITS OWN CALL, and
-     * does not run until the writer says what this book needs." The second look repeats the general
-     * form of it: "From a button, never on arriving: a model call nobody asked for is what made
-     * 'what changed' slow, and #24 is the whole argument."
+     * IT GIVES UP A PROPERTY #21 §2 CHOSE, and that is worth having written down: "THE CAST IS ITS
+     * OWN CALL, and does not run until the writer says what this book needs." #40 is the more recent
+     * decision by the same person and it wins. The cost is that the cast is no longer opt-in, and the
+     * free-text persona fallback is now reached only when this call FAILS — which is a real state,
+     * and the one test/ui/wizard.js drives it in.
      *
-     * Firing on LEAVING the book rather than on arriving here answers that objection — pressing on
-     * IS the ask — but the consequences reach further than the trigger:
-     *
-     *   - the cast stops being opt-in, so a writer who wanted no threads pays for a call anyway;
-     *   - the free-text persona fallback becomes reachable ONLY when the call fails, which makes it
-     *     near-dead code that six assertions currently cover;
-     *   - a failed autofill wants a `castTried` flag or it retries on every visit, which is a third
-     *     once-only flag on one panel;
-     *   - and six assertions in test/ui/wizard.js change MEANING rather than just numbers.
-     *
-     * That last one is why it is not here. Rewriting six assertions to match new behaviour is the
-     * work where a suite quietly stops testing what it was written for, and it wants Seth's eye on
-     * whether the trade is the one he meant — not mine at 2am with him asleep.
+     * `castTried` AND NOT `entries.length`: a call that failed must not be retried on every visit —
+     * paging back and forth would ask again each time, on a router that does not queue. Set BEFORE
+     * the await, so the repaint it causes cannot start a second one. Same shape as `styled`.
      */
+    if (was === 'book' && STEPS[S.sparkStep - 1]?.[0] === 'threads'
+        && !S.spark.casting && !S.spark.castTried && (S.spark.kinds ?? []).length) {
+      S.spark.castTried = true;
+      void writeCast(true);
+    }
     return;
   }
   if (d.spadd) {
@@ -8139,7 +8169,7 @@ document.addEventListener('click', async (e) => {
       entries: cards, autoOpen: true,
       // No idea to re-roll from: this book did not come from one. The re-roll button hides itself
       // when `idea` is empty, which is the correct answer rather than a button that cannot work.
-      idea: '', kinds: [...KINDS], casting: false, sparking: false,
+      idea: '', kinds: [...KINDS], casting: false, sparking: false, castTried: true,
       castSteer: '', recasting: null, styling: false, styled: true,
       accepting: false, seed: [], follow: null,
       reviewing: false, review: null,
