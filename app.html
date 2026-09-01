@@ -1064,7 +1064,69 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 .aside { width:400px; flex:0 0 auto; }
 @media (max-width:1099px) { .aside { width:320px; } }
 @media (max-width:719px) { .aside { width:100%; } }
-.storycard { cursor:pointer; border-radius:var(--r); overflow:hidden; border:1px solid var(--edge); background:var(--rail); text-align:left; display:block; width:100%; }
+.storycard { cursor:pointer; border-radius:var(--r); overflow:hidden; border:1px solid var(--edge); background:var(--rail); text-align:left; display:block; width:100%;
+  /* A shelf of objects standing on a surface rather than a grid of tiles. The whole of the
+     "more bookshelf" brief is this shadow and the spine below it — no paper texture, no plinth,
+     no painted-on lighting. */
+  box-shadow:0 20px 44px -18px rgba(0,0,0,.9); }
+/* The spine, down the LEFT edge, drawn on .art rather than as another element because the card's
+   markup is already six deep and a pseudo-element cannot be forgotten by a caller. */
+.storycard .art::after { content:''; position:absolute; top:0; bottom:0; left:0; width:7px;
+  background:linear-gradient(90deg,rgba(0,0,0,.55),rgba(255,255,255,.05) 60%,rgba(0,0,0,.3)); }
+
+/* FOUR ACROSS, not the three of .grid — and its own class rather than a wider .grid, because
+   .grid is the Threads and Waiting card grid too and those hold text cards, not covers. */
+.shelfgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:22px; align-content:start; }
+@media (max-width:1099px) { .shelfgrid { grid-template-columns:repeat(3,1fr); } }
+@media (max-width:719px) { .shelfgrid { grid-template-columns:repeat(2,1fr); gap:12px; } }
+
+/* THE RESUME BAND. Structural only: everything that depends on which book it is drawing stays
+   inline in resumeBand().
+
+   The height is the constraint. Covers are portrait, so a card at four across is about 420px and
+   the first shelf row only clears a 900px window if this stays under ~310. max-height rather than
+   height, because a book with two chapters has less to say than one with nine and should not be
+   padded out to the same size. */
+/* NO max-height, and it is not an oversight. This band is a flex item in the page's column, so
+   its automatic minimum size is its own content — `min-height:auto` floors a flex item and beats
+   `max-height` outright. A cap here measured 262 and laid out at 283, which is a number that lies.
+   `min-height:0` would let it clamp, and then `overflow:hidden` would cut the actions off the
+   bottom, which is worse than a tall band. So the height is bought from the content instead: the
+   type sizes and the gaps below are what keep it near 255, and that is what the assertion watches
+   through the first shelf card's bottom edge. */
+.resumeband { display:flex; align-items:stretch; border:1px solid var(--edge);
+  border-radius:var(--r); overflow:hidden; background:var(--rail);
+  box-shadow:0 26px 60px -20px rgba(0,0,0,.85), 0 2px 0 rgba(255,255,255,.02) inset;
+  animation:rise var(--t-slow) var(--ease) both; }
+.resumeband > .art { flex:0 0 268px; position:relative; display:block; cursor:pointer; }
+/* Left to right, not top to bottom: the text sits to the right of this, so the cover has to fall
+   away towards the words rather than towards its own bottom edge. */
+.resumeband > .art .wash { position:absolute; inset:0;
+  background:linear-gradient(90deg,rgba(10,10,12,0) 50%,rgba(12,12,14,.7)); }
+.resumeband > .art .spine { position:absolute; top:0; bottom:0; right:0; width:9px;
+  background:linear-gradient(90deg,rgba(0,0,0,.5),rgba(255,255,255,.045) 55%,rgba(0,0,0,.35)); }
+.resumeband > .said { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:10px;
+  padding:18px 30px 16px; }
+.resumeband .quote { display:flex; align-items:flex-start; gap:16px; max-width:680px; min-width:0; }
+.resumeband .quote > .rule { width:1px; align-self:stretch; background:var(--gold-dim); opacity:.5;
+  flex:0 0 auto; }
+/* One segment per chapter. Written behind you, the one you are in wider and lit, the rest still
+   to come — the same three states the chapter list uses, at 5px. */
+.bandmeter { display:flex; gap:3px; height:5px; }
+.bandmeter > i { flex:1; border-radius:var(--r-tight); background:var(--chip); }
+.bandmeter > i.done { background:var(--gold-dim); }
+.bandmeter > i.now { flex:1.4; background:var(--gold); }
+
+/* A 268px cover beside text does not fit a phone, so the band stacks and the cover becomes a
+   letterbox above the words. It keeps its shadow; the spine goes, because a spine down the right
+   edge of something with nothing to its right is a line for its own sake. */
+@media (max-width:719px) {
+  .resumeband { flex-direction:column; max-height:none; }
+  .resumeband > .art { flex:0 0 132px; }
+  .resumeband > .art .wash { background:linear-gradient(180deg,rgba(10,10,12,0) 30%,rgba(12,12,14,.92)); }
+  .resumeband > .art .spine { display:none; }
+  .resumeband > .said { padding:14px 16px 16px; gap:11px; }
+}
 /* 3:4, the shape of a page. Set as an aspect-ratio rather than a height so the card holds its
    proportions at every column width the grid resolves to. */
 .storycard .art { aspect-ratio:3/4; height:auto; position:relative; }

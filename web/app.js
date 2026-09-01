@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, waiting, bookParagraphs } from './model.js';
+import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -288,6 +288,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home', 'owed', 'help',
   'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
+  'carryon', 'readfrom',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
@@ -4247,10 +4248,38 @@ const WORLD_TAG = 'World book';
 // the router's list not having arrived yet — cannot be staged from outside this file.
 const deadPin = (s) => pinIsDead(s?.model, S.models);
 
+/** The one line of the writer's own prose that a card carries.
+ *
+ *  Three states and all three have to be distinguishable, because they mean different things and
+ *  a writer reads this row to decide whether to press:
+ *
+ *    a book with no passages   -> nothing, the meta row above already said "nothing written yet"
+ *    a tail that is all speech -> said out loud. `leftOffLine` refuses to hoist a character's
+ *                                 words into the narrator's position, and printing the dialogue
+ *                                 anyway would be doing the thing it just refused.
+ *    anything else             -> the sentence, in the serif the prose itself is set in
+ *
+ *  The empty span holds the row's height so a shelf of cards does not jump about depending on
+ *  which books have prose in them.
+ */
+function cardLine(s) {
+  if (!s.last_chapter_idx) return '<span style="display:block; min-height:19px"></span>';
+  const line = leftOffLine(s.last_body, 1);
+  return line
+    ? `<span class="serif" style="display:block; font-style:italic; font-size:12.5px; line-height:1.5;
+        color:var(--narr); margin-top:4px; min-height:19px">${esc(line)}</span>`
+    : `<span style="display:block; font-size:11px; line-height:1.7; color:var(--faint);
+        margin-top:4px; min-height:19px">the last passage is all dialogue</span>`;
+}
+
 function storyCard(s, i, hero, act = 'open', sel = false) {
   // Genre is comma-separated and always has been — an AI Dungeon import writes its tag list
   // straight into it, so a card read "horror, nsfw" inside a single pill. One tag per pill.
-  const tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
+  // `let`, not `const`. The world-book branch below reassigns this, and `const` made that line
+  // throw `Assignment to constant variable` for every world book — which never fired on the shelf
+  // because the shelf filters them out, and fired on EVERY render of Threads, where ledgerShelf
+  // passes the whole library through here.
+  let tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
   const gold = !!tags.length || s.status === 'in_progress';
   if (s.is_world) tags = [WORLD_TAG];
   else if (!tags.length) tags.push(STATUS[s.status] || 'Writing');
@@ -4283,14 +4312,25 @@ function storyCard(s, i, hero, act = 'open', sel = false) {
         >model missing</span>` : ''}
       <span class="serif" style="position:absolute; bottom:12px; left:16px; right:16px;
         font-size:${hero ? 30 : 21}px; line-height:1.05; color:var(--ink-bright)">${esc(s.title)}</span></span>
-    <span style="display:block; padding:14px 16px 16px">
-      <span style="display:block; font-size:${hero ? 13.5 : 12.5}px; line-height:1.5; color:var(--mute);
-        font-style:italic; min-height:19px">${esc((s.premise || 'No premise yet.').slice(0, hero ? 200 : 110))}</span>
-      <span style="display:flex; align-items:center; gap:11px; margin-top:10px; font-size:11px; color:var(--faint)">
-        <span>${s.chapters ?? 0} ${s.chapters === 1 ? 'chapter' : 'chapters'}</span>
-        <span style="opacity:.5">·</span><span>${s.entries ?? 0} threads</span>
-        <span style="opacity:.5">·</span><span>${s.passages ?? 0} passages</span>
-        <span style="margin-left:auto">${s.updated_at ? ago(s.updated_at) : ''}</span></span></span>
+    <span style="display:block; padding:12px 15px 12px">${s.is_world
+      // A WORLD BOOK HAS NOWHERE TO HAVE LEFT OFF. It holds cards and no prose, so the left-off
+      // line would be permanently empty and the counts would read "0 passages" as if something
+      // were missing. Its premise says what it is for, and `no prose` is the fact, not a lack.
+      ? `<span style="display:block; font-size:12.5px; line-height:1.5; color:var(--mute);
+          font-style:italic; min-height:19px">${esc((s.premise || 'No premise yet.').slice(0, 110))}</span>
+        <span style="display:flex; align-items:center; gap:9px; margin-top:11px; font-size:11px; color:var(--faint)">
+          <span>${s.entries ?? 0} threads</span><span style="opacity:.5">·</span><span>no prose</span>
+          <span style="margin-left:auto">${s.updated_at ? touchedAgo(s.updated_at) : ''}</span></span>`
+      : `<span style="display:flex; align-items:baseline; gap:8px">
+          <span class="kind">${s.last_chapter_idx
+            ? `left off · ${esc(s.last_chapter_title || `chapter ${s.last_chapter_idx}`)}`
+            : 'nothing written yet'}</span>
+          <span style="margin-left:auto; font-size:11px; color:var(--faint)">${
+            s.updated_at ? touchedAgo(s.updated_at) : ''}</span></span>
+        ${cardLine(s)}
+        <span style="display:flex; align-items:center; gap:9px; margin-top:11px; font-size:11px; color:var(--faint)">
+          <span>${s.chapters ?? 0} ${s.chapters === 1 ? 'chapter' : 'chapters'}</span>
+          <span style="opacity:.5">·</span><span>${(s.words ?? 0).toLocaleString()} words</span></span>`}</span>
   </button>`;
 }
 
@@ -4299,6 +4339,131 @@ const ART = [
   'radial-gradient(70% 90% at 30% 30%, rgba(70,150,160,.5), transparent 70%), linear-gradient(140deg,#101E22,#0B0D0F)',
   'radial-gradient(70% 90% at 20% 25%, rgba(170,60,70,.45), transparent 70%), linear-gradient(140deg,#20141A,#0C0A0C)',
 ];
+
+/** THE RESUME BAND — the last-written book, across the top of the shelf.
+ *
+ *  The first press on a writing app is almost always "back into the book I was in". The shelf used
+ *  to answer that with a cover: a full-width `.storycard` at 3/4, which on a laptop is most of the
+ *  fold, with the other books under it and the thing you actually wanted — where you stopped — not
+ *  on screen at all. So resume is the screen rather than a button on it.
+ *
+ *  HEIGHT IS THE CONSTRAINT, not a style. Covers are portrait at Seth's direction (app.html, "a
+ *  page rather than a banner"), so a shelf card at four across is ~420px tall, and the first row of
+ *  books only clears a 900px window if this band comes in under ~310. That is why the prose is
+ *  clamped to two sentences rather than the three the design draws.
+ *
+ *  ponytail: two sentences, because portrait covers at four across spend the height. Five across
+ *  would buy the third sentence back at 184px of cover; the assertion to watch is the second card's
+ *  bottom edge against the viewport, not this band's own height.
+ */
+function resumeBand(s) {
+  const chapter = s.last_chapter_title || (s.last_chapter_idx ? `Chapter ${s.last_chapter_idx}` : '');
+  // ONE sentence, not the design's three. Measured: a portrait cover at four across makes a
+  // 433px card, and the first shelf row only clears a 900px viewport if this band stays
+  // under ~280 — which is one sentence of prose, the meter and the actions.
+  const line = leftOffLine(s.last_body, 1);
+  const pct = HERO_CTX && HERO_CTX.id === s.id ? HERO_CTX.pct : null;
+  const chapters = Math.max(Number(s.chapter_count) || 0, Number(s.last_chapter_idx) || 0);
+  const at = Number(s.last_chapter_idx) || 0;
+  // One tag per pill, the same rule the cards follow — genre is comma-separated and an AI Dungeon
+  // import writes its whole tag list into the field, so a single pill reads "horror, nsfw".
+  const tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
+  return `<div class="resumeband">
+    <!-- The cover opens the book, because pressing a book is what a cover is for — and because it
+         is the one press target on this band big enough for a thumb. Carry on writing is the
+         same door with the cursor already in the composer. -->
+    <span class="art" data-open="${esc(s.id)}" style="background:${s.cover
+      ? `url('${api.coverUrl(s.id, s.cover)}') center/cover no-repeat, ${ART[0]}` : ART[0]}">
+      <span class="wash"></span><span class="spine"></span>
+      ${tags.length ? `<span style="position:absolute; top:12px; left:14px; display:flex; gap:5px;
+        flex-wrap:wrap; max-width:80%">${tags.map((t) => `<span class="tag"
+        style="background:rgba(10,9,12,.6); border-color:var(--gold-dim); color:var(--gold)"
+        >${esc(t)}</span>`).join('')}</span>` : ''}
+    </span>
+    <span class="said">
+      <span style="display:flex; align-items:center; gap:12px">
+        <span class="kind">Where you left off${s.updated_at ? ` &middot; ${touchedAgo(s.updated_at)}` : ''}</span>
+        <span style="flex:1; height:1px; background:var(--line)"></span>
+        <!-- Silence, not a guess. The percentage arrives from its own fetch a moment after the
+             page paints, and never arrives at all when the router is asleep or the request fails.
+             An empty right-hand side is honest; a 0% is not. -->
+        ${pct === null ? '' : `<span class="kind" style="color:var(--label)">context ${pct}%</span>`}
+      </span>
+      <span style="display:flex; align-items:baseline; gap:14px; flex-wrap:wrap">
+        <span class="serif" style="font-size:36px; line-height:1.02; color:var(--ink-bright)">${esc(s.title)}</span>
+        ${chapter ? `<span class="serif" style="font-size:19px; font-style:italic; color:var(--label)"
+          >${esc(chapter)}</span>` : ''}
+      </span>
+      ${line ? `<span class="quote"><span class="rule"></span>
+        <span class="serif" style="font-style:italic; font-size:17px; line-height:1.6;
+          color:var(--narr); text-wrap:pretty">${esc(line)}</span></span>`
+        : `<span style="font-size:12.5px; color:var(--faint); font-style:italic">${
+            at ? 'the last passage is all dialogue, and a character&rsquo;s words are not the narrator&rsquo;s'
+               : 'nothing written yet &mdash; the first passage is one press away'}</span>`}
+      ${chapters ? `<span style="display:flex; flex-direction:column; gap:7px; max-width:680px">
+        <span class="kind" style="display:flex; align-items:baseline; gap:12px; color:var(--label)">
+          <span>chapter ${at || 1} of ${chapters}</span>
+          <span style="color:var(--faint)">${(s.chapter_words ?? 0).toLocaleString()} words this chapter</span>
+          <!-- A book has no target length in this app: target_words is how long ONE passage runs,
+               not how long the book is. Saying so beats drawing a bar against a number that does
+               not exist. -->
+          <span style="margin-left:auto; color:var(--faint)">no target set</span></span>
+        <!-- ONE CHAPTER GETS NO SEGMENTS. A single segment fills the width and is drawn in the
+             lit colour, which reads as a progress bar at 100% on a book that has barely started —
+             and it would be saying that two lines under "no target set". The row of words above
+             already says "chapter 1 of 1", which is the whole truth for that book. -->
+        ${chapters > 1 ? `<span class="bandmeter">${Array.from({ length: chapters }, (_, i) =>
+          `<i class="${i + 1 === at ? 'now' : i + 1 < at ? 'done' : ''}"></i>`).join('')}</span>` : ''}
+      </span>` : ''}
+      <span style="display:flex; align-items:center; gap:10px; margin-top:auto; flex-wrap:wrap">
+        <button class="btn" data-carryon="${esc(s.id)}" style="width:auto; padding:0 24px; height:38px"
+          >Carry on writing</button>
+        <button class="btn ghost" data-readfrom="${esc(s.id)}" style="width:auto; padding:0 20px; height:38px"
+          >Read from chapter one</button>
+        <span style="flex:1"></span>
+        <!-- WHAT IS OWED, BESIDE THE BOOK IT IS ABOUT. This replaces the page-level strip: an owed
+             thing reads as information next to its book and as a notification at the top of a page.
+             The counts come off the row rather than off waiting(), which collapses every book
+             into whichever one has the most of a kind and so cannot answer "in THIS book". -->
+        ${Number(s.proposed) ? `<button class="chip" data-owed="${esc(s.id)}" data-owedpanel="chapter"
+          style="font-size:11.5px; padding:6px 12px; border-color:var(--gold-dim)">${s.proposed} thread${
+          s.proposed === 1 ? '' : 's'} proposed</button>` : ''}
+        ${Number(s.unpaid) ? `<button class="chip" data-owed="${esc(s.id)}" data-owedpanel="strings"
+          style="font-size:11.5px; padding:6px 12px">${s.unpaid} promise${
+          s.unpaid === 1 ? '' : 's'} unpaid</button>` : ''}
+      </span>
+    </span>
+  </div>`;
+}
+
+/** The hero book's context percentage, held apart from `MANI` ON PURPOSE.
+ *
+ *  `MANI` belongs to the OPEN story: `refreshManifest` keys off `S.storyId`, and `drawBar` and
+ *  `drawMeter` read it to draw that book's meter. Writing the shelf's hero into it would render
+ *  one book's context under another book's title — the exact stale-manifest bug the guard inside
+ *  `refreshManifest` exists to stop, arriving by a different road.
+ *
+ *  Asked once per book. `POST /api/manifest` assembles the whole prompt and does a /tokenize round
+ *  trip, so this is not a free read, and re-asking on every repaint would pay it on every keystroke
+ *  that repaints the page.
+ *
+ *  ponytail: one assemble + tokenize per visit to the shelf. If that ever shows, the cheaper
+ *  answer is the estimate alone — the route already returns the manifest without `exact` when the
+ *  router is asleep.
+ */
+let HERO_CTX = null, HERO_CTX_FOR = null;
+async function loadHeroContext(storyId) {
+  if (!storyId || HERO_CTX_FOR === storyId) return;
+  HERO_CTX_FOR = storyId;
+  const r = await api.manifest({ storyId });
+  const m = r?.manifest;
+  // Only a MEASURED number is printed. `exact` is null when the model is asleep, and the estimate
+  // has run 1.28x high against the tokenizer — a figure that wrong does not belong on a screen in
+  // the same typeface as one that is right.
+  HERO_CTX = typeof r?.exact === 'number' && m?.totals?.budget > 0
+    ? { id: storyId, pct: Math.round(r.exact / m.totals.budget * 100) } : null;
+  if (S.place === 'workspace' && S.wpage === 'stories') drawPage();
+}
 
 const WPAGES = {
   /** THE FORGE. Prompts to hand a different model, so what it writes drops into this app whole.
@@ -4398,44 +4563,38 @@ const WPAGES = {
     // all rather than promoting one — putting a book away is the act that means stop showing me
     // this, and the hero slot is the loudest place on the screen.
     const [hero, ...rest] = live;
-    // What is waiting, across every book. The shelf is the only screen that can see across them, and
-    // until this it could not see into one — so coming back after a day told you nothing about what
-    // you had left half-done.
-    // BY BOOK, not by item. It listed every waiting thing across every story, which on a shelf of
-    // four books is a wall of chips saying the same three words — Seth: "instead of saying
-    // everything for every story just bring up the titles of the stories that have notifications".
-    // The book's own Waiting panel is where the detail belongs, and that is where this goes.
-    const byBook = new Map();
-    for (const w of waiting(LIB)) {
-      const at = byBook.get(w.storyId) ?? { title: w.storyTitle, n: 0 };
-      at.n += 1; byBook.set(w.storyId, at);
-    }
-    const books = [...byBook.entries()];
-    return `<div style="display:flex; flex-direction:column; gap:22px">
-      <div style="display:flex; gap:7px; flex-wrap:wrap; align-items:center">
-        <span style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
-          color:var(--dim)">Waiting for you</span>
-        ${books.length
-          ? books.map(([id, b]) => `<button class="chip" data-owed="${esc(id)}" data-owedpanel="waiting"
-              style="font-size:11.5px; padding:5px 11px">${esc(b.title)}
-              <span style="color:var(--faint)"> &middot; ${b.n}</span></button>`).join('')
-          // Said out loud, in her voice. An empty row is indistinguishable from a broken one, and
-          // this row is the one a writer checks first on coming back.
-          : `<span style="font-size:11.5px; color:var(--faint); font-style:italic">nothing is
-              asking for you &mdash; which is either peace or a warning, and I never know which</span>`}
-      </div>
-      ${hero ? storyCard(hero, 0, true) : ''}
+    // The hero book's context, asked for once. Fired from the render the way loadModels and the
+    // cross-book ledger's fetch are, guarded so an answer that repaints does not ask again.
+    if (hero) loadHeroContext(hero.id);
+    // THE PAGE-LEVEL "WAITING FOR YOU" STRIP IS GONE. It listed a book title and a count of KINDS
+    // — never of items, because it counted rows and `waiting()` returns at most one row per kind —
+    // so a book with nine proposals said "· 1". What is owed now sits on the band beside the book
+    // it belongs to, which is where it reads as information rather than as a notification.
+    //
+    // The cost is real and worth writing down: a book that is not the hero no longer shows what it
+    // owes on this screen. Its own Waiting panel is one press away and that is where the detail
+    // always lived.
+    // 16, not 22. The gap between the band and the shelf is height like any other, and the first
+    // row of books clearing the fold is the whole point of this screen.
+    return `<div style="display:flex; flex-direction:column; gap:16px">
+      ${hero ? resumeBand(hero) : ''}
+      ${rest.length ? `<div style="display:flex; align-items:baseline; gap:14px">
+        <span style="font-size:11px; letter-spacing:.3em; font-variant-caps:all-small-caps;
+          color:var(--dim)">The shelf</span>
+        <span style="flex:1; height:1px; background:var(--line)"></span>
+      </div>` : ''}
       <!-- The dashed New story cell went with #19: it was a book-shaped hole in a shelf of books
            and it took a column from the ones that are real. The bar's pill lost deskonly in the
-           same change, so a phone still has a door. -->
-      ${rest.length ? `<div class="grid">
+           same change, so a phone still has a door. The design puts them back; #19 is the more
+           recent decision about this shelf and it stands. -->
+      ${rest.length ? `<div class="shelfgrid">
         ${rest.map((s, i) => storyCard(s, i + 1, false)).join('')}
       </div>` : ''}
       ${shelved.length ? `<div data-shelf="archived" style="display:flex; flex-direction:column; gap:12px;
           margin-top:10px; padding-top:22px; border-top:1px solid var(--line)">
         <span style="font-size:11px; letter-spacing:.3em; font-variant-caps:all-small-caps;
           color:var(--dim)">Archived</span>
-        <div class="grid">${shelved.map((s, i) => storyCard(s, live.length + i, false)).join('')}</div>
+        <div class="shelfgrid">${shelved.map((s, i) => storyCard(s, live.length + i, false)).join('')}</div>
       </div>` : ''}</div>`;
   },
 
@@ -6552,6 +6711,31 @@ document.addEventListener('click', async (e) => {
   // agrees rather than snapping the section shut under whatever was pressed inside it.
   if (d.fold) { S.folds = { ...S.folds, [d.fold]: !S.folds?.[d.fold] }; paint(); return; }
   // One press goes to the work, not to a list of where the work might be.
+  /** The band's two doors into the last-written book, and the difference between them.
+   *
+   *  `openStory` already lands on the book's CURRENT chapter — `api.story(id)` returns the newest
+   *  one — so carrying on is not a navigation at all, it is the cursor. Focusing the composer is
+   *  the whole of it, and that is why this is not `data-open` with an extra flag.
+   *
+   *  Reading from the top is the navigation, and it needs the story open first because the chapter
+   *  id only exists in the view that opening fetched.
+   */
+  if (d.carryon) {
+    await openStory(d.carryon);
+    if (S.storyId !== d.carryon) return;        // superseded, or it failed and toasted
+    $('input')?.focus();
+    return;
+  }
+  if (d.readfrom) {
+    await openStory(d.readfrom);
+    if (S.storyId !== d.readfrom) return;
+    const first = V?.chapters?.[0];
+    if (!first || first.id === V.currentChapter?.id) return;
+    const r = await api.story(d.readfrom, first.id);
+    if (!r.error) { V = r; paint(); }
+    return;
+  }
+
   if (d.owed) {
     await openStory(d.owed);
     S.panel = d.owedpanel || 'chapter';

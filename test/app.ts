@@ -205,7 +205,11 @@ let refuseNth = 0;
   // Three books, not one, and the two extras exist only so the shelf's ORDER can be wrong. With a
   // single story there is no grid to come after the New story button, so an assertion about where
   // that button sits is true wherever the button is put.
-  const body = url.startsWith('/api/stories') ? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.' },
+  const body = url.startsWith('/api/stories') ? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.',
+        // OWED SOMETHING, on purpose. What is waiting is drawn on the band now, which means it is
+        // drawn for the hero book and nowhere else — so a hero owed nothing makes the chips
+        // untestable, and the assertion would pass against a band that could never draw one.
+        proposed: 2, unpaid: 1, flags: 0 },
       // Two of the three are owed something, and between them five separate things — so a shelf that
       // listed items would show five chips where it must show two.
       // #18 §5. One book pinned to a model the router no longer serves — the 2026-08-27 rename is
@@ -397,7 +401,17 @@ assert.match(html('page'), /The Ashfall Concordat/);
 // the one that remains is not hidden on a narrow screen.
 {
   const shelf = html('page');
-  assert.ok(shelf.indexOf('storycard hero') >= 0, 'the newest book is the hero');
+  // THE BAND, NOT A HERO CARD. The newest book used to be a full-width `.storycard.hero` at 3/4 —
+  // about a thousand pixels of cover on a laptop, with every other book under the fold and the one
+  // thing you came back for, where you stopped, not on the screen at all. It is now a band that
+  // carries the sentence you stopped on and one gold action.
+  assert.ok(shelf.indexOf('class="resumeband"') >= 0, 'the newest book gets the resume band');
+  assert.doesNotMatch(shelf, /storycard hero/,
+    'and no hero card survives beside it — two answers to "which book" is one too many');
+  // The band's job is the sentence. A band that renders with the chrome and no prose in it is the
+  // old shelf wearing a new shape, and it would pass every structural check above.
+  assert.match(shelf, /data-carryon="/, 'the band carries the one gold action');
+  assert.match(shelf, /Where you left off/, 'and says what it is showing you');
   assert.doesNotMatch(shelf, /data-open="new"/,
     'the shelf itself offers no New story button — the rail is the one door');
   assert.match(html('bar'), /<button class="pill" data-open="new"/,
@@ -1195,27 +1209,31 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 }
 }
 
-// And the SHELF renders it by book rather than by item. `waiting()` still returns one row per
-// waiting thing — that is what the story's own Waiting panel is written against — but a shelf of
-// four books listing every item is a wall of chips saying the same three words. Seth: "just bring
-// up the titles of the stories that have notifications".
+// WHAT IS OWED SITS ON THE BAND, BESIDE THE BOOK IT IS ABOUT. It used to be a strip across the top
+// of the page listing a book title and a number. That number was a count of KINDS and never of
+// items — it counted the rows `waiting()` returns, and `waiting()` returns at most one per kind —
+// so a book with nine proposals said "· 1". On the band there is one book to speak for, so the
+// chips can say the kind and the real count.
 {
   click({ leave: '1' });
   await new Promise((r) => setTimeout(r, 40));
   const page = html('page');
-  const chips = page.match(/data-owed="/g) ?? [];
-  // Two books are owed something, between them three items across two counted kinds — and two
-  // flags that deliberately count for nothing. By ITEM that is three chips and by BOOK it is two,
-  // so the count is what tells the two renderings apart.
-  assert.strictEqual(chips.length, 2,
-    `the shelf must group by book: two books are owed something, and it drew ${chips.length} chips`);
-  assert.match(page, /data-owedpanel="waiting"/,
-    'and each one opens that book\'s Waiting panel, which is where the detail lives');
-  assert.match(page, /The Salt Ledger/, 'named by the book, not by the kind of thing waiting');
-  assert.ok(!/threads proposed/.test(page),
-    'and the kinds stay in the panel — the shelf says which book, not what kind');
+  // The KIND, with its own number, which is the whole reason this moved. A digit alone was the
+  // old strip's failure and an assertion that only counted chips could not see it.
+  assert.match(page, /2 threads proposed/, 'the chip says what is waiting, not how many kinds');
+  assert.match(page, /1 promise unpaid/, 'and singular reads as singular');
+  // Each kind opens the panel that DECIDES it. The old strip sent every chip to 'waiting'
+  // regardless, because it had thrown the kind away before it drew anything.
+  assert.match(page, /data-owed="s-1" data-owedpanel="chapter"/, 'proposals open the chapter panel');
+  assert.match(page, /data-owed="s-1" data-owedpanel="strings"/, 'promises open Strings');
+  // THE COST, WRITTEN DOWN. The Salt Ledger is owed three proposals and a promise and is not the
+  // hero, so the shelf now says nothing about it — an owed thing reads as information beside its
+  // book and as a notification at the top of a page, and this is the price of choosing the first.
+  // If a later change puts a cross-book indicator back, this is the assertion that should fail.
+  assert.ok(!/data-owed="s-2"/.test(page),
+    'a book that is not the hero shows nothing owed on the shelf — deliberate, and the trade');
 }
-ok('the shelf groups what is waiting by book, and opens the book that is waiting');
+ok('what is owed is drawn on the band, by kind, and opens the panel that decides it');
 }
 
 // The webs and their prose, kept in step. This is the check that fails when somebody adds a help

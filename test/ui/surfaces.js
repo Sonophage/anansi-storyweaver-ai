@@ -7,36 +7,95 @@ const ok = (l, g) => { if (!g) red++;
   console.log("  " + (g ? "ok  " : "FAIL") + " " + l + (g ? "" : "   <-- broken")); };
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 
-// 1. hero first, then new, then the rest
+// 1. THE RESUME BAND, and the fold it exists to fix.
+//
+// The last-written book used to be a full-width `.storycard.hero` at aspect-ratio:3/4 — on a
+// laptop about a thousand pixels of cover, with every other book below the fold and the one thing
+// you came back for, where you stopped, not on the screen at all. It is a band now.
+//
+// TWO BOOKS ARE MADE HERE rather than seeded, per the convention in run.sh: a scenario that needs
+// more than the fixture makes it. They are what the fold assertion measures against — with one
+// book there is no shelf under the band and the geometry proves nothing.
+const mk = (title, opening) => page.eval(`(async () => {
+  const r = await (await fetch('/api/stories', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ title: ${JSON.stringify(title)}, genre: 'fantasy, noir, heist',
+      opening: ${JSON.stringify(opening)} }) })).json();
+  return r.id ?? null;
+})()`);
+await mk('A Book With Nothing In It', '');
+await mk('A Book That Only Talks', '"Not tonight," he said. "Nor any night after."');
+// The Silver Key last, so it is the newest and takes the band — it is the only fixture with prose,
+// and a band with no prose in it cannot test the thing the band is for.
+await page.eval(`(async () => { await fetch('/api/story', { method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body: JSON.stringify({ id: '${sid}', story: { genre: 'fantasy, noir, heist' } }) }); })()`);
 await page.goto(B + "/");
-ok("1. the last-written story is a hero", await page.eval("!!document.querySelector('.storycard.hero')"));
-ok("   and is marked as such", (await page.text('.storycard.hero') || '').includes('Last written'));
+await wait(700);
+
+ok("1. the last-written story gets the resume band", await page.eval("!!document.querySelector('.resumeband')"));
+const bandText = (await page.text('.resumeband') || '');
+ok("   and it is The Silver Key, the book with prose in it", bandText.includes('Silver Key'));
+ok("   it says what it is showing you", bandText.includes('Where you left off'));
+// THE SENTENCE IS THE POINT. Everything above is chrome that would render over an empty band.
+ok(`   and carries a sentence of the writer's own prose (${JSON.stringify(bandText.slice(0, 0) || '')})`,
+   await page.eval(`(() => { const q = document.querySelector('.resumeband .quote');
+     return !!q && q.textContent.trim().length > 20; })()`));
+ok("   with one gold action that is not a navigation to chapter one",
+   await page.eval("!!document.querySelector('.resumeband [data-carryon]') && !!document.querySelector('.resumeband [data-readfrom]')"));
+ok("   and no hero card survives beside it",
+   await page.eval("!document.querySelector('.storycard.hero')"));
+
+// THE FOLD. This is the whole argument of the redesign and the only assertion that can falsify it:
+// a band that grows, a cover that goes back to 3/4 at four across, or a card that gains a row will
+// all push the shelf off a laptop screen again, and every other check here would still pass.
+// AT 1440x900 MEANING THE VIEWPORT, not the window. The driver's window is 1440x900 and its
+// innerHeight is 757 once the browser's own furniture is taken out, so measuring against the
+// window would be measuring chromium rather than the shelf.
+await page.viewport(1440, 900);
+const fold = await page.eval(`(() => {
+  const cards = [...document.querySelectorAll('#page .shelfgrid .storycard')];
+  const band = document.querySelector('.resumeband');
+  const second = cards[1] ?? cards[0];
+  return JSON.stringify({ cards: cards.length, innerH: innerHeight,
+    bandH: Math.round(band.getBoundingClientRect().height),
+    bottom: second ? Math.round(second.getBoundingClientRect().bottom) : null });
+})()`);
+const f = JSON.parse(fold);
+console.log("   fold: " + fold);
+ok(`   the shelf holds the other books as cards (${f.cards})`, f.cards >= 2);
+ok(`   and the second book is inside a 1440x900 viewport (${f.bottom} of ${f.innerH})`,
+   f.innerH === 900 && f.bottom !== null && f.bottom <= f.innerH);
+await page.viewport(1440, 757);   // back to the driver's own size for everything after this
+
 // #19 took New story OFF the shelf entirely — the bar pill is the one door, and it lost `deskonly`
-// in the same change so a phone still has it. What is left to assert is the shelf's own order, and
-// that the door exists somewhere a phone can reach.
-const order = await page.eval("[...document.querySelectorAll('#page .storycard')].map(e => e.className.includes('hero') ? 'HERO' : 'story').join(' > ')");
-console.log("   order: " + order);
-ok("   the hero comes first and the rest follow", order.startsWith('HERO'));
-ok("   and the shelf itself offers no New story button",
+// in the same change so a phone still has it. The design puts two dashed maker cells back into the
+// grid; #19 is the more recent decision about this shelf and it stands.
+ok("   the shelf itself offers no New story button",
    await page.eval("!document.querySelector('#page [data-open=new]')"));
 ok("   while the bar still does, un-hidden",
    await page.eval("(() => { const b = document.querySelector('#bar [data-open=new]');"
      + " return !!b && !b.classList.contains('deskonly'); })()"));
 
+// A BOOK WITH NOTHING IN IT, AND A BOOK THAT ONLY TALKS. Two states the shelf claims to
+// distinguish, and the second is the one that would fail silently: stripping the quotes out of
+// `"Not tonight," he said.` leaves ` he said.`, which passes every structural check and prints on
+// the card as the last thing the writer wrote.
+const cardOf = (t) => page.eval(`(() => { const c = [...document.querySelectorAll('#page .storycard')]
+  .find(x => x.textContent.includes(${JSON.stringify(t)})); return c ? c.textContent.replace(/\s+/g,' ') : ''; })()`);
+const emptyCard = await cardOf('A Book With Nothing In It');
+ok(`   a book with no passages says so (${JSON.stringify(emptyCard.slice(0, 60))})`,
+   emptyCard.includes('nothing written yet'));
+const talkCard = await cardOf('A Book That Only Talks');
+ok(`   and a book whose last passage is all dialogue refuses to quote it (${JSON.stringify(talkCard.slice(0, 90))})`,
+   talkCard.includes('all dialogue') && !talkCard.includes('he said'));
+
 // 2. the pill is the genre — and genre is comma-separated, so it is pillS. An AI Dungeon import
 // writes its whole tag list into this field, which is how a card came to read "horror, nsfw"
-// inside a single pill.
-ok("2. the card pill shows the genre", (await page.text('.storycard.hero') || '').toLowerCase().includes('noir'));
-await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
-  + " await fetch('/api/story', { method:'POST', headers:{'Content-Type':'application/json'},"
-  + " body: JSON.stringify({ id:'" + sid + "', story: { genre: 'fantasy, noir, heist' } }) }); })()");
-await page.goto(B + "/");
-await wait(600);
-const pills = await page.eval("(() => { const card = [...document.querySelectorAll('.storycard')]"
-  + ".find(c => c.textContent.includes('Silver Key'));"
-  + " return card ? [...card.querySelectorAll('.tag')].map(t => t.textContent.trim()).join('|') : ''; })()");
+// inside a single pill. Asserted on the band, which follows the same rule as a card.
+const pills = await page.eval("(() => [...document.querySelectorAll('.resumeband .tag')]"
+  + ".map(t => t.textContent.trim()).join('|'))()");
 console.log("   tag pills: " + JSON.stringify(pills));
-ok(`   a comma-separated genre is one tag per pill (${JSON.stringify(pills)})`,
+ok(`2. a comma-separated genre is one tag per pill (${JSON.stringify(pills)})`,
    pills.split('|').filter(Boolean).length >= 3 && pills.includes('fantasy') && pills.includes('heist'));
 ok("   and no pill holds two of them", !pills.split('|').some((t) => t.includes(',')));
 // Put it back, or every later assertion about this story's genre is reading the test's own edit.
@@ -332,9 +391,11 @@ ok("   it is served inline as image/jpeg, cacheable forever",
 
 await page.goto(B + "/");
 await wait(500);
-const cardArt = await page.eval("(() => { const c = [...document.querySelectorAll('.storycard')]"
-  + ".find(x => x.textContent.includes('Silver Key')); return c ? c.querySelector('.art').getAttribute('style') : ''; })()");
-ok("   and the card on the shelf asks for it, with the version in the URL",
+// The Silver Key holds the band now, and the band's cover is an `.art` like a card's — same
+// background rule, same fallback gradient underneath.
+const cardArt = await page.eval("(() => { const c = document.querySelector('.resumeband .art');"
+  + " return c ? c.getAttribute('style') : ''; })()");
+ok("   and the cover on the shelf asks for it, with the version in the URL",
    cardArt.includes('/api/cover?story=' + sid) && cardArt.includes('v=' + set));
 // The gradient stays underneath as the fallback, so a cover that has not arrived is not a blank hole.
 ok("   with the gradient still under it while it loads", /gradient/.test(cardArt));
@@ -343,8 +404,8 @@ await page.eval("(async () => { await fetch('/api/cover', { method:'DELETE',"
   + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyId: '" + sid + "' }) }); })()");
 await page.goto(B + "/");
 await wait(500);
-const bare = await page.eval("(() => { const c = [...document.querySelectorAll('.storycard')]"
-  + ".find(x => x.textContent.includes('Silver Key')); return c ? c.querySelector('.art').getAttribute('style') : ''; })()");
-ok("   removing it puts the card back to its gradient", !bare.includes('/api/cover') && /gradient/.test(bare));
+const bare = await page.eval("(() => { const c = document.querySelector('.resumeband .art');"
+  + " return c ? c.getAttribute('style') : ''; })()");
+ok("   removing it puts the cover back to its gradient", !bare.includes('/api/cover') && /gradient/.test(bare));
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

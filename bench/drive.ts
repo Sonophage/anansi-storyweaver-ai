@@ -230,6 +230,17 @@ const page = {
     await send('DOM.setFileInputFiles', { nodeId, files: paths });
     await wait(300);
   },
+  /** Fix the viewport to an exact size, independent of the window chrome.
+   *
+   *  `--window-size=1440,900` gives an innerHeight of 757 in headless=new, because the window
+   *  includes its own furniture. A layout assertion that says "at 1440x900" has to mean the
+   *  viewport or it is measuring this driver's chrome, so it says so here. Same override `shot`
+   *  already uses for a sized screenshot, given a name of its own. */
+  async viewport(w: number, h: number) {
+    await send('Emulation.setDeviceMetricsOverride',
+      { width: w, height: h, deviceScaleFactor: 1, mobile: w < 720 });
+    await wait(200);
+  },
   async shot(path: string, size?: [number, number]) {
     if (size) await send('Emulation.setDeviceMetricsOverride',
       { width: size[0], height: size[1], deviceScaleFactor: 1, mobile: size[0] < 720 });
