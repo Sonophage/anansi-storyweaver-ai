@@ -5830,10 +5830,14 @@ async function commitStory(only = null) {
   if (patch.spice === 'custom') delete patch.spice;
   else if (patch.spice !== undefined) patch.spiceNote = '';
   // NOTHING TO SEND IS NOT A SAVE. `custom` is a UI mode rather than a stored value, so the line
-  // above can empty a one-control patch completely — and this went on to POST {} and repaint
-  // anyway, which redrew the picker from the stored level and put it straight back. Choosing
-  // custom on the Storyteller panel snapped back to the level and the written box never appeared:
-  // four assertions in test/ui/surfaces.js §6, and the writer simply could not pick it.
+  // above can empty a one-control patch completely.
+  //
+  // The repaint half of this is fixed below and better — `if (!only) paint()`, which is the
+  // general rule and not only this control's. What is left is the write itself, and it is not
+  // free: `db.updateStory` sets `updated_at = now()` unconditionally, so an empty patch still
+  // moves the book to the top of the shelf. That reordering used to be invisible; it now decides
+  // which book gets the resume band, so choosing a register would silently change what you land
+  // on next time.
   //
   // Guarded here rather than in the listener because the listener does not know what survives the
   // shaping — that knowledge lives in this function and only here.

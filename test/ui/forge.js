@@ -121,9 +121,26 @@ await wait(600);
 await page.click('[data-open="new"]');
 await wait(700);
 
-ok("the create page offers the whole-book prompt and a field for it",
-   (await page.eval("!!document.querySelector('[data-forgecopy=\"book\"]')")) === true
-   && (await page.eval("!!document.querySelector('[data-bookpaste]')")) === true);
+// BEHIND A DOOR SINCE 2026-08-31. Seth: "the paste as json needs to be hidden under a toggle or a
+// button that opens that option." This scenario went on reaching straight for the box, so
+// querySelector returned null, the next line threw inside the page, and the whole scenario DIED
+// after 17 ok — taking its remaining assertions with it and reporting no red at all. The door is
+// asserted separately from what is behind it, so "the door is gone" and "the box is gone" cannot
+// look like the same failure.
+ok("the create page offers a door to forge a whole book elsewhere",
+   (await page.eval("!!document.querySelector('[data-forgehere]')")) === true);
+// BOTH halves are behind it — the prompt to copy and the box to paste back into — so both are
+// asserted absent first. Absence on its own is the assertion that passes for the wrong reason:
+// a create page that failed to render at all would satisfy it, which is why the door above and
+// the two below bracket it.
+ok("  and neither the prompt nor the box is on screen until it is pressed",
+   (await page.eval("!!document.querySelector('[data-bookpaste]')")) === false
+   && (await page.eval("!!document.querySelector('[data-forgecopy=\"book\"]')")) === false);
+await page.click('[data-forgehere]');
+await wait(400);
+const boxThere = await page.eval("!!document.querySelector('[data-bookpaste]')");
+ok("  pressing it opens the whole-book prompt and the box together", boxThere === true
+   && (await page.eval("!!document.querySelector('[data-forgecopy=\"book\"]')")) === true);
 
 const BOOK = JSON.stringify({
   story: {
@@ -143,7 +160,12 @@ const BOOK = JSON.stringify({
       keys: ['Ambersand'], activation: 'triggered' },
   ],
 });
-await page.eval(`(() => { document.querySelector('[data-bookpaste]').value = ${JSON.stringify(BOOK)}; return 1; })()`);
+// Guarded, and the guard is asserted. An unguarded `.value =` on a null is what killed this
+// scenario, and a scenario that dies is scored as the assertions it reached rather than as a
+// failure — the most expensive shape of green there is.
+const pasted = await page.eval(`(() => { const b = document.querySelector('[data-bookpaste]');
+  if (!b) return false; b.value = ${JSON.stringify(BOOK)}; return true; })()`);
+ok("  the book JSON goes into the box", pasted === true);
 await page.click('[data-pastebook="1"]');
 await wait(900);
 
