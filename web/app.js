@@ -4309,7 +4309,11 @@ function storyCard(s, i, hero, act = 'open', sel = false) {
   // straight into it, so a card read "horror, nsfw" inside a single pill. One tag per pill.
   const tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
   const gold = !!tags.length || s.status === 'in_progress';
-  if (s.is_world) tags = [WORLD_TAG];
+  // MUTATED, not reassigned: `tags` is a const, and `tags = [WORLD_TAG]` threw "Assignment to
+  // constant variable" for every world book — which killed drawPage inside loadLedger, so the
+  // Threads page sat on "Reading the threads…" for ever. Seth found it; no fixture had a world
+  // book on a card, so nothing in the suite had ever rendered one.
+  if (s.is_world) { tags.length = 0; tags.push(WORLD_TAG); }
   else if (!tags.length) tags.push(STATUS[s.status] || 'Writing');
   // Archived is dimmed rather than hidden: it is still your book and still one tap away.
   // BOTH ATTRIBUTE NAMES SPELLED OUT, not `data-${act}`. test/web.ts reads action names out of

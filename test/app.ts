@@ -225,7 +225,13 @@ let refuseNth = 0;
       // books from archived ones under their own header, and with no archived book in the
       // fixture that split renders identically either way and the assertion below cannot fail.
       { id: 's-4', title: 'The Drowned Almanac', status: 'archived', updatedAt: 0, words: 60,
-        last: 'It ended.', proposed: 0, unpaid: 0, flags: 0 }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
+        last: 'It ended.', proposed: 0, unpaid: 0, flags: 0 },
+      // A WORLD BOOK ON THE SHELF FIXTURE, added 2026-08-31 after one crashed the Threads page
+      // in Seth's hands. storyCard assigned to a `const tags` for world books and threw, which
+      // killed drawPage inside loadLedger and left the page reading "Reading the threads…" for
+      // ever. Nothing in the suite had ever rendered a world-book card, so nothing could see it.
+      { id: 's-5', title: 'The Tessellate', status: 'in_progress', updatedAt: 5, words: 0,
+        last: null, proposed: 0, unpaid: 0, flags: 0, is_world: 1, genre: 'fantasy' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
       look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } }
     : url.startsWith('/api/story') ? STORY
@@ -1127,6 +1133,30 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     `the live books come first, then the Archived header, then the book put away `
     + `(live ${live}, header ${head}, archived ${put})`);
   ok('archived books sit under their own header at the end of the shelf');
+
+// ---- A WORLD BOOK CAN BE DRAWN AS A CARD (2026-08-31). It could not: storyCard assigned to a
+// `const`, so every world book threw, drawPage died inside loadLedger, and the Threads page sat on
+// "Reading the threads…". Rendering one is the whole assertion — if it throws, nothing below runs.
+{
+  // THE THREADS PAGE, not Stories. World books are deliberately kept off the Stories shelf — they
+  // are cards without a book — so the only place a world-book CARD is drawn is the shelf on
+  // Threads, which is where the crash actually happened.
+  click({ leave: '1' });
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ nav: 'canon' });
+  await new Promise((r) => setTimeout(r, 60));
+  const page = html('page');
+  assert.doesNotMatch(page, /Reading the threads/,
+    'the Threads page finishes loading — it hung here for ever when storyCard threw');
+  assert.match(page, /The Tessellate/, 'the world book is drawn on the shelf at all');
+  assert.match(page, /World book/, 'and wears its own tag rather than a writing status');
+  // AND NOT the genre it happens to carry — the tag replaces, it does not append, or a world book
+  // reads as a fantasy novel with a note.
+  const card = page.slice(page.indexOf('The Tessellate') - 900, page.indexOf('The Tessellate'));
+  assert.ok(!/>fantasy</.test(card), "its genre pill is replaced by the world tag, not joined by it");
+  ok('a world book renders as a card, tagged as what it is');
+}
 
 // ---- A WORLD BOOK IS NOT A BOOK WITH WORK IN IT (2026-08-31). It is a story with `is_world` set,
 // so without the filter it would be counted like any other. Given MORE waiting than the real book,

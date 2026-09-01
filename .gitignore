@@ -23,3 +23,7 @@ imports/
 # being published with the tailnet allowlist in it. A pattern rather than a name, because the
 # next copy will be called something else.
 .env.*
+
+# Seth's own running list of things to fix. His file, not the repo's — it was swept in by a
+# `git add -A` on 2026-08-31 and taken back out the same day.
+bugs.md

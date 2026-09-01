@@ -10,6 +10,12 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · Threads opens again
+
+### The Threads page no longer hangs on "Reading the threads…"
+If you had made a world book, the whole Threads page stopped loading and sat on that line for ever.
+It is fixed. The world book's card draws properly now, tagged as what it is.
+
 ## 2026-08-31 · A world book is lore, and Hold back is on the composer
 
 ### A world book has no chapters and nothing to write in
