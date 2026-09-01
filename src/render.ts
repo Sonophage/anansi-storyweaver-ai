@@ -76,21 +76,58 @@ const TAG: Partial<Record<Kind, string>> = {
  *  an empty one take the house voice at runtime.
  *
  *  NOTHING HERE IS MEASURED. The honest claim is that the prompt says what the writer wanted it to
- *  say and that he can now change it — not that the prose reads better. */
-export const SYSTEM = `You are a prose engine for a novel. You write the next passage and nothing else.
+ *  say and that he can now change it — not that the prose reads better.
+ *
+ *  REWRITTEN 2026-09-01, Seth's text, and three things about it are worth writing down rather than
+ *  discovering later:
+ *
+ *  1. IT OPENS AS A CONTINUATION, not as an engine. "You are the continuation of this manuscript"
+ *     where it said "You are a prose engine for a novel", and rule 2 continues from the FINAL WORD
+ *     of the provided text rather than from what came before. Both are the same instruction aimed
+ *     more precisely.
+ *
+ *  2. VOICE MODULATION IS CRAFT, IN SYSTEM, AND THAT CROSSES THE LINE THIS FILE DRAWS. The check in
+ *     `test/db.ts` is called "SYSTEM keeps the contract and the house voice keeps the craft", and
+ *     its argument is that a craft rule here cannot be deleted by a writer, because a book with its
+ *     own voice replaces DEFAULT_VOICE and never this. `.claude/CLAUDE.md` is blunter: "Do not add
+ *     register rules to SYSTEM; a clause there measured 98.0 against 98.0 and was deleted."
+ *     This is a register instruction and it is here on Seth's explicit call. It is also not the
+ *     clause that measured flat — that one was a diction rule competing with the voice field, and
+ *     this one is about narrative DISTANCE, which nothing has measured either way. Recorded as an
+ *     override rather than as agreement: if the prose gets worse, this paragraph is the first
+ *     suspect, and `bench/ab.ts` with the old text as arm A is how to find out.
+ *
+ *  3. IT COSTS 556 ESTIMATED TOKENS AGAINST 300, on every call, in every book. That is a fixed
+ *     cost and it comes off the canon and prose budgets — `test/db.ts` computes the 60% floor from
+ *     SYSTEM's actual length for exactly this reason, so nothing went red, but a 4,000-token story
+ *     now keeps 256 fewer tokens of its own. */
+export const SYSTEM = `You are the continuation of this manuscript. Write the next passage and nothing else.
+
+Voice Modulation: Read the provided text and match its current register. When the passage is
+interior, atmospheric, emotionally loaded, or narratively reflective—when it is about something
+beneath the surface—deepen into narrator authority. Interpret, linger, judge, let subtext breathe.
+When the passage is external, action-driven, dialogue-heavy, or mechanically advancing the scene—when
+it is showing the surface—flatten into seamless continuation. Mimic rhythm, advance the beat,
+disappear into the prose. If the provided text contains more dialogue or physical action than
+interior reflection, default to continuation until the scene demands otherwise. Do not announce the
+shift. Let the provided text tell you which gear to be in.
 
 Rules:
 - Output prose only. No preamble, no commentary, no headings, no meta-text.
-- Continue from what came before. Never summarize it.
+- Continue from the final word of the provided text. Never summarize what came before.
 - Never resolve a scene the writer has not asked you to resolve.
-- Facts in the canon section are true. Write as though the reader already knows
-  them; never restate them as exposition.
+- Maintain the POV and tense established in the provided text. Do not shift either without explicit
+  instruction.
+- Match the emotional temperature, rhythm, and narrative distance of the provided text.
+- Facts in the canon section are true. Write as though the reader already knows them; never restate
+  them as exposition.
 - Where the prose and the canon disagree, the canon wins and you write to it. If a fact has
   changed, the writer will change the canon.
 - Canon is what is TRUE, never how to say it. Do not reuse its wording. A ledger body is a note to
   you, not a line of the book, and a phrase carried out of it whole is the one thing that makes the
   prose read as assembled. Its facts, your sentences.
-- If uncertain about a canon fact, write around it rather than inventing one.
+- If uncertain about a canon fact, preserve continuity with what is explicitly stated and do not
+  invent contradictions. Leave the gap rather than fill it with speculation.
 - No litotes. Don't negate before affirming. No double-negation emphasis. Never "not unkind",
   "no small thing", "hardly a surprise".
 - Contractions are correct in narration as well as in dialogue.

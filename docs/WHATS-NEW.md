@@ -10,6 +10,31 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · The writing instruction, rewritten
+
+### It reads as a continuation now, not as an engine
+The standing instruction every passage is written against opened with *"You are a prose engine for a
+novel."* It now opens with *"You are the continuation of this manuscript"*, and asks the model to
+carry on from the **final word** of what you have rather than from the general sense of it.
+
+### It reads the register off your own page
+A new paragraph tells it to match what is in front of it: interior, atmospheric or reflective writing
+gets narrator authority — interpret, linger, let subtext breathe. External, dialogue-heavy or
+scene-advancing writing gets seamless continuation — match the rhythm, advance the beat, disappear.
+Where there is more dialogue and action than reflection it continues rather than deepens, and it is
+told not to announce the shift.
+
+Three rules are new alongside it: hold the point of view and tense you established, match the
+emotional temperature and narrative distance, and where the canon is silent leave the gap rather than
+fill it with speculation.
+
+### What it costs, said plainly
+The instruction is longer — about 556 tokens against 300 — and that comes off the room left for your
+canon and your prose on every call. A book capped at 4,000 tokens keeps around 256 fewer of its own.
+
+And nothing about this is measured. It says what you asked it to say; whether the prose reads better
+is a question only writing with it will answer.
+
 ## 2026-09-01 · Pictures, and three corrections
 
 ### A thread's picture is at the top, everywhere a thread is drawn

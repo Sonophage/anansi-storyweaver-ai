@@ -484,15 +484,24 @@ ok('SYSTEM keeps the contract and the house voice keeps the craft', () => {
   //
   // The cost is stated rather than hidden: a writer cannot delete them, which is the exact thing
   // the loop above exists to prevent for craft. That is the trade he chose.
+  // The gap rule was worded "write around it rather than inventing one" until 2026-09-01, when Seth
+  // rewrote SYSTEM: "preserve continuity with what is explicitly stated and do not invent
+  // contradictions. Leave the gap rather than fill it with speculation." Same contract, more of it —
+  // it now also forbids inventing a CONTRADICTION, not only inventing into silence. The regex
+  // follows the wording because what is guarded is the clause, not the sentence it was first
+  // written in; delete the clause and this still goes red.
   for (const rx of [/Output prose only/i, /the canon wins/i, /Never break the frame/i,
-                    /write around it rather than inventing/i,
+                    /Leave the gap rather than fill it/i, /do not\s+invent contradictions/i,
                     /No litotes/i, /No double-negation emphasis/i, /Contractions are correct/i,
                     // The FORMS, added 2026-08-30 at Seth's ask and guarded separately from the
                     // rule. F37 is the reason there is a difference worth guarding: the same rule
                     // as an adjective bought 10.7% and the version naming the forms holds at ~98%,
                     // so a rewrite that keeps the sentence and drops the examples is a rewrite that
                     // keeps the appearance of the finding and throws the finding away.
-                    /not unkind/i]) {
+                    // ALL THREE, not one of them. Checking only "not unkind" meant the other two
+                    // could go and this stayed green — found by deleting them on 2026-09-01. If the
+                    // forms are the finding, then each form is part of it.
+                    /not unkind/i, /no small thing/i, /hardly a surprise/i]) {
     assert.match(render.SYSTEM, rx, `SYSTEM has lost part of the contract: ${rx}`);
     assert.doesNotMatch(prompts.DEFAULT_VOICE, rx,
       `the output contract is in the voice (${rx}), where replacing the voice turns it off`);
