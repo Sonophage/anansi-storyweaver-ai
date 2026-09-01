@@ -10,6 +10,43 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · A banner over the threads you open
+
+### The book you are looking at, above its own cards
+Opening a book's threads now draws its cover as a band above them, with the book's name on it. A
+world book says so on the band and adds that nothing is written in it.
+
+### The row of book cards at the top of Threads is gone
+It did nothing you could not do from the titles below it. **Start a book here** stays where it was,
+beside each book's name.
+
+### The Web is called The Web on its own page
+The menu row was renamed and the page it opens was not, so they disagreed. The page no longer says
+it is the admin's workbench either — it has been open to every writer since this morning.
+
+## 2026-08-31 · Threads opens again
+
+### The Threads page no longer hangs on "Reading the threads…"
+If you had made a world book, the whole Threads page stopped loading and sat on that line for ever.
+It is fixed. The world book's card draws properly now, tagged as what it is.
+
+## 2026-08-31 · A world book is lore, and Hold back is on the composer
+
+### A world book has no chapters and nothing to write in
+The first version made one as a story with an empty Chapter 1 and a composer, which is a book with
+nothing in it rather than a world. Opening one now shows what it is: its lore, and a line saying so.
+No chapter heading, no prose column, no composer, and the menu lists its lore instead of chapters.
+
+It is the starting point it was meant to be. Put a cast, a map, a set of rules in it, then start
+books set there from the Threads page. Each one reads this lore rather than copying it, so you can
+write a different story, as a different person, on a different premise, and they all agree about the
+world.
+
+### Hold back is beside Threads now
+The switch for the character the model must not write sits on the composer row, next to Threads.
+Lit means held back, faded means the model may write them. One press, mid-scene, without opening a
+panel. It only appears once a book names someone.
+
 ## 2026-08-31 · A demo library, one press away
 
 ### Show the app without showing your books

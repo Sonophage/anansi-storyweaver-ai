@@ -278,7 +278,10 @@ const WTITLES = {
   prefs: () => ['What you have written', 'words, passages, takes not chosen'],
   news: () => ['What changed', 'written by Anansi, from the work itself'],
   bug: () => ['Report an issue', 'filed on the repo, without the prose'],
-  forge: () => ['The forge', 'prompts to hand another model, so what it writes lands whole'],
+  // "The Web", to match the menu row. Renamed there on 2026-08-31 and missed here, so the row
+  // said one thing and the page it opened said another. Seth: "the web, on the menu it says the
+  // web on tha page it does not."
+  forge: () => ['The Web', 'prompts to hand another model, so what it writes lands whole'],
 };
 
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
@@ -314,7 +317,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
-  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'lselect', 'demo',
+  'pastecast', 'pastebook', 'forgehere', 'newworld', 'fromhere', 'startfrom', 'demo', 'holdback',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -427,7 +430,12 @@ function drawRail() {
   // again. Seth: "anansies web can be removed from the story menu since we already have a button
   // that pulls up the main menu and its the same amount of clicks."
   const back = '';
-  const tail = storyMenu
+  const tail = storyMenu && V?.story?.is_world
+    // A world book has no chapters to list and nothing to write in. What it has is its lore, and
+    // the rail says so rather than showing an empty Chapters heading.
+    ? `<div class="hint" style="padding:22px 12px 10px; margin:0">A world book. Its lore is here to
+         be read and edited, and to start books from &mdash; there is nothing to write in it.</div>`
+    : storyMenu
     ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.3em;
          font-variant-caps:all-small-caps; color:var(--dim)">Chapters</div>
        ${V.chapters.map((c) => `<button data-chapter="${c.id}" style="padding:8px 12px; font-size:13px;
@@ -1007,6 +1015,24 @@ function drawDoc() {
   // the header". The class says which of the two this chapter is.
   $('doc')?.classList.toggle('plated', !!plate);
   $('doc')?.classList.toggle('behind', !!stick);
+  // A WORLD BOOK HAS NO CHAPTER TO SET. Falling through would print "Chapter 1" over an empty
+  // column, which is the thing that made a world book look like a book with nothing in it.
+  if (V.story?.is_world) {
+    const cards = V.entries?.length ?? 0;
+    col.innerHTML = `<div style="max-width:620px; margin:0 auto; padding:48px 0;
+      display:flex; flex-direction:column; gap:14px">
+      <div class="serif" style="font-size:28px; line-height:1.1; color:var(--ink-bright)">${esc(V.story.title)}</div>
+      <div style="font-size:14px; line-height:1.7; color:var(--mute)">A world book. It holds lore and
+        nothing else &mdash; no chapters, no prose, nothing to write in. ${cards
+          ? `Its ${cards} ${cards === 1 ? 'card is' : 'cards are'} in Threads, on the left.`
+          : 'Put its first card in from Threads, on the left.'}</div>
+      <div class="hint" style="margin:0">Start a book set here from the Threads page, beside this
+        book's name. The new book READS these cards rather than copying them, so editing one here
+        changes it in every book set in this world &mdash; and a book can still disagree by writing
+        its own card with the same name.</div>
+    </div>`;
+    return;
+  }
   col.innerHTML = `
     ${plate}
     <div class="band">
@@ -1176,8 +1202,20 @@ function drawDock() {
            tray has its own button inside the list, so nothing lost a way in. Seth: "threads in the
            composer should open to all the threads in that story ... which isnt necessary because
            we have that on the input." -->
+      <!-- HOLD THEM BACK, where you are actually writing. It is a per-scene decision and it lived
+           three panels deep. Seth, 2026-08-31: "allow that option to be toggleble in the input bar
+           as a faded or unfaded option in the input bar beside threads so i dont have to enter all
+           these menus." Faded is off, lit is on, and it only exists when the book names somebody —
+           a switch for a setting you have not made is a control with no meaning. -->
+      ${V.story.lockedCharacter ? `<button data-holdback="${V.story.lockoutOn === false ? '1' : '0'}"
+        aria-pressed="${V.story.lockoutOn !== false}"
+        title="${V.story.lockoutOn === false
+          ? `The model may write ${esc(V.story.lockedCharacter)}. Press to hold them back.`
+          : `${esc(V.story.lockedCharacter)} is yours — the model will not write them. Press to let it.`}"
+        style="flex:0 0 auto; margin-left:auto; opacity:${V.story.lockoutOn === false ? '.42' : '1'};
+        color:${V.story.lockoutOn === false ? 'var(--faint)' : 'var(--gold)'}">Hold back</button>` : ''}
       <button data-goblock="threads:" title="Everything written down in this story"
-        style="flex:0 0 auto; margin-left:auto">Threads</button>
+        style="flex:0 0 auto; ${V.story.lockedCharacter ? '' : 'margin-left:auto'}">Threads</button>
       <!-- THREE PLACES, THREE JOBS. Seth, 2026-08-28: "on the menu threads is seen in three
            places. main menu, threads for all books. composer menu, threads for only the current
            story. button next to anansi near the input should be + threads. add threads."
@@ -2676,30 +2714,30 @@ const PANELS = {
 const ledgerScope = () => (S.ledgerBook === undefined
   ? (S.storyId ?? LEDGER?.[0]?.story ?? null) : S.ledgerBook);
 
-/** THE SHELF ON THE THREADS PAGE. Seth, 2026-08-31: "lets do a, but as a shelf with the book look
- *  so its different from just threads."
+/** The hero band above a book's threads, drawn only while its group is open.
  *
- *  Every book you own, world books among them, drawn as the same card the Stories shelf draws — so
- *  the page opens as a shelf rather than as a list, and a world book finally has one place it looks
- *  like what it is. Pressing a card SCOPES the list below to that book; pressing the picked one
- *  again widens back to every book.
+ *  Seth, 2026-08-31: "add a hero banner above the threads when the toggle is open." It replaced a
+ *  shelf of cards at the top of the page, which he had me take out — "remove the view of the books
+ *  on this end they do nothing ... the start a book here next to the titles is good enough."
  *
- *  It reuses `S.ledgerBook`, which has scoped this page since #22 — the card is a second door to a
- *  state that already existed, not a new one.
+ *  So this is not a second way in. It is the book saying which book you are looking at, at the
+ *  moment you have opened it, and it is the one place a world book is drawn with its own face.
  */
-function ledgerShelf() {
-  const books = shelfOrder(LIB);
-  const only = ledgerScope();
-  if (!books.length) return '';
-  return `<div style="display:flex; flex-direction:column; gap:12px">
-    <div style="display:flex; gap:10px; align-items:baseline">
-      <span class="lbl" style="letter-spacing:.1em; margin:0">Every book</span>
-      <button data-lookall="${only ? '1' : '0'}" style="font-size:11px; letter-spacing:.1em;
-        font-variant-caps:all-small-caps; color:${only ? 'var(--gold)' : 'var(--dim)'}">${
-        only ? 'show them all' : 'showing them all'}</button>
-    </div>
-    <div class="grid">${books.map((b, i) =>
-      storyCard(b, i, false, 'lselect', b.id === only)).join('')}</div>
+function ledgerBanner(sid, title) {
+  const b = (LIB ?? []).find((x) => x.id === sid);
+  const tag = b?.is_world ? WORLD_TAG : (STATUS[b?.status] || 'Writing');
+  const words = Number(b?.words) || 0;
+  return `<div class="lbanner">
+    ${b?.cover ? `<span class="art" style="background-image:url('${api.coverUrl(sid, b.cover)}')"></span>
+      <span class="fade"></span>` : ''}
+    <span class="txt">
+      <span style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+        color:${b?.is_world ? 'var(--gold)' : 'var(--label)'}">${esc(tag)}</span>
+      <span class="serif" style="font-size:22px; line-height:1.1; color:var(--ink-bright)">${esc(title)}</span>
+      ${b?.is_world
+        ? `<span style="font-size:11.5px; color:var(--mute)">Lore only &mdash; nothing is written in it.</span>`
+        : words ? `<span style="font-size:11.5px; color:var(--mute)">${words.toLocaleString()} words</span>` : ''}
+    </span>
   </div>`;
 }
 
@@ -2745,7 +2783,8 @@ function ledgerBooks() {
         style="width:auto; padding:0 14px; height:34px; font-size:12px; white-space:nowrap">Start it</button>
       <span class="hint" style="margin:0">It follows these cards rather than copying them.</span>
     </div>` : ''}
-    ${shut ? '' : `<div class="grid">${b.rows.map(entryCard).join('')}</div>`}</div>`; }).join('')
+    ${shut ? '' : `${ledgerBanner(sid, b.title)}
+      <div class="grid">${b.rows.map(entryCard).join('')}</div>`}</div>`; }).join('')
     || `<div class="hint">${q || S.ledgerKind !== 'all' || S.ledgerSlot || only
       ? 'Nothing matches that.' : 'No entries yet.'}</div>`;
 }
@@ -4294,23 +4333,25 @@ function cardLine(s) {
         margin-top:4px; min-height:19px">the last passage is all dialogue</span>`;
 }
 
-function storyCard(s, i, hero, act = 'open', sel = false) {
+// `act`/`sel` are gone with the Threads card shelf that was their only caller.
+function storyCard(s, i, hero) {
   // Genre is comma-separated and always has been — an AI Dungeon import writes its tag list
   // straight into it, so a card read "horror, nsfw" inside a single pill. One tag per pill.
   // `let`, not `const`. The world-book branch below reassigns this, and `const` made that line
-  // throw `Assignment to constant variable` for every world book — which never fired on the shelf
-  // because the shelf filters them out, and fired on EVERY render of Threads, where ledgerShelf
-  // passes the whole library through here.
+  // throw `Assignment to constant variable` for every world book — which never fired on the Stories
+  // shelf, because world books are filtered out of it, and fired on Threads, where a world book IS
+  // drawn. Threads hung on "Reading the threads…" for as long as one existed.
   let tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
   const gold = !!tags.length || s.status === 'in_progress';
+  //
+  // ONE FIX, NOT TWO. Both sessions found this bug on 2026-08-31 and fixed it differently — `let`
+  // here, and a `tags.length = 0; tags.push(...)` mutation on the other side. Kept the `let`,
+  // because with it the branch below is the obvious line rather than a workaround, and a comment
+  // saying "tags is a const" above a `let` would be false the day it merged.
   if (s.is_world) tags = [WORLD_TAG];
   else if (!tags.length) tags.push(STATUS[s.status] || 'Writing');
   // Archived is dimmed rather than hidden: it is still your book and still one tap away.
-  // BOTH ATTRIBUTE NAMES SPELLED OUT, not `data-${act}`. test/web.ts reads action names out of
-  // the source with a regex, so a computed attribute name is invisible to it and every story
-  // card was reported as a button that does nothing.
-  return `<button class="storycard${hero ? ' hero' : ''}${sel ? ' picked' : ''}" ${
-    act === 'lselect' ? `data-lselect="${s.id}"` : `data-open="${s.id}"`}
+  return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}"
     style="${s.status === 'archived' ? 'opacity:.42; filter:saturate(.5)' : ''}">
     <span class="art" style="display:block; background:${
       // Single quotes: this whole thing goes inside style="…", and a double quote in the URL ends
@@ -4504,8 +4545,10 @@ const WPAGES = {
    *  press that matters is Copy, not scroll. */
   forge() {
     if (FORGE === null && !S.forgeBusy) { S.forgeBusy = true; loadForge(); }
-    if (FORGE === null) return '<div class="hint">Reading the forge&hellip;</div>';
-    if (!FORGE.length) return `<div class="hint">${esc(S.forgeError ?? 'The forge is the admin\u2019s workbench.')}</div>`;
+    if (FORGE === null) return '<div class="hint">Reading the web&hellip;</div>';
+    // NOT "the admin's workbench" any more — it opened to every writer on 2026-08-31, so an empty
+    // list here means the list is empty, not that you were refused.
+    if (!FORGE.length) return `<div class="hint">${esc(S.forgeError ?? 'No prompts here yet.')}</div>`;
     return `<div style="display:flex; flex-direction:column; gap:14px; max-width:760px">
       <div class="hint" style="margin:0">Hand one of these to any model you like, then bring the
         answer back. The two card prompts come back as JSON that <strong>+ Thread</strong> reads
@@ -4803,7 +4846,6 @@ const WPAGES = {
         <!-- Search on its OWN line and left aligned, at Seth's direction 2026-08-29. It was pushed
              to the right end of the chip row by an auto left margin, so on a narrow screen it
              wrapped under the chips at whatever width was left over. -->
-        ${ledgerShelf()}
         ${worldStrip()}
         <div style="border-top:1px solid var(--line); margin-top:4px"></div>
         <input class="field" id="lq" value="${esc(S.ledgerQ)}" placeholder="Search every story"
@@ -5046,7 +5088,14 @@ function paint() {
   applyLook();
   root.dataset.uiRail = S.rail ? 'open' : 'closed';
   drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide();
-  if (S.place === 'story' && V) { drawDoc(); drawDock(); } else { $('dock').hidden = true; }
+  // A WORLD BOOK HAS NO WRITING SURFACE. It is a collection of lore and nothing else — Seth,
+  // 2026-08-31: "the world book should be a collection of lore. no entries no chapters just lore.
+  // so that its an easy starting off point if i want to write something else or as someone else or
+  // as a different premise in that world." The first build made it a story with an empty Chapter 1
+  // and a composer, which is a book with nothing in it, not a world.
+  const world = S.place === 'story' && V && !!V.story?.is_world;
+  if (S.place === 'story' && V && !world) { drawDoc(); drawDock(); }
+  else { $('dock').hidden = true; if (world) drawDoc(); }
 }
 
 /** The notes, and the error if there are none. Kept beside LEDGER because it is the same shape of
@@ -5063,9 +5112,12 @@ async function loadNews() {
   drawPage();
 }
 
-/** The forge's prompts, once per session. A REFUSAL IS AN ANSWER: the route says no to anyone who
- *  is not the admin, and an empty list is how that reaches the page — which is why FORGE starts at
- *  null and not at [], because "not asked yet" and "asked and told no" are different screens. */
+/** The Web's prompts, once per session. FORGE starts at null and not at [] because "not asked yet"
+ *  and "asked and got nothing" are different screens, and an error is kept apart from both.
+ *
+ *  It used to say a refusal was the third case: the route answered only the admin. That stopped
+ *  being true on 2026-08-31 when Seth tested it as the second writer — "allow this to not only be
+ *  for the admin. i tested it. it can go to everyone." */
 async function loadForge() {
   const r = await api.forge();
   S.forgeBusy = false;
@@ -5135,7 +5187,10 @@ async function openStory(id) {
 
   SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen,
           admin: r.admin === undefined ? SRV.admin : !!r.admin };
-  if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
+  // A WORLD BOOK OPENS ON ITS LORE. There is nothing else in it — no prose, no chapters — so the
+  // Context panel would report on a prompt that will never be built.
+  if (V.story?.is_world) { if (!S.panel || S.panel === 'context') S.panel = 'threads'; }
+  else if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
   const a = await api.activity(id);
   if (OPENING !== id) return;                   // and again: this is the second await, not the first
   ACT = a.error ? null : a;
@@ -6724,9 +6779,6 @@ document.addEventListener('click', async (e) => {
   // page that shows nothing for no visible reason.
   if (d.lkind) { S.ledgerKind = d.lkind; S.ledgerSlot = null; drawPage(); return; }
   if (d.lslot !== undefined) { S.ledgerSlot = d.lslot || null; drawPage(); return; }
-  // A card on the Threads shelf scopes the list under it. Pressing the picked one widens back to
-  // every book, so the card is both the way in and the way out.
-  if (d.lselect) { S.ledgerBook = ledgerScope() === d.lselect ? null : d.lselect; drawPage(); return; }
   if (d.lookall !== undefined) {
     S.ledgerBook = d.lookall === '1' ? null : (S.storyId ?? LEDGER?.[0]?.story ?? null);
     drawPage(); return;
@@ -7552,6 +7604,19 @@ document.addEventListener('click', async (e) => {
   if (d.forgehere !== undefined) { S.forgeHere = d.forgehere === '1'; drawPage(); return; }
   // The demo library. Everything on screen belongs to the library you were looking at, so this
   // drops the open book and reloads the shelf rather than trying to reconcile the two.
+  // The composer's own copy of the Story panel's switch. Saves the one field and repaints the dock
+  // only — a full repaint here would empty the line you are part-way through writing, which is the
+  // rule the autosave path had to learn today.
+  if (d.holdback !== undefined) {
+    const on = d.holdback === '1';
+    const r = await api.saveStory(S.storyId, { lockoutOn: on });
+    if (r.error) return toast(r.error);
+    V.story = { ...V.story, lockoutOn: on };
+    drawDock();
+    return toast(on
+      ? `Holding ${V.story.lockedCharacter} back. The model will not write them.`
+      : `Letting the model write ${V.story.lockedCharacter} for now.`);
+  }
   if (d.demo !== undefined) {
     const on = d.demo === '1';
     const r = await api.setDemo(on);
