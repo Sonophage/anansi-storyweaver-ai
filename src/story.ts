@@ -35,6 +35,7 @@ const toStory = (r: any) => ({
   styleNote: r.style_note ?? '',
   maxContext: r.max_context, status: r.status,
   spiceNote: r.spice_note, model: r.model, lockedCharacter: r.locked_character,
+  lockoutOn: r.lockout_on !== 0,
   // Whether the surface should ask for the opening passage itself. Absent on a row written before
   // the column existed, so it reads as ON, which is the default the column carries too.
   autoOpen: r.auto_open == null ? true : !!r.auto_open,

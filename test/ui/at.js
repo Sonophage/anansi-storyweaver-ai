@@ -273,3 +273,48 @@ if (cm.open) {
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");
+
+// ---- @ IS THIS BOOK, @@ IS EVERY BOOK (2026-08-31). Seth: "the @ in the input box should only
+// pull in from the current book, however if we do @@ then it can pull in from all the books."
+//
+// The fixture has to have a second book for this to be decidable at all, so that is asserted first:
+// with one book on the shelf both lists would be identical and every assertion below would pass
+// while saying nothing.
+{
+  const shelf = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.map(s=>s.title))()");
+  ok(`the shelf has more than one book, or this cannot be measured (${shelf.length})`, shelf.length > 1);
+
+  await type("tell me about @");
+  const narrow = await menu();
+  console.log("  @ : " + JSON.stringify(narrow.items));
+  ok("a bare @ still opens the menu", narrow.open === true);
+  // EVERY row says this book. The `where` label is drawn from the same field the scope decides on,
+  // so a leak shows up here as "your shelf" or "another book".
+  ok("  and every row on it comes from this book",
+     !!narrow.items && narrow.items.length > 0
+       && narrow.items.every((t) => /this book/i.test(t)));
+  ok("  with the @@ hint on it, or nobody would find the wide search",
+     await page.eval("(() => (document.getElementById('atlist')?.textContent ?? '').includes('to search every book'))()"));
+
+  await type("tell me about @@");
+  const wide = await menu();
+  console.log("  @@: " + JSON.stringify(wide.items));
+  ok("@@ opens the menu too", wide.open === true);
+  ok("  and reaches past this book",
+     !!wide.items && wide.items.some((t) => /your shelf|another book/i.test(t)));
+  ok("  and the hint is gone once you are already wide",
+     !(await page.eval("(() => (document.getElementById('atlist')?.textContent ?? '').includes('to search every book'))()")));
+
+  // Accepting from the wide list must eat BOTH @s, not leave one behind.
+  await type("tell me about @@sil");
+  const w2 = await menu();
+  if (w2.open && w2.items.length) {
+    await page.eval("(() => { document.querySelector('[data-atpick=\"0\"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); return 1; })()");
+    await wait(300);
+    const val = await page.eval("document.getElementById('askBox').value");
+    console.log("  after accept: " + JSON.stringify(val));
+    ok("  accepting from @@ leaves one @ and no stray second one", !/@@/.test(val) && /@/.test(val));
+  } else {
+    ok("  ACCEPT NOT TESTED — @@sil matched nothing", false);
+  }
+}

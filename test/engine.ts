@@ -1453,4 +1453,23 @@ ok('the book\'s own style is its own block, under the voice', () => {
     'and a book without one gets no block at all');
 });
 
+// ---- THE LOCKOUT HAS ITS OWN SWITCH (2026-08-31). Seth: "we need to add an on and off switch
+// since sometimes i do want it to write for me." Turning it off used to mean clearing the name and
+// remembering to put it back.
+ok('the lockout can be held back or let go without losing who it names', () => {
+  const withLock = (on: boolean | undefined) => {
+    const b = base();
+    const inp = { ...b, story: { ...b.story, lockedCharacter: 'Mira Vance', lockoutOn: on } };
+    return render(buildContext(inp as any, count));
+  };
+  assert.match(withLock(true), /Mira Vance belongs to the writer/,
+    'named and switched on, the lockout is in the prompt');
+  // UNDEFINED IS ON. Every story written before the column existed has no value in it and must
+  // keep behaving exactly as it did — this is the assertion that says so.
+  assert.match(withLock(undefined), /Mira Vance belongs to the writer/,
+    'and a story from before the switch existed still has it');
+  assert.doesNotMatch(withLock(false), /belongs to the writer/,
+    'switched off, the line is gone from the prompt entirely');
+});
+
 console.log(`\n${n} checks passed`);

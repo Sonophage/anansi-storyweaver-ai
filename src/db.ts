@@ -225,6 +225,11 @@ function migrate() {
   // lives on the Threads page instead. Seth, 2026-08-31: "a way to create a world book. one that
   // is just the cards in that book ... better yet in threads with the same look as the stories."
   add('stories', 'is_world', 'INTEGER DEFAULT 0');
+  // THE LOCKOUT'S OWN SWITCH. Until now the only way to let the model write your character for a
+  // scene was to clear `locked_character` and remember to put it back. Seth, 2026-08-31: "we need
+  // to add an on and off switch since sometimes i do want it to write for me." Defaults ON, so
+  // every story that already names someone keeps the behaviour it has.
+  add('stories', 'lockout_on', 'INTEGER DEFAULT 1');
   // #24. A TABLE rather than a column, so it does not go through `drop` above. Its five batches
   // were written into docs/WHATS-NEW.md before this shipped; the file is the record now and the
   // model call that filled this is gone. Guarded on existence so the line is quiet on a database
@@ -1762,7 +1767,7 @@ export function updateStory(id: string, s: any) {
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,model=?,
-      locked_character=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
+      locked_character=?,lockout_on=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
       lore_from=?,style_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
@@ -1770,6 +1775,9 @@ export function updateStory(id: string, s: any) {
       p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
       p('model', 'model') ?? null,
       p('lockedCharacter', 'locked_character') ?? null,
+      // Same shape as autoOpen below: boolean over the wire, integer in the column, and `undefined`
+      // means leave it — so a panel that does not show this switch cannot turn it off.
+      Number(p('lockoutOn', 'lockout_on') ? 1 : 0),
       Number(p('chapterHero', 'chapter_hero') ? 1 : 0),
       Number(p('chapterSticky', 'chapter_sticky') ? 1 : 0),
       Math.max(0, Math.min(100, Number(p('coverOpacity', 'cover_opacity')) || 0)),

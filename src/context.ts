@@ -47,6 +47,8 @@ export interface Passage {
 export interface Story {
   title: string; genre: string; premise: string; setting: string;
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
+  /** The lockout's own switch. Undefined and true both mean on. */
+  lockoutOn?: boolean;
   /** #18. `writingStyle` is the INSTRUCTION — what every story in the library already holds.
    *  `styleNote` is this book's own genre flavour, which gets its own block under VOICE.
    *  (`voiceSample`, a specimen of the writer's prose, was here. Removed 2026-08-30, COUNCIL-06
@@ -1032,7 +1034,10 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // It rides DIRECTIVE rather than getting a block of its own: DIRECTIVE is the anchor that holds
   // the standing instructions, it is never evicted, and a fifth block for its ~78 tokens would need
   // a place in ORDER, a colour, a name in BLOCK_ORIGIN and a row in the Context panel.
-  const locked = story.lockedCharacter?.trim();
+  // THE SWITCH, not just the name. Turning the lockout off used to mean clearing who it names and
+  // remembering to put them back; `lockoutOn` suspends it and keeps the name. Undefined counts as
+  // on, so every story written before the column existed behaves exactly as it did.
+  const locked = story.lockoutOn === false ? '' : story.lockedCharacter?.trim();
   /** COUNCIL-06 · THE LOCKOUT WAS AIMED AT THE WRONG TARGET IN FIVE OF NINE BOOKS.
    *
    *  F28 measured this line and it works — acted 76% → 25% (p = 0.0005), spoke 20% → 0%. It was

@@ -10,6 +10,15 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-08-31 · Hold them back, or don't
+
+### A switch on the character the model must not write
+The Story panel has **Hold them back** under the name you picked. Turn it off for a scene where you
+do want the model to write them, and turn it back on afterwards — the name stays either way, so it
+is one press rather than picking them out of the cast again.
+
+Books that already name someone are unchanged: the switch starts on.
+
 ## 2026-08-31 · Threads is a shelf now
 
 ### Your books, as books, at the top of Threads
