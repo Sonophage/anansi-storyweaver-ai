@@ -43,10 +43,18 @@ export interface Chapter {
 export interface Passage {
   id: string; ordinal: number; body: string; isBreak?: boolean;
   chapterId?: string;              // which chapter it belongs to — decides what stays whole
+  /** Who wrote it. `story.ts` has put this on every passage since the view was written and the
+   *  engine has never declared it, so it arrived and was invisible — which is F51's whole
+   *  mechanism: the recent-prose block is a flat run of text with no marking of who wrote what,
+   *  the lockout forbids writing the locked character, and the prose two hundred tokens later
+   *  shows recent examples of exactly that with no way to tell they are the writer's. */
+  author?: 'human' | 'model' | string;
 }
 export interface Story {
   title: string; genre: string; premise: string; setting: string;
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
+  /** The lockout's own switch. Undefined and true both mean on. */
+  lockoutOn?: boolean;
   /** #18. `writingStyle` is the INSTRUCTION — what every story in the library already holds.
    *  `styleNote` is this book's own genre flavour, which gets its own block under VOICE.
    *  (`voiceSample`, a specimen of the writer's prose, was here. Removed 2026-08-30, COUNCIL-06
@@ -70,6 +78,23 @@ export interface Input {
   // without being told whose line it is.
   speaker?: string;
   pins?: Record<string, 'force_in' | 'force_out'>;   // per-chapter overrides, SPEC §7.4 step 7
+  /** F52. One extra sentence on the lockout line, telling the model that the locked character's
+   *  lines in the prose above were written BY the writer and are not a pattern to continue.
+   *
+   *  A FLAG BECAUSE IT IS UNDER MEASUREMENT, not because it is a setting. F51 found the mechanism:
+   *  `Passage` carries no author, so the recent-prose block is a flat run of text with no marking of
+   *  who wrote what — the lockout forbids the thing, and the prose two hundred tokens later shows
+   *  recent examples of exactly that thing, with no way to tell they are the writer's. It reaches
+   *  here through Input and never through process.env, because buildContext is pure. */
+  lockoutClause?: boolean;
+  /** F53. Mark the writer's OWN passages in the prose the model is continuing, so the lockout has
+   *  something concrete to point at rather than a rule contradicted by recent examples.
+   *
+   *  Only ever applied while a lockout is actually in force — that is the case it was measured for,
+   *  and it keeps a new marker out of every other book's prompt. Flagged because it is under
+   *  measurement, and because F35 is the standing warning: give this model new vocabulary and it
+   *  turns it into section headers, so the marker leaking into output is itself a thing to count. */
+  proseAuthor?: boolean;
   /** A take the writer rejected and is regenerating away from, if the caller chose to send it.
    *
    *  OFF BY DEFAULT AND THAT IS THE POINT. `db.rejectTake` has recorded rejections since it was
@@ -1011,8 +1036,19 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     tail.unshift(whole[i]); acc += t;
   }
   const head = whole.slice(0, whole.length - tail.length);
+  // F53. One short bracketed line above the writer's own passages, in the app's existing bracket
+  // idiom — canon entries and the lockout line are already written this way, so it is not new
+  // vocabulary. TAIL is marked as well as PROSE: the writer's most recent lines are usually in the
+  // tail, which is exactly the position that makes them read as precedent.
+  //
+  // Gated on the lockout being in force. Marking authorship in every book's prompt is a much larger
+  // change than the one being measured, and it would be measured by nothing.
+  const lockedNow = story.lockoutOn === false ? '' : story.lockedCharacter?.trim();
+  const marking = !!input.proseAuthor && !!lockedNow;
+  const mark = (p: Passage) => marking && p.author === 'human'
+    ? `[the writer's own, not yours]\n${p.body}` : p.body;
   for (const p of head)
-    add('PROSE', p.id, p.body, p.chapterId && pulled.has(p.chapterId) ? 'pulled back' : 'recent prose');
+    add('PROSE', p.id, mark(p), p.chapterId && pulled.has(p.chapterId) ? 'pulled back' : 'recent prose');
 
   // The lockout. One line, and it is a prohibition with a destination — a bare "do not write him"
   // gets worked around (he is described from outside, or the scene stalls waiting for him), so the
@@ -1023,7 +1059,10 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // It rides DIRECTIVE rather than getting a block of its own: DIRECTIVE is the anchor that holds
   // the standing instructions, it is never evicted, and a fifth block for its ~78 tokens would need
   // a place in ORDER, a colour, a name in BLOCK_ORIGIN and a row in the Context panel.
-  const locked = story.lockedCharacter?.trim();
+  // THE SWITCH, not just the name. Turning the lockout off used to mean clearing who it names and
+  // remembering to put them back; `lockoutOn` suspends it and keeps the name. Undefined counts as
+  // on, so every story written before the column existed behaves exactly as it did.
+  const locked = story.lockoutOn === false ? '' : story.lockedCharacter?.trim();
   /** COUNCIL-06 · THE LOCKOUT WAS AIMED AT THE WRONG TARGET IN FIVE OF NINE BOOKS.
    *
    *  F28 measured this line and it works — acted 76% → 25% (p = 0.0005), spoke 20% → 0%. It was
@@ -1061,7 +1100,11 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
         + `where ${teller} can only guess, write the guess as a guess.]`
       : locked
       ? `[${locked} belongs to the writer: never write their dialogue, action, gesture or thought, `
-        + `and never state what they feel, know or decide. Write the world's answer instead — what `
+        + `and never state what they feel, know or decide.`
+        + (input.lockoutClause
+          ? ` Where ${locked} speaks or acts in the passages above, the writer wrote it — that is `
+            + `not permission and not a pattern to continue.` : '')
+        + ` Write the world's answer instead — what `
         + `the others say and do, what the room does, what happens to ${locked}. Stop where `
         + `${locked} would act.]`
       : '', keep: true },
@@ -1078,7 +1121,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       : '', keep: false },
   ], CAPS.DIRECTIVE!);
 
-  for (const p of tail) add('TAIL', p.id, p.body, 'tail prose');
+  for (const p of tail) add('TAIL', p.id, mark(p), 'tail prose');
 
   // MODE. Omitted only for Narrate on an unfinished line — scoping this to one mode is
   // deliberate: Direct's directive and speak/act's "whose line is it" live ONLY in MODE, and

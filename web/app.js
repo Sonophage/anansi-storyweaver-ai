@@ -174,6 +174,7 @@ const S = {
   talk: { turns: [], busy: false, search: false, draft: null, searchable: null },
   blank: null,          // the Start blank form, when it is open
   forgeHere: false,     // the JSON paste on the create screen, which starts shut
+  ledgerBusy: false,    // the cross-book ledger being fetched for an @@ search
   fromBook: null,       // the book whose 'start a book here' box is open, on Threads
 };
 let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
@@ -2053,9 +2054,18 @@ const PANELS = {
       ${helpBody('locked')}
       ${pick('lockedCharacter', cast.map((e) => e.title), V.story.lockedCharacter,
              'Nobody — it may write anyone')}
-      <div class="hint">${V.story.lockedCharacter
+      ${V.story.lockedCharacter ? `<label style="display:flex; align-items:center; gap:10px;
+        margin:10px 0 2px; font-size:13px; color:var(--ink)">
+        <input type="checkbox" data-story="lockoutOn" ${V.story.lockoutOn === false ? '' : 'checked'}>
+        Hold them back</label>
+      <div class="hint" style="margin-top:0">Turn this off for a scene where you want the model to
+        write ${esc(V.story.lockedCharacter)} after all. The name stays, so turning it back on is one
+        press rather than picking them again.</div>` : ''}
+      <div class="hint">${V.story.lockedCharacter && V.story.lockoutOn !== false
         ? `No dialogue, no action, no gesture, and nothing about what ${esc(V.story.lockedCharacter)}
            feels or knows. It writes the world's answer and stops where they would act.`
+        : V.story.lockedCharacter
+        ? `Held back is OFF, so the model may write ${esc(V.story.lockedCharacter)} like anyone else.`
         : `Name someone and the model will not write their dialogue, their actions or their inner
            state — it writes what happens around them instead. Usually the one you play.`}
         A separate setting from <em>You are</em> on purpose: you may hand yourself a different
@@ -5842,7 +5852,14 @@ async function commitStory(only = null) {
     c = ct && await api.saveChapter(S.storyId, V.currentChapter.id,
       { title: ct.value, authorsNote: cn?.value ?? '' });
   }
-  V = await api.story(S.storyId); paint(); refreshManifest();
+  V = await api.story(S.storyId);
+  // NO REPAINT ON THE AUTOSAVE PATH. The panel you are standing in is the one being redrawn, and
+  // a repaint here empties whatever is part-way typed. The listener below has said so about the
+  // dock since it was written and this rediscovered it: choosing the sixth spice option reveals a
+  // text box, and autosaving the select wiped that box before it could be typed into. Four
+  // assertions in test/ui/surfaces.js caught it. The control already shows its own new value.
+  if (!only) paint();
+  refreshManifest();
   // COUNCIL 09 §2. This said "Saved." whatever came back, over the two fields on this screen a
   // writer types by hand. A toast that lies is worse than no toast: the next time the title is
   // empty you go looking for the fault somewhere it is not.
@@ -7994,7 +8011,18 @@ function atMirror(boxId = 'askBox') {
 }
 
 /** The candidates, in the order a writer means them: what is in front of you first. */
-function atFind(q) {
+/** What the @ menu offers. `wide` is the @@ form.
+ *
+ *  @ IS THIS BOOK ONLY. It used to span everything — this book's threads and chapters, then every
+ *  other book on the shelf and every thread in them — which meant the commonest case, naming a
+ *  character in the book you are writing, had the rest of the library in the way of it. Seth,
+ *  2026-08-31: "the @ in the input box should only pull in from the current book, however if we do
+ *  @@ then it can pull in from all the books."
+ *
+ *  The wide list is the old behaviour exactly, so nothing that could be reached before is
+ *  unreachable now — it just takes a second keystroke.
+ */
+function atFind(q, wide = false) {
   const seen = new Set();
   const out = [];
   const add = (label, kind, where, id) => {
@@ -8009,9 +8037,11 @@ function atFind(q) {
     if (hit(t) || hit(`chapter ${c.index}`))
       add(t && t !== `Chapter ${c.index}` ? t : `Chapter ${c.index}`, 'chapter', 'this book', c.id);
   }
-  for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your shelf', b.id);
-  for (const e of LEDGER ?? []) if (e.story !== S.storyId && hit(e.title))
-    add(e.title, 'thread', e.storyTitle || 'another book', e.id);
+  if (wide) {
+    for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your shelf', b.id);
+    for (const e of LEDGER ?? []) if (e.story !== S.storyId && hit(e.title))
+      add(e.title, 'thread', e.storyTitle || 'another book', e.id);
+  }
   return out;
 }
 
@@ -8019,7 +8049,11 @@ function atDraw() {
   const l = $(atCfg(AT?.boxId ?? 'askBox')?.list ?? 'atlist'); if (!l) return;
   if (!AT || !AT.items.length) { l.hidden = true; l.innerHTML = ''; return; }
   l.hidden = false;
-  l.innerHTML = AT.items.map((it, i) => `
+  // THE SECOND @ HAS TO BE DISCOVERABLE. A shortcut nobody is told about is a shortcut nobody uses,
+  // and this one replaced behaviour that used to be the default.
+  const foot = AT.wide ? '' : `<div class="hint" style="margin:6px 10px 2px; font-size:11px">
+    <b>@@</b> to search every book</div>`;
+  l.innerHTML = foot + AT.items.map((it, i) => `
     <button data-atpick="${i}" aria-selected="${i === AT.sel}" style="display:flex; align-items:baseline;
       gap:8px; width:100%; text-align:left; padding:8px 10px; border-radius:var(--r);
       background:${i === AT.sel ? 'rgba(217,178,106,.10)' : 'transparent'};
@@ -8034,10 +8068,18 @@ function atDraw() {
 function atScan(box) {
   if (!atCfg(box.id)) return;
   const upto = box.value.slice(0, box.selectionStart ?? 0);
-  const m = /@([^\s@]*)$/.exec(upto);
+  // The SIGIL is captured, not just the query: @@ widens the search to every book. `from` is the
+  // start of the whole sigil, so accepting replaces "@@wren" with "@Wren Halloway" and not with a
+  // stray @ left in front of it.
+  const m = /(@@?)([^\s@]*)$/.exec(upto);
   if (!m) return atClose();
-  const items = atFind(m[1].toLowerCase());
-  AT = items.length ? { boxId: box.id, from: m.index, to: box.selectionStart, items, sel: 0 } : null;
+  const wide = m[1] === '@@';
+  // The cross-book half reads LEDGER, which only the Threads page loads. Asked for here the first
+  // time somebody types @@, or the wide list would silently be books-only.
+  if (wide && LEDGER === null && !S.ledgerBusy) { S.ledgerBusy = true; loadLedger().then(() => {
+    S.ledgerBusy = false; const b = $(box.id); if (b && AT) atScan(b); }); }
+  const items = atFind(m[2].toLowerCase(), wide);
+  AT = items.length ? { boxId: box.id, from: m.index, to: box.selectionStart, items, sel: 0, wide } : null;
   if (!AT) return atClose();
   atDraw();
 }
