@@ -4390,13 +4390,11 @@ function resumeBand(s) {
         ${pct === null ? '' : `<span class="kind" style="color:var(--label)">context ${pct}%</span>`}
       </span>
       <span style="display:flex; align-items:baseline; gap:14px; flex-wrap:wrap">
-        <span class="serif" style="font-size:36px; line-height:1.02; color:var(--ink-bright)">${esc(s.title)}</span>
-        ${chapter ? `<span class="serif" style="font-size:19px; font-style:italic; color:var(--label)"
-          >${esc(chapter)}</span>` : ''}
+        <span class="serif bandtitle">${esc(s.title)}</span>
+        ${chapter ? `<span class="serif bandchapter">${esc(chapter)}</span>` : ''}
       </span>
       ${line ? `<span class="quote"><span class="rule"></span>
-        <span class="serif" style="font-style:italic; font-size:17px; line-height:1.6;
-          color:var(--narr); text-wrap:pretty">${esc(line)}</span></span>`
+        <span class="serif bandprose">${esc(line)}</span></span>`
         : `<span style="font-size:12.5px; color:var(--faint); font-style:italic">${
             at ? 'the last passage is all dialogue, and a character&rsquo;s words are not the narrator&rsquo;s'
                : 'nothing written yet &mdash; the first passage is one press away'}</span>`}
@@ -4416,10 +4414,8 @@ function resumeBand(s) {
           `<i class="${i + 1 === at ? 'now' : i + 1 < at ? 'done' : ''}"></i>`).join('')}</span>` : ''}
       </span>` : ''}
       <span style="display:flex; align-items:center; gap:10px; margin-top:auto; flex-wrap:wrap">
-        <button class="btn" data-carryon="${esc(s.id)}" style="width:auto; padding:0 24px; height:38px"
-          >Carry on writing</button>
-        <button class="btn ghost" data-readfrom="${esc(s.id)}" style="width:auto; padding:0 20px; height:38px"
-          >Read from chapter one</button>
+        <button class="btn bandgo" data-carryon="${esc(s.id)}">Carry on writing</button>
+        <button class="btn ghost bandgo" data-readfrom="${esc(s.id)}">Read from chapter one</button>
         <span style="flex:1"></span>
         <!-- WHAT IS OWED, BESIDE THE BOOK IT IS ABOUT. This replaces the page-level strip: an owed
              thing reads as information next to its book and as a notification at the top of a page.
@@ -5783,6 +5779,15 @@ async function commitStory(only = null) {
   // would go on silently overriding the level the writer just chose.
   if (patch.spice === 'custom') delete patch.spice;
   else if (patch.spice !== undefined) patch.spiceNote = '';
+  // NOTHING TO SEND IS NOT A SAVE. `custom` is a UI mode rather than a stored value, so the line
+  // above can empty a one-control patch completely — and this went on to POST {} and repaint
+  // anyway, which redrew the picker from the stored level and put it straight back. Choosing
+  // custom on the Storyteller panel snapped back to the level and the written box never appeared:
+  // four assertions in test/ui/surfaces.js §6, and the writer simply could not pick it.
+  //
+  // Guarded here rather than in the listener because the listener does not know what survives the
+  // shaping — that knowledge lives in this function and only here.
+  if (!Object.keys(patch).length) return;
   const r = await api.saveStory(S.storyId, patch);
   if (r.error) return toast(r.error);
   let c = null;

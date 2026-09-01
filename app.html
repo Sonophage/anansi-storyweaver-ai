@@ -1107,6 +1107,13 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   background:linear-gradient(90deg,rgba(0,0,0,.5),rgba(255,255,255,.045) 55%,rgba(0,0,0,.35)); }
 .resumeband > .said { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:10px;
   padding:18px 30px 16px; }
+/* The band's own type. In CSS rather than inline on the spans because a phone has to make all
+   three of these smaller at once, and a media query cannot reach an inline style. */
+.resumeband .bandtitle { font-size:36px; line-height:1.02; color:var(--ink-bright); }
+.resumeband .bandchapter { font-size:19px; font-style:italic; color:var(--label); }
+.resumeband .bandprose { font-style:italic; font-size:17px; line-height:1.6; color:var(--narr);
+  text-wrap:pretty; }
+.resumeband .bandgo { width:auto; padding:0 24px; height:38px; }
 .resumeband .quote { display:flex; align-items:flex-start; gap:16px; max-width:680px; min-width:0; }
 .resumeband .quote > .rule { width:1px; align-self:stretch; background:var(--gold-dim); opacity:.5;
   flex:0 0 auto; }
@@ -1126,6 +1133,15 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   .resumeband > .art .wash { background:linear-gradient(180deg,rgba(10,10,12,0) 30%,rgba(12,12,14,.92)); }
   .resumeband > .art .spine { display:none; }
   .resumeband > .said { padding:14px 16px 16px; gap:11px; }
+  /* Everything comes down a size, or the band alone is most of a phone screen: the title wraps to
+     two lines at 36px in 353px of width, and each wrap is a row of the shelf pushed off the
+     bottom. */
+  .resumeband .bandtitle { font-size:27px; }
+  .resumeband .bandchapter { font-size:15px; }
+  .resumeband .bandprose { font-size:14.5px; line-height:1.55; }
+  /* The gold action takes the width, because that is where a thumb is. The second button keeps its
+     own row rather than being dropped — reading from the top is not a desk-only intention. */
+  .resumeband .bandgo { width:100%; padding:0 16px; }
 }
 /* 3:4, the shape of a page. Set as an aspect-ratio rather than a height so the card holds its
    proportions at every column width the grid resolves to. */
