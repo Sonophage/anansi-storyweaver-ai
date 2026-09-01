@@ -336,6 +336,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'sprecast', 'spstyle',
   // #40 stage 2. One field of the skeleton, asked again.
   'spfield',
+  // #40 stage 3. A whole book, followed rather than copied.
+  'spfollow',
   'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
   // The forge: open one prompt, copy it, and paste a forged thread back in.
@@ -3303,8 +3305,11 @@ function sparkReview() {
     // people was already a press.
     ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px">
          ${KINDS.map((k) => {
-           const on = (S.spark.kinds ?? ['character']).includes(k);
-           return `<button data-spkind="${k}" style="font-size:11.5px; padding:7px 14px;
+           const on = (S.spark.kinds ?? KINDS).includes(k);
+           // aria-pressed, added 2026-09-01: it is a toggle and every other toggle in this app says
+           // so. A screen reader had no way to know which kinds were on, and a check had to read the
+           // inline background colour to find out.
+           return `<button data-spkind="${k}" aria-pressed="${on}" style="font-size:11.5px; padding:7px 14px;
              border-radius:var(--r-pill); border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
              background:${on ? 'rgba(217,178,106,.12)' : 'transparent'};
              color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(KIND_PLURAL[k] ?? k)}</button>`;
@@ -3358,7 +3363,27 @@ function sparkReview() {
        <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Or bring threads you already have</div>
        <input class="field" id="seedq" value="${esc(S.seedQ ?? '')}"
          placeholder="Search every book for a character, a place, a rule&hellip;">
-       <div id="seeds">${seedList()}</div>`
+       <div id="seeds">${seedList()}</div>
+
+       <!-- #40 stage 3 · A WHOLE BOOK, FOLLOWED. Seth: "for bring your own threads I should be able
+            to select a full Book or a lore bible in as well not just individual threads."
+            FOLLOWS rather than copies, his call: the new book READS that book's cards, so editing one
+            later changes it in both, and a local card of the same name still wins where this book
+            needs to disagree. It is the same "lore_from" column that "Start a book here" on the
+            Threads page already sets — no new route, no new column, one behaviour for one word.
+            NO BACKTICKS IN HERE: one closes the template literal holding this markup. -->
+       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Or set it in a book you already have</div>
+       <select class="field" data-spfollow="1" style="margin:0">
+         <option value="">Stands on its own</option>
+         ${(LIB ?? []).map((b) => `<option value="${esc(b.id)}"${
+           S.spark.follow === b.id ? ' selected' : ''}>Follows ${esc(b.title)}${
+           b.is_world ? ' — a world book' : ''}</option>`).join('')}
+       </select>
+       <div class="hint">${S.spark.follow
+         ? `Every thread in that book reaches this one and fires by the same rules. They are the same
+            cards, not copies &mdash; edit one there and it changes here.`
+         : `A world book is a book that holds only threads. Follow one and its cast, its places and
+            its rules reach this book without being copied into it.`}</div>`
     : key === 'look'
     // A SECOND LOOK. From a button, never on arriving: a model call nobody asked for is what
     // made "what changed" slow, and #24 is the whole argument.
@@ -6194,6 +6219,14 @@ async function commitGen(quiet = true) {
 // slider one call.
 document.addEventListener('change', (e) => {
   const el = e.target;
+  // #40 stage 3. The wizard's "set it in a book you already have" picker. BEFORE the S.storyId
+  // guard, because the wizard runs when there is no story open — that guard is about the story
+  // panel and this control is not on it.
+  if (el?.dataset?.spfollow !== undefined && S.spark) {
+    S.spark.follow = el.value || null;
+    paint();
+    return;
+  }
   if (!S.storyId) return;
   // The sampler's own path: a different route, and it reads the whole panel rather than one field.
   if (el?.dataset?.gen !== undefined) return void commitGen();
@@ -6222,6 +6255,70 @@ document.addEventListener('input', (e) => {
   const out = el.parentElement?.querySelector('.tnum');
   if (out) out.textContent = READOUT[key] ? READOUT[key](el.value) : el.value;
 });
+
+/** TRIGGERS, WRITTEN FROM THE NAME — issue #40 stage 3, 2026-09-01. Seth: "Triggers for all threads
+ *  should be auto written as well."
+ *
+ *  IN CODE AND NOT IN THE PROMPT, deliberately. `CAST_SCHEMA` returns a name, a kind and a body;
+ *  adding `keys` to it is an F20-class prompt change, and there is nothing here a model does better
+ *  than splitting a name on spaces. A card called "Aldis Fen" fires on "Aldis", on "Fen" and on the
+ *  whole name, and no model call is needed to know that.
+ *
+ *  THEY STAY ALWAYS-ON, and that is Seth's call from 2026-09-01, asked because it decides what
+ *  reaches the model. Giving a card keys AND setting it triggered would take the cast out of the
+ *  prompt whenever the scene does not name them — F38 measured that path firing 107 times in 148
+ *  chances, so roughly one time in four the card is not sent, which reads as the model forgetting
+ *  who someone is. So the keys are written and stored and the cards stay always-on: nothing the
+ *  model receives changes today, and the keys are there the moment a card is switched over by hand.
+ *
+ *  WHAT IS NOT A KEY: a word under three letters, and a lowercase particle. "of", "the", "de" and
+ *  "van" are in half the names in a fantasy cast and a key that fires on "the" fires on everything.
+ */
+const STOP_KEY = new Set(['the', 'of', 'and', 'de', 'van', 'von', 'del', 'la', 'le', 'da', 'di', 'bin', 'ibn']);
+const withTriggers = (entries) => entries.map((e) => {
+  // Never over a key the writer or the model already set — an existing list is a decision.
+  if ((e.keys ?? []).length) return e;
+  const title = String(e.title ?? '').trim();
+  if (!title) return e;
+  const parts = title.split(/[\s,]+/)
+    .map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+    .filter((w) => w.length >= 3 && !STOP_KEY.has(w.toLowerCase()));
+  // The whole name first when it is more than one word, then the parts. Four is the schema's cap
+  // for a reason and it is plenty: a name with five useful words is a sentence.
+  const keys = [...new Set([...(parts.length > 1 ? [title] : []), ...parts])].slice(0, 4);
+  return keys.length ? { ...e, keys } : e;
+});
+
+/** ASK FOR THE THREADS. Extracted from the button's handler on 2026-09-01 (#40 stage 3) so the
+ *  autofill on leaving the book step and the button can be one path — two copies of a model call
+ *  would drift on the day one of them learns something.
+ *
+ *  `quiet` is the autofill: no toast, because a writer who did not press anything is not owed a
+ *  notification about it, and the threads appearing IS the message. An error still speaks either
+ *  way — silence about a failure is how a step comes to look broken.
+ */
+async function writeCast(quiet = false) {
+  if (!S.spark) return;
+  if (S.spark.casting || S.spark.recasting !== null || S.spark.styling) return;
+  harvestSpark();
+  if (!(S.spark.kinds ?? []).length) {
+    if (!quiet) toast('Pick what this book needs first.');
+    return;
+  }
+  S.spark.casting = true; paint();
+  const r = await api.sparkCastCall(S.spark.kinds, S.spark.story, S.spark.castSteer);
+  S.spark.casting = false;
+  if (r.error) { paint(); return toast(r.error); }
+  // REPLACES rather than appends: asking again is a different cast for the same book, not more
+  // of the one you already turned down. Anything written by hand with + is replaced too, which
+  // is why the button says so.
+  S.spark.entries = withTriggers(r.entries ?? []);
+  S.spark.story = { ...S.spark.story, persona: r.persona ?? null,
+                    lockedCharacter: r.lockedCharacter ?? null };
+  S.spark.proposed = [r.persona, r.lockedCharacter].filter(Boolean);
+  paint();
+  if (!quiet) toast(`${S.spark.entries.length} proposed. Nothing is written until you accept.`);
+}
 
 // ---------- one delegated listener ----------
 document.addEventListener('click', async (e) => {
@@ -7590,7 +7687,9 @@ document.addEventListener('click', async (e) => {
     // was throwing the whole wizard away and retyping it. `kinds` is what the cast stage will be
     // asked for, defaulting to characters because that is what the one-call version always gave.
     S.spark = { story: r.story ?? {}, entries: r.entries ?? [], autoOpen: true,
-      idea, kinds: ['character'], casting: false, sparking: false,
+      // #40. All kinds on from the start — Seth: "Characters rules and lore shoul all be auto
+      // selected from the start."
+      idea, kinds: [...KINDS], casting: false, sparking: false, follow: null,
       // #28. The writer's line about the cast, sent with every ask on that step. `recasting` holds
       // the INDEX being re-rolled rather than a boolean, because the button that says "Thinking…"
       // has to be the one that was pressed.
@@ -7626,29 +7725,12 @@ document.addEventListener('click', async (e) => {
   // F25 measured at an unparseable answer plus a whole structuredRetry.
   if (d.spkind) {
     harvestSpark();
-    const have = S.spark.kinds ?? ['character'];
+    const have = S.spark.kinds ?? [...KINDS];
     S.spark.kinds = have.includes(d.spkind) ? have.filter((k) => k !== d.spkind) : [...have, d.spkind];
     paint();
     return;
   }
-  if (d.spwritecast) {
-    if (S.spark.casting || S.spark.recasting !== null || S.spark.styling) return;
-    harvestSpark();
-    if (!(S.spark.kinds ?? []).length) return toast('Pick what this book needs first.');
-    S.spark.casting = true; paint();
-    const r = await api.sparkCastCall(S.spark.kinds, S.spark.story, S.spark.castSteer);
-    S.spark.casting = false;
-    if (r.error) { paint(); return toast(r.error); }
-    // REPLACES rather than appends: asking again is a different cast for the same book, not more
-    // of the one you already turned down. Anything written by hand with + is replaced too, which
-    // is why the button says so.
-    S.spark.entries = r.entries ?? [];
-    S.spark.story = { ...S.spark.story, persona: r.persona ?? null,
-                      lockedCharacter: r.lockedCharacter ?? null };
-    S.spark.proposed = [r.persona, r.lockedCharacter].filter(Boolean);
-    paint();
-    return toast(`${S.spark.entries.length} proposed. Nothing is written until you accept.`);
-  }
+  if (d.spwritecast) { await writeCast(); return; }
   /** #28 · ONE CARD RE-ROLLED, and the others left exactly where they are.
    *
    *  Seth: *"i should be able to reroll characters or direct it based on my input."* Re-rolling the
@@ -7769,6 +7851,9 @@ document.addEventListener('click', async (e) => {
    * state: the wizard repaints, and a disabled attribute written onto a button would be thrown away
    * by the next render. `S.spark.spField` is read by the buttons for their own disabled state.
    */
+  // #40 stage 3. Which book this one is set in, or none. A <select>, so it arrives through the
+  // change listener below rather than as a click — the value is read there and written to state.
+  if (d.spfollow !== undefined) return;
   if (d.spfield) {
     if (!S.spark || S.spark.spField) return;
     harvestSpark();
@@ -7784,7 +7869,41 @@ document.addEventListener('click', async (e) => {
     paint();
     return toast(`A different ${r.field}. The rest is untouched.`);
   }
-  if (d.sparkstep) { harvestSpark(); S.sparkStep = Number(d.sparkstep); paint(); return; }
+  if (d.sparkstep) {
+    harvestSpark();
+    S.sparkStep = Number(d.sparkstep);
+    paint();
+    /* THE THREADS DO NOT ASK FOR THEMSELVES YET, and this is where that would go — one line, and
+     * `writeCast(true)` is already extracted and quiet-capable for it:
+     *
+     *   if (was === 'book' && STEPS[S.sparkStep - 1]?.[0] === 'threads'
+     *       && !S.spark.casting && !S.spark.castTried && (S.spark.kinds ?? []).length) {
+     *     S.spark.castTried = true; void writeCast(true);
+     *   }
+     *
+     * NOT LANDED, deliberately, and the reason is worth reading before switching it on. Seth asked
+     * for it — "This in theory should be autofilled" — and it collides with a decision the same
+     * person made two days earlier, which #21 §2 states in capitals: "THE CAST IS ITS OWN CALL, and
+     * does not run until the writer says what this book needs." The second look repeats the general
+     * form of it: "From a button, never on arriving: a model call nobody asked for is what made
+     * 'what changed' slow, and #24 is the whole argument."
+     *
+     * Firing on LEAVING the book rather than on arriving here answers that objection — pressing on
+     * IS the ask — but the consequences reach further than the trigger:
+     *
+     *   - the cast stops being opt-in, so a writer who wanted no threads pays for a call anyway;
+     *   - the free-text persona fallback becomes reachable ONLY when the call fails, which makes it
+     *     near-dead code that six assertions currently cover;
+     *   - a failed autofill wants a `castTried` flag or it retries on every visit, which is a third
+     *     once-only flag on one panel;
+     *   - and six assertions in test/ui/wizard.js change MEANING rather than just numbers.
+     *
+     * That last one is why it is not here. Rewriting six assertions to match new behaviour is the
+     * work where a suite quietly stops testing what it was written for, and it wants Seth's eye on
+     * whether the trade is the one he meant — not mine at 2am with him asleep.
+     */
+    return;
+  }
   if (d.spadd) {
     harvestSpark();
     S.spark.entries.push({ title: '', body: '', entryType: 'character',
@@ -7870,6 +7989,19 @@ document.addEventListener('click', async (e) => {
     }
     if (wanted.length) LEDGER = null;   // the new book's copies are not in the cached list
 
+    /* #40 stage 3. AND WHAT IT IS SET IN. `loreFrom` is the same column "Start a book here" writes,
+     * so a book followed from the wizard and a book followed from the Threads page are the same
+     * thing — one behaviour for one word, and `db.updateStory` already refuses a cycle and a book
+     * that is not yours.
+     *
+     * AFTER the copies, and reported separately: following and copying are different answers to
+     * "bring your own threads" and a writer who did both should be told about both. */
+    let followed = null;
+    if (S.spark.follow) {
+      const fr = await api.saveStory(r.id, { loreFrom: S.spark.follow });
+      if (!fr?.error) followed = (LIB ?? []).find((b) => b.id === S.spark.follow)?.title ?? 'that book';
+    }
+
     const wantOpen = S.spark.autoOpen !== false;
     const dropped = r.droppedCast ?? [];
     S.spark = null; S.sparkStep = 1; S.seedQ = '';
@@ -7882,13 +8014,17 @@ document.addEventListener('click', async (e) => {
     const brought = !wanted.length ? ''
       : seeded === wanted.length ? `, and ${plural(seeded, 'thread', 'threads')} brought over`
       : `, and ${seeded} of ${wanted.length} brought over — the rest were refused`;
+    // #40 stage 3. Following is a different answer from copying and gets its own clause: a writer
+    // who did both should be told about both, and a writer who followed a world book has done the
+    // most consequential thing on that screen.
+    const set = followed ? `, set in ${followed}` : '';
     // #30. A pasted cast can carry a room its kind does not have; the server drops it and says so.
     // Surfaced here for the same reason the paste route surfaces it — a card that arrived with half
     // its rooms and no mention of the other half is the silent loss this whole format avoids.
     const roomNote = (r.notes ?? []).length ? ` ${r.notes[0]}` : '';
     toast(dropped.length
       ? `Created. ${dropped.join(' and ')} was not in the cast, so it was left unset.${roomNote}`
-      : `Created with ${keep.length} threads${brought}.${roomNote}`);
+      : `Created with ${keep.length} threads${brought}${set}.${roomNote}`);
     if (wantOpen) await openingPassage();
     return;
   }
@@ -8003,9 +8139,9 @@ document.addEventListener('click', async (e) => {
       entries: cards, autoOpen: true,
       // No idea to re-roll from: this book did not come from one. The re-roll button hides itself
       // when `idea` is empty, which is the correct answer rather than a button that cannot work.
-      idea: '', kinds: ['character'], casting: false, sparking: false,
+      idea: '', kinds: [...KINDS], casting: false, sparking: false,
       castSteer: '', recasting: null, styling: false, styled: true,
-      accepting: false, seed: [],
+      accepting: false, seed: [], follow: null,
       reviewing: false, review: null,
       // EMPTY ON PURPOSE. Only what ANANSI proposed is policed server-side; a persona the writer
       // brought is theirs and must never be dropped.

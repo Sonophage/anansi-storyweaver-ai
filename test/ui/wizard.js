@@ -209,10 +209,23 @@ ok("  and the scaffold call brought back no cast at all", (await page.eval("wind
 await page.eval(`(() => { const t = document.querySelector('[data-sp="title"]');
   t.value = 'The Drowned Ledger'; return 1; })()`);
 await go("The threads");
-await wait(400);
-ok("  step 3 arrives empty, and asks what kinds this book needs",
+await wait(700);
+
+/* #40 stage 3 · EVERY KIND IS ON FROM THE START (2026-09-01). Seth: "Characters rules and lore
+ * shoul all be auto selected from the start." It was characters alone, so a book that wanted its
+ * places and its rules written had to know to ask for them.
+ *
+ * The threads do NOT ask for themselves — that half of #40 is not landed and the reason is written
+ * at the `d.sparkstep` handler in web/app.js. The step still arrives empty and the cast is still its
+ * own call, which is what the assertions below this one are written against.
+ */
+ok("  every kind is on from the start, not characters alone",
+   (await page.eval(`document.querySelectorAll('[data-spkind][aria-pressed="true"]').length`)) === 4);
+ok("  the step arrives empty, and asks what kinds this book needs",
    (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 0
    && (await page.eval("document.querySelectorAll('[data-spkind]').length")) === 4);
+ok("  and no cast has been asked for yet",
+   (await page.eval("window.__cast")) === 0);
 await go("The book");
 await wait(400);
 ok("  an edit survives leaving the step and coming back",
@@ -229,9 +242,23 @@ await wait(400);
 ok("  step 4 is a field you type into while the cast step has been skipped",
    (await page.eval("document.querySelector('[data-sp=\"persona\"]')?.tagName")) === 'INPUT');
 
-// #21 §2 · THE CAST IS ITS OWN CALL, and does not run until the writer says what this book needs.
+/* CHARACTERS ONLY FROM HERE DOWN, and this is a fixture decision rather than a behaviour change.
+ *
+ * #40 turned every kind on by default (asserted above). The assertions below were written against a
+ * character-only cast — the stub answers a 4-kind request with different cards, and the one-card
+ * re-roll asserts the request names ONE kind — so the three other chips come off here. Deselecting
+ * them tests the chips as well, and it keeps forty assertions saying what they were written to say
+ * instead of being rewritten to match a fixture. */
 await go("The threads");
-await wait(400);
+for (const k of ['lore', 'item', 'rule']) {
+  await page.click(`[data-spkind="${k}"]`);
+  await wait(150);
+}
+ok("  the kind chips deselect, leaving characters alone",
+   (await page.eval(`document.querySelectorAll('[data-spkind][aria-pressed="true"]').length`)) === 1);
+
+// #21 §2 · THE CAST IS ITS OWN CALL. It autofills on the way in now (#40) and the button is still
+// how you ask again — this is that second, explicit ask, and the first that the stub answers.
 await page.click('[data-spwritecast="1"]');
 await wait(600);
 ok("  writing the cast is a second call, made only when asked", (await page.eval("window.__cast")) === 1);

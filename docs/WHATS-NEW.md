@@ -10,6 +10,30 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Threads, with their triggers, and a world to set them in
+
+### Characters, places, items and rules are all asked for from the start
+The threads step used to have only **characters** selected, so a book that wanted its places and its
+rules written had to know to turn them on. All four are on when you arrive. Turn off what this book
+does not need.
+
+### Every thread arrives with its trigger words
+A thread called *Aldis Fen* now comes with **Aldis Fen**, **Aldis** and **Fen** already in its
+trigger list. Particles are left out — *the Ambersand* gets **Ambersand** and nothing else.
+
+Your threads still go in **always on**, so nothing about what the model is told changes: the triggers
+are there for the moment you switch one over to firing on its words instead. That way round on
+purpose — a card that drops out of the prompt when the scene does not name it reads as the model
+forgetting who someone is.
+
+### You can set the book in a book you already have
+Under the thread picker there is now **set it in a book you already have**. Pick one — a world book,
+or any book on your shelf — and the new book reads that book's threads rather than copying them. Edit
+a card there later and it changes here too, and a thread you write in this book with the same name
+still wins where this book needs to disagree.
+
+It is the same thing **Start a book here** does from the Threads page, reached from the wizard.
+
 ## 2026-09-01 · Ask again for just the title
 
 ### The title, the genre and the premise each re-roll on their own
