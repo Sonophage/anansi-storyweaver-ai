@@ -5632,7 +5632,14 @@ async function commitStory(only = null) {
     c = ct && await api.saveChapter(S.storyId, V.currentChapter.id,
       { title: ct.value, authorsNote: cn?.value ?? '' });
   }
-  V = await api.story(S.storyId); paint(); refreshManifest();
+  V = await api.story(S.storyId);
+  // NO REPAINT ON THE AUTOSAVE PATH. The panel you are standing in is the one being redrawn, and
+  // a repaint here empties whatever is part-way typed. The listener below has said so about the
+  // dock since it was written and this rediscovered it: choosing the sixth spice option reveals a
+  // text box, and autosaving the select wiped that box before it could be typed into. Four
+  // assertions in test/ui/surfaces.js caught it. The control already shows its own new value.
+  if (!only) paint();
+  refreshManifest();
   // COUNCIL 09 §2. This said "Saved." whatever came back, over the two fields on this screen a
   // writer types by hand. A toast that lies is worse than no toast: the next time the title is
   // empty you go looking for the fault somewhere it is not.
