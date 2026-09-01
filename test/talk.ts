@@ -760,6 +760,33 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(made.slot, 'interiority', 'in the room the chat named');
   assert.strictEqual(made.entry_id, velBefore.id, 'on Vel');
   ok('accepting it fills one room and leaves the rest of the card exactly as it was');
+
+  /* ---- AND NO URL IS GLUED TO THE BODY. Seth, 2026-09-01: "i dont need anansi to post where the
+   * information is coming from like the url links."
+   *
+   * A search-assisted answer used to append ` [https://…]` to every card body it helped write, so a
+   * thread's canon carried a link — which then rode into every prompt that fired it, and out again
+   * through export.
+   *
+   * THE ROW THE CHAT JUST FILED IS CHECKED BY NAME, and that is the correction: the first version of
+   * this looped over the OPEN queue, and the padded proposal had been accepted four lines above — so
+   * it checked every row except the one the talk route had written, and pasting a URL back into that
+   * route left it green. `prop` and the room it landed in are read directly. */
+  assert.doesNotMatch(String(prop.body), /https?:\/\//,
+    `the proposal the chat just filed carries a URL: ${String(prop.body).slice(0, 90)}`);
+  assert.doesNotMatch(String(made.body), /https?:\/\//,
+    'nor does the room it landed in, which is what reaches every prompt that fires the card');
+  for (const row of db.proposalsOf(story.id) as any[]) {
+    assert.doesNotMatch(String(row.body), /https?:\/\//,
+      `a proposal body carries a URL: ${String(row.body).slice(0, 90)}`);
+    assert.doesNotMatch(String(row.body), /\[\s*www\./, 'nor a bare host in brackets');
+  }
+  // The instruction to cite HER OWN LEDGER stays — it is a different thing and it is load-bearing:
+  // "a bare fact from nowhere is the one thing that makes you no use to them."
+  const { TALK_CONTRACT: TC2 } = await import('../src/prompts.ts');
+  assert.match(TC2, /Cite what you are drawing on/,
+    'citing the entry, the summary or the passage is not what was being removed');
+  ok('no URL is pasted into a card body, and citing her own ledger still is asked for');
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----

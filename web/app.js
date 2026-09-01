@@ -399,6 +399,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // A cover found on the web rather than drawn, 2026-09-01.
   'findcover', 'takeweb',
+  // Another batch of the same search — see moreRows for why it deduplicates.
+  'picmore',
   // A picture on a thread: find, look, take, remove, close.
   'picfind', 'picgo', 'pictake', 'picdel', 'picshut',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
@@ -1166,11 +1168,16 @@ function drawDoc() {
         opacity:${Math.max(0, Math.min(100, V.story.coverOpacity ?? 30)) / 100}"></i><u></u>`;
     } else back.innerHTML = '';
   }
-  const plate = wantsCover && !stick
+  /* PER CHAPTER, and it was not. Reading mode draws every chapter and handed all of them the ONE
+   * plate built here — which carried the OPEN chapter's title, so in a continuous read every chapter
+   * head said the same name and each chapter's own `band-title` was suppressed because a plate was
+   * present. Seth, 2026-09-01: "there no seperation anymore". This was half of why. */
+  const plateOf = (c) => wantsCover && !stick
     ? `<div class="plate" style="background:url('${api.coverUrl(S.storyId, V.cover)}') center/cover no-repeat">
         <span class="fade"></span>
-        <span class="serif plate-title">${esc(ch.title || `Chapter ${ch.index}`)}</span></div>`
+        <span class="serif plate-title">${esc(c.title || `Chapter ${c.index}`)}</span></div>`
     : '';
+  const plate = plateOf(ch);
   // The reading column opens 40px down, which is right when a chapter begins with a text band and
   // wrong when it begins with a picture: the gap reads as dead space above the image rather than
   // as air above a title. Seth: "theres alot of space that can be removed ... its only there with
@@ -1202,7 +1209,16 @@ function drawDoc() {
    * `last` marks the newest passage in the BOOK, not in the chapter: only one paragraph in the
    * document animates, and in a continuous read that has to be the final one rather than one per
    * chapter. `first` is per chapter, because the drop cap belongs to each chapter's opening line. */
-  const chapterHTML = (c, list, plateFor, isLastChapter) => `
+  const chapterHTML = (c, list, plateFor, isLastChapter, isFirst = true) => `
+    <section class="chap" id="ch-${c.index}">
+    <!-- A BREAK BEFORE EVERY CHAPTER BUT THE FIRST. Seth, 2026-09-01: "i ran a new chapter and the
+         content of chapter one isnt gone but there no seperation anymore ... it should still have
+         seperation even if its an anchor link or something."
+         The band carries 8px of padding and no margin, which was invisible when a chapter was the
+         top of the column and is nothing at all between two of them — chapter one's last paragraph
+         ran into chapter two's small-caps line. The section also gives every chapter an anchor, so
+         "#ch-3" is a place you can link to. NO BACKTICKS IN HERE: one ends this template literal. -->
+    ${isFirst ? '' : '<div class="chapbreak" aria-hidden="true"><span></span><i></i><span></span></div>'}
     ${plateFor}
     <div class="band">
       <div style="font-size:11.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label)">
@@ -1213,7 +1229,8 @@ function drawDoc() {
     </div>
     ${list.map((p, i) => passageHTML(p, isLastChapter && i === list.length - 1, i === 0)).join('')
       || `<div class="narr" style="opacity:.6">${
-        V.chapters.length > 1 ? 'Nothing in this chapter yet.' : 'Nothing written yet. The composer is below.'}</div>`}`;
+        V.chapters.length > 1 ? 'Nothing in this chapter yet.' : 'Nothing written yet. The composer is below.'}</div>`}
+    </section>`;
 
   /* ISSUE #37 · READING MODE SHOWS THE WHOLE BOOK. Seth, 2026-09-01.
    *
@@ -1233,11 +1250,13 @@ function drawDoc() {
         c,
         V.passages.filter((x) => x.chapterId === c.id),
         // The cover rides each chapter's head when the book asks for it, which is what the setting
-        // says it does. One image, N divs, and the browser fetches it once.
-        plate,
+        // says it does. One image, N divs, and the browser fetches it once — but the CAPTION is this
+        // chapter's, which is what `plateOf` is for.
+        plateOf(c),
         i === V.chapters.length - 1,
+        i === 0,
       )).join('')
-    : chapterHTML(ch, ps, plate, true);
+    : chapterHTML(ch, ps, plate, true, true);
   if (tip) read.scrollTop = read.scrollHeight;
 
   // THE RUNNING HEAD IS GONE, 2026-08-27. It opened on scroll, moved the prose down to make room
@@ -2618,11 +2637,11 @@ const PANELS = {
               font-size:13px; line-height:1.5; color:var(--ink)">${esc(turn.text)}</div>`
           : `<div style="max-width:94%; display:flex; flex-direction:column; gap:7px">
               <div style="font-size:13.5px; line-height:1.62; color:var(--ink); white-space:pre-wrap">${esc(turn.text)}</div>
-              ${turn.sources?.length ? `<div style="display:flex; flex-direction:column; gap:3px">
-                ${turn.sources.map((x, i) => `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"
-                  style="font-size:11px; color:var(--gold-dim); text-decoration:none; overflow:hidden;
-                  text-overflow:ellipsis; white-space:nowrap">[${i + 1}] ${esc(x.title || x.url)}</a>`).join('')}
-              </div>` : ''}
+              <!-- NO LINK LIST. Seth, 2026-09-01: "i dont need anansi to post where the
+                   information is coming from like the url links." Four links under every answer she
+                   looked something up for, which is provenance nobody asked for and the widest
+                   thing on a phone. The search still happens and still reaches her; the writer just
+                   is not handed the bibliography. -->
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
                 border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} proposed &mdash; waiting under Chapter</button>` : ''}
               ${turn.meta ? `<div style="font-size:11px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
@@ -3786,9 +3805,34 @@ function setupPanel() {
     nameChapter(ch.id);
   }
 
-  // The cards step is skipped when there is nothing in it rather than drawn empty: a step whose
-  // whole content is "nothing to decide" is a press the writer pays for and gets nothing back.
-  let step = SETUP_STEPS.some(([k]) => k === S.setupStep) ? S.setupStep : 'premise';
+  /* WHERE THE PANEL OPENS. Seth, 2026-09-01: *"the new cards landed in step 1 of the new chapter
+   * instead of on step 2 where a user would be seeing it."*
+   *
+   * They did land on step one, which is where they belong — the order is the argument, and the note
+   * on this panel has said so since it was reordered: what the chapter LEFT is decided before what
+   * the next one is FOR. The defect was that the panel OPENED on step two regardless, so the cards
+   * sat on a step the writer had to press backwards to reach. A gold count on the rail is not the
+   * same as being shown them.
+   *
+   * THE CLOSE HANDLER ALREADY SETS `S.setupStep = 'cards'`, and that is why this took two goes to
+   * understand: the landing was right for as long as that session state lived. `S.ritualOf` and
+   * `S.setupStep` are session state — a reload, or coming back to the tab later, clears both. Then
+   * `justClosed` is null and this fell through to the premise, with the cards sitting on a step
+   * behind a gold count. That is the state he was looking at.
+   *
+   * SO THE CONDITION IS THE DATA, not the session. An undecided proposal against a chapter that is
+   * NOT the one being written is a debrief nobody finished, and it survives a reload because it is a
+   * row. Proposals against the CURRENT chapter do not count: those arrive from the chat and from
+   * "remember this" mid-chapter, and a writer who opened this panel to name their chapter should not
+   * be dropped into a decision list they did not come for — `test/app.ts` caught that when the first
+   * version of this keyed on `queue.length` alone.
+   *
+   * The step is still skipped when it is empty rather than drawn empty — a step whose whole content
+   * is "nothing to decide" is a press the writer pays for and gets nothing back.
+   */
+  const debrief = (V.proposals ?? []).some((p) => p.chapterId && p.chapterId !== V.currentChapter.id);
+  let step = SETUP_STEPS.some(([k]) => k === S.setupStep) ? S.setupStep
+             : (debrief ? 'cards' : 'premise');
   if (step === 'cards' && !queue.length) step = 'premise';
 
   const rail = `<div style="display:flex; gap:6px; margin-bottom:15px">
@@ -4215,6 +4259,8 @@ function cardFace(e, slots) {
    * story id, which is the audit this comment exists instead of.
    */
   if (e.sharedFrom) return `<div style="display:flex; flex-direction:column">
+    ${threadPic(e) ? `<img src="${threadPic(e)}" alt="" style="width:100%; max-height:240px;
+      object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 11px">` : ''}
     ${cardHead(e, [])}
     <div class="card" style="flex-direction:row; align-items:center; gap:9px; margin:0 0 10px">
       <span style="font-size:12px; color:var(--faint)">This thread lives in ${esc(e.sharedFrom)}</span>
@@ -4250,6 +4296,10 @@ function cardFace(e, slots) {
   const shown = slots.filter((sl) => rooms.some((a) => a.slot === sl.name));
   return `<div style="display:flex; flex-direction:column">
     ${cardBar('face')}
+    <!-- ABOVE THE NAME, at Seth's direction: "if a card has an image move it to the top". A picture
+         is the fastest way to recognise a card and it was two screens down, under the rooms. -->
+    ${threadPic(e) ? `<img src="${threadPic(e)}" alt="" style="width:100%; max-height:280px;
+      object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 11px">` : ''}
     ${cardHead(e, shown)}
     <!-- #22 §8. A MARKER HERE, THE CONTROLS IN THE FORM. Seth: "once you click on a card the
          marked as finished should only show in the edit version." Reading a card should say what
@@ -4436,6 +4486,14 @@ function entryEditor() {
     background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
   return `<div style="display:flex; flex-direction:column">
     ${cardBar('form')}
+    <!-- AN OPTIONAL PICTURE, AND FIRST. Seth, 2026-09-01: "lets add an optional image field", then
+         "if a card has an image move it to the top". It sat under the facts room, so on a card with
+         a picture the one thing you could recognise at a glance was the one thing you had to scroll
+         past the words to reach.
+         OPTIONAL is still the whole shape of it: no picture is the normal state and shows one quiet
+         line rather than an empty frame. The picture never reaches the model — it is not a room, it
+         is not in the body, and the engine's Entry type has no such field. It is for the eye. -->
+    ${entryPicture(e)}
     ${cardHead(e, shown)}
     ${addTray(e, slots)}
     <label class="lbl" for="f-card-title">Name</label>
@@ -4454,15 +4512,6 @@ function entryEditor() {
          on 2026-08-29 - "theres no place to keep the characters main facts that doesnt get
          overwritten". So the field that survives the chapter was sitting UNDER the field that does
          not, and the order taught the wrong habit every time this screen opened. -->
-    ${roomSection(e, slots.find((sl) => sl.name === 'facts'))}
-
-    <!-- AN OPTIONAL PICTURE. Seth, 2026-09-01: "lets add an optional image field."
-         OPTIONAL is the whole shape of it: no picture is the normal state and shows one quiet line
-         rather than an empty frame, because a card is words and this is a nicety on top of them.
-         The picture never reaches the model — it is not a room, it is not in the body, and the
-         engine's Entry type has no such field. It is for the writer's eye. -->
-    ${entryPicture(e)}
-
     <label class="lbl" for="f-card-body">Info</label>
     <!-- GROWS. It was a fixed 96px box, and an invented thread's body went from 60-120 words to
          120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
@@ -4744,7 +4793,12 @@ function entryCard(e) {
   const act = e.activation ?? 'always_on';
   const pill = act === 'always_on' ? 'Always on' : 'Triggered';
   const gold = act === 'always_on';
+  // AT THE TOP, and full width rather than a thumbnail beside the name. A card with a face on it is
+  // found by the face; shrinking it to a 40px square beside the title makes it decoration.
+  const pic = threadPic(e);
   return `<button class="card" data-entry="${e.id}" style="text-align:left; width:100%">
+    ${pic ? `<img src="${pic}" alt="" loading="lazy" style="width:100%; height:104px;
+      object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 8px">` : ''}
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
       <span style="font-size:14.5px; color:var(--ink-bright)">${esc(e.title)}</span>
       <span class="tag" style="border-color:${gold ? 'rgba(217,178,106,.35)' : 'var(--chip)'};
@@ -7763,12 +7817,21 @@ document.addEventListener('click', async (e) => {
     if (S.found?.busy) return;
     const q = document.querySelector('[data-findq]')?.value.trim() ?? '';
     if (!q) return toast('Say what to look for first.');
-    S.found = { ...S.found, q, busy: true }; drawSide();
-    const r = await api.images(q, 12);
-    S.found = { ...S.found, busy: false, asked: true, rows: r.error ? [] : (r.results ?? []) };
+    // ANOTHER BATCH KEEPS WHAT IS ON SCREEN; a fresh look replaces it. Pressing Look after editing
+    // the words means a new search, and carrying the old grid into it would mix two questions.
+    const again = d.findcover === 'more';
+    const had = again ? (S.found.rows ?? []) : [];
+    S.found = { ...S.found, q, busy: true, rows: had }; drawSide();
+    const r = await api.images(q, 12, again ? had.length : 0);
+    const got = r.error ? [] : (r.results ?? []);
+    S.found = { ...S.found, busy: false, asked: true, rows: moreRows(had, got),
+                more: r.error ? false : r.more !== false };
     drawSide();
     if (r.error) return toast(r.error);
     if (!S.found.rows.length) return toast('Nothing came back for that.');
+    // A batch that was entirely rows already on screen is not "nothing came back" — it is the
+    // ranking having shifted under the offset, which is exactly what moreRows exists for.
+    if (again && S.found.rows.length === had.length) return toast('Nothing new for those words.');
     return;
   }
   /* TAKE ONE. The bytes come through Anansi — the browser cannot read them itself, see coverFinder —
@@ -7793,16 +7856,21 @@ document.addEventListener('click', async (e) => {
     drawSide(); return;
   }
   if (d.picshut) { S.entryPic = null; drawSide(); return; }
-  if (d.picgo) {
+  if (d.picgo || d.picmore) {
     if (S.entryPic?.busy) return;
     const q = document.querySelector('[data-picq]')?.value.trim() ?? '';
     if (!q) return toast('Say what to look for first.');
-    S.entryPic = { ...S.entryPic, q, busy: true }; drawSide();
-    const r = await api.images(q, 12);
-    S.entryPic = { ...S.entryPic, busy: false, asked: true, rows: r.error ? [] : (r.results ?? []) };
+    const again = !!d.picmore;
+    const had = again ? (S.entryPic.rows ?? []) : [];
+    S.entryPic = { ...S.entryPic, q, busy: true, rows: had }; drawSide();
+    const r = await api.images(q, 12, again ? had.length : 0);
+    const got = r.error ? [] : (r.results ?? []);
+    S.entryPic = { ...S.entryPic, busy: false, asked: true, rows: moreRows(had, got),
+                   more: r.error ? false : r.more !== false };
     drawSide();
     if (r.error) return toast(r.error);
     if (!S.entryPic.rows.length) return toast('Nothing came back for that.');
+    if (again && S.entryPic.rows.length === had.length) return toast('Nothing new for those words.');
     return;
   }
   if (d.pictake) {
@@ -8865,6 +8933,43 @@ const revokeShots = () => {
  *  `context.ts`'s Entry type has no image field — so there is nowhere for it to leak into a prompt
  *  even by accident. That is worth stating because every other thing on this form does reach it.
  */
+/** HOW TO ASK FOR ONE SITE, said once for both finders. Seth, 2026-09-01: "we neeed instructions
+ *  for how to search a specific site like pinterest or something for images."
+ *
+ *  Both examples were run against this instance before being written down. `site:` reaches eight
+ *  engines and only some honour it, so `webSearch` filters the rows on the way back — see the note
+ *  there. Without that filter this advice would have been a promise the search does not keep: 15 of
+ *  40 rows from pinterest and the rest from four other places. */
+const SITE_HELP = `Add <strong>site:pinterest.com</strong> — or artstation.com, unsplash.com, any
+  host — to look on one site alone. <strong>!goi</strong> or <strong>!bii</strong> at the front asks
+  Google or Bing images only. Icons are dropped: they cannot become a picture.`;
+
+/** APPEND THE NEXT BATCH, deduplicated on the image URL.
+ *
+ *  The offset is a hint and not an index: each press is a fresh request and eight engines do not
+ *  rank identically twice, so a row can arrive in two batches — measured at 1 in 12 on 2026-09-01.
+ *  Deduplicating here is what makes the grid grow by what is actually new. */
+/** A THREAD'S PICTURE, WHEREVER THE THREAD IS DRAWN. Seth, 2026-09-01: *"if a card has an image
+ *  move it to the top and in all thread views i should be able to see it in the top."*
+ *
+ *  TWO SHAPES OF ROW REACH THESE VIEWS and this is the only place that has to know. A card from the
+ *  open book carries no story of its own and its stamp is on `V.entryImages`; a card from the
+ *  cross-story page carries `story` and `imageAt`, because that page spans the shelf and `V` is one
+ *  book. Written once so a third view cannot get it half right.
+ *
+ *  The stamp IS the cache key — `entryImageUrl` puts it in the query — so replacing a picture
+ *  changes the URL and the browser cannot show the old one. */
+const threadPic = (e) => {
+  const at = e.imageAt ?? V?.entryImages?.[e.id];
+  const story = e.story ?? S.storyId;
+  return at && story ? api.entryImageUrl(story, e.id, at) : '';
+};
+
+const moreRows = (had, got) => {
+  const seen = new Set(had.map((r) => r.img));
+  return [...had, ...got.filter((r) => r.img && !seen.has(r.img))];
+};
+
 function entryPicture(e) {
   const at = V.entryImages?.[e.id];
   const f = S.entryPic?.id === e.id ? S.entryPic : null;
@@ -8896,12 +9001,18 @@ function entryPicture(e) {
         <button class="btn ghost" data-picgo="1" ${f.busy ? 'disabled' : ''}
           style="flex:0 0 auto; width:auto; padding:12px 18px">${f.busy ? 'Looking&hellip;' : 'Look'}</button>
       </div>
+      <div class="hint" style="margin:0">${SITE_HELP}</div>
       ${(f.rows ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:6px">
         ${f.rows.map((r) => `<button data-pictake="${esc(r.img)}" title="${esc(r.title)}"
           style="width:72px; height:72px; padding:0; border-radius:var(--r); overflow:hidden;
           border:1px solid var(--edge); background:var(--field) center/cover no-repeat;
           background-image:url('${esc(r.thumb || r.img)}')"></button>`).join('')}
-      </div>` : f.asked ? '<div class="hint" style="margin:0">Nothing came back for that.</div>' : ''}
+      </div>
+      ${f.more === false ? `<div class="hint" style="margin:0">That is everything these words
+        found. Different words will find different pictures.</div>`
+        : `<button class="btn ghost" data-picmore="1" ${f.busy ? 'disabled' : ''}
+        >${f.busy ? 'Looking&hellip;' : 'Show me more'}</button>`}`
+      : f.asked ? '<div class="hint" style="margin:0">Nothing came back for that.</div>' : ''}
       <button class="btn ghost" data-picshut="1">Close</button>
     </div>` : ''}
   </div>`;
@@ -8934,12 +9045,17 @@ function coverFinder() {
     <div class="hint" style="margin:0">These words go to your own search endpoint, and the picture
       comes back through Anansi rather than from this browser. Nothing about the book is sent &mdash;
       not the premise, not a word of the prose.</div>
+    <div class="hint" style="margin:0">${SITE_HELP}</div>
     ${rows.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px">
       ${rows.map((r) => `<button data-takeweb="${esc(r.img)}" title="${esc(r.title)}"
         style="width:86px; height:86px; padding:0; border-radius:var(--r); overflow:hidden;
         border:1px solid var(--edge); background:var(--field) center/cover no-repeat;
         background-image:url('${esc(r.thumb || r.img)}')"></button>`).join('')}
     </div>
+    ${f.more === false ? `<div class="hint" style="margin:0">That is everything these words found.
+      Different words will find different pictures.</div>`
+      : `<button class="btn ghost" data-findcover="more" ${f.busy ? 'disabled' : ''}
+      >${f.busy ? 'Looking&hellip;' : 'Show me more'}</button>`}
     <div class="hint" style="margin:0">Press one and it becomes the cover, shrunk to 900px like any
       other. ${f.taking ? 'Fetching it&hellip;' : ''}</div>` : f.asked
       ? '<div class="hint" style="margin:0">Nothing came back for that.</div>' : ''}

@@ -796,6 +796,15 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 .band-epi i { width:1px; align-self:stretch; background:var(--gold-dim); opacity:.5; flex:0 0 auto; }
 .band-epi span { font-style:italic; font-size:17px; line-height:1.5; color:var(--label); text-wrap:pretty; }
 .band-rule { height:1px; background:var(--rule); margin-top:18px; }
+/* THE BREAK BETWEEN CHAPTERS, in a continuous read. Reading mode draws the whole book (#37) and
+   `.band` has 8px of padding and no margin — fine as the top of a column, nothing at all between
+   two chapters, which is what Seth reported: "there no seperation anymore". A rule on each side of
+   a diamond, with real air around it, so the eye stops before the next chapter's name. */
+.chapbreak { display:flex; align-items:center; gap:18px; margin:78px 0 64px; }
+.chapbreak span { height:1px; flex:1; background:var(--rule); }
+.chapbreak i { width:5px; height:5px; flex:0 0 auto; transform:rotate(45deg);
+  background:var(--gold-dim); opacity:.65; }
+@media (max-width:719px) { .chapbreak { margin:52px 0 42px; gap:12px; } }
 @media (max-width:719px) { .band-title { font-size:30px; } .band-epi span { font-size:15px; }
   .band { gap:10px; padding:2px 0 6px; } .band-rule { margin-top:10px; } }
 

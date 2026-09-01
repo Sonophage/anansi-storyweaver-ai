@@ -88,7 +88,8 @@ export const api = {
   /* A PICTURE, LOOKED FOR AND THEN FETCHED. Two calls because they are two acts: the search is a
    * phrase and costs nothing, the fetch is one URL and pulls bytes. `image` goes through Anansi
    * because an arbitrary image on the web sends no CORS header, so this browser cannot read it. */
-  images:       (q, n)           => j('/api/images', 'POST', { q, n }),
+  // `skip` walks further down the same ranking — the next batch of pictures for one query.
+  images:       (q, n, skip = 0) => j('/api/images', 'POST', { q, n, skip }),
   image:        (url)            => j('/api/image', 'POST', { url }),
   newWorld:     (title, premise)  => j('/api/world', 'POST', { title, premise }),
   bookFrom:     (storyId, title)  => j('/api/story/from', 'POST', { storyId, title }),

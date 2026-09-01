@@ -434,9 +434,29 @@ export type Found = { title: string; url: string; text: string; img?: string; th
  *  text results back for an image query rather than an error, because a wrong category is a filter
  *  that matched nothing and not a failure. Upgrade path is a second template variable.
  */
-export async function webSearch(q: string, n = 5, kind: 'text' | 'images' = 'text'): Promise<Found[]> {
+/** ONE SITE, ASKED FOR IN THE QUERY. Seth, 2026-09-01: *"we neeed instructions for how to search a
+ *  specific site like pinterest or something for images."*
+ *
+ *  MEASURED BEFORE IT WAS DOCUMENTED, because the obvious answer is wrong. `site:pinterest.com` in
+ *  the query DOES reach the engines and DOES change the ranking — but it does not filter. On this
+ *  instance, on 2026-09-01: `site:pinterest.com gothic canal city` returned 204 rows of which 15 of
+ *  the first 40 were pinterest, the rest from dreamstime, unsplash, artic and an icon CDN. SearXNG
+ *  merges eight engines and only some of them honour the operator, so promising a filter in the UI
+ *  would have been a promise the search does not keep.
+ *
+ *  So the operator is kept in the query — the engines that honour it rank better for it — AND the
+ *  rows are filtered here on the way back, which is what makes the promise true. Matched on the
+ *  PAGE's host, not the picture's: a pinterest result is a pinterest.com page serving an image from
+ *  i.pinimg.com, and filtering on the image host would drop every one of them. */
+const SITE = /\bsite:([a-z0-9][a-z0-9.-]*\.[a-z]{2,})/i;
+const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '').toLowerCase(); }
+  catch { return ''; } };
+
+export async function webSearch(q: string, n = 5, kind: 'text' | 'images' = 'text',
+                                skip = 0): Promise<Found[]> {
   const tpl = process.env.ANANSI_SEARCH;
   if (!tpl) throw new Error('web search is not configured — set ANANSI_SEARCH to a URL template with {q} in it');
+  const only = (SITE.exec(q)?.[1] ?? '').toLowerCase();
   let url = tpl.replace('{q}', encodeURIComponent(q.slice(0, 300)));
   if (kind === 'images') {
     url = url.includes('{cat}') ? url.replace('{cat}', 'images')
@@ -451,7 +471,24 @@ export async function webSearch(q: string, n = 5, kind: 'text' | 'images' = 'tex
   // SearXNG says `results`; most others say one of these. Nothing is assumed about the shape
   // beyond "an array of things with a title, a url and some text".
   const rows: any[] = d.results ?? d.items ?? d.data ?? d.organic ?? (Array.isArray(d) ? d : []);
-  return rows.slice(0, n).map((x: any) => ({
+  /* FILTERED BEFORE IT IS SLICED, which is a correction and not a tidy-up. It sliced to `n` first
+   * and filtered after, so every dropped row came out of the writer's twelve — a query answering
+   * four icons and eight photographs showed eight pictures and an unexplained gap.
+   *
+   * `skip` IS AN OFFSET INTO THIS RANKING, not a page of the engines. Seth: "is there a way to scan
+   * more images from a search like to do the next batch of images." Images answer deep — 1,615 rows
+   * for one query on 2026-09-01, 275 for a narrow one — so walking the list this way costs one
+   * request per press.
+   *
+   * IT CAN STILL REPEAT A ROW, and the caller has to expect that: each press is a fresh request and
+   * eight engines do not rank identically twice. Measured on 2026-09-01, offset 0 against offset 12:
+   * 1 row of 12 came back in both. So the surface dedupes on the image URL as it appends rather than
+   * trusting the offset — an offset into a list that is re-ranked under you is a hint, not an index.
+   *
+   * ponytail: page 1 only. When a narrow query runs out the writer is told there is no more, which
+   * is true of that query's first page and not of the engines. SearXNG takes `pageno` and the
+   * template could carry `{page}`; do that if a real query is ever seen to run dry. */
+  return rows.map((x: any) => ({
     title: String(x.title ?? x.name ?? '').slice(0, 200),
     url: String(x.url ?? x.link ?? x.href ?? ''),
     // Bounded hard. A page is a stranger's text and the budget engine is downstream of this.
@@ -464,5 +501,13 @@ export async function webSearch(q: string, n = 5, kind: 'text' | 'images' = 'tex
     } : {}),
   })).filter((x) => x.url && (x.title || x.text))
     // An image row with no picture on it is a row that cannot do the one thing it is for.
-    .filter((x) => kind !== 'images' || !!x.img);
+    .filter((x) => kind !== 'images' || !!x.img)
+    // NOR CAN AN SVG. `POST /api/image` decides the type from the BYTES and accepts JPEG, PNG, WEBP
+    // and GIF — an SVG fails that check, so an icon in the grid is a picture the writer can press
+    // and only get an error from. This instance runs the `lucide` icon set as an image engine, which
+    // is where they come from: 24 of one query's rows on 2026-09-01.
+    .filter((x) => kind !== 'images' || !/\.svgx?(\?|$)/i.test(x.img ?? ''))
+    // One site, when the query asked for one. See SITE above for why this is not left to the engines.
+    .filter((x) => !only || hostOf(x.url) === only || hostOf(x.url).endsWith('.' + only))
+    .slice(Math.max(0, skip), Math.max(0, skip) + n);
 }

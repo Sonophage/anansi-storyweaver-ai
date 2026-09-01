@@ -1199,6 +1199,8 @@ export const routes: Record<string, Handler> = {
    *  the drift `src/slots.ts` exists to stop. */
   'GET /api/ledger': (c: Ctx) => {
     const rooms = db.roomsOf(c.owner);
+    // One query for the whole shelf, like `roomsOf` — a lookup per card is fine at twelve books.
+    const pics = new Map(db.imagesOf(c.owner).map((r: any) => [`${r.story_id}:${r.entry_id}`, r.set_at]));
     return { slots: SLOTS, entries: db.ledgerOf(c.owner).map((e: any) => ({
       id: e.id, story: e.story, storyTitle: e.story_title, title: e.title, body: e.body,
       notes: e.notes ?? '', entryType: e.entry_type, activation: e.activation,
@@ -1206,6 +1208,9 @@ export const routes: Record<string, Handler> = {
       // A finished thread is drawn differently and must not read as live on a page that spans
       // every book — the one place a retired card is most likely to be mistaken for a working one.
       retiredAtChapter: e.retired_at_chapter ?? undefined,
+      // A thread's picture, so this page can show it the way the story's own list does. Keyed by
+      // BOTH ids: a followed thread has one in the book it lives in and not in the book following it.
+      imageAt: pics.get(`${e.story}:${e.id}`) ?? undefined,
       addons: rooms.filter((a: any) => a.entry_id === e.id).map((a: any) => ({
         id: a.id, slot: a.slot, name: a.name, body: a.body,
         keys: JSON.parse(a.keys || '[]'), active: !!a.active,
@@ -1741,8 +1746,16 @@ export const routes: Record<string, Handler> = {
     if (!searchConfigured()) return { error: 'web search is not configured on this server — set ANANSI_SEARCH' };
     const q = String(c.body.q ?? '').trim();
     if (q.length < 2) return { error: 'say what to look for' };
-    try { return { results: await webSearch(q, Math.min(Number(c.body.n) || 12, 24), 'images') }; }
-    catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
+    // `skip` walks further down the same ranking — the next batch. Bounded, because it is a number
+    // off the wire and a huge one would ask the engines for a page nobody is looking at.
+    const skip = Math.max(0, Math.min(Number(c.body.skip) || 0, 240));
+    const n = Math.min(Number(c.body.n) || 12, 24);
+    try {
+      const results = await webSearch(q, n, 'images', skip);
+      // Whether pressing again is worth it. A short batch means the ranking has run out for these
+      // words, and saying so beats a button that answers nothing.
+      return { results, skip, more: results.length >= n };
+    } catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
   },
 
   /** FETCH ONE PICTURE, AS BYTES, BECAUSE THE BROWSER CANNOT.
@@ -2480,14 +2493,18 @@ export const routes: Record<string, Handler> = {
       if (!e?.title?.trim() || !e?.body?.trim()) continue;
       const cls = classify(existing, e);
       if (!cls) continue;
-      const cite = sources.length ? ` [${sources[0].url}]` : '';
+      // NO URL IN THE BODY. Seth, 2026-09-01: "i dont need anansi to post where the information is
+      // coming from like the url links." It used to append ` [https://…]` to every card a search
+      // helped write — so a thread's canon carried a link, which then rode into every prompt that
+      // fired it and out again through export. The search results still reach the MODEL; what they
+      // no longer do is end up in the writer's own text.
       // THE ROOM THE CHAT NAMED, through the same door extraction uses. Before 2026-09-01 this
       // line passed no field and TALK_SCHEMA had none to pass, so padding a card in conversation
       // replaced its whole description — see `roomAsked`.
       const { field, target, said } = roomAsked(v.entries as any[], cls, e);
       if (said) continue;
       if (db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id, title: e.title.trim(),
-        body: e.body.trim() + cite, entryType: e.type, keys: e.keys ?? [],
+        body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
         activation: e.activation, field, target })) proposed++;
     }
 
@@ -2554,15 +2571,16 @@ export const routes: Record<string, Handler> = {
       role: `invent:${kind}`, manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
-    const cite = sources.length ? ` [${sources[0].url}]` : '';
+    // No URL in the body — see the note in the talk route. The results reach the model; the link
+    // does not reach the card.
     if (isAddon)
       // `outfit` is kept as the key it has always been so the wardrobe form does not have to
       // change; `addon` carries the same thing plus which slot it is for, which the newer forms
       // read. One shape with two names is cheaper than two round trips.
       return { outfit: { name: String(r.data.name ?? '').trim(),
-                         body: String(r.data.body ?? '').trim() + cite },
+                         body: String(r.data.body ?? '').trim() },
                addon: { slot: kind, name: String(r.data.name ?? '').trim(),
-                        body: String(r.data.body ?? '').trim() + cite,
+                        body: String(r.data.body ?? '').trim(),
                         keys: Array.isArray(r.data.keys) ? r.data.keys : [] },
                seconds: +((Date.now() - t0) / 1000).toFixed(1) };
 
@@ -2572,13 +2590,13 @@ export const routes: Record<string, Handler> = {
     // do not exist yet; running it here would refuse the answer as a duplicate of the very card
     // being rewritten, which is the one thing it is guaranteed to look like.
     if (refill)
-      return { card: { title: String(r.data.title).trim(), body: String(r.data.body).trim() + cite,
+      return { card: { title: String(r.data.title).trim(), body: String(r.data.body).trim(),
                        keys: Array.isArray(r.data.keys) ? r.data.keys : [] },
                seconds: +((Date.now() - t0) / 1000).toFixed(1) };
     const cls = classify(db.entriesOf(v.id), r.data);
     if (!cls) return { error: `the ledger already says exactly that about ${r.data.title}` };
     const ok = db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id,
-      title: String(r.data.title).trim(), body: String(r.data.body).trim() + cite,
+      title: String(r.data.title).trim(), body: String(r.data.body).trim(),
       entryType: kind, keys: r.data.keys ?? [] });
     return { ...viewOf(v.id), proposed: ok ? 1 : 0, title: String(r.data.title).trim(),
              duplicate: !ok, seconds: +((Date.now() - t0) / 1000).toFixed(1) };

@@ -1250,6 +1250,33 @@ async function bootServer(port: number, env: Record<string, string>) {
     ctxI(alice, {}, `story=${bStory.id}&entry=${mine}`)), /no picture/,
     "a picture is not reachable through another book's id");
   ok("a thread's picture belongs to its own book, on the write and on the read");
+
+  /* AND THE CROSS-STORY THREADS PAGE CARRIES IT, from its own data. Seth, 2026-09-01: "in all thread
+   * views i should be able to see it in the top."
+   *
+   * That page spans the shelf, so it cannot read `V.entryImages` — one book's view — and
+   * `GET /api/ledger` has to hand a stamp per row. Keyed by BOTH ids, because `entry_images` is: a
+   * followed thread has a picture in the book it lives in and the same id in the follower does not.
+   *
+   * ASSERTED THROUGH THE ROUTE. The client half is checked in `test/app.ts` against a fixture that
+   * supplies `imageAt` directly — so deleting the mapping HERE left that green, which is what a
+   * falsification pass found. This is the assertion that goes red for it.
+   *
+   * And owner-scoped, like the rest of this file: bob's page must not name alice's picture. */
+  {
+    const page: any = routes['GET /api/ledger'](ctxI(alice, {}, ''));
+    const row = page.entries.find((x: any) => x.id === mine);
+    assert.ok(row, "alice's thread is on her own cross-story page");
+    assert.strictEqual(row.imageAt, db.entryImageAt(aStory.id, mine),
+      'and carries the stamp the picture was set at, so the page can build the URL');
+    const bare = page.entries.find((x: any) => x.id !== mine && !x.imageAt);
+    assert.ok(bare, 'a thread with no picture carries no stamp rather than a zero');
+
+    const his: any = routes['GET /api/ledger'](ctxI(bob, {}, ''));
+    assert.ok(!his.entries.some((x: any) => x.id === mine),
+      "and another writer's page does not list her thread at all, let alone its picture");
+    ok('the cross-story Threads page carries each picture stamp, and only the writer\'s own');
+  }
 }
 
 /* THE IMAGE PROXY REFUSES WHAT IT MUST (2026-09-01). Seth asked for image search on covers and

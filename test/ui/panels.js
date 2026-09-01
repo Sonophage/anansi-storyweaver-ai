@@ -233,7 +233,11 @@ if (v.chapters.length > 1) {
   // Which chapter you are reading lives in CLIENT state — view(storyId, focusChapterId). Asking
   // /api/story again without &chapter= answers with the last chapter every time, so a fresh fetch
   // cannot see the focus at all. Read the document, which is the thing under test anyway.
-  const heading = () => page.eval("document.querySelector('#col > div')?.textContent ?? ''");
+  // THE BAND BY NAME, not by being the column's first child. Each chapter is wrapped in its own
+  // <section class="chap" id="ch-N"> since 2026-09-01 — reading mode draws every chapter and they
+  // needed a break and an anchor between them — so "#col > div" stopped matching the heading and
+  // this read an empty string. A selector that names the thing it wants survives the wrapper.
+  const heading = () => page.eval("document.querySelector('#col .band')?.textContent ?? ''");
   // A chapter that is NOT the one already open, or the click is a no-op that passes.
   const to = await page.eval(
     "[...document.querySelectorAll('#rail [data-chapter]')]"

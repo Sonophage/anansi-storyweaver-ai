@@ -185,6 +185,10 @@ const STORY = {
               entryType: 'rule', activation: 'always_on', keys: [], lastEditor: 'human', states: [],
               notes: '', addons: [], originId: 'e-origin' }],
   follows: { id: 's-9', title: 'The Ash Cycle' },
+  // WHICH THREADS HAVE A PICTURE. `e-1` does and `e-2` does not, so a view that draws one for every
+  // card and a view that draws none both fail. `e-shared` has one too: a followed thread's picture
+  // lives in the book the thread lives in, and the face here has to show it.
+  entryImages: { 'e-1': 1788300000000, 'e-shared': 1788300111000 },
   // A thread taken OUT of this book: a tombstone, listed by name so it can come back.
   dropped: [{ id: 'e-stone', title: 'The Quay Office', originId: 'e-origin-2' }],
   pins: [], arcs: [],
@@ -347,9 +351,11 @@ let stubPassageId: string | undefined = undefined;
     // #22. TWO BOOKS, because the page's whole job is grouping and collapsing — with one book
     // "exactly one open" is true however the collapse is written.
     : url.startsWith('/api/ledger') ? { slots: SLOTS, entries: [
+        // `imageAt` and not `V.entryImages`: this page spans the shelf and `V` is one book. One
+        // row with a picture and one without, for the same reason as above.
         { id: 'e-1', story: 's-1', storyTitle: 'The Ashfall Concordat', title: 'Halsey',
           body: 'A fence with a good coat and a better memory.', entryType: 'character',
-          activation: 'always_on', keys: [], addons: [], outfits: [] },
+          activation: 'always_on', keys: [], addons: [], outfits: [], imageAt: 1788300222000 },
         { id: 'e-2', story: 's-2', storyTitle: 'The Salt Ledger', title: 'the Ambersand',
           body: 'A house that lends at ruin.', entryType: 'lore',
           activation: 'triggered', keys: ['Ambersand'], addons: [], outfits: [] },
@@ -2289,6 +2295,137 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
   assert.match(story, /data-bringback="e-stone"/, 'with the way back beside it');
   ok('a followed thread can be edited, taken over, or taken out — and each face offers only what '
     + 'works from where the card lives (#36)');
+
+// ---- SEPARATION BETWEEN CHAPTERS IN A CONTINUOUS READ, and each one anchored.
+//
+// Seth, 2026-09-01: *"i ran a new chapter and the content of chapter one isnt gone but there no
+// seperation anymore which i think is how you fixed me being able to read the entire thing ... it
+// should still have seperation even if its an anchor link or something."* He is right about the
+// cause: #37 made reading mode draw the whole book, and `.band` carries 8px of padding and no
+// margin — invisible as the top of a column, nothing at all between two chapters.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ readmode: '1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const doc = html('col');
+  const chapters = [...doc.matchAll(/<section class="chap" id="ch-(\d+)"/g)].map((m) => m[1]);
+  assert.ok(chapters.length > 1, `reading mode draws every chapter and drew ${chapters.length}`);
+  // AN ANCHOR PER CHAPTER, which is the thing he offered as an acceptable minimum.
+  assert.deepStrictEqual(chapters, [...new Set(chapters)], 'each anchor is its own chapter');
+  // ONE BREAK FEWER THAN THERE ARE CHAPTERS: between them, never above the first, where it would be
+  // a rule under the header with nothing above it to separate from.
+  const breaks = (doc.match(/class="chapbreak"/g) ?? []).length;
+  assert.strictEqual(breaks, chapters.length - 1,
+    `${chapters.length} chapters want ${chapters.length - 1} breaks and got ${breaks}`);
+  assert.ok(doc.indexOf('class="chapbreak"') > doc.indexOf('id="ch-1"'),
+    'and the first break comes after the first chapter has started, not before it');
+  click({ readmode: '0' });
+  await new Promise((r) => setTimeout(r, 30));
+  // WRITING STILL DRAWS ONE, which is the trade #37 deliberately kept — so no break at all.
+  assert.strictEqual((html('col').match(/class="chapbreak"/g) ?? []).length, 0,
+    'writing draws one chapter, so there is nothing to separate');
+  ok('a continuous read separates its chapters and anchors each one (#37 follow-up)');
+}
+
+// ---- A THREAD'S PICTURE IS AT THE TOP, IN EVERY VIEW A THREAD IS DRAWN IN.
+//
+// Seth, 2026-09-01: *"if a card has an image move it to the top and in all thread views i should be
+// able to see it in the top."* It was one row inside the form, under the facts room — so on a card
+// with a picture, the one thing you can recognise at a glance was the one thing you had to scroll
+// past the words to reach, and the list and the read face never showed it at all.
+//
+// FOUR VIEWS, and the fixture gives `e-1` a picture and `e-2` none, so a view that draws one for
+// every card fails as loudly as a view that draws none.
+{
+  const src = (html, id) => new RegExp(`<img src="[^"]*entry=${id}[^"]*"`).test(html);
+  const before = (html, needle, other) => {
+    const a = html.indexOf(needle), b = html.indexOf(other);
+    return a > -1 && b > -1 && a < b;
+  };
+
+  // 1 · THE LIST on the story's own Threads panel.
+  //
+  // `backentry` FIRST, and it is not defensive. Earlier blocks in this file leave a card open, and
+  // the Threads panel then draws that card instead of the list — so without this the assertions
+  // below read a card bar and report that the list has no pictures in it, which is true and not
+  // what they are asking.
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ backentry: '1' });
+  click({ panel: 'threads' });
+  await new Promise((r) => setTimeout(r, 30));
+  // AND SHUT THE WRITE-IT-DOWN TRAY IF IT IS OPEN, which an earlier block leaves it. The panel draws
+  // the tray INSTEAD of the list, so this is about reaching the list at all.
+  //
+  // KEYED ON THE LIST BEING ABSENT, not on a marker in the markup. `newlore` TOGGLES, and the closed
+  // panel carries a `data-newlore` button of its own — so a guard that looked for that marker opened
+  // the tray it was trying to close, and every assertion below then failed for the wrong reason.
+  if (!/data-entry=/.test(html('sideBody'))) {
+    click({ newlore: '1' });
+    await new Promise((r) => setTimeout(r, 30));
+  }
+  const list = html('sideBody');
+  assert.match(list, /data-entry=/, 'the thread LIST is what these assertions read');
+  assert.ok(src(list, 'e-1'), 'the list shows the picture of a thread that has one');
+  assert.ok(!src(list, 'e-2'), 'and draws no frame for a thread that has none');
+  // AT THE TOP OF ITS CARD, which is the whole request — asserted by position, because "the image
+  // is somewhere in the markup" was true of the form before this and is not what was asked for.
+  assert.ok(before(list, 'entry=e-1', 'Envoy Sereth'),
+    "the picture comes before the thread's name in its card");
+
+  // 2 · THE READ FACE.
+  click({ entry: 'e-1' });
+  await new Promise((r) => setTimeout(r, 30));
+  const face = html('sideBody');
+  assert.ok(src(face, 'e-1'), 'the read face shows it');
+  assert.ok(before(face, 'entry=e-1', 'Envoy Sereth'), 'above the name');
+
+  // 3 · THE FORM. It is the one view that could already show a picture, and the point here is that
+  // it now comes BEFORE the fields rather than after the facts room.
+  click({ cardview: 'form' });
+  await new Promise((r) => setTimeout(r, 30));
+  const form = html('sideBody');
+  assert.ok(src(form, 'e-1'), 'the form shows it');
+  assert.ok(before(form, 'entry=e-1', 'f-card-body'),
+    'and the picture row is above Info now, not under the facts room');
+  click({ cardview: null });
+  click({ backentry: '1' });
+
+  // 4 · A FOLLOWED THREAD'S FACE. Its picture lives in the book the thread lives in, and this face
+  // is read-only about everything else — the picture is the one thing it can still show.
+  click({ panel: 'threads' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ entry: 'e-shared' });
+  await new Promise((r) => setTimeout(r, 30));
+  const shared = html('sideBody');
+  assert.ok(src(shared, 'e-shared'), 'a followed thread shows its picture too');
+  assert.ok(before(shared, 'entry=e-shared', 'The Ambersand'), 'above its name');
+  click({ backentry: '1' });
+  ok('a thread with a picture shows it at the top of the list, both faces and the form');
+}
+
+// ---- AND ON THE PAGE THAT SPANS THE SHELF, from that page's own data.
+//
+// The cross-story Threads page is one book's `V` away from the truth: it lists every book, so the
+// stamp cannot come from `V.entryImages`. `GET /api/ledger` carries `imageAt` per row, keyed by BOTH
+// ids — a followed thread has a picture in the book it lives in and not in the book following it.
+{
+  click({ leave: '1' });
+  await new Promise((r) => setTimeout(r, 40));
+  // `canon` is the KEY; `threads` is only the glyph beside it in WNAV. And `loadLedger` is async and
+  // paints when it lands, so the first read says "Reading the threads…" — waited for rather than
+  // slept past, or this asserts a loading line.
+  click({ nav: 'canon' });
+  for (let i = 0; i < 40 && !/data-entry=/.test(html('page')); i++)
+    await new Promise((r) => setTimeout(r, 25));
+  const page = html('page');
+  assert.match(page, /Halsey/, 'the cross-story page is up');
+  assert.match(page, /<img src="[^"]*story=s-1[^"]*entry=e-1/,
+    'and a thread with a picture shows it, from this page\'s own imageAt rather than from V');
+  assert.ok(!/<img src="[^"]*entry=e-2/.test(page), 'while one without shows no frame');
+  ok('the cross-story Threads page shows a picture too, from its own data');
+}
 }
 
 // #20 · STARTING A BOOK FROM THREADS YOU ALREADY HAVE, and the last place a point of view is
@@ -2710,6 +2847,67 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   endPasses = undefined;
   ok('a chapter close reports which of its four passes did not run, and why (#32)');
+
+  // ---- AND IT LANDS ON THE CARDS THE CLOSE PROPOSED, not past them.
+  //
+  // Seth, 2026-09-01: *"the new cards landed in step 1 of the new chapter instead of on step 2 where
+  // a uyser would be seeing it."* They did land on step one, which is where they belong — the order
+  // is the argument and this panel's own note says so: what the chapter LEFT is decided before what
+  // the next one is FOR. The defect was that the panel OPENED on step two regardless, so the cards
+  // sat on a step you had to press backwards to reach. A gold count on the rail is not being shown
+  // them.
+  // A PROPOSAL AGAINST THE CHAPTER THAT CLOSED, which is what a debrief IS. The fixture's are all
+  // against `c-2`, the open one — so without this the landing rule has nothing to fire on and the
+  // assertion below would pass on the session state the close handler sets, which is the half that
+  // does NOT survive a reload and therefore not the half worth testing.
+  STORY.proposals.push({ id: 'pr-old', entryId: null, title: 'The ferryman',
+    body: 'He takes coin from one hand only.', entryType: 'lore', keys: [], kind: 'new',
+    delta: 'New fact.', chapterId: 'c-1' } as any);
+  side = await closeChapter();
+  assert.match(side, /data-setupstep="cards"/, 'the setup panel has a cards step');
+  // THE STEP THAT IS LIT, not merely present. Read off the rail's own highlight, which is what a
+  // writer sees, and asserted against the OTHER step too — a check for "cards is lit" would pass on
+  // a panel that lit every step.
+  const litStep = (html) => [...html.matchAll(/data-setupstep="([a-z]+)"([^>]*?)>/g)]
+    .filter((m) => /rgba\(217,178,106,\.42\)/.test(m[2])).map((m) => m[1]);
+  assert.deepStrictEqual(litStep(side), ['cards'],
+    'a close that proposed cards must open on them, and on nothing else');
+  assert.match(side, /What it left/, 'and the step says what it is');
+
+  // OPENED BY HAND IS NOT THE SAME ARRIVAL, and that half is covered where it already was: the
+  // block at "a chapter a writer has named must not have a name proposed over it" opens this panel
+  // cold and reads the premise step's own markup. It is what caught the first version of this fix,
+  // which keyed the landing step on `queue.length` alone — without a close the queue is everything
+  // still pending, so a writer pressing the panel to name a chapter was dropped into a decision list
+  // they did not come for. Not re-asserted here: `S.setupStep` is remembered between opens, so a
+  // second check in this block would have to set the step it then reads.
+  /* AND IT SURVIVES THE SESSION STATE GOING AWAY, which is the ACTUAL defect and the reason this
+   * needed two attempts. The close handler sets `S.setupStep = 'cards'` itself, so a test that only
+   * closes a chapter passes on that — and says nothing about the state Seth was in, which is a
+   * reload later with `S.setupStep` and `S.ritualOf` both gone.
+   *
+   * `skipsetup` clears `S.setupStep` (and only that), so it stands in for the reload exactly: the
+   * next open has no remembered step and must fall back on the DATA. */
+  click({ skipsetup: '1' });
+  await new Promise((r) => setTimeout(r, 20));
+  click({ panel: 'setup' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepStrictEqual(litStep(html('sideBody')), ['cards'],
+    'with no remembered step and a proposal still open against a closed chapter, the panel opens on '
+    + 'the cards — this is the half a reload used to lose');
+
+  // AND THE OTHER WAY. Take the closed chapter's proposal away and the same cold open lands on the
+  // next chapter, because proposals against the chapter you are WRITING are not a debrief: they came
+  // from the chat or from "remember this", and a writer who opened this to name their chapter must
+  // not be dropped into a decision list. A rule that always says "cards" would pass the check above.
+  STORY.proposals = STORY.proposals.filter((p: any) => p.id !== 'pr-old');
+  click({ skipsetup: '1' });
+  await new Promise((r) => setTimeout(r, 20));
+  click({ panel: 'setup' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepStrictEqual(litStep(html('sideBody')), ['premise'],
+    'and with nothing owed from a closed chapter it opens on the next chapter');
+  ok('a close lands the writer on the cards it proposed, and a reload still does');
 }
 
 // ---- A PANEL'S SAVE IS AT THE TOP AND PINNED (issue #33). Seth, 2026-08-31: "All save buttons

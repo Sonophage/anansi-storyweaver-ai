@@ -836,6 +836,26 @@ export const entryImageAt = (storyId: string, entryId: string): number | null =>
 export const entryImagesOf = (storyId: string): Record<string, number> =>
   Object.fromEntries((q('SELECT entry_id, set_at FROM entry_images WHERE story_id = ?')
     .all(storyId) as any[]).map((r) => [r.entry_id, r.set_at]));
+/** WHICH THREADS HAVE A PICTURE, ACROSS EVERY BOOK THIS WRITER OWNS. Seth, 2026-09-01: *"in all
+ *  thread views i should be able to see it in the top."*
+ *
+ *  The cross-story Threads page spans the shelf, so the per-story reader above cannot answer it, and
+ *  a lookup per card is the shape that is fine at twelve books and quietly is not at fifty —
+ *  `roomsOf` beside it exists for the same reason and says so.
+ *
+ *  Keyed by entry AND story, because `entry_images` is: a followed thread has a picture in the book
+ *  it lives in, and the same id in the book that follows it does not.
+ *
+ *  THE OWNER FILTER IS DEFENCE IN DEPTH, not the thing that keeps writers apart — falsifying it on
+ *  2026-09-01 left `test/scope.ts` green, and that is correct rather than a missing check. The caller
+ *  looks a stamp up by the ids of entries it got from `ledgerOf`, which is already owner-scoped, so a
+ *  foreign row could never be asked for. Kept because a reader of this function should not have to
+ *  go and check that, and because the next caller might not have a scoped list in hand. */
+export const imagesOf = (ownerId: string) => q(`
+  SELECT i.entry_id, i.story_id, i.set_at FROM entry_images i
+    JOIN stories s ON s.id = i.story_id
+   WHERE s.owner_id = ?`).all(ownerId) as any[];
+
 export const entryImageBytes = (storyId: string, entryId: string): Uint8Array | null =>
   (q('SELECT jpeg FROM entry_images WHERE entry_id = ? AND story_id = ?')
     .get(entryId, storyId) as any)?.jpeg ?? null;

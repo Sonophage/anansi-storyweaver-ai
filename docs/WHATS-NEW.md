@@ -10,6 +10,37 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Pictures, and three corrections
+
+### A thread's picture is at the top, everywhere a thread is drawn
+On its card, on its face, in the Threads list, and on the page that spans every book. It used to be
+one row buried under the facts — so on a card with a face, the fastest way to recognise it was the
+one thing you had to scroll past the words to reach.
+
+### Show me more pictures
+Both picture searches — a thread's and the book's cover — have **Show me more**, which walks further
+down the same search rather than starting over. It keeps what is already on screen and adds what is
+new, and says so when a set of words has run out.
+
+### Looking on one site
+Add **site:pinterest.com** — or artstation.com, unsplash.com, any host — to look on one site alone.
+**!goi** or **!bii** at the front asks Google or Bing images only. Icons are dropped now: they cannot
+become a picture, so a grid of them was a row of presses that could only fail.
+
+### Anansi no longer pastes links
+A card she wrote with help from a search used to carry the URL in its own text, which then rode into
+every prompt that thread fired. The links under her replies are gone too. She still looks things up;
+you just are not handed the bibliography.
+
+### Chapters are separated again when you read the whole book
+Reading mode draws every chapter, and they had run together — chapter one's last paragraph into
+chapter two's heading. There is a proper break between them now, and each chapter has its own anchor.
+
+### And ending a chapter lands you on what it left
+The cards a close proposes are on the first step of the new chapter's setup, which is where they
+belong — but the panel opened on the second step, so they sat behind a number you had to press
+backwards to reach. It opens where the work is, and still does after a reload.
+
 ## 2026-09-01 · The rooms of a card say what they are for
 
 ### A character's voice is an instruction, not a note
