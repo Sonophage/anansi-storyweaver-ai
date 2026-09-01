@@ -45,6 +45,43 @@ type Handler = (c: Ctx) => Promise<any> | any;
 /** The ceiling on anything uploaded. One constant because it was three literals, and the .db
  *  branch checked none of them — it wrote to disk first and asked afterwards. */
 const MAX_UPLOAD = 20_000_000;
+// What POST /api/image will pull down. Generous next to the 1MB cover ceiling on purpose: this is
+// the ORIGINAL, and the browser downscales it to about 150KB before it is stored. A 6MB photograph
+// from a stock site is normal and refusing it would refuse the good case.
+const MAX_FETCH_IMAGE = 8_000_000;
+
+/** Is this hostname somewhere the open web is not?
+ *
+ *  The guard on POST /api/image. A client naming a URL the SERVER fetches is the shape that reaches
+ *  what a browser cannot: loopback, the link-local metadata address, a printer, the router's admin
+ *  page. Both writers here are trusted; "the only clients are trusted" is a sentence that stops
+ *  being true quietly, and this costs one regex.
+ *
+ *  LITERAL ADDRESSES ONLY, and that ceiling is stated rather than hidden: a NAME that resolves to
+ *  127.0.0.1 passes this and is fetched. Closing that needs a DNS lookup before the request and then
+ *  the fetch may resolve differently anyway — the real fix is a network policy, not a string check.
+ *  What this stops is the whole easy class: someone pasting an image URL that is actually
+ *  http://127.0.0.1:8080/ or http://169.254.169.254/.
+ *
+ *  ponytail: literal-address check, no DNS resolution and no TOCTOU protection. Upgrade path is
+ *  resolving the host and refusing private answers, which needs node:dns and still races.
+ */
+export function isPrivateHost(h: string): boolean {
+  const host = h.replace(/^\[|\]$/g, '').toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true;
+  // IPv6 loopback, link-local, unique-local.
+  if (host === '::1' || host === '::' || /^fe80:/i.test(host) || /^f[cd][0-9a-f]{2}:/i.test(host)) return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  if ([a, Number(m[2]), Number(m[3]), Number(m[4])].some((n) => n > 255)) return true;  // not an address
+  return a === 0 || a === 10 || a === 127                       // this host, private, loopback
+    || (a === 169 && b === 254)                                 // link-local, incl. cloud metadata
+    || (a === 172 && b >= 16 && b <= 31)                        // private
+    || (a === 192 && b === 168)                                 // private
+    || (a === 100 && b >= 64 && b <= 127)                       // carrier NAT
+    || a >= 224;                                                // multicast and reserved
+}
 // A cover is downscaled in the browser to about 900px wide, which lands near 150KB. 1MB is room
 // for a wide one at high quality and still refuses a phone camera original posted whole.
 const MAX_COVER = 1_000_000;
@@ -71,6 +108,8 @@ export const OPEN_ROUTES = new Set([
   'POST /api/demo',
   // Names no story and cannot reach another writer's generation — see the route.
   'POST /api/stop',
+  // A picture search is about a phrase, and the proxy is about one URL. Neither names a book.
+  'POST /api/images', 'POST /api/image',
   'POST /api/spark/review', 'POST /api/spark/style',
   // #40. One field of the skeleton, asked again. Names no story — there is not one yet.
   'POST /api/spark/field',
@@ -1674,6 +1713,72 @@ export const routes: Record<string, Handler> = {
 
   /** Waved away. Not "never tell me again" — the ref carries the state that made it worth saying,
    *  so editing the chapter or writing past the horizon brings it back. */
+  /** LOOK FOR A PICTURE. Seth, 2026-09-01: "can the image search be added to the covers and the
+   *  threads?"
+   *
+   *  Same endpoint as the text search with a category — see `webSearch`. Returns rows carrying an
+   *  `img` URL; the surface shows the thumbnails and the writer picks one.
+   *
+   *  NAMES NO STORY on purpose: a picture search is about a phrase, not about a book, and the two
+   *  places that use it (a cover, a thread) both have a story that the NEXT call names. Open for the
+   *  same reason GET /api/search is.
+   */
+  'POST /api/images': async (c: Ctx) => {
+    if (!searchConfigured()) return { error: 'web search is not configured on this server — set ANANSI_SEARCH' };
+    const q = String(c.body.q ?? '').trim();
+    if (q.length < 2) return { error: 'say what to look for' };
+    try { return { results: await webSearch(q, Math.min(Number(c.body.n) || 12, 24), 'images') }; }
+    catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
+  },
+
+  /** FETCH ONE PICTURE, AS BYTES, BECAUSE THE BROWSER CANNOT.
+   *
+   *  `web/app.js` already has the whole downscale-and-store path — a blob goes to `readCover`, which
+   *  shrinks it to 900px and posts it as a JPEG data URL. That works for pollinations for exactly one
+   *  reason, recorded as a `ponytail:` at its call site: pollinations answers with an open
+   *  access-control-allow-origin. An arbitrary image on the web does not, so the browser cannot read
+   *  its bytes at all.
+   *
+   *  So this is a PROXY and nothing more: it fetches the URL and hands back a data URL, and the
+   *  existing client path does the rest. It deliberately does NOT resize — that would need an image
+   *  library, and this project has no dependencies and is not getting one for this.
+   *
+   *  SSRF IS THE RISK AND IT IS GUARDED. The client names a URL and the server fetches it, which is
+   *  the shape that reaches things a browser cannot: loopback, link-local, the router's admin page.
+   *  Both writers here are trusted and the guard is still there, because "the only clients are
+   *  trusted" is a sentence that stops being true quietly. http(s) only, no credentials in the URL,
+   *  no private or loopback address, one redirect hop refused, a hard byte ceiling, and the magic
+   *  bytes checked so an HTML error page cannot arrive labelled as a JPEG.
+   */
+  'POST /api/image': async (c: Ctx) => {
+    const raw = String(c.body.url ?? '');
+    let u: URL;
+    try { u = new URL(raw); } catch { return { error: 'that is not a URL' }; }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return { error: 'only http and https' };
+    if (u.username || u.password) return { error: 'no credentials in an image URL' };
+    if (isPrivateHost(u.hostname)) return { error: 'that address is not on the web' };
+    let r: Response;
+    try {
+      r = await fetch(u, { redirect: 'error', signal: AbortSignal.timeout(15_000),
+        headers: { Accept: 'image/*' } });
+    } catch (e: any) { return { error: `could not fetch it: ${e?.message ?? e}` }; }
+    if (!r.ok) return { error: `that image answered ${r.status}` };
+    const type = String(r.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+    if (!type.startsWith('image/')) return { error: `that is ${type || 'not an image'}` };
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (!buf.length) return { error: 'that image is empty' };
+    if (buf.length > MAX_FETCH_IMAGE) return { error:
+      `that image is ${Math.round(buf.length / 1000)}KB, over the ${Math.round(MAX_FETCH_IMAGE / 1000)}KB ceiling` };
+    // THE BYTES DECIDE, not the header. A server that says image/jpeg and sends HTML is how a
+    // proxy becomes a way to move arbitrary content through this app.
+    const kind = buf[0] === 0xff && buf[1] === 0xd8 ? 'image/jpeg'
+      : buf[0] === 0x89 && buf[1] === 0x50 ? 'image/png'
+      : buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP' ? 'image/webp'
+      : buf[0] === 0x47 && buf[1] === 0x49 ? 'image/gif' : null;
+    if (!kind) return { error: 'those bytes are not a picture this app can read' };
+    return { dataUrl: `data:${kind};base64,${buf.toString('base64')}`, bytes: buf.length, type: kind };
+  },
+
   /** STOP. The only thing that cancels a generation.
    *
    *  bugs.md #9. Stop was `STOP?.abort()` on the fetch, so it and a dropped connection were one

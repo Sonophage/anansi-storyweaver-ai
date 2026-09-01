@@ -10,6 +10,26 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · A cover found on the web, and Anansi can look things up
+
+### She can search, and it is one switch everywhere
+Anansi's **Search before responding** box is live now that the server has a search endpoint. The same
+switch appears wherever she can look something up — asking her a question, or having her write a
+thread — and it is one preference: tick it once and it stays ticked in both.
+
+Asked a question with it on, she reads what came back and answers from it, with the sources.
+
+### Find a cover instead of drawing one
+The cover section has **Find one on the web** beside **Have one drawn**. Type a phrase, get a wall of
+thumbnails, press one, and it becomes the cover — shrunk to 900px like every other cover.
+
+The box starts filled in from the book's own setting and genre, so there is something to press rather
+than an empty field.
+
+Where the picture comes from is worth knowing, because it is different from the drawn one: the words
+go to your own search endpoint, and the picture itself comes back **through Anansi** rather than from
+your browser. Nothing about the book is sent — not the premise, not a word of the prose.
+
 ## 2026-09-01 · Anansi remembers whether she looks things up
 
 ### The Search the web switch stays where you left it

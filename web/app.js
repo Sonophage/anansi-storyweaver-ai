@@ -116,6 +116,9 @@ const applyHwkb = () => {
 function readWebSearch() {
   try { return localStorage.getItem(WEBSEARCH) === '1'; } catch { return false; }
 }
+/** The preference as it stands. Read through a function rather than cached in a const, because two
+ *  controls now write it and a stale copy would make them disagree. */
+const searchOn = () => readWebSearch();
 const setWebSearch = (on) => {
   try { localStorage.setItem(WEBSEARCH, on ? '1' : '0'); } catch { /* no storage */ }
 };
@@ -178,6 +181,9 @@ const S = {
   // #40. Which skeleton field is being re-rolled right now, or null. One at a time: the router does
   // not queue and a second concurrent call kills both with HTTP 500.
   spField: null,
+  // #cover image search, 2026-09-01. The picker's own state: the phrase, the rows, and which press
+  // is in flight. Null means the tray is shut.
+  found: null,
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
   ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
@@ -348,6 +354,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'lbook',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover', 'drawcover', 'usecover',
+  // A cover found on the web rather than drawn, 2026-09-01.
+  'findcover', 'takeweb',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
@@ -2573,7 +2581,7 @@ const PANELS = {
             t.searchable === false ? 'var(--faint)' : 'var(--mute)'}"
             title="${t.searchable === false ? 'Set ANANSI_SEARCH on the server to enable this' : 'Look it up on the web first'}">
             <input type="checkbox" data-websearch="1" ${t.search ? 'checked' : ''}
-              ${t.searchable === false ? 'disabled' : ''}> Search the web
+              ${t.searchable === false ? 'disabled' : ''}> Search before responding
           </label>
           ${t.turns.length ? `<button data-clearchat="1" style="font-size:11px; color:var(--faint)">Clear</button>` : ''}
           <button class="btn" data-ask="1" ${t.busy ? 'disabled' : ''}
@@ -3875,8 +3883,13 @@ function inventTray(kind, label, placeholder, value = '') {
     <div style="display:flex; align-items:center; gap:9px">
       <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
         searchable ? 'var(--mute)' : 'var(--faint)'}"
-        title="${searchable ? 'Look it up on the web first' : 'Set ANANSI_SEARCH on the server to enable this'}">
-        <input type="checkbox" data-invsearch ${searchable ? '' : 'disabled'}> Search the web
+        title="${searchable ? 'Look it up on the web before writing it' : 'Set ANANSI_SEARCH on the server to enable this'}">
+        <!-- SAME WORDING AND SAME REMEMBERED PREFERENCE as the ask box's. Seth, 2026-09-01: "the
+             checkmark should say search before responding" and "have it so that anansi can search
+             just in general in case we need it for the other modules." One preference, honoured
+             wherever there is a search option, rather than a separate habit per tray. -->
+        <input type="checkbox" data-invsearch ${searchable ? '' : 'disabled'}
+          ${searchable && readWebSearch() ? 'checked' : ''}> Search before writing it
       </label>
       <button class="btn ghost" data-invent="${esc(kind)}"
         style="margin-left:auto; width:auto; padding:0 16px; height:34px">${label}</button>
@@ -6559,6 +6572,9 @@ document.addEventListener('click', async (e) => {
     const tray = t.closest('[data-invtray]') ?? document;
     const dir = tray.querySelector('[data-invdir]')?.value.trim() ?? '';
     const search = !!tray.querySelector('[data-invsearch]')?.checked;
+    // The same preference the ask box keeps. Read at press time from the DOM because this tray is
+    // built fresh each time it opens; written here so the two controls agree from now on.
+    if (searchOn() !== search) setWebSearch(search);
     working('direct');
     const r = await whileWorking(t, search ? 'Looking it up…' : 'Writing…',
       () => api.invent(S.storyId, { kind: d.invent, entryId: outfitOwner() || undefined,
@@ -7390,6 +7406,47 @@ document.addEventListener('click', async (e) => {
     const typed = document.querySelector('[data-drawprompt]')?.value.trim() ?? '';
     if (!typed) return toast('Say what to draw first.');
     await drawOne(typed);
+    return;
+  }
+  /* FIND A COVER ON THE WEB. Open the tray, look, or shut it.
+   *
+   * The phrase is read off the DOM at press time rather than held in state per keystroke: it is one
+   * input and a repaint mid-typing would empty it, which is the rule the rest of this file follows
+   * for boxes people type into.
+   */
+  if (d.findcover) {
+    if (d.findcover === 'shut') { S.found = null; drawSide(); return; }
+    if (d.findcover === 'open') {
+      // Seeded from the book, because a blank box on a screen you did not open is a box that stays
+      // blank — the same argument the drawn prompt makes.
+      S.found = { q: [V.story.setting, V.story.genre].filter(Boolean).join(', ').slice(0, 80),
+                  rows: [], busy: false, asked: false, taking: false };
+      drawSide(); return;
+    }
+    if (S.found?.busy) return;
+    const q = document.querySelector('[data-findq]')?.value.trim() ?? '';
+    if (!q) return toast('Say what to look for first.');
+    S.found = { ...S.found, q, busy: true }; drawSide();
+    const r = await api.images(q, 12);
+    S.found = { ...S.found, busy: false, asked: true, rows: r.error ? [] : (r.results ?? []) };
+    drawSide();
+    if (r.error) return toast(r.error);
+    if (!S.found.rows.length) return toast('Nothing came back for that.');
+    return;
+  }
+  /* TAKE ONE. The bytes come through Anansi — the browser cannot read them itself, see coverFinder —
+   * and then go into the SAME readCover the file picker and the drawn path use. */
+  if (d.takeweb) {
+    if (S.found?.taking) return;
+    S.found = { ...S.found, taking: true }; drawSide();
+    const got = await api.image(d.takeweb);
+    S.found = { ...S.found, taking: false };
+    if (got.error) { drawSide(); return toast(got.error); }
+    let blob;
+    try { blob = await (await fetch(got.dataUrl)).blob(); }
+    catch { drawSide(); return toast('Those bytes did not arrive.'); }
+    S.found = null;
+    await readCover(blob);
     return;
   }
   if (d.usecover) {
@@ -8410,9 +8467,49 @@ const revokeShots = () => {
 /** The draw tray, under the cover buttons. Shut until asked for: it is the one control in this app
  *  that sends any of the book off the machine, so it does not sit open by default and the words
  *  that will leave are in a box the writer can read and rewrite before pressing anything. */
+/** THE COVER: drawn, or FOUND. Seth, 2026-09-01: "can the image search be added to the covers".
+ *
+ *  Two doors, one tray. Finding one is a different act from having one drawn — a photograph of a real
+ *  canal city against a picture invented from a sentence — and neither replaces the other.
+ *
+ *  THE BYTES COME THROUGH ANANSI, unlike the drawn path, and that is not a choice. The note on
+ *  `usecover` explains the drawn one: pollinations answers with an open access-control-allow-origin
+ *  so this browser can read the blob itself. An arbitrary image on the web does not, so the browser
+ *  cannot read it at all — POST /api/image fetches it server-side and hands back a data URL, which
+ *  goes into the SAME `readCover` that shrinks it to 900px and stores it. No second store path.
+ */
+function coverFinder() {
+  const f = S.found;
+  if (!f) return `<button class="btn ghost" data-findcover="open" style="margin-top:7px">Find one on the web</button>`;
+  const rows = f.rows ?? [];
+  return `<div class="card" style="gap:8px; margin-top:7px">
+    <div class="lbl" style="letter-spacing:.1em; margin:0">What to look for</div>
+    <div style="display:flex; gap:7px">
+      <input class="field" data-findq value="${esc(f.q ?? '')}" style="margin:0; flex:1"
+        placeholder="a canal city at night">
+      <button class="btn ghost" data-findcover="go" ${f.busy ? 'disabled' : ''}
+        style="flex:0 0 auto; width:auto; padding:12px 18px">${f.busy ? 'Looking&hellip;' : 'Look'}</button>
+    </div>
+    <div class="hint" style="margin:0">These words go to your own search endpoint, and the picture
+      comes back through Anansi rather than from this browser. Nothing about the book is sent &mdash;
+      not the premise, not a word of the prose.</div>
+    ${rows.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px">
+      ${rows.map((r) => `<button data-takeweb="${esc(r.img)}" title="${esc(r.title)}"
+        style="width:86px; height:86px; padding:0; border-radius:var(--r); overflow:hidden;
+        border:1px solid var(--edge); background:var(--field) center/cover no-repeat;
+        background-image:url('${esc(r.thumb || r.img)}')"></button>`).join('')}
+    </div>
+    <div class="hint" style="margin:0">Press one and it becomes the cover, shrunk to 900px like any
+      other. ${f.taking ? 'Fetching it&hellip;' : ''}</div>` : f.asked
+      ? '<div class="hint" style="margin:0">Nothing came back for that.</div>' : ''}
+    <button class="btn ghost" data-findcover="shut">Close</button>
+  </div>`;
+}
+
 function drawTray() {
   if (!S.drawn) {
-    return `<button class="btn ghost" data-drawcover="open" style="margin-top:7px">Have one drawn</button>`;
+    return `<button class="btn ghost" data-drawcover="open" style="margin-top:7px">Have one drawn</button>
+      ${coverFinder()}`;
   }
   const shots = S.drawn.shots ?? [];
   return `<div class="card" style="gap:8px; margin-top:7px">

@@ -9,7 +9,7 @@ import assert from 'node:assert';
 import { unlinkSync, readFileSync } from 'node:fs';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-scope.db' + f); } catch {} }
 const db = await import('../src/db.ts');
-const { routes, OPEN_ROUTES, storyIdOf } = await import('../src/routes.ts');
+const { routes, OPEN_ROUTES, storyIdOf, isPrivateHost } = await import('../src/routes.ts');
 
 const alice = db.owner('alice'), bob = db.owner('bob');
 const aStory = db.createStory(alice, { title: "Alice's book" });
@@ -1081,6 +1081,30 @@ ok('a story cannot be deleted by someone who does not own it');
   assert.match(serve, /admin: REAL === db\.owner\(ADMIN\)/,
     'admin is decided by the real writer, never by the account being looked at');
   assert.doesNotMatch(serve, /admin: OWNER === db\.owner\(ADMIN\)/, 'and not by the borrowed one');
+/* THE IMAGE PROXY REFUSES WHAT IT MUST (2026-09-01). Seth asked for image search on covers and
+ * threads; an arbitrary image on the web sends no CORS header, so the browser cannot read its bytes
+ * and the SERVER has to fetch it. That is an SSRF shape: the client names a URL and this process
+ * fetches it, which reaches what a browser cannot — loopback, the cloud metadata address, a printer.
+ *
+ * Both writers here are trusted and the guard is still tested, because "the only clients are trusted"
+ * is a sentence that stops being true quietly.
+ *
+ * THE LITERAL-ADDRESS CEILING IS REAL and stated at `isPrivateHost`: a NAME that resolves to
+ * 127.0.0.1 passes this. Closing it needs DNS before the fetch and still races. What is asserted is
+ * that the whole easy class is shut.
+ */
+{
+  const priv = ['127.0.0.1', 'localhost', '10.0.0.5', '172.16.3.4', '192.168.1.1',
+                '169.254.169.254', '100.64.0.1', '::1', 'fe80::1', 'fd00::1', 'nas.local',
+                '0.0.0.0', '224.0.0.1'];
+  const open = ['example.com', '8.8.8.8', '172.32.0.1', 'images.squarespace-cdn.com', '1.1.1.1'];
+  const wrongPriv = priv.filter((h) => !isPrivateHost(h));
+  const wrongOpen = open.filter((h) => isPrivateHost(h));
+  assert.deepStrictEqual(wrongPriv, [], `these must be refused as not on the web: ${wrongPriv}`);
+  assert.deepStrictEqual(wrongOpen, [], `these are ordinary hosts and must be allowed: ${wrongOpen}`);
+  ok(`the image proxy refuses ${priv.length} private address shapes and allows ${open.length} real ones`);
+}
+
   ok('the demo switch reaches exactly one account, grants nothing, and cannot be aimed');
 }
 

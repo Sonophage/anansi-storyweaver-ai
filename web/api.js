@@ -85,6 +85,11 @@ export const api = {
    * back to it (bugs.md #9). The abort still happens, to stop this page reading; this is what tells
    * the SERVER the writer meant it. */
   stop:         ()               => j('/api/stop', 'POST', {}),
+  /* A PICTURE, LOOKED FOR AND THEN FETCHED. Two calls because they are two acts: the search is a
+   * phrase and costs nothing, the fetch is one URL and pulls bytes. `image` goes through Anansi
+   * because an arbitrary image on the web sends no CORS header, so this browser cannot read it. */
+  images:       (q, n)           => j('/api/images', 'POST', { q, n }),
+  image:        (url)            => j('/api/image', 'POST', { url }),
   newWorld:     (title, premise)  => j('/api/world', 'POST', { title, premise }),
   bookFrom:     (storyId, title)  => j('/api/story/from', 'POST', { storyId, title }),
   spark:        (idea)           => j('/api/spark', 'POST', { idea }),

@@ -410,10 +410,40 @@ export async function setModel(id: string): Promise<string> {
  *  `src/import.ts` learned that lesson on character cards and it applies harder to a web page. */
 export const searchConfigured = () => !!process.env.ANANSI_SEARCH;
 
-export async function webSearch(q: string, n = 5): Promise<{ title: string; url: string; text: string }[]> {
+/** An http(s) URL, or undefined. Not a validator of anything else: it exists so an image row cannot
+ *  carry a `data:` or `file:` URL into the surface, where it would be offered as something to fetch. */
+const httpish = (u: unknown): string | undefined => {
+  const s = String(u ?? '');
+  return /^https?:\/\//i.test(s) ? s : undefined;
+};
+
+export type Found = { title: string; url: string; text: string; img?: string; thumb?: string };
+
+/** `kind` is 'text' by default and every existing caller passes nothing, so they are unchanged.
+ *
+ *  IMAGES ARE THE SAME ENDPOINT WITH A CATEGORY, not a second integration. SearXNG answers
+ *  `&categories=images` with the same envelope plus `img_src`, `thumbnail_src` and `resolution` —
+ *  1,602 rows for one query, measured 2026-09-01 against the local instance.
+ *
+ *  THE CATEGORY IS APPENDED, and that assumes ANANSI_SEARCH is a query-string URL. It is, for
+ *  SearXNG and for every JSON search endpoint I know of, and `{cat}` is honoured first for anything
+ *  that needs it elsewhere in the URL. A template with no `?` gets the category as the first
+ *  parameter rather than a broken URL.
+ *
+ *  ponytail: one category name, SearXNG's. Ceiling: an endpoint that calls it something else gets
+ *  text results back for an image query rather than an error, because a wrong category is a filter
+ *  that matched nothing and not a failure. Upgrade path is a second template variable.
+ */
+export async function webSearch(q: string, n = 5, kind: 'text' | 'images' = 'text'): Promise<Found[]> {
   const tpl = process.env.ANANSI_SEARCH;
   if (!tpl) throw new Error('web search is not configured — set ANANSI_SEARCH to a URL template with {q} in it');
-  const url = tpl.replace('{q}', encodeURIComponent(q.slice(0, 300)));
+  let url = tpl.replace('{q}', encodeURIComponent(q.slice(0, 300)));
+  if (kind === 'images') {
+    url = url.includes('{cat}') ? url.replace('{cat}', 'images')
+      : url + (url.includes('?') ? '&' : '?') + 'categories=images';
+  } else if (url.includes('{cat}')) {
+    url = url.replace('{cat}', 'general');
+  }
   const r = await fetch(url, { signal: AbortSignal.timeout(20_000),
     headers: { Accept: 'application/json' } });
   if (!r.ok) throw new Error(`search answered ${r.status}`);
@@ -426,5 +456,13 @@ export async function webSearch(q: string, n = 5): Promise<{ title: string; url:
     url: String(x.url ?? x.link ?? x.href ?? ''),
     // Bounded hard. A page is a stranger's text and the budget engine is downstream of this.
     text: String(x.content ?? x.snippet ?? x.description ?? x.text ?? '').slice(0, 1200),
-  })).filter((x) => x.url && (x.title || x.text));
+    // Only on an image result, and only when it is an http(s) URL — anything else is not something
+    // the proxy will fetch, so carrying it would offer the writer a picture that cannot arrive.
+    ...(kind === 'images' ? {
+      img: httpish(x.img_src ?? x.image ?? x.thumbnail_src),
+      thumb: httpish(x.thumbnail_src ?? x.thumbnail ?? x.img_src),
+    } : {}),
+  })).filter((x) => x.url && (x.title || x.text))
+    // An image row with no picture on it is a row that cannot do the one thing it is for.
+    .filter((x) => kind !== 'images' || !!x.img);
 }
