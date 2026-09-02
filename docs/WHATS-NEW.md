@@ -27,18 +27,21 @@ re-runs that passage's own instruction, which you edit on the passage itself.
 The waiting screen used to hold until the whole passage was finished, and on a long one that is
 twenty seconds of watching letters roll.
 
-Now the waiting screen holds the space the passage is about to fill: a block of turning letters in
-the accent, the same shape every time you press send, with only the letters inside it moving.
+Now the waiting screen marks where the writing will start: one sentence of turning letters in the
+accent, the same shape every time you press send, with only the letters inside it moving.
 
-Then the words lock in. One letter at a time, each arriving as a turning glyph and going white as it
-settles, so the sentence forms out of the field rather than being pasted over it. The rest of the
-field steps back once the first word exists — what stays is the word being written. The ground
-darkens behind the prose as it comes, so what you are reading is the only thing lit, and the view
-holds at the top so you read from the first word rather than trailing the last one.
+Then the first sentence locks in, a letter at a time — each one arriving as a turning glyph and
+going white as it settles, so the sentence forms out of the field rather than being pasted over it.
+After that the rest sweeps in a word at a time, left to right, fading as it goes. The ground darkens
+behind the prose as it comes, so what you are reading is the only thing lit, and the view holds at
+the top so you read from the first word rather than trailing the last one.
+
+**The passage does not touch the page until you leave the screen.** It arrives whole when you do,
+which is what stops the book being rebuilt underneath the words while they are still arriving.
 
 When it finishes, the screen **stays**. It is the take, and it is yours to sit with. **Start typing
 and it gets out of the way** — the letter you typed goes into the box, so carrying on writing is one
-motion. Escape closes it without typing anything.
+motion. A tap anywhere on it closes it too, and so does Escape.
 
 **Stop** is there until the words start, and then it goes, because there is nothing on that screen
 worth pressing while you are reading. If you do want to stop a passage mid-flight, type or press

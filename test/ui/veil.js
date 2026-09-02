@@ -26,6 +26,7 @@ const veil = (what) => page.eval(`(() => {
     words: t ? t.textContent.length - (n ? n.textContent.length : 0) : 0,
     spans: t ? t.querySelectorAll('span.tw').length : 0,
     scr: t ? t.querySelectorAll('span.tw.scr').length : 0,
+    soft: t ? t.querySelectorAll('span.tw.soft').length : 0,
     lit: t ? t.querySelectorAll('span.tw.lit').length : 0,
     noiseColour: n ? getComputedStyle(n).color : null,
     stopShown: b ? getComputedStyle(b).display !== 'none' : false,
@@ -50,7 +51,10 @@ await send("The rain does not stop.");
 let first = null;
 for (let i = 0; i < 60; i++) { first = await veil(); if (first) break; await wait(100); }
 ok("the veil goes up on the press", first != null);
-ok("  with a field of glyphs where the prose will land", first != null && first.noise > 100);
+// Seth: "remove the shape of the words and just do a sentence or a single word where the output
+// would be any way." A sentence, so: present, and nowhere near a paragraph.
+ok("  with a sentence of glyphs where the prose will land",
+   first != null && first.noise > 12 && first.noise < 60);
 ok("  no words in it yet", first != null && first.words === 0);
 ok("  and Stop offered while there is something to stop", first != null && first.stopShown === true);
 // Seth: "let the all the glyphs be in the accent color." Read off the computed style rather than
@@ -83,13 +87,18 @@ const bareBlur = first?.dark;
 // writing; `last` is whatever it looked like at the end. The frontier of turning letters only
 // exists mid-write — it is drained deliberately when nothing more is coming, so asserting it on the
 // finished state tests the opposite of the feature.
-let mid = null, last = null, sawWords = false, seen = [];
+let mid = null, last = null, sawWords = false, seen = [], frontier = { scr: 0, lit: 0 };
 for (let i = 0; i < 400; i++) {
   const v = await veil();
   if (!v) break;
   last = v;
   if (v.words > 0 && !sawWords) { sawWords = true; }
   if (v.words > 0) { seen.push(v.words); if (!v.done) mid = v; }
+  // EVER, not at the end. The frontier only exists while the FIRST SENTENCE is being spelled out —
+  // a second or so — and every sample after that has none by design. Asking the last mid-write
+  // sample was asking the wrong moment, and it went red the day the lock-in stopped covering the
+  // whole passage.
+  if (v.scr > 0 && v.lit > 0) frontier = { scr: Math.max(frontier.scr, v.scr), lit: v.lit };
   if (v.done) break;
   await wait(250);
 }
@@ -101,12 +110,25 @@ ok("  in separate fading spans, not one blob", (mid?.spans ?? 0) > 5);
 // Seth: "let the glyphs slowly transition letter by letter in the accent color. white when words
 // actually form." So at any moment mid-write there is a short frontier of unsettled letters and a
 // much longer settled body behind it.
-ok("  with a turning frontier in front of settled letters",
-   mid != null && mid.scr > 0 && mid.lit > mid.scr);
+console.log(`  frontier at its widest: ${frontier.scr} turning, ${frontier.lit} settled behind it`);
+ok("  with a turning frontier in front of settled letters, while the first sentence was forming",
+   frontier.scr > 0 && frontier.lit > 0);
 // Seth: "as the streaming starts the rest of the glyphs goes away with the exception of the current
 // word." The held-open field is for before there is a passage; once there is one the only glyphs
 // left are the frontier's. Falsify by not removing `.noise` in liveDelta — this goes red alone.
 ok("  and the held-open field went with the first word", mid != null && mid.noise === 0);
+// Seth: "let the glyph section do the first sentence just as it is and then let the rest just fade
+// in whole." So the span count must NOT track the character count — one span per letter for the
+// first sentence, then one per arrival. Falsify by removing the SENTENCE_DONE branch in drainVeil:
+// spans climb to roughly one per character and this goes red.
+ok("  and only the first sentence is spelled out letter by letter",
+   last != null && last.spans > 0 && last.spans < last.words / 2);
+// Seth: "let the rest fade in slowly from left to right." A word at a time, in reading order — so
+// the tail is many small spans rather than one big one. Falsify by flushing the whole buffer per
+// frame again: `soft` collapses to a handful and this goes red.
+console.log(`  ${last?.soft ?? '-'} words swept in after the first sentence, over ${last?.words ?? '-'} characters`);
+ok("  and the rest sweeps in a word at a time rather than landing whole",
+   last != null && last.soft > 8 && last.soft < last.words);
 ok("  and nothing is left turning once the passage is done", last != null && last.scr === 0);
 ok("  Stop went with the glyphs once writing started", mid != null && mid.stopShown === false);
 ok("  the veil darkened when the words came", mid != null && mid.dark !== bareBlur);
@@ -145,6 +167,28 @@ ok("  text entering the composer takes the veil away, whatever typed it",
    (await page.eval("!!document.getElementById('ghost')")) === false);
 ok("  and nothing was added on top of what landed",
    (await page.eval("document.getElementById('input').value")) === "z");
+
+// ---- 3c. A TAP TAKES IT AWAY TOO, and the page does not change until it does.
+// Seth: "let a tap remove the veil as well. dont send the content to the main page until that tap
+// happens." Both halves asserted: a passage count that never moves would pass the second on its
+// own, so the first is the one that says the deferral is real rather than broken.
+await send("A fourth.");
+// THE BASELINE IS TAKEN ONCE THE VEIL IS UP, not when send was pressed. In Speak, Act and Narrate
+// the writer's own line goes on the page before the model is asked — `generate` does api.write,
+// api.story and paint() ahead of ghost() — so a count taken at the press moves for a reason that
+// has nothing to do with what is being tested here.
+for (let i = 0; i < 60; i++) { if (await page.eval("!!document.getElementById('ghost')")) break; await wait(100); }
+await wait(400);
+const before = await page.eval("document.querySelectorAll('#col .block').length");
+for (let i = 0; i < 200; i++) { if (await page.eval("!!document.querySelector('#ghost.done')")) break; await wait(300); }
+const during = await page.eval("document.querySelectorAll('#col .block').length");
+console.log(`  blocks: ${before} while writing, ${during} at the end of it`);
+ok("the passage did NOT land on the page while the veil was up", during === before);
+await page.click('#ghost .veiltext');
+await wait(1400);
+ok("a tap takes the veil away", (await page.eval("!!document.getElementById('ghost')")) === false);
+ok("  and the passage arrives all at once when it goes",
+   (await page.eval("document.querySelectorAll('#col .block').length")) > before);
 
 // ---- 4. THE TRAP CHECK. A veil that holds on success must still leave on a failure.
 await send("Once more, briefly.");

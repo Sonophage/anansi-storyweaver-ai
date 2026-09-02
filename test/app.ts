@@ -558,9 +558,15 @@ ok('one New story button, on the bar, and the shelf does not repeat it');
 // in-flight guard reads its own button: `querySelector('.lbl-txt')`, `disabled`, `textContent`. It
 // used to be `{ dataset }` alone, and `spark` joining that guard on 2026-08-30 turned this helper
 // into a TypeError rather than an assertion — a harness too thin to drive the thing it is driving.
-const click = (dataset: any) => listeners.click?.[0]?.({
+//
+// EVERY LISTENER, NOT `[0]`, for the reason `typeIn` below gives about `input` — and it cost a red
+// on 2026-09-02 to learn it twice. A second document-level `click` listener landed ABOVE the
+// delegated action handler (a tap anywhere on the veil dismisses it), so `[0]` stopped being the
+// handler this file exists to drive and `click({ open: 's-1' })` silently opened nothing. The
+// failure surfaced thirty lines later as "the rail must switch to the story nav".
+const click = (dataset: any) => (listeners.click ?? []).forEach((f: Function) => f({
   target: { closest: () => ({ dataset, querySelector: () => null, disabled: false, textContent: '' }) },
-});
+}));
 // Typing into a box the app watches by id. Two of them redraw only their own list rather than the
 // page — the ledger's search and #20's thread picker — and that is the behaviour being checked.
 //
@@ -570,8 +576,17 @@ const click = (dataset: any) => listeners.click?.[0]?.({
 // dispatching to THAT one instead, so nothing typed reached the app at all and the failure surfaced
 // four hundred lines away as `nodes.get('seeds')` being undefined. A harness that depends on
 // registration order tests a different program every time someone adds a listener.
+//
+// ENOUGH OF AN ELEMENT TO BE THE COMPOSER. The target was `{ id, value }`, which is everything the
+// panel and search listeners read — but `#input` has a listener of its own that records the
+// composer's geometry on the first keystroke after focus, and it reads
+// `getBoundingClientRect`, `scrollHeight`, `rows` and `style`. So `typeIn('input', ...)` threw
+// where every other id passed. Same fields the element stub above carries, same arbitrary numbers.
 const typeIn = (id: string, value: string) =>
-  (listeners.input ?? []).forEach((f: Function) => f({ target: { id, value } }));
+  (listeners.input ?? []).forEach((f: Function) => f({
+    target: { id, value, rows: 1, scrollHeight: 0, style: {},
+              getBoundingClientRect: () => ({ top: 0, bottom: 0, height: 0 }) },
+  }));
 click({ open: 's-1' });
 await new Promise((r) => setTimeout(r, 40));
 
@@ -3301,15 +3316,29 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   stubPassageId = 'p-4';
   POSTED.length = 0;
   click({ re: 'p-4' });
-  // Long enough for the whole chain: the streamed generation, the refetch of the story, and the
-  // repaint. 80ms was not, and the failure looked exactly like the marker never clearing.
+  // Long enough for the whole chain: the streamed generation and the refetch of the story. 80ms was
+  // not, and the failure looked exactly like the marker never clearing.
+  await new Promise((r) => setTimeout(r, 600));
+
+  // THE PAGE WAITS FOR THE VEIL NOW (2026-09-02). Seth: "dont send the content to the main page
+  // until that tap happens ... otherwise it overloads the browser." `paint()` rebuilt the whole
+  // reading column while the typewriter was drawing a letter every 38ms behind a full-screen blur,
+  // and the animation is what lost. So the repaint is handed to the veil and runs when it is
+  // dismissed. Asserted in both directions, because "it repaints eventually" would pass on the old
+  // behaviour and on a veil that never held anything back.
+  assert.match(html('col'), /class="cameback"/,
+    'the page must NOT be rebuilt while the veil is still up — that is the whole point of holding it');
+
+  // Typing is one of the three ways out, and the one this harness can drive: the click stub's
+  // `closest` answers every selector, so a fake tap looks like a tap on a button.
+  typeIn('input', 'x');
   for (let i = 0; i < 40 && /class="cameback"/.test(html('col')); i++) {
     await new Promise((r) => setTimeout(r, 25));
   }
   assert.doesNotMatch(html('col'), /class="cameback"/,
     'a passage this page watched arrive is not marked as having arrived while away');
   stubPassageId = undefined;
-  ok('and watching one arrive unmarks it, without claiming it');
+  ok('and watching one arrive unmarks it, without claiming it — once the veil is dismissed');
 }
 
 // ---- STOP TELLS THE SERVER, because hanging up no longer cancels (bugs.md #9).

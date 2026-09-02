@@ -443,9 +443,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'setupstep', 'setupkind',
   // The Threads list: filter to what is in context, and flip one card between always-on and
   // triggered without opening it.
-  'onlyin', 'flipact',
-  // The veil, once there is nothing left to stop.
-  'veilclose'].map((k) => `[data-${k}]`).join(',');
+  'onlyin', 'flipact'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -6076,9 +6074,9 @@ function ghost() {
 
   // A fresh veil is a fresh take: anything left buffered from the last one would type itself into
   // this one's box.
-  PEND = ''; SCR = []; LAST_TICK = 0;
+  PEND = ''; SCR = []; LAST_TICK = 0; SETTLED = ''; SENTENCE_DONE = false;
   if (DRAIN != null) cancelAnimationFrame(DRAIN); DRAIN = null;
-  VEIL_DONE = false;
+  VEIL_DONE = false; VEIL_LAND = null;
 
   const g = document.createElement('div');
   g.id = 'ghost'; g.className = 'veil';
@@ -6127,16 +6125,16 @@ function noiseRun() {
 /** THE SHAPE IS FIXED AND ONLY THE LETTERS MOVE. Seth, 2026-09-02: "allow the words and the initial
  *  shape to be the same everytime and only the letters shift."
  *
- *  Word lengths, not a character count. The earlier version rolled a space in at random every 88ms,
- *  so the silhouette churned as hard as the letters did and the field read as static rather than as
- *  a paragraph waiting to be written. Held still, it is the same block of unwritten prose every
- *  time you press send — the letters inside it turn, the shape does not.
+ *  Word lengths, not a character count, and a literal so it is identical on every press. An earlier
+ *  version rolled a space in at random every 88ms, so the silhouette churned as hard as the letters
+ *  and the field read as static rather than as a sentence waiting to be written.
  *
- *  Hand-picked rather than generated: a real distribution of English word lengths, so it has the
- *  texture of a paragraph, and a literal so it is identical on every press. 47 words, 284
- *  characters with the spaces. */
-const NOISE_SHAPE = [3, 6, 4, 2, 7, 5, 9, 3, 4, 8, 2, 6, 5, 3, 7, 4, 10, 2, 5, 6, 3, 8, 4,
-                     7, 2, 5, 9, 3, 6, 4, 2, 8, 5, 7, 3, 4, 6, 2, 9, 5, 3, 7, 4, 6, 2, 5, 8];
+ *  A SENTENCE, NOT A PARAGRAPH. It was 47 words — a whole block of held-open prose — and Seth:
+ *  "remove the shape of the words and just do a sentence or a single word where the output would be
+ *  any way." A paragraph of noise promises a paragraph, which is a promise the app cannot keep: it
+ *  does not know how long the passage is until it has one. Six words says "the writing starts here"
+ *  and says nothing it might have to take back. */
+const NOISE_SHAPE = [4, 7, 3, 6, 2, 5];
 
 /** THE PROSE, ARRIVING, INSIDE THE VEIL, AS A TYPEWRITER.
  *
@@ -6158,6 +6156,42 @@ const NOISE_SHAPE = [3, 6, 4, 2, 7, 5, 9, 3, 4, 8, 2, 6, 5, 3, 7, 4, 10, 2, 5, 6
  *  What changed is the other end: on success it now HOLDS, because it is something to read; on an
  *  abort or an error it comes down exactly as it did, because a failure must never trap anyone. */
 let PEND = '', DRAIN = null, VEIL_DONE = false, SCR = [], LAST_TICK = 0;
+
+/** THE LOCK-IN IS THE FIRST SENTENCE ONLY. Seth, 2026-09-02: "let the glyph section do the first
+ *  sentence just as it is and then let the rest just fade in whole."
+ *
+ *  Letter by letter is the arrival — it says the writing is starting. Held for four hundred words it
+ *  stops being an arrival and becomes the speed limit, and the writer is watching an animation
+ *  rather than reading a passage. So the first sentence turns and settles, and everything after it
+ *  is put down whole as it comes, with the same fade and none of the scramble.
+ *
+ *  It is also most of the cost. Per-letter spans over a 900-token passage are ~4,000 elements each
+ *  with its own animation; one sentence is fifty or so and the rest is a span per arrival. */
+let SETTLED = '', SENTENCE_DONE = false;
+
+/** A sentence ends at . ! or ? — with a closing quote allowed after it, because dialogue ends
+ *  `said."` — followed by a space. The cap is the guard: a model that writes two hundred characters
+ *  without a full stop is not a reason to type the whole passage out one letter at a time. */
+const sentenceEnded = (t) => /[.!?]["'\u201d\u2019]?\s$/.test(t) || t.length > 200;
+
+/** THE PAGE UPDATE, HELD BACK UNTIL THE VEIL GOES. Seth, 2026-09-02: "dont send the content to the
+ *  main page until that tap happens let it fade in all at once once the veil is removed otherwise
+ *  it overloads the browser."
+ *
+ *  He is right about the cost. `paint()` rebuilds the whole reading column with `innerHTML` — a
+ *  five-chapter book is hundreds of nodes — and it was running WHILE the typewriter was drawing a
+ *  letter every 38ms behind a full-screen blur. Two things fighting for the same main thread, and
+ *  the one that loses is the animation the writer is looking at.
+ *
+ *  Only the DRAWING is deferred. `api.story` still runs while the veil is up, because a fetch is
+ *  not content on the page and holding it back would put the network round trip between the
+ *  keystroke and the fade. What waits is `paint` and everything that repaints with it.
+ *
+ *  Synchronous on purpose: it runs inside `dismissVeil`, before the character the writer just typed
+ *  goes into the composer, because `drawDock` renders the textarea with no value and a repaint
+ *  after the insert would eat it. That is the repaint-eats-input fault this file has recorded eight
+ *  times; this is where the ninth would have been. */
+let VEIL_LAND = null;
 
 /** How many letters are still turning at the frontier, and how long a letter turns before it
  *  settles. Seth, 2026-09-02: "let it streamin letter by letter and let the glyphs slowly
@@ -6205,6 +6239,10 @@ function liveDelta(d) {
  *  letter by letter at every speed. */
 const tickGap = () => (PEND.length > 900 ? 6 : PEND.length > 400 ? 12 : PEND.length > 150 ? 22 : 38);
 
+/** The same bargain a word at a time: slow enough to sweep, and giving way to a backlog so the veil
+ *  is never still writing a paragraph the model finished a minute ago. */
+const wordGap = () => (PEND.length > 900 ? 14 : PEND.length > 400 ? 32 : 62);
+
 /** ONE SPAN PER LETTER, turning in the accent until the letters behind it have settled white.
  *
  *  No `setTimeout` per character — a 900-token passage is ~4,000 of them and 4,000 pending timers
@@ -6215,8 +6253,34 @@ function drainVeil(now) {
   DRAIN = null;
   const el = veilText();
   if (!el) { PEND = ''; SCR = []; return; }
+  const put = (span) => {
+    const noise = el.querySelector('.noise');
+    if (noise) el.insertBefore(span, noise); else el.append(span);
+  };
 
-  if (now - LAST_TICK >= tickGap()) {
+  if (SENTENCE_DONE) {
+    // THE REST, A WORD AT A TIME, LEFT TO RIGHT. Seth, 2026-09-02: "let the rest fade in slowly from
+    // left to right."
+    //
+    // It flushed the whole buffer per frame before this, so a model running ahead dropped a
+    // paragraph in one go — which is neither slow nor left to right, it is a paste. A word a tick
+    // with a long soft fade sweeps across the line in reading order, because that is the order the
+    // words are in. No mask and no per-letter stagger: an inline span that wraps masks per fragment,
+    // and letters are the thing the first sentence already did.
+    if (PEND && now - LAST_TICK >= wordGap()) {
+      LAST_TICK = now;
+      // Up to and including the next space, so a word arrives whole with its gap behind it.
+      let cut = PEND.indexOf(' ') + 1;
+      if (cut <= 0) cut = VEIL_DONE ? PEND.length : 0;   // the last word only lands once it is whole
+      if (cut > 0) {
+        const span = document.createElement('span');
+        span.className = 'tw lit soft';
+        span.textContent = PEND.slice(0, cut);
+        PEND = PEND.slice(cut);
+        put(span);
+      }
+    }
+  } else if (now - LAST_TICK >= tickGap()) {
     LAST_TICK = now;
     // Re-roll what is still turning, so the frontier moves rather than sitting on one glyph.
     for (const it of SCR) it.span.textContent = glyph();
@@ -6227,10 +6291,10 @@ function drainVeil(now) {
       span.className = 'tw scr';
       // A space has no glyph to turn into: it settles the moment it arrives, which is what makes
       // the frontier break into words rather than into a fixed-width crawl.
-      span.textContent = ch === ' ' || ch === '\n' ? ch : glyph();
-      const noise = el.querySelector('.noise');
-      if (noise) el.insertBefore(span, noise); else el.append(span);
-      if (ch === ' ' || ch === '\n') span.className = 'tw lit';
+      const bare = ch === ' ' || ch === '\n';
+      span.textContent = bare ? ch : glyph();
+      put(span);
+      if (bare) { span.className = 'tw lit'; SETTLED += ch; }
       else SCR.push({ span, ch });
     }
     // WHITE WHEN THE WORD FORMS. The oldest turning letter becomes itself once the frontier has
@@ -6240,6 +6304,14 @@ function drainVeil(now) {
       const it = SCR.shift();
       it.span.textContent = it.ch;
       it.span.className = 'tw lit';
+      SETTLED += it.ch;
+    }
+    // AND THAT IS THE FIRST SENTENCE DONE. Everything still turning settles at once rather than
+    // being abandoned mid-glyph, and the branch above takes over from here.
+    if (sentenceEnded(SETTLED)) {
+      SENTENCE_DONE = true;
+      for (const it of SCR) { it.span.textContent = it.ch; it.span.className = 'tw lit'; }
+      SCR = [];
     }
     // NO AUTO-SCROLL. Seth: "the view screen should stay at the top so the user can read." A box
     // that chases its own tail can only be read at the end, and the end is the part still arriving.
@@ -6248,6 +6320,7 @@ function drainVeil(now) {
   if (PEND || SCR.length) DRAIN = requestAnimationFrame(drainVeil);
   else if (VEIL_DONE) veilReadable();
 }
+
 
 
 /** The passage is complete and the buffer is empty, so there is nothing left to stop. The veil
@@ -6279,6 +6352,10 @@ function dismissVeil(ch) {
   const g = document.getElementById('ghost');
   if (!g || g.classList.contains('leaving')) return;
   PEND = ''; SCR = []; if (DRAIN != null) cancelAnimationFrame(DRAIN); DRAIN = null;
+  // THE PAGE, FIRST AND WHOLE. Behind a veil that is still opaque, so the fade below uncovers a
+  // finished page rather than one assembling itself in front of the writer.
+  const land = VEIL_LAND; VEIL_LAND = null;
+  if (land) land();
   // No resolve: `unghost` runs the ANANSI hold first, and 1.22s of flourish between the writer
   // pressing a key and the letter appearing is the app arguing with them.
   if (still()) g.remove();
@@ -6288,6 +6365,22 @@ function dismissVeil(ch) {
   inp.focus();
   if (ch) { inp.value += ch; inp.dispatchEvent(new Event('input', { bubbles: true })); }
 }
+
+/** A TAP ANYWHERE ON IT. Seth: "let a tap remove the veil as well." The buttons keep their own
+ *  jobs — Stop has to stay stoppable, and Close is already this — so the tap is only the ground.
+ *
+ *  On `#ghost` rather than the document: a click that started outside the veil is not a tap ON it,
+ *  and the delegated action handler two thousand lines down already owns everything else. */
+document.addEventListener('click', (e) => {
+  const g = document.getElementById('ghost');
+  if (!g || g.classList?.contains('leaving')) return;
+  // `closest` from the target, not `contains` from the veil: `test/app.ts` drives this file against
+  // a hand-built DOM that has no `Element.contains`, and every other handler here already asks the
+  // target where it is rather than asking an ancestor what it holds.
+  if (!e.target?.closest?.('#ghost')) return;
+  if (e.target.closest('button')) return;
+  dismissVeil('');
+});
 
 // One printable key, or Escape. Not while a modifier is down — ⌘R and ⌃C are not typing.
 //
@@ -6533,12 +6626,15 @@ async function generate(mode = S.mode) {
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
   clearComposer();
   V = await api.story(S.storyId, V.currentChapter.id);
-  arrive();
-  paint(); pinToSeam(); refreshManifest(); refreshHistory();
   const said = takeToast(r);
-  if (said) toast(said);
-  // Last, so the page behind the veil is already the page the writer will find when it goes.
-  veilFinish();
+  // HANDED TO THE VEIL, not done here. If there is no veil — a re-roll further up the page, reduced
+  // motion, a writer who already typed — it runs immediately and this is the old behaviour.
+  const land = () => {
+    arrive();
+    paint(); pinToSeam(); refreshManifest(); refreshHistory();
+    if (said) toast(said);
+  };
+  if (document.getElementById('ghost')) { VEIL_LAND = land; veilFinish(); } else land();
 }
 
 /** #9 · WHAT THE CONTRADICTION REPAIR DID TO THIS TAKE, said at the take.
@@ -6658,13 +6754,13 @@ async function regenerateInto(id, steer) {
   S.busy = false; working(null);
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
   V = await api.story(S.storyId, V.currentChapter.id);
-  paint(); refreshManifest(); refreshHistory();
   // #9 first: a take that still contradicts the canon outranks a note about which instruction it
   // re-ran. Both are toasts and only one is read.
-  toast(takeToast(r) ?? (r.reusedDirective
+  const say = takeToast(r) ?? (r.reusedDirective
     ? `New take on your instruction: ${String(r.reusedDirective).slice(0, 90)}`
-    : 'New take kept. Both are in History, with the canon each was written against.'));
-  veilFinish();
+    : 'New take kept. Both are in History, with the canon each was written against.');
+  const land = () => { paint(); refreshManifest(); refreshHistory(); toast(say); };
+  if (document.getElementById('ghost')) { VEIL_LAND = land; veilFinish(); } else land();
 }
 
 
@@ -7755,7 +7851,6 @@ document.addEventListener('click', async (e) => {
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     paint(); return;
   }
-  if (d.veilclose) { dismissVeil(''); return; }
   if (d.onlyin !== undefined) { S.onlyIn = d.onlyin === '1'; paint(); return; }
   if (d.kind || d.act || d.flipact) {
     // Type and activation are chips, so they save immediately rather than waiting for Save —

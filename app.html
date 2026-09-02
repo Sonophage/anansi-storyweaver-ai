@@ -260,9 +260,18 @@ input, textarea { font:inherit; color:inherit; }
   transition:color .42s var(--ease-out); }
 #ghost.veil .veiltext .tw.scr { color:var(--gold); }
 #ghost.veil .veiltext .tw.lit { color:var(--ink-bright); }
-/* Nothing left to stop: the control is the way out and says so. Gold, because it is now the thing
-   to press rather than the thing to press only if something is wrong. */
-#ghost.veil.done .veilstop { border-color:rgba(217,178,106,.42); color:var(--gold); }
+/* THE REST, SWEEPING IN. Longer and gentler than the frontier's flicker: those letters are being
+   spelled out and these are being read, so this one wants to be under the eye rather than in it.
+   Each word carries it as it lands, and the words land in reading order, which is what makes the
+   line fill from the left. */
+@keyframes softin { from { opacity:0; } to { opacity:1; } }
+#ghost.veil .veiltext .tw.soft { animation:softin .95s var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) { #ghost.veil .veiltext .tw.soft { animation:none; } }
+/* A TAP ANYWHERE TAKES IT AWAY, so the whole surface is the control. Seth: "let a tap remove the
+   veil as well." Nothing changes colour to say so — a full-screen sheet with prose on it does not
+   need a hint that pressing it does something, and a hint would be one more thing on a screen whose
+   whole job is to hold one paragraph. */
+#ghost.veil.done { cursor:pointer; }
 @media (prefers-reduced-motion: reduce) { #ghost.veil .veiltext .tw { animation:none; } }
 /* THE WEB DRAWS ITSELF. Seven strokes, the same ones as web/icon.svg, because she is Anansi and
    the wait is long enough to deserve something to watch. `pathLength="1"` normalises every stroke
