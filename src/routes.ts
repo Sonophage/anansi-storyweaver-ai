@@ -531,9 +531,23 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   // counting generations is not standing behind anything.
   if (onDelta) db.claimPassages(c.body.storyId);
   const { mode, directive } = inherit(c, mode0, directive0);
+  /*  WHAT THE ROW DOES NOT SAY YET. `latency_ms` below starts at `t0`, which is AFTER the view,
+   *  after the assembly and after the /tokenize round trip — so every latency number this project
+   *  has ever quoted, F24 and F49 included, is the model call alone and the wall clock a writer
+   *  feels is larger by an amount nothing measures.
+   *
+   *  Three marks, into `params`. That column is already free-form JSON (it is whatever the sampler
+   *  was) and nothing reads it back, so this needs no migration — the alternative, the `timings`
+   *  column, is llama.cpp's own object and has three readers in bench/ that expect its shape.
+   *
+   *  `performance.now()` and not `Date.now()` like `t0`: the view measures around 5ms and the
+   *  assembly around 20ms on the largest book here, and a 1ms clock cannot report a 5ms step
+   *  honestly. */
+  const mView = performance.now();
   // Generating into the chapter you are reading, for the same reason writing does — and it also
   // decides the CONTEXT: revising chapter three should see chapter three, not the whole book.
   const v = viewOf(c.body.storyId, c.body.chapterId);
+  const mAssemble = performance.now();
   const upTo = c.body.regenerateOf
     ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
   const reroll = isReroll(c, v, directive);
@@ -541,6 +555,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     Number(c.gen.max_tokens) || 900, c.body.speaker || undefined, db.promptsOf(c.owner),
     Number(c.gen.target_words) || 0,
     reroll);
+  const mTokenize = performance.now();
   if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
   // The estimate draws the meter; this decides. One /tokenize before a call that costs
@@ -555,6 +570,15 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
         `The server would drop ${first?.kind}/${first?.id} from the head first.` };
     }
   } catch { /* model asleep — let the call fail with its own error */ }
+  // Rounded to a tenth of a millisecond. `tokenize` is the /tokenize round trip and is the only one
+  // of the three that leaves this machine, so it is the one that can be slow for a reason none of
+  // the other two can — a busy model slot.
+  // `appMs` and not `ms`: the try below declares its own `const ms` for the model latency, which
+  // block-shadows anything named `ms` out here — so `params: { ...c.gen, ms }` would have logged
+  // the latency number under the key meant for these three, and looked plausible doing it.
+  const appMs = { view: Math.round((mAssemble - mView) * 10) / 10,
+                  assemble: Math.round((mTokenize - mAssemble) * 10) / 10,
+                  tokenize: Math.round((performance.now() - mTokenize) * 10) / 10 };
   const { thinking, ...sampler } = c.gen;
   const t0 = Date.now();
   try {
@@ -567,7 +591,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
       onDelta ? c.signal : undefined);
     const ms = Date.now() - t0;
     const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
-      params: c.gen, manifest, promptTokens: r.usage?.prompt_tokens,
+      params: { ...c.gen, ms: appMs }, manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     // THE CEILING, so it still has to be visible when it fires. `capFor` puts it well
     // above anything measured, but a runaway can reach it — and until now that arrived as a
