@@ -448,6 +448,27 @@ ok("  and the tray closes again", !/Write it down/.test(await page.text('#sideBo
 // door is not on screen and the composer's is the way back. That door clears the open entry as
 // well as the tray, which is what makes it the door to the LIST rather than to whatever was last
 // left open three presses ago.
+// THE PLATE, 2026-09-02 handoff: one treatment for the story panel's list and the cross-book
+// Threads page, which shared a renderer and still read as two kinds of thing. Computed style, not
+// the stylesheet, so a rule that is written and then overridden cannot pass this.
+{
+  const plate = await page.eval(`(() => { const c = document.querySelector('#sideBody .card.plate');
+    if (!c) return null; const s = getComputedStyle(c), n = c.querySelector('.platename');
+    return JSON.stringify({ spine: s.borderLeftWidth, minH: s.minHeight,
+      name: n ? getComputedStyle(n).fontSize : null,
+      pill: !!c.querySelector('.alwayson'),
+      chip: !!document.querySelector('#sideBody [data-flipact]') }); })()`);
+  const p = plate ? JSON.parse(plate) : null;
+  ok(`  threads are drawn as plates (${plate})`,
+     p != null && p.spine === '3px' && p.minH === '150px' && p.name === '22px');
+  // The pill is the one difference between the two surfaces and it is deliberate: here the
+  // activation chip below the card is PRESSABLE, so a second unpressable copy inside it would be
+  // the same fact twice, one of which does nothing. On the cross-book page there is no chip and the
+  // pill is the only thing saying how a thread fires.
+  ok('  with the pressable switch below rather than a second pill inside',
+     p != null && p.pill === false && p.chip === true);
+}
+
 const anyEntry = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
 if (anyEntry) {
   await page.click(`[data-entry="${anyEntry}"]`);

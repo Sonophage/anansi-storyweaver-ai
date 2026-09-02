@@ -1087,6 +1087,25 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 textarea.field { resize:vertical; min-height:70px; }
 .hint { font-size:11.5px; color:var(--mute); line-height:1.5; margin:6px 0 0; }
 .card { border:1px solid var(--chip); border-radius:var(--r); padding:13px 15px; display:flex; flex-direction:column; gap:5px; }
+/* THE PLATE — a thread, at both ends. The 2026-09-02 handoff: the story panel's list and the
+   cross-book Threads page used the same renderer and still read as two kinds of thing, because the
+   card was a generic card. A raised sheet with a serif name and a gold spine says "this is a thread"
+   wherever it is.
+   The spine is a BORDER-LEFT rather than a pseudo-element, so the picked state can recolour it
+   without a second rule reaching inside the card. */
+.card.plate { background:var(--sheet); border:1px solid var(--edge); border-left:3px solid var(--gold-dim);
+  border-radius:var(--r); padding:16px 18px; gap:7px; min-height:150px; }
+.card.plate .platename { font-family:'Instrument Serif', var(--serif, serif); font-size:22px;
+  line-height:1.15; color:var(--ink-bright); }
+.card.plate .tag.alwayson { border:1px solid rgba(217,178,106,.4); color:var(--gold);
+  white-space:nowrap; }
+/* THE HANDOFF'S PICKED STATE IS NOT HERE, and that is deliberate rather than an omission. Nothing
+   sets `aria-pressed` on a plate: the only place a thread is picked is the cross-book seed picker,
+   and that is `data-seedpick`, a different renderer with its own chosen treatment. A rule written
+   for a selector no markup carries is a rule that looks tested and is not.
+   Its warning is worth keeping even so, because it is about this file: a bare colour passed as the
+   whole `border` shorthand silently drops the declaration, and the card loses its edge and ground
+   with it. Every property above is named for that reason. */
 /* Summaries are supposed to be ~180 words and arrive at four times that, so they are clamped
    for the same reason canon flags are: the panel is an index, not a reading surface. */
 .clamp { display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden; }

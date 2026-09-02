@@ -3229,7 +3229,7 @@ function ledgerBooks() {
       <span class="hint" style="margin:0">It follows these cards rather than copying them.</span>
     </div>` : ''}
     ${shut ? '' : `${ledgerBanner(sid, b.title)}
-      <div class="grid">${b.rows.map(entryCard).join('')}</div>`}</div>`; }).join('')
+      <div class="grid">${b.rows.map((r) => entryCard(r, true)).join('')}</div>`}</div>`; }).join('')
     || `<div class="hint">${q || S.ledgerKind !== 'all' || S.ledgerSlot || only
       ? 'Nothing matches that.' : 'No entries yet.'}</div>`;
 }
@@ -4995,7 +4995,15 @@ function inContext(e, pin) {
  *  whose only room is a new one has nothing active to show and would draw the same blank line this
  *  exists to remove — test/ui/panels.js seeds exactly that case. `GET /api/ledger` has sent
  *  `addons` since #22's blocker was cleared, so none of this costs a request. */
-function entryCard(e) {
+/** THE PLATE, at both ends. The 2026-09-02 handoff: one treatment for the story panel's list and
+ *  the cross-book Threads page, which read as different kinds of thing and are not.
+ *
+ *  `pill` is the one difference between the two call sites and it is a real one. On the story panel
+ *  every card carries a PRESSABLE `data-flipact` chip under it — the one-press always-on/triggered
+ *  switch — so a second, unpressable "Always on" inside the card would be the same fact twice, one
+ *  of which does nothing. The cross-book page has no such chip, so there the pill is the only thing
+ *  saying how a thread fires, and the handoff is right that it needs one. */
+function entryCard(e, pill = false) {
   const rooms = e.addons ?? [];
   const preview = (e.body ?? '').trim()
     || rooms.find((a) => a.slot === 'facts')?.body?.trim()
@@ -5004,11 +5012,13 @@ function entryCard(e) {
   // AT THE TOP, and full width rather than a thumbnail beside the name. A card with a face on it is
   // found by the face; shrinking it to a 40px square beside the title makes it decoration.
   const pic = threadPic(e);
-  return `<button class="card" data-entry="${e.id}" style="text-align:left; width:100%">
+  return `<button class="card plate" data-entry="${e.id}" style="text-align:left; width:100%">
     ${pic ? `<img src="${pic}" alt="" loading="lazy" style="width:100%; height:104px;
       object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 8px">` : ''}
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
-      <span style="font-size:14.5px; color:var(--ink-bright)">${esc(e.title)}</span>
+      <span class="platename">${esc(e.title)}</span>
+      ${pill && (e.activation ?? 'always_on') === 'always_on'
+        ? '<span class="tag alwayson">always on</span>' : ''}
       ${e.sharedFrom ? `<span class="tag" style="border-color:var(--chip); color:var(--faint)"
         >from ${esc(e.sharedFrom)}</span>` : ''}
       ${e.retiredAtChapter != null ? `<span class="tag" style="border-color:var(--chip);
