@@ -59,7 +59,6 @@
      Coupled to the hold in web/app.js `solve()`: the hold must OUTLAST this or the veil leaves
      while the letters are still going. */
   --t-veilout:.62s;                         /* the veil letting go of the page, slower than it arrived */
-  --t-page:.42s;                            /* a whole surface arriving */
 
   --prose:20px; --bubble:17px; --gap:30px; --col:720px;
 }
@@ -155,9 +154,20 @@ input, textarea { font:inherit; color:inherit; }
   html { scroll-behavior:auto !important; } }
 
 @keyframes rise   { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:none; } }
-@keyframes settle { from { opacity:0; transform:translateY(-5px); } to { opacity:1; transform:none; } }
+/* ONE FADE FOR EVERYTHING THAT APPEARS, 2026-09-02 handoff. A panel's contents, a page's, the
+   cards, the hits, the shelf, the theme sheet and the toast all used to arrive by MOVING —
+   settle downward, lift upward, rise upward, sheet upward — four directions for one event, and the
+   direction never meant anything. They focus in now, the same way the words on the veil do, so
+   arriving is one idea across the app.
+   `filter` is composited, so this costs no more than the opacity fade inside the old ones.
+   `rise` KEEPS ITS ONE JOB: a new passage in the document. That one really did come from below —
+   it was written under the page — so the movement is the statement. The rail and the side panel
+   keep their edge-slides for the same reason: a sheet coming in from the edge it lives on is
+   saying where it came from. */
+@keyframes soften { from { opacity:0; filter:blur(7px); } to { opacity:1; filter:blur(0); } }
 @keyframes fade   { from { opacity:0; } to { opacity:1; } }
-@keyframes lift   { from { opacity:0; transform:translateY(10px) scale(.985); } to { opacity:1; transform:none; } }
+/* `lift` and `sheet` went with the rules that used them — `soften` replaced both. `settle` too.
+   test/web.ts refuses a @keyframes nothing animates, which is what named them. */
 
 /* A new passage RISES: it was written at the bottom and it arrives from there. Only the newest
    one animates — replaying the whole document on every repaint would be a slot machine, and at
@@ -303,13 +313,13 @@ input, textarea { font:inherit; color:inherit; }
 
 /* A panel's contents SETTLE in after the panel itself has arrived, so the two reads as one move
    rather than a race. The delay is the panel's own transition, near enough. */
-#sideBody > * { animation:settle var(--t) var(--ease-out) both; }
-#page > * { animation:lift var(--t-page) var(--ease-out) both; }
+#sideBody > * { animation:soften .45s var(--ease) both; }
+#page > * { animation:soften .5s var(--ease) both; }
 
 /* Rows and cards stagger, barely. Six steps is enough to read as a sequence; past that it is a
    wait. Anything below the sixth arrives with the sixth. */
 #sideBody .card, #sideBody .row, #page .storycard {
-  animation:rise var(--t-slow) var(--ease-out) both; }
+  animation:soften .5s var(--ease) both; }
 #sideBody .card:nth-child(1),  #page .storycard:nth-child(1)  { animation-delay:0ms; }
 #sideBody .card:nth-child(2),  #page .storycard:nth-child(2)  { animation-delay:22ms; }
 #sideBody .card:nth-child(3),  #page .storycard:nth-child(3)  { animation-delay:44ms; }
@@ -332,7 +342,7 @@ button:not(:disabled):active { transform:translateY(.5px); }
 :focus-visible { outline:2px solid var(--gold); outline-offset:2px; border-radius:var(--r); transition:none; }
 
 /* The toast comes up from the composer it is talking about, and leaves the way it came. */
-#toast { animation:rise var(--t) var(--ease-out) both; }
+#toast { animation:soften .42s var(--ease) both; }
 
 /* Chips that toggle — modes, outfits, kinds — do NOT move. They did not go anywhere; only their
    state changed, and moving them would say otherwise. */
@@ -353,7 +363,7 @@ button:not(:disabled):active { transform:translateY(.5px); }
    either double-renders or drops frames on a long document. An entrance that says where the
    content came from does the work without the cost. */
 #bar > div, #sideHead > * { animation:fade var(--t) var(--ease-out) both; }
-#hits > *, #books > * { animation:rise var(--t) var(--ease-out) both; }
+#hits > *, #books > * { animation:soften .42s var(--ease) both; }
 #hits > *:nth-child(1) { animation-delay:0ms; }
 #hits > *:nth-child(2) { animation-delay:20ms; }
 #hits > *:nth-child(3) { animation-delay:40ms; }
@@ -543,10 +553,10 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
     background:var(--sheet); backdrop-filter:none;
     padding:20px 18px calc(20px + env(safe-area-inset-bottom, 0px));
     box-shadow:none;
-    animation:sheet var(--t-slow) var(--ease-out) both;
+    animation:soften .45s var(--ease) both;
   }
 }
-@keyframes sheet { from { transform:translateY(14px); opacity:0 } to { transform:none; opacity:1 } }
+
 /* THE WAY OUT STAYS ON SCREEN. Full-screen means there is no outside left to tap, so the close
    button is the only exit — and it sat at the top of a panel that scrolls 332px at XL, so scrolling
    to the last theme scrolled away the only way back. A trap I made by making the panel full-screen;
