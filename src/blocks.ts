@@ -27,9 +27,22 @@ export type Kind =
 // cap it shared with point of view and the register, so the app's own hint guaranteed it was cut
 // first. It is not DIRECTIVE either — every part of that block is `keep: true`, so it cannot trim
 // and can only refuse.
+// DIRECTIVE MOVED AHEAD OF PROSE, 2026-09-02. It sat at 8, between PROSE and TAIL, so a passage
+// landing INSERTED into the middle of the prompt: everything from the new prose to the end was
+// reprocessed even though the writer had only appended. Ahead of the prose, an append is an append
+// and the whole head of the prompt stays in the KV cache.
+//
+// Measured, not reasoned: `bench/order.ts` replays real stored prompts under both orders and
+// scored 31 transitions on The Anagram at 2,640 chars reprocessed against 1,331 — half. The same
+// harness scored moving CANON-* behind the prose, which F50 proposed for the same reason, at +221%
+// — it makes an accepted thread cheap and every ordinary append expensive, and appends outnumber
+// accepts about seven to one. That arm was measured and rejected; this one is here.
+//
+// It reads the same words in a different sequence, so nothing about the token count changes. What
+// it MIGHT change is the prose, which is why bench/ab.ts runs on it.
 export const ORDER: Kind[] = [
   'SPINE', 'VOICE', 'STYLE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'STRING',
-  'EARLIER', 'PROSE', 'DIRECTIVE', 'TAIL', 'MODE',
+  'EARLIER', 'DIRECTIVE', 'PROSE', 'TAIL', 'MODE',
 ];
 // CANON-REPEAT lived here between DIRECTIVE and TAIL from F15 until F20 measured it at 850
 // generations per arm and found nothing: -0.02 points on contradictions, +0.24 on the silver
