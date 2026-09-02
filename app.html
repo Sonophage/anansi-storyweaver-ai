@@ -58,7 +58,6 @@
      to fix one effect — which is why this has its own name instead of a bigger number up there.
      Coupled to the hold in web/app.js `solve()`: the hold must OUTLAST this or the veil leaves
      while the letters are still going. */
-  --t-weave:.9s;
   --t-veilout:.62s;                         /* the veil letting go of the page, slower than it arrived */
   --t-page:.42s;                            /* a whole surface arriving */
 
@@ -185,6 +184,10 @@ input, textarea { font:inherit; color:inherit; }
    so it is the right darkness on Parchment as well as on Obsidian. */
 #ghost.veil { position:absolute; inset:0; z-index:50; display:flex; align-items:center;
   justify-content:center;
+  /* THE TINT ARRIVES WITH THE VEIL, 2026-09-02 handoff. It was removed on 2026-08-28 — 62%, then
+     31%, then none — because the veil then had glyphs on it and Seth wanted the blur alone. It has
+     prose on it now, and prose over an unblurred page of other prose is two texts competing. */
+  background:rgba(10,9,12,.72);
   /* NO TINT AT ALL, 2026-08-28. 62% then 31% then none: Seth wanted to see the blur on its own.
      A blur alone still says "busy" — the words go and the shapes stay — and it says it without
      putting a sheet of colour between you and your book. If this reads as too legible on a light
@@ -197,7 +200,8 @@ input, textarea { font:inherit; color:inherit; }
    3.5px — 14, then 7, then this, all on 2026-08-28 and all by eye, which is the only instrument for
    it. With the tint gone the blur is the only thing between the writer and the page, and it only
    has to say "not now" rather than take the book away. */
-#ghost.veil, #dock.big { background:transparent;
+#dock.big { background:transparent; }
+#ghost.veil, #dock.big {
   backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95); }
 /* GOING IS SLOWER THAN ARRIVING. Seth, 2026-09-02: "the fade away to input should be a little more
    gradual." .2s was the default token for hovers and chips, which is right for a thing that has
@@ -207,120 +211,61 @@ input, textarea { font:inherit; color:inherit; }
    anything moved. */
 #ghost.veil.leaving { animation:veilout var(--t-veilout) var(--ease-out) both; }
 #ghost.veil .narr { text-align:center; display:flex; flex-direction:column; align-items:center; gap:22px; }
-/* THE GLYPHS ARE THE TEXT'S OWN SPACE NOW, not a grid beside it. Seth, 2026-09-02: "change the
-   glyphs to not be columns and rows. but to be where the streaming would come in. as it comes in
-   the glyphs are replaced by the words." So the noise sits inside .veiltext, in the same type at
-   the same size, and the words push into it. Dimmer than the prose, because it is the space and
-   not the thing. */
-#ghost.veil .noise { color:var(--gold-dim); user-select:none; }
-#ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
-  letter-spacing:.05em; white-space:nowrap; animation:veilbreathe 1.5s ease-in-out infinite; }
-/* THE PROSE ARRIVING, UNDER THE WEAVE. 2026-09-02. Not `.head` above, which is nowrap and breathing
-   — that was the removed one-line status span and it is the wrong shape for a paragraph.
+/* WORDS FOCUSING OUT OF THE BLUR. The 2026-09-02 handoff, replacing the per-letter frontier that
+   preceded it. `filter` is composited, so this costs no more than the opacity fade it replaces. */
+@keyframes inkin { from { opacity:0; filter:blur(6px); } to { opacity:1; filter:blur(0); } }
+#ghost.veil .veiltext .w { animation:inkin .75s var(--ease) both; color:var(--ink); }
+/* THE LAST THREE WORDS STAY IN THE ACCENT. A tail rather than a highlight: it marks where the
+   writing has got to, so it lets go of the word behind it as it moves. The colour transition is
+   what makes that letting-go read as the sentence settling rather than as three lamps switching. */
+#ghost.veil .veiltext .w.tip { color:var(--gold); }
+#ghost.veil .veiltext .w { transition:color .5s var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { #ghost.veil .veiltext .w { animation:none; } }
 
-   SERIF AND LEFT-ALIGNED, because it is prose and `.narr` centres everything else. Sized well under
-   the reading column: this is a writer watching it arrive, not reading it here — the passage lands
-   in the page when the veil goes.
-
-   The height is CAPPED and it scrolls, so a 900-token passage cannot push Stop off the screen.
-   Stop sits below this in `.narr` and it is the one control that must never be unreachable, which
-   is the whole trade PLAN-07 made when the veil went full screen.
-
-   `mask-image` fades the top edge so the text reads as coming up out of the weave rather than
-   sitting in a box with a hard cut. Compositor-only, like the rest of this surface. */
+/* THE ONLY METER ON THE SURFACE: a rule down the margin. No count, no status line — the handoff is
+   explicit that the passage is the only thing to look at. `align-self:stretch` so it is exactly as
+   tall as the prose beside it, whatever that turns out to be. */
+/* THE PROSE, SET LARGE AND QUIET. The handoff's numbers: the reading serif at 22px on 1.62, left
+   aligned inside a `.narr` that centres everything else, and a column capped so a line is a line
+   rather than the width of the screen.
+   CAPPED AND SCROLLING, which the handoff does not say and the app needs: a 900-token passage is
+   taller than any window, and Stop sits below this in `.narr` — the one control that must never be
+   pushed off the screen, which is the trade PLAN-07 made when the veil went full screen.
+   The view stays where the reader put it. Nothing scrolls it to the bottom. */
 #ghost.veil .veiltext {
-  max-width:min(62ch, 78vw); max-height:min(58vh, 520px); overflow-y:auto; text-align:left;
-  font-family:var(--serif,serif); font-size:15.5px; line-height:1.62; color:var(--mute);
-  white-space:pre-wrap; overflow-wrap:break-word; scrollbar-width:none;
-  /* No top mask any more: the view stays at the top so the passage can be read from its first
-     word, and a fade over the first line is a fade over the thing being read. */ }
+  max-width:min(48ch, 72vw); max-height:min(58vh, 520px); overflow-y:auto; text-align:left;
+  font-family:'Instrument Serif', var(--serif, serif); font-size:22px; line-height:1.62;
+  color:var(--ink); white-space:pre-wrap; overflow-wrap:break-word; scrollbar-width:none; }
 #ghost.veil .veiltext::-webkit-scrollbar { display:none; }
-/* Empty until the first token, and an empty box with a mask still reserves its gap in the column.
-   `:empty` collapses it so the veil looks exactly as it did before a word arrives. */
-/* STOP GOES WITH THE GLYPHS. Seth, 2026-09-02: "the stop button should also dissapear." Once the
-   words are arriving the surface is a page to read, and a button on it is the only thing asking to
-   be pressed.
-   THIS ONLY WORKS BECAUSE THE COMPOSER TOOK STOP BACK. An earlier version of this comment claimed
-   the composer's Stop was waiting underneath, and it was not: PLAN-07 moved Stop onto the veil and
-   left `#send` as a DISABLED Send, so between hiding this button and the veil becoming dismissible
-   there was no way to stop a generation after the first token at all. `drawDock` renders `#send` as
-   Stop whenever she is writing and no veil is in front of it. */
-#ghost.veil.written .veilstop { display:none; }
-/* AND IT DARKENS. Seth: "as the text starts streaming let the veil darken."
-   The tint was deliberately removed on 2026-08-28 — 62%, then 31%, then none, because he wanted to
-   see the blur on its own. That was a veil with nothing on it but glyphs; this one has prose to
-   read, and prose over an unblurred page of other prose is two texts competing. It arrives WITH the
-   words rather than on the press, so the "not now" state is still the bare blur it was chosen to
-   be. Slow, because the eye should not catch it happening. */
-#ghost.veil.written { background:rgba(10,9,12,.72); transition:background 1.4s var(--ease-out); }
-/* A LETTER TURNING, THEN A LETTER. Seth, 2026-09-02: "let the glyphs slowly transition letter by
-   letter in the accent color. white when words actually form."
-   `.scr` is the frontier — the glyph it has not settled into yet, in the accent. `.lit` is the
-   letter itself, in the bright ink, and the colour transition is what makes the change read as the
-   word forming rather than as a swap. The fade-in is on the arrival either way, so a letter does
-   not pop in at full strength one frame before its colour is decided. */
-@keyframes twin { from { opacity:0; } to { opacity:1; } }
-#ghost.veil .veiltext .tw { animation:twin .3s var(--ease-out) both;
-  transition:color .42s var(--ease-out); }
-#ghost.veil .veiltext .tw.scr { color:var(--gold); }
-#ghost.veil .veiltext .tw.lit { color:var(--ink-bright); }
-/* THE REST, SWEEPING IN. Longer and gentler than the frontier's flicker: those letters are being
-   spelled out and these are being read, so this one wants to be under the eye rather than in it.
-   Each word carries it as it lands, and the words land in reading order, which is what makes the
-   line fill from the left. */
-@keyframes softin { from { opacity:0; } to { opacity:1; } }
-#ghost.veil .veiltext .tw.soft { animation:softin .95s var(--ease-out) both; }
-@media (prefers-reduced-motion: reduce) { #ghost.veil .veiltext .tw.soft { animation:none; } }
-/* A TAP ANYWHERE TAKES IT AWAY, so the whole surface is the control. Seth: "let a tap remove the
-   veil as well." Nothing changes colour to say so — a full-screen sheet with prose on it does not
-   need a hint that pressing it does something, and a hint would be one more thing on a screen whose
-   whole job is to hold one paragraph. */
+#ghost.veil .veilrow { display:flex; align-items:stretch; gap:22px; }
+#ghost.veil .veilmeter { flex:0 0 3px; width:3px; align-self:stretch; background:var(--chip);
+  border-radius:var(--r-tight); overflow:hidden; }
+#ghost.veil .veilmeter i { display:block; width:100%; height:0; background:var(--gold);
+  transition:height .18s linear; }
+
+/* The seven-stroke web and the breathing status line were both removed from `ghost()`'s markup
+   long before this — the web on 2026-08-28, the head with the streaming that fed it — and their
+   rules sat here rendering nothing. Deleted 2026-09-02 with the handoff, along with `--t-weave`,
+   which only the grid's letters used. */
+
+/* STOP STAYS FOR THE WHOLE WRITE, and goes only when there is nothing left to stop. It used to
+   hide at the first word — written for a surface whose words began after a waiting screen, and with
+   the waiting screen gone that rule hid Stop before it had ever been seen.
+   A tap anywhere else takes the veil away, so the whole surface is the way out; nothing changes
+   colour to say so, because a sheet with one paragraph on it does not need the hint. */
+#ghost.veil.done .veilstop { display:none; }
 #ghost.veil.done { cursor:pointer; }
-@media (prefers-reduced-motion: reduce) { #ghost.veil .veiltext .tw { animation:none; } }
-/* THE WEB DRAWS ITSELF. Seven strokes, the same ones as web/icon.svg, because she is Anansi and
-   the wait is long enough to deserve something to watch. `pathLength="1"` normalises every stroke
-   to one unit, so a single dasharray draws a 320px radial and a 1030px ring at the same rate
-   without anybody measuring either. Radials first, then the rings, then the whole thing breathes.
-   `stroke-dashoffset` and `opacity` are both compositor properties: this costs nothing on a box
-   that is loading a 35B model at the same time. */
-/* The whole web turns, slowly, for as long as she is thinking — a web being spun rather than a
-   picture of one. 48s for a full turn is below the speed anything reads as spinning; it is the
-   kind of movement you notice only by looking away and back. `rotate` on the element and the draw
-   on its strokes are two different properties, so neither interrupts the other. */
-#ghost.veil .web { width:min(46vw, 210px); height:auto; color:var(--gold-dim); opacity:.9;
-  animation:webturn 48s linear infinite; }
-#ghost.veil .web g > * {
-  stroke-dasharray:1; stroke-dashoffset:1;
-  animation:webdraw 1.1s var(--ease-out) forwards, webbreathe 4s ease-in-out 1.6s infinite;
-}
-@keyframes webturn { to { transform:rotate(360deg); } }
-#ghost.veil .web g > :nth-child(1) { animation-delay:0s, 1.6s; }
-#ghost.veil .web g > :nth-child(2) { animation-delay:.08s, 1.7s; }
-#ghost.veil .web g > :nth-child(3) { animation-delay:.16s, 1.8s; }
-#ghost.veil .web g > :nth-child(4) { animation-delay:.24s, 1.9s; }
-#ghost.veil .web g > :nth-child(5) { animation-delay:.42s, 2.0s; }
-#ghost.veil .web g > :nth-child(6) { animation-delay:.54s, 2.1s; }
-#ghost.veil .web g > :nth-child(7) { animation-delay:.66s, 2.2s; }
-@keyframes webdraw { to { stroke-dashoffset:0; } }
-@keyframes webbreathe { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
-/* Styled beside #send.stopping at the foot of this file, so the two read as one control. */
 #ghost.veil .veilstop { display:flex; align-items:center; gap:8px; padding:11px 20px;
   border-radius:var(--r-pill); border:1px solid var(--edge-lit); background:var(--sheet);
   color:var(--ink-bright); font-size:12.5px; letter-spacing:.06em; }
 @keyframes veilin { from { opacity:0; } to { opacity:1; } }
 @keyframes veilout { from { opacity:1; } to { opacity:0; } }
-/* PLAN-07 bug 3: this was also called `breathe`, and so was #send.stopping's at the bottom of
-   this file. The later declaration wins for BOTH, so the veil's head has never pulsed at the
-   amplitude written for it — .7-to-.28 here against 1-to-.62 there. Renamed rather than merged:
-   they are two different amplitudes for two different things. */
-@keyframes veilbreathe { 0%, 100% { opacity:.7; } 50% { opacity:.28; } }
+/* `veilbreathe` went with `.head`, the status line it pulsed. PLAN-07 bug 3 is recorded in the
+   history rather than here: it was called `breathe`, so was #send.stopping's at the foot of this
+   file, and the later declaration won for both — the veil's head never pulsed at the amplitude
+   written for it. Nothing carries that name now. */
 @media (prefers-reduced-motion: reduce) {
   #ghost.veil { animation:none; }
-  #ghost.veil .head { animation:none; }
-  /* The web is DRAWN, not animated in: without this it would sit at dashoffset 1, which is a web
-     that never appears at all. */
-  #ghost.veil .web { animation:none; }
-  #ghost.veil .web g > * { animation:none; stroke-dashoffset:0; }
 }
 
 /* THE PASSAGE ARRIVING, LEFT TO RIGHT. A mask three times the width of the block: at 100% the

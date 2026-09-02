@@ -17,21 +17,20 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
-const veil = (what) => page.eval(`(() => {
+const veil = () => page.eval(`(() => {
   const g = document.getElementById('ghost'); if (!g) return null;
-  const t = g.querySelector('.veiltext'), n = g.querySelector('.noise');
-  const b = g.querySelector('.veilstop');
+  const t = g.querySelector('.veiltext'), b = g.querySelector('.veilstop');
+  const fill = g.querySelector('.veilmeter i');
   return JSON.stringify({
-    noise: n ? n.textContent.length : 0,
-    words: t ? t.textContent.length - (n ? n.textContent.length : 0) : 0,
-    spans: t ? t.querySelectorAll('span.tw').length : 0,
-    scr: t ? t.querySelectorAll('span.tw.scr').length : 0,
-    soft: t ? t.querySelectorAll('span.tw.soft').length : 0,
-    lit: t ? t.querySelectorAll('span.tw.lit').length : 0,
-    noiseColour: n ? getComputedStyle(n).color : null,
+    words: t ? t.querySelectorAll('span.w').length : 0,
+    tip: t ? t.querySelectorAll('span.w.tip').length : 0,
+    chars: t ? t.textContent.length : 0,
+    held: t ? t.innerHTML.length : 0,
     stopShown: b ? getComputedStyle(b).display !== 'none' : false,
     dark: getComputedStyle(g).backgroundColor,
+    meter: fill ? parseFloat(fill.style.height) || 0 : -1,
     top: t ? t.scrollTop : -1,
+    serif: t ? getComputedStyle(t).fontSize : null,
     written: g.classList.contains('written'), done: g.classList.contains('done') });
 })()`).then((s) => (s ? JSON.parse(s) : null));
 
@@ -46,105 +45,57 @@ const sid = await page.eval("(async () => (await (await fetch('/api/stories')).j
 await page.goto(B + "/#" + sid);
 for (let i = 0; i < 40; i++) { if (await page.eval("!!document.querySelector('#rail [data-nav]')")) break; await wait(250); }
 
-// ---- 1. before the first token: a field of glyphs, Stop offered, no tint
+// ---- 1. before the first token: nothing held open, the tint already there, Stop offered
 await send("The rain does not stop.");
 let first = null;
 for (let i = 0; i < 60; i++) { first = await veil(); if (first) break; await wait(100); }
 ok("the veil goes up on the press", first != null);
-// Seth: "remove the shape of the words and just do a sentence or a single word where the output
-// would be any way." A sentence, so: present, and nowhere near a paragraph.
-ok("  with a sentence of glyphs where the prose will land",
-   first != null && first.noise > 12 && first.noise < 60);
-ok("  no words in it yet", first != null && first.words === 0);
-ok("  and Stop offered while there is something to stop", first != null && first.stopShown === true);
-// Seth: "let the all the glyphs be in the accent color." Read off the computed style rather than
-// the stylesheet, so a rule that is written and then overridden cannot pass this.
-{
-  const accent = await page.eval(
-    "getComputedStyle(document.documentElement).getPropertyValue('--gold-dim').trim()");
-  const asRGB = await page.eval(`(() => { const d = document.createElement('span');
-    d.style.color = ${JSON.stringify(accent)}; document.body.appendChild(d);
-    const c = getComputedStyle(d).color; d.remove(); return c; })()`);
-  console.log("  glyph field colour: " + first?.noiseColour + "  accent: " + asRGB);
-  ok("  the glyphs are in the accent colour", first != null && first.noiseColour === asRGB);
-}
-// Seth: "allow the words and the initial shape to be the same everytime and only the letters
-// shift." Two rolls, 200ms apart, at ~11 rolls a second: the space positions must be identical and
-// the letters must not be. Asserting BOTH halves — a field that never changed at all would satisfy
-// the first on its own, and that is the failure the second one names.
-{
-  const roll = () => page.eval("document.querySelector('#ghost .noise')?.textContent ?? ''");
-  const a = await roll(); await wait(200); const b = await roll();
-  const gaps = (x) => [...x].map((c, i) => (c === ' ' ? i : -1)).filter((i) => i >= 0).join(',');
-  console.log(`  field: ${a.length} chars, ${gaps(a).split(',').length} words`);
-  ok("  the field keeps its shape between rolls", a.length > 0 && gaps(a) === gaps(b));
-  ok("  and the letters inside it shift", a !== b);
-}
-const bareBlur = first?.dark;
+// The 2026-09-02 handoff removes the opening screen outright — no web, no glyph grid, no field of
+// noise standing in for prose that has not been written. Asserted on the RENDERED length, not on a
+// class: a surface that held anything would have markup in it.
+ok("  with nothing standing in for the passage", first != null && first.held === 0 && first.chars === 0);
+ok("  and Stop offered from the first frame", first != null && first.stopShown === true);
+// The tint used to arrive with the words. It arrives with the veil now, so the page behind is
+// already down to a ground rather than turning into one while the writer is reading.
+ok("  and the ground already dark, not waiting for the words",
+   first != null && /rgba?\(/.test(first.dark) && first.dark !== 'rgba(0, 0, 0, 0)');
+ok("  the prose is set at the handoff's 22px", first != null && first.serif === '22px');
 
-// ---- 2. as the words arrive they take the glyphs' place, Stop goes, the ground darkens
-// TWO SAMPLES, and keeping them apart is the point. `mid` is the last look while it was still
-// writing; `last` is whatever it looked like at the end. The frontier of turning letters only
-// exists mid-write — it is drained deliberately when nothing more is coming, so asserting it on the
-// finished state tests the opposite of the feature.
-let mid = null, last = null, sawWords = false, seen = [], frontier = { scr: 0, lit: 0 };
+// ---- 2. the words focus in, the accent trails them, the rule fills, Stop stays
+let mid = null, last = null, seen = [], tips = new Set(), meters = [];
 for (let i = 0; i < 400; i++) {
   const v = await veil();
   if (!v) break;
   last = v;
-  if (v.words > 0 && !sawWords) { sawWords = true; }
-  if (v.words > 0) { seen.push(v.words); if (!v.done) mid = v; }
-  // EVER, not at the end. The frontier only exists while the FIRST SENTENCE is being spelled out —
-  // a second or so — and every sample after that has none by design. Asking the last mid-write
-  // sample was asking the wrong moment, and it went red the day the lock-in stopped covering the
-  // whole passage.
-  if (v.scr > 0 && v.lit > 0) frontier = { scr: Math.max(frontier.scr, v.scr), lit: v.lit };
+  if (v.words > 0) { seen.push(v.words); meters.push(v.meter); if (!v.done) { mid = v; tips.add(v.tip); } }
   if (v.done) break;
   await wait(250);
 }
-console.log(`  mid-write: ${mid?.scr ?? '-'} turning, ${mid?.lit ?? '-'} settled`
-  + `   ·  finished: ${last?.scr ?? '-'} turning, ${last?.lit ?? '-'} settled`);
 console.log("  words: " + JSON.stringify(seen.slice(0, 8)) + (seen.length > 8 ? " …" : ""));
-ok("the prose types itself in", sawWords && new Set(seen).size > 1);
-ok("  in separate fading spans, not one blob", (mid?.spans ?? 0) > 5);
-// Seth: "let the glyphs slowly transition letter by letter in the accent color. white when words
-// actually form." So at any moment mid-write there is a short frontier of unsettled letters and a
-// much longer settled body behind it.
-console.log(`  frontier at its widest: ${frontier.scr} turning, ${frontier.lit} settled behind it`);
-ok("  with a turning frontier in front of settled letters, while the first sentence was forming",
-   frontier.scr > 0 && frontier.lit > 0);
-// Seth: "as the streaming starts the rest of the glyphs goes away with the exception of the current
-// word." The held-open field is for before there is a passage; once there is one the only glyphs
-// left are the frontier's. Falsify by not removing `.noise` in liveDelta — this goes red alone.
-ok("  and the held-open field went with the first word", mid != null && mid.noise === 0);
-// Seth: "let the glyph section do the first sentence just as it is and then let the rest just fade
-// in whole." So the span count must NOT track the character count — one span per letter for the
-// first sentence, then one per arrival. Falsify by removing the SENTENCE_DONE branch in drainVeil:
-// spans climb to roughly one per character and this goes red.
-// PER-LETTER SPANS ARE BOUNDED BY THE SENTENCE CAP, whatever the passage turns out to be. The
-// first version of this asserted `spans < characters / 2`, which is a property of how long the
-// model happened to write — on a short passage a 60-letter first sentence plus its words exceeds
-// half the characters and it went red for no defect at all. `sentenceEnded` caps the lock-in at
-// 200 characters, so this is the rule itself rather than a symptom of it.
-const perLetter = last != null ? last.spans - last.soft : -1;
-console.log(`  ${perLetter} letters spelled out, ${last?.soft ?? '-'} words swept, ${last?.words ?? '-'} characters`);
-ok("  and only the first sentence is spelled out letter by letter",
-   perLetter > 0 && perLetter <= 205);
-// Seth: "let the rest fade in slowly from left to right." A word at a time, in reading order — so
-// the tail is many small spans rather than one big one. Falsify by flushing the whole buffer per
-// frame again: `soft` collapses to a handful and this goes red.
-ok("  and the rest sweeps in a word at a time rather than landing whole",
-   last != null && last.soft > 8 && last.soft < last.words);
-ok("  and nothing is left turning once the passage is done", last != null && last.scr === 0);
-ok("  Stop went with the glyphs once writing started", mid != null && mid.stopShown === false);
-ok("  the veil darkened when the words came", mid != null && mid.dark !== bareBlur);
+console.log("  meter: " + JSON.stringify(meters.slice(0, 8).map((x) => Math.round(x))) + " …");
+ok("the prose arrives word by word", seen.length > 1 && new Set(seen).size > 1);
+// Seth's handoff: "the last three words stay in the accent". A tail, so it has to LET GO — a
+// version that only ever added the class would sit at three and pass a naive count, which is why
+// this asserts the ceiling rather than the presence.
+console.log("  accent tail widths seen: " + JSON.stringify([...tips].sort((a, b) => a - b)));
+ok("  with an accent tail that never grows past three",
+   tips.size > 0 && Math.max(...tips) <= 3 && Math.max(...tips) > 0);
+// The meter has no honest denominator, so it is asymptotic — it must climb and must never reach
+// the end before the passage does.
+ok("  and a rule that climbs without ever arriving early",
+   meters.length > 1 && Math.max(...meters) > Math.min(...meters) && mid != null && mid.meter < 100);
+// The handoff is explicit: Stop stays for the WHOLE write. It used to hide at the first word, a
+// rule written for a surface whose words began after a waiting screen.
+ok("  Stop stayed up the whole time she was writing", mid != null && mid.stopShown === true);
 // Seth: "the view screen should stay at the top so the user can read."
 ok("  and the view stayed at the top rather than chasing the tail", mid != null && mid.top === 0);
 
 // ---- 3. it holds when the passage is done, and typing is the way out
 const done = last;
 ok("the veil holds after the passage finishes", done != null && done.done === true);
-ok("  the glyph field is still gone at the end", done != null && done.noise === 0);
+ok("  the rule is full and the accent has let go",
+   done != null && done.meter === 100 && done.tip === 0);
+ok("  and Stop is gone, because there is nothing left to stop", done != null && done.stopShown === false);
 ok("  and the passage landed on the page behind it",
    (await page.eval("document.querySelectorAll('#col .block').length")) > 0);
 // A REAL key event, not a synthetic one. The first version of this check dispatched a
@@ -196,15 +147,14 @@ ok("a tap takes the veil away", (await page.eval("!!document.getElementById('gho
 ok("  and the passage arrives all at once when it goes",
    (await page.eval("document.querySelectorAll('#col .block').length")) > before);
 
-// ---- 3d. STOPPING IS STILL POSSIBLE AFTER THE FIRST TOKEN.
-// The veil's Stop hides once the words start, and it was the ONLY Stop in the app — PLAN-07 moved
-// it there and left #send as a disabled Send. So between that and the veil becoming dismissible, a
-// writer who left the veil early could not stop a generation at all. Falsify by reverting #send to
-// the disabled-Send branch in drawDock: this goes red.
+// ---- 3d. TWO REACHABLE STOPS MID-WRITE, which is what the handoff's "Stop hole" section asks for.
+// The veil keeps its own for the whole write now; and leaving the veil early must still leave one,
+// because #send was a DISABLED Send until 2026-09-02 and there was a window with no Stop at all.
+// Falsify by reverting #send to the disabled-Send branch in drawDock: the second of these goes red.
 await send("A fifth, and stop it.");
 for (let i = 0; i < 80; i++) { if ((await veil())?.written) break; await wait(150); }
-ok("the veil hid its own Stop once the words started",
-   (await veil())?.stopShown === false);
+ok("the veil keeps its own Stop while the words arrive",
+   (await veil())?.stopShown === true);
 await page.eval("(() => { document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); return 1; })()");
 await wait(250);
 ok("  and leaving the veil mid-write hands Stop back to the composer",

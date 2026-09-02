@@ -27,14 +27,16 @@ re-runs that passage's own instruction, which you edit on the passage itself.
 The waiting screen used to hold until the whole passage was finished, and on a long one that is
 twenty seconds of watching letters roll.
 
-Now the waiting screen marks where the writing will start: one sentence of turning letters in the
-accent, the same shape every time you press send, with only the letters inside it moving.
+The waiting screen shows nothing now — no web, no letters, nothing standing in for a passage that
+has not been written. The page goes down to a blur and stays there.
 
-Then the first sentence locks in, a letter at a time — each one arriving as a turning glyph and
-going white as it settles, so the sentence forms out of the field rather than being pasted over it.
-After that the rest sweeps in a word at a time, left to right, fading as it goes. The ground darkens
-behind the prose as it comes, so what you are reading is the only thing lit, and the view holds at
-the top so you read from the first word rather than trailing the last one.
+Then the words arrive, one at a time, focusing out of that blur. The last three stay gold so you can
+see where the writing has got to; everything behind them settles into the page. A thin gold rule
+down the left is the only other thing on the screen: no count, no status, nothing to read but the
+passage. It starts at the top and stays there.
+
+The prose is set large and quiet while it arrives, so the screen you wait on is a page rather than a
+progress bar.
 
 **The passage does not touch the page until you leave the screen.** It arrives whole when you do,
 which is what stops the book being rebuilt underneath the words while they are still arriving.
@@ -43,10 +45,8 @@ When it finishes, the screen **stays**. It is the take, and it is yours to sit w
 and it gets out of the way** — the letter you typed goes into the box, so carrying on writing is one
 motion. A tap anywhere on it closes it too, and so does Escape.
 
-**Stop** is there until the words start, and then it goes, because there is nothing on that screen
-worth pressing while you are reading. If you do want to stop a passage mid-flight, type or press
-Escape and the composer's own Stop is waiting. A passage that fails still puts you straight back on
-the page.
+**Stop** stays for the whole time she is writing and goes when she finishes, because by then there
+is nothing left to stop. A passage that fails still puts you straight back on the page.
 
 ### The Anagram is back on the usual model
 It had been set to write with **Artemis**, which is about ten times slower than the model the rest of

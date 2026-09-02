@@ -6092,133 +6092,77 @@ function ghost() {
 
   // A fresh veil is a fresh take: anything left buffered from the last one would type itself into
   // this one's box.
-  PEND = ''; SCR = []; LAST_TICK = 0; SETTLED = ''; SENTENCE_DONE = false;
+  PEND = ''; TIP = []; SEEN = 0; LAST_TICK = 0;
   if (DRAIN != null) cancelAnimationFrame(DRAIN); DRAIN = null;
   VEIL_DONE = false; VEIL_LAND = null;
 
   const g = document.createElement('div');
   g.id = 'ghost'; g.className = 'veil';
-  // THE WEAVE, then the roller, then Stop. The drawn web is gone — Seth, 2026-08-28: "remove the
-  // web. instead copy the current scrmbled glyph animation and make it five lines tall and eleven
-  // letters long and them all be random. when the ai is done have the sixth letter spell anansi
-  // going down and fade out the other letters and then go to the text screen."
-  //
   // innerHTML is safe here and only here: every character of it is written below, and the one place
   // untrusted text lands is `.veiltext`, which only ever receives text nodes.
-  // THE GLYPHS ARE WHERE THE PROSE WILL BE. Seth, 2026-09-02: "lets change the glyphs to not be
-  // columns and rows. but to be where the streaming would come in. as it comes in the glyphs are
-  // replaced by the words." So the noise is not a grid beside the text, it IS the text's own space,
-  // held open and rolling until there are words to put in it.
-  //
-  // ONE CONSEQUENCE, NAMED: the six-by-eleven grid was what let the middle column spell ANANSI on
-  // the resolve, and a field with no columns cannot. `solve()` and the resolve are gone with it.
+  // NOTHING IS HELD OPEN. The design handoff of 2026-09-02 removes the opening screen
+  // outright — first the web draw, then the glyph grid, then the sentence-shaped field of noise,
+  // each of them an answer to "what does the writer look at before there are words". The answer
+  // now is: the blur, the rule, and nothing else. A surface that promises a shape cannot keep the
+  // promise, because the app does not know how long the passage is until it has one.
   g.innerHTML = `<div class="narr">
-      <div class="veiltext" aria-live="polite"><span class="noise" aria-hidden="true"></span></div>
+      <div class="veilrow">
+        <div class="veilmeter" aria-hidden="true"><i></i></div>
+        <div class="veiltext" aria-live="polite"></div>
+      </div>
       <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
     </div>`;
   shell.appendChild(g);
-
-  // ~11 rolls a second. Fast enough to read as working, slow enough not to strobe, and unrelated
-  // to how fast the tokens are coming — the same clock the grid kept, for the same reason.
-  const roll = () => { const n = g.querySelector('.noise'); if (n) n.textContent = noiseRun(); };
-  roll();
-  if (still()) return;
-  let last = 0;
-  const tick = (t) => {
-    const el = document.getElementById('ghost');
-    if (!el || el.classList.contains('leaving') || !el.querySelector('.noise')) return;
-    if (t - last > 88) { roll(); last = t; }
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
 }
 
-/** One roll of the field: the same words in the same places, with different letters in them. It is
- *  `aria-hidden`, so none of the waiting is read aloud — a screen reader gets the prose as it
- *  arrives and nothing before it. */
-function noiseRun() {
-  return NOISE_SHAPE.map((n) => Array.from({ length: n }, glyph).join('')).join(' ');
-}
 
-/** THE SHAPE IS FIXED AND ONLY THE LETTERS MOVE. Seth, 2026-09-02: "allow the words and the initial
- *  shape to be the same everytime and only the letters shift."
+/** THE PROSE, ARRIVING, INSIDE THE VEIL — WORDS FOCUSING OUT OF THE BLUR.
  *
- *  Word lengths, not a character count, and a literal so it is identical on every press. An earlier
- *  version rolled a space in at random every 88ms, so the silhouette churned as hard as the letters
- *  and the field read as static rather than as a sentence waiting to be written.
+ *  The 2026-09-02 design handoff, replacing the letter-by-letter lock-in that preceded it: each word
+ *  arrives whole in its own span and focuses in over .75s, the last three stay in the accent, and
+ *  everything behind them is ink. No frontier of turning glyphs, no field held open for text that
+ *  has not been written, no count and no status line.
  *
- *  A SENTENCE, NOT A PARAGRAPH. It was 47 words — a whole block of held-open prose — and Seth:
- *  "remove the shape of the words and just do a sentence or a single word where the output would be
- *  any way." A paragraph of noise promises a paragraph, which is a promise the app cannot keep: it
- *  does not know how long the passage is until it has one. Six words says "the writing starts here"
- *  and says nothing it might have to take back. */
-const NOISE_SHAPE = [4, 7, 3, 6, 2, 5];
-
-/** THE PROSE, ARRIVING, INSIDE THE VEIL, AS A TYPEWRITER.
- *
- *  Seth, 2026-09-02: "can we have it where it streams in the veil but i could scroll through it.
- *  the glyphs dissapear as soon as the streaming starts. but the streaming is calculated like a
- *  fading in type writer and typing is what closes it?"
- *
- *  CALCULATED, NOT PER DELTA, and that word is the whole design. A delta is a token, so anything
- *  driven by one runs at whatever uneven rate the model happens to be writing at — the same
- *  argument `ghost()`'s roller already makes for keeping its own clock. Deltas go into a buffer and
- *  a frame loop drains it, so what the writer watches is even however lumpy the arrival was.
- *
- *  THE DRAIN RATE CHASES THE BUFFER. A fixed characters-per-second is calmer to watch and wrong:
- *  the model finishes and the animation is still going, so the writer waits on a decoration. A
- *  rate proportional to what is queued cannot fall behind — a fast passage simply types faster.
+ *  CALCULATED, NOT PER DELTA, which survives from the version before it and for the same reason: a
+ *  delta is a token, so anything driven by one runs at whatever uneven rate the model is writing at.
+ *  Deltas go to a buffer and a frame loop takes a word at a time off it, so what the writer watches
+ *  is even however lumpy the arrival was — and the pace gives way to a backlog, so the veil is never
+ *  still writing a paragraph the model finished a minute ago.
  *
  *  WHAT THIS MUST NOT UNDO. PLAN-07 bug 1 was an onDelta that held the veil BACK until the first
- *  token and never raised it if the model errored before then. The veil still goes up on the press.
- *  What changed is the other end: on success it now HOLDS, because it is something to read; on an
- *  abort or an error it comes down exactly as it did, because a failure must never trap anyone. */
-let PEND = '', DRAIN = null, VEIL_DONE = false, SCR = [], LAST_TICK = 0;
-
-/** THE LOCK-IN IS THE FIRST SENTENCE ONLY. Seth, 2026-09-02: "let the glyph section do the first
- *  sentence just as it is and then let the rest just fade in whole."
- *
- *  Letter by letter is the arrival — it says the writing is starting. Held for four hundred words it
- *  stops being an arrival and becomes the speed limit, and the writer is watching an animation
- *  rather than reading a passage. So the first sentence turns and settles, and everything after it
- *  is put down whole as it comes, with the same fade and none of the scramble.
- *
- *  It is also most of the cost. Per-letter spans over a 900-token passage are ~4,000 elements each
- *  with its own animation; one sentence is fifty or so and the rest is a span per arrival. */
-let SETTLED = '', SENTENCE_DONE = false;
-
-/** A sentence ends at . ! or ? — with a closing quote allowed after it, because dialogue ends
- *  `said."` — followed by a space. The cap is the guard: a model that writes two hundred characters
- *  without a full stop is not a reason to type the whole passage out one letter at a time. */
-const sentenceEnded = (t) => /[.!?]["'\u201d\u2019]?\s$/.test(t) || t.length > 200;
+ *  token and never raised it if the model errored before then. The veil still goes up on the press;
+ *  on success it holds, and on an abort or an error it comes down. */
+let PEND = '', DRAIN = null, VEIL_DONE = false, LAST_TICK = 0, TIP = [], SEEN = 0;
 
 /** THE PAGE UPDATE, HELD BACK UNTIL THE VEIL GOES. Seth, 2026-09-02: "dont send the content to the
- *  main page until that tap happens let it fade in all at once once the veil is removed otherwise
- *  it overloads the browser."
+ *  main page until that tap happens ... otherwise it overloads the browser."
  *
- *  He is right about the cost. `paint()` rebuilds the whole reading column with `innerHTML` — a
- *  five-chapter book is hundreds of nodes — and it was running WHILE the typewriter was drawing a
- *  letter every 38ms behind a full-screen blur. Two things fighting for the same main thread, and
- *  the one that loses is the animation the writer is looking at.
+ *  `paint()` rebuilds the whole reading column with `innerHTML`, and it was running WHILE the veil
+ *  was animating behind a full-screen blur — two things on one main thread, and the one that loses
+ *  is the animation the writer is looking at. Only the DRAWING waits: `api.story` still runs during
+ *  the veil, because a fetch is not content on the page.
  *
- *  Only the DRAWING is deferred. `api.story` still runs while the veil is up, because a fetch is
- *  not content on the page and holding it back would put the network round trip between the
- *  keystroke and the fade. What waits is `paint` and everything that repaints with it.
- *
- *  Synchronous on purpose: it runs inside `dismissVeil`, before the character the writer just typed
- *  goes into the composer, because `drawDock` renders the textarea with no value and a repaint
- *  after the insert would eat it. That is the repaint-eats-input fault this file has recorded eight
- *  times; this is where the ninth would have been. */
+ *  Synchronous, and it runs inside `dismissVeil` BEFORE the typed character goes into the composer,
+ *  because `drawDock` renders the textarea with no value and a repaint after the insert would eat
+ *  it. That is the repaint-eats-input fault this file has recorded eight times. */
 let VEIL_LAND = null;
 
-/** How many letters are still turning at the frontier, and how long a letter turns before it
- *  settles. Seth, 2026-09-02: "let it streamin letter by letter and let the glyphs slowly
- *  transition letter by letter in the accent color. white when words actually form."
+/** How many words stay in the accent at the end of what has arrived. */
+const TIP_N = 3;
+
+/** A word every WORD_GAP ms, shortening as the buffer deepens. */
+const wordGap = () => (PEND.length > 900 ? 14 : PEND.length > 400 ? 32 : 62);
+
+/** THE METER HAS NO HONEST DENOMINATOR, so it does not pretend to one.
  *
- *  So a letter arrives as a glyph in the accent, turns for SCR_LAG ticks while the ones behind it
- *  settle, and goes white when it is itself. The frontier is short on purpose — a long tail of
- *  turning letters reads as noise with words in it rather than words coming out of noise. */
-const SCR_LAG = 5;
+ *  The handoff asks for `arrived / total`, which its prototype could do because the passage was
+ *  fixed. This app does not know the length until the passage is finished: `max_tokens` is 900 and
+ *  a real one measures a median 473 completion tokens, so a bar against the cap would stall at
+ *  about half and jump. An asymptote cannot overshoot and cannot lie — it rises quickly while the
+ *  first paragraph arrives, slows as the passage gets long, and only reaches the end when the
+ *  passage does. 1,400 characters is one e-fold, which puts a median passage near four fifths.
+ */
+const veilFill = (chars, done) => (done ? 100 : 100 * (1 - Math.exp(-chars / 1400)));
 
 const veilText = () => document.getElementById('ghost')?.querySelector('.veiltext') ?? null;
 
@@ -6233,139 +6177,60 @@ const veilUp = () => {
 function liveDelta(d) {
   const el = veilText();
   if (!el || !d) return;
-  // THE GLYPHS GO AT THE FIRST TOKEN. They cover the formulating, which is over the moment a word
-  // exists; leaving them rolling over the prose is two things asking to be watched at once. The
-  // resolve goes with them — ANANSI spelling itself out under a finished paragraph is a flourish
-  // for a screen that has nothing else on it.
-  const g = el.closest('.veil');
-  g?.classList.add('written');
-  // THE FIELD GOES WITH THE FIRST WORD. Seth, 2026-09-02: "as the streaming starts the rest of the
-  // glyphs goes away with the exception of the current word where the glyphs act as they do now."
-  // The field is the passage's space before there is any passage; once there is one, the only
-  // glyphs that still mean anything are the ones at the frontier, and those are the `.scr` spans.
-  // Removing the node also stops the roller, which checks for it every frame.
-  g?.querySelector('.noise')?.remove();
-  // Under reduced motion there is no typewriter: the text is the point and the animation is not.
-  if (still()) {
-    const noise = el.querySelector('.noise');
-    if (noise) el.insertBefore(document.createTextNode(d), noise); else el.append(d);
-    return;
-  }
+  el.closest('.veil')?.classList.add('written');
   PEND += d;
   if (DRAIN == null) DRAIN = requestAnimationFrame(drainVeil);
 }
 
-/** ONE LETTER A TICK, and the tick is paced rather than per frame. At 60fps a frame each is 60
- *  characters a second, which Seth called too fast, and the earlier version drained a twenty-fourth
- *  of the buffer per frame, which on a fast passage was hundreds.
- *
- *  The pace still gives way to a backlog — that was the earlier call and it still holds: an
- *  animation the writer waits on after the model has stopped is the animation being the problem.
- *  It just does it by shortening the tick rather than by taking the letters in handfuls, so it is
- *  letter by letter at every speed. */
-const tickGap = () => (PEND.length > 900 ? 6 : PEND.length > 400 ? 12 : PEND.length > 150 ? 22 : 38);
-
-/** The same bargain a word at a time: slow enough to sweep, and giving way to a backlog so the veil
- *  is never still writing a paragraph the model finished a minute ago. */
-const wordGap = () => (PEND.length > 900 ? 14 : PEND.length > 400 ? 32 : 62);
-
-/** ONE SPAN PER LETTER, turning in the accent until the letters behind it have settled white.
- *
- *  No `setTimeout` per character — a 900-token passage is ~4,000 of them and 4,000 pending timers
- *  is a way to make a phone stutter. The frontier is a queue instead: every tick adds one turning
- *  letter and settles the one SCR_LAG places back, so the settle is driven by the same clock as
- *  everything else on this surface. */
+/** Up to and including the next space, so a word arrives whole with its gap behind it. The last
+ *  word waits until the generation is over rather than landing half-written. */
 function drainVeil(now) {
   DRAIN = null;
   const el = veilText();
-  if (!el) { PEND = ''; SCR = []; return; }
-  const put = (span) => {
-    const noise = el.querySelector('.noise');
-    if (noise) el.insertBefore(span, noise); else el.append(span);
-  };
+  if (!el) { PEND = ''; TIP = []; SEEN = 0; return; }
 
-  if (SENTENCE_DONE) {
-    // THE REST, A WORD AT A TIME, LEFT TO RIGHT. Seth, 2026-09-02: "let the rest fade in slowly from
-    // left to right."
-    //
-    // It flushed the whole buffer per frame before this, so a model running ahead dropped a
-    // paragraph in one go — which is neither slow nor left to right, it is a paste. A word a tick
-    // with a long soft fade sweeps across the line in reading order, because that is the order the
-    // words are in. No mask and no per-letter stagger: an inline span that wraps masks per fragment,
-    // and letters are the thing the first sentence already did.
-    if (PEND && now - LAST_TICK >= wordGap()) {
-      LAST_TICK = now;
-      // Up to and including the next space, so a word arrives whole with its gap behind it.
-      let cut = PEND.indexOf(' ') + 1;
-      if (cut <= 0) cut = VEIL_DONE ? PEND.length : 0;   // the last word only lands once it is whole
-      if (cut > 0) {
-        const span = document.createElement('span');
-        span.className = 'tw lit soft';
-        span.textContent = PEND.slice(0, cut);
-        PEND = PEND.slice(cut);
-        put(span);
-      }
-    }
-  } else if (now - LAST_TICK >= tickGap()) {
+  if (PEND && now - LAST_TICK >= wordGap()) {
     LAST_TICK = now;
-    // Re-roll what is still turning, so the frontier moves rather than sitting on one glyph.
-    for (const it of SCR) it.span.textContent = glyph();
-    if (PEND) {
-      const ch = PEND[0];
-      PEND = PEND.slice(1);
+    let cut = PEND.indexOf(' ') + 1;
+    if (cut <= 0) cut = VEIL_DONE ? PEND.length : 0;
+    if (cut > 0) {
       const span = document.createElement('span');
-      span.className = 'tw scr';
-      // A space has no glyph to turn into: it settles the moment it arrives, which is what makes
-      // the frontier break into words rather than into a fixed-width crawl.
-      const bare = ch === ' ' || ch === '\n';
-      span.textContent = bare ? ch : glyph();
-      put(span);
-      if (bare) { span.className = 'tw lit'; SETTLED += ch; }
-      else SCR.push({ span, ch });
+      span.className = 'w tip';
+      span.textContent = PEND.slice(0, cut);   // a text node, never innerHTML: this is model output
+      SEEN += cut;
+      PEND = PEND.slice(cut);
+      el.append(span);
+      // THE ACCENT IS A TAIL, not a highlight: it marks where the writing has got to, so it has to
+      // let go of the word behind it as it moves.
+      TIP.push(span);
+      while (TIP.length > TIP_N) TIP.shift().classList.remove('tip');
+      const fill = el.closest('.narr')?.querySelector('.veilmeter i');
+      if (fill) fill.style.height = veilFill(SEEN, false).toFixed(1) + '%';
     }
-    // WHITE WHEN THE WORD FORMS. The oldest turning letter becomes itself once the frontier has
-    // moved past it — or immediately, once nothing more is coming, so the last few do not sit
-    // turning over a finished passage.
-    while (SCR.length > (PEND ? SCR_LAG : 0)) {
-      const it = SCR.shift();
-      it.span.textContent = it.ch;
-      it.span.className = 'tw lit';
-      SETTLED += it.ch;
-    }
-    // AND THAT IS THE FIRST SENTENCE DONE. Everything still turning settles at once rather than
-    // being abandoned mid-glyph, and the branch above takes over from here.
-    if (sentenceEnded(SETTLED)) {
-      SENTENCE_DONE = true;
-      for (const it of SCR) { it.span.textContent = it.ch; it.span.className = 'tw lit'; }
-      SCR = [];
-    }
-    // NO AUTO-SCROLL. Seth: "the view screen should stay at the top so the user can read." A box
-    // that chases its own tail can only be read at the end, and the end is the part still arriving.
   }
 
-  if (PEND || SCR.length) DRAIN = requestAnimationFrame(drainVeil);
+  if (PEND) DRAIN = requestAnimationFrame(drainVeil);
   else if (VEIL_DONE) veilReadable();
 }
 
-
-
-/** The passage is complete and the buffer is empty, so there is nothing left to stop. The veil
- *  stays — Seth chose it as somewhere to read the take rather than a cover over the wait — and the
- *  one control on it becomes the way out. */
+/** The passage is complete and the buffer is empty. The veil stays — Seth chose it as somewhere to
+ *  read the take rather than a cover over the wait — and everything that was asking to be watched
+ *  stops: the accent lets go, the rule fills, and Stop goes because there is nothing left to stop. */
 function veilReadable() {
   const g = document.getElementById('ghost');
   if (!g) return;
   g.classList.add('done');
-  // Nothing more is coming, so the space held open for it goes. Removing the node also stops the
-  // roller, which checks for it every frame.
-  g.querySelector('.noise')?.remove();
+  for (const sp of TIP) sp.classList.remove('tip');
+  TIP = [];
+  const fill = g.querySelector('.veilmeter i');
+  if (fill) fill.style.height = '100%';
 }
 
 /** Called on the success path once the take has landed on the page behind the veil. If the writer
  *  already dismissed it by typing, there is nothing here and nothing to do. */
 function veilFinish() {
   VEIL_DONE = true;
-  if (!PEND && !SCR.length) veilReadable();
+  if (!PEND) veilReadable();
 }
 
 /** TYPING IS THE WAY OUT. The veil is covering the composer, so a keystroke cannot reach it — this
@@ -6377,7 +6242,7 @@ function veilFinish() {
 function dismissVeil(ch) {
   const g = document.getElementById('ghost');
   if (!g || g.classList.contains('leaving')) return;
-  PEND = ''; SCR = []; if (DRAIN != null) cancelAnimationFrame(DRAIN); DRAIN = null;
+  PEND = ''; TIP = []; SEEN = 0; if (DRAIN != null) cancelAnimationFrame(DRAIN); DRAIN = null;
   // THE PAGE, FIRST AND WHOLE. Behind a veil that is still opaque, so the fade below uncovers a
   // finished page rather than one assembling itself in front of the writer.
   const land = VEIL_LAND; VEIL_LAND = null;
