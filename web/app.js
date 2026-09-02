@@ -1526,8 +1526,19 @@ function drawDock() {
            can stay the send button since we have it on the other screen."
            Disabled while busy rather than repurposed: a control that cannot act should say so,
            not become a different control. -->
-      <button id="send" data-send="1" aria-label="Send" ${S.busy ? 'disabled' : ''}
-        title="${S.busy ? 'Anansi is writing — Stop is on the veil' : 'Send'}">${mark('send', 18)}</button>
+      <!-- STOP COMES BACK HERE WHEN THE VEIL IS NOT UP. PLAN-07 moved Stop onto the veil on the
+           argument that the veil "covers the whole screen and is the only thing you can see while
+           she writes", so the composer never had to change identity. That was true until
+           2026-09-02, when the veil learned to be dismissed mid-write and its own Stop learned to
+           hide once the words start — and between those two, a writer who left the veil early had
+           NO way to stop a generation at all. The veil's Stop was the only one in the app.
+           So: while she is writing and there is no veil in front of you, this is Stop. -->
+      ${S.busy && !veilUp()
+        ? `<button id="send" data-stop="1" aria-label="Stop writing"
+             title="Stop">${mark('send', 18)}</button>`
+        : `<button id="send" data-send="1" aria-label="Send" ${S.busy ? 'disabled' : ''}
+             title="${S.busy ? 'Anansi is writing — Stop is on the veil' : 'Send'}"
+             >${mark('send', 18)}</button>`}
     </div>`;
   const ta = $('input');
   // Fit to the text and let CSS clamp it. The cap used to be written twice — `140` here and
@@ -6067,10 +6078,17 @@ function decode(el, slot) {
  */
 function ghost() {
   const shell = $('shell'); if (!shell) return;
-  const old = document.getElementById('ghost');
   // A veil caught mid-fade would be reused at opacity 0 and never appear. PLAN-07's point 5.
-  if (old?.classList.contains('leaving')) old.remove();
-  else if (old) return;
+  //
+  // AND A VEIL THAT IS SIMPLY STILL THERE IS REPLACED TOO, which `else if (old) return;` did not do.
+  // That line was written when the veil could not outlive its generation; since 2026-09-02 it holds
+  // until the writer dismisses it, so pressing Continue again without leaving it reused the last
+  // take's surface — the previous passage still in it, no field of glyphs, and its Stop already
+  // hidden. A new take gets a new veil.
+  // `?.remove?.()` and not `?.remove()`: `test/app.ts` drives this file against a hand-built DOM
+  // whose element stub has no `remove`, and the veil is built often enough that a TypeError here
+  // takes the whole suite with it.
+  document.getElementById('ghost')?.remove?.();
 
   // A fresh veil is a fresh take: anything left buffered from the last one would type itself into
   // this one's box.
@@ -6203,6 +6221,14 @@ let VEIL_LAND = null;
 const SCR_LAG = 5;
 
 const veilText = () => document.getElementById('ghost')?.querySelector('.veiltext') ?? null;
+
+/** UP means up and taking presses. A veil in `.leaving` is a fade the writer is already looking
+ *  through, and the composer underneath it has to be usable before the animation ends — otherwise
+ *  Stop reappears 620ms after the gesture that asked for it. */
+const veilUp = () => {
+  const g = document.getElementById('ghost');
+  return !!g && !g.classList?.contains('leaving');
+};
 
 function liveDelta(d) {
   const el = veilText();
@@ -6360,6 +6386,10 @@ function dismissVeil(ch) {
   // pressing a key and the letter appearing is the app arguing with them.
   if (still()) g.remove();
   else { g.classList.add('leaving'); g.addEventListener('animationend', () => g.remove(), { once: true }); }
+  // NO LAND MEANS SHE IS STILL WRITING — the deferred repaint is only set once a take has landed.
+  // The composer has to be redrawn anyway, because Stop lives on it again the moment the veil is
+  // not in front of it.
+  if (!land && S.busy) drawDock();
   const inp = $('input');
   if (!inp) return;
   inp.focus();

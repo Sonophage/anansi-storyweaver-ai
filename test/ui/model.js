@@ -27,7 +27,23 @@ console.log("  generating…");
 for (let i = 0; i < 60 && (await story()).passages.length === n0; i++) await wait(1000);
 const n1 = (await story()).passages.length;
 ok(`the composer appends its take (${n0} -> ${n1})`, n1 === n0 + 1);
-ok("  and the document shows it", await page.eval("document.getElementById('col').innerHTML.length > 100"));
+
+// THE VEIL HOLDS THE TAKE UNTIL YOU LEAVE IT (2026-09-02), and it covers everything — so nothing
+// below can be looked at, and nothing else can be clicked, until it is dismissed. A `page.click` on
+// a button underneath lands on the veil and dismisses it instead of pressing anything, which is
+// correct for a writer and is the whole reason this helper exists.
+const leaveVeil = async () => {
+  if (!(await page.eval("!!document.getElementById('ghost')"))) return;
+  await page.eval("(() => { document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); return 1; })()");
+  for (let i = 0; i < 40 && (await page.eval("!!document.getElementById('ghost')")); i++) await wait(100);
+};
+// The server has the passage the moment it writes it; the CLIENT is still typing it out on the
+// veil. Waiting on the server count and then asking about the veil is asking too early.
+for (let i = 0; i < 120 && !(await page.eval("!!document.querySelector('#ghost.done')")); i++) await wait(250);
+ok("  the take is held on the veil rather than dropped on the page",
+   await page.eval("!!document.querySelector('#ghost.done')"));
+await leaveVeil();
+ok("  and the document shows it once the veil goes", await page.eval("document.getElementById('col').innerHTML.length > 100"));
 ok("  and the composer is usable again", await page.eval("!document.getElementById('send').disabled"));
 
 // ---- 1b. Stop. The one path where the writer changes their mind mid-generation.
@@ -59,16 +75,31 @@ ok("  and the composer is usable again", await page.eval("!document.getElementBy
     await wait(250);
   }
   ok("Stop: the call is in flight, with the roller up, before we stop it", arrived);
-  // SEND NO LONGER BECOMES STOP. Stop is on the veil, which covers the screen; the composer's
-  // button stays Send and is disabled while she writes. Both halves, because "no Stop in the
-  // composer" is also satisfied by there being no composer at all.
-  ok("  Send stays Send in the composer, and is disabled", await page.eval(
-    "!!document.querySelector('#send[data-send]') && document.getElementById('send').disabled"));
-  ok("  and Stop is on the veil instead", await page.eval("!!document.querySelector('#ghost [data-stop]')"));
-  // Give the model a moment to actually be writing before stopping it. Stopping in the first
-  // instant is a different case — it tests the abort, not the abort of a call that has produced
-  // something — and it is the case the old text-based wait accidentally stopped covering.
-  await wait(2000);
+  // SEND BECOMES STOP AGAIN, and PLAN-07's note that it does not is now history. PLAN-07 moved Stop
+  // to the veil on the argument that the veil "is the only thing you can see while she writes" —
+  // true until 2026-09-02, when the veil learned to be dismissed mid-write AND to hide its own Stop
+  // once the words start. Between those two there was no way to stop a generation at all. So the
+  // composer carries Stop whenever she is writing and no veil is in front of it.
+  ok("  the composer carries Stop while she writes", await page.eval(
+    "!!document.querySelector('#send[data-stop]')"));
+  ok("  and the veil carries one too, until the words start", await page.eval(
+    "!!document.querySelector('#ghost [data-stop]')"));
+  // STOP IT BEFORE THE FIRST TOKEN, which is the only window on this fixture that is not a race.
+  //
+  // The old `await wait(2000)` was aiming at "she has produced something", and two seconds here is
+  // often the whole generation — so it clicked a Stop that had correctly gone. Waiting for
+  // `.written` and then dismissing to reach the composer's Stop has the same problem one step
+  // later: the generation can finish during the dismissal and the button goes mid-click.
+  //
+  // Prefill is ~1.7s on this box, so the veil sits with its own Stop and no words for well over a
+  // second. That is a real abort of a call in flight, and it is deterministic.
+  //
+  // THE MID-WRITE ABORT IS NOT DROPPED — it moved to `test/ui/veil.js` §3d, which leaves the veil
+  // once words are on it and presses the composer's Stop. Two scenarios, two windows, neither one
+  // pretending to cover the other. This scenario has now rotted three times on how prose is
+  // delivered; the fix each time was to wait on a state rather than on a clock.
+  ok("  the veil is still formulating, with its own Stop up",
+     await page.eval("!!document.querySelector('#ghost:not(.written) [data-stop]')"));
   await page.click('#ghost [data-stop]');
   await wait(2500);
   ok("  the half-written passage is gone", await page.eval("!document.getElementById('ghost')"));
@@ -92,6 +123,10 @@ const tail = (await story()).passages.at(-1);
 ok(`Regenerate keeps both takes (${v0} -> ${(tail?.variants ?? []).length} variants on the tail)`,
    (tail?.variants ?? []).length > v0);
 ok("  and the passage count did not grow", (await story()).passages.length === n1);
+// A re-roll of the last passage puts the veil up too, and it holds until dismissed. Everything
+// below reaches for controls on the page, and the veil is in front of all of them — a click aimed
+// at one lands on the veil and dismisses it instead, which is right for a writer and useless here.
+await leaveVeil();
 // Target the tray by the passage's own id: `.block:last-of-type` matched the wrong block,
 // because #col holds chapter headings between the blocks.
 await page.dbl('[data-edit=\"' + tail.id + '\"]');   // the ⋯ handle is gone; a double tap opens the tray
@@ -138,9 +173,15 @@ ok(`  and EACH take records the canon its own prompt carried (${against} of ${ta
 const takesOpen = ((await page.text('#sideBody') || '').match(/Take \d+/g) ?? []).length;
 await page.click('#col .carry [data-re]');
 console.log("  regenerating with History open…");
-for (let i = 0; i < 90; i++) {
+// THE PANEL CANNOT PICK ANYTHING UP UNTIL THE VEIL GOES. Since 2026-09-02 the repaint is deferred
+// to the dismissal — that is the point of it, so the reading column is not rebuilt while the
+// typewriter is drawing — and `#sideBody` is repainted by the same `paint()`. Dismissing is not
+// REOPENING, which is the property this section exists to check, so it is still being checked.
+for (let i = 0; i < 120 && !(await page.eval("!!document.querySelector('#ghost.done')")); i++) await wait(250);
+await leaveVeil();
+for (let i = 0; i < 30; i++) {
   if (((await page.text('#sideBody') || '').match(/Take \d+/g) ?? []).length > takesOpen) break;
-  await wait(1000);
+  await wait(500);
 }
 const takesNow = ((await page.text('#sideBody') || '').match(/Take \d+/g) ?? []).length;
 ok(`the open panel picks up a new take without being reopened (${takesOpen} -> ${takesNow})`,
@@ -188,9 +229,22 @@ ok(`editing prose in place saves (${JSON.stringify((edited?.body ?? '').slice(0,
 // ---- 5b. What each mode DOES with what you type. This is the distinction the whole set
 // exists for, and the bug it replaced: whatever mode you were in, your words only ever became
 // a directive, so typed dialogue never reached the page.
+// IDLE IS NOT "SEND IS NOT DISABLED" ANY MORE. It was, while `#send` stayed a DISABLED Send for the
+// length of a generation. Since 2026-09-02 it is a Stop button while she writes, and a Stop button
+// carries no `disabled` — so this returned true on the first tick and every check after it ran on
+// top of a live generation. Four reds in §5b, none of them a product fault.
+//
+// Idle now means what a writer means: nothing is being written, nothing is waiting to be read, and
+// the composer is offering Send. The held veil is dismissed on the way, because a take waiting to
+// be looked at is the app working, not the app busy.
 const idle = async (n = 90) => {
   for (let i = 0; i < n; i++) {
-    if (!(await page.eval("document.getElementById('send')?.disabled"))) return true;
+    const st = await page.eval(`(() => {
+      const g = document.getElementById('ghost'), b = document.getElementById('send');
+      if (g) return g.classList.contains('done') ? 'held' : 'writing';
+      return b && b.dataset.send === '1' && !b.disabled ? 'idle' : 'busy'; })()`);
+    if (st === 'held') { await leaveVeil(); return true; }
+    if (st === 'idle') return true;
     await wait(1000);
   }
   return false;

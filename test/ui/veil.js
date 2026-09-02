@@ -121,12 +121,18 @@ ok("  and the held-open field went with the first word", mid != null && mid.nois
 // in whole." So the span count must NOT track the character count — one span per letter for the
 // first sentence, then one per arrival. Falsify by removing the SENTENCE_DONE branch in drainVeil:
 // spans climb to roughly one per character and this goes red.
+// PER-LETTER SPANS ARE BOUNDED BY THE SENTENCE CAP, whatever the passage turns out to be. The
+// first version of this asserted `spans < characters / 2`, which is a property of how long the
+// model happened to write — on a short passage a 60-letter first sentence plus its words exceeds
+// half the characters and it went red for no defect at all. `sentenceEnded` caps the lock-in at
+// 200 characters, so this is the rule itself rather than a symptom of it.
+const perLetter = last != null ? last.spans - last.soft : -1;
+console.log(`  ${perLetter} letters spelled out, ${last?.soft ?? '-'} words swept, ${last?.words ?? '-'} characters`);
 ok("  and only the first sentence is spelled out letter by letter",
-   last != null && last.spans > 0 && last.spans < last.words / 2);
+   perLetter > 0 && perLetter <= 205);
 // Seth: "let the rest fade in slowly from left to right." A word at a time, in reading order — so
 // the tail is many small spans rather than one big one. Falsify by flushing the whole buffer per
 // frame again: `soft` collapses to a handful and this goes red.
-console.log(`  ${last?.soft ?? '-'} words swept in after the first sentence, over ${last?.words ?? '-'} characters`);
 ok("  and the rest sweeps in a word at a time rather than landing whole",
    last != null && last.soft > 8 && last.soft < last.words);
 ok("  and nothing is left turning once the passage is done", last != null && last.scr === 0);
@@ -189,6 +195,26 @@ await wait(1400);
 ok("a tap takes the veil away", (await page.eval("!!document.getElementById('ghost')")) === false);
 ok("  and the passage arrives all at once when it goes",
    (await page.eval("document.querySelectorAll('#col .block').length")) > before);
+
+// ---- 3d. STOPPING IS STILL POSSIBLE AFTER THE FIRST TOKEN.
+// The veil's Stop hides once the words start, and it was the ONLY Stop in the app — PLAN-07 moved
+// it there and left #send as a disabled Send. So between that and the veil becoming dismissible, a
+// writer who left the veil early could not stop a generation at all. Falsify by reverting #send to
+// the disabled-Send branch in drawDock: this goes red.
+await send("A fifth, and stop it.");
+for (let i = 0; i < 80; i++) { if ((await veil())?.written) break; await wait(150); }
+ok("the veil hid its own Stop once the words started",
+   (await veil())?.stopShown === false);
+await page.eval("(() => { document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); return 1; })()");
+await wait(250);
+ok("  and leaving the veil mid-write hands Stop back to the composer",
+   await page.eval("!!document.querySelector('#send[data-stop]')"));
+// THE HANDOFF IS ASSERTED HERE; THE ABORT IS ASSERTED IN model.js. Pressing that Stop from here is
+// a race and was one: the remaining decode can finish while the dismissal animates, Stop correctly
+// becomes Send again, and the click throws on a button that was right to go. model.js §1b stops a
+// generation in the one deterministic window on this box — the ~1.7s of prefill before the first
+// token, using the veil's own Stop. Two scenarios, two windows, neither faking the other's.
+for (let i = 0; i < 60 && (await page.eval("document.getElementById('send')?.dataset?.stop === '1'")); i++) await wait(250);
 
 // ---- 4. THE TRAP CHECK. A veil that holds on success must still leave on a failure.
 await send("Once more, briefly.");

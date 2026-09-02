@@ -12,6 +12,10 @@ node --experimental-strip-types test/all.ts     # twelve suites, no model needed
 
 Run it before and after. It needs no llama-server, so there is no excuse for skipping it.
 
+`test/all.ts` runs `bench/order.ts check` as a thirteenth entry — a suite entry may carry arguments
+now, so a harness whose self-check lives behind a subcommand can be listed rather than being a check
+nobody runs. Fifteen other files under `bench/` still have a `check` mode that runs nowhere.
+
 **The suites bind fixed ports, so nothing else may hold them while they run.** `test/scope.ts`
 takes 5187 and boots throwaway servers on **5188, 5189, 5190, 5194 and 5195**; `test/ui/run.sh`
 takes 5179; the live server is on 5174, **over HTTPS** — `curl http://…:5174` is refused with the
@@ -28,12 +32,14 @@ list.
 1. `docs/findings/P0-FINDINGS.md` — measured numbers. These override `docs/SPEC.md` and the plans
    wherever they conflict, and several already do.
 2. `docs/findings/BUILD-STATE.md` — done / half-built / not started, audited against source.
-3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Forty-nine markers as
-   of 2026-09-01**, counted by that command, not recalled: `app.js` 9, `db.ts` 9, `routes.ts` 8,
-   `context.ts` 6, `bench/cast.ts` 3, `model.js` 2, `serve.ts` 2, `council06.ts` 2, and one each in
-   `llama.ts`, `story.ts`, `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`,
+3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Fifty markers as of
+   2026-09-02**, counted by that command, not recalled: `app.js` 9, `db.ts` 9, `routes.ts` 8,
+   `context.ts` 6, `bench/cast.ts` 3, `llama.ts` 2, `model.js` 2, `serve.ts` 2, `council06.ts` 2,
+   and one each in `story.ts`, `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`,
    `bench/decode.ts`, `bench/ledger-audit.ts`. Each names what is missing, why it was left, and the
    upgrade path.
+   (The count read 49 with `llama.ts` at 1 until 2026-09-02; it has two and has had two. Nothing was
+   added — the tally had drifted, which is the argument for counting it with the command each time.)
    (`test` joined the command on 2026-08-31 — there has been a marker in `test/db.ts` the whole
    time and the documented grep could not see it, so the count read 38.)
 

@@ -3,6 +3,12 @@
 > **STATUS: LIVE.** Audited against the code, not from memory — twice this document has been wrong
 > because someone wrote it from recall. If it disagrees with the source, the source wins and this
 > is the bug.
+>
+> **APPENDED 2026-09-02, NOT RE-AUDITED.** A day's work landed after the sixth pass and the sections
+> below have not been walked against the source again. What changed is recorded at the END of this
+> file under *"2026-09-02 — the wait, and what the veil became"*, and where it contradicts a table
+> above, the later section is the one that was checked. Three things in the body are known stale and
+> are named there rather than edited in place, because a half-corrected audit reads as a whole one.
 
 
 Audited from the code, not from memory. Three categories: **done**, **half-built** (the dangerous
@@ -933,3 +939,65 @@ faults in one tool, in one sitting. The rule held again, and it is the same rule
 detector before believing the result.** Two more instances beside it — a `#4` check that compared a
 padded element's own bounding box and stayed green when the padding came back, and a `#6` check that
 switched `data-ui-theme` when a theme is applied by writing CSS variables, not by an attribute.
+
+---
+
+# 2026-09-02 — the wait, and what the veil became
+
+Appended after the sixth pass. Audited against the source on the day, not against the tables above.
+
+## What is now stale in the body of this document
+
+- **"The veil over the reading column only, so Stop stays reachable" (`f4fd312`).** Superseded twice:
+  PLAN-07 took it full screen, and on 2026-09-02 its Stop began hiding once the words arrive. Stop
+  is back on the composer whenever she is writing and no veil is in front of it — `drawDock` renders
+  `#send` as `data-stop` in that case. PLAN-07's note that Send never changes identity is history.
+- **The `model` scenario's account of what it waits on.** It has now rotted three times on how prose
+  is delivered. It waits on veil STATE rather than a clock, and it aborts before the first token,
+  which is the only window on this fixture that is not a race. The mid-write abort moved to
+  `test/ui/veil.js` §3d.
+- **Block order.** `DIRECTIVE` moved from index 8 to 7, ahead of `PROSE` — F56, and corrected by
+  Council 10 in four places.
+
+## Latency, which was the day's question
+
+Two causes, one of them not in this repo. *The Anagram* pinned a model that decodes at **5.7 tok/s
+against Qwen3.6's 57.5** — a median **78.2 s a passage against 10.0 s** over 190 runs. Pin cleared.
+The rest is `docs/findings/COUNCIL-10.md`: cold start is **28–41 s of reload**, not F49's 7.3 s of
+prefill; chapter close prefills the same narration four times; `cache_prompt` is already on; no
+faster model exists on this box.
+
+`generations.params.ms` now carries `{view, assemble, tokenize}`, because `latency_ms` starts after
+all three. First answer: the app-side gap is **~6 ms**. The wait is the model.
+
+## The veil, which is where the day went
+
+**Done.** Deltas reach the page — both call sites passed `() => {}` and every token was dropped. The
+veil holds the take instead of lifting on completion; it is left by typing, a tap, or Escape, and
+typing puts the character in the composer. A sentence of accent glyphs marks where the writing will
+start, the first sentence locks in letter by letter, and the rest sweeps in a word at a time. The
+ground darkens with the words. **The page is not repainted until the veil goes** — `paint()` was
+rebuilding the whole reading column while the typewriter drew a letter every 38 ms.
+
+**Half-built.** Nothing here is behind a flag, but two things are worth knowing:
+- The ANANSI resolve is **gone**, with the six-by-eleven grid it spelled down. `solve()` is deleted.
+- The `.done` veil has no visible affordance saying a tap dismisses it. Deliberate — a full-screen
+  sheet with one paragraph on it does not need a hint — but it is a thing a first-time writer is
+  told by nothing.
+
+**Checks.** `test/ui/veil.js` is new, 33 assertions against real generations, out of the default set
+with `model` and `ritual` because it waits on them. Three falsifications run and recorded in the
+commits. `test/web.ts`'s #29 weave check was **deleted**, not repointed: it guarded the resolve.
+
+## Two harness faults found on the way, both fixed at the harness
+
+- `test/app.ts` dispatched clicks to `listeners.click[0]`, so adding any document-level click
+  listener above the delegated handler silently made `click({open:'s-1'})` open nothing. The file
+  already argues this exact point about `input` listeners.
+- `typeIn`'s fake target was `{id, value}`; `#input` has a listener that reads its geometry.
+
+## One flake, unexplained
+
+`test/all.ts` reported `scope.ts` failing once during the session. It passed alone at 51 checks and
+passed repeatedly after, with every port it binds free. Written down because a flake nobody wrote
+down is a flake somebody rediscovers.

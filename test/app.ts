@@ -42,6 +42,12 @@ const el = (id: string) => {
     // question. The numbers are arbitrary and only have to be stable.
     getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
     scrollTo(arg: any) { o.scrollTop = typeof arg === 'number' ? arg : Number(arg?.top ?? 0); },
+    // ENOUGH TO BUILD AND TEAR DOWN THE VEIL. `ghost()` creates an element, fills it, appends it to
+    // #shell and later removes it. None of that ran here until 2026-09-02: the old `else if (old)
+    // return;` meant the second and every later call bailed before `createElement`, so the harness
+    // was driving a function whose body it could not execute and nobody knew. `remove` is the same
+    // story from the other end.
+    append() {}, appendChild() {}, insertBefore() {}, remove() {},
   };
   nodes.set(id, o); return o;
 };
@@ -62,6 +68,10 @@ const listeners: Record<string, Function[]> = {};
   // property now — the nine themes are derived from a table rather than nine blocks of CSS.
   documentElement: { dataset: {}, style: { setProperty() {} } },
   getElementById: (id: string) => nodes.get(id) ?? el(id),
+  // Not registered in `nodes`: a created element is not findable by id until something appends it,
+  // and nothing here models a tree. It only has to be safe to build, fill and throw away.
+  createElement: (tag: string) => ({ ...el('__made__' + Math.random()), tagName: String(tag).toUpperCase() }),
+  createTextNode: (t: string) => ({ textContent: t }),
   querySelector: () => null,
   querySelectorAll: () => [],
   addEventListener: (k: string, f: Function) => { (listeners[k] ??= []).push(f); },
@@ -74,6 +84,12 @@ const stored = new Map<string, string>();
   setItem: (k: string, v: string) => { stored.set(k, String(v)); },
 };
 (globalThis as any).matchMedia = () => ({ matches: false, addEventListener() {} });
+// THE VEIL'S ROLLER AND THE TYPEWRITER BOTH RUN ON FRAMES. Never called before 2026-09-02, because
+// `ghost()`'s body was unreachable here — see the note on `append` in the element stub. A no-op
+// scheduler rather than a real one: the checks in this file are about markup and state, not about
+// what a glyph looks like fourteen frames in, and a live loop would run for the life of the suite.
+(globalThis as any).requestAnimationFrame = () => 0;
+(globalThis as any).cancelAnimationFrame = () => {};
 (globalThis as any).window = { addEventListener() {} };
 (globalThis as any).location = { hash: '', pathname: '/' };
 (globalThis as any).history = { replaceState() {} };

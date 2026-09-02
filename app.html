@@ -239,8 +239,12 @@ input, textarea { font:inherit; color:inherit; }
    `:empty` collapses it so the veil looks exactly as it did before a word arrives. */
 /* STOP GOES WITH THE GLYPHS. Seth, 2026-09-02: "the stop button should also dissapear." Once the
    words are arriving the surface is a page to read, and a button on it is the only thing asking to
-   be pressed. Stopping is still one gesture away — typing or Escape takes the veil off and the
-   composer's own Stop is right there, breathing, because S.busy is still true. */
+   be pressed.
+   THIS ONLY WORKS BECAUSE THE COMPOSER TOOK STOP BACK. An earlier version of this comment claimed
+   the composer's Stop was waiting underneath, and it was not: PLAN-07 moved Stop onto the veil and
+   left `#send` as a DISABLED Send, so between hiding this button and the veil becoming dismissible
+   there was no way to stop a generation after the first token at all. `drawDock` renders `#send` as
+   Stop whenever she is writing and no veil is in front of it. */
 #ghost.veil.written .veilstop { display:none; }
 /* AND IT DARKENS. Seth: "as the text starts streaming let the veil darken."
    The tint was deliberately removed on 2026-08-28 — 62%, then 31%, then none, because he wanted to
