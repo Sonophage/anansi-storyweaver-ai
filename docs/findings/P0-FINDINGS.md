@@ -2614,17 +2614,43 @@ arm, same servers throughout.
 Failure modes matched: "called the key silver" 16 vs 19, "called the key warm" 1 vs 1, "restated
 canon verbatim" 2 vs 0.
 
-**WHAT THIS n COULD HAVE SEEN, stated because a p of 0.74 is not an absence.** Against the control's
-8.1%, a rise to **14.7% (1.82x)** or a fall to **3.2%** would have reached p < 0.05. So the claim is
-"this does not change canon compliance by as much as 1.8x", not "this changes nothing". The first
-pass at 60 an arm could only have seen a **4.1x** change and was discarded as uninformative rather
-than reported as agreement.
+**WHAT THIS n COULD HAVE SEEN — CORRECTED BY COUNCIL 10 (C10-17).** Against the control's 8.1%, a
+rise to 14.7% or a fall to 3.2% would have reached p < 0.05. Those are **rejection-region
+boundaries**, not detectable effects: power at 1.82x is **58%**, so a real effect that size is missed
+two times in five. The 80%-power MDE is about **2.2x**. The honest claim is "this does not change
+canon compliance by as much as ~2.2x", and the 4.1x quoted for the 60-an-arm pass inherits the same
+inflation.
+
+**AND THE FIRST 60 WERE POOLED, NOT DISCARDED.** 60 + 450 = 510, which is the n reported. Two blocks
+run some minutes apart were combined into one 2x2 with no homogeneity check, on the fixture F55 has
+just shown drifts by half between runs. The arms remained simultaneous with each other throughout,
+which is what F55 actually prescribes, so the comparison holds — but the sentence claiming a discard
+was wrong.
+
+**THE UNCONDITIONAL TABLE, which was measured and not reported (C10-17).** Conditioning on "mentioned
+the key" conditions on a post-treatment variable, and it moved in the direction this finding's own
+mechanism predicts. Over all runs rather than the informative ones: **19/510 against 20/510,
+p = 1.0000**. Neither the conditional nor the unconditional resolves; both point estimates lean
+very slightly against the change.
 
 **THE ONE THING TO WATCH.** The only mechanism by which this change could plausibly hurt is that the
 directive is now further from the generation point, and instruction-following decays with distance.
 The mention rate is the proxy and it moved the wrong way: **46.1% to 42.5%, p = 0.2839**, where a
 fall to 39.8% would have been significant. Not a result. But the point estimate leans against the
 change and this n cannot resolve 3.6 points, so it is written down rather than dismissed.
+
+**THE DOWNSIDE THIS FINDING'S DENOMINATOR COULD NOT CONTAIN (C10-15).** The cache table above is
+*The Anagram*, and that book has **zero** DIRECTIVE-only transitions: all four of its DIRECTIVE
+changes coincide with a head reset that clears the prefix upstream anyway, so the reorder is free
+there by accident. *The Transaction of Silence* — 63 transitions, more than twice the data — is
+where the regression lives, and it is one transition at **2,158 to 11,996 chars, +456%**. Choosing
+the book that shows the effect is the mistake this file's own F10 rule names, committed inside a
+finding that cites it. `bench/order.ts` now asserts the trade directly: a DIRECTIVE-only change is
+342 chars under the old order and 2,343 under the new, **6.9x**.
+
+The change still holds for this library — 28 of 32 transitions on The Anagram get twice as cheap and
+DIRECTIVE changes are 4 of 32 there, 3 of 63 on Transaction — but the finding claimed a win it had
+not looked for the cost of.
 
 **F55's baseline drift does not undercut this.** F55 found the same control arm moving by half
 between two runs on this fixture, p = 0.004 — a fixture whose baseline is not stable across time.
