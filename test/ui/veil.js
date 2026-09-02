@@ -1,135 +1,96 @@
-// PLAN-07 ask 3 — the veil goes full screen with Stop inside it, and the web draws itself while
-// you wait. Seth: "the ai takes long to respond anyway while it formulates so having a ritual for
-// this buys us that time while giving the user something to look at."
+// The waiting screen, driven against real generations.
 //
-// Driven WITHOUT a model: `ghost()` and `unghost()` are called directly, because what is being
-// checked is the surface — where the veil is, what is on top of it, whether Stop is reachable and
-// whether it goes away again. test/ui/model.js drives the real Stop path against a live router and
-// is opt-in for that reason.
+// NOT IN THE DEFAULT SET, for the reason `model` and `ritual` are not: every assertion below waits
+// on the model actually writing something, so this runs in minutes and needs llama-server up.
 //
 //   test/ui/run.sh veil
+//
+// It exists because none of this is visible to a source-level check. The behaviour under test is a
+// veil that holds, a field of glyphs being eaten by words, a button that goes away, a background
+// that darkens and a keystroke that dismisses — every one of them a computed style or a DOM state
+// mid-flight. The check it replaced (#29's weave fade-versus-hold, in test/web.ts) guarded the
+// ANANSI resolve, which was removed with the grid on 2026-09-02.
+//
+// THE ONE THAT MATTERS MOST is section 4: PLAN-07 bug 1 was a veil that could be left up by a
+// failure, and the veil now deliberately HOLDS on success. Those two facts together are how you
+// build a trap, so the abort path is asserted rather than assumed.
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
+const veil = (what) => page.eval(`(() => {
+  const g = document.getElementById('ghost'); if (!g) return null;
+  const t = g.querySelector('.veiltext'), n = g.querySelector('.noise');
+  const b = g.querySelector('.veilstop');
+  return JSON.stringify({
+    noise: n ? n.textContent.length : 0,
+    words: t ? t.textContent.length - (n ? n.textContent.length : 0) : 0,
+    spans: t ? t.querySelectorAll('span.tw').length : 0,
+    stopShown: b ? getComputedStyle(b).display !== 'none' : false,
+    dark: getComputedStyle(g).backgroundColor,
+    top: t ? t.scrollTop : -1,
+    written: g.classList.contains('written'), done: g.classList.contains('done') });
+})()`).then((s) => (s ? JSON.parse(s) : null));
 
-const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
-await page.mobile();
+const send = async (text) => {
+  await page.eval(`(() => { const i = document.getElementById('input');
+    i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+  await page.type("#input", text);
+  await page.eval("(() => { document.getElementById('send').click(); return 1; })()");
+};
+
+const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories[0].id)()");
 await page.goto(B + "/#" + sid);
-for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
+for (let i = 0; i < 40; i++) { if (await page.eval("!!document.querySelector('#rail [data-nav]')")) break; await wait(250); }
 
-// Raise it the way the app does: generate() puts the veil up BEFORE the request goes out, so a
-// fetch that never settles gives a veil that stays up and no model is needed to see it.
-await page.eval(`(() => {
-  const real = window.fetch;
-  window.fetch = (u, init) => {
-    // Never settles — but it MUST reject on abort, the way a real fetch does. The first version
-    // returned a promise that ignored the signal, so Stop aborted a controller nobody was
-    // listening to, generateLive never rejected and unghost() never ran: two reds that were the
-    // stub's fault and not the app's.
-    if (String(u).includes('/api/generate')) return new Promise((_, rej) => {
-      init?.signal?.addEventListener('abort', () => {
-        const e = new Error('aborted'); e.name = 'AbortError'; rej(e);
-      }, { once: true });
-    });
-    return real(u, init);
-  };
-  return 1;
-})()`);
-await page.eval("(() => { document.querySelector('[data-continue]')?.click(); return 1; })()");
-await wait(900);
+// ---- 1. before the first token: a field of glyphs, Stop offered, no tint
+await send("The rain does not stop.");
+let first = null;
+for (let i = 0; i < 60; i++) { first = await veil(); if (first) break; await wait(100); }
+ok("the veil goes up on the press", first != null);
+ok("  with a field of glyphs where the prose will land", first != null && first.noise > 100);
+ok("  no words in it yet", first != null && first.words === 0);
+ok("  and Stop offered while there is something to stop", first != null && first.stopShown === true);
+const bareBlur = first?.dark;
 
-const geom = () => page.eval(`(() => {
-  const g = document.getElementById('ghost');
-  if (!g) return { up: false };
-  const r = g.getBoundingClientRect();
-  const cs = getComputedStyle(g);
-  const st = g.querySelector('[data-stop]');
-  const sr = st ? st.getBoundingClientRect() : null;
-  const hit = sr ? document.elementFromPoint(sr.left + sr.width / 2, sr.top + sr.height / 2) : null;
-  return { up: true, parent: g.parentElement?.id, position: cs.position, z: cs.zIndex,
-    top: Math.round(r.top), left: Math.round(r.left), h: Math.round(r.height), w: Math.round(r.width),
-    vh: innerHeight, vw: innerWidth,
-    // Two spellings, because color-mix() does not resolve to rgba(): Chrome reports
-    // \`color(srgb 0.039 0.039 0.047 / 0.62)\`. The first version of this knew only rgba() and
-    // read a 62% veil as fully opaque — the detector wrong again rather than the code.
-    alpha: (() => {
-      const bg = cs.backgroundColor || '';
-      const slash = /\\/\\s*([\\d.]+)\\s*\\)/.exec(bg);
-      if (slash) return Number(slash[1]);
-      const rgba = /rgba\\(([^)]+)\\)/.exec(bg);
-      return rgba ? Number(rgba[1].split(',')[3]) : 1;
-    })(),
-    bg: cs.backgroundColor,
-    backdrop: cs.backdropFilter || cs.webkitBackdropFilter,
-    rows: g.querySelectorAll('.weave .wrow').length,
-    cols: g.querySelector('.weave .wrow')?.children.length ?? 0,
-    web: g.querySelectorAll('.web').length,
-    // Every cell holding SOMETHING is the whole of "them all be random" that a still frame can
-    // check. Whether the next frame differs is asserted below, by watching two of them.
-    filled: [...g.querySelectorAll('.weave i')].every((c) => (c.textContent || '').trim().length),
-    stop: !!st, stopOnTop: !!(hit && hit.closest('[data-stop]')) };
-})()`);
+// ---- 2. as the words arrive they take the glyphs' place, Stop goes, the ground darkens
+let mid = null, sawWords = false, seen = [];
+for (let i = 0; i < 400; i++) {
+  const v = await veil();
+  if (!v) break;
+  if (v.words > 0 && !sawWords) { sawWords = true; }
+  if (v.words > 0) { seen.push(v.words); mid = v; }
+  if (v.done) { mid = v; break; }
+  await wait(250);
+}
+console.log("  words: " + JSON.stringify(seen.slice(0, 8)) + (seen.length > 8 ? " …" : ""));
+ok("the prose types itself in", sawWords && new Set(seen).size > 1);
+ok("  in separate fading spans, not one blob", (mid?.spans ?? 0) > 5);
+ok("  Stop went with the glyphs once writing started", mid != null && mid.stopShown === false);
+ok("  the veil darkened when the words came", mid != null && mid.dark !== bareBlur);
+// Seth: "the view screen should stay at the top so the user can read."
+ok("  and the view stayed at the top rather than chasing the tail", mid != null && mid.top === 0);
 
-const g = await geom();
-console.log("  veil: " + JSON.stringify(g));
-ok("pressing Continue raises the veil", g.up);
-ok(`  it is a child of #shell, not of #doc (${g.parent})`, g.parent === 'shell');
-ok(`  positioned absolute, so no ancestor can re-base it (${g.position})`, g.position === 'absolute');
-ok(`  covering the whole window, header and composer included (${g.h} of ${g.vh})`,
-   g.top === 0 && g.left === 0 && Math.abs(g.h - g.vh) <= 1 && Math.abs(g.w - g.vw) <= 1);
-// The trade PLAN-07 names: covering everything is only safe BECAUSE Stop came inside.
-//
-// NO TINT NOW — the blur alone. What must never come back is an OPAQUE veil, which is what this
-// asserted for a day and what "the book is gone" looks like.
-ok(`  not opaque — the page is still behind it (alpha ${g.alpha})`, g.alpha < 1);
-ok(`  and blurred, so it cannot be read through (${g.backdrop})`, /blur\(/.test(g.backdrop || ''));
-// THE WEAVE REPLACED THE DRAWN WEB, 2026-08-28. Seth: "remove the web. instead copy the current
-// scrmbled glyph animation and make it five lines tall and eleven letters long and them all be
-// random." Six rows, not five, and the reason is in `ghost()`: the sixth letter of eleven is the
-// middle column and ANANSI is six letters, so five rows cannot spell it downward.
-ok(`  the drawn web is gone (${g.web} of them)`, g.web === 0);
-ok(`  and a weave stands where it was (${g.rows} rows of ${g.cols})`, g.rows === 6 && g.cols === 11);
-ok("  with every cell holding a glyph", g.filled);
-// MOVING, not merely present. A grid of 66 characters that never changes is a picture, and a
-// picture passes every check above.
-const roll1 = await page.eval("[...document.querySelectorAll('#ghost .weave i')].map(c=>c.textContent).join('')");
-await wait(400);
-const roll2 = await page.eval("[...document.querySelectorAll('#ghost .weave i')].map(c=>c.textContent).join('')");
-ok("  and it is rolling while she thinks", roll1 !== roll2 && roll1.length === 66);
-ok("Stop is inside the veil", g.stop);
-ok("  and it is the topmost thing at its own centre, so it can be pressed", g.stopOnTop);
+// ---- 3. it holds when the passage is done, and typing is the way out
+const done = await veil();
+ok("the veil holds after the passage finishes", done != null && done.done === true);
+ok("  the glyph field is gone, because nothing more is coming", done != null && done.noise === 0);
+ok("  and the passage landed on the page behind it",
+   (await page.eval("document.querySelectorAll('#col .block').length")) > 0);
+await page.eval("(() => { document.dispatchEvent(new KeyboardEvent('keydown',{key:'q',bubbles:true})); return 1; })()");
+await wait(1200);
+ok("typing takes the veil away", (await page.eval("!!document.getElementById('ghost')")) === false);
+ok("  and the letter lands in the composer",
+   (await page.eval("document.getElementById('input').value")) === "q");
 
-// AND IT RESOLVES BEFORE IT GOES. The middle column stops being noise and says who wrote it while
-// the rest of the weave fades out from under it. Asserted on the letters AND on the class that
-// fades their neighbours: the word alone would pass with all 66 still on screen, which is the
-// effect happening and not being seen.
+// ---- 4. THE TRAP CHECK. A veil that holds on success must still leave on a failure.
+await send("Once more, briefly.");
+let up = false;
+for (let i = 0; i < 60; i++) { if (await page.eval("!!document.getElementById('ghost')")) { up = true; break; } await wait(150); }
+ok("the veil went up again", up);
+await wait(1500);
 await page.eval("(() => { document.querySelector('#ghost [data-stop]')?.click(); return 1; })()");
-await wait(120);
-const solved = await page.eval(`(() => { const w = document.querySelector('#ghost .weave');
-  if (!w) return null;
-  return { word: [...w.querySelectorAll('.wrow')].map(r => r.children[5]?.textContent ?? '').join(''),
-           solved: w.classList.contains('solved'),
-           dim: getComputedStyle(w.querySelector('.wrow i')).opacity }; })()`);
-console.log("  resolve: " + JSON.stringify(solved));
-ok(`  the middle column spells her name (${solved && solved.word})`, !!solved && solved.word === 'ANANSI');
-ok("  and the rest of the weave is going out from under it",
-   !!solved && solved.solved === true && Number(solved.dim) < 1);
-// #29 gave the letters their own fade (.9s) inside a longer hold (1220ms), so `.leaving` is added
-// LATER than it used to be — this waited 700ms, which was after the old 620ms hold and is now in
-// the middle of the new one. Waits for the state rather than for a number, so tuning either the
-// fade or the hold does not silently turn this into a check of the wrong moment.
-for (let i = 0; i < 40; i++) {
-  const st = await page.eval("(() => { const g = document.getElementById('ghost'); return g ? (g.classList.contains('leaving') ? 'leaving' : 'up') : 'gone'; })()");
-  if (st !== 'up') break;
-  await wait(50);
-}
-const mid = await page.eval("(() => { const g = document.getElementById('ghost'); return g ? (g.classList.contains('leaving') ? 'leaving' : 'up') : 'gone'; })()");
-console.log("  right after Stop: " + mid);
-ok(`pressing Stop starts the veil leaving rather than deleting it (${mid})`, mid === 'leaving');
-for (let i = 0; i < 30; i++) {
-  if ((await page.eval("!document.getElementById('ghost')"))) break;
-  await wait(100);
-}
-ok("  and it is gone once the fade finishes", await page.eval("!document.getElementById('ghost')"));
+let gone = false;
+for (let i = 0; i < 80; i++) { if (!(await page.eval("!!document.getElementById('ghost')"))) { gone = true; break; } await wait(300); }
+ok("Stop mid-write takes it down — PLAN-07 bug 1, a failure must never trap anyone", gone);
 
-console.log(red ? `\n  ${red} RED` : "\n  all green");
+console.log(red ? `  ${red} RED` : "  all green");

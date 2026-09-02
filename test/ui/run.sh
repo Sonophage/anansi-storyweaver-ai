@@ -49,8 +49,8 @@ scenarios=${*:-}
 [ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge"
 # `cover` and `entrypic` are excluded too, and for a second reason: they need ANANSI_SEARCH pointing
 # at a working endpoint AND the open web. Run them by name, with that variable set on the test server.
-# `model` and `ritual` are excluded from the default set: every step waits on a real generation, so it runs
-# in minutes. Ask for it by name: test/ui/run.sh model
+# `model`, `ritual` and `veil` are excluded from the default set: every step waits on a real
+# generation, so they run in minutes. Ask for one by name: test/ui/run.sh veil
 fail=0
 # WHAT THIS RUN SAW, written down. Until 2026-08-28 the results of this harness existed only in the
 # terminal at the moment you ran it, and it is run by hand — so `buttons` and `handlers` sat dead

@@ -6077,7 +6077,7 @@ function ghost() {
   // A fresh veil is a fresh take: anything left buffered from the last one would type itself into
   // this one's box.
   PEND = ''; if (DRAIN != null) cancelAnimationFrame(DRAIN); DRAIN = null;
-  STICK = true; VEIL_DONE = false;
+  VEIL_DONE = false;
 
   const g = document.createElement('div');
   g.id = 'ghost'; g.className = 'veil';
@@ -6086,57 +6086,52 @@ function ghost() {
   // letters long and them all be random. when the ai is done have the sixth letter spell anansi
   // going down and fade out the other letters and then go to the text screen."
   //
-  // SIX ROWS, NOT FIVE, and it is the one number I changed: the sixth letter of eleven is the
-  // middle column, and ANANSI is six letters, so a five-row grid cannot spell it downward. WEAVE_H
-  // is the constant to move if the word changes.
+  // innerHTML is safe here and only here: every character of it is written below, and the one place
+  // untrusted text lands is `.veiltext`, which only ever receives text nodes.
+  // THE GLYPHS ARE WHERE THE PROSE WILL BE. Seth, 2026-09-02: "lets change the glyphs to not be
+  // columns and rows. but to be where the streaming would come in. as it comes in the glyphs are
+  // replaced by the words." So the noise is not a grid beside the text, it IS the text's own space,
+  // held open and rolling until there are words to put in it.
   //
-  // Spans, not one text node. The resolve fades every letter EXCEPT the middle column, and opacity
-  // is a property of an element — a <pre> of text can be rewritten but not dissolved around a word.
-  // innerHTML is safe here and only here: every character of it is written above, and the one place
-  // untrusted text lands is `.head`, which is filled with textContent below and never with markup.
+  // ONE CONSEQUENCE, NAMED: the six-by-eleven grid was what let the middle column spell ANANSI on
+  // the resolve, and a field with no columns cannot. `solve()` and the resolve are gone with it.
   g.innerHTML = `<div class="narr">
-      <div class="weave" aria-hidden="true">${
-        Array.from({ length: WEAVE_H }, () =>
-          `<div class="wrow">${'<i></i>'.repeat(WEAVE_W)}</div>`).join('')}</div>
-      <div class="veiltext" aria-live="polite"></div>
+      <div class="veiltext" aria-live="polite"><span class="noise" aria-hidden="true"></span></div>
       <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
     </div>`;
   shell.appendChild(g);
-  // SCROLLING UP STOPS THE FOLLOW. Seth asked to be able to scroll through it while it arrives, and
-  // a box that yanks itself back to the bottom on every frame cannot be read anywhere but the end.
-  // 4px of slack because a fractional scrollHeight never lands exactly on the boundary.
-  g.querySelector('.veiltext')?.addEventListener('scroll', (e) => {
-    const t = e.currentTarget;
-    STICK = t.scrollTop + t.clientHeight >= t.scrollHeight - 4;
-  });
 
-  if (!still()) {
-    // ~11 rolls a second. Fast enough to read as working, slow enough not to strobe, and
-    // unrelated to how fast the tokens are coming.
-    let last = 0;
-    const tick = (t) => {
-      const el = document.getElementById('ghost');
-      if (!el || el.classList.contains('leaving')) return;   // it went; so does its animation
-      if (t - last > 88) {
-
-        // Every cell every roll, which is what "them all be random" asks for. The resolve stops
-        // this by adding `.solved`, so the grid holds still under the word rather than churning
-        // behind it.
-        if (!el.querySelector('.weave')?.classList.contains('solved'))
-          for (const c of el.querySelectorAll('.weave i')) c.textContent = glyph();
-        last = t;
-      }
-      requestAnimationFrame(tick);
-    };
+  // ~11 rolls a second. Fast enough to read as working, slow enough not to strobe, and unrelated
+  // to how fast the tokens are coming — the same clock the grid kept, for the same reason.
+  const roll = () => { const n = g.querySelector('.noise'); if (n) n.textContent = noiseRun(); };
+  roll();
+  if (still()) return;
+  let last = 0;
+  const tick = (t) => {
+    const el = document.getElementById('ghost');
+    if (!el || el.classList.contains('leaving') || !el.querySelector('.noise')) return;
+    if (t - last > 88) { roll(); last = t; }
     requestAnimationFrame(tick);
-  } else {
-
-    for (const c of g.querySelectorAll('.weave i')) c.textContent = glyph();
-  }
+  };
+  requestAnimationFrame(tick);
 }
 
-/** Six rows of eleven. The middle column is the sixth of them, which is where the name lands. */
-const WEAVE_W = 11, WEAVE_H = 6, WEAVE_WORD = 'ANANSI';
+/** A run of noise the width of the column it is standing in for, with spaces at plausible intervals
+ *  so it has the texture of prose rather than of a barcode. It is `aria-hidden`, so nothing here is
+ *  read aloud — a screen reader gets the words as they arrive and none of the waiting. */
+function noiseRun() {
+  let out = '';
+  for (let i = 0, w = 0; i < NOISE_N; i++) {
+    if (w > 2 && Math.random() < 0.14) { out += ' '; w = 0; continue; }
+    out += glyph(); w++;
+  }
+  return out;
+}
+
+/** How much unwritten space the veil holds open ahead of the prose. Constant, so the field does not
+ *  shrink as the passage eats it — what a writer sees is words pushing into noise that keeps going,
+ *  which is true: there is always more passage coming until there is not. */
+const NOISE_N = 260;
 
 /** THE PROSE, ARRIVING, INSIDE THE VEIL, AS A TYPEWRITER.
  *
@@ -6157,7 +6152,7 @@ const WEAVE_W = 11, WEAVE_H = 6, WEAVE_WORD = 'ANANSI';
  *  token and never raised it if the model errored before then. The veil still goes up on the press.
  *  What changed is the other end: on success it now HOLDS, because it is something to read; on an
  *  abort or an error it comes down exactly as it did, because a failure must never trap anyone. */
-let PEND = '', DRAIN = null, STICK = true, VEIL_DONE = false;
+let PEND = '', DRAIN = null, VEIL_DONE = false;
 
 const veilText = () => document.getElementById('ghost')?.querySelector('.veiltext') ?? null;
 
@@ -6170,7 +6165,11 @@ function liveDelta(d) {
   // for a screen that has nothing else on it.
   el.closest('.veil')?.classList.add('written');
   // Under reduced motion there is no typewriter: the text is the point and the animation is not.
-  if (still()) { el.append(d); if (STICK) el.scrollTop = el.scrollHeight; return; }
+  if (still()) {
+    const noise = el.querySelector('.noise');
+    if (noise) el.insertBefore(document.createTextNode(d), noise); else el.append(d);
+    return;
+  }
   PEND += d;
   if (DRAIN == null) DRAIN = requestAnimationFrame(drainVeil);
 }
@@ -6188,8 +6187,11 @@ function drainVeil() {
     span.className = 'tw';
     span.textContent = PEND.slice(0, n);      // a text node, never innerHTML: this is model output
     PEND = PEND.slice(n);
-    el.append(span);
-    if (STICK) el.scrollTop = el.scrollHeight;
+    // BEFORE the noise, so the words displace it rather than following it down the page.
+    const noise = el.querySelector('.noise');
+    if (noise) el.insertBefore(span, noise); else el.append(span);
+    // NO AUTO-SCROLL. Seth: "the view screen should stay at the top so the user can read." A box
+    // that chases its own tail can only be read at the end, and the end is the part still arriving.
   }
   if (PEND) DRAIN = requestAnimationFrame(drainVeil);
   else if (VEIL_DONE) veilReadable();
@@ -6202,12 +6204,9 @@ function veilReadable() {
   const g = document.getElementById('ghost');
   if (!g) return;
   g.classList.add('done');
-  const b = g.querySelector('.veilstop');
-  if (!b) return;
-  b.textContent = 'Close';
-  b.setAttribute('aria-label', 'Close and keep writing');
-  b.removeAttribute('data-stop');
-  b.setAttribute('data-veilclose', '1');
+  // Nothing more is coming, so the space held open for it goes. Removing the node also stops the
+  // roller, which checks for it every frame.
+  g.querySelector('.noise')?.remove();
 }
 
 /** Called on the success path once the take has landed on the page behind the veil. If the writer
@@ -6262,29 +6261,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 
-/** THE RESOLVE. She finishes, the middle column stops being noise and says who wrote it, and the
- *  rest of the weave goes out from under it. Then the veil leaves and the page is there.
- *
- *  It runs BEFORE `.leaving`, not with it: fading 66 letters and the whole veil at once reads as
- *  one fade with a word briefly in it, which is the effect happening and not being seen. */
-function solve(g) {
-  const weave = g.querySelector('.weave');
-  if (!weave) return 0;
-  const rows = [...weave.querySelectorAll('.wrow')];
-  const mid = Math.floor(WEAVE_W / 2);          // the sixth of eleven
-  rows.forEach((row, r) => {
-    const cell = row.children[mid];
-    if (cell) cell.textContent = WEAVE_WORD[r] ?? '';
-  });
-  weave.classList.add('solved');
-  // THE HOLD MUST OUTLAST THE FADE OR THE FADE IS NOT SEEN. `--t-weave` is .9s, and `.leaving`
-  // starts when this expires — so a hold shorter than the fade means the veil walks out while the
-  // letters are still going, which is the effect happening off-screen. 900 of fade, then 320 of
-  // the word alone. #29: it was 620 against a .32s fade, so the letters were gone in a third of
-  // the hold and the rest was the word sitting still.
-  return 1220;                                   // long enough to read it, short enough to want to
-}
-
 /** It FADES, rather than vanishing. The node used to be removed outright, so a veil that had been
  *  up for thirty seconds left in one frame.
  *
@@ -6295,14 +6271,13 @@ const unghost = () => {
   const g = document.getElementById('ghost');
   if (!g || g.classList.contains('leaving')) return;
   if (still()) return g.remove();
-  // The name first, then the fade. Under reduced motion neither happens — the branch above already
-  // returned, and a resolve nobody can see is a delay before the page for no reason.
-  const hold = solve(g);
-  setTimeout(() => {
-    if (!g.isConnected || g.classList.contains('leaving')) return;
-    g.classList.add('leaving');
-    g.addEventListener('animationend', () => g.remove(), { once: true });
-  }, hold);
+  // STRAIGHT TO THE FADE. There used to be a 1,220ms resolve here — the middle column of a six-by-
+  // eleven grid spelling ANANSI while the rest went out from under it. The grid is gone (Seth,
+  // 2026-09-02: the glyphs belong where the streaming lands, not in rows beside it), and a field
+  // with no columns has nothing to spell with. This path is now only ever an abort or an error,
+  // where a flourish between the failure and the page was the wrong thing anyway.
+  g.classList.add('leaving');
+  g.addEventListener('animationend', () => g.remove(), { once: true });
 };
 
 function working(kind) {

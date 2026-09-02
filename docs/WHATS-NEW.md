@@ -27,17 +27,20 @@ re-runs that passage's own instruction, which you edit on the passage itself.
 The waiting screen used to hold until the whole passage was finished, and on a long one that is
 twenty seconds of watching letters roll.
 
-Now the rolling letters do their job — covering the pause while she works out what to write — and
-step aside the moment the first word exists. The passage types itself in under them, evenly, however
-unevenly it actually arrives. You can scroll back through it while it is still being written, and it
-will not drag you to the bottom while you are reading.
+Now the waiting screen holds the space the passage is about to fill, as a field of turning letters
+where the words will be. The words come in and take their place, evenly, however unevenly they
+actually arrive — and the ground darkens behind them as they do, so what you are reading is the only
+thing lit. It starts at the top and stays there, so you read it from its first word rather than
+being dragged along behind the last one.
 
 When it finishes, the screen **stays**. It is the take, and it is yours to sit with. **Start typing
 and it gets out of the way** — the letter you typed goes into the box, so carrying on writing is one
-motion. Escape closes it without typing anything, and **Close** is there if you would rather press
-something.
+motion. Escape closes it without typing anything.
 
-**Stop** still stops it, and a passage that fails still puts you straight back on the page.
+**Stop** is there until the words start, and then it goes, because there is nothing on that screen
+worth pressing while you are reading. If you do want to stop a passage mid-flight, type or press
+Escape and the composer's own Stop is waiting. A passage that fails still puts you straight back on
+the page.
 
 ### The Anagram is back on the usual model
 It had been set to write with **Artemis**, which is about ten times slower than the model the rest of

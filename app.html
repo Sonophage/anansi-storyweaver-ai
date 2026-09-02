@@ -200,21 +200,12 @@ input, textarea { font:inherit; color:inherit; }
   backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95); }
 #ghost.veil.leaving { animation:veilout var(--t) var(--ease) both; }
 #ghost.veil .narr { text-align:center; display:flex; flex-direction:column; align-items:center; gap:22px; }
-/* THE WEAVE. Six rows of eleven glyphs, all rolling, and on the resolve the middle column holds
-   still and says ANANSI while the rest goes out from under it. Monospace and a fixed column width
-   so the grid is a grid — a proportional font makes six rows of random letters into six ragged
-   lines, and the column that spells the name has to be a column. */
-#ghost.veil .weave { display:flex; flex-direction:column; gap:2px; align-items:center;
-  font-family:ui-monospace,monospace; font-size:19px; line-height:1.25; color:var(--gold-dim);
-  user-select:none; }
-#ghost.veil .wrow { display:flex; gap:4px; }
-#ghost.veil .wrow i { display:block; width:1ch; font-style:normal; text-align:center;
-  transition:opacity var(--t-weave) var(--ease), color var(--t-weave) var(--ease); }
-/* Everything but the middle column goes. `:not(:nth-child(6))` IS the sixth of eleven — one place
-   states which column the name lands in and it is `WEAVE_W / 2` in web/app.js; if that constant
-   moves, this selector has to move with it. */
-#ghost.veil .weave.solved .wrow i { opacity:0; }
-#ghost.veil .weave.solved .wrow i:nth-child(6) { opacity:1; color:var(--gold); }
+/* THE GLYPHS ARE THE TEXT'S OWN SPACE NOW, not a grid beside it. Seth, 2026-09-02: "change the
+   glyphs to not be columns and rows. but to be where the streaming would come in. as it comes in
+   the glyphs are replaced by the words." So the noise sits inside .veiltext, in the same type at
+   the same size, and the words push into it. Dimmer than the prose, because it is the space and
+   not the thing. */
+#ghost.veil .noise { color:var(--ink-ghost); user-select:none; }
 #ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
   letter-spacing:.05em; white-space:nowrap; animation:veilbreathe 1.5s ease-in-out infinite; }
 /* THE PROSE ARRIVING, UNDER THE WEAVE. 2026-09-02. Not `.head` above, which is nowrap and breathing
@@ -231,20 +222,26 @@ input, textarea { font:inherit; color:inherit; }
    `mask-image` fades the top edge so the text reads as coming up out of the weave rather than
    sitting in a box with a hard cut. Compositor-only, like the rest of this surface. */
 #ghost.veil .veiltext {
-  max-width:min(62ch, 78vw); max-height:min(38vh, 300px); overflow-y:auto; text-align:left;
+  max-width:min(62ch, 78vw); max-height:min(58vh, 520px); overflow-y:auto; text-align:left;
   font-family:var(--serif,serif); font-size:15.5px; line-height:1.62; color:var(--mute);
   white-space:pre-wrap; overflow-wrap:break-word; scrollbar-width:none;
-  mask-image:linear-gradient(180deg, transparent 0, #000 34px);
-  -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 34px); }
+  /* No top mask any more: the view stays at the top so the passage can be read from its first
+     word, and a fade over the first line is a fade over the thing being read. */ }
 #ghost.veil .veiltext::-webkit-scrollbar { display:none; }
 /* Empty until the first token, and an empty box with a mask still reserves its gap in the column.
    `:empty` collapses it so the veil looks exactly as it did before a word arrives. */
-#ghost.veil .veiltext:empty { display:none; }
-/* THE GLYPHS GO AT THE FIRST TOKEN. Seth, 2026-09-02: "the glyphs dissapear as soon as the
-   streaming starts." They cover the formulating and that is over the moment a word exists. Height
-   is not held back — the weave collapsing lets the prose take the space it was using, which is what
-   makes the handoff read as one surface changing rather than two stacked. */
-#ghost.veil.written .weave { display:none; }
+/* STOP GOES WITH THE GLYPHS. Seth, 2026-09-02: "the stop button should also dissapear." Once the
+   words are arriving the surface is a page to read, and a button on it is the only thing asking to
+   be pressed. Stopping is still one gesture away — typing or Escape takes the veil off and the
+   composer's own Stop is right there, breathing, because S.busy is still true. */
+#ghost.veil.written .veilstop { display:none; }
+/* AND IT DARKENS. Seth: "as the text starts streaming let the veil darken."
+   The tint was deliberately removed on 2026-08-28 — 62%, then 31%, then none, because he wanted to
+   see the blur on its own. That was a veil with nothing on it but glyphs; this one has prose to
+   read, and prose over an unblurred page of other prose is two texts competing. It arrives WITH the
+   words rather than on the press, so the "not now" state is still the bare blur it was chosen to
+   be. Slow, because the eye should not catch it happening. */
+#ghost.veil.written { background:rgba(10,9,12,.72); transition:background 1.4s var(--ease-out); }
 /* Each frame's worth of characters, fading in. `both` so it starts at zero rather than flashing at
    full opacity for one frame before the animation is applied. */
 @keyframes twin { from { opacity:0; } to { opacity:1; } }
