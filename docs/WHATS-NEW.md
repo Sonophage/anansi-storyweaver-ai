@@ -10,6 +10,36 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Threads say Back, switch in one press, and the reading toggle is visible again
+
+### Always on or triggered is one press, on the list
+The chip under each thread on the **Threads** panel used to be a label. It is a switch now: press it
+and the thread flips between **Always on** (sent on every call) and **Triggered** (sent only when one
+of its words appears). Changing that used to mean opening the thread, pressing Edit and finding the
+row — three steps for a two-way flip.
+
+If you flip a thread to **Triggered** and it has no trigger words, the app says so, because a thread
+in that state cannot reach the model at all.
+
+### A filter for what is actually in context
+Above the list, **All** and **In context**, each with a count. **In context** shows the always-on
+threads plus anything you have pinned into this chapter. It does not guess at triggered threads —
+whether their words come up depends on prose you have not written yet — so pinned is the only way one
+appears there.
+
+### The thread card says Back, not Exit
+There is already a **Close** on the panel, and Exit did something different: it returned you to the
+list of threads. It says **Back** now.
+
+### Reading mode looks switched on when it is
+The book icon in the top bar went blank once reading mode was on — a gold icon on a gold button. It
+reads dark-on-gold now, the same as every other lit control.
+
+### Read / Edit / Back sits against the panel head
+On a thread it floated below the header with a gap above it and a stripe of background either side.
+It is flush under **Threads / Close** now and its ground runs the full width of the panel, so the
+form passes behind it instead of alongside it. Every other panel's **Save** bar sits the same way.
+
 ## 2026-09-01 · Regenerate has its own words now, and they are yours to change
 
 ### A re-roll asks for another take, not for the next passage

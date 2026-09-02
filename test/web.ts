@@ -55,6 +55,54 @@ const ok = (m: string, fn?: unknown) => {
     'a backtick inside an HTML comment closes the template literal that comment lives in, and the '
     + 'panel then renders as nothing at all. Quote identifiers with "double quotes" in markup '
     + 'comments');
+
+  // THE SIBLING BREAK, 2026-09-01. An HTML comment written BETWEEN a tag's attributes ends at its
+  // own `-->`, and that `>` closes the TAG — every attribute after it renders as visible text next
+  // to the control. It happened to the reading-mode button in the top bar and Seth saw the raw
+  // `style="..."` beside the icon.
+  //
+  // The button lint below cannot see this: its `<button\b[^>]*>` stops at the `>` in `-->`, and the
+  // slice it took still held `data-readmode`, so the broken button read as perfectly reachable.
+  // Verified red-capable by moving that comment back inside the tag: it names that line and no
+  // other. Same net over app.html, where the same markup is written by hand.
+  for (const file of ['web/app.js', 'app.html']) {
+    const src = read(file);
+    const inside = [...src.matchAll(/<[a-zA-Z][^>]*?<!--/g)]
+      .map((m) => `${file} line ${src.slice(0, m.index).split('\n').length}`);
+    assert.deepStrictEqual(inside, [],
+      'an HTML comment between a tag\'s attributes closes that tag at its own terminator, and the '
+      + 'rest of the attributes render as text. Put the comment above the tag');
+  }
+  ok('no HTML comment sits between a tag\'s attributes');
+
+  // AND THE OTHER HALF OF THE SAME MORNING. A comment that QUOTES a comment terminator ends there,
+  // and every word after it is drawn on the page. Both breaks put raw markup in the top bar beside
+  // the reading-mode button; the check above caught neither, because by the time it runs the file
+  // it is reading already parses as a comment that closed early and legally.
+  //
+  // The tell is what FOLLOWS the close. Every one of the 101 comments across these two files is
+  // followed by `<` or by `${` and by nothing else — markup resuming, or a template hole. Anything
+  // else means the comment ended in the middle of a sentence, and the sentence is now on screen.
+  //
+  // THE ALLOWED SET IS EXACTLY THOSE TWO, measured rather than guessed. A first draft of this also
+  // allowed a quote character, on the reasoning that a comment might end beside one — and a quoted
+  // terminator leaves a quote as the very next character, so the check passed on the broken file it
+  // was written for. Verified red-capable afterwards by putting that terminator back: it names that
+  // line and no other.
+  for (const file of ['web/app.js', 'app.html']) {
+    const src = read(file);
+    const leaked = [...src.matchAll(/<!--[\s\S]*?-->/g)]
+      .filter((m) => {
+        const after = /^\s*(\S)/.exec(src.slice(m.index + m[0].length));
+        return after != null && after[1] !== '<' && after[1] !== '$';
+      })
+      .map((m) => `${file} line ${src.slice(0, m.index).split('\n').length}`);
+    assert.deepStrictEqual(leaked, [],
+      'this HTML comment closes with text still to come — most likely it quotes a comment '
+      + 'terminator. Everything after that point renders on the page. Describe the terminator in '
+      + 'words instead of writing it');
+  }
+  ok('no HTML comment closes early and leaks its own words onto the page');
   // COUNCIL 09 §1 · EVERY MODEL CALL FROM A BUTTON GOES THROUGH ONE IN-FLIGHT GUARD.
   //
   // Four handlers fired a model pass behind a toast and nothing else, on the panel a writer reaches

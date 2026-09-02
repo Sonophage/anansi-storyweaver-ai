@@ -1125,6 +1125,30 @@ textarea.field { resize:vertical; min-height:70px; }
    spacing, so they are overridden here rather than removed one by one. */
 .savebar > .btn { margin:0 !important; }
 @media (max-width:719px) { .savebar { margin:0 -20px 14px; padding:10px 20px; } }
+/* FLUSH UNDER THE PANEL HEAD. Seth, 2026-09-01, of the Read / Edit / Back bar on a thread: "theres
+   a space above it and the threads and close section can we remove the padding and make the
+   background full width of the panel." #sideBody's own top padding sat between the head's border
+   and the bar, so the bar read as a floating strip rather than a second row of the header.
+
+   THE PADDING GOES; A NEGATIVE MARGIN DOES NOT WORK HERE. Measured in the driver: -18px on the bar
+   moved its static position up to the head, and then sticky clamped it straight back down, because
+   a sticky box is held inside its containing block and that is the panel's flex wrapper, whose own
+   top the child's margin does not move. The bar sat at exactly the same 18px and the computed style
+   said -18px, which is the shape of a fix that reads as applied and is not. Dropping the padding
+   moves the wrapper instead, so there is nothing left to clamp against.
+
+   `:has()` and `:first-child` because the padding must only go when a bar is what LEADS the panel:
+   one that opens on a label still wants its 18px, and one with its help web open puts that card
+   first, which turns this rule off on its own rather than pulling the bar up underneath it. Two
+   shapes to match — most panels return a flex-column wrapper with the bar inside it, and a bar
+   written as a direct child of #sideBody would miss a rule aimed only at the nested one.
+
+   This is every savebar in the app, not only the thread card's: the gap above them is one bug in
+   one component, and fixing it in one place is the point of having the component. Measured rather
+   than eyeballed — test/ui/panels.js asserts the gap, the inset and the width in pixels, because
+   the first attempt here was invisible to every source-level check in the repo. */
+#sideBody:has(> .savebar:first-child),
+#sideBody:has(> :first-child > .savebar:first-child) { padding-top:0; }
 /* THE LONG WAY ROUND, FOLDED. A <details>, because the browser already has this and a state flag
    plus a repaint would throw away whatever is half-typed inside the fold. The default marker goes
    — it is a black triangle no theme here would own — and the chevron is text, so it takes the

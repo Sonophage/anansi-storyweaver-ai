@@ -189,6 +189,9 @@ const S = {
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
   ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
+  // The Threads list, filtered to what actually reaches the model in this chapter. Session-only:
+  // a filter that survives a reload is a list that looks empty for a reason nobody can see.
+  onlyIn: false,
   chaptersFor: null,    // the passage whose tray is showing the chapter list
   memoing: null,        // the passage being turned into a thread, while Anansi is thinking
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
@@ -437,7 +440,10 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #38. The editable re-roll instruction: go, and cancel.
   'rerollgo', 'rerollx',
   // The chapter-end ritual's steps, and the kind of card its third step offers to write.
-  'setupstep', 'setupkind'].map((k) => `[data-${k}]`).join(',');
+  'setupstep', 'setupkind',
+  // The Threads list: filter to what is in context, and flip one card between always-on and
+  // triggered without opening it.
+  'onlyin', 'flipact'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -798,10 +804,17 @@ function drawBar() {
           title="Their summaries no longer reach the model. Chapter → Acts collapses them into one."
           >${h.chapters} ${h.chapters === 1 ? 'chapter' : 'chapters'} not sent</button>` : '';
       })()}
+      <!-- NO INLINE COLOUR. The "pill" class is already chrome-dim, and its aria-pressed rule
+           paints the glyph in "on-gold" over a gold ground. An inline gold colour beat that rule
+           and drew a gold glyph on the gold pill — the toggle read as blank when it was ON.
+           ABOVE THE TAG, NEVER INSIDE IT. A comment written between a tag's attributes ends at
+           its own closing bracket, and that bracket closes the BUTTON: every attribute after it
+           renders as text beside the icon. Never write a comment terminator inside a comment
+           either, for the same reason — the words after it leak onto the screen. -->
       <button class="pill" data-readmode="${S.reading ? '0' : '1'}" aria-pressed="${S.reading}"
         aria-label="${S.reading ? 'Leave reading mode' : 'Reading mode'}"
         title="${S.reading ? 'Leave reading mode' : 'Read without the composer, and without the prose taking taps'}"
-        style="display:flex; align-items:center; padding:6px 11px; color:${S.reading ? 'var(--gold)' : 'var(--chrome-dim)'}"
+        style="display:flex; align-items:center; padding:6px 11px"
         >${mark('book', 17)}</button>
       <button class="pill" data-appearance="1" aria-label="How the app looks" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
@@ -2285,24 +2298,70 @@ const PANELS = {
            list. It is the only way to reach "scan the chapter for facts", to have Anansi write one,
            and to hang an outfit on a character, so it needs a door of its own rather than none. -->
       <button class="btn ghost" data-newlore="1" style="margin-top:9px">+ Thread, or read the chapter</button>
-      ${shown.map(([k, label]) => `
+      <!-- WHAT IS IN CONTEXT, WITHOUT LEAVING THE LIST. Seth, 2026-09-01: "have a currently in
+           context view that just filters what is in context and a fast way to switch from always
+           on to triggered right now its three levels deep."
+           A FILTER RATHER THAN TWO SECTIONS, which was the other half of the same message. Sections
+           would split every one of the four kind groups in two and a card would move under you the
+           moment you flipped its chip; the filter leaves the grouping alone.
+           The filter cannot see a triggered card that is about to fire on a keyword — that needs
+           prose this panel is not given — so the hint under it says what the filter can and cannot
+           know rather than letting the count read as the whole truth. -->
+      ${(() => {
+        const pin = pinModes();
+        const n = V.entries.filter((e) => inContext(e, pin)).length;
+        return `<div style="display:flex; gap:6px; margin-top:12px">
+          ${[['0', 'All', V.entries.length], ['1', 'In context', n]].map(([v, l, c]) =>
+            `<button class="chip" data-onlyin="${v}" aria-pressed="${(S.onlyIn ? '1' : '0') === v}"
+              style="flex:1; text-align:center; cursor:pointer">${l} <span
+              class="tnum" style="color:var(--faint)">${c}</span></button>`).join('')}
+        </div>
+        ${S.onlyIn ? '<div class="hint" style="margin:2px 0 0">Always-on threads, plus anything pinned '
+          + 'into this chapter. A triggered thread is not listed here until you pin it &mdash; whether '
+          + 'its words appear depends on prose that is not written yet.</div>' : ''}`;
+      })()}
+      ${shown.map(([k, label]) => {
+        const pin = pinModes();
+        const rows = V.entries.filter((e) => e.entryType === k
+          && (!S.onlyIn || inContext(e, pin)));
+        if (!rows.length) return '';
+        return `
         <div class="lbl" style="letter-spacing:.1em; margin-top:6px">${label}</div>
-        ${V.entries.filter((e) => e.entryType === k).map((e) => entryCard(e)
-          + ((e.outfits ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:5px; margin:-4px 0 10px 2px">
+        ${rows.map((e) => entryCard(e)
+          + `<div style="display:flex; flex-wrap:wrap; gap:5px; margin:-4px 0 10px 2px">
+            <!-- THE CHIP IS THE SWITCH NOW. It read "Always on" / "Triggered" inside the card and
+                 said nothing you could press, so changing it was open the card, press Edit, find
+                 the row — three levels for a two-state flip. It cannot live INSIDE the card: the
+                 card is itself a button carrying data-entry, and a button inside a button is not
+                 valid HTML — the outer one swallows it. Out here it sits in the row the outfit
+                 chips already use, directly under the card it belongs to.
+                 NO aria-pressed, deliberately: the LABEL carries the state, and "pressed" on a
+                 two-way switch does not say which way. -->
+            <button data-flipact="${esc(e.id)}" class="tag" style="cursor:pointer; ${
+              (e.activation ?? 'always_on') === 'always_on'
+                ? 'border-color:rgba(217,178,106,.35); color:var(--gold)' : 'color:var(--dim)'}"
+              title="${(e.activation ?? 'always_on') === 'always_on'
+                ? 'Sent on every call. Press to send it only on its trigger words.'
+                : 'Sent only when a trigger word appears. Press to send it on every call.'}"
+              >${(e.activation ?? 'always_on') === 'always_on' ? 'Always on' : 'Triggered'}</button>
             <!-- WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's
                  name either way, so there was no non-visual way to tell which one is on. The full
                  control lower down says it in words ("Worn — take it off"); this chip cannot, so it
                  says it in aria. Read off the SAME o.active the style reads, deliberately: the
                  lore chips once had aria-pressed keyed to a different field from their colour and
                  sat permanently false under a lit button. -->
-            ${e.outfits.map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
+            ${(e.outfits ?? []).map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
               aria-pressed="${!!o.active}"
               style="cursor:pointer; ${o.active
                 ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${esc(o.name)}</button>`).join('')}
-            ${e.outfits.some((o) => o.active)
+            ${(e.outfits ?? []).some((o) => o.active)
               ? `<button data-wear="${e.id}:" class="tag" style="cursor:pointer; color:var(--dim)">nothing</button>` : ''}
-          </div>` : '')).join('')}`).join('')}
+          </div>`).join('')}`;
+      }).join('')}
       ${shown.length ? '' : '<div class="hint" style="margin:0">Nothing written down yet. Canon is what the model is told and never allowed to contradict.</div>'}
+      ${shown.length && S.onlyIn && !V.entries.some((e) => inContext(e, pinModes()))
+        ? '<div class="hint" style="margin:0">Nothing is in context. Every thread here is triggered '
+          + 'and none is pinned into this chapter.</div>' : ''}
       <!-- This panel is ONE story's threads, because entries are story-scoped in the schema. The
            page that spans every book already existed and had no door from inside a story: you had
            to leave first, and then know that Threads out there means something wider than Threads
@@ -3801,12 +3860,10 @@ function passReport() {
 function setupPanel() {
   const ch = V?.currentChapter;
   if (!ch) return '<div class="hint">No chapter open.</div>';
-  const pin = new Map((V.pins ?? []).filter((p) => p.chapterId === ch.id).map((p) => [p.entryId, p.mode]));
-  // In this chapter or not, for every entry — including always-on ones. `force_out` is applied
-  // FIRST in context.ts, before the always-on branch, so turning one off has always worked in the
-  // engine; the panel simply never offered it and listed them as "no ticking needed" instead.
-  const on = (e) => pin.get(e.id) === 'force_out' ? false
-    : e.activation === 'always_on' ? true : pin.get(e.id) === 'force_in';
+  const pin = pinModes();
+  // In this chapter or not, for every entry — including always-on ones. Shared with the Threads
+  // list's In-context filter, so the two screens cannot disagree about what "in context" means.
+  const on = (e) => inContext(e, pin);
   const why = (e) => pin.get(e.id) === 'force_out' ? 'held back'
     : e.activation === 'always_on' ? 'always on' : pin.get(e.id) === 'force_in' ? 'pinned in'
     : 'on its keywords';
@@ -4239,7 +4296,18 @@ function inventTray(kind, label, placeholder, value = '') {
 /*  SAVE RIDES IN THIS ROW AND THE ROW IS STICKY. Seth, 2026-08-30: "the save button need to be up
  *  top." Same call the story panel made in #26 — Save sat at the end of eleven fields there and at
  *  the end of a dozen sections here, so the press that commits the form was the one thing you had
- *  to scroll to find. Beside Exit, because leaving and keeping should be the same reach.
+ *  to scroll to find. Beside Back, because leaving and keeping should be the same reach.
+ *
+ *  IT SAYS BACK, NOT EXIT (2026-09-01). Seth: "we have a close button so close and exit is
+ *  confusing and the exit button there takes you back to the other threads." The panel's Close
+ *  shuts the panel; this returns to the thread list. Two different moves, two different words.
+ *
+ *  IT IS `.savebar` NOW (2026-09-01), not its own copy of sticky-plus-a-background. Seth: "theres
+ *  a space above it and the threads and close section can we remove the padding and make the
+ *  background full width of the panel." The hand-rolled version sat inside #sideBody's 22px side
+ *  padding, so its ground stopped short of the panel edges and the form slid past in the gutter —
+ *  which is the exact problem the negative gutter on `.savebar` was written for. One bar, one rule,
+ *  and the flush-to-the-head margin comes with it.
  *
  *  Sticky, or moving it up only inverts the problem: the bar scrolls with #sideBody, so a Save at
  *  the top of a long card is as far away from the bottom of it as the old one was from the top.
@@ -4249,15 +4317,14 @@ function cardBar(view) {
   const link = (on) => `background:none; border:0; padding:4px 0; cursor:pointer; font-size:11px;
     letter-spacing:.12em; font-variant-caps:all-small-caps;
     color:${on ? 'var(--gold)' : 'var(--faint)'}`;
-  return `<div style="position:sticky; top:0; z-index:2; background:var(--rail); display:flex;
-      gap:16px; align-items:center; margin-bottom:12px; padding:2px 0 8px">
+  return `<div class="savebar" style="display:flex; gap:16px; align-items:center">
     <button data-cardview="face" style="${link(view === 'face')}"
       aria-pressed="${view === 'face'}">Read</button>
     <button data-cardview="form" style="${link(view === 'form')}"
       aria-pressed="${view === 'form'}">Edit</button>
     ${view === 'form' ? `<button data-saveentry="1" style="${link(true)}; margin-left:auto;
       border:1px solid rgba(217,178,106,.42); border-radius:var(--r); padding:4px 14px">Save</button>` : ''}
-    <button data-backentry="1" style="${link(false)}; ${view === 'form' ? '' : 'margin-left:auto'}">Exit</button>
+    <button data-backentry="1" style="${link(false)}; ${view === 'form' ? '' : 'margin-left:auto'}">Back</button>
   </div>`;
 }
 
@@ -4882,6 +4949,25 @@ function historyPanel() {
   </div>`;
 }
 
+/** WHAT IS IN THIS CHAPTER RIGHT NOW, in the one place both screens read it from.
+ *
+ *  It was inside setupPanel and the Threads list needed the same answer for its In-context filter.
+ *  Two copies of this is two definitions of "in context", and the pin rules are the half nobody
+ *  remembers: `force_out` is applied BEFORE the always-on branch in `src/context.ts`, so a held-back
+ *  always-on card is out. A second hand-written copy would get that backwards.
+ *
+ *  It cannot see a TRIGGERED card that is about to fire on a keyword — that depends on prose the
+ *  panel has not been given. So the filter's own hint says so rather than the screen implying the
+ *  list is complete. */
+function pinModes() {
+  const ch = V?.currentChapter;
+  return new Map((V?.pins ?? []).filter((p) => p.chapterId === ch?.id).map((p) => [p.entryId, p.mode]));
+}
+function inContext(e, pin) {
+  return pin.get(e.id) === 'force_out' ? false
+    : e.activation === 'always_on' ? true : pin.get(e.id) === 'force_in';
+}
+
 /** A card on a grid: name, how it fires, and the first few lines of what it says.
  *
  *  THE PREVIEW IS NOT `e.body` ANY MORE, and it cannot be. The 2026-08-29 migration moved every
@@ -4898,9 +4984,6 @@ function entryCard(e) {
     || rooms.find((a) => a.slot === 'facts')?.body?.trim()
     || rooms.find((a) => a.active)?.body?.trim()
     || rooms[0]?.body?.trim() || '';
-  const act = e.activation ?? 'always_on';
-  const pill = act === 'always_on' ? 'Always on' : 'Triggered';
-  const gold = act === 'always_on';
   // AT THE TOP, and full width rather than a thumbnail beside the name. A card with a face on it is
   // found by the face; shrinking it to a 40px square beside the title makes it decoration.
   const pic = threadPic(e);
@@ -4909,8 +4992,6 @@ function entryCard(e) {
       object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 8px">` : ''}
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
       <span style="font-size:14.5px; color:var(--ink-bright)">${esc(e.title)}</span>
-      <span class="tag" style="border-color:${gold ? 'rgba(217,178,106,.35)' : 'var(--chip)'};
-        color:${gold ? 'var(--gold)' : 'var(--dim)'}">${pill}</span>
       ${e.sharedFrom ? `<span class="tag" style="border-color:var(--chip); color:var(--faint)"
         >from ${esc(e.sharedFrom)}</span>` : ''}
       ${e.retiredAtChapter != null ? `<span class="tag" style="border-color:var(--chip);
@@ -7471,10 +7552,13 @@ document.addEventListener('click', async (e) => {
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     paint(); return;
   }
-  if (d.kind || d.act) {
+  if (d.onlyin !== undefined) { S.onlyIn = d.onlyin === '1'; paint(); return; }
+  if (d.kind || d.act || d.flipact) {
     // Type and activation are chips, so they save immediately rather than waiting for Save —
     // the trigger-words field enables and disables on activation and must repaint to show it.
-    const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
+    // `flipact` is the same write from the Threads list, where there is no open card: the id comes
+    // off the chip instead of S.entryId, and the chip is a toggle so it works out its own target.
+    const e = V.entries.find((x) => x.id === (d.flipact ?? S.entryId)); if (!e) return;
     // `allowNoKeys`: the guard in db.upsertEntry turns a keyless `triggered` entry always-on so
     // nothing lands dark by accident, and this chip is the one place where the two-step is the
     // ONLY route — the trigger-words field above is disabled while an entry is always-on, so a
@@ -7482,10 +7566,19 @@ document.addEventListener('click', async (e) => {
     // back and a triggered entry cannot be made at all. A human pressing "On a keyword" with the
     // chip and the hint in front of them is not the silence 2e is about.
     const patch = { ...e, id: e.id, keys: e.keys ?? [], allowNoKeys: true };
-    if (d.kind) patch.entryType = d.kind; else patch.activation = d.act;
+    if (d.kind) patch.entryType = d.kind;
+    else patch.activation = d.flipact
+      ? (e.activation === 'always_on' ? 'triggered' : 'always_on') : d.act;
     const r = await api.saveEntry(S.storyId, patch);
     if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); paint(); refreshManifest(); return;
+    V = await api.story(S.storyId); paint(); refreshManifest();
+    // `allowNoKeys` is what lets the two-step above work, and from the list there is no
+    // trigger-words field in front of you to notice you have nothing to fire on. The card screen
+    // says it in bold; out here it has to be said out loud or the thread goes dark silently.
+    if (patch.activation === 'triggered' && !(e.keys ?? []).length) {
+      toast(`${e.title} is triggered with no trigger words — it cannot reach the model. Open it to add some.`);
+    }
+    return;
   }
   /* ISSUE #36 · A FOLLOWED CARD, PER CARD. Four presses over one mechanism — a local row that
    * remembers the card it came from. `src/db.ts`'s migration note holds the three states.
