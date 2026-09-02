@@ -36,6 +36,12 @@ const el = (id: string) => {
     getAttribute: (k: string) => o.attrs[k] ?? null,
     addEventListener() {}, focus() {}, closest: () => null,
     querySelectorAll: () => [], querySelector: () => null,
+    // ENOUGH GEOMETRY TO SEE WHERE THE PAGE LANDS. `pinTo` measures the seam against the reading
+    // pane and scrolls to a point ABOVE the bottom; without these it fell through to the
+    // scroll-to-bottom fallback and a check could not tell the two apart, which is the whole
+    // question. The numbers are arbitrary and only have to be stable.
+    getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
+    scrollTo(arg: any) { o.scrollTop = typeof arg === 'number' ? arg : Number(arg?.top ?? 0); },
   };
   nodes.set(id, o); return o;
 };
@@ -128,6 +134,7 @@ const STORY = {
       directed: true, directive: 'have the envoy arrive early',
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-1', selected: true }] },
     { id: 'p-2', ordinal: 2, body: '"You came alone."', author: 'model', speaker: 'Envoy Sereth',
+      mode: 'speak',
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-2', selected: true }] },
     { id: 'p-3', ordinal: 3, body: '"I came alone because."', author: 'human', speaker: null,
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-3', selected: true }] },
@@ -135,8 +142,13 @@ const STORY = {
     // a passage can land while the browser is away. This is one of those — model-authored, real, and
     // not yet stood behind. Every other passage here omits `claimed`, which reads as claimed and is
     // what an older server sends.
+    // `mode` ADDED 2026-09-01, and until then NO fixture passage carried one — so every `m-*` accent
+    // class and every chip that names a press went untested, which is how Continue came to have no
+    // mark down its margin at all. Two of them, on chapter c-2 because that is the one writing mode
+    // draws: one mode cannot tell a per-mode class from a constant, and Continue is the press that
+    // had nothing while Speak is one that always did.
     { id: 'p-4', ordinal: 4, body: 'The bell rang once and nobody came down for it.', author: 'model',
-      speaker: null, claimed: false, isBreak: false, chapterId: 'c-2', variantIndex: 1,
+      speaker: null, claimed: false, mode: 'continue', isBreak: false, chapterId: 'c-2', variantIndex: 1,
       variants: [{ id: 'p-4', selected: true }] },
     // Narrate: the writer's OWN prose. A human passage that is not a line of dialogue.
     { id: 'p-4', ordinal: 4, body: 'The rain had stopped, and she counted the bells.', author: 'human',
@@ -700,7 +712,10 @@ await new Promise((r) => setTimeout(r, 40));
 assert.match(html('col'), /The hall smells of cold iron/);
 assert.match(html('col'), /Envoy Sereth/, 'a speaker label must render');
 assert.match(html('col'), /You · Ilva Marren/, 'a human passage must be attributed to the persona');
-assert.match(html('col'), /class="block speak"/, 'quoted prose is a speech block');
+// THE CLASS TOKEN, not the whole attribute. This read `class="block speak"` exactly, so it went red
+// the moment that passage also carried a mode accent — a true statement about the markup breaking on
+// an unrelated addition. `\b` on both sides, or `speak` would also match `m-speak`.
+assert.match(html('col'), /class="[^"]*\bspeak\b[^"]*"/, 'quoted prose is a speech block');
 // Regenerate and Continue live at the END of the page now, on the passage they act on. The count
 // is the assertion that matters: `newest` is passed per passage, so a renderer that stopped
 // distinguishing them would put a pair of buttons under every paragraph and still "have" them.
@@ -725,6 +740,39 @@ assert.match(html('col'), /class="block speak"/, 'quoted prose is a speech block
 }
 ok('Regenerate and Continue sit under the last passage, once');
 assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you block');
+
+/* ---- WHERE EACH PASSAGE CAME FROM, said in words as well as in a colour.
+ *
+ * Seth, 2026-09-01: "the lines beside the text the accented ones are 2px too thin its hard to
+ * differentiate could we also add a chip at the top that says where it came from." Two halves of one
+ * answer — the rule is 3px now and the chip names the press — so the chip carries the rule's own
+ * colour and neither needs a legend.
+ *
+ * THE PRESS, NOT THE AUTHOR, wherever a mode was recorded: authorship cannot separate Act from
+ * Narrate, because both write a bare human row. The fixture has one of each shape. */
+{
+  const col = html('col');
+  const chips = [...col.matchAll(/<div class="from"><i><\/i>([^<]*)</g)].map((m) => m[1].trim());
+  assert.strictEqual(chips.length, (col.match(/class="block/g) ?? []).length,
+    'every passage says where it came from, not just the ones with a mode');
+  // AT THE TOP OF ITS BLOCK, which is what was asked for — before the prose, not under it.
+  const one = col.slice(col.indexOf('class="block'));
+  assert.ok(one.indexOf('class="from"') < one.indexOf('data-edit='),
+    'the chip comes before the words it is about');
+  // A MODE IS NAMED BY ITS PRESS. p-4 is a human narration and p-5 is spoken as someone else, so a
+  // chip that just said "You" for every human row would fail here.
+  // CONTINUE IS ONE OF THEM. It is a press beside the four modes rather than one of them, so it fell
+  // through both the accent class and the chip's label and read as a passage from nowhere.
+  assert.ok(col.includes('class="block you m-continue"') || /m-continue/.test(col),
+    'a passage Continue wrote carries the accent class, like every other press');
+  assert.ok(chips.includes('Continue'), `and its chip names it — got ${JSON.stringify(chips)}`);
+  assert.ok(chips.some((c) => /Speak|Act|Direct|Narrate/.test(c)),
+    `at least one chip names the press that made it — got ${JSON.stringify(chips)}`);
+  // AND A SPOKEN LINE CARRIES WHO SAID IT, which is the one thing the colour cannot say.
+  assert.match(col, /<div class="from"><i><\/i>[^<]*&middot; Envoy Sereth</,
+    'a line spoken as someone else names them on the chip');
+}
+ok('every passage carries a chip saying where it came from, above the prose');
 assert.match(html('col'), /Contradiction · Envoy Sereth/, 'a violation must surface on its passage');
 // ISSUE #9 · THE REPAIR IS A PRESS, AND ONLY ON THE FAULT A REWRITE CAN FIX.
 //
@@ -2295,6 +2343,78 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
   assert.match(story, /data-bringback="e-stone"/, 'with the way back beside it');
   ok('a followed thread can be edited, taken over, or taken out — and each face offers only what '
     + 'works from where the card lives (#36)');
+
+// ---- A PASSAGE THAT ARRIVES LANDS YOU AT THE END OF THE ONE BEFORE IT.
+//
+// Seth, 2026-09-01: *"every new message that comes in should scroll to the bottom of the last message
+// not the new message to make it easier to read."*
+//
+// The seam pin already did that and had ONE caller — the writer's own send. Everything else fell
+// through to scroll-to-bottom: a passage the server finished while the phone was in a pocket,
+// Continue, a re-roll, and the other writer's passage arriving on a refresh. The rule lives in
+// `drawDoc` now, where every path already passes.
+//
+// ASSERTED BY WHERE THE PAGE LANDS, not by whether a function was called. `pinTo` measures the seam
+// and scrolls above the bottom; the fallback slams to `scrollHeight`. The two are different numbers.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const read = nodes.get('read');
+  // A DETERMINISTIC REDRAW OF THE COLUMN AND NOTHING ELSE. `readmode` calls `drawDoc()` directly and
+  // setting it to the value it already has changes no state — so each call is exactly one draw,
+  // which is what the "only once" assertion below needs.
+  const redraw = () => click({ readmode: '0' });
+  // The pane has to look scrollable and be AT the tip, or the rule is skipped by design — a writer
+  // who has scrolled up is left where they are.
+  const atTip = () => { read.scrollHeight = 9000; read.clientHeight = 600; read.scrollTop = 8500; };
+  // The seam's block, measured 500px down the pane. `pinTo` subtracts 72px of peek.
+  const wasQS = (globalThis as any).document.querySelector;
+  (globalThis as any).document.querySelector = (sel: string) =>
+    /data-edit="p-5"/.test(sel) ? { closest: () => ({ getBoundingClientRect: () => ({ bottom: 500 }) }) }
+    : null;
+  try {
+    // A REPAINT THAT CHANGED NOTHING MUST NOT MOVE THE PAGE — an edit, a panel, a toast. It goes to
+    // the bottom because that is what being at the tip has always meant, and never to the seam.
+    atTip();
+    redraw();
+    assert.strictEqual(read.scrollTop, 9000,
+      'a repaint with the same newest passage keeps the old behaviour and does not pin');
+
+    // NOW ONE ARRIVES. p-6 lands after p-5, so p-5 is the seam: 500 down, less 72 of peek, from a
+    // pane already scrolled 8500 — the point is that it is NOT scrollHeight.
+    STORY.passages.push({ id: 'p-6', chapterId: 'c-2', body: 'It arrived while you were away.',
+      author: 'model', isBreak: false, ordinal: 99, variantIndex: 0, takes: 1, claimed: false } as any);
+    atTip();
+    redraw();
+    assert.notStrictEqual(read.scrollTop, 9000,
+      'a passage that arrived must not leave you at the bottom of the new prose');
+    assert.strictEqual(read.scrollTop, 8500 + 500 - 72,
+      'it lands at the end of the passage before it, less the peek');
+
+    // AND ONLY ONCE. The same passage is not new on the next repaint.
+    atTip();
+    redraw();
+    assert.strictEqual(read.scrollTop, 9000, 'the next repaint is an ordinary one again');
+
+    /* AND WHEN THE SEAM IS NOT ON THE PAGE, IT STILL MOVES. `pinTo` returns false so the caller
+     * falls back to the bottom — reading mode draws every chapter, a jump can leave the seam
+     * unrendered, and a pin that silently did nothing would leave a writer looking at prose from
+     * before the one that just arrived. Falsified by making `pinTo` claim success on a missing
+     * element, which every other assertion here survives. */
+    (globalThis as any).document.querySelector = () => null;
+    STORY.passages.push({ id: 'p-7', chapterId: 'c-2', body: 'And another.', author: 'model',
+      isBreak: false, ordinal: 100, variantIndex: 0, takes: 1, claimed: false } as any);
+    atTip();
+    redraw();
+    assert.strictEqual(read.scrollTop, 9000,
+      'a seam it cannot find falls back to the bottom rather than leaving the page where it was');
+    STORY.passages = STORY.passages.filter((p: any) => p.id !== 'p-7');
+  } finally {
+    (globalThis as any).document.querySelector = wasQS;
+    STORY.passages = STORY.passages.filter((p: any) => p.id !== 'p-6');
+  }
+  ok('a passage that arrives leaves you at the end of the one before it, wherever it came from');
+}
 
 // ---- SEPARATION BETWEEN CHAPTERS IN A CONTINUOUS READ, and each one anchored.
 //

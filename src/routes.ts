@@ -158,7 +158,9 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
  *  This is the bound on the answer now that the grammar no longer holds one. */
 /** The five the writer may rewrite. `talk` is not one of them: it is Anansi's chat, not a way of
  *  writing prose, and handing it the same box would let a reworded chat prompt continue the book. */
-const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate'];
+// `regenerate` is a sixth editable instruction rather than a mode you can press: it is what a
+// re-roll says when the passage carries no directive. The editor draws whatever is in this list.
+const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate', 'regenerate'];
 // #21 §2. The kinds the cast call will answer for. `SLOTS` is keyed by exactly these.
 const KINDS_ALL = Object.keys(SLOTS);
 
@@ -491,6 +493,30 @@ const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
  *  Both the generation and POST /api/manifest go through here, or the Context panel would preview a
  *  prompt the generation is not going to send. Not inside assemble(): buildContext is pure and this
  *  reads a row. */
+/** IS THIS CALL ANOTHER TAKE ON A PASSAGE THAT EXISTS, for the purpose of which INSTRUCTION it gets.
+ *
+ *  Seth, 2026-09-01: the re-roll's wording should be its own editable thing. `MODE.regenerate` is
+ *  that wording; this decides who gets it, and the PASSAGE decides — the same way `inherit` below
+ *  already lets the passage decide whether a re-roll is a Direct.
+ *
+ *    directed  keeps `direct` and its stored directive: there the instruction IS the directive, and
+ *              a generic "write it again" would throw it away.
+ *    spoken    keeps the composer's mode, so "say it as X" survives. `MODE.regenerate` names no
+ *              speaker, and a re-roll of dialogue that forgets who is talking is worse than the
+ *              arbitrary instruction this replaces.
+ *    otherwise plain narration — the case a writer means by Regenerate, and the only one where the
+ *              old behaviour was purely arbitrary: whichever mode the composer happened to show.
+ *
+ *  BOTH ROUTES ASK IT. `POST /api/manifest` builds the prompt the Context panel draws and
+ *  `generate` builds the one that is sent; a rule in one of them is a panel that shows a prompt the
+ *  writer will not get. The same argument the comment on `inherit`'s use in the manifest route
+ *  already makes about overrides. */
+function isReroll(c: Ctx, v: any, directive?: string) {
+  const again = c.body.regenerateOf
+    ? v.passages.find((p: any) => p.id === c.body.regenerateOf) : null;
+  return !!again && !again.speaker && !(directive ?? '').trim();
+}
+
 function inherit(c: Ctx, mode: string, directive?: string) {
   if (directive?.trim() || !c.body.regenerateOf) return { mode, directive };
   const own = db.passageDirective(c.body.storyId, String(c.body.regenerateOf));
@@ -510,9 +536,11 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   const v = viewOf(c.body.storyId, c.body.chapterId);
   const upTo = c.body.regenerateOf
     ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
+  const reroll = isReroll(c, v, directive);
   const { manifest, prompt } = assemble(v, c.slot, mode, directive, upTo,
     Number(c.gen.max_tokens) || 900, c.body.speaker || undefined, db.promptsOf(c.owner),
-    Number(c.gen.target_words) || 0);
+    Number(c.gen.target_words) || 0,
+    reroll);
   if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
   // The estimate draws the meter; this decides. One /tokenize before a call that costs
@@ -2744,7 +2772,10 @@ export const routes: Record<string, Handler> = {
     // without it shows a prompt one instruction shorter than the one the generation sends.
     const { manifest, prompt } = assemble(v, c.slot, m0.mode, m0.directive,
       upTo, Number(c.gen.max_tokens) || 900, c.body.speaker || undefined, db.promptsOf(c.owner),
-      Number(c.gen.target_words) || 0);
+      Number(c.gen.target_words) || 0,
+      // The same question `generate` asks, from the same helper — see `isReroll`. Asked with the
+      // INHERITED directive, or a re-roll of a directed passage would preview as a plain one.
+      isReroll(c, v, m0.directive));
     let exact: number | null = null;
     try { exact = await count(prompt, modelFor(v.story, c.defaultModel)); } catch { /* model asleep */ }
     return { manifest, prompt, exact };

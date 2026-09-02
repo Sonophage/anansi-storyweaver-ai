@@ -448,6 +448,20 @@ export function themeVars(key) {
     // were already distinguishable.
     '--m-speak': S.speak, '--m-act': S.good,
     '--m-direct': mix(S.accent, away, .22), '--m-narrate': S.warn,
+    /* A FIFTH, 2026-09-01. Seth: "for continues border i mean the accent border at the side
+     * everything else has a colored border but not continue."
+     *
+     * He is right and it was a hole rather than a decision: the class is chosen from `MODES`, which
+     * is the FOUR BUTTONS in the composer, and Continue is a press beside them rather than one of
+     * them — so a passage it wrote fell through and got no accent at all. It is also the most common
+     * passage in any book, so the one shape with no mark was the one you see most.
+     *
+     * Derived like the other four rather than added to the theme table, for the reason above them:
+     * nineteen themes, and one that ships four of five accents is the half-applied failure THEMES
+     * exists to prevent. Off the INK rather than off the accent, and that is the argument for this
+     * colour: the other four say a writer chose something, and Continue is the model carrying on by
+     * itself. It should read as the page's own voice, not as a fifth decision. */
+    '--m-continue': mix(S.ink, away, S.dark ? .42 : .28),
     // (--speak-tint / --act-tint lived here. Removed 2026-08-27: only one of the pair was
     // visible, so the row read as broken rather than as distinguishing the two modes.)
     '--head': mix(S.ink, away, .42),

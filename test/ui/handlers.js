@@ -285,7 +285,10 @@ ok("  and the panel is still History, not something else",
     await wait(900);
     const failed = (await page.text('#sideBody') || '');
     ok("a manifest that fails says so instead of showing the last one that worked",
-       /could not be assembled/.test(failed) && !/prose engine/.test(failed));
+       // The same durable clause surfaces.js probes for, and for the same reason: this asserted the
+       // absence of "prose engine", which stopped meaning anything the moment SYSTEM stopped saying
+       // it — a negative that is trivially true tests nothing.
+       /could not be assembled/.test(failed) && !/Output prose only/.test(failed));
     await page.eval("(() => { window.fetch = window.__realFetch; return 1; })()");
   }
 }

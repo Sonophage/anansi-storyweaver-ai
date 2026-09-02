@@ -10,6 +10,56 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-01 · Regenerate has its own words now, and they are yours to change
+
+### A re-roll asks for another take, not for the next passage
+Regenerate used to borrow whichever mode the composer was showing — so asking for another pass at a
+paragraph could arrive as *"carry the scene forward by one small beat"*, which is the instruction for
+the **next** passage. It has its own wording now: same moment, same canon, a different way through
+it, and explicitly not a continuation or a resolution.
+
+**Storyteller lists it beside the five modes**, so you can replace it with your own words the same way
+— and blank still puts the shipped one back.
+
+Two cases keep what they had, because the passage decides: re-rolling a **directed** passage still
+re-runs its instruction, and re-rolling **dialogue** keeps the speaker, since the new wording names
+nobody. The Context panel shows whichever instruction a re-roll will actually use.
+
+## 2026-09-01 · A chapter that went missing, where the page lands, and who wrote what
+
+### Every passage says where it came from
+A small chip above each one names the press that made it — **Speak**, **Act**, **Direct**,
+**Narrate** — and a spoken line names who said it. It wears the same colour as the rule beside it, so
+the two say one thing twice. Reading mode hides them with the rest of the apparatus.
+
+### Continue has an accent now, like every other press
+It was the only one without a coloured rule down its margin — and it writes more of a book than
+anything else, so the shape you see most was the one with no mark on it. Its colour comes off the
+page's ink rather than the accent: the other four say you chose something, and Continue is the
+storyteller carrying on by itself.
+
+### And the rules down the margin are thicker
+They were a hairline, and several of the colours differ from each other by lightness alone, which is
+exactly when a hairline is hard to read. Three times the width now, into the gap — the prose has not
+moved.
+
+### A book can no longer be left with nowhere to write
+Deleting a chapter refused only when it was the book's **last** chapter — so a book with chapter one
+closed and an empty chapter two open let you delete chapter two, and then every screen showed a
+closed chapter one and there was nowhere to write, with nothing saying why.
+
+**The Transaction of Silence was in that state.** It has a Chapter 2 again, opened where the close
+would have left one. Deleting a chapter now refuses when it is the last one **open**.
+
+### A passage that arrives leaves you at the end of the one before it
+Sending already worked that way — you land on the last line you had read, with the new prose starting
+under it. Everything else jumped to the bottom of the new passage: one that finished while your phone
+was in your pocket, **Continue**, a re-roll, and the other writer's passage arriving. They all land
+the same way now.
+
+A repaint that changed nothing still leaves the page alone, and switching chapters still takes you to
+the end of that chapter.
+
 ## 2026-09-01 · The writing instruction, rewritten
 
 ### It reads as a continuation now, not as an engine

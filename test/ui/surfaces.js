@@ -120,6 +120,37 @@ await wait(400);
 const hits = await page.eval("document.querySelectorAll('#page [data-entry]').length");
 ok("   search narrows it too (" + hits + " for 'brass')", hits > 0 && hits < all);
 
+/* 3b. THE PASSAGES ARE SEPARATED, AND THE NEWEST ONE'S RING DOES NOT CUT THE PARAGRAPH ABOVE IT.
+ *
+ * MEASURED IN A BROWSER, because nothing else can see it. Wrapping each chapter in a <section> on
+ * 2026-09-01 — so a continuous read had a break between chapters — made that section a single flex
+ * child of #col, and the 30px `--gap` that had always separated PASSAGES started separating
+ * CHAPTERS instead. Every passage butted against the next, and the newest passage's outline (12px of
+ * offset, 1px of line) overlapped the paragraph above by 13px: a line struck through the last
+ * sentence of the previous passage, which is how Seth reported it.
+ *
+ * Every suite was green for it. A layout regression is invisible to markup checks by construction —
+ * BUILD-STATE 3b's rule, "do not audit a surface with a pattern; read the object" — so this reads the
+ * object.
+ */
+{
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await page.eval("document.querySelectorAll('#col .block').length > 1")); i++) await wait(150);
+  const m = await page.eval(`(() => {
+    const bs = [...document.querySelectorAll('#col .block')];
+    const last = bs.at(-1), prev = bs.at(-2);
+    if (!last || !prev) return { blocks: bs.length };
+    const cs = getComputedStyle(last);
+    const lr = last.getBoundingClientRect(), pr = prev.getBoundingClientRect();
+    const reach = parseFloat(cs.outlineStyle === 'none' ? '0' : cs.outlineOffset)
+                + parseFloat(cs.outlineStyle === 'none' ? '0' : cs.outlineWidth);
+    return { blocks: bs.length, gap: +(lr.top - pr.bottom).toFixed(1),
+             clear: +(lr.top - pr.bottom - reach).toFixed(1) }; })()`);
+  console.log("  passage spacing: " + JSON.stringify(m));
+  ok("3b. consecutive passages are separated (" + m.gap + "px)", m.blocks > 1 && m.gap >= 12);
+  ok("   and the newest one's ring clears the paragraph above it (" + m.clear + "px)", m.clear > 0);
+}
+
 // 4. context: a readable prompt, and rows that jump
 await page.goto(B + "/#" + sid + "/context");
 // Waited for, not assumed. This asserted and clicked straight after the navigation, which held
@@ -131,7 +162,12 @@ await page.click('[data-ctxview="prompt"]');
 for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('#sideBody pre')")); i++) await wait(150);
 const promptLen = await page.eval("(document.querySelector('#sideBody pre')?.textContent || '').length");
 ok("   the prompt actually sent is readable (" + promptLen + " chars)", promptLen > 400);
-ok("   and it is the real thing", (await page.text('#sideBody pre') || '').includes('prose engine'));
+// A CLAUSE THE CONTRACT GUARD REFUSES TO LOSE, not the opening line. This read "prose engine" —
+// the first three words of SYSTEM — until Seth rewrote it on 2026-09-01 to open "You are the
+// continuation of this manuscript", and the check went red for a prompt that was perfectly real.
+// `test/db.ts` asserts "Output prose only" survives every rewrite of SYSTEM, so probing for that
+// cannot rot without something louder going red first.
+ok("   and it is the real thing", (await page.text('#sideBody pre') || '').includes('Output prose only'));
 await page.click('[data-ctxview="blocks"]');
 // A row is a door and it now says what is behind it. It used to say CANON-ALWAYS and open a panel
 // headed Threads, which is how you click a row and arrive lost. Several entries make one block, so

@@ -109,14 +109,83 @@ ok('deleting a chapter takes its prose with it, and leaves the numbers where the
   assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => c.idx), [1, 3],
     'the hole is the honest result; renumbering would move every timeline in the book');
 
-  // A story with no chapter has nowhere to put the next passage, and every read here falls back
-  // to `chapters.at(-1)`. Refused with a reason rather than silently doing nothing.
-  db.delChapter(s2.id, three.opened);
+  /* A BOOK KEEPS SOMEWHERE TO WRITE, and this used to be asserted as "keeps A chapter" — which is
+   * how the real defect got through. The guard counted chapters on the branch, so deleting the only
+   * OPEN one was allowed as long as a closed one remained: `view` then reported that closed chapter
+   * as current and there was nowhere to write, with nothing on screen saying why.
+   *
+   * FOUND IN THE LIVE LIBRARY on 2026-09-01 and not by this test, which asserted the wrong rule:
+   * "The Transaction of Silence", chapter one closed with 22 passages and no chapter two at all.
+   * Seth had ended chapter one and deleted the empty chapter the close opened for him. */
+  const openOne = db.delChapter(s2.id, three.opened);
+  assert.strictEqual(openOne.deleted, 0, 'the only OPEN chapter cannot go, whatever else remains');
+  assert.match(String(openOne.error), /last one open/);
+  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => c.idx), [1, 3], 'and it is still there');
+
+  // A CLOSED one may go while an open one remains, which is the case the old count also allowed and
+  // is the half that was right. Asserted so the fix cannot be over-applied into refusing everything.
+  assert.strictEqual(db.delChapter(s2.id, db.chapters(s2.id)[0].id).deleted, 1,
+    'a closed chapter can still go while there is somewhere to write');
+  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => c.idx), [3]);
+  // And now the same chapter is both the last one and the only open one, so it is refused again.
   const last = db.delChapter(s2.id, db.chapters(s2.id)[0].id);
   assert.strictEqual(last.deleted, 0);
-  assert.match(String(last.error), /last chapter/);
+  assert.match(String(last.error), /last one open/);
   assert.strictEqual(db.chapters(s2.id).length, 1);
   db.delStory(s2.id);   // the shelf-counting checks below read every story this owner has
+});
+
+/* THE REPAIR FOR THE BOOKS THAT WERE ALREADY STRANDED, which the guard above cannot help.
+ *
+ * `migrate()` runs once at module load, so this state has to be built and the repair asked for
+ * separately — which is why it is a named export rather than an inline block. It was inline first,
+ * and that hid a second bug: it reached for `uid` and `now`, both declared BELOW the `migrate()`
+ * call, so it threw "Cannot access 'uid' before initialization" the first time it ran. No suite could
+ * see it, because a test database has no stranded book for the loop to run over — it fired against
+ * the live library. The repair carries its own id and clock now.
+ */
+ok('a book whose last chapter is closed with none open gets one, and only that book', () => {
+  const s3 = db.createStory(o, { title: 'Stranded', premise: 'p' }) as any;
+  db.addPassage({ storyId: s3.id, branchId: s3.branchId, chapterId: s3.chapterId, body: 'one' });
+  const two = db.endChapter(s3.id, s3.branchId) as any;
+  // The state `delChapter` used to allow and now refuses, so it is built through a seam rather than
+  // through a door — honest about what this repairs: a row that exists in a library, not a path still
+  // open. Closing the newest chapter reaches the same invariant break without deleting anything.
+  db.rawCloseChapter(s3.id, two.opened);
+  assert.deepStrictEqual(db.chapters(s3.id).map((c: any) => [c.idx, c.status]),
+    [[1, 'closed'], [2, 'closed']], 'the fixture really is a book with nowhere to write');
+
+  // A HEALTHY BOOK BESIDE IT, so "repaired everything" fails as loudly as "repaired nothing".
+  const well = db.createStory(o, { title: 'Fine', premise: 'p' }) as any;
+  const before = db.chapters(well.id).length;
+
+  const done = db.repairStrandedChapters();
+  assert.ok(done.some((d: any) => d.storyId === s3.id), 'it says which book it opened one for');
+  assert.deepStrictEqual(db.chapters(s3.id).map((c: any) => [c.idx, c.status]),
+    [[1, 'closed'], [2, 'closed'], [3, 'open']],
+    'numbered after the last, which is what endChapter would have left');
+  assert.strictEqual(db.chapters(well.id).length, before, 'and a book that was fine is untouched');
+
+  /* A NEWEST CHAPTER THAT IS CLOSED WHILE AN EARLIER ONE IS OPEN IS NOT STRANDED, and this is what
+   * the `NOT EXISTS` clause is for. Deleting that clause passes every other check here, because a
+   * book repaired above has an OPEN newest chapter and never reaches it — so the clause read as
+   * redundant. It is not: closing chapter two while chapter one is still open leaves somewhere to
+   * write, and a repair that opened a third would be inventing a chapter nobody asked for. */
+  const odd = db.createStory(o, { title: 'Out of order', premise: 'p' }) as any;
+  const oddTwo = db.endChapter(odd.id, odd.branchId) as any;
+  db.rawCloseChapter(odd.id, oddTwo.opened);
+  db.rawOpenChapter(odd.id, odd.chapterId);
+  assert.deepStrictEqual(db.chapters(odd.id).map((c: any) => [c.idx, c.status]),
+    [[1, 'open'], [2, 'closed']], 'the fixture is a book whose newest chapter is closed');
+  assert.deepStrictEqual(db.repairStrandedChapters(), [],
+    'a book with an open chapter is left alone, whichever one it is');
+  assert.strictEqual(db.chapters(odd.id).length, 2, 'and gains nothing');
+  db.delStory(odd.id);
+
+  // IDEMPOTENT, because it runs on every boot. A second pass must find nothing.
+  assert.deepStrictEqual(db.repairStrandedChapters(), [], 'a second run repairs nothing');
+  assert.strictEqual(db.chapters(s3.id).length, 3, 'and adds no second one');
+  db.delStory(s3.id); db.delStory(well.id);
 });
 
 ok('delete-after takes every passage below, every take of each, and only the summaries it cut', () => {

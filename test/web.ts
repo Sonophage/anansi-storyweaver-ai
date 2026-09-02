@@ -151,6 +151,76 @@ const ok = (m: string, fn?: unknown) => {
     ok('no type in the app is set below 11px');
   }
 
+  /* THE MARGIN RULES ARE THICK ENOUGH TO TELL APART. Seth, 2026-09-01: "the lines beside the text
+   * the accented ones are 2px too thin its hard to differentiate."
+   *
+   * Asserted as a FLOOR on every accent rule rather than on one of them: there are four — your own
+   * line, a spoken one, a directed one, and the four mode colours — and thickening three of them is
+   * the version of this fix that looks done and still has a hairline in it. The colours differ from
+   * each other by lightness in several themes, which is exactly when width does the work. */
+  {
+    const css = read('app.html');
+    const thin = [...css.matchAll(/\.block\.[a-z-]+[^{]*\{[^}]*border-left:\s*(\d+)px[^}]*\}/g)]
+      .filter((m) => Number(m[1]) < 3).map((m) => m[0].replace(/\s+/g, ' ').slice(0, 70));
+    const group = /\.block:is\([^)]*\)\s*\{[^}]*border-left:\s*(\d+)px/.exec(css);
+    if (group && Number(group[1]) < 3) thin.push(group[0].replace(/\s+/g, ' ').slice(0, 70));
+    assert.deepStrictEqual(thin, [],
+      'an accent rule down the margin is under 3px, which is the width that made them hard to tell '
+      + 'apart in the first place');
+    ok(`every margin accent is at least 3px`);
+
+    /* AND A PRESSABLE THING IS NOT ON `--edge`. Seth, 2026-09-01: "continue is missing a border i
+     * believe" — measured in a browser it was not missing, it was `--edge` on a near-black page and
+     * read as absent. `.btn.ghost`, `.chip`, the trays and the sheets are all on `--chip`; the two
+     * buttons under the last passage were the only pressable things a step dimmer than that.
+     * `--edge` keeps the large surfaces it was chosen for, so this names the button rules rather
+     * than banning the token. */
+    const dim = [...css.matchAll(/(\.carry button|\.btn\.ghost|\.chip)\s*\{[^}]*border:\s*1px solid var\(--edge\)/g)]
+      .map((m) => m[1]);
+    assert.deepStrictEqual(dim, [],
+      'a button is bordered with --edge, which is a step dimmer than every other pressable thing '
+      + 'in the app and reads as having no border at all');
+    ok('no pressable control is bordered with the dimmest token');
+
+    /* EVERY PRESS THAT WRITES A PASSAGE HAS AN ACCENT, and there are FIVE of them. Seth,
+     * 2026-09-01: "everything else has a colored border but not continue."
+     *
+     * It was a hole rather than a decision. The class is chosen from `MODES`, which is the composer's
+     * four BUTTONS — Continue is a press beside them rather than one of them, so the passage it
+     * writes fell through and got no mark at all. It is also the most common passage in a book, so
+     * the one shape with nothing down its margin was the one you see most.
+     *
+     * WALKED IN EVERY DIRECTION, because this broke by being three things that had to agree and were
+     * not asserted together: the colour is derived in `themeVars`, the rule that reads it is in the
+     * stylesheet, and the class is written in `web/app.js`. Any one of them alone is a mark that
+     * does not appear. */
+    const PRESSES = ['speak', 'act', 'direct', 'narrate', 'continue'];
+    // The rule that turns `--m` into the line down the margin. Anchored on `.block:is(` so it cannot
+    // pick up the newest-passage ring, which is a different selector with the same shape.
+    const accentGroup = /(?:^|\n)\.block:is\(([^)]*)\)/.exec(css)?.[1] ?? '';
+    const vars = read('web/model.js');
+    const missing: string[] = [];
+    for (const k of PRESSES) {
+      if (!vars.includes(`'--m-${k}'`)) missing.push(`themeVars has no --m-${k}`);
+      if (!new RegExp(`\\.block\\.m-${k}\\s*\\{[^}]*--m:\\s*var\\(--m-${k}\\)`).test(css))
+        missing.push(`no rule reads --m-${k}`);
+      // THE GROUP ITSELF, extracted, not "the token appears somewhere in the file". Matching it
+      // loosely found the ring's own `.m-continue)` twelve lines below and reported the group as
+      // covered while it was not — caught by deleting it and watching this stay green.
+      if (!accentGroup.includes(`.m-${k}`)) missing.push(`.m-${k} is not in the accent group`);
+    }
+    assert.deepStrictEqual(missing, [],
+      'a press that writes a passage has no accent down its margin, which is how Continue went '
+      + 'unmarked for as long as it did');
+    // AND THE NEWEST PASSAGE'S RING FOLLOWS THE SAME LIST, or the accent vanishes for the one
+    // passage a writer is looking at hardest.
+    const ring = /#col \.block\.newest:is\(([^)]*)\)/.exec(css)?.[1] ?? '';
+    for (const k of PRESSES) {
+      assert.ok(ring.includes(`.m-${k}`), `the newest passage's ring does not cover ${k}`);
+    }
+    ok(`all ${PRESSES.length} presses carry an accent, in the theme, the rule and the ring`);
+  }
+
   const comments = (js.match(/<!--[\s\S]*?-->/g) ?? []).length;
   assert.ok(comments > 20, `expected the markup comments to be found (${comments})`);
   ok(`${comments} html comments in the markup, none carrying a backtick`);

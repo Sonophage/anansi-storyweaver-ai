@@ -249,6 +249,28 @@ if (v.chapters.length > 1) {
   console.log(`  paged to: ${JSON.stringify(head.slice(0, 60))}`);
   ok(`  and it moves you to ${JSON.stringify(want?.title ?? '')}`,
      head.toLowerCase().includes((want?.title ?? '').toLowerCase()));
+  /* AND WHERE THE JUMP LANDS YOU. Seth, 2026-09-01: "pressing chapter a previous chapter should take
+   * me to the top of the chapter. a current one would take me to its bottom." Two intents wearing
+   * one press: a chapter you have finished is one to read, and reading starts at the top; the one you
+   * are writing is one to work in, and work is at the end.
+   *
+   * IN A BROWSER, because it is geometry. The unit harness auto-creates any element asked for by id
+   * and hands back a zero-sized rect, so the computed target came out equal to wherever the pane
+   * already was and the check could not tell the two cases apart. */
+  const top = await page.eval("document.getElementById('read').scrollTop");
+  ok(`  and a chapter you have finished opens at its top (${top})`, top < 40);
+  const open = v.chapters.find((c) => c.status === 'open');
+  if (open && open.id !== to) {
+    await page.click(`#rail [data-chapter="${open.id}"]`);
+    await wait(1200);
+    const end = await page.eval(`(() => { const r = document.getElementById('read');
+      return { at: Math.round(r.scrollTop), max: Math.round(r.scrollHeight - r.clientHeight) }; })()`);
+    ok(`  and the one you are writing opens at its end (${end.at} of ${end.max})`,
+       end.max <= 0 || end.at >= end.max - 40);
+    // Back to the chapter this block was reading, or the counts below are about the wrong one.
+    await page.click(`#rail [data-chapter="${to}"]`);
+    await wait(1200);
+  }
   const shown2 = await page.eval("document.querySelectorAll('#col .block').length");
   const wantN = v.passages.filter((p) => p.chapterId === to).length;
   ok(`  showing that chapter's passages (${shown2}, expected ${wantN})`, shown2 === wantN);

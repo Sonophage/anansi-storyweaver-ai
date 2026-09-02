@@ -379,6 +379,12 @@ const WTITLES = {
  */
 const WATCHED = new Set();
 
+/** WHAT THE READING COLUMN WAS SHOWING LAST TIME IT WAS DRAWN: the chapter, and the newest passage
+ *  in it. `drawDoc` compares against this to tell a passage ARRIVING from a repaint that changed
+ *  nothing — an edit, a panel, a toast — because only the first should move the page. Session-only
+ *  and deliberately: after a reload nothing arrived, you opened a book. */
+let DREW = null;
+
 const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home', 'owed', 'help',
   'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
@@ -1084,7 +1090,32 @@ function passageHTML(p, newest, opening) {
   // #14. The press that made it, down the margin. Null on everything written before 2026-08-29 —
   // Seth: "old ones neutral is fine" — and those fall through to the faint outline the newest
   // passage has always had.
-  const m = MODES.some(([k]) => k === p.mode) ? ` m-${p.mode}` : '';
+  /* FIVE ACCENTS, NOT FOUR. `MODES` is the composer's four BUTTONS and Continue is a press beside
+   * them, so keying the accent off that list left the most common passage in any book — the one
+   * Continue wrote — as the only shape with no mark down its margin. Seth, 2026-09-01: "everything
+   * else has a colored border but not continue."
+   *
+   * A list of its own rather than adding Continue to `MODES`, which would put a fifth button in the
+   * composer. `--m-continue` is derived in `themeVars` beside the other four. */
+  const ACCENTED = [...MODES.map(([k]) => k), 'continue'];
+  const m = ACCENTED.includes(p.mode) ? ` m-${p.mode}` : '';
+  /* WHERE THIS PASSAGE CAME FROM, said in words. Seth, 2026-09-01: "could we also add a chip at the
+   * top that says where it came from", in the same breath as making the margin rules thicker — the
+   * two are one answer to one question, and the chip carries the rule's own colour so neither needs
+   * a legend.
+   *
+   * THE PRESS, NOT THE AUTHOR, wherever the press is known: `mode` is what `#14` recorded for
+   * exactly this and it separates Act from Narrate, which authorship cannot — both write a bare
+   * human row, and 1,871 of the library's 1,990 passages are that shape. Where there is no mode the
+   * chip falls back to what CAN be said: yours, or the model's, or a line somebody spoke.
+   *
+   * IT IS HIDDEN WHILE READING, in the CSS with the rest of the apparatus. A chip over every
+   * paragraph is a writing tool, and reading is the mode that takes the tools away. */
+  const press = MODES.find(([k]) => k === p.mode)?.[1]
+    ?? (p.mode === 'continue' ? 'Continue'
+    : mine ? 'Yours' : spoken ? 'Spoken' : p.directed ? 'Direct' : 'Anansi');
+  const from = `<div class="from"><i></i>${esc(press)}${
+    p.speaker ? ` &middot; ${esc(p.speaker)}` : ''}</div>`;
   const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${m}${p.id === S.found ? ' found' : ''}${p.id === S.arrived ? ' arrived' : ''}`
     // The drop cap goes on plain model narration only. Not on speech — a two-inch quotation mark
     // is not a drop cap — and not on the writer's own passages, which are set differently: on
@@ -1122,7 +1153,7 @@ function passageHTML(p, newest, opening) {
    * must read as claimed rather than marking the whole book. */
   const away = p.claimed === false && !WATCHED.has(p.id) && !mine
     ? `<div class="cameback">written while you were away &mdash; carry on and it is yours</div>` : '';
-  return `<div class="${cls}">${body}${away}${acts}${flagged}${rr}</div>${carry}`;
+  return `<div class="${cls}">${from}${body}${away}${acts}${flagged}${rr}</div>${carry}`;
 }
 
 function drawDoc() {
@@ -1257,7 +1288,23 @@ function drawDoc() {
         i === 0,
       )).join('')
     : chapterHTML(ch, ps, plate, true, true);
-  if (tip) read.scrollTop = read.scrollHeight;
+  /* WHEREVER A PASSAGE CAME FROM, IT LANDS THE SAME WAY. Seth, 2026-09-01: "every new message that
+   * comes in should scroll to the bottom of the last message not the new message to make it easier
+   * to read."
+   *
+   * The seam pin already did exactly that and had ONE caller — the writer's own send. Everything
+   * else fell through to this line and slammed to the bottom of the new prose: a passage the server
+   * finished while the phone was in a pocket, Continue, a re-roll, and the other writer's passage
+   * arriving on a refresh. So the rule is here, where every path already passes, rather than as a
+   * fifth call site somebody has to remember.
+   *
+   * IT PINS ONLY WHEN THE BOOK GREW UNDER YOU. A repaint with the same newest passage is an edit or
+   * a panel opening and must not move the page at all; a CHAPTER change is a jump you asked for, and
+   * the bottom is right for that. Both are excluded by comparing what was drawn last time. */
+  const newestId = (V.passages ?? []).filter((p) => !p.isBreak).at(-1)?.id ?? null;
+  const grew = DREW && DREW.chapter === ch.id && newestId && newestId !== DREW.newest;
+  if (tip && !(grew && pinTo(DREW.newest))) read.scrollTop = read.scrollHeight;
+  DREW = { chapter: ch.id, newest: newestId };
 
   // THE RUNNING HEAD IS GONE, 2026-08-27. It opened on scroll, moved the prose down to make room
   // for itself, and by then said only the chapter's name — everything else in it had moved to the
@@ -6263,16 +6310,20 @@ function arrive() {
  *  It also deletes the tail hack the first version needed: that one had to invent empty space below
  *  the last passage before the top of it could ever reach the top of the screen. This scrolls to a
  *  point that already has a whole passage underneath it, so there is nothing to pad. */
-function pinToSeam() {
-  const read = $('read'); if (!read || !S.seam) return;
-  const el = document.querySelector(`[data-edit="${S.seam}"]`)?.closest('.block');
-  if (!el) return;
+function pinToSeam() { return pinTo(S.seam); }
+
+/** @returns true when it actually scrolled, so a caller can fall back. */
+function pinTo(id) {
+  const read = $('read'); if (!read || !id) return false;
+  const el = document.querySelector(`[data-edit="${id}"]`)?.closest('.block');
+  if (!el) return false;
   // A little above the fold, so the line you stopped on is still on screen rather than exactly at
   // the edge. `behavior:'auto'` because #read carries scroll-behavior:smooth, and a half-second
   // travel races the 1.5s wipe.
   const PEEK = 72;
   const top = read.scrollTop + (el.getBoundingClientRect().bottom - read.getBoundingClientRect().top) - PEEK;
   read.scrollTo({ top, behavior: 'auto' });
+  return true;
 }
 
 /** Re-roll the last passage, keeping the old take as a variant. */
@@ -7184,7 +7235,40 @@ document.addEventListener('click', async (e) => {
 
   if (d.open === 'new') { S.place = 'workspace'; S.wpage = 'create'; paint(); return; }
   if (d.open) { await openStory(d.open); return; }
-  if (d.chapter) { const r = await api.story(S.storyId, d.chapter); if (!r.error) { V = r; paint(); } return; }
+  /* WHERE A CHAPTER JUMP LANDS YOU, and it depends on which chapter. Seth, 2026-09-01: "pressing
+   * chapter a previous chapter should take me to the top of the chapter. a current one would take me
+   * to its bottom."
+   *
+   * He is describing two different intents wearing one press. Picking a chapter you have finished is
+   * "let me read that", and reading starts at the top; picking the one you are writing is "take me
+   * back to work", and work is at the end. It used to land wherever `drawDoc`'s scroll rule left it,
+   * which was the bottom of whatever was drawn either way.
+   *
+   * THE CHAPTER BEING WRITTEN IS THE OPEN ONE, not the focused one: `api.story(id, focus)` makes the
+   * chapter you asked for `currentChapter`, so comparing against that would say every jump is a jump
+   * to the current chapter. `status` is on the row and survives the refetch.
+   *
+   * Scrolled AFTER `paint`, deliberately — `drawDoc` runs inside it and has a scroll rule of its own
+   * for arrivals. This is a navigation the writer asked for and it wins. */
+  if (d.chapter) {
+    const r = await api.story(S.storyId, d.chapter);
+    if (r.error) return toast(r.error);
+    V = r; paint();
+    const read = $('read'); if (!read) return;
+    const writing = (V.chapters ?? []).find((c) => c.status === 'open')?.id
+      ?? (V.chapters ?? []).at(-1)?.id;
+    if (d.chapter === writing) { read.scrollTo({ top: read.scrollHeight, behavior: 'auto' }); return; }
+    // Reading mode draws every chapter, so the top of one is its own section rather than the top of
+    // the column. `ch-N` is the anchor each chapter has carried since they needed a break between
+    // them; in writing mode only this chapter is drawn and the column's top IS its top.
+    const idx = (V.chapters ?? []).find((c) => c.id === d.chapter)?.index;
+    const sec = idx == null ? null : document.getElementById(`ch-${idx}`);
+    const top = sec
+      ? read.scrollTop + (sec.getBoundingClientRect().top - read.getBoundingClientRect().top)
+      : 0;
+    read.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+    return;
+  }
 
   if (d.mode) {
     // Switching mode rebuilds the dock, which rebuilds the textarea. Carry what is typed across:

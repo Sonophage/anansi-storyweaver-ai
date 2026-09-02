@@ -625,12 +625,16 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
    Your own lines used to hang off the right edge, ragged-right and mirrored, which reads as a chat
    app rather than a manuscript — a page of prose has one left edge and everything lines up on it.
    The bar stays, and it is what tells them apart. */
-.block.speak { padding-left:16px; border-left:1px solid var(--speak-rule); }
-.block.you { padding-left:16px; border-left:1px solid var(--you-rule); }
+/* 3px, NOT 1px. Seth, 2026-09-01: "the lines beside the text the accented ones are 2px too thin
+   its hard to differentiate." A hairline in a colour that differs from its neighbour by lightness
+   alone is a hairline you have to go looking for; at three it is a mark you read without trying.
+   The padding stays at 16px, so the rule thickens INTO the gap and the prose does not move. */
+.block.speak { padding-left:16px; border-left:3px solid var(--speak-rule); }
+.block.you { padding-left:16px; border-left:3px solid var(--you-rule); }
 /* Written to order. The passage the model produced from a directive you typed is not the same thing
    as one it continued on its own, and until now nothing on the page said which — the directive was
    in the database and had never been shown. */
-.block.directed { padding-left:16px; border-left:1px solid var(--gold-dim); }
+.block.directed { padding-left:16px; border-left:3px solid var(--gold-dim); }
 /* #14. ONE ACCENT PER PRESS, down the margin. Seth: "so that when the user reads back through it,
    they can differentiate what was triggered by what action." The colours come from themeVars, which
    derives them from what each of the nineteen themes already declares — see the note there.
@@ -642,8 +646,12 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
 .block.m-act     { --m:var(--m-act); }
 .block.m-direct  { --m:var(--m-direct); }
 .block.m-narrate { --m:var(--m-narrate); }
-.block:is(.m-speak,.m-act,.m-direct,.m-narrate) {
-  padding-left:16px; border-left:1px solid var(--m);
+/* The fifth, and the one that had none: Continue is a press beside the four modes rather than one
+   of them, so a passage it wrote fell through the class that draws the accent — and it is the most
+   common passage in a book. See the note in `themeVars` for why its colour comes off the ink. */
+.block.m-continue { --m:var(--m-continue); }
+.block:is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue) {
+  padding-left:16px; border-left:3px solid var(--m);
 }
 /* The last one on the page, boxed so the eye finds where the book has got to.
    OUTLINE, not border: an outline takes no space at all, so the box cannot move the prose. The first
@@ -653,6 +661,18 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
 #col .block.newest {
   outline:1px solid var(--chip); outline-offset:12px; border-radius:var(--r);
 }
+/* THE CHIP SAYS WHERE A PASSAGE CAME FROM, and it wears the same colour as the rule beside it —
+   Seth, 2026-09-01: "could we also add a chip at the top that says where it came from." The rule
+   answers at a glance and the chip answers exactly; one colour, said twice, is what makes the
+   second one readable without a legend.
+   `--m` is only set by the mode classes, so a passage written before modes existed falls back to
+   the faint chip it would have had. */
+.from { display:inline-flex; align-items:center; gap:6px; margin:0 0 7px;
+  font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps;
+  color:var(--m, var(--label)); opacity:.9; }
+.from i { width:5px; height:5px; border-radius:50%; flex:0 0 auto;
+  background:var(--m, var(--label)); }
+html[data-reading="1"] .from { display:none; }
 /* #14, the other half: on the LAST passage the accent goes all the way round and the faint box goes
    away — "just have the accent be the entire thing so that we know what it is." When it moves up it
    is the one line down the side again.
@@ -661,7 +681,7 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
    would move the prose 16px left the moment a newer passage arrived, on every passage, for ever —
    the same class of shift the outline above exists to avoid. A passage with no mode keeps the faint
    outline it has always had, which is what "old ones neutral" means on screen. */
-#col .block.newest:is(.m-speak,.m-act,.m-direct,.m-narrate) {
+#col .block.newest:is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue) {
   outline-color:var(--m); border-left-color:transparent;
 }
 /* Where a search result put you. Fades on its own after a few seconds — a permanent mark on
@@ -671,7 +691,14 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
    both mean "the end of the page", so they are drawn at the end of the page. Reading mode hides
    them with the rest of the controls — see the data-reading rule at the top. */
 .carry { display:flex; gap:8px; padding:14px 0 2px; }
-.carry button { border:1px solid var(--edge); border-radius:var(--r); padding:8px 15px;
+/* `--chip`, NOT `--edge`. Seth, 2026-09-01: "continue is missing a border i believe" — and measured
+   in a browser, it was not missing: both carry buttons computed to `1px solid rgb(39,39,41)`, which
+   is `--edge` (#23211D) on a #0C0C0E page. Regenerate reads as a control anyway because of its gold
+   glyph; Continue is bare text, so the same invisible border left it looking like a link.
+   These were the only PRESSABLE things in the app on `--edge` — `.btn.ghost`, `.chip`, the trays and
+   the sheets are all on `--chip` — so this is the app's own convention arriving late rather than a
+   new value. `--edge` keeps the large surfaces it was chosen for: story cards and the resume band. */
+.carry button { border:1px solid var(--chip); border-radius:var(--r); padding:8px 15px;
   font-size:12.5px; color:var(--mute); display:flex; align-items:center; gap:7px;
   transition:border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
 .carry button:hover:not(:disabled) { border-color:var(--edge-lit); color:var(--ink); }
@@ -800,6 +827,13 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
    `.band` has 8px of padding and no margin — fine as the top of a column, nothing at all between
    two chapters, which is what Seth reported: "there no seperation anymore". A rule on each side of
    a diamond, with real air around it, so the eye stops before the next chapter's name. */
+/* THE WRAPPER HAS TO CARRY THE COLUMN'S OWN LAYOUT. Wrapping each chapter in a section on
+   2026-09-01 made it a single flex child of #col, so the 30px `--gap` that had always separated
+   PASSAGES started separating CHAPTERS instead and every passage inside a chapter butted against
+   the next. MEASURED, not guessed: 0px between blocks, and the newest passage's outline — 12px of
+   offset and 1px of line — overlapped the paragraph above it by 13px, which is the line through the
+   text in Seth's screenshot. */
+.chap { display:flex; flex-direction:column; gap:var(--gap); }
 .chapbreak { display:flex; align-items:center; gap:18px; margin:78px 0 64px; }
 .chapbreak span { height:1px; flex:1; background:var(--rule); }
 .chapbreak i { width:5px; height:5px; flex:0 0 auto; transform:rotate(45deg);

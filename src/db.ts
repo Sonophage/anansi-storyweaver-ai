@@ -36,6 +36,47 @@ db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 // and the test suites all open the database alongside a running server.
 db.exec('PRAGMA busy_timeout = 5000;');
 
+/** A BOOK WITH NOWHERE TO WRITE, repaired. Run from `migrate`, and separately named so it can be
+ *  tested — `migrate` runs once at module load, so a check cannot construct the broken state and
+ *  then ask for the repair.
+ *
+ *  HOW A BOOK GOT HERE: `delChapter`'s guard counted chapters on the branch instead of checking that
+ *  an OPEN one survived, so deleting the empty chapter a close had just opened was allowed and left
+ *  a book whose only chapter was closed. Every screen reads the newest chapter as the current one,
+ *  so there was nowhere to write and nothing saying why. Found in the live library on 2026-09-01:
+ *  "The Transaction of Silence", chapter one closed with 22 passages and no chapter two.
+ *
+ *  The guard is fixed, so this cannot happen again — but the book it happened to cannot fix itself.
+ *  One open chapter, numbered after the last, which is what `endChapter` would have left.
+ *
+ *  SCOPED TO A BRANCH WHOSE NEWEST CHAPTER IS CLOSED AND WHICH HAS NO OPEN CHAPTER AT ALL, so it
+ *  writes nothing when the invariant holds — which is every book but the one. Returns what it did,
+ *  so the caller can say so rather than repairing silently. */
+export function repairStrandedChapters(): { storyId: string; idx: number }[] {
+  const stranded = db.prepare(`
+    SELECT c.story_id, c.branch_id, c.idx FROM chapters c
+     WHERE c.status = 'closed'
+       AND c.idx = (SELECT MAX(idx) FROM chapters WHERE story_id = c.story_id AND branch_id = c.branch_id)
+       AND NOT EXISTS (SELECT 1 FROM chapters o WHERE o.story_id = c.story_id
+                         AND o.branch_id = c.branch_id AND o.status = 'open')`).all() as any[];
+  const done: { storyId: string; idx: number }[] = [];
+  for (const r of stranded) {
+    const idx = r.idx + 1;
+    // ITS OWN ID AND CLOCK, not `uid` and `now`. `migrate()` is called at the foot of this module and
+    // both of those consts are declared BELOW that call, so reaching for them from here throws
+    // "Cannot access 'uid' before initialization" — which the suites could not see, because the only
+    // database with a stranded book is the live one and a test database has nothing for the loop to
+    // run over. It fired the first time this was imported against the real library. Same shape of id:
+    // a prefix and eight hex characters.
+    db.prepare(`INSERT INTO chapters (id,story_id,branch_id,idx,title,status,created_at)
+                VALUES ('c-' || lower(hex(randomblob(4))), ?, ?, ?, ?, 'open', ?)`)
+      .run(r.story_id, r.branch_id, idx, `Chapter ${idx}`, Date.now());
+    console.log(`  opened Chapter ${idx} for a book whose last chapter was closed with none open`);
+    done.push({ storyId: r.story_id, idx });
+  }
+  return done;
+}
+
 // Migrations. `CREATE TABLE IF NOT EXISTS` cannot alter an existing table or replace an index,
 // so anything that changes shape has to be stated here and be safe to run twice. Without this
 // a fresh clone and a live database drift apart silently.
@@ -297,6 +338,8 @@ function migrate() {
   // first and the wardrobe is gone from every book that had not booted since Phase 2. Backed up
   // before the first drop by the same guard the column drops use — this rewrites the file
   // somebody's novel is in, which is the whole reason that guard exists.
+  repairStrandedChapters();
+
   if ((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name = 'outfits'")
     .get() as any).n) {
     const left = (db.prepare(`SELECT COUNT(*) n FROM outfits o
@@ -1310,9 +1353,27 @@ export function delChapter(storyId: string, chapterId: string): { deleted: numbe
   const ch = q('SELECT id, branch_id, idx FROM chapters WHERE id = ? AND story_id = ?')
     .get(chapterId, storyId) as any;
   if (!ch) return { deleted: 0, error: 'That chapter is gone already.' };
-  const n = (q('SELECT COUNT(*) AS n FROM chapters WHERE story_id = ? AND branch_id = ?')
-    .get(storyId, ch.branch_id) as any).n;
-  if (n <= 1) return { deleted: 0, error: 'A book keeps its last chapter — there would be nowhere to write.' };
+  /* AN OPEN CHAPTER HAS TO SURVIVE, and counting rows did not check that.
+   *
+   * The guard read `n <= 1` — one chapter on the branch — and the message said "there would be
+   * nowhere to write", which is the right rule stated against the wrong condition. A book with
+   * chapter one CLOSED and an empty chapter two open passed it: deleting chapter two left a story
+   * whose only chapter was closed, so `view` reported that closed chapter as the current one and
+   * there was nowhere to write with nothing on screen saying why.
+   *
+   * FOUND IN THE LIVE LIBRARY on 2026-09-01, not by a check: "The Transaction of Silence", chapter
+   * one closed with 22 passages and no chapter two at all. Seth: "the chapter in the sidebar im on
+   * chapter two and its not showing up." He had ended chapter one and then deleted the empty
+   * chapter the close opened for him.
+   *
+   * `endChapter` has held this invariant since it became a transaction — its own comment is about
+   * the same broken state arriving the other way. This is the second door into it. */
+  const openLeft = (q(`SELECT COUNT(*) AS n FROM chapters
+      WHERE story_id = ? AND branch_id = ? AND status = 'open' AND id != ?`)
+    .get(storyId, ch.branch_id, chapterId) as any).n;
+  if (!openLeft) return { deleted: 0,
+    error: 'A book keeps a chapter to write in, and this is the last one open. Close another chapter '
+      + 'or start one, then this can go.' };
   db.exec('BEGIN');
   try {
     q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
@@ -2053,6 +2114,19 @@ export function dropFollowed(storyId: string, o: string, originId: string) {
  *  Scoped like every other write here, so it cannot reach across books even as a seam. */
 export const rawSetOrigin = (storyId: string, id: string, originId: string | null) =>
   q('UPDATE entries SET origin_id = ? WHERE id = ? AND story_id = ?').run(originId, id, storyId);
+
+/** TEST SEAM, beside `rawSetOrigin` and for the same reason: `repairStrandedChapters` fixes a state
+ *  no door still opens, so a check cannot reach it through the app. Closing the newest chapter gets
+ *  there without deleting anything — a branch whose every chapter is closed has nowhere to write,
+ *  which is the invariant the repair restores.
+ *
+ *  Scoped by story like every other write here. */
+export const rawCloseChapter = (storyId: string, id: string) =>
+  q("UPDATE chapters SET status = 'closed' WHERE id = ? AND story_id = ?").run(id, storyId);
+/** Its pair, for the out-of-order case: a newest chapter that is closed while an earlier one is
+ *  open is NOT stranded, and no ordinary door builds that either. */
+export const rawOpenChapter = (storyId: string, id: string) =>
+  q("UPDATE chapters SET status = 'open' WHERE id = ? AND story_id = ?").run(id, storyId);
 
 /** #36 · WHAT THIS BOOK HAS REMOVED, by name, so the screen can offer it back. */
 export const droppedFollowed = (storyId: string) => q(
