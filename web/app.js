@@ -443,7 +443,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'setupstep', 'setupkind',
   // The Threads list: filter to what is in context, and flip one card between always-on and
   // triggered without opening it.
-  'onlyin', 'flipact'].map((k) => `[data-${k}]`).join(',');
+  'onlyin', 'flipact',
+  // The veil, once there is nothing left to stop.
+  'veilclose'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -6072,6 +6074,11 @@ function ghost() {
   if (old?.classList.contains('leaving')) old.remove();
   else if (old) return;
 
+  // A fresh veil is a fresh take: anything left buffered from the last one would type itself into
+  // this one's box.
+  PEND = ''; if (DRAIN != null) cancelAnimationFrame(DRAIN); DRAIN = null;
+  STICK = true; VEIL_DONE = false;
+
   const g = document.createElement('div');
   g.id = 'ghost'; g.className = 'veil';
   // THE WEAVE, then the roller, then Stop. The drawn web is gone — Seth, 2026-08-28: "remove the
@@ -6095,6 +6102,13 @@ function ghost() {
       <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
     </div>`;
   shell.appendChild(g);
+  // SCROLLING UP STOPS THE FOLLOW. Seth asked to be able to scroll through it while it arrives, and
+  // a box that yanks itself back to the bottom on every frame cannot be read anywhere but the end.
+  // 4px of slack because a fractional scrollHeight never lands exactly on the boundary.
+  g.querySelector('.veiltext')?.addEventListener('scroll', (e) => {
+    const t = e.currentTarget;
+    STICK = t.scrollTop + t.clientHeight >= t.scrollHeight - 4;
+  });
 
   if (!still()) {
     // ~11 rolls a second. Fast enough to read as working, slow enough not to strobe, and
@@ -6124,33 +6138,129 @@ function ghost() {
 /** Six rows of eleven. The middle column is the sixth of them, which is where the name lands. */
 const WEAVE_W = 11, WEAVE_H = 6, WEAVE_WORD = 'ANANSI';
 
-/** THE PROSE, ARRIVING, INSIDE THE VEIL. Seth, 2026-09-02, choosing this over lifting the veil on
- *  the first token: "keep the veil, stream inside it." The glyphs go on rolling above and the
- *  resolve still ends it — the ritual is unchanged, it just stops being opaque.
+/** THE PROSE, ARRIVING, INSIDE THE VEIL, AS A TYPEWRITER.
  *
- *  Both `api.generateLive` call sites passed `() => {}` before this, so every delta was parsed,
- *  dispatched and dropped: the NDJSON transport, the backpressure note in serve.ts and
- *  `X-Accel-Buffering: no` all fed a no-op. The veil then held for the WHOLE generation — p50 10.7s
- *  and p90 18.6s on Qwen3.6 today, against the 5.7s COUNCIL-04 measured when the ritual was drawn.
- *  Seth's reason for it was "while it formulates", and formulating stops at the first token.
+ *  Seth, 2026-09-02: "can we have it where it streams in the veil but i could scroll through it.
+ *  the glyphs dissapear as soon as the streaming starts. but the streaming is calculated like a
+ *  fading in type writer and typing is what closes it?"
+ *
+ *  CALCULATED, NOT PER DELTA, and that word is the whole design. A delta is a token, so anything
+ *  driven by one runs at whatever uneven rate the model happens to be writing at — the same
+ *  argument `ghost()`'s roller already makes for keeping its own clock. Deltas go into a buffer and
+ *  a frame loop drains it, so what the writer watches is even however lumpy the arrival was.
+ *
+ *  THE DRAIN RATE CHASES THE BUFFER. A fixed characters-per-second is calmer to watch and wrong:
+ *  the model finishes and the animation is still going, so the writer waits on a decoration. A
+ *  rate proportional to what is queued cannot fall behind — a fast passage simply types faster.
  *
  *  WHAT THIS MUST NOT UNDO. PLAN-07 bug 1 was an onDelta that held the veil BACK until the first
- *  token and never raised it if the model errored before then — the cold-start blank page the veil
- *  exists to cover. Nothing here touches when the veil goes up or comes down: `ghost()` on the
- *  press and `unghost()` on the return, exactly as before. This only writes into it.
- *
- *  `append`, not `textContent +=`, which rebuilds the whole node per token and is O(n^2) over a
- *  900-token passage. And a text node either way, never innerHTML: this is model output, and the
- *  comment in `ghost()` promises that the one place untrusted text lands is filled with text and
- *  never with markup. */
+ *  token and never raised it if the model errored before then. The veil still goes up on the press.
+ *  What changed is the other end: on success it now HOLDS, because it is something to read; on an
+ *  abort or an error it comes down exactly as it did, because a failure must never trap anyone. */
+let PEND = '', DRAIN = null, STICK = true, VEIL_DONE = false;
+
+const veilText = () => document.getElementById('ghost')?.querySelector('.veiltext') ?? null;
+
 function liveDelta(d) {
-  const el = document.getElementById('ghost')?.querySelector('.veiltext');
+  const el = veilText();
   if (!el || !d) return;
-  el.append(d);
-  // The tail is what is being written, so that is what stays in view. Not smooth-scrolled: at
-  // 57 tokens a second a smooth scroll never arrives before the next one starts it again.
-  el.scrollTop = el.scrollHeight;
+  // THE GLYPHS GO AT THE FIRST TOKEN. They cover the formulating, which is over the moment a word
+  // exists; leaving them rolling over the prose is two things asking to be watched at once. The
+  // resolve goes with them — ANANSI spelling itself out under a finished paragraph is a flourish
+  // for a screen that has nothing else on it.
+  el.closest('.veil')?.classList.add('written');
+  // Under reduced motion there is no typewriter: the text is the point and the animation is not.
+  if (still()) { el.append(d); if (STICK) el.scrollTop = el.scrollHeight; return; }
+  PEND += d;
+  if (DRAIN == null) DRAIN = requestAnimationFrame(drainVeil);
 }
+
+/** One span per frame, each fading in on its own. Not one span per CHARACTER: a 900-token passage
+ *  is ~4,000 of them and the fade is the same either way, because a frame's worth of characters
+ *  arrives together anyway at any rate a person can read. */
+function drainVeil() {
+  DRAIN = null;
+  const el = veilText();
+  if (!el) { PEND = ''; return; }
+  if (PEND) {
+    const n = Math.max(1, Math.ceil(PEND.length / 24));
+    const span = document.createElement('span');
+    span.className = 'tw';
+    span.textContent = PEND.slice(0, n);      // a text node, never innerHTML: this is model output
+    PEND = PEND.slice(n);
+    el.append(span);
+    if (STICK) el.scrollTop = el.scrollHeight;
+  }
+  if (PEND) DRAIN = requestAnimationFrame(drainVeil);
+  else if (VEIL_DONE) veilReadable();
+}
+
+/** The passage is complete and the buffer is empty, so there is nothing left to stop. The veil
+ *  stays — Seth chose it as somewhere to read the take rather than a cover over the wait — and the
+ *  one control on it becomes the way out. */
+function veilReadable() {
+  const g = document.getElementById('ghost');
+  if (!g) return;
+  g.classList.add('done');
+  const b = g.querySelector('.veilstop');
+  if (!b) return;
+  b.textContent = 'Close';
+  b.setAttribute('aria-label', 'Close and keep writing');
+  b.removeAttribute('data-stop');
+  b.setAttribute('data-veilclose', '1');
+}
+
+/** Called on the success path once the take has landed on the page behind the veil. If the writer
+ *  already dismissed it by typing, there is nothing here and nothing to do. */
+function veilFinish() {
+  VEIL_DONE = true;
+  if (!PEND) veilReadable();
+}
+
+/** TYPING IS THE WAY OUT. The veil is covering the composer, so a keystroke cannot reach it — this
+ *  catches the first one, takes the veil away and hands the character on, so starting to write is
+ *  one gesture rather than "dismiss, then write".
+ *
+ *  Escape closes without typing anything, because a full-screen surface that can only be left by
+ *  committing to an edit is a trap. */
+function dismissVeil(ch) {
+  const g = document.getElementById('ghost');
+  if (!g || g.classList.contains('leaving')) return;
+  PEND = ''; if (DRAIN != null) cancelAnimationFrame(DRAIN); DRAIN = null;
+  // No resolve: `unghost` runs the ANANSI hold first, and 1.22s of flourish between the writer
+  // pressing a key and the letter appearing is the app arguing with them.
+  if (still()) g.remove();
+  else { g.classList.add('leaving'); g.addEventListener('animationend', () => g.remove(), { once: true }); }
+  const inp = $('input');
+  if (!inp) return;
+  inp.focus();
+  if (ch) { inp.value += ch; inp.dispatchEvent(new Event('input', { bubbles: true })); }
+}
+
+// One printable key, or Escape. Not while a modifier is down — ⌘R and ⌃C are not typing.
+//
+// THE EXEMPTION IS "INSIDE THE VEIL", NOT "IS A TEXT FIELD", and the difference is a real bug that
+// this shipped with for about ten minutes. `#input` keeps the focus while the veil is up — measured
+// in the driver, `document.activeElement` is `TEXTAREA#input` and `closest('#ghost')` is null — so a
+// guard that exempts every textarea exempts the one control the veil is covering. The writer types,
+// the veil does not move, and the characters go silently into a composer they cannot see.
+//
+// The veil covers everything, so while it is up a keystroke belongs to it and to nothing else.
+// Nothing inside it takes text today; the check is written this way so that stays true if anything
+// ever does.
+document.addEventListener('keydown', (e) => {
+  const g = document.getElementById('ghost');
+  if (!g || g.classList.contains('leaving')) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (document.activeElement?.closest('#ghost')) return;
+  if (e.key === 'Escape') { e.preventDefault(); return dismissVeil(''); }
+  if (e.key.length !== 1) return;
+  // preventDefault so the character is not ALSO inserted by the browser into whatever had focus —
+  // `dismissVeil` puts it in the composer itself, once.
+  e.preventDefault();
+  dismissVeil(e.key);
+});
+
 
 /** THE RESOLVE. She finishes, the middle column stops being noise and says who wrote it, and the
  *  rest of the weave goes out from under it. Then the veil leaves and the page is there.
@@ -6334,7 +6444,10 @@ async function generate(mode = S.mode) {
     directive: YOURS ? undefined : (typed || undefined), speaker: who },
     liveDelta, STOP.signal);
   STOP = null;
-  unghost();
+  // NOT `unghost()` ANY MORE on the way through. The veil comes down on an abort or an error, just
+  // below, so a failure can never trap anyone — that is PLAN-07 bug 1's rule and it still holds. On
+  // success it stays up and becomes the take, and the writer leaves it by typing.
+  if (r.aborted || r.error) unghost();
   // Stopped. The half-written passage goes with the ghost — you stopped it because you did not
   // want it — and nothing is accepted, so there is no take and no history entry. What you typed
   // is untouched either way: in the box for Direct, and already on the page for Speak/Act/Narrate,
@@ -6374,6 +6487,8 @@ async function generate(mode = S.mode) {
   paint(); pinToSeam(); refreshManifest(); refreshHistory();
   const said = takeToast(r);
   if (said) toast(said);
+  // Last, so the page behind the veil is already the page the writer will find when it goes.
+  veilFinish();
 }
 
 /** #9 · WHAT THE CONTRADICTION REPAIR DID TO THIS TAKE, said at the take.
@@ -6477,7 +6592,9 @@ async function regenerateInto(id, steer) {
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined },
     liveDelta, STOP.signal);
   STOP = null;
-  unghost();
+  // Same rule as `generate`: down on a failure, held on a success. `atEnd` decides whether there is
+  // a veil here at all, and every one of these is a no-op when there is not.
+  if (r.aborted || r.error) unghost();
   // Stopping a re-roll leaves the take you already had selected, because nothing was accepted.
   if (r.aborted) {
     S.busy = false; drawDock(); drawBar(); working(null);
@@ -6497,6 +6614,7 @@ async function regenerateInto(id, steer) {
   toast(takeToast(r) ?? (r.reusedDirective
     ? `New take on your instruction: ${String(r.reusedDirective).slice(0, 90)}`
     : 'New take kept. Both are in History, with the canon each was written against.'));
+  veilFinish();
 }
 
 
@@ -7587,6 +7705,7 @@ document.addEventListener('click', async (e) => {
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     paint(); return;
   }
+  if (d.veilclose) { dismissVeil(''); return; }
   if (d.onlyin !== undefined) { S.onlyIn = d.onlyin === '1'; paint(); return; }
   if (d.kind || d.act || d.flipact) {
     // Type and activation are chips, so they save immediately rather than waiting for Save —

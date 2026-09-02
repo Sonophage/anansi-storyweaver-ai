@@ -240,6 +240,19 @@ input, textarea { font:inherit; color:inherit; }
 /* Empty until the first token, and an empty box with a mask still reserves its gap in the column.
    `:empty` collapses it so the veil looks exactly as it did before a word arrives. */
 #ghost.veil .veiltext:empty { display:none; }
+/* THE GLYPHS GO AT THE FIRST TOKEN. Seth, 2026-09-02: "the glyphs dissapear as soon as the
+   streaming starts." They cover the formulating and that is over the moment a word exists. Height
+   is not held back — the weave collapsing lets the prose take the space it was using, which is what
+   makes the handoff read as one surface changing rather than two stacked. */
+#ghost.veil.written .weave { display:none; }
+/* Each frame's worth of characters, fading in. `both` so it starts at zero rather than flashing at
+   full opacity for one frame before the animation is applied. */
+@keyframes twin { from { opacity:0; } to { opacity:1; } }
+#ghost.veil .veiltext .tw { animation:twin .42s var(--ease-out) both; }
+/* Nothing left to stop: the control is the way out and says so. Gold, because it is now the thing
+   to press rather than the thing to press only if something is wrong. */
+#ghost.veil.done .veilstop { border-color:rgba(217,178,106,.42); color:var(--gold); }
+@media (prefers-reduced-motion: reduce) { #ghost.veil .veiltext .tw { animation:none; } }
 /* THE WEB DRAWS ITSELF. Seven strokes, the same ones as web/icon.svg, because she is Anansi and
    the wait is long enough to deserve something to watch. `pathLength="1"` normalises every stroke
    to one unit, so a single dasharray draws a 320px radial and a 1030px ring at the same rate

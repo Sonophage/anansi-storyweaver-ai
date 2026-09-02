@@ -23,14 +23,21 @@ re-runs that passage's own instruction, which you edit on the passage itself.
 
 ## 2026-09-02 · The words arrive while she writes them, and The Anagram is quick again
 
-### You can read the passage as it is written
+### The passage types itself out while you watch, and you leave when you are ready
 The waiting screen used to hold until the whole passage was finished, and on a long one that is
-twenty seconds of watching letters roll. The words come through now, under the weave, as she writes
-them. Nothing else about the wait changed: the glyphs still turn, the name still resolves at the
-end, and **Stop** is still there and still stops it.
+twenty seconds of watching letters roll.
 
-The passage still lands on the page the same way when it is done. What arrives in the waiting screen
-is a look at it happening, not somewhere to edit.
+Now the rolling letters do their job — covering the pause while she works out what to write — and
+step aside the moment the first word exists. The passage types itself in under them, evenly, however
+unevenly it actually arrives. You can scroll back through it while it is still being written, and it
+will not drag you to the bottom while you are reading.
+
+When it finishes, the screen **stays**. It is the take, and it is yours to sit with. **Start typing
+and it gets out of the way** — the letter you typed goes into the box, so carrying on writing is one
+motion. Escape closes it without typing anything, and **Close** is there if you would rather press
+something.
+
+**Stop** still stops it, and a passage that fails still puts you straight back on the page.
 
 ### The Anagram is back on the usual model
 It had been set to write with **Artemis**, which is about ten times slower than the model the rest of
