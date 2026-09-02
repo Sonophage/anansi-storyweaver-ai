@@ -6091,6 +6091,7 @@ function ghost() {
       <div class="weave" aria-hidden="true">${
         Array.from({ length: WEAVE_H }, () =>
           `<div class="wrow">${'<i></i>'.repeat(WEAVE_W)}</div>`).join('')}</div>
+      <div class="veiltext" aria-live="polite"></div>
       <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
     </div>`;
   shell.appendChild(g);
@@ -6122,6 +6123,34 @@ function ghost() {
 
 /** Six rows of eleven. The middle column is the sixth of them, which is where the name lands. */
 const WEAVE_W = 11, WEAVE_H = 6, WEAVE_WORD = 'ANANSI';
+
+/** THE PROSE, ARRIVING, INSIDE THE VEIL. Seth, 2026-09-02, choosing this over lifting the veil on
+ *  the first token: "keep the veil, stream inside it." The glyphs go on rolling above and the
+ *  resolve still ends it — the ritual is unchanged, it just stops being opaque.
+ *
+ *  Both `api.generateLive` call sites passed `() => {}` before this, so every delta was parsed,
+ *  dispatched and dropped: the NDJSON transport, the backpressure note in serve.ts and
+ *  `X-Accel-Buffering: no` all fed a no-op. The veil then held for the WHOLE generation — p50 10.7s
+ *  and p90 18.6s on Qwen3.6 today, against the 5.7s COUNCIL-04 measured when the ritual was drawn.
+ *  Seth's reason for it was "while it formulates", and formulating stops at the first token.
+ *
+ *  WHAT THIS MUST NOT UNDO. PLAN-07 bug 1 was an onDelta that held the veil BACK until the first
+ *  token and never raised it if the model errored before then — the cold-start blank page the veil
+ *  exists to cover. Nothing here touches when the veil goes up or comes down: `ghost()` on the
+ *  press and `unghost()` on the return, exactly as before. This only writes into it.
+ *
+ *  `append`, not `textContent +=`, which rebuilds the whole node per token and is O(n^2) over a
+ *  900-token passage. And a text node either way, never innerHTML: this is model output, and the
+ *  comment in `ghost()` promises that the one place untrusted text lands is filled with text and
+ *  never with markup. */
+function liveDelta(d) {
+  const el = document.getElementById('ghost')?.querySelector('.veiltext');
+  if (!el || !d) return;
+  el.append(d);
+  // The tail is what is being written, so that is what stays in view. Not smooth-scrolled: at
+  // 57 tokens a second a smooth scroll never arrives before the next one starts it again.
+  el.scrollTop = el.scrollHeight;
+}
 
 /** THE RESOLVE. She finishes, the middle column stops being noise and says who wrote it, and the
  *  rest of the weave goes out from under it. Then the veil leaves and the page is there.
@@ -6303,7 +6332,7 @@ async function generate(mode = S.mode) {
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
     directive: YOURS ? undefined : (typed || undefined), speaker: who },
-    () => {}, STOP.signal);
+    liveDelta, STOP.signal);
   STOP = null;
   unghost();
   // Stopped. The half-written passage goes with the ghost — you stopped it because you did not
@@ -6446,7 +6475,7 @@ async function regenerateInto(id, steer) {
     // the server inherits the passage's own instruction.
     ...(steer ? { mode: 'direct', directive: steer } : {}),
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined },
-    () => {}, STOP.signal);
+    liveDelta, STOP.signal);
   STOP = null;
   unghost();
   // Stopping a re-roll leaves the take you already had selected, because nothing was accepted.

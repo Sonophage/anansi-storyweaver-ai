@@ -217,6 +217,29 @@ input, textarea { font:inherit; color:inherit; }
 #ghost.veil .weave.solved .wrow i:nth-child(6) { opacity:1; color:var(--gold); }
 #ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
   letter-spacing:.05em; white-space:nowrap; animation:veilbreathe 1.5s ease-in-out infinite; }
+/* THE PROSE ARRIVING, UNDER THE WEAVE. 2026-09-02. Not `.head` above, which is nowrap and breathing
+   — that was the removed one-line status span and it is the wrong shape for a paragraph.
+
+   SERIF AND LEFT-ALIGNED, because it is prose and `.narr` centres everything else. Sized well under
+   the reading column: this is a writer watching it arrive, not reading it here — the passage lands
+   in the page when the veil goes.
+
+   The height is CAPPED and it scrolls, so a 900-token passage cannot push Stop off the screen.
+   Stop sits below this in `.narr` and it is the one control that must never be unreachable, which
+   is the whole trade PLAN-07 made when the veil went full screen.
+
+   `mask-image` fades the top edge so the text reads as coming up out of the weave rather than
+   sitting in a box with a hard cut. Compositor-only, like the rest of this surface. */
+#ghost.veil .veiltext {
+  max-width:min(62ch, 78vw); max-height:min(38vh, 300px); overflow-y:auto; text-align:left;
+  font-family:var(--serif,serif); font-size:15.5px; line-height:1.62; color:var(--mute);
+  white-space:pre-wrap; overflow-wrap:break-word; scrollbar-width:none;
+  mask-image:linear-gradient(180deg, transparent 0, #000 34px);
+  -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 34px); }
+#ghost.veil .veiltext::-webkit-scrollbar { display:none; }
+/* Empty until the first token, and an empty box with a mask still reserves its gap in the column.
+   `:empty` collapses it so the veil looks exactly as it did before a word arrives. */
+#ghost.veil .veiltext:empty { display:none; }
 /* THE WEB DRAWS ITSELF. Seven strokes, the same ones as web/icon.svg, because she is Anansi and
    the wait is long enough to deserve something to watch. `pathLength="1"` normalises every stroke
    to one unit, so a single dasharray draws a 320px radial and a 1030px ring at the same rate

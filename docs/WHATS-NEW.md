@@ -21,6 +21,25 @@ change. It is the sixth row now, and it saves and goes back the same way: empty 
 It is the wording a re-roll of a plain passage uses. Re-rolling a passage you **directed** still
 re-runs that passage's own instruction, which you edit on the passage itself.
 
+## 2026-09-02 · The words arrive while she writes them, and The Anagram is quick again
+
+### You can read the passage as it is written
+The waiting screen used to hold until the whole passage was finished, and on a long one that is
+twenty seconds of watching letters roll. The words come through now, under the weave, as she writes
+them. Nothing else about the wait changed: the glyphs still turn, the name still resolves at the
+end, and **Stop** is still there and still stops it.
+
+The passage still lands on the page the same way when it is done. What arrives in the waiting screen
+is a look at it happening, not somewhere to edit.
+
+### The Anagram is back on the usual model
+It had been set to write with **Artemis**, which is about ten times slower than the model the rest of
+your books use — a passage there was taking a bit over a minute where the others take ten seconds.
+Nothing about the book has changed and nothing you wrote was touched; it just uses the default again.
+
+If you had picked Artemis on purpose and want it back, it is under **Story → Model**. Be ready for
+the wait.
+
 ## 2026-09-01 · Threads say Back, switch in one press, and the reading toggle is visible again
 
 ### Always on or triggered is one press, on the list
