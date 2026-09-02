@@ -10,6 +10,25 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · A passage Continue wrote carries its colour down the margin
+
+### Continue's accent was drawn but never saved
+Every press marks its passage with a coloured rule down the left margin, and Continue got its own
+colour yesterday. The colour was never saved with the passage, though, so a passage Continue wrote
+sat on the page with no rule beside it at all — and Continue is the press you use most, so that was
+the most common passage in the book.
+
+Every passage written from now on carries it, and the ones already in your books have been marked
+after the fact: 22 of them, across The Anagram, The Tin Orchard and The Transaction of Silence.
+
+### A new path kept the prose and lost every colour
+Branching from a passage copies the book so far onto the new path. The copies arrived with no
+accent on any of them — the press that wrote each one was left behind — so a branched timeline read
+as though nothing in it had ever been pressed. The Transaction of Silence has a path like that, 21
+passages long.
+
+The copies keep their colours now, and those 21 have theirs back.
+
 ## 2026-09-02 · Regenerate's wording is in Storyteller, which yesterday's note said it already was
 
 ### The re-roll's instruction has its own row

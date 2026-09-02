@@ -1138,10 +1138,16 @@ export const branchesOf = (id: string) => q('SELECT * FROM branches WHERE story_
  *  The shift is two statements because `passages_sel` is UNIQUE(branch_id, ordinal) WHERE selected
  *  and is not deferrable: incrementing in place collides with the row above. Everything after the
  *  insertion point moves out to a range nothing occupies, then comes back one higher. */
-/** The four presses, and the only values `passages.mode` may hold. An unknown one is stored as
+/** The five presses, and the only values `passages.mode` may hold. An unknown one is stored as
  *  null rather than kept: the page turns this into a class name, and a column that accepts anything
- *  the client sends is a column that decides what CSS runs. */
-const MODES = ['speak', 'act', 'direct', 'narrate'];
+ *  the client sends is a column that decides what CSS runs.
+ *
+ *  CONTINUE IS THE FIFTH, and it was missing here while the page had drawn an accent for it since
+ *  2026-09-01. It is not a composer button, so a list written from the composer's four left the
+ *  most common passage in any book storing `null` and reading back as an unmarked one: Seth,
+ *  2026-09-02, on a passage Continue had just written — "this is missing the side accent bar that
+ *  all the other ones have." Zero rows in the library carry `continue` because of this line. */
+const MODES = ['speak', 'act', 'direct', 'narrate', 'continue'];
 
 export function addPassage(p: any) {
   const id = uid('p-');
@@ -2540,11 +2546,16 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
                         AND ordinal <= ? ORDER BY ordinal`).all(storyId, fromBranchId, atOrdinal) as any[]) {
       const nch = chapterMap.get(p2.chapter_id);
       if (!nch) continue;
+      // `mode` RIDES WITH `directive`, for the third time and the same reason: a copy of a passage
+      // is the same passage, so a fork that dropped it turned every accent on the branched
+      // timeline neutral — the failure `addVariant` names above, in a second INSERT that had not
+      // been given the column. Found 2026-09-02 while backfilling Continue: seven copied rows,
+      // across two forks, all reading as pressless.
       q(`INSERT INTO passages (id,chapter_id,story_id,branch_id,slot_key,ordinal,variant_index,
-          selected,author,speaker,body,is_break,directive,created_at)
-         VALUES (?,?,?,?,?,?,0,1,?,?,?,?,?,?)`)
+          selected,author,speaker,body,is_break,mode,directive,created_at)
+         VALUES (?,?,?,?,?,?,0,1,?,?,?,?,?,?,?)`)
         .run(uid('p-'), nch, storyId, id, p2.slot_key, p2.ordinal, p2.author, p2.speaker,
-          p2.body, p2.is_break, p2.directive, t);
+          p2.body, p2.is_break, p2.mode ?? null, p2.directive ?? null, t);
     }
 
     for (const [oldCh, newCh] of chapterMap)

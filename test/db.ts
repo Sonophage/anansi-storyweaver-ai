@@ -46,6 +46,27 @@ ok('variants share an ordinal and only one is selected', () => {
   assert.strictEqual(takes.filter((x) => x.selected).length, 1);
   assert.strictEqual(slots.size, 1, 'three takes, one slot');
 });
+ok('every press the page draws an accent for is a mode the column will store', () => {
+  // WHY THIS MATTERS: `passages.mode` is what the reading column turns into an `m-*` class, and
+  // that class is the coloured rule down the margin telling the writer which press wrote the
+  // passage. A press missing from the whitelist stores null and comes back unmarked — which is
+  // exactly what happened to Continue, the most common press in any book, for a day.
+  const drawn = [...readFileSync(new URL('../app.html', import.meta.url), 'utf8')
+    .matchAll(/\.block\.m-(\w+)\s*\{/g)].map((m) => m[1]);
+  assert.ok(drawn.length >= 5, 'the accent rules should be findable in app.html');
+  const sm = db.createStory(o, { title: 'M', premise: 'p' });
+  for (const mode of drawn) {
+    const id = db.addPassage({ ...sm, storyId: sm.id, body: mode, mode });
+    const row = db.passagesOfChapter(sm.chapterId).find((x: any) => x.id === id) as any;
+    assert.strictEqual(row.mode, mode,
+      `app.html draws an accent for ${mode}, so the column has to keep it`);
+  }
+  // And the whitelist is still a whitelist: it is what stops the client naming a CSS class.
+  const junk = db.addPassage({ ...sm, storyId: sm.id, body: 'junk', mode: 'sudo' });
+  const row = db.passagesOfChapter(sm.chapterId).find((x: any) => x.id === junk) as any;
+  assert.strictEqual(row.mode, null, 'an unknown mode is stored as null, never kept');
+  db.delStory(sm.id);   // off the shelf again: 'deleting a story cascades' counts what is on it
+});
 ok('every edit is kept and revert restores without losing the current text', () => {
   db.editPassage(s.id, p1, 'edited');
   const h = db.passageHistory(s.id, p1);
@@ -962,7 +983,7 @@ if (classify) {
 ok('forking copies the path so far and leaves the parent alone', () => {
   const s7 = db.createStory(o, { title: 'Fork' });
   const ids = ['one', 'two', 'three'].map((b) =>
-    db.addPassage({ ...s7, storyId: s7.id, body: b }));
+    db.addPassage({ ...s7, storyId: s7.id, body: b, mode: b === 'one' ? 'continue' : 'direct' }));
   db.addVariant(s7.id, ids[1], 'two, differently');   // a discarded take on the parent
   const at = 2;
 
@@ -973,6 +994,11 @@ ok('forking copies the path so far and leaves the parent alone', () => {
   const onFork = db.passagesOf(s7.id).map((p: any) => p.body);
   assert.deepStrictEqual(onFork, ['one', 'two, differently'],
     'the fork carries the SELECTED prose up to the fork point, and nothing after it');
+  // AND THE PRESS THAT WROTE EACH ONE. A copied passage is the same passage, so it keeps the
+  // coloured rule down its margin — the fork's INSERT had every other column and not this one,
+  // which left a branched timeline reading as though nothing on it had been pressed.
+  assert.deepStrictEqual(db.passagesOf(s7.id).map((p: any) => p.mode), ['continue', 'direct'],
+    'the fork carries each passage mode, including one inherited by a re-rolled take');
 
   // Write on the fork, then check the parent is untouched — the whole reason for copy-on-write.
   db.addPassage({ storyId: s7.id, branchId: b2, chapterId: db.chapters(s7.id)[0].id, body: 'a different three' });
