@@ -153,7 +153,12 @@ ok("  and the bar lines up with the column",
 await page.goto(B + "/#" + sid + "/teller");
 await wait(900);
 const promptRows = await page.eval("[...document.querySelectorAll('[data-editprompt]')].map(b => b.dataset.editprompt).join(',')");
-ok(`Storyteller offers all five modes to rewrite (${promptRows})`, promptRows === 'continue,speak,act,direct,narrate');
+// SIX ROWS. `regenerate` is the sixth editable instruction and the panel drew five, so from
+// 2026-09-01 to 2026-09-02 the route saved a key no box existed for and this assertion held the
+// bug in place: it asserted the count the surface had, not the count the route allows. The order
+// is the route's own EDITABLE_MODES order, so a key added there and forgotten here goes red.
+ok(`Storyteller offers all five modes and the re-roll to rewrite (${promptRows})`,
+   promptRows === 'continue,speak,act,direct,narrate,regenerate');
 await page.click('[data-editprompt="speak"]');
 await wait(300);
 ok("  opening one shows the shipped wording to edit",

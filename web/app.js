@@ -3057,13 +3057,17 @@ const PANELS = {
           fact the story does not have, is not in this box and cannot be edited away.</div>`
         : '<div class="hint">Reading it&hellip;</div>'}
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">The five modes, in your words</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">The five modes and the re-roll, in your words</div>
       ${(() => {
         // The shipped wording comes from the server, rendered by the engine itself, so the box
         // shows what it is actually replacing rather than a second copy that goes stale.
         if (!S.prompts) return '<div class="hint" style="margin:0">Reading them&hellip;</div>';
         const { defaults, yours } = S.prompts;
-        return ['continue', 'speak', 'act', 'direct', 'narrate'].map((k) => {
+        // SIX, not five: `regenerate` is the re-roll's own wording. The route's EDITABLE_MODES
+        // and `defaultModePrompts` have both carried it since 2026-09-01 and this list did not,
+        // so the one instruction Seth asked to be able to edit was the one with no row. Last,
+        // in the order those two use.
+        return ['continue', 'speak', 'act', 'direct', 'narrate', 'regenerate'].map((k) => {
           const mine = yours[k];
           const open = S.promptOpen === k;
           return `<div class="card" style="margin-bottom:7px; gap:6px;
@@ -3076,8 +3080,10 @@ const PANELS = {
             ${open ? `<textarea class="field" data-prompttext aria-label="The whole instruction for ${esc(k)}"
                 style="min-height:132px; font-family:ui-monospace,monospace;
                 font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
-              <div class="hint" style="margin:0">Replaces the whole instruction for this mode.
-                ${k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
+              <div class="hint" style="margin:0">Replaces the whole instruction for this ${
+                k === 'regenerate' ? 'press' : 'mode'}.
+                ${k === 'regenerate' ? 'Used when the passage you re-roll carries no instruction of its own \u2014 a directed one re-runs its own, which you edit on the passage. ' : ''}${
+                k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
                   k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you are speaking as. ' : ''}
                 Empty it and press Save to go back to the shipped one.</div>
               <div style="display:flex; gap:7px">

@@ -10,6 +10,17 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · Regenerate's wording is in Storyteller, which yesterday's note said it already was
+
+### The re-roll's instruction has its own row
+Yesterday's note said Storyteller listed it beside the five modes. It did not — the panel still
+drew five, so the one instruction with no way to change it was the one you asked to be able to
+change. It is the sixth row now, and it saves and goes back the same way: empty the box, press
+**Save**, and the shipped wording returns.
+
+It is the wording a re-roll of a plain passage uses. Re-rolling a passage you **directed** still
+re-runs that passage's own instruction, which you edit on the passage itself.
+
 ## 2026-09-01 · Threads say Back, switch in one press, and the reading toggle is visible again
 
 ### Always on or triggered is one press, on the list
