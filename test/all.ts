@@ -12,11 +12,20 @@
 // Most changes need one or two suites, and a single suite has always run alone:
 //   node --experimental-strip-types test/engine.ts
 import { execFile } from 'node:child_process';
-const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'check.ts', 'memory.ts', 'report.ts', 'talk.ts', 'forge.ts', 'web.ts', 'app.ts'];
+// An entry may carry arguments, so a harness whose self-check lives behind a subcommand can be
+// listed here rather than being a check nobody runs. `bench/order.ts` justified a change to
+// `src/blocks.ts` ORDER and then went red on the tree that shipped it, because nothing ran it.
+//
+// SIXTEEN files under bench/ have a `check` mode and only this one is listed. That is a real gap
+// and it is deliberately not closed here: the other fifteen have never run in a suite, so turning
+// them all on at once would surface unknown reds that belong to whoever wrote them, not to the
+// next person to run the tests. Add them one at a time, each with its own commit.
+const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'check.ts', 'memory.ts', 'report.ts', 'talk.ts', 'forge.ts', 'web.ts', 'app.ts',
+                '../bench/order.ts check'];
 const started = Date.now();
 
 const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean }>((done) => {
-  execFile(process.execPath, ['--experimental-strip-types', s],
+  execFile(process.execPath, ['--experimental-strip-types', ...s.split(' ')],
     { cwd: import.meta.dirname, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
     (err, stdout, stderr) => done({ s, out: (stdout ?? '') + (stderr ?? ''), ok: !err }));
 }));

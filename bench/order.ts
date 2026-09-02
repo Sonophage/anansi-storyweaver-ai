@@ -17,8 +17,13 @@
  *  re-cut it for a cache on exactly that ground. A win here is permission to run `bench/ab.ts`,
  *  not permission to ship.
  *
+ *  THE REPORT IS NOT READ-ONLY, whatever an earlier version of this line said. It imports
+ *  `src/db.ts`, which opens the live file READ-WRITE, sets WAL and runs `migrate()` at module load.
+ *  No model call and no slot, so it does not disturb a generation — but it is a second writer on
+ *  the book, so do not describe it as harmless. `check` touches no database at all.
+ *
  *    node --experimental-strip-types bench/order.ts check     # the detector, no db, no model
- *    node --experimental-strip-types bench/order.ts [title]   # the report, read-only db
+ *    node --experimental-strip-types bench/order.ts [title]   # the report, opens the live db rw
  */
 import { render } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
@@ -33,14 +38,21 @@ import type { Kind } from '../src/blocks.ts';
  *  `canon-late` — CANON-* currently sit at 4 and 5, so accepting a thread inserts ahead of every
  *  block behind it. Moved to just after the prose they do not need to precede.
  *  `both` — the two together, which is not the sum of them: fixing one exposes the other. */
+/*  FROZEN LITERALS, BOTH SIDES. `now: ORDER` was a live alias, so the moment `directive-first`
+ *  shipped into `src/blocks.ts` the two arms became the same array and case 2's `b < a` was false
+ *  by construction — the check that justified the change went red on the tree that carried it, and
+ *  nothing ran it to notice. An arm named for what ships cannot be a fixture. `shipped` is kept as
+ *  a live read so the report still says where the code actually is. */
 const ARMS: Record<string, Kind[]> = {
-  now: ORDER,
+  'directive-last': ['SPINE', 'VOICE', 'STYLE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'STRING',
+    'EARLIER', 'PROSE', 'DIRECTIVE', 'TAIL', 'MODE'],
   'directive-first': ['SPINE', 'VOICE', 'STYLE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'STRING',
     'EARLIER', 'DIRECTIVE', 'PROSE', 'TAIL', 'MODE'],
   'canon-late': ['SPINE', 'VOICE', 'STYLE', 'STRING', 'EARLIER', 'PROSE',
     'CANON-ALWAYS', 'CANON-TRIGGERED', 'DIRECTIVE', 'TAIL', 'MODE'],
   both: ['SPINE', 'VOICE', 'STYLE', 'STRING', 'EARLIER', 'DIRECTIVE', 'PROSE',
     'CANON-ALWAYS', 'CANON-TRIGGERED', 'TAIL', 'MODE'],
+  shipped: ORDER,
 };
 
 /** Stable, so within one kind the blocks keep the insertion order the stored manifest already has
@@ -112,7 +124,7 @@ function check() {
   //     TAIL sitting behind the new prose; `directive-first` must pay for the new prose only.
   {
     const seq = [wrap([spine, canonA, p1, dir, tailA]), wrap([spine, canonA, p1, p2, dir, tailB])];
-    const a = score(seq, ARMS.now).reprocessed[0];
+    const a = score(seq, ARMS['directive-last']).reprocessed[0];
     const b = score(seq, ARMS['directive-first']).reprocessed[0];
     const c = score(seq, ARMS['canon-late']).reprocessed[0];
     console.log(`       append: now ${a} chars, directive-first ${b}, canon-late ${c}`);
@@ -127,12 +139,30 @@ function check() {
     ok('  and canon-late makes an append WORSE, which is why it loses overall', c > a);
   }
 
-  // 3 · A CANON INSERTION. A thread is accepted and sorts ahead of the one already there, which is
+  // 3 · THE CASE THE FIRST VERSION OF THIS FILE HAD NO ASSERTION FOR, and the reason it could only
+  //     ever conclude that directive-first wins. When the DIRECTIVE block itself changes and the
+  //     prose does not, directive-last reprocesses DIRECTIVE + TAIL + MODE; directive-first
+  //     reprocesses DIRECTIVE + THE WHOLE PROSE WINDOW behind it. That is the real trade, and it
+  //     is 456% on a live transition in The Transaction of Silence, found by Council 10.
+  //
+  //     DIRECTIVE is NOT the writer's typed steer — that rides in MODE, the last block. This fires
+  //     on point of view, the lockout, the chapter's "must end with" note and the spice line.
+  {
+    const dir2 = blk('DIRECTIVE', 'directive', 'E'.repeat(120));
+    const seq = [wrap([spine, canonA, p1, dir, tailA]), wrap([spine, canonA, p1, dir2, tailA])];
+    const a = score(seq, ARMS['directive-last']).reprocessed[0];
+    const b = score(seq, ARMS['directive-first']).reprocessed[0];
+    console.log(`       directive-only change: directive-last ${a} chars, directive-first ${b}`);
+    ok('  a directive-only change costs MORE with DIRECTIVE ahead of the prose', b > a);
+    ok('  and the gap is at least the prose window it now sits in front of', b - a >= p1.text.length);
+  }
+
+  // 4 · A CANON INSERTION. A thread is accepted and sorts ahead of the one already there, which is
   //     what was watched happening live on 2026-09-02. `now` must reprocess the prose behind it;
   //     `canon-late` must not, because the prose is no longer behind it.
   {
     const seq = [wrap([spine, canonB, p1, dir, tailA]), wrap([spine, canonA, canonB, p1, dir, tailA])];
-    const a = score(seq, ARMS.now).reprocessed[0];
+    const a = score(seq, ARMS['directive-last']).reprocessed[0];
     const b = score(seq, ARMS['canon-late']).reprocessed[0];
     console.log(`       canon insert: now ${a} chars, canon-late ${b}`);
     ok('a canon insertion costs less with canon behind the prose', b < a);
@@ -178,7 +208,7 @@ for (const [title, ms] of byBook) {
   if (ms.length < 3) continue;
   verdicts[title] = [];
   console.log(`  ${title} — ${ms.length} prompts, ${ms.length - 1} transitions`);
-  const base = score(ms, ARMS.now);
+  const base = score(ms, ARMS['directive-last']);
   for (const [arm, order] of Object.entries(ARMS)) {
     const s = score(ms, order);
     const m = med(s.reprocessed);
@@ -187,7 +217,7 @@ for (const [title, ms] of byBook) {
     // FULL RESETS ARE THE HEADLINE, not the median. A run of cheap appends drags a median down
     // and hides the presses that cost seven seconds each, which is the shape of the complaint.
     const resets = s.reprocessed.filter((x, i) => x > 0.8 * s.total[i]).length;
-    const delta = arm === 'now' ? '' : `  ${m <= med(base.reprocessed) ? '−' : '+'}${
+    const delta = arm === 'directive-last' ? '' : `  ${m <= med(base.reprocessed) ? '−' : '+'}${
       Math.abs(100 * (m - med(base.reprocessed)) / med(base.reprocessed)).toFixed(0)}%`;
     console.log(`    ${arm.padEnd(16)} median ${String(Math.round(m)).padStart(6)} chars`
       + ` (~${String(Math.round(m / CPT)).padStart(5)} tok, ${share.toFixed(0).padStart(3)}% of prompt)`
