@@ -2159,6 +2159,11 @@ attacking. Nothing here touches it — speculation changes decode, and the cold 
 
 ## F50 — `--cache-reuse` measures exactly zero on the case it exists for, and the flag really was on the command line (2026-08-31)
 
+> **F56 measured the app-side lever this finding names below and it loses.** Moving canon behind
+> the prose does make an accept cheap and makes every ordinary append expensive, at +221% over 31
+> real transitions. "Noted, not proposed" was the right call. `DIRECTIVE` ahead of `PROSE` was the
+> reordering that paid, and shipped.
+
 `bench/reuse.ts`, three calls per arm, `max_tokens: 1`, the same 25 KB of real prose F49 used.
 The metric is `timings.prompt_n` on call 2: tokens the server actually had to process.
 
@@ -2565,3 +2570,63 @@ this fixture yields ~40-90 action events per 650 generations and that is too few
 from noise reliably. Either raise n per arm to the point where the drift is small against the effect,
 or change the fixture so the counter fires more often — a scene where the locked character is more
 likely to be named would do it, at the cost of comparability with everything above.
+
+## F56 — DIRECTIVE ahead of PROSE halves what the cache reprocesses and does not move canon compliance at 510 generations an arm; F50's other proposal, canon behind the prose, is measured here and is 3.2x WORSE (2026-09-02)
+
+Prompted by a writer's report that five chapters in, waiting for prose felt slow. Two causes, and
+the larger one was not in this repo: *The Anagram* pinned `Artemis-1.1-RPNTH-31B-NN`, which over 54
+prose runs decodes at **5.7 tok/s against Qwen3.6's 57.5** and waits a median **78.2 s a passage
+against 10.0 s**. The pin was cleared. Everything below is the second cause.
+
+**The cache half, measured without the model.** `bench/order.ts` replays stored `manifest.blocks`
+through `render` under a different `ORDER` and takes the common prefix of consecutive prompts,
+which is exactly what llama-server reuses. No generations, no slots, so it runs while somebody is
+writing. 31 real transitions on *The Anagram*:
+
+| arm | median chars reprocessed | ~tokens | full resets |
+|---|---|---|---|
+| shipped order | 2,640 | 593 | 4 |
+| **DIRECTIVE ahead of PROSE** | **1,331** | **299** | 4 |
+| canon behind the prose | 8,474 | 1,904 | 3 |
+| both | 8,250 | 1,854 | 3 |
+
+`DIRECTIVE` sat at index 8, between `PROSE` and `TAIL`, so a landed passage inserted into the
+MIDDLE of the prompt and everything behind it was reprocessed for what was only an append.
+
+**F50's proposal is refuted, and its reasoning was right.** F50 said moving accepted canon behind
+the prose "would make an accept cheap" and declined to cut it for a cache. It does make an accept
+cheap — `bench/order.ts check` case 3 asserts exactly that. It also puts every canon block BEHIND
+the prose, so an ordinary append now reprocesses the whole ledger with it. **Appends outnumber
+accepts about seven to one here**, so the rare 85% reset is traded for a frequent 25% tax and the
+arm loses by 221%. The right call for a reason nobody had stated. Asserted in the check now.
+
+**The quality half: 1,020 generations, two servers, one router, simultaneous, 0 errors.** Control is
+the commit before the change; the trees differ by the `ORDER` line and nothing else. 60 then 450 an
+arm, same servers throughout.
+
+| | control | DIRECTIVE-first |
+|---|---|---|
+| mentioned the key (the informative denominator) | 235/510 · 46.1% | 217/510 · 42.5% |
+| violations, of those | **19/235 · 8.1%** | **20/217 · 9.2%** |
+| | | **p = 0.7384** |
+| median seconds | 3.3 | 3.3 |
+
+Failure modes matched: "called the key silver" 16 vs 19, "called the key warm" 1 vs 1, "restated
+canon verbatim" 2 vs 0.
+
+**WHAT THIS n COULD HAVE SEEN, stated because a p of 0.74 is not an absence.** Against the control's
+8.1%, a rise to **14.7% (1.82x)** or a fall to **3.2%** would have reached p < 0.05. So the claim is
+"this does not change canon compliance by as much as 1.8x", not "this changes nothing". The first
+pass at 60 an arm could only have seen a **4.1x** change and was discarded as uninformative rather
+than reported as agreement.
+
+**THE ONE THING TO WATCH.** The only mechanism by which this change could plausibly hurt is that the
+directive is now further from the generation point, and instruction-following decays with distance.
+The mention rate is the proxy and it moved the wrong way: **46.1% to 42.5%, p = 0.2839**, where a
+fall to 39.8% would have been significant. Not a result. But the point estimate leans against the
+change and this n cannot resolve 3.6 points, so it is written down rather than dismissed.
+
+**F55's baseline drift does not undercut this.** F55 found the same control arm moving by half
+between two runs on this fixture, p = 0.004 — a fixture whose baseline is not stable across time.
+Both arms here ran SIMULTANEOUSLY against one router, which is the design that controls for it and
+the only one this project trusts. A sequential version of this run would be worth nothing.
