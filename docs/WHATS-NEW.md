@@ -27,11 +27,14 @@ re-runs that passage's own instruction, which you edit on the passage itself.
 The waiting screen used to hold until the whole passage was finished, and on a long one that is
 twenty seconds of watching letters roll.
 
-Now the waiting screen holds the space the passage is about to fill, as a field of turning letters
-where the words will be. The words come in and take their place, evenly, however unevenly they
-actually arrive — and the ground darkens behind them as they do, so what you are reading is the only
-thing lit. It starts at the top and stays there, so you read it from its first word rather than
-being dragged along behind the last one.
+Now the waiting screen holds the space the passage is about to fill: a block of turning letters in
+the accent, the same shape every time you press send, with only the letters inside it moving.
+
+Then the words lock in. One letter at a time, each arriving as a turning glyph and going white as it
+settles, so the sentence forms out of the field rather than being pasted over it. The rest of the
+field steps back once the first word exists — what stays is the word being written. The ground
+darkens behind the prose as it comes, so what you are reading is the only thing lit, and the view
+holds at the top so you read from the first word rather than trailing the last one.
 
 When it finishes, the screen **stays**. It is the take, and it is yours to sit with. **Start typing
 and it gets out of the way** — the letter you typed goes into the box, so carrying on writing is one

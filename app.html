@@ -59,6 +59,7 @@
      Coupled to the hold in web/app.js `solve()`: the hold must OUTLAST this or the veil leaves
      while the letters are still going. */
   --t-weave:.9s;
+  --t-veilout:.62s;                         /* the veil letting go of the page, slower than it arrived */
   --t-page:.42s;                            /* a whole surface arriving */
 
   --prose:20px; --bubble:17px; --gap:30px; --col:720px;
@@ -198,14 +199,20 @@ input, textarea { font:inherit; color:inherit; }
    has to say "not now" rather than take the book away. */
 #ghost.veil, #dock.big { background:transparent;
   backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95); }
-#ghost.veil.leaving { animation:veilout var(--t) var(--ease) both; }
+/* GOING IS SLOWER THAN ARRIVING. Seth, 2026-09-02: "the fade away to input should be a little more
+   gradual." .2s was the default token for hovers and chips, which is right for a thing that has
+   been on screen for a moment and wrong for a full-screen surface a writer has been reading — it
+   went in a blink and the composer appeared under it as a cut. Its own token rather than borrowing
+   --t-slow, because this one duration is answering to how long the veil was up, not to how far
+   anything moved. */
+#ghost.veil.leaving { animation:veilout var(--t-veilout) var(--ease-out) both; }
 #ghost.veil .narr { text-align:center; display:flex; flex-direction:column; align-items:center; gap:22px; }
 /* THE GLYPHS ARE THE TEXT'S OWN SPACE NOW, not a grid beside it. Seth, 2026-09-02: "change the
    glyphs to not be columns and rows. but to be where the streaming would come in. as it comes in
    the glyphs are replaced by the words." So the noise sits inside .veiltext, in the same type at
    the same size, and the words push into it. Dimmer than the prose, because it is the space and
    not the thing. */
-#ghost.veil .noise { color:var(--ink-ghost); user-select:none; }
+#ghost.veil .noise { color:var(--gold-dim); user-select:none; }
 #ghost.veil .head { color:var(--gold-dim); font-family:ui-monospace,monospace; font-size:16px;
   letter-spacing:.05em; white-space:nowrap; animation:veilbreathe 1.5s ease-in-out infinite; }
 /* THE PROSE ARRIVING, UNDER THE WEAVE. 2026-09-02. Not `.head` above, which is nowrap and breathing
@@ -242,10 +249,17 @@ input, textarea { font:inherit; color:inherit; }
    words rather than on the press, so the "not now" state is still the bare blur it was chosen to
    be. Slow, because the eye should not catch it happening. */
 #ghost.veil.written { background:rgba(10,9,12,.72); transition:background 1.4s var(--ease-out); }
-/* Each frame's worth of characters, fading in. `both` so it starts at zero rather than flashing at
-   full opacity for one frame before the animation is applied. */
+/* A LETTER TURNING, THEN A LETTER. Seth, 2026-09-02: "let the glyphs slowly transition letter by
+   letter in the accent color. white when words actually form."
+   `.scr` is the frontier — the glyph it has not settled into yet, in the accent. `.lit` is the
+   letter itself, in the bright ink, and the colour transition is what makes the change read as the
+   word forming rather than as a swap. The fade-in is on the arrival either way, so a letter does
+   not pop in at full strength one frame before its colour is decided. */
 @keyframes twin { from { opacity:0; } to { opacity:1; } }
-#ghost.veil .veiltext .tw { animation:twin .42s var(--ease-out) both; }
+#ghost.veil .veiltext .tw { animation:twin .3s var(--ease-out) both;
+  transition:color .42s var(--ease-out); }
+#ghost.veil .veiltext .tw.scr { color:var(--gold); }
+#ghost.veil .veiltext .tw.lit { color:var(--ink-bright); }
 /* Nothing left to stop: the control is the way out and says so. Gold, because it is now the thing
    to press rather than the thing to press only if something is wrong. */
 #ghost.veil.done .veilstop { border-color:rgba(217,178,106,.42); color:var(--gold); }
