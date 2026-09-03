@@ -210,6 +210,28 @@ const page = {
       if (!e) return false; const r = e.getBoundingClientRect();
       return r.width > 0 && r.height > 0; })()`);
   },
+  /** Pick a value on a <select>, the way a person does: set it and fire `change`, which is the
+   *  event the app listens on. There is no CDP gesture for a native picker — it is an OS widget —
+   *  so this is as close to the press as a driver gets.
+   *
+   *  IT EXISTS FOR THE MODE DIAL. Speak/Act/Direct/Narrate were four buttons until 2026-09-02 and
+   *  nineteen lines across six scenarios clicked them by `data-mode`; they are one select now, and
+   *  the gesture belongs here rather than copied nineteen times. `page.mode('act')` below.
+   *  It THROWS on a value the select does not have, so a renamed option fails loudly here instead
+   *  of quietly leaving the scenario in whatever mode it was already in. */
+  async pick(sel: string, value: string) {
+    const ok = await page.eval(`(() => {
+      const s = document.querySelector(${JSON.stringify(sel)});
+      if (!s) return 'no element';
+      if (![...s.options].some((o) => o.value === ${JSON.stringify(value)})) return 'no such option';
+      s.value = ${JSON.stringify(value)};
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+      return 'ok'; })()`);
+    if (ok !== 'ok') throw new Error(`pick(${sel}, ${value}): ${ok}`);
+    await wait(200);
+  },
+  /** The composer's mode, through the dial that replaced the four buttons. */
+  mode(k: string) { return page.pick('[data-modesel]', k); },
   async type(sel: string, text: string) {
     await page.click(sel);
     for (const ch of text) await send('Input.dispatchKeyEvent', { type: 'char', text: ch });

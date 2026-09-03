@@ -188,10 +188,13 @@ const S = {
   entryPic: null,
   ledgerShut: {},          // #22: which books on the cross-shelf page are collapsed, by id
   naming: false,        // Anansi is naming the chapter — declared, because an undefined field is a field nobody can find
-  ctxOpen: false,       // the reading under the context bar, which is shut until the bar is pressed
   // The Threads list, filtered to what actually reaches the model in this chapter. Session-only:
   // a filter that survives a reload is a list that looks empty for a reason nobody can see.
   onlyIn: false,
+  // Which tab of the thread editor is showing. Session-only and reset when a different card opens:
+  // landing in Rooms because that is where you were on the last thread is the app deciding what you
+  // came here for.
+  cardTab: 'card',
   chaptersFor: null,    // the passage whose tray is showing the chapter list
   memoing: null,        // the passage being turned into a thread, while Anansi is thinking
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
@@ -390,7 +393,7 @@ let DREW = null;
 
 const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home', 'owed', 'help',
-  'mode', 're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
+  're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'carryon', 'readfrom',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
@@ -415,7 +418,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
-  'pullback', 'remember', 'name', 'ctxopen', 'chapters', 'memo',
+  'pullback', 'remember', 'name', 'chapters', 'memo',
   'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
@@ -443,7 +446,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'setupstep', 'setupkind',
   // The Threads list: filter to what is in context, and flip one card between always-on and
   // triggered without opening it.
-  'onlyin', 'flipact'].map((k) => `[data-${k}]`).join(',');
+  'onlyin', 'flipact', 'cardtab'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -717,7 +720,6 @@ function drawMeter() {
   // bar away at exactly the moment it says the most. Full and red, with the reason in the reading.
   const noRoom = !!MANI && MANI.totals.budget <= 0;
   if (!inStory || !MANI) { bar.hidden = true; read.hidden = true; return; }
-  const fill = pct == null ? 100 : Math.min(100, pct);
 
   const ch = V.currentChapter;
   const at = V.chapters.findIndex((c) => c.id === ch.id);
@@ -726,18 +728,27 @@ function drawMeter() {
   const h = horizon();
 
   bar.hidden = false;
-  bar.className = (pct == null || pct >= 100) ? 'full' : '';
-  bar.setAttribute('aria-expanded', String(!!S.ctxOpen));
-  bar.dataset.ctxopen = S.ctxOpen ? '0' : '1';
-  bar.setAttribute('aria-label', pct == null
-    ? 'No room — the prompt does not fit' : `Context ${pct}% of what this model can hold`);
-  bar.title = pct == null
-    ? 'No room. Press for what is in it.'
-    : `${pct}% of this model's context is spoken for. Press for the reading.`;
-  bar.innerHTML = `<i style="width:${fill}%"></i>`;
+  /* ONE SEGMENT PER CHAPTER, the one you are in lit. Seth, 2026-09-02: "this will no longer count
+   * context but chapters. one chapter will be one long line. two chapters will be one line broken
+   * into two so on and so forth."
+   *
+   * EQUAL PARTS, not weighted by length: "broken into two" is halves, and a bar weighted by words
+   * would make chapter one enormous for the whole of chapter one. Flex does the dividing, so the
+   * arithmetic is in the stylesheet and not here.
+   *
+   * NOT A BUTTON ANY MORE. Its only press opened the reading below, and the reading is always open
+   * now — a focusable control that does nothing is worse than no control. The context percentage
+   * it used to draw is in that reading, in words, including the no-room case the red bar carried. */
+  bar.setAttribute('aria-label', V.chapters.length === 1
+    ? 'One chapter' : `Chapter ${at + 1} of ${V.chapters.length}`);
+  bar.innerHTML = V.chapters.map((c, i) =>
+    `<i class="${i === at ? 'at' : ''}"></i>`).join('');
 
-  read.hidden = !S.ctxOpen;
-  if (!S.ctxOpen) return;
+  /* ALWAYS OPEN. Seth, 2026-09-02: "have this always visible. since were changing the behavior of
+   * the bar above." It was shut until the bar was pressed, and the bar's press is what item 2 took
+   * away — so the reading would have had no door at all. It is one line of small caps under a
+   * three-pixel rule; it was behind a press because the bar was the door, not because it is loud. */
+  read.hidden = false;
   read.innerHTML = `
     <span>chapter ${at + 1} of ${V.chapters.length}</span>
     <span class="tnum">${words.toLocaleString()} words</span>
@@ -1000,24 +1011,33 @@ function passageHTML(p, newest, opening) {
     ${v.length > 1 ? `<span class="wr" style="display:flex; align-items:center; gap:4px; padding:8px 6px; font-size:12px; color:var(--faint)">
       <button data-vp="${p.id}" aria-label="The take before this one">‹</button>${at}/${
         v.length}<button data-vn="${p.id}" aria-label="The take after this one">›</button></span>` : ''}
-    <button data-re="${p.id}"><span class="serif" style="color:var(--gold)">↻</span><span class="lbl-txt">Regenerate</span></button>
+    <!-- THE GLYPHS WEAR THE PASSAGE'S OWN ACCENT, not a flat gold. Seth, 2026-09-02, of the two
+         buttons under the last passage: "the accent color for these should match the accent lines
+         next to the text so that its uniform." The same is true of this tray: it belongs to one
+         passage and that passage has a colour. The --m variable is set by the mode class on the
+         block, so a passage written before modes existed falls back to the gold these were.
+         NO BACKTICKS IN HERE: this comment is inside a template literal and one ends the string.
+         AND NOT THE WORD FOR THE LAST PASSAGE EITHER: test/app.ts counts that word across the
+         whole reading view to prove only one paragraph animates, and a comment carrying it reads
+         as a second one. -->
+    <button data-re="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">↻</span><span class="lbl-txt">Regenerate</span></button>
     <!-- "Remember this." The writer's own recall: the model has forgotten something that happened,
          so you point at the passage it happened in. It goes to Anansi as an INSTRUCTION rather than
          as prose to continue or a line somebody said, comes back as facts rather than as sentences
          (F36), and lands in the queue with the chapter it came from. -->
     <button class="wr" data-memo="${p.id}" ${S.memoing === p.id ? 'disabled' : ''}><span class="serif"
-      style="color:var(--gold)">✦</span><span class="lbl-txt">${
+      style="color:var(--m, var(--gold))">✦</span><span class="lbl-txt">${
       S.memoing === p.id ? 'Asking&hellip;' : 'Remember this'}</span></button>
-    <button class="wr" data-ed="${p.id}"><span class="serif" style="color:var(--gold)">✎</span><span class="lbl-txt">Edit</span></button>
-    <button class="wr" data-hi="${p.id}"><span class="serif" style="color:var(--gold)">⌂</span><span class="lbl-txt">History</span></button>
+    <button class="wr" data-ed="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">✎</span><span class="lbl-txt">Edit</span></button>
+    <button class="wr" data-hi="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">⌂</span><span class="lbl-txt">History</span></button>
     <!-- Branching was BUILT and unreachable: "Branch from this passage" sat at the bottom of the
          History panel, below the edits list, three steps in and under the fold. Seth reported it as
          a missing feature. It is here now, where you already are when you are thinking about this
          passage. The button in History stays — the two are the same action. -->
-    <button data-fork="${p.id}"><span class="serif" style="color:var(--gold)">⑂</span><span class="lbl-txt">Branch</span></button>
+    <button data-fork="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">⑂</span><span class="lbl-txt">Branch</span></button>
     <!-- Where you can go from here, while reading. A toggle rather than a list, because a book of
          forty chapters is forty rows in a tray that is meant to be glanced at. -->
-    <button data-chapters="${p.id}" class="readonly"><span class="serif" style="color:var(--gold)">§</span><span
+    <button data-chapters="${p.id}" class="readonly"><span class="serif" style="color:var(--m, var(--gold))">§</span><span
       class="lbl-txt">Skip to chapter</span></button>
     ${S.chaptersFor === p.id ? `<div class="chaplist">${V.chapters.map((c) => `<button data-chapter="${c.id}"
       ${c.id === V.currentChapter.id ? 'aria-current="true"' : ''}>${esc(c.title || `Chapter ${c.index}`)}</button>`).join('')}</div>` : ''}
@@ -1033,7 +1053,7 @@ function passageHTML(p, newest, opening) {
          does, and this one sits next to Delete behind a double tap. Same press-again guard the
          delete below has used since it was fired on one press with no undo. -->
     ${p.chapterId === V.currentChapter?.id ? `<button class="wr" data-endchapter="ask"><span class="serif"
-      style="color:var(--gold)">§</span><span class="lbl-txt">${
+      style="color:var(--m, var(--gold))">§</span><span class="lbl-txt">${
       S.ritual ? esc(S.ritual) : 'End this chapter'}</span></button>` : ''}
     <button class="wr" data-del="${p.id}" style="color:var(--bad)"><span class="serif">✕</span><span class="lbl-txt">${
       v.length > 1 ? `Delete take ${at}` : 'Delete'}</span></button>
@@ -1091,15 +1111,6 @@ function passageHTML(p, newest, opening) {
         ${f.entryId ? `<button data-mute="${f.entryId}">Ignore ${esc(e?.title ?? 'it')} in this chapter</button>` : ''}
       </div>`;
   }).join('');
-  // Only on the last passage, because "carry on from here" and "roll this again" both mean the
-  // end of the page. On any earlier passage Regenerate still lives in its ⋯ tray, where it has
-  // always been — this is the same action given a door you do not have to open.
-  const carry = newest ? `<div class="carry">
-    <button data-re="${p.id}" ${S.busy ? 'disabled' : ''}><span class="serif"
-      style="color:var(--gold)">↻</span> Regenerate</button>
-    <button data-continue="1" ${S.busy ? 'disabled' : ''}
-      title="Carry on with no prompt">Continue &rsaquo;</button></div>` : '';
-
   // #14. The press that made it, down the margin. Null on everything written before 2026-08-29 —
   // Seth: "old ones neutral is fine" — and those fall through to the faint outline the newest
   // passage has always had.
@@ -1112,6 +1123,16 @@ function passageHTML(p, newest, opening) {
    * composer. `--m-continue` is derived in `themeVars` beside the other four. */
   const ACCENTED = [...MODES.map(([k]) => k), 'continue'];
   const m = ACCENTED.includes(p.mode) ? ` m-${p.mode}` : '';
+
+  // Only on the last passage, because "carry on from here" and "roll this again" both mean the
+  // end of the page. On any earlier passage Regenerate still lives in its ⋯ tray, where it has
+  // always been — this is the same action given a door you do not have to open.
+  const carry = newest ? `<div class="carry${m}">
+    <button data-re="${p.id}" ${S.busy ? 'disabled' : ''}><span class="serif"
+      style="color:var(--m, var(--gold))">↻</span> Regenerate</button>
+    <button data-continue="1" ${S.busy ? 'disabled' : ''}
+      title="Carry on with no prompt">Continue &rsaquo;</button></div>` : '';
+
   /* WHERE THIS PASSAGE CAME FROM, said in words. Seth, 2026-09-01: "could we also add a chip at the
    * top that says where it came from", in the same breath as making the margin rules thicker — the
    * two are one answer to one question, and the chip carries the rule's own colour so neither needs
@@ -1421,51 +1442,48 @@ function drawDock() {
   const me = V.story.persona || 'you';
   const who = S.speaker || me;
 
-  // WHO you are speaking or acting as, on its own row above the mode rail and spanning the dock
-  // rather than the column. It sat at the right-hand end of the rail, where it read as one more
-  // mode and ran out of room the moment a name was long — Seth: "right now its awkwardly placed".
-  // Outside #dockCol, which is capped at the column width; this is the full window.
-  // The mode on the root element, so the stylesheet can tint the speaker strip and its own mode
-  // button from one rule each — two inline styles would have to agree about a colour, and the pair
-  // reading as one lifted block depends on them being exactly the same one.
-  //
-  // SET HERE, not in applyLook. Switching mode calls drawDock and nothing else, so an attribute
-  // written in applyLook went stale the moment you pressed a different mode: Act kept its tinted,
-  // rounded background after you had left it. This function is the one that draws the row, so the
-  // attribute and the row cannot disagree.
+  // WHO you are speaking or acting as is drawn INSIDE the rail now, beside the dial that says
+  // which of the two you are in — see the note on the select below. The strip that used to carry
+  // it, #asRow, is gone: it spanned the dock above the rail from 2026-08-27, and it existed
+  // because the name was cramped at the end of a rail of seven controls. The rail has two.
   //
   // `uiMode`, NOT `mode`. `data-mode` is already a click action on the four buttons, and a name
   // doing two jobs is the bug BUILD-STATE's table opens with — `data-theme` was both the look on
   // <html> and an action, so `closest()` matched <html> on every click and nothing was editable.
   root.dataset.uiMode = S.mode;
 
-  const asRow = $('asRow');
-  if (asRow) {
-    asRow.hidden = !asWhom;
-    // EMPTIED, not just hidden. Leaving the select in the DOM behind `hidden` left Direct and
-    // Narrate carrying a speaker control that a presence check can still find and a keyboard can
-    // still reach — and those two modes have no speaker by definition: an instruction is not
-    // spoken by anyone. The inverse of the lie `visible()` exists to catch.
-    if (!asWhom) asRow.innerHTML = '';
-    // The label says which of the two summoned it. "speaking as" over Act, or "acting as" over
-    // Speak, is the row describing a mode you are not in.
-    // The label at one end and the name at the other, with the whole window between them:
-    // `justify-content:space-between` on a strip that is the full width, rather than a huddle
-    // pushed to one side.
-    else asRow.innerHTML = `<div class="inner"><span>${
-      S.mode === 'act' ? 'acting as' : 'speaking as'}</span>
-      <select id="asWhom" aria-label="${S.mode === 'act' ? 'Who you are acting as' : 'Who you are speaking as'}">
+  $('dockCol').innerHTML = `
+    <div id="modes">
+      <!-- ONE DIAL, NOT FOUR BUTTONS. Seth, 2026-09-02: "make speak, act, direct and narrate into
+           a drop down. the selection should look like a button." Four modes on a rail alongside
+           three doors was seven controls fighting for one line at 390px; the dial is one control
+           the width of its own label, and the two doors beside it are a second.
+           A NATIVE SELECT, styled. It brings the keyboard, the phone's own picker and the whole
+           open-and-choose gesture for nothing — a popup of our own would be that written by hand,
+           and this row already had a styled select in it before today.
+           SPEAKING AS, ACTING AS. Seth, same message: "the labels for speak and act will be
+           speaking as and acting as", Title Case with the rest of them for uniformity, in his next
+           message — because the name of who you are being now sits directly
+           beside it and the two read as one sentence. The MODES table keeps its own short labels:
+           they are what the chip over a passage says, and "speaking as" over a paragraph is not
+           English.
+           NO BACKTICKS IN THIS COMMENT: it lives inside a template literal, and one ends the
+           string. Naming MODES in backticks here is exactly how this was broken for a minute. -->
+      <select class="dial" data-modesel aria-label="How you are writing">
+        ${MODES.map(([k, label]) => `<option value="${k}"${k === S.mode ? ' selected' : ''}>${
+          k === 'speak' ? 'Speaking As' : k === 'act' ? 'Acting As' : label}</option>`).join('')}
+      </select>
+      <!-- AND WHO, straight after it, so the dial and the name are one phrase. This was #asRow, a
+           strip of its own above the rail: it went up there on 2026-08-27 because at the right-hand
+           END of a rail of seven it read as one more mode and ran out of room on a narrow window —
+           Seth then: "right now its awkwardly placed". Beside the dial it is neither: the dial says
+           Speaking As, this says who, and nothing else is on that side of the row. -->
+      ${asWhom ? `<select id="asWhom" aria-label="${
+        S.mode === 'act' ? 'Who you are acting as' : 'Who you are speaking as'}">
         <option value=""${S.speaker ? '' : ' selected'}>${esc(me)}</option>
         ${cast.filter((e) => e.title !== me).map((e) => `<option value="${esc(e.title)}"${
           e.title === S.speaker ? ' selected' : ''}>${esc(e.title)}</option>`).join('')}
-      </select></div>`;
-  }
-
-  $('dockCol').innerHTML = `
-    <div id="modes">
-      ${MODES.map(([k, label]) => `<button data-mode="${k}" aria-pressed="${k === S.mode}">${label}</button>`).join('')}
-      <!-- Neither of these is a mode, and in the same run as Speak/Act/Direct/Narrate they read as
-           a fifth and sixth one. The margin does the separating. -->
+      </select>` : ''}
       <!-- THE LIST, not the form. This was "+ Thread" and opened the write-it-down tray, which is
            BACKTICKS ARE FATAL IN HERE: this comment lives inside a template literal, so one closed
            the string and left "+ Thread" as an expression. Syntactically fine; drawDock threw
@@ -1484,19 +1502,32 @@ function drawDock() {
         title="${V.story.lockoutOn === false
           ? `The model may write ${esc(V.story.lockedCharacter)}. Press to hold them back.`
           : `${esc(V.story.lockedCharacter)} is yours — the model will not write them. Press to let it.`}"
-        style="flex:0 0 auto; margin-left:auto; opacity:${V.story.lockoutOn === false ? '.42' : '1'};
+        style="flex:0 0 auto; margin-left:auto;
         color:${V.story.lockoutOn === false ? 'var(--faint)' : 'var(--gold)'}">Hold back</button>` : ''}
-      <button data-goblock="threads:" title="Everything written down in this story"
-        style="flex:0 0 auto; ${V.story.lockedCharacter ? '' : 'margin-left:auto'}">Threads</button>
-      <!-- THREE PLACES, THREE JOBS. Seth, 2026-08-28: "on the menu threads is seen in three
-           places. main menu, threads for all books. composer menu, threads for only the current
-           story. button next to anansi near the input should be + threads. add threads."
-           So: the main nav is the wide list across every book, Threads here is this book's, and
-           this one is the writing-down tray. It was here as "+ Thread" this morning, became the
-           door to the list, and comes back beside it — the two are different jobs and the list
-           was standing where both of them had to fit. -->
-      <button data-newlore="1" title="Write something down as canon, or read the chapter for facts"
-        style="flex:0 0 auto">+ Threads</button>
+      <!-- THE TWO DOORS, ALSO A DIAL. Seth, 2026-09-02: "threads and +threads should be its own
+           drop down that will mimic the style of this as well. we can chage the names sinve theyll
+           be hidden to view threads and add threads."
+           THE FIRST OPTION IS THE LABEL, not a destination: a select whose value is an action would
+           sit there afterwards reading as a state you had chosen. It says Threads, the two under it
+           do the two jobs, and it returns to the label the moment one of them has been taken.
+           THREE PLACES, THREE JOBS still holds — Seth, 2026-08-28: "on the menu threads is seen in
+           three places. main menu, threads for all books. composer menu, threads for only the
+           current story. button next to anansi near the input should be + threads. add threads."
+           The main nav is the wide list across every book; these two are this book's list and this
+           book's writing-down tray, and they are one control now rather than two. -->
+      <select class="dial" data-threadsel aria-label="Threads in this story"
+        style="flex:0 0 auto; ${V.story.lockedCharacter ? '' : 'margin-left:auto'}">
+        <!-- HIDDEN, not absent. Seth, 2026-09-02: "in the drop down threads can be removed sinve it
+             goes nowhere" — it is the closed control's LABEL, not a destination, and an entry in the
+             open menu that does nothing when you pick it is a dead row. The hidden attribute takes
+             it out of the menu and leaves it as what the button reads when nothing has been chosen;
+             disabled keeps a keyboard from landing on it. Without an option to fall back to, the
+             select would sit on whichever action was taken last, reading as a state you are in.
+             NO BACKTICKS: this comment is inside a template literal and one ends the string. -->
+        <option value="" selected disabled hidden>Threads</option>
+        <option value="view" data-goblock="threads:">View Threads</option>
+        <option value="add" data-newlore="1">Add Threads</option>
+      </select>
       <!-- ANANSI CAME OFF THIS ROW. Her web in the header is the way to her now, and it is a
            better one: the row was three doors deep and the seventh control was already being
            fought onto one line at 390px. The PANEL is unchanged and data-panel="anansi" still
@@ -2300,15 +2331,18 @@ const PANELS = {
     // wrote — twenty threads in and every new one costs a scroll to the bottom. Reading the list is
     // a scroll you meant to make; reaching Add was not.
     return `<div style="display:flex; flex-direction:column; gap:9px">
-      <div class="lbl" style="letter-spacing:.1em; margin-top:0">Add</div>
-      <div style="display:flex; flex-wrap:wrap; gap:7px">
-        ${groups.map(([k, , one]) => `<button class="btn ghost" data-newentry="${k}"
-          style="flex:1 1 44%; white-space:nowrap">New ${one}</button>`).join('')}
-      </div>
-      <!-- The write-it-down tray moved in here when the composer's button became the door to this
-           list. It is the only way to reach "scan the chapter for facts", to have Anansi write one,
-           and to hang an outfit on a character, so it needs a door of its own rather than none. -->
-      <button class="btn ghost" data-newlore="1" style="margin-top:9px">+ Thread, or read the chapter</button>
+      <!-- ONE DOOR, NOT FIVE. Seth, 2026-09-02: "the buttons can all go away and we can just keep
+           the add thread since all the information for adding something and what type is there.
+           just make sure that any functionality that these buttons may have carry over to the ones
+           in that panel."
+           It does carry over, and it always did: New character / New lore / New item / New rule
+           were four presses of data-newentry, and the tray's first step is the same four kinds
+           followed by the same action — plus the rooms, Anansi writing one, a forged card pasted
+           in, and reading the chapter for facts, none of which the four buttons could reach. The
+           panel above the list was five doors to one flow.
+           NO "Add" LABEL EITHER: it was the heading over the four, and one button that says what
+           it does needs nothing over it. -->
+      <button class="btn ghost" data-newlore="1" style="margin-top:0">+ Thread, or read the chapter</button>
       <!-- WHAT IS IN CONTEXT, WITHOUT LEAVING THE LIST. Seth, 2026-09-01: "have a currently in
            context view that just filters what is in context and a fast way to switch from always
            on to triggered right now its three levels deep."
@@ -4375,15 +4409,21 @@ function roomCard(name, body, keys, on, sw, kind, id) {
   </div>`;
 }
 
+/* THE KIND JOINS THE ROOMS ON ONE ROW. Seth, 2026-09-02: "all of these chips should be on a single
+ * line right now character is not in line." The kind sat on the TITLE's row and the rooms on their
+ * own under it, so a card showed two rows of chips that are the same size, the same shape and the
+ * same weight — and the one that was out of line was the one naming what the card is.
+ * THE ROW IS DRAWN EVEN WITH NO ROOMS, because the kind is always there: making the row conditional
+ * on `slots.length` is how the kind would vanish on a card that has no rooms yet. */
 function cardHead(e, slots) {
   return `<div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:2px">
       <div style="font-family:var(--serif,serif); font-size:22px; color:var(--ink-bright)">${esc(e.title || 'Untitled')}</div>
-      <span class="tag" style="text-transform:lowercase">${esc(e.entryType)}</span>
     </div>
-    ${slots.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 12px">
+    <div style="display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 12px">
+      <span class="tag" style="text-transform:lowercase">${esc(e.entryType)}</span>
       ${slots.map((sl) => `<button data-goslot="${esc(sl.name)}" class="tag"
         style="cursor:pointer">${esc(sl.name.replace(/_/g, ' '))}</button>`).join('')}
-    </div>` : ''}`;
+    </div>`;
 }
 
 /** THE FACE. Seth: "a view of each thread that only prints out what is filled in with option to
@@ -4660,6 +4700,30 @@ function addTray(e, slots) {
   </details>`;
 }
 
+/** THE FORM IS TABBED, 2026-09-02 handoff. Every field, every write and every rule it had is still
+ *  here — facts above Info, the data-slotat jump targets, the wardrobe's one-at-a-time wearing, the
+ *  red warning on a triggered card with no trigger words. What changed is how much is on screen at
+ *  once: a character with eight rooms, a wardrobe, states and a field history is a form you scroll
+ *  for a while to find out what is in it.
+ *
+ *  The head stays ABOVE the tabs — name, kind, how it fires, the room jump chips — so the thing you
+ *  are editing never leaves the screen. */
+const CARD_TABS = [['card', 'The card'], ['rooms', 'Rooms'], ['time', 'Over time'], ['more', 'More']];
+
+/** Which tab a room's heading lives in. `facts` is pinned above Info because of what it IS, and
+ *  `outfit` is the wardrobe — both are in their tabs for reasons older than the tabs, so this map
+ *  states it rather than the jump handler guessing from the slot list. */
+const slotTab = (name) => (name === 'facts' ? 'card' : 'rooms');
+
+function cardTabs(tab) {
+  return `<div style="display:flex; gap:6px; margin:12px 0 4px">${CARD_TABS.map(([k, label]) =>
+    `<button data-cardtab="${k}" aria-pressed="${tab === k}" style="flex:1; text-align:center;
+      font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps; padding:8px 0;
+      border-radius:var(--r); ${tab === k
+        ? 'border:1px solid rgba(217,178,106,.42); background:rgba(217,178,106,.12); color:var(--gold-lit)'
+        : 'border:1px solid var(--chip); color:var(--mute)'}">${label}</button>`).join('')}</div>`;
+}
+
 function entryEditor() {
   const e = V?.entries.find((x) => x.id === S.entryId);
   if (!e) return `<div class="hint">That entry is gone.</div>`;
@@ -4676,8 +4740,12 @@ function entryEditor() {
   const shown = slots.filter((sl) => (e.addons ?? []).some((a) => a.slot === sl.name));
   const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
     background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
+  const tab = S.cardTab ?? 'card';
   return `<div style="display:flex; flex-direction:column">
     ${cardBar('form')}
+    ${cardHead(e, shown)}
+    ${cardTabs(tab)}
+    <div class="pane"${tab === 'card' ? '' : ' hidden'}>
     <!-- AN OPTIONAL PICTURE, AND FIRST. Seth, 2026-09-01: "lets add an optional image field", then
          "if a card has an image move it to the top". It sat under the facts room, so on a card with
          a picture the one thing you could recognise at a glance was the one thing you had to scroll
@@ -4686,8 +4754,6 @@ function entryEditor() {
          line rather than an empty frame. The picture never reaches the model — it is not a room, it
          is not in the body, and the engine's Entry type has no such field. It is for the eye. -->
     ${entryPicture(e)}
-    ${cardHead(e, shown)}
-    ${addTray(e, slots)}
     <label class="lbl" for="f-card-title">Name</label>
     <input class="field" id="f-card-title" data-f="title" value="${esc(e.title ?? '')}">
     <label class="lbl">Type</label>
@@ -4732,6 +4798,9 @@ function entryEditor() {
         : '<strong>This entry cannot reach the model yet.</strong> Triggered with no trigger words '
           + 'never fires, and nothing else on this screen would tell you. Comma separated, up to '
           + 'ten — a whole word in recent prose or in your directive fires it.'}</div>
+    </div>
+    <div class="pane"${tab === 'rooms' ? '' : ' hidden'}>
+    ${addTray(e, slots)}
     <!-- THE ROOMS, AND ONLY THE ONES THAT HOLD SOMETHING. Seth, 2026-08-30: "the card editing
          experience is overwhelming and im trying to clean it." A character has eight slots, so
          this loop drew eight headings and six empty Add boxes before the form reached anything he
@@ -4802,6 +4871,8 @@ function entryEditor() {
          threads card when i go to it doesnt have that option for me there and id like to add it."
          It rewrites the card that is open rather than proposing a new one — proposing would offer
          a duplicate of the thing you are looking at, and the dedupe would refuse it. -->
+    </div>
+    <div class="pane"${tab === 'more' ? '' : ' hidden'}>
     ${inventTray(e.entryType, 'Have Anansi write this card',
                  'what has changed about them, or nothing at all and let her read the book')}
     <div class="hint">It fills the fields above, unsaved. Nothing changes until you press Save.</div>
@@ -4811,6 +4882,8 @@ function entryEditor() {
     <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
 
 
+    </div>
+    <div class="pane"${tab === 'time' ? '' : ' hidden'}>
     ${foldSection('states', 'Over time', `${helpMark('states')}${helpBody('states')}
     <div class="hint" style="margin:0 0 8px">A fact can open at a later chapter. Before it opens it is
       hidden, or hinted at without saying what it is. Earlier chapters keep the body above.</div>
@@ -4843,6 +4916,8 @@ function entryEditor() {
       <input class="field" data-st="label" aria-label="If hinted, what the reader may sense"
         placeholder="If hinted, what the reader may sense">
       <button class="btn ghost" data-addstate="1">Add a change over time</button></div>`)}
+    </div>
+    <div class="pane"${tab === 'more' ? '' : ' hidden'}>
     ${S.fieldHistory ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Field history</div>
       ${S.fieldHistory.length ? S.fieldHistory.map((h) => `<div class="card" style="margin-bottom:8px">
         <div style="display:flex; align-items:center; gap:9px">
@@ -4887,6 +4962,7 @@ function entryEditor() {
     <button class="btn ghost" data-fieldhistory="1" style="margin-top:16px">${
       S.fieldHistory ? 'Hide field history' : 'Field history'}</button>
     <button class="btn ghost" data-delentry="1" style="margin-top:10px; color:var(--bad)">Delete this entry</button>
+    </div>
   </div>`;
 }
 
@@ -5680,11 +5756,13 @@ const WPAGES = {
           </div>` : ''}
         <div id="books" style="display:flex; flex-direction:column; gap:16px">${ledgerBooks()}</div>
       </div>
-      <div class="aside" style="border:1px solid var(--edge); border-radius:var(--r);
-        background:var(--rail); padding:20px 22px">
-        ${S.entryId && V ? entryEditor()
-          : '<div class="hint" style="margin:0">Pick a thread to read or change it. Its book opens here as you press it — you do not have to find it on the shelf first.</div>'}
-      </div></div>`;
+      <!-- NOTHING STANDS IN FOR THE EDITOR. Seth, 2026-09-02, of the hint that used to sit here:
+           "remove this". It was a plate the size of a card telling you to press a card, next to
+           the cards — the list beside it is the instruction. The aside itself only exists when
+           there is a thread open in it. -->
+      ${S.entryId && V ? `<div class="aside" style="border:1px solid var(--edge);
+        border-radius:var(--r); background:var(--rail); padding:20px 22px">
+        ${entryEditor()}</div>` : ''}</div>`;
   },
 
   import() {
@@ -7174,7 +7252,6 @@ document.addEventListener('click', async (e) => {
   // The hatch. The prose window closes at the chapter boundary, so this is the only way back to a
   // chapter the model has stopped seeing — `keep_whole` has been honoured by the engine since it
   // was written and had no control anywhere.
-  if (d.ctxopen !== undefined) { S.ctxOpen = d.ctxopen === '1'; drawMeter(); return; }
   if (d.name) { await nameChapter(d.name); return; }
   if (d.pullback) {
     const r = await api.saveChapter(S.storyId, d.pullback, { keepWhole: d.on === '1' });
@@ -7315,9 +7392,21 @@ document.addEventListener('click', async (e) => {
 
   // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
   if (d.cardview) { S.cardView = d.cardview === 'form' ? 'form' : null; paint(); return; }
+  if (d.cardtab) { S.cardTab = d.cardtab; paint(); return; }
   if (d.goslot) {
-    // The form draws every slot and the face draws only the filled ones, so the same link has to
-    // find whichever is on screen. Both mark their headings with data-slotat.
+    // A JUMP CHIP MUST OPEN THE TAB IT LANDS IN. The handoff names this as the one dead control in
+    // its prototype: with the form tabbed, `data-slotat` scrolls to a heading the tabs have taken
+    // off screen, so the press does nothing and looks broken. Select first, paint, then scroll.
+    //
+    // Only on the form — the Read face draws every filled room in one column and has no tabs, so
+    // switching one there would change what the writer sees for no reason.
+    if (S.cardView === 'form') {
+      const want = slotTab(d.goslot);
+      if (S.cardTab !== want) { S.cardTab = want; paint(); }
+    }
+    // Queried from the DOM at press time, never from a map filled during render: the form draws
+    // every slot and the face only the filled ones, so the same link has to find whichever is on
+    // screen — and after a repaint the nodes are new ones.
     document.querySelector(`[data-slotat="${d.goslot}"]`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
@@ -7326,6 +7415,14 @@ document.addEventListener('click', async (e) => {
     // READ -> EDIT, LANDING IN THAT ROOM. The form has to exist before the box can be reached, so
     // the view flips and paints first. Outfits are addons like every other room but the wardrobe
     // section names its fields data-ofb, so both are asked for: one of the two matches.
+    // AND THE TAB IT LIVES IN, 2026-09-02. The rooms are in the Rooms pane and facts is in The
+    // card, so flipping to the form and focusing was focusing a box inside a hidden pane: no
+    // caret, no scroll, and a press that looked like it did nothing. The jump chips have the same
+    // problem and the handoff named those; this is the same fault arriving from the Read face,
+    // which it did not.
+    const slot = (V.entries ?? []).flatMap((x) => x.addons ?? [])
+      .find((a) => a.id === d.editroom)?.slot;
+    S.cardTab = slot ? slotTab(slot) : 'rooms';
     S.cardView = 'form'; paint();
     const box = document.querySelector(`[data-ab="${d.editroom}"], [data-ofb="${d.editroom}"]`);
     box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -7555,16 +7652,6 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (d.mode) {
-    // Switching mode rebuilds the dock, which rebuilds the textarea. Carry what is typed across:
-    // deciding "this is dialogue, not an instruction" after writing the line is the normal way
-    // round, and losing the line for it is the seventh instance of this same repaint bug.
-    // The save-and-restore that used to be here is gone: drawDock keeps the draft for every
-    // caller now, which is where the fix belongs — this handler was the only one of seven that
-    // had grown its own.
-    S.mode = d.mode; drawDock();
-    refreshManifest(); return;
-  }
   if (d.re) {
     // #38. A directed passage opens its instruction to be edited first; an undirected one has
     // nothing to show, so it re-rolls on the press exactly as before.
@@ -7714,7 +7801,8 @@ document.addEventListener('click', async (e) => {
 
   // Every card opens on its face. Carrying the last card's view over means pressing a thread to
   // READ it and landing in a form of empty boxes, which is the thing the face exists to avoid.
-  if (d.entry) { S.entryId = d.entry; S.fieldHistory = null; S.cardView = null; S.newRoom = null;
+  if (d.entry) { if (S.entryId !== d.entry) S.cardTab = 'card';
+    S.entryId = d.entry; S.fieldHistory = null; S.cardView = null; S.newRoom = null;
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     // The cross-book page lists threads from every story and the editor beside it reads from the
     // OPEN one, so pressing a thread in a book you had not opened set S.entryId and then rendered
@@ -9659,6 +9747,28 @@ document.addEventListener('change', (e) => {
       paint(); refreshManifest();
       toast(model ? `This story is written by ${model} now.` : 'Back to the default model.');
     });
+    return;
+  }
+  /* THE MODE DIAL, and the only place a mode is switched. This was `data-mode` on four buttons and
+   * a branch in the click dispatcher; the buttons are one select now, so the branch moved here
+   * rather than being reached through a synthetic click. Switching rebuilds the dock and so
+   * rebuilds the textarea — drawDock carries the draft across for every caller, which is why this
+   * does not save and restore it the way the old handler once did. */
+  if (e.target.dataset?.modesel !== undefined) {
+    S.mode = e.target.value; drawDock(); refreshManifest();
+    return;
+  }
+  /* THE THREADS DIAL. Its two options are actions, not a state, so the select goes back to its
+   * label — otherwise "add threads" sits in the closed control afterwards reading as a mode you
+   * are in.
+   * THE OPTIONS CARRY THE SAME `data-` THE TWO BUTTONS DID, and this clicks the chosen one: the
+   * delegated listener matches `[data-goblock]` and `[data-newlore]` wherever they are, an option
+   * included, so both doors keep the one implementation they already had. A copy of what those
+   * branches do would be a second place that has to agree about which panel opens. */
+  if (e.target.dataset?.threadsel !== undefined) {
+    const pick = e.target.selectedOptions[0];
+    e.target.selectedIndex = 0;
+    if (pick?.value) pick.click();
     return;
   }
   if (e.target.id === 'asWhom') {

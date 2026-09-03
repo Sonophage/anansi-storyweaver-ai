@@ -95,7 +95,7 @@ if (chapters > 1) {
 // ---- 5. Mode switching refreshes the manifest rather than stalling
 await page.goto(B + "/#" + sid + "/context");
 const t0 = await page.text('#sideBody');
-await page.click('[data-mode="direct"]');
+await page.mode('direct');
 await wait(1400);
 ok("changing mode updates the manifest", (await page.text('#sideBody')) !== null);
 ok("  and MODE reflects the choice", /direct/i.test(await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'direct'})})).json(); return r.manifest.blocks.filter(b=>b.kind==='MODE').map(b=>b.reason).join(); })()")));
@@ -246,7 +246,7 @@ ok("  and the panel is still History, not something else",
       return 1; })()`);
     // Picking a MODE is what puts a manifest in flight — typing only resizes the box, which is why
     // the first version of this raced nothing and passed with the guard deleted.
-    await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
+    await page.mode('act');
     await wait(150);
     await page.eval(`(() => { location.hash = '#' + ${JSON.stringify(fast.id)} + '/context'; return 1; })()`);
     // Wait for the CONDITION, not the clock. A fixed wait made this go red once in a batch of
@@ -281,7 +281,7 @@ ok("  and the panel is still History, not something else",
             { status: 200, headers: { 'Content-Type': 'application/json' } }))
         : real(u, o);
       return 1; })()`);
-    await page.eval("(() => { document.querySelector('[data-mode=\"speak\"]')?.click(); return 1; })()");
+    await page.mode('speak');
     await wait(900);
     const failed = (await page.text('#sideBody') || '');
     ok("a manifest that fails says so instead of showing the last one that worked",
@@ -354,11 +354,20 @@ await wait(700);
 // hoped for.
 await page.click('[data-cardview="form"]');
 await wait(500);
-ok("the card's form opens, so the kind chips and the wardrobe are on screen",
-   await page.eval("!!document.querySelector('[data-kind=\"character\"]')"));
+// VISIBLE, not merely present. The form grew TABS on 2026-09-02 — The card / Rooms / Over time /
+// More — and a pane that is not the open one is `display:none` with all of its markup still in the
+// document. This assertion asked `querySelector` and so stayed green while everything it was about
+// was hidden; what went red was a click three lines below, on a button with no box.
+ok("the card's form opens, so the kind chips are on screen",
+   await page.visible('[data-kind="character"]'));
 // A character, or there is no wardrobe to drive. The fixture's persona is one.
 await page.click('[data-kind="character"]');
 await wait(800);
+// AND THE WARDROBE IS IN THE ROOMS TAB, since the same change. It used to be further down the one
+// long form, so opening the form was enough to reach it.
+await page.click('[data-cardtab="rooms"]');
+await wait(500);
+ok("  and the wardrobe is in the Rooms tab", await page.visible('[data-newroom]'));
 // THE ADD TRAY IS FOLDED SHUT AND NOTHING IS SELECTED IN IT (2026-08-30), so the outfit pill is
 // pressed before the boxes exist at all. That press is the change: one add path for every room
 // rather than a form per slot plus a second one under the wardrobe. It repaints, so it happens
@@ -413,7 +422,16 @@ ok(`  and pressing it again takes it off (active ${fits[0]?.active})`, fits[0]?.
 // still in the document, so an eval can read and fill them — but a driver CLICK needs the section
 // opened first, which is the press a writer makes. Idempotent: one already open is left alone
 // rather than toggled shut.
+// AND THE TAB IT LIVES IN. The form grew four tabs on 2026-09-02 and each is a pane that is
+// `display:none` when it is not the open one — so a fold in another pane is in the document, has no
+// box, and every press on it dies. The map is the one the app itself uses: rooms in Rooms, the
+// changes-over-time list in Over time, everything else on The card.
+const FOLD_TAB = { states: 'time', addons: 'rooms', outfits: 'rooms' };
 const openFold = async (name) => {
+  const tab = FOLD_TAB[name] ?? 'card';
+  if ((await page.eval(`document.querySelector('[data-cardtab="${tab}"]')?.getAttribute('aria-pressed')`)) !== 'true')
+    await page.click(`[data-cardtab="${tab}"]`);
+  await wait(300);
   if (!(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
     await page.click(`[data-fold="${name}"]`);
   await wait(300);

@@ -32,10 +32,15 @@ const modeBlock = (mode, speaker, directive) => page.eval(
 
 await page.goto(B + "/#" + sid);
 
-// ---- 1. the five buttons, and what kind of thing each one is
-for (const label of ['Speak', 'Act', 'Direct', 'Narrate'])
-  ok(`${label} is on the bar`, await page.visible(`#modes [data-mode]`)
-     && /./.test(await page.text('#modes') || '') && (await page.text('#modes') || '').includes(label));
+// ---- 1. the four modes, on one dial, and what kind of thing each one is
+// ONE SELECT, NOT FOUR BUTTONS, since 2026-09-02. Asserted through the dial's own options rather
+// than through the row's text: the two that take a name are worded "speaking as" and "acting as"
+// there, so a text search for "Speak" would go red for the right reason and read as the wrong one.
+const dialOpts = async () => await page.eval(
+  "[...document.querySelectorAll('[data-modesel] option')].map(o => o.value).join('|')");
+ok("the mode dial is on the bar", await page.visible('[data-modesel]'));
+for (const k of ['speak', 'act', 'direct', 'narrate'])
+  ok(`  ${k} is one of its options`, (await dialOpts()).split('|').includes(k));
 // Continue left the mode row on 2026-08-27 for the end of the page. Asserted from both sides:
 // gone from here, present there — one without the other passes while it is in both places.
 ok("Continue is off the mode row", !(await page.eval("!!document.querySelector('#modes [data-continue]')")));
@@ -44,9 +49,9 @@ ok("New scene is gone from the bar", !/New scene/.test(await page.text('#modes')
 // Continue sends with nothing typed, so it is an action. A mode you can select but never type
 // into is the shape that made "Continue" need an empty box pressed twice.
 ok("Continue is an action, not a selectable mode", await page.eval(
-  "!!document.querySelector('[data-continue]') && !document.querySelector('[data-mode=\"continue\"]')"));
+  "!!document.querySelector('[data-continue]')") && !(await dialOpts()).split('|').includes('continue'));
 ok("Speak is selected by default", await page.eval(
-  "document.querySelector('[data-mode=\"speak\"]')?.getAttribute('aria-pressed') === 'true'"));
+  "document.querySelector('[data-modesel]')?.value === 'speak'"));
 
 // ---- 2. the two lines he asked to lose
 const dock = (await page.text('#dockCol') || '');
@@ -65,10 +70,10 @@ ok("  and #takeRow is not rendered at all", await page.eval("!document.getElemen
 // whether it had called preventDefault rather than whether anything was sent.
 
 // ---- 4. switching mode must not eat the line. Seventh instance of this bug.
-await page.click('[data-mode="direct"]');
+await page.mode('direct');
 await page.eval("(() => { document.getElementById('input').value = ''; return 1; })()");
 await page.type('#input', 'She puts the key on the table.');
-await page.click('[data-mode="speak"]');
+await page.mode('speak');
 await wait(400);
 const carried = await page.eval("document.getElementById('input')?.value");
 ok(`switching mode keeps what you typed (${JSON.stringify(carried)})`,
@@ -82,10 +87,10 @@ console.log("  as whom: " + opts);
 ok("  defaulting to the point-of-view character", await page.eval(
   "document.querySelector('#asWhom').selectedOptions[0].value === ''"));
 ok(`  and offering the cast (${opts.split('|').length} options)`, opts.split('|').length > 1);
-await page.click('[data-mode="direct"]');
+await page.mode('direct');
 await wait(300);
 ok("Direct has no 'as whom' — an instruction is not spoken by anyone", !(await page.visible('#asWhom')));
-await page.click('[data-mode="narrate"]');
+await page.mode('narrate');
 await wait(300);
 ok("  nor does Narrate", !(await page.visible('#asWhom')));
 
@@ -121,7 +126,7 @@ ok(`a retired mode name degrades instead of erroring (${JSON.stringify(stale.sli
    /one small beat/.test(stale));
 
 // ---- 7. the speaker reaches the prompt through the UI's own selector, not just the API
-await page.click('[data-mode="speak"]');
+await page.mode('speak');
 await wait(300);
 const cast = await page.eval("[...document.querySelectorAll('#asWhom option')].map(o => o.value).filter(Boolean)[0]");
 if (cast) {
@@ -203,7 +208,7 @@ ok("  and the caret is where you left it",
 
 ok("there is a second book to carry the draft into", !!other);
 
-await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
+await page.mode('act');
 await wait(500);
 ok("changing mode does not eat it either",
    (await page.eval("document.getElementById('input')?.value")) === typed);

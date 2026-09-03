@@ -583,6 +583,10 @@ ok('one New story button, on the bar, and the shelf does not repeat it');
 const click = (dataset: any) => (listeners.click ?? []).forEach((f: Function) => f({
   target: { closest: () => ({ dataset, querySelector: () => null, disabled: false, textContent: '' }) },
 }));
+// Switching mode is a change on the dial now, not a click on one of four buttons — see the rail
+// block below. `data-modesel` carries no value of its own; the chosen mode is the select's.
+const pickMode = (mode: string) => (listeners.change ?? []).forEach((f: Function) =>
+  f({ target: { dataset: { modesel: '' }, value: mode } }));
 // Typing into a box the app watches by id. Two of them redraw only their own list rather than the
 // page — the ledger's search and #20's thread picker — and that is the behaviour being checked.
 //
@@ -847,7 +851,10 @@ assert.match(html('col'), /Envoy Sereth<\/div>\s*<div class="said"[^>]*data-edit
   'a human line spoken as another character is labelled with that character');
 ok('prose renders as narration, speech, the writer\'s own line, and a flag');
 
-for (const label of ['Speak', 'Act', 'Direct', 'Narrate']) {
+// The four modes are options on one dial since 2026-09-02, and two of them are worded as the
+// phrase the name beside them completes. The dial block further down asserts all four by value;
+// this pair is the two whose LABEL is the thing that changed.
+for (const label of ['Speaking As', 'Acting As', 'Direct', 'Narrate']) {
   assert.match(html('dockCol'), new RegExp(`>${label}<`), `the composer must offer ${label}`);
 }
 // SEND STAYS SEND. It carried two jobs for as long as Stop had nowhere else to be. Stop lives on
@@ -870,81 +877,113 @@ ok('the composer sends when the model is idle');
 assert.doesNotMatch(html('dockCol'), /data-continue/,
   'Continue is no longer a chip in the mode row — it belongs to the last passage');
 assert.doesNotMatch(html('dockCol'), /data-mode="continue"/, 'and it was never a selectable mode');
-assert.match(html('dockCol'), /Say it as Ilva Marren/, 'the placeholder follows the mode and the persona');
-// Speak happens as someone, and the default is the point-of-view character. It moved OUT of the
-// mode rail on 2026-08-27 — it read as a fifth mode there and ran out of room on a long name — so
-// both halves are asserted: gone from the rail, present on its own full-width strip above it.
-assert.match(html('asRow'), /id="asWhom"/, 'Speak must offer who you are speaking as');
-assert.match(html('asRow'), /Ilva Marren/, 'defaulting to the point-of-view character');
-assert.doesNotMatch(html('dockCol'), /asWhom/,
-  'and it must not be back in the mode rail, which is capped at the column width');
+// The hint names the thing you type and puts the persona in it — Seth, 2026-09-02: "the help hints
+// in the input box should be rewritten so they make sense". It read "Say it as Ilva Marren", which
+// is what the dial says now, and Act's read "What Ilva Marren do".
+assert.match(html('dockCol'), /The words Ilva Marren says/,
+  'the placeholder follows the mode and the persona, and is grammatical with a name in it');
+// ONE DIAL, NOT FOUR BUTTONS, since 2026-09-02 — Seth: "make speak, act, direct and narrate into
+// a drop down. the selection should look like a button." Asserted as one select carrying all four
+// AND as the absence of the buttons: putting the dial in without taking the rail out is the shape
+// that ships both, and only the pair can catch it.
+const dial = () => html('dockCol').match(/<select class="dial" data-modesel[\s\S]*?<\/select>/)?.[0] ?? '';
+assert.ok(dial(), 'the rail must carry the mode dial');
+for (const k of ['speak', 'act', 'direct', 'narrate'])
+  assert.match(dial(), new RegExp(`value="${k}"`), `${k} must be an option on the dial`);
+assert.doesNotMatch(html('dockCol'), /data-mode="/,
+  'and the four mode buttons are gone — one control, not five');
+assert.match(dial(), /value="speak"[^>]*selected/, 'the mode being drawn is the one selected');
+// SPEAKING AS, ACTING AS. Seth, same message: the two modes that take a name say so, because the
+// name sits directly beside the dial and the two read as one phrase.
+assert.match(dial(), /Speaking As/, 'Speak reads "Speaking As" on the dial');
+assert.match(dial(), /Acting As/, 'and Act reads "Acting As"');
+// TITLE CASE ON EVERY LABEL, all four and both doors — Seth, 2026-09-02: "all the labels should be
+// Camel Cased for uniformity." A lower-case option beside three capitalised ones is the state this
+// catches, and it is the state the dial shipped in for an hour.
+for (const l of ['Speaking As', 'Acting As', 'Direct', 'Narrate', 'Threads', 'View Threads', 'Add Threads'])
+  assert.match(html('dockCol'), new RegExp(`>${l}<`), `${l} must be Title Case on the rail`);
+// AND DIRECT AND NARRATE KEEP THE TABLE'S OWN LABELS, which is what says the dial spells the two
+// out rather than the MODES table doing it — the same table names the chip over a passage, and
+// "speaking as" over a paragraph is not English.
+assert.match(dial(), />Direct</, 'Direct is still just Direct');
+assert.match(dial(), />Narrate</, 'and Narrate still Narrate');
+
+// WHO you are speaking as is IN the rail now, beside the dial. It was #asRow, a strip of its own
+// above the rail, from 2026-08-27 to 2026-09-02: it went up there because at the end of a rail of
+// seven controls it was cramped, and the rail has two. Both halves asserted — in the rail, and no
+// strip left behind.
+assert.match(html('dockCol'), /id="asWhom"/, 'Speak must offer who you are speaking as');
+assert.match(html('dockCol'), /Ilva Marren/, 'defaulting to the point-of-view character');
+// (That the strip itself is gone is asserted against app.html in the CSS block below: this
+//  harness makes a node for any id that is asked for, so getElementById cannot say it.)
 // Direct and Narrate have no speaker: an instruction is not spoken by anyone, and Narrate is your
-// own prose. The strip must be EMPTIED for them, not merely hidden — a select left in the DOM is
-// one a presence check finds and a keyboard reaches.
-click({ mode: 'direct' });
-assert.strictEqual(html('asRow'), '', 'Direct must carry no speaker control at all');
-click({ mode: 'narrate' });
-assert.strictEqual(html('asRow'), '', 'nor Narrate');
-click({ mode: 'speak' });
-assert.match(html('asRow'), /id="asWhom"/, 'and Speak brings it back');
+// own prose. The select must be ABSENT for them, not merely hidden — one left in the DOM is one a
+// presence check finds and a keyboard reaches.
+pickMode('direct');
+assert.doesNotMatch(html('dockCol'), /asWhom/, 'Direct must carry no speaker control at all');
+pickMode('narrate');
+assert.doesNotMatch(html('dockCol'), /asWhom/, 'nor Narrate');
+pickMode('speak');
+assert.match(html('dockCol'), /id="asWhom"/, 'and Speak brings it back');
 // The tint follows the mode, and it follows it on the ROOT — which means the attribute has to be
 // rewritten by the thing that draws the row. Written in applyLook it went stale the moment you
 // pressed a different mode, and Act kept its tinted, rounded background after you had left it.
 {
   const rootEl = (globalThis as any).document.documentElement;
   assert.strictEqual(rootEl.dataset.uiMode, 'speak', 'the root carries the mode being drawn');
-  click({ mode: 'act' });
+  pickMode('act');
   assert.strictEqual(rootEl.dataset.uiMode, 'act', 'and it changes with it');
-  click({ mode: 'direct' });
+  pickMode('direct');
   assert.strictEqual(rootEl.dataset.uiMode, 'direct',
     'including to a mode with no tint at all — otherwise the last tinted button keeps its lift');
-  click({ mode: 'speak' });
+  pickMode('speak');
 }
-// And no mode button carries a background of its own. Tinting the selected one to match the strip
-// gave one of four a filled pill the other three do not have, which reads as a different KIND of
-// control rather than as the selected one. The underline is how a selected mode says so, and it
-// says it for all four.
 {
   const { readFileSync } = await import('node:fs');
   const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-  assert.ok(!/#modes button\[data-mode="(speak|act)"\][^{]*\{[^}]*background:/.test(css),
-    'no mode button may be given a background — the underline is the selection, for all four');
-  // AND NEITHER DOES THE ROW, since 2026-08-27. The pair was mixed 88% toward the paper: Speak's
-  // was invisible and Act's, off the accent, was not — so one mode had a filled bar and the other
-  // had nothing, which reads as a fault rather than as a distinction. The label already says which
-  // mode you are in; it does not need a colour to say it twice, badly.
-  assert.ok(!/#asRow > \.inner \{ background:/.test(css),
-    'the speaker row carries no background — one of a pair being visible is not a pair');
-  assert.ok(!/-tint\b/.test(css), 'and the tokens went with it rather than being left unused');
+  // IT HAS TO LOOK LIKE A BUTTON, which is the whole of Seth's instruction about it, and a native
+  // select does not: `appearance:none` and a border of its own are what make it one. Without them
+  // the rail carries the platform's own grey control, which is the one outcome this change cannot
+  // have. The two checks that used to sit here — no background on a selected mode button, no tint
+  // on the speaker strip — were about elements that no longer exist, and a check that cannot fire
+  // reports perfection.
+  const dialCss = css.match(/#modes select\.dial \{[^}]*\}/)?.[0] ?? '';
+  assert.ok(dialCss, 'the dial must be styled at all');
+  assert.match(dialCss, /border:/, 'the dial carries a border — it is meant to read as a button');
+  assert.match(css, /#modes select\.dial[^{]*\{[^}]*appearance:none/,
+    'and the platform control is taken away, or the border sits behind a native widget');
+  assert.ok(!/-tint\b/.test(css), 'and the speaker strip\'s tokens are still gone, not left unused');
+  // THE STRIP IS GONE FROM THE PAGE, not merely left empty. It carried the name for six days above
+  // the rail; the name is in the rail now, and an element nothing writes to is one the next reader
+  // has to work out is dead.
+  assert.ok(!/id="asRow"/.test(css), 'the #asRow strip is out of the document');
+  assert.ok(!/#asRow/.test(css), 'and its rules went with it');
 }
-// The label names the mode that summoned it. "speaking as" over Act is the row describing a mode
-// you are not in.
-assert.match(html('asRow'), /speaking as/, 'Speak says speaking');
-click({ mode: 'act' });
-assert.match(html('asRow'), /acting as/, 'and Act says acting');
-click({ mode: 'speak' });
-// The two that are not modes sit to the right of the four that are, pushed there by the margin
-// on the first of them. Order matters: asserting only that they exist would pass with them
-// scattered back among Speak and Act, which is the arrangement being fixed.
+// The two thread doors are ONE dial too — Seth, 2026-09-02: "threads and +threads should be its own
+// drop down that will mimic the style of this as well ... to view threads and add threads."
+// THE OPTIONS CARRY THE SAME `data-` THE BUTTONS DID, which is the whole reason the two doors still
+// work: the delegated listener matches the attribute wherever it is. Asserted on the attributes and
+// not on the words, because the words are what changed and the attributes are what must not.
 const modeRow = html('dockCol').match(/<div id="modes">[\s\S]*?<\/div>/)?.[0] ?? '';
 assert.ok(modeRow, 'the mode row must exist');
-// It was `+ Thread` here until 2026-08-28 and is the door to the whole list now — the tray it used
-// to open has its own button inside that list. The POSITION is what this block is about and that
-// has not moved: two things that are not modes, to the right of the four that are.
-assert.ok(modeRow.indexOf('data-mode="narrate"') < modeRow.indexOf('data-goblock="threads:"'),
-  'Threads comes after the last mode');
-assert.ok(modeRow.indexOf('data-goblock="threads:"') < modeRow.indexOf('data-panel="anansi"'),
-  'and Anansi after it');
-assert.match(modeRow, /data-goblock="threads:"[^>]*margin-left:auto/,
-  'and the gap that separates them from the modes is on Threads, or they are not right-aligned');
-// THREE BUTTONS NOW, and the order is the sentence: this book's threads, then writing one down,
-// then Anansi. `+ Thread` came back beside the list on 2026-08-28 — they are different jobs and the
-// list had been standing where both of them needed to fit.
-assert.ok(modeRow.indexOf('data-goblock="threads:"') < modeRow.indexOf('data-newlore'),
-  '+ Thread comes after the list it adds to');
-assert.ok(modeRow.indexOf('data-newlore') < modeRow.indexOf('data-panel="anansi"'),
-  'and Anansi is last, which is where Seth asked for + Thread to sit beside it');
-ok('the composer offers the four modes, with Threads, + Thread and Anansi pushed right');
+const threads = modeRow.match(/<select class="dial" data-threadsel[\s\S]*?<\/select>/)?.[0] ?? '';
+assert.ok(threads, 'the rail must carry the threads dial');
+// THE LABEL IS HIDDEN FROM THE MENU AND STILL THE BUTTON'S TEXT — Seth, 2026-09-02: "in the drop
+// down threads can be removed sinve it goes nowhere." Both halves asserted: it must not appear as a
+// row you can pick, and it must still be there to fall back to, or the closed control ends up
+// reading "Add Threads" as though that were a state.
+assert.match(threads, /<option value="" selected disabled hidden>Threads</,
+  'whose closed label is Threads, hidden from the open menu because picking it does nothing');
+assert.match(threads, /data-goblock="threads:"/, 'View Threads opens this book\'s list');
+assert.match(threads, /data-newlore="1"/, 'and Add Threads opens the write-it-down tray');
+assert.ok(modeRow.indexOf('data-modesel') < modeRow.indexOf('data-threadsel'),
+  'the mode dial comes before the thread doors');
+assert.match(threads, /margin-left:auto/,
+  'and the gap that separates them is on the threads dial, or they are not right-aligned');
+// (The two assertions that used to follow — "Anansi is last" — were measuring the sentence
+//  `data-panel="anansi" still opens it` inside a comment in this row, not any markup. Anansi came
+//  off the row on 2026-08-28 and they could not have failed since.)
+ok('the composer offers one mode dial, one threads dial, and the name beside the dial');
 
 assert.match(html('bar'), /Chapter|The Envoy/, 'the header names the book');
 // The percentage LEFT the header on 2026-08-27 — Seth wanted one bar across the window and the
@@ -960,27 +999,35 @@ ok('the header names the book, and carries no reading of its own');
   assert.notStrictEqual(21401, MANIFEST.manifest.totals.used,
     'the fixture must keep the estimate and the exact count apart, or nothing below can see '
     + 'which one the bar used');
-  // The meter is its own strip under the header now, not a 74px rule inside a running head that
-  // does not exist until you scroll. Asserted as a WIDTH against the manifest's own arithmetic:
-  // a meter that renders at a constant is the shape that reports a full context as an empty one.
-  const meter = html('ctxbar');
-  assert.match(meter, new RegExp(`width:${pct}%`),
-    `the meter must fill to the manifest's own ${pct}%, not to a constant`);
+  // THE BAR COUNTS CHAPTERS, NOT CONTEXT, since 2026-09-02. One segment per chapter, the one you
+  // are in lit. Asserted as a COUNT against the fixture's own chapters and as the position of the
+  // lit one — a bar that drew a fixed number of segments, or lit the first one always, is the shape
+  // that says "chapter 1 of 4" for the whole book.
+  const segs = [...html('ctxbar').matchAll(/<i class="([^"]*)"><\/i>/g)].map((m) => m[1]);
+  assert.strictEqual(segs.length, STORY.chapters.length,
+    `the bar must have one segment per chapter, not ${segs.length} for ${STORY.chapters.length}`);
+  assert.strictEqual(segs.filter((c) => c.includes('at')).length, 1,
+    'and exactly one of them is the chapter you are in');
+  assert.strictEqual(segs.findIndex((c) => c.includes('at')),
+    STORY.chapters.findIndex((c: any) => c.id === STORY.currentChapter.id),
+    'and it is the one the view says you are in');
+  // AND THE PERCENTAGE IS NOT IN IT. The bar was a single `<i>` filled to the context percentage,
+  // and this is what goes red if that comes back — the number belongs in the reading, in words.
+  assert.ok(!/width:/.test(html('ctxbar')),
+    'the bar no longer fills to a percentage; the context number lives in the reading');
   assert.ok(!nodes.get('ctxbar').hidden, 'and it is shown while a story is open');
-  // Shut until pressed. Everything in it used to be in the header beside the story title.
-  assert.ok(nodes.get('ctxread').hidden, 'the reading is shut until the bar is pressed');
   assert.ok(!/\d+ words|context \d+%/.test(html('bar')),
     'and the header carries neither the word count nor the percentage any more');
 
-  click({ ctxopen: '1' });
+  // ALWAYS OPEN, with no press at all — Seth, 2026-09-02: "have this always visible." It used to be
+  // shut until the bar was pressed, and the bar has no press any more, so a reading that still
+  // waited for one could not be opened by anybody.
   const read = html('ctxread');
-  assert.ok(!nodes.get('ctxread').hidden, 'pressing the bar opens the reading');
+  assert.ok(!nodes.get('ctxread').hidden, 'the reading is open with nothing pressed');
   assert.match(read, /chapter 2 of 2/, 'which says which chapter you are on');
   assert.match(read, /words/, 'and how many words are in it');
   assert.match(read, new RegExp(`context ${pct}%`), 'and what the context costs');
   assert.match(read, /data-panel="context"/, 'with the way through to the blocks behind it');
-  click({ ctxopen: '0' });
-  assert.ok(nodes.get('ctxread').hidden, 'and pressing it again shuts it');
 
   // NO ROOM IS NOT NO BAR. A budget of zero — llama-server unreachable so the slot is unknown, or
   // a prompt that will not fit — makes the percentage null, and the first version hid the meter
@@ -991,15 +1038,12 @@ ok('the header names the book, and carries no reading of its own');
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
   assert.ok(!nodes.get('ctxbar').hidden, 'the bar stays when there is no room — that is when it matters');
-  assert.match(html('ctxbar'), /width:100%/, 'full');
-  click({ ctxopen: '1' });
-  assert.match(html('ctxread'), /no room/, 'and the reading says so in words');
-  click({ ctxopen: '0' });
+  assert.match(html('ctxread'), /no room/, 'and the reading says so in words, with nothing pressed');
   MANIFEST.manifest.totals.budget = realBudget;
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
 }
-ok('the context bar fills to the manifest, and the reading is behind a press');
+ok('the bar counts chapters, and the reading is always open');
 
 assert.match(html('sideBody'), /21,401 \/ 46,146/,
   'the inspector shows the TOKENIZER\'s count, not the estimate — /api/manifest already paid for '
@@ -1540,8 +1584,14 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   STORY.story.lockoutOn = false;
   await open();
   assert.match(dock(), /data-holdback="1"/, 'let go: the button offers to hold them back again');
-  // FADED IS THE OFF STATE, which is the whole of what he asked for on the surface.
-  assert.match(dock(), /opacity:\.42/, 'and it is drawn faded');
+  // DIM INK IS THE OFF STATE, and the SHAPE stays. Seth asked for "a faded or unfaded option in
+  // the input bar" on 2026-08-31 and it was drawn at 42% opacity; on 2026-09-02, with two pills
+  // beside it, he asked for it to be "shaped as a button so it doesnt get lost dimmed when not in
+  // use" — a control you can see and cannot read is not better than no control. So the pill is in
+  // the stylesheet and unconditional, and what the state changes is the ink.
+  assert.match(dock(), /color:var\(--faint\)/, 'and it is drawn in the faint ink');
+  assert.ok(!/opacity:\.42/.test(dock()),
+    'and NOT at 42% opacity, which is what made it disappear beside the dials');
   ok('Hold back sits in the composer, faded when off, and only when the book names someone');
 }
 

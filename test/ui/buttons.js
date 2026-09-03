@@ -41,6 +41,17 @@ ok("Save writes the new name", await page.eval("(async () => { const v = await (
 // ---- 2. New character
 await page.goto("http://127.0.0.1:5179/#" + sid + "/threads");
 const before = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).entries.length)()");
+// THROUGH THE TRAY, which is the only door since 2026-09-02 — Seth: "the buttons can all go away
+// and we can just keep the add thread since all the information for adding something and what type
+// is there. just make sure that any functionality that these buttons may have carry over."
+// This is that carry-over, driven: open the one door, pick the kind, press New character. The same
+// data-newentry the four buttons carried is what the tray presses at the end of it.
+// SCOPED TO #sideBody: the composer's threads dial has a data-newlore OPTION, and an option has no
+// box for the driver to press.
+await page.click('#sideBody [data-newlore]');
+await wait(400);
+await page.click('[data-lorekind="character"]');
+await wait(400);
 await page.click('[data-newentry="character"]');
 await wait(500);
 const after = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).entries.length)()");

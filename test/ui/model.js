@@ -250,8 +250,8 @@ const idle = async (n = 90) => {
   return false;
 };
 const compose = async (mode, text) => {
-  await ready(`[data-mode="${mode}"]`);
-  await page.click(`[data-mode="${mode}"]`);
+  await ready('[data-modesel]');
+  await page.mode(mode);
   await page.eval("(() => { document.getElementById('input').value = ''; return 1; })()");
   await page.type('#input', text);
   await page.click('#send');
@@ -333,7 +333,7 @@ await page.goto(B + "/#" + sid);
 // Continue takes no text at all: pressing it with something typed must not smuggle it in.
 {
   const before = (await story()).passages.length;
-  await page.click('[data-mode="direct"]');
+  await page.mode('direct');
   await page.eval("(() => { document.getElementById('input').value = 'LEAK'; return 1; })()");
   await page.click('[data-continue="1"]');
   console.log("  continuing…");

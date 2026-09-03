@@ -29,12 +29,15 @@ for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
   console.log("  modes row: " + JSON.stringify(row));
   ok(`the composer row is one line at phone width (${row && row.h}px of a ${row && row.tallest}px button)`,
      !!row && row.h < row.tallest * 1.6);
-  // TWO doors beside the four modes now, not three. Anansi came off this row on 2026-08-28 — her
-  // web in the header opens her — and the row was three deep with the sixth control already being
-  // fought onto one line at 390px. Asserted as an ABSENCE too, or "Anansi moved" would pass with
-  // her still sitting here.
-  ok(`  and carries both thread doors beside the modes (${row && row.labels})`,
-     !!row && /Threads/.test(row.labels) && row.labels.split('|').length === 6);
+  // THE ROW IS FOUR CONTROLS NOW, not seven: the mode dial, the name beside it, Hold back, and the
+  // thread doors as one dial. It was four modes and three doors on 2026-08-28, then the doors went
+  // to two when Anansi came off the row, and on 2026-09-02 the four became one select and the two
+  // doors another. Asserted as an ABSENCE too, or "they moved" would pass with them still here.
+  ok(`  and both thread doors are on one dial beside the modes (${row && row.labels})`,
+     !!row && /Threads/.test(row.labels) && /View Threads/.test(row.labels)
+     && /Add Threads/.test(row.labels));
+  ok("  with the four modes on a dial of their own", !!row && /Speaking As/.test(row.labels)
+     && /Narrate/.test(row.labels));
   ok("  with Anansi no longer among them", !!row && !/Anansi/.test(row.labels));
 }
 
@@ -128,24 +131,28 @@ ok(`  and still big enough to read (${pair.big?.size}px)`, (pair.big?.size ?? 0)
 // so it sat 54px in while the mode rail under it sat at 18. Asserted as ALIGNMENT with #modes
 // rather than as a pixel count, because what was wrong was the disagreement between the two, and
 // a fixed number here would have to be rewritten the next time the dock's padding changes.
-await page.eval("(() => { document.querySelector('[data-mode=\"speak\"]')?.click(); return 1; })()");
+await page.mode('speak');
 await wait(500);
 // Measured on the TEXT, not on `.inner`'s box. The first version compared `.inner`'s bounding
 // rect against #modes and stayed green when the padding was put back — because an element's own
 // padding is inside its box, so `.inner`'s rect never moved. What a reader sees not reaching the
 // edge is the label and the name, and those are what the padding pushes in.
-const label = await box("#asRow .inner span");
-const sel = await box("#asRow select");
-const firstMode = await box("#modes button");
+// THE STRIP IS GONE, and with it the inset it was measured against: the name is the second control
+// in the rail now, so there is no second row to line up with the first. What is still worth
+// measuring is that the name has not been pushed off the row — the reason it was moved OUT of the
+// rail on 2026-08-27 was that a long name ran out of space at the right-hand end of seven controls.
+// The rail has four, and the name sits second, where there is room.
+const dialBox = await box("[data-modesel]");
+const sel = await box("#asWhom");
 const modes = await box("#modes");
-if (!label || !sel || !firstMode || !modes) {
-  ok("the speak-as row and the mode rail are both on screen", false);
+if (!dialBox || !sel || !modes) {
+  ok("the mode dial and the name beside it are both on screen", false);
 } else {
-  console.log(`  label ${JSON.stringify(label)}  select ${JSON.stringify(sel)}  modes ${JSON.stringify(modes)}`);
-  ok(`the row's label starts at the same edge as the modes under it (${label.left} vs ${firstMode.left})`,
-     Math.abs(label.left - firstMode.left) <= 1);
-  ok(`  and the name it ends with reaches the other edge (${sel.right} vs ${modes.right})`,
-     Math.abs(sel.right - modes.right) <= 1);
+  console.log(`  dial ${JSON.stringify(dialBox)}  name ${JSON.stringify(sel)}  modes ${JSON.stringify(modes)}`);
+  ok(`the dial starts at the row's own left edge (${dialBox.left} vs ${modes.left})`,
+     Math.abs(dialBox.left - modes.left) <= 1);
+  ok(`  and the name follows it rather than being pushed off the row (${sel.left} vs ${dialBox.right})`,
+     sel.left >= dialBox.right && sel.right <= modes.right + 1);
 }
 
 // ---- #6. "The anansi logo on dark themes has a white background."
@@ -377,7 +384,7 @@ await wait(400);
 await page.eval(`(() => { const t = document.querySelector('#input');
   t.value = 'the half written line'; t.dispatchEvent(new Event('input', {bubbles: true})); return 1; })()`);
 await wait(250);
-await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
+await page.mode('act');
 await wait(450);
 const survived = await page.eval(`(() => {
   const t = document.querySelector('#input'), m = document.querySelector('#inputMirror');
@@ -388,8 +395,8 @@ ok(`the half-written line is still in the box after a repaint (${survived && sur
 ok(`  and the mirror is drawing it, so it can be seen (${survived && survived.mirror})`,
    !!survived && survived.mirror === 'the half written line');
 await page.eval(`(() => { const t = document.querySelector('#input'); t.value = '';
-  t.dispatchEvent(new Event('input', {bubbles: true}));
-  document.querySelector('[data-mode="direct"]')?.click(); return 1; })()`);
+  t.dispatchEvent(new Event('input', {bubbles: true})); return 1; })()`);
+await page.mode('direct');
 await wait(400);
 
 // ---- A DOUBLE TAP IN THE BOX OPENS THE FULL-SCREEN ONE. Same gesture as the passage tray, and

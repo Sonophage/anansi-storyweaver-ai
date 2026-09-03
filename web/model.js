@@ -7,11 +7,17 @@
 // The four that are left differ in what happens to what you type. Speak, Act and Narrate put it
 // on the page as yours and the model answers it. Direct never puts it on the page at all — it is
 // an instruction. That difference is the one people get wrong, so the placeholders say it.
+/* THE HINT SAYS WHAT GOES IN THE BOX. Seth, 2026-09-02: "the help hints in the input box should be
+ * rewritten so they make sense". Two of them did not: "Say it as Wren Halloway" is the dial's job
+ * now that the dial reads Speaking As and her name is beside it, and "What Wren Halloway do" was
+ * ungrammatical for every value the field has ever held except the word `you` — the name is third
+ * person and the verb was written for the second. Each one is a phrase for the thing you type,
+ * and the two that take a name have a form for the name and a form for yourself. */
 export const MODES = [
-  ['speak',   'Speak',   (p) => `Say it as ${p || 'yourself'}…`],
-  ['act',     'Act',     (p) => `What ${p || 'you'} do…`],
+  ['speak',   'Speak',   (p) => p ? `The words ${p} says…` : 'The words you say…'],
+  ['act',     'Act',     (p) => p ? `What ${p} does…` : 'What you do…'],
   ['direct',  'Direct',  () => 'Tell Anansi what happens next…'],
-  ['narrate', 'Narrate', () => 'Write it yourself. Anansi carries on from it…'],
+  ['narrate', 'Narrate', () => 'Write the passage yourself — Anansi carries on from it…'],
 ];
 
 export const KINDS = ['character', 'lore', 'item', 'rule'];

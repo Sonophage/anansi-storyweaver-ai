@@ -30,6 +30,9 @@ const veil = () => page.eval(`(() => {
     dark: getComputedStyle(g).backgroundColor,
     meter: fill ? parseFloat(fill.style.height) || 0 : -1,
     top: t ? t.scrollTop : -1,
+    // Where the first line actually sits, and how tall the window is. The prose grows downwards
+    // from a locked top; a centred block moves what is already written, which is what this catches.
+    rectTop: t ? Math.round(t.getBoundingClientRect().top) : -1, vh: window.innerHeight,
     serif: t ? getComputedStyle(t).fontSize : null,
     written: g.classList.contains('written'), done: g.classList.contains('done') });
 })()`).then((s) => (s ? JSON.parse(s) : null));
@@ -62,12 +65,12 @@ ok("  and the ground already dark, not waiting for the words",
 ok("  the prose is set at the handoff's 22px", first != null && first.serif === '22px');
 
 // ---- 2. the words focus in, the accent trails them, the rule fills, Stop stays
-let mid = null, last = null, seen = [], tips = new Set(), meters = [];
+let mid = null, last = null, seen = [], tips = new Set(), meters = [], tops = [];
 for (let i = 0; i < 400; i++) {
   const v = await veil();
   if (!v) break;
   last = v;
-  if (v.words > 0) { seen.push(v.words); meters.push(v.meter); if (!v.done) { mid = v; tips.add(v.tip); } }
+  if (v.words > 0) { seen.push(v.words); meters.push(v.meter); tops.push(v.rectTop); if (!v.done) { mid = v; tips.add(v.tip); } }
   if (v.done) break;
   await wait(250);
 }
@@ -89,6 +92,16 @@ ok("  and a rule that climbs without ever arriving early",
 ok("  Stop stayed up the whole time she was writing", mid != null && mid.stopShown === true);
 // Seth: "the view screen should stay at the top so the user can read."
 ok("  and the view stayed at the top rather than chasing the tail", mid != null && mid.top === 0);
+// Seth, 2026-09-02: "the position should be locked." The surface was centred, so every new line
+// lifted the passage by half a line and the sentence being read crept upwards for the whole write.
+// MEASURED ACROSS SAMPLES, not once: a single reading cannot see drift, and the drift was the bug.
+console.log("  first line at y: " + JSON.stringify([...new Set(tops)]) + " of " + (last?.vh ?? "?"));
+ok("  and the first line never moved while she wrote",
+   tops.length > 1 && new Set(tops).size === 1);
+// And it starts near the TOP of the window — Seth changed his mind an hour after asking for the
+// middle: "lets pin this to the top of the screen instead." 12vh, within a pixel of rounding.
+ok("  starting near the top of the window, not centred",
+   last != null && Math.abs(tops[0] - last.vh * 0.12) <= 2);
 
 // ---- 3. it holds when the passage is done, and typing is the way out
 const done = last;

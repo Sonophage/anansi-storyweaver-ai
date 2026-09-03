@@ -192,7 +192,13 @@ input, textarea { font:inherit; color:inherit; }
    what you were reading, you just cannot read it, which is the difference between "the book is
    busy" and "the book is gone". The tint comes from the theme's own paper rather than a literal,
    so it is the right darkness on Parchment as well as on Obsidian. */
-#ghost.veil { position:absolute; inset:0; z-index:50; display:flex; align-items:center;
+/* TOP-ALIGNED, NOT CENTRED, and the first line's top is at the middle of the window — Seth,
+   2026-09-02: "This should start the first line in the middle of the page and write down.
+   otherwise its very clunky and it keeps shifting. so the position should be locked."
+   Centring a block that GROWS moves everything already on screen: each new line lifted the whole
+   passage by half a line, so the sentence you were reading crept upwards the entire time the model
+   was writing. The words arriving is the only motion this surface should have. */
+#ghost.veil { position:absolute; inset:0; z-index:50; display:flex; align-items:flex-start;
   justify-content:center;
   /* THE TINT ARRIVES WITH THE VEIL, 2026-09-02 handoff. It was removed on 2026-08-28 — 62%, then
      31%, then none — because the veil then had glyphs on it and Seth wanted the blur alone. It has
@@ -220,7 +226,12 @@ input, textarea { font:inherit; color:inherit; }
    --t-slow, because this one duration is answering to how long the veil was up, not to how far
    anything moved. */
 #ghost.veil.leaving { animation:veilout var(--t-veilout) var(--ease-out) both; }
-#ghost.veil .narr { text-align:center; display:flex; flex-direction:column; align-items:center; gap:22px; }
+/* PINNED TO THE TOP, not to the middle. Seth, 2026-09-02, an hour after asking for the middle:
+   "lets pin this to the top of the screen instead." The middle locked the first line and the prose
+   still ran down past the fold on a long passage; the top gives the same locked start and the whole
+   window to grow into. 12vh so it is not jammed against the edge — it is where a page starts. */
+#ghost.veil .narr { text-align:center; display:flex; flex-direction:column; align-items:center;
+  gap:22px; padding-top:12vh; }
 /* WORDS FOCUSING OUT OF THE BLUR. The 2026-09-02 handoff, replacing the per-letter frontier that
    preceded it. `filter` is composited, so this costs no more than the opacity fade it replaces. */
 @keyframes inkin { from { opacity:0; filter:blur(6px); } to { opacity:1; filter:blur(0); } }
@@ -243,7 +254,11 @@ input, textarea { font:inherit; color:inherit; }
    pushed off the screen, which is the trade PLAN-07 made when the veil went full screen.
    The view stays where the reader put it. Nothing scrolls it to the bottom. */
 #ghost.veil .veiltext {
-  max-width:min(48ch, 72vw); max-height:min(58vh, 520px); overflow-y:auto; text-align:left;
+  /* THE CAP IS WHAT IS LEFT UNDER THE TOP, not 58vh and no longer half the window. The prose starts
+     at 12vh, so the cap is everything down to Stop — 96px is the 22px gap, the button, and enough
+     room that it is not sitting on the edge. Stop must never leave the screen; that is the trade
+     PLAN-07 made when the veil went full screen. */
+  max-width:min(48ch, 72vw); max-height:calc(88vh - 96px); overflow-y:auto; text-align:left;
   font-family:'Instrument Serif', var(--serif, serif); font-size:22px; line-height:1.62;
   color:var(--ink); white-space:pre-wrap; overflow-wrap:break-word; scrollbar-width:none; }
 #ghost.veil .veiltext::-webkit-scrollbar { display:none; }
@@ -657,14 +672,18 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
    Speak and Direct keep the exact colours .speak and .directed already used, so the two modes that
    were already distinguishable do not change hue; Act and Narrate are the two that had nothing.
    Nothing written before 2026-08-29 carries a mode, so none of these rules touch it. */
-.block.m-speak   { --m:var(--m-speak); }
-.block.m-act     { --m:var(--m-act); }
-.block.m-direct  { --m:var(--m-direct); }
-.block.m-narrate { --m:var(--m-narrate); }
+/* `.carry` TOO, and it is a SIBLING of the block rather than inside it — so the accent has to be
+   named on both or the two buttons under the newest passage keep the flat gold they had while the
+   rule beside the prose went its own colour. Seth, 2026-09-02: "the accent color for these should
+   match the accent lines next to the text so that its uniform." */
+:is(.block, .carry).m-speak   { --m:var(--m-speak); }
+:is(.block, .carry).m-act     { --m:var(--m-act); }
+:is(.block, .carry).m-direct  { --m:var(--m-direct); }
+:is(.block, .carry).m-narrate { --m:var(--m-narrate); }
 /* The fifth, and the one that had none: Continue is a press beside the four modes rather than one
    of them, so a passage it wrote fell through the class that draws the accent — and it is the most
    common passage in a book. See the note in `themeVars` for why its colour comes off the ink. */
-.block.m-continue { --m:var(--m-continue); }
+:is(.block, .carry).m-continue { --m:var(--m-continue); }
 .block:is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue) {
   padding-left:16px; border-left:3px solid var(--m);
 }
@@ -878,13 +897,21 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
    took the block sitting next to it. The bar went on rendering with no styling at all: present,
    not hidden, 792px wide and 0 tall, so it was invisible in the app and only a browser check
    caught it. Nothing else could have — every unit check reads the markup, and the markup was right. */
-#ctxbar { display:block; width:100%; height:3px; flex:0 0 auto; background:var(--rule);
+/* IT COUNTS CHAPTERS NOW, NOT CONTEXT — Seth, 2026-09-02: "this will no longer count context but
+   chapters. one chapter will be one long line. two chapters will be one line broken into two so on
+   and so forth." So: one segment per chapter, equal parts of the window, the one you are in lit and
+   the rest at rule weight. Where the book has got to, in the width of the window.
+   THE CONTEXT NUMBER DID NOT GO ANYWHERE — it is in the reading below, which is now always open,
+   and the no-room case says so in words there. A bar that turned red was the only warning while
+   the reading was shut; it is not the only one any more. */
+/* THE GAPS ARE THE BREAKS, so the ground has to be nothing rather than `--rule`: with the bar
+   itself painted, a 2px gap between two segments of the same colour is not a gap. */
+#ctxbar { display:flex; gap:2px; width:100%; height:3px; flex:0 0 auto; background:none;
   position:relative; overflow:hidden; padding:0; border:0; }
-#ctxbar i { display:block; height:100%; background:var(--gold-dim);
-  transition:width var(--t-slow) var(--ease); }
-#ctxbar.full i { background:var(--bad); }
-#ctxbar:hover i, #ctxbar[aria-expanded="true"] i { background:var(--gold); }
-/* What the bar opens. Everything that used to sit in the header beside the story title. */
+#ctxbar i { flex:1 1 0; min-width:0; height:100%; background:var(--rule);
+  transition:background var(--t-slow) var(--ease); }
+#ctxbar i.at { background:var(--gold); }
+/* The reading under the bar. Everything that used to sit in the header beside the story title. */
 #ctxread { flex:0 0 auto; display:flex; align-items:center; gap:20px; padding:9px 40px;
   border-bottom:1px solid var(--chrome-line); background:var(--chrome);
   font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label);
@@ -898,9 +925,12 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
    should only be in the input box." The gradient was a slab the width of the window fading up
    into the prose; what it was really doing was separating the composer from the page, and the box
    can say that by itself. `--dock` survives for the big composer, which IS the page. */
+/* 23 AND 14, five less than each was — Seth, 2026-09-02: "we can lower this whole section by 5px".
+   Taken off the BOTTOM padding, which is what moves the composer down: the dock is the last thing
+   in the column, so its own bottom padding is the only gap under it. */
 #dock { position:relative; flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
-  padding:0 0 calc(28px + var(--hwkb-air, 0px)); background:transparent; }
-@media (max-width:719px) { #dock { padding:5px 18px calc(19px + var(--hwkb-air, 0px) + env(safe-area-inset-bottom, 0px)); } }
+  padding:0 0 calc(23px + var(--hwkb-air, 0px)); background:transparent; }
+@media (max-width:719px) { #dock { padding:5px 18px calc(14px + var(--hwkb-air, 0px) + env(safe-area-inset-bottom, 0px)); } }
 /* WITH A HARDWARE KEYBOARD THE DOCK SITS STILL, so it can afford to sit off the edge. There is no
    soft keyboard to make room for and nothing below it to reach past — 10px of air, and it stays
    there because nothing moves it any more. Keyed on the root attribute `applyHwkb` writes, so the
@@ -910,47 +940,53 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
    apart that had to agree by hand; now the air is stated once and the base can move without it. */
 html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
 #dockCol { width:100%; max-width:var(--col); display:flex; flex-direction:column; gap:14px; }
-/* WHO you are speaking or acting as. It was squeezed into the right-hand end of the modes rail,
-   where it read as one more mode and ran out of room on a narrow window. Its own strip now, above
-   the rail and the full width of the dock — Seth: "right now its awkwardly placed". */
-/* The strip spans the dock; its CONTENTS line up with the mode rail underneath it, because the
-   rail is capped at the column width and centred. Left-aligned against 40px of dock padding it
-   floated away from the button that summoned it on any window wider than the column. */
-/* THE FULL WIDTH OF THE WINDOW, and the two ends of it: the label hard left, the name hard right.
-   Anything between them is the strip saying which of the two modes you are in and who you are
-   being — Seth: "have the label next to the dropdown be left screen aligned and the drop down
-   right screen aligned".
-
-   IT IS TINTED, and the mode button below it is tinted to match, so the pair reads as one piece
-   lifted off the rail rather than as a toolbar that happens to sit above one. Both colours come
-   from the theme's own tokens rather than from literals, because a theme is one block of variables
-   here and a hard-coded pair would be right in obsidian and wrong in the other eight. */
-#asRow { width:100%; display:flex; padding:0; }
-#asRow > .inner { width:100%; display:flex; align-items:center; gap:9px;
-  justify-content:space-between; padding:7px 40px;
-  border-top-left-radius:var(--r); border-top-right-radius:var(--r);
-  font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label); }
-/* NO TINT ON THE ROW. Speak's was mixed 88% toward the paper and was invisible; Act's came off the
-   accent and was not — so one of the two modes had a filled bar and the other had nothing, which
-   reads as a fault rather than as a distinction. Seth: "remove that background so it mimics the
-   speaking version of it." Both gone, and the tokens with them: a colour only one of a pair wears
-   is not a pair. */
-/* THE BUTTON KEEPS NO BACKGROUND. Tinting it to match the strip above was meant to read as one
-   raised block; what it actually did was give one of four modes a filled pill the other three do
-   not have, which reads as a different KIND of control rather than as the selected one. Seth:
-   "remove the background from act when its selected. its the only button that has it."
-   The underline is how a selected mode has always said so, and it says it for all four.
-   The strip above still carries the tint — that is the part that changes with the mode. */
-/* ISSUE #4 — "the act as or speak as row doesn't reach the edges on the left or the right".
-   It was inset THREE times on a phone: #dock already pads 18px (see its rule below), then #asRow
-   added 18 and .inner added 18 again — 54px against the 18px #modes sits at, so the one strip
-   above the mode rail was visibly narrower than everything under it. The dock's padding is the
-   only one that should exist; both of the others are gone here. Desktop is untouched: there
-   #dock has no horizontal padding at all and .inner's 40px is what centres the strip. */
-@media (max-width:719px) { #asRow > .inner { padding:7px 0; } }
-#asRow select { background:none; border:0; color:var(--gold); font-size:11.5px;
-  letter-spacing:.06em; text-transform:none; max-width:min(60vw, 320px); }
-@media (max-width:719px) { #asRow { padding:8px 0 0; } #asRow > .inner { max-width:none; } }
+/* THE DIAL, and the dial beside it: how you are writing, and the two thread doors. Seth,
+   2026-09-02: "make speak, act, direct and narrate into a drop down. the selection should look
+   like a button ... threads and +threads should be its own drop down that will mimic the style of
+   this as well."
+   LOOKS LIKE A BUTTON, which is the pill this row already used for Continue — border, radius, the
+   same small caps as everything else on the rail. `appearance:none` takes the platform's own
+   control away, so the caret is drawn here: an inline SVG in a background, which costs no element
+   and keeps the whole pill clickable. A caret in a span beside the select would have been a strip
+   of the control that does not open it.
+   The name select is the one exception to the pill: it is the second half of a phrase the dial
+   starts, so it is set as text in the accent rather than as a second button. */
+/* FONT-FAMILY DOES NOT INHERIT INTO A FORM CONTROL. Both of these came out in Arial at 11px
+   until it was stated — the one thing a select will not take from the page. */
+#modes select.dial, #asWhom { flex:0 0 auto; font-family:inherit; font-size:11px;
+  letter-spacing:.1em; font-variant-caps:all-small-caps; white-space:nowrap; cursor:pointer;
+  -webkit-appearance:none; appearance:none; }
+/* LONGHANDS, NOT THE SHORTHAND. `background:none no-repeat ... url(...)` names TWO images in one
+   layer — `none` and the caret — so the whole declaration was invalid and dropped, and with it the
+   background COLOUR: `appearance:none` does not clear a select's own, so the dial rendered as the
+   platform's grey field with a gold pill around it. Seth saw it live: "this needs to be styled
+   better". One property per line is what makes that impossible to do quietly. */
+#modes select.dial { color:var(--gold-lit); border:1px solid var(--chip); border-radius:var(--r-pill);
+  padding:5px 26px 5px 13px;
+  background-color:transparent;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23D9B26A'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 10px center; background-size:8px 5px; }
+#modes select.dial:hover, #modes button[data-holdback]:hover { border-color:rgba(217,178,106,.42); }
+/* HOLD BACK IS A BUTTON SHAPE NOW — Seth, 2026-09-02: "this should be shaped as a button so it
+   doesnt get lost dimmed when not in use." It was a bare label at 42% opacity beside two pills, so
+   the one control on the row that is a SWITCH was the one that looked like nothing. The pill is
+   always there; what changes with the state is the ink and the border, which is how the four modes
+   used to say which one was chosen. The 42% opacity comes off it in drawDock, in the same commit —
+   a shape you can see and cannot read is not better than no shape. */
+#modes button[data-holdback] { border:1px solid var(--chip); border-radius:var(--r-pill);
+  padding:5px 13px; }
+#modes button[data-holdback][aria-pressed="true"] { border-color:rgba(217,178,106,.35); }
+#modes select.dial:focus-visible { outline:1px solid var(--gold); outline-offset:2px; }
+/* THE OPEN LIST IS THE PLATFORM'S, and the two properties it will take are these. Left alone it
+   is white with black text on a dark theme — the one part of a native select that cannot be made
+   to match the page, so it is made to stop fighting it. */
+#modes select.dial option, #asWhom option { background:var(--sheet); color:var(--ink);
+  font-variant-caps:normal; letter-spacing:normal; }
+/* The four modes were `#modes button[aria-pressed]` — an underline under the one you were in. One
+   control cannot underline itself to say which of its own options is chosen, so the pill is the
+   selected state and the label inside it is what it says. */
+#asWhom { color:var(--gold); font-size:11.5px; letter-spacing:.06em; text-transform:none;
+  background:none; border:0; max-width:min(46vw, 260px); text-overflow:ellipsis; }
 /* IT WRAPS RATHER THAN SCROLLING SIDEWAYS. It was overflow-x:auto with scrollbar-width:none — so
    when the row did not fit it scrolled with nothing on screen saying so, and a control past the
    edge was a control you had no reason to believe existed. It fits at 360px in the shipped sizes,
@@ -997,8 +1033,11 @@ html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
 @media (prefers-reduced-motion: reduce) {
   #working i { animation:none; width:100%; opacity:.5; }
 }
-#inputRow { display:flex; align-items:flex-end; gap:16px; border-bottom:1px solid var(--gold); padding:0 0 14px; }
-html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.28); }
+/* NO RULE UNDER THE COMPOSER — Seth, 2026-09-02: "remove the bottom accented line". It was a gold
+   1px underline the full width of the row, with a parchment override beside it for the one theme
+   the gold was wrong on. The padding stays: it is the gap between the field and the edge of the
+   dock, and it was never the line's. */
+#inputRow { display:flex; align-items:flex-end; gap:16px; padding:0 0 14px; }
 /* THE BOX IS THE HEIGHT OF THE BUTTONS BESIDE IT. It was one line tall — 26px against a 34px Send
    on a desk and 24px against 44px on a phone — so the row read as a stripe with two discs on the
    end of it, and the first character typed changed its height. The padding is what makes one line
@@ -1086,6 +1125,10 @@ html[data-ui-theme="parchment"] #inputRow { border-bottom-color:rgba(58,52,43,.2
 .field { background:var(--field); border:1px solid var(--chip); border-radius:var(--r); padding:10px 13px; font-size:13.5px; line-height:1.5; color:var(--ink); width:100%; font-family:inherit; }
 textarea.field { resize:vertical; min-height:70px; }
 .hint { font-size:11.5px; color:var(--mute); line-height:1.5; margin:6px 0 0; }
+/* A TAB'S CONTENTS. `hidden` is the attribute the markup already sets, and this is what makes it
+   mean something on a flex child — the UA sheet's `[hidden]{display:none}` loses to `display:flex`
+   from a more specific rule, which is a way to ship four tabs that are all always open. */
+.pane[hidden] { display:none !important; }
 .card { border:1px solid var(--chip); border-radius:var(--r); padding:13px 15px; display:flex; flex-direction:column; gap:5px; }
 /* THE PLATE — a thread, at both ends. The 2026-09-02 handoff: the story panel's list and the
    cross-book Threads page used the same renderer and still read as two kinds of thing, because the
@@ -1093,8 +1136,18 @@ textarea.field { resize:vertical; min-height:70px; }
    wherever it is.
    The spine is a BORDER-LEFT rather than a pseudo-element, so the picked state can recolour it
    without a second rule reaching inside the card. */
+/* HEIGHT:AUTO, AND IT IS NOT DECORATION — Seth, 2026-09-02: "if a card has an image it cuts off the
+   information." TWO THINGS ARE CALLED `plate` in this stylesheet: the chapter hero above a
+   chapter's title, which is `position:relative; height:210px; overflow:hidden` by design, and this,
+   the treatment a thread card wears. A card matching both took the hero's fixed height and its
+   overflow — so a card with a picture in it was 210px of card holding 104px of picture, and the
+   body under it was clipped rather than shown. `min-height` here was written as the floor of a box
+   that had no ceiling; the ceiling came from the other rule and nobody had put it there.
+   The name collision is the real fault and it is worth renaming one of the two; this is the fix
+   that does not touch the chapter hero on the way past. */
 .card.plate { background:var(--sheet); border:1px solid var(--edge); border-left:3px solid var(--gold-dim);
-  border-radius:var(--r); padding:16px 18px; gap:7px; min-height:150px; }
+  border-radius:var(--r); padding:16px 18px; gap:7px; min-height:150px;
+  height:auto; overflow:visible; }
 .card.plate .platename { font-family:'Instrument Serif', var(--serif, serif); font-size:22px;
   line-height:1.15; color:var(--ink-bright); }
 .card.plate .tag.alwayson { border:1px solid rgba(217,178,106,.4); color:var(--gold);
@@ -1215,7 +1268,17 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 .aside { width:400px; flex:0 0 auto; }
 @media (max-width:1099px) { .aside { width:320px; } }
 @media (max-width:719px) { .aside { width:100%; } }
-.storycard { cursor:pointer; border-radius:var(--r); overflow:hidden; border:1px solid var(--edge); background:var(--rail); text-align:left; display:block; width:100%;
+/* A COLUMN, NOT A BLOCK, and that is the whole of the fix for Seth's 2026-09-02 report: "some of
+   the covers are being pushed down so you cant see the whole thing her as well as the labels."
+   MEASURED at 768px: three cards in a row, every one 527px tall because the grid stretches them to
+   the tallest, every cover 278px — and the cover's top sat 1px inside the card on the one with the
+   longest blurb, 39px on the next and 70px on the third. The slack was split ABOVE and BELOW the
+   art, so the cover and the genre tags on it slid down the card by half the difference.
+   A BUTTON CENTRES ITS OWN CONTENT. The card is a <button> and `display:block` does not stop the
+   UA centring its inner box vertically, so any card shorter than its row got the difference shared
+   between its two ends. An explicit flex column takes the centring away and puts the slack at the
+   bottom, where it is a card that ends early rather than a cover that has moved. */
+.storycard { cursor:pointer; border-radius:var(--r); overflow:hidden; border:1px solid var(--edge); background:var(--rail); text-align:left; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; width:100%;
   /* A shelf of objects standing on a surface rather than a grid of tiles. The whole of the
      "more bookshelf" brief is this shadow and the spine below it — no paper texture, no plinth,
      no painted-on lighting. */
@@ -1341,14 +1404,23 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
    the document region stays on screen behind the workspace pages. */
 #read[hidden], #dock[hidden], #page[hidden] { display:none !important; }
 
+/* IN THE MIDDLE OF THE SCREEN, not on the bottom edge — Seth, 2026-09-02: "all the site toast
+   notifications should be centered to the screen and styled." It sat 26px off the bottom, directly
+   over the composer, which is both the place a writer's eyes are NOT and the one control it was
+   usually telling them to use. Centred, it is read before it goes.
+   THE ACCENT IS THE EDGE, the same gold-dim-to-gold vocabulary the composer's field and the two
+   dials use, on the app's own sheet rather than the field grey. Small caps would be wrong: this is
+   a sentence to read, not a label. */
 #toast {
-  position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:60;
-  /* Nothing in a toast is clickable, and it sits directly over the composer. Without this it
-     swallows every click on the input for 4.2 seconds — so the error telling you to type
-     something was the thing stopping you from typing it. */
+  position:fixed; left:50%; top:50%; transform:translate(-50%, -50%); z-index:60;
+  /* Nothing in a toast is clickable, and it used to sit directly over the composer. Without this it
+     swallowed every click on the input for 4.2 seconds — so the error telling you to type
+     something was the thing stopping you from typing it. It is over the prose now, which is worse
+     to block, not better. */
   pointer-events:none;
-  background:var(--field); border:1px solid var(--chip); color:var(--ink); padding:11px 18px;
-  border-radius:var(--r-pill); font-size:12.5px; box-shadow:0 20px 50px rgba(0,0,0,.6); max-width:90vw;
+  background:var(--sheet); border:1px solid var(--gold-dim); color:var(--ink-bright);
+  padding:14px 22px; border-radius:var(--r); font-size:13.5px; line-height:1.45; text-align:center;
+  box-shadow:0 24px 60px rgba(0,0,0,.72); max-width:min(74vw, 460px);
 }
 /* The @ menu. Floats ABOVE the ask box rather than sitting in the column, so opening it moves
    nothing — the whole point of a menu that appears while you are mid-sentence. Opaque, because it
@@ -1412,8 +1484,29 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 /* The colour lives HERE now, in the box itself, with the room to carry it. Horizontal padding
    arrives with the background — text against the edge of a filled box reads as a mistake — and
    the mirror takes the same, because the two must agree about every property that moves a glyph. */
+/* THE ACCENT WRAPS THE FIELD. Seth, 2026-09-02: "the accented border here is inside the background
+   of the text it should wrap around it so it doesnt look like the background is escaping." It was a
+   1px gold line across the whole composer row, under a field whose own background stopped 14px
+   short of it — so the line read as something the field's ground had leaked past rather than as its
+   edge. On the field it follows the same rounded rectangle the background does.
+   `box-sizing:border-box` is global here, so the border costs the field no height: the textarea is
+   sized in JS and a box that grew by 2px would move the dock, which this project has three separate
+   bug reports about. */
 #inputWrap { position:relative; flex:1; min-width:0; display:flex; --field-pad:13px;
-  background:var(--field); border-radius:var(--r); padding:0 var(--field-pad); }
+  background:var(--field); border:1px solid var(--gold-dim); border-radius:var(--r);
+  padding:0 var(--field-pad); transition:border-color var(--t) var(--ease); }
+html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
+/* DIM UNTIL YOU ARE IN IT, and the full accent when you are — Seth, 2026-09-02: "the original one
+   dimmed if not selected". The edge is the focus indicator, so it has to be the thing that changes.
+   AND THE INNER RING GOES. The global `:focus-visible` rule puts a 2px outline on whatever has
+   focus; on a textarea inside a padded wrapper that drew a second, smaller accent inside the first
+   — "theres another accent that is smaller than the box. that needs to go." Dropped only for this
+   one field, and only because the box it sits in lights up instead: a control with no focus
+   indicator at all is the thing that rule exists to prevent. */
+#inputWrap:focus-within { border-color:var(--gold); }
+#inputWrap > #input:focus-visible { outline:none; }
+/* The full-screen composer has no field to outline — it IS the screen. */
+#dock.big #inputWrap { border-color:transparent; }
 #dock.big #inputWrap { background:transparent; --field-pad:0px; }
 #inputWrap > #input { position:relative; z-index:1; background:transparent; }
 /* ONE DECLARATION FOR BOTH BOXES — the shape #askWrap already uses, and the shape the comment
@@ -1496,16 +1589,17 @@ body[data-dev] #devbar {
     <div id="wash"></div>
     <div id="devbar">development server</div>
     <header id="bar"></header>
-    <!-- The context meter, full width and immediately under the header. It was a 74px rule inside
-         the running head, which put the one number that says whether the book still fits into the
-         one row that is hidden until you scroll. Seth: "it should span the full window". The
-         readout under it — which chapter, how many words, how much context — is what a press
-         opens; none of it is in the header any more. -->
+    <!-- The chapter meter, full width and immediately under the header. It was a 74px rule inside
+         the running head, which put it into the one row that is hidden until you scroll. Seth: "it
+         should span the full window".
+         A DIV, NOT A BUTTON, since 2026-09-02: it counted context and its press opened the readout
+         below. It counts chapters now and that readout is always open, so the press had nothing
+         left to do — and a focusable button that does nothing is a promise the surface breaks. -->
     <!-- The cover, kept behind the prose while you read. Outside #read on purpose: a sticky
          element cannot leave its own scroller, so a backdrop that must not move cannot live in
          the thing that moves. -->
     <div id="backdrop" hidden aria-hidden="true"></div>
-    <button id="ctxbar" hidden></button>
+    <div id="ctxbar" hidden></div>
     <div id="ctxread" hidden></div>
     <div id="read" class="scroll"><div id="col"></div></div>
     <div id="page" class="scroll" hidden></div>
@@ -1513,8 +1607,7 @@ body[data-dev] #devbar {
       <!-- Above the mode rail and outside #dockCol, which is capped at the column width. Who you
            are speaking or acting as is not a mode, and sharing the rail with the four that are is
            what made it read as a fifth. -->
-      <div id="asRow" hidden></div>
-<div id="dockCol"></div></div>
+  <div id="dockCol"></div></div>
   </main>
 
   <aside id="side" hidden>

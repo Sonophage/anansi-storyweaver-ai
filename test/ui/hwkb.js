@@ -62,7 +62,7 @@ if (toggle) {
   // report.
   await page.eval("(() => { document.querySelector('[data-appearance]')?.click(); return 1; })()");
   await wait(300);
-  await page.eval("(() => { document.querySelector('[data-mode=\"speak\"]')?.click(); return 1; })()");
+  await page.mode('speak');
   await wait(400);
   ok(`  and it survives repaints — still overlays-content after two (${await widget()})`,
      (await widget()) === 'overlays-content');
@@ -78,7 +78,7 @@ if (toggle) {
      (await im()) === 'none');
   // It has to survive a repaint too — the textarea is rebuilt by drawDock on nearly every action,
   // and an attribute set once would last until the first one.
-  await page.eval("(() => { document.querySelector('[data-mode=\"act\"]')?.click(); return 1; })()");
+  await page.mode('act');
   await wait(400);
   ok(`  and it is still there after the composer is redrawn (inputmode=${await im()})`,
      (await im()) === 'none');

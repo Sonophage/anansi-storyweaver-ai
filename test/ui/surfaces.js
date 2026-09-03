@@ -287,7 +287,7 @@ for (const theme of ['obsidian', 'ink', 'parchment']) {
     // The PAIR is checked below, so this is not the check being told to look away: a transparent
     // textarea with no mirror behind it, or a mirror that is itself transparent, is still a red.
     // Both of those have shipped this week.
-    for (const sel of ['#col .narr', '#sideBody', '#bar .serif:not(.wordmark)', '#modes button', '#modes button[data-mode]',
+    for (const sel of ['#col .narr', '#sideBody', '#bar .serif:not(.wordmark)', '#modes button', '#modes select.dial',
                        '.hint', '#inputMirror']) {
       const el = document.querySelector(sel); if (!el) continue;
       let bg = 'rgba(0, 0, 0, 0)', n = el;
@@ -326,12 +326,18 @@ await page.eval("(() => { document.documentElement.dataset.uiTheme = 'obsidian';
 // The motion system has to actually apply, not merely be declared.
 await page.goto(B + "/#" + sid + "/threads");
 await wait(700);
+// --t-page LEFT THE LIST below because 13383a6 deleted it — "settle, lift and sheet are deleted,
+// and --t-page with them" — and this check went on asserting that it resolved, so it has been red
+// since that commit over a token nobody wants back. --t-veilout is here in its place: it is the one
+// motion token added since, and the veil is the surface that uses it.
+// THE COMMENT IS OUT HERE, NOT IN THE EVAL BELOW: that is a template literal, and a backtick in it
+// ends the string — the same trap the db.ts schema and app.js markup both carry a warning about.
 const motion = JSON.parse(await page.eval(`(() => {
   const cs = getComputedStyle(document.documentElement);
   const newest = document.querySelector('#col .block.newest');
   const card = document.querySelector('#sideBody .card, #sideBody .row');
   return JSON.stringify({
-    tokens: ['--ease','--ease-out','--t-fast','--t','--t-slow','--t-page'].map(k => cs.getPropertyValue(k).trim()),
+    tokens: ['--ease','--ease-out','--t-fast','--t','--t-slow','--t-veilout'].map(k => cs.getPropertyValue(k).trim()),
     newest: newest ? getComputedStyle(newest).animationName : 'MISSING',
     card: card ? getComputedStyle(card).animationName : 'MISSING',
     moving: [...document.querySelectorAll('#col .block')].filter(b => getComputedStyle(b).animationName !== 'none').length,

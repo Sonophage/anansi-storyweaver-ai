@@ -10,6 +10,36 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · The composer is two dials, the bar counts chapters, and the covers sit straight
+
+### Speak, Act, Direct and Narrate are one control
+Four buttons and three doors were fighting for one line. The four modes are a dial you open and
+pick from, and it reads **Speaking As** or **Acting As** when you are in the two that need a name —
+because the name of who you are being now sits directly beside it, instead of on a strip of its own
+above the row. Threads and add-a-thread are a second dial beside it, and **Hold back** is a button
+shape now, so it does not disappear when it is off.
+
+The hints in the box were rewritten. One of them had been saying "What Wren Halloway do".
+
+### The bar under the header counts chapters
+It was a percentage of the model's memory. It is one segment per chapter now — one chapter is one
+long line, two are two — with the one you are writing lit. The reading under it, which chapter and
+how many words and what the context costs, is always open; it used to be behind a press on the bar.
+
+### Covers that were sliding down their cards
+On the shelf, a book whose blurb ran short had its cover pushed down inside the card — by 70 pixels
+on the worst of them — so the picture and the genre labels on it slid out of view. They sit at the
+top of the card now, every one of them.
+
+A thread card with a picture on it was cut off at the bottom, taking the description with it. It
+grows to fit what is in it.
+
+### Smaller things you will notice
+The composer's gold line moved off the row and onto the box itself, dim until you are writing in it.
+The waiting screen starts at the top of the window and writes downward, instead of creeping upward
+as the passage grew. Messages appear in the middle of the screen rather than over the composer. The
+buttons under a passage wear that passage's own colour.
+
 ## 2026-09-02 · A passage Continue wrote carries its colour down the margin
 
 ### Continue's accent was drawn but never saved

@@ -172,9 +172,19 @@ ok("Threads groups the cards by kind", /Characters/.test(threads));
 const kinds = new Set((await story()).entries.map((e) => e.entryType));
 ok(`  and every kind this story has is shown (${[...kinds].join(',')})`,
    [...kinds].every((k) => new RegExp({ character: 'Characters', lore: 'Lore', item: 'Items', rule: 'Rules' }[k]).test(threads)));
+// ONE DOOR TO ALL FOUR KINDS. The four New-* buttons came off this panel on 2026-09-02; the tray
+// they were beside opens on the same four kinds and ends in the same data-newentry press, which is
+// what "any functionality that these buttons may have carry over" means. Asserted on the tray's
+// kind chips, because those are what the four buttons became.
+await page.click('#sideBody [data-newlore]');
+await wait(500);
 ok("  with a way to add each kind",
-   (await page.eval("[...document.querySelectorAll('[data-newentry]')].map(b => b.dataset.newentry).sort().join(',')"))
+   (await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b => b.dataset.lorekind).sort().join(',')"))
      === 'character,item,lore,rule');
+ok("  and the four buttons that used to say so are gone",
+   !(await page.eval("!!document.querySelector('#sideBody [data-newentry]')")));
+await page.click('#sideBody [data-newlore]');
+await wait(400);
 
 // ---- 7. the top bar carries the book and nothing else
 // The Inspector button came off it because it opened the panel the nav row already opens. The
@@ -348,26 +358,44 @@ if (await page.visible('[data-setup="title"]')) {
 // outfit on somebody, so a door that vanished would take three features with it.
 await page.goto(B + "/#" + sid);
 for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
-ok("the composer bar carries the door to this story's threads", await page.visible('[data-goblock="threads:"]'));
+// THE DOOR IS AN OPTION ON THE THREADS DIAL since 2026-09-02, so what is visible is the dial and
+// what carries the action is the option inside it. Both asserted: a dial with no such option is the
+// regression, and so is no dial at all.
+ok("the composer bar carries the door to this story's threads", await page.visible('[data-threadsel]')
+   && await page.eval("[...document.querySelectorAll('[data-threadsel] option')].some(o => o.dataset.goblock === 'threads:')"));
 // AND THE TRAY HAS ITS OWN BUTTON BESIDE IT, which is not the same door. Seth: "button next to
 // anansi near the input should be + threads. add threads." The list and the writing-down tray are
 // different jobs; for half a day the list was standing where both had to fit.
-ok("  with the writing-down tray beside it, not behind it", await page.visible('[data-newlore]'));
+// BOTH DOORS ARE OPTIONS ON ONE DIAL since 2026-09-02, so neither can be clicked: an <option> has
+// no box until the platform's own popup is open. The gesture is the one a person makes — choose on
+// the select — and `page.pick` is that.
+ok("  with the writing-down tray on the same dial, not behind it", await page.eval(
+  "[...document.querySelectorAll('[data-threadsel] option')].some(o => o.dataset.newlore)"));
 ok("  and New scene is still not there", !/New scene/.test(await page.text('#modes') || ''));
-await page.click('[data-goblock="threads:"]');
+await page.pick('[data-threadsel]', 'view');
 await wait(700);
 const list = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
-ok("  pressing it opens the list of everything written down", /Characters/.test(list) && /Add/.test(list));
+// `Add` was the heading over four New-* buttons until 2026-09-02, when the four came off — Seth:
+// "the buttons can all go away and we can just keep the add thread". The tray's own door is what
+// the panel opens with now, and it says what it does.
+ok("  pressing it opens the list of everything written down",
+   /Characters/.test(list) && /Thread/.test(list));
 // ORDER, not just presence. Seth: "move the add to the top and the list of whats in the book to the
 // bottom." The list grows without limit and the four Add buttons do not, so asserting only that
 // both are on the panel is an assertion that was already true before the change and stays true if
 // they swap back.
-ok("  with Add above the book, not buried under it",
-   list.indexOf('Add') >= 0 && list.indexOf('Add') < list.indexOf('Characters'));
+// THE DOOR IS ABOVE THE BOOK, not buried under it — Seth, 2026-08-28: "move the add to the top and
+// the list of whats in the book to the bottom." It was the word "Add" over four New-* buttons until
+// 2026-09-02, when the four came off and the tray's own door took their place at the top. The
+// PROPERTY is unchanged and it is what this asserts: the way in comes before the list.
+ok("  with the way in above the book, not buried under it",
+   list.indexOf('Thread') >= 0 && list.indexOf('Thread') < list.indexOf('Characters'));
 ok("  not the tray", !/Write it down/.test(list));
-ok("  and the tray has its own door from in here", await page.visible('[data-newlore]'));
+// SCOPED TO #sideBody, because the composer's threads dial carries a data-newlore OPTION and an
+// option has no box — `visible` reads the first match in the document, which was that one.
+ok("  and the tray has its own door from in here", await page.visible('#sideBody [data-newlore]'));
 
-await page.click('[data-newlore="1"]');
+await page.click('#sideBody [data-newlore="1"]');
 await wait(700);
 const lore = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 ok("  it opens a tray with both ways in", /Write it down/.test(lore) && /read the chapter/i.test(lore));
@@ -440,7 +468,11 @@ ok("  and they are in there", !!fold && fold.name && fold.body);
 ok(`  with a bracketed placeholder to replace (${fold && fold.hint.slice(0, 24)})`,
    !!fold && /^\[/.test(fold.hint) && /\]$/.test(fold.hint));
 
-await page.click('[data-newlore="1"]');
+// THROUGH THE COMPOSER'S DIAL, which is what this press has always been: with the tray on a KIND
+// the panel's own Back button is data-lorekind="__kinds", so the door that closes the tray from
+// here is the composer's — it was the + Threads button until 2026-09-02 and it is Add Threads on
+// the threads dial now. Same toggle, same handler.
+await page.pick('[data-threadsel]', 'add');
 await wait(400);
 ok("  and the tray closes again", !/Write it down/.test(await page.text('#sideBody') || ''));
 
@@ -498,6 +530,37 @@ if (anyEntry) {
   await page.click('[data-cardview="form"]');
   await wait(400);
   ok("  and Edit this card opens the form", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
+
+  // THE FORM IS TABBED, 2026-09-02 handoff. VISIBLE, not merely present: a hidden pane keeps all
+  // of its markup, so `querySelector` finds every field on every tab and a presence check would
+  // pass on four tabs that are all open at once.
+  {
+    const vis = (sel) => page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
+      return !!e && e.offsetParent !== null; })()`);
+    const onTab = () => page.eval(`[...document.querySelectorAll('[data-cardtab]')]
+      .filter((t) => t.getAttribute('aria-pressed') === 'true').map((t) => t.dataset.cardtab).join()`);
+    ok(`  the form opens on The card (${await onTab()})`, (await onTab()) === 'card');
+    ok('    with Name and Trigger words on it, and not the add tray, the states or Delete',
+       (await vis('#f-card-title')) && (await vis('#f-card-keys'))
+       && !(await vis('[data-newroom]')) && !(await vis('[data-addstate]')) && !(await vis('[data-delentry]')));
+    await page.click('[data-cardtab="rooms"]'); await wait(400);
+    ok('    Rooms shows the add tray and hides the card fields',
+       (await vis('[data-newroom]')) && !(await vis('#f-card-title')));
+    await page.click('[data-cardtab="time"]'); await wait(400);
+    ok('    Over time shows the states editor', await vis('[data-addstate]'));
+    await page.click('[data-cardtab="more"]'); await wait(400);
+    ok('    More shows Delete and Your notes',
+       (await vis('[data-delentry]')) && (await vis('#f-card-notes')));
+
+    // THE JUMP CHIP MUST OPEN THE TAB IT LANDS IN — the handoff's one dead control in its own
+    // prototype: with the form tabbed, a chip scrolls to a heading the tabs have taken off screen.
+    // Pressed from `more`, deliberately, so a chip that changed nothing could not pass.
+    // The jump chip needs a card that HAS a room, and this one has none. It is checked further
+    // down, on the card that grows one — seeding a room here to check it earlier polluted the
+    // section that counts that card's rooms, which is the scenarios-mutate rule biting inside one
+    // scenario rather than across two.
+    await page.click('[data-cardtab="card"]'); await wait(300);
+  }
   // NOT EVERY ROOM ANY MORE (2026-08-30). The form drew a heading per slot while it was the only
   // way to fill an empty one — eight headings and six empty boxes on a character, ahead of
   // everything actually written down. The add tray at the top is that way now, so the form draws
@@ -528,7 +591,7 @@ if (anyEntry) {
   // check reporting on the card as it was, which is the quietest kind of false red.
   await page.goto(B + "/#" + sid);
   for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
-  await page.click('[data-goblock="threads:"]');
+  await page.pick('[data-threadsel]', 'view');
   await wait(700);
   await page.click(`[data-entry="${anyEntry}"]`);
   await wait(700);
@@ -569,6 +632,23 @@ if (anyEntry) {
   console.log("  landed: " + JSON.stringify(landed));
   ok("  pressing it opens the form on that room, with the cursor in it",
      landed.form === true && landed.box === true && landed.focused === String(made));
+  // AND IT OPENED THE TAB THAT ROOM IS IN. 2026-09-02: the form is four tabs, so `data-editroom`
+  // was flipping to the form and focusing a box inside a hidden pane — no caret, no scroll, a press
+  // that looked like it did nothing. The handoff named the jump chips as its one dead control; this
+  // is the same fault arriving from the Read face, which it did not name.
+  ok(`  and the tab that room lives in (${await page.eval(`[...document.querySelectorAll('[data-cardtab]')]
+       .filter((t) => t.getAttribute('aria-pressed') === 'true').map((t) => t.dataset.cardtab).join()`)})`,
+     await page.eval(`(() => { const b = document.querySelector('[data-ab="${made}"]');
+       return !!b && b.offsetParent !== null; })()`));
+  // THE JUMP CHIP, on the card that has a room to jump to. Pressed from More, so a chip that
+  // selected nothing could not pass.
+  await page.click('[data-cardtab="more"]'); await wait(300);
+  const jslot = await page.eval("document.querySelector('[data-goslot]')?.dataset.goslot ?? ''");
+  ok(`  a jump chip is drawn for it (${jslot})`, jslot !== '');
+  await page.click(`[data-goslot="${jslot}"]`); await wait(600);
+  ok('  and pressing it opens the tab its heading is in, and shows the heading',
+     await page.eval(`(() => { const h = document.querySelector('[data-slotat="${jslot}"]');
+       return !!h && h.offsetParent !== null; })()`));
   // ---- ON, THEN OFF, IN THE FORM TOO. Seth, 2026-08-30: "would having the order of whats turned
   // on, off and empty be possible in the edit screen too." Reading down the form said what the card
   // HAS; it now says what the model will be told first, which is a different card once half the
@@ -638,7 +718,7 @@ if (anyEntry) {
      !!trays && trays.kinds.some((k) => ['character', 'lore', 'item', 'rule'].includes(k)));
   ok("  and every tray on the screen has its own direction box",
      !!trays && trays.trays > 0 && trays.ownBox === true);
-  await page.click('[data-goblock="threads:"]');
+  await page.pick('[data-threadsel]', 'view');
   await wait(600);
   ok("the composer's door works with an entry already open", await page.eval("!document.querySelector('[data-f=\"title\"]')"));
   ok("  and lands on the list", /Characters/.test(await page.text('#sideBody') || ''));
@@ -727,6 +807,12 @@ ok(`  with every coat drawn through the ordinary room path (${dressed.coats} of 
    heldBy >= 2 && dressed.coats === heldBy);
 await page.click('[data-cardview="form"]');
 await wait(500);
+// THE ADD TRAY IS IN THE ROOMS TAB. The form was one long column until 2026-09-02 and everything
+// below was reachable from wherever the previous section left the page. It is four tabs now, so a
+// press aimed at the tray while The card is showing lands on nothing — which is the same class of
+// failure as the jump chip the tabs were careful about, arriving from the other direction.
+await page.click('[data-cardtab="rooms"]');
+await wait(400);
 // THE ADD TRAY IS WHERE ANANSI IS OFFERED NOW, and it is folded shut — so the outfit pill has to
 // be pressed before there is anything to check. That press is the feature: one add path for every
 // room, instead of a form per slot plus a second one under the wardrobe.
@@ -761,6 +847,12 @@ ok(`  named for the character it dresses`,
   await page.click(`[data-entry="${who.id}"]`);
   for (let i = 0; i < 40 && !(await page.visible('[data-cardview="form"]')); i++) await wait(250);
   await page.click('[data-cardview="form"]');
+  // ROOMS TAB. `S.cardTab` resets to The card when a DIFFERENT thread opens — deliberately, so a
+  // writer does not land in Rooms because that is where they were on the last one — and this
+  // section has just opened another card. `page.visible` would spin out its forty tries against a
+  // pill sitting in a hidden pane.
+  for (let i = 0; i < 40 && !(await page.visible('[data-cardtab="rooms"]')); i++) await wait(250);
+  await page.click('[data-cardtab="rooms"]');
   for (let i = 0; i < 40 && !(await page.visible('[data-newroom="role"]')); i++) await wait(250);
   const tray = await page.eval(`(() => { const b = document.querySelector('[data-newroom="role"]');
     const d = b && b.closest('details');
@@ -798,6 +890,12 @@ ok(`  named for the character it dresses`,
 // Save left at the foot is two things to keep in step, and a Save that moved but did not lead is
 // the same scroll it always was.
 {
+  // ON THE CARD TAB, because that is where the body field lives and this measures GEOMETRY. A field
+  // inside a hidden pane reports a rect of all zeros, so "Save is above the body" compares against
+  // a top of 0 and fails on a form where it is perfectly true. Save itself is in the bar above the
+  // tabs and is on screen whichever one is showing.
+  await page.click('[data-cardtab="card"]');
+  await wait(400);
   const saves = await page.eval(`(() => { const s = [...document.querySelectorAll('[data-saveentry]')];
     const body = document.querySelector('[data-f="body"]');
     return { n: s.length, above: s[0] && body
@@ -814,7 +912,21 @@ ok(`  named for the character it dresses`,
 // still in the document, so an eval can read and fill them — but a driver CLICK needs the section
 // opened first, which is the press a writer makes. Idempotent: one already open is left alone
 // rather than toggled shut.
+// AND SINCE 2026-09-02 THEY ARE ALSO BEHIND TABS. `states` is in Over time, `edges` and `copy` are
+// in More, and a fold sitting in a hidden pane has no box for a driver to press. Rather than teach
+// every caller which tab its fold is in — a map that goes stale the first time one moves — this
+// looks for the fold and, if it cannot see it, tries the tabs until it can.
 const openFold = async (name) => {
+  const seen = () => page.eval(`(() => { const b = document.querySelector('[data-fold="${name}"]');
+    return !!b && b.offsetParent !== null; })()`);
+  if (!(await seen())) {
+    for (const t of ['card', 'rooms', 'time', 'more']) {
+      if (!(await page.eval(`!!document.querySelector('[data-cardtab="${t}"]')`))) break;
+      await page.click(`[data-cardtab="${t}"]`);
+      await wait(250);
+      if (await seen()) break;
+    }
+  }
   if (!(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
     await page.click(`[data-fold="${name}"]`);
   await wait(300);
@@ -1208,7 +1320,7 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   ok(`a card with an empty body and a facts room exists (${made})`, /^e-/.test(String(made)));
   await page.goto(B + "/#" + sid5);
   for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
-  await page.click('[data-goblock="threads:"]');
+  await page.pick('[data-threadsel]', 'view');
   await wait(700);
   const shown = await page.eval(
     `(document.querySelector('[data-entry="${made}"] .clamp3')?.textContent ?? '').trim()`);
