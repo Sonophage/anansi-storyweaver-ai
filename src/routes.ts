@@ -3,7 +3,7 @@ import { count, chat, structuredRetry, model, models, checkModel, allowList, mod
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -2696,6 +2696,90 @@ export const routes: Record<string, Handler> = {
    *  would put text in a prompt the writer never agreed to.
    *
    *  Nothing here is a proposal. The writer pasted it, so it lands. */
+  /* A CARD PULLED OFF THE WEB, IN ITS OWN CANON (2026-09-02).
+   *
+   * Seth wants threads from an intellectual property — Dune, Warhammer, Sunless Sea — or from a
+   * real person, "like halsey the artist or an author": "the ai needs to stay in cannon or I should
+   * be able to create a card easily by searching the info."
+   *
+   * WHY THIS IS NOT `POST /api/invent` WITH A FLAG. That route already searches and already had a
+   * checkbox for it, and measured on 2026-09-02 it is the wrong tool: asked for "Halsey the
+   * musician" it proposed Jory Vane, a courier in the book's own fantasy-noir. Not a bug — its
+   * prompt opens "Write ONE character for this writer's story... It has to belong to THIS story"
+   * and calls the results "not canon... material only". It does what it says. This job is the
+   * inverse: the subject's canon outranks the book's, and the book is not sent at all.
+   *
+   * NO `assemble`, NO STORY. The whole ledger and the recent prose are what pulled that answer
+   * in-world, and none of it is evidence about Dune. So this call is the sources and the ask, which
+   * is also why it answers in a few seconds where that one took 37.
+   *
+   * THE PROPOSALS QUEUE, NOT THE LEDGER — Seth: "I would be able to choose what and when it gets
+   * pulled." Nothing pulled from the web becomes canon without him accepting it, which is the rule
+   * every other proposal in this app already follows, and the URLs ride along on the row so what it
+   * read is on the screen beside what it wrote.
+   *
+   * THE OWNERSHIP GATE IS THE SAME ONE. `viewOf` refuses another writer's story id before any of
+   * this runs; `test/scope.ts` proves that for every route that names a story, this one included.
+   */
+  'POST /api/fromweb': async (c: Ctx) => {
+    const v = viewOf(c.body.storyId);
+    const subject = String(c.body.subject ?? '').trim().slice(0, 200);
+    if (!subject) return { error: 'say what to look up first' };
+    const kind = String(c.body.kind ?? 'character').trim();
+    if (!SLOTS[kind as keyof typeof SLOTS]) return { error: `there is nothing called a "${kind}"` };
+    if (!searchConfigured()) return { error: 'web search is not configured on this server — set ANANSI_SEARCH' };
+
+    // MORE RESULTS THAN THE OTHER CALLERS TAKE. They use search as flavour on top of the book; here
+    // it is the only evidence, and one thin summary is how a card ends up with a plausible gap
+    // filled in. Six is what fits comfortably inside the ask below.
+    let sources: { title: string; url: string; text: string }[] = [];
+    try { sources = await webSearch(subject, 6); }
+    catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
+    if (!sources.length) return { error: `nothing came back for ${JSON.stringify(subject)}` };
+
+    const body = sources
+      .map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${String(x.text ?? '').slice(0, 1400)}`)
+      .join('\n\n');
+    const t0 = Date.now();
+    const r = await structuredRetry(FROM_WEB(kind, subject), body, inventSchema(kind),
+      // COLD, at 0.2. Every other creative call in this app runs hot because invention is the
+      // point; this one is transcription and a warm model is a model that embroiders.
+      { model: modelFor(v.story, c.defaultModel), temperature: 0.2, max_tokens: INVENT_TOKENS });
+    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id,
+      model: modelFor(v.story, c.defaultModel), role: `fromweb:${kind}`,
+      latencyMs: Date.now() - t0, error: r.error ?? null });
+    if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
+
+    /* AN EMPTY TITLE IS A REAL ANSWER, and the prompt asks for one when the results are about
+     * something else or say too little. Reporting it as itself beats writing a card nobody can
+     * trust — this is the one route where "I could not" is the useful outcome.
+     *
+     * ponytail: MEASURED AND IT DOES NOT HOLD. Asked for "purple teacup monday regulations" on
+     * 2026-09-02, the model wrote a card rather than an empty title — a faithful one, describing a
+     * blog party it had actually found, so the grounding held and only the refusal failed. Qwen3.6
+     * would rather describe than decline. The ceiling is therefore: this route can propose a card
+     * about the WRONG SUBJECT, never an invented one.
+     *
+     * LEFT AS IT IS ON PURPOSE. Everything here lands in the proposals queue, so the cost of that
+     * miss is one Ignore and nothing reaches canon; the fix would be a second call asking "do these
+     * results describe a <kind> called X" before the first, which doubles the cost of every pull to
+     * catch a case the queue already absorbs. Worth building when a wrong-subject card gets
+     * accepted by accident, and not before. */
+    const title = String(r.data.title ?? '').trim();
+    if (!title) {
+      return { error: `the results for ${JSON.stringify(subject)} did not say enough to make a card`,
+               sources: sources.map((x) => x.url) };
+    }
+    const cls = classify(db.entriesOf(v.id), r.data);
+    if (!cls) return { error: `the ledger already says exactly that about ${title}` };
+    const ok = db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id,
+      title, body: String(r.data.body ?? '').trim(), entryType: kind,
+      keys: r.data.keys ?? [], source: sources.map((x) => x.url) });
+    return { ...viewOf(v.id), proposed: ok ? 1 : 0, title, duplicate: !ok,
+             sources: sources.map((x) => x.url),
+             seconds: +((Date.now() - t0) / 1000).toFixed(1) };
+  },
+
   'POST /api/thread/paste': (c: Ctx) => {
     const v = viewOf(c.body.storyId);
     const text = String(c.body.text ?? '').trim();

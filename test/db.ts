@@ -1555,6 +1555,43 @@ ok('renaming a chapter leaves its pull-back alone', () => {
     'a rename leaves the opening alone, the way it leaves the pull-back alone');
 });
 
+// WHERE A PROPOSAL CAME FROM (2026-09-02). Everything this app proposed until now came out of the
+// book itself, so provenance had nowhere to live and needed none. A card pulled off the web is the
+// first proposal whose evidence is outside the ledger, and Seth's "the ai needs to stay in cannon"
+// is only checkable if the pages it read are on the row beside what it wrote.
+ok('a proposal can carry the pages it came from, and only http(s) ones', () => {
+  const me = db.owner('prov-owner');
+  const st = db.createStory(me, { title: 'A book with a pulled card' });
+  const ch = (db.chapters(st.id)[0] as any).id;
+
+  db.addProposal(st.id, { chapterId: ch, kind: 'new', entryType: 'character',
+    title: 'Paul Atreides', body: '[Paul Atreides: heir to House Atreides]', keys: [],
+    source: ['https://dune.fandom.com/wiki/Paul_Atreides', 'https://en.wikipedia.org/wiki/Paul_Atreides'] });
+  const pulled: any = db.proposalsOf(st.id).find((x: any) => x.title === 'Paul Atreides');
+  assert.ok(pulled, 'the proposal is there');
+  assert.deepStrictEqual(String(pulled.source).split('\n'),
+    ['https://dune.fandom.com/wiki/Paul_Atreides', 'https://en.wikipedia.org/wiki/Paul_Atreides'],
+    'both URLs are kept, in order, one per line');
+
+  // A PROPOSAL OUT OF THE BOOK CARRIES NOTHING, which is every other proposal in the app: null
+  // rather than an empty string, so "came from outside" is a question the column can answer.
+  db.addProposal(st.id, { chapterId: ch, kind: 'new', entryType: 'lore',
+    title: 'The Vantic Rain', body: '[The Vantic Rain: it has not stopped]', keys: [] });
+  const own: any = db.proposalsOf(st.id).find((x: any) => x.title === 'The Vantic Rain');
+  assert.strictEqual(own.source, null, 'a proposal the model made from the book has no source');
+
+  // NOT A PLACE FOR ANYTHING ELSE. The surface shows these as links, so a `javascript:` or `file:`
+  // URL in here would be offered to a writer to press — the same rule `httpish` enforces on an
+  // image row, applied where a stranger's text reaches a column.
+  db.addProposal(st.id, { chapterId: ch, kind: 'new', entryType: 'item',
+    title: 'A knife', body: '[A knife: sharp]', keys: [],
+    source: ['javascript:alert(1)', 'file:///etc/passwd', 'https://example.com/knife'] });
+  const filtered: any = db.proposalsOf(st.id).find((x: any) => x.title === 'A knife');
+  assert.deepStrictEqual(String(filtered.source).split('\n'), ['https://example.com/knife'],
+    'only http(s) survives — the other two are not addresses this app hands to anybody');
+  db.delStory(st.id);
+});
+
 // The look: three layers, and the one that matters is that a book's look never becomes yours by
 // being opened. That was the shape of the bug the split exists to prevent — the surface cached
 // whatever was on screen, so reading a book with a green theme made green your default.

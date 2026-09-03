@@ -130,6 +130,18 @@ function migrate() {
   // for a card that already has that room is a CHOICE — another relationship beside the one she
   // has, or a correction of it — and the model is not the one who should make it.
   add('proposals', 'target', 'TEXT');
+  /* WHERE A PROPOSAL CAME FROM, when it came from outside the book (2026-09-02). Newline-separated
+   * URLs, and null for every proposal the model made out of the story itself — which is all of them
+   * until now. A card pulled off the web is the first proposal in this app whose provenance is
+   * outside the ledger, and Seth's "the ai needs to stay in cannon" is only checkable if he can see
+   * what it read. `llama.ts` has claimed since it was written that "every proposal carries the URL
+   * it came from"; until this column there was nowhere to put one, and the invent route says so in
+   * as many words: "the results reach the model; the link does not reach the card."
+   *
+   * A MIGRATION AND NOT A COLUMN IN THE CREATE, which is where `field`, `activation` and `target`
+   * also live: this table's CREATE stopped at `created_at` three columns ago and the pattern is
+   * established. A fresh database gets it here, on the first load. */
+  add('proposals', 'source', 'TEXT');
   // A book can follow another book's threads — a world bible, and the books set in it. One column
   // rather than a `worlds` table on purpose: a world here IS a book, one that happens to hold cards
   // and little prose, so it needs no new ownership scope. `test/scope.ts` exists because every
@@ -2761,7 +2773,7 @@ export function addProposal(storyId: string, p: any) {
       .join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
-        field,activation,target,content_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        field,activation,target,content_hash,source,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(uid('pp-'), storyId, p.chapterId ?? null, p.entry_id ?? null, p.title, p.body,
         p.entryType ?? 'lore', JSON.stringify(p.keys ?? []), p.kind, p.delta ?? null,
         // A slot this proposal aims at, or null for the card's own body. Validated here rather
@@ -2769,7 +2781,13 @@ export function addProposal(storyId: string, p: any) {
         ALL_SLOTS.includes(String(p.field ?? '')) ? String(p.field) : null,
         p.activation === 'triggered' || p.activation === 'always_on' ? p.activation : null,
         p.target ?? null,
-        hash, now());
+        hash,
+        // Only http(s), and only what was handed in: a proposal's provenance must not become a
+        // place for anything the surface would then offer to fetch.
+        Array.isArray(p.source) && p.source.length
+          ? p.source.filter((u: any) => /^https?:\/\//i.test(String(u))).join('\n') || null
+          : null,
+        now());
     return true;
   } catch { return false; }   // unique index: already proposed, not an error
 }

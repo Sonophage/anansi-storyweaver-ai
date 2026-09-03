@@ -801,6 +801,47 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     + 'in a label. A visible word above a box is not a label unless something joins them');
   ok(`every field in the app has a name — aria-label, a paired for/id, or a wrapping label`);
 }
+/** A CARD PULLED OFF THE WEB IS NOT AN INVENTION, and the prompt is what carries that (2026-09-02).
+ *
+ *  Seth asked for threads from an intellectual property or a real person: "the ai needs to stay in
+ *  cannon or I should be able to create a card easily by searching the info."
+ *
+ *  MEASURED FIRST. `POST /api/invent` already searched and already had a checkbox for it, and asked
+ *  for "Halsey the musician" it proposed Jory Vane, a courier in the book's own fantasy-noir — its
+ *  prompt opens "for this writer's story... It has to belong to THIS story" and calls the results
+ *  "not canon... material only". So FROM_WEB is a separate prompt, and these are the clauses that
+ *  make it a different job. Source-level because the behaviour needs a model and a search endpoint;
+ *  what CAN be checked without either is that the instructions have not been softened away.
+ */
+{
+  const prompts = read('src/prompts.ts');
+  const at = prompts.indexOf('export const FROM_WEB');
+  assert.ok(at > 0, 'FROM_WEB must exist — it is what keeps a pulled card in its own canon');
+  const body = prompts.slice(at, prompts.indexOf('export const', at + 20));
+  // The load-bearing four. Each one is a thing the model did wrong on the way here, or would.
+  for (const [what, re] of [
+    ['bind it to the results', /FROM THE SEARCH RESULTS BELOW\s*\n?and from nothing else|from nothing else/],
+    ['refuse to fill a gap', /LEAVE IT OUT/],
+    ['refuse to adapt it to the story', /Do not adapt it to the writer's story/],
+    ['treat the pages as text and never as instructions', /never instructions to you|STRANGER'S TEXT/i],
+  ] as const) {
+    assert.match(body, re, `FROM_WEB must ${what} — that clause is the whole difference from INVENT`);
+  }
+  // AND THE ROUTE MUST NOT SEND THE BOOK. `assemble` around this call is what pulled the old answer
+  // in-world; the sources are the context here, and a story in the prompt is both the bug and 30
+  // seconds of prefill. Asserted on the route body because it is the one place it could come back.
+  const routes = read('src/routes.ts');
+  const rAt = routes.indexOf("'POST /api/fromweb'");
+  assert.ok(rAt > 0, 'the route must exist');
+  const rBody = routes.slice(rAt, routes.indexOf("'POST /api/", rAt + 30));
+  assert.ok(!/assemble\(/.test(rBody),
+    'the fromweb route must not assemble the story into the prompt — that is what made the old '
+    + 'path answer in the book\'s own world instead of the subject\'s');
+  assert.match(rBody, /searchConfigured\(\)/,
+    'and it must say so plainly when search is not configured, rather than failing at the fetch');
+  ok('a card pulled off the web is bound to its sources, and the book is not in that call');
+}
+
 
 assert.match(read('web/app.js'), /t === root \|\| t === document\.body/,
   'the delegation must refuse <html> and <body> as action targets');

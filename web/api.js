@@ -116,6 +116,8 @@ export const api = {
   forge:        ()               => j('/api/forge'),
   // And the way back in. One card or a list; rooms travel with it.
   pasteThread:  (storyId, text)  => j('/api/thread/paste', 'POST', { storyId, text }),
+  // A card pulled off the web, in the subject's own canon rather than the book's. See the route.
+  fromWeb:      (storyId, subject, kind) => j('/api/fromweb', 'POST', { storyId, subject, kind }),
   // #21 §3 step 5. Reads the whole skeleton back and says what it would change. Proposes
   // only — there is no story yet for it to write to.
   sparkReview:  (story, entries) => j('/api/spark/review', 'POST', { story, entries }),

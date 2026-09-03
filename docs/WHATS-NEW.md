@@ -10,6 +10,26 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · Pull a thread off the web, in its own canon
+
+### Look something up and get a card from it
+On the **+ Thread** tray there is a new box: **Or pull one off the web**. Type a name — Paul
+Atreides, Halsey the musician, a Necron Overlord, an author — and Anansi searches, reads what comes
+back, and writes the card from that and nothing else. Every fact comes from a page it found; a gap
+stays a gap rather than being filled in; it does not adapt the subject to your book.
+
+It lands in the proposals queue under **Chapter** with the pages it read recorded beside it, so
+nothing becomes canon until you accept it. Around six seconds.
+
+**This is not the "Search before writing it" checkbox** further up that tray. That one asks Anansi
+to invent something for *your* story and offers the search as flavour — asked for Halsey with it
+ticked, it wrote a courier for the book it was in. The new box is the opposite: the subject's canon
+outranks the book's.
+
+One thing it will do: if what comes back is about something else entirely, it writes a card about
+*that* rather than saying it found nothing. It will be a truthful card about the wrong thing, and
+it is sitting in the queue where **Ignore** costs you one press.
+
 ## 2026-09-02 · Chapters get a screen of their own, facts can be edited, and a card travels as a file
 
 ### Chapters is its own screen

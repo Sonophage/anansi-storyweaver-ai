@@ -216,6 +216,7 @@ const S = {
   // The picture finder on ONE card: which thread it belongs to, the phrase, the rows. Null is shut.
   entryPic: null,          // the passage a search result sent you to, marked until you move on
   searchAll: false,     // inside a story, search that story only unless asked otherwise
+  webPulling: false,    // a card is being pulled off the web — the button says so across a repaint
   setupQ: '',           // filter over the ledger on the next-chapter setup page
   lore: null,           // the + Lore tray above the composer, when it is open
   talk: { turns: [], busy: false, search: readWebSearch(), draft: null, searchable: null },
@@ -451,7 +452,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // triggered without opening it.
   'onlyin', 'flipact', 'cardtab', 'storytab',
   // A card out as JSON and back in again: copy, save to a file, read one.
-  'cardcopy', 'cardsave', 'cardread'].map((k) => `[data-${k}]`).join(',');
+  'cardcopy', 'cardsave', 'cardread',
+  // A thread pulled off the web, in the subject's own canon.
+  'fromweb'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -2360,6 +2363,28 @@ const PANELS = {
              and writes the card WITH ITS ROOMS, which no other import path in this app can do.
              Admin-only would be wrong here: the page that hands out the format is a workbench, but
              a card in that format is just a card. -->
+        <!-- PULLED OFF THE WEB, IN ITS OWN CANON. Seth, 2026-09-02: he wants threads from an
+             intellectual property — Dune, Warhammer, Sunless Sea — or from a real person, "like
+             halsey the artist or an author", and "the ai needs to stay in cannon or I should be
+             able to create a card easily by searching the info".
+             NOT THE "Search before writing it" CHECKBOX ABOVE, which is a different job and was
+             measured doing it: asked for Halsey with that box ticked, the invent route proposed a
+             courier in this book's own fantasy-noir, because its prompt tells the model the results
+             are "not canon... material only" and that the card must belong to THIS story. This box
+             is the inverse — the subject's canon outranks the book's, and the book is not sent.
+             IT GOES TO THE PROPOSALS QUEUE, like everything else Anansi offers: "I would be able to
+             choose what and when it gets pulled." The URLs it read ride along on the proposal. -->
+        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or pull one off the web</div>
+        <input class="field" data-webwho aria-label="What to look up"
+          placeholder="Paul Atreides, or Halsey the musician, or a Necron Overlord"
+          style="margin:0">
+        <button class="btn ghost" data-fromweb="${esc(S.lore?.kind ?? 'character')}"
+          ${S.webPulling ? 'disabled' : ''} style="margin-top:7px">${
+          S.webPulling ? 'Looking it up&hellip;' : 'Look it up and write the card'}</button>
+        <div class="hint">Every fact comes from what the search found, and a gap is left as a gap
+          rather than filled in. It lands in the proposals queue under Chapter with the pages it
+          read, so nothing is canon until you accept it. Your own SearXNG does the searching.</div>
+
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or paste one in</div>
         <textarea class="field" data-pastebox aria-label="Paste a thread as JSON"
           placeholder="Paste JSON from the forge &mdash; one card, or a list of them"
@@ -9620,6 +9645,26 @@ document.addEventListener('click', async (e) => {
    * BACK is the forge's reader, unchanged — `api.pasteThread` — so there is one importer for cards
    * in this app and not a second one that has to agree with it. Keeping the id in the file is what
    * makes it an update; see the route. */
+  /* PULL A CARD OFF THE WEB. The subject is read from the DOM rather than from state because this
+   * box is one field on a tray that repaints for other reasons; the busy flag is on state because
+   * the button has to say it is working across that repaint. */
+  if (d.fromweb) {
+    if (S.webPulling) return;
+    const subject = document.querySelector('[data-webwho]')?.value?.trim() ?? '';
+    if (!subject) return toast('Say what to look up first.');
+    S.webPulling = true; drawSide();
+    const r = await api.fromWeb(S.storyId, subject, d.fromweb);
+    S.webPulling = false;
+    if (r.error) { drawSide(); return toast(r.error); }
+    V = r.entries ? r : await api.story(S.storyId);
+    // Straight to the queue it landed in: a proposal you cannot see is a proposal you will not
+    // work, which is the rule `d.memo` already follows.
+    S.lore = null; S.panel = 'chapter'; S.propKind = 'all';
+    syncHash(); paint(); refreshManifest();
+    return toast(r.duplicate
+      ? `The ledger already says that about ${r.title}.`
+      : `${r.title} is proposed, from ${plural((r.sources ?? []).length, 'page', 'pages')} — accept it under Chapter.`);
+  }
   if (d.cardcopy) {
     const text = document.getElementById('f-card-json')?.value ?? '';
     if (!text) return toast('Nothing to copy.');
