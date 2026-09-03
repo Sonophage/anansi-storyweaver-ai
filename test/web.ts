@@ -250,7 +250,11 @@ const ok = (m: string, fn?: unknown) => {
     const missing: string[] = [];
     for (const k of PRESSES) {
       if (!vars.includes(`'--m-${k}'`)) missing.push(`themeVars has no --m-${k}`);
-      if (!new RegExp(`\\.block\\.m-${k}\\s*\\{[^}]*--m:\\s*var\\(--m-${k}\\)`).test(css))
+      // MATCHED ON THE DECLARATION, not on `.block.m-X`. The accent had to reach the two buttons
+      // under the last passage as well on 2026-09-02, so the selector became
+      // `:is(.block, .carry).m-X` and this went red over a rule that had only moved. What makes a
+      // rule an accent rule is that it sets --m to that press's colour.
+      if (!new RegExp(`\\.m-${k}\\s*\\{\\s*--m:\\s*var\\(--m-${k}\\)`).test(css))
         missing.push(`no rule reads --m-${k}`);
       // THE GROUP ITSELF, extracted, not "the token appears somewhere in the file". Matching it
       // loosely found the ring's own `.m-continue)` twelve lines below and reported the group as

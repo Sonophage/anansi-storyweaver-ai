@@ -2533,19 +2533,25 @@ const PANELS = {
       </div>
       <div class="sgroup" data-group="voice">
       ${fields.filter((f) => !IDENT.includes(f.k)).map(field).join('')}
-      <label class="lbl">Spice${helpMark('spice')}</label>
+      <!-- for/id, not a bare label. test/web.ts pairs a label to its control by for="" and id="" —
+           a word above a box names nothing, and tapping it does not focus the box. These two were
+           unnamed the whole time and the check passed by luck: its wrapped-in-a-label branch takes
+           the NEAREST preceding label in the file text, and before the story panel was regrouped
+           that happened to land on one that closed after this select. Regrouping moved the text and
+           the check started telling the truth. -->
+      <label class="lbl" for="f-story-spice">Spice${helpMark('spice')}</label>
       ${helpBody('spice')}
       ${(() => {
         // Six options, not five plus a box. The written override was on screen always, which made
         // it noise on every story that does not use it. A story is on a level OR on a written
         // register, never both, so the sixth option IS the switch.
         const custom = !!V.story.spiceNote?.trim();
-        return `<select class="field" data-story="spice">${SPICE.map((l, i) =>
+        return `<select class="field" id="f-story-spice" data-story="spice">${SPICE.map((l, i) =>
           `<option value="${i + 1}" ${!custom && Number(V.story.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}
           <option value="custom" ${custom ? 'selected' : ''}>Custom — say it yourself</option></select>
         <div id="spiceCustom" ${custom ? '' : 'hidden'}>
-          <label class="lbl">The register, in your words</label>
-          <textarea class="field" data-story="spiceNote"
+          <label class="lbl" for="f-story-spiceNote">The register, in your words</label>
+          <textarea class="field" id="f-story-spiceNote" data-story="spiceNote"
             placeholder="e.g. explicit, but never coy about it — the vocabulary of the writing sample"
             >${esc(V.story.spiceNote ?? '')}</textarea>
           <div class="hint">This replaces the level entirely — it is the register line the model receives.</div>
@@ -6885,7 +6891,11 @@ const syncTray = () => {
   // The re-roll sheet rides the same backdrop, and it is raised HERE rather than at each of the
   // three places that set S.reroll: every one of them already calls this, and a scrim left up over
   // nothing is a page that has stopped answering.
-  root.dataset.reroll = S.reroll ? '1' : '0';
+  // `rerollsheet`, NOT `reroll`. `data-reroll` is already a click action, so a root attribute of
+  // that name makes closest('[data-reroll]') match <html> on EVERY click in the app — the bug
+  // BUILD-STATE's table opens with, where data-theme was both the look and an action. test/web.ts
+  // guards the whole family by name and caught this within the hour.
+  root.dataset.rerollsheet = S.reroll ? '1' : '0';
 };
 
 /** Issue #2 — "the menu that pops up pops up under it, making it unusable."
@@ -9501,7 +9511,7 @@ document.addEventListener('click', async (e) => {
 $('scrim').addEventListener('click', () => {
   // The re-roll sheet is above the tray when both could be up, so it is what a tap shuts first.
   // Cancel and not Re-roll: a press on the backdrop is a press on nothing in particular.
-  if (root.dataset.reroll === '1') { S.reroll = null; drawDoc(); syncTray(); return; }
+  if (root.dataset.rerollsheet === '1') { S.reroll = null; drawDoc(); syncTray(); return; }
   // The tray is what is on top of the scrim, so it is what a tap on the scrim shuts.
   if (root.dataset.tray === '1') return openTray(null);
   S.rail = false; paint();

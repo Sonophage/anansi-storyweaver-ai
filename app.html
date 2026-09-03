@@ -1261,7 +1261,7 @@ textarea.field { resize:vertical; min-height:70px; }
    `position:fixed` child of a block carrying a filled transform animation or a mask is positioned
    against the BLOCK rather than the window, and its z-index is capped inside it — so the block gets
    the same two clauses while this is open. Third round of that bug; second feature to need the fix.
-   The scrim rises under it on `html[data-reroll]`, so a press outside is Cancel. */
+   The scrim rises under it on `html[data-rerollsheet]`, so a press outside is Cancel. */
 .rerollbox {
   margin:14px 0 4px; padding:12px 14px; border-radius:var(--r);
   border:1px solid rgba(217,178,106,.32); background:var(--sheet);
@@ -1272,7 +1272,7 @@ textarea.field { resize:vertical; min-height:70px; }
   width:min(460px, calc(100vw - 44px)); max-height:80vh; overflow-y:auto;
   padding:18px 20px; box-shadow:0 40px 90px rgba(0,0,0,.7);
 }
-html[data-reroll="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
+html[data-rerollsheet="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
 
 .savebar {
   position:sticky; top:0; z-index:2; background:var(--rail);
@@ -1344,9 +1344,9 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
    the tallest, every cover 278px — and the cover's top sat 1px inside the card on the one with the
    longest blurb, 39px on the next and 70px on the third. The slack was split ABOVE and BELOW the
    art, so the cover and the genre tags on it slid down the card by half the difference.
-   A BUTTON CENTRES ITS OWN CONTENT. The card is a <button> and `display:block` does not stop the
-   UA centring its inner box vertically, so any card shorter than its row got the difference shared
-   between its two ends. An explicit flex column takes the centring away and puts the slack at the
+   A BUTTON CENTRES ITS OWN CONTENT. The card is a button element and `display:block` does not stop
+   the UA centring its inner box vertically, so any card shorter than its row got the difference
+   shared between its two ends. An explicit flex column takes the centring away and puts the slack at the
    bottom, where it is a card that ends early rather than a cover that has moved. */
 .storycard { cursor:pointer; border-radius:var(--r); overflow:hidden; border:1px solid var(--edge); background:var(--rail); text-align:left; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; width:100%;
   /* A shelf of objects standing on a surface rather than a grid of tiles. The whole of the
