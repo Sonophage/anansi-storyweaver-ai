@@ -10,6 +10,27 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-03 · Pull several threads out of a world at once
+
+### See what is in a world, then pick
+Under **The world** on the Story screen: **Pull threads out of a world**. It fills in this book's
+world, or type a different one for one pull — a book set in Warhammer that wants one thing out of
+Dune does not have to change what the book says it is.
+
+Press **See what is in it** and Anansi searches and comes back with a list of names — the
+load-bearing ones, what a scene in that world cannot avoid — with what kind of thread each would
+be. Nothing is written yet. Tick what you want and press **Pull the ticked ones**, or press **Take
+all**. Anything already in your ledger is shown greyed out rather than quietly dropped.
+
+Each one is then looked up properly, one at a time, about eight seconds each, and lands in the
+proposals queue under **Chapter** with the pages it read. Nothing is canon until you accept it.
+
+### One thing about the searching
+Every pull is a web search, so taking six at once is seven searches in a minute. Public search
+engines start refusing that: DuckDuckGo answers with a CAPTCHA and Brave with a "too many requests"
+after sustained use, and when they do, a pull comes back with nothing found and says so. Waiting a
+few minutes is the whole fix.
+
 ## 2026-09-03 · A book can say which world it belongs to
 
 ### The world or IP, on the Story screen

@@ -118,6 +118,8 @@ export const api = {
   pasteThread:  (storyId, text)  => j('/api/thread/paste', 'POST', { storyId, text }),
   // A card pulled off the web, in the subject's own canon rather than the book's. See the route.
   fromWeb:      (storyId, subject, kind) => j('/api/fromweb', 'POST', { storyId, subject, kind }),
+  // What is IN a world, as names to tick. `world` is the hatch: empty means the book's own.
+  worldCast:    (storyId, world, n) => j('/api/world/cast', 'POST', { storyId, world, n }),
   // #21 §3 step 5. Reads the whole skeleton back and says what it would change. Proposes
   // only — there is no story yet for it to write to.
   sparkReview:  (story, entries) => j('/api/spark/review', 'POST', { story, entries }),

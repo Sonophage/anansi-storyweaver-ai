@@ -3,7 +3,7 @@ import { count, chat, structuredRetry, model, models, checkModel, allowList, mod
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -2696,6 +2696,105 @@ export const routes: Record<string, Handler> = {
    *  would put text in a prompt the writer never agreed to.
    *
    *  Nothing here is a proposal. The writer pasted it, so it lands. */
+  /* WHAT IS IN A WORLD, AS A LIST TO TICK (2026-09-03).
+   *
+   * Seth asked for threads from an intellectual property from the story screen, and: "I would be
+   * able to choose what and when it gets pulled." This names what is in the world and writes
+   * nothing; each name he ticks goes through `POST /api/fromweb`, one card apiece. Two steps
+   * because "choose what" cannot mean anything in one.
+   *
+   * THE WORLD IS THE BOOK'S UNLESS ONE IS NAMED — the hatch, in Seth's word. A book set in
+   * Warhammer 40,000 does not want to be told which world it is in every time, and a writer who
+   * wants one thing out of Dune for a book set somewhere else should not have to change the book's
+   * field to get it.
+   *
+   * NO CARDS AND NO PROPOSALS. Nothing is written by this route at all: it searches, asks for
+   * names, and answers with them. That is what makes the second step a choice rather than a
+   * clean-up, and it is why this one is cheap enough to run twice on a whim.
+   */
+  'POST /api/world/cast': async (c: Ctx) => {
+    const v = viewOf(c.body.storyId);
+    // The hatch: whatever was typed for this pull, else the book's own world.
+    const world = (String(c.body.world ?? '').trim() || String((v.story as any).world ?? '').trim())
+      .slice(0, 120);
+    if (!world) return { error: 'name a world, or set one on this book first' };
+    if (!searchConfigured()) return { error: 'web search is not configured on this server — set ANANSI_SEARCH' };
+    // Eight is the ceiling the schema enforces too. More than that is a screen nobody reads, and
+    // every extra name is a model call the writer has to decide about.
+    const want = Math.max(1, Math.min(8, Number(c.body.n) || 6));
+
+    /* "wiki" ON THE END, and this is measured. A world's name IS a product's name, so searching it
+     * bare returns the shop. Same engine, six results each, 2026-09-03:
+     *
+     *   Sunless Sea, bare       store.steampowered.com, failbettergames.com, gog.com, youtube x2
+     *   Sunless Sea + wiki      sunlesssea.fandom x4, en.wikipedia
+     *   Warhammer 40,000, bare  warhammer.com, warhammer40000.com, AMAZON, facebook
+     *   Warhammer 40,000 + wiki warhammer40k.fandom, wh40k.lexicanum x2
+     *   Dune, bare              en.wikipedia x2, imdb, youtube, dunenovels, dunemovie
+     *   Dune + wiki             dune.fandom x4, en.wikipedia x2
+     *
+     * Without it the first list out of Sunless Sea named "Failbetter Games" — the studio — and
+     * "Victorian Gothic" as a rule. Garbage in: there was nothing else in a Steam page to list.
+     * "setting lore" was tried in the same sitting and is worse than "wiki" on all three.
+     *
+     * THE PER-CARD PULL DOES NOT DO THIS, deliberately: its subject is usually a thing INSIDE the
+     * world — Arrakis, Ferrus Manus — where bare already lands on the fandom wikis, and that was
+     * measured too. This call is the one whose subject is always the name on the box. */
+    let sources: { title: string; url: string; text: string }[] = [];
+    try { sources = await webSearch(`${world} wiki`, 8); }
+    catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
+    // A world with no wiki anywhere is still a world: falling back rather than failing, the same
+    // way the pull falls back off its world-scoped query.
+    if (!sources.length) {
+      try { sources = await webSearch(world, 8); }
+      catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
+    }
+    if (!sources.length) return { error: `nothing came back for ${JSON.stringify(world)}` };
+
+    const body = sources
+      .map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${String(x.text ?? '').slice(0, 1400)}`)
+      .join('\n\n');
+    const t0 = Date.now();
+    // `KINDS_ALL` is Object.keys(SLOTS) — the same list the cast call answers for, so a kind the
+    // pull could not honour cannot come back from here.
+    const r = await structuredRetry(WORLD_CAST(world, KINDS_ALL, want), body,
+      worldCastSchema(KINDS_ALL, want),
+      // Cold, like the pull: this is a reading of what the results name, not an invention.
+      { model: modelFor(v.story, c.defaultModel), temperature: 0.2, max_tokens: 700 });
+    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id,
+      model: modelFor(v.story, c.defaultModel), role: 'worldcast',
+      latencyMs: Date.now() - t0, error: r.error ?? null });
+    if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
+
+    /* WHAT THE LEDGER ALREADY HOLDS IS MARKED, NOT DROPPED. A writer pulling from Warhammer for the
+     * third time should see that Ferrus Manus is already written down rather than be quietly handed
+     * a shorter list — the dedupe on the pull itself would refuse it later anyway, and a name that
+     * silently vanished from a list reads as the model forgetting it. */
+    const have = new Set((db.entriesOf(v.id) as any[])
+      .map((e) => String(e.title ?? '').trim().toLowerCase()));
+    const seen = new Set<string>();
+    const found = ((r.data as any).found ?? [])
+      .map((x: any) => ({ name: String(x.name ?? '').trim(), kind: String(x.kind ?? '').trim() }))
+      .filter((x: any) => x.name && KINDS_ALL.includes(x.kind))
+      /* AND NEVER THE WORLD ITSELF. It came back as its own first row — "Warhammer 40,000 (lore)"
+       * inside a book set in Warhammer 40,000, measured 2026-09-03 — which is a card that says
+       * nothing and a model call to write it. The prompt says so now; this is certain where the
+       * prompt is likely, and the comparison has to be loose because "Warhammer 40k", "WH40K" and
+       * "Warhammer 40,000" are the same answer. */
+      .filter((x: any) => {
+        const tidy = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '');
+        return tidy(x.name) !== tidy(world) && !tidy(world).startsWith(tidy(x.name));
+      })
+      // The prompt forbids duplicates and this is the guard for when it does it anyway: two rows
+      // with one name would be two identical calls and one refused proposal.
+      .filter((x: any) => { const k = x.name.toLowerCase();
+                            if (seen.has(k)) return false; seen.add(k); return true; })
+      .map((x: any) => ({ ...x, already: have.has(x.name.toLowerCase()) }));
+    if (!found.length) return { error: `the results for ${JSON.stringify(world)} did not name anything usable` };
+    return { world, found, sources: sources.map((x) => x.url),
+             seconds: +((Date.now() - t0) / 1000).toFixed(1) };
+  },
+
   /* A CARD PULLED OFF THE WEB, IN ITS OWN CANON (2026-09-02).
    *
    * Seth wants threads from an intellectual property — Dune, Warhammer, Sunless Sea — or from a

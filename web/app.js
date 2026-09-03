@@ -217,6 +217,9 @@ const S = {
   entryPic: null,          // the passage a search result sent you to, marked until you move on
   searchAll: false,     // inside a story, search that story only unless asked otherwise
   webPulling: false,    // a card is being pulled off the web — the button says so across a repaint
+  worldCast: null,      // { world, found: [{name, kind, already, pick}] } — the list to tick
+  worldLooking: false,  // the world is being read
+  worldPulling: null,   // the name being pulled right now, so the button can say which
   setupQ: '',           // filter over the ledger on the next-chapter setup page
   lore: null,           // the + Lore tray above the composer, when it is open
   talk: { turns: [], busy: false, search: readWebSearch(), draft: null, searchable: null },
@@ -467,7 +470,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
-  'fromweb'].map((k) => `[data-${k}]`).join(',');
+  'fromweb',
+  // Threads pulled out of a world: look, tick, pull.
+  'worldlook', 'worldpull'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -2671,6 +2676,49 @@ const PANELS = {
       <div class="hint">The shape of the world rather than of this book: what everyone in it knows,
         what it runs on, what is impossible there. Trimmed before the premise if a prompt runs long,
         so put what cannot be lost in the premise instead.</div>
+
+      <!-- PULL SEVERAL THREADS OUT OF A WORLD — Seth, 2026-09-02, asked for exactly this from the
+           story screen, and: "I would be able to choose what and when it gets pulled." So it is two
+           steps. This asks what is IN the world and writes nothing; you tick what you want and each
+           ticked name is looked up properly, one card apiece, into the proposals queue.
+           TWO HATCHES, which is what he asked for by name. The world defaults to this book's field
+           and can be overridden for one pull — a book set in Warhammer that wants one thing out of
+           Dune should not have to change what the book says it is. And the list is ticked by hand
+           OR taken whole, because a first pull into an empty ledger is usually all of it.
+           ONE AT A TIME, NOT IN PARALLEL, and that is not a preference: the model has two slots and
+           F13 measured that oversubscribing the shared cache does not queue — both requests die
+           with an HTTP 500. Six names in parallel would be six failures. -->
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Pull threads out of a world</div>
+      <div style="display:flex; gap:7px">
+        <input class="field" data-worldwho aria-label="Which world to pull from"
+          value="${esc(S.worldCast?.world ?? V.story.world ?? '')}"
+          placeholder="${esc(V.story.world || 'Warhammer 40,000, Dune, Sunless Sea')}"
+          style="margin:0; flex:1">
+        <button class="btn ghost" data-worldlook="1" ${S.worldLooking ? 'disabled' : ''}
+          style="flex:0 0 auto; width:auto; padding:0 16px">${
+          S.worldLooking ? 'Looking&hellip;' : 'See what is in it'}</button>
+      </div>
+      ${S.worldCast?.found?.length ? `
+        <div class="hint" style="margin:6px 0">${S.worldCast.found.length} found in ${
+          esc(S.worldCast.world)}. Tick what you want written down.</div>
+        ${S.worldCast.found.map((f, i) => `<label style="display:flex; align-items:flex-start;
+          gap:9px; padding:6px 0; cursor:pointer${f.already ? '; opacity:.55' : ''}">
+          <input type="checkbox" data-worldpick="${i}" ${f.pick ? 'checked' : ''}
+            ${f.already ? 'disabled' : ''}>
+          <span style="flex:1; font-size:13px; color:var(--ink)">${esc(f.name)}
+            <span class="kind" style="margin-left:6px">${esc(f.kind)}</span>
+            ${f.already ? '<span class="hint" style="margin:0; display:inline">already written down</span>' : ''}
+          </span></label>`).join('')}
+        <div style="display:flex; gap:7px; margin-top:8px">
+          <button class="btn" data-worldpull="ticked" ${S.worldPulling ? 'disabled' : ''}
+            style="flex:1">${S.worldPulling
+              ? `Pulling ${esc(S.worldPulling)}&hellip;` : 'Pull the ticked ones'}</button>
+          <button class="btn ghost" data-worldpull="all" ${S.worldPulling ? 'disabled' : ''}
+            style="flex:0 0 auto; width:auto; padding:0 16px">Take all</button>
+        </div>
+        <div class="hint">One at a time, about eight seconds each, and each one lands in the
+          proposals queue under Chapter with the pages it read. Nothing is canon until you accept
+          it there.</div>` : ''}
 
       ${pick('setting', 'Setting', lore.map((e) => e.title), V.story.setting, 'Not set')}
       <div class="hint">Drawn from the lore and items in this story's ledger.</div>
@@ -9686,6 +9734,49 @@ document.addEventListener('click', async (e) => {
   /* PULL A CARD OFF THE WEB. The subject is read from the DOM rather than from state because this
    * box is one field on a tray that repaints for other reasons; the busy flag is on state because
    * the button has to say it is working across that repaint. */
+  /* WHAT IS IN A WORLD, AND THEN THE ONES YOU TICKED. Two presses on purpose — see the note on the
+   * markup. The list lives on `S` rather than in the DOM because the panel repaints for other
+   * reasons and a ticked box has to survive that. */
+  if (d.worldlook) {
+    if (S.worldLooking) return;
+    const world = document.querySelector('[data-worldwho]')?.value?.trim() ?? '';
+    S.worldLooking = true; drawSide();
+    const r = await api.worldCast(S.storyId, world || undefined, 6);
+    S.worldLooking = false;
+    if (r.error) { drawSide(); return toast(r.error); }
+    // TICKED BY DEFAULT, except what the ledger already holds: the common case is a first pull into
+    // an empty book, and the writer who wants three of six unticks three.
+    S.worldCast = { world: r.world,
+                    found: (r.found ?? []).map((f) => ({ ...f, pick: !f.already })) };
+    drawSide();
+    return toast(`${plural(S.worldCast.found.length, 'thing', 'things')} in ${r.world}. Tick what you want.`);
+  }
+  if (d.worldpick !== undefined) return;   // the change listener owns the tick; see below
+  if (d.worldpull) {
+    if (S.worldPulling || !S.worldCast) return;
+    const want = S.worldCast.found.filter((f) => !f.already && (d.worldpull === 'all' || f.pick));
+    if (!want.length) return toast('Tick something first, or press Take all.');
+    let made = 0; const failed = [];
+    /* ONE AT A TIME. F13: the model has two slots and oversubscribing the shared cache does not
+     * queue — both requests die with an HTTP 500 — so a Promise.all here would turn six pulls into
+     * six failures. The button says which one is running, which is also the only progress a
+     * sequential loop can honestly report. */
+    for (const f of want) {
+      S.worldPulling = f.name; drawSide();
+      const r = await api.fromWeb(S.storyId, f.name, f.kind);
+      if (r.error || r.duplicate) { failed.push(f.name); continue; }
+      made++;
+      V = r.entries ? r : V;
+    }
+    S.worldPulling = null;
+    S.worldCast = null;
+    V = await api.story(S.storyId, V.currentChapter.id);
+    S.panel = 'chapter'; S.propKind = 'all';
+    syncHash(); paint(); refreshManifest();
+    return toast(failed.length
+      ? `${plural(made, 'thread', 'threads')} proposed. ${failed.length} came back with nothing usable: ${failed.slice(0, 3).join(', ')}.`
+      : `${plural(made, 'thread', 'threads')} proposed — accept them under Chapter.`);
+  }
   if (d.fromweb) {
     if (S.webPulling) return;
     const subject = document.querySelector('[data-webwho]')?.value?.trim() ?? '';
@@ -10258,6 +10349,13 @@ document.addEventListener('change', (e) => {
   /* A CARD FROM A FILE. It fills the paste box rather than posting straight away, so the last thing
    * before a write is still a press — and so a file that turns out to be the wrong one can be read,
    * seen and abandoned. Read in the browser: nothing is uploaded anywhere but this app. */
+  // A tick in the world list. On `S` because the panel repaints for other reasons and a ticked box
+  // must survive that; no redraw, because the checkbox already shows its own new state.
+  if (e.target.dataset?.worldpick !== undefined) {
+    const i = Number(e.target.dataset.worldpick);
+    if (S.worldCast?.found?.[i]) S.worldCast.found[i].pick = !!e.target.checked;
+    return;
+  }
   if (e.target.dataset?.cardfile !== undefined) {
     const f = e.target.files?.[0];
     if (!f) return;

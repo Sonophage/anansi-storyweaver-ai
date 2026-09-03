@@ -842,6 +842,57 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   ok('a card pulled off the web is bound to its sources, and the book is not in that call');
 }
 
+/** PULLING SEVERAL THREADS OUT OF A WORLD (2026-09-03), and the four rules that make it usable.
+ *
+ *  Seth asked for this from the story screen with "a hatch for either" — either the book's own
+ *  world or one named for the pull, and either ticking the list or taking it whole.
+ *
+ *  SOURCE-LEVEL because the behaviour needs a search endpoint and a model. What can be checked
+ *  without either is that the four things measured into this feature are still in it.
+ */
+{
+  const prompts = read('src/prompts.ts');
+  const routes = read('src/routes.ts');
+  const js = read('web/app.js');
+
+  const at = prompts.indexOf('export const WORLD_CAST');
+  assert.ok(at > 0, 'WORLD_CAST must exist');
+  const cast = prompts.slice(at, prompts.indexOf('export const', at + 20));
+  // NAMES ONLY is the whole shape of the two-step: a list of bodies is a screen nobody reads and a
+  // call four times the size, and it would make the second step a clean-up rather than a choice.
+  assert.match(cast, /NAMES ONLY/, 'the world list writes names and not cards');
+  // THE WORLD'S OWN NAME came back as its own first row on the first run — a card for Warhammer
+  // 40,000 inside a book set in Warhammer 40,000.
+  assert.match(cast, /NOT THE WORLD'S OWN NAME/, 'and never the world itself');
+  // "Victorian Gothic (rule)" and "Failbetter Games (character)" both came back before this clause.
+  assert.match(cast, /NOT A GENRE AND NOT A PRODUCT/, 'and not a genre or a product');
+
+  const rAt = routes.indexOf("'POST /api/world/cast'");
+  assert.ok(rAt > 0, 'the route must exist');
+  const rBody = routes.slice(rAt, routes.indexOf("'POST /api/", rAt + 30));
+  // MEASURED: a world's name is a product's name, so bare returns the shop — Amazon for Warhammer,
+  // Steam and GOG for Sunless Sea, IMDb for Dune. With "wiki" all three land on the fandom wikis.
+  assert.match(rBody, /webSearch\(`\$\{world\} wiki`/,
+    'the world list searches for the wiki, or it lists the merchandise');
+  // IT WRITES NOTHING. That is what makes the second step a choice; a route that proposed here
+  // would put six cards in the queue before the writer had seen the list.
+  assert.ok(!/addProposal|upsertEntry/.test(rBody),
+    'the world list must write nothing at all — the writer picks, and the pull writes');
+
+  // ONE AT A TIME. F13: the model has two slots and oversubscribing the shared cache does not
+  // queue, both requests die with an HTTP 500. Six pulls in parallel would be six failures, so the
+  // loop is sequential and this is the check that keeps it that way.
+  const loop = js.slice(js.indexOf('if (d.worldpull)'), js.indexOf('if (d.fromweb)'));
+  assert.ok(loop.length > 200, 'the pull loop must be findable');
+  // MATCHED WITH ITS PARENTHESIS. Without it this caught the loop's own comment, which says "a
+  // Promise.all here would turn six pulls into six failures" — a check failing on the sentence
+  // explaining why the thing it forbids is forbidden.
+  assert.ok(!/Promise\.all(?:Settled)?\s*\(/.test(loop),
+    'the world pull must stay sequential — F13, two slots, and a parallel batch dies with 500s');
+  assert.match(loop, /for \(const f of want\)/, 'which is what a plain loop over the ticked ones is');
+  ok('the world list names things, writes nothing, searches the wiki, and pulls one at a time');
+}
+
 
 assert.match(read('web/app.js'), /t === root \|\| t === document\.body/,
   'the delegation must refuse <html> and <body> as action targets');
