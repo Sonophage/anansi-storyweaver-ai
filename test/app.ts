@@ -3038,15 +3038,11 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // THE ABSENCE, which is the half that would pass for the wrong reason. A book with no look of
   // its own follows the writer, and the stylesheet already paints that — writing the writer's
   // tokens out would freeze them, so changing your theme would leave every banner behind.
-  // THE ABSENCE, COUNTED AGAINST THE BANNERS ON SCREEN and not read off one of them. A book with
-  // no look of its own follows the writer, and the stylesheet already paints that — writing the
-  // writer's tokens out would freeze them, so changing your theme would leave every banner behind.
-  //
-  // The first version of this sliced the second banner out of the markup and asserted no
-  // `--doc-wash` in it. That slice came back EMPTY, so the assertion passed against a string with
-  // nothing in it — breaking the code on purpose left it green, which is how it was caught. Two
-  // groups are open here, exactly one of the two books has a look, so the two counts ARE the
-  // assertion and neither can go vacuous.
+  // THE ABSENCE, COUNTED AGAINST THE BANNERS ON SCREEN. A book with no look follows the writer and
+  // the stylesheet already paints that; writing those tokens out would freeze them.
+  // The first version sliced the second banner out and asserted no `--doc-wash` in it — the slice
+  // came back EMPTY and passed against nothing. Two groups open, one book with a look: the two
+  // counts ARE the assertion and neither can go vacuous.
   const drawn = (opened.match(/class="lbanner"/g) ?? []).length;
   const painted = (opened.match(/--doc-wash/g) ?? []).length;
   assert.strictEqual(drawn, 2, 'both groups are open, so there are two banners to tell apart');
@@ -3130,23 +3126,14 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   ok('sliders save themselves — the sampler and the cover — and free text still waits for Save');
 }
 
-// ---- AND A CHECKBOX SHOWS ITS CONSEQUENCE WITHOUT A SAVE PRESS.
+// ---- AND A CHECKBOX SHOWS ITS CONSEQUENCE WITHOUT A SAVE PRESS. They always saved; the autosave
+// path skipped the repaint, so the control the checkbox GATES never appeared and the press read as
+// needing Save.
 //
-// Seth, 2026-09-03: "the checkboxes here do not need me to press the save button. it should
-// automatically apply if its been set." They already saved — the block above asserts that and has
-// since the autosave landed — so the report is about what the SCREEN did, which was nothing. The
-// autosave path deliberately skipped the repaint, and "use it at the head of every chapter" gates
-// whether "keep it behind the prose" is drawn at all, so the second control stayed missing until
-// the next full paint. A press whose visible half waits for Save is a press that needs Save.
-//
-// THE REDRAW IS MODELLED, NOT COUNTED, and getting that wrong is why this note is long. The first
-// version of this check counted how many times the code swept the panel for text boxes, and blanked
-// the fake box on the second sweep — so removing the restore loop removed the second sweep, the box
-// was never blanked, and the assertion about carrying text across passed with the code that loses
-// it. The check could only fail for the reason it was not asking about. So `innerHTML` on #sideBody
-// carries a setter instead: writing it is what a repaint DOES, and it destroys the box's contents
-// the way a real one destroys the element. Both halves now fail on their own and on nothing else,
-// which was verified by breaking each in turn.
+// THE REDRAW IS MODELLED, NOT COUNTED. Counting sweeps for text boxes meant removing the restore
+// loop removed a sweep, so the box was never blanked and the carry-across assertion passed with the
+// code that loses it — it could only fail for the reason it was not asking about. `innerHTML` on
+// #sideBody carries a setter instead: writing it is what a repaint DOES.
 {
   const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
   const doc = (globalThis as any).document;
@@ -3486,19 +3473,11 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
 // ---- WHAT A CONTROL DOES, FOLDED AWAY UNTIL IT IS ASKED FOR.
 //
-// Seth, 2026-09-03: "Every information about how things work, what it does across the entire site
-// needs to be not in frame but behind a tooltip button next to the name of what it does." Story,
-// Chapter and Threads first, by his call, before the other hundred and fifty across the pages.
-//
-// THE PAIRING IS THE CHECK THAT MATTERS and it is asserted against the SOURCE, not the markup.
-// `tipCard(k)` writes `hidden` unless `S.tips[k]` is set, and `tipMark(k)` is the only thing that
-// can set it — so a card whose key has no mark is a sentence removed from the app with no way to
-// bring it back, rendering perfectly, breaking no test, and visible to nobody. That happened once
-// while this was being written (`sOpacity`), which is the whole argument for counting it here
-// rather than trusting a reading. The reverse is only clutter: a mark that opens nothing.
-//
-// The webs go through the same two functions but pass their slug as a VARIABLE, so they are not
-// counted here — they have their own check above, binding every slug to web/help.js both ways.
+// THE PAIRING IS THE CHECK THAT MATTERS, asserted against the SOURCE. `tipCard(k)` writes `hidden`
+// unless `S.tips[k]` is set and `tipMark(k)` is the only thing that sets it — so a card with no
+// mark is a sentence removed from the app with no way back, rendering perfectly and breaking
+// nothing. That happened once here (`sOpacity`). The reverse is only clutter.
+// Webs pass their slug as a VARIABLE, so they are not counted: they have their own check above.
 {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
@@ -3521,13 +3500,21 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.deepStrictEqual([...marks].filter((k) => !bodies.has(k)), [],
     'and every mark opens something, or it is a button that does nothing');
 
-  // THE CARD MUST ACTUALLY FOLD. `.card` sets `display:flex`, which is more specific than the UA
-  // sheet's `[hidden]{display:none}` — so without a rule of its own every explanation in the app
-  // ships permanently open and every mark does nothing. app.html records this trap for `.pane` and
-  // it was walked into anyway the moment the marks moved onto a class that already had a display.
+  // THE CARD MUST ACTUALLY FOLD, and it must not be a `.card`. Two separate lessons on one class.
+  //
+  // FOLD: `display:flex` is more specific than the UA sheet's `[hidden]{display:none}`, so without
+  // a rule of its own every explanation ships permanently open and every mark does nothing.
+  // app.html records that trap for `.pane` and it was walked into anyway.
+  //
+  // AND NOT A `.card`: a card in this app is CONTENT — a thread, a proposal, a summary — and
+  // `#sideBody .card` is how several places reach for one. Wearing that class put a dozen hidden
+  // decoys in the list, and test/ui/panels.js began clicking an explanation instead of a thread.
+  // Only the browser pass could see that, which is the argument for running it.
   const sheet = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-  assert.match(sheet, /\.card\[hidden\]\s*\{[^}]*display:\s*none/,
-    '.card[hidden] must be stated, or the folds never close');
+  assert.match(sheet, /\.tipcard\[hidden\]\s*\{[^}]*display:\s*none/,
+    '.tipcard[hidden] must be stated, or the folds never close');
+  assert.doesNotMatch(html('sideBody'), /class="card"[^>]*id="tip-/,
+    'an explanation must not wear the class the app uses for content');
 
   // AND IT STARTS SHUT, ON THE PANEL, which is the half the source cannot answer.
   click({ panel: 'story' });

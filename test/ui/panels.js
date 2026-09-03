@@ -76,6 +76,14 @@ ok("  and no longer offers Where this is going, on this panel or any other",
 {
   const pull = () => page.eval("(() => { const b = document.querySelector('[data-pullback]');"
     + " return b ? { on: b.dataset.on, text: b.textContent.trim().slice(0, 40) } : null; })()");
+  // THE SUMMARIES ARE BEHIND A TAB SINCE 2026-09-03. The Chapter panel is four groups and opens on
+  // This chapter; every other group is display:none, so the button was in the DOM with no box and
+  // the click died rather than going red. Asserted as VISIBLE rather than merely pressed, because
+  // "the tab shows what it says it shows" is the half a click alone cannot tell you.
+  await page.click('[data-chaptab="summaries"]');
+  await wait(300);
+  ok('  the Summaries tab is what brings the pull-back control on screen',
+     await page.visible('[data-pullback]'));
   const p0 = await pull();
   ok(`the summaries list offers a way to pull a chapter back (${JSON.stringify(p0?.text ?? null)})`,
      !!p0 && p0.on === '1');
@@ -921,9 +929,13 @@ if (anyEntry) {
   // and there was no way to author keys BEFORE flipping the chip, which is the only safe order.
   // Asserted with the activation read alongside, because "not disabled" on a triggered entry was
   // already true and would pass this line without the change.
+  // THE EXPLANATION MOVED ABOVE THE BOX on 2026-09-03 — every one of them did — so it is the
+  // PREVIOUS sibling now, not the next. Read by id rather than by position so the next move does
+  // not break this again: the card an explanation lives in is `tip-<key>` and nothing else is.
   const keyf = await page.eval(`(() => { const i = document.querySelector('[data-f="keys"]');
     if (!i) return null;
-    const hint = i.nextElementSibling ? i.nextElementSibling.textContent : '';
+    const card = document.getElementById('tip-cardKeys');
+    const hint = card ? card.textContent : '';
     return { disabled: i.disabled, alwaysOn: hint.indexOf('always-on') >= 0 };
   })()`);
   console.log("  trigger words field: " + JSON.stringify(keyf));
@@ -1288,7 +1300,16 @@ if (btn) {
 // Writer-facing until summoned, because a model handed an unresolved promise reaches for it.
 await page.goto(B + "/#" + sid3 + "/strings");
 await wait(900);
-ok("Strings is a panel of its own", /string is something the story has promised/i.test(await page.text('#sideBody') || ''));
+// THE PANEL'S OWN INTRO WENT on 2026-09-03: it restated web/help.js under this panel's own mark
+// almost sentence for sentence, and two renderings of one idea is the drift this repo keeps
+// recording. So the panel is identified by what it DOES — the promise it can tie — rather than by a
+// sentence that was a second copy of another one. The definition still exists, in the card the
+// panel's mark opens, and the line below asserts that too so deleting the copy cannot delete both.
+{
+  const body = (await page.text('#sideBody')) || '';
+  ok("Strings is a panel of its own", /Tie a new one/i.test(body) && /Owed|Nothing owed/i.test(body));
+  ok("  and what a string IS is still one press away", /promise the story has made and not paid/i.test(body));
+}
 await page.eval(`(() => {
   document.querySelector('[data-st2="title"]').value = 'The letter he has not opened';
   document.querySelector('[data-st2="body"]').value = 'Sent by his brother';

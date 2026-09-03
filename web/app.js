@@ -17,32 +17,13 @@ const phone = () => matchMedia('(max-width:719px)').matches;
  *  do not come back from. */
 /* ---------- what a control does, folded away until it is asked for ----------
  *
- * Seth, 2026-09-03: "Every information about how things work, what it does across the entire site
- * needs to be not in frame but behind a tooltip button next to the name of what it does." Then, on
- * seeing the first pass: "you left the text in the same place and voice of the weave now has two.
- * instead lets style it like the first one it has and move all the text to the top so the help is
- * above what needs to be filled in and styled the same way."
+ * One mechanism, not two. The webs in web/help.js are drawn BY this — helpMark and helpBody are
+ * wrappers — so there is one mark, one card, one state and one handler. help.js stays the curated
+ * manual and keeps its slug check; everything else keeps the sentence already written beside it.
  *
- * ONE MECHANISM, and that is the whole of the fix. The first pass added a second one beside the
- * webs — a mark that folded the `.hint` where it already sat, UNDER the control — so `Voice of the
- * weave` grew two marks in two styles doing one job, one of which repainted the panel and one of
- * which did not. Two renderings of one idea is the drift this file keeps recording. The webs are
- * drawn BY this now: one mark, one card, one state, one handler.
- *
- * `web/help.js` is untouched and still the curated manual — its own header forbids counts and
- * wording that lives elsewhere, and test/app.ts binds every slug to an entry and back. It supplies
- * the prose for the controls that have an entry; everything else keeps the sentence already written
- * beside it. The sweep moved words, it did not write any.
- *
- * ABOVE THE CONTROL, NEVER UNDER IT. An explanation read after the box is filled in is an
- * explanation read too late. `helpBody` was already placed this way at every call site it had,
- * which is the shape he pointed at.
- *
- * IT DOES NOT REPAINT. Every field on these panels is free text that only Save commits, so a paint
- * on a disclosure eats a half-written premise — the bug this file records eight times, and the one
- * `data-help` had until it was folded in here. The card is in the document either way and the
- * attribute is flipped where it stands; the open set is kept in state too, so an unrelated repaint
- * redraws it open rather than shutting it under the writer.
+ * ABOVE THE CONTROL: an explanation read after the box is filled in is read too late.
+ * IT DOES NOT REPAINT: these panels are free text that only Save commits, so a paint here eats a
+ * half-written premise. The open set is in state so an unrelated repaint redraws it open.
  */
 const tipOn = (k) => !!S.tips?.[k];
 const tipMark = (k, what) => `<button data-tip="${k}" aria-expanded="${tipOn(k)}"
@@ -51,9 +32,7 @@ const tipMark = (k, what) => `<button data-tip="${k}" aria-expanded="${tipOn(k)}
     color:${tipOn(k) ? 'var(--gold)' : 'var(--faint)'}">${mark('web', 13)}</button>`;
 /** The card it opens. `body` is HTML: the webs are written as paragraphs, and the sentences that
  *  moved in here carry their own emphasis and dashes. A caller holding plain text wraps it. */
-const tipCard = (k, title, body) => `<div class="card" id="tip-${k}"${tipOn(k) ? '' : ' hidden'}
-    style="margin:2px 0 12px; gap:7px; font-size:12.5px; line-height:1.6; color:var(--mute);
-      border-color:rgba(217,178,106,.28)">
+const tipCard = (k, title, body) => `<div class="tipcard" id="tip-${k}"${tipOn(k) ? '' : ' hidden'}>
     ${/* NOT UPPERCASED, and that is the exception rather than an omission. Seth, 2026-09-03:
           "everything should be upper cased. except the menu and the info." A card that opens to
           explain a control is prose, and its title is the first line of that prose — set in capitals
@@ -72,10 +51,6 @@ const helpBody = (slug) => (HELP[slug] ? tipCard(slug, HELP[slug].title, HELP[sl
  *  match the same scan: folding a web into one card there would otherwise orphan the entry it
  *  draws from, and the suite would rightly say that web is unreachable. */
 const helpText = (slug) => HELP[slug]?.body ?? '';
-
-/** Both halves, for the field-level ones where the label is not clipped and the body can sit right
- *  under it. The panel-level four are split, because a panel heading is nowrap and decode() owns it. */
-const help = (slug) => helpMark(slug) + helpBody(slug);
 
 /** Which panels ARE their own concept. The rest of the webs live beside a field. */
 const PANEL_HELP = { threads: 'threads', strings: 'strings', context: 'context', anansi: 'anansi' };
@@ -2634,16 +2609,10 @@ const PANELS = {
   /* ONE FIELD, DRAWN ONCE, CALLED TWICE. Title/genre/premise and the two voice boxes are the same
    * markup and they sit in two different groups now, so the template is a local rather than a map
    * body — a second copy is how the re-roll tray under one of them ends up on only one of them. */
-  /* ONE MARK PER FIELD, AND ONE CARD. Seth, 2026-09-03: "voice of the weave now has two." It did:
-   * this field has a curated web AND a sentence of its own, and the sweep gave a mark to every
-   * field with a sentence without noticing that one of them already had one. Two marks side by
-   * side, in two styles, opening two boxes about the same field.
-   *
-   * They are ONE CARD now, under the field's own name. `voice` is the only field with both, and
-   * the two are complementary rather than duplicate — the web says what a voice IS, the hint says
-   * what happens to the box when you leave it empty — so nothing is dropped and nothing is
-   * rewritten. `helpText` rather than `helpBody` because the card is built here; it is named so
-   * the slug check in test/app.ts still counts the web as reachable. */
+  /* ONE MARK PER FIELD. `writingStyle` has a curated web AND a sentence of its own and grew two
+   * marks in two styles. One card now, under the field's own name: the web says what a voice IS,
+   * the hint says what an empty box means, so both are kept. `helpText` rather than `helpBody`
+   * because the card is built here, and named so the slug check still sees the web as reachable. */
   const field = (f) => {
     const k = `sf-${f.k}`;
     // The slug is written out rather than reached through a variable, and that is not style: the
@@ -3688,30 +3657,18 @@ const ledgerScope = () => (S.ledgerBook === undefined
  *  So this is not a second way in. It is the book saying which book you are looking at, at the
  *  moment you have opened it, and it is the one place a world book is drawn with its own face.
  */
-/** The colour tokens the banner paints itself with, taken from the BOOK'S OWN theme.
+/** The colour tokens the banner paints itself with, from the BOOK'S OWN theme.
  *
- *  Seth, 2026-09-03: "If a story has no image use the Theme background" — and the theme he means
- *  is the book's, not the app's. Every book on this page can carry a different one, so this is
- *  scoped to the element: custom properties cascade, so setting them on the banner is enough for
- *  the tag, the title and the word count inside it. A shelf of books with no covers reads as
- *  several books rather than one column of identical grey.
+ *  Scoped to the element because every book on the page can carry a different one; custom
+ *  properties cascade, so setting them here is enough for everything inside.
  *
- *  SIX TOKENS, NOT THE WHOLE PALETTE. `themeVars` returns thirty-five and inlining all of them on
- *  every banner is a kilobyte of style attribute per book. These are the ones this markup actually
- *  names — and that is the trade: a seventh used here later has to be added to this list too, or it
- *  silently keeps the app's colour while the other six change. The list is right here for that
- *  reason rather than being derived.
+ *  SIX, NOT ALL THIRTY-FIVE: these are the tokens this markup names, and a seventh used here later
+ *  has to join the list or it silently keeps the app's colour. `b.look` is the RAW column — the
+ *  shelf gets `s.*` while `src/story.ts` parses it for the open book — hence the parse here, where
+ *  one surface needs it rather than in a shape twenty assertions read.
  *
- *  `b.look` IS A STRING AND `V.look` IS AN OBJECT, which is a real asymmetry and not an oversight
- *  to fix in passing. `src/story.ts` parses the open book's look on the way out; `listStories`
- *  selects `s.*`, so the shelf gets the raw column — and twenty-odd assertions across test/db.ts
- *  and test/scope.ts read rows from that function. The parse is here, where one surface needs it,
- *  rather than in a shape all of them depend on.
- *
- *  Empty for a book that has no look of its own: null means FOLLOW THE WRITER, and the stylesheet
- *  is already painting exactly that. Writing the writer's own tokens back out would be the same
- *  colours with more bytes — and would freeze them, so changing your theme would leave every
- *  banner behind.
+ *  Empty for a book with no look of its own: null means follow the writer, which is what the
+ *  stylesheet already paints. Writing those tokens out would freeze them.
  */
 const BANNER_TOKENS = ['--doc-wash', '--ink-bright', '--mute', '--label', '--gold', '--line'];
 const bannerLook = (b) => {
@@ -6569,18 +6526,12 @@ const WPAGES = {
           // `.map` of undefined and rendered NOTHING — and no test had ever opened it.
           const days = t.days ?? [];
 
-          /* THIRTY DAYS WITH THE EMPTY ONES PUT BACK IN.
-           *
-           * `days` holds only days that HAVE passages, so a chart drawn straight off it stands
-           * Monday next to the Friday three weeks before it and reads as an unbroken run. The day
-           * you did not write is the information — this panel's whole question is rhythm, and a
-           * gap silently closed up is the one answer it must not give. It is also why the chart
-           * was invisible on a real library: the old guard was `days.length > 1`, and a writer
-           * whose passages all landed on one date had no chart at all.
-           *
-           * UTC ON BOTH SIDES. The rows are grouped by `DATE(created_at/1000,'unixepoch')`, which
-           * is UTC, and `toISOString()` is UTC — so the keys line up. Local time here would drop
-           * or double a day at the boundary depending on which side of it you are sitting. */
+          /* THIRTY DAYS WITH THE EMPTY ONES PUT BACK IN. `days` holds only days that HAVE
+           * passages, so a chart off it stands Monday next to the Friday three weeks before and
+           * reads as an unbroken run — and a library whose passages share one date drew nothing at
+           * all under the old `days.length > 1`. The day you did not write is the information.
+           * UTC both sides: the rows group by `unixepoch` and `toISOString()` is UTC, so the keys
+           * line up. Local time would drop or double a day at the boundary. */
           const frame = (() => {
             const by = new Map(days.map((d) => [d.d, d]));
             const out = [];
@@ -7814,23 +7765,12 @@ async function commitGen(quiet = true) {
 
 /** Redraw after a checkbox autosaved, without eating what is half-typed on the panel.
  *
- *  Seth, 2026-09-03: "the checkboxes here do not need me to press the save button. it should
- *  automatically apply if its been set." They already save — the listener below has called
- *  `commitStory(el)` since the autosave landed — but that path deliberately does not repaint, so
- *  NOTHING ON SCREEN MOVED. Ticking "use it at the head of every chapter" leaves "keep it behind
- *  the prose" unrendered, because that control only exists while `chapterHero` is on and nothing
- *  draws it until the next full paint. A press whose visible consequence waits for Save reads
- *  exactly like a press that needs Save, which is what was reported.
+ *  They always saved; the autosave path skipped the repaint, so the control a checkbox GATES never
+ *  appeared and the press read as needing Save. The panel's free text is committed by Save alone,
+ *  so a redraw from V empties it — hence the save-and-restore, as drawDock does for the composer.
  *
- *  Why the no-repaint rule exists at all: every free-text box on this panel is committed by Save
- *  alone, so a redraw from V empties whatever is part-way written. So the text is carried across
- *  by hand — the same save-and-restore `drawDock` does for the composer's draft, for the same
- *  reason and for the eighth time in this file.
- *
- *  CHECKBOXES ONLY. The spice SELECT keeps the old rule: `custom` is a UI mode with no stored
- *  value, so a redraw from V puts the select back on a level and takes away the box it had just
- *  revealed — that is the bug `commitStory`'s comment records, and it is not this one. A range is
- *  mid-gesture by nature. Neither reveals a control the way these two checkboxes do.
+ *  CHECKBOXES ONLY. A spice `custom` is a UI mode with no stored value, so a redraw would put the
+ *  picker back on a level and take away the box it just revealed. See commitStory.
  */
 const typedBoxes = () => [...document.querySelectorAll('#sideBody textarea, #sideBody input')]
   .filter((el) => el.tagName === 'TEXTAREA' || el.type === 'text' || el.type === 'search');
@@ -7996,14 +7936,10 @@ document.addEventListener('click', async (e) => {
   if (d.tip) {
     const now = !tipOn(d.tip);
     S.tips = { ...S.tips, [d.tip]: now };
-    /* EVERY MATCH, NOT THE FIRST. A web can be drawn on two screens — `persona` and `locked` are on
-     * the Story panel AND in the wizard — so two elements legitimately carry the same key. That was
-     * harmless while a body was rendered only when open and carried `data-helpbody`; giving it an
-     * `id` made `getElementById` pick whichever came first in the document, which is the one in the
-     * side panel, hidden or not. The visible copy then did not open and the press read as dead.
-     *
-     * Only one of the two is ever on screen, so toggling both is exactly right rather than a
-     * workaround. The state is the authority either way — the next repaint draws both correctly. */
+    /* EVERY MATCH, NOT THE FIRST. `persona` and `locked` are drawn on the Story panel AND in the
+     * wizard, so two elements carry one key; `getElementById` picks the side panel's, hidden or
+     * not, and the visible copy never opened. Only one is ever on screen, so toggling both is
+     * right rather than a workaround — and the state is the authority on the next repaint. */
     for (const body of document.querySelectorAll(`[id="tip-${d.tip}"]`)) body.hidden = !now;
     // Optional, the way `t.closest?.()` is two branches down: the mark is drawn correctly from
     // S.tips on the next repaint either way, and these two lines are only what keeps it right in

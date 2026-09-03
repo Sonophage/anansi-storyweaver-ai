@@ -1288,11 +1288,17 @@ textarea.field { resize:vertical; min-height:70px; }
    from a more specific rule, which is a way to ship four tabs that are all always open. */
 .pane[hidden] { display:none !important; }
 .card { border:1px solid var(--chip); border-radius:var(--r); padding:13px 15px; display:flex; flex-direction:column; gap:5px; }
-/* A FOLDED EXPLANATION IS A CARD, AND IT MUST ACTUALLY FOLD. `display:flex` on the line above
-   is more specific than the UA sheet's `[hidden]{display:none}`, so without this every one of
-   them ships permanently open and the mark does nothing — the exact trap the `.pane[hidden]`
-   note below records, on a class that already existed when the marks were added to it. */
-.card[hidden] { display:none !important; }
+/* A FOLDED EXPLANATION IS NOT A CARD. It was `.card` for a day and that was wrong twice over.
+   A card in this app is CONTENT — a thread, a proposal, a summary — and `#sideBody .card` is how
+   several places reach for one; an explanation wearing the same class put a dozen hidden decoys in
+   that list, and test/ui/panels.js started clicking one instead of a thread. It also has to FOLD:
+   `display:flex` is more specific than the UA sheet's `[hidden]{display:none}`, so without the rule
+   below every one of them ships open and every mark does nothing.
+   Same look, its own name, so neither problem can come back. */
+.tipcard { border:1px solid rgba(217,178,106,.28); border-radius:var(--r); padding:13px 15px;
+  display:flex; flex-direction:column; gap:7px; margin:2px 0 12px;
+  font-size:12.5px; line-height:1.6; color:var(--mute); }
+.tipcard[hidden] { display:none !important; }
 /* THE PLATE — a thread, at both ends. The 2026-09-02 handoff: the story panel's list and the
    cross-book Threads page used the same renderer and still read as two kinds of thing, because the
    card was a generic card. A raised sheet with a serif name and a gold spine says "this is a thread"
@@ -1410,9 +1416,20 @@ html[data-rerollsheet="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; 
    This is every savebar in the app, not only the thread card's: the gap above them is one bug in
    one component, and fixing it in one place is the point of having the component. Measured rather
    than eyeballed — test/ui/panels.js asserts the gap, the inset and the width in pixels, because
-   the first attempt here was invisible to every source-level check in the repo. */
+   the first attempt here was invisible to every source-level check in the repo.
+
+   A HIDDEN EXPLANATION DOES NOT COUNT AS LEADING THE PANEL, and that is the two extra selectors.
+   The four panels with a web of their own used to render nothing at all while it was shut; since
+   2026-09-03 the card is always in the document and merely `hidden`, so it became `:first-child`
+   and turned this rule off on every one of them — an 18px gap above the bar, permanently, on
+   Threads, Strings, Context and Anansi. `:first-child` is structural and does not care that the
+   element draws nothing, so the exception has to be written out.
+   `[hidden]` is doing the work: shut, the bar is still what leads the panel and stays flush; OPEN,
+   the card really does lead and the padding comes back, which is what the paragraph above wanted. */
 #sideBody:has(> .savebar:first-child),
-#sideBody:has(> :first-child > .savebar:first-child) { padding-top:0; }
+#sideBody:has(> :first-child > .savebar:first-child),
+#sideBody:has(> .tipcard[hidden]:first-child + .savebar),
+#sideBody:has(> .tipcard[hidden]:first-child + * > .savebar:first-child) { padding-top:0; }
 /* THE LONG WAY ROUND, FOLDED. A <details>, because the browser already has this and a state flag
    plus a repaint would throw away whatever is half-typed inside the fold. The default marker goes
    — it is a black triangle no theme here would own — and the chevron is text, so it takes the

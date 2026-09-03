@@ -16,7 +16,15 @@ const entries = () => page.eval("(async () => (await (await fetch('/api/story?st
 // ---- 1. Accept a proposal. Seeded through the API-facing route so it is deterministic.
 await page.eval("(async () => { await fetch('/api/extract', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "'})}); })()");
 await page.goto(B + "/#" + sid + "/queue");
-const props = await page.eval("document.querySelectorAll('[data-decide=\"accept\"]').length");
+// THE QUEUE IS BEHIND A TAB SINCE 2026-09-03. `/queue` is a retired panel name that maps to the
+// Chapter panel, and that panel is four groups now — the proposals live under Proposed and every
+// other group is display:none. The cards were still in the DOM, so a querySelectorAll counted them
+// and the click that followed had nothing with a box to press: this scenario died before its first
+// assertion rather than going red, which is why the count below is of VISIBLE ones now.
+await page.click('[data-chaptab="proposed"]');
+await wait(300);
+const props = await page.eval("[...document.querySelectorAll('[data-decide=\"accept\"]')]"
+  + ".filter((b) => b.getClientRects().length).length");
 console.log("  proposals on screen: " + props);
 if (props) {
   // Count is the wrong assertion: a "changed" proposal UPDATES an existing entry, so the count
