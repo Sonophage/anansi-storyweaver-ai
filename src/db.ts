@@ -142,6 +142,11 @@ function migrate() {
    * also live: this table's CREATE stopped at `created_at` three columns ago and the pattern is
    * established. A fresh database gets it here, on the first load. */
   add('proposals', 'source', 'TEXT');
+  /* THE ROOMS A PULLED CARD BRINGS WITH IT (2026-09-02), as JSON, and null for every other
+   * proposal in the app. A room belongs to an entry, so a card that does not exist yet cannot
+   * have its rooms proposed separately — accepting a room needs something to hang it on. They wait
+   * here and are written in the same press that accepts the card. */
+  add('proposals', 'rooms', 'TEXT');
   // A book can follow another book's threads — a world bible, and the books set in it. One column
   // rather than a `worlds` table on purpose: a world here IS a book, one that happens to hold cards
   // and little prose, so it needs no new ownership scope. `test/scope.ts` exists because every
@@ -2773,7 +2778,8 @@ export function addProposal(storyId: string, p: any) {
       .join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
-        field,activation,target,content_hash,source,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        field,activation,target,content_hash,source,rooms,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(uid('pp-'), storyId, p.chapterId ?? null, p.entry_id ?? null, p.title, p.body,
         p.entryType ?? 'lore', JSON.stringify(p.keys ?? []), p.kind, p.delta ?? null,
         // A slot this proposal aims at, or null for the card's own body. Validated here rather
@@ -2787,6 +2793,7 @@ export function addProposal(storyId: string, p: any) {
         Array.isArray(p.source) && p.source.length
           ? p.source.filter((u: any) => /^https?:\/\//i.test(String(u))).join('\n') || null
           : null,
+        p.rooms && typeof p.rooms === 'object' ? JSON.stringify(p.rooms) : null,
         now());
     return true;
   } catch { return false; }   // unique index: already proposed, not an error

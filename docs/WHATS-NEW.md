@@ -26,9 +26,19 @@ to invent something for *your* story and offers the search as flavour — asked 
 ticked, it wrote a courier for the book it was in. The new box is the opposite: the subject's canon
 outranks the book's.
 
-One thing it will do: if what comes back is about something else entirely, it writes a card about
-*that* rather than saying it found nothing. It will be a truthful card about the wrong thing, and
-it is sitting in the queue where **Ignore** costs you one press.
+It fills the rooms too — appearance, history, relationships, whatever the pages actually cover —
+and accepting the proposal writes the card and its rooms in one press. A room the search could not
+answer is left empty rather than filled with "no information given".
+
+**Pull the things inside a world, not the world's name.** *Arrakis*, *the Fremen*, *Ferrus Manus*,
+*Paul Atreides* come back in their own voice, from the canon wikis. *Sunless Sea* — the name of a
+game — still drags some of the product in: the studio, the year, the art style. The body comes out
+as the Unterzee, which is right, but a room or two will mention the game.
+
+Two other things it will do. If what comes back is about something else entirely, it writes a card
+about *that* rather than saying it found nothing — a truthful card about the wrong thing, sitting in
+the queue where **Ignore** costs one press. And a room will sometimes say "in the Dune universe",
+which is the one phrasing that keeps slipping past.
 
 ## 2026-09-02 · Chapters get a screen of their own, facts can be edited, and a card travels as a file
 

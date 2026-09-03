@@ -297,10 +297,23 @@ const SNAV = [
   ['search', 'search', 'Prose search'],
   // Everything this book is waiting on, in one place — see the panel for why one place matters.
   ['waiting', 'threads', 'Waiting'],
-  ['story', 'story', 'Story'], ['chapter', 'chapter', 'Chapter'],
-  // #The book, chapter by chapter. It was a fold inside the passage tray carrying bare names; on
-  // its own row it can say what each chapter is, and it is reachable without standing on a
-  // paragraph first. Beside Chapter, which is the one you are IN, because this is all of them.
+  /* TWO ROWS, TWO WORDS THAT ARE NOT EACH OTHER'S PLURAL — Seth, 2026-09-02: "We need a way to
+   * differentiate chapter and chapters." Chapter and Chapters sat next to each other and the only
+   * thing telling them apart was a final s, on a rail read at 11px in all-small-caps.
+   *
+   * THE SINGULAR TAKES THE QUALIFIER, because it is the one that needs it: that panel is about the
+   * chapter you are writing in — its name, its brief, what it proposed, how it will be summarised —
+   * so "This chapter" is what it has always been about and the label was the thing being coy.
+   * Chapters keeps the plain word: a list of the chapters is what anyone would call Chapters.
+   *
+   * NOT "Contents", which was the first idea and is the printed-book word for exactly this list.
+   * It sits four rows above CONTEXT on this rail. Con-text and Con-tents at 11px is a worse
+   * collision than the one being fixed.
+   *
+   * THE KEYS DO NOT MOVE. `chapter` and `chapters` are what the hash carries, what PANEL_WAS maps
+   * three retired names onto, and what every bookmark holds — a renamed key is a broken deep link
+   * for no gain, which the note on `prefs` in WNAV already says. */
+  ['story', 'story', 'Story'], ['chapter', 'chapter', 'This chapter'],
   ['chapters', 'chapter', 'Chapters'],
   ['threads', 'threads', 'Threads'], ['strings', 'strings', 'Strings'],
   ['context', 'context', 'Context'],
@@ -2376,14 +2389,16 @@ const PANELS = {
              choose what and when it gets pulled." The URLs it read ride along on the proposal. -->
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or pull one off the web</div>
         <input class="field" data-webwho aria-label="What to look up"
-          placeholder="Paul Atreides, or Halsey the musician, or a Necron Overlord"
+          placeholder="Paul Atreides, a Warhammer primarch, an author"
           style="margin:0">
         <button class="btn ghost" data-fromweb="${esc(S.lore?.kind ?? 'character')}"
           ${S.webPulling ? 'disabled' : ''} style="margin-top:7px">${
           S.webPulling ? 'Looking it up&hellip;' : 'Look it up and write the card'}</button>
         <div class="hint">Every fact comes from what the search found, and a gap is left as a gap
-          rather than filled in. It lands in the proposals queue under Chapter with the pages it
-          read, so nothing is canon until you accept it. Your own SearXNG does the searching.</div>
+          rather than filled in &mdash; written from inside the world, not as an encyclopedia entry
+          about it. It looks for the rooms as well as the card, and both arrive together: accepting
+          it under Chapter writes the rooms the search could fill. Nothing is canon until you accept
+          it, and the pages it read are on the proposal. Your own SearXNG does the searching.</div>
 
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or paste one in</div>
         <textarea class="field" data-pastebox aria-label="Paste a thread as JSON"

@@ -3274,7 +3274,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(css, /id="sideBody" class="scroll"/,
     '#sideBody must carry .scroll or nothing in the panel can be sticky against it');
 
-  for (const [panel, label] of [['story', 'Story'], ['chapter', 'Chapter'], ['teller', 'Storyteller']]) {
+  for (const [panel, label] of [['story', 'Story'], ['chapter', 'This chapter'], ['teller', 'Storyteller']]) {
     click({ panel });
     await new Promise((r) => setTimeout(r, 40));
     const body = html('sideBody');

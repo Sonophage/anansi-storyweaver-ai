@@ -3,7 +3,7 @@ import { count, chat, structuredRetry, model, models, checkModel, allowList, mod
          releasable, unload, busyOn } from './llama.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -2729,11 +2729,28 @@ export const routes: Record<string, Handler> = {
     if (!SLOTS[kind as keyof typeof SLOTS]) return { error: `there is nothing called a "${kind}"` };
     if (!searchConfigured()) return { error: 'web search is not configured on this server — set ANANSI_SEARCH' };
 
-    // MORE RESULTS THAN THE OTHER CALLERS TAKE. They use search as flavour on top of the book; here
-    // it is the only evidence, and one thin summary is how a card ends up with a plausible gap
-    // filled in. Six is what fits comfortably inside the ask below.
+    /* THE BARE SUBJECT, AND THAT IS A MEASUREMENT, not a default. Seth asked for the search to
+     * "look for things that can go in cards or rooms", so the first version appended the room names
+     * to the query — role, appearance, outfit, interiority, relationships, voice, history. Compared
+     * on 2026-09-02, same engine, eight results each:
+     *
+     *   Paul Atreides, bare        dune.fandom, en.wikipedia, dune.fandom  — the canon
+     *   Paul Atreides, + rooms     kajmeister.com, thefulcrum.ca, thefilmexperience.net, medium,
+     *                              wordpress, reactormag — blogs and film criticism, no wiki
+     *   Ferrus Manus, bare         warhammer40k.fandom, lexicanum, warhammer.com
+     *   Ferrus Manus, + rooms      fanfiction.net, allthetropes, sufficientvelocity forums
+     *
+     * The room words turn a name into an essay query, and the pull came back talking about "an
+     * impossible role in every adaptation" and "belabored voice-over narration" — which was in the
+     * SOURCES it was given, faithfully. So the room material is asked for in the PROMPT, where it
+     * belongs, and the query stays the thing the writer typed. A wiki article about a primarch
+     * already contains his appearance, his history and his brothers.
+     *
+     * EIGHT RESULTS, where the other callers take five: this is the only evidence in the call, and
+     * the answer has rooms to fill as well as a body. */
+    const rooms = slotsFor(kind).map((sl) => sl.name);
     let sources: { title: string; url: string; text: string }[] = [];
-    try { sources = await webSearch(subject, 6); }
+    try { sources = await webSearch(subject, 8); }
     catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
     if (!sources.length) return { error: `nothing came back for ${JSON.stringify(subject)}` };
 
@@ -2741,7 +2758,7 @@ export const routes: Record<string, Handler> = {
       .map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${String(x.text ?? '').slice(0, 1400)}`)
       .join('\n\n');
     const t0 = Date.now();
-    const r = await structuredRetry(FROM_WEB(kind, subject), body, inventSchema(kind),
+    const r = await structuredRetry(FROM_WEB(kind, subject, rooms), body, fromWebSchema(kind, rooms),
       // COLD, at 0.2. Every other creative call in this app runs hot because invention is the
       // point; this one is transcription and a warm model is a model that embroiders.
       { model: modelFor(v.story, c.defaultModel), temperature: 0.2, max_tokens: INVENT_TOKENS });
@@ -2772,11 +2789,60 @@ export const routes: Record<string, Handler> = {
     }
     const cls = classify(db.entriesOf(v.id), r.data);
     if (!cls) return { error: `the ledger already says exactly that about ${title}` };
+    /* THE ROOMS RIDE WITH THE CARD, and are written when it is accepted rather than now. A room
+     * belongs to an entry and this entry does not exist yet, so they cannot be proposed
+     * separately — accepting a room proposal needs a card to hang it on. Kept on the row as JSON
+     * and spent in one press, which is also what Seth asked for: "I would be able to choose what
+     * and when it gets pulled" is one decision about a whole subject, not nine.
+     * EMPTY ROOMS ARE DROPPED HERE. The model is asked to return every room as a key so it can
+     * say "the results do not cover this" out loud; an empty one has nothing to write. */
+    /* AND "Information insufficient" IS AN EMPTY ROOM. The prompt asks for an empty string where
+     * the results say nothing, and on 2026-09-02 the model wrote the words instead — twice in one
+     * answer, for outfit and voice. Left alone that becomes a room on the card reading "Information
+     * insufficient", which then reaches the model on every call that card is sent. So the shapes it
+     * reaches for are treated as the empty string they were meant to be, and anything under fifteen
+     * characters goes with them: no room worth sending is shorter than that. */
+    /* A ROOM THAT ANNOUNCES AN ABSENCE IS AN EMPTY ROOM. The prompt asks for an empty string where
+     * the results say nothing, and the model keeps finding new ways to write the sentence instead:
+     * "Information insufficient" (twice in one answer), then "No specific clothing described". So
+     * this is a SHAPE and not a list of phrasings — a negation within a few words of a verb about
+     * describing or providing — because the list was losing to it one wording at a time.
+     * Two rooms of a Paul Atreides pull were caught by this on 2026-09-02, and neither belonged on
+     * a card: a room reaches the model on every call that card is sent. */
+    const EMPTY = /\b(no|not|none|nothing|never|insufficient|lacking|absent|un(specified|described|available|known))\b[^.]{0,44}\b(describ|specif|mention|given|stated|provided|listed|available|information|detail)|\b(information|detail)s?\b[^.]{0,20}\b(insufficient|lacking|absent|unavailable)/i;
+    /* A ROOM THAT TALKS ABOUT THE SEARCH IS NOT A ROOM. Measured 2026-09-02: Paul's appearance came
+     * back as "Height is listed in the 2021 film wiki entry but no specific measurement is provided
+     * in the results" — the model narrating its own evidence. A room is read by a model writing a
+     * scene, which has never seen these pages, so a sentence about them is worse than nothing: it
+     * would reach every call that card is sent on. The prompt says so too; this is the guard for
+     * when it does it anyway, which is the same shape as the empty-title ceiling above. */
+    const ABOUT_SOURCES = /(in the results|from the results|the (search )?results (do|say|list|provide)|no specific [^.]*provided|not (provided|listed|specified|stated) in|wiki entry|the sources)/i;
+    const filled = Object.fromEntries(Object.entries((r.data as any).rooms ?? {})
+      .filter(([, t]) => {
+        const v = String(t ?? '').trim();
+        /* THE REVERSE ORDER IS NOT TESTED, deliberately. A pattern for "describes no armour" —
+         * a describing verb followed by a negation — ate "Speaks in a low, gravelly register and
+         * states nothing he cannot prove", which is a voice room this writer would actually write;
+         * his own cards are full of "has never spliced a memory she was asked to remove".
+         * The trade is one-sided: a missed absence is one room he deletes in a press, and a
+         * swallowed real room is a fact that vanishes without saying so. So this errs toward
+         * keeping, which is why the checks above are shapes of ANNOUNCEMENT rather than of
+         * negation. */
+        return v.length >= 15 && !EMPTY.test(v) && !ABOUT_SOURCES.test(v);
+      }));
+    /* BRACKET FORM, WRAPPED HERE IF THE MODEL DID NOT. Every card in this app carries it and the
+     * context window renders it; the paste route has wrapped a bare body since #29 for exactly this
+     * reason, and this route needed the same. Measured 2026-09-02: told to write a WORLD rather than
+     * a product, the model followed the prose example in that instruction and dropped the brackets
+     * with it — a formatting miss, not a bad card, and the same repair applies. */
+    let cardBody = String(r.data.body ?? '').trim();
+    if (cardBody && !cardBody.startsWith('[')) cardBody = `[${title}: ${cardBody}]`;
     const ok = db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id,
-      title, body: String(r.data.body ?? '').trim(), entryType: kind,
-      keys: r.data.keys ?? [], source: sources.map((x) => x.url) });
+      title, body: cardBody, entryType: kind,
+      keys: r.data.keys ?? [], source: sources.map((x) => x.url),
+      rooms: Object.keys(filled).length ? filled : null });
     return { ...viewOf(v.id), proposed: ok ? 1 : 0, title, duplicate: !ok,
-             sources: sources.map((x) => x.url),
+             sources: sources.map((x) => x.url), rooms: Object.keys(filled),
              seconds: +((Date.now() - t0) / 1000).toFixed(1) };
   },
 
@@ -3139,6 +3205,16 @@ export const routes: Record<string, Handler> = {
           // must apply in every scene can finally say so, where before the type decided for it.
           activation: p.entry_type === 'character' ? 'always_on' : (p.activation ?? 'triggered'),
           keys: JSON.parse(p.keys || '[]'), lastEditor: 'human' });
+        /* AND THE ROOMS IT ARRIVED WITH, in the same press. Only a pulled card has any — see
+         * `proposals.rooms` — and they are written HERE because a room needs an entry to belong to
+         * and this is the moment the entry exists. `writeRooms` is the same function the forge's
+         * paste uses, so a room that a kind cannot hold is refused in one place rather than two,
+         * and it switches an unkeyed room on for the reason stated in the room branch above: a room
+         * with no trigger words that nobody pinned reaches no prompt at all. */
+        if (made && p.rooms) {
+          try { writeRooms(p.story_id, made, p.entry_type, JSON.parse(p.rooms), p.title); }
+          catch { /* a malformed rooms blob must not cost the writer the card they just accepted */ }
+        }
       }
       db.setProposalStatus(c.body.storyId, id, c.body.accept ? 'accepted' : 'rejected');
     }
