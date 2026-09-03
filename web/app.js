@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine } from './model.js';
+import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -582,17 +582,51 @@ function armed(t, key, ask) {
  *  `disabled` is what stops the second press; the dataset flag is for a click arriving another way.
  *  Restoring in `finally` can write to a node paint() has already thrown away, which is harmless
  *  and is why it is not guarded. */
+/** THE RING, WHENEVER THE MODEL IS WORKING. Seth, 2026-09-03: "whenever something is happening
+ *  with the ai, that border that glows should be present." It was up for the composer's presses and
+ *  for a re-roll, and down for everything else the model does — writing a card, pulling a thread off
+ *  the web, the four chapter-end passes, naming a chapter, the wizard. Those are the LONG ones.
+ *
+ *  ONLY IF NOTHING HAS CLAIMED IT. The composer raises it with the accent of the press that is
+ *  writing, and a repair runs detached on accept — so this must not repaint the ring the passage it
+ *  is checking put up. Lowered only while it is still ours, for the same reason.
+ *
+ *  The finally is the whole point: a call that throws must not leave the ring glowing for the life
+ *  of the page. */
+async function withRing(fn) {
+  const mine = !root.dataset.work;
+  if (mine) working('ai');
+  try { return await fn(); }
+  finally { if (mine && root.dataset.work === 'ai') working(null); }
+}
+
 async function whileWorking(t, label, fn) {
   if (t?.dataset.busy) return null;
   const lbl = t?.querySelector('.lbl-txt') ?? t, was = lbl?.textContent;
   if (t) { t.dataset.busy = '1'; t.disabled = true; }
   if (lbl) lbl.textContent = label;
-  try { return await fn(); }
+  try { return await withRing(fn); }
   finally {
     if (t) { delete t.dataset.busy; t.disabled = false; }
     if (lbl) lbl.textContent = was;
   }
 }
+
+/** WHAT WANTS YOU, in the open book and across the shelf.
+ *
+ *  Seth, 2026-09-03: "if things are waiting then i want the waiting menu item to be accent colored
+ *  and a small light up top in accent color that glows over the screen."
+ *
+ *  ONE DEFINITION FOR BOTH, because a row that lights and a glow that does not — or the reverse —
+ *  is two answers to one question. Proposals and unpaid promises only: flags are deliberately not
+ *  counted, the same call `waiting()` in model.js makes. Seth, 2026-08-31: "that flag can be opened
+ *  but it can be silently ignored ... if the writer keeps writing then it can silently be ignored."
+ *  A contradiction is worth finding when you go looking; it is not worth a light. */
+const owedHere = () => (V?.proposals ?? []).length
+  + (V?.strings ?? []).filter((x) => x.status === 'open').length;
+/** And anywhere. `waiting()` already collapses the shelf to one row per kind and leaves archived
+ *  and world books out; the glow asks only whether that list is empty. */
+const owedAnywhere = () => waiting(LIB ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
 
 // ---------- rail ----------
 function drawRail() {
@@ -623,7 +657,10 @@ function drawRail() {
       border:1px solid ${on ? 'rgba(217,178,106,.22)' : 'transparent'}">
       <span style="width:19px; height:19px; display:flex; align-items:center; justify-content:center;
         flex:0 0 auto; color:${on ? 'var(--gold)' : 'var(--faint)'}">${mark(g)}</span>
-      <span class="txt" style="font-size:14px; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}">${esc(l)}</span></button>`;
+      <span class="txt" style="font-size:14px; color:${
+        k === 'waiting' && owedHere() ? 'var(--gold)' : on ? 'var(--ink-bright)' : 'var(--mute)'
+      }">${esc(l)}</span>${k === 'waiting' && owedHere()
+        ? `<span class="tnum" style="margin-left:auto; font-size:11px; color:var(--gold-dim)">${owedHere()}</span>` : ''}</button>`;
   };
   // "Anansi's web" used to sit here as the way out of a story. It went on 2026-08-27: the menu
   // button in the bar opens the workspace menu from anywhere, which is the same one press, and two
@@ -1424,7 +1461,8 @@ async function nameChapter(chapterId) {
   // THE WRITER'S STEER, if there is one. Seth: "title and premise should be together with the
   // option to influence." Read off S rather than the DOM for the reason the two boxes are: this
   // runs across a repaint and the field it came from has been rebuilt by the time it returns.
-  const r = await api.proposeChapter(S.storyId, chapterId, (S.setupSteer ?? '').trim() || undefined);
+  const r = await withRing(() => api.proposeChapter(S.storyId, chapterId,
+    (S.setupSteer ?? '').trim() || undefined));
   S.naming = false;
   // An answer with no title is not an answer. Checking only `r.error` wrote `undefined` into
   // the title box, and the next read of it threw on `.trim()` — the panel stopped rendering at
@@ -1472,7 +1510,7 @@ async function chapterBrief() {
   if (S.naming || !V) return;
   const ch = V.currentChapter;
   S.naming = true; drawSide();
-  const r = await api.proposeChapter(S.storyId, ch.id);
+  const r = await withRing(() => api.proposeChapter(S.storyId, ch.id));
   S.naming = false;
   if (r.error || !r.title) { drawSide(); return toast(r.error || 'nothing usable came back'); }
   // READ AFTER THE CALL, not before: drawSide() above rebuilt the panel, so a reference taken
@@ -4002,7 +4040,7 @@ async function sparkStyle(auto) {
   // and the paint after the answer is the one that matters. A press repaints, so its button can go
   // dead while it waits.
   if (!auto) paint();
-  const r = await api.sparkStyle(genre, premise);
+  const r = await withRing(() => api.sparkStyle(genre, premise));
   S.spark.styling = false;
   if (r.error || !r.style) { paint(); if (!auto) toast(r.error ?? 'nothing usable came back'); return; }
   S.spark.story.styleNote = r.style;
@@ -6643,6 +6681,11 @@ function syncHash() {
 
 function paint() {
   applyLook();
+  // THE LIGHT AT THE TOP, wherever you are. Drawn from paint rather than from a draw function of
+  // its own because it is about the whole app rather than about any one surface — and it must be
+  // right after an accept as well as after a chapter close, both of which repaint.
+  const owed = $('owed');
+  if (owed) owed.hidden = !owedAnywhere();
   root.dataset.uiRail = S.rail ? 'open' : 'closed';
   drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide();
   // A WORLD BOOK HAS NO WRITING SURFACE. It is a collection of lore and nothing else — Seth,
@@ -7936,8 +7979,8 @@ async function writeCast(quiet = false) {
   const keepers = (S.spark.entries ?? []).filter((e) => e.keep !== false);
   const keptNames = keepers.map((e) => String(e.title ?? '').trim()).filter(Boolean);
   S.spark.casting = true; paint();
-  const r = await api.sparkCastCall(S.spark.kinds, S.spark.story, S.spark.castSteer,
-                                    keptNames.length ? keptNames : undefined);
+  const r = await withRing(() => api.sparkCastCall(S.spark.kinds, S.spark.story, S.spark.castSteer,
+                                    keptNames.length ? keptNames : undefined));
   S.spark.casting = false;
   if (r.error) { paint(); return toast(r.error); }
   const fresh = withTriggers(r.entries ?? []);
@@ -8005,7 +8048,7 @@ document.addEventListener('click', async (e) => {
     if (S.memoing) return;
     S.memoing = d.memo; drawDoc(); syncTray();
     toast('Asking Anansi what to remember from this…');
-    const r = await api.memo(S.storyId, d.memo);
+    const r = await withRing(() => api.memo(S.storyId, d.memo));
     S.memoing = null;
     if (r.error) { drawDoc(); return toast(r.error); }
     V = await api.story(S.storyId, V.currentChapter.id);
@@ -9338,7 +9381,7 @@ document.addEventListener('click', async (e) => {
   if (d.restyle) {
     if (S.styling) return;
     S.styling = true; drawSide();
-    const r = await api.styleNote(S.storyId);
+    const r = await withRing(() => api.styleNote(S.storyId));
     S.styling = false; drawSide();
     if (r.error) return toast(r.error);
     const box = document.querySelector('[data-story="styleNote"]');
@@ -9348,7 +9391,7 @@ document.addEventListener('click', async (e) => {
   if (d.scanstory) {
     if (S.scanning) return;
     S.scanning = d.scanstory; drawSide();
-    const r = await api.scanStory(S.storyId, d.scanstory);
+    const r = await withRing(() => api.scanStory(S.storyId, d.scanstory));
     S.scanning = null;
     if (r.error) { drawSide(); return toast(r.error); }
     V = await api.story(S.storyId);
@@ -9685,7 +9728,8 @@ document.addEventListener('click', async (e) => {
       .filter((e, j) => j !== i && (e.title ?? '').trim())
       .map((e) => e.title.trim());
     S.spark.recasting = i; paint();
-    const r = await api.sparkCastCall([was.entryType], S.spark.story, S.spark.castSteer, keptNames);
+    const r = await withRing(() => api.sparkCastCall([was.entryType], S.spark.story,
+      S.spark.castSteer, keptNames));
     S.spark.recasting = null;
     if (r.error) { paint(); return toast(r.error); }
     const one = (r.entries ?? [])[0];
@@ -9722,7 +9766,7 @@ document.addEventListener('click', async (e) => {
     if (S.spark.reviewing || S.spark.sparking || S.spark.casting || S.spark.styling) return;
     harvestSpark();
     S.spark.reviewing = true; paint();
-    const r = await api.sparkReview(S.spark.story, sparkCast());
+    const r = await withRing(() => api.sparkReview(S.spark.story, sparkCast()));
     S.spark.reviewing = false;
     if (r.error) { paint(); return toast(r.error); }
     S.spark.review = { changes: r.changes ?? [], entries: r.entries ?? [] };
@@ -9757,7 +9801,7 @@ document.addEventListener('click', async (e) => {
     const idea = S.spark.idea;
     if (!idea) return toast('There is no idea to ask again from.');
     S.spark.sparking = true; paint();
-    const r = await api.spark(idea);
+    const r = await withRing(() => api.spark(idea));
     S.spark.sparking = false;
     if (r.error) { paint(); return toast(r.error); }
     // THE CAST IS LEFT WHERE IT IS. It was written against the book, and a writer re-rolling the
@@ -9788,8 +9832,8 @@ document.addEventListener('click', async (e) => {
     harvestSpark();
     S.spark.spField = d.spfield;
     paint();
-    const r = await api.sparkField(d.spfield, S.spark.story ?? {}, S.spark.idea ?? '',
-                                  S.spark.entries ?? []);
+    const r = await withRing(() => api.sparkField(d.spfield, S.spark.story ?? {},
+                                  S.spark.idea ?? '', S.spark.entries ?? []));
     S.spark.spField = null;
     if (r.error) { paint(); return toast(r.error); }
     // Written into state, never into the DOM: this panel repaints and a value poked into the input
@@ -10123,7 +10167,7 @@ document.addEventListener('click', async (e) => {
     if (S.worldLooking) return;
     const world = document.querySelector('[data-worldwho]')?.value?.trim() ?? '';
     S.worldLooking = true; drawSide();
-    const r = await api.worldCast(S.storyId, world || undefined, 6);
+    const r = await withRing(() => api.worldCast(S.storyId, world || undefined, 6));
     S.worldLooking = false;
     if (r.error) { drawSide(); return toast(r.error); }
     // TICKED BY DEFAULT, except what the ledger already holds: the common case is a first pull into
@@ -10145,7 +10189,7 @@ document.addEventListener('click', async (e) => {
      * sequential loop can honestly report. */
     for (const f of want) {
       S.worldPulling = f.name; drawSide();
-      const r = await api.fromWeb(S.storyId, f.name, f.kind);
+      const r = await withRing(() => api.fromWeb(S.storyId, f.name, f.kind));
       if (r.error || r.duplicate) { failed.push(f.name); continue; }
       made++;
       V = r.entries ? r : V;
@@ -10164,7 +10208,7 @@ document.addEventListener('click', async (e) => {
     const subject = document.querySelector('[data-webwho]')?.value?.trim() ?? '';
     if (!subject) return toast('Say what to look up first.');
     S.webPulling = true; drawSide();
-    const r = await api.fromWeb(S.storyId, subject, d.fromweb);
+    const r = await withRing(() => api.fromWeb(S.storyId, subject, d.fromweb));
     S.webPulling = false;
     if (r.error) { drawSide(); return toast(r.error); }
     V = r.entries ? r : await api.story(S.storyId);

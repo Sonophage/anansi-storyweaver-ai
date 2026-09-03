@@ -19,6 +19,11 @@ const ok = (m: string, fn?: unknown) => {
   n++; console.log(`  ok  ${m}`);
 };
 
+/** Whether the canned shelf owes anything. The light at the top is drawn from the LIBRARY rows, so
+ *  the only way to make the dark case is to hand back a shelf with nothing on it — flipping a copy
+ *  in the test would assert against a variable the app never reads. */
+let shelfOwes = true;
+
 // ---- the smallest DOM these render functions actually touch ----
 const nodes = new Map<string, any>();
 const el = (id: string) => {
@@ -63,7 +68,9 @@ for (const id of ['rail', 'bar', 'appearance', 'read', 'col', 'page', 'dock', 'd
                   'books',
                   // #announce, 2026-09-03. The one live region: what a screen reader is told when a
                   // passage lands, because the fade that says so is the one thing it cannot see.
-                  'announce']) el(id);
+                  'announce',
+                  // #owed, 2026-09-03: the light along the top that says something wants you.
+                  'owed']) el(id);
 
 const listeners: Record<string, Function[]> = {};
 (globalThis as any).document = {
@@ -342,14 +349,14 @@ let stubPassageId: string | undefined = undefined;
         // OWED SOMETHING, on purpose. What is waiting is drawn on the band now, which means it is
         // drawn for the hero book and nowhere else — so a hero owed nothing makes the chips
         // untestable, and the assertion would pass against a band that could never draw one.
-        proposed: 2, unpaid: 1, flags: 0 },
+        proposed: shelfOwes ? 2 : 0, unpaid: shelfOwes ? 1 : 0, flags: 0 },
       // Two of the three are owed something, and between them five separate things — so a shelf that
       // listed items would show five chips where it must show two.
       // #18 §5. One book pinned to a model the router no longer serves — the 2026-08-27 rename is
       // exactly this shape — and one pinned to a model it does, so the mark can be wrong in both
       // directions rather than only missing.
       { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', updatedAt: 2, words: 400, last: 'He paid.',
-        proposed: 3, unpaid: 1, flags: 0, model: 'write-nt-qwen36-h' },
+        proposed: shelfOwes ? 3 : 0, unpaid: shelfOwes ? 1 : 0, flags: 0, model: 'write-nt-qwen36-h' },
       { id: 's-3', title: 'Sutera', status: 'draft', updatedAt: 1, words: 0, last: null,
         // unpaid: 2 since 2026-08-31. This book used to be owed ONLY its two flags, and flags
         // stopped counting toward the strip that day — so without a kind that still counts, the
@@ -357,7 +364,7 @@ let stubPassageId: string | undefined = undefined;
         // merely have one: `waiting()` returns one row per kind naming the book with the most of
         // it, so a tie with The Salt Ledger's 1 would still name that book and draw one chip. The
         // flags stay, so the fixture still proves they contribute nothing.
-        proposed: 0, unpaid: 2, flags: 2, model: 'Qwen3.6-WNTH-35B-A3B-NN' },
+        proposed: 0, unpaid: shelfOwes ? 2 : 0, flags: 2, model: 'Qwen3.6-WNTH-35B-A3B-NN' },
       // A FOURTH, PUT AWAY. Added 2026-08-31 with the archived section: the shelf splits live
       // books from archived ones under their own header, and with no archived book in the
       // fixture that split renders identically either way and the assertion below cannot fail.
@@ -3734,6 +3741,44 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(doc, /data-del="p-4"/, 'and discarded, which is what declining it means');
 
   ok('a passage written while you were away is marked, once, and is otherwise an ordinary passage');
+
+// ---- SOMETHING WANTS YOU: the light at the top, and the accent on the row.
+//
+// Seth, 2026-09-03: "if things are waiting then i want the waiting menu item to be accent colored
+// and a small light up top in accent color that glows over the screen."
+//
+// BOTH DIRECTIONS, because a light that is always on says nothing and a light that never comes on
+// is the shape this whole feature could ship in without anyone noticing — nothing else on screen
+// changes when it works. The shelf fixture carries proposals and unpaid promises on two books, so
+// the lit case is the default and the dark case has to be made by emptying it.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.strictEqual(nodes.get('owed').hidden, false,
+    'the light is on while the shelf has proposals or unpaid promises');
+  // THE WHOLE BUTTON, not a fixed window after the attribute. A `{0,400}` window stopped short of
+  // the .txt span that carries the colour and failed for the distance rather than for the colour —
+  // the same mistake a slice made in the tipCard check. `</button>` is where the row ends.
+  const waitRow = html('rail').match(/data-nav="waiting"[\s\S]*?<\/button>/)?.[0] ?? '';
+  assert.ok(waitRow, 'the Waiting row is drawn at all');
+  assert.match(waitRow, /class="txt"[^>]*var\(--gold\)/,
+    'and it wears the accent, in a book that owes something');
+
+  // AND OFF WHEN NOTHING IS OWED. Emptied on the SHELF the light actually reads, and reloaded
+  // through the app rather than by writing its state — asserting against a copy the app never
+  // looks at would pass with the light stuck on.
+  shelfOwes = false;
+  click({ home: '1' });
+  await new Promise((r) => setTimeout(r, 60));
+  assert.strictEqual(nodes.get('owed').hidden, true, 'and out when nothing is waiting anywhere');
+  // AND THE STATE IS PUT BACK. `home` leaves V null, and the block below re-rolls a passage in an
+  // open book — so ending here would fail the next check for a reason that has nothing to do with
+  // it. Left open on the same book this block found open.
+  shelfOwes = true;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 60));
+  ok('the top light and the Waiting row come on when something is owed, and go out when it is not');
+}
 
   // AND WATCHING ONE UNMARKS IT. Re-rolling p-4 is being here for it: the route reports the row it
   // landed, the page remembers it, and the line goes even though the row is still unclaimed —

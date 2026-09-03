@@ -10,6 +10,22 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-03 · A light when something wants you, and the ring whenever Anansi is working
+
+### The ring is up for everything Anansi does
+The glowing border used to appear only while a passage was being written. It now appears whenever
+the model is working at all — writing a card, pulling a thread off the web, closing a chapter,
+naming one, re-rolling the house style, anything in the spark wizard. If it is glowing, something
+is happening; if it is not, nothing is.
+
+### A light along the top when something is waiting
+When any book has threads proposed or promises unpaid, a band of the accent glows along the top
+edge of the screen, wherever you are. **Waiting** in the menu wears the accent too, with the count
+beside it. Press it and the light goes out when there is nothing left owed.
+
+Flags do not light it. A contradiction is worth finding when you go looking; it is not worth a
+light in the corner of your eye.
+
 ## 2026-09-03 · Panels you can read, and a fuller record of your writing
 
 ### The Chapter screen is four screens now

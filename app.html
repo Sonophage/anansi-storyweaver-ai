@@ -1157,6 +1157,15 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
    IT OUTLIVES THE VEIL. The veil can be dismissed mid-write and the generation carries on, and
    until now the only thing that said so was the composer's Stop. `working()` is called at both ends
    of every call, so the frame is up for exactly as long as the model is writing. */
+#owed { position:fixed; top:0; left:0; right:0; height:3px; z-index:61; pointer-events:none;
+  background:linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold-lit) 50%,
+    var(--gold) 70%, transparent);
+  box-shadow:0 0 18px 2px var(--gold-dim), 0 0 42px 6px var(--gold-dim);
+  animation:owedbreathe 3.2s var(--ease) infinite; }
+#owed[hidden] { display:none; }
+@keyframes owedbreathe { 0%, 100% { opacity:.45; } 50% { opacity:1; } }
+/* The statement without the pulse, for the same reason the ring drops its travel. */
+@media (prefers-reduced-motion: reduce) { #owed { animation:none; opacity:.8; } }
 #frame { position:fixed; inset:0; z-index:60; pointer-events:none; padding:2px; opacity:0;
   transition:opacity var(--t-slow) var(--ease-out);
   background:linear-gradient(115deg, transparent 26%, var(--work, var(--gold)) 44%,
@@ -1176,6 +1185,9 @@ html[data-work="direct"]   #frame { --work:var(--m-direct-ink); }
 html[data-work="narrate"]  #frame { --work:var(--m-narrate-ink); }
 html[data-work="continue"] #frame { --work:var(--m-continue); }
 html[data-work="reroll"]   #frame { --work:var(--gold); }
+/* Everything else the model does — a card, a thread off the web, the chapter-end passes, the
+   wizard. No press owns these, so they wear the accent rather than a mode colour. */
+html[data-work="ai"]       #frame { --work:var(--gold); }
 /* Reduced motion keeps the statement and drops the travel: the ring is simply there, evenly. */
 @media (prefers-reduced-motion: reduce) {
   html[data-work]:not([data-streaming]) #frame { animation:none;
@@ -1850,6 +1862,10 @@ body[data-dev] #devbar {
 <!-- The generating ring. Fixed to the window and outside every panel, because it frames the
      SCREEN rather than any surface on it — see #frame in the stylesheet. -->
 <div id="frame" aria-hidden="true"></div>
+<!-- SOMETHING WANTS YOU. A band of the accent along the top edge, over everything, so it is on
+     screen wherever you are — the rail's Waiting row says the same thing but only while the rail is
+     open. Not a toast and not a count: it is a light, and pressing Waiting is what answers it. -->
+<div id="owed" aria-hidden="true" hidden></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <!-- WHAT JUST HAPPENED, FOR A READER WHO CANNOT SEE THE PAGE MOVE. Anansi streams prose in, and a
      screen reader got silence while it arrived and silence when it landed.
