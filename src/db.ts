@@ -2396,9 +2396,15 @@ export const passageTakes = (storyId: string, id: string) => {
   const cur = q('SELECT chapter_id, slot_key FROM passages WHERE id = ? AND story_id = ?')
     .get(id, storyId) as any;
   if (!cur) return [];
-  return q(`SELECT id, body, author, variant_index, selected, rejected, created_at
-              FROM passages WHERE story_id = ? AND chapter_id = ? AND slot_key = ?
-             ORDER BY variant_index`).all(storyId, cur.chapter_id, cur.slot_key) as any[];
+  // THE SEED THAT PRODUCED IT, so a take can be asked for again. Nothing set one until 2026-09-03,
+  // which is why no generation in this app was ever reproducible. Read off the generation the
+  // passage was tied to rather than stored twice; null for every take written before that day, and
+  // for anything a writer typed themselves.
+  return q(`SELECT p.id, p.body, p.author, p.variant_index, p.selected, p.rejected, p.created_at,
+              (SELECT json_extract(g.params, '$.seed') FROM generations g
+                WHERE g.passage_id = p.id ORDER BY g.created_at DESC LIMIT 1) AS seed
+              FROM passages p WHERE p.story_id = ? AND p.chapter_id = ? AND p.slot_key = ?
+             ORDER BY p.variant_index`).all(storyId, cur.chapter_id, cur.slot_key) as any[];
 };
 export const entryHistory = (storyId: string, id: string) => q(
   `SELECT r.id, r.field, r.previous_value, r.replaced_at, r.replaced_by

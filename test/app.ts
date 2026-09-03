@@ -60,7 +60,10 @@ for (const id of ['rail', 'bar', 'appearance', 'read', 'col', 'page', 'dock', 'd
                   // book group is opened — not the whole page — so without it registered here a
                   // press on a group did nothing the harness could see, and an assertion about
                   // what a group contains read the page as it was before the press.
-                  'books']) el(id);
+                  'books',
+                  // #announce, 2026-09-03. The one live region: what a screen reader is told when a
+                  // passage lands, because the fade that says so is the one thing it cannot see.
+                  'announce']) el(id);
 
 const listeners: Record<string, Function[]> = {};
 (globalThis as any).document = {
@@ -3456,6 +3459,17 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.strictEqual((body.match(/data-chaptab="/g) ?? []).length, GROUPS.length,
     'and one chip per group, or a group has no door');
 
+  // AND EVERY CHIP SAYS HOW MUCH IS BEHIND IT. A tab hides its contents by design, so a group with
+  // no count is a group nobody opens — this harness itself walked past Summaries and Branches until
+  // the browser pass made it press them, which is exactly the blindness a writer has.
+  // Zero is drawn as NOTHING, not as 0: "Summaries" is a place you can go, "Summaries 0" reads as a
+  // counter that broke. The fixture has summaries, so the count must be there.
+  const chip = (k: string) => body.match(new RegExp(`data-chaptab="${k}"[\\s\\S]{0,240}?</button>`))?.[0] ?? '';
+  assert.match(chip('summaries'), /class="tnum"/, 'Summaries says how many it holds');
+  assert.match(chip('proposed'), /class="tnum"/, 'and so does Proposed');
+  assert.doesNotMatch(chip('this'), /class="tnum"/,
+    'This chapter counts nothing — a count there would be a number with no referent');
+
   // THE SAVE BAR STAYS OUTSIDE THEM. It commits the chapter's name and its two boxes, and those
   // live in one group — so a bar inside that group would vanish on three tabs out of four while
   // the fields it commits stayed in the document.
@@ -3752,8 +3766,31 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   }
   assert.doesNotMatch(html('col'), /class="cameback"/,
     'a passage this page watched arrive is not marked as having arrived while away');
+
+  // ---- AND IT IS SAID OUT LOUD. The fade is the only sign a passage landed and a screen reader
+  // cannot see it: this app streams prose in and announced nothing at all until 2026-09-03.
+  //
+  // HERE, because this is the block that actually lands one — `arrive()` runs off the generation
+  // chain, so an assertion in a block that only renders a fixture reads an empty region and fails
+  // for the wrong reason. It did, first time.
+  //
+  // NOT the prose: the passage is in the document already and a reader moves to it, so reading it
+  // into a live region too says the whole thing twice. And not `aria-live` on #col, which is
+  // rewritten whole on every repaint — that would read the chapter out again on every panel press.
+  await new Promise((r) => setTimeout(r, 120));
+  assert.match(String(nodes.get('announce').textContent), /^(Passage added|New take), \d+ words\.$/,
+    `a passage that lands is announced with its length — said ${JSON.stringify(nodes.get('announce').textContent)}`);
+  {
+    const { readFileSync: rf } = await import('node:fs');
+    const shell = rf(new URL('../app.html', import.meta.url), 'utf8');
+    assert.match(shell, /id="announce"[^>]*aria-live="polite"/, 'and the region is live');
+    assert.match(shell, /id="toast"[^>]*role="status"/, 'and the toast reports itself as one');
+    // Off screen, NOT display:none — a region that is not rendered is not announced at all.
+    assert.match(shell, /\.vh \{[^}]*clip-path/, 'the region is hidden by clipping, not by display');
+    assert.doesNotMatch(shell, /\.vh \{[^}]*display:\s*none/, 'or it would never be read');
+  }
   stubPassageId = undefined;
-  ok('and watching one arrive unmarks it, without claiming it — once the veil is dismissed');
+  ok('and watching one arrive unmarks it, and the arrival is announced to a screen reader');
 }
 
 // ---- STOP TELLS THE SERVER, because hanging up no longer cancels (bugs.md #9).

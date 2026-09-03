@@ -580,18 +580,35 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
                   assemble: Math.round((mTokenize - mAssemble) * 10) / 10,
                   tokenize: Math.round((performance.now() - mTokenize) * 10) / 10 };
   const { thinking, ...sampler } = c.gen;
+  /* THE SEED, MINTED HERE AND WRITTEN DOWN.
+   *
+   * Nothing set one until now, so no generation in this app was ever reproducible: a passage a
+   * writer liked could be re-rolled but never got back, and only A/B arms running SIMULTANEOUSLY
+   * were controlled. That is a real gap in a tool whose pitch is craft control.
+   *
+   * MINTED HERE RATHER THAN LEFT TO THE SERVER, which is the whole point. llama-server picks its
+   * own when none is given and does not report it, so the number that produced a passage existed
+   * for one call and then did not exist at all. Minted here it goes into `params` on the row, next
+   * to the sampler that goes with it — both halves of "what produced this" in one place.
+   *
+   * A CALLER CAN OVERRIDE IT, and that is how a passage is reproduced: `c.body.seed` re-runs the
+   * one on the take you are looking at. Same seed AND same sampler AND same prompt is the only
+   * combination that reproduces; the manifest on the row is what says whether the prompt matched.
+   * `Number.isSafeInteger` because this arrives from a browser and goes into a model payload. */
+  const asked = Number(c.body?.seed);
+  const seed = Number.isSafeInteger(asked) && asked >= 0 ? asked : Math.floor(Math.random() * 2 ** 31);
   const t0 = Date.now();
   try {
     // The story's own model, or the process default. `chat` spreads opts over its own defaults,
     // so naming it here is all it takes — every call has always carried a model name.
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
-      { ...sampler, model: using, chat_template_kwargs: { enable_thinking: !!thinking } }, onDelta,
+      { ...sampler, seed, model: using, chat_template_kwargs: { enable_thinking: !!thinking } }, onDelta,
       // Only the streaming call. `onDelta` is present exactly when there is a writer watching
       // this arrive, which is exactly when there is a Stop button to press.
       onDelta ? c.signal : undefined);
     const ms = Date.now() - t0;
     const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
-      params: { ...c.gen, ms: appMs }, manifest, promptTokens: r.usage?.prompt_tokens,
+      params: { ...c.gen, seed, ms: appMs }, manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     // THE CEILING, so it still has to be visible when it fires. `capFor` puts it well
     // above anything measured, but a runaway can reach it — and until now that arrived as a

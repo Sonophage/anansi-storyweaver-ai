@@ -445,7 +445,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
   'newstring', 'delstring', 'summon', 'stringstatus', 'looktab', 'askfill',
-  'reroll', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
+  'reroll', 'reseed', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake', 'newlore', 'lorekind', 'loreread',
@@ -516,6 +516,17 @@ const READOUT = {
 };
 
 let toastT = null, searchT = null, foundT = null;
+/** The one live region. NOT `say`: `regenerateInto` already holds a local of that name and would
+ *  shadow it exactly where a re-rolled passage has to be announced.
+ *
+ *  Cleared first, because assigning the identical string changes nothing and a live region that
+ *  does not change says nothing — two passages of the same length in a row would be silent. */
+function announce(msg) {
+  const el = $('announce'); if (!el) return;
+  el.textContent = '';
+  setTimeout(() => { el.textContent = msg; }, 60);
+}
+
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 4200);
@@ -3029,11 +3040,18 @@ const PANELS = {
            behind a tab and does not say how many are waiting is the one thing this split could
            break, and closing a chapter fills it. -->
       <div style="display:flex; gap:6px; margin:0 0 14px">
-        ${[['this', 'This chapter'], ['proposed', ps.length ? `Proposed ${ps.length}` : 'Proposed'],
-           ['summaries', 'Summaries'], ['branches', 'Branches']]
-          .map(([k, label]) => `<button class="chip" data-chaptab="${k}"
+        ${/* EVERY CHIP CARRIES ITS COUNT, not only Proposed. A tab is a thing you cannot see, so a
+              group that does not say how much is behind it is a group nobody opens — the browser
+              pass walked straight past Summaries and Branches, which is the same blindness a
+              writer has. Zero is drawn as nothing rather than as 0: "Summaries" is a place you can
+              go, "Summaries 0" reads as a broken counter. */
+          [['this', 'This chapter', 0],
+           ['proposed', 'Proposed', ps.length],
+           ['summaries', 'Summaries', V.chapters.filter((c) => c.summary).length],
+           ['branches', 'Branches', (V.branches ?? []).length > 1 ? (V.branches ?? []).length : 0]]
+          .map(([k, label, n]) => `<button class="chip" data-chaptab="${k}"
             aria-pressed="${tab === k}" style="flex:1; text-align:center; cursor:pointer"
-            >${label}</button>`).join('')}
+            >${label}${n ? ` <span class="tnum" style="color:var(--faint)">${n}</span>` : ''}</button>`).join('')}
       </div>
       <div class="sgroup" data-group="this">
       <!-- THE NAME, WITH A RE-ROLL. Seth, 2026-09-02: "i should be able to re roll the chapter
@@ -5627,6 +5645,14 @@ function historyPanel() {
             || `<span class="tag">${t.canon.length} entries since removed</span>`}</div>`;
       })()}
       ${t.selected ? '' : `<button class="btn ghost" data-usetake="${t.id}" style="margin-top:8px">Put this one in the story</button>`}
+      ${/* THE SEED THAT MADE IT. Null on anything written before 2026-09-03 and on anything a
+            writer typed, so the row is drawn only where there is one — a blank field labelled
+            "seed" on every old take would read as something broken. */
+        t.seed == null ? '' : `<div style="display:flex; align-items:center; gap:8px; margin-top:8px">
+        <span class="kind">seed ${esc(String(t.seed))}</span>
+        <button class="btn ghost" data-reseed="${esc(String(pid))}:${esc(String(t.seed))}"
+          style="width:auto; padding:0 14px; height:32px; font-size:11.5px; margin-left:auto"
+          >Roll it again on this seed</button></div>`}
     </div>`).join('')
       : '<div class="hint">One take. Regenerate on a passage keeps the old one and both appear here.</div>'}
 
@@ -7353,6 +7379,10 @@ function arrive() {
   const last = V?.passages?.filter((p) => !p.isBreak).at(-1);
   if (!last) return;
   S.arrived = last.id;
+  // AND SAID OUT LOUD. The fade is the only sign a passage landed and a screen reader cannot see
+  // it. One sentence, not the prose: the passage is in the document already and a reader moves to
+  // it themselves — reading it into a live region as well would say the whole thing twice.
+  announce(`Passage added, ${(String(last.body ?? '').match(/\S+/g) ?? []).length} words.`);
   // Longer than the 1.5s reveal, so a repaint mid-animation cannot strip the class and snap the
   // text visible half way across.
   setTimeout(() => { if (S.arrived === last.id) S.arrived = null; }, 1700);
@@ -7399,7 +7429,7 @@ async function regenerateLast() {
  *                Undefined means "use whatever the passage was written from", which is
  *                `inherit()` on the server and is how this has always behaved. An explicit
  *                directive in the request wins there, so sending it is the whole mechanism. */
-async function regenerateInto(id, steer) {
+async function regenerateInto(id, steer, seed) {
   if (S.busy) return;
   S.busy = true; drawDock(); drawBar(); working('reroll');
   // A reroll of the LAST passage writes at the bottom, so the ghost belongs there too. Rerolling
@@ -7420,6 +7450,10 @@ async function regenerateInto(id, steer) {
     // mentions it. Without a steer nothing changes: the mode stays whatever the composer says and
     // the server inherits the passage's own instruction.
     ...(steer ? { mode: 'direct', directive: steer } : {}),
+    // THE SAME NUMBER, DELIBERATELY. Without one the server mints a fresh seed and the take is a
+    // new roll of the dice; with it the only remaining variables are the sampler and the prompt,
+    // and the prompt is what the manifest on the row records. This is the whole of "get it back".
+    ...(seed == null ? {} : { seed }),
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined },
     liveDelta, STOP.signal);
   STOP = null;
@@ -7444,7 +7478,11 @@ async function regenerateInto(id, steer) {
   const say = takeToast(r) ?? (r.reusedDirective
     ? `New take on your instruction: ${String(r.reusedDirective).slice(0, 90)}`
     : 'New take kept. Both are in History, with the canon each was written against.');
-  const land = () => { paint(); refreshManifest(); refreshHistory(); toast(say); };
+  const land = () => {
+    paint(); refreshManifest(); refreshHistory(); toast(say);
+    const now = V?.passages?.filter((p) => !p.isBreak).at(-1);
+    announce(`New take, ${(String(now?.body ?? '').match(/\S+/g) ?? []).length} words.`);
+  };
   if (document.getElementById('ghost')) { VEIL_LAND = land; veilFinish(); } else land();
 }
 
@@ -8433,6 +8471,16 @@ document.addEventListener('click', async (e) => {
   }
 
   if (d.re) { await rerollPassage(d.re); return; }
+  /* THE SAME TAKE AGAIN, on the number that produced it. `<passageId>:<seed>` in one attribute
+   * because the seed is meaningless without the passage it belongs to, and two attributes is two
+   * things that can disagree. It goes straight to regenerateInto rather than through
+   * rerollPassage: that one opens the instruction editor for a directed passage, and this press is
+   * not asking to change the instruction — it is asking for the same roll. */
+  if (d.reseed) {
+    const [pid, seed] = String(d.reseed).split(':');
+    if (pid && seed) await regenerateInto(pid, undefined, Number(seed));
+    return;
+  }
   /* THE VEIL'S OWN PAIR. Both take the surface away first and then do exactly what the row at the
    * end of the page does — see the note in veilReadable for why the dismissal is not optional. */
   if (d.veilgo) {

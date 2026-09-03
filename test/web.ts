@@ -279,6 +279,18 @@ const ok = (m: string, fn?: unknown) => {
     // exception is itself about that long — so the window stopped short of the line it was meant to
     // read and the check passed with the title uppercased. Breaking it on purpose is what showed
     // that, and a fixed window is the wrong tool whenever a comment can grow.
+    // A BUTTON IS NOT A LABEL, and that is the third exception. `.lbl`, `.kind`, `.tag` and `.up`
+    // name things in two or three words; a button says what will happen, often in a sentence, and
+    // capitals strip the word-shape that makes a sentence readable at a glance.
+    // EVERY `.btn {` RULE, not the first one found. There are three of them and the first in the
+    // file is a transitions block with no case property at all — matching one and reading it meant
+    // the check passed with the real rule uppercased. Caught by breaking it on purpose.
+    const btnRules = [...sheet.matchAll(/\.btn \{[^}]*\}/g)].map((m) => m[0]);
+    assert.ok(btnRules.length >= 2, `the .btn rules are still there — found ${btnRules.length}`);
+    for (const r of btnRules)
+      assert.doesNotMatch(r, /text-transform:\s*uppercase/,
+        `a button reads as a sentence, so it is not uppercased: ${r.slice(0, 60)}`);
+
     const tipTitle = js.match(/<div style="([^"]*)">\$\{esc\(title\)\}<\/div>/)?.[1] ?? null;
     assert.ok(tipTitle, 'the info card still draws its title');
     assert.doesNotMatch(tipTitle!, /uppercase/,

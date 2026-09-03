@@ -1153,6 +1153,26 @@ ok('writer stats count the right rows', () => {
   assert.strictEqual(db.writerStats(o).medianSeconds, 5,
     'the middle of the three calls that finished, not the mean and not the failures');
 
+  /* ---- THE SEED RIDES BACK OUT ON THE TAKE. Nothing set one until 2026-09-03, so no generation
+   * was reproducible: a passage you liked could be re-rolled but never got back.
+   *
+   * Read off the generation the passage was TIED to, which is the half that can silently not
+   * happen — `logGeneration` writes the row before the take exists and `tieGeneration` joins them
+   * afterwards, so a seed that never reaches the take looks exactly like a take with no seed. Both
+   * cases are asserted here: the tied one carries it, the untied one is null rather than 0. */
+  {
+    const st2 = db.createStory(o, { title: 'Seeded' });
+    const p1 = db.addPassage({ ...st2, storyId: st2.id, body: 'a first take', author: 'model' });
+    const g1 = db.logGeneration({ storyId: st2.id, role: 'prose', params: { seed: 4242, temperature: 0.85 } });
+    db.tieGeneration(String(g1), String(p1));
+    const typed = db.addPassage({ ...st2, storyId: st2.id, body: 'a line I wrote', author: 'human' });
+    const takes: any[] = db.passageTakes(st2.id, p1);
+    assert.strictEqual(takes.find((t) => t.id === p1)?.seed, 4242,
+      'a take carries the seed of the generation it was tied to');
+    assert.strictEqual(db.passageTakes(st2.id, typed).find((t: any) => t.id === typed)?.seed, null,
+      'and a passage the writer typed has none — null, not zero, which is a real seed');
+  }
+
   // Another writer's work is not yours.
   assert.strictEqual(db.writerStats(db.owner('stats-nobody')).words, 0);
   assert.deepStrictEqual(db.writerStats(db.owner('stats-nobody')).kinds, [],

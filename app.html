@@ -460,6 +460,9 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   border-left:1px solid var(--line); transition:width var(--t-slow) var(--ease); z-index:30;
 }
 #side[hidden] { display:block; width:0; border-left-color:transparent; }
+/* Off screen, not `display:none` — a live region that is not rendered is not announced. */
+.vh { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden;
+  clip-path:inset(50%); white-space:nowrap; border:0; }
 #sideInner { width:400px; height:100%; display:flex; flex-direction:column; overflow:hidden; }
 
 /* Tablet: rail and panel both float over the document. */
@@ -1335,7 +1338,13 @@ textarea.field { resize:vertical; min-height:70px; }
 .tag { font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:2px 8px; border-radius:var(--r-pill); border:1px solid var(--chip); color:var(--dim); white-space:nowrap; }
 .kind { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-dim); }
 .row { display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:12.5px; }
-.btn { padding:12px; text-align:center; border-radius:var(--r-pill); background:var(--gold); color:var(--on-gold); font-size:11px; font-weight:500; letter-spacing:.1em; text-transform:uppercase; display:block; width:100%; }
+/* A BUTTON IS NOT A LABEL. Seth, 2026-09-03, wanted the label treatment everywhere; a button is
+   where that stops. `.lbl`, `.kind`, `.tag` and `.up` name things in two or three words and read
+   fine in capitals. A button says what will happen — "Start a new book from these threads", "Read
+   the whole book for this thread" — and capitals strip word-shape, which is the main cue for
+   reading a sentence at a glance and a known cost for a dyslexic reader.
+   The size goes up with the case: 11px was chosen for capitals, which have no descenders. */
+.btn { padding:12px; text-align:center; border-radius:var(--r-pill); background:var(--gold); color:var(--on-gold); font-size:12.5px; font-weight:500; letter-spacing:.02em; display:block; width:100%; }
 .btn.ghost { background:none; border:1px solid var(--chip); color:var(--mute); font-weight:400; }
 
 /* ISSUE #33 · A PANEL'S OWN SAVE, PINNED WHERE IT CAN BE REACHED. Seth, 2026-08-31: "All save
@@ -1507,10 +1516,10 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   font-size:17px; line-height:1.55; color:var(--ink); min-height:27px; field-sizing:content; }
 .sparkline > textarea:focus { outline:none; }
 .firstways { display:flex; gap:10px; flex-wrap:wrap; }
+/* (The case reset that lived here went on 2026-09-03: `.btn` stopped uppercasing, so a rule
+   undoing it undoes nothing. The rest is still this row's own sizing.) */
 .firstways > .btn { width:auto; padding:9px 14px; height:auto; font-size:12px; letter-spacing:0;
-  /* Same move: this deliberately takes the label treatment OFF the first-run buttons, which read as
-     sentences rather than as labels, so the property it names has to be the one now doing it. */
-  text-transform:none; font-weight:400; border-radius:var(--r); }
+  font-weight:400; border-radius:var(--r); }
 @media (max-width:719px) {
   .firstrun { gap:22px; min-height:0; }
   .firstrun .serif { font-size:34px; }
@@ -1841,7 +1850,13 @@ body[data-dev] #devbar {
 <!-- The generating ring. Fixed to the window and outside every panel, because it frames the
      SCREEN rather than any surface on it — see #frame in the stylesheet. -->
 <div id="frame" aria-hidden="true"></div>
-<div id="toast" hidden></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<!-- WHAT JUST HAPPENED, FOR A READER WHO CANNOT SEE THE PAGE MOVE. Anansi streams prose in, and a
+     screen reader got silence while it arrived and silence when it landed.
+     NOT `aria-live` ON #col: that element is rewritten whole on every repaint — a panel opening, a
+     chapter paging, a toast — so a live region there would read the entire chapter out again each
+     time. This holds one short sentence instead, written only when a passage actually arrives. -->
+<div id="announce" class="vh" role="status" aria-live="polite"></div>
 
 <script type="module" src="./web/app.js"></script>
 </body>
