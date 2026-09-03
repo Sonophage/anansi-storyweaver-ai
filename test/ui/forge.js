@@ -48,8 +48,10 @@ ok("  and carrying the app's own card register",
 // ---- 2. a forged thread, pasted into + Thread ----
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 await page.goto(B + "/#" + sid + "/threads");
-for (let i = 0; i < 40 && !(await page.visible('[data-newlore="1"]')); i++) await wait(250);
-await page.click('[data-newlore="1"]');
+// SCOPED TO #sideBody: the composer's threads dial carries a data-newlore OPTION since 2026-09-02,
+// and an option has no box — so the unscoped selector found that one and waited on it for ever.
+for (let i = 0; i < 40 && !(await page.visible('#sideBody [data-newlore="1"]')); i++) await wait(250);
+await page.click('#sideBody [data-newlore="1"]');
 await wait(400);
 await page.click('[data-lorekind="character"]');
 await wait(400);
@@ -97,8 +99,10 @@ ok(`  and the toast says what landed (${JSON.stringify(toast.slice(0, 70))})`,
 
 // ---- 3. what it refuses, from the surface ----
 await page.goto(B + "/#" + sid + "/threads");
-for (let i = 0; i < 40 && !(await page.visible('[data-newlore="1"]')); i++) await wait(250);
-await page.click('[data-newlore="1"]');
+// SCOPED TO #sideBody: the composer's threads dial carries a data-newlore OPTION since 2026-09-02,
+// and an option has no box — so the unscoped selector found that one and waited on it for ever.
+for (let i = 0; i < 40 && !(await page.visible('#sideBody [data-newlore="1"]')); i++) await wait(250);
+await page.click('#sideBody [data-newlore="1"]');
 await wait(400);
 await page.click('[data-lorekind="character"]');
 await wait(400);

@@ -10,6 +10,14 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · The re-roll instruction opens in the middle of the screen
+
+### Editing the instruction is a sheet, not a panel inside the paragraph
+Pressing **Regenerate** on a passage you directed opens its instruction for editing. It used to
+open inside the paragraph, which on a long passage put it below the fold of the very passage it
+belongs to. It arrives in the middle of the screen now, over a dimmed page — press outside it, or
+press Escape, to leave the passage as it was.
+
 ## 2026-09-02 · The menus match the app, the waiting screen says it is working, and Storyteller is four groups
 
 ### The dropdowns open in the app's own colours

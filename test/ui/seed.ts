@@ -33,8 +33,15 @@ for (const [i, c] of input.chapters.entries()) {
   if (c.summary) db.setSummary(chapterId, c.summary, 1, `seed-${i}`);
   if (i < input.chapters.length - 1) chapterId = db.endChapter(made.id, made.branchId).opened;
 }
-for (const p of input.passages) {
-  db.addPassage({ storyId: made.id, branchId: made.branchId, chapterId, body: p.body, author: 'model' });
+// THE LAST ONE IS DIRECTED, and it is the only passage in this fixture that is. A passage carries
+// the instruction it was written from, and that instruction is what the re-roll sheet opens for
+// editing — so without one, every check of that sheet is a check of a thing that cannot appear.
+// Added 2026-09-02, when the sheet became a centred surface and needed driving like the tray.
+const DIRECTED = 'She finds the key, and does not say so.';
+for (const [i, p] of input.passages.entries()) {
+  const last = i === input.passages.length - 1;
+  db.addPassage({ storyId: made.id, branchId: made.branchId, chapterId, body: p.body,
+    author: 'model', ...(last ? { mode: 'direct', directive: DIRECTED } : {}) });
 }
 // The engine fixture titles its entries by id ('e-aldis'), because nothing below the prompt
 // reads a title. The UI does: the "You are" dropdown is filled from the cast by name. So the

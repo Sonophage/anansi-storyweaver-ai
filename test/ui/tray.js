@@ -114,4 +114,57 @@ for (const [label, on, off] of [
   await shut();
 }
 
+// ---- THE RE-ROLL SHEET IS THE SECOND FIXED CHILD OF A BLOCK (2026-09-02).
+// Seth, of the panel that used to open inside the paragraph: "this should be as a toast center
+// screen not inline." It takes the same route the tray above does, so it inherits the same trap —
+// a position:fixed child of a block carrying a filled transform animation or a mask is positioned
+// against the BLOCK and has its z-index capped inside it. Third round of that bug, second feature.
+// ON THE FIXTURE'S ONE DIRECTED PASSAGE: only a passage that carries an instruction has a sheet to
+// open, so seed.ts directs its last one. If that ever stops being true this block says so rather
+// than passing on an absence.
+{
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('#col .block')")); i++) await wait(250);
+  const target = await page.eval(
+    "(() => document.querySelector('#col .block.directed [data-re]')?.dataset.re ?? null)()");
+  ok(`the fixture has a directed passage to re-roll (${target})`, !!target);
+  await page.eval(`(() => { document.querySelector('[data-re="${target}"]').click(); return 1; })()`);
+  await wait(600);
+  const sheet = await page.eval(`(() => {
+    const box = document.querySelector('.rerollbox'); if (!box) return null;
+    const r = box.getBoundingClientRect(); const cs = getComputedStyle(box);
+    const blk = box.closest('.block'); const bs = getComputedStyle(blk);
+    const scrim = getComputedStyle(document.getElementById('scrim'));
+    const hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + 20));
+    return JSON.stringify({ position: cs.position,
+      offX: Math.abs(r.left + r.width / 2 - innerWidth / 2),
+      offY: Math.abs(r.top + r.height / 2 - innerHeight / 2),
+      rebases: [bs.transform, bs.filter, bs.maskImage || bs.webkitMaskImage, bs.animationName]
+        .filter((v) => !(v === 'none' || v === 'auto' || v === 'normal' || !v)),
+      scrimShown: scrim.opacity !== '0' && scrim.pointerEvents !== 'none',
+      onTop: !!hit && !!hit.closest('.rerollbox') }); })()`).then((x) => (x ? JSON.parse(x) : null));
+  console.log("  re-roll sheet: " + JSON.stringify(sheet));
+  ok("  it opens as a centred sheet, not inline in the paragraph",
+     !!sheet && sheet.position === 'fixed');
+  ok(`  centred on the WINDOW (off by ${sheet && sheet.offX}, ${sheet && sheet.offY})`,
+     !!sheet && sheet.offX <= 2 && sheet.offY <= 2);
+  // The whole reason it cannot be centred naively: a block that re-bases a fixed child centres the
+  // sheet on the PARAGRAPH and caps its z-index under the scrim.
+  ok(`  with nothing on its block re-basing it (${JSON.stringify(sheet && sheet.rebases)})`,
+     !!sheet && sheet.rebases.length === 0);
+  ok("  the scrim is up under it, so a press outside is Cancel", !!sheet && sheet.scrimShown);
+  ok("  and the sheet is what a press at its top actually hits", !!sheet && sheet.onTop);
+  // And the backdrop cancels rather than re-rolling: a press on nothing in particular is not a
+  // press on Re-roll, which would spend a generation.
+  // TWO CHECKS, NOT `page.click('#scrim')`. That presses an element's CENTRE, and the scrim covers
+  // the window — so its centre is the middle of the screen, which is exactly where the sheet is.
+  // The press landed on the sheet and the check went red for the wrong reason. So: the corner of
+  // the screen really is the scrim, and the scrim's own press really does cancel.
+  ok("  the corner of the screen is the backdrop, not the sheet", await page.eval(
+    "document.elementFromPoint(20, 20)?.id === 'scrim'"));
+  await page.eval("(() => { document.getElementById('scrim').click(); return 1; })()");
+  await wait(500);
+  ok("  and a press on it closes the sheet without re-rolling",
+     !(await page.eval("!!document.querySelector('.rerollbox')")));
+}
 console.log(red ? `\n  ${red} RED` : "\n  all green");

@@ -51,8 +51,12 @@ ok('every press the page draws an accent for is a mode the column will store', (
   // that class is the coloured rule down the margin telling the writer which press wrote the
   // passage. A press missing from the whitelist stores null and comes back unmarked — which is
   // exactly what happened to Continue, the most common press in any book, for a day.
+  // MATCHED ON THE DECLARATION, not on the selector in front of it. This read `.block.m-X {` until
+  // 2026-09-02, when the accent had to reach the two buttons under the last passage as well and the
+  // selector became `:is(.block, .carry).m-X` — so the check went red on a rule that had only moved.
+  // What identifies an accent rule is that it SETS `--m`; the selector is free to change again.
   const drawn = [...readFileSync(new URL('../app.html', import.meta.url), 'utf8')
-    .matchAll(/\.block\.m-(\w+)\s*\{/g)].map((m) => m[1]);
+    .matchAll(/\.m-(\w+)\s*\{\s*--m:/g)].map((m) => m[1]);
   assert.ok(drawn.length >= 5, 'the accent rules should be findable in app.html');
   const sm = db.createStory(o, { title: 'M', premise: 'p' });
   for (const mode of drawn) {

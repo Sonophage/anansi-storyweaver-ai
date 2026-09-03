@@ -1155,7 +1155,10 @@ function passageHTML(p, newest, opening) {
     // is not a drop cap — and not on the writer's own passages, which are set differently: on
     // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
     // sat on its own with the text running away from it.
-    + (newest ? ' newest' : '') + (opening && !spoken && !mine ? ' opening' : '');
+    + (newest ? ' newest' : '') + (opening && !spoken && !mine ? ' opening' : '')
+    // Holding the re-roll sheet. The class is what stops this block being the containing block for
+    // it — see the note on `.rerollbox` in the stylesheet, and the longer one above the acts tray.
+    + (S.reroll?.id === p.id ? ' rerolling' : '');
   /* ISSUE #38. THE INSTRUCTION THIS PASSAGE WAS WRITTEN FROM, OPEN FOR EDITING.
    *
    * Under the passage rather than in the tray: the tray is a strip of verbs and this is a sentence
@@ -6797,6 +6800,10 @@ const syncTray = () => {
   if (fullScreenSurface())
     for (const b of document.querySelectorAll('.block[aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false');
   root.dataset.tray = document.querySelector('.block[aria-expanded="true"]') ? '1' : '0';
+  // The re-roll sheet rides the same backdrop, and it is raised HERE rather than at each of the
+  // three places that set S.reroll: every one of them already calls this, and a scrim left up over
+  // nothing is a page that has stopped answering.
+  root.dataset.reroll = S.reroll ? '1' : '0';
 };
 
 /** Issue #2 — "the menu that pops up pops up under it, making it unusable."
@@ -9403,12 +9410,16 @@ document.addEventListener('click', async (e) => {
 });
 
 $('scrim').addEventListener('click', () => {
+  // The re-roll sheet is above the tray when both could be up, so it is what a tap shuts first.
+  // Cancel and not Re-roll: a press on the backdrop is a press on nothing in particular.
+  if (root.dataset.reroll === '1') { S.reroll = null; drawDoc(); syncTray(); return; }
   // The tray is what is on top of the scrim, so it is what a tap on the scrim shuts.
   if (root.dataset.tray === '1') return openTray(null);
   S.rail = false; paint();
 });
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && S.reroll) { S.reroll = null; drawDoc(); syncTray(); return; }
   if (e.key === 'Escape' && S.bigInput) { S.bigInput = false; drawDock(); $('input')?.focus(); return; }
   if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); } }
 });
