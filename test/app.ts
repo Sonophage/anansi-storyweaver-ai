@@ -1045,6 +1045,54 @@ ok('the header names the book, and carries no reading of its own');
 }
 ok('the bar counts chapters, and the reading is always open');
 
+// ---- THE STORY PANEL IS FOUR GROUPS BEHIND FOUR CHIPS (2026-09-02).
+// Seth: "this is so much information that its overwhelming. give it filter buttons to reach the
+// information." Eleven fields, a cover, a world link, three exports, an archive and a delete were
+// one scroll.
+{
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 40));
+  const panel = html('sideBody');
+  for (const g of ['voice', 'book', 'world', 'keep'])
+    assert.match(panel, new RegExp(`data-group="${g}"`), `the panel must draw the ${g} group`);
+  // ALL FOUR ARE DRAWN AND ONE IS SHOWN. The container says which, and the stylesheet does the
+  // hiding — asserted here as the attribute, because that is the contract the CSS reads.
+  assert.match(panel, /data-tab="voice"/, 'and it opens on the voice, which is the group he named first');
+  assert.match(panel, /data-storytab="book"/, 'with a chip for each of them');
+  // HIS TWO GROUPS, in his order: the voice first, title/genre/premise second.
+  const voice = panel.match(/data-group="voice"[\s\S]*?data-group="book"/)?.[0] ?? '';
+  assert.match(voice, /f-story-writingStyle/, 'the voice group holds the voice of the weave');
+  assert.match(voice, /f-story-styleNote/, 'and how this book is written');
+  assert.ok(!/f-story-title/.test(voice), 'and not the title, which is the second group');
+  const book = panel.match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
+  for (const k of ['title', 'genre', 'premise'])
+    assert.match(book, new RegExp(`f-story-${k}`), `the book group holds the ${k}`);
+  // SAVE IS OUTSIDE THE GROUPS. Issue #33 pinned it to the top of this panel; a Save that only
+  // exists on one of four tabs is worse than one you have to scroll to.
+  assert.ok(panel.indexOf('savebar') < panel.indexOf('data-group='),
+    'Save stays above the chips, on every group');
+  // AND PRESSING A CHIP DOES NOT REDRAW, which is asserted ON THE SOURCE rather than through this
+  // harness. Every box in the panel is free text waiting on Save, so a repaint on a tab press
+  // throws away a half-written premise — the bug this file records seven times in other handlers.
+  // A DRAWN-count check was tried here first and it could not fire: paint() against these stubs
+  // fetches nothing, so it went green with paint() put back. The behaviour itself is driven in
+  // test/ui/panels.js, where a real box is typed into and a real tab is pressed; this is the
+  // cheap guard that the handler has not grown a repaint since.
+  {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+    const branch = src.match(/if \(d\.storytab\) \{[\s\S]*?\n  \}/)?.[0] ?? '';
+    assert.ok(branch, 'the storytab handler must be findable');
+    assert.ok(!/paint\(\)/.test(branch),
+      'switching group must not repaint — the typed fields are not saved yet');
+  }
+  // BACK TO THE PANEL THIS FILE WAS ON. The checks below read #sideBody for the context inspector,
+  // and a block that leaves another panel open makes them fail a long way from the cause.
+  click({ panel: 'context' });
+  await new Promise((r) => setTimeout(r, 40));
+}
+ok('the story panel is four groups behind four chips, and switching cannot lose what you typed');
+
 assert.match(html('sideBody'), /21,401 \/ 46,146/,
   'the inspector shows the TOKENIZER\'s count, not the estimate — /api/manifest already paid for '
   + 'a /tokenize round trip and returned it, and PLAN-06 2a and 2d are both errors in the number '

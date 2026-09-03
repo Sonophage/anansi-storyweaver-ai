@@ -27,6 +27,12 @@ const veil = () => page.eval(`(() => {
     chars: t ? t.textContent.length : 0,
     held: t ? t.innerHTML.length : 0,
     stopShown: b ? getComputedStyle(b).display !== 'none' : false,
+    // The bar above Stop: present and travelling while she writes, gone when she is done.
+    work: (() => { const w = g.querySelector('.veilwork');
+      if (!w) return 'MISSING';
+      if (getComputedStyle(w).display === 'none') return 'hidden';
+      const i = w.querySelector('i');
+      return i && getComputedStyle(i).animationName !== 'none' ? 'moving' : 'still'; })(),
     dark: getComputedStyle(g).backgroundColor,
     meter: fill ? parseFloat(fill.style.height) || 0 : -1,
     top: t ? t.scrollTop : -1,
@@ -90,6 +96,12 @@ ok("  and a rule that climbs without ever arriving early",
 // The handoff is explicit: Stop stays for the WHOLE write. It used to hide at the first word, a
 // rule written for a surface whose words began after a waiting screen.
 ok("  Stop stayed up the whole time she was writing", mid != null && mid.stopShown === true);
+// Seth, 2026-09-02: "there needs to be something soft and smooth above the stop button to let the
+// user know that something is happenening." Asserted as MOVING and not merely present — a bar that
+// is drawn and not animating says nothing that an empty screen does not, and it is the animation
+// that carries the whole message when no word has landed for a second.
+ok(`  with the working bar above it, travelling (${mid && mid.work})`,
+   mid != null && mid.work === 'moving');
 // Seth: "the view screen should stay at the top so the user can read."
 ok("  and the view stayed at the top rather than chasing the tail", mid != null && mid.top === 0);
 // Seth, 2026-09-02: "the position should be locked." The surface was centred, so every new line
@@ -109,6 +121,8 @@ ok("the veil holds after the passage finishes", done != null && done.done === tr
 ok("  the rule is full and the accent has let go",
    done != null && done.meter === 100 && done.tip === 0);
 ok("  and Stop is gone, because there is nothing left to stop", done != null && done.stopShown === false);
+// And the bar goes with it, for the same reason: it says something is happening, and nothing is.
+ok(`  and the working bar with it (${done && done.work})`, done != null && done.work === 'hidden');
 ok("  and the passage landed on the page behind it",
    (await page.eval("document.querySelectorAll('#col .block').length")) > 0);
 // A REAL key event, not a synthetic one. The first version of this check dispatched a

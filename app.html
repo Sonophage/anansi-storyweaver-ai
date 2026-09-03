@@ -258,7 +258,7 @@ input, textarea { font:inherit; color:inherit; }
      at 12vh, so the cap is everything down to Stop — 96px is the 22px gap, the button, and enough
      room that it is not sitting on the edge. Stop must never leave the screen; that is the trade
      PLAN-07 made when the veil went full screen. */
-  max-width:min(48ch, 72vw); max-height:calc(88vh - 96px); overflow-y:auto; text-align:left;
+  max-width:min(48ch, 72vw); max-height:calc(88vh - 128px); overflow-y:auto; text-align:left;
   font-family:'Instrument Serif', var(--serif, serif); font-size:22px; line-height:1.62;
   color:var(--ink); white-space:pre-wrap; overflow-wrap:break-word; scrollbar-width:none; }
 #ghost.veil .veiltext::-webkit-scrollbar { display:none; }
@@ -278,11 +278,39 @@ input, textarea { font:inherit; color:inherit; }
    the waiting screen gone that rule hid Stop before it had ever been seen.
    A tap anywhere else takes the veil away, so the whole surface is the way out; nothing changes
    colour to say so, because a sheet with one paragraph on it does not need the hint. */
-#ghost.veil.done .veilstop { display:none; }
+#ghost.veil.done .veilstop, #ghost.veil.done .veilwork { display:none; }
 #ghost.veil.done { cursor:pointer; }
-#ghost.veil .veilstop { display:flex; align-items:center; gap:8px; padding:11px 20px;
-  border-radius:var(--r-pill); border:1px solid var(--edge-lit); background:var(--sheet);
-  color:var(--ink-bright); font-size:12.5px; letter-spacing:.06em; }
+/* STOP, IN THE SAME VOCABULARY AS THE REST OF IT — Seth, 2026-09-02: "we need to restyle the stop
+   button". It was a filled sheet-coloured pill with a lit edge, which is the shape of a button you
+   are meant to press; this one is the way OUT of something you asked for, and the surface it sits
+   on has exactly two colours in it — the ink of the words and the gold of the rule beside them. So:
+   no fill, the accent as the edge, and the accent as the ink when you are about to press it. */
+#ghost.veil .veilstop { display:flex; align-items:center; gap:9px; padding:10px 22px;
+  border-radius:var(--r-pill); border:1px solid var(--gold-dim); background:none;
+  color:var(--gold-lit); font-size:11px; letter-spacing:.14em; font-variant-caps:all-small-caps; }
+#ghost.veil .veilstop:hover { border-color:var(--gold); background:rgba(217,178,106,.1); }
+/* AND SOMETHING SOFT ABOVE IT, so the surface says it is working even in the seconds between two
+   words — Seth: "there needs to be something soft and smooth above the stop button to let the user
+   know that something is happenening. but it needs to stay in style of this."
+   IT IS THE SAME RULE AS THE METER, lying down: three pixels, chip under gold, rounded ends. The
+   meter beside the prose says how far; this says only that something is still happening, which is
+   the question a writer has when no word has landed for a second. A light travelling back and
+   forth under its own easing rather than a spinner or a percentage — neither of which this surface
+   has anywhere on it, and a false percentage is worse than none (F10's rule about denominators).
+   NO WIDTH ANIMATION: `translate` is composited, so this costs nothing while the model writes. */
+#ghost.veil .veilwork { width:132px; height:3px; border-radius:var(--r-tight); background:var(--chip);
+  overflow:hidden; }
+#ghost.veil .veilwork i { display:block; width:38%; height:100%; border-radius:inherit;
+  background:linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation:veilwork 2.1s var(--ease) infinite; }
+@keyframes veilwork {
+  0%   { transform:translateX(-100%); }
+  100% { transform:translateX(363%); }
+}
+/* Reduced motion gets the same statement without the travel: a dim rule that is simply there. */
+@media (prefers-reduced-motion: reduce) {
+  #ghost.veil .veilwork i { animation:none; width:100%; opacity:.45; background:var(--gold-dim); }
+}
 @keyframes veilin { from { opacity:0; } to { opacity:1; } }
 @keyframes veilout { from { opacity:1; } to { opacity:0; } }
 /* `veilbreathe` went with `.head`, the status line it pulsed. PLAN-07 bug 3 is recorded in the
@@ -977,11 +1005,39 @@ html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
   padding:5px 13px; }
 #modes button[data-holdback][aria-pressed="true"] { border-color:rgba(217,178,106,.35); }
 #modes select.dial:focus-visible { outline:1px solid var(--gold); outline-offset:2px; }
-/* THE OPEN LIST IS THE PLATFORM'S, and the two properties it will take are these. Left alone it
-   is white with black text on a dark theme — the one part of a native select that cannot be made
-   to match the page, so it is made to stop fighting it. */
+/* THE OPEN LIST, WITHOUT base-select: two properties are all the platform will take, and left alone
+   it is white with black text on a dark theme. This is the floor, and every engine gets it. */
 #modes select.dial option, #asWhom option { background:var(--sheet); color:var(--ink);
   font-variant-caps:normal; letter-spacing:normal; }
+/* AND WITH IT, THE WHOLE MENU. Seth, 2026-09-02: "the menus that these drop downs all open as need
+   to be styled. right now theyre defaulted. use the themes accent color and the styling of these
+   drop down buttons with a dark background."
+   `appearance:base-select` hands the popup over as a real element — `::picker(select)` — so it can
+   take the sheet, the accent border and the radius the closed control already wears. Measured on
+   this box: Chrome 152, base-select and ::picker(select) both supported.
+   BEHIND @supports, and the rule above is what runs without it: an engine that does not know
+   base-select ignores the whole block, keeps the native popup, and still gets the dark option rows.
+   Nothing here is the only way to read the menu.
+   THE CARET STAYS THE BACKGROUND IMAGE, so `::picker-icon` is hidden: base-select adds a triangle
+   of its own, and two carets on one control is worse than the default was. */
+@supports (appearance: base-select) {
+  #modes select.dial, #asWhom { appearance:base-select; }
+  #modes select.dial::picker-icon, #asWhom::picker-icon { display:none; }
+  #modes select.dial::picker(select), #asWhom::picker(select) {
+    appearance:base-select; background:var(--sheet); border:1px solid var(--gold-dim);
+    border-radius:var(--r); padding:6px; margin-top:6px; min-width:anchor-size(width);
+    box-shadow:0 24px 60px rgba(0,0,0,.72); }
+  #modes select.dial option, #asWhom option {
+    background:transparent; color:var(--ink); padding:8px 12px; border-radius:var(--r-tight);
+    font-size:12px; letter-spacing:.08em; font-variant-caps:all-small-caps; }
+  /* The row under the pointer and the row you are on, in the accent — the same tint the mode
+     buttons used to carry when one of four was selected. */
+  #modes select.dial option:hover, #asWhom option:hover,
+  #modes select.dial option:focus, #asWhom option:focus {
+    background:rgba(217,178,106,.12); color:var(--gold-lit); }
+  #modes select.dial option:checked, #asWhom option:checked { color:var(--gold-lit); }
+  #modes select.dial option::checkmark, #asWhom option::checkmark { color:var(--gold); }
+}
 /* The four modes were `#modes button[aria-pressed]` — an underline under the one you were in. One
    control cannot underline itself to say which of its own options is chosen, so the pill is the
    selected state and the label inside it is what it says. */
@@ -1403,6 +1459,15 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 /* #read and #dock set display:flex, which beats the UA's [hidden]{display:none}. Without this
    the document region stays on screen behind the workspace pages. */
 #read[hidden], #dock[hidden], #page[hidden] { display:none !important; }
+
+/* THE STORY PANEL'S FOUR GROUPS. Only one is on screen and the container's attribute says which —
+   see the note in `story()` for why this is CSS and not a redraw: every field in there is free text
+   that Save commits, and a repaint on a tab press loses whatever was half-typed. */
+.sgroup { display:none; flex-direction:column; }
+[data-tab="voice"] > .sgroup[data-group="voice"],
+[data-tab="book"]  > .sgroup[data-group="book"],
+[data-tab="world"] > .sgroup[data-group="world"],
+[data-tab="keep"]  > .sgroup[data-group="keep"] { display:flex; }
 
 /* IN THE MIDDLE OF THE SCREEN, not on the bottom edge — Seth, 2026-09-02: "all the site toast
    notifications should be centered to the screen and styled." It sat 26px off the bottom, directly

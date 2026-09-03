@@ -10,6 +10,27 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · The menus match the app, the waiting screen says it is working, and Storyteller is four groups
+
+### The dropdowns open in the app's own colours
+They were opening as the browser's own white lists. They are the dark sheet the rest of the app is
+made of now, with the accent on the row you are about to pick and on the one you are already on. The
+word **Threads** has gone from the list it opens — it was the button's own name and picking it did
+nothing.
+
+### The waiting screen shows that it is working
+A slim line above **Stop**, travelling, for the seconds when no word has landed yet. Stop itself is
+quieter: an outline in the accent rather than a filled slab.
+
+### Storyteller is four groups instead of one long scroll
+**Voice** — the voice of the weave, how this book is written, and the spice. **The book** — the
+cover, the title, the genre, the premise. **The world** — the setting, the point of view, who you
+are, who the model may not write, and the world this book follows. **Keep** — the exports, the
+archive, the delete.
+
+Save stays at the top of all four, and moving between them never loses anything you have typed and
+not yet saved.
+
 ## 2026-09-02 · The composer is two dials, the bar counts chapters, and the covers sit straight
 
 ### Speak, Act, Direct and Narrate are one control

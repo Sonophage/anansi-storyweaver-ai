@@ -22,7 +22,15 @@ await wait(600);
 // still in the document, so an eval can read and fill them — but a driver CLICK needs the section
 // opened first, which is the press a writer makes. Idempotent: one already open is left alone
 // rather than toggled shut.
+// AND THE TAB IT LIVES IN. The card form grew four tabs — The card / Rooms / Over time / More —
+// and each is a pane that is display:none when it is not the open one, so a fold in another pane
+// has no box and every press on it dies. Same map as test/ui/handlers.js, for the same reason.
+const FOLD_TAB = { states: 'time', addons: 'rooms', outfits: 'rooms' };
 const openFold = async (name) => {
+  const tab = FOLD_TAB[name] ?? 'card';
+  if ((await page.eval(`document.querySelector('[data-cardtab="${tab}"]')?.getAttribute('aria-pressed')`)) !== 'true')
+    await page.click(`[data-cardtab="${tab}"]`);
+  await wait(300);
   if (!(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
     await page.click(`[data-fold="${name}"]`);
   await wait(300);
@@ -59,6 +67,9 @@ states = (await story()).entries.find((e) => e.id === eid)?.states ?? [];
 ok(`removing one persists (back to ${states.length})`, states.length === before);
 
 // ---- entry field history and revert
+// IN THE MORE TAB, since the card form grew tabs — same reason openFold above takes one.
+await page.click('[data-cardtab="more"]');
+await wait(300);
 await page.click('[data-fieldhistory="1"]');
 await wait(700);
 ok("field history opens", await page.eval("document.body.innerHTML.includes('Field history')"));
@@ -75,6 +86,13 @@ if (revs) {
 // ---- export, three ways
 await page.goto(B + "/#" + sid + "/story");
 const md = await page.eval("document.querySelector('a[href*=\"format=markdown\"]')?.getAttribute('href')");
+// THE EXPORTS, THE ARCHIVE AND THE DELETE ARE IN THE KEEP GROUP since 2026-09-02 — the story panel
+// is four groups behind four chips now, and a group that is not showing is display:none with all of
+// its markup still in the document. So the chip is pressed first; without it every press below dies
+// on a button with no box.
+for (let i = 0; i < 40 && !(await page.visible('[data-storytab="keep"]')); i++) await wait(250);
+await page.click('[data-storytab="keep"]');
+await wait(400);
 const js = await page.eval("document.querySelector('a[href*=\"format=json\"]')?.getAttribute('href')");
 ok(`a markdown export link exists (${md})`, !!md && md.includes(sid));
 ok("a json export link exists", !!js);

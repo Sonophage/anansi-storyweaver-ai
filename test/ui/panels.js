@@ -186,6 +186,31 @@ ok("  and the four buttons that used to say so are gone",
 await page.click('#sideBody [data-newlore]');
 await wait(400);
 
+// ---- 6b. THE STORY PANEL IS FOUR GROUPS, AND SWITCHING CANNOT LOSE WHAT YOU TYPED (2026-09-02).
+// Seth: "this is so much information that its overwhelming. give it filter buttons to reach the
+// information." Every box in that panel is free text that Save commits, so the groups are shown and
+// hidden in CSS rather than by redrawing — and that is the half worth driving: a repaint on a tab
+// press would throw away a half-written premise, which is the bug this app has recorded seven times.
+// TYPED, SWITCHED, AND READ BACK, because the assertion has to be the thing a writer would lose.
+await page.goto(B + "/#" + sid + "/story");
+await wait(900);
+ok("the story panel opens on the voice group", await page.eval(
+  "document.querySelector('[data-tab]')?.dataset.tab === 'voice'"));
+ok("  with a chip for each of the four", (await page.eval(
+  "document.querySelectorAll('[data-storytab]').length")) === 4);
+const oneShown = () => page.eval(
+  "[...document.querySelectorAll('.sgroup')].filter(g => getComputedStyle(g).display !== 'none').map(g => g.dataset.group).join(',')");
+ok(`  and exactly one group on screen (${await oneShown()})`, (await oneShown()) === 'voice');
+await page.eval("(() => { const t = document.querySelector('#f-story-premise'); t.value = 'HALF TYPED'; return 1; })()");
+await page.click('[data-storytab="book"]');
+await wait(400);
+ok(`  pressing The book shows that group and only it (${await oneShown()})`, (await oneShown()) === 'book');
+ok("  and Save is still there, on every group", await page.visible('.savebar [data-savestory]'));
+await page.click('[data-storytab="voice"]');
+await wait(400);
+ok("  and the half-typed premise survived both presses", (await page.eval(
+  "document.querySelector('#f-story-premise')?.value")) === 'HALF TYPED');
+
 // ---- 7. the top bar carries the book and nothing else
 // The Inspector button came off it because it opened the panel the nav row already opens. The
 // context reading and the word count came off it on 2026-08-27 — Seth wanted one bar across the
@@ -1254,6 +1279,9 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   ok("a world bible exists to be followed", !!world);
 
   await page.goto(B + "/#" + sid3 + "/story");
+  // "Part of a world" is in The world group — see the note on the Keep group below.
+  for (let i = 0; i < 40 && !(await page.visible('[data-storytab="world"]')); i++) await wait(250);
+  await page.click('[data-storytab="world"]');
   for (let i = 0; i < 40 && !(await page.visible('[data-story="loreFrom"]')); i++) await wait(250);
   ok("the story panel offers a world to belong to", await page.visible('[data-story="loreFrom"]'));
   const picked = await page.eval("(() => { const sel = document.querySelector('[data-story=\"loreFrom\"]');"
@@ -1289,6 +1317,12 @@ ok("  and it is still there a moment later, not eaten by a repaint",
 
   // FORKING IS A COPY, and the proof is that the source does not move afterwards.
   await page.goto(B + "/#" + sid3 + "/story");
+// THE EXPORTS, THE ARCHIVE AND THE DELETE ARE IN THE KEEP GROUP since 2026-09-02 — the story panel
+// is four groups behind four chips now, and a group that is not showing is display:none with all of
+// its markup still in the document. So the chip is pressed first; without it every press below dies
+// on a button with no box.
+  for (let i = 0; i < 40 && !(await page.visible('[data-storytab="keep"]')); i++) await wait(250);
+  await page.click('[data-storytab="keep"]');
   for (let i = 0; i < 40 && !(await page.visible('[data-forkthreads="1"]')); i++) await wait(250);
   const own = (await story3()).entries.filter((e) => !e.sharedFrom).length;
   await page.click('[data-forkthreads="1"]');

@@ -446,7 +446,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'setupstep', 'setupkind',
   // The Threads list: filter to what is in context, and flip one card between always-on and
   // triggered without opening it.
-  'onlyin', 'flipact', 'cardtab'].map((k) => `[data-${k}]`).join(',');
+  'onlyin', 'flipact', 'cardtab', 'storytab'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -2440,11 +2440,71 @@ const PANELS = {
       ${current && !rows.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)} — not a thread</option>` : ''}
     </select>`;
     const fields = STORY_FIELDS.filter((f) => !['setting', 'pov', 'persona'].includes(f.k));
-    return `<div style="display:flex; flex-direction:column">
+  /* ONE FIELD, DRAWN ONCE, CALLED TWICE. Title/genre/premise and the two voice boxes are the same
+   * markup and they sit in two different groups now, so the template is a local rather than a map
+   * body — a second copy is how the re-roll tray under one of them ends up on only one of them. */
+  const field = (f) => `<label class="lbl" for="f-story-${f.k}">${f.label}${f.k === 'writingStyle' ? helpMark('voice') : ''}</label>
+        ${f.k === 'writingStyle' ? helpBody('voice') : ''}
+        ${f.area ? `<textarea class="field" id="f-story-${f.k}" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
+                 : `<input class="field" id="f-story-${f.k}" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
+        ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}
+        <!-- #18 §2. The one field with a re-roll, because it is the one written FROM two others.
+             Voice is yours and a book's premise cannot guess it; the house style is what a book of
+             this genre does on the page, which the genre and the premise between them do say.
+             It fills the box and stops: Save is still the press that keeps it, the same bargain
+             every other thing Anansi offers makes. -->
+        ${LIB_FIELD.voice === f.k || LIB_FIELD.style === f.k
+          ? libTray(f.k === LIB_FIELD.voice ? 'voice' : 'style') : ''}
+        ${f.k === 'styleNote' ? `<button class="btn ghost" data-restyle="1" ${S.styling ? 'disabled' : ''}
+          style="margin:-2px 0 4px; width:auto; padding:0 16px; height:34px; font-size:11.5px">${
+          S.styling ? 'Writing&hellip;' : 'Have Anansi write it'}</button>` : ''}`;
+    const IDENT = ['title', 'genre', 'premise'];
+    const tab = S.storyTab ?? 'voice';
+    return `<div style="display:flex; flex-direction:column" data-tab="${tab}">
       <!-- Issue #33. It was already at the top of this panel; now it stays there. Everything on
            this screen except the typed fields saves itself, so what this commits is the title, the
            premise, the setting and the voice — the four things you can be part-way through. -->
       <div class="savebar"><button class="btn" data-savestory="1">Save</button></div>
+      <!-- FOUR GROUPS, NOT ONE LONG FORM. Seth, 2026-09-02: "this needs the same treatment that
+           threads got with the filters. this is so much information that its overwhelming. give it
+           filter buttons to reach the information. title, genre and premise can be the second
+           filter. the voice of the weave and how the book is written van be the first." His two
+           groups are the first two. The rest of the panel had to go somewhere: Spice joins the
+           voice, because it is the register rather than a fact about the world; the pickers and the
+           world link are The world; the exports, the archive and the delete are Keep.
+           THEY SWITCH IN CSS, NOT BY REDRAWING. Every box in here is free text that Save commits,
+           and a repaint on a tab press throws away whatever was half-typed — the bug this file
+           records seven separate times. All four groups are drawn and the attribute on the
+           container picks the one you see, so switching cannot lose a word. -->
+      <div style="display:flex; gap:6px; margin:0 0 14px">
+        ${[['voice', 'Voice'], ['book', 'The book'], ['world', 'The world'], ['keep', 'Keep']]
+          .map(([k, label]) => `<button class="chip" data-storytab="${k}"
+            aria-pressed="${tab === k}" style="flex:1; text-align:center; cursor:pointer"
+            >${label}</button>`).join('')}
+      </div>
+      <div class="sgroup" data-group="voice">
+      ${fields.filter((f) => !IDENT.includes(f.k)).map(field).join('')}
+      <label class="lbl">Spice${helpMark('spice')}</label>
+      ${helpBody('spice')}
+      ${(() => {
+        // Six options, not five plus a box. The written override was on screen always, which made
+        // it noise on every story that does not use it. A story is on a level OR on a written
+        // register, never both, so the sixth option IS the switch.
+        const custom = !!V.story.spiceNote?.trim();
+        return `<select class="field" data-story="spice">${SPICE.map((l, i) =>
+          `<option value="${i + 1}" ${!custom && Number(V.story.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}
+          <option value="custom" ${custom ? 'selected' : ''}>Custom — say it yourself</option></select>
+        <div id="spiceCustom" ${custom ? '' : 'hidden'}>
+          <label class="lbl">The register, in your words</label>
+          <textarea class="field" data-story="spiceNote"
+            placeholder="e.g. explicit, but never coy about it — the vocabulary of the writing sample"
+            >${esc(V.story.spiceNote ?? '')}</textarea>
+          <div class="hint">This replaces the level entirely — it is the register line the model receives.</div>
+        </div>`;
+      })()}
+
+      </div>
+      <div class="sgroup" data-group="book">
       <div class="lbl" style="letter-spacing:.1em; margin-top:0">The cover</div>
       ${V.cover ? `<img src="${api.coverUrl(S.storyId, V.cover)}" alt=""
         style="width:100%; height:120px; object-fit:cover; border-radius:var(--r); border:1px solid var(--edge)">` : ''}
@@ -2486,21 +2546,9 @@ const PANELS = {
         <div class="hint">At full strength a picture under text is unreadable and at nothing it is
           not there. It saves itself when you let go.</div>` : ''}` : ''}
 
-      ${fields.map((f) => `<label class="lbl" for="f-story-${f.k}">${f.label}${f.k === 'writingStyle' ? helpMark('voice') : ''}</label>
-        ${f.k === 'writingStyle' ? helpBody('voice') : ''}
-        ${f.area ? `<textarea class="field" id="f-story-${f.k}" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
-                 : `<input class="field" id="f-story-${f.k}" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
-        ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}
-        <!-- #18 §2. The one field with a re-roll, because it is the one written FROM two others.
-             Voice is yours and a book's premise cannot guess it; the house style is what a book of
-             this genre does on the page, which the genre and the premise between them do say.
-             It fills the box and stops: Save is still the press that keeps it, the same bargain
-             every other thing Anansi offers makes. -->
-        ${LIB_FIELD.voice === f.k || LIB_FIELD.style === f.k
-          ? libTray(f.k === LIB_FIELD.voice ? 'voice' : 'style') : ''}
-        ${f.k === 'styleNote' ? `<button class="btn ghost" data-restyle="1" ${S.styling ? 'disabled' : ''}
-          style="margin:-2px 0 4px; width:auto; padding:0 16px; height:34px; font-size:11.5px">${
-          S.styling ? 'Writing&hellip;' : 'Have Anansi write it'}</button>` : ''}`).join('')}
+      ${fields.filter((f) => IDENT.includes(f.k)).map(field).join('')}
+      </div>
+      <div class="sgroup" data-group="world">
       ${pick('setting', 'Setting', lore.map((e) => e.title), V.story.setting, 'Not set')}
       <div class="hint">Drawn from the lore and items in this story's ledger.</div>
       ${pick('pov', 'Point of view', POV, V.story.pov, 'Not set')}
@@ -2516,25 +2564,6 @@ const PANELS = {
         'data-story') : ''}
       <div class="hint">${lockoutHint(V.story.lockedCharacter, V.story.lockoutOn !== false)}
         ${LOCKED_ASIDE}</div>
-      <label class="lbl">Spice${helpMark('spice')}</label>
-      ${helpBody('spice')}
-      ${(() => {
-        // Six options, not five plus a box. The written override was on screen always, which made
-        // it noise on every story that does not use it. A story is on a level OR on a written
-        // register, never both, so the sixth option IS the switch.
-        const custom = !!V.story.spiceNote?.trim();
-        return `<select class="field" data-story="spice">${SPICE.map((l, i) =>
-          `<option value="${i + 1}" ${!custom && Number(V.story.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}
-          <option value="custom" ${custom ? 'selected' : ''}>Custom — say it yourself</option></select>
-        <div id="spiceCustom" ${custom ? '' : 'hidden'}>
-          <label class="lbl">The register, in your words</label>
-          <textarea class="field" data-story="spiceNote"
-            placeholder="e.g. explicit, but never coy about it — the vocabulary of the writing sample"
-            >${esc(V.story.spiceNote ?? '')}</textarea>
-          <div class="hint">This replaces the level entirely — it is the register line the model receives.</div>
-        </div>`;
-      })()}
-
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Part of a world</div>
       <select class="field" data-story="loreFrom" style="margin:0">
         <option value="">Stands on its own</option>
@@ -2562,6 +2591,8 @@ const PANELS = {
         untouched. This book just stopped seeing ${
         V.dropped.length === 1 ? 'it' : 'them'}.</div>` : ''}
 
+      </div>
+      <div class="sgroup" data-group="keep">
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Take it with you</div>
       <div style="display:flex; gap:7px">
         <a class="btn ghost" href="${api.exportUrl(S.storyId, 'markdown')}" download
@@ -2611,7 +2642,7 @@ const PANELS = {
           connections between the ones that travel. Its changes over time do not: chapter nine
           there is not chapter nine here. Strings and prose stay with the book.${V.follows
             ? ` Threads taken over from ${esc(V.follows.title)} go back onto the card they came from,
-              so nothing is doubled — anything written here is new to it.` : ''}</div></div>` : ''}</div>`;
+              so nothing is doubled — anything written here is new to it.` : ''}</div></div>` : ''}      </div></div>`;
   },
 
   // The chapter you are writing, whole: its name, how it has to end, where the story is going,
@@ -6198,6 +6229,7 @@ function ghost() {
         <div class="veilmeter" aria-hidden="true"><i></i></div>
         <div class="veiltext" aria-live="polite"></div>
       </div>
+      <div class="veilwork" aria-hidden="true"><i></i></div>
       <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
     </div>`;
   shell.appendChild(g);
@@ -7393,6 +7425,18 @@ document.addEventListener('click', async (e) => {
   // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
   if (d.cardview) { S.cardView = d.cardview === 'form' ? 'form' : null; paint(); return; }
   if (d.cardtab) { S.cardTab = d.cardtab; paint(); return; }
+  /* WHICH GROUP OF THE STORY PANEL IS SHOWING, and it does NOT repaint. Every box in that panel is
+   * free text waiting on Save, so a redraw here would throw away a half-written premise — the same
+   * bug seven other handlers in this file carry a note about. The attribute and the pressed states
+   * are flipped where they are; the stylesheet does the rest. */
+  if (d.storytab) {
+    S.storyTab = d.storytab;
+    const box = t.closest?.('[data-tab]');
+    if (box) box.dataset.tab = d.storytab;
+    for (const b of document.querySelectorAll('[data-storytab]'))
+      b.setAttribute('aria-pressed', String(b.dataset.storytab === d.storytab));
+    return;
+  }
   if (d.goslot) {
     // A JUMP CHIP MUST OPEN THE TAB IT LANDS IN. The handoff names this as the one dead control in
     // its prototype: with the form tabbed, `data-slotat` scrolls to a heading the tabs have taken
