@@ -418,7 +418,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
-  'pullback', 'remember', 'name', 'chapters', 'memo',
+  'pullback', 'remember', 'name', 'chbrief', 'chapters', 'memo',
   'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
@@ -1374,9 +1374,12 @@ async function nameChapter(chapterId) {
   // who started typing in the seconds it took is a writer whose words must not be replaced.
   const ch = V?.chapters.find((c) => c.id === chapterId);
   const live = { title: document.querySelector('[data-setup="title"]')?.value ?? '',
-                 note: document.querySelector('[data-setup="note"]')?.value ?? '' };
+                 note: document.querySelector('[data-setup="note"]')?.value ?? '',
+                 opens: document.querySelector('[data-setup="opens"]')?.value ?? '' };
   const typed = live.title.trim() && live.title.trim() !== `Chapter ${ch?.index}` ? live.title.trim() : '';
-  S.setup = { title: typed || r.title, note: live.note.trim() || r.note };
+  // The opening rides back with the other two, and is kept the same way: typed wins over offered.
+  S.setup = { title: typed || r.title, note: live.note.trim() || r.note,
+              opens: live.opens.trim() || (r.opens ?? '') };
   drawSide();
   // Do not claim she filled a box she left empty. The beat is the half that matters — it rides
   // near the generation point on every call of this chapter — so a silent blank is the one thing
@@ -1385,6 +1388,49 @@ async function nameChapter(chapterId) {
     ? 'Anansi named the chapter but did not say what it has to do. Write the beat yourself, or '
       + 'press again — it is the line that steers every call in this chapter.'
     : 'Anansi suggests. Both boxes are yours to change, and nothing is saved until you press Save.');
+}
+
+/** THE CHAPTER'S BRIEF, WRITTEN BY ANANSI, from inside the chapter panel.
+ *
+ *  Seth, 2026-09-02: "these two can be filled by anansi originally and then rerolles or overwritten
+ *  by the usewr." `nameChapter` above does the same call for the SETUP screen and writes its answer
+ *  into `S.setup`, which the panel does not have — the boxes here are the live fields of a chapter
+ *  that already exists, so the answer goes into the DOM and Save is still what commits it.
+ *
+ *  ONE CALL FOR ALL THREE. The route names the chapter, says how it opens and says where it goes in
+ *  one structured answer, so a re-roll of any of them is a re-roll of the set. Three buttons would
+ *  be three generations for one question, on a box whose whole point is that it is cheap to redo.
+ *
+ *  NOTHING TYPED IS OVERWRITTEN. Only an empty box takes the suggestion — the same bargain
+ *  `nameChapter` makes, and for the same reason: a writer who started typing while the model was
+ *  thinking must not lose it. A name that is still the placeholder counts as empty.
+ *
+ *  NOT SAVED. Every other thing Anansi offers in this app fills the field and stops; Save is the
+ *  press that keeps it. */
+async function chapterBrief() {
+  if (S.naming || !V) return;
+  const ch = V.currentChapter;
+  S.naming = true; drawSide();
+  const r = await api.proposeChapter(S.storyId, ch.id);
+  S.naming = false;
+  if (r.error || !r.title) { drawSide(); return toast(r.error || 'nothing usable came back'); }
+  // READ AFTER THE CALL, not before: drawSide() above rebuilt the panel, so a reference taken
+  // earlier points at boxes that are no longer on the page.
+  drawSide();
+  const box = (sel) => document.querySelector(sel);
+  const t = box('[data-chapter-title]'), o = box('[data-chapter-opens]'), n = box('[data-chapter-note]');
+  const blank = (el) => el && !String(el.value ?? '').trim();
+  const kept = [];
+  if (t && (blank(t) || t.value.trim() === `Chapter ${ch.index}`)) t.value = r.title;
+  else if (t) kept.push('the name');
+  if (blank(o) && r.opens) o.value = r.opens;
+  else if (o && r.opens) kept.push('how it starts');
+  if (blank(n) && r.note) n.value = r.note;
+  else if (n && r.note) kept.push('where it ends');
+  toast(kept.length
+    ? `Anansi suggests. What you had typed is untouched (${kept.join(', ')}); empty boxes are filled. `
+      + 'Nothing is saved until you press Save.'
+    : 'Anansi suggests. All three boxes are yours to change, and nothing is saved until you press Save.');
 }
 
 /** A look change, and the only thing that decides where it is saved: whether a book is open.
@@ -2677,12 +2723,34 @@ const PANELS = {
            the panel on a phone once the proposals and summaries are drawn below it. Both fields
            here are free text and neither autosaves, so this is the only thing that commits them. -->
       <div class="savebar"><button class="btn" data-savestory="1">Save</button></div>
-      <label class="lbl" style="margin-top:0">Name</label>
+      <!-- THE NAME, WITH A RE-ROLL. Seth, 2026-09-02: "i should be able to re roll the chapter
+           name ... these two can be filled by anansi originally and then rerolles or overwritten by
+           the usewr." One press asks for all three at once, which is the call that exists: the
+           route names the chapter, says how it opens and says where it goes in a single answer, so
+           three separate buttons would be three generations for one question.
+           WHATEVER IS TYPED IS NOT OVERWRITTEN unless the box is empty — see fillChapter. -->
+      <div style="display:flex; align-items:baseline; gap:10px">
+        <label class="lbl" style="margin-top:0; flex:1">Name</label>
+        <button data-chbrief="1" ${S.naming ? 'disabled' : ''}
+          style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+          color:var(--gold-dim)">${S.naming ? 'Asking&hellip;' : '↻ Have Anansi write these'}</button>
+      </div>
       <input class="field" data-chapter-title="1" value="${esc(ch.title ?? '')}"
         placeholder="Chapter ${ch.index}">
-      <label class="lbl">This chapter must end with</label>
+      <!-- TWO BOXES, NOT ONE. It was a single "This chapter must end with", and that one line rode
+           beside the generation point on every call — Seth: "the start should be used as information
+           for the very first scene and the where is this going is only used as a suggestion for the
+           direction of the chapter, not something used by the ai at every beat. it tries to end the
+           chapter early if it uses it that way." They now reach the model differently; the hints
+           under them say how, because that difference is the whole reason there are two. -->
+      <label class="lbl">How this chapter starts</label>
+      <textarea class="field" data-chapter-opens="1">${esc(ch.opensWith ?? '')}</textarea>
+      <div class="hint">Sent only while the chapter is empty, for its first passage. Once there is
+        prose on the page it stops being sent — the opening has happened.</div>
+      <label class="lbl">Where this chapter ends</label>
       <textarea class="field" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
-      <div class="hint">Reaches the model as the chapter's brief. It is not shown to the reader.</div>
+      <div class="hint">Sent as the chapter's direction, every time, with the model told not to
+        steer toward it or wrap the chapter up to reach it. Neither box is shown to the reader.</div>
       <button class="btn ghost" data-ritual="1" style="margin-top:14px">End this chapter</button>
       <div class="hint">Opens the chapter's own screen, where it closes.</div>
 
@@ -3971,7 +4039,8 @@ function setupPanel() {
   // Rendered from state, not from the DOM. Ticking a character repaints this panel, and reading
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
-  const form = S.setup ?? { title: ch.title ?? '', note: ch.authorsNote ?? '' };
+  const form = S.setup ?? { title: ch.title ?? '', note: ch.authorsNote ?? '',
+                            opens: ch.opensWith ?? '' };
   /* WHICH CHAPTER THIS PANEL IS DEBRIEFING, from the data when the session cannot say.
    *
    * `S.ritualOf` is set by the close and is the right answer while it lives — but it is session
@@ -4178,12 +4247,25 @@ function setupPanel() {
     <input class="field" id="f-setup-title" data-setup="title" value="${esc(form.title)}" placeholder="${
       S.naming ? 'Anansi is naming it…' : 'Untitled'}">
 
-    <label class="lbl" for="f-setup-note">What happens next</label>
+    <!-- HOW IT OPENS, and this screen is the reason the field exists at all: pressing Save and
+         write below fires the chapter's FIRST passage, which is the only passage this box is sent
+         for. Set it in the Chapter panel afterwards and the opening it describes has already been
+         written. -->
+    <label class="lbl" for="f-setup-opens">How it starts</label>
+    <textarea class="field grow" id="f-setup-opens" data-setup="opens" style="min-height:62px; max-height:30vh"
+      placeholder="${S.naming ? 'and where it opens…' : 'Who is there, where, and what is already under way'}"
+      >${esc(form.opens ?? '')}</textarea>
+    <div class="hint">${(form.opens ?? '').trim()
+      ? 'Sent for the first passage of this chapter, and then not again.'
+      : '<strong>Not set.</strong> The first passage will open wherever the prose left off.'}</div>
+
+    <label class="lbl" for="f-setup-note">Where it ends</label>
     <textarea class="field grow" id="f-setup-note" data-setup="note" style="min-height:80px; max-height:40vh"
-      placeholder="${S.naming ? 'and saying what it has to do…' : 'Where this chapter has to end up'}"
+      placeholder="${S.naming ? 'and saying where it goes…' : 'Where this chapter has to end up'}"
       >${esc(form.note)}</textarea>
-    <div class="hint">${form.note.trim() ? 'Rides near the generation point on every call.'
-      : '<strong>Not set.</strong> Rides near the generation point when it is.'}</div>
+    <div class="hint">${form.note.trim()
+      ? 'Sent as the chapter&rsquo;s direction on every call &mdash; not as a thing to do now.'
+      : '<strong>Not set.</strong> Sent as the chapter&rsquo;s direction when it is.'}</div>
 
     <!-- THE OPTION TO INFLUENCE. Seth: "title and premise should be together with the option to
          influence." It was one button that took whatever came back. A steer is the difference
@@ -7036,8 +7118,9 @@ async function commitStory(only = null) {
   let c = null;
   if (!only) {
     const ct = document.querySelector('[data-chapter-title]'), cn = document.querySelector('[data-chapter-note]');
+    const co = document.querySelector('[data-chapter-opens]');
     c = ct && await api.saveChapter(S.storyId, V.currentChapter.id,
-      { title: ct.value, authorsNote: cn?.value ?? '' });
+      { title: ct.value, authorsNote: cn?.value ?? '', opensWith: co?.value ?? '' });
   }
   V = await api.story(S.storyId);
   // NO REPAINT ON THE AUTOSAVE PATH. The panel you are standing in is the one being redrawn, and
@@ -7292,6 +7375,7 @@ document.addEventListener('click', async (e) => {
   // chapter the model has stopped seeing — `keep_whole` has been honoured by the engine since it
   // was written and had no control anywhere.
   if (d.name) { await nameChapter(d.name); return; }
+  if (d.chbrief) { await chapterBrief(); return; }
   if (d.pullback) {
     const r = await api.saveChapter(S.storyId, d.pullback, { keepWhole: d.on === '1' });
     if (r.error) return toast(r.error);
@@ -8632,7 +8716,12 @@ document.addEventListener('click', async (e) => {
   if (d.savesetup) {
     const title = S.setup?.title ?? document.querySelector('[data-setup="title"]')?.value ?? '';
     const note = S.setup?.note ?? document.querySelector('[data-setup="note"]')?.value ?? '';
-    const r = await api.saveChapter(S.storyId, V.currentChapter.id, { title, authorsNote: note });
+    const opens = S.setup?.opens ?? document.querySelector('[data-setup="opens"]')?.value ?? '';
+    // BOTH HALVES, BEFORE openingPassage() BELOW. That call writes the chapter's first passage and
+    // it is the only one the opening is sent for, so a save that dropped it would mean the box on
+    // this screen could never reach the passage it was written for.
+    const r = await api.saveChapter(S.storyId, V.currentChapter.id,
+      { title, authorsNote: note, opensWith: opens });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId);
     S.setup = null; S.setupStep = null; S.panel = 'context'; syncHash(); paint(); refreshManifest();

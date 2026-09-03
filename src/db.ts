@@ -153,6 +153,8 @@ function migrate() {
   add('stories', 'style_note', 'TEXT');
   add('stories', 'active_branch', 'TEXT');
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
+  // The other half of the chapter's brief — see the note in the CREATE above.
+  add('chapters', 'opens_with', 'TEXT');
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
   /* ISSUE #36 · A FOLLOWED CARD, PER CARD.
    *
@@ -399,6 +401,12 @@ CREATE TABLE IF NOT EXISTS chapters (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   branch_id TEXT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
   idx INTEGER NOT NULL, title TEXT, authors_note TEXT,
+  -- HOW THE CHAPTER STARTS, added 2026-09-02. The authors_note column above was one box called
+  -- "This chapter must end with", and it rode near the generation point on EVERY call — Seth: "it
+  -- tries to end the chapter early if it uses it that way". So the two halves are two columns and
+  -- they reach the model differently: this one only while the chapter is still empty, that one as
+  -- a direction. (No backticks in here: this is inside a template literal.)
+  opens_with TEXT,
   summary TEXT, summary_tokens TEXT, summary_covers_through INTEGER, summary_hash TEXT,
   status TEXT DEFAULT 'open',          -- open | closed
   -- Pull a compacted chapter's full prose back into context on demand. A summary is a record
@@ -2297,8 +2305,9 @@ export function updateChapter(storyId: string, id: string, c: any) {
   const cur = q('SELECT * FROM chapters WHERE id = ? AND story_id = ?').get(id, storyId) as any;
   if (!cur) return;
   const p = (k: string, col: string) => (c[k] !== undefined ? c[k] : cur[col]);
-  q('UPDATE chapters SET title=?, authors_note=?, keep_whole=? WHERE id=? AND story_id=?')
+  q('UPDATE chapters SET title=?, authors_note=?, opens_with=?, keep_whole=? WHERE id=? AND story_id=?')
     .run(p('title', 'title'), p('authorsNote', 'authors_note') ?? null,
+      p('opensWith', 'opens_with') ?? null,
       p('keepWhole', 'keep_whole') ? 1 : 0, id, storyId);
 }
 export const delStory = (id: string, ownerId?: string) => ownerId
@@ -2535,11 +2544,11 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
       if (lowest?.m != null && lowest.m > atOrdinal) continue;   // chapter starts after the fork
       const nid = uid('c-');
       chapterMap.set(ch.id, nid);
-      q(`INSERT INTO chapters (id,story_id,branch_id,idx,title,authors_note,summary,summary_tokens,
-          summary_covers_through,summary_hash,status,created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(nid, storyId, id, ch.idx, ch.title, ch.authors_note, ch.summary, ch.summary_tokens,
-          ch.summary_covers_through, ch.summary_hash, 'open', t);
+      q(`INSERT INTO chapters (id,story_id,branch_id,idx,title,authors_note,opens_with,summary,
+          summary_tokens,summary_covers_through,summary_hash,status,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(nid, storyId, id, ch.idx, ch.title, ch.authors_note, ch.opens_with, ch.summary,
+          ch.summary_tokens, ch.summary_covers_through, ch.summary_hash, 'open', t);
     }
 
     for (const p2 of q(`SELECT * FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1

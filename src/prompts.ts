@@ -499,7 +499,8 @@ export const REVIEW_SCHEMA = {
  *  PROPOSED, never written. The writer edits both before anything is saved, the same rule the
  *  spark and the ledger queue already follow. */
 export const CHAPTER =
-`You are Anansi. Name the chapter that is about to be written, and say what it has to do.
+`You are Anansi. Name the chapter that is about to be written, say how it opens, and say where it
+is going.
 
 You are given the book, what has happened so far as chapter summaries, and the last of the prose.
 The chapter you are naming has not been written yet — that is the point. Do not summarise what
@@ -509,12 +510,16 @@ came before; say where it goes next.
            place, a phrase somebody says. Not "Chapter Four", not a summary of the beat, and not
            a spoiler of the thing it is building towards.
 
-    note   Three to six sentences, and this is the part that matters: it rides near the generation
-           point on EVERY call while this chapter is being written. Say where the chapter has to
-           END UP, what has to be true by the time it closes, who has to be in the room for that,
-           and the one thing that must not happen yet. Write it to the model that will be writing
-           the prose, as an instruction — not as a blurb, and not as prose of its own, because a
-           sentence that reads as the book gets lifted into the book.
+    opens  One or two sentences: where the FIRST passage of this chapter starts. Who is present,
+           where, and what is already under way as it opens. This reaches the model for the
+           chapter's first passage only, so write the situation rather than the prose — a sentence
+           that reads as the book gets lifted into the book.
+
+    note   Three to six sentences: where the chapter is GOING. What has to be true by the time it
+           closes, who has to be in the room for that, and the one thing that must not happen yet.
+           This reaches the model as the chapter's DIRECTION on every call, not as a thing to do
+           now — so write the destination, not an instruction to arrive at it. Nothing in it may
+           read as "end the chapter here".
 
 Follow what the story is already doing. If a destination is set, this chapter is a step towards it
 rather than a detour, and if an unpaid promise is in play, this is where it can be pressed on.
@@ -527,9 +532,13 @@ export const CHAPTER_SCHEMA = {
     // closes the string mid-word with the JSON still valid, so a note that stops at "and by the
     // end she has to" would arrive looking finished. max_tokens is the bound.
     title: { type: 'string' },
+    // HOW IT OPENS, added 2026-09-02 with the second half of the chapter's brief. Required, so the
+    // grammar always produces it: the panel has a box for it either way, and a key that is
+    // sometimes absent is a box that is sometimes silently left empty.
+    opens: { type: 'string' },
     note: { type: 'string' },
   },
-  required: ['title', 'note'],
+  required: ['title', 'opens', 'note'],
 } as const;
 
 /** A passage the writer has pointed at, turned into a thread.

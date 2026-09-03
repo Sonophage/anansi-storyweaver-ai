@@ -104,6 +104,64 @@ ok('the lockout names the character it locks, and only when one is named', () =>
 // The other branch, asserted so the fix is not "delete the word shortened". SPINE's premise is
 // the one `keep: false` part in the anchor, so a long enough premise really is cut — and then
 // "shortened" is the true reason and has to survive.
+ok('the chapter brief is two halves, and only one of them rides every call', () => {
+  // Seth, 2026-09-02: "the start should be used as information for the very first scene and the
+  // where is this going is only used as a suggestion for the direction of the chapter, not
+  // something used by the ai at every beat. it tries to end the chapter early if it uses it that
+  // way." One box worded "This chapter must end with" used to ride here on every generation.
+
+  // EMPTY CHAPTER: the opening is the instruction, because there is nothing on the page yet.
+  const fresh = base();
+  fresh.currentChapter = { id: 'c3', index: 3, title: 'Key',
+    opensWith: 'Marek is already inside the archive when she arrives.',
+    authorsNote: 'Aldis refuses to hand over the key.' };
+  const df = buildContext(fresh, count).blocks.find((b) => b.kind === 'DIRECTIVE')!;
+  assert.match(df.text, /How this chapter opens: Marek is already inside/,
+    'an empty chapter is told how it opens');
+  assert.match(df.text, /first passage of the chapter/, 'and that this is the passage that does it');
+
+  // ONE PASSAGE IN, AND THE OPENING IS GONE. This is the half that matters: left in, the model is
+  // asked to open a chapter it opened four passages ago. `chapterId` is what says a passage
+  // belongs to this chapter, and it is the same flag the whole-prose window is computed from.
+  const going = base();
+  going.currentChapter = fresh.currentChapter;
+  going.passages = base().passages.map((x, i) => (i === 2 ? { ...x, chapterId: 'c3' } : x));
+  const dg = buildContext(going, count).blocks.find((b) => b.kind === 'DIRECTIVE')!;
+  assert.doesNotMatch(dg.text, /How this chapter opens/,
+    'once the chapter has prose, how it opened is no longer an instruction');
+
+  // AND THE FAR END IS A DIRECTION IN BOTH, worded as the chapter's destination rather than as a
+  // demand on this passage. Asserted BOTH ways: the new clause present, and the old wording gone —
+  // "must end with" beside the generation point on every beat is the shape being removed, so a
+  // check that only looked for the new sentence would pass with both in there.
+  for (const [name, d] of [['an empty chapter', df], ['a chapter under way', dg]] as const) {
+    assert.match(d.text, /Where this chapter is going, eventually: Aldis refuses/,
+      `${name} still gets the direction`);
+    assert.match(d.text, /not this passage's business/, `${name} is told not to steer toward it`);
+    assert.doesNotMatch(d.text, /must end with/,
+      `${name} must not carry the old demand — that is what closed chapters early`);
+  }
+
+  // ONE FULL STOP, NOT TWO. Both halves put a sentence of ours after a sentence of the writer's,
+  // and a box that already ends in a full stop gave "keeps the debt.. That is" — seen in a real
+  // prompt the day this shipped, which is why it is asserted rather than eyeballed.
+  assert.doesNotMatch(df.text, /\.\.\s/, 'no doubled full stop where the two sentences meet');
+  const punchy = base();
+  punchy.currentChapter = { id: 'c3', index: 3, title: 'Key',
+    opensWith: 'Marek is already inside', authorsNote: 'Aldis refuses' };
+  const dp = buildContext(punchy, count).blocks.find((b) => b.kind === 'DIRECTIVE')!;
+  assert.match(dp.text, /Marek is already inside\. This is the first passage/,
+    'and a box with no full stop of its own gets one');
+
+  // NOTHING FOR A CHAPTER WITH NEITHER, which is most of them: two empty boxes must not put two
+  // empty brackets into a block that is capped at 250 tokens.
+  const bare = base();
+  bare.currentChapter = { id: 'c3', index: 3, title: 'Key' };
+  const db2 = buildContext(bare, count).blocks.find((b) => b.kind === 'DIRECTIVE')!;
+  assert.doesNotMatch(db2.text, /How this chapter opens|Where this chapter is going/,
+    'a chapter with no brief carries neither line');
+});
+
 ok('an anchor that CAN be cut still says it was shortened, and really is shorter', () => {
   // COUNCIL-06 INVERTED THIS. The setting is the flex part now and the premise is kept: the
   // premise is the only text in SPINE that names who the book is about, and on the live library it

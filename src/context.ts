@@ -35,8 +35,13 @@ export interface Addon {
   fromChapter?: number;            // not true until this chapter
   retiredAtChapter?: number;
 }
+/** One terminal mark, so a writer's sentence and ours do not collide. Used by the chapter brief,
+ *  where both halves put an instruction of ours directly after a sentence of theirs. */
+const stop = (t: string) => { const s = t.trim(); return /[.!?…]$/.test(s) ? s : `${s}.`; };
+
 export interface Chapter {
   id: string; index: number; title: string; summary?: string; authorsNote?: string;
+  opensWith?: string;       // how the chapter starts. Sent only while it has no prose yet — see DIRECTIVE
   summaryStale?: boolean;   // covered prose changed since it was written — excluded, not trusted
   keepWhole?: boolean;      // pulled back in full: send this chapter's prose, not its summary
 }
@@ -1256,7 +1261,44 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
         + `the others say and do, what the room does, what happens to ${locked}. Stop where `
         + `${locked} would act.]`; })()
       : '', keep: true },
-    { text: currentChapter.authorsNote ? `[This chapter must end with: ${currentChapter.authorsNote}]` : '', keep: true },
+    /* THE CHAPTER'S BRIEF, IN TWO HALVES THAT REACH THE MODEL DIFFERENTLY (2026-09-02).
+     *
+     * `stop()` is why the writer's own sentence is not simply interpolated: both of these put a
+     * sentence of ours after a sentence of theirs, and a box that already ends in a full stop gave
+     * "keeps the debt.. That is" — seen in a real prompt on the day this shipped. One terminal mark
+     * or the other, never both, and never none.
+     *
+     * It was one box, worded "This chapter must end with", riding here on every single call for the
+     * whole length of the chapter. Seth: "the where this is going should be how does this start and
+     * where does it end. the start should be used as information for the very first scene and the
+     * where is this going is only used as a suggestion for the direction of the chapter, not
+     * something used by the ai at every beat. it tries to end the chapter early if it uses it that
+     * way."
+     *
+     * HOW IT STARTS goes in ONLY while the chapter has no prose. `started` is the same flag the
+     * whole-prose window is computed from, forty lines up: once one passage exists, the opening is
+     * on the page and the instruction has been carried out. Left in, it would keep asking for an
+     * opening in the middle of a chapter.
+     *
+     * WHERE IT ENDS is named as a direction rather than as a requirement. The old wording put a
+     * demand ("must end with") next to the generation point on every beat, which is the shape that
+     * makes a model close a chapter it has just opened. Naming it as the far end AND saying it is
+     * not this passage's business is the change; F37 is the reason it is worded on its own line and
+     * spells the thing out rather than hinting at it.
+     *
+     * NOT MEASURED. Whether this stops the early wrap-up is a claim about model behaviour and
+     * nothing here has run an A/B on it — bench/ab.ts is how that would be answered, two servers
+     * against one router with the arms live at the same time. What IS true is that the demand no
+     * longer arrives on every call, which is the mechanism Seth described. */
+    { text: !started && currentChapter.opensWith?.trim()
+      ? `[How this chapter opens: ${stop(currentChapter.opensWith)} This is the first passage of `
+        + `the chapter — begin there.]`
+      : '', keep: true },
+    { text: currentChapter.authorsNote?.trim()
+      ? `[Where this chapter is going, eventually: ${stop(currentChapter.authorsNote)} That is the `
+        + `chapter's direction, not this passage's business: do not steer toward it, close it out or `
+        + `wrap the chapter up here. Write only the next passage.]`
+      : '', keep: true },
     // A written-out register replaces the level's fixed line. Five lines cannot say
     // everything, and a story that needs a sixth should not have to pick the nearest.
     { text: `[${story.spiceNote?.trim() || SPICE[story.spice]}]`, keep: true },

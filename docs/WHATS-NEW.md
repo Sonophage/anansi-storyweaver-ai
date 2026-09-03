@@ -10,6 +10,32 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · A chapter says how it starts and where it ends, and Anansi will write both
+
+### One box became two, and they reach the model differently
+The chapter had one box, **This chapter must end with**, and that line was sent to the model beside
+every single passage for the whole length of the chapter. That is why chapters kept trying to finish
+early: the model was being told where to end, over and over, while it was still on the second page.
+
+**How this chapter starts** is sent for the chapter's first passage and then never again — the
+opening has happened, so it stops being an instruction.
+
+**Where this chapter ends** is sent as the chapter's direction, every time, with the model told in
+so many words not to steer toward it, close it out, or wrap the chapter up to reach it.
+
+Whether that stops the early endings is not something we have measured yet. What is certain is that
+the demand no longer arrives on every call.
+
+### Anansi will write all three
+**↻ Have Anansi write these** in the Chapter panel names the chapter, says how it opens and says
+where it goes, in one press. Anything you have already typed is left exactly as it is — only empty
+boxes get filled — and nothing is saved until you press **Save**. Press it again for another
+suggestion.
+
+Both boxes are on the screen you get when you close a chapter, too, which is where they matter
+most: **Save and write** there writes the chapter's first passage, and that is the one passage the
+opening is ever sent for.
+
 ## 2026-09-02 · The re-roll instruction opens in the middle of the screen
 
 ### Editing the instruction is a sheet, not a panel inside the paragraph

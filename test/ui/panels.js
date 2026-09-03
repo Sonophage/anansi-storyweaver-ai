@@ -43,14 +43,22 @@ for (const [k, label] of [['story', 'Story'], ['chapter', 'Chapter'], ['threads'
 await page.click('[data-nav="chapter"]');
 await wait(600);
 const chapter = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
-for (const [what, re] of [['the chapter name', /Name/], ['how it must end', /must end with/],
+// TWO HALVES OF THE BRIEF since 2026-09-02, where there was one box worded "This chapter must end
+// with": how it starts reaches the model for the first passage only, where it ends reaches it as a
+// direction on every call. Seth: "it tries to end the chapter early if it uses it that way."
+for (const [what, re] of [['the chapter name', /Name/],
+                          ['how it starts', /How this chapter starts/],
+                          ['where it ends', /Where this chapter ends/],
                           ['what the chapter added', /What this chapter added/],
                           ['the summaries', /Summaries in context/], ['branches', /Branches/],
                           ['and closing it', /End this chapter/]]) {
   ok(`Chapter holds ${what}`, re.test(chapter));
 }
+// AND THE OLD DEMAND IS GONE FROM THE SURFACE TOO, not just from the prompt: the wording is what
+// made a writer believe the box was a requirement, and it was the same words in both places.
+ok("  and no longer says a chapter MUST end with anything", !/must end with/.test(chapter));
 ok("  and the fields are real inputs, not labels",
-   await page.eval("!!document.querySelector('[data-chapter-title]') && !!document.querySelector('[data-chapter-note]')"));
+   await page.eval("!!document.querySelector('[data-chapter-title]') && !!document.querySelector('[data-chapter-note]') && !!document.querySelector('[data-chapter-opens]')"));
 // "Where this is going" was the third row here until 2026-08-30. Asserted GONE rather than dropped
 // from the list above, because a removal nobody checks is a removal that comes back: this box was
 // on two surfaces and in four prompts, and the whole point was that a writer never meets it again.
@@ -137,15 +145,28 @@ ok("  and no longer offers Where this is going, on this panel or any other",
 // question, and the one a full-row UPDATE would answer by wiping the book. The chapter's own two
 // fields still have to land, or Save on this panel does nothing at all.
 const before = (await story()).story;
+// THREE FIELDS, NOT TWO, since 2026-09-02: the brief is how the chapter starts and where it ends,
+// two columns because they reach the model differently. Seth: "the where this is going should be
+// how does this start and where does it end." Both are typed here, so a save that carries one and
+// drops the other goes red.
+ok("the chapter panel offers both halves of the brief and a way to have them written",
+   (await page.visible('[data-chapter-opens]')) && (await page.visible('[data-chapter-note]'))
+   && (await page.visible('[data-chbrief]')));
+ok("  and says which is which", /How this chapter starts/.test(await page.text('#sideBody') || '')
+   && /Where this chapter ends/.test(await page.text('#sideBody') || ''));
 await page.eval("(() => { const t = document.querySelector('[data-chapter-title]');"
   + " const n = document.querySelector('[data-chapter-note]');"
-  + " t.value = 'The Debt Falls Due'; n.value = 'She hands the key over and keeps the debt.'; return 1; })()");
+  + " const o = document.querySelector('[data-chapter-opens]');"
+  + " t.value = 'The Debt Falls Due'; o.value = 'The room is already cold when she comes in.';"
+  + " n.value = 'She hands the key over and keeps the debt.'; return 1; })()");
 await page.click('[data-savestory="1"]');
 await wait(1200);
 const after = (await story()).story;
 const ch4 = (await story()).currentChapter ?? {};
 ok(`saving from Chapter lands the chapter's own fields (${JSON.stringify(String(ch4.title || '').slice(0, 34))})`,
    ch4.title === 'The Debt Falls Due' && /keeps the debt/.test(ch4.authorsNote || ''));
+ok(`  including how it starts (${JSON.stringify(String(ch4.opensWith || '').slice(0, 30))})`,
+   /already cold/.test(ch4.opensWith || ''));
 ok("  and does NOT blank the story it did not mention",
    after.title === before.title && after.genre === before.genre && after.premise === before.premise);
 ok(`  including the ones a select holds (pov ${JSON.stringify(after.pov)}, spice ${after.spice})`,
@@ -159,7 +180,11 @@ await wait(500);
 const storyBody = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 ok("Story still holds the book's own fields", /Setting/.test(storyBody) && /Point of view/.test(storyBody));
 ok("  and taking it with you", /Take it with you/.test(storyBody));
-ok("  but no longer the chapter's", !/must end with/.test(storyBody));
+// ON THE LABEL THE PANEL ACTUALLY USES. This read `!/must end with/` — the wording of the chapter's
+// old single box — and that phrase left the app entirely on 2026-09-02, so the check could no
+// longer fail. Both of the chapter's boxes are named here instead.
+ok("  but no longer the chapter's",
+   !/How this chapter starts/.test(storyBody) && !/Where this chapter ends/.test(storyBody));
 ok("  and no chapter inputs are left behind on it",
    await page.eval("!document.querySelector('[data-chapter-title]')"));
 
@@ -335,12 +360,16 @@ if (await page.visible('[data-setup="title"]')) {
   const cold = await page.eval(`(() => ({
     title: !!document.querySelector('[data-setup="title"]'),
     note: !!document.querySelector('[data-setup="note"]'),
+    opens: !!document.querySelector('[data-setup="opens"]'),
     steer: !!document.querySelector('[data-setup="steer"]'),
     ledger: !!document.getElementById('setupQ'),
     steps: document.querySelectorAll('[data-setupstep]').length }))()`);
   console.log("  setup cold: " + JSON.stringify(cold));
   ok(`  it opens on the premise, with title and beat together (${cold.steps} steps offered)`,
      cold.title && cold.note && cold.steps >= 3);
+  // AND HOW THE CHAPTER STARTS, since 2026-09-02. This screen is where that box has to be: Save
+  // and write fires the chapter's first passage, and that is the only passage it is sent for.
+  ok('  and how the chapter starts, which is the passage that press writes', cold.opens === true);
   // "title and premise should be together with the option to influence."
   ok('  and a box to steer what Anansi suggests', cold.steer === true);
   ok('  with the ledger NOT on that step', cold.ledger === false);

@@ -1536,6 +1536,23 @@ ok('renaming a chapter leaves its pull-back alone', () => {
   assert.strictEqual((db.chapters(st.id)[0] as any).keep_whole, 0, 'releasing it works');
   assert.strictEqual((db.chapters(st.id)[0] as any).title, 'One, renamed',
     'and releasing it does not wipe the title either');
+
+  // THE SECOND HALF OF THE BRIEF, 2026-09-02. The chapter's brief is two boxes now — how it starts
+  // and where it ends — and they are two columns because they reach the model differently. Which
+  // makes this the third column a partial save could clobber, and the reason this test exists.
+  db.updateChapter(st.id, ch, { opensWith: 'She is already inside when he arrives.' });
+  const withOpen: any = db.chapters(st.id)[0];
+  assert.strictEqual(withOpen.opens_with, 'She is already inside when he arrives.',
+    'how the chapter starts is kept');
+  assert.strictEqual(withOpen.authors_note, 'End it in the rain.',
+    'and saving one half must not blank the other');
+  assert.strictEqual(withOpen.title, 'One, renamed', 'nor the title');
+  // And the view hands it to the surface under the name the panel binds to, or the box renders
+  // empty over a column that has something in it.
+  db.updateChapter(st.id, ch, { title: 'One, renamed again' });
+  assert.strictEqual((db.chapters(st.id)[0] as any).opens_with,
+    'She is already inside when he arrives.',
+    'a rename leaves the opening alone, the way it leaves the pull-back alone');
 });
 
 // The look: three layers, and the one that matters is that a book's look never becomes yours by

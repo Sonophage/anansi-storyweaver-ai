@@ -1932,7 +1932,7 @@ export const routes: Record<string, Handler> = {
       // measured findings put anything that has to be obeyed. Optional: the button asked for a
       // suggestion with no way to say what it should be about until 2026-08-30.
       String(c.body.steer ?? '').trim() ? `THE WRITER WANTS THIS CHAPTER TO: ${String(c.body.steer).trim()}` : '',
-      `NAME CHAPTER ${ch.index}.`,
+      `NAME CHAPTER ${ch.index}, SAY HOW IT OPENS, AND SAY WHERE IT IS GOING.`,
     ].filter(Boolean).join('\n\n');
 
     // The note is the point of this call, not a bonus on the title: it rides near the generation
@@ -1950,7 +1950,11 @@ export const routes: Record<string, Handler> = {
     // Past the retry and still short: hand back what there is and SAY the beat is missing. A title
     // alone is worth having, and the surface must not present an empty box as a filled one.
     const note = String(r.data.note ?? '').trim();
-    return { chapterId: ch.id, title: String(r.data.title).trim(), note,
+    // `opens` rides back beside the note. Not in `enough` above: the retry is spent on the note,
+    // which is the long one and the one that was arriving blank, and a second length bar would
+    // spend a whole extra call on a sentence the writer can type in five seconds.
+    const opens = String(r.data.opens ?? '').trim();
+    return { chapterId: ch.id, title: String(r.data.title).trim(), note, opens,
       ...(note.length >= 40 ? {} : { noteMissing: true }) };
   },
   'POST /api/chapter/end': async (c) => {
