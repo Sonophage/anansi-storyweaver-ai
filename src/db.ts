@@ -2893,10 +2893,30 @@ export function writerStats(o: string) {
                           COALESCE(SUM(g.latency_ms),0) AS ms,
                           COALESCE(SUM(CASE WHEN g.error IS NOT NULL THEN 1 ELSE 0 END),0) AS failed
                      FROM generations g JOIN stories s ON s.id = g.story_id WHERE s.owner_id = ?`);
-  const days = q(`SELECT DATE(p.created_at/1000,'unixepoch') AS d, COUNT(*) AS n
+  // WORDS PER DAY AS WELL AS PASSAGES. "Have I written this week" is a words question — a day
+  // holding one 900-word passage and a day holding six one-liners are the same bar otherwise, which
+  // is a chart that answers the wrong thing.
+  const days = q(`SELECT DATE(p.created_at/1000,'unixepoch') AS d, COUNT(*) AS n,
+                         COALESCE(SUM(LENGTH(p.body) - LENGTH(REPLACE(p.body,' ','')) + 1), 0) AS w
                     FROM passages p JOIN stories s ON s.id = p.story_id
                    WHERE s.owner_id = ? AND p.selected = 1 AND p.is_break = 0
                    GROUP BY d ORDER BY d DESC LIMIT 30`).all(o) as any[];
+  // The ledger by kind. One row per kind rather than four counting statements, and the same LIVE
+  // filter the `entries` total uses — a tombstone is not a card, and the two counts disagreeing on
+  // that would be a shelf that adds up to more than itself.
+  const kinds = q(`SELECT e.entry_type AS k, COUNT(*) AS n
+                     FROM entries e JOIN stories s ON s.id = e.story_id
+                    WHERE s.owner_id = ? AND ${LIVE('e.')}
+                    GROUP BY e.entry_type ORDER BY n DESC`).all(o) as any[];
+  /* THE MIDDLE CALL, NOT THE MEAN ONE. Total time divided by calls is dragged by a cold model
+   * reload and by the one prefill that ran long — F56 quotes medians for exactly that reason. This
+   * is the median by LIMIT 1 OFFSET n/2, which SQLite has no function for; failures and rows with
+   * no latency are excluded, because a call that died carries no duration to be the middle of.
+   * Null when there is nothing to take the middle of, which is a different answer from zero. */
+  const timed = `FROM generations g JOIN stories s ON s.id = g.story_id
+                 WHERE s.owner_id = ? AND g.error IS NULL AND g.latency_ms IS NOT NULL`;
+  const median = (q(`SELECT g.latency_ms AS ms ${timed} ORDER BY g.latency_ms
+                      LIMIT 1 OFFSET (SELECT COUNT(*) / 2 ${timed})`).get(o, o) as any)?.ms ?? null;
   return {
     stories: one('SELECT COUNT(*) AS n FROM stories WHERE owner_id = ?').n,
     chapters: one(`SELECT COUNT(*) AS n FROM chapters c JOIN stories s ON s.id = c.story_id
@@ -2912,6 +2932,9 @@ export function writerStats(o: string) {
                     WHERE s.owner_id = ? AND p.selected = 0`).n,
     calls: gen.calls, tokensOut: gen.out, failed: gen.failed,
     minutes: Math.round(gen.ms / 60000),
+    // Seconds, to one decimal, because the interesting range is 5-80s and whole minutes flatten it.
+    medianSeconds: median == null ? null : Math.round(median / 100) / 10,
+    kinds,
     days: days.reverse(),
   };
 }

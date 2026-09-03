@@ -15,23 +15,63 @@ const phone = () => matchMedia('(max-width:719px)').matches;
  *
  *  It opens IN PLACE, under the control it belongs to. A help page is one you navigate away to and
  *  do not come back from. */
-const helpMark = (slug) => {
-  const h = HELP[slug];
-  if (!h) return '';
-  const open = S.help === slug;
-  return `<button data-help="${slug}" aria-expanded="${open}" aria-label="What ${esc(h.title)} is"
-    style="display:inline-flex; vertical-align:-2px; margin-left:6px; padding:1px; flex:0 0 auto;
-      color:${open ? 'var(--gold)' : 'var(--faint)'}">${mark('web', 13)}</button>`;
-};
+/* ---------- what a control does, folded away until it is asked for ----------
+ *
+ * Seth, 2026-09-03: "Every information about how things work, what it does across the entire site
+ * needs to be not in frame but behind a tooltip button next to the name of what it does." Then, on
+ * seeing the first pass: "you left the text in the same place and voice of the weave now has two.
+ * instead lets style it like the first one it has and move all the text to the top so the help is
+ * above what needs to be filled in and styled the same way."
+ *
+ * ONE MECHANISM, and that is the whole of the fix. The first pass added a second one beside the
+ * webs — a mark that folded the `.hint` where it already sat, UNDER the control — so `Voice of the
+ * weave` grew two marks in two styles doing one job, one of which repainted the panel and one of
+ * which did not. Two renderings of one idea is the drift this file keeps recording. The webs are
+ * drawn BY this now: one mark, one card, one state, one handler.
+ *
+ * `web/help.js` is untouched and still the curated manual — its own header forbids counts and
+ * wording that lives elsewhere, and test/app.ts binds every slug to an entry and back. It supplies
+ * the prose for the controls that have an entry; everything else keeps the sentence already written
+ * beside it. The sweep moved words, it did not write any.
+ *
+ * ABOVE THE CONTROL, NEVER UNDER IT. An explanation read after the box is filled in is an
+ * explanation read too late. `helpBody` was already placed this way at every call site it had,
+ * which is the shape he pointed at.
+ *
+ * IT DOES NOT REPAINT. Every field on these panels is free text that only Save commits, so a paint
+ * on a disclosure eats a half-written premise — the bug this file records eight times, and the one
+ * `data-help` had until it was folded in here. The card is in the document either way and the
+ * attribute is flipped where it stands; the open set is kept in state too, so an unrelated repaint
+ * redraws it open rather than shutting it under the writer.
+ */
+const tipOn = (k) => !!S.tips?.[k];
+const tipMark = (k, what) => `<button data-tip="${k}" aria-expanded="${tipOn(k)}"
+  aria-controls="tip-${k}" aria-label="What ${esc(what)} is"
+  style="display:inline-flex; vertical-align:-2px; margin-left:6px; padding:1px; flex:0 0 auto;
+    color:${tipOn(k) ? 'var(--gold)' : 'var(--faint)'}">${mark('web', 13)}</button>`;
+/** The card it opens. `body` is HTML: the webs are written as paragraphs, and the sentences that
+ *  moved in here carry their own emphasis and dashes. A caller holding plain text wraps it. */
+const tipCard = (k, title, body) => `<div class="card" id="tip-${k}"${tipOn(k) ? '' : ' hidden'}
+    style="margin:2px 0 12px; gap:7px; font-size:12.5px; line-height:1.6; color:var(--mute);
+      border-color:rgba(217,178,106,.28)">
+    ${/* NOT UPPERCASED, and that is the exception rather than an omission. Seth, 2026-09-03:
+          "everything should be upper cased. except the menu and the info." A card that opens to
+          explain a control is prose, and its title is the first line of that prose — set in capitals
+          it reads as another label shouting at you from inside the thing you opened to get away
+          from the shouting. */ ''}
+    <div style="font-size:11px; letter-spacing:.08em; color:var(--gold-dim)">${esc(title)}</div>${body}</div>`;
 
-const helpBody = (slug) => {
-  const h = HELP[slug];
-  if (!h || S.help !== slug) return '';
-  return `<div class="card" data-helpbody="${slug}" style="margin:0 0 14px; gap:7px;
-      font-size:12.5px; line-height:1.6; color:var(--mute); border-color:rgba(217,178,106,.28)">
-      <div style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
-        color:var(--gold-dim)">${esc(h.title)}</div>${h.body}</div>`;
-};
+/* The webs, drawn by the two above. They keep their own names because the SLUG has to stay
+ * greppable: test/app.ts reads the helpMark and helpBody calls out of this source and asserts
+ * against web/help.js in both directions, so a web that loses its call site is a web nobody can
+ * open and the suite says so. (No slug is written in this comment on purpose — that check scans
+ * the file as text, and a name here would be counted as a use.) */
+const helpMark = (slug) => (HELP[slug] ? tipMark(slug, HELP[slug].title) : '');
+const helpBody = (slug) => (HELP[slug] ? tipCard(slug, HELP[slug].title, HELP[slug].body) : '');
+/** Just the prose, for a control that has a web AND a sentence of its own — see `field`. Named to
+ *  match the same scan: folding a web into one card there would otherwise orphan the entry it
+ *  draws from, and the suite would rightly say that web is unreachable. */
+const helpText = (slug) => HELP[slug]?.body ?? '';
 
 /** Both halves, for the field-level ones where the label is not clipped and the body can sit right
  *  under it. The panel-level four are split, because a panel heading is nowrap and decode() owns it. */
@@ -195,6 +235,11 @@ const S = {
   // landing in Rooms because that is where you were on the last thread is the app deciding what you
   // came here for.
   cardTab: 'card',
+  // Which of the folded explanations are open, by key. See tipMark.
+  tips: {},
+  // Which group of the Chapter panel is showing. Declared rather than left undefined, for the
+  // reason the fields around it are: a field nobody can find is a field nobody maintains.
+  chapTab: 'this',
   memoing: null,        // the passage being turned into a thread, while Anansi is thinking
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
   modelMenu: false,     // the model list, open under the rail's footer
@@ -204,7 +249,6 @@ const S = {
   // Reading mode. Session-only on purpose: persisted, it would come back after a reload as a
   // composer that will not take a keystroke and no memory of why.
   reading: false,
-  help: null,          // which web is open, if any
   // The bug report, kept in state so a repaint mid-typing does not eat it — the same lesson the
   // composer's draft taught seven times.
   bug: '', bugKind: 'bug', bugSending: false, bugUrl: null, bugError: null, lastError: null,
@@ -262,13 +306,13 @@ const lockoutHint = (name, on) => name && on
 
 /** The Hold-them-back switch, on both screens. `attr` is the autosave hook the screen uses —
  *  `data-story` saves straight to the book, `data-sp` rides the wizard's skeleton until Accept. */
-const holdBack = (name, on, attr) => `<label style="display:flex; align-items:center; gap:10px;
+const holdBack = (name, on, attr) => `${tipCard('holdBack', 'Hold them back', `<p>Turn this off for
+    a scene where you want the model to write ${esc(name)} after all. The name stays, so turning it
+    back on is one press rather than picking them again.</p>`)}
+  <label style="display:flex; align-items:center; gap:10px;
     margin:10px 0 2px; font-size:13px; color:var(--ink)">
     <input type="checkbox" ${attr}="lockoutOn" ${on ? 'checked' : ''}>
-    Hold them back</label>
-  <div class="hint" style="margin-top:0">Turn this off for a scene where you want the model to
-    write ${esc(name)} after all. The name stays, so turning it back on is one press rather than
-    picking them again.</div>`;
+    Hold them back${tipMark('holdBack', 'Hold them back')}</label>`;
 
 /** Why the two are separate columns, said on both screens because it is the question both raise. */
 const LOCKED_ASIDE = `A separate setting from <em>You are</em> on purpose: you may hand yourself a
@@ -302,7 +346,7 @@ const SNAV = [
   ['waiting', 'threads', 'Waiting'],
   /* TWO ROWS, TWO WORDS THAT ARE NOT EACH OTHER'S PLURAL — Seth, 2026-09-02: "We need a way to
    * differentiate chapter and chapters." Chapter and Chapters sat next to each other and the only
-   * thing telling them apart was a final s, on a rail read at 11px in all-small-caps.
+   * thing telling them apart was a final s, on a rail read at 11px in small caps.
    *
    * THE SINGULAR TAKES THE QUALIFIER, because it is the one that needs it: that panel is about the
    * chapter you are writing in — its name, its brief, what it proposed, how it will be summarised —
@@ -412,7 +456,10 @@ const WATCHED = new Set();
 let DREW = null;
 
 const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel', 'appearance', 'theme',
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home', 'owed', 'help',
+  // ('help' left this list on 2026-09-03. The webs are drawn by tipMark now, so a help icon
+  //  carries `data-tip` like every other folded explanation — one mark, one handler, one
+  //  state. A name left here would match nothing and read as a live action.)
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home', 'owed',
   're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
   'carryon', 'readfrom',
@@ -466,7 +513,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'setupstep', 'setupkind',
   // The Threads list: filter to what is in context, and flip one card between always-on and
   // triggered without opening it.
-  'onlyin', 'flipact', 'cardtab', 'storytab',
+  'onlyin', 'flipact', 'cardtab', 'storytab', 'chaptab', 'tip',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -604,8 +651,10 @@ function drawRail() {
     ? `<div class="hint" style="padding:22px 12px 10px; margin:0">A world book. Its lore is here to
          be read and edited, and to start books from &mdash; there is nothing to write in it.</div>`
     : storyMenu
-    ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.3em;
-         font-variant-caps:all-small-caps; color:var(--dim)">Chapters</div>
+    // The rail IS the menu, and the menu is excepted — see tipCard. Its rows were never uppercased;
+    // this heading was the only thing in here that was.
+    ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.2em;
+         color:var(--dim)">Chapters</div>
        ${V.chapters.map((c) => `<button data-chapter="${c.id}"${
          c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis;
@@ -858,7 +907,7 @@ function drawBar() {
 `
       : `<button class="pill" data-open="new">New story</button>
          ${LIB.length ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
-           font-variant-caps:all-small-caps; color:var(--on-gold); background:var(--gold); padding:9px 18px;
+           text-transform:uppercase; color:var(--on-gold); background:var(--gold); padding:9px 18px;
            border-radius:var(--r); font-weight:500; white-space:nowrap">Resume writing</button>` : ''}`}
       <!-- HER WEB, AND IT OPENS HER. Seth: "make the icon a full web and make it go to anansi.
            this can remove the anansi text link from the input field." Asking her something is a
@@ -982,7 +1031,7 @@ function drawAppearance() {
 
   el.innerHTML = `
     <div class="sheet-head" style="display:flex; align-items:center; gap:10px">
-      <span style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--dim)">${
+      <span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim)">${
         inStory ? 'This book' : 'Every book'}</span>
       <button data-appearance="0" style="margin-left:auto; color:var(--faint); font-size:12px" aria-label="Close">✕</button>
     </div>
@@ -1315,7 +1364,7 @@ function drawDoc() {
     ${isFirst ? '' : '<div class="chapbreak" aria-hidden="true"><span></span><i></i><span></span></div>'}
     ${plateFor}
     <div class="band">
-      <div style="font-size:11.5px; letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--label)">
+      <div style="font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--label)">
         Chapter ${c.index}</div>
       ${plateFor ? '' : `<div class="serif band-title">${esc(c.title || `Chapter ${c.index}`)}</div>`}
       ${(() => { const e = epigraphOf(list); return e ? `<div class="band-epi"><i></i><span class="serif">${esc(e)}</span></div>` : ''; })()}
@@ -1739,7 +1788,7 @@ function drawSide() {
           instead, because the span is nowrap and would clip it. */
       PANEL_HELP[S.panel] ? helpMark(PANEL_HELP[S.panel]) : ''}
     <span style="flex:1"></span>
-    <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps">Close</button>`;
+    <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
   $('sideBody').innerHTML = (PANEL_HELP[S.panel] ? helpBody(PANEL_HELP[S.panel]) : '')
     + (PANELS[S.panel] ?? (() => ''))();
@@ -1911,9 +1960,12 @@ function ritualPanel() {
       : `Closing a chapter summarises it, reads it for new facts, remembers what it did to the people
          in it, and asks which threads it finished. Nothing it finds becomes canon until you accept it.`}</div>
 
-    ${closed ? '' : `<button class="btn" data-endchapter="1">${
-      S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
-    <div class="hint">It closes here and the next one opens. The prose stays exactly where it is.</div>`}
+    ${closed ? '' : `${tipCard('ritEnd', 'Ending this chapter', `<p>It closes here and the next one
+      opens. The prose stays exactly where it is.</p>`)}
+    <div style="display:flex; align-items:center; gap:2px">
+      <button class="btn" data-endchapter="1" style="flex:1">${
+        S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
+      ${tipMark('ritEnd', 'Ending this chapter')}</div>`}
 
     <div style="margin-top:20px">
     ${line(closed ? '--good' : '--chip', closed ? 'Closed, and the next one opened' : 'Not closed yet',
@@ -1937,16 +1989,24 @@ function ritualPanel() {
         : 'Nothing was proposed as finished')}
     </div>
 
-    ${queued ? `<button class="btn" data-panel="waiting" style="margin-top:8px">Decide the ${
-      plural(queued, 'proposal', 'proposals')}</button>
-    <div class="hint">On Waiting, beside everything else this book is owed. Nothing is canon until you accept it.</div>` : ''}
+    ${queued ? `${tipCard('ritDecide', 'Deciding the proposals', `<p>On Waiting, beside everything
+      else this book is owed. Nothing is canon until you accept it.</p>`)}
+    <div style="display:flex; align-items:center; gap:2px; margin-top:8px">
+      <button class="btn" data-panel="waiting" style="flex:1">Decide the ${
+        plural(queued, 'proposal', 'proposals')}</button>
+      ${tipMark('ritDecide', 'Deciding the proposals')}</div>` : ''}
 
-    <button class="btn ghost" data-panel="setup" style="margin-top:8px">Set up the next chapter</button>
-    <div class="hint">Its name, its brief, and who is in it.</div>
+    ${tipCard('ritSetup', 'Setting up the next chapter', `<p>Its name, its brief, and who is in
+      it.</p>`)}
+    <div style="display:flex; align-items:center; gap:2px; margin-top:8px">
+      <button class="btn ghost" data-panel="setup" style="flex:1">Set up the next chapter</button>
+      ${tipMark('ritSetup', 'Setting up the next chapter')}</div>
 
-    ${closed ? `<div class="lbl" style="letter-spacing:.1em; margin-top:24px">Run a pass again</div>
-    <div class="hint" style="margin:0 0 8px">Every pass at chapter end is wrapped so the chapter still
-      closes with the model down. If a line above came back blank, this is the way back.</div>
+    ${closed ? `<div class="lbl" style="letter-spacing:.1em; margin-top:24px">Run a pass again${
+      tipMark('ritAgain', 'Running a pass again')}</div>
+    ${tipCard('ritAgain', 'Running a pass again', `<p>Every pass at chapter end is wrapped so the
+      chapter still closes with the model down. If a line above came back blank, this is the way
+      back.</p>`)}
     <div style="display:flex; flex-wrap:wrap; gap:6px">
       <button class="btn ghost" data-summarize="1" style="flex:1 1 40%">Summary</button>
       <button class="btn ghost" data-remember="1" style="flex:1 1 40%">Changes</button>
@@ -1961,12 +2021,14 @@ function ritualPanel() {
          The numbers are NOT closed up afterwards and the hint says so: a fact that opens at
          chapter 5 is anchored to the number, so closing the gap would move every timeline in the
          book to a chapter that is not the one it meant. See src/db.ts delChapter. -->
-    <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete</div>
+    <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete${
+      tipMark('ritDelete', 'Delete this chapter')}</div>
+    ${tipCard('ritDelete', 'Delete this chapter', `<p>Its prose, its edits, its summary and anything
+      it proposed. There is no undo.</p>
+      <p>The chapters after it keep the numbers they have &mdash; a change over time is anchored to
+      a chapter number, so closing the gap would move it to a different chapter.</p>`)}
     <button class="btn ghost" data-delchapter="${esc(ch.id)}"
-      style="margin-top:4px; color:var(--bad)">Delete ${esc(ch.title || `chapter ${ch.index}`)}</button>
-    <div class="hint">Its prose, its edits, its summary and anything it proposed. There is no undo.
-      The chapters after it keep the numbers they have &mdash; a change over time is anchored to a
-      chapter number, so closing the gap would move it to a different chapter.</div>`;
+      style="margin-top:4px; color:var(--bad)">Delete ${esc(ch.title || `chapter ${ch.index}`)}</button>`;
 }
 
 const PANELS = {
@@ -2200,8 +2262,10 @@ const PANELS = {
     if (S.ctxView === 'prompt') {
       return `<div style="display:flex; flex-direction:column">
         ${ctxTabs()}
-        <div class="hint" style="margin:0 0 10px">Exactly what the next call will send, in order.
-          Nothing is added between here and the model.</div>
+        <div style="display:flex; justify-content:flex-end">${
+          tipMark('ctxPrompt', 'The prompt sent')}</div>
+        ${tipCard('ctxPrompt', 'The prompt sent', `<p>Exactly what the next call will send, in
+          order. Nothing is added between here and the model.</p>`)}
         <pre style="white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,monospace;
           font-size:11.5px; line-height:1.55; color:var(--narr); background:var(--field);
           border:1px solid var(--chip); border-radius:var(--r); padding:12px 13px; margin:0"
@@ -2251,11 +2315,10 @@ const PANELS = {
           <span style="width:8px; height:8px; border-radius:50%; background:var(--gold-dim); margin-top:5px; flex:0 0 auto"></span>
           <span style="flex:1; display:flex; flex-direction:column; gap:4px">
             <span style="font-size:13px; color:var(--ink)">Chapters ${h.from}&ndash;${h.to} are past the horizon${helpMark('horizon')}</span>
-            ${helpBody('horizon')}
-            <span class="hint" style="margin:0">Their summaries no longer reach the model, so it
-              cannot draw on them or stay consistent with them.
+            ${tipCard('horizon', HELP.horizon.title, `${helpText('horizon')}<p>Their summaries no
+              longer reach the model, so it cannot draw on them or stay consistent with them.
               <strong>Chapter &rarr; Acts</strong> collapses a run of them into one summary that
-              does fit.</span></span></div>`;
+              does fit.</p>`)}</span></div>`;
       })()}
       ${(() => {
         // Compact now, where the number that makes you want it is. Summarising is what actually
@@ -2265,11 +2328,13 @@ const PANELS = {
         const prose = (agg.PROSE ?? 0) + (agg.TAIL ?? 0);
         const pct = Math.round(MANI.totals.used / budget * 100);
         if (!prose) return '';
-        return `<button class="btn ghost" data-summarize="1" style="margin:10px 0 2px">Compact now</button>
-          <div class="hint" style="margin:0 0 8px">Summarises the open chapter, so its prose stops
-            being sent line by line. Prose is ${prose.toLocaleString()} of the
+        return `${tipCard('ctxCompact', 'Compacting now', `<p>Summarises the open chapter, so its
+            prose stops being sent line by line. Prose is ${prose.toLocaleString()} of the
             ${MANI.totals.used.toLocaleString()} tokens here${pct >= 70
-              ? ' — and you are at ' + pct + '% of the budget.' : '.'}</div>`;
+              ? ' &mdash; and you are at ' + pct + '% of the budget.' : '.'}</p>`)}
+          <div style="display:flex; align-items:center; gap:2px; margin:10px 0 8px">
+            <button class="btn ghost" data-summarize="1" style="flex:1">Compact now</button>
+            ${tipMark('ctxCompact', 'Compacting now')}</div>`;
       })()}
       ${Object.entries(agg).map(([k, v]) => {
         const rows = inc.filter((b) => b.kind === k);
@@ -2307,9 +2372,12 @@ const PANELS = {
             <span class="tnum" style="margin-left:auto; color:var(--faint)">${tokens.toLocaleString()}</span></div>`;
         }).join('');
       })()}
-      <div class="hint" style="margin-top:14px">Canon is capped at 45% of the slot, earlier chapters at 25%,
-        recent prose at 60%. The tail is never evicted. Click one of the rows above the line to reach
-        what put it there; the dimmed rows are what came off, and lead nowhere.</div></div>`;
+      <div style="display:flex; justify-content:flex-end; margin-top:14px">${
+        tipMark('ctxCaps', 'How the budget is shared out')}</div>
+      ${tipCard('ctxCaps', 'How the budget is shared out', `<p>Canon is capped at 45% of the slot,
+        earlier chapters at 25%, recent prose at 60%. The tail is never evicted.</p>
+        <p>Click one of the rows above the line to reach what put it there; the dimmed rows are what
+        came off, and lead nowhere.</p>`)}</div>`;
   },
 
   // Every card in this story, grouped by what kind of thing it is. This was `cast` and showed
@@ -2361,20 +2429,31 @@ const PANELS = {
         ${!S.lore.kind ? `<div class="hint" style="margin:0">Pick what you are writing down. Or paste
           one in below &mdash; a forged thread says what kind it is itself.</div>`
         : ROOMS.includes(S.lore.kind) ? ((S.lore.kind === 'outfit' ? cast : V.entries).length ? `
+        <div style="display:flex; justify-content:flex-end">${
+          tipMark('thRoom', 'Writing a room')}</div>
+        ${tipCard('thRoom', 'Writing a room', `<p>It hangs on them unworn, and what Anansi writes
+          lands in the fields rather than in the proposals queue &mdash; read it, then press Add an
+          outfit.</p>
+          <p>Wearing one is a press on the list behind this tray: what she owns and what she has ON
+          are different questions.</p>`)}
         ${roomForm(V.entries.filter((e) => (V.slots?.[e.entryType] ?? [])
-            .some((sl) => sl.name === S.lore.kind)), null, S.lore.kind)}
-        <div class="hint">It hangs on them unworn, and what Anansi writes lands in the fields rather
-          than in the proposals queue — read it, then press Add an outfit. Wearing one is a press on
-          the list behind this tray: what she owns and what she has ON are different questions.</div>`
+            .some((sl) => sl.name === S.lore.kind)), null, S.lore.kind)}`
         : `<div class="hint" style="margin:0">No card to hang it on yet. A room belongs to a thread,
           so write one of those down first.</div>`) : `
-        <button class="btn" data-newentry="${esc(S.lore.kind)}">New ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}</button>
-        <div class="hint">Opens an empty entry for you to fill in. Nothing reaches the model until
-          it has a body.</div>
+        ${tipCard('thNew', 'A new thread', `<p>Opens an empty entry for you to fill in. Nothing
+          reaches the model until it has a body.</p>`)}
+        <div style="display:flex; align-items:center; gap:2px">
+          <button class="btn" data-newentry="${esc(S.lore.kind)}" style="flex:1">New ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}</button>
+          ${tipMark('thNew', 'A new thread')}</div>
+        ${/* The mark cannot go inside the tray: its label IS a button's text, and a button inside
+              a button is not valid HTML — the outer one swallows it. So the mark and the card sit
+              above the tray, which is where every other explanation on this panel now is. */ ''}
+        <div style="display:flex; justify-content:flex-end; margin-top:10px">${
+          tipMark('thInvent', 'Having Anansi write one')}</div>
+        ${tipCard('thInvent', 'Having Anansi write one', `<p>It goes to the proposals queue under
+          Chapter, like everything else Anansi offers. Nothing is canon until you accept it.</p>`)}
         ${inventTray(S.lore.kind, `Or have Anansi write ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}`,
-                     'a rival cartographer, or nothing at all and let it choose')}
-        <div class="hint">It goes to the proposals queue under Chapter, like everything else Anansi
-          offers. Nothing is canon until you accept it.</div>`}
+                     'a rival cartographer, or nothing at all and let it choose')}`}
 
         <!-- #29 · A THREAD FORGED SOMEWHERE ELSE. Seth: "have the add a new thread allow the
              import if its done correctly." The shape comes off the forge page; the route reads it
@@ -2392,33 +2471,37 @@ const PANELS = {
              is the inverse — the subject's canon outranks the book's, and the book is not sent.
              IT GOES TO THE PROPOSALS QUEUE, like everything else Anansi offers: "I would be able to
              choose what and when it gets pulled." The URLs it read ride along on the proposal. -->
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or pull one off the web</div>
+        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or pull one off the web${
+          tipMark('thWeb', 'Pulling one off the web')}</div>
+        ${tipCard('thWeb', 'Pulling one off the web', `<p>Every fact comes from what the search
+          found, and a gap is left as a gap rather than filled in &mdash; written from inside the
+          world, not as an encyclopedia entry about it.</p>
+          <p>It looks for the rooms as well as the card, and both arrive together: accepting it
+          under Chapter writes the rooms the search could fill. Nothing is canon until you accept
+          it, and the pages it read are on the proposal. Your own SearXNG does the searching.</p>`)}
         <input class="field" data-webwho aria-label="What to look up"
           placeholder="Paul Atreides, a Warhammer primarch, an author"
           style="margin:0">
         <button class="btn ghost" data-fromweb="${esc(S.lore?.kind ?? 'character')}"
           ${S.webPulling ? 'disabled' : ''} style="margin-top:7px">${
           S.webPulling ? 'Looking it up&hellip;' : 'Look it up and write the card'}</button>
-        <div class="hint">Every fact comes from what the search found, and a gap is left as a gap
-          rather than filled in &mdash; written from inside the world, not as an encyclopedia entry
-          about it. It looks for the rooms as well as the card, and both arrive together: accepting
-          it under Chapter writes the rooms the search could fill. Nothing is canon until you accept
-          it, and the pages it read are on the proposal. Your own SearXNG does the searching.</div>
 
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or paste one in</div>
+        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or paste one in${
+          tipMark('thPaste', 'Pasting one in')}</div>
+        ${tipCard('thPaste', 'Pasting one in', `<p>This lands straight in the ledger with its rooms,
+          rather than going to the proposals queue &mdash; you wrote it elsewhere, so it is yours
+          already. The prompt that produces this shape is on The Web.</p>`)}
         <textarea class="field" data-pastebox aria-label="Paste a thread as JSON"
           placeholder="Paste JSON from the forge &mdash; one card, or a list of them"
           style="min-height:74px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
         <button class="btn ghost" data-pastethread="1">Read it and add</button>
-        <div class="hint">This lands straight in the ledger with its rooms, rather than going to the
-          proposals queue &mdash; you wrote it elsewhere, so it is yours already. The prompt that
-          produces this shape is on The Web.</div>
 
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or read the chapter</div>
+        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or read the chapter${
+          tipMark('thRead', 'Reading the chapter')}</div>
+        ${tipCard('thRead', 'Reading the chapter', `<p>Reads what is already on the page and proposes
+          entries for it. Nothing is accepted automatically &mdash; proposals wait for you under
+          Chapter. This is the ritual's third step, on its own, without ending the chapter.</p>`)}
         <button class="btn ghost" data-loreread="1">Scan ${esc(V.currentChapter.title || `chapter ${V.currentChapter.index}`)} for facts</button>
-        <div class="hint">Reads what is already on the page and proposes entries for it. Nothing is
-          accepted automatically — proposals wait for you under Chapter. This is the ritual's third
-          step, on its own, without ending the chapter.</div>
       </div>`;
     }
     const groups = [['character', 'Characters', 'character'], ['lore', 'Lore', 'lore'],
@@ -2455,14 +2538,20 @@ const PANELS = {
         const pin = pinModes();
         const n = V.entries.filter((e) => inContext(e, pin)).length;
         return `<div style="display:flex; gap:6px; margin-top:12px">
-          ${[['0', 'All', V.entries.length], ['1', 'In context', n]].map(([v, l, c]) =>
+          ${/* In context first. Seth, 2026-09-03: "flip the order of all and in context so in
+               context is the first thing that you see." It is the question the panel is open to
+               answer; All is the wider view you fall back to. The default is untouched — All is
+               still the filter in force, this is which chip the eye lands on. */
+            [['1', 'In context', n], ['0', 'All', V.entries.length]].map(([v, l, c]) =>
             `<button class="chip" data-onlyin="${v}" aria-pressed="${(S.onlyIn ? '1' : '0') === v}"
               style="flex:1; text-align:center; cursor:pointer">${l} <span
               class="tnum" style="color:var(--faint)">${c}</span></button>`).join('')}
         </div>
-        ${S.onlyIn ? '<div class="hint" style="margin:2px 0 0">Always-on threads, plus anything pinned '
-          + 'into this chapter. A triggered thread is not listed here until you pin it &mdash; whether '
-          + 'its words appear depends on prose that is not written yet.</div>' : ''}`;
+        ${S.onlyIn ? `<div style="display:flex; justify-content:flex-end">${
+            tipMark('thInContext', 'What In context can see')}</div>
+          ${tipCard('thInContext', 'What In context can see', `<p>Always-on threads, plus anything
+          pinned into this chapter. A triggered thread is not listed here until you pin it &mdash;
+          whether its words appear depends on prose that is not written yet.</p>`)}` : ''}`;
       })()}
       ${shown.map(([k, label]) => {
         const pin = pinModes();
@@ -2510,9 +2599,12 @@ const PANELS = {
            page that spans every book already existed and had no door from inside a story: you had
            to leave first, and then know that Threads out there means something wider than Threads
            in here. -->
-      <button class="btn ghost" data-leave="canon" style="margin-top:14px">Every book's threads</button>
-      <div class="hint">${V.entries.length} in this story. The wider list spans every book you have,
-        and is where to look when you cannot remember which one a thread is in.</div></div>`;
+      <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
+        <button class="btn ghost" data-leave="canon" style="flex:1">Every book's threads</button>
+        ${tipMark('thWider', "Every book's threads")}</div>
+      ${tipCard('thWider', "Every book's threads", `<p>${V.entries.length} in this story. The wider
+        list spans every book you have, and is where to look when you cannot remember which one a
+        thread is in.</p>`)}</div>`;
   },
 
   story() {
@@ -2542,11 +2634,28 @@ const PANELS = {
   /* ONE FIELD, DRAWN ONCE, CALLED TWICE. Title/genre/premise and the two voice boxes are the same
    * markup and they sit in two different groups now, so the template is a local rather than a map
    * body — a second copy is how the re-roll tray under one of them ends up on only one of them. */
-  const field = (f) => `<label class="lbl" for="f-story-${f.k}">${f.label}${f.k === 'writingStyle' ? helpMark('voice') : ''}</label>
-        ${f.k === 'writingStyle' ? helpBody('voice') : ''}
+  /* ONE MARK PER FIELD, AND ONE CARD. Seth, 2026-09-03: "voice of the weave now has two." It did:
+   * this field has a curated web AND a sentence of its own, and the sweep gave a mark to every
+   * field with a sentence without noticing that one of them already had one. Two marks side by
+   * side, in two styles, opening two boxes about the same field.
+   *
+   * They are ONE CARD now, under the field's own name. `voice` is the only field with both, and
+   * the two are complementary rather than duplicate — the web says what a voice IS, the hint says
+   * what happens to the box when you leave it empty — so nothing is dropped and nothing is
+   * rewritten. `helpText` rather than `helpBody` because the card is built here; it is named so
+   * the slug check in test/app.ts still counts the web as reachable. */
+  const field = (f) => {
+    const k = `sf-${f.k}`;
+    // The slug is written out rather than reached through a variable, and that is not style: the
+    // check in test/app.ts scans this file as TEXT for calls naming a slug, so `helpText(web)` is
+    // invisible to it and `voice` reads as a web nobody opens. It said so the moment this was
+    // written the other way, which is the check doing its job.
+    const body = `${f.k === 'writingStyle' ? helpText('voice') : ''}${
+      f.hint ? `<p>${esc(f.hint)}</p>` : ''}`;
+    return `<label class="lbl" for="f-story-${f.k}">${f.label}${body ? tipMark(k, f.label) : ''}</label>
+        ${body ? tipCard(k, f.label, body) : ''}
         ${f.area ? `<textarea class="field" id="f-story-${f.k}" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
                  : `<input class="field" id="f-story-${f.k}" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
-        ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}
         <!-- #18 §2. The one field with a re-roll, because it is the one written FROM two others.
              Voice is yours and a book's premise cannot guess it; the house style is what a book of
              this genre does on the page, which the genre and the premise between them do say.
@@ -2557,6 +2666,7 @@ const PANELS = {
         ${f.k === 'styleNote' ? `<button class="btn ghost" data-restyle="1" ${S.styling ? 'disabled' : ''}
           style="margin:-2px 0 4px; width:auto; padding:0 16px; height:34px; font-size:11.5px">${
           S.styling ? 'Writing&hellip;' : 'Have Anansi write it'}</button>` : ''}`;
+  };
     const IDENT = ['title', 'genre', 'premise'];
     const tab = S.storyTab ?? 'voice';
     return `<div style="display:flex; flex-direction:column" data-tab="${tab}">
@@ -2600,17 +2710,23 @@ const PANELS = {
           `<option value="${i + 1}" ${!custom && Number(V.story.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}
           <option value="custom" ${custom ? 'selected' : ''}>Custom — say it yourself</option></select>
         <div id="spiceCustom" ${custom ? '' : 'hidden'}>
-          <label class="lbl" for="f-story-spiceNote">The register, in your words</label>
+          <label class="lbl" for="f-story-spiceNote">The register, in your words${
+            tipMark('sRegister', 'The register, in your words')}</label>
+          ${tipCard('sRegister', 'The register, in your words', `<p>This replaces the level
+            entirely &mdash; it is the register line the model receives.</p>`)}
           <textarea class="field" id="f-story-spiceNote" data-story="spiceNote"
             placeholder="e.g. explicit, but never coy about it — the vocabulary of the writing sample"
             >${esc(V.story.spiceNote ?? '')}</textarea>
-          <div class="hint">This replaces the level entirely — it is the register line the model receives.</div>
         </div>`;
       })()}
 
       </div>
       <div class="sgroup" data-group="book">
-      <div class="lbl" style="letter-spacing:.1em; margin-top:0">The cover</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:0">The cover${
+        tipMark('sCover', 'The cover')}</div>
+      ${tipCard('sCover', 'The cover', `<p>Shrunk to 900px wide in the browser and stored in the
+        database, not on disk &mdash; the nightly backup is one file, and a path would leave the
+        covers out of it.</p>`)}
       ${V.cover ? `<img src="${api.coverUrl(S.storyId, V.cover)}" alt=""
         style="width:100%; height:120px; object-fit:cover; border-radius:var(--r); border:1px solid var(--edge)">` : ''}
       <div style="display:flex; gap:7px; margin-top:${V.cover ? '7px' : '0'}">
@@ -2619,8 +2735,6 @@ const PANELS = {
           <input type="file" accept="image/*" data-cover="1" hidden></label>
         ${V.cover ? '<button class="btn ghost" data-delcover="1" style="flex:0 0 auto; width:auto; padding:12px 20px">Remove</button>' : ''}
       </div>
-      <div class="hint">Shrunk to 900px wide in the browser and stored in the database, not on disk
-        — the nightly backup is one file, and a path would leave the covers out of it.</div>
       <!-- #17. HAVE ONE DRAWN. Seth asked for Pinterest; Pinterest's API cannot search Pinterest —
            /v5/search/pins only reads pins you have already saved — so this is the free, keyless
            thing that does what he actually wanted. No API key, no account, no .env line, and no
@@ -2630,26 +2744,32 @@ const PANELS = {
            The anonymous tier serves sana at 665x886 and ignores width, height and model, so
            there are no controls for those: a control that is ignored is a control that lies. -->
       ${drawTray()}
-      ${V.cover ? `<label style="display:flex; align-items:center; gap:9px; margin-top:11px; cursor:pointer">
+      ${V.cover ? `${tipCard('sHero', 'Using it at the head of every chapter', `<p>The same picture,
+        as a plate above each chapter's title. There is no second image to choose &mdash; a chapter
+        shows the cover or nothing.</p>`)}
+      <label style="display:flex; align-items:center; gap:9px; margin-top:11px; cursor:pointer">
         <input type="checkbox" data-story="chapterHero" ${V.story.chapterHero ? 'checked' : ''}>
-        <span style="font-size:13px; color:var(--ink)">Use it at the head of every chapter</span></label>
-      <div class="hint">The same picture, as a plate above each chapter's title. There is no second
-        image to choose &mdash; a chapter shows the cover or nothing.</div>` : ''}
+        <span style="font-size:13px; color:var(--ink)">Use it at the head of every chapter</span>${
+          tipMark('sHero', 'Using it at the head of every chapter')}</label>` : ''}
 
-      ${V.cover && V.story.chapterHero ? `<label style="display:flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer">
+      ${V.cover && V.story.chapterHero ? `${tipCard('sSticky', 'Keeping it behind the prose', `<p>It
+        stays put and the writing moves over it, fading left to right into the page. Instead of a
+        plate at the head of the chapter that scrolls away with it.</p>`)}
+      <label style="display:flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer">
         <input type="checkbox" data-story="chapterSticky" ${V.story.chapterSticky ? 'checked' : ''}>
-        <span style="font-size:13px; color:var(--ink)">Keep it behind the prose while you read</span></label>
-      <div class="hint">It stays put and the writing moves over it, fading left to right into the
-        page. Instead of a plate at the head of the chapter that scrolls away with it.</div>
+        <span style="font-size:13px; color:var(--ink)">Keep it behind the prose while you read</span>${
+          tipMark('sSticky', 'Keeping it behind the prose')}</label>
       ${V.story.chapterSticky ? `<label class="lbl" for="f-story-coverOpacity"
-          style="letter-spacing:.1em; margin-top:12px">How much of it shows</label>
+          style="letter-spacing:.1em; margin-top:12px">How much of it shows${
+            tipMark('sOpacity', 'How much of it shows')}</label>
+        ${tipCard('sOpacity', 'How much of it shows', `<p>At full strength a picture under text is
+          unreadable and at nothing it is not there. It saves itself when you let go.</p>`)}
         <div style="display:flex; align-items:center; gap:12px">
           <input type="range" min="0" max="100" step="5" style="flex:1" id="f-story-coverOpacity"
             data-story="coverOpacity" value="${V.story.coverOpacity ?? 30}">
           <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
             >${V.story.coverOpacity ?? 30}%</span></div>
-        <div class="hint">At full strength a picture under text is unreadable and at nothing it is
-          not there. It saves itself when you let go.</div>` : ''}` : ''}
+        ` : ''}` : ''}
 
       ${fields.filter((f) => IDENT.includes(f.k)).map(field).join('')}
       </div>
@@ -2665,17 +2785,20 @@ const PANELS = {
            is writing in before it knows anything else; and it narrows a web pull's search, which is
            measured: "Medusa" alone returns the Gorgon, and "Medusa Warhammer 40,000" returns the
            Iron Hands homeworld. -->
-      <label class="lbl" for="f-story-world">The world or IP this belongs to</label>
+      <label class="lbl" for="f-story-world">The world or IP this belongs to${
+        tipMark('sWorld', 'The world or IP this belongs to')}</label>
+      ${tipCard('sWorld', 'The world or IP this belongs to', `<p>Sent with every call, beside the
+        genre. It also scopes what a thread pulled off the web searches for, so a name that means
+        two things finds the right one.</p>`)}
       <input class="field" id="f-story-world" data-story="world" value="${esc(V.story.world ?? '')}"
         placeholder="Warhammer 40,000, Dune, Sunless Sea — or nothing, for a world of your own">
-      <div class="hint">Sent with every call, beside the genre. It also scopes what a thread pulled
-        off the web searches for, so a name that means two things finds the right one.</div>
-      <label class="lbl" for="f-story-worldNote">What is true in it</label>
+      <label class="lbl" for="f-story-worldNote">What is true in it${
+        tipMark('sWorldNote', 'What is true in it')}</label>
+      ${tipCard('sWorldNote', 'What is true in it', `<p>The shape of the world rather than of this
+        book: what everyone in it knows, what it runs on, what is impossible there. Trimmed before
+        the premise if a prompt runs long, so put what cannot be lost in the premise instead.</p>`)}
       <textarea class="field" id="f-story-worldNote" data-story="worldNote"
         >${esc(V.story.worldNote ?? '')}</textarea>
-      <div class="hint">The shape of the world rather than of this book: what everyone in it knows,
-        what it runs on, what is impossible there. Trimmed before the premise if a prompt runs long,
-        so put what cannot be lost in the premise instead.</div>
 
       <!-- PULL SEVERAL THREADS OUT OF A WORLD — Seth, 2026-09-02, asked for exactly this from the
            story screen, and: "I would be able to choose what and when it gets pulled." So it is two
@@ -2716,12 +2839,15 @@ const PANELS = {
           <button class="btn ghost" data-worldpull="all" ${S.worldPulling ? 'disabled' : ''}
             style="flex:0 0 auto; width:auto; padding:0 16px">Take all</button>
         </div>
-        <div class="hint">One at a time, about eight seconds each, and each one lands in the
-          proposals queue under Chapter with the pages it read. Nothing is canon until you accept
-          it there.</div>` : ''}
+        <div style="display:flex; justify-content:flex-end">${
+          tipMark('sPullPace', 'Pulling the ticked ones')}</div>
+        ${tipCard('sPullPace', 'Pulling the ticked ones', `<p>One at a time, about eight seconds
+          each, and each one lands in the proposals queue under Chapter with the pages it read.
+          Nothing is canon until you accept it there.</p>`)}` : ''}
 
-      ${pick('setting', 'Setting', lore.map((e) => e.title), V.story.setting, 'Not set')}
-      <div class="hint">Drawn from the lore and items in this story's ledger.</div>
+      ${pick('setting', `Setting${tipMark('sSetting', 'Setting')}`, lore.map((e) => e.title),
+        V.story.setting, 'Not set',
+        tipCard('sSetting', 'Setting', `<p>Drawn from the lore and items in this story's ledger.</p>`))}
       ${pick('pov', 'Point of view', POV, V.story.pov, 'Not set')}
       <!-- #20 §1. The third place a point of view is picked, and the last one without an example.
            Six bare strings say what the camera is called; a line of prose says where it stands. -->
@@ -2735,19 +2861,20 @@ const PANELS = {
         'data-story') : ''}
       <div class="hint">${lockoutHint(V.story.lockedCharacter, V.story.lockoutOn !== false)}
         ${LOCKED_ASIDE}</div>
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Part of a world</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Part of a world${
+        tipMark('sFollows', 'Part of a world')}</div>
       <select class="field" data-story="loreFrom" style="margin:0">
         <option value="">Stands on its own</option>
         ${LIB.filter((x) => x.id !== S.storyId && x.lore_from !== S.storyId)
           .map((x) => `<option value="${esc(x.id)}"${
             V.loreFrom === x.id ? ' selected' : ''}>Follows ${esc(x.title)}</option>`).join('')}
       </select>
-      <div class="hint">${V.follows
+      ${tipCard('sFollows', 'Part of a world', `<p>${V.follows
         ? `Every thread in ${esc(V.follows.title)} reaches this book too, and fires by the same
-           rules. They are the same cards, not copies — edit one there, or here, and it changes in
-           both. Any single thread can be taken over or taken out on its own card.`
+           rules. They are the same cards, not copies &mdash; edit one there, or here, and it
+           changes in both. Any single thread can be taken over or taken out on its own card.`
         : `A world bible is just a book that holds threads. Follow it and its cast, its places and
-           its rules reach this book without being copied into it.`}</div>
+           its rules reach this book without being copied into it.`}</p>`)}
       <!-- #36. WHAT THIS BOOK HAS TAKEN OUT, by name. Removing a followed thread writes a tombstone
            rather than deleting anything, so it is reversible — but only if it is listed somewhere,
            or "remove" is a one-way door with no undo on any screen. -->
@@ -2764,7 +2891,10 @@ const PANELS = {
 
       </div>
       <div class="sgroup" data-group="keep">
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Take it with you</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Take it with you${
+        tipMark('sExport', 'Take it with you')}</div>
+      ${tipCard('sExport', 'Take it with you', `<p>The database leaves as one file and comes back
+        through Import. Markdown and JSON are for reading elsewhere.</p>`)}
       <div style="display:flex; gap:7px">
         <a class="btn ghost" href="${api.exportUrl(S.storyId, 'markdown')}" download
           style="flex:1; text-decoration:none">Markdown</a>
@@ -2772,18 +2902,21 @@ const PANELS = {
           style="flex:1; text-decoration:none">JSON</a>
       </div>
       <button class="btn ghost" data-exportdb="1" style="margin-top:7px">As a standalone database</button>
-      <button class="btn ghost" data-forkthreads="1" style="margin-top:7px">Start a new book from
-        these threads</button>
-      <div class="hint">A COPY, and both books keep their own from then on. For one world across
-        several books, follow another book's threads above instead — that is a link, not a copy.</div>
-      <div class="hint">The database leaves as one file and comes back through Import. Markdown and
-        JSON are for reading elsewhere.</div>
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Put it away</div>
+      ${tipCard('sForkThreads', 'Starting a new book from these threads', `<p>A COPY, and both books
+        keep their own from then on. For one world across several books, follow another book's
+        threads above instead &mdash; that is a link, not a copy.</p>`)}
+      <div style="display:flex; align-items:center; gap:2px; margin-top:7px">
+        <button class="btn ghost" data-forkthreads="1" style="flex:1">Start a new book from
+          these threads</button>
+        ${tipMark('sForkThreads', 'Starting a new book from these threads')}</div>
+
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Put it away${
+        tipMark('sArchive', 'Put it away')}</div>
+      ${tipCard('sArchive', 'Put it away', `<p>${V.story.status === 'archived'
+        ? 'It goes back among the others, in the order you last wrote in it.'
+        : 'It stays on the shelf, dimmed and last. Nothing is deleted and nothing leaves the prompt.'}</p>`)}
       <button class="btn ghost" data-archive="${V.story.status === 'archived' ? 'in_progress' : 'archived'}">${
         V.story.status === 'archived' ? 'Take it off the shelf-end' : 'Archive this story'}</button>
-      <div class="hint">${V.story.status === 'archived'
-        ? 'It goes back among the others, in the order you last wrote in it.'
-        : 'It stays on the shelf, dimmed and last. Nothing is deleted and nothing leaves the prompt.'}</div>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--bad)">Danger</div>
       <button class="btn ghost" data-delstory="1" style="color:var(--bad)">${
@@ -2809,11 +2942,14 @@ const PANELS = {
           ${LIB.filter((x) => x.id !== S.storyId && x.id !== V.follows?.id)
             .map((x) => `<option value="${esc(x.id)}">Move them into ${esc(x.title)}</option>`).join('')}
         </select>
-        <div class="hint" style="margin:0">Each card arrives with its rooms, its wardrobe and the
-          connections between the ones that travel. Its changes over time do not: chapter nine
-          there is not chapter nine here. Strings and prose stay with the book.${V.follows
-            ? ` Threads taken over from ${esc(V.follows.title)} go back onto the card they came from,
-              so nothing is doubled — anything written here is new to it.` : ''}</div></div>` : ''}      </div></div>`;
+        <div style="display:flex; justify-content:flex-end">${
+          tipMark('sMoveOut', 'What travels with a card')}</div>
+        ${tipCard('sMoveOut', 'What travels with a card', `<p>Each card arrives with its rooms, its
+          wardrobe and the connections between the ones that travel. Its changes over time do not:
+          chapter nine there is not chapter nine here. Strings and prose stay with the book.</p>
+          ${V.follows ? `<p>Threads taken over from ${esc(V.follows.title)} go back onto the card
+            they came from, so nothing is doubled &mdash; anything written here is new to it.</p>`
+            : ''}`)}</div>` : ''}      </div></div>`;
   },
 
   // The chapter you are writing, whole: its name, how it has to end, where the story is going,
@@ -2904,11 +3040,33 @@ const PANELS = {
     const shown = S.propKind === 'all' ? ps : ps.filter((p) => KINDOF(p) === S.propKind);
     const pchip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
       background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
-    return `<div style="display:flex; flex-direction:column">
+    const tab = S.chapTab ?? 'this';
+    return `<div style="display:flex; flex-direction:column" data-tab="${tab}">
       <!-- Issue #33. This sat under the two fields, which is four screens up from the bottom of
            the panel on a phone once the proposals and summaries are drawn below it. Both fields
-           here are free text and neither autosaves, so this is the only thing that commits them. -->
+           here are free text and neither autosaves, so this is the only thing that commits them.
+           It stays OUTSIDE the groups: it commits the chapter's name and its two boxes whichever
+           tab you are standing on, because all four groups are drawn and only one is displayed. -->
       <div class="savebar"><button class="btn" data-savestory="1">Save</button></div>
+      <!-- FOUR GROUPS, THE SAME TREATMENT THE STORY PANEL GOT. Seth, 2026-09-03: "everything here
+           should also use the tab system to split information." This panel was one column holding
+           five unrelated jobs — naming the chapter, a queue of proposals, the summaries that stand
+           in for earlier chapters, the acts those collapse into, and the branches — and the
+           proposals queue sat four screens down.
+           THEY SWITCH IN CSS, NOT BY REDRAWING, for the reason the Story panel's note gives: the
+           name and the two boxes are free text that only Save commits, and a repaint on a tab press
+           throws away whatever was half-typed.
+           PROPOSED CARRIES ITS COUNT. The other three do not need one — a queue that is hidden
+           behind a tab and does not say how many are waiting is the one thing this split could
+           break, and closing a chapter fills it. -->
+      <div style="display:flex; gap:6px; margin:0 0 14px">
+        ${[['this', 'This chapter'], ['proposed', ps.length ? `Proposed ${ps.length}` : 'Proposed'],
+           ['summaries', 'Summaries'], ['branches', 'Branches']]
+          .map(([k, label]) => `<button class="chip" data-chaptab="${k}"
+            aria-pressed="${tab === k}" style="flex:1; text-align:center; cursor:pointer"
+            >${label}</button>`).join('')}
+      </div>
+      <div class="sgroup" data-group="this">
       <!-- THE NAME, WITH A RE-ROLL. Seth, 2026-09-02: "i should be able to re roll the chapter
            name ... these two can be filled by anansi originally and then rerolles or overwritten by
            the usewr." One press asks for all three at once, which is the call that exists: the
@@ -2918,7 +3076,7 @@ const PANELS = {
       <div style="display:flex; align-items:baseline; gap:10px">
         <label class="lbl" for="f-chapter-title" style="margin-top:0; flex:1">Name</label>
         <button data-chbrief="1" ${S.naming ? 'disabled' : ''}
-          style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+          style="font-size:11px; letter-spacing:.1em; text-transform:uppercase;
           color:var(--gold-dim)">${S.naming ? 'Asking&hellip;' : '↻ Have Anansi write these'}</button>
       </div>
       <input class="field" id="f-chapter-title" data-chapter-title="1" value="${esc(ch.title ?? '')}"
@@ -2929,16 +3087,23 @@ const PANELS = {
            direction of the chapter, not something used by the ai at every beat. it tries to end the
            chapter early if it uses it that way." They now reach the model differently; the hints
            under them say how, because that difference is the whole reason there are two. -->
-      <label class="lbl" for="f-chapter-opens">How this chapter starts</label>
+      <label class="lbl" for="f-chapter-opens">How this chapter starts${
+        tipMark('chOpens', 'How this chapter starts')}</label>
+      ${tipCard('chOpens', 'How this chapter starts', `<p>Sent only while the chapter is empty, for
+        its first passage. Once there is prose on the page it stops being sent &mdash; the opening
+        has happened.</p>`)}
       <textarea class="field" id="f-chapter-opens" data-chapter-opens="1">${esc(ch.opensWith ?? '')}</textarea>
-      <div class="hint">Sent only while the chapter is empty, for its first passage. Once there is
-        prose on the page it stops being sent — the opening has happened.</div>
-      <label class="lbl" for="f-chapter-note">Where this chapter ends</label>
+      <label class="lbl" for="f-chapter-note">Where this chapter ends${
+        tipMark('chEnds', 'Where this chapter ends')}</label>
+      ${tipCard('chEnds', 'Where this chapter ends', `<p>Sent as the chapter's direction, every time,
+        with the model told not to steer toward it or wrap the chapter up to reach it. Neither box
+        is shown to the reader.</p>`)}
       <textarea class="field" id="f-chapter-note" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
-      <div class="hint">Sent as the chapter's direction, every time, with the model told not to
-        steer toward it or wrap the chapter up to reach it. Neither box is shown to the reader.</div>
-      <button class="btn ghost" data-ritual="1" style="margin-top:14px">End this chapter</button>
-      <div class="hint">Opens the chapter's own screen, where it closes.</div>
+      ${tipCard('chRitual', 'Ending this chapter', `<p>Opens the chapter's own screen, where it
+        closes.</p>`)}
+      <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
+        <button class="btn ghost" data-ritual="1" style="flex:1">End this chapter</button>
+        ${tipMark('chRitual', 'Ending this chapter')}</div>
 
       <!-- ISSUE #31, filed as "there is no way to delete a chapter". There was one, and it is the
            same button as below — but its ONLY door was the chapter's own screen, which you reach by
@@ -2948,14 +3113,18 @@ const PANELS = {
            The same data-delchapter, so there is one handler, one confirm and one warning about the
            numbers not closing up. A second copy of that logic is the drift this file keeps
            recording; a second DOOR onto it is what was actually missing. -->
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete${
+        tipMark('chDelete', 'Delete this chapter')}</div>
+      ${tipCard('chDelete', 'Delete this chapter', `<p>Its prose, its edits, its summary and anything
+        it proposed. There is no undo.</p>
+        <p>The chapters after it keep the numbers they have &mdash; a change over time is anchored
+        to a chapter number, so closing the gap would move it to a different chapter.</p>`)}
       <button class="btn ghost" data-delchapter="${esc(ch.id)}"
         style="margin-top:4px; color:var(--bad)">Delete ${esc(ch.title || `chapter ${ch.index}`)}</button>
-      <div class="hint">Its prose, its edits, its summary and anything it proposed. There is no undo.
-        The chapters after it keep the numbers they have &mdash; a change over time is anchored to a
-        chapter number, so closing the gap would move it to a different chapter.</div>
+      </div>
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">What this chapter added</div>
+      <div class="sgroup" data-group="proposed">
+      <div class="lbl" style="letter-spacing:.1em; margin-top:0">What this chapter added</div>
       <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Nothing here is canon until you accept it.</div>
       <div style="display:flex; flex-direction:column; gap:9px">
       ${ps.length ? `<div style="display:flex; gap:7px; flex-wrap:wrap; margin-bottom:4px">
@@ -2970,10 +3139,13 @@ const PANELS = {
             under another name, and "Ledgers", which is the card "The Ledger"), and a changed
             proposal edits a room. Neither is safe by the dozen. */ ''}
       ${S.propKind === 'new' && shown.length > 1
-        ? `<button class="btn ghost" data-acceptall="new" ${S.busy ? 'disabled' : ''}
-             style="margin-bottom:4px">Add all ${shown.length}</button>
-           <div class="hint" style="margin:0 0 6px">Only offered for new threads. A new card is one
-             you can delete; a conflict and a change both write into cards you already have.</div>` : ''}
+        ? `${tipCard('chAddAll', 'Adding all of them', `<p>Only offered for new threads. A new card
+             is one you can delete; a conflict and a change both write into cards you already
+             have.</p>`)}
+           <div style="display:flex; align-items:center; gap:2px; margin-bottom:6px">
+             <button class="btn ghost" data-acceptall="new" ${S.busy ? 'disabled' : ''}
+               style="flex:1; margin:0">Add all ${shown.length}</button>${
+               tipMark('chAddAll', 'Adding all of them')}</div>` : ''}
       ${shown.map(proposalCard).join('') || `<div class="hint" style="margin:0">${
         ps.length ? 'Nothing of that kind.' : 'Nothing proposed. Closing a chapter reads it for new facts and for what it did to the people in it.'}</div>`}
       ${(V.proposals ?? []).some((p) => p.entryType === 'string')
@@ -2987,12 +3159,15 @@ const PANELS = {
            which is the one case the route was written for. -->
       <button class="btn ghost" data-remember="1" style="margin-top:6px">Remember what it did to the
         people in it</button></div>
+      </div>
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Summaries in context</div>
-      <div class="hint" style="margin:0 0 8px">The chapter you are writing goes to the model whole.
-        Everything before it goes as the summaries below &mdash; so if the model has forgotten
-        something that happened back there, <b>pull that chapter back</b> and its prose is sent
-        instead of its summary, until you let it go again.</div>
+      <div class="sgroup" data-group="summaries">
+      <div class="lbl" style="letter-spacing:.1em; margin-top:0">Summaries in context${
+        tipMark('chSummaries', 'Summaries in context')}</div>
+      ${tipCard('chSummaries', 'Summaries in context', `<p>The chapter you are writing goes to the
+        model whole. Everything before it goes as the summaries below &mdash; so if the model has
+        forgotten something that happened back there, <b>pull that chapter back</b> and its prose is
+        sent instead of its summary, until you let it go again.</p>`)}
       ${V.chapters.filter((c) => c.summary).map((c) => `<div class="card"
         style="margin-bottom:8px; ${c.keepWhole ? 'border-color:var(--gold-dim);' : ''}">
         <button aria-expanded="false" data-expand="1" style="text-align:left; width:100%">
@@ -3010,10 +3185,11 @@ const PANELS = {
       </div>`).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
       <button class="btn ghost" data-summarize="1">Summarise this chapter</button>
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Acts</div>
-      <div class="hint" style="margin:0 0 8px">One summary standing in for a run of chapters. A
-        chapter summary is about 220 tokens and they never stop arriving — at chapter 120 they do
-        not fit, and the oldest silently stop being sent. An act is what they collapse into.</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Acts${
+        tipMark('chActs', 'Acts')}</div>
+      ${tipCard('chActs', 'Acts', `<p>One summary standing in for a run of chapters. A chapter
+        summary is about 220 tokens and they never stop arriving &mdash; at chapter 120 they do not
+        fit, and the oldest silently stop being sent. An act is what they collapse into.</p>`)}
       ${(V.arcs ?? []).map((a) => `<div class="card" style="margin-bottom:8px; gap:5px">
         <div style="display:flex; align-items:center; gap:9px">
           <span class="kind">${esc(a.title || `Chapters ${a.fromChapter}–${a.toChapter}`)}</span>
@@ -3034,13 +3210,20 @@ const PANELS = {
         // Consecutive from the oldest — a gap means a chapter is unsummarised or already in an act.
         let last = run[0];
         for (const i of run.slice(1)) { if (i !== last + 1) break; last = i; }
-        return `<button class="btn ghost" data-rollup="${run[0]}:${last}"${S.busy ? ' disabled' : ''}
-          >Roll chapters ${run[0]}&ndash;${last} into one act</button>
-          <div class="hint" style="margin:0">Their own summaries stop being sent and this stands in
-            for them. Undo it by removing the act.</div>`;
+        return `${tipCard('chRollup', 'Rolling chapters into one act', `<p>Their own summaries stop
+            being sent and this stands in for them. Undo it by removing the act.</p>`)}
+          <div style="display:flex; align-items:center; gap:2px">
+            <button class="btn ghost" data-rollup="${run[0]}:${last}"${S.busy ? ' disabled' : ''}
+              style="flex:1">Roll chapters ${run[0]}&ndash;${last} into one act</button>${
+              tipMark('chRollup', 'Rolling chapters into one act')}</div>`;
       })()}
+      </div>
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Branches</div>
+      <div class="sgroup" data-group="branches">
+      <div class="lbl" style="letter-spacing:.1em; margin-top:0">Branches${
+        tipMark('chBranches', 'Branches')}</div>
+      ${tipCard('chBranches', 'Branches', `<p>Every read follows the active branch. Forking from a
+        passage is on the passage's own menu.</p>`)}
       <div style="display:flex; flex-direction:column; gap:9px">
       ${(V.branches ?? []).map((b) => `<div class="card" style="gap:6px;
         border-color:${b.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
@@ -3051,8 +3234,7 @@ const PANELS = {
             b.forkOrdinal ? `from passage ${b.forkOrdinal}` : ''}</span></div>
         ${b.active ? '' : `<button data-branch="${b.id}" class="btn ghost" style="margin-top:4px">Switch to this branch</button>`}</div>`).join('')}
       </div>
-      <div class="hint">Every read follows the active branch. Forking from a passage is on the
-        passage's own menu.</div></div>`;
+      </div></div>`;
   },
 
 
@@ -3102,11 +3284,12 @@ const PANELS = {
               ['search', 'What has the story never said outright?'],
               ['chapter', 'Set up the next scene for me.'],
             ].filter(Boolean);
+            /* THE INTRO CAME OUT, 2026-09-03. It said what web/help.js already says under this
+               panel's own mark — that it answers from the canon, the summaries and the recent
+               passages, and that it proposes rather than writes — in different words. Two
+               renderings of one idea is the drift this file keeps recording, and the web is the
+               copy with a test binding it. Nothing was lost; one of two copies was. */
             return `<div style="display:flex; flex-direction:column; gap:10px">
-              <div class="hint" style="margin:0">Anansi has your canon, your chapter summaries and
-                the last few passages. It answers from those, says so when they do not say, and
-                offers <strong>threads</strong>, <strong>strings</strong> and a
-                <strong>directive</strong> &mdash; none of which go anywhere until you accept them.</div>
               <div style="display:flex; flex-direction:column; gap:6px; margin-top:2px">
                 ${asks.map(([m, q]) => `<button data-askfill="${esc(q)}" style="display:flex;
                   align-items:flex-start; gap:11px; text-align:left; width:100%; padding:10px 12px;
@@ -3121,13 +3304,15 @@ const PANELS = {
       </div>
 
       ${t.draft ? `<div class="card" style="gap:8px; border-color:rgba(217,178,106,.34)">
-        <div class="kind">A directive, for you to use or ignore</div>
+        <div class="kind">A directive, for you to use or ignore${
+          tipMark('askDraft', 'A directive')}</div>
         <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(t.draft)}</div>
         <div style="display:flex; gap:7px">
           <button class="btn ghost" data-usedraft="1" style="flex:1">Put it in the composer</button>
           <button class="btn ghost" data-copydraft="1" style="width:84px">Copy</button>
         </div>
-        <div class="hint" style="margin:0">It arrives in Direct mode, unsent — read it before you send it.</div>
+        ${tipCard('askDraft', 'A directive', `<p>It arrives in Direct mode, unsent &mdash; read it
+          before you send it.</p>`)}
       </div>` : ''}
 
       <div style="display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid var(--line); position:relative">
@@ -3195,19 +3380,20 @@ const PANELS = {
           <button data-delstring="${x.id}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button>
         </div></div>`;
     };
+    /* THE INTRO CAME OUT for the same reason as Anansi's: it restated web/help.js under this
+       panel's own mark almost sentence for sentence — what a string is, that it is yours until you
+       put one in play, and that in play the model is told what is owed rather than told to pay it.
+       The web is the copy with a test binding it to a slug in both directions. */
     return `<div style="display:flex; flex-direction:column">
-      <div class="hint" style="margin:0 0 12px">A string is something the story has promised and not
-        paid &mdash; the letter nobody has opened, the debt nobody has called in. It is yours to see,
-        not the model's, until you <strong>put one in play</strong>: only then does it reach the
-        prompt, and even then it is told what is owed rather than told to pay it.</div>
       ${(() => {
         // Anansi's offers, where the strings are rather than in the Chapter queue with the thread
         // proposals. Same buttons, same route, same "nothing until you accept it" — a promise it
         // spotted belongs next to the promises you already know about.
         const mine = (V.proposals ?? []).filter((p) => p.entryType === 'string');
         if (!mine.length) return '';
-        return `<div class="lbl" style="letter-spacing:.1em; margin-top:0">Anansi noticed</div>
-          <div class="hint" style="margin:0 0 8px">Nothing is tied until you accept it.</div>
+        return `<div class="lbl" style="letter-spacing:.1em; margin-top:0">Anansi noticed${
+            tipMark('strNoticed', 'Anansi noticed')}</div>
+          ${tipCard('strNoticed', 'Anansi noticed', `<p>Nothing is tied until you accept it.</p>`)}
           ${mine.map((p) => `<div class="card" style="margin-bottom:8px; gap:8px;
             border-color:rgba(217,178,106,.28)">
             <div style="display:flex; align-items:center; gap:8px">
@@ -3228,7 +3414,10 @@ const PANELS = {
       ${open.length ? open.map(row).join('') : '<div class="hint" style="margin:0">Nothing owed yet.</div>'}
       ${done.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Tied off</div>
         ${done.map(row).join('')}` : ''}
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Tie a new one</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Tie a new one${
+        tipMark('strNew', 'Tie a new one')}</div>
+      ${tipCard('strNew', 'Tie a new one', `<p>Anansi proposes these too &mdash; they arrive in the
+        queue under Chapter with everything else it offers.</p>`)}
       <input class="field" data-st2="title" aria-label="What to call the promise"
         placeholder="The letter he has not opened">
       <textarea class="field" data-st2="body" aria-label="What was promised, and to whom"
@@ -3241,8 +3430,6 @@ const PANELS = {
           placeholder="Owed by chapter" style="flex:1">
       </div>
       <button class="btn" data-newstring="1" style="margin-top:8px">Tie it</button>
-      <div class="hint">Anansi proposes these too &mdash; they arrive in the queue under Chapter with
-        everything else it offers.</div>
     </div>`;
   },
 
@@ -3262,16 +3449,20 @@ const PANELS = {
 
   teller() {
     const g = V.gen ?? SRV.gen ?? {};
+    // ONE RENDERER, EVERY SLIDER. The mark goes on the row that carries the name and the reading,
+    // and the card above the track — the same order as the panels swept before this. A slider is
+    // the shape where an explanation underneath is worst: you have already dragged it.
     const slider = (label, key, value, max, hint, fmt = READOUT[key]) => `
       <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px">
         <div style="display:flex; justify-content:space-between; font-size:11px; letter-spacing:.1em;
-          font-variant-caps:all-small-caps; color:var(--dim)">
-          <span>${label}</span><span class="tnum" style="color:var(--gold-dim)">${
-            fmt ? fmt(value) : value}</span></div>
+          text-transform:uppercase; color:var(--dim)">
+          <span>${label}${hint ? tipMark(`gen-${key}`, label) : ''}</span>
+          <span class="tnum" style="color:var(--gold-dim)">${fmt ? fmt(value) : value}</span></div>
+        ${hint ? tipCard(`gen-${key}`, label, `<p>${hint}</p>`) : ''}
         <input type="range" data-gen="${key}" aria-label="${esc(label)}"
           min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
           value="${value}" style="width:100%; accent-color:var(--gold)">
-        ${hint ? `<div class="hint">${hint}</div>` : ''}</div>`;
+      </div>`;
     return `<div style="display:flex; flex-direction:column">
       <!-- Issue #33. This was the last thing on the longest panel in the app — under the model
            list, the sampler, the thinking note and this story's calls. The three sliders save
@@ -3282,11 +3473,13 @@ const PANELS = {
       <div style="display:flex; align-items:flex-start; gap:12px; padding:0 0 4px">
         <span style="width:8px; height:8px; border-radius:50%; background:var(--warn); margin-top:5px; flex:0 0 auto"></span>
         <span style="flex:1; display:flex; flex-direction:column; gap:4px">
-          <span style="font-size:13.5px; color:var(--ink)">These are shared, not per story</span>
-          <span class="hint" style="margin:0">The sampler belongs to you, not to the server: changing
-            it here changes it for every story YOU write and leaves the other writer alone. The route
-            takes a story id, which makes it look per-story; it is not. Per-story sampling needs
-            PLAN-02's <code>engine_config</code>, which was never built.</span></span></div>
+          <span style="font-size:13.5px; color:var(--ink)">These are shared, not per story${
+            tipMark('genShared', 'These are shared, not per story')}</span>
+          ${tipCard('genShared', 'These are shared, not per story', `<p>The sampler belongs to you,
+            not to the server: changing it here changes it for every story YOU write and leaves the
+            other writer alone.</p>
+            <p>The route takes a story id, which makes it look per-story; it is not. Per-story
+            sampling needs PLAN-02's <code>engine_config</code>, which was never built.</p>`)}</span></div>
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Model</div>
       ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
         : S.models.length === 0 ? emptyModels()
@@ -3320,7 +3513,7 @@ const PANELS = {
               ${d.bits.map((b) => `<span class="tag">${esc(b)}</span>`).join('')}
               ${d.size ? `<span class="tag">${esc(d.size)}</span>` : ''}
               <button data-modelinfo="${esc(using)}" style="margin-left:auto; color:var(--gold);
-                font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps"
+                font-size:11px; letter-spacing:.12em; text-transform:uppercase"
                 >What it is</button></div>`;
           })()}
           <div class="hint">${V.story.model
@@ -3342,9 +3535,11 @@ const PANELS = {
       <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 0; border-top:1px solid rgba(255,255,255,.04)">
         <span style="width:8px; height:8px; border-radius:50%; background:var(--bad); margin-top:5px; flex:0 0 auto"></span>
         <span style="flex:1; display:flex; flex-direction:column; gap:4px">
-          <span style="font-size:13.5px; color:var(--ink)">Thinking is off, and not a setting</span>
-          <span class="hint" style="margin:0">With it on this model spent the whole budget reasoning and
-            returned no prose on three runs in four. The transport pins it off.</span></span></div>
+          <span style="font-size:13.5px; color:var(--ink)">Thinking is off, and not a setting${
+            tipMark('genThinking', 'Thinking is off, and not a setting')}</span>
+          ${tipCard('genThinking', 'Thinking is off, and not a setting', `<p>With it on this model
+            spent the whole budget reasoning and returned no prose on three runs in four. The
+            transport pins it off.</p>`)}</span></div>
       <!-- #18 §3. THE WRITER'S DEFAULT VOICE, which had no surface at all before this. Only the
            two buttons inside the spark wizard ever read it, and the server quietly backfills it
            into any book created with the voice box left blank — so a page of text nobody had seen
@@ -3391,7 +3586,11 @@ const PANELS = {
           fact the story does not have, is not in this box and cannot be edited away.</div>`
         : '<div class="hint">Reading it&hellip;</div>'}
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">The five modes and the re-roll, in your words</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">The five modes and the re-roll, in your words${
+        tipMark('genPrompts', 'The five modes and the re-roll')}</div>
+      ${tipCard('genPrompts', 'The five modes and the re-roll', `<p>Global to you, not to a story,
+        and they reach the model exactly as written &mdash; nothing is added between the box and the
+        prompt. Read one in <strong>Context &rarr; Prompt sent</strong> before you trust it.</p>`)}
       ${(() => {
         // The shipped wording comes from the server, rendered by the engine itself, so the box
         // shows what it is actually replacing rather than a second copy that goes stale.
@@ -3409,17 +3608,18 @@ const PANELS = {
             <button data-editprompt="${k}" style="display:flex; align-items:center; gap:9px; width:100%; text-align:left">
               <span class="kind">${k[0].toUpperCase() + k.slice(1)}</span>
               ${mine ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">yours</span>' : ''}
+              ${open ? tipMark(`prompt-${k}`, `The ${k} instruction`) : ''}
               <span style="margin-left:auto; color:var(--faint); font-size:12px">${open ? '\u2212' : '+'}</span>
             </button>
-            ${open ? `<textarea class="field" data-prompttext aria-label="The whole instruction for ${esc(k)}"
-                style="min-height:132px; font-family:ui-monospace,monospace;
-                font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
-              <div class="hint" style="margin:0">Replaces the whole instruction for this ${
-                k === 'regenerate' ? 'press' : 'mode'}.
+            ${open ? `${tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
+                instruction for this ${k === 'regenerate' ? 'press' : 'mode'}.
                 ${k === 'regenerate' ? 'Used when the passage you re-roll carries no instruction of its own \u2014 a directed one re-runs its own, which you edit on the passage. ' : ''}${
                 k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
                   k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you are speaking as. ' : ''}
-                Empty it and press Save to go back to the shipped one.</div>
+                Empty it and press Save to go back to the shipped one.</p>`)}
+              <textarea class="field" data-prompttext aria-label="The whole instruction for ${esc(k)}"
+                style="min-height:132px; font-family:ui-monospace,monospace;
+                font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
               <div style="display:flex; gap:7px">
                 <button class="btn ghost" data-saveprompt="${k}" style="flex:1">Save</button>
                 <button class="btn ghost" data-resetprompt="${k}" style="width:110px">Default</button>
@@ -3427,9 +3627,7 @@ const PANELS = {
           </div>`;
         }).join('');
       })()}
-      <div class="hint">Global to you, not to a story, and they reach the model exactly as written —
-        nothing is added between the box and the prompt. Read one in <strong>Context &rarr; Prompt
-        sent</strong> before you trust it.</div>
+
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">This story's calls</div>
       ${(ACT?.runs ?? []).slice(0, 3).map((r) => `<div class="row">
@@ -3490,15 +3688,49 @@ const ledgerScope = () => (S.ledgerBook === undefined
  *  So this is not a second way in. It is the book saying which book you are looking at, at the
  *  moment you have opened it, and it is the one place a world book is drawn with its own face.
  */
+/** The colour tokens the banner paints itself with, taken from the BOOK'S OWN theme.
+ *
+ *  Seth, 2026-09-03: "If a story has no image use the Theme background" — and the theme he means
+ *  is the book's, not the app's. Every book on this page can carry a different one, so this is
+ *  scoped to the element: custom properties cascade, so setting them on the banner is enough for
+ *  the tag, the title and the word count inside it. A shelf of books with no covers reads as
+ *  several books rather than one column of identical grey.
+ *
+ *  SIX TOKENS, NOT THE WHOLE PALETTE. `themeVars` returns thirty-five and inlining all of them on
+ *  every banner is a kilobyte of style attribute per book. These are the ones this markup actually
+ *  names — and that is the trade: a seventh used here later has to be added to this list too, or it
+ *  silently keeps the app's colour while the other six change. The list is right here for that
+ *  reason rather than being derived.
+ *
+ *  `b.look` IS A STRING AND `V.look` IS AN OBJECT, which is a real asymmetry and not an oversight
+ *  to fix in passing. `src/story.ts` parses the open book's look on the way out; `listStories`
+ *  selects `s.*`, so the shelf gets the raw column — and twenty-odd assertions across test/db.ts
+ *  and test/scope.ts read rows from that function. The parse is here, where one surface needs it,
+ *  rather than in a shape all of them depend on.
+ *
+ *  Empty for a book that has no look of its own: null means FOLLOW THE WRITER, and the stylesheet
+ *  is already painting exactly that. Writing the writer's own tokens back out would be the same
+ *  colours with more bytes — and would freeze them, so changing your theme would leave every
+ *  banner behind.
+ */
+const BANNER_TOKENS = ['--doc-wash', '--ink-bright', '--mute', '--label', '--gold', '--line'];
+const bannerLook = (b) => {
+  let theme = null;
+  try { theme = b?.look ? JSON.parse(b.look)?.theme : null; } catch { /* a column we did not write */ }
+  if (!theme || !THEMES[theme]) return '';
+  const v = themeVars(theme);
+  return BANNER_TOKENS.map((k) => `${k}:${v[k]}`).join('; ');
+};
+
 function ledgerBanner(sid, title) {
   const b = (LIB ?? []).find((x) => x.id === sid);
   const tag = b?.is_world ? WORLD_TAG : (STATUS[b?.status] || 'Writing');
   const words = Number(b?.words) || 0;
-  return `<div class="lbanner">
+  return `<div class="lbanner" style="${bannerLook(b)}">
     ${b?.cover ? `<span class="art" style="background-image:url('${api.coverUrl(sid, b.cover)}')"></span>
       <span class="fade"></span>` : ''}
     <span class="txt">
-      <span style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+      <span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase;
         color:${b?.is_world ? 'var(--gold)' : 'var(--label)'}">${esc(tag)}</span>
       <span class="serif" style="font-size:22px; line-height:1.1; color:var(--ink-bright)">${esc(title)}</span>
       ${b?.is_world
@@ -3539,10 +3771,10 @@ function ledgerBooks() {
         <span class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(b.title)}</span>
         <span class="up" style="font-size:11px; color:var(--dim)">${b.rows.length} ${b.rows.length === 1 ? 'entry' : 'entries'}</span></button>
       <button data-fromhere="${S.fromBook === sid ? '' : sid}" style="margin-left:auto; font-size:11px;
-        letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--mute)">${
+        letter-spacing:.1em; text-transform:uppercase; color:var(--mute)">${
         S.fromBook === sid ? 'Never mind' : 'Start a book here'}</button>
       <button data-open="${sid}" style="font-size:11px; letter-spacing:.1em;
-        font-variant-caps:all-small-caps; color:var(--gold)">Open story</button></div>
+        text-transform:uppercase; color:var(--gold)">Open story</button></div>
     ${S.fromBook === sid ? `<div style="display:flex; gap:7px; align-items:center">
       <input class="field" id="from-${esc(sid)}" aria-label="Name a book that follows these threads"
         placeholder="Name a book that follows these threads"
@@ -3574,7 +3806,7 @@ function searchHits() {
         <span style="margin-left:auto; font-size:11px; color:var(--dim)">${esc(r.where ?? '')}</span></span>
       <span style="font-size:13.5px; line-height:1.5; color:var(--ink)">${esc((r.body ?? '').slice(0, 260))}</span></button>
     ${r.kind === 'Entry' ? '' : `<button data-tolore="${i}" style="align-self:flex-start; font-size:11px;
-      letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--gold); padding:2px 0">＋ Add to threads</button>`}
+      letter-spacing:.1em; text-transform:uppercase; color:var(--gold); padding:2px 0">＋ Add to threads</button>`}
   </div>`).join('');
 }
 
@@ -3870,7 +4102,7 @@ function sparkReview() {
    * including edits the writer has just made and not navigated away from. */
   const rerollField = (k) => `<button data-spfield="${k}" ${busy || S.spark.spField ? 'disabled' : ''}
       style="background:none; border:0; padding:2px 0 0; cursor:pointer; font-size:11px;
-      letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--gold-dim)"
+      letter-spacing:.1em; text-transform:uppercase; color:var(--gold-dim)"
     >${S.spark.spField === k ? 'thinking&hellip;' : 'ask again for this'}</button>`;
 
   const reroll = (label) => S.spark.idea
@@ -4188,7 +4420,7 @@ function passReport() {
   if (!missed.length) return '';
   return `<div style="display:flex; flex-direction:column; gap:6px; margin:0 0 14px; padding:10px 12px;
     border-radius:var(--r); border:1px solid rgba(200,112,90,.35); background:rgba(200,112,90,.07)">
-    <span style="font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps;
+    <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;
       color:var(--bad)">${missed.length === 1 ? 'One pass did not run' : `${missed.length} passes did not run`}</span>
     ${missed.map((m) => `<span style="font-size:12.5px; line-height:1.5; color:var(--mute)">
       <span style="color:var(--ink)">${esc(m.label)}</span> &mdash; ${esc(m.why)}</span>`).join('')}
@@ -4218,7 +4450,7 @@ function setupPanel() {
     <span style="width:14px; flex:0 0 auto; color:${on(e) ? 'var(--gold)' : 'var(--faint)'}">${on(e) ? '✓' : '·'}</span>
     <span style="flex:1; min-width:0; font-size:13px; color:${on(e) ? 'var(--ink)' : 'var(--mute)'};
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(e.title)}</span>
-    <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps;
+    <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
       color:var(--label); opacity:.7">${why(e)}</span></button>`;
 
   const cast = V.entries.filter((e) => e.entryType === 'character' && match(e));
@@ -4329,7 +4561,8 @@ function setupPanel() {
       const dead = k === 'cards' && !left.length;
       const here = k === step;
       return `<button data-setupstep="${k}" ${dead ? 'disabled' : ''} style="flex:1; text-align:left;
-        padding:7px 9px; border-radius:var(--r); font-size:11px; letter-spacing:.06em;
+        padding:7px 9px; border-radius:var(--r); font-size:11px; letter-spacing:.1em;
+        text-transform:uppercase;
         border:1px solid ${here ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
         background:${here ? 'rgba(217,178,106,.10)' : 'transparent'};
         color:${dead ? 'var(--ink-ghost)' : here ? 'var(--gold-lit)' : 'var(--mute)'};
@@ -4349,7 +4582,7 @@ function setupPanel() {
     <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
       text-overflow:ellipsis; white-space:nowrap">${esc(justClosed.title || `Chapter ${justClosed.index}`)} closed${
       justClosed.summary ? ', summarised' : ''}${queue.length ? ` &middot; ${queue.length} waiting` : ''}</span>
-    <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps;
+    <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
       color:var(--label); opacity:.7">what it found</span></button>` : '';
 
   // ---- 1 · WHAT IT LEFT. The chapter that just closed, as decisions and nothing else.
@@ -4357,9 +4590,9 @@ function setupPanel() {
     ${rail}
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${
       esc(justClosed?.title || `Chapter ${justClosed?.index ?? ''}`)} changed ${
-      plural(left.length, 'card', 'cards')}</div>
-    <div class="hint" style="margin:6px 0 0">Nothing here is canon until you accept it, and nothing
-      here is required &mdash; what you leave stays in Waiting.</div>
+      plural(left.length, 'card', 'cards')}${tipMark('setLeft', 'What the chapter left')}</div>
+    ${tipCard('setLeft', 'What the chapter left', `<p>Nothing here is canon until you accept it, and
+      nothing here is required &mdash; what you leave stays in Waiting.</p>`)}
     <!-- Issue #32, ABOVE the queue. An empty queue is the thing being explained, so the
          explanation has to arrive before the writer reads the emptiness as "no facts here". -->
     <div style="margin-top:12px">${passReport()}</div>
@@ -4379,8 +4612,11 @@ function setupPanel() {
     return `<div style="display:flex; flex-direction:column">
       ${rail}
       <div class="serif" style="font-size:21px; color:var(--ink-bright)">Anyone new</div>
-      <div class="hint" style="margin:6px 0 0">Anansi reads the beat you just set and proposes a card
-        for it. It goes to Waiting like everything else she offers; nothing is canon until you accept it.</div>
+      <div style="display:flex; justify-content:flex-end; margin-top:6px">${
+        tipMark('setInvent', 'Having Anansi write one for this chapter')}</div>
+      ${tipCard('setInvent', 'Having Anansi write one for this chapter', `<p>Anansi reads the beat
+        you just set and proposes a card for it. It goes to Waiting like everything else she offers;
+        nothing is canon until you accept it.</p>`)}
       <div style="display:flex; gap:6px; margin-top:12px">${KINDS.map((k) => `<button data-setupkind="${k}" aria-pressed="${k === kind}"
         style="flex:1; text-align:center; font-size:11px; padding:8px 0; border-radius:var(--r);
         border:1px solid ${k === kind ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
@@ -4396,18 +4632,23 @@ function setupPanel() {
            card asked for in the tray directly above this used to appear two steps away. Both sources
            are the same thing to a writer: a thread this book does not have yet. -->
       ${fresh.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">${
-        plural(fresh.length, 'new thread', 'new threads')} waiting</div>
-      <div class="hint" style="margin:0 0 8px">Nothing is canon until you accept it, and what you
-        leave stays in Waiting.</div>
-      ${fresh.length > 1 ? `<button class="btn ghost" data-acceptall="new" style="margin-bottom:10px"
-        >Add all ${plural(fresh.length, 'new card', 'new cards')}</button>
-      <div class="hint" style="margin:0 0 8px">Only the new ones. A change writes into a card you
-        already have, so those stay one at a time under What it left.</div>` : ''}
+        plural(fresh.length, 'new thread', 'new threads')} waiting${
+        tipMark('setFresh', 'New threads waiting')}</div>
+      ${tipCard('setFresh', 'New threads waiting', `<p>Nothing is canon until you accept it, and what
+        you leave stays in Waiting.</p>`)}
+      ${fresh.length > 1 ? `${tipCard('setAddAll', 'Adding all the new cards', `<p>Only the new ones.
+        A change writes into a card you already have, so those stay one at a time under What it
+        left.</p>`)}
+      <div style="display:flex; align-items:center; gap:2px; margin-bottom:10px">
+        <button class="btn ghost" data-acceptall="new" style="flex:1; margin:0"
+          >Add all ${plural(fresh.length, 'new card', 'new cards')}</button>
+        ${tipMark('setAddAll', 'Adding all the new cards')}</div>` : ''}
       <div style="display:flex; flex-direction:column; gap:9px">${fresh.map(proposalCard).join('')}</div>` : ''}
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Who is in it</div>
-      <div class="hint" style="margin:0 0 8px">Ticked means it is sent for this chapter whether or not
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Who is in it${
+        tipMark('setWho', 'Who is in it')}</div>
+      ${tipCard('setWho', 'Who is in it', `<p>Ticked means it is sent for this chapter whether or not
         anyone says its name. Unticking an always-on entry holds it back for this chapter only. Both
-        cost or save their canon on every call, so tick what is actually in the room.</div>
+        cost or save their canon on every call, so tick what is actually in the room.</p>`)}
       <input class="field" id="setupQ" aria-label="Find a thread in this story's ledger"
         value="${esc(S.setupQ ?? '')}"
         placeholder="Find someone or something in this story's ledger">
@@ -4427,8 +4668,10 @@ function setupPanel() {
   return `<div style="display:flex; flex-direction:column">
     ${rail}
     ${closedRow}
-    <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(ch.title || `Chapter ${ch.index}`)}</div>
-    <div class="hint" style="margin:6px 0 0">Nothing here is required. Leave it and write.</div>
+    <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(ch.title || `Chapter ${ch.index}`)}${
+      tipMark('setNext', 'Setting up the next chapter')}</div>
+    ${tipCard('setNext', 'Setting up the next chapter', `<p>Nothing here is required. Leave it and
+      write.</p>`)}
 
     <label class="lbl" for="f-setup-title">Title</label>
     <input class="field" id="f-setup-title" data-setup="title" value="${esc(form.title)}" placeholder="${
@@ -4669,7 +4912,7 @@ function inventTray(kind, label, placeholder, value = '') {
  *  step, and this one is reachable from anywhere in the form. */
 function cardBar(view) {
   const link = (on) => `background:none; border:0; padding:4px 0; cursor:pointer; font-size:11px;
-    letter-spacing:.12em; font-variant-caps:all-small-caps;
+    letter-spacing:.12em; text-transform:uppercase;
     color:${on ? 'var(--gold)' : 'var(--faint)'}`;
   return `<div class="savebar" style="display:flex; gap:16px; align-items:center">
     <button data-cardview="face" style="${link(view === 'face')}"
@@ -4723,7 +4966,7 @@ function cardHead(e, slots) {
       <div style="font-family:var(--serif,serif); font-size:22px; color:var(--ink-bright)">${esc(e.title || 'Untitled')}</div>
     </div>
     <div style="display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 12px">
-      <span class="tag" style="text-transform:lowercase">${esc(e.entryType)}</span>
+      <span class="tag">${esc(e.entryType)}</span>
       ${slots.map((sl) => `<button data-goslot="${esc(sl.name)}" class="tag"
         style="cursor:pointer">${esc(sl.name.replace(/_/g, ' '))}</button>`).join('')}
     </div>`;
@@ -4756,8 +4999,10 @@ function connections(e) {
     && !mine.some((m) => m.childId === x.id));
   const nameOf = (id) => (V.entries ?? []).find((x) => x.id === id)?.title ?? id;
   return foldSection('edges', 'Brings in with it', `
-    <div class="hint" style="margin:0 0 9px">When this thread reaches the model, these come with it.
-      Not the other way round: connect from the other card for that.</div>
+    <div style="display:flex; justify-content:flex-end">${
+      tipMark('edges', 'Brings in with it')}</div>
+    ${tipCard('edges', 'Brings in with it', `<p>When this thread reaches the model, these come with
+      it. Not the other way round: connect from the other card for that.</p>`)}
     ${mine.map((x) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
       <span style="font-size:13px; color:var(--mute)">${esc(nameOf(x.childId))}</span>
       <span style="font-size:11px; color:var(--faint)">${esc(
@@ -4804,21 +5049,24 @@ function cardFace(e, slots) {
         >Open that book</button></div>
     <textarea class="field" data-followedbody="${e.id}" aria-label="What ${esc(e.title)} says"
       style="min-height:110px; font-size:12.5px; line-height:1.55">${esc(e.body ?? '')}</textarea>
-    <button class="btn ghost" data-savefollowed="${e.id}" style="margin-bottom:12px">Save to ${
-      esc(e.sharedFrom)}</button>
-    <div class="hint" style="margin-top:0">One card, not two: saving writes it in
+    ${tipCard('faceShared', 'Saving a followed card', `<p>One card, not two: saving writes it in
       <strong>${esc(e.sharedFrom)}</strong>, so every book following that one sees the change. Its
-      rooms, its timeline and what wakes it are edited there.</div>
-    <div style="display:flex; gap:7px; margin-top:12px">
+      rooms, its timeline and what wakes it are edited there.</p>`)}
+    <div style="display:flex; align-items:center; gap:2px; margin-bottom:12px">
+      <button class="btn ghost" data-savefollowed="${e.id}" style="flex:1; margin:0">Save to ${
+        esc(e.sharedFrom)}</button>
+      ${tipMark('faceShared', 'Saving a followed card')}</div>
+    ${tipCard('faceLeave', 'Taking it over, or removing it', `<p>Taking it over copies it here as
+      it stands &mdash; rooms, outfit and all &mdash; and it stops following. Removing it leaves it
+      untouched where it lives and only stops this book from seeing it. Both are reversible.</p>`)}
+    <div style="display:flex; gap:7px; margin-top:12px; align-items:center">
       <button data-takeover="${e.id}" style="flex:1; padding:8px 0; text-align:center;
         border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:11.5px"
         >Make it this book's own</button>
       <button data-dropfollow="${e.id}" style="flex:1; padding:8px 0; text-align:center;
         border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px"
-        >Remove it from this book</button></div>
-    <div class="hint">Taking it over copies it here as it stands — rooms, outfit and all — and it
-      stops following. Removing it leaves it untouched where it lives and only stops this book from
-      seeing it. Both are reversible.</div></div>`;
+        >Remove it from this book</button>
+      ${tipMark('faceLeave', 'Taking it over, or removing it')}</div></div>`;
 
   // OUTFIT IS A ROOM LIKE THE REST, and drawing it twice is what Seth found: the slot loop made a
   // heading named outfit with nothing under it, because outfits were filtered out of `rooms`, and
@@ -4865,9 +5113,11 @@ function cardFace(e, slots) {
           >Send this version up and follow again</button>
         <button data-handback="${e.id}" style="flex:1; padding:7px 0; text-align:center;
           border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11px"
-          >Drop this copy and follow again</button></div>
-      <span class="hint" style="margin:0">Either way this book goes back to reading the shared card.
-        Rooms written here stay here — send the whole card across instead if they matter.</span>
+          >Drop this copy and follow again</button>
+        ${tipMark('faceRefollow', 'Following it again')}</div>
+      ${tipCard('faceRefollow', 'Following it again', `<p>Either way this book goes back to reading
+        the shared card. Rooms written here stay here &mdash; send the whole card across instead if
+        they matter.</p>`)}
     </div>` : ''}
     <div class="hint" style="margin-top:0">${esc(e.body || 'Nothing written down yet.')}</div>
     <!-- #22 §6. WHAT IS ON, THEN WHAT IS NOT. Seth: "after the name comes the body, after the body
@@ -5021,7 +5271,7 @@ const slotTab = (name) => (name === 'facts' ? 'card' : 'rooms');
 function cardTabs(tab) {
   return `<div style="display:flex; gap:6px; margin:12px 0 4px">${CARD_TABS.map(([k, label]) =>
     `<button data-cardtab="${k}" aria-pressed="${tab === k}" style="flex:1; text-align:center;
-      font-size:11px; letter-spacing:.12em; font-variant-caps:all-small-caps; padding:8px 0;
+      font-size:11px; letter-spacing:.12em; text-transform:uppercase; padding:8px 0;
       border-radius:var(--r); ${tab === k
         ? 'border:1px solid rgba(217,178,106,.42); background:rgba(217,178,106,.12); color:var(--gold-lit)'
         : 'border:1px solid var(--chip); color:var(--mute)'}">${label}</button>`).join('')}</div>`;
@@ -5114,7 +5364,10 @@ function entryEditor() {
          The same roomSection every other room uses, so there is one renderer and not a second copy
          of the name/body/keys/on-off form for this slot. -->
     ${roomSection(e, slots.find((sl) => sl.name === 'facts'))}
-    <label class="lbl" for="f-card-body">Info</label>
+    <label class="lbl" for="f-card-body">Info${tipMark('cardBody', 'Info')}</label>
+    ${tipCard('cardBody', 'Info', `<p>This is what the model reads, and the chapter-end pass rewrites
+      it. Bracket form keeps it short: <em>[Name: trait, trait]</em>. What must survive a rewrite
+      goes in facts, above.</p>`)}
     <!-- GROWS. It was a fixed 96px box, and an invented thread's body went from 60-120 words to
          120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
          sign there was more. Measured: 656 characters, 94px of box, 283px of content. Nothing was
@@ -5122,8 +5375,6 @@ function entryEditor() {
          long one still leaves the buttons under it reachable. -->
     <textarea class="field grow" id="f-card-body" data-f="body" style="min-height:150px; max-height:52vh"
       >${esc(e.body ?? '')}</textarea>
-    <div class="hint">This is what the model reads, and the chapter-end pass rewrites it. Bracket
-      form keeps it short: [Name: trait, trait]. What must survive a rewrite goes in facts, above.</div>
     <!-- NOT DISABLED ANY MORE (2026-08-28, PLAN-08 Phase 1). It was greyed out while an entry was
          always-on, on the reasoning that an always-on entry does not need keys. True, and it made
          the words the extractor proposed invisible AND uneditable — so the one screen that could
@@ -5131,9 +5382,9 @@ function entryEditor() {
          screen that hid it, and there was no reason to ever flip the chip on an entry whose keys
          you could not read. Keys are what an entry WOULD fire on, so authoring them before the
          switch is the only safe order. -->
-    <label class="lbl" for="f-card-keys">Trigger words</label>
-    <input class="field" id="f-card-keys" data-f="keys" value="${esc((e.keys ?? []).join(', '))}">
-    <div class="hint">${e.activation === 'always_on'
+    <label class="lbl" for="f-card-keys">Trigger words${
+      tipMark('cardKeys', 'Trigger words')}</label>
+    ${tipCard('cardKeys', 'Trigger words', `<p>${e.activation === 'always_on'
       ? 'Not used while this is always-on — it is sent on every call either way. Write them anyway: '
         + 'they are what it would fire on the moment you switch it to a keyword, and this is the '
         + 'only place you can see what was proposed for it.'
@@ -5141,7 +5392,8 @@ function entryEditor() {
         ? 'Comma separated, up to ten. A whole word in recent prose or in your directive fires it.'
         : '<strong>This entry cannot reach the model yet.</strong> Triggered with no trigger words '
           + 'never fires, and nothing else on this screen would tell you. Comma separated, up to '
-          + 'ten — a whole word in recent prose or in your directive fires it.'}</div>
+          + 'ten — a whole word in recent prose or in your directive fires it.'}</p>`)}
+    <input class="field" id="f-card-keys" data-f="keys" value="${esc((e.keys ?? []).join(', '))}">
     </div>
     <div class="pane"${tab === 'rooms' ? '' : ' hidden'}>
     ${addTray(e, slots)}
@@ -5181,10 +5433,11 @@ function entryEditor() {
          what is left here is the wearing, which is this section's own vocabulary and not a
          generic room's. Drawn only when she owns something, for the same reason as the loop. -->
     ${e.entryType === 'character' && (e.outfits ?? []).length ? `
-    <div data-slotat="outfit" class="lbl" style="letter-spacing:.1em; margin-top:20px">outfit <span style="opacity:.5">(one at a time)</span></div>
-    <div class="hint" style="margin:0 0 8px">A named outfit is a second bracket on this character
-      while it is worn, so taking the plate off does not mean rewriting who she is. One at a time —
-      the database enforces that, not the screen.</div>
+    <div data-slotat="outfit" class="lbl" style="letter-spacing:.1em; margin-top:20px">outfit <span style="opacity:.5">(one at a time)</span>${
+      tipMark('cardOutfit', 'Outfits')}</div>
+    ${tipCard('cardOutfit', 'Outfits', `<p>A named outfit is a second bracket on this character while
+      it is worn, so taking the plate off does not mean rewriting who she is. One at a time &mdash;
+      the database enforces that, not the screen.</p>`)}
     <!-- Wearing one used to be possible ONLY on the Threads list, and this panel said so in a
          sentence. So the screen that holds the wardrobe could not put anything on, the cross-book
          page had no chips at all, and the outfits themselves were read-only even though
@@ -5217,13 +5470,17 @@ function entryEditor() {
          a duplicate of the thing you are looking at, and the dedupe would refuse it. -->
     </div>
     <div class="pane"${tab === 'more' ? '' : ' hidden'}>
+    <div style="display:flex; justify-content:flex-end">${
+      tipMark('cardInvent', 'Having Anansi write this card')}</div>
+    ${tipCard('cardInvent', 'Having Anansi write this card', `<p>It fills the fields above, unsaved.
+      Nothing changes until you press Save.</p>`)}
     ${inventTray(e.entryType, 'Have Anansi write this card',
                  'what has changed about them, or nothing at all and let her read the book')}
-    <div class="hint">It fills the fields above, unsaved. Nothing changes until you press Save.</div>
-    <label class="lbl" for="f-card-notes">Your notes</label>
+    <label class="lbl" for="f-card-notes">Your notes${tipMark('cardNotes', 'Your notes')}</label>
+    ${tipCard('cardNotes', 'Your notes', `<p>Never sent to the model. The engine's entry type has no
+      such field.</p>`)}
     <textarea class="field grow" id="f-card-notes" data-f="notes"
       style="min-height:64px; max-height:40vh">${esc(e.notes ?? '')}</textarea>
-    <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
 
     <!-- THIS CARD AS JSON, BOTH WAYS — Seth, 2026-09-02: "under more i should be able to export the
          json of that card and all fields including empty ones and be able to reupload".
@@ -5245,11 +5502,17 @@ function entryEditor() {
     <div style="display:flex; gap:7px">
       <button class="btn ghost" data-cardcopy="1" style="flex:1">Copy it</button>
       <button class="btn ghost" data-cardsave="${esc(e.id)}" style="flex:1">Save as a file</button>
+      ${tipMark('cardJson', 'This card as JSON')}
     </div>
-    <div class="hint">Every field this kind of card can have, empty ones included. Keep the
-      <code>id</code> and putting it back changes THIS card; delete the id and it makes a new one.</div>
+    ${tipCard('cardJson', 'This card as JSON', `<p>Every field this kind of card can have, empty ones
+      included. Keep the <code>id</code> and putting it back changes THIS card; delete the id and it
+      makes a new one.</p>`)}
 
-    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Put one back</div>
+    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Put one back${
+      tipMark('cardPutBack', 'Put one back')}</div>
+    ${tipCard('cardPutBack', 'Put one back', `<p>The same reader the forge uses, so anything that
+      works there works here. A file is read in the browser and never uploaded anywhere but this
+      app.</p>`)}
     <label class="btn ghost" style="display:flex; align-items:center; justify-content:center;
       cursor:pointer">Choose a .json file
       <input type="file" accept=".json,application/json" data-cardfile="1" hidden></label>
@@ -5257,13 +5520,11 @@ function entryEditor() {
       placeholder="or paste it here" style="min-height:74px; font-size:11.5px;
       font-family:ui-monospace, monospace"></textarea>
     <button class="btn ghost" data-cardread="1" style="margin-top:7px">Read it and apply</button>
-    <div class="hint">The same reader the forge uses, so anything that works there works here. A
-      file is read in the browser and never uploaded anywhere but this app.</div>
     </div>
     <div class="pane"${tab === 'time' ? '' : ' hidden'}>
-    ${foldSection('states', 'Over time', `${helpMark('states')}${helpBody('states')}
-    <div class="hint" style="margin:0 0 8px">A fact can open at a later chapter. Before it opens it is
-      hidden, or hinted at without saying what it is. Earlier chapters keep the body above.</div>
+    ${foldSection('states', 'Over time', `${helpMark('states')}${tipCard('states', HELP.states.title,
+      `${helpText('states')}<p>A fact can open at a later chapter. Before it opens it is hidden, or
+      hinted at without saying what it is. Earlier chapters keep the body above.</p>`)}
     <!-- Editable for the same reason: upsertState has updated by id since it was written, and the
          only way to correct a wrong chapter number was to delete the override and type it again. -->
     ${(e.states ?? []).map((st) => `<div class="card" style="margin-bottom:8px; gap:7px">
@@ -5312,10 +5573,12 @@ function entryEditor() {
          A RETIRED CARD MUST BE BRINGABLE BACK FROM SOMEWHERE, and test/web.ts asserts exactly that
          on the waiting panel for the same reason: a wrong press is otherwise invisible AND
          permanent. Moving the way back off the face means this is now one of the two places. -->
-    ${e.retiredAtChapter == null ? `<button data-retire="${e.id}" class="btn ghost"
-      style="margin-top:20px">Mark this finished</button>
-    <div class="hint">It stops reaching the model from the next chapter on. Every chapter before it
-      still has it, and Waiting can bring it back.</div>`
+    ${e.retiredAtChapter == null ? `${tipCard('cardRetire', 'Marking this finished', `<p>It stops
+      reaching the model from the next chapter on. Every chapter before it still has it, and Waiting
+      can bring it back.</p>`)}
+    <div style="display:flex; align-items:center; gap:2px; margin-top:20px">
+      <button data-retire="${e.id}" class="btn ghost" style="flex:1">Mark this finished</button>
+      ${tipMark('cardRetire', 'Marking this finished')}</div>`
       : `<button data-unretire="${e.id}" class="btn ghost" style="margin-top:20px">Bring it back</button>
     <div class="hint">Finished from chapter ${esc(String(e.retiredAtChapter))} &mdash; it stops
       reaching the model there and every chapter before it still has it. Bringing it back undoes
@@ -5326,12 +5589,15 @@ function entryEditor() {
          mentions of the person, location, item, etc." Not offered at chapter end either — the
          general sweep already runs there, so a story-wide pass at that moment reads the same
          prose twice. -->
-    <button class="btn ghost" data-scanstory="${esc(e.id)}" ${S.scanning ? 'disabled' : ''}
-      style="margin-top:20px">${S.scanning === e.id
-        ? 'Reading the book&hellip;' : 'Read the whole book for this thread'}</button>
-    <div class="hint">Every passage whose NARRATION names it, most recent first. Dialogue is
-      stripped before it is read &mdash; a character saying a thing is not the story committing to
-      it. Everything it finds waits in the queue; nothing is written.</div>
+    ${tipCard('cardScan', 'Reading the whole book for this thread', `<p>Every passage whose
+      NARRATION names it, most recent first. Dialogue is stripped before it is read &mdash; a
+      character saying a thing is not the story committing to it. Everything it finds waits in the
+      queue; nothing is written.</p>`)}
+    <div style="display:flex; align-items:center; gap:2px; margin-top:20px">
+      <button class="btn ghost" data-scanstory="${esc(e.id)}" ${S.scanning ? 'disabled' : ''}
+        style="flex:1">${S.scanning === e.id
+          ? 'Reading the book&hellip;' : 'Read the whole book for this thread'}</button>
+      ${tipMark('cardScan', 'Reading the whole book for this thread')}</div>
     ${copyElsewhere(e)}
     <!-- SAVE IS NOT DOWN HERE ANY MORE. It is in the sticky bar at the top of the form, which is
          reachable from this end of the card too. Two of them would be two things to keep in step
@@ -5355,9 +5621,11 @@ function entryEditor() {
  *  again, and the point of doing it here is that the menu has nothing wrong in it to pick. */
 function copyElsewhere(e) {
   const others = LIB.filter((s) => s.id !== S.storyId);
-  return foldSection('copy', 'Another book', `${others.length ? `<div class="hint" style="margin:0 0 8px">Copies ${esc(e.title)} into another of
+  return foldSection('copy', 'Another book', `${others.length ? `<div style="display:flex; justify-content:flex-end">${
+      tipMark('copyBook', 'Copying it into another book')}</div>
+    ${tipCard('copyBook', 'Copying it into another book', `<p>Copies ${esc(e.title)} into another of
       your books, with its trigger words. What it does NOT carry is the timeline: a change over time
-      is anchored to a chapter number, and chapter seven there is not chapter seven here.</div>
+      is anchored to a chapter number, and chapter seven there is not chapter seven here.</p>`)}
     <div class="card" style="gap:7px">
       <select class="field" data-cf="into" aria-label="The book to copy it into">${others.map((s2) =>
         `<option value="${esc(s2.id)}">${esc(s2.title)}</option>`).join('')}</select>
@@ -5396,7 +5664,7 @@ function historyPanel() {
           .filter(Boolean);
         if (!(t.canon ?? []).length) return '';
         return `<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:7px">
-          <span style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
+          <span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase;
             color:var(--label); opacity:.7; align-self:center">Written against</span>
           ${names.map((nm) => `<span class="tag">${esc(nm)}</span>`).join('')
             || `<span class="tag">${t.canon.length} entries since removed</span>`}</div>`;
@@ -5405,17 +5673,21 @@ function historyPanel() {
     </div>`).join('')
       : '<div class="hint">One take. Regenerate on a passage keeps the old one and both appear here.</div>'}
 
-    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Edits</div>
-    <div class="hint" style="margin:0 0 10px">Text that was replaced by hand. Restoring keeps the
-      current version in the list too, so nothing is lost.</div>
+    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Edits${
+      tipMark('hisEdits', 'Edits')}</div>
+    ${tipCard('hisEdits', 'Edits', `<p>Text that was replaced by hand. Restoring keeps the current
+      version in the list too, so nothing is lost.</p>`)}
     ${rows.map((r) => `<div class="card" style="margin-bottom:9px">
       <div class="kind">${r.replaced_at ? ago(r.replaced_at) : ''}</div>
       <div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(r.body ?? '')}</div>
       <button class="btn ghost" data-restore="${r.id}" style="margin-top:8px">Restore this version</button>
     </div>`).join('') || '<div class="hint">No edits &mdash; this passage has not been changed by hand.</div>'}
 
-    ${pid ? `<button class="btn ghost" data-fork="${pid}" style="margin-top:14px">Branch from this passage</button>
-      <div class="hint">A branch copies the book up to here and leaves the original untouched.</div>` : ''}
+    ${pid ? `${tipCard('hisBranch', 'Branching from this passage', `<p>A branch copies the book up
+      to here and leaves the original untouched.</p>`)}
+      <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
+        <button class="btn ghost" data-fork="${pid}" style="flex:1">Branch from this passage</button>
+        ${tipMark('hisBranch', 'Branching from this passage')}</div>` : ''}
   </div>`;
 }
 
@@ -5805,7 +6077,7 @@ const WPAGES = {
             <span style="flex:1; min-width:0; font-size:11.5px; color:var(--faint); overflow:hidden;
               text-overflow:ellipsis; white-space:nowrap">${esc(f.what)}</span>
             <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; color:var(--label);
-              font-variant-caps:all-small-caps">${open ? 'close' : 'read'}</span>
+              text-transform:uppercase">${open ? 'close' : 'read'}</span>
           </button>
           <div style="display:flex; gap:8px; padding:0 15px 13px">
             <button class="btn ghost" data-forgecopy="${esc(f.key)}"
@@ -5922,7 +6194,7 @@ const WPAGES = {
     return `<div style="display:flex; flex-direction:column; gap:16px">
       ${hero ? resumeBand(hero) : ''}
       ${rest.length ? `<div style="display:flex; align-items:baseline; gap:14px">
-        <span style="font-size:11px; letter-spacing:.3em; font-variant-caps:all-small-caps;
+        <span style="font-size:11px; letter-spacing:.3em; text-transform:uppercase;
           color:var(--dim)">The shelf</span>
         <span style="flex:1; height:1px; background:var(--line)"></span>
       </div>` : ''}
@@ -5935,7 +6207,7 @@ const WPAGES = {
       </div>` : ''}
       ${shelved.length ? `<div data-shelf="archived" style="display:flex; flex-direction:column; gap:12px;
           margin-top:10px; padding-top:22px; border-top:1px solid var(--line)">
-        <span style="font-size:11px; letter-spacing:.3em; font-variant-caps:all-small-caps;
+        <span style="font-size:11px; letter-spacing:.3em; text-transform:uppercase;
           color:var(--dim)">Archived</span>
         <div class="shelfgrid">${shelved.map((s, i) => storyCard(s, live.length + i, false)).join('')}</div>
       </div>` : ''}</div>`;
@@ -6115,7 +6387,7 @@ const WPAGES = {
             const name = (LEDGER ?? []).find((e) => e.story === only)?.storyTitle;
             if (books < 2 && only) return '';
             return `<button data-lookall="${only ? '1' : '0'}" style="margin-left:auto; font-size:11px;
-              letter-spacing:.1em; font-variant-caps:all-small-caps; color:var(--gold)">${
+              letter-spacing:.1em; text-transform:uppercase; color:var(--gold)">${
               only ? `All ${books} books` : `Only ${esc(name ?? 'this book')}`}</button>`;
           })()}
         </div>
@@ -6292,28 +6564,82 @@ const WPAGES = {
           const row = (l, v, sub) => `<div class="row"><span style="color:var(--ink)">${l}</span>
             ${sub ? `<span style="font-size:11px; color:var(--dim)">${sub}</span>` : ''}
             <span class="tnum" style="margin-left:auto; color:var(--faint)">${v}</span></div>`;
-          // Thirty days of passages, drawn from the same rows. A sparkline rather than a number,
-          // because "have I written this week" is a shape question.
-          // `days` is the 30-day sparkline and it is not guaranteed: an older stats response, or
-          // one from a database with no generations logged, has no such key. `t` being truthy was
-          // the only guard, so the page threw on `.map` of undefined and rendered NOTHING — and no
-          // test had ever opened this page, which is how it survived. Found writing #23's check.
+          // `days` is not guaranteed: an older stats response, or a database with nothing written
+          // yet, has no such key. `t` being truthy was once the only guard, so the page threw on
+          // `.map` of undefined and rendered NOTHING — and no test had ever opened it.
           const days = t.days ?? [];
-          const max = Math.max(1, ...days.map((d) => d.n));
-          const spark = days.length > 1 ? `<div style="display:flex; align-items:flex-end; gap:2px;
-            height:34px; margin:10px 0 4px">${days.map((d) => `<span title="${esc(d.d)}: ${d.n}"
-            style="flex:1; min-width:2px; height:${Math.max(6, d.n / max * 100)}%;
-            background:${d.n ? 'var(--gold)' : 'var(--chip)'}; opacity:${d.n ? .75 : .35}; border-radius:var(--r-tight)"></span>`).join('')}</div>
-            <div class="hint" style="margin:0 0 8px">Passages a day, most recent on the right.</div>` : '';
-          return `${row('Words', n(t.words), 'in passages that are in the story')}
+
+          /* THIRTY DAYS WITH THE EMPTY ONES PUT BACK IN.
+           *
+           * `days` holds only days that HAVE passages, so a chart drawn straight off it stands
+           * Monday next to the Friday three weeks before it and reads as an unbroken run. The day
+           * you did not write is the information — this panel's whole question is rhythm, and a
+           * gap silently closed up is the one answer it must not give. It is also why the chart
+           * was invisible on a real library: the old guard was `days.length > 1`, and a writer
+           * whose passages all landed on one date had no chart at all.
+           *
+           * UTC ON BOTH SIDES. The rows are grouped by `DATE(created_at/1000,'unixepoch')`, which
+           * is UTC, and `toISOString()` is UTC — so the keys line up. Local time here would drop
+           * or double a day at the boundary depending on which side of it you are sitting. */
+          const frame = (() => {
+            const by = new Map(days.map((d) => [d.d, d]));
+            const out = [];
+            for (let i = 29; i >= 0; i--) {
+              const key = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+              const r = by.get(key);
+              out.push({ d: key, n: r?.n ?? 0, w: Number(r?.w ?? 0) });
+            }
+            return out;
+          })();
+          const sum = (rows, k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+          const week = frame.slice(-7);
+          const written = frame.filter((f) => f.n).length;
+          // The longest unbroken run inside the window, which is what a streak means here. It is
+          // NOT "your streak" — the window is thirty days, so a longer run that started before it
+          // is reported as thirty, and the label says "in the last 30 days" for that reason.
+          let run = 0, best = 0;
+          for (const f of frame) { run = f.n ? run + 1 : 0; if (run > best) best = run; }
+          const bestDay = frame.reduce((a, f) => (f.w > a.w ? f : a), { w: 0, d: null });
+
+          // BY WORDS, NOT BY PASSAGES. A day holding one 900-word passage and a day holding six
+          // one-liners drew the same bar, which answers a question nobody asked.
+          const top = Math.max(1, ...frame.map((f) => f.w));
+          const spark = `<div style="display:flex; align-items:flex-end; gap:2px;
+            height:38px; margin:10px 0 4px">${frame.map((f) => `<span title="${esc(f.d)}: ${
+            n(f.w)} words in ${f.n} ${f.n === 1 ? 'passage' : 'passages'}"
+            style="flex:1; min-width:2px; height:${f.w ? Math.max(8, f.w / top * 100) : 4}%;
+            background:${f.w ? 'var(--gold)' : 'var(--chip)'}; opacity:${f.w ? .75 : .35};
+            border-radius:var(--r-tight)"></span>`).join('')}</div>
+            <div class="hint" style="margin:0 0 8px">Words a day for thirty days, most recent on the
+              right. A flat bar is a day you did not write.</div>`;
+
+          // THE DENOMINATOR, NOT THE COUNT ALONE. "11 takes not chosen" cannot be read without
+          // knowing how many were written — this project's own second rule about measurement.
+          const takes = Number(t.passages ?? 0) + Number(t.unchosen ?? 0);
+          const per = takes && t.passages ? Math.round(Number(t.unchosen) / takes * 100) : 0;
+          // Words per passage, off two numbers already on screen. No SQL, and it is the number
+          // that says whether the book is written in paragraphs or in beats.
+          const each = t.passages ? Math.round(Number(t.words ?? 0) / Number(t.passages)) : 0;
+          const kinds = (t.kinds ?? []).map((k) => `${n(k.n)} ${esc(KIND_PLURAL[k.k] ?? k.k)}`).join(' · ');
+
+          return `${row('Words', n(t.words), each ? `about ${n(each)} to a passage` : '')}
+            ${spark}
+            ${row('This week', n(sum(week, 'w')), `${week.filter((f) => f.n).length} of the last 7 days`)}
+            ${row('Days written', `${written} of 30`, best > 1 ? `longest run ${best} days` : '')}
+            ${bestDay.d ? row('Best day', n(bestDay.w), esc(bestDay.d)) : ''}
+            <div class="lbl" style="letter-spacing:.1em; margin-top:22px">What it is made of</div>
             ${row('Passages', n(t.passages), `${n(t.yours)} yours · ${n(t.anansi)} Anansi`)}
             ${row('Stories', n(t.stories), `${n(t.chapters)} chapters`)}
-            ${row('Threads', n(t.entries), 'characters, lore, items, rules')}
-            ${row('Takes not chosen', n(t.unchosen), 'kept, and not in the story')}
+            ${row('Threads', n(t.entries), kinds || 'characters, lore, items, rules')}
+            ${row('Takes not chosen', n(t.unchosen),
+              takes ? `${per}% of the ${n(takes)} written` : 'kept, and not in the story')}
+            <div class="lbl" style="letter-spacing:.1em; margin-top:22px">What it cost</div>
             ${row('Calls to the model', n(t.calls), t.failed ? `${n(t.failed)} failed` : 'none failed')}
+            ${t.medianSeconds == null ? '' : row('A call, in the middle', `${t.medianSeconds}s`,
+              'half were faster, half slower')}
             ${row('Time spent generating', t.minutes >= 60
               ? `${Math.floor(t.minutes / 60)}h ${t.minutes % 60}m` : `${t.minutes}m`)}
-            ${spark}`;
+            ${t.tokensOut ? row('Words the model wrote', n(t.tokensOut), 'counted as tokens') : ''}`;
         })()}
       </div>
       <div class="aside">
@@ -7486,6 +7812,42 @@ async function commitGen(quiet = true) {
   if (!quiet) toast('Saved.');
 }
 
+/** Redraw after a checkbox autosaved, without eating what is half-typed on the panel.
+ *
+ *  Seth, 2026-09-03: "the checkboxes here do not need me to press the save button. it should
+ *  automatically apply if its been set." They already save — the listener below has called
+ *  `commitStory(el)` since the autosave landed — but that path deliberately does not repaint, so
+ *  NOTHING ON SCREEN MOVED. Ticking "use it at the head of every chapter" leaves "keep it behind
+ *  the prose" unrendered, because that control only exists while `chapterHero` is on and nothing
+ *  draws it until the next full paint. A press whose visible consequence waits for Save reads
+ *  exactly like a press that needs Save, which is what was reported.
+ *
+ *  Why the no-repaint rule exists at all: every free-text box on this panel is committed by Save
+ *  alone, so a redraw from V empties whatever is part-way written. So the text is carried across
+ *  by hand — the same save-and-restore `drawDock` does for the composer's draft, for the same
+ *  reason and for the eighth time in this file.
+ *
+ *  CHECKBOXES ONLY. The spice SELECT keeps the old rule: `custom` is a UI mode with no stored
+ *  value, so a redraw from V puts the select back on a level and takes away the box it had just
+ *  revealed — that is the bug `commitStory`'s comment records, and it is not this one. A range is
+ *  mid-gesture by nature. Neither reveals a control the way these two checkboxes do.
+ */
+const typedBoxes = () => [...document.querySelectorAll('#sideBody textarea, #sideBody input')]
+  .filter((el) => el.tagName === 'TEXTAREA' || el.type === 'text' || el.type === 'search');
+/** What identifies a box across a redraw. The id when it has one, and otherwise the data
+ *  attributes that name it — `data-pbody="pp-…"` is a proposal's own box and has no id. */
+const boxKey = (el) => el.id || el.getAttributeNames().filter((n) => n.startsWith('data-'))
+  .map((n) => `${n}=${el.getAttribute(n)}`).join('|');
+function repaintKeepingText() {
+  const typed = new Map(typedBoxes().map((el) => [boxKey(el), el.value]));
+  paint();
+  for (const el of typedBoxes()) {
+    const was = typed.get(boxKey(el));
+    if (was !== undefined && was !== el.value) el.value = was;
+  }
+  growFields($('sideBody'));
+}
+
 // A toggle or a picker commits itself. Text does not — see commitStory. `change` and not `input`,
 // because `input` on a <select> fires while the list is still open on some browsers — and on a
 // RANGE `change` is the release rather than every pixel of the drag, which is what makes one
@@ -7508,6 +7870,8 @@ document.addEventListener('change', (e) => {
   // by this guard, so "how much of the cover shows" was the one control on the Story panel that
   // still needed Save — its own hint said so, which is how it read as deliberate for a day.
   if (el.type !== 'checkbox' && el.type !== 'range' && el.tagName !== 'SELECT') return;
+  // A checkbox redraws once it has landed; nothing else does. See repaintKeepingText.
+  if (el.type === 'checkbox') return void commitStory(el).then(repaintKeepingText);
   void commitStory(el);
 });
 
@@ -7626,6 +7990,28 @@ document.addEventListener('click', async (e) => {
   const d = t.dataset;
 
   if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
+  /* A FOLDED EXPLANATION, opened where it stands. See tipMark for why this does not paint: the
+   * panels these are on are made of free text that only Save commits. The state is written too, so
+   * a repaint from somewhere else redraws it open rather than shutting it under the writer. */
+  if (d.tip) {
+    const now = !tipOn(d.tip);
+    S.tips = { ...S.tips, [d.tip]: now };
+    /* EVERY MATCH, NOT THE FIRST. A web can be drawn on two screens — `persona` and `locked` are on
+     * the Story panel AND in the wizard — so two elements legitimately carry the same key. That was
+     * harmless while a body was rendered only when open and carried `data-helpbody`; giving it an
+     * `id` made `getElementById` pick whichever came first in the document, which is the one in the
+     * side panel, hidden or not. The visible copy then did not open and the press read as dead.
+     *
+     * Only one of the two is ever on screen, so toggling both is exactly right rather than a
+     * workaround. The state is the authority either way — the next repaint draws both correctly. */
+    for (const body of document.querySelectorAll(`[id="tip-${d.tip}"]`)) body.hidden = !now;
+    // Optional, the way `t.closest?.()` is two branches down: the mark is drawn correctly from
+    // S.tips on the next repaint either way, and these two lines are only what keeps it right in
+    // between. Nothing here is the state.
+    t.setAttribute?.('aria-expanded', String(now));
+    if (t.style) t.style.color = now ? 'var(--gold)' : 'var(--faint)';
+    return;
+  }
   // The chapter list inside a passage's tray. Toggled per passage rather than globally, so opening
   // it on one passage and then another does not leave two open.
   if (d.modelmenu) {
@@ -7836,6 +8222,19 @@ document.addEventListener('click', async (e) => {
     if (box) box.dataset.tab = d.storytab;
     for (const b of document.querySelectorAll('[data-storytab]'))
       b.setAttribute('aria-pressed', String(b.dataset.storytab === d.storytab));
+    return;
+  }
+  /* The Chapter panel's four, and the same argument exactly: its name, how it opens and where it
+   * ends are free text that only Save commits, so a redraw on a tab press would lose them. Written
+   * out rather than folded into the branch above because the two keep different state and press
+   * different attributes; sharing them would save four lines and cost a reader the ability to
+   * grep for either one. */
+  if (d.chaptab) {
+    S.chapTab = d.chaptab;
+    const box = t.closest?.('[data-tab]');
+    if (box) box.dataset.tab = d.chaptab;
+    for (const b of document.querySelectorAll('[data-chaptab]'))
+      b.setAttribute('aria-pressed', String(b.dataset.chaptab === d.chaptab));
     return;
   }
   if (d.goslot) {
@@ -8682,7 +9081,6 @@ document.addEventListener('click', async (e) => {
   // Archiving is a status change and nothing else — no separate table, no hiding, and the same
   // route that saves every other story field. Reversible by pressing it again.
   // Pressing the same web again shuts it, so the icon is a toggle rather than a one-way door.
-  if (d.help) { S.help = S.help === d.help ? null : d.help; paint(); return; }
   // The native <summary> click has already flipped the element; this records it so the repaint
   // agrees rather than snapping the section shut under whatever was pressed inside it.
   if (d.fold) { S.folds = { ...S.folds, [d.fold]: !S.folds?.[d.fold] }; paint(); return; }
@@ -10140,9 +10538,11 @@ function coverFinder() {
       <button class="btn ghost" data-findcover="go" ${f.busy ? 'disabled' : ''}
         style="flex:0 0 auto; width:auto; padding:12px 18px">${f.busy ? 'Looking&hellip;' : 'Look'}</button>
     </div>
-    <div class="hint" style="margin:0">These words go to your own search endpoint, and the picture
-      comes back through Anansi rather than from this browser. Nothing about the book is sent &mdash;
-      not the premise, not a word of the prose.</div>
+    <div style="display:flex; justify-content:flex-end">${
+      tipMark('findWhere', 'Where these words go')}</div>
+    ${tipCard('findWhere', 'Where these words go', `<p>These words go to your own search endpoint,
+      and the picture comes back through Anansi rather than from this browser. Nothing about the
+      book is sent &mdash; not the premise, not a word of the prose.</p>`)}
     <div class="hint" style="margin:0">${SITE_HELP}</div>
     ${rows.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px">
       ${rows.map((r) => `<button data-takeweb="${esc(r.img)}" title="${esc(r.title)}"
@@ -10154,8 +10554,11 @@ function coverFinder() {
       Different words will find different pictures.</div>`
       : `<button class="btn ghost" data-findcover="more" ${f.busy ? 'disabled' : ''}
       >${f.busy ? 'Looking&hellip;' : 'Show me more'}</button>`}
-    <div class="hint" style="margin:0">Press one and it becomes the cover, shrunk to 900px like any
-      other. ${f.taking ? 'Fetching it&hellip;' : ''}</div>` : f.asked
+    <div style="display:flex; justify-content:flex-end">${
+      tipMark('findTake', 'Taking one as the cover')}</div>
+    ${tipCard('findTake', 'Taking one as the cover', `<p>Press one and it becomes the cover, shrunk
+      to 900px like any other.</p>`)}
+    ${f.taking ? '<div class="hint" style="margin:0">Fetching it&hellip;</div>' : ''}` : f.asked
       ? '<div class="hint" style="margin:0">Nothing came back for that.</div>' : ''}
     <button class="btn ghost" data-findcover="shut">Close</button>
   </div>`;
@@ -10172,10 +10575,12 @@ function drawTray() {
     <textarea class="field grow" data-drawprompt aria-label="What to draw"
       style="margin:0; min-height:56px; font-size:12.5px;
       line-height:1.45">${esc(S.drawn.prompt)}</textarea>
-    <div class="hint" style="margin:0">These words go to <code>pollinations.ai</code>, from this
-      browser rather than through Anansi. It is the only thing in the app that leaves the machine
-      besides the model on your own box, so read the line above before you press it. Nothing else
-      about the book is sent &mdash; not the premise, not a word of the prose.</div>
+    <div style="display:flex; justify-content:flex-end">${
+      tipMark('drawWhere', 'Where these words go')}</div>
+    ${tipCard('drawWhere', 'Where these words go', `<p>These words go to <code>pollinations.ai</code>,
+      from this browser rather than through Anansi. It is the only thing in the app that leaves the
+      machine besides the model on your own box, so read this before you press it.</p>
+      <p>Nothing else about the book is sent &mdash; not the premise, not a word of the prose.</p>`)}
     <div style="display:flex; gap:7px">
       <button class="btn ghost" data-drawcover="go" style="flex:1" ${S.drawn.busy ? 'disabled' : ''}>${
         S.drawn.busy ? 'Drawing&hellip;' : shots.length ? 'Draw another' : 'Draw one'}</button>
@@ -10197,8 +10602,10 @@ function drawTray() {
             overflow:hidden; border:1px solid var(--edge); aspect-ratio:3/4">
             <img src="${esc(sh.obj)}" alt=""
               style="width:100%; height:100%; object-fit:cover; display:block"></button>`).join('')}</div>
-      ${shots.some((sh) => !sh.err) ? `<div class="hint" style="margin:0">Press one to make it the
-        cover. It is shrunk and stored the same way a chosen file is.</div>` : ''}` : ''}
+      ${shots.some((sh) => !sh.err) ? `<div style="display:flex; justify-content:flex-end">${
+        tipMark('drawTake', 'Taking one as the cover')}</div>
+      ${tipCard('drawTake', 'Taking one as the cover', `<p>Press one to make it the cover. It is
+        shrunk and stored the same way a chosen file is.</p>`)}` : ''}` : ''}
   </div>`;
 }
 
@@ -10520,7 +10927,7 @@ function atDraw() {
       color:${i === AT.sel ? 'var(--gold-lit)' : 'var(--ink)'}; font-size:13px">
       <span>${esc(it.label)}</span>
       <span style="margin-left:auto; font-size:11px; letter-spacing:.08em;
-        font-variant-caps:all-small-caps; color:var(--faint)">${esc(it.kind)} \u00b7 ${esc(it.where)}</span>
+        text-transform:uppercase; color:var(--faint)">${esc(it.kind)} \u00b7 ${esc(it.where)}</span>
     </button>`).join('');
 }
 

@@ -364,8 +364,12 @@ let stubPassageId: string | undefined = undefined;
       // in Seth's hands. storyCard assigned to a `const tags` for world books and threw, which
       // killed drawPage inside loadLedger and left the page reading "Reading the threads…" for
       // ever. Nothing in the suite had ever rendered a world-book card, so nothing could see it.
+      // A LOOK OF ITS OWN, and as a STRING. `listStories` selects `s.*`, so the shelf gets the raw
+      // `stories.look` column while `src/story.ts` hands the OPEN book a parsed object — an
+      // asymmetry the banner has to cope with, and one an object here would hide completely.
       { id: 's-5', title: 'The Tessellate', status: 'in_progress', updatedAt: 5, words: 0,
-        last: null, proposed: 0, unpaid: 0, flags: 0, is_world: 1, genre: 'fantasy' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
+        last: null, proposed: 0, unpaid: 0, flags: 0, is_world: 1, genre: 'fantasy',
+        look: '{"theme":"cyberpunk","font":"sans","size":"m","scale":"100"}' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
       look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } })
     : url.startsWith('/api/story') ? STORY
@@ -398,6 +402,18 @@ let stubPassageId: string | undefined = undefined;
     // WHICH source is silent rather than print a dash, and a fixture where every field is filled
     // cannot see that at all. `active` stays the old alias so the rail's own assertions above
     // keep testing what they were written for.
+    // THE WRITING RECORD, with a HOLE IN THE MIDDLE OF IT. `days` carries only the days that have
+    // passages, so two rows nine days apart is exactly the shape that used to be drawn as two bars
+    // side by side — an unbroken run. The page fills the gaps itself now and that is what these
+    // dates are for; a fixture with consecutive days could not tell the two behaviours apart.
+    : url.startsWith('/api/stats') ? (() => {
+        const day = (back: number) => new Date(Date.now() - back * 86400000).toISOString().slice(0, 10);
+        return { stories: 2, chapters: 3, entries: 17, passages: 17, words: 5199,
+          yours: 6, anansi: 11, unchosen: 11, calls: 39, failed: 5, minutes: 8,
+          tokensOut: 24120, medianSeconds: 10.4,
+          kinds: [{ k: 'character', n: 9 }, { k: 'lore', n: 6 }, { k: 'item', n: 2 }],
+          days: [{ d: day(9), n: 4, w: 1200 }, { d: day(1), n: 6, w: 2400 }] };
+      })()
     : url.startsWith('/api/models') ? { active: 'write-nt-qwen36-h', allow: [], models: [
         { id: 'Qwen3.6-WNTH-35B-A3B-NN', status: 'loaded',
           ctxSize: 100096, parallel: 2, perSlot: 50048, tps: 58.4, runs: 58 },
@@ -1706,7 +1722,10 @@ ok('what is owed is drawn on the band, by kind, and opens the panel that decides
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
 
-  const used = new Set([...src.matchAll(/help(?:Mark|Body)?\('([a-z]+)'\)/g)].map((m) => m[1]));
+  // `helpText` joined the two on 2026-09-03: a field with a web AND a sentence of its own draws
+  // both into one card, so that is a third way a slug is used and a scan that missed it would
+  // report a live web as orphaned.
+  const used = new Set([...src.matchAll(/help(?:Mark|Body|Text)?\('([a-z]+)'\)/g)].map((m) => m[1]));
   // PANEL_HELP names its slugs as values rather than in a call, so they are read separately.
   for (const m of src.matchAll(/const PANEL_HELP = \{([^}]*)\}/g))
     for (const v of m[1].matchAll(/'([a-z]+)'/g)) used.add(v[1]);
@@ -1817,6 +1836,37 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.match(page, /What you have written/, 'the writing record is what the page is now');
   assert.match(page, /data-backup=|data-exportdb=|Backups/i, 'and the backups door stays');
   ok('Preferences is a writing record: the operator console is gone, the stats and backups stay');
+
+  // ---- AND THE RECORD ITSELF. Seth, 2026-09-03: "We need to make these stats better and see if we
+  // can add more. this is a really nice panel i want to take more advantage of."
+  //
+  // Until the fixture above, `/api/stats` fell through to `{}` and every one of these rows rendered
+  // from nothing — the page had a check that it was not an operator console and no check at all on
+  // the thing it IS. That is the first rule about measurement in this repo: validate the detector.
+  //
+  // THIRTY BARS FROM TWO ROWS is the assertion that carries the most. The server sends only days
+  // that have passages, so the chart used to stand two dates nine days apart next to each other and
+  // read as an unbroken run — and on a library whose passages all landed on one date the old
+  // `days.length > 1` guard drew no chart at all.
+  const bars = (page.match(/ words in \d+ passages?"/g) ?? []).length;
+  assert.strictEqual(bars, 30,
+    `the chart is a thirty-day frame with the empty days in it — drew ${bars} bars from 2 rows`);
+  assert.match(page, /Days written/, 'and it says how many of them were written on');
+  assert.match(page, />2 of 30</, 'two of thirty, counted off the frame and not off the rows');
+
+  // THE DENOMINATOR, which is this project's second rule about measurement: "11 takes not chosen"
+  // cannot be read without knowing how many were written. 17 kept + 11 not = 28, and 11/28 is 39%.
+  assert.match(page, /39% of the 28 written/,
+    'takes not chosen is reported against the number of takes there were');
+
+  // The ledger broken out by kind, from the server rather than guessed at from the total.
+  assert.match(page, /9 Characters/, 'the threads row says what kind they are');
+  assert.match(page, /6 Lore/, 'all of the kinds, in the order the server sent');
+
+  // The MIDDLE call and not the mean one — a cold reload drags an average and says nothing.
+  assert.match(page, /10\.4s/, 'and how long a call takes in the middle');
+  assert.match(page, /half were faster, half slower/, 'said as what it is, so it cannot be misread');
+  ok('the writing record counts thirty days including the empty ones, and reports its denominators');
 }
 
 // #27. The add-a-thread tray offered four kinds and ONE room — the outfit — and every other room
@@ -2971,6 +3021,37 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(opened, /class="lbanner"/, 'the world book gets a banner too');
   assert.match(opened, /World book/, 'tagged as what it is, not as Writing');
   assert.match(opened, /Lore only/, 'and it says there is nothing written in it');
+
+  // ---- AND IT PAINTS IN THE BOOK'S OWN COLOURS. Seth, 2026-09-03: "If a story has no image use
+  // the Theme background" — the book's theme, not the app's, so a shelf of books with no covers
+  // is not one column of identical grey.
+  //
+  // Read off THEMES rather than typed here: a literal would be a second copy of the palette, and
+  // this check is that the BOOK'S theme reached the banner, not what cyberpunk's accent is.
+  const { THEMES: TH, themeVars: tv } = await import('../web/model.js');
+  const cyber = tv('cyberpunk');
+  assert.ok(opened.includes(`--doc-wash:${cyber['--doc-wash']}`),
+    "the banner is painted with the book's own theme, parsed out of the raw look column");
+  assert.ok(opened.includes(`--gold:${TH.cyberpunk.accent}`),
+    'and the text tokens come with it, or a light theme would be unreadable on a dark app');
+
+  // THE ABSENCE, which is the half that would pass for the wrong reason. A book with no look of
+  // its own follows the writer, and the stylesheet already paints that — writing the writer's
+  // tokens out would freeze them, so changing your theme would leave every banner behind.
+  // THE ABSENCE, COUNTED AGAINST THE BANNERS ON SCREEN and not read off one of them. A book with
+  // no look of its own follows the writer, and the stylesheet already paints that — writing the
+  // writer's tokens out would freeze them, so changing your theme would leave every banner behind.
+  //
+  // The first version of this sliced the second banner out of the markup and asserted no
+  // `--doc-wash` in it. That slice came back EMPTY, so the assertion passed against a string with
+  // nothing in it — breaking the code on purpose left it green, which is how it was caught. Two
+  // groups are open here, exactly one of the two books has a look, so the two counts ARE the
+  // assertion and neither can go vacuous.
+  const drawn = (opened.match(/class="lbanner"/g) ?? []).length;
+  const painted = (opened.match(/--doc-wash/g) ?? []).length;
+  assert.strictEqual(drawn, 2, 'both groups are open, so there are two banners to tell apart');
+  assert.strictEqual(painted, 1,
+    'and only the book that has a look of its own carries inline colours');
   ok("a book's threads open under a hero banner, and a world book wears its own");
 }
 
@@ -3047,6 +3128,69 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
       'and typing into free text still commits nothing until Save');
   } finally { doc.querySelectorAll = wasQSA; }
   ok('sliders save themselves — the sampler and the cover — and free text still waits for Save');
+}
+
+// ---- AND A CHECKBOX SHOWS ITS CONSEQUENCE WITHOUT A SAVE PRESS.
+//
+// Seth, 2026-09-03: "the checkboxes here do not need me to press the save button. it should
+// automatically apply if its been set." They already saved — the block above asserts that and has
+// since the autosave landed — so the report is about what the SCREEN did, which was nothing. The
+// autosave path deliberately skipped the repaint, and "use it at the head of every chapter" gates
+// whether "keep it behind the prose" is drawn at all, so the second control stayed missing until
+// the next full paint. A press whose visible half waits for Save is a press that needs Save.
+//
+// THE REDRAW IS MODELLED, NOT COUNTED, and getting that wrong is why this note is long. The first
+// version of this check counted how many times the code swept the panel for text boxes, and blanked
+// the fake box on the second sweep — so removing the restore loop removed the second sweep, the box
+// was never blanked, and the assertion about carrying text across passed with the code that loses
+// it. The check could only fail for the reason it was not asking about. So `innerHTML` on #sideBody
+// carries a setter instead: writing it is what a repaint DOES, and it destroys the box's contents
+// the way a real one destroys the element. Both halves now fail on their own and on nothing else,
+// which was verified by breaking each in turn.
+{
+  const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+  const doc = (globalThis as any).document;
+  const wasQSA = doc.querySelectorAll;
+  const sideBody = nodes.get('sideBody');
+  const wasHtml = sideBody.innerHTML;
+  click({ panel: 'story' });
+  const box: any = { tagName: 'TEXTAREA', type: 'textarea', value: '',
+    id: 'f-story-premise', getAttributeNames: () => [], getAttribute: () => null };
+  doc.querySelectorAll = (sel: string) =>
+    (String(sel).includes('#sideBody') ? [box] : []) as any;
+  let raw = String(sideBody.innerHTML);
+  Object.defineProperty(sideBody, 'innerHTML', {
+    configurable: true,
+    get: () => raw,
+    // A repaint replaces the panel's markup with new elements. Whatever was typed into the old
+    // ones is gone with them — which is the entire reason the no-repaint rule was written.
+    set: (v: string) => { raw = v; box.value = ''; },
+  });
+  try {
+    sideBody.innerHTML = 'STALE';
+    box.value = 'half a premise';
+    changeIn({ dataset: { story: 'chapterHero' }, type: 'checkbox', checked: true });
+    await new Promise((r) => setTimeout(r, 40));
+    assert.notStrictEqual(html('sideBody'), 'STALE',
+      'ticking a checkbox redraws the panel, with no Save pressed');
+    assert.strictEqual(box.value, 'half a premise',
+      'and the redraw does not eat what was half-typed beside it');
+
+    // THE ABSENCE, which is the half that would pass for the wrong reason. A picker must NOT
+    // redraw: `custom` spice is a UI mode with no stored value, so a redraw from V puts the picker
+    // back on a level and takes away the box it had just revealed. That bug is recorded in
+    // commitStory's own comment and this is what keeps it fixed.
+    sideBody.innerHTML = 'STALE';
+    changeIn({ dataset: { story: 'spice' }, tagName: 'SELECT', type: 'select-one', value: 'custom' });
+    await new Promise((r) => setTimeout(r, 40));
+    assert.strictEqual(html('sideBody'), 'STALE',
+      'and a picker still does not redraw the panel under the writer');
+  } finally {
+    doc.querySelectorAll = wasQSA;
+    Object.defineProperty(sideBody, 'innerHTML',
+      { configurable: true, writable: true, value: wasHtml });
+  }
+  ok('a checkbox redraws the panel it changed, and carries the half-typed text across');
 }
 
 // ---- WHEN A CHAPTER CLOSE'S PASSES DO NOT RUN, THE SCREEN SAYS SO (issue #32). Seth: "Facts are
@@ -3293,6 +3437,176 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
       `the ${label} panel has exactly one whole-panel Save`);
   }
   ok('Story, Chapter and Storyteller each pin one Save above their fields (#33)');
+}
+
+// ---- THE CHAPTER PANEL SPLITS INTO FOUR, on the mechanism the Story panel already uses.
+//
+// Seth, 2026-09-03: "everything here should also use the tab system to split information." It was
+// one column doing five jobs — naming the chapter, the proposals queue, the summaries that stand in
+// for earlier chapters, the acts they collapse into, and the branches — with the queue four screens
+// down.
+//
+// THE STYLESHEET IS THE MECHANISM, so it is asserted and not assumed. `.sgroup` is `display:none`
+// and a group only comes back for a `[data-tab]` that names it — so a group added to the markup and
+// forgotten in app.html is a tab that opens on nothing at all, silently, with no error anywhere. A
+// check that only read the markup would pass for all four while three of them were blank.
+{
+  const { readFileSync } = await import('node:fs');
+  const sheet = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  click({ panel: 'chapter' });
+  await new Promise((r) => setTimeout(r, 40));
+  const body = html('sideBody');
+
+  const GROUPS = ['this', 'proposed', 'summaries', 'branches'];
+  assert.match(body, /data-tab="this"/, 'the panel opens on the chapter itself');
+  for (const g of GROUPS) {
+    assert.ok(body.includes(`data-group="${g}"`), `the chapter panel draws its ${g} group`);
+    assert.match(sheet, new RegExp(`\\[data-tab="${g}"\\]\\s*>\\s*\\.sgroup\\[data-group="${g}"\\]`),
+      `and app.html brings the ${g} group back — without its rule that tab opens on nothing`);
+  }
+  assert.strictEqual((body.match(/class="sgroup"/g) ?? []).length, GROUPS.length,
+    'four groups and no more — a fifth would be drawn and unreachable');
+  assert.strictEqual((body.match(/data-chaptab="/g) ?? []).length, GROUPS.length,
+    'and one chip per group, or a group has no door');
+
+  // THE SAVE BAR STAYS OUTSIDE THEM. It commits the chapter's name and its two boxes, and those
+  // live in one group — so a bar inside that group would vanish on three tabs out of four while
+  // the fields it commits stayed in the document.
+  assert.ok(body.indexOf('class="savebar"') < body.indexOf('class="sgroup"'),
+    'the Save bar sits above the groups, not inside one of them');
+
+  // ONE COLUMN CUT INTO FOUR BY HAND, so the nesting is counted rather than eyeballed. An unclosed
+  // group swallows the ones after it and the panel still renders.
+  const opened = (body.match(/<div\b/g) ?? []).length;
+  const closed = (body.match(/<\/div>/g) ?? []).length;
+  assert.strictEqual(opened, closed,
+    `the chapter panel's divs balance — ${opened} opened, ${closed} closed`);
+  ok('the Chapter panel splits into four groups the stylesheet can actually show');
+}
+
+// ---- WHAT A CONTROL DOES, FOLDED AWAY UNTIL IT IS ASKED FOR.
+//
+// Seth, 2026-09-03: "Every information about how things work, what it does across the entire site
+// needs to be not in frame but behind a tooltip button next to the name of what it does." Story,
+// Chapter and Threads first, by his call, before the other hundred and fifty across the pages.
+//
+// THE PAIRING IS THE CHECK THAT MATTERS and it is asserted against the SOURCE, not the markup.
+// `tipCard(k)` writes `hidden` unless `S.tips[k]` is set, and `tipMark(k)` is the only thing that
+// can set it — so a card whose key has no mark is a sentence removed from the app with no way to
+// bring it back, rendering perfectly, breaking no test, and visible to nobody. That happened once
+// while this was being written (`sOpacity`), which is the whole argument for counting it here
+// rather than trusting a reading. The reverse is only clutter: a mark that opens nothing.
+//
+// The webs go through the same two functions but pass their slug as a VARIABLE, so they are not
+// counted here — they have their own check above, binding every slug to web/help.js both ways.
+{
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  const keys = (fn: string) => new Set([
+    ...[...src.matchAll(new RegExp(`${fn}\\(\\s*['\`]([^'\`]+)['\`]`, 'g'))].map((m) => m[1]),
+    // The generated story fields build their key from the field name, so the literal in the source
+    // is a template. Counted as one on both sides, which is what it is.
+    ...[...src.matchAll(new RegExp(`${fn}\\(\`([^\`]*\\$\\{[^\`]*)\``, 'g'))].map((m) => m[1]),
+  ]);
+  // BOTH SPELLINGS COUNT. A web is a mark too — `helpMark('states')` names its slug literally and
+  // draws the same button — and one control now pairs `helpMark` with a hand-built `tipCard` so its
+  // web and its own sentence live in ONE card rather than two stacked boxes. Counting only the
+  // `tip*` pair reported that card as orphaned, which is the check being narrow rather than the app
+  // being wrong; counting both spellings is what makes the invariant true of the app as written.
+  const marks = new Set([...keys('tipMark'), ...keys('helpMark')]);
+  const bodies = new Set([...keys('tipCard'), ...keys('helpBody')]);
+  assert.ok(marks.size >= 25, `the sweep landed — ${marks.size} folded explanations`);
+  assert.deepStrictEqual([...bodies].filter((k) => !marks.has(k)), [],
+    'every folded sentence has a mark that opens it, or it is hidden from everyone for ever');
+  assert.deepStrictEqual([...marks].filter((k) => !bodies.has(k)), [],
+    'and every mark opens something, or it is a button that does nothing');
+
+  // THE CARD MUST ACTUALLY FOLD. `.card` sets `display:flex`, which is more specific than the UA
+  // sheet's `[hidden]{display:none}` — so without a rule of its own every explanation in the app
+  // ships permanently open and every mark does nothing. app.html records this trap for `.pane` and
+  // it was walked into anyway the moment the marks moved onto a class that already had a display.
+  const sheet = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(sheet, /\.card\[hidden\]\s*\{[^}]*display:\s*none/,
+    '.card[hidden] must be stated, or the folds never close');
+
+  // AND IT STARTS SHUT, ON THE PANEL, which is the half the source cannot answer.
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 40));
+  let body = html('sideBody');
+  assert.match(body, /data-tip="sCover"/, 'the Story panel draws its marks');
+  assert.match(body, /id="tip-sCover" hidden/, 'and the explanation behind one starts folded away');
+
+  /* ---- ONE MARK PER LABEL. Seth, 2026-09-03: "voice of the weave now has two."
+   *
+   * It did. That field has a curated web AND a sentence of its own, and the first sweep gave a mark
+   * to every field with a sentence without noticing one of them already had one — two marks in two
+   * styles, side by side, opening two boxes about the same box below them.
+   *
+   * COUNTED INSIDE THE LABEL, because that is where the bug was visible: both marks rendered, both
+   * worked, and nothing was broken except the reading. */
+  const lbl = body.match(/<label class="lbl" for="f-story-writingStyle">[\s\S]*?<\/label>/)?.[0] ?? '';
+  assert.ok(lbl, 'the voice field draws a label');
+  assert.strictEqual((lbl.match(/data-tip=/g) ?? []).length, 1,
+    'Voice of the weave carries one mark, not one per source of explanation');
+
+  // ABOVE IS ASSERTED AS A POSITION, not by a regex reaching from the card to a `<textarea`. The
+  // first version did exactly that and passed with the card moved back UNDER the box — because the
+  // match simply ran on to the NEXT field's textarea. Breaking the code on purpose is what showed
+  // it; the two indices cannot lie the same way.
+  const cardAt = body.indexOf('id="tip-sf-writingStyle"');
+  const boxAt = body.indexOf('<textarea class="field" id="f-story-writingStyle"');
+  assert.ok(cardAt > -1, 'the voice field has a card');
+  assert.ok(boxAt > -1, 'and a box to explain');
+  assert.ok(cardAt < boxAt,
+    'the card is drawn ABOVE the box — an explanation read after you fill it in is read too late');
+
+  // AND NEITHER EXPLANATION WAS DROPPED TO GET THERE. The web says what a voice IS; the field's own
+  // sentence says what happens if you leave the box empty. They are complementary, so the fix was
+  // to put both in one card — a fix that quietly deleted one would pass the count above.
+  const card = body.slice(cardAt, boxAt);
+  assert.match(card, /How the prose sounds/, 'and it still carries the web');
+  assert.match(card, /How the narration behaves/, "and the field's own sentence with it");
+
+  // OPENING ONE DOES NOT REPAINT. Every field on this panel is free text that only Save commits,
+  // so a paint here eats a half-written premise — the bug this file records eight times, and the
+  // one `data-help` still has. The sentinel is the only thing that can tell a repaint from a
+  // correct redraw, because both leave the markup looking right.
+  nodes.get('sideBody').innerHTML = 'STALE';
+  click({ tip: 'sCover' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.strictEqual(html('sideBody'), 'STALE',
+    'opening an explanation does not repaint the panel under the writer');
+
+  // ...and the state survives the next repaint that DOES happen, or a checkbox would shut it.
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 40));
+  body = html('sideBody');
+  assert.match(body, /id="tip-sCover"(?! hidden)/,
+    'and it is still open after an unrelated repaint');
+  click({ tip: 'sCover' });
+  click({ panel: 'story' });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.match(html('sideBody'), /id="tip-sCover" hidden/, 'pressing it again folds it back');
+
+  /* ---- A WEB DRAWN ON TWO SCREENS OPENS ON BOTH. `persona` and `locked` are on the Story panel
+   * and in the wizard, so two elements legitimately carry one key. Folding the webs into this
+   * mechanism gave those bodies an `id`, and `getElementById` returns whichever comes FIRST in the
+   * document — the side panel's, open or not. The copy the writer was looking at stayed shut and
+   * the mark read as dead. Counted, because one match is exactly what the bug looked like. */
+  const opened: string[] = [];
+  const wasQS = (globalThis as any).document.querySelectorAll;
+  (globalThis as any).document.querySelectorAll = (sel: string) => {
+    if (!String(sel).startsWith('[id="tip-')) return wasQS(sel);
+    // Two elements, the way two screens really do carry one web.
+    return [{ hidden: true }, { hidden: true }].map((el, i) =>
+      new Proxy(el, { set: (t, k, v) => (k === 'hidden' && v === false && opened.push(`${i}`), Reflect.set(t, k, v)) }));
+  };
+  try {
+    click({ tip: 'persona' });
+    assert.deepStrictEqual(opened, ['0', '1'],
+      'both copies of a web open — the first-match version left the visible one shut');
+  } finally { (globalThis as any).document.querySelectorAll = wasQS; }
+  ok('what a control does is folded behind a mark, on all three panels, and every mark opens something');
 }
 
 // ---- THE RE-ROLL INSTRUCTION IS EDITABLE (issue #38). Seth, 2026-09-01: "I should be able to edit

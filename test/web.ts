@@ -199,6 +199,101 @@ const ok = (m: string, fn?: unknown) => {
     ok('no type in the app is set below 11px');
   }
 
+  /* EVERY LABEL STILL HAS ITS CONTROL — added 2026-09-03, during the sweep that made it necessary.
+   *
+   * Folding an explanation means rewriting the three lines around a control: the label gets a mark,
+   * a card goes above it, and the old sentence under it is deleted. Delete one line too many and
+   * the CONTROL goes with it — the label renders, the panel renders, every suite passes, and the
+   * box is simply not there. That happened twice while this sweep was being done and both times it
+   * was caught by reading the diff, which is not a method.
+   *
+   * Asserted as a source-level pairing because `for` and `id` are often written from the same
+   * template expression — `f-story-${'$'}{f.k}` on both sides — so comparing the strings catches a
+   * deleted control without needing to render every screen the app has.
+   *
+   * The suite already checks the other direction: that every field HAS a name. That check passes
+   * happily when the field is gone, because a field that does not exist is not unnamed. */
+  {
+    const both = js + read('app.html') + read('web/model.js');
+    const fors = new Set([...both.matchAll(/\sfor="([^"]+)"/g)].map((m) => m[1]));
+    const ids = new Set([...both.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+    const orphans = [...fors].filter((f) => !ids.has(f));
+    assert.deepStrictEqual(orphans, [],
+      `label(s) pointing at a control that is not there: ${orphans.join(', ')}`);
+    assert.ok(fors.size > 15, `and the scan really found labels — ${fors.size} of them`);
+    ok(`every label points at a control that exists (${fors.size} of them)`);
+  }
+
+  /* ONE SPELLING OF THE LABEL STYLE — Seth, 2026-09-03: "the labels are all weird lets make it all
+   * caps locked instead."
+   *
+   * The app has now worn three: `all-small-caps`, then `small-caps` for one round, now real
+   * capitals. `text-transform:uppercase` is the one that stands, and the two it replaced must be
+   * gone rather than merely outnumbered — the style is written inline in web/app.js at two dozen
+   * call sites as well as in the stylesheet, so the failure is never one label looking wrong. It is
+   * somebody adding a twenty-sixth next month with an old value copied off the line above it, and
+   * two spellings living side by side for months. Nothing about a screenshot catches that.
+   *
+   * AND THE RESETS COUNT AS THE STYLE. Two rules exist to take the treatment OFF something — the
+   * open list of names under the composer, and the first-run buttons that read as sentences. Both
+   * named the old property, which stopped undoing anything the moment the style moved. A leftover
+   * mention anywhere in the CSS is either a label that did not move or a reset that no longer
+   * resets, and both are worth a red. (The old property is spelled only inside the regexes below —
+   * this scan reads those files as text, and a name in a comment counts as a rule.) */
+  {
+    const both = js + read('app.html') + read('web/model.js') + read('web/help.js');
+    const old = [...both.matchAll(/font-variant-caps:\s*(?!normal)/g)].length;
+    assert.strictEqual(old, 0,
+      `${old} label(s) still use font-variant-caps — the app uppercases with text-transform now`);
+    const stale = [...both.matchAll(/font-variant-caps:\s*normal/g)].length;
+    assert.strictEqual(stale, 0,
+      `${stale} reset(s) still undo font-variant-caps, which no longer sets the label style`);
+    // AND THE STYLE IS ACTUALLY THERE. A check for an absence passes just as well when the property
+    // has been deleted everywhere, which would be labels in plain sentence case — a different bug
+    // that the two assertions above would call success.
+    //
+    // `.lbl` IS NAMED, not just counted. A total across both files was the first version of this and
+    // it survived deleting the property from every rule in app.html, because two dozen inline copies
+    // in web/app.js kept the number up — so the one rule every heading in the app hangs off could
+    // have gone and the check would still have been green. Breaking it on purpose is what showed
+    // that; the count stays as the second half, for the inline ones.
+    const sheet = read('app.html');
+    assert.match(sheet, /\.lbl\s*\{[^}]*text-transform:\s*uppercase/,
+      'the .lbl rule itself must set it — every heading in the app hangs off that one rule');
+    const kept = [...both.matchAll(/text-transform:\s*uppercase/g)].length;
+    assert.ok(kept > 20, `and the labels really are capitalised — found ${kept}`);
+
+    /* THE TWO EXCEPTIONS, PINNED. Seth, 2026-09-03: "everything should be upper cased. except the
+     * menu and the info." Both are places a sweep would naturally catch next time — the rail's
+     * Chapters heading looks exactly like a label, and the info card's title IS one — so the
+     * exception has to be written down somewhere a future sweep runs into. Here is that place.
+     *
+     * The rail's rows were never uppercased and are not asserted: there is nothing to keep them
+     * from, and an assertion about markup that has never had the property is one that cannot fail. */
+    const railHead = js.match(/padding:26px 12px 10px;[^"]*/)?.[0] ?? '';
+    assert.ok(railHead, "the rail's Chapters heading is still drawn");
+    assert.doesNotMatch(railHead, /uppercase/,
+      "the rail is the menu, and the menu is excepted — its Chapters heading stays as written");
+    // THE TITLE'S OWN STYLE, matched exactly rather than a window of characters after `tipCard`.
+    // The first version sliced 460 chars from the function name, and the comment explaining the
+    // exception is itself about that long — so the window stopped short of the line it was meant to
+    // read and the check passed with the title uppercased. Breaking it on purpose is what showed
+    // that, and a fixed window is the wrong tool whenever a comment can grow.
+    const tipTitle = js.match(/<div style="([^"]*)">\$\{esc\(title\)\}<\/div>/)?.[1] ?? null;
+    assert.ok(tipTitle, 'the info card still draws its title');
+    assert.doesNotMatch(tipTitle!, /uppercase/,
+      'an info card is prose, and its title is the first line of it — not another label shouting');
+
+    // AND THE TWO HEADING SHAPES THAT ARE NOT `.lbl`, named because the count above cannot see them:
+    // a fold's <summary> and the next-chapter step chips. Both were missed by the first sweep for
+    // the same reason — they are labels that do not carry the class every other label carries.
+    assert.match(sheet, /details\.fold > summary \{[^}]*text-transform:\s*uppercase/,
+      "a fold's heading is a label too — Over time, Brings in with it, Another book");
+    assert.match(js, /data-setupstep="\$\{k\}"[\s\S]{0,220}text-transform:uppercase/,
+      'and so are the next-chapter step chips');
+    ok(`every label is set in real capitals, one spelling (${kept}), menu and info excepted`);
+  }
+
   /* THE MARGIN RULES ARE THICK ENOUGH TO TELL APART. Seth, 2026-09-01: "the lines beside the text
    * the accented ones are 2px too thin its hard to differentiate."
    *

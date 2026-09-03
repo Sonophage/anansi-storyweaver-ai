@@ -10,6 +10,81 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-03 · Panels you can read, and a fuller record of your writing
+
+### The Chapter screen is four screens now
+Chapter had grown into one long column doing five unrelated jobs, with the queue of proposed
+threads four screens down where nobody found it. It splits into **This chapter**, **Proposed**,
+**Summaries** and **Branches**, the same way the Story screen did. **Proposed** carries its count,
+so a queue behind a tab still says how many are waiting. Save still commits the chapter's name and
+its two boxes from whichever tab you are standing on.
+
+### Explanations are behind a mark, above the thing they explain
+On **Story**, **Chapter** and **Threads**, the paragraph explaining what a control does is folded
+behind a small mark beside its name. Press it and it opens as a card **above** the box or the
+button — an explanation you read after filling something in is one you read too late. Press it
+again and it closes, and it stays as you left it.
+
+Every one of them looks the same now, and reads the same way, whether it is one of the eight the
+manual explains or a sentence written beside a single control. **Voice of the weave** had grown two
+marks in two styles doing the same job; it has one, and it carries both explanations in the one
+card. Nothing was rewritten and nothing was thrown out.
+
+What has *not* been folded is anything telling you the state of things: an empty list still says it
+is empty, a stale summary still says so on its face.
+
+**Every panel** has it now — Story, Chapter, Threads, Storyteller, the thread card, the chapter
+close, the next chapter, Context, Strings, Anansi, History, the picture finders and the trays. Around
+eighty explanations, each behind its own mark, each above the thing it explains.
+
+Two of them were saying the same thing twice: the paragraph at the top of **Strings** and of
+**Anansi** repeated, in different words, what those panels' own marks already opened. The second
+copy is gone and the one the manual holds stays.
+
+The wizard that starts a book is deliberately left alone — the sentence under a field there is often
+the only thing telling you what to type, and folding it away would make a first book harder, not
+tidier. Anything reporting the state of things stays put too: an empty list still says it is empty,
+a model that cannot be reached still says so, and the setting your book is actually set in is still
+printed where you can see it.
+
+### Labels are in capitals
+Every label in the app — the headings, the chips, the buttons, the tags — was set in small capitals,
+which at this size read as a mistake rather than as a style. They are in plain full capitals now,
+including the two shapes that were never labelled as labels and so never got the treatment at all:
+the headings you fold open on a thread card, and the three steps across the top of the next chapter.
+
+Two places stay as they were, on purpose. The **menu** down the side reads as a list of places you
+go, not as a row of labels. And the **explanation cards** behind each ⊹ are prose — a title in
+capitals there is another label shouting from inside the thing you opened to stop the shouting.
+
+### What you have written, in more detail
+The writing record grew. The chart is **words a day for thirty days** rather than passages, and it
+now draws the days you did *not* write instead of quietly closing the gap — so it reads as rhythm
+rather than as an unbroken run. Under it: what you wrote **this week**, how many of the last thirty
+days you wrote on, your **longest run**, and your **best day**.
+
+Takes you did not choose are now given against the number you wrote, so "11" reads as "39% of the
+28 written". Threads say what kind they are. And there is a new line for how long a call takes **in
+the middle** — half faster, half slower — which is a truer number than the average, because one
+cold model load drags an average and tells you nothing.
+
+## 2026-09-03 · Small things that were in your way
+
+### Ticking a box does something now
+On the Story screen, the switches under the cover — **use it at the head of every chapter**, and
+**keep it behind the prose while you read** — were already saving the moment you pressed them. The
+screen just did not move, so there was no way to tell, and the second switch does not exist until
+the first is on. It looked like it needed a Save press. It never did, and now it says so: the panel
+redraws under your finger and whatever you had half-typed beside it stays where you left it.
+
+### In context, first
+On **Threads**, the two filters have swapped places. **In context** is the question you open that
+panel to ask, so it is the one your eye lands on. Which filter is switched on has not changed.
+
+### A book with no cover wears its own colours
+The band above a book's threads was flat grey when there was no picture on the book. It now takes
+the colours of your theme, so a shelf of books with no covers is not a column of identical grey.
+
 ## 2026-09-03 · Pull several threads out of a world at once
 
 ### See what is in a world, then pick

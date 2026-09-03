@@ -1125,8 +1125,42 @@ ok('writer stats count the right rows', () => {
   // you with writing you threw away.
   assert.strictEqual(t.words, 14, `words over selected non-break passages only, got ${t.words}`);
   assert.ok(Array.isArray(t.days), 'and a per-day series to draw');
+  // WORDS PER DAY AS WELL AS PASSAGES. A day holding one 900-word passage and a day holding six
+  // one-liners are the same bar without this, which is a chart that answers the wrong question.
+  // Everything above was written just now, so it is all one day and the words must agree with the
+  // total — a per-day sum that disagrees with the headline is two numbers for one fact.
+  assert.strictEqual(t.days.reduce((a: number, d: any) => a + Number(d.w ?? 0), 0), 14,
+    'the per-day series carries words, and they add up to the same 14');
+
+  // THE LEDGER BY KIND, from the database rather than guessed at from the total. Two kinds, so the
+  // ordering is exercised: a single-kind fixture cannot see a GROUP BY that returns them jumbled.
+  db.upsertEntry(st.id, o, { title: 'The Bridge', body: '[a place]', entryType: 'lore' });
+  db.upsertEntry(st.id, o, { title: 'The Span', body: '[a place]', entryType: 'lore' });
+  const k = db.writerStats(o).kinds;
+  assert.deepStrictEqual(k.map((r: any) => [r.k, r.n]), [['lore', 2], ['character', 1]],
+    'kinds come back counted and commonest first');
+  assert.strictEqual(k.reduce((a: number, r: any) => a + r.n, 0), db.writerStats(o).entries,
+    'and they add up to the ledger total — the same LIVE filter, or the page contradicts itself');
+
+  /* HOW LONG A CALL TAKES, IN THE MIDDLE. Total time over calls is dragged by one cold reload;
+   * this project quotes medians for that reason. Five rows go in and only three can count: a call
+   * that FAILED has no duration worth having, and one with no latency logged has none at all.
+   * The 100-second failure is the trap — include it and the middle moves to 9s. */
+  for (const [ms, err] of [[1000, null], [5000, null], [9000, null],
+                           [100000, 'llama-server is not running'], [null, null]] as const) {
+    db.logGeneration({ storyId: st.id, role: 'prose', latencyMs: ms, error: err });
+  }
+  assert.strictEqual(db.writerStats(o).medianSeconds, 5,
+    'the middle of the three calls that finished, not the mean and not the failures');
+
   // Another writer's work is not yours.
   assert.strictEqual(db.writerStats(db.owner('stats-nobody')).words, 0);
+  assert.deepStrictEqual(db.writerStats(db.owner('stats-nobody')).kinds, [],
+    'and neither are their threads');
+  // NULL, NOT ZERO. "No call has ever finished" and "calls finish instantly" are different facts,
+  // and a zero here would be the second one printed on the page.
+  assert.strictEqual(db.writerStats(db.owner('stats-nobody')).medianSeconds, null,
+    'a writer with no finished calls has no middle, which is not the same as a fast one');
 });
 
 // Outfits. PLAN-04 04 chose named-and-switchable over a single "right now" line, and chose a
