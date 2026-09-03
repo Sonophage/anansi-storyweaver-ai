@@ -2729,8 +2729,18 @@ export const routes: Record<string, Handler> = {
       // convention, and one that arrives without them is a formatting miss, not a bad card.
       let body = String(raw.body ?? '').trim();
       if (body && !body.startsWith('[')) body = `[${title}: ${body}]`;
+      /* AN ID IN THE PASTE UPDATES THAT CARD, and this is what makes the Card-as-JSON export a
+       * round trip rather than a duplicator — Seth, 2026-09-02: "be able to reupload". Without it,
+       * putting a card's own file back made a second copy of it beside the first.
+       *
+       * SCOPED BY CONSTRUCTION: `upsertEntry` takes this story and this owner, so an id that is not
+       * a card of theirs cannot be written through — the same gate every other entry write uses. An
+       * id that names nothing is treated as absent and a new card is written, which is the forge's
+       * behaviour and the reason a file with the id deleted still works. */
+      const claimed = String(raw.id ?? '').trim();
+      const known = claimed && (v.entries ?? []).some((x: any) => x.id === claimed);
       const id = db.upsertEntry(v.id, c.owner, {
-        id: '', title, body: body || `[${title}: ]`,
+        id: known ? claimed : '', title, body: body || `[${title}: ]`,
         entryType: kind,
         activation: raw.activation === 'triggered' ? 'triggered' : 'always_on',
         keys: Array.isArray(raw.keys) ? raw.keys : [],

@@ -10,6 +10,29 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · Chapters get a screen of their own, facts can be edited, and a card travels as a file
+
+### Chapters is its own screen
+The chapter list used to be a fold inside a paragraph's own menu, and it showed nothing but names.
+It is a screen in the rail now, next to Chapter, and every chapter says what it is: its name, its
+opening sentence, how many words and how many passages, whether it is closed, and what the model is
+being sent for it. Press one to write in it.
+
+### Facts can be edited again
+The **facts** room — the one thing on a card that survives the chapter-end rewrite — was not drawn
+anywhere. You could create it and never open it again. It sits in **The card** tab, above Info,
+where the screen has claimed it was all along.
+
+### A card goes out as a file and comes back
+**More** on any card now shows that card as JSON, with every field its kind can hold, empty ones
+included. Copy it, or save it as a file. Put it back — paste it or choose the file — and it writes
+over that same card; delete the `id` line first and it makes a new one instead. It is the same
+format the forge uses, so anything that works there works here.
+
+### Smaller things
+Checkboxes are drawn by the app now instead of by the browser, in the accent. Nothing opens a panel
+for you when you open a book — the page is what you land on.
+
 ## 2026-09-02 · The composer's dial wears the colour of the press, and the wait is a ring around the screen
 
 ### Speak, Act, Direct and Narrate each have their own colour on the dial

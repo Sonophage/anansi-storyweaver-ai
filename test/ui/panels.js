@@ -23,8 +23,11 @@ console.log("  rail: " + nav);
 // Search went to the top on 2026-08-27, and Anansi came OFF the rail the same day for the
 // composer row — asking her something is a thing you do while writing rather than a place you
 // navigate to. The panel is still there, still deep-linkable, and section 19 below still opens it.
+// Chapters joined on 2026-09-02, next to Chapter — Seth: "instead of the chapter list being where
+// it is make it it's own panel." Chapter is the one you are IN and this is all of them, so they sit
+// together and in that order.
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'search,waiting,story,chapter,threads,strings,context,teller');
+   nav === 'search,waiting,story,chapter,chapters,threads,strings,context,teller');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 
@@ -235,6 +238,173 @@ await page.click('[data-storytab="voice"]');
 await wait(400);
 ok("  and the half-typed premise survived both presses", (await page.eval(
   "document.querySelector('#f-story-premise')?.value")) === 'HALF TYPED');
+
+// ---- 6c. THE CHAPTERS PANEL (2026-09-02). Seth: "instead of the chapter list being where it is
+// make it it's own panel. Make it the name of the chapter the first sentence and how many words
+// and. A few stats."
+// It was a fold inside the passage tray carrying bare chapter names — forty rows in a strip meant
+// to be glanced at, and reachable only by standing on a paragraph first. Asserted from both sides:
+// the panel says what each chapter IS, and the old fold is gone from the document.
+await page.goto(B + "/#" + sid + "/chapters");
+for (let i = 0; i < 40 && !(await page.visible('#sideBody [data-chapter]')); i++) await wait(250);
+const chapRows = await page.eval(`(() => {
+  const rows = [...document.querySelectorAll('#sideBody [data-chapter]')];
+  return JSON.stringify(rows.map((r) => ({
+    name: r.querySelector('.platename')?.textContent ?? '',
+    first: r.querySelector('.clamp2')?.textContent ?? '',
+    stats: [...r.lastElementChild.querySelectorAll('.tnum')].map((x) => x.textContent),
+    writing: !!r.querySelector('.tag') })));
+})()`).then(JSON.parse);
+console.log("  chapters: " + JSON.stringify(chapRows.map((r) => r.name + ' ' + r.stats.join('/'))));
+ok(`the Chapters panel lists every chapter (${chapRows.length})`,
+   chapRows.length === (await story()).chapters.length && chapRows.length > 1);
+ok("  each with its name", chapRows.every((r) => r.name.trim().length > 0));
+// THE FIRST SENTENCE AND NOT A SUMMARY: a summary only exists for a closed chapter and is the
+// model's words; the opening sentence is the book's, and it is what a writer recognises a chapter
+// by. Asserted on the chapter that HAS prose — the fixture's earlier chapters are empty, and an
+// empty chapter must say so rather than showing a blank row.
+const withProse = chapRows.filter((r) => r.first.trim().length > 0);
+ok(`  and the opening sentence of the ones that have prose (${withProse.length})`, withProse.length >= 1);
+ok("  which is a SENTENCE, not the whole passage",
+   withProse.every((r) => r.first.length <= 210));
+// A few stats, and the words are the one Seth named. Asserted as "words appears and is a number",
+// not as a value: the count is the fixture's business and would change with it.
+ok("  with the word count among the stats",
+   chapRows.every((r) => r.stats.some((t) => /^[\d,]+ words$/.test(t))));
+ok("  and how many passages, and whether it is open or closed",
+   chapRows.every((r) => r.stats.some((t) => /passages?$/.test(t))
+     && r.stats.some((t) => t === 'open' || t === 'closed')));
+ok("  and what the model is sent for it",
+   chapRows.every((r) => r.stats.some((t) => /summar|sent whole/.test(t))));
+ok("  with exactly one marked as the one you are writing",
+   chapRows.filter((r) => r.writing).length === 1);
+// Pressing a row moves the reading column to that chapter. `data-chapter` focuses a chapter in the
+// VIEW — it does not change which chapter the server has open — so this is asserted on the reading
+// row under the header rather than by re-fetching the story.
+await page.click(`#sideBody [data-chapter]`);
+await wait(900);
+ok(`  and pressing one moves the reading column to it (${await page.text('#ctxread')})`,
+   /chapter 1 of/.test((await page.text('#ctxread')) || ''));
+ok("  and the panel stays open, so you can pick another",
+   await page.visible('#sideBody [data-chapter]'));
+// THE FOLD IT REPLACED IS GONE, not merely unused: the tray's button opens this panel now.
+await page.goto(B + "/#" + sid);
+await wait(700);
+ok("  and the passage tray's chapter fold is gone",
+   !(await page.eval("!!document.querySelector('.chaplist')"))
+   && (await page.eval("!!document.querySelector('[data-panel=\"chapters\"]')")));
+
+// ---- 6d. NO PANEL OPENS ITSELF (2026-09-02). Seth: "the context box also always auto opens and it
+// shouldnt." Opening a book put the Context panel up every time, so the first thing a writer met was
+// a report on the prompt rather than the page. A panel NAMED IN THE HASH still opens — that is what
+// makes a deep link work — so both halves are asserted or "nothing opens" would pass with deep
+// links broken too.
+await page.goto(B + "/#" + sid);
+await wait(1200);
+ok("opening a book opens no panel by itself",
+   !(await page.eval("!!document.querySelector('#sideBody [data-story], #sideBody .meter')"))
+   && (await page.eval("document.documentElement.dataset.uiRail !== 'open' || true")));
+ok("  and the reading column is what you land on", await page.visible('#col .block'));
+await page.goto(B + "/#" + sid + "/context");
+for (let i = 0; i < 40 && !(await page.text('#sideBody')); i++) await wait(250);
+ok("  while a panel named in the hash still opens", (await page.text('#sideBody') || '').length > 20);
+
+// ---- 6e. FACTS IS EDITABLE, IN THE CARD TAB, AND A CARD GOES OUT AS JSON AND BACK (2026-09-02).
+//
+// Seth: "facts are missing from info cards btw i cant edit the facts it should be under the card
+// tab also under more i should be able to export the json of that card and all fields including
+// empty ones and be able to reupload".
+//
+// Facts was drawn NOWHERE: the comment above Info claimed it sat there, the rooms loop excluded it
+// on those grounds, and nothing rendered it — so the one room whose whole purpose is to survive the
+// chapter-end rewrite was the one room that could not be edited once written.
+//
+// ON A CARD OF ITS OWN, made here and deleted at the end. The first version of this block wrote a
+// facts room onto the fixture's Aldis and tried to undo it afterwards; four assertions further down
+// this file are about a card with exactly one filled room, and they went red — then went red again
+// when the restore re-created the room from an export taken after it was added. run.sh resets the
+// database between scenarios and not within one, so a section that mutates the shared fixture is
+// testing a different card for everything after it. Making one is cheaper than putting one back.
+await page.goto(B + "/#" + sid + "/threads");
+for (let i = 0; i < 40 && !(await page.visible('#sideBody [data-newlore]')); i++) await wait(250);
+const cardsBefore = (await story()).entries.length;
+await page.click('#sideBody [data-newlore]');
+await wait(500);
+await page.click('[data-lorekind="character"]');
+await wait(500);
+await page.click('[data-newentry="character"]');
+await wait(1200);
+const mine = await page.eval("(() => document.querySelector('[data-f=\"title\"]') ? 1 : 0)()");
+ok("a card can be made to test on, so the fixture is left alone", mine === 1);
+const mineId = (await story()).entries.length > cardsBefore
+  ? (await story()).entries.at(-1).id : null;
+
+// A facts room on it, through the tray that is the only door to an empty room.
+await page.click('[data-cardtab="rooms"]');
+await wait(500);
+await page.eval(`(() => { const d = document.querySelector('[data-newroom]')?.closest('details'); if (d) d.open = true; return 1; })()`);
+await wait(300);
+await page.click('[data-newroom="facts"]');
+await wait(600);
+await page.eval(`(() => { document.querySelector('[data-of="name"]').value = 'Facts';
+  document.querySelector('[data-of="body"]').value = '[she is 41 and left-handed]';
+  document.querySelector('[data-addoutfit]')?.click(); return 1; })()`);
+await wait(1400);
+await page.click('[data-cardtab="card"]');
+await wait(700);
+const facts = await page.eval(`(() => {
+  const pane = document.querySelector('.pane:not([hidden])');
+  const at = pane?.querySelector('[data-slotat="facts"]');
+  const body = pane?.querySelector('[data-ab]');
+  const info = pane?.querySelector('#f-card-body');
+  return JSON.stringify({ heading: !!at, editable: !!body, value: body?.value ?? '',
+    aboveInfo: !!(at && info) && at.compareDocumentPosition(info) === 4 }); })()`).then(JSON.parse);
+console.log("  facts in the card tab: " + JSON.stringify(facts));
+ok("the facts room is drawn in the card tab", facts.heading);
+ok("  as a field you can edit, not a chip", facts.editable && /left-handed/.test(facts.value));
+// The comment above Info has claimed this position since 2026-08-30 and nothing carried it out:
+// facts survives the chapter-end rewrite and Info does not, so the order teaches which is which.
+ok("  and above Info, which is what makes the order mean something", facts.aboveInfo);
+
+// The same card, out as JSON.
+await page.click('[data-cardtab="more"]');
+await wait(700);
+const shipped = await page.eval("(() => document.getElementById('f-card-json')?.value ?? '')()");
+let card = null;
+try { card = JSON.parse(shipped); } catch { /* asserted below */ }
+ok("the More tab exports the card as JSON", !!card && !!card.id && card.kind === 'character');
+// EVERY FIELD THE KIND CAN HOLD, empty ones included — that is the ask, and it is what makes the
+// file a form to fill in rather than a record of what happened to be there.
+const kindSlots = ((await story()).slots?.character ?? []).map((sl) => sl.name);
+ok(`  with every room this kind can have (${kindSlots.length}), empty ones included`,
+   kindSlots.length > 1 && kindSlots.every((n) => Object.prototype.hasOwnProperty.call(card.rooms ?? {}, n)));
+ok("  and the room that IS filled carries its text", /left-handed/.test(card.rooms?.facts ?? ''));
+ok("  and the empty ones are present as empty strings",
+   kindSlots.filter((n) => n !== 'facts').every((n) => card.rooms[n] === ''));
+
+// PUTTING IT BACK UPDATES THAT CARD rather than making a second one, which is what "reupload"
+// means. The id in the file is what does it; the count is what proves it.
+const nBefore = (await story()).entries.length;
+await page.eval(`(() => { const box = document.querySelector('[data-cardpaste]');
+  const j = JSON.parse(${JSON.stringify(shipped)}); j.body = '[a card that was put back]';
+  box.value = JSON.stringify(j); return 1; })()`);
+await page.click('[data-cardread]');
+await wait(1600);
+const back = await story();
+ok(`  and putting it back updates the card rather than duplicating it (${nBefore} -> ${back.entries.length})`,
+   back.entries.length === nBefore);
+ok("  with the edit landing on it",
+   /put back/.test(back.entries.find((e) => e.id === card.id)?.body ?? ''));
+
+// And the card goes, so every section below sees the fixture it expects.
+await page.click('[data-cardview="form"]');
+await wait(500);
+await page.click('[data-cardtab="more"]');
+await wait(500);
+for (let i = 0; i < 2; i++) { await page.click('[data-delentry]'); await wait(500); }
+await wait(1000);
+ok(`  and the card made for this block is deleted afterwards (${cardsBefore} -> ${(await story()).entries.length})`,
+   (await story()).entries.length === cardsBefore);
 
 // ---- 7. the top bar carries the book and nothing else
 // The Inspector button came off it because it opened the panel the nav row already opens. The

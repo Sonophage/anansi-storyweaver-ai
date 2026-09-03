@@ -387,8 +387,11 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     return [...body.matchAll(/\['([a-z]+)',/g)].map((m) => m[1]);
   };
   const snav = navRows('SNAV'), wnav = navRows('WNAV');
+  // `chapters` joined on 2026-09-02, directly after `chapter` — Seth: "instead of the chapter list
+  // being where it is make it it's own panel." Chapter is the one you are IN and Chapters is all of
+  // them, so they sit together and in that order.
   assert.deepStrictEqual(snav,
-    ['search', 'waiting', 'story', 'chapter', 'threads', 'strings', 'context', 'teller'],
+    ['search', 'waiting', 'story', 'chapter', 'chapters', 'threads', 'strings', 'context', 'teller'],
     'the panels in the order Seth asked for. Search went to the top on 2026-08-27 and Anansi came '
     + 'off the list the same day — it is a button on the composer row, because asking her something '
     + 'is a thing you do while writing rather than a place you navigate to. The PANEL is still '

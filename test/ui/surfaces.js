@@ -343,6 +343,7 @@ const motion = JSON.parse(await page.eval(`(() => {
     moving: [...document.querySelectorAll('#col .block')].filter(b => getComputedStyle(b).animationName !== 'none').length,
   }); })()`));
 ok("   every motion token resolves", motion.tokens.every((t) => t.length));
+
 ok(`   the newest passage rises (${motion.newest})`, motion.newest === 'rise');
 ok(`   panel contents animate (${motion.card})`, motion.card !== 'none' && motion.card !== 'MISSING');
 // Only the newest — replaying the whole document on every repaint would be a slot machine, and
@@ -449,5 +450,47 @@ await wait(500);
 const bare = await page.eval("(() => { const c = document.querySelector('.resumeband .art');"
   + " return c ? c.getAttribute('style') : ''; })()");
 ok("   removing it puts the cover back to its gradient", !bare.includes('/api/cover') && /gradient/.test(bare));
+
+// ---- CHECKBOXES ARE DRAWN, not the platform's (2026-09-02). Seth: "all checkboxes should be styled
+// and auto save so i dont have to hit save everytime." There were nine in the app and not one line
+// of CSS for them, so every one was a white box with a blue tick on nineteen themes that own
+// neither colour. Asserted on `appearance` and on the checked state, because a box that is styled
+// only while empty is the half-done version of this.
+{
+  // ON THE PROSE SEARCH PANEL, which is where the nearest checkbox lives — "search every story".
+  // The first version of this block ran wherever the motion checks had left the page and measured
+  // null, which is a check that cannot fire.
+  await page.goto(B + "/#" + sid + "/search");
+  for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('input[type=\"checkbox\"]')")); i++) await wait(250);
+  const read = () => page.eval(`(() => {
+    const b = document.querySelector('input[type="checkbox"]');
+    if (!b) return null;
+    const c = getComputedStyle(b);
+    const tick = getComputedStyle(b, '::after');
+    return JSON.stringify({ checked: b.checked, appearance: c.appearance,
+      radius: c.borderTopLeftRadius, w: c.width, border: c.borderTopColor,
+      bg: c.backgroundColor,
+      tick: (tick.maskImage ?? 'none') !== 'none' || (tick.webkitMaskImage ?? 'none') !== 'none' });
+  })()`).then((x) => (x ? JSON.parse(x) : null));
+  // A REAL PRESS, not `b.checked = true` and a synchronous read: the first version did that and got
+  // the unchecked colour back, because the style had not been recalculated by the time it looked.
+  const off = await read();
+  await page.click('input[type="checkbox"]');
+  await wait(350);
+  const on = await read();
+  await page.click('input[type="checkbox"]');
+  await wait(250);
+  const box = off && on ? { ...off, offBg: off.bg, onBg: on.bg, tickOn: on.tick } : null;
+  console.log("  checkbox: " + JSON.stringify(box));
+  ok("a checkbox is drawn by the app, not by the platform",
+     !!box && box.appearance === 'none' && box.radius !== '0px');
+  // The checked state has to be the accent and not the platform's blue, which is the part a bare
+  // `appearance:none` leaves behind — it takes the tick away and gives you nothing back.
+  ok(`  and its checked state is the accent (${box && box.offBg} -> ${box && box.onBg})`,
+     !!box && box.onBg !== box.offBg);
+  // And the mark inside it is drawn too. `appearance:none` takes the platform's tick away and gives
+  // nothing back, so a box that fills with gold and has no tick in it is the half-done version.
+  ok("  with a tick drawn in it", !!box && box.tickOn === true);
+}
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

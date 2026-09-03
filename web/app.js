@@ -195,7 +195,6 @@ const S = {
   // landing in Rooms because that is where you were on the last thread is the app deciding what you
   // came here for.
   cardTab: 'card',
-  chaptersFor: null,    // the passage whose tray is showing the chapter list
   memoing: null,        // the passage being turned into a thread, while Anansi is thinking
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
   modelMenu: false,     // the model list, open under the rail's footer
@@ -298,6 +297,10 @@ const SNAV = [
   // Everything this book is waiting on, in one place — see the panel for why one place matters.
   ['waiting', 'threads', 'Waiting'],
   ['story', 'story', 'Story'], ['chapter', 'chapter', 'Chapter'],
+  // #The book, chapter by chapter. It was a fold inside the passage tray carrying bare names; on
+  // its own row it can say what each chapter is, and it is reachable without standing on a
+  // paragraph first. Beside Chapter, which is the one you are IN, because this is all of them.
+  ['chapters', 'chapter', 'Chapters'],
   ['threads', 'threads', 'Threads'], ['strings', 'strings', 'Strings'],
   ['context', 'context', 'Context'],
   ['teller', 'teller', 'Storyteller'],
@@ -418,7 +421,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
-  'pullback', 'remember', 'name', 'chbrief', 'chapters', 'memo', 'veilgo',
+  'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
@@ -446,7 +449,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'setupstep', 'setupkind',
   // The Threads list: filter to what is in context, and flip one card between always-on and
   // triggered without opening it.
-  'onlyin', 'flipact', 'cardtab', 'storytab'].map((k) => `[data-${k}]`).join(',');
+  'onlyin', 'flipact', 'cardtab', 'storytab',
+  // A card out as JSON and back in again: copy, save to a file, read one.
+  'cardcopy', 'cardsave', 'cardread'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -1035,12 +1040,12 @@ function passageHTML(p, newest, opening) {
          a missing feature. It is here now, where you already are when you are thinking about this
          passage. The button in History stays — the two are the same action. -->
     <button data-fork="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">⑂</span><span class="lbl-txt">Branch</span></button>
-    <!-- Where you can go from here, while reading. A toggle rather than a list, because a book of
-         forty chapters is forty rows in a tray that is meant to be glanced at. -->
-    <button data-chapters="${p.id}" class="readonly"><span class="serif" style="color:var(--m, var(--gold))">§</span><span
+    <!-- Where you can go from here, while reading. It unfolded a list of bare chapter names INSIDE
+         this tray until 2026-09-02 — forty rows in a strip meant to be glanced at, and nothing on
+         them but a title. It opens the Chapters panel now, which has room to say what each chapter
+         is: its opening sentence, its length and what the model is sent for it. -->
+    <button data-panel="chapters" class="readonly"><span class="serif" style="color:var(--m, var(--gold))">§</span><span
       class="lbl-txt">Skip to chapter</span></button>
-    ${S.chaptersFor === p.id ? `<div class="chaplist">${V.chapters.map((c) => `<button data-chapter="${c.id}"
-      ${c.id === V.currentChapter.id ? 'aria-current="true"' : ''}>${esc(c.title || `Chapter ${c.index}`)}</button>`).join('')}</div>` : ''}
     <!-- END THIS CHAPTER, WHERE THE PROSE IS. Seth, 2026-08-30: "end chapter needs a button up
          top ... or better lets add it to the double click on text." It lived in the Chapter panel
          only — two navigations from the page you are writing on, which is the one place you are
@@ -2702,6 +2707,70 @@ const PANELS = {
 
   // The chapter you are writing, whole: its name, how it has to end, where the story is going,
   // what it proposed for the ledger, its branches, and closing it. Four rows became one.
+  /* EVERY CHAPTER, AS A LIST YOU CAN READ — Seth, 2026-09-02: "instead of the chapter list being
+   * where it is make it it's own panel. Make it the name of the chapter the first sentence and how
+   * many words and. A few stats."
+   *
+   * IT WAS A TOGGLE INSIDE THE PASSAGE TRAY, and it carried nothing but names: forty chapters as
+   * forty bare rows inside a strip meant to be glanced at, three presses from anywhere you were not
+   * already standing on a paragraph. The tray's button opens this instead.
+   *
+   * BUILT ENTIRELY FROM `V`, with no route of its own: the view already carries every chapter and
+   * every passage of the branch — `drawMeter` counts a chapter's words the same way — so a panel
+   * that fetched anything here would be a second source for numbers the page already has.
+   *
+   * THE FIRST SENTENCE AND NOT A SUMMARY: a summary is written by the model and only exists for a
+   * closed chapter, so half the rows would be blank and the other half would be Anansi's words
+   * rather than the book's. The first sentence is the book, always there, and it is what a writer
+   * recognises a chapter by. NARRATION IS NOT STRIPPED HERE and that is deliberate: this is the
+   * page as written, not a quality check — the rule about quoted spans is about measuring prose,
+   * not about showing it. */
+  chapters() {
+    const rows = V.chapters.map((c) => {
+      const mine = (V.passages ?? []).filter((x) => x.chapterId === c.id && !x.isBreak);
+      const words = mine.reduce((n, x) => n + (String(x.body).match(/\S+/g) || []).length, 0);
+      // The first sentence of the chapter's first passage. Cut at the sentence end, and fall back
+      // to the whole opening if there is no full stop in the first 200 characters — a chapter that
+      // opens mid-thought is a chapter, not an error.
+      const opening = String(mine[0]?.body ?? '').trim().replace(/\s+/g, ' ');
+      const stop = opening.slice(0, 200).search(/[.!?…](\s|$)/);
+      const first = !opening ? '' : stop > 0 ? opening.slice(0, stop + 1) : opening.slice(0, 200);
+      return { c, mine, words, first };
+    });
+    const total = rows.reduce((n, r) => n + r.words, 0);
+    return `<div style="display:flex; flex-direction:column">
+      <div class="hint" style="margin:0 0 4px">${V.chapters.length} ${
+        V.chapters.length === 1 ? 'chapter' : 'chapters'} &middot; ${total.toLocaleString()} words.
+        Press one to write in it.</div>
+      ${rows.map(({ c, mine, words, first }) => {
+        const here = c.id === V.currentChapter.id;
+        // The stats worth a row: how much prose, whether it is closed, what the model is sent for
+        // it, and whether it is being sent whole. Each one is a fact a writer acts on — a chapter
+        // with no summary is one the model cannot see once it is behind the window.
+        const stats = [
+          `${words.toLocaleString()} words`,
+          `${mine.length} ${mine.length === 1 ? 'passage' : 'passages'}`,
+          c.status === 'closed' ? 'closed' : 'open',
+          c.keepWhole ? 'sent whole'
+            : c.summary ? (c.summaryStale ? 'summary stale' : 'summarised') : 'no summary',
+        ];
+        return `<button class="card" data-chapter="${esc(c.id)}"
+          style="text-align:left; width:100%; margin-bottom:8px; gap:6px;
+          ${here ? 'border-color:var(--gold-dim)' : ''}">
+          <div style="display:flex; align-items:baseline; gap:9px">
+            <span class="platename" style="font-size:16px">${esc(c.title || `Chapter ${c.index}`)}</span>
+            ${here ? '<span class="tag" style="border-color:rgba(217,178,106,.35); color:var(--gold)">writing</span>' : ''}
+            <span class="tnum" style="margin-left:auto; font-size:11px; color:var(--faint)"
+              >${c.index}</span></div>
+          ${first ? `<div class="clamp2" style="font-family:var(--serif,serif); font-style:italic;
+            font-size:13px; line-height:1.5; color:var(--narr)">${esc(first)}</div>`
+            : '<div class="hint" style="margin:0">Nothing written in it yet.</div>'}
+          <div style="display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11px; color:var(--faint)"
+            >${stats.map((t) => `<span class="tnum">${esc(t)}</span>`).join('')}</div>
+        </button>`;
+      }).join('')}</div>`;
+  },
+
   chapter() {
     const ch = V.currentChapter;
     // Thread proposals only. A string is a different kind of offer and lands where strings live —
@@ -2736,12 +2805,12 @@ const PANELS = {
            three separate buttons would be three generations for one question.
            WHATEVER IS TYPED IS NOT OVERWRITTEN unless the box is empty — see fillChapter. -->
       <div style="display:flex; align-items:baseline; gap:10px">
-        <label class="lbl" style="margin-top:0; flex:1">Name</label>
+        <label class="lbl" for="f-chapter-title" style="margin-top:0; flex:1">Name</label>
         <button data-chbrief="1" ${S.naming ? 'disabled' : ''}
           style="font-size:11px; letter-spacing:.1em; font-variant-caps:all-small-caps;
           color:var(--gold-dim)">${S.naming ? 'Asking&hellip;' : '↻ Have Anansi write these'}</button>
       </div>
-      <input class="field" data-chapter-title="1" value="${esc(ch.title ?? '')}"
+      <input class="field" id="f-chapter-title" data-chapter-title="1" value="${esc(ch.title ?? '')}"
         placeholder="Chapter ${ch.index}">
       <!-- TWO BOXES, NOT ONE. It was a single "This chapter must end with", and that one line rode
            beside the generation point on every call — Seth: "the start should be used as information
@@ -2749,12 +2818,12 @@ const PANELS = {
            direction of the chapter, not something used by the ai at every beat. it tries to end the
            chapter early if it uses it that way." They now reach the model differently; the hints
            under them say how, because that difference is the whole reason there are two. -->
-      <label class="lbl">How this chapter starts</label>
-      <textarea class="field" data-chapter-opens="1">${esc(ch.opensWith ?? '')}</textarea>
+      <label class="lbl" for="f-chapter-opens">How this chapter starts</label>
+      <textarea class="field" id="f-chapter-opens" data-chapter-opens="1">${esc(ch.opensWith ?? '')}</textarea>
       <div class="hint">Sent only while the chapter is empty, for its first passage. Once there is
         prose on the page it stops being sent — the opening has happened.</div>
-      <label class="lbl">Where this chapter ends</label>
-      <textarea class="field" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
+      <label class="lbl" for="f-chapter-note">Where this chapter ends</label>
+      <textarea class="field" id="f-chapter-note" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
       <div class="hint">Sent as the chapter's direction, every time, with the model told not to
         steer toward it or wrap the chapter up to reach it. Neither box is shown to the reader.</div>
       <button class="btn ghost" data-ritual="1" style="margin-top:14px">End this chapter</button>
@@ -2957,7 +3026,8 @@ const PANELS = {
         <div id="atlist" hidden></div>
         <div id="askWrap">
           <div id="askMirror" aria-hidden="true"></div>
-          <textarea class="field" id="askBox" placeholder="Ask Anansi about this story&hellip;"
+          <textarea class="field" id="askBox" aria-label="Ask Anansi about this story"
+      placeholder="Ask Anansi about this story&hellip;"
             style="min-height:64px; margin:0"></textarea>
         </div>
         <div style="display:flex; align-items:center; gap:8px">
@@ -4846,6 +4916,39 @@ function cardTabs(tab) {
         : 'border:1px solid var(--chip); color:var(--mute)'}">${label}</button>`).join('')}</div>`;
 }
 
+/** THIS CARD AS THE FORGE'S JSON, with every field its kind can hold.
+ *
+ *  Seth, 2026-09-02: "all fields including empty ones". A room the card does not have is an empty
+ *  string rather than an absent key, so the export doubles as a blank form — which is the half that
+ *  makes it useful to hand to a model or to fill in by hand.
+ *
+ *  THE SHAPE IS `POST /api/thread/paste`'s and not a new one: kind, title, body, activation, keys,
+ *  rooms. Anything this app can read, it can now also write.
+ *
+ *  ROOMS ARE ONE PER SLOT, by name, because that is what `writeRooms` reads. A slot that holds
+ *  several — the wardrobe — exports the one that is ON, or the first, and says so in the file
+ *  through the value it carries rather than through a comment JSON cannot have.
+ *
+ *  `notes` is NOT in here. It is the writer's own margin and never reaches the model; the paste
+ *  route has no key for it, so exporting it would promise a round trip that does not happen. */
+function cardJSON(e, slots) {
+  const rooms = {};
+  for (const sl of slots) {
+    const mine = (e.addons ?? []).filter((a) => a.slot === sl.name);
+    const pick = mine.find((a) => a.active) ?? mine[0];
+    rooms[sl.name] = pick ? pick.body : '';
+  }
+  return JSON.stringify({
+    id: e.id,
+    kind: e.entryType,
+    title: e.title ?? '',
+    body: e.body ?? '',
+    activation: e.activation === 'triggered' ? 'triggered' : 'always_on',
+    keys: e.keys ?? [],
+    rooms,
+  }, null, 2);
+}
+
 function entryEditor() {
   const e = V?.entries.find((x) => x.id === S.entryId);
   if (!e) return `<div class="hint">That entry is gone.</div>`;
@@ -4891,7 +4994,15 @@ function entryEditor() {
          never been able to touch a room, which is the whole reason src/slots.ts grew a facts slot
          on 2026-08-29 - "theres no place to keep the characters main facts that doesnt get
          overwritten". So the field that survives the chapter was sitting UNDER the field that does
-         not, and the order taught the wrong habit every time this screen opened. -->
+         not, and the order taught the wrong habit every time this screen opened.
+         AND THEN IT WAS DRAWN NOWHERE AT ALL. Seth, 2026-09-02: "facts are missing from info cards
+         btw i cant edit the facts it should be under the card tab". The comment above described the
+         intent and no code carried it out: the rooms loop below EXCLUDES facts on the grounds that
+         it is "drawn above", and above it nothing drew it. So the one room whose whole purpose is
+         to survive the chapter-end rewrite was the one room that could not be edited once written.
+         The same roomSection every other room uses, so there is one renderer and not a second copy
+         of the name/body/keys/on-off form for this slot. -->
+    ${roomSection(e, slots.find((sl) => sl.name === 'facts'))}
     <label class="lbl" for="f-card-body">Info</label>
     <!-- GROWS. It was a fixed 96px box, and an invented thread's body went from 60-120 words to
          120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
@@ -5003,7 +5114,40 @@ function entryEditor() {
       style="min-height:64px; max-height:40vh">${esc(e.notes ?? '')}</textarea>
     <div class="hint">Never sent to the model. The engine's entry type has no such field.</div>
 
+    <!-- THIS CARD AS JSON, BOTH WAYS — Seth, 2026-09-02: "under more i should be able to export the
+         json of that card and all fields including empty ones and be able to reupload".
+         THE SHAPE IS THE FORGE'S, exactly: the thread-paste route has read it since #29, so what
+         comes out of here goes back in through the door that already exists rather than through a
+         second format nobody else speaks. It also means a card exported here can be edited in any
+         text editor, or handed to another model, and pasted into any book.
+         ALL FIELDS, EMPTY ONES INCLUDED, which is the ask and also the point: a room this card does
+         not have is written as an empty string, so the JSON is a form to fill in rather than a
+         record of what happened to be there. cardJSON builds it from the slot list the server sent,
+         so a card of a kind with eight rooms exports eight.
+         NO BACKTICKS IN HERE: this comment is inside a template literal and one ends the string.
+         THE ID RIDES ALONG, so putting it back UPDATES this card instead of making a second one.
+         Strip the id and the same paste creates a new card, which is what the forge does. -->
+    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">This card as JSON</div>
+    <textarea class="field" id="f-card-json" readonly aria-label="This card as JSON"
+      style="min-height:120px; max-height:40vh; font-size:11.5px;
+      font-family:ui-monospace, monospace">${esc(cardJSON(e, slots))}</textarea>
+    <div style="display:flex; gap:7px">
+      <button class="btn ghost" data-cardcopy="1" style="flex:1">Copy it</button>
+      <button class="btn ghost" data-cardsave="${esc(e.id)}" style="flex:1">Save as a file</button>
+    </div>
+    <div class="hint">Every field this kind of card can have, empty ones included. Keep the
+      <code>id</code> and putting it back changes THIS card; delete the id and it makes a new one.</div>
 
+    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Put one back</div>
+    <label class="btn ghost" style="display:flex; align-items:center; justify-content:center;
+      cursor:pointer">Choose a .json file
+      <input type="file" accept=".json,application/json" data-cardfile="1" hidden></label>
+    <textarea class="field" data-cardpaste aria-label="Paste a card as JSON"
+      placeholder="or paste it here" style="min-height:74px; font-size:11.5px;
+      font-family:ui-monospace, monospace"></textarea>
+    <button class="btn ghost" data-cardread="1" style="margin-top:7px">Read it and apply</button>
+    <div class="hint">The same reader the forge uses, so anything that works there works here. A
+      file is read in the browser and never uploaded anywhere but this app.</div>
     </div>
     <div class="pane"${tab === 'time' ? '' : ' hidden'}>
     ${foldSection('states', 'Over time', `${helpMark('states')}${helpBody('states')}
@@ -6188,8 +6332,13 @@ async function openStory(id) {
           admin: r.admin === undefined ? SRV.admin : !!r.admin };
   // A WORLD BOOK OPENS ON ITS LORE. There is nothing else in it — no prose, no chapters — so the
   // Context panel would report on a prompt that will never be built.
+  /* NO PANEL OPENS ITSELF — Seth, 2026-09-02: "the context box also always auto opens and it
+   * shouldnt." Opening a book put the Context panel up every time, so the first thing a writer met
+   * was a report on the prompt rather than the page. A panel named in the hash still opens, which
+   * is what makes a deep link work; nothing else does.
+   * A WORLD BOOK IS THE ONE EXCEPTION AND IT STAYS: there is no prose, no chapters and no composer
+   * in one, so the shelf of threads IS the book — a world book with no panel is a blank screen. */
   if (V.story?.is_world) { if (!S.panel || S.panel === 'context') S.panel = 'threads'; }
-  else if (!S.panel && !overlay()) S.panel = 'context';   // the hash may already have chosen one
   const a = await api.activity(id);
   if (OPENING !== id) return;                   // and again: this is the second await, not the first
   ACT = a.error ? null : a;
@@ -7368,20 +7517,6 @@ document.addEventListener('click', async (e) => {
   if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
   // The chapter list inside a passage's tray. Toggled per passage rather than globally, so opening
   // it on one passage and then another does not leave two open.
-  if (d.chapters) {
-    // drawDoc REBUILDS #col, and a rebuilt block has no aria-expanded — so redrawing to show the
-    // list shut the tray the list lives in, and it could never be seen. The note above openTray
-    // says this outright: any repaint shuts the tray. So the tray is re-opened on the same passage
-    // afterwards, by id, because the element it was opened on no longer exists.
-    S.chaptersFor = S.chaptersFor === d.chapters ? null : d.chapters;
-    const on = d.chapters;
-    drawDoc();
-    const blk = document.querySelector(`[data-edit="${on}"]`)?.closest('.block')
-      ?? document.querySelector(`[data-chapters="${on}"]`)?.closest('.block');
-    if (blk) blk.setAttribute('aria-expanded', 'true');
-    syncTray();
-    return;
-  }
   if (d.modelmenu) {
     S.modelMenu = !S.modelMenu;
     // The list is fetched lazily everywhere else too — opening the menu is the first moment
@@ -9474,6 +9609,54 @@ document.addEventListener('click', async (e) => {
    *  It says what did NOT come through as well as what did. `notes` is the importer's own
    *  convention for that, and a paste of six cards where one named a room that does not exist is
    *  the case a bare "6 added" would lie about. */
+  /* THE CARD'S OWN JSON, OUT AND BACK — Seth, 2026-09-02: "under more i should be able to export
+   * the json of that card and all fields including empty ones and be able to reupload".
+   *
+   * OUT is `cardJSON`, already in the box; these two only move it. Copy has the same fallback the
+   * forge's copy has, because a clipboard write can be refused outright and a toast that says
+   * "Copied" when it was is the toast that lies. Save-as-a-file is a blob and a synthetic click:
+   * there is no route for it and there should not be, since the bytes are already on this page.
+   *
+   * BACK is the forge's reader, unchanged — `api.pasteThread` — so there is one importer for cards
+   * in this app and not a second one that has to agree with it. Keeping the id in the file is what
+   * makes it an update; see the route. */
+  if (d.cardcopy) {
+    const text = document.getElementById('f-card-json')?.value ?? '';
+    if (!text) return toast('Nothing to copy.');
+    try { await navigator.clipboard.writeText(text); toast('The card is on your clipboard.'); }
+    catch { toast('Could not reach the clipboard — select the box and copy by hand.'); }
+    return;
+  }
+  if (d.cardsave) {
+    const text = document.getElementById('f-card-json')?.value ?? '';
+    if (!text) return toast('Nothing to save.');
+    const e = V?.entries.find((x) => x.id === d.cardsave);
+    // A filename off the card's own title, so a folder of these is readable. Anything a filesystem
+    // would argue with becomes a dash rather than being dropped: two cards must not collide.
+    const name = String(e?.title ?? 'card').trim().replace(/[^\w. -]+/g, '-').slice(0, 60) || 'card';
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${name}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    // Freed on the next turn of the loop: revoking it in the same tick can beat the download.
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return toast(`Saved as ${name}.json`);
+  }
+  if (d.cardread) {
+    const box = document.querySelector('[data-cardpaste]');
+    const text = box?.value ?? '';
+    if (!text.trim()) return toast('Choose a file or paste the JSON first.');
+    const r = await whileWorking(t, 'Reading\u2026', () => api.pasteThread(S.storyId, text));
+    if (!r) return;
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    const made = r.made ?? [];
+    if (made.length === 1) S.entryId = made[0].id;
+    paint(); refreshManifest();
+    return toast(made.length === 1
+      ? `${made[0].title} is written back${made[0].rooms ? `, with ${plural(made[0].rooms, 'room', 'rooms')}` : ''}.`
+      : `${plural(made.length, 'card', 'cards')} read.`);
+  }
   if (d.pastethread) {
     const box = document.querySelector('[data-pastebox]');
     const text = box?.value ?? '';
@@ -9987,6 +10170,19 @@ document.addEventListener('change', (e) => {
     const [, , ph] = MODES.find((m) => m[0] === S.mode) ?? MODES[0];
     if ($('input')) $('input').placeholder = ph(S.speaker || V?.story.persona || 'you');
     refreshManifest();
+    return;
+  }
+  /* A CARD FROM A FILE. It fills the paste box rather than posting straight away, so the last thing
+   * before a write is still a press — and so a file that turns out to be the wrong one can be read,
+   * seen and abandoned. Read in the browser: nothing is uploaded anywhere but this app. */
+  if (e.target.dataset?.cardfile !== undefined) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const box = document.querySelector('[data-cardpaste]');
+    f.text().then((t) => {
+      if (box) box.value = t;
+      toast(`${f.name} read — press "Read it and apply" to write it in.`);
+    }).catch(() => toast('Could not read that file.'));
     return;
   }
   if (e.target.id === 'impfile') { readImport(e.target.files?.[0]); return; }
