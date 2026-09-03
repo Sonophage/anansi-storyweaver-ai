@@ -10,6 +10,31 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · The composer's dial wears the colour of the press, and the wait is a ring around the screen
+
+### Speak, Act, Direct and Narrate each have their own colour on the dial
+The pill and its label are the same colour as the rule that runs down the margin of the passage
+that press writes — so the colour tells you what you are about to do, and then tells you again on
+the paragraph it produced. Each row in the open menu wears its own colour too.
+
+One note: on the **Cyberpunk** theme, Speak and Narrate come out the same pink, because that theme
+sets its speech colour and its warning colour to the same value. Say the word and one of them gets
+its own.
+
+### The waiting line became a ring around the screen
+The thin line above the composer is gone. While Anansi is thinking — before any words arrive —
+a soft gradient runs around the edge of the screen in the colour of the press you made. It goes as
+soon as the first word appears, because from then on the words say it better. It also stays up if
+you leave the waiting screen early, which the old line could not.
+
+### Regenerate and Continue are on the waiting screen
+When the passage finishes and the screen holds so you can read it, the two presses you would want
+next are right there. Pressing either one puts the passage on the page first, then does what you
+asked.
+
+### The composer sits closer to the bottom
+Another five pixels down.
+
 ## 2026-09-02 · One bad address could take the app down. It cannot now.
 
 ### A link to a file that is not there

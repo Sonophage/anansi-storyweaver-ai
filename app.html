@@ -255,10 +255,11 @@ input, textarea { font:inherit; color:inherit; }
    The view stays where the reader put it. Nothing scrolls it to the bottom. */
 #ghost.veil .veiltext {
   /* THE CAP IS WHAT IS LEFT UNDER THE TOP, not 58vh and no longer half the window. The prose starts
-     at 12vh, so the cap is everything down to Stop — 96px is the 22px gap, the button, and enough
-     room that it is not sitting on the edge. Stop must never leave the screen; that is the trade
-     PLAN-07 made when the veil went full screen. */
-  max-width:min(48ch, 72vw); max-height:calc(88vh - 128px); overflow-y:auto; text-align:left;
+     at 12vh, so the cap is everything down to the controls: 148px is the 22px gap, Stop or the two
+     presses that replace it, and enough room that neither sits on the edge. They must never leave
+     the screen — that is the trade PLAN-07 made when the veil went full screen, and Regenerate and
+     Continue joined the same rule on 2026-09-02. */
+  max-width:min(48ch, 72vw); max-height:calc(88vh - 148px); overflow-y:auto; text-align:left;
   font-family:'Instrument Serif', var(--serif, serif); font-size:22px; line-height:1.62;
   color:var(--ink); white-space:pre-wrap; overflow-wrap:break-word; scrollbar-width:none; }
 #ghost.veil .veiltext::-webkit-scrollbar { display:none; }
@@ -278,7 +279,7 @@ input, textarea { font:inherit; color:inherit; }
    the waiting screen gone that rule hid Stop before it had ever been seen.
    A tap anywhere else takes the veil away, so the whole surface is the way out; nothing changes
    colour to say so, because a sheet with one paragraph on it does not need the hint. */
-#ghost.veil.done .veilstop, #ghost.veil.done .veilwork { display:none; }
+#ghost.veil.done .veilstop { display:none; }
 #ghost.veil.done { cursor:pointer; }
 /* STOP, IN THE SAME VOCABULARY AS THE REST OF IT — Seth, 2026-09-02: "we need to restyle the stop
    button". It was a filled sheet-coloured pill with a lit edge, which is the shape of a button you
@@ -289,27 +290,23 @@ input, textarea { font:inherit; color:inherit; }
   border-radius:var(--r-pill); border:1px solid var(--gold-dim); background:none;
   color:var(--gold-lit); font-size:11px; letter-spacing:.14em; font-variant-caps:all-small-caps; }
 #ghost.veil .veilstop:hover { border-color:var(--gold); background:rgba(217,178,106,.1); }
-/* AND SOMETHING SOFT ABOVE IT, so the surface says it is working even in the seconds between two
-   words — Seth: "there needs to be something soft and smooth above the stop button to let the user
-   know that something is happenening. but it needs to stay in style of this."
-   IT IS THE SAME RULE AS THE METER, lying down: three pixels, chip under gold, rounded ends. The
-   meter beside the prose says how far; this says only that something is still happening, which is
-   the question a writer has when no word has landed for a second. A light travelling back and
-   forth under its own easing rather than a spinner or a percentage — neither of which this surface
-   has anywhere on it, and a false percentage is worse than none (F10's rule about denominators).
-   NO WIDTH ANIMATION: `translate` is composited, so this costs nothing while the model writes. */
-#ghost.veil .veilwork { width:132px; height:3px; border-radius:var(--r-tight); background:var(--chip);
-  overflow:hidden; }
-#ghost.veil .veilwork i { display:block; width:38%; height:100%; border-radius:inherit;
-  background:linear-gradient(90deg, transparent, var(--gold), transparent);
-  animation:veilwork 2.1s var(--ease) infinite; }
-@keyframes veilwork {
-  0%   { transform:translateX(-100%); }
-  100% { transform:translateX(363%); }
-}
-/* Reduced motion gets the same statement without the travel: a dim rule that is simply there. */
-@media (prefers-reduced-motion: reduce) {
-  #ghost.veil .veilwork i { animation:none; width:100%; opacity:.45; background:var(--gold-dim); }
+/* REGENERATE AND CONTINUE, ON THE VEIL — Seth, 2026-09-02: "In the ghost add the regenerate and
+   continue buttons there as well." The same two presses the end of the page offers, in the same
+   pill vocabulary as Stop above: this surface is the last passage while you are reading it.
+   NOT WHILE SHE IS WRITING. The row is empty until the passage is done — there is nothing to
+   re-roll yet, and Continue would be asking for a second passage before the first has arrived. It
+   is `display:none` rather than merely empty so the 18px gap above it goes too. */
+#ghost.veil:not(.done) .veilcarry { display:none; }
+#ghost.veil .veilcarry { display:flex; gap:10px; }
+#ghost.veil .veilcarry button { display:flex; align-items:center; gap:8px; padding:10px 20px;
+  border-radius:var(--r-pill); border:1px solid var(--gold-dim); background:none;
+  color:var(--gold-lit); font-size:11px; letter-spacing:.14em;
+  font-variant-caps:all-small-caps; white-space:nowrap; }
+#ghost.veil .veilcarry button:hover { border-color:var(--gold); background:rgba(217,178,106,.1); }
+/* THE BAR ABOVE STOP IS GONE — Seth, 2026-09-02: "remove the inner line that serves as the
+   transition". It was added an hour earlier to say that something was happening; the ring around
+   the window says it now, and two things saying it is one of them being noise. The ring is also
+   the better place for it: it survives the veil being dismissed, and this did not. */
 }
 @keyframes veilin { from { opacity:0; } to { opacity:1; } }
 @keyframes veilout { from { opacity:1; } to { opacity:0; } }
@@ -915,9 +912,10 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 
 
 /* --- composer ---------------------------------------------------------- */
-/* Column, not row. #working cannot live inside #dockCol — drawDock() sets its innerHTML and would
-   wipe the bar mid-generation — so it is a sibling, and as a row sibling with width:100% it pushed
-   the whole composer off the right edge for the length of every call. */
+/* Column, not row. The dock was a row until the 2px working bar had to sit above the composer, and
+   at width:100% that sibling pushed the whole composer off the right edge for the length of every
+   call. The bar is gone — the generating ring frames the window instead, see #frame — and the
+   column stays: #dockCol and the mode rail are stacked, which is what it is for. */
 /* THE CONTEXT BAR. Full width, three pixels, directly under the header — not a number to read,
    because the number is in the reading a press opens and the blocks behind it are one more press
    away in Context.
@@ -953,12 +951,14 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
    should only be in the input box." The gradient was a slab the width of the window fading up
    into the prose; what it was really doing was separating the composer from the page, and the box
    can say that by itself. `--dock` survives for the big composer, which IS the page. */
-/* 23 AND 14, five less than each was — Seth, 2026-09-02: "we can lower this whole section by 5px".
-   Taken off the BOTTOM padding, which is what moves the composer down: the dock is the last thing
-   in the column, so its own bottom padding is the only gap under it. */
+/* 18 AND 9, ten less than each started at — Seth asked to lower the composer by 5px twice on
+   2026-09-02, once against 28/19 and again after seeing 23/14 on the restarted server. Taken off
+   the BOTTOM padding, which is what moves it down: the dock is the last thing in the column, so its
+   own bottom padding is the only gap under it. The phone keeps `env(safe-area-inset-bottom)` on top
+   of the 9, so this cannot push the row under a home indicator. */
 #dock { position:relative; flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
-  padding:0 0 calc(23px + var(--hwkb-air, 0px)); background:transparent; }
-@media (max-width:719px) { #dock { padding:5px 18px calc(14px + var(--hwkb-air, 0px) + env(safe-area-inset-bottom, 0px)); } }
+  padding:0 0 calc(18px + var(--hwkb-air, 0px)); background:transparent; }
+@media (max-width:719px) { #dock { padding:5px 18px calc(9px + var(--hwkb-air, 0px) + env(safe-area-inset-bottom, 0px)); } }
 /* WITH A HARDWARE KEYBOARD THE DOCK SITS STILL, so it can afford to sit off the edge. There is no
    soft keyboard to make room for and nothing below it to reach past — 10px of air, and it stays
    there because nothing moves it any more. Keyed on the root attribute `applyHwkb` writes, so the
@@ -989,12 +989,43 @@ html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
    background COLOUR: `appearance:none` does not clear a select's own, so the dial rendered as the
    platform's grey field with a gold pill around it. Seth saw it live: "this needs to be styled
    better". One property per line is what makes that impossible to do quietly. */
-#modes select.dial { color:var(--gold-lit); border:1px solid var(--chip); border-radius:var(--r-pill);
+/* THE DIAL WEARS THE MODE'S OWN ACCENT — Seth, 2026-09-02: "the narrate acting as speaking as and
+   direct button I want the button and the text to match the accent color that it corresponds to
+   when a message is sent out the accent bar on the side of the body". So the pill and its label are
+   the SAME colour as the rule that will run down the margin of the passage this press writes: one
+   colour per press, said before you press it and again after, on the paragraph it produced.
+   OFF THE ROOT ATTRIBUTE `applyLook` and `drawDock` keep in step — `data-ui-mode` is written by the
+   function that draws this row, so the dial cannot disagree with the mode it is showing. The four
+   values are the same `--m-*` tokens `themeVars` derives for the margin rules; there is no second
+   definition of speak's colour anywhere.
+   CONTINUE IS NOT HERE because it is not on the dial: it is the press at the end of the page, and
+   its accent is on the passage it wrote. */
+html[data-ui-mode="speak"]   #modes select[data-modesel] { --dial:var(--m-speak-ink); }
+html[data-ui-mode="act"]     #modes select[data-modesel] { --dial:var(--m-act-ink); }
+html[data-ui-mode="direct"]  #modes select[data-modesel] { --dial:var(--m-direct-ink); }
+html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrate-ink); }
+/* AND EACH ROW IN THE OPEN MENU IN ITS OWN, so the colour is how you pick as well as what you see
+   afterwards. `option` takes colour in both the native list and the base-select picker. */
+#modes select[data-modesel] option[value="speak"]   { color:var(--m-speak-ink); }
+#modes select[data-modesel] option[value="act"]     { color:var(--m-act-ink); }
+#modes select[data-modesel] option[value="direct"]  { color:var(--m-direct-ink); }
+#modes select[data-modesel] option[value="narrate"] { color:var(--m-narrate-ink); }
+#modes select.dial { color:var(--dial, var(--gold-lit)); border:1px solid var(--chip); border-radius:var(--r-pill);
   padding:5px 26px 5px 13px;
   background-color:transparent;
+  /* THE FALLBACK CARET, for an engine with no base-select: an SVG in a background, and its fill is
+     baked into the data URI because a data URI cannot read a custom property. So this one caret
+     cannot follow the mode's colour. The block below replaces it with the platform's own
+     ::picker-icon wherever base-select exists — that one takes `color` and does follow. */
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23D9B26A'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 10px center; background-size:8px 5px; }
+/* THE EDGE TOO, not only the ink: "the button and the text". `color-mix` rather than a second
+   token per mode — the border is the same colour at a third of its weight, so it reads as the pill
+   belonging to the label rather than as two decisions. On the mode dial only; the threads dial has
+   no mode and keeps the neutral chip edge. */
+#modes select[data-modesel] { border-color:color-mix(in srgb, var(--dial, var(--chip)) 42%, transparent); }
 #modes select.dial:hover, #modes button[data-holdback]:hover { border-color:rgba(217,178,106,.42); }
+#modes select[data-modesel]:hover { border-color:var(--dial, rgba(217,178,106,.42)); }
 /* HOLD BACK IS A BUTTON SHAPE NOW — Seth, 2026-09-02: "this should be shaped as a button so it
    doesnt get lost dimmed when not in use." It was a bare label at 42% opacity beside two pills, so
    the one control on the row that is a SWITCH was the one that looked like nothing. The pill is
@@ -1022,7 +1053,13 @@ html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
    of its own, and two carets on one control is worse than the default was. */
 @supports (appearance: base-select) {
   #modes select.dial, #asWhom { appearance:base-select; }
-  #modes select.dial::picker-icon, #asWhom::picker-icon { display:none; }
+  /* THE PLATFORM'S OWN CARET, SHOWN AND TINTED, rather than the baked-gold background above: this
+     one is an element, so it takes `color` and follows the mode with the label — which is the whole
+     of Seth's ask about the button and its text matching. The background image is dropped here so
+     there is one caret, not two. */
+  #modes select.dial, #asWhom { background-image:none; }
+  #modes select.dial::picker-icon { color:var(--dial, var(--gold)); opacity:1; }
+  #asWhom::picker-icon { display:none; }
   #modes select.dial::picker(select), #asWhom::picker(select) {
     appearance:base-select; background:var(--sheet); border:1px solid var(--gold-dim);
     border-radius:var(--r); padding:6px; margin-top:6px; min-width:anchor-size(width);
@@ -1074,20 +1111,43 @@ html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
    that simply goes quiet reads as a hung page — which is what it was reported as. The bar under
    the document animates for the whole call, and its colour says WHICH action is running, because
    the five do different things and the wait is long enough to forget which you pressed. */
-#working { height:2px; width:100%; max-width:var(--col); overflow:hidden; background:transparent; flex:0 0 auto; }
-#working[hidden] { display:none; }
-#working i { display:block; height:100%; width:38%; border-radius:var(--r-tight);
-  background:linear-gradient(90deg, transparent, var(--work, var(--gold)), transparent);
-  animation:working 1.15s ease-in-out infinite; }
-@keyframes working { 0% { transform:translateX(-100%); } 100% { transform:translateX(320%); } }
-#working[data-work="continue"] i { --work:#8FA9C4; }
-#working[data-work="speak"]    i { --work:#D9B26A; }
-#working[data-work="act"]      i { --work:#C39A76; }
-#working[data-work="direct"]   i { --work:#A88FC4; }
-#working[data-work="narrate"]  i { --work:#8FBFA5; }
-#working[data-work="reroll"]   i { --work:#C8705A; }
+/* THE FRAME, which replaced the 2px line above the composer — Seth, 2026-09-02: "remove the line
+   above the input box when waiting for aa stream and put a gradient box around the screen that
+   shifts in the ghost transition."
+   A RING, NOT A PANEL: two masks composited so only the padding box paints, which is the one way to
+   put a gradient on a border with no second element and no border-image. `pointer-events:none` and
+   nothing focusable, so it cannot take a press meant for the page under it.
+   IT SAYS WHICH PRESS IS RUNNING, in that press's own colour, and those colours are the `--m-*-ink`
+   tokens the margin rules and the mode dial use. The strip it replaces had SIX HARD-CODED HEXES for
+   the same job — a second definition of every mode's colour, which is the drift this file keeps
+   recording. Continue takes the ink's own accent and a re-roll takes the gold, because neither is
+   one of the four presses.
+   IT OUTLIVES THE VEIL. The veil can be dismissed mid-write and the generation carries on, and
+   until now the only thing that said so was the composer's Stop. `working()` is called at both ends
+   of every call, so the frame is up for exactly as long as the model is writing. */
+#frame { position:fixed; inset:0; z-index:60; pointer-events:none; padding:2px; opacity:0;
+  transition:opacity var(--t-slow) var(--ease-out);
+  background:linear-gradient(115deg, transparent 26%, var(--work, var(--gold)) 44%,
+    var(--work, var(--gold)) 56%, transparent 74%) 0 0 / 320% 100% no-repeat;
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite:exclude; }
+/* UP FOR THE WAIT AND NOT FOR THE WRITING. `data-streaming` lands on the first word, so the ring
+   covers the one stretch with nothing to look at — the cold prefill, which F24 measured at 7.3s —
+   and gets out of the way the moment the prose starts arriving. */
+html[data-work]:not([data-streaming]) #frame { opacity:1; animation:framedrift 3.6s linear infinite; }
+@keyframes framedrift { from { background-position:0 0; } to { background-position:320% 0; } }
+html[data-work="speak"]    #frame { --work:var(--m-speak-ink); }
+html[data-work="act"]      #frame { --work:var(--m-act-ink); }
+html[data-work="direct"]   #frame { --work:var(--m-direct-ink); }
+html[data-work="narrate"]  #frame { --work:var(--m-narrate-ink); }
+html[data-work="continue"] #frame { --work:var(--m-continue); }
+html[data-work="reroll"]   #frame { --work:var(--gold); }
+/* Reduced motion keeps the statement and drops the travel: the ring is simply there, evenly. */
 @media (prefers-reduced-motion: reduce) {
-  #working i { animation:none; width:100%; opacity:.5; }
+  html[data-work]:not([data-streaming]) #frame { animation:none;
+    background:linear-gradient(115deg, var(--work, var(--gold)), var(--work, var(--gold))); }
 }
 /* NO RULE UNDER THE COMPOSER — Seth, 2026-09-02: "remove the bottom accented line". It was a gold
    1px underline the full width of the row, with a parchment override beside it for the one theme
@@ -1682,7 +1742,7 @@ body[data-dev] #devbar {
     <div id="ctxread" hidden></div>
     <div id="read" class="scroll"><div id="col"></div></div>
     <div id="page" class="scroll" hidden></div>
-    <div id="dock"><div id="working" hidden><i></i></div>
+    <div id="dock">
       <!-- Above the mode rail and outside #dockCol, which is capped at the column width. Who you
            are speaking or acting as is not a mode, and sharing the rail with the four that are is
            what made it read as a fifth. -->
@@ -1697,6 +1757,9 @@ body[data-dev] #devbar {
   </aside>
 </div>
 
+<!-- The generating ring. Fixed to the window and outside every panel, because it frames the
+     SCREEN rather than any surface on it — see #frame in the stylesheet. -->
+<div id="frame" aria-hidden="true"></div>
 <div id="toast" hidden></div>
 
 <script type="module" src="./web/app.js"></script>

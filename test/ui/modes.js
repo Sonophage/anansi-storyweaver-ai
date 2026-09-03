@@ -139,18 +139,41 @@ if (cast) {
      (await page.eval("document.getElementById('input')?.value")) === '');
 } else { ok("the cast offers someone other than you", false); }
 
-// ---- 8. the working bar does not move the composer
-// It cannot live inside #dockCol (drawDock() sets innerHTML), so it is a flex sibling. As a row
-// sibling at width:100% it shoved the composer off the right edge for the whole 20-40s call.
+// ---- 8. THE GENERATING RING DOES NOT MOVE THE COMPOSER (2026-09-02).
+// This was a 2px bar above the composer, and the property under test was that it did not shove the
+// dock: as a row sibling at width:100% it pushed the composer off the right edge for the whole
+// 20-40s call. Seth replaced it with a gradient ring around the window — "remove the line above the
+// input box ... and put a gradient box around the screen that shifts" — so the same property is
+// asserted against the thing that replaced it, and the ring has an easier time of it: it is
+// position:fixed and cannot take part in the dock's layout at all. Which is worth PROVING rather
+// than assuming, because that is exactly what the bar's author assumed.
 const dockBox = () => page.eval("(() => { const d = document.getElementById('dockCol').getBoundingClientRect();"
   + " return [Math.round(d.left), Math.round(d.right), Math.round(d.width)]; })()");
 const quiet = await dockBox();
-await page.eval("(() => { const w = document.getElementById('working'); w.hidden = false; w.dataset.work = 'speak'; return 1; })()");
-await wait(150);
+await page.eval("(() => { document.documentElement.dataset.work = 'speak'; return 1; })()");
+await wait(250);
 const busy = await dockBox();
-ok(`the composer stays put while the bar runs (${quiet} -> ${busy})`, String(quiet) === String(busy));
-ok("  and the bar lines up with the column",
-   Math.abs((await page.eval("Math.round(document.getElementById('working').getBoundingClientRect().left)")) - busy[0]) <= 1);
+ok(`the composer stays put while the ring runs (${quiet} -> ${busy})`, String(quiet) === String(busy));
+const ring = await page.eval(`(() => { const f = document.getElementById('frame');
+  const cs = getComputedStyle(f); const r = f.getBoundingClientRect();
+  return JSON.stringify({ shown: cs.opacity !== '0', fixed: cs.position === 'fixed',
+    full: Math.round(r.width) === innerWidth && Math.round(r.height) === innerHeight,
+    moving: cs.animationName !== 'none',
+    clicks: cs.pointerEvents === 'none' }); })()`).then(JSON.parse);
+console.log("  ring: " + JSON.stringify(ring));
+ok("  and the ring is up, framing the whole window", ring.shown && ring.fixed && ring.full);
+ok("  travelling, so it says something is happening", ring.moving);
+// It covers the screen, so a press anywhere would land on it if it took presses at all.
+ok("  and it swallows no presses", ring.clicks);
+// The line it replaced is gone from the document, not merely hidden: an element nothing writes to
+// is one the next reader has to work out is dead.
+ok("  and the old bar is gone entirely", await page.eval("!document.getElementById('working')"));
+await page.eval("(() => { delete document.documentElement.dataset.work; return 1; })()");
+// LONGER THAN --t-slow (.32s), or this reads a value mid-transition: the first version waited
+// 200ms and got 0.34, which is the fade working rather than the ring staying.
+await wait(700);
+const gone = await page.eval("getComputedStyle(document.getElementById('frame')).opacity");
+ok(`  and it goes when the call ends (opacity ${gone})`, gone === '0');
 
 // ---- 9. the five modes, in the writer's own words
 // Global to the writer, a full replace, and empty is the reset. The thing that matters is that it

@@ -28,11 +28,17 @@ const veil = () => page.eval(`(() => {
     held: t ? t.innerHTML.length : 0,
     stopShown: b ? getComputedStyle(b).display !== 'none' : false,
     // The bar above Stop: present and travelling while she writes, gone when she is done.
-    work: (() => { const w = g.querySelector('.veilwork');
-      if (!w) return 'MISSING';
-      if (getComputedStyle(w).display === 'none') return 'hidden';
-      const i = w.querySelector('i');
-      return i && getComputedStyle(i).animationName !== 'none' ? 'moving' : 'still'; })(),
+    // The pair of presses on the finished passage: none while writing, two when done.
+    carry: (() => { const row = g.querySelector('.veilcarry');
+      if (!row || getComputedStyle(row).display === 'none') return 0;
+      return row.querySelectorAll('button[data-veilgo]').length; })(),
+    // THE RING AROUND THE WINDOW, which belongs to the WAIT: up from the press, gone on the first
+    // word. It is on the root and outside the veil, so it is read from there.
+    ring: (() => { const f = document.getElementById('frame');
+      if (!f) return 'MISSING';
+      const cs = getComputedStyle(f);
+      return cs.opacity === '0' ? 'gone' : (cs.animationName !== 'none' ? 'moving' : 'still'); })(),
+    streaming: document.documentElement.dataset.streaming === '1',
     dark: getComputedStyle(g).backgroundColor,
     meter: fill ? parseFloat(fill.style.height) || 0 : -1,
     top: t ? t.scrollTop : -1,
@@ -69,6 +75,12 @@ ok("  and Stop offered from the first frame", first != null && first.stopShown =
 ok("  and the ground already dark, not waiting for the words",
    first != null && /rgba?\(/.test(first.dark) && first.dark !== 'rgba(0, 0, 0, 0)');
 ok("  the prose is set at the handoff's 22px", first != null && first.serif === '22px');
+// AND THE RING IS UP FOR THE WAIT. This is the half that makes the "gone once streaming" check
+// below mean anything: a ring that never appeared would satisfy that one on its own. The wait is
+// the one stretch of a generation with nothing to look at — F24 measured the cold prefill at 7.3s
+// — so it is the stretch the ring exists for.
+ok(`  and the ring is up around the window, travelling (${first && first.ring})`,
+   first != null && first.ring === 'moving' && first.streaming === false);
 
 // ---- 2. the words focus in, the accent trails them, the rule fills, Stop stays
 let mid = null, last = null, seen = [], tips = new Set(), meters = [], tops = [];
@@ -96,12 +108,12 @@ ok("  and a rule that climbs without ever arriving early",
 // The handoff is explicit: Stop stays for the WHOLE write. It used to hide at the first word, a
 // rule written for a surface whose words began after a waiting screen.
 ok("  Stop stayed up the whole time she was writing", mid != null && mid.stopShown === true);
-// Seth, 2026-09-02: "there needs to be something soft and smooth above the stop button to let the
-// user know that something is happenening." Asserted as MOVING and not merely present — a bar that
-// is drawn and not animating says nothing that an empty screen does not, and it is the animation
-// that carries the whole message when no word has landed for a second.
-ok(`  with the working bar above it, travelling (${mid && mid.work})`,
-   mid != null && mid.work === 'moving');
+// THE RING IS THE WAIT'S, AND THE WAIT ONLY — Seth, 2026-09-02: "Remove the border around the ghost
+// as soon as something starts streaming." Once words are arriving they say it better than a border,
+// so by the time this loop has seen a word the ring must be gone. Asserted against `streaming`
+// rather than as a bare "it is gone", because gone-because-it-never-came-up would pass that.
+ok(`  the ring is gone once the words are arriving (${mid && mid.ring}, streaming ${mid && mid.streaming})`,
+   mid != null && mid.streaming === true && mid.ring === 'gone');
 // Seth: "the view screen should stay at the top so the user can read."
 ok("  and the view stayed at the top rather than chasing the tail", mid != null && mid.top === 0);
 // Seth, 2026-09-02: "the position should be locked." The surface was centred, so every new line
@@ -121,8 +133,16 @@ ok("the veil holds after the passage finishes", done != null && done.done === tr
 ok("  the rule is full and the accent has let go",
    done != null && done.meter === 100 && done.tip === 0);
 ok("  and Stop is gone, because there is nothing left to stop", done != null && done.stopShown === false);
-// And the bar goes with it, for the same reason: it says something is happening, and nothing is.
-ok(`  and the working bar with it (${done && done.work})`, done != null && done.work === 'hidden');
+// AND THE TWO PRESSES ARRIVE IN ITS PLACE — Seth, 2026-09-02: "In the ghost add the regenerate and
+// continue buttons there as well." Asserted as ABSENT while she wrote and PRESENT once she stopped:
+// offering to re-roll a passage that does not exist yet, or to continue from it, is the state this
+// catches. And they carry data-veilgo rather than data-re/data-continue on purpose — both have to
+// take the veil away first or the finished passage never lands, so the attribute names that.
+ok(`  and Regenerate and Continue arrive in its place (${done && done.carry})`,
+   done != null && done.carry === 2);
+ok("  which were NOT offered while she was still writing", mid != null && mid.carry === 0);
+// And the ring is still gone at the end, because the call is over.
+ok(`  and the ring is still gone (${done && done.ring})`, done != null && done.ring === 'gone');
 ok("  and the passage landed on the page behind it",
    (await page.eval("document.querySelectorAll('#col .block').length")) > 0);
 // A REAL key event, not a synthetic one. The first version of this check dispatched a

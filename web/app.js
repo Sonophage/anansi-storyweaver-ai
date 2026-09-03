@@ -418,7 +418,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
-  'pullback', 'remember', 'name', 'chbrief', 'chapters', 'memo',
+  'pullback', 'remember', 'name', 'chbrief', 'chapters', 'memo', 'veilgo',
   'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
@@ -6320,8 +6320,11 @@ function ghost() {
         <div class="veilmeter" aria-hidden="true"><i></i></div>
         <div class="veiltext" aria-live="polite"></div>
       </div>
-      <div class="veilwork" aria-hidden="true"><i></i></div>
       <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
+      <!-- The two presses that belong to a finished passage, on the surface you are reading it on.
+           Empty until the passage is done; the stylesheet keeps the row out of the way until then,
+           and veilReadable fills it because only then is there a passage to point at. -->
+      <div class="veilcarry"></div>
     </div>`;
   shell.appendChild(g);
 }
@@ -6411,6 +6414,13 @@ function drainVeil(now) {
       SEEN += cut;
       PEND = PEND.slice(cut);
       el.append(span);
+      /* THE FRAME GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
+       * soon as something starts streaming." The ring says something is happening, and once words
+       * are appearing the words say it better than a border can. So the ring belongs to the WAIT:
+       * up from the press, gone at the first word, and `working(null)` clears both at the end.
+       * On the root beside `data-work` rather than as a third state of it, because the colour and
+       * the phase are two facts and the CSS reads them together. */
+      root.dataset.streaming = '1';
       // THE ACCENT IS A TAIL, not a highlight: it marks where the writing has got to, so it has to
       // let go of the word behind it as it moves.
       TIP.push(span);
@@ -6435,6 +6445,27 @@ function veilReadable() {
   TIP = [];
   const fill = g.querySelector('.veilmeter i');
   if (fill) fill.style.height = '100%';
+  /* AND THE TWO PRESSES, HERE — Seth, 2026-09-02: "In the ghost add the regenerate and continue
+   * buttons there as well." They are what the end of the page offers under the last passage, and
+   * this surface IS the last passage while you are reading it: leaving the veil to press a button
+   * about the paragraph you are looking at is a step for nothing.
+   *
+   * THE ID COMES OFF `V`, which the caller refreshed before handing the veil the landing — so the
+   * newest passage in the view IS the one on this screen. Read here rather than threaded through
+   * veilFinish, because both of its callers have already done that refresh and a second source for
+   * the same fact is a second thing to keep in step.
+   *
+   * `data-veilgo` AND NOT `data-re`/`data-continue`: both presses have to take the veil away first.
+   * The finished passage lands on the page from VEIL_LAND when the veil goes, and ghost() appends a
+   * NEW element rather than replacing this one — so pressing Continue on a live veil would leave
+   * two #ghost nodes and drop the landing, and the passage you just read would never arrive. */
+  const pid = (V?.passages ?? []).filter((x) => !x.isBreak).at(-1)?.id ?? null;
+  const row = g.querySelector('.veilcarry');
+  if (row) {
+    row.innerHTML = `${pid ? `<button data-veilgo="${pid}"><span class="serif"
+      style="color:var(--m, var(--gold))">\u21bb</span> Regenerate</button>` : ''}
+      <button data-veilgo="continue">Continue &rsaquo;</button>`;
+  }
 }
 
 /** Called on the success path once the take has landed on the page behind the veil. If the writer
@@ -6554,11 +6585,22 @@ const unghost = () => {
   g.addEventListener('animationend', () => g.remove(), { once: true });
 };
 
+/** WHICH PRESS IS RUNNING, said on the root so the frame around the window can wear its colour.
+ *
+ *  This drove a 2px strip above the composer until 2026-09-02 — Seth: "remove the line above the
+ *  input box when waiting for aa stream and put a gradient box around the screen that shifts". The
+ *  twenty call sites are unchanged and so is the contract: a kind while a call is in flight, null
+ *  when it ends. What reads it moved from an element to `html[data-work]`, which is one attribute
+ *  rather than a node the dock has to make room for — and the ring is visible after the veil has
+ *  been dismissed, which the strip behind the veil was not.
+ *
+ *  ON THE ROOT AND NOT ON #frame: the frame is one element and the attribute is a state of the
+ *  APP, the same shape `data-tray` and `data-reading` already use. */
 function working(kind) {
-  const el = $('working');
-  if (!el) return;
-  if (kind) { el.dataset.work = kind; el.hidden = false; }
-  else { el.hidden = true; delete el.dataset.work; }
+  if (kind) root.dataset.work = kind;
+  else delete root.dataset.work;
+  // The phase resets with every call: a new press is a new wait, however the last one ended.
+  delete root.dataset.streaming;
 }
 
 async function refreshHistory() {
@@ -6870,6 +6912,18 @@ async function regenerateInto(id, steer) {
 }
 
 
+
+/** RE-ROLL THIS PASSAGE, or open its instruction first if it has one.
+ *
+ *  #38: a directed passage opens the instruction to be edited before it re-rolls, and an undirected
+ *  one has nothing to show so it goes straight away. Extracted 2026-09-02 when the veil grew the
+ *  same pair of presses — two copies of this would be two places to remember the directed case,
+ *  and the directed case is the one that was missing for a month. */
+async function rerollPassage(id) {
+  const p = (V.passages ?? []).find((x) => x.id === id);
+  if (p?.directive) { S.reroll = { id, text: p.directive }; drawDoc(); syncTray(); return; }
+  await regenerateInto(id);
+}
 
 /** The ⋯ tray. One open at a time, and the scrim is raised while one is.
  *
@@ -7797,12 +7851,15 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (d.re) {
-    // #38. A directed passage opens its instruction to be edited first; an undirected one has
-    // nothing to show, so it re-rolls on the press exactly as before.
-    const p = (V.passages ?? []).find((x) => x.id === d.re);
-    if (p?.directive) { S.reroll = { id: d.re, text: p.directive }; drawDoc(); syncTray(); return; }
-    await regenerateInto(d.re); return;
+  if (d.re) { await rerollPassage(d.re); return; }
+  /* THE VEIL'S OWN PAIR. Both take the surface away first and then do exactly what the row at the
+   * end of the page does — see the note in veilReadable for why the dismissal is not optional. */
+  if (d.veilgo) {
+    const what = d.veilgo;
+    dismissVeil();
+    if (what === 'continue') await generate('continue');
+    else await rerollPassage(what);
+    return;
   }
   // #38. Re-roll with whatever is in the box — edited or not — and close the editor.
   if (d.rerollgo) {

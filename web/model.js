@@ -409,6 +409,29 @@ const mix = (hex, over, a) => {
   return `rgb(${f(r1, r2)},${f(g1, g2)},${f(b1, b2)})`;
 };
 
+/** THE SAME COLOUR AT FULL STRENGTH — the theme's hue with its transparency dropped.
+ *
+ *  `mix` above reads `#rrggbb` and nothing else, which is why the four press accents are used raw:
+ *  a theme is free to give one of them an `rgba()`, and obsidian's `speak` is `rgba(224,86,140,.42)`
+ *  because it was chosen as a THREE-PIXEL RULE. As a rule it reads. As 11px text it measured 1.82:1
+ *  against the dock on 2026-09-02, where 4.5 is the floor — so the composer's mode dial, which
+ *  wears the accent of the press it is showing, could not use the token as it stands.
+ *
+ *  DROPPED, NOT COMPOSITED, and the first version of this did composite it onto the paper: that
+ *  reproduces exactly what the eye already sees behind a translucent rule — rgb(98,41,67) — and
+ *  measured the same 1.82:1. Alpha is the thing making it unreadable, so alpha is the thing that
+ *  goes. At full strength the same colour measures 5.58:1.
+ *
+ *  An already-opaque colour comes back untouched, which is every other accent in every shipped
+ *  theme: act, direct and narrate measured 5.58 to 11.48 and none of them changes by a byte.
+ */
+const opaque = (c) => {
+  const n = String(c).match(/[\d.]+/g)?.map(Number);
+  if (String(c).startsWith('#')) return c;
+  if (!n || n.length < 4) return c;
+  return `rgb(${n[0]},${n[1]},${n[2]})`;
+};
+
 /** Every custom property a theme sets, derived from its row.
  *
  *  "toward" brightens the ink; "away" fades it toward the paper. Fading toward black on a light
@@ -454,6 +477,12 @@ export function themeVars(key) {
     // were already distinguishable.
     '--m-speak': S.speak, '--m-act': S.good,
     '--m-direct': mix(S.accent, away, .22), '--m-narrate': S.warn,
+    /* THE SAME FOUR AS INK. The margin rules use the four above at 3px, where a translucent one
+     * reads; the composer's dial wears them as 11px text, where obsidian's speak measured 1.82:1.
+     * See `opaque`: only the transparency is dropped, so these are the same colours and not new
+     * ones, and three of the four are byte-identical to the line above in every shipped theme. */
+    '--m-speak-ink': opaque(S.speak), '--m-act-ink': opaque(S.good),
+    '--m-direct-ink': mix(S.accent, away, .22), '--m-narrate-ink': opaque(S.warn),
     /* A FIFTH, 2026-09-01. Seth: "for continues border i mean the accent border at the side
      * everything else has a colored border but not continue."
      *
