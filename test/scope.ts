@@ -1325,6 +1325,60 @@ async function bootServer(port: number, env: Record<string, string>) {
   }
 }
 
+/* ACCEPTING A PULLED CARD WRITES ITS ROOMS, AND THEY REACH THE MODEL (2026-09-02).
+ *
+ * A card pulled off the web arrives with its rooms on the proposal — see `proposals.rooms` — and
+ * they are written in the press that accepts the card, because a room needs an entry to belong to.
+ *
+ * THIS TEST EXISTS BECAUSE THE FEATURE SHIPPED BROKEN. The rooms were stored and I checked that;
+ * the accept path referenced a variable that was never declared, and the route's own catch turned
+ * the crash into `{"error":"made is not defined"}` — AFTER `upsertEntry` had already created the
+ * entry. So a pulled card arrived with no rooms, its proposal stayed open, and it read to the
+ * writer as "the rooms are not pulled" rather than as a fault. Seth found it in the app.
+ *
+ * NO MODEL AND NO SEARCH. The proposal is written straight into the database with the shape the
+ * pull produces, which is the whole point: the half that broke is deterministic, and testing it
+ * needed neither of the two things that made it look expensive to test.
+ */
+{
+  const st = db.createStory(alice, { title: 'A book to pull into' }) as any;
+  const chapter = (db.chapters(st.id)[0] as any).id;
+  db.addProposal(st.id, { chapterId: chapter, kind: 'new', entryType: 'character',
+    title: 'Ferrus Manus', body: '[Ferrus Manus: Primarch of the Iron Hands]', keys: ['Medusa'],
+    source: ['https://warhammer40k.fandom.com/wiki/Ferrus_Manus'],
+    rooms: { appearance: 'Hands of living metal to the elbow',
+             history: 'Raised on Medusa, later known as the Headless' } });
+  const pp: any = db.proposalsOf(st.id).find((x: any) => x.title === 'Ferrus Manus');
+  assert.ok(pp, 'the proposal is there to accept');
+  assert.ok(pp.rooms, 'and it carries its rooms');
+
+  const r = await routes['POST /api/proposal'](ctxI(alice, { storyId: st.id, id: pp.id, accept: true }));
+  /* WHAT A RED LOOKS LIKE HERE: this route is synchronous, so the bug it was written for makes the
+   * SUITE DIE — "ReferenceError: made is not defined" at the route's own line — rather than failing
+   * an assertion. Verified by reverting the declaration on 2026-09-02. In the running server that
+   * same throw becomes `{"error":"made is not defined"}`, because serve.ts catches it, which is
+   * exactly how the fault stayed quiet: an error string reads like a route that declined.
+   * The assertion below is for the other shape — a route that returns an error rather than throws. */
+  assert.ok(!(r as any)?.error, `accepting must not error: ${(r as any)?.error}`);
+
+  const card: any = db.entriesOf(st.id).find((e: any) => e.title === 'Ferrus Manus');
+  assert.ok(card, 'accepting writes the card');
+  const rooms = (db.addonsOf(st.id) as any[]).filter((a) => a.entry_id === card.id);
+  assert.deepStrictEqual(rooms.map((a) => a.slot).sort(), ['appearance', 'history'],
+    'and both rooms it arrived with, and only those');
+  assert.match(rooms.find((a) => a.slot === 'appearance').body, /living metal/,
+    'with the text the pull found');
+  // AND SWITCHED ON. A room with no trigger words that nobody pinned reaches no prompt at all —
+  // the room-proposal branch beside this one says so in as many words. A pulled room has no keys,
+  // so without this it would sit on the card looking filled in and be invisible to every call.
+  assert.deepStrictEqual(rooms.map((a) => !!a.active), [true, true],
+    'and both are on, or the card looks filled in and reaches the model with none of it');
+  assert.strictEqual((db.proposal(st.id, pp.id) as any).status, 'accepted',
+    'and the proposal is closed, which a mid-accept throw would have left open');
+  db.delStory(st.id);
+  ok('accepting a pulled card writes its rooms, switched on, and closes the proposal');
+}
+
 /* THE IMAGE PROXY REFUSES WHAT IT MUST (2026-09-01). Seth asked for image search on covers and
  * threads; an arbitrary image on the web sends no CORS header, so the browser cannot read its bytes
  * and the SERVER has to fetch it. That is an SSRF shape: the client names a URL and this process

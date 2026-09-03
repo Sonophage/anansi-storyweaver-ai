@@ -3193,7 +3193,13 @@ export const routes: Record<string, Handler> = {
         if (id && !keys.length) db.setAddonActive(p.story_id, id, true);
       } else if (c.body.accept) {
         // Accepting makes it yours, so last_editor is human and the entry is pinned from here.
-        db.upsertEntry(p.story_id, c.owner, { id: p.entry_id || undefined, title: p.title,
+        // THE ID IS KEPT because a pulled card's rooms are written against it below — `upsertEntry`
+        // has returned it on both paths since it was written, and the rooms block referenced a
+        // variable that was never declared: shipped 2026-09-02, and it threw "made is not defined"
+        // AFTER the entry had been created, so a pulled card arrived with no rooms and its proposal
+        // stayed open. The route's catch turned a crash into an error string, which is why it read
+        // as "rooms are not pulled" rather than as a fault.
+        const made = db.upsertEntry(p.story_id, c.owner, { id: p.entry_id || undefined, title: p.title,
           body: c.body.body ?? p.body, entryType: p.entry_type,
           // PLAN-08 Phase 2. The proposal can carry an activation now, and this honours it for
           // everything except a character. A character never lands `triggered` from a MODEL's
@@ -3212,8 +3218,23 @@ export const routes: Record<string, Handler> = {
          * and it switches an unkeyed room on for the reason stated in the room branch above: a room
          * with no trigger words that nobody pinned reaches no prompt at all. */
         if (made && p.rooms) {
-          try { writeRooms(p.story_id, made, p.entry_type, JSON.parse(p.rooms), p.title); }
-          catch { /* a malformed rooms blob must not cost the writer the card they just accepted */ }
+          try {
+            writeRooms(p.story_id, made, p.entry_type, JSON.parse(p.rooms), p.title);
+            /* AND THEY REACH THE MODEL. `writeRooms` does not switch a room on — the forge's paste
+             * does not need it to, because a pasted card is written by hand and the writer turns
+             * its rooms on themselves. A pulled card's rooms arrive with no trigger words, and the
+             * room branch above says what that means: "a room with no keys that nobody pinned on
+             * never reaches the model... the room looks filled in on the card while being invisible
+             * to every prompt". Accepting is the writer saying yes to the whole subject, so the
+             * rooms they accepted are on. */
+            // `addonsOf` takes a story and returns every room in it, so this filters to the card
+            // just written — one query rather than one per room, and the filter is where it has to
+            // be either way.
+            for (const a of db.addonsOf(p.story_id) as any[]) {
+              if (a.entry_id !== made || a.active) continue;
+              if (!(JSON.parse(a.keys || '[]') as any[]).length) db.setAddonActive(p.story_id, a.id, true);
+            }
+          } catch { /* a malformed rooms blob must not cost the writer the card they just accepted */ }
         }
       }
       db.setProposalStatus(c.body.storyId, id, c.body.accept ? 'accepted' : 'rejected');
