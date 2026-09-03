@@ -241,9 +241,19 @@ const handler = async (req: any, res: any) => {
       // heuristically, so a fix that IS on disk keeps looking like a fix that does not work — and
       // "it still does not open" is indistinguishable from a stale bundle. There is no build step
       // and no content hash to put in the URL, so the header is the only place to say it.
+      // READ FIRST, THEN THE HEADERS. This wrote the 200 and read the file afterwards, so a path
+      // that matches the pattern and does not exist on disk — /app.js, say, when the file is at
+      // /web/app.js — threw ENOENT with the headers already gone. The catch at the bottom then
+      // tried to send a 500 over them, which throws INSIDE the catch, which nothing catches: the
+      // process died. An unauthenticated GET for any missing .js took the app down for both
+      // writers, and a link preview or a crawler asking once was enough. Found 2026-09-02 by a
+      // curl for the wrong path immediately after a restart, in the journal as ERR_HTTP_HEADERS_SENT.
+      let file: string;
+      try { file = await readFile(HERE + p.slice(1), 'utf8'); }
+      catch { return send(res, 404, { error: 'not found' }); }
       res.writeHead(200, { 'Content-Type': `${MIME[extname(p)]}; charset=utf-8`,
         'Cache-Control': 'no-cache' });
-      return res.end(await readFile(HERE + p.slice(1), 'utf8'));
+      return res.end(file);
     }
     const key = `${req.method} ${p}`;
     const handler = routes[key];
@@ -357,6 +367,16 @@ const handler = async (req: any, res: any) => {
     // silently turned routes.ts's deliberate 400s into 500s — a client cannot tell "you asked for
     // something impossible" from "the server broke" when both arrive as the same number.
     const code = typeof e?.code === 'number' && e.code >= 400 && e.code < 600 ? e.code : 500;
+    // AND NEVER SEND TWICE, whatever threw. The static path above was one way to get here after the
+    // headers had gone; the streaming route is another, because it writes SSE for as long as the
+    // model talks and can fail at any point in that. `send` would call writeHead on a response
+    // that is already open, throw from inside this catch, and take the process with it — so a
+    // per-request fault became an outage for everybody. There is nowhere left to put the error but
+    // the log, so it goes there and the connection is closed.
+    if (res.headersSent) {
+      console.error(`${req.method} ${req.url} failed after responding:`, e?.message ?? e);
+      return res.end();
+    }
     send(res, code, { error: e?.message ?? String(e) });
   } finally {
     // ALWAYS, and in a `finally` rather than on each exit: there are four ways out of the block

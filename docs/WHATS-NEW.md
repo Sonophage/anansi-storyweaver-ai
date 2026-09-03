@@ -10,6 +10,16 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-02 · One bad address could take the app down. It cannot now.
+
+### A link to a file that is not there
+Asking for a file the app does not have — an old bookmark, a link preview, anything that guesses a
+filename — did not answer "not found". It ended the app, for you and for anyone else writing at the
+time. It came back on its own within seconds, but any passage being written at that moment was
+lost.
+
+It answers "not found" now, and carries on.
+
 ## 2026-09-02 · A chapter says how it starts and where it ends, and Anansi will write both
 
 ### One box became two, and they reach the model differently

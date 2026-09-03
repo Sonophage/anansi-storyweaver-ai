@@ -1352,4 +1352,48 @@ async function bootServer(port: number, env: Record<string, string>) {
   ok('the demo switch reaches exactly one account, grants nothing, and cannot be aimed');
 }
 
+/* A MISSING STATIC FILE MUST NOT KILL THE PROCESS (2026-09-02).
+ *
+ * `serve.ts` matched /^\/(web\/)?[\w.-]+\.(js|css|svg|webmanifest)$/, wrote a 200, and read the
+ * file afterwards — so a path that matched the pattern and was not on disk threw ENOENT with the
+ * headers already gone. The catch then tried to send a 500 over them, which throws INSIDE the catch,
+ * which nothing catches: the process exited. `/app.js` did it, when the file is at `/web/app.js`.
+ *
+ * SO IT IS AN UNAUTHENTICATED DENIAL OF SERVICE, not a cosmetic 500: one GET from anything that can
+ * reach the port — a crawler, a link preview, a bookmark from before a file moved — took the app
+ * down for both writers, and only systemd's Restart=on-failure brought it back. Found by a curl for
+ * the wrong path seconds after a restart; the journal has it as ERR_HTTP_HEADERS_SENT.
+ *
+ * ASSERTED AS "AND THEN IT ANSWERED AGAIN", which is the only form that catches this. A check that
+ * read the status of the bad request alone would pass against the broken server too: the socket
+ * closes with the 200 header already written, and `fetch` reports that as a network error rather
+ * than as a status — so the shape of the bug is invisible until you ask the server a SECOND
+ * question and find nobody there.
+ */
+{
+  const PORT = 5196;
+  const { srv, url } = await bootServer(PORT, {});
+  try {
+    const bad = ['/app.js', '/nope.css', '/web/missing.js', '/gone.webmanifest'];
+    const codes: string[] = [];
+    for (const path of bad) {
+      try { codes.push(String((await fetch(url + path)).status)); }
+      catch (e: any) { codes.push(`threw: ${e?.cause?.code ?? e?.message}`); }
+    }
+    assert.deepStrictEqual(codes, ['404', '404', '404', '404'],
+      `a static path with no file behind it answers 404: got ${codes.join(', ')}`);
+    // THE POINT OF THE WHOLE BLOCK. Still serving, after four of them.
+    const alive = await fetch(url + '/api/stories');
+    assert.strictEqual(alive.status, 200,
+      'and the server is still up afterwards — a missing file must not end the process');
+    assert.strictEqual(srv.exitCode, null, 'the child has not exited');
+    // And a file that IS there still comes back, so the fix did not shut the door on everything.
+    const real = await fetch(url + '/web/app.js');
+    assert.strictEqual(real.status, 200, 'a real static file still answers 200');
+    assert.match(real.headers.get('cache-control') ?? '', /no-cache/,
+      'and keeps its no-cache header, which is what makes an edit live without a restart');
+    ok('a missing static file is a 404, not the end of the process');
+  } finally { srv.kill(); }
+}
+
 console.log(`\n${n} checks passed`);
