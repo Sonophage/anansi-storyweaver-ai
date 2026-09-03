@@ -58,6 +58,9 @@ export interface Passage {
 export interface Story {
   title: string; genre: string; premise: string; setting: string;
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
+  /** The world or intellectual property the book belongs to, and what is true in it. Both ride in
+   *  SPINE: the name is identity and is kept, the note is furniture and is trimmable. */
+  world?: string; worldNote?: string;
   /** The lockout's own switch. Undefined and true both mean on. */
   lockoutOn?: boolean;
   /** #18. `writingStyle` is the INSTRUCTION — what every story in the library already holds.
@@ -890,7 +893,21 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // So this swap changed a live prompt rather than a hypothetical one; before it, that book lost
     // its premise, and after it, its setting. The cap went to 1000 in the same sitting, which is
     // what stops either from being cut at all.
+    /* THE WORLD THIS BOOK BELONGS TO, next to the genre because it is the same kind of fact: what
+     * kind of book this is. Seth, 2026-09-02: "Is there a way in the story under the world tab I
+     * could add what world or ip it belongs to? And have it hold some info about the world that
+     * way". A book set in Warhammer 40,000 or on the Unterzee needs the model to know that before
+     * it knows anything else, and until now the only way to say it was to write it into the premise
+     * or to build a second book to follow.
+     *
+     * `keep: true` ON THE NAME, `keep: false` ON THE NOTE, and that split is the same one the
+     * premise and the setting already make in this block: the name is identity and survives any
+     * budget, the paragraph is recoverable furniture. A book whose world got trimmed to nothing
+     * would be written as generic fantasy, which is the failure this exists to prevent. */
+    { text: story.world?.trim() ? `This book is set in ${story.world.trim()}.` : '', keep: true },
     { text: story.premise, keep: true },
+    { text: story.worldNote?.trim()
+      ? `About ${story.world?.trim() || 'that world'}: ${story.worldNote.trim()}` : '', keep: false },
     { text: `Setting: ${story.setting}`, keep: false },
   ], CAPS.SPINE!);
 

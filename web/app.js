@@ -2649,6 +2649,29 @@ const PANELS = {
       ${fields.filter((f) => IDENT.includes(f.k)).map(field).join('')}
       </div>
       <div class="sgroup" data-group="world">
+      <!-- WHICH WORLD OR IP THIS BOOK BELONGS TO — Seth, 2026-09-02: "Is there a way in the story
+           under the world tab I could add what world or ip it belongs to? And have it hold some
+           info about the world that way".
+           IT IS NOT "Part of a world" FURTHER DOWN, and both can be set: that one follows another
+           BOOK's threads, live, and is the right tool when the world has a ledger of its own. This
+           is the light one — a name and a paragraph — for saying "this is Warhammer 40,000" without
+           building a second book to say it.
+           IT DOES TWO THINGS. It rides in SPINE beside the genre, so the model knows which world it
+           is writing in before it knows anything else; and it narrows a web pull's search, which is
+           measured: "Medusa" alone returns the Gorgon, and "Medusa Warhammer 40,000" returns the
+           Iron Hands homeworld. -->
+      <label class="lbl" for="f-story-world">The world or IP this belongs to</label>
+      <input class="field" id="f-story-world" data-story="world" value="${esc(V.story.world ?? '')}"
+        placeholder="Warhammer 40,000, Dune, Sunless Sea — or nothing, for a world of your own">
+      <div class="hint">Sent with every call, beside the genre. It also scopes what a thread pulled
+        off the web searches for, so a name that means two things finds the right one.</div>
+      <label class="lbl" for="f-story-worldNote">What is true in it</label>
+      <textarea class="field" id="f-story-worldNote" data-story="worldNote"
+        >${esc(V.story.worldNote ?? '')}</textarea>
+      <div class="hint">The shape of the world rather than of this book: what everyone in it knows,
+        what it runs on, what is impossible there. Trimmed before the premise if a prompt runs long,
+        so put what cannot be lost in the premise instead.</div>
+
       ${pick('setting', 'Setting', lore.map((e) => e.title), V.story.setting, 'Not set')}
       <div class="hint">Drawn from the lore and items in this story's ledger.</div>
       ${pick('pov', 'Point of view', POV, V.story.pov, 'Not set')}

@@ -2748,10 +2748,36 @@ export const routes: Record<string, Handler> = {
      *
      * EIGHT RESULTS, where the other callers take five: this is the only evidence in the call, and
      * the answer has rooms to fill as well as a body. */
+    /* THE BOOK'S WORLD NARROWS THE QUERY, and this one IS measured — unlike the room names above,
+     * which broadened it into essays. Same engine, six results each, 2026-09-02:
+     *
+     *   Medusa, bare              wikipedia, reddit, vanderbilt.edu, britannica, metmuseum,
+     *                             greekmythology.com — the Gorgon, entirely wrong for a 40k book
+     *   Medusa + Warhammer 40,000 warhammer40k.fandom x2, wh40k.lexicanum x2 — the Iron Hands
+     *                             homeworld, which is what a writer in that world meant
+     *   Arrakis, bare             wikipedia, dune.fandom x2, and arrakistechnologies.ai
+     *   Arrakis + Dune            the junk drops off
+     *   the Unterzee              unambiguous either way
+     *
+     * A world name says WHICH domain; a room name says what kind of essay. That is the difference,
+     * and it is why one is in the query and the other is in the prompt.
+     *
+     * THE SUBJECT STILL COMES FIRST so a `site:` prefix keeps working — webSearch reads one off the
+     * front — and so the engine still ranks on the name. */
     const rooms = slotsFor(kind).map((sl) => sl.name);
+    const world = String((v.story as any).world ?? '').trim();
+    const q = world && !subject.toLowerCase().includes(world.toLowerCase())
+      ? `${subject} ${world}`.slice(0, 240) : subject;
     let sources: { title: string; url: string; text: string }[] = [];
-    try { sources = await webSearch(subject, 8); }
+    try { sources = await webSearch(q, 8); }
     catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
+    // AND THE BARE NAME IF THAT FOUND NOTHING. A world that narrows to zero results is a book
+    // whose world field is a phrase the engine has never seen, and a pull that fails for that
+    // reason would look like the feature being broken.
+    if (!sources.length && q !== subject) {
+      try { sources = await webSearch(subject, 8); }
+      catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
+    }
     if (!sources.length) return { error: `nothing came back for ${JSON.stringify(subject)}` };
 
     const body = sources

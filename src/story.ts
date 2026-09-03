@@ -24,6 +24,9 @@ const toEntry = (r: any, states: any[] = []): Entry => ({
 const toStory = (r: any) => ({
   title: r.title, genre: r.genre, premise: r.premise, setting: r.setting, pov: r.pov,
   persona: r.persona, writingStyle: r.writing_style, spice: r.spice,
+  // The world or intellectual property this book belongs to, and what is true in it. Reaches the
+  // model inside SPINE — see the note there — and scopes a web pull's search.
+  world: r.world ?? '', worldNote: r.world_note ?? '',
   // RETAINED DATA, NOT A FIELD. The "Where this is going" box came out of every surface and every
   // prompt on 2026-08-30 — Seth: "no ones going to use it. ive asked." The column was kept because
   // two books in the live library had written in it, so it still travels to the client where an

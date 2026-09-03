@@ -1513,6 +1513,39 @@ ok('a book can ask for its cover at the head of every chapter, and it is off unt
   assert.strictEqual((db.getStory(st.id) as any).chapter_hero, 1);
 });
 
+// WHICH WORLD A BOOK BELONGS TO (2026-09-02), and the reason it is tested here rather than trusted:
+// `updateStory` is one long positional UPDATE, and the note inside it records a value written two
+// slots early — every column after it shifted, and the symptom was an unrelated field refusing to
+// save. Two new columns at the end of that list is exactly that hazard again.
+ok('a book remembers the world it belongs to, and a partial save leaves it alone', () => {
+  const me = db.owner('world-owner');
+  const st = db.createStory(me, { title: 'A book in someone else\'s world' });
+
+  db.updateStory(st.id, { world: 'Warhammer 40,000',
+    worldNote: 'The Imperium has been falling for ten thousand years and calls it order.' });
+  const saved: any = db.getStory(st.id);
+  assert.strictEqual(saved.world, 'Warhammer 40,000', 'the world is kept');
+  assert.match(saved.world_note, /ten thousand years/, 'and what is true in it');
+
+  // AND THE COLUMNS AROUND IT DID NOT MOVE. This is the check that catches an off-by-one in that
+  // positional UPDATE: a shifted value lands the world in the next column along and nothing
+  // complains, so the fields either side are asserted rather than assumed.
+  assert.strictEqual(saved.title, 'A book in someone else\'s world', 'the title is untouched');
+  assert.strictEqual(saved.lore_from, null, 'and lore_from, which sits beside it in the UPDATE');
+
+  // A partial save leaves both alone — the rule the whole function is built on.
+  db.updateStory(st.id, { title: 'Renamed' });
+  const after: any = db.getStory(st.id);
+  assert.strictEqual(after.world, 'Warhammer 40,000', 'renaming the book keeps its world');
+  assert.match(after.world_note, /ten thousand years/, 'and the note with it');
+
+  // And the view hands them over under the names the panel binds to, or the fields render empty
+  // over columns that hold something.
+  const v: any = db.getStory(st.id);
+  assert.ok('world' in v && 'world_note' in v, 'both columns exist on the row');
+  db.delStory(st.id);
+});
+
 // A partial chapter save must not switch off what it did not mention. `updateStory` has worked
 // this way since it was written; this did not, and it clobbered the one column that decides
 // whether a chapter's prose is pulled back into the prompt.

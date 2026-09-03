@@ -104,6 +104,42 @@ ok('the lockout names the character it locks, and only when one is named', () =>
 // The other branch, asserted so the fix is not "delete the word shortened". SPINE's premise is
 // the one `keep: false` part in the anchor, so a long enough premise really is cut — and then
 // "shortened" is the true reason and has to survive.
+ok('the world a book belongs to rides in SPINE, and only the note is trimmable', () => {
+  // Seth, 2026-09-02: "Is there a way in the story under the world tab I could add what world or ip
+  // it belongs to? And have it hold some info about the world that way". A book set in Warhammer
+  // 40,000 needs the model to know that before it knows anything else, and the only way to say it
+  // before this was to write it into the premise or build a second book to follow.
+  const i = base();
+  (i.story as any).world = 'Warhammer 40,000';
+  (i.story as any).worldNote = 'The Imperium has been falling for ten thousand years and calls it order.';
+  const sp = buildContext(i, count).blocks.find((b) => b.kind === 'SPINE')!;
+  assert.match(sp.text, /set in Warhammer 40,000/, 'the world is named in the spine');
+  assert.match(sp.text, /falling for ten thousand years/, 'and what is true in it is there too');
+  // BESIDE THE GENRE, BEFORE THE PREMISE: it is the same kind of fact — what kind of book this is —
+  // and a model that reads the premise first has already started imagining the wrong world.
+  assert.ok(sp.text.indexOf('Warhammer 40,000') < sp.text.indexOf(i.story.premise),
+    'and it comes before the premise, which is what makes it context rather than an afterthought');
+
+  // NOTHING FOR A BOOK WITH NO WORLD, which is most of them: an empty field must not put a sentence
+  // about nothing into a block that is capped.
+  const own = base();
+  const spOwn = buildContext(own, count).blocks.find((b) => b.kind === 'SPINE')!;
+  assert.doesNotMatch(spOwn.text, /set in|About /,
+    'a book with a world of its own says nothing about one');
+
+  // THE NAME SURVIVES A TRIM AND THE NOTE DOES NOT. Same split the premise and the setting already
+  // make in this block: identity is kept, furniture is recoverable. A book whose world was trimmed
+  // to nothing would be written as generic fantasy, which is the whole failure this prevents.
+  const fat = base();
+  (fat.story as any).world = 'Warhammer 40,000';
+  (fat.story as any).worldNote = 'The Imperium has been falling for ten thousand years. '.repeat(60);
+  fat.story.setting = 'A cathedral of iron. '.repeat(60);
+  const spFat = buildContext(fat, count).blocks.find((b) => b.kind === 'SPINE')!;
+  assert.ok(spFat.tokens > 0, 'the fixture has to actually be over the cap for this to mean anything');
+  assert.match(spFat.text, /set in Warhammer 40,000/,
+    'the world is still named after a trim — it is keep:true, like the premise');
+});
+
 ok('the chapter brief is two halves, and only one of them rides every call', () => {
   // Seth, 2026-09-02: "the start should be used as information for the very first scene and the
   // where is this going is only used as a suggestion for the direction of the chapter, not

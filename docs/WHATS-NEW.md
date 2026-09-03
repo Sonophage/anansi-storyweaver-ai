@@ -10,6 +10,26 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-03 · A book can say which world it belongs to
+
+### The world or IP, on the Story screen
+Under **The world** there are two new boxes: the world or IP this book belongs to — Warhammer
+40,000, Dune, Sunless Sea, or nothing at all for a world of your own — and what is true in it.
+
+The name is sent with every call, beside the genre, so the model knows which world it is writing in
+before it knows anything else. The paragraph goes with it, and is the first thing trimmed if a
+prompt runs long, so anything that cannot be lost belongs in the premise instead.
+
+### And it aims the web pull
+Setting the world changes what a pulled thread finds. **Medusa** in a book with no world comes back
+as the Greek Gorgon — Perseus, the sisters, the stone gaze. In a book set in Warhammer 40,000 the
+same word comes back as *Medusa IV, the Iron Hands' feral homeworld, close to the Eye of Terror, the
+birthplace of Ferrus Manus*. Nothing changed but the field.
+
+This is not the same thing as **Part of a world** further down that screen, and you can use both.
+That one follows another book's threads, live, and is the right tool when a world has a ledger of
+its own. This is the light one: a name and a paragraph, with no second book to build.
+
 ## 2026-09-02 · Pull a thread off the web, in its own canon
 
 ### Look something up and get a card from it

@@ -147,6 +147,16 @@ function migrate() {
    * have its rooms proposed separately — accepting a room needs something to hang it on. They wait
    * here and are written in the same press that accepts the card. */
   add('proposals', 'rooms', 'TEXT');
+  /* WHICH WORLD OR INTELLECTUAL PROPERTY A BOOK BELONGS TO, and what is true in it (2026-09-02).
+   * Seth: "Is there a way in the story under the world tab I could add what world or ip it belongs
+   * to? And have it hold some info about the world that way".
+   *
+   * NOT `lore_from`, which is the other answer to a nearby question: that follows another BOOK's
+   * threads, live, and is the right tool when the world has a ledger of its own. This is the light
+   * one — a name and a paragraph on the book itself — for "this is Warhammer 40,000" without
+   * building a second book to say it. Both can be set; they are not alternatives. */
+  add('stories', 'world', 'TEXT');
+  add('stories', 'world_note', 'TEXT');
   // A book can follow another book's threads — a world bible, and the books set in it. One column
   // rather than a `worlds` table on purpose: a world here IS a book, one that happens to hold cards
   // and little prose, so it needs no new ownership scope. `test/scope.ts` exists because every
@@ -2281,7 +2291,7 @@ export function updateStory(id: string, s: any) {
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,model=?,
       locked_character=?,lockout_on=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
-      lore_from=?,style_note=?,updated_at=? WHERE id=?`)
+      lore_from=?,style_note=?,world=?,world_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
@@ -2311,6 +2321,12 @@ export function updateStory(id: string, s: any) {
         const other = getStory(w) as any;
         return other && other.lore_from !== id ? w : (cur.lore_from ?? null); })(),
       p('styleNote', 'style_note') ?? null,
+      // The world this book belongs to, and what is true in it. Placed to MATCH THE COLUMN ORDER
+      // above, which the note four lines up records getting wrong once — a value written two slots
+      // early shifts every one after it, and test/db.ts caught that as an unrelated field refusing
+      // to save.
+      p('world', 'world') ?? null,
+      p('worldNote', 'world_note') ?? null,
       now(), id);
 }
 /** Partial save. `undefined` means "leave it", which `updateStory` above has done since it was
