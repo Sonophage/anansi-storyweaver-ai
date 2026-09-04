@@ -72,6 +72,65 @@ assert.ok(db.ownsStory(aStory.id, alice));
 assert.ok(!db.ownsStory(aStory.id, bob), "bob must not own alice's story");
 ok('ownsStory refuses a story you do not own');
 
+/* ---- A BOOK WITH TWO WRITERS. Seth, 2026-09-03: "a shared book or books would be great. and i can
+ * call her into a book if need be."
+ *
+ * THIS IS THE ONE TABLE THAT CAN OPEN A DOOR. `ownsStory` is the single ownership question in the
+ * app and every route is behind it, so a row in `story_writers` is the only thing in the schema
+ * that makes a book answer for somebody who does not own it. Asked in every direction that matters:
+ * the guest gets in, a stranger still does not, the guest cannot delete, and taking the guest back
+ * out shuts the door again. A check that only proved the first would be a check that cannot fail
+ * on the mistake that costs something. */
+{
+  const carol = db.owner('carol');
+  // ITS OWN BOOK, not the fixture's. The first version shared `aStory` and wrote a thread into it,
+  // and a check further down — "alice's entry survived" — went red on a row it had never seen. A
+  // block that leaves state behind fails the next one for a reason that has nothing to do with it.
+  const shared = db.createStory(alice, { title: 'Written together' });
+  db.addWriter(shared.id, bob);
+
+  assert.ok(db.ownsStory(shared.id, bob), 'a writer called into a book can reach it');
+  assert.ok(db.ownsStory(shared.id, alice), "and the owner still can");
+  assert.ok(!db.ownsStory(shared.id, carol), 'a third writer still cannot — sharing is not opening');
+
+  // IT IS ON THE GUEST'S SHELF, which is the half a gate check cannot see: a book you may write in
+  // and cannot find is a book you do not have.
+  assert.ok(db.listStories(bob).some((r: any) => r.id === shared.id),
+    "a shared book is on the guest's shelf");
+  assert.ok(db.listStories(alice).some((r: any) => r.id === shared.id),
+    "and has not left the owner's");
+  assert.ok(!db.listStories(carol).some((r: any) => r.id === shared.id),
+    'and is on nobody else\'s');
+
+  // AND ITS THREADS COME WITH IT. `entriesOf` is scoped to the story rather than the writer, so
+  // this needed no change at all — asserted because "no change" is exactly the claim that is worth
+  // being wrong about, and the cross-book ledger DID need one.
+  db.upsertEntry(shared.id, alice, { title: 'A shared thread', body: '[it is here]' });
+  assert.ok(db.ledgerOf(bob).some((e: any) => e.title === 'A shared thread'),
+    "a shared book's threads reach the guest's cross-book ledger");
+  assert.ok(!db.ledgerOf(carol).some((e: any) => e.title === 'A shared thread'),
+    'and not a stranger\'s');
+
+  // DELETING IS NOT SHARED. Being called in to write is not being handed the power to remove
+  // somebody's book, and `deleteStory` is deliberately still owner-only.
+  db.delStory(shared.id, bob);
+  assert.ok(db.ownsStory(shared.id, alice), 'a guest cannot delete the book they were called into');
+
+  // AND THE DOOR SHUTS AGAIN.
+  db.dropWriter(shared.id, bob);
+  assert.ok(!db.ownsStory(shared.id, bob), 'taking a writer back out shuts the door');
+  assert.ok(!db.listStories(bob).some((r: any) => r.id === shared.id),
+    'and takes the book off their shelf');
+
+  const who = db.writersOf(shared.id);
+  assert.deepStrictEqual(who.map((w: any) => w.login), ['alice'], 'and the book names its writers');
+  db.addWriter(shared.id, bob);
+  assert.deepStrictEqual(db.writersOf(shared.id).map((w: any) => w.login), ['alice', 'bob'],
+    'owner first, then who was called in');
+  db.dropWriter(shared.id, bob);
+  ok('a book can be shared with a second writer, and unshared, and the gate follows both ways');
+}
+
 // 4. Defence in depth: even past the gate, a foreign id must do nothing.
 db.editPassage(bStory.id, aPassage, 'BOB WAS HERE');
 assert.strictEqual((db.passagesOf(aStory.id)[0] as any).body, 'Alice wrote this.',

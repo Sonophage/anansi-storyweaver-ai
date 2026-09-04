@@ -681,6 +681,25 @@ CREATE INDEX IF NOT EXISTS entry_edges_story ON entry_edges(story_id);
 --
 -- One column of JSON rather than four columns, because these are read and written as a set and
 -- nothing queries on them. A fifth setting is then a change to one surface, not a migration.
+-- A BOOK WITH MORE THAN ONE WRITER. Seth, 2026-09-03: "a shared book or books would be great. and
+-- i can call her into a book if need be."
+--
+-- A TABLE RATHER THAN A SECOND COLUMN ON stories. stories.owner_id stays exactly what it is: who
+-- made the book, and the only one who can delete it. This says who else may write in it. A
+-- shared_with column would have meant "the other one", which is a shape that has to be undone the
+-- first time a third person is invited.
+--
+-- THE GATE READS THIS. ownsStory is the one ownership question in the app and every route is
+-- behind it; a row here is what makes a book answer for somebody who does not own it. That is the
+-- whole of the risk in this table, which is why test/scope.ts asks it in both directions.
+-- (No backticks in here: this whole schema is one template literal and one would end it. That is
+--  a documented trap in this file and test/all.ts catches it, which is how this was caught.)
+CREATE TABLE IF NOT EXISTS story_writers (
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (story_id, owner_id));
+
 CREATE TABLE IF NOT EXISTS writer_look (
   owner_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   look TEXT NOT NULL,
@@ -819,7 +838,7 @@ export const listStories = (o: string) => q(`
     SELECT s.id AS sid,
            COALESCE(s.active_branch,
              (SELECT b.id FROM branches b WHERE b.story_id = s.id AND b.is_primary = 1)) AS bid
-      FROM stories s WHERE s.owner_id = ?),
+      FROM stories s WHERE ${MINE()}),
   tip AS (
     SELECT cur.sid AS sid, p.chapter_id AS cid,
            -- The TAIL, marked when it is one. The client takes the last sentences off this,
@@ -853,7 +872,7 @@ export const listStories = (o: string) => q(`
     FROM stories s JOIN cur ON cur.sid = s.id
     LEFT JOIN tip ON tip.sid = s.id
     LEFT JOIN chapters ch ON ch.id = tip.cid
-   ORDER BY s.updated_at DESC`).all(o);
+   ORDER BY s.updated_at DESC`).all(o, o);
 
 export function createStory(o: string, s: any) {
   const id = uid('s-'), b = uid('b-'), c = uid('c-'), t = now();
@@ -932,7 +951,7 @@ export const entryImagesOf = (storyId: string): Record<string, number> =>
 export const imagesOf = (ownerId: string) => q(`
   SELECT i.entry_id, i.story_id, i.set_at FROM entry_images i
     JOIN stories s ON s.id = i.story_id
-   WHERE s.owner_id = ?`).all(ownerId) as any[];
+   WHERE ${MINE()}`).all(ownerId, ownerId) as any[];
 
 export const entryImageBytes = (storyId: string, entryId: string): Uint8Array | null =>
   (q('SELECT jpeg FROM entry_images WHERE entry_id = ? AND story_id = ?')
@@ -1007,8 +1026,32 @@ export function setStoryLook(storyId: string, ownerId: string, look: any) {
 /** The only ownership question, asked in one place. Postgres would do this with RLS;
  *  on SQLite it is a gate in the dispatcher plus the scoped writes below, because
  *  per-handler discipline is exactly the thing that gets forgotten. */
+/** BOOKS YOU MAY WRITE IN: yours, or one you were called into. One predicate, because there is one
+ *  question — and every read that used to say `s.owner_id = ?` is a place a shared book would
+ *  otherwise be invisible from. Takes the owner id TWICE, which is the cost of not having a view.
+ *
+ *  NOT for deleting. `deleteStory` stays `owner_id = ?`: being called in to write is not being
+ *  handed the power to remove somebody's book. */
+export const MINE = (a = 's.') => `(${a}owner_id = ? OR EXISTS (
+  SELECT 1 FROM story_writers w WHERE w.story_id = ${a}id AND w.owner_id = ?))`;
+
 export const ownsStory = (storyId: string, ownerId: string) =>
-  !!q('SELECT 1 FROM stories WHERE id = ? AND owner_id = ?').get(storyId, ownerId);
+  !!q(`SELECT 1 FROM stories s WHERE s.id = ? AND ${MINE()}`).get(storyId, ownerId, ownerId);
+
+/** Who writes in this book: the owner first, then anyone called in, as logins. */
+export const writersOf = (storyId: string) => q(
+  `SELECT u.id, u.login, (u.id = s.owner_id) AS owns FROM stories s
+     JOIN users u ON u.id = s.owner_id OR u.id IN (
+       SELECT w.owner_id FROM story_writers w WHERE w.story_id = s.id)
+    WHERE s.id = ? ORDER BY owns DESC, u.login`).all(storyId) as any[];
+
+/** Call someone into a book, or take them back out. Owner only — asserted by the caller, which is
+ *  the route, because that is where `c.owner` is known to be the person asking. */
+export const addWriter = (storyId: string, ownerId: string) =>
+  q('INSERT OR IGNORE INTO story_writers (story_id, owner_id, added_at) VALUES (?,?,?)')
+    .run(storyId, ownerId, now());
+export const dropWriter = (storyId: string, ownerId: string) =>
+  q('DELETE FROM story_writers WHERE story_id = ? AND owner_id = ?').run(storyId, ownerId);
 /** Reads follow the ACTIVE branch. Every one of these used to return rows from every branch
  *  at once, which is invisible while there is one branch and nonsense the moment there are two. */
 export const activeBranchOf = (storyId: string): string => {
@@ -1145,7 +1188,7 @@ export const followersOf = (id: string) =>
 export const ledgerOf = (ownerId: string) => q(`
   SELECT e.*, s.title AS story_title, s.id AS story
   FROM entries e JOIN stories s ON s.id = e.story_id
-  WHERE s.owner_id = ? AND ${LIVE('e.')} ORDER BY s.updated_at DESC, e.rowid`).all(ownerId) as any[];
+  WHERE ${MINE()} AND ${LIVE('e.')} ORDER BY s.updated_at DESC, e.rowid`).all(ownerId, ownerId) as any[];
 
 /** Every ROOM this owner has, across every book. #22's blocker: the cross-story Threads page could
  *  not show a room or switch one on because `GET /api/ledger` had never sent one — a page that
@@ -1155,7 +1198,7 @@ export const ledgerOf = (ownerId: string) => q(`
  *  card is the shape that is fine at twelve books and quietly is not at fifty. */
 export const roomsOf = (ownerId: string) => q(`
   SELECT a.* FROM addons a JOIN stories s ON s.id = a.story_id
-  WHERE s.owner_id = ? AND a.entry_id IS NOT NULL ORDER BY a.slot, a.created_at`).all(ownerId) as any[];
+  WHERE ${MINE()} AND a.entry_id IS NOT NULL ORDER BY a.slot, a.created_at`).all(ownerId, ownerId) as any[];
 export const branchesOf = (id: string) => q('SELECT * FROM branches WHERE story_id = ? ORDER BY created_at').all(id) as any[];
 
 /** Append a passage to the END OF ITS CHAPTER, not the end of the book.
@@ -2365,22 +2408,22 @@ export const search = (o: string, term: string, storyId?: string) => {
   const scope = (alias: string) => (storyId ? `AND ${alias}.story_id = ?` : '');
   const args: any[] = [];
   const push = (...a: any[]) => { args.push(...a); if (storyId) args.push(storyId); };
-  push(o, like);            // prose
-  push(o, like, like);      // entries
-  push(o, like);            // summaries
+  push(o, o, like);         // prose      — MINE names the owner twice
+  push(o, o, like, like);   // entries
+  push(o, o, like);         // summaries
   return q(`
     SELECT 'Prose' AS kind, p.story_id AS story_id, s.title AS story_title,
            'ch ' || c.idx AS loc, p.body AS body, p.id AS id
       FROM passages p JOIN stories s ON s.id = p.story_id JOIN chapters c ON c.id = p.chapter_id
-     WHERE s.owner_id = ? AND p.selected = 1 AND p.body LIKE ? ${scope('p')}
+     WHERE ${MINE()} AND p.selected = 1 AND p.body LIKE ? ${scope('p')}
     UNION ALL
     SELECT 'Entry', e.story_id, s.title, e.title, e.body, e.id
       FROM entries e JOIN stories s ON s.id = e.story_id
-     WHERE s.owner_id = ? AND (e.title LIKE ? OR e.body LIKE ?) AND ${LIVE('e.')} ${scope('e')}
+     WHERE ${MINE()} AND (e.title LIKE ? OR e.body LIKE ?) AND ${LIVE('e.')} ${scope('e')}
     UNION ALL
     SELECT 'Summary', c.story_id, s.title, 'ch ' || c.idx, c.summary, c.id
       FROM chapters c JOIN stories s ON s.id = c.story_id
-     WHERE s.owner_id = ? AND c.summary IS NOT NULL AND c.summary LIKE ? ${scope('c')}
+     WHERE ${MINE()} AND c.summary IS NOT NULL AND c.summary LIKE ? ${scope('c')}
      LIMIT 60`).all(...args) as any[];
 };
 
@@ -2885,6 +2928,11 @@ export const modelSpeeds = () => {
 /** What this writer has actually done. Every number here was already in the database — the
  *  dashboard needed counting, not new bookkeeping. Words are counted in SQL over selected
  *  passages only, so unchosen takes are not credited as writing you did. */
+/* SHARED BOOKS ARE NOT COUNTED HERE, and that is a decision rather than an omission. This page is
+ * "What you have written"; a book you were called into is mostly somebody else's words, and
+ * crediting yourself with all of it would make the one honest number on the page a lie. Counting it
+ * properly means counting by PASSAGE AUTHOR rather than by book, which is a different query and a
+ * different page — the shelf is where a shared book shows up. */
 export function writerStats(o: string) {
   const one = (sql: string, ...a: any[]) => (q(sql).get(o, ...a) as any) ?? {};
   const words = one(`SELECT COALESCE(SUM(LENGTH(p.body) - LENGTH(REPLACE(p.body,' ','')) + 1), 0) AS n
