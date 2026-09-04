@@ -178,6 +178,46 @@ ok('ownsStory refuses a story you do not own');
   assert.strictEqual(write('coop'), bob, 'and co-op is the one that hands it over');
   db.dropWriter(shared.id, bob);
   ok('the move passes on a co-op turn, never in a book written alone, and never to somebody gone');
+
+  /* ---- WHO MAY HAND OUT THE KEYS. `ownsStory` is NOT the check for this: it answers "may this
+   * person write here", which a co-writer passes — and handing out the keys is not one of the
+   * things being handed a key lets you do. Neither is evicting the person who invited you.
+   *
+   * AND A LOGIN IS RESOLVED THROUGH THE ALLOWLIST, never taken from the body. `c.mates()` is the
+   * only thing that turns a name into an account, so a body naming an account reaches nothing and
+   * a login the server would refuse at the front door cannot be let in through a book. */
+  {
+    const mates = [{ login: 'bob', id: bob }];
+    const ctx = (owner: string, body: any) => ({ body, query: new URLSearchParams(), owner,
+      slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+      defaultModel: null, setDefaultModel: () => {}, admin: false, mates: () => mates }) as any;
+    const share = (owner: string, body: any) => (routes['POST /api/writers'] as any)(ctx(owner, body));
+
+    const asOwner = share(alice, { storyId: shared.id, login: 'bob' });
+    assert.ok(!asOwner.error, `the owner can call somebody in: ${asOwner.error ?? ''}`);
+    assert.ok(db.ownsStory(shared.id, bob), 'and it takes effect');
+
+    assert.match(share(bob, { storyId: shared.id, login: 'bob' }).error ?? '', /only the owner/,
+      'a co-writer cannot hand out the keys they were given');
+    assert.match(share(carol, { storyId: shared.id, login: 'bob' }).error ?? '', /only the owner/,
+      'and a stranger cannot');
+    assert.ok(db.ownsStory(shared.id, bob), 'and neither refusal changed anything');
+
+    // A NAME THE SERVER DOES NOT KNOW. This is what stops a book being shared with somebody the
+    // front door would refuse — and an ACCOUNT id in the body is exactly such a name.
+    assert.match(share(alice, { storyId: shared.id, login: 'nobody' }).error ?? '', /no such writer/,
+      'a login that is not on the allowlist is refused');
+    assert.match(share(alice, { storyId: shared.id, login: carol }).error ?? '', /no such writer/,
+      'and an account id in the body reaches nothing — the body names a person, not an account');
+
+    // TAKING THEM OUT IS THE OWNER'S TOO, and it must not be how a guest removes the owner.
+    assert.match(share(bob, { storyId: shared.id, login: 'bob', remove: true }).error ?? '',
+      /only the owner/, 'a co-writer cannot take themselves — or anybody — out');
+    assert.ok(!share(alice, { storyId: shared.id, login: 'bob', remove: true }).error,
+      'the owner can');
+    assert.ok(!db.ownsStory(shared.id, bob), 'and it takes effect');
+  }
+  ok('only the owner of a book can call somebody into it, and only by a login the server knows');
 }
 
 // 4. Defence in depth: even past the gate, a foreign id must do nothing.

@@ -251,7 +251,7 @@ let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null
 let MANIERR = null;   // why there is no manifest, when there is none
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
 // separate status route, and activity returns only generation rows.
-let SRV = { model: null, slot: null, gen: {}, admin: false, demo: false, me: null };
+let SRV = { model: null, slot: null, gen: {}, admin: false, demo: false, me: null, mates: [] };
 // The forge's prompts, fetched once. null is 'not asked yet' and [] is 'asked and refused',
 // which are different screens — the second means this account is not the admin.
 let FORGE = null;
@@ -443,6 +443,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #36. A followed card, per card. `unlink` was taken by the entry-LINKS feature years of commits
   // ago, so these say what they do to a followed thread instead of reusing that word.
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
+  'share', 'unshare',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
   'newstring', 'delstring', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'reseed', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
@@ -2929,6 +2930,41 @@ const PANELS = {
         <button class="btn ghost" data-forkthreads="1" style="flex:1">Start a new book from
           these threads</button>
         ${tipMark('sForkThreads', 'Starting a new book from these threads')}</div>
+
+      <!-- WRITE IT WITH SOMEBODY. Seth, 2026-09-03: "i can call her into a book if need be."
+           UNDER KEEP, beside taking a book with you and putting it away: all three are about what
+           happens to the book rather than about what is in it.
+           DRAWN ONLY WHERE IT MEANS SOMETHING. With nobody else allowed on this server there is
+           nobody to call, and a picker with no options is a control that looks broken. -->
+      ${(() => {
+        const mates = SRV.mates ?? [];
+        const writers = V.writers ?? [];
+        const owner = writers.find((w) => w.owns);
+        const already = new Set(writers.map((w) => w.login));
+        const free = mates.filter((m) => !already.has(m));
+        // Only the owner hands out the keys — the route refuses anybody else, and a control that
+        // is refused is a control that should not have been drawn.
+        if (!mates.length || (owner && owner.id !== SRV.me)) return '';
+        return `<div class="lbl" style="letter-spacing:.1em; margin-top:26px">Write it with someone${
+          tipMark('sShare', 'Writing it with someone')}</div>
+        ${tipCard('sShare', 'Writing it with someone', `<p>They get the book and everything in it
+          &mdash; its threads, their rooms and what changed about them over time. They cannot delete
+          it.</p>
+          <p>With two of you in a book, <strong>Co-op</strong> appears on the composer's dial: your
+          part goes on the page and the move passes to them, without asking Anansi. A light along
+          the top of the screen says when it is your move.</p>`)}
+        ${writers.filter((w) => !w.owns).map((w) => `<div class="row">
+          <span style="color:var(--ink)">${esc(w.login)}</span>
+          <button class="btn ghost" data-unshare="${esc(w.login)}" style="margin-left:auto;
+            width:auto; padding:0 14px; height:32px; font-size:11.5px">Take them out</button></div>`).join('')}
+        ${free.length ? `<div style="display:flex; gap:7px; align-items:center; margin-top:8px">
+          <select class="field" id="f-share" aria-label="Who to write this book with" style="margin:0; flex:1">
+            ${free.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}
+          </select>
+          <button class="btn ghost" data-share="1" style="width:auto; padding:0 16px; height:38px;
+            font-size:12px; white-space:nowrap">Call them in</button></div>`
+        : '<div class="hint" style="margin:6px 0 0">Everybody here is already in this book.</div>'}`;
+      })()}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Put it away${
         tipMark('sArchive', 'Put it away')}</div>
@@ -6758,7 +6794,7 @@ async function loadLibrary() {
   if (r.error) return toast(r.error);
   LIB = r.stories ?? [];
   SRV = { model: r.model ?? null, slot: r.slot ?? null, gen: r.gen ?? {}, admin: !!r.admin,
-    demo: !!r.demo, me: r.me ?? null };
+    demo: !!r.demo, me: r.me ?? null, mates: r.mates ?? [] };
   // The server is the authority on your default; the cache was only there to paint before this
   // answered. A writer on a second device gets their own settings rather than the shipped ones.
   if (r.look && Object.keys(r.look).length) { Object.assign(MYLOOK, r.look); cacheMine(); }
@@ -8474,6 +8510,18 @@ document.addEventListener('click', async (e) => {
   if (d.scalepick) return void changeLook({ scale: d.scalepick });
   // Take the book's look as your own, everywhere. The book keeps it as well — this is a copy
   // upwards, not a move, so pressing it does not change what is in front of you.
+  /* CALL SOMEBODY IN, OR TAKE THEM OUT. The select is read here rather than carried on the button,
+   * because the button does not change when the picker does. `loadLibrary` after it: sharing a book
+   * changes whose shelf it is on and whether a move is owed, which is what the light at the top
+   * reads. */
+  if (d.share || d.unshare) {
+    const login = d.unshare || $('f-share')?.value;
+    if (!login) return;
+    const r = await api.shareStory(S.storyId, login, !!d.unshare);
+    if (r.error) return toast(r.error);
+    V = r; await loadLibrary(); paint();
+    return toast(d.unshare ? `${login} is out of this book.` : `${login} writes here now.`);
+  }
   if (d.lookmine) {
     Object.assign(MYLOOK, look); cacheMine(); drawAppearance();
     const r = await api.saveLook({ look: MYLOOK });

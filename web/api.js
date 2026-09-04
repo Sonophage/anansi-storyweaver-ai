@@ -170,6 +170,8 @@ export const api = {
   // With a storyId it is that book's look; without one it is your default for every book.
   // `look: null` and a storyId puts the book back to following you.
   saveLook:     (o)              => j('/api/look', 'POST', o),
+  // Calling somebody into a book, or taking them out. A LOGIN, never an account id.
+  shareStory:   (storyId, login, remove) => j('/api/writers', 'POST', { storyId, login, remove }),
   history:      (q)              => j(`/api/history?${new URLSearchParams(q)}`),
   revertField:  (o)              => j('/api/revert', 'POST', o),
   revert:       (o)              => j('/api/revert', 'POST', o),

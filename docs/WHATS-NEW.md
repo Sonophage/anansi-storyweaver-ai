@@ -10,6 +10,30 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-03 · Writing a book with somebody else
+
+### Call someone into a book
+Under **Keep** on the Story screen: **Write it with someone**. Pick a name and they can write in
+that book. They get everything in it — its threads, their rooms, and what changed about them over
+time. They cannot delete it, and only you can call people in or take them out.
+
+The control only appears if there is somebody else on this server to call.
+
+### Co-op
+With two of you in a book, **Co-op** appears on the composer's dial beside Speak, Act, Direct and
+Narrate. In Co-op your part goes on the page and the move passes to the other writer — Anansi is
+not asked at all.
+
+When you are stuck, change the dial to **Direct** and ask for a beat as usual. The move stays with
+you, because you have not written your part yet.
+
+Passages the other writer adds get their own colour down the margin, so reading back tells you
+whose hand wrote what.
+
+### It says whose move it is; it never stops you writing
+Nothing is locked. When it is your move, the light along the top of the screen says so and
+**Waiting** carries it. If they are ignoring their turn, nothing nags you about it inside the book.
+
 ## 2026-09-03 · A light when something wants you, and the ring whenever Anansi is working
 
 ### The ring is up for everything Anansi does

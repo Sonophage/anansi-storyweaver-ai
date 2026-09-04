@@ -301,6 +301,19 @@ const handler = async (req: any, res: any) => {
       // routes.ts cannot answer this on its own — and getting it wrong means taking a model out
       // from under somebody mid-book.
       otherDefaults: () => db.otherDefaultModels(OWNER),
+      /* WHO ELSE COULD BE CALLED INTO A BOOK. The allowlist lives out here, so routes.ts cannot
+       * answer this on its own — the same reason `otherDefaults` is a function on the context.
+       *
+       * LOGINS AND THEIR ACCOUNTS, and the route only ever resolves a login THROUGH this list. The
+       * client names a person, never an account: an account name over the wire is a request to be
+       * somebody, which is the argument the demo switch above already makes. A login that is not
+       * on this list resolves to nothing and the route refuses it.
+       *
+       * REAL, not OWNER: while the demo library is on, you are looking at somebody else's shelf and
+       * the people you may write with are still yours. */
+      mates: () => [...ALLOW.entries()]
+        .map(([login, account]) => ({ login, id: db.owner(account) }))
+        .filter((m) => m.id !== REAL),
       // THE REAL IDENTITY DECIDES THIS, never the demo one. Admin is who may stop the router;
       // borrowing the demo library must not borrow that, and the demo account must never grant it.
       admin: REAL === db.owner(ADMIN),

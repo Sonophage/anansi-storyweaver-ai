@@ -1256,6 +1256,8 @@ export const routes: Record<string, Handler> = {
     // writer — both are on the same row and only one of them is a thing that wants you. An id and
     // not a login: the client never names an account, and this is the only thing it is compared to.
     me: c.owner,
+    // Who this writer could call into a book. Logins only — the client never names an account.
+    mates: (c.mates?.() ?? []).map((m: any) => m.login),
     slot: c.slot, gen: c.gen,
     // The writer's own default look. It rides this call because this is the first thing every
     // surface asks for, so there is no second round trip before the app can paint itself.
@@ -2166,6 +2168,28 @@ export const routes: Record<string, Handler> = {
    *
    * Called at the TOP of each, before anything is written or any prompt is built, so the passage
    * being claimed is in the context of the call that claims it rather than arriving a beat later. */
+  /* CALL SOMEBODY INTO A BOOK, or take them back out. Seth, 2026-09-03: "i can call her into a
+   * book if need be."
+   *
+   * THE OWNER ONLY, and `ownsStory` is not the check for that — it answers "may this person write
+   * here", which a co-writer passes. Handing out the keys is not one of the things being handed a
+   * key lets you do, and neither is evicting the person who invited you.
+   *
+   * A LOGIN, RESOLVED THROUGH THE ALLOWLIST. The body names a person; `c.mates()` is the only
+   * thing that turns that into an account, so a body naming an account reaches nothing. A login
+   * that is not on the allowlist has no id here and is refused — which is also what stops a book
+   * being shared with somebody the server would not let in the front door anyway.
+   */
+  'POST /api/writers': (c) => {
+    const st = db.getStory(c.body.storyId);
+    if (!st || st.owner_id !== c.owner) return { error: 'only the owner can share a book' };
+    const mate = (c.mates?.() ?? []).find((m: any) => m.login === c.body.login);
+    if (!mate) return { error: 'no such writer here' };
+    if (c.body.remove) db.dropWriter(st.id, mate.id);
+    else db.addWriter(st.id, mate.id);
+    return viewOf(st.id);
+  },
+
   'POST /api/write':   (c) => {
     db.claimPassages(c.body.storyId);
     // The chapter you are READING is the chapter you write into. Without this the route always
