@@ -9,6 +9,7 @@
 // rows that reference it), and the ordinal index is PARTIAL — a full UNIQUE(branch_id, ordinal)
 // makes regenerate fail on insert, because variants share an ordinal and differ by variant_index.
 import { DatabaseSync } from 'node:sqlite';
+import * as live from './live.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readdirSync, unlinkSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -1054,13 +1055,19 @@ export const writersOf = (storyId: string) => q(
 
 /** Call someone into a book, or take them back out. Owner only — asserted by the caller, which is
  *  the route, because that is where `c.owner` is known to be the person asking. */
-export const addWriter = (storyId: string, ownerId: string) =>
-  q('INSERT OR IGNORE INTO story_writers (story_id, owner_id, added_at) VALUES (?,?,?)')
+export const addWriter = (storyId: string, ownerId: string) => {
+  const r = q('INSERT OR IGNORE INTO story_writers (story_id, owner_id, added_at) VALUES (?,?,?)')
     .run(storyId, ownerId, now());
+  // Being called into a book is a change to somebody else's shelf, so it goes through `touch` —
+  // that is what puts it on their screen without a refresh.
+  touch(storyId);
+  return r;
+};
 export const dropWriter = (storyId: string, ownerId: string) => {
   q('DELETE FROM story_writers WHERE story_id = ? AND owner_id = ?').run(storyId, ownerId);
   // A turn cannot be owed to somebody who is no longer in the book.
   q('UPDATE stories SET turn = NULL WHERE id = ? AND turn = ?').run(storyId, ownerId);
+  touch(storyId);
 };
 
 /** HAND THE TURN OVER. Called when a co-op passage lands, and by nothing else: Seth, 2026-09-03,
@@ -1075,6 +1082,11 @@ export const dropWriter = (storyId: string, ownerId: string) => {
 export function handOver(storyId: string, from: string) {
   const other = (writersOf(storyId) as any[]).map((w) => w.id).find((id) => id !== from);
   q('UPDATE stories SET turn = ? WHERE id = ?').run(other ?? null, storyId);
+  /* THROUGH `touch`, and the check in test/scope.ts is what found this missing. A raw UPDATE moved
+   * the turn without announcing it, so the light on the other writer's screen waited for their next
+   * paint — which is exactly the half of "these need to be instant" that is about co-op rather than
+   * about prose. The passage was live and the move was not. */
+  touch(storyId);
   return other ?? null;
 }
 /** Reads follow the ACTIVE branch. Every one of these used to return rows from every branch
@@ -2419,7 +2431,14 @@ export function updateChapter(storyId: string, id: string, c: any) {
 export const delStory = (id: string, ownerId?: string) => ownerId
   ? q('DELETE FROM stories WHERE id = ? AND owner_id = ?').run(id, ownerId)
   : q('DELETE FROM stories WHERE id = ?').run(id);
-const touch = (id: string) => q('UPDATE stories SET updated_at = ? WHERE id = ?').run(now(), id);
+/** THE ONE PLACE A BOOK IS MARKED AS MOVED, and now the one place that says so out loud. Twenty-five
+ *  callers reach this — a passage, a thread, a chapter, a look, a turn — so a live channel hung here
+ *  covers every change without a list of routes to keep in step. See src/live.ts. */
+const touch = (id: string) => {
+  const r = q('UPDATE stories SET updated_at = ? WHERE id = ?').run(now(), id);
+  live.changed(id);
+  return r;
+};
 
 // ponytail: LIKE scan over every selected passage. Fine at this size, linear at chapter 40.
 // Upgrade to FTS5 when it is measurably slow — an earlier revision created the table and never

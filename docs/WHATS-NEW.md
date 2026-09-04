@@ -10,6 +10,20 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-03 · What the other writer does arrives on its own
+
+### No more refreshing
+When the other writer adds a passage in a book you share, it appears. When the move passes to you,
+the light along the top comes on. When you are called into a book, it turns up on your shelf. None
+of it waits for a reload any more.
+
+The page reconnects by itself if the laptop sleeps, the network drops, or the server is restarted
+mid-sentence — there is nothing to press and nothing to notice.
+
+Two things it deliberately does not do. It never redraws for something **you** just did, because
+your page already has it. And it never redraws **while Anansi is writing** — a passage arriving
+under the veil is the one thing that would take a take off the screen before you had read it.
+
 ## 2026-09-03 · Writing a book with somebody else
 
 ### Call someone into a book

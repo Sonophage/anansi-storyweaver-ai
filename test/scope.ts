@@ -218,6 +218,80 @@ ok('ownsStory refuses a story you do not own');
     assert.ok(!db.ownsStory(shared.id, bob), 'and it takes effect');
   }
   ok('only the owner of a book can call somebody into it, and only by a login the server knows');
+
+  /* ---- THE LIVE CHANNEL. Seth, 2026-09-03: what the other writer does "needs to be instant."
+   *
+   * ASSERTED AT THE BUS, which is where the rule lives that a route could get wrong: a change
+   * announces itself and carries WHO made it, so `serve.ts` can drop a writer's own press before
+   * it is sent. `touch()` is the one place a book is marked as moved and has twenty-five callers,
+   * so hanging the channel there is what makes this cover a passage, a thread, a chapter and a turn
+   * without a list of routes to keep in step — and that breadth is the thing worth proving.
+   *
+   * WHAT IS NOT COVERED HERE: the `c.by === OWNER` drop and the ownership check in serve.ts, which
+   * need two identities on one process and loopback only ever resolves to one. The own-press half
+   * was verified by hand against a throwaway server — an SSE reader saw zero events from its own
+   * write — and is written down rather than claimed. */
+  {
+    const live = await import('../src/live.ts');
+    const seen: any[] = [];
+    const off = live.onChange((c) => seen.push(c));
+    try {
+      live.asWriter(bob);
+      const p = db.addPassage({ storyId: shared.id, branchId: db.activeBranchOf(shared.id),
+        chapterId: db.chapters(shared.id)[0].id, body: 'a line from the other writer', author: 'human' });
+      assert.ok(p, 'the passage landed');
+      assert.ok(seen.some((c) => c.storyId === shared.id && c.by === bob),
+        'writing a passage announces the book, and says who wrote it');
+
+      // A TURN IS A CHANGE TOO — it is the whole of what the other writer is waiting on, and it
+      // goes through the same `touch`. A channel that carried prose and not the move would be
+      // instant for half of what Seth asked for.
+      seen.length = 0;
+      live.asWriter(alice);
+      db.handOver(shared.id, alice);
+      assert.ok(seen.some((c) => c.storyId === shared.id && c.by === alice),
+        'and so does handing the move over');
+
+      // NOBODY, when no request is in flight. `by` is module state and serve.ts clears it after
+      // every handler — without that, the nightly export would be attributed to whoever pressed
+      // something last and suppressed for exactly the writer most likely to be watching.
+      seen.length = 0;
+      live.asWriter(null);
+      db.handOver(shared.id, bob);
+      assert.ok(seen.some((c) => c.storyId === shared.id && c.by === null),
+        'a change with no request behind it belongs to nobody, so everybody hears it');
+    } finally { off(); live.asWriter(null); }
+
+    // AND A DROPPED LISTENER STOPS BEING TOLD. One held after its response is dead writes to a
+    // closed socket for the life of the process.
+    const after = seen.length;
+    db.handOver(shared.id, alice);
+    assert.strictEqual(seen.length, after, 'unsubscribing is what stops the writes');
+  }
+  /* ---- AND WHO IS TOLD. The one rule on the live path that can be wrong invisibly: a reader who
+   * hears about a book they cannot open is a leak, and a reader who hears their own press gets a
+   * second repaint that can only be staler than the one they already had.
+   *
+   * A FUNCTION, so it can be asked. The first version was a pair of `if`s inside the SSE handler,
+   * where the only way to test it was to hold a live socket and two identities on one process —
+   * and loopback resolves to exactly one, so it could not have been tested at all. */
+  {
+    const live = await import('../src/live.ts');
+    const change = (by: string | null) => ({ storyId: shared.id, by, at: Date.now() });
+    assert.strictEqual(live.shouldTell(change(bob), alice, true), true,
+      "the other writer's change reaches you");
+    assert.strictEqual(live.shouldTell(change(alice), alice, true), false,
+      'your own press does not — your page already has it');
+    assert.strictEqual(live.shouldTell(change(bob), carol, false), false,
+      'and a book you cannot open never reaches you at all');
+    assert.strictEqual(live.shouldTell(change(null), alice, true), true,
+      'a change with nobody behind it reaches everybody who can see the book');
+    // BOTH REASONS, INDEPENDENTLY. `canSee && by !== me` passes for the wrong reason if either half
+    // is dropped, so the case that is false for BOTH is not enough on its own.
+    assert.strictEqual(live.shouldTell(change(alice), alice, false), false,
+      'and neither half alone lets something through');
+  }
+  ok('a change announces the book it happened in, says who made it, and stops when nobody listens');
 }
 
 // 4. Defence in depth: even past the gate, a foreign id must do nothing.

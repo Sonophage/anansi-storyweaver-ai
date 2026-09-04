@@ -12,6 +12,8 @@ import type { Ctx } from './src/routes.ts';
 import { slotContext, model } from './src/llama.ts';
 import { capFor } from './src/story.ts';
 import * as db from './src/db.ts';
+// `bus`, not `live`: this file already has a `live` Map of the generations in flight.
+import * as bus from './src/live.ts';
 
 const PORT = Number(process.env.ANANSI_PORT ?? 5174);
 // A dev server serves the same app.html as the live one from the same source, and two identical
@@ -210,6 +212,45 @@ const handler = async (req: any, res: any) => {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('not a writer here\n');
     }
+    /* THE LIVE CHANNEL. Seth, 2026-09-03: what the other writer does "needs to be instant."
+     *
+     * SSE AND NOT NDJSON, which is the opposite call from the generation stream forty lines below —
+     * and for the reason that one gives. It refuses EventSource because it must POST a body. This
+     * carries no body, so EventSource is exactly right, and what it brings is the half that matters
+     * on a laptop that sleeps: the browser reconnects on its own, for ever, with no code here.
+     *
+     * IT SAYS "ASK AGAIN", NEVER WHAT CHANGED. The client refetches through the routes it already
+     * has, so nothing on this path can hand a writer a row the gate would refuse — and there is one
+     * ownership question in this app rather than two.
+     *
+     * BEFORE THE ROUTE TABLE, because it holds the response open for hours and the dispatcher below
+     * ends every request it handles.
+     */
+    if (p === '/api/live') {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+      res.write(': open\n\n');
+      const push = (o: unknown) => {
+        if (res.writableEnded) return false;
+        try { res.write(`data: ${JSON.stringify(o)}\n\n`); return true; } catch { return false; }
+      };
+      const off = bus.onChange((c) => {
+        // The rule is in live.ts so it can be asked a question by a test — see shouldTell. The
+        // ownership half is evaluated HERE because it is a database question, and lazily, so a
+        // change in a book this reader cannot open costs one comparison rather than a query.
+        if (c.by === OWNER) return;
+        if (!bus.shouldTell(c, OWNER, db.ownsStory(c.storyId, OWNER))) return;
+        push({ storyId: c.storyId, at: c.at });
+      });
+      // A COMMENT LINE, NOT AN EVENT. Something has to cross an idle connection or a proxy or a
+      // sleeping phone drops it silently, and a `:` line is ignored by EventSource rather than
+      // waking the client for nothing.
+      const beat = setInterval(() => { if (!push || res.writableEnded) return; try { res.write(': beat\n\n'); } catch { /* gone */ } }, 25_000);
+      const shut = () => { off(); clearInterval(beat); };
+      req.on('close', shut); req.on('error', shut); res.on('close', shut);
+      return;
+    }
+
     if (PAGES[p]) {
       // no-cache, FOR THE SAME REASON THE JS BRANCH BELOW SAYS IT: these are read off disk on every
       // request so an edit is live without a restart, and with no freshness header at all a phone
@@ -334,6 +375,22 @@ const handler = async (req: any, res: any) => {
       if (!sid) return send(res, 400, { error: 'this request must name a story' });
       if (!db.ownsStory(sid, OWNER)) return send(res, 404, { error: 'no such story' });
     }
+    /* WHOSE PRESS THIS IS, for the live channel. Set here rather than threaded through every write:
+     * `touch()` in db.ts is what announces a change and it has twenty-five callers, none of which
+     * knows who is asking. Node runs one request at a time through this point, so a module-level
+     * value is the whole of what is needed — and it is set on EVERY request rather than only the
+     * writes, so a change can never be attributed to whoever pressed something last. */
+    /* CLEARED WHEN THE REQUEST IS DONE, and NOT when the handler returns. A streaming route returns
+     * `{__stream}` immediately and does its work below — so clearing it here attributed the
+     * writer's own passage to NOBODY, pushed it back to them mid-generation, and repainted the
+     * reading column while the veil was still holding the take. test/ui/veil.js caught it on the
+     * one assertion that exists for exactly that: "the passage did NOT land on the page while the
+     * veil was up". Nothing else in the tree could have.
+     *
+     * The clear still has to happen: `by` is module state, and a change with no request behind it —
+     * the nightly export, a scheduled job — would otherwise inherit whoever pressed something last
+     * and be suppressed for the one writer most likely to be watching. */
+    bus.asWriter(OWNER);
     const out = await handler(ctx);
     // NDJSON, not SSE: EventSource cannot POST, and every generation carries a body. One JSON
     // object per line — `{d}` for a delta, and the last line is exactly what the non-streaming
@@ -402,6 +459,10 @@ const handler = async (req: any, res: any) => {
     // Stop aborting a controller for a call that already finished. `delete` of an absent key is
     // free, so this needs no guard beyond the flag.
     if (generatingRef.on) live.delete(generatingRef.owner);
+    // The live channel's attribution, cleared HERE for the same reason and by the same argument:
+    // the streaming route is one of those four ways out, and it does its work long after the
+    // handler returned. See the note where it is set.
+    bus.asWriter(null);
   }
 };
 

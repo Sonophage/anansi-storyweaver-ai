@@ -6791,6 +6791,49 @@ async function loadModels() {
   loadStats();
 }
 
+/** WHAT THE OTHER WRITER JUST DID, without a refresh.
+ *
+ *  Seth, 2026-09-03: "the messages coming in isn't instant I have to refresh the page neither is
+ *  the notification for co op both need a refresh. These need to be instant."
+ *
+ *  THE SERVER SAYS "ASK AGAIN" AND NOTHING MORE. It sends a story id; everything on screen is
+ *  refetched through the routes this app already has, so there is no second way for a row to reach
+ *  a page and no second place the ownership gate has to be right.
+ *
+ *  EventSource, so the browser reconnects on its own — a laptop that sleeps, a tailnet that drops,
+ *  a server restarted mid-sentence. Nothing here retries and nothing here has to.
+ *
+ *  IT NEVER FIRES FOR YOUR OWN PRESS: the server drops those before they are sent, because your
+ *  page has already repainted from the answer to it.
+ *
+ *  NOT WHILE YOU ARE WRITING. `S.busy` is a generation in flight — refetching the book underneath
+ *  one would replace `V` while the veil is holding a take that has not landed. The light still
+ *  updates, because that is a fact about the shelf rather than about the page you are on, and the
+ *  book catches up on the next paint.
+ */
+let LIVE = null;
+function listen() {
+  if (LIVE || typeof EventSource === 'undefined') return;
+  LIVE = new EventSource('/api/live');
+  LIVE.onmessage = async (m) => {
+    let e; try { e = JSON.parse(m.data); } catch { return; }
+    await loadLibrary();                        // the light at the top, and whose move it is
+    /* NOT A REPAINT WHILE A GENERATION IS IN FLIGHT. `paint()` rebuilds the reading column, and the
+     * veil is holding a take that has not landed — repainting under it is the exact thing the veil
+     * exists to prevent, and test/ui/veil.js asserts it. The shelf is already refreshed above, so
+     * nothing is lost: the light catches up on the paint that follows the generation. */
+    if (S.busy) return;
+    if (!e.storyId || e.storyId !== S.storyId) return void paint();
+    // The chapter you are READING, not the last one: the other writer may be in a different one,
+    // and refetching theirs would move you off the page you were on.
+    V = await api.story(S.storyId, V?.currentChapter?.id);
+    paint();
+  };
+  // A DROP IS NOT AN ERROR. EventSource reconnects by itself; saying anything here would be a
+  // toast every time a phone changes network.
+  LIVE.onerror = () => {};
+}
+
 async function loadLibrary() {
   const r = await api.library();
   if (r.error) return toast(r.error);
@@ -11247,4 +11290,7 @@ window.addEventListener('hashchange', route);
   applyLook();
   await loadLibrary();
   await route();
+  // LAST, and after the first paint. The channel only ever says "ask again", so opening it before
+  // there is anything on screen would be a refetch of a page that has not been drawn yet.
+  listen();
 })();
