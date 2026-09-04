@@ -2940,8 +2940,10 @@ const PANELS = {
         const mates = SRV.mates ?? [];
         const writers = V.writers ?? [];
         const owner = writers.find((w) => w.owns);
+        // `writersOf` names people by their ACCOUNT login — `kia` — and a mate carries both, so
+        // the two are compared on the name rather than on the tailnet address.
         const already = new Set(writers.map((w) => w.login));
-        const free = mates.filter((m) => !already.has(m));
+        const free = mates.filter((m) => !already.has(m.name));
         // Only the owner hands out the keys — the route refuses anybody else, and a control that
         // is refused is a control that should not have been drawn.
         if (!mates.length || (owner && owner.id !== SRV.me)) return '';
@@ -2959,7 +2961,7 @@ const PANELS = {
             width:auto; padding:0 14px; height:32px; font-size:11.5px">Take them out</button></div>`).join('')}
         ${free.length ? `<div style="display:flex; gap:7px; align-items:center; margin-top:8px">
           <select class="field" id="f-share" aria-label="Who to write this book with" style="margin:0; flex:1">
-            ${free.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}
+            ${free.map((m) => `<option value="${esc(m.login)}">${esc(m.name)}</option>`).join('')}
           </select>
           <button class="btn ghost" data-share="1" style="width:auto; padding:0 16px; height:38px;
             font-size:12px; white-space:nowrap">Call them in</button></div>`

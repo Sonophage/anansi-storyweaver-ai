@@ -6,7 +6,8 @@
 
 
 Supersedes `PLAN-01.md`. Written 2026-08-22 against `COUNCIL-02.md`, which broke PLAN-01 in eight
-seats. `SPEC.md` rev 4 remains the **engine** reference; this document overrides it on host, auth,
+seats. `SPEC.md` rev 4 was the **engine** reference and was archived on 2026-09-03 (see
+`docs/archived/SPEC.md`); this document overrides it on host, auth,
 inference, client, prompt shape and build order, and marks the places SPEC itself must be corrected.
 
 Read order for review: `the-idea.md` → `SPEC.md` → `PROMPTS.md` → `COUNCIL-01.md` → `PLAN-01.md` →

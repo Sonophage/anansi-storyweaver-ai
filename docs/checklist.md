@@ -1,5 +1,26 @@
 # What is open — after a day's work on 2026-08-26
 
+## ⇢ CARRIED OFF `SPEC.md` WHEN IT WAS ARCHIVED, 2026-09-03
+
+Four of that document's §15 gaps were still open when it moved to `docs/archived/`. They are here so
+archiving did not quietly close them. None is urgent and none is forgotten.
+
+1. **The golden fixture (§15.1).** Roughly fifteen tuned constants are guesses that happen to be
+   written down, and stay unfalsifiable until a fixture with planted contradictions runs against
+   the checker. Some of this arrived anyway: F17's probes ship 22 synthetic cases asserting both
+   directions, which is the same idea at one check's scale.
+2. **The intra-ledger contradiction check (§15.3).** Two threads that disagree with *each other*
+   still go unnoticed — the checker reads prose against canon, never canon against canon. Cheap to
+   add on the same `check` role.
+3. **The cost ceiling (§15.5).** `generations` records enough to enforce a per-writer cap and
+   nothing enforces one. Local inference makes this a time budget rather than a money one.
+4. **Resumable streams (§15.7).** A reload mid-passage loses the in-flight generation. The veil
+   covers the wait; it does not survive a refresh.
+
+*(§15.2, "no relations graph", is NOT here: it is built. `entry_edges` exists, `context.ts` reads
+it, and a card's connections have a form.)*
+
+
 ## ⇢ ANSWERED 2026-08-28, AND WHAT IS LEFT TO DECIDE
 
 Seven questions were asked here overnight. **Five are answered and closed.** What is below them is

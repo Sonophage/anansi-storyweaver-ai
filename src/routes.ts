@@ -1256,8 +1256,10 @@ export const routes: Record<string, Handler> = {
     // writer — both are on the same row and only one of them is a thing that wants you. An id and
     // not a login: the client never names an account, and this is the only thing it is compared to.
     me: c.owner,
-    // Who this writer could call into a book. Logins only — the client never names an account.
-    mates: (c.mates?.() ?? []).map((m: any) => m.login),
+    // Who this writer could call into a book: the name to show, and the login to send back. The
+    // account id stays here — the client never names one, which is what `POST /api/writers` relies
+    // on when it resolves a login through this same list.
+    mates: (c.mates?.() ?? []).map((m: any) => ({ login: m.login, name: m.name })),
     slot: c.slot, gen: c.gen,
     // The writer's own default look. It rides this call because this is the first thing every
     // surface asks for, so there is no second round trip before the app can paint itself.

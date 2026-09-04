@@ -1,5 +1,25 @@
 # Anansi — Build Spec
 
+> **STATUS: HISTORICAL RECORD, archived 2026-09-03 at Seth's word.** This was the engine reference
+> and it is not maintained. It is kept because it is still the ARGUMENT for why the system is shaped
+> as it is, and because source comments cite it by section — `SPEC §7.1`, `§7.3/§7.5`, `§9`, `§11` —
+> which is the rule this folder runs on.
+>
+> **Where it is now wrong, in the places most likely to mislead:**
+>
+> - **§9 Writing modes.** The four here are Co-Write, Direct, Full Auto and New Scene. The app has
+>   Speak, Act, Direct, Narrate, a Continue press, and Co-op. Nothing but the word *Direct* survived.
+> - **The table names** — see the note below this one, which has been here since 2026-08-28.
+> - **§15.2, no relations graph.** Built. `entry_edges` exists, `context.ts` reads it, and a card's
+>   connections have a form.
+>
+> **Four of its §15 gaps are still open** and were carried to `docs/checklist.md` when this moved,
+> so archiving did not quietly close them: the golden fixture (§15.1), the intra-ledger
+> contradiction check (§15.3), the cost ceiling (§15.5), and resumable streams (§15.7).
+>
+> **For what is true today:** `docs/findings/BUILD-STATE.md` for what is built,
+> `docs/findings/P0-FINDINGS.md` for measured numbers, `docs/HANDOFF.md` for where a session starts.
+
 > **NAMING SUPERSEDED, 2026-08-28.** This is a design document and it is still the argument for why
 > the system is shaped as it is. It is **not** a description of the tables that exist. Almost every
 > name below was shortened when the schema was built, and a reader who greps for one and finds

@@ -29,8 +29,11 @@ list.
 
 **Docs drift from the code. The code wins.** When they disagree, read the code and fix the doc.
 
-1. `docs/findings/P0-FINDINGS.md` — measured numbers. These override `docs/SPEC.md` and the plans
-   wherever they conflict, and several already do.
+1. `docs/findings/P0-FINDINGS.md` — measured numbers. These override the plans wherever they
+   conflict, and several already do. (They used to override `docs/SPEC.md` too; that went to
+   `docs/archived/` on 2026-09-03 and is no longer a live reference at all — its writing modes and
+   half its table names had stopped describing this app. It is still cited by SECTION from source
+   comments, which is why it was archived rather than deleted.)
 2. `docs/findings/BUILD-STATE.md` — done / half-built / not started, audited against source.
 3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Fifty-one markers as
    of 2026-09-03**, counted by that command, not recalled: `app.js` 9, `db.ts` 9, `routes.ts` 9,

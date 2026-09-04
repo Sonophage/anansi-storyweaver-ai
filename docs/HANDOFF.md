@@ -1,9 +1,51 @@
-# Handoff — 2026-08-30, after the prompt-stack and ledger session
+# Handoff — 2026-09-03, after the explanations, co-op and docs session
 
-> **A LATER SESSION THE SAME DAY added §9 and §10** — the new-story ritual, and the forge. Two
-> commits, `85ae5b3` and `92350c2`, both pushed. Everything above them is still true; §9 corrects
-> one thing this file does not mention, which is that `stories.direction` no longer reaches any
-> prompt. Read §10 before adding a room to `src/slots.ts`.
+> **THIS FILE WENT FOUR DAYS WITHOUT AN UPDATE.** Sessions landed on 08-31, 09-01, 09-02 and 09-03
+> and none of them touched it, so everything below §0 is from 2026-08-30 and describes a tree that
+> has moved a long way. It is kept because §1–§10 are still the best writing on the prompt stack and
+> the ledger migration, and none of that was undone. **§0 is the only part written today.** Where §0
+> and a later section disagree, §0 was the one checked.
+>
+> If you want what is BUILT rather than what to read first, that is
+> `docs/findings/BUILD-STATE.md`, which has an audited 2026-09-03 section at its end.
+
+---
+
+## 0 · What a cold session needs first, 2026-09-03
+
+**Read `.claude/CLAUDE.md` before this file.** Then three things that cost time today:
+
+1. **`node --check web/app.js` does not check `web/app.js`.** There is no `package.json`, so node
+   reads `.js` as a script and it exits **0 on a file that does not parse** — verified against a
+   genuinely broken one, after using it as a gate all session for nothing. The real check is
+   `node --check --input-type=module < web/app.js`, which is what `test/web.ts` does.
+
+2. **`test/ui/veil.js` is in the DEFAULT scenario set and drives real generations**, despite
+   `run.sh`'s own comment saying `model`, `ritual` and `veil` are excluded. The comment is wrong;
+   the list has `veil`. It fails under load and passes on a quiet box **at the same commit** — it
+   died mid-scenario on one run and reached its verdict on the next. Two consequences: a red there
+   is not evidence until you have run it alone on an idle machine, and running the default set
+   **competes with whoever is writing** on the shared two-slot router.
+
+3. **`test/web.ts` refuses a recorded browser red.** It reads `/tmp/anansi-ui-results.json`, so a
+   `test/ui/run.sh <one-scenario>` that goes red leaves `test/all.ts` failing until the harness is
+   run again. That is the harness working, not a regression — the message says so.
+
+**Where things live now.** `docs/SPEC.md` was archived today: it is `docs/archived/SPEC.md`, it is
+not a live reference, and four of its §15 gaps were carried to `docs/checklist.md` rather than being
+closed by moving a file. The debt ledger is **51 markers** — count it, never carry the number
+forward; it has drifted twice in two days.
+
+**What landed today**, all pushed to `main`: explanations folded behind one mark above the control
+they explain; labels in real capitals; the Chapter panel in four groups; a fuller writing record;
+seeds on every generation; a live region for screen readers; the ring up for every model call; a
+light along the top when something is owed; and **co-op** — a book with a second writer, a mode that
+writes without asking the model, and a turn that says whose move it is without ever blocking.
+
+**Two known gaps in co-op**, neither hidden: `writerStats` still counts only books you own, and a
+shared passage says a second hand wrote it but not whose.
+
+---
 
 **There is one branch now: `main`.** `serial` was deleted, local and remote, at the end of this
 session on Seth's word — it had been level with `main` all day and a second name for the same commit
@@ -34,9 +76,17 @@ plain HTTP with no allow-list and says so nowhere else. What a good one looks li
   Anansi        https://0.0.0.0:5174
   writers       zlovlokvi@gmail.com, hellrigelkc@gmail.com
   admin         sonophage
-  library       9 stories · sonophage 7, kia 2
-  backup        7196 KB, keeping 12
+  model         Qwen3.6-WNTH-35B-A3B-NN
+  context       100096 / 2 slots = 50048 per slot
+  library       8 stories · sonophage 4, demo 2, kia 2
+  backup        8244 KB, keeping 12
+  off-disk      /data/anansi-backups, 8.1 MB, keeping 14
+  book export   /data/anansi-books, 8 books, daily
 ```
+
+*(Copied off a real restart on 2026-09-03, not from memory. The 08-30 version of this block was
+five lines and the banner prints nine — a "what a good one looks like" that is missing half of it
+teaches you to accept half of it. The counts drift; the SHAPE is the thing to check.)*
 
 `~/.config/systemd/user/anansi.service` is enabled and reads `EnvironmentFile=<repo>/.env`, which is
 gitignored. **Give a boot ten seconds before you curl it** — a `curl` fired in the same command as

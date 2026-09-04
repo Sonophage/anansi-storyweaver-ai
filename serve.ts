@@ -311,8 +311,13 @@ const handler = async (req: any, res: any) => {
        *
        * REAL, not OWNER: while the demo library is on, you are looking at somebody else's shelf and
        * the people you may write with are still yours. */
+      /* THE NAME IS THE ACCOUNT, THE HANDLE IS THE LOGIN. ANANSI_ALLOW is `login=account` and the
+       * login is a tailnet email — so a picker built from logins offers "hellrigelkc@gmail.com"
+       * for the writer every other surface in this app calls `kia`. The client shows `name` and
+       * sends `login`; the route still resolves the login through this list, so what crosses the
+       * wire is unchanged and an account name is still never a request to be somebody. */
       mates: () => [...ALLOW.entries()]
-        .map(([login, account]) => ({ login, id: db.owner(account) }))
+        .map(([login, account]) => ({ login, name: account, id: db.owner(account) }))
         .filter((m) => m.id !== REAL),
       // THE REAL IDENTITY DECIDES THIS, never the demo one. Admin is who may stop the router;
       // borrowing the demo library must not borrow that, and the demo account must never grant it.

@@ -94,7 +94,7 @@ so superseded documents are kept and marked rather than deleted:
 |---|---|
 | `docs/findings/P0-FINDINGS.md` | **authoritative.** Measured off the machine; wins over every other document on any point of fact |
 | `docs/findings/BUILD-STATE.md` | **live.** Done / half-built / not started, audited against source |
-| `docs/SPEC.md` | **live** engine reference, except §13 and §14, which are marked dead in place |
+| `docs/archived/SPEC.md` | **archived 2026-09-03.** The engine argument, not a description of the app — its writing modes and half its table names stopped being true long before it moved. Still cited by section from source comments |
 | `docs/PROMPTS.md` | **live**, revision 2 — transcribed from the code |
 | `docs/plans/PLAN-02.md` | **live** except where PLAN-03 moves things or a finding overrides it |
 | `docs/plans/PLAN-03.md` | **live** re-ordering; its own F9 numbers are superseded by F15 |
