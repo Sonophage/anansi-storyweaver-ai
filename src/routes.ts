@@ -1252,6 +1252,10 @@ export const routes: Record<string, Handler> = {
     // Still reported: `admin` decides who may stop the router. It no longer decides who sees The
     // Web — that opened to everyone on 2026-08-31.
     admin: c.admin, demo: c.demo,
+    // WHO IS ASKING. The shelf needs it to tell a turn owed to YOU from one owed to the other
+    // writer — both are on the same row and only one of them is a thing that wants you. An id and
+    // not a login: the client never names an account, and this is the only thing it is compared to.
+    me: c.owner,
     slot: c.slot, gen: c.gen,
     // The writer's own default look. It rides this call because this is the first thing every
     // surface asks for, so there is no second round trip before the app can paint itself.
@@ -2172,6 +2176,11 @@ export const routes: Record<string, Handler> = {
     if (c.body.body?.trim()) db.addPassage({ storyId: v.id, branchId: v.branchId!,
       chapterId: v.currentChapter.id, body: c.body.body.trim(), author: 'human',
       speaker: c.body.speaker ?? null, mode: c.body.mode });
+    // CO-OP HANDS THE MOVE OVER, and nothing else does. Speak, Act and Narrate also land a human
+    // passage here and then go on to ask the model — the turn is still yours until you have
+    // written your part in co-op. Seth, 2026-09-03, on calling the model when stuck: "it stays
+    // with me."
+    if (c.body.mode === 'coop' && c.body.body?.trim()) db.handOver(v.id, c.owner);
     return viewOf(v.id);
   },
   'POST /api/accept':  (c) => {

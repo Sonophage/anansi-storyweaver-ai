@@ -736,7 +736,11 @@ html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo
    of them, so a passage it wrote fell through the class that draws the accent — and it is the most
    common passage in a book. See the note in `themeVars` for why its colour comes off the ink. */
 :is(.block, .carry).m-continue { --m:var(--m-continue); }
-.block:is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue) {
+/* The sixth: a passage somebody else wrote in a book you share. Its colour comes off GOOD rather
+   than off a press accent — the other five say which press produced a passage, this one says a
+   second hand did. */
+:is(.block, .carry).m-coop    { --m:var(--m-coop); }
+.block:is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue,.m-coop) {
   padding-left:16px; border-left:3px solid var(--m);
 }
 /* The last one on the page, boxed so the eye finds where the book has got to.
@@ -1184,6 +1188,7 @@ html[data-work="act"]      #frame { --work:var(--m-act-ink); }
 html[data-work="direct"]   #frame { --work:var(--m-direct-ink); }
 html[data-work="narrate"]  #frame { --work:var(--m-narrate-ink); }
 html[data-work="continue"] #frame { --work:var(--m-continue); }
+html[data-work="coop"]     #frame { --work:var(--m-coop); }
 html[data-work="reroll"]   #frame { --work:var(--gold); }
 /* Everything else the model does — a card, a thread off the web, the chapter-end passes, the
    wizard. No press owns these, so they wear the accent rather than a mode colour. */

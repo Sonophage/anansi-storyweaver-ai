@@ -247,6 +247,9 @@ function migrate() {
   // names only a theme keeps your font, your size and your scale. Null on every existing row,
   // which reads as "follow the default" — so nothing on the shelf changes appearance.
   add('stories', 'look', 'TEXT');
+  // WHOSE MOVE IT IS, in a book with two writers. Null on every existing row and on every book with
+  // one writer, which reads as "anybody's" — so nothing about a book you write alone changes.
+  add('stories', 'turn', 'TEXT');
   // Whether the cover is also the plate at the head of every chapter. OFF by default, including on
   // every book that already has a cover: a picture at the head of each chapter is a strong choice
   // about how a book reads, and turning it on for existing books without asking would be making
@@ -868,7 +871,11 @@ export const listStories = (o: string) => q(`
          (SELECT SUM(LENGTH(p.body) - LENGTH(REPLACE(p.body, ' ', '')) + 1) FROM passages p
            WHERE p.story_id = s.id AND p.branch_id = cur.bid
              AND p.selected = 1 AND p.is_break = 0) AS words,
-         (SELECT COUNT(*) FROM stories f WHERE f.lore_from = s.id) AS followers
+         (SELECT COUNT(*) FROM stories f WHERE f.lore_from = s.id) AS followers,
+         -- Whose move it is, and how many write here. The shelf needs both: the light at the top
+         -- asks "does anything want me", and a turn owed to somebody else is not a thing that
+         -- wants you. One writer means no turn at all.
+         (SELECT COUNT(*) + 1 FROM story_writers w WHERE w.story_id = s.id) AS writers
     FROM stories s JOIN cur ON cur.sid = s.id
     LEFT JOIN tip ON tip.sid = s.id
     LEFT JOIN chapters ch ON ch.id = tip.cid
@@ -1050,8 +1057,26 @@ export const writersOf = (storyId: string) => q(
 export const addWriter = (storyId: string, ownerId: string) =>
   q('INSERT OR IGNORE INTO story_writers (story_id, owner_id, added_at) VALUES (?,?,?)')
     .run(storyId, ownerId, now());
-export const dropWriter = (storyId: string, ownerId: string) =>
+export const dropWriter = (storyId: string, ownerId: string) => {
   q('DELETE FROM story_writers WHERE story_id = ? AND owner_id = ?').run(storyId, ownerId);
+  // A turn cannot be owed to somebody who is no longer in the book.
+  q('UPDATE stories SET turn = NULL WHERE id = ? AND turn = ?').run(storyId, ownerId);
+};
+
+/** HAND THE TURN OVER. Called when a co-op passage lands, and by nothing else: Seth, 2026-09-03,
+ *  on calling the model for a beat when stuck — "it stays with me". Only writing your part in
+ *  co-op passes the move; asking Anansi for a beat does not, because you have not written yet.
+ *
+ *  IT SAYS, IT DOES NOT BLOCK. Seth: "no it doesnt block writing just says whose move it is."
+ *  Nothing reads this to refuse a write — a hard lock means one of two people is locked out at two
+ *  in the morning for no reason.
+ *
+ *  Null when the book has one writer, so a book written alone never grows a turn. */
+export function handOver(storyId: string, from: string) {
+  const other = (writersOf(storyId) as any[]).map((w) => w.id).find((id) => id !== from);
+  q('UPDATE stories SET turn = ? WHERE id = ?').run(other ?? null, storyId);
+  return other ?? null;
+}
 /** Reads follow the ACTIVE branch. Every one of these used to return rows from every branch
  *  at once, which is invisible while there is one branch and nonsense the moment there are two. */
 export const activeBranchOf = (storyId: string): string => {
@@ -1225,7 +1250,12 @@ export const branchesOf = (id: string) => q('SELECT * FROM branches WHERE story_
  *  most common passage in any book storing `null` and reading back as an unmarked one: Seth,
  *  2026-09-02, on a passage Continue had just written — "this is missing the side accent bar that
  *  all the other ones have." Zero rows in the library carry `continue` because of this line. */
-const MODES = ['speak', 'act', 'direct', 'narrate', 'continue'];
+/*  CO-OP IS THE SIXTH, 2026-09-03. Same lesson as Continue above, and this list is exactly where it
+ *  would have been missed: co-op is not a press that calls the model, so a whitelist written from
+ *  "what generates" would drop it — and every passage the other writer wrote would come back
+ *  unmarked, which is the one thing a shared book cannot afford to lose. test/db.ts reads the
+ *  accents out of app.html and asks this column for each; that is what caught it. */
+const MODES = ['speak', 'act', 'direct', 'narrate', 'continue', 'coop'];
 
 export function addPassage(p: any) {
   const id = uid('p-');

@@ -40,6 +40,10 @@ const el = (id: string) => {
     setAttribute(k: string, v: string) { o.attrs[k] = String(v); },
     getAttribute: (k: string) => o.attrs[k] ?? null,
     addEventListener() {}, focus() {}, closest: () => null,
+    // The composer restores the caret after a repaint. Without this any path that lands a passage
+    // and redraws the dock throws here, and the suite DIES instead of failing the check that was
+    // watching — which is how a falsification came back green for the wrong reason.
+    setSelectionRange() {}, select() {},
     querySelectorAll: () => [], querySelector: () => null,
     // ENOUGH GEOMETRY TO SEE WHERE THE PAGE LANDS. `pinTo` measures the seam against the reading
     // pane and scrolls to a point ABOVE the bottom; without these it fell through to the
@@ -1482,7 +1486,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const NEEDED = ['--doc-bg', '--doc-wash', '--rail', '--sheet', '--body', '--ink', '--ink-bright',
     '--narr', '--label', '--mute', '--dim', '--faint', '--ink-ghost', '--rule', '--line', '--edge',
     '--edge-lit', '--chip', '--field', '--gold', '--gold-dim', '--gold-lit', '--on-gold', '--bad',
-    '--good', '--warn', '--you-rule', '--speak-rule', '--head', '--dock', '--chrome',
+    '--good', '--warn', '--you-rule', '--speak-rule', '--head', '--dock', '--chrome', '--m-coop',
     '--chrome-ink', '--chrome-dim', '--chrome-line', '--panel-line'];
   for (const name of Object.keys(THEMES)) {
     const v: any = themeVars(name);
@@ -3778,6 +3782,50 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 60));
   ok('the top light and the Waiting row come on when something is owed, and go out when it is not');
+}
+
+// ---- CO-OP IS A MODE, AND ONLY WHERE IT MEANS SOMETHING.
+//
+// Seth, 2026-09-03: "co op would be a mode though. because either of us could call the ai for the
+// next beat if needed (writers block)" — so it sits in the dial with the other four and is held
+// until you change it, rather than being a press.
+//
+// THE ABSENCE IS THE HALF THAT MATTERS. A mode that hands the turn to nobody is a mode that does
+// nothing, so it must not be on the dial in a book written alone — and a check that only proved it
+// APPEARS would pass on a dial that always shows it.
+{
+  const { MODES } = await import('../web/model.js');
+  assert.ok(MODES.some(([k]: any) => k === 'coop'), 'co-op is one of the modes');
+
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  // #dockCol, not #dock: drawDock writes the composer into the inner element, and reading the
+  // outer one gives an empty string that satisfies doesNotMatch on any code at all.
+  assert.match(html('dockCol'), /data-modesel/, 'the mode dial is drawn at all');
+  assert.doesNotMatch(html('dockCol'), /value="coop"/,
+    'and co-op is NOT offered in a book with one writer — there is nobody to hand the move to');
+
+  STORY.writers = [{ id: 'u-me', login: 'sonophage', owns: 1 }, { id: 'u-kia', login: 'kia', owns: 0 }];
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.match(html('dockCol'), /value="coop"/, 'and IS offered once the book has a second writer');
+
+  // AND IT NEVER CALLS THE MODEL. That is the whole of the mode: the text goes to the write route
+  // and nothing goes to generate. Asserted on what was POSTED, because a mode that quietly
+  // generated would look identical on screen.
+  POSTED.length = 0;
+  pickMode('coop');
+  // The VALUE on the element, not just an input event: `generate` reads `$('input').value`, and
+  // typeIn only dispatches — so a send after it sees an empty box and refuses with a toast.
+  nodes.get('input').value = 'She set the lamp down and said nothing.';
+  click({ send: '1' });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(POSTED.some((p: any) => String(p.url) === '/api/write'),
+    'co-op puts your part on the page');
+  assert.ok(!POSTED.some((p: any) => String(p.url).includes('/api/generate')),
+    'and asks the model for nothing at all — that is what the mode is');
+  STORY.writers = undefined;
+  ok('co-op is a mode, offered only in a shared book, and it never calls the model');
 }
 
   // AND WATCHING ONE UNMARKS IT. Re-rolling p-4 is being here for it: the route reports the row it

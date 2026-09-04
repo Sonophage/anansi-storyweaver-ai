@@ -18,6 +18,23 @@ export const MODES = [
   ['act',     'Act',     (p) => p ? `What ${p} does…` : 'What you do…'],
   ['direct',  'Direct',  () => 'Tell Anansi what happens next…'],
   ['narrate', 'Narrate', () => 'Write the passage yourself — Anansi carries on from it…'],
+  /* CO-OP IS A MODE. Seth, 2026-09-03: "co op would be a mode though. because either of us could
+   * call the ai for the next beat if needed (writers block)" — so it is one of the choices in How
+   * you are writing, held until you change it, rather than a press you make once.
+   *
+   * IT IS THE ONE MODE THAT NEVER CALLS THE MODEL. What you type goes on the page and the turn
+   * passes; when you are stuck you change the dial to Direct and ask for a beat, and the move stays
+   * with you because you have not written yet.
+   *
+   * Being in MODES gets it the placeholder, the margin accent and the origin chip — all three of
+   * which it wants, because the whole point is seeing who wrote what. `EDITABLE_MODES` in
+   * routes.ts is its own list and does not read this one, so no prompt template is invented for a
+   * mode that never sends one.
+   *
+   * THE COMPOSER HIDES IT unless the book has a second writer: see drawDock. A mode that hands the
+   * turn to nobody is a mode that does nothing. */
+  ['coop', 'Co-op', (p) => p ? `Your part of the scene, then it is ${p}'s move…`
+                             : 'Your part of the scene, then it is their move…'],
 ];
 
 export const KINDS = ['character', 'lore', 'item', 'rule'];
@@ -43,7 +60,7 @@ export const shelfOrder = (list) => [...(list ?? [])].sort((a, b) =>
  *
  *  Archived books are left out on purpose. Putting one away is the act that means "stop showing me
  *  this", and a strip that then nags about its unpaid promises has not listened. */
-export const waiting = (list) => {
+export const waiting = (list, me = null) => {
   // Archived books are left out for the reason below; world books are left out because they hold
   // no prose and nothing can be waiting in them.
   const live = (list ?? []).filter((s) => s && s.status !== 'archived' && !s.is_world);
@@ -55,7 +72,19 @@ export const waiting = (list) => {
     return { key, total, panel, storyId: where.id, storyTitle: where.title,
              label: `${total} ${total === 1 ? one : many}` };
   };
+  /* YOUR MOVE, in a book you write with somebody. Seth, 2026-09-03: "if she writes then it waiting
+   * on me and that top glow would tell me to look at the shared account."
+   *
+   * FIRST IN THE LIST, because it is the only kind here that another person is waiting on. A
+   * proposal keeps until you feel like it; a turn is somebody sitting on their hands.
+   *
+   * `me` is null on every caller that does not know who is asking — the shelf strip has never
+   * needed to — and a null reader is owed nothing rather than owed everything. */
+  const mine = me ? live.filter((s) => s.turn && s.turn === me) : [];
   return [
+    mine.length ? { key: 'turn', total: mine.length, panel: null,
+      storyId: mine[0].id, storyTitle: mine[0].title,
+      label: mine.length === 1 ? `your move in ${mine[0].title}` : `your move in ${mine.length} books` } : null,
     kind('proposed', 'thread proposed', 'threads proposed', 'chapter'),
     kind('unpaid', 'promise unpaid', 'promises unpaid', 'strings'),
     // NOT flags. Seth, 2026-08-31: "that flag can be opened but it can be silently ignored, it
@@ -497,6 +526,11 @@ export function themeVars(key) {
      * colour: the other four say a writer chose something, and Continue is the model carrying on by
      * itself. It should read as the page's own voice, not as a fifth decision. */
     '--m-continue': mix(S.ink, away, S.dark ? .42 : .28),
+    /* A SIXTH, for a passage written by the other person in a co-op book. Off the GOOD colour
+     * rather than off the ink or the accent, and that is the argument for it: the other five say
+     * which press produced a passage, and this one says a second writer did — it should read as a
+     * different hand, not as a different setting. */
+    '--m-coop': mix(S.good, toward, .12),
     // (--speak-tint / --act-tint lived here. Removed 2026-08-27: only one of the pair was
     // visible, so the row read as broken rather than as distinguishing the two modes.)
     '--head': mix(S.ink, away, .42),

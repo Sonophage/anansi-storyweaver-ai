@@ -251,7 +251,7 @@ let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null
 let MANIERR = null;   // why there is no manifest, when there is none
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
 // separate status route, and activity returns only generation rows.
-let SRV = { model: null, slot: null, gen: {}, admin: false, demo: false };
+let SRV = { model: null, slot: null, gen: {}, admin: false, demo: false, me: null };
 // The forge's prompts, fetched once. null is 'not asked yet' and [] is 'asked and refused',
 // which are different screens — the second means this account is not the admin.
 let FORGE = null;
@@ -626,7 +626,8 @@ const owedHere = () => (V?.proposals ?? []).length
   + (V?.strings ?? []).filter((x) => x.status === 'open').length;
 /** And anywhere. `waiting()` already collapses the shelf to one row per kind and leaves archived
  *  and world books out; the glow asks only whether that list is empty. */
-const owedAnywhere = () => waiting(LIB ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
+const owedAnywhere = () => waiting(LIB ?? [], SRV.me ?? null)
+  .reduce((n, r) => n + (Number(r.total) || 0), 0);
 
 // ---------- rail ----------
 function drawRail() {
@@ -1618,7 +1619,8 @@ function drawDock() {
            NO BACKTICKS IN THIS COMMENT: it lives inside a template literal, and one ends the
            string. Naming MODES in backticks here is exactly how this was broken for a minute. -->
       <select class="dial" data-modesel aria-label="How you are writing">
-        ${MODES.map(([k, label]) => `<option value="${k}"${k === S.mode ? ' selected' : ''}>${
+        ${MODES.filter(([k]) => k !== 'coop' || (V?.writers ?? []).length > 1)
+          .map(([k, label]) => `<option value="${k}"${k === S.mode ? ' selected' : ''}>${
           k === 'speak' ? 'Speaking As' : k === 'act' ? 'Acting As' : label}</option>`).join('')}
       </select>
       <!-- AND WHO, straight after it, so the dial and the name are one phrase. This was #asRow, a
@@ -6755,7 +6757,8 @@ async function loadLibrary() {
   const r = await api.library();
   if (r.error) return toast(r.error);
   LIB = r.stories ?? [];
-  SRV = { model: r.model ?? null, slot: r.slot ?? null, gen: r.gen ?? {}, admin: !!r.admin, demo: !!r.demo };
+  SRV = { model: r.model ?? null, slot: r.slot ?? null, gen: r.gen ?? {}, admin: !!r.admin,
+    demo: !!r.demo, me: r.me ?? null };
   // The server is the authority on your default; the cache was only there to paint before this
   // answered. A writer on a second device gets their own settings rather than the shipped ones.
   if (r.look && Object.keys(r.look).length) { Object.assign(MYLOOK, r.look); cacheMine(); }
@@ -7307,6 +7310,25 @@ async function openingPassage() {
 async function generate(mode = S.mode) {
   if (S.busy || !V) return;
   const typed = $('input')?.value.trim() ?? '';
+
+  /* CO-OP ENDS HERE, and that is the whole of the mode. Your part goes on the page, the move passes
+   * to the other writer, and the model is never asked. When you are stuck you change the dial to
+   * Direct and ask for a beat — the turn stays with you then, because you have not written yet.
+   *
+   * BEFORE the seam and the ghost below: there is no generation to cover, so raising the veil for
+   * one would be a full-screen wait for a POST that has already returned. */
+  if (mode === 'coop') {
+    if (!typed) return toast('Write your part first — Co-op hands the move over without asking Anansi.');
+    const w = await api.write(S.storyId, { body: typed, mode, chapterId: V.currentChapter.id });
+    if (w.error) return toast(w.error);
+    clearComposer();
+    V = await api.story(S.storyId, V.currentChapter.id);
+    await loadLibrary();          // the turn moved, so the light at the top has to be redrawn
+    paint();
+    const other = (V.writers ?? []).find((x) => x.id === V.turn);
+    return toast(other ? `Handed over to ${other.login}.` : 'Written.');
+  }
+
   const YOURS = mode === 'speak' || mode === 'act' || mode === 'narrate';
   // Who it is, for the prompt. Act does NOT set the passage's speaker column — that column
   // means "a named voice" and drives speech styling, and an action is narration.

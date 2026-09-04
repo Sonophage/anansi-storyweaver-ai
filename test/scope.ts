@@ -129,6 +129,55 @@ ok('ownsStory refuses a story you do not own');
     'owner first, then who was called in');
   db.dropWriter(shared.id, bob);
   ok('a book can be shared with a second writer, and unshared, and the gate follows both ways');
+
+  /* ---- WHOSE MOVE IT IS. Seth, 2026-09-03: "no it doesnt block writing just says whose move it
+   * is", and on calling the model when stuck — "it stays with me".
+   *
+   * SO ONLY CO-OP HANDS OVER. Speak, Act and Narrate also land a human passage through the same
+   * route and then go on to ask the model; the move is still yours until you have written your
+   * part. A check that only proved co-op passes the turn would pass just as well on a rule that
+   * passed it for every human passage, which is the mistake worth catching. */
+  db.addWriter(shared.id, bob);
+  assert.strictEqual((db.getStory(shared.id) as any).turn ?? null, null,
+    'a book starts owing nobody a move');
+
+  db.handOver(shared.id, alice);
+  assert.strictEqual((db.getStory(shared.id) as any).turn, bob, 'writing in co-op passes the move');
+  db.handOver(shared.id, bob);
+  assert.strictEqual((db.getStory(shared.id) as any).turn, alice, 'and back again');
+
+  // A BOOK WRITTEN ALONE NEVER GROWS A TURN, so nothing about writing by yourself changes.
+  const alone = db.createStory(alice, { title: 'On my own' });
+  db.handOver(alone.id, alice);
+  assert.strictEqual((db.getStory(alone.id) as any).turn ?? null, null,
+    'a book with one writer owes no move to anybody');
+
+  // AND A TURN CANNOT BE OWED TO SOMEBODY WHO HAS LEFT. Dropping the writer while the move was
+  // theirs would otherwise leave the book waiting for ever on a person who cannot reach it.
+  db.handOver(shared.id, alice);
+  db.dropWriter(shared.id, bob);
+  assert.strictEqual((db.getStory(shared.id) as any).turn ?? null, null,
+    'taking a writer out clears a move that was owed to them');
+  /* ---- AND ONLY CO-OP HANDS OVER, asked through the ROUTE. The rule lives in `POST /api/write`,
+   * so the checks above — which call `handOver` directly — could not see it: making the route pass
+   * the turn on every human passage left every one of them green. Speak, Act and Narrate land a
+   * human passage through this same route and then go on to ask the model, and the move is still
+   * yours until you have written your part in co-op. */
+  db.addWriter(shared.id, bob);
+  const write = (mode: string) => {
+    const ctx: any = { body: { storyId: shared.id, body: `a line in ${mode}`, mode },
+      query: new URLSearchParams(), owner: alice, slot: { global: 8192, slots: 1, perSlot: 8192 },
+      gen: {}, setGen: () => {}, defaultModel: null, setDefaultModel: () => {}, admin: false };
+    (routes['POST /api/write'] as any)(ctx);
+    return (db.getStory(shared.id) as any).turn ?? null;
+  };
+  for (const mode of ['speak', 'act', 'narrate', 'direct']) {
+    assert.strictEqual(write(mode), null,
+      `${mode} lands a human passage and keeps the move — the model is still to answer it`);
+  }
+  assert.strictEqual(write('coop'), bob, 'and co-op is the one that hands it over');
+  db.dropWriter(shared.id, bob);
+  ok('the move passes on a co-op turn, never in a book written alone, and never to somebody gone');
 }
 
 // 4. Defence in depth: even past the gate, a foreign id must do nothing.

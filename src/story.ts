@@ -117,6 +117,12 @@ export function view(storyId: string, focusChapterId?: string) {
     // `story` for the same reason `cover` is: a surface that posts the story object straight back
     // must not be able to save it as a field of the book's text.
     look: (() => { try { return s.look ? JSON.parse(s.look) : null; } catch { return null; } })(),
+    // WHO WRITES THIS BOOK, and whose move it is. Top level for the same reason `look` is: a
+    // surface that posts the story object back must not be able to save either as a field of it.
+    // `writers` is one row for a book written alone, which is what the composer reads to decide
+    // whether Co-op is on the dial at all.
+    writers: db.writersOf(storyId),
+    turn: s.turn ?? null,
     // What this book is waiting on, in one place. Every part of it was already on the surface
     // somewhere — proposals under the chapter, strings under Strings, flags beside a passage, the
     // horizon on a bar — which is the problem: a writer had to visit four panels to find out
