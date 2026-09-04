@@ -6826,7 +6826,15 @@ async function openStory(id) {
   if (S.models === null) loadModels();   // the Storyteller panel needs the list to offer one
   if (S.prompts === null) loadPrompts();
 
-  SRV = { model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen,
+  /* MERGED, NOT REBUILT. This listed four fields and dropped every other one SRV holds, so opening
+   * a book erased `demo`, `me` and `mates` — the shelf answers with them and the story route does
+   * not. The share control read `SRV.mates` and found none, which is why it drew nothing on a live
+   * app whose every server answer was correct: the fields existed until you opened a book.
+   *
+   * A rebuild that has to name every field is a bug waiting on the next field, and this was its
+   * third. The spread is the fix; the four below still take the story route's answer where it has
+   * one, because a book can be pinned to its own model. */
+  SRV = { ...SRV, model: r.model ?? SRV.model, slot: r.slot ?? SRV.slot, gen: r.gen ?? SRV.gen,
           admin: r.admin === undefined ? SRV.admin : !!r.admin };
   // A WORLD BOOK OPENS ON ITS LORE. There is nothing else in it — no prose, no chapters — so the
   // Context panel would report on a prompt that will never be built.

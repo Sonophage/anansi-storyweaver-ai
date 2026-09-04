@@ -234,6 +234,10 @@ const STORY = {
   // A thread taken OUT of this book: a tombstone, listed by name so it can come back.
   dropped: [{ id: 'e-stone', title: 'The Quay Office', originId: 'e-origin-2' }],
   pins: [], arcs: [],
+  // Who writes this book. One row is a book written alone, which is what the composer reads to
+  // decide whether Co-op is on the dial and what the Keep tab reads to offer a second writer.
+  writers: [{ id: 'u-me', login: 'sonophage', owns: 1 }],
+  turn: null,
   // What the engine computes in story.ts: the counts the shelf reads, and the stale summaries,
   // which are the part that can be waved away. The panel gates on this being present at all.
   waiting: { proposals: 2, strings: 1, flags: 1,
@@ -385,7 +389,12 @@ let stubPassageId: string | undefined = undefined;
         last: null, proposed: 0, unpaid: 0, flags: 0, is_world: 1, genre: 'fantasy',
         look: '{"theme":"cyberpunk","font":"sans","size":"m","scale":"100"}' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
-      look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' } })
+      look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' },
+      // WHO IS ASKING, AND WHO ELSE IS HERE. Shaped exactly as the server sends it: `me` is an
+      // account id, and a mate carries the login to send and the name to show — ANANSI_ALLOW maps a
+      // tailnet address onto an account and only one of the two belongs on screen.
+      me: 'u-me',
+      mates: [{ login: 'hellrigelkc@gmail.com', name: 'kia' }] })
     : url.startsWith('/api/story') ? STORY
     // Moving a proposal answers with the VIEW, the way the accept path does — the client sets `V`
     // from it and repaints, which is how the room's buttons come back correct.
@@ -3826,6 +3835,34 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     'and asks the model for nothing at all — that is what the mode is');
   STORY.writers = undefined;
   ok('co-op is a mode, offered only in a shared book, and it never calls the model');
+}
+
+// ---- AND A BOOK CAN BE HANDED TO SOMEBODY. The control that calls a second writer in.
+//
+// THIS HAD NO CHECK AT ALL when it was built, and Seth could not find it on the live app twice
+// running while every server-side answer was correct. A feature whose only proof is "I wrote the
+// markup" is a feature nobody has seen render.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ storytab: 'keep' });
+  const keep = html('sideBody');
+  assert.match(keep, /Write it with someone/, 'the owner is offered a way to call somebody in');
+  // THE NAME, NOT THE ADDRESS. ANANSI_ALLOW maps a tailnet email onto an account; the option shows
+  // the account and sends the login, so the picker reads `kia` and the route still resolves it.
+  assert.match(keep, /<option value="hellrigelkc@gmail\.com">kia<\/option>/,
+    'and it names her as the app does, while sending the login the server resolves');
+  // ---- AND OPENING A BOOK MUST NOT ERASE WHO YOU ARE. This is the bug that hid the control:
+  // `openStory` rebuilt SRV from four named fields and dropped `demo`, `me` and `mates`, so every
+  // server answer was correct and the picker still drew nothing. Asserted AFTER a book is open,
+  // because before one it passed.
+  assert.match(keep, /f-share/, 'the picker survives opening a book — SRV is merged, not rebuilt');
+  click({ open: 's-2' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ storytab: 'keep' });
+  assert.match(html('sideBody'), /Write it with someone/,
+    'and survives opening a second one — a rebuild that names fields drops the next one added');
+  ok('the owner of a book is offered a way to write it with somebody else');
 }
 
   // AND WATCHING ONE UNMARKS IT. Re-rolling p-4 is being here for it: the route reports the row it
