@@ -32,14 +32,17 @@ list.
 1. `docs/findings/P0-FINDINGS.md` — measured numbers. These override `docs/SPEC.md` and the plans
    wherever they conflict, and several already do.
 2. `docs/findings/BUILD-STATE.md` — done / half-built / not started, audited against source.
-3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Fifty markers as of
-   2026-09-02**, counted by that command, not recalled: `app.js` 9, `db.ts` 9, `routes.ts` 8,
+3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Fifty-one markers as
+   of 2026-09-03**, counted by that command, not recalled: `app.js` 9, `db.ts` 9, `routes.ts` 9,
    `context.ts` 6, `bench/cast.ts` 3, `llama.ts` 2, `model.js` 2, `serve.ts` 2, `council06.ts` 2,
    and one each in `story.ts`, `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`,
    `bench/decode.ts`, `bench/ledger-audit.ts`. Each names what is missing, why it was left, and the
    upgrade path.
    (The count read 49 with `llama.ts` at 1 until 2026-09-02; it has two and has had two. Nothing was
    added — the tally had drifted, which is the argument for counting it with the command each time.)
+   (It read 50 with `routes.ts` at 8 until 2026-09-03, and `routes.ts` had nine at the commit that
+   note was written under. Same drift, same argument, second time in two days: the number here is
+   only ever as true as the last person who ran the command.)
    (`test` joined the command on 2026-08-31 — there has been a marker in `test/db.ts` the whole
    time and the documented grep could not see it, so the count read 38.)
 

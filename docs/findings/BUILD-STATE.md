@@ -4,6 +4,11 @@
 > because someone wrote it from recall. If it disagrees with the source, the source wins and this
 > is the bug.
 >
+> **APPENDED 2026-09-03, NOT RE-AUDITED.** A second day's work landed on top of the 09-02 append.
+> It is recorded at the END under *"2026-09-03 — explanations, co-op, and two lights"*. The body of
+> this document has now not been walked against the source for two days; where the later sections
+> contradict a table above, the later section is the one that was checked.
+>
 > **APPENDED 2026-09-02, NOT RE-AUDITED.** A day's work landed after the sixth pass and the sections
 > below have not been walked against the source again. What changed is recorded at the END of this
 > file under *"2026-09-02 — the wait, and what the veil became"*, and where it contradicts a table
@@ -1001,3 +1006,108 @@ commits. `test/web.ts`'s #29 weave check was **deleted**, not repointed: it guar
 `test/all.ts` reported `scope.ts` failing once during the session. It passed alone at 51 checks and
 passed repeatedly after, with every port it binds free. Written down because a flake nobody wrote
 down is a flake somebody rediscovers.
+
+
+---
+
+# 2026-09-03 — explanations, co-op, and two lights
+
+Appended, not re-audited. Everything below was written against the source and the suites the same
+day, and every claim of "checked" here means a falsification was run: the code was broken on purpose
+and the named assertion watched to go red.
+
+## Done
+
+**One mechanism for explaining a control.** `helpMark`/`helpBody` are wrappers over
+`tipMark`/`tipCard` — one mark, one card, one state, one handler. 77 marks and 79 cards across
+Story, Chapter, Threads, Storyteller, the thread card, the chapter close, the next chapter, Context,
+Strings, Anansi, History and the picture trays now sit ABOVE the control they explain, behind a mark
+beside its name, and none of them repaints the panel. `web/help.js` is untouched and still the
+curated manual. Two panels were carrying a paragraph that restated their own web sentence for
+sentence; the second copy is gone.
+
+- `.tipcard`, **not** `.card`. A card in this app is CONTENT, and `#sideBody .card` is how several
+  places reach for one — wearing that class put hidden decoys in the list and `test/ui/panels.js`
+  started clicking an explanation instead of a thread. Only the browser pass could see it.
+- `.tipcard[hidden]` is stated in app.html. `display:flex` beats the UA sheet's `[hidden]`, so
+  without it every fold ships open and every mark does nothing.
+- `data-help` used to `paint()`, which eats half-typed text on those panels. That is gone with it.
+
+**Labels are real capitals.** `text-transform:uppercase` on 41 rules; `font-variant-caps` is gone
+from the tree (counted with the command, after writing 42 here from memory and being wrong — the
+number in a document is only as true as the last person who ran the count). Two rules existed to take the treatment OFF something and named the old property —
+they stopped resetting anything the moment the style moved, and moved with it. Excepted: the rail
+(the menu), the explanation cards (prose), and `.btn` (a button reads as a sentence).
+
+**The Chapter panel is four groups**, on the Story panel's mechanism. Every chip carries its count.
+
+**The writing record.** Words a day over a real thirty-day frame including the days you did not
+write — the old chart drew nothing at all for a library whose passages share one date. New rows for
+this week, days written, longest run, best day, and the MEDIAN call rather than the mean. Takes not
+chosen are reported against the number written.
+
+**Seeds.** Every generation mints one, sends it, and stores it in `params` beside the sampler.
+History shows it per take with a press that re-runs the same one. Before this, no generation in the
+app was reproducible and a voice change could not be told from the roll of the dice.
+
+**A live region.** `#announce` says "Passage added, 412 words." on the send and the re-roll paths;
+the toast is `role="status"`. Before this the app streamed prose in and told a screen reader
+nothing. Clipped rather than `display:none` — an unrendered region is never announced.
+
+**The ring, for every model call.** `withRing` raises it and lowers it in a `finally`;
+`whileWorking` runs through it. It does not raise when a press has already claimed the border with
+its own accent, so a detached repair cannot repaint the ring the passage put up.
+
+**A light when something is owed.** `#owed` along the top edge, plus the accent and a count on the
+Waiting row. One definition behind both. Flags do not light it.
+
+**Co-op.**
+- `story_writers` is a table; `stories.owner_id` still means who made the book and who may delete
+  it. `MINE()` is one predicate — "yours, or one you were called into" — used in `ownsStory`,
+  `listStories`, `ledgerOf`, `roomsOf`, `imagesOf` and `search`.
+- **Threads needed nothing.** `entriesOf` is scoped to the story, so rooms, states, wardrobe and
+  connections follow the book already. Asserted anyway; the cross-book ledger DID need a change.
+- `coop` is a mode in `MODES`: it gets the placeholder, the margin accent (`--m-coop`, off GOOD)
+  and the origin chip. It is the one mode that never calls the model. `EDITABLE_MODES` is its own
+  list, so no prompt template is invented for it.
+- `db.ts` has a **second** MODES whitelist and an unlisted mode stores null. `test/db.ts` cross-
+  checks the accents in app.html against that column and caught it — without that, every passage
+  the other writer wrote would have read back unmarked.
+- Only a co-op passage hands the move over. Speak, Act and Narrate land a human passage through the
+  same route and keep it. That rule lives in `POST /api/write` and is asserted there.
+- `POST /api/writers` is **owner-only, and `ownsStory` is not the check** — that answers "may this
+  person write here", which a co-writer passes. The body names a LOGIN, resolved only through
+  `c.mates()`, which is built in serve.ts where `ANANSI_ALLOW` lives.
+
+## Half-built / known gaps
+
+- **`writerStats` still counts only books you own.** A shared book is mostly somebody else's words.
+  Counting it honestly means counting by passage author rather than by book — a different query.
+- **A shared passage says a second hand wrote it, not whose.** Fine for two writers, not for three.
+- **The turn is not shown inside the book.** Deliberate, at Seth's call: nothing should nag you
+  about a move somebody else is ignoring. The light along the top is the whole signal.
+- **`--head`, `--dock` and `--panel-line`** are derived in `themeVars` on every theme change and
+  referenced by no rule anywhere. Pre-existing. Removing them is guarded by a deliberate hardcoded
+  list in `test/app.ts`, so it is a decision rather than a cleanup — left alone.
+
+## Two things about the harness, both true and both costly
+
+- **`node --check web/app.js` does not check this file.** There is no package.json, so node treats
+  `.js` as a script and it exits 0 on a file that does not parse — verified. The real check is
+  `node --check --input-type=module < web/app.js`, which is what `test/web.ts` does.
+- **`scope.ts` failed once with "no server came up on 5187 in 10s"** and passed alone immediately
+  after, with every port it binds free. Same shape as the flake recorded at the end of the 09-02
+  section. Written down rather than explained, because a flake nobody writes down is a flake
+  somebody rediscovers — and this one reads exactly like the ownership gate failing.
+- **`veil` is in the default scenario set and drives real generations**, despite `run.sh`'s own
+  comment saying it is excluded. It fails under load and passes on a quiet box; it died mid-scenario
+  on one run and reached its verdict on the next, at the same commit. Running the default set also
+  competes with whoever is writing on the shared two-slot router.
+
+## Four new checks, each guarding a shape that was failing silently
+
+- **Every `for=` has a matching `id=`.** The existing "every field has a name" check passes happily
+  when the field is GONE. Two controls were deleted during the fold sweep and nothing went red.
+- **Every folded sentence has a mark, and every mark opens something.** Fired twice on its author.
+- **One spelling of the label style**, with the exceptions pinned.
+- **The seed reaches the take**, and is null rather than 0 for a passage nobody generated.
