@@ -21,6 +21,9 @@ const WHO = 'Aldis Fen';
 // A directive that said "Aldis reaches into his coat" would be the writer writing him, which is
 // the case the lockout is FOR, and it would make the arms incomparable.
 const DIRECTIVE = "Sabel crosses the bridge and stops in front of him.";
+// Arm E's own, because "him" is ambiguous once there are two men and an ambiguous DIRECTIVE would
+// confound the thing being measured. This names neither man and leaves both in the scene.
+const DIRECTIVE_E = "Sabel crosses the bridge and stops in front of the two of them.";
 // EVERY OTHER CHARACTER IN THIS FIXTURE IS A WOMAN, AND THAT IS PART OF THE MEASUREMENT.
 //
 // The first run of this had Marek's MAN as the caller, and the first two samples of arm B read
@@ -33,6 +36,23 @@ const DIRECTIVE = "Sabel crosses the bridge and stops in front of him.";
 // So the fixture is built so the pronoun cannot be ambiguous: one man in the story, and he is the
 // locked one. Every "he", "him" and "his" in the output is Aldis Fen. The cost is that this
 // measures a one-man scene, and prose with two men in it is not covered by it.
+/* ARM E — TWO MEN IN THE SCENE, added 2026-09-06, and it exists because F57 was measured on a
+ * fixture that had defined the effect out of existence.
+ *
+ * Seth, on reading F57's null result: "obviously there wouldn't be drift because it only has to pay
+ * attention to one character." He is right, and it is the whole hypothesis. F54 says naming the
+ * locked character beats saying "their". That can only buy something where "their" is AMBIGUOUS —
+ * and arms A-D contain exactly one man, so "their" has one possible referent and the name adds no
+ * information the model did not already have. A null result on that fixture is close to guaranteed
+ * and says nothing about the treatment.
+ *
+ * The one-man constraint was inherited and is no longer load-bearing. It was introduced because an
+ * EARLY version of the detectors matched `(he|aldis|fen)`, so a second man's pronouns scored as his.
+ * The detectors have been anchored on his NAME ever since — `NAME` below, never a pronoun — so a
+ * second man cannot be miscounted now. The fixture kept a restriction its reason had outlived.
+ *
+ * Corvin Ashe is deliberately unlike `Aldis|Aldis Fen|Fen` so no counter can confuse them, and he is
+ * given something to do in the seed prose so the model has two male agents to choose between. */
 const TITLES = { A: 'LOCK control', B: 'LOCK on',
   // F51's pair, added 2026-08-31. Both have the lockout ON; they differ only in whether the WRITER
   // has already written him speaking and acting. Seth: "if the user does indeed write as their own
@@ -41,11 +61,15 @@ const TITLES = { A: 'LOCK control', B: 'LOCK on',
   //
   // F28 could not see this. Its arms differ by the lockout itself and neither carries a line of his
   // in the prose, so the case Seth reported was outside the fixture.
-  C: 'LOCK on, writer silent', D: 'LOCK on, writer speaks as him' };
-const LOCKED = new Set(['B', 'C', 'D']);
+  C: 'LOCK on, writer silent', D: 'LOCK on, writer speaks as him',
+  E: 'LOCK on, writer speaks as him, two men' };
+const LOCKED = new Set(['B', 'C', 'D', 'E']);
 // The one difference between C and D. Written through /api/write, so they are the writer's own
 // passages in the recent-prose block, which is where in-context examples outweigh an instruction.
-const WRITER_SPEAKS = new Set(['D']);
+const WRITER_SPEAKS = new Set(['D', 'E']);
+// Arm E only. A second man, so the lockout's "their" has two referents to choose between.
+const TWO_MEN = new Set(['E']);
+const OTHER_MAN = 'Corvin Ashe';
 const HIS_OWN = [
   '"You can tell her I have eleven crowns," Aldis Fen said. "I do not have them today."',
   'Aldis Fen pushed off the post and stepped out into the rain to meet her, favouring the left knee.',
@@ -269,10 +293,22 @@ if (arm === 'setup') {
     await j('/api/entry', { storyId: made.id, entry: { id: '', entryType: 'character',
       activation: 'always_on', keys: [], lastEditor: 'human', title: 'Sabel',
       body: "[Sabel: Marek's collector, broad, unhurried, says little, carries no weapon she shows]" } });
-    for (const body of [
+    // ARM E's second man. In canon as a character, so he is a standing part of the scene rather
+    // than a name the model met once — the lockout line has to pick him out of a cast, which is the
+    // condition F54 is about.
+    if (TWO_MEN.has(k)) await j('/api/entry', { storyId: made.id, entry: { id: '', entryType: 'character',
+      activation: 'always_on', keys: [], lastEditor: 'human', title: OTHER_MAN,
+      body: `[${OTHER_MAN}: ex-Watch, still serving, drinks with Aldis Fen out of habit rather than `
+        + 'liking, owes nobody and says so]' } });
+    // The shared opening. Arm E's version puts the second man on the page and gives him something to
+    // do, so there are two male agents in the recent prose and "their" has a real choice to make.
+    for (const body of (TWO_MEN.has(k) ? [
+      `The rain had not stopped for three days. Aldis Fen stood under the fishmonger's awning with ${OTHER_MAN} and watched Sabel cross the bridge, unhurried, the way collectors walk when they know where you sleep.`,
+      `${OTHER_MAN} turned his collar up and spat into the canal. He had counted the coins twice that morning. He counted them again now, in his pocket, by feel. The number did not improve.`,
+    ] : [
       'The rain had not stopped for three days. Aldis Fen stood under the fishmonger\'s awning and watched Sabel cross the bridge, unhurried, the way collectors walk when they know where you sleep.',
       'He had counted the coins twice that morning. He counted them again now, in his pocket, by feel. The number did not improve.',
-    ]) await j('/api/write', { storyId: made.id, body });
+    ])) await j('/api/write', { storyId: made.id, body });
     // The writer's own lines for him, in arm D only. AFTER the two shared passages, so they are
     // the most recent prose in the window — which is the position that makes them examples.
     if (WRITER_SPEAKS.has(k)) for (const body of HIS_OWN) await j('/api/write', { storyId: made.id, body });
@@ -341,7 +377,7 @@ if (arm === 'f53') {
     [process.env.ARM_B ?? 'marked', process.env.F53_TRT ?? '/tmp/f53-trt'],
   ];
   const arms = dirs.map(([label, dir]) => {
-    const all = readFileSync(`${dir}/D.jsonl`, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    const all = readFileSync(`${dir}/${process.env.ARM_FILE ?? 'D'}.jsonl`, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
     // RE-SCORED from the stored prose, never from the fields written at generation time — the same
     // rule `report` follows, and for the same reason: the detectors have been wrong twice and both
     // fixes landed after a run.
@@ -472,7 +508,8 @@ if (!story) { console.error(`no story "${(TITLES as any)[arm]}" — run the setu
 for (let i = 0; i < n; i++) {
   let row: Record<string, unknown>;
   try {
-    const r = await j('/api/generate', { storyId: story.id, mode: 'direct', directive: DIRECTIVE });
+    const r = await j('/api/generate', { storyId: story.id, mode: 'direct',
+      directive: TWO_MEN.has(arm) ? DIRECTIVE_E : DIRECTIVE });
     row = r.error ? { i, arm, error: String(r.error) }
                   : { i, arm, seconds: r.seconds, ...score(r.prose), prose: r.prose };
   } catch (e: any) {

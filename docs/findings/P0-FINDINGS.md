@@ -2727,3 +2727,75 @@ line at all: `Into the Blue` (26 passages), `The Reckoning at the Boutique Hotel
 lockout with the narrator rule and F54 could not reach it. `BUILD-STATE.md` and `.claude/CLAUDE.md`
 both described this as a change to "every book naming a locked character"; it is three books, one of
 them a demo and one of them a single passage.
+
+## F58 — F57's null was measured on a fixture that had defined the effect out of existence; rebuilt with TWO men, F54 still does not reduce his action (9 vs 6 events, p = 0.61) but does make him measurably less present by name (2026-09-06)
+
+Seth, reading F57: *"obviously there wouldn't be drift because it only has to pay attention to one
+character."* He is right, and the objection is fatal to F57 as a test of F54.
+
+**Why F57 could not have found anything.** F54's claim is that naming the locked character beats
+saying "their". A name can only buy something where the pronoun is AMBIGUOUS. Arms A–D of
+`bench/lockout.ts` contain exactly one man, so "their" has one possible referent and the name adds
+no information the model did not already have. A null result there was close to guaranteed by
+construction. **F57 measured the treatment on the one fixture where the treatment cannot work.**
+
+**The one-man constraint was inherited and its reason had expired.** It exists because an early
+version of the detectors matched `(he|aldis|fen)`, so a second man's pronouns scored as the
+protagonist's. The counters have been anchored on his NAME ever since. Verified before building
+anything: `Corvin Ashe reached into his coat`, `Corvin turned`, `Ashe stopped` all fail the `NAME`
+pattern, and `Aldis Fen reached into his coat` matches.
+
+**Arm E.** Same as D — the writer has already written him speaking and acting — plus `Corvin Ashe`,
+a second man, in canon as a character and given something to do in the seed prose. Directive
+changed for this arm only to `"Sabel crosses the bridge and stops in front of the two of them"`,
+because "in front of him" is ambiguous with two men and an ambiguous directive would confound what
+is being measured. **650 generations an arm, two servers on one router, simultaneous, 0 errors.**
+Treatment verified through `POST /api/manifest` before generating: the lockout wording differs and
+both men appear (6 mentions of Corvin) on both sides.
+
+**What the NAME-ANCHORED counters say — these are the valid ones.**
+
+| | their | the name | events | p |
+|---|---|---|---|---|
+| his action | 0.34 | 0.24 | 9 vs 6 | 0.6102 |
+| his name | 23.29 | 23.69 | 610 vs 581 | 0.7719 |
+| acted (binary) | 1.6% | 1.1% | 9/564 vs 6/534 | 0.6068 |
+| spoke | 0.0% | 0.0% | 0 vs 0 | 1.0 |
+| told | 0.0% | 0.0% | 0 vs 0 | 1.0 |
+| **names him at all** | **564/650** | **534/650** | | **0.0262** |
+
+**THE THREE STARRED NUMBERS IN THE REPORT MUST NOT BE READ AS F54 WORKING.** The run prints
+`he/him/his 14.24 -> 10.68, p = 0.0003`, `subject "he" 2.29 -> 1.30, p = 0.0091` and
+`possessive 9.31 -> 7.05, p = 0.0052`. Every one is a PRONOUN counter, and `density()` in
+`bench/lockout.ts` says at the site why they cannot be used: *"Pronouns are NOT attributed to him —
+the fixture cannot guarantee the referent... never counted as his action."* In a two-man scene that
+is not a caveat, it is a disqualification: half the male pronouns on the page may be Corvin's. The
+same applies to SUBJECT SLOT, which is `he` plus the name and therefore half contaminated — it
+reads flat anyway (25.58 → 24.99, p = 0.70). **Reporting those three as an effect would be F51's
+recorded error committed knowingly.**
+
+**So: the fixture that CAN show the effect still does not show the one that matters.** His action
+does not fall (9 against 6, p = 0.61). What does move is presence: the model names him in 534 runs
+against 564, p = 0.026. That is real and it is small, and it is not what the lockout is for — the
+lockout exists to stop him ACTING, not to make him rarer.
+
+**And the floor problem is not solved by the better fixture.** Two men produced 15 action events
+across 1,300 generations where one man produced 8. More, and still far too few to detect a third.
+Powering this properly means a fixture where the model writes his action often enough to count —
+which is a fixture much closer to a real book than either of these.
+
+**Densities here are NOT comparable to F57's or F54's** (F55's rule: this fixture's baseline drifts
+by half between runs, so only within-run contrasts hold). F58 does not overturn F54's published
+third; it says that on the design where the mechanism could operate, with F53 already shipping, the
+effect on his action is not detectable at 650 an arm.
+
+**F54 stays off.** Two independent runs, 2,600 generations, and neither finds it doing the job it
+was proposed for.
+
+**What this cost and what it bought.** F57 was written up as "F54 buys nothing on top of F53" and
+that sentence was not wrong, but the reason given for it was — it was attributed to F53 having
+taken the headroom, when the fixture had also removed the ambiguity the treatment needs. Both may
+be true; F58 separates them and only the first survives as stated. **The lesson is narrower than a
+p-value: a fixture built to make a DETECTOR sound can make a TREATMENT untestable, and nothing in
+the run reports that.** The detector note that justified the one-man scene was still in the file,
+still correct about detectors, and had outlived its own necessity by weeks.
