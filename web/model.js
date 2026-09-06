@@ -533,13 +533,21 @@ export function themeVars(key) {
     '--m-coop': mix(S.good, toward, .12),
     // (--speak-tint / --act-tint lived here. Removed 2026-08-27: only one of the pair was
     // visible, so the row read as broken rather than as distinguishing the two modes.)
-    '--head': mix(S.ink, away, .42),
-    '--dock': `linear-gradient(180deg,${S.paper}00,${S.paper}EB 40%)`,
+    // (--head, --dock and --panel-line lived here. Removed 2026-09-05: no rule anywhere named any
+    //  of them. Checked with `grep -rn 'var(--head)' app.html web/` and the same for the other two,
+    //  all three of which matched NOTHING — not read off a document, which had them listed as an
+    //  open question guarded by a hardcoded list. That list is `NEEDED` in test/app.ts and it is a
+    //  COMPLETENESS check — every theme must set every token in it — so it never guarded these
+    //  three against removal, it only required all nine themes to keep computing them.
+    //
+    //  `--dock` is the one worth naming. app.html carried a note saying it "survives for the big
+    //  composer, which IS the page", and that stopped being true when the background moved to
+    //  `#ghost.veil` — recorded thirty lines further down in app.html's own past tense, "It was
+    //  `--dock`". The token outlived its last rule and the comment outlived the token.)
     '--chrome': 'transparent',
     '--chrome-ink': mix(S.ink, toward, .35),
     '--chrome-dim': mix(S.ink, away, .42),
     '--chrome-line': S.dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.09)',
-    '--panel-line': mix(S.rail, toward, .14),
   };
 }
 

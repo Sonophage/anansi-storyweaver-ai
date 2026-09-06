@@ -1495,8 +1495,12 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const NEEDED = ['--doc-bg', '--doc-wash', '--rail', '--sheet', '--body', '--ink', '--ink-bright',
     '--narr', '--label', '--mute', '--dim', '--faint', '--ink-ghost', '--rule', '--line', '--edge',
     '--edge-lit', '--chip', '--field', '--gold', '--gold-dim', '--gold-lit', '--on-gold', '--bad',
-    '--good', '--warn', '--you-rule', '--speak-rule', '--head', '--dock', '--chrome', '--m-coop',
-    '--chrome-ink', '--chrome-dim', '--chrome-line', '--panel-line'];
+    '--good', '--warn', '--you-rule', '--speak-rule', '--chrome', '--m-coop',
+    '--chrome-ink', '--chrome-dim', '--chrome-line'];
+  // --head, --dock and --panel-line came out of this list AND out of themeVars on 2026-09-05,
+  // together, because no rule in app.html or web/ ever named one of them. Taking a name out of
+  // here alone would be the bad half of the change: this list is what makes nine themes agree, so
+  // a token still computed and no longer required is one a new theme may silently omit.
   for (const name of Object.keys(THEMES)) {
     const v: any = themeVars(name);
     for (const k of NEEDED)

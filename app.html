@@ -981,7 +981,11 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 /* NO GROUND UNDER THE DOCK. Seth: "remove the dark background. when its minimized that color
    should only be in the input box." The gradient was a slab the width of the window fading up
    into the prose; what it was really doing was separating the composer from the page, and the box
-   can say that by itself. `--dock` survives for the big composer, which IS the page. */
+   can say that by itself. (This said "`--dock` survives for the big composer, which IS the page."
+   It did not: the big composer's background moved to `#ghost.veil` — see the note thirty lines
+   below, which already says "It was `--dock`" — and after that nothing named the token. Both the
+   token and this sentence were removed on 2026-09-05, checked with a grep for `var(--dock)` that
+   matched nothing rather than by reading either comment.) */
 /* 18 AND 9, ten less than each started at — Seth asked to lower the composer by 5px twice on
    2026-09-02, once against 28/19 and again after seeing 23/14 on the restarted server. Taken off
    the BOTTOM padding, which is what moves it down: the dock is the last thing in the column, so its
