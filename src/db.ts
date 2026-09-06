@@ -347,6 +347,48 @@ function migrate() {
    * made this safe rather than brave. */
   drop('entries', 'priority', 'stored and ignored since it was written; 0 on every row');
   drop('chapters', 'summary_tokens', 'never populated on any chapter; NULL on all 17');
+
+  /* FILL THE SEARCH INDEX, and keep filling it. This is the step the 2026-08-23 attempt missed:
+   * it created an FTS table and never populated it, which is worse than not having one, because a
+   * search that quietly returns nothing looks like a book with nothing in it.
+   *
+   * `rebuild` is FTS5's own command for an external-content table — it discards the index and
+   * reads the content table from scratch, so it cannot half-succeed. It runs whenever the index is
+   * EMPTY and the source is not, which covers all three cases that matter and needs no version
+   * number on disk: the first boot after this shipped, a fresh database, and — the one a flag would
+   * miss — an index that got emptied or corrupted some other way. A backfill that runs once and
+   * trusts a marker is a backfill that cannot heal.
+   *
+   * Cheap to ASK: both sides are a COUNT over an index. Only the answer is expensive, and only when
+   * it is wrong. Measured on the live library: 1,025 passages rebuild in well under a second. */
+  for (const [fts, src, col] of [['fts_passages', 'passages', 'body'],
+                                 ['fts_entries', 'entries', 'title'],
+                                 ['fts_chapters', 'chapters', 'summary']] as const) {
+    try {
+      /* THE SHADOW INDEX, NOT THE TABLE — and getting this wrong is how the first version of this
+       * shipped a search that returned nothing at all.
+       *
+       * `SELECT COUNT(*) FROM fts_passages` on an EXTERNAL-CONTENT table reads the CONTENT table,
+       * not the index. It answered 1074 against 1074 passages on a completely unbuilt index, so
+       * `n === 0` was never true, the rebuild never ran, and every query returned zero rows — the
+       * exact silent-empty-index failure this block exists to prevent, reproduced by the check
+       * meant to prevent it. Caught only by searching for a word that is definitely in the book
+       * and getting nothing back.
+       *
+       * `fts_*_idx` is FTS5's b-tree shadow table and it is EMPTY until the index is built:
+       * measured 0 before a rebuild and 66 after, on the live library. That is the signal. */
+      const n = (db.prepare(`SELECT COUNT(*) AS n FROM ${fts}_idx`).get() as any).n as number;
+      const m = (db.prepare(`SELECT COUNT(*) AS n FROM ${src} WHERE ${col} IS NOT NULL`).get() as any).n as number;
+      if (n === 0 && m > 0) {
+        db.exec(`INSERT INTO ${fts}(${fts}) VALUES ('rebuild')`);
+        console.log(`  search index  ${fts} built from ${m} rows`);
+      }
+    } catch (e: any) {
+      // Never fatal. A database that cannot index is still a database somebody's novel is in, and
+      // search degrading is not a reason to refuse to open the book.
+      console.log(`  could NOT build ${fts}: ${e?.message}`);
+    }
+  }
   // #9. On a database that already exists the CREATE above does not add it.
   add('generations', 'mend', 'TEXT');
   // THE WRITER'S OWN MODEL, kept across restarts. It lived in a Map in serve.ts, so every restart
@@ -687,6 +729,83 @@ CREATE TABLE IF NOT EXISTS entry_edges (
 -- twice and count twice against the cap, which is a bug nobody would think to look for.
 CREATE UNIQUE INDEX IF NOT EXISTS entry_edges_pair ON entry_edges(parent_id, child_id);
 CREATE INDEX IF NOT EXISTS entry_edges_story ON entry_edges(story_id);
+
+/* ---- FULL-TEXT SEARCH ----------------------------------------------------------------------
+ *
+ * NO BACKTICKS ANYWHERE IN THIS COMMENT. It lives inside a JS template literal, so one backtick
+ * ends the schema string and the file stops parsing -- which is exactly what happened on the first
+ * attempt at writing it, and is the trap .claude/CLAUDE.md records for this very block.
+ *
+ * fts_passages AND NOT passages_fts, deliberately. The 2026-08-23 audit dropped a passages_fts that
+ * nothing populated and nothing queried, and the teardown that removes it still runs at the top of
+ * this file. A new table under the old name would be dropped by that teardown on every boot, or --
+ * worse -- an old database still carrying the dead table would satisfy CREATE IF NOT EXISTS and be
+ * silently kept with the wrong columns. A different name makes both impossible.
+ *
+ * WHY THIS EXISTS, and it is not speed. Measured on the live library 2026-09-06: the LIKE scan
+ * answers in 0.5 ms over 1,025 passages and 341 KB of prose. Speed was never the problem. PRECISION
+ * was: a LIKE on percent-art-percent matched heart, part and started, so "art" returned 28 hits of
+ * which ZERO were the word art, and "ash" returned 11 of which zero were the word ash. And two
+ * words could not be searched at all -- "rain canal" returned nothing, because LIKE wants them
+ * adjacent and the book has them a paragraph apart.
+ *
+ * EXTERNAL CONTENT, so FTS5 stores the index and not a second copy of the prose. A copy is a thing
+ * that can drift from the book; an index cannot disagree about what the text says.
+ *
+ * THE TRIGGERS ARE THE WHOLE DESIGN. The previous attempt failed by leaving population to
+ * application code, and application code forgets: there are six write paths into entries alone.
+ * SQLite keeps these in step whatever writes the row, including a hand-run UPDATE at the sqlite3
+ * prompt and src/import.ts, neither of which would ever have called a refresh function.
+ *
+ * AND THE TRIGGERS ARE NOT OPTIONAL, in a way worth knowing before it happens at 3am. Deleting the
+ * UPDATE trigger on purpose to falsify the tests did not produce a wrong search result -- it made
+ * SQLite raise "database disk image is malformed" on an ordinary passage edit. An external-content
+ * FTS5 index that drifts from its content table is reported as CORRUPTION, and that message reads
+ * like a lost novel when the only thing wrong is a stale search index.
+ *
+ * So: never add a write path that bypasses these, never drop one without dropping its table, and
+ * if that message ever appears, try INSERT INTO fts_x(fts_x) VALUES('rebuild') before believing
+ * anything about the book. The prose itself lives in passages, entries and chapters; everything
+ * here is derived and can be thrown away and rebuilt from them. */
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_passages USING fts5(
+  body, content='passages', content_rowid='rowid', tokenize='unicode61');
+CREATE TRIGGER IF NOT EXISTS fts_passages_ai AFTER INSERT ON passages BEGIN
+  INSERT INTO fts_passages(rowid, body) VALUES (new.rowid, new.body);
+END;
+CREATE TRIGGER IF NOT EXISTS fts_passages_ad AFTER DELETE ON passages BEGIN
+  INSERT INTO fts_passages(fts_passages, rowid, body) VALUES ('delete', old.rowid, old.body);
+END;
+CREATE TRIGGER IF NOT EXISTS fts_passages_au AFTER UPDATE ON passages BEGIN
+  INSERT INTO fts_passages(fts_passages, rowid, body) VALUES ('delete', old.rowid, old.body);
+  INSERT INTO fts_passages(rowid, body) VALUES (new.rowid, new.body);
+END;
+
+-- Two columns, because a card is found by its NAME at least as often as by its description.
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_entries USING fts5(
+  title, body, content='entries', content_rowid='rowid', tokenize='unicode61');
+CREATE TRIGGER IF NOT EXISTS fts_entries_ai AFTER INSERT ON entries BEGIN
+  INSERT INTO fts_entries(rowid, title, body) VALUES (new.rowid, new.title, new.body);
+END;
+CREATE TRIGGER IF NOT EXISTS fts_entries_ad AFTER DELETE ON entries BEGIN
+  INSERT INTO fts_entries(fts_entries, rowid, title, body) VALUES ('delete', old.rowid, old.title, old.body);
+END;
+CREATE TRIGGER IF NOT EXISTS fts_entries_au AFTER UPDATE ON entries BEGIN
+  INSERT INTO fts_entries(fts_entries, rowid, title, body) VALUES ('delete', old.rowid, old.title, old.body);
+  INSERT INTO fts_entries(rowid, title, body) VALUES (new.rowid, new.title, new.body);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_chapters USING fts5(
+  summary, content='chapters', content_rowid='rowid', tokenize='unicode61');
+CREATE TRIGGER IF NOT EXISTS fts_chapters_ai AFTER INSERT ON chapters BEGIN
+  INSERT INTO fts_chapters(rowid, summary) VALUES (new.rowid, new.summary);
+END;
+CREATE TRIGGER IF NOT EXISTS fts_chapters_ad AFTER DELETE ON chapters BEGIN
+  INSERT INTO fts_chapters(fts_chapters, rowid, summary) VALUES ('delete', old.rowid, old.summary);
+END;
+CREATE TRIGGER IF NOT EXISTS fts_chapters_au AFTER UPDATE ON chapters BEGIN
+  INSERT INTO fts_chapters(fts_chapters, rowid, summary) VALUES ('delete', old.rowid, old.summary);
+  INSERT INTO fts_chapters(rowid, summary) VALUES (new.rowid, new.summary);
+END;
 
 -- The cover, in the database rather than on disk, because the nightly backup is one file and a
 -- path would leave every cover out of it. A SIDE TABLE and not a column on stories, which is the
@@ -2459,9 +2578,38 @@ const touch = (id: string) => {
   return r;
 };
 
-// ponytail: LIKE scan over every selected passage. Fine at this size, linear at chapter 40.
-// Upgrade to FTS5 when it is measurably slow — an earlier revision created the table and never
-// populated it, which was worse than not having it.
+/** The search box's text, turned into an FTS5 query it cannot be hurt by.
+ *
+ *  RAW INPUT MUST NEVER REACH `MATCH`. FTS5 has its own grammar — `AND`, `OR`, `NOT`, `NEAR`, `*`,
+ *  `^`, parentheses, quotes — so a writer searching for `don't` or `the key)` or a bare `*` gets a
+ *  syntax error where they expected results, and one searching `rain OR canal` silently gets an
+ *  operator instead of two words. Every token is extracted and re-quoted, so the only thing that
+ *  survives from the input is the words.
+ *
+ *  UNICODE-AWARE (`\p{L}`), because this app has books with names like Solveig and Hao Shen and a
+ *  `\w+` split would cut them. Apostrophes are kept inside a word so `don't` stays one token, which
+ *  is what `unicode61` does to the prose on the way in.
+ *
+ *  THE LAST WORD GETS A PREFIX STAR, and that is a real decision rather than a flourish. This
+ *  replaces a substring scan, so `bra` used to find `brass` while you were still typing it; exact
+ *  word matching would return nothing until the word was finished and read as the search being
+ *  broken. Only the LAST token, because the earlier ones are words the writer has finished typing.
+ *
+ *  Multiple tokens are implicitly AND in FTS5, which is the other half of what LIKE could not do:
+ *  `rain canal` returned 0 hits from a book containing both, because LIKE wanted them adjacent. */
+export const ftsQuery = (term: string): string | null => {
+  const words = String(term ?? '').toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}'\u2019]*/gu);
+  if (!words?.length) return null;
+  return words.map((w, i) => {
+    const safe = w.replace(/"/g, '');                    // a quote inside a quoted token ends it
+    return i === words.length - 1 ? `"${safe}"*` : `"${safe}"`;
+  }).join(' ');
+};
+
+// ponytail: three indexes, three bm25 scores, one ORDER BY. bm25 is normalised per index, so a
+// prose hit and a card hit are not strictly comparable and the interleaving is approximate. It
+// beats the arbitrary first-60 that came before, and the fix if it ever matters is to rank within
+// each kind and merge by a fixed quota rather than to invent a cross-index score.
 /** Prose, entries and chapter summaries. The surface said it searched all three and it searched
  *  passages only — and a result carried `story`, which is a TITLE, where the client wanted an id,
  *  so clicking a hit tried to open a story called "The Silver Key". Both fixed here: one shape,
@@ -2472,27 +2620,41 @@ const touch = (id: string) => {
  *  owner filter is on EVERY branch regardless: each one needs its own, or a missing one leaks
  *  that kind only. test/scope.ts asserts all three. */
 export const search = (o: string, term: string, storyId?: string) => {
-  const like = `%${term}%`;
+  const m = ftsQuery(term);
+  // Nothing searchable in the box — punctuation, or empty. An empty result, never every row.
+  if (!m) return [] as any[];
   const scope = (alias: string) => (storyId ? `AND ${alias}.story_id = ?` : '');
   const args: any[] = [];
   const push = (...a: any[]) => { args.push(...a); if (storyId) args.push(storyId); };
-  push(o, o, like);         // prose      — MINE names the owner twice
-  push(o, o, like, like);   // entries
-  push(o, o, like);         // summaries
+  push(m, o, o);            // prose      — MATCH first, then MINE names the owner twice
+  push(m, o, o);            // entries
+  push(m, o, o);            // summaries
+  /* THE MATCH IS IN A SUBQUERY, not joined as a table. FTS5 wants `fts MATCH ?` against the fts
+   * table alone; putting it in the outer WHERE beside the ownership predicates lets the planner
+   * reorder them and SQLite then refuses it as an unusable MATCH. The subquery also keeps the
+   * ownership gate exactly where it was — on the outer row — so a hit the writer may not see is
+   * filtered by the same `MINE()` as before, not by anything new. */
   return q(`
-    SELECT 'Prose' AS kind, p.story_id AS story_id, s.title AS story_title,
-           'ch ' || c.idx AS loc, p.body AS body, p.id AS id
-      FROM passages p JOIN stories s ON s.id = p.story_id JOIN chapters c ON c.id = p.chapter_id
-     WHERE ${MINE()} AND p.selected = 1 AND p.body LIKE ? ${scope('p')}
-    UNION ALL
-    SELECT 'Entry', e.story_id, s.title, e.title, e.body, e.id
-      FROM entries e JOIN stories s ON s.id = e.story_id
-     WHERE ${MINE()} AND (e.title LIKE ? OR e.body LIKE ?) AND ${LIVE('e.')} ${scope('e')}
-    UNION ALL
-    SELECT 'Summary', c.story_id, s.title, 'ch ' || c.idx, c.summary, c.id
-      FROM chapters c JOIN stories s ON s.id = c.story_id
-     WHERE ${MINE()} AND c.summary IS NOT NULL AND c.summary LIKE ? ${scope('c')}
-     LIMIT 60`).all(...args) as any[];
+    SELECT * FROM (
+      SELECT 'Prose' AS kind, p.story_id AS story_id, s.title AS story_title,
+             'ch ' || c.idx AS loc, p.body AS body, p.id AS id, f.rank AS rank
+        FROM (SELECT rowid, bm25(fts_passages) AS rank FROM fts_passages WHERE fts_passages MATCH ?) f
+        JOIN passages p ON p.rowid = f.rowid
+        JOIN stories s ON s.id = p.story_id JOIN chapters c ON c.id = p.chapter_id
+       WHERE ${MINE()} AND p.selected = 1 ${scope('p')}
+      UNION ALL
+      SELECT 'Entry', e.story_id, s.title, e.title, e.body, e.id, f.rank
+        FROM (SELECT rowid, bm25(fts_entries) AS rank FROM fts_entries WHERE fts_entries MATCH ?) f
+        JOIN entries e ON e.rowid = f.rowid
+        JOIN stories s ON s.id = e.story_id
+       WHERE ${MINE()} AND ${LIVE('e.')} ${scope('e')}
+      UNION ALL
+      SELECT 'Summary', c.story_id, s.title, 'ch ' || c.idx, c.summary, c.id, f.rank
+        FROM (SELECT rowid, bm25(fts_chapters) AS rank FROM fts_chapters WHERE fts_chapters MATCH ?) f
+        JOIN chapters c ON c.rowid = f.rowid
+        JOIN stories s ON s.id = c.story_id
+       WHERE ${MINE()} AND c.summary IS NOT NULL ${scope('c')}
+    ) ORDER BY rank LIMIT 60`).all(...args) as any[];
 };
 
 // ---- history & revert ----

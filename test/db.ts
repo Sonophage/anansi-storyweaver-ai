@@ -2606,4 +2606,109 @@ ok('a thread can carry an optional picture, scoped to its own book', () => {
     'and deleting the thread takes its picture with it rather than orphaning a blob');
 });
 
+
+/* FULL-TEXT SEARCH. The 2026-08-23 attempt shipped an FTS table nothing populated, and the first
+ * cut of THIS one shipped an emptiness probe that could not detect an empty index — COUNT(*) on an
+ * external-content table reads the content table, so it answered 1074 against an index with zero
+ * rows in it and the rebuild never fired. Every query returned nothing. Both failures are silent:
+ * search that finds nothing looks exactly like a book with nothing in it.
+ *
+ * So the first check here is not precision, it is that the index EXISTS AND ANSWERS. */
+ok('search finds a word that is definitely in the book', () => {
+  const o = db.owner('searcher');
+  const s = db.createStory(o, { title: 'The Index' });
+  db.addPassage({ ...s, storyId: s.id, body: 'The brass key turned in the lock. Rain on the water.' });
+  const hits = db.search(o, 'brass');
+  assert.ok(hits.length > 0, 'a word in a passage must be findable — an empty index is a silent '
+    + 'failure that reads as an empty book');
+  assert.strictEqual(hits[0].id, db.passagesOf(s.id)[0].id, 'and it returns that passage');
+});
+
+ok('it matches WORDS, not substrings — the whole reason FTS5 replaced the LIKE scan', () => {
+  const o = db.owner('sub');
+  const s = db.createStory(o, { title: 'Substrings' });
+  db.addPassage({ ...s, storyId: s.id, body: 'He started, and his heart was a part of it. Ashe washed the cash.' });
+  /* THE CONTRACT IS "NO MID-WORD MATCHES", NOT "NO PARTIAL MATCHES", and the difference is the
+   * prefix star the sanitiser puts on the last token. Written down here because the first version
+   * of this check asserted ash finds NOTHING, and that contradicted the design in the same commit:
+   * ash SHOULD reach Ashe, the way typing bras should reach brass.
+   *
+   * What LIKE did and this must not: match in the MIDDLE of a word. Measured on the live library
+   * before the change — "art" returned 28 hits of which ZERO were the word art (heart, part,
+   * started) and "ash" returned 11 of which zero were the word ash (washed, cash). */
+  assert.strictEqual(db.search(o, 'art').length, 0,
+    'art must NOT match heart, part or started — no word here STARTS with art, and mid-word '
+    + 'matching is the defect FTS5 replaced');
+  assert.strictEqual(db.search(o, 'cash').length, 1, 'a word that really is there is found');
+  assert.strictEqual(db.search(o, 'ash').length, 1,
+    'and ash DOES reach Ashe, deliberately: the last token is a prefix so the box works while it '
+    + 'is being typed. That is a partial match at the START, never in the middle');
+  assert.strictEqual(db.search(o, 'heart').length, 1, 'and a real word is still found');
+});
+
+ok('two words are AND, not adjacency — LIKE could not do this at all', () => {
+  const o = db.owner('two');
+  const s = db.createStory(o, { title: 'Two Words' });
+  db.addPassage({ ...s, storyId: s.id, body: 'Rain fell for three days. Much later, the water rose.' });
+  assert.strictEqual(db.search(o, 'rain water').length, 1,
+    'both words in one passage, a sentence apart — the LIKE scan wanted them adjacent and found 0');
+  assert.strictEqual(db.search(o, 'rain zzzabsent').length, 0, 'and AND means AND');
+});
+
+/* THE TRIGGERS, WHICH ARE THE PART THAT ROTS. Population was left to application code last time and
+ * application code forgets — there are six write paths into entries alone, plus src/import.ts and a
+ * hand-run UPDATE at the sqlite3 prompt. These assert the index follows the row whatever moved it,
+ * and they are the checks that would go red if somebody dropped a trigger while editing the schema. */
+ok('the index follows an INSERT, an UPDATE and a DELETE without anything calling a refresh', () => {
+  const o = db.owner('sync');
+  const s = db.createStory(o, { title: 'Sync' });
+  const pid = db.addPassage({ ...s, storyId: s.id, body: 'The zephyr crossed the courtyard.' });
+  assert.strictEqual(db.search(o, 'zephyr').length, 1, 'INSERT reaches the index');
+
+  db.editPassage(s.id, pid, 'The mistral crossed the courtyard.');
+  assert.strictEqual(db.search(o, 'zephyr').length, 0, 'UPDATE removes the old word');
+  assert.strictEqual(db.search(o, 'mistral').length, 1, 'and adds the new one');
+
+  db.delPassage(s.id, pid);
+  assert.strictEqual(db.search(o, 'mistral').length, 0, 'DELETE removes it');
+});
+
+ok('a card is found by its title and by its body, and stops being found when deleted', () => {
+  const o = db.owner('cards');
+  const s = db.createStory(o, { title: 'Cards' });
+  db.upsertEntry(s.id, o, { title: 'Halvard Quill', body: 'A notary with a wet cough.',
+                            activation: 'always_on', keys: [] });
+  assert.strictEqual(db.search(o, 'halvard').length, 1, 'by title');
+  assert.strictEqual(db.search(o, 'notary').length, 1, 'by body');
+  db.delEntry(s.id, db.entriesOf(s.id)[0].id);
+  assert.strictEqual(db.search(o, 'halvard').length, 0, 'and the trigger takes it back out');
+});
+
+/* THE QUERY SANITISER. Raw input reaching MATCH is a syntax error where the writer expected results,
+ * and FTS5's grammar collides with ordinary prose: OR, NOT, NEAR and * are all operators. */
+ok('the search box cannot hand FTS5 something it will refuse', () => {
+  const o = db.owner('safe');
+  const s = db.createStory(o, { title: 'Safe' });
+  db.addPassage({ ...s, storyId: s.id, body: 'The rain and the canal and the key.' });
+  for (const nasty of ['rain OR canal', 'rain NEAR canal', '"unclosed', 'key)', '*', 'AND', 'rain*']) {
+    assert.doesNotThrow(() => db.search(o, nasty), `"${nasty}" must not throw`);
+  }
+  assert.strictEqual(db.search(o, '   ').length, 0, 'whitespace finds nothing, never everything');
+  assert.strictEqual(db.search(o, '!!!').length, 0, 'punctuation alone finds nothing');
+  // The operators are neutralised into words rather than obeyed.
+  assert.strictEqual(db.ftsQuery('rain OR canal'), '"rain" "or" "canal"*',
+    'OR is a word here, not an operator — obeying it would silently widen the search');
+  assert.strictEqual(db.ftsQuery('  '), null, 'nothing searchable returns null, not an empty match');
+});
+
+ok('the last word is a prefix so search works while it is being typed', () => {
+  const o = db.owner('prefix');
+  const s = db.createStory(o, { title: 'Prefix' });
+  db.addPassage({ ...s, storyId: s.id, body: 'The brasswork gleamed.' });
+  assert.strictEqual(db.search(o, 'brass').length, 1,
+    'typing bras/brass finds brasswork — the LIKE scan did this and losing it would read as a regression');
+  assert.strictEqual(db.ftsQuery('brass key'), '"brass" "key"*',
+    'only the LAST token gets the star; the earlier ones are words the writer finished');
+});
+
 console.log(`\n${n} checks passed`);

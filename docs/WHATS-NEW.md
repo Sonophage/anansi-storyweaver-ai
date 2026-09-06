@@ -10,6 +10,27 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-06 · Search finds the word you typed
+
+### It stopped matching the middle of other words
+Searching **ash** used to return eleven passages, and not one of them contained the word — they
+were *washed*, *cash*, and a character called *Ashe*. **art** returned twenty-eight, none of them
+the word *art*: they were *heart*, *part*, *started*. A short word gave you a screenful of things
+you did not ask for, and you had no way to tell the real hits from the noise.
+
+Now a word means that word. **ash** finds *ash*, and *Ashe* if you are still typing.
+
+### And you can search for two words at once
+Before, **rain water** looked for those two words stuck together in that order, so it almost always
+found nothing even when both were right there in the chapter. Now it finds the passages that
+contain both, wherever they sit.
+
+### Best matches first
+Results used to arrive in whatever order the database happened to hold them. They come back ranked
+now, so the passage that actually uses your word is at the top rather than sixty rows down.
+
+Prose, threads and chapter summaries are all searched, the way they always were.
+
 ## 2026-09-05 · The app opens about three times lighter
 
 ### Less to wait for, especially on a phone
