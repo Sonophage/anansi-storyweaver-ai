@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
+import { gzip as gzipCB } from 'node:zlib';
 import { extname, resolve } from 'node:path';
 import { routes, OPEN_ROUTES, storyIdOf } from './src/routes.ts';
 import type { Ctx } from './src/routes.ts';
@@ -186,6 +187,35 @@ const send = (res: any, code: number, body: unknown) => {
   res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body));
 };
 
+/* THE SHELL, COMPRESSED. Everything static here is read off disk per request — see the no-cache
+ * notes at both call sites, which is the property the whole path exists for — and `web/app.js` is
+ * 727 KB of it. A cold load was ~955 KB across app.html, app.js, model.js, api.js and help.js,
+ * every time, and the second writer reaches this over a tailnet on a phone.
+ *
+ * Measured on the live tree: app.js 743,906 -> 238,245, app.html 138,592 -> 45,910. About a third.
+ *
+ * `no-cache` IS UNCHANGED AND THAT IS THE POINT. This decides what crosses the wire, not how fresh
+ * it is, so an edit is still live without a restart and a phone still cannot serve a stale bundle.
+ *
+ * NO BROTLI. It compresses better and costs several times the CPU at these sizes, and nothing here
+ * is cached, so every request would pay the difference to save a tenth of the bytes once.
+ *
+ * ponytail: gzipped per request rather than cached on mtime. It runs on libuv's threadpool so it
+ * never blocks the loop, and at two writers that is free. Ceiling: the CPU of one compress per
+ * static file per cold load. Upgrade path is a Map keyed on path + mtimeMs — about six lines —
+ * and it is worth writing the day this serves more than a handful of people. */
+const gzip = promisify(gzipCB);
+const sendText = async (req: any, res: any, type: string, body: string) => {
+  const head: Record<string, string> = { 'Content-Type': type, 'Cache-Control': 'no-cache' };
+  // A client that did not ask gets the bytes as they are. Vary rides on BOTH answers, because a
+  // cache that saw the uncompressed one first must not hand it to a client that did ask.
+  if (!/\bgzip\b/.test(String(req.headers['accept-encoding'] ?? '')))
+    { res.writeHead(200, { ...head, Vary: 'Accept-Encoding' }); return res.end(body); }
+  const buf = await gzip(body);
+  res.writeHead(200, { ...head, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' });
+  res.end(buf);
+};
+
 const handler = async (req: any, res: any) => {
   // Declared out here because the `finally` at the bottom has to see it: the registration happens
   // deep inside the try, after the owner is resolved and the route is known.
@@ -261,11 +291,11 @@ const handler = async (req: any, res: any) => {
       // after the line was deleted, and the string did not exist anywhere in the tree — the page in
       // front of him predated the commit. Half a stale surface is worse than a wholly stale one:
       // "it still says X" and "X is not in the code" are both true and point nowhere.
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       const html = await readFile(HERE + PAGES[p], 'utf8');
       // Anchored to the whole line: a CSS comment up in app.html's head says ``zoom` on <body>`, and
       // a plain string replace stamps THAT and leaves the real tag alone. It did, on the first try.
-      return res.end(DEV ? html.replace(/^<body>$/m, '<body data-dev>') : html);
+      return sendText(req, res, 'text/html; charset=utf-8',
+        DEV ? html.replace(/^<body>$/m, '<body data-dev>') : html);
     }
     // THE ICON WAS ALREADY THERE AND ALREADY SERVED — app.html has declared it since it was
     // written and `/web/icon.svg` answers 200 with image/svg+xml. What did NOT answer is the bare
@@ -292,9 +322,7 @@ const handler = async (req: any, res: any) => {
       let file: string;
       try { file = await readFile(HERE + p.slice(1), 'utf8'); }
       catch { return send(res, 404, { error: 'not found' }); }
-      res.writeHead(200, { 'Content-Type': `${MIME[extname(p)]}; charset=utf-8`,
-        'Cache-Control': 'no-cache' });
-      return res.end(file);
+      return sendText(req, res, `${MIME[extname(p)]}; charset=utf-8`, file);
     }
     const key = `${req.method} ${p}`;
     const handler = routes[key];

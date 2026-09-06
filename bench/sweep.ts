@@ -72,12 +72,48 @@ console.log('\n  sweep — dead code and half-built, parsed from the tree\n');
   // The array ends `].map(k => ...)` and NOT with `];`, so a pattern anchored on `];` runs past it
   // into the next statement and swallows whatever quoted strings it finds — five of them, reported
   // as admitted actions nothing handles. Second time the parse was the thing that was wrong here.
-  const listed = new Set([...(app.match(/const ACTIONS = \[[\s\S]*?\]\s*(?:\.|;)/)?.[0] ?? '')
-    .matchAll(/'([a-z0-9]+)'/g)].map((m) => m[1]));
+  /* AND THE COMMENTS COME OUT BEFORE THE NAMES GO IN. Third time the parse was the thing that was
+   * wrong here, and it is the same fault section 1 already records against itself: the sweep read
+   * its own source's prose as evidence.
+   *
+   * `ACTIONS` carries a parenthetical saying which name LEFT it — `('help' left this list on
+   * 2026-09-03. The webs are drawn by tipMark now…)` — written precisely so a reader does not go
+   * looking for a live action called help. Harvesting quoted words out of the raw slice picked
+   * `'help'` straight back out of that sentence and reported `data-help` as an admitted action
+   * nothing handles. The comment that exists to prevent the confusion CAUSED it.
+   *
+   * A note naming a retired action is the normal way this file is maintained, so this will happen
+   * again every time one is removed. Stripping is the fix, not editing the comment.
+   *
+   * Line comments and block comments both, and it is safe on this slice specifically because every
+   * entry is a bare quoted lowercase name — there is no string here that can contain a `//`. */
+  const slice = (app.match(/const ACTIONS = \[[\s\S]*?\]\s*(?:\.|;)/)?.[0] ?? '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+  const listed = new Set([...slice.matchAll(/'([a-z0-9]+)'/g)].map((m) => m[1]));
   if (!listed.size) throw new Error('ACTIONS parsed as empty — the sweep would report every '
     + 'handler as unreachable. Fix the parse, do not read the output.');
+  // AND THE STRIP MUST NOT EAT THE LIST. An over-greedy comment pattern would leave a short but
+  // non-empty set and the guard above would pass it, so assert the size against the raw slice:
+  // the two differ by exactly the names quoted inside comments, which has been one for a year.
+  const rawNames = new Set([...(app.match(/const ACTIONS = \[[\s\S]*?\]\s*(?:\.|;)/)?.[0] ?? '')
+    .matchAll(/'([a-z0-9]+)'/g)].map((m) => m[1]));
+  if (rawNames.size - listed.size > 5) throw new Error(`the comment strip removed `
+    + `${rawNames.size - listed.size} names from ACTIONS — that is a broken pattern, not prose. `
+    + 'Fix the parse, do not read the output.');
   // `if (d.foo` / `if (d.foo !== undefined` / `d.foo)` in the delegated handler.
   const handled = new Set([...app.matchAll(/\bd\.([a-z0-9]+)\b/g)].map((m) => m[1]));
+  /* THE DELEGATED HANDLER IS NOT THE ONLY READER, and assuming it was is what made this call
+   * `data-atpick` a dead control. The @-picker rows carry `data-atpick="3"` and are read by their
+   * OWN listener — `e.target.closest('[data-atpick]')`, then `b.dataset.atpick` — which is the
+   * right shape for a control inside a menu that owns its own keyboard handling, and is invisible
+   * to a scan that only knows about `d.foo`.
+   *
+   * So the dead-control question below asks "read ANYWHERE", not "read by the delegated handler".
+   * The first check keeps `handled`, because an action admitted to ACTIONS and ignored by the
+   * delegated listener is a real fault whatever else reads the attribute. */
+  const readAnywhere = new Set([...handled,
+    ...[...app.matchAll(/\[data-([a-z0-9]+)\]/g)].map((m) => m[1]),
+    ...[...app.matchAll(/\.dataset\.([a-z0-9]+)\b/g)].map((m) => m[1])]);
   const marked = new Set([...app.matchAll(/data-([a-z0-9]+)=/g)].map((m) => m[1]));
   say('in ACTIONS, no handler reads it',
     [...listed].filter((a) => !handled.has(a)).map((a) => `data-${a}`));
@@ -92,8 +128,8 @@ console.log('\n  sweep — dead code and half-built, parsed from the tree\n');
   // (`[data-f="keys"]`, `[data-sp…]`, `[data-st…]`) and were never meant to be clicked; listing
   // them as dead buttons buried the two or three that matter under forty that never were.
   const onButton = new Set([...app.matchAll(/<button[^>]*?data-([a-z0-9]+)=/g)].map((m) => m[1]));
-  say('a button carries it, ACTIONS does not admit it and no handler reads it — a dead control',
-    [...onButton].filter((a) => !listed.has(a) && !handled.has(a)).map((a) => `data-${a}`));
+  say('a button carries it, ACTIONS does not admit it and nothing reads it — a dead control',
+    [...onButton].filter((a) => !listed.has(a) && !readAnywhere.has(a)).map((a) => `data-${a}`));
 }
 
 // ---- 3. element ids JS reaches for that the page does not have ----

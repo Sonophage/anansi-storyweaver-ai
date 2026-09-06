@@ -99,7 +99,7 @@ library the same day: `field` was NULL on 34 of 41 open proposals.
 | ~~Chapter pins~~ | force_in / force_out per chapter, composite FK closes SPEC §7.1's cross-story leak | **Done.** |
 | ~~Entry history~~ | Per-field revisions with provenance, restore, on both surfaces | **Done.** |
 | ~~Cross-story isolation~~ | One central gate plus scoped writes; 12 checks in `test-scope.ts` | **Done.** The audit found no ownership check on any of 27 routes. |
-| **The lockout** | The line itself, measured and strong (F28: acted 76% -> 25%, p = 0.0005). **F53 shipped nothing but resolved something**: marking the writer's own passages halves the model's action for the locked character (p = 0.00001) by moving him out of the subject slot, not by changing his verbs | **Two flags are built, measured and OFF.** `ANANSI_PROSE_AUTHOR` (F53) and `ANANSI_LOCKOUT_CLAUSE` (F52, inconclusive). A third, `ANANSI_LOCKOUT_NAMED` (F54), is under measurement as of 2026-09-01. Turning any of them on is a prompt change for every book naming a locked character — F20 is the standing warning — and it is Seth's call, not a consequence of a p-value. **Interiority is the unmeasured half**: F28 said the lockout does nothing measurable to it, but that was read with a NAME-ANCHORED counter that is blind to `he knew` and `his chest` — widening it on F53's prose found 25 events where the narrow one found 6. F28's conclusion needs re-scoring before it is trusted, and its stored prose is gone, so that needs a fresh run. |
+| **The lockout** | The line itself, measured and strong (F28: acted 76% -> 25%, p = 0.0005). **F53 shipped nothing but resolved something**: marking the writer's own passages halves the model's action for the locked character (p = 0.00001) by moving him out of the subject slot, not by changing his verbs | **STALE — corrected 2026-09-05, read at `src/story.ts:386`.** `ANANSI_PROSE_AUTHOR` (F53) is **ON**, and has been since it shipped on 2026-09-01 at Seth's word: it reads `!== '0'`, so it is opt-OUT and the off switch exists to make the next measurement runnable. What is built, measured and OFF is **three** flags, all opt-in on `=== '1'`: `ANANSI_LOCKOUT_CLAUSE` (F52, inconclusive), `ANANSI_LOCKOUT_NAMED` (F54, action down about a third, p = 0.008, 206 events) and `ANANSI_LOCKOUT_NOUN` (F55, underpowered rather than negative). **F54 is the one with a result and no decision.** This row said both were off for four days, which is the reverse of the truth on the one flag that is actually in every prompt. Turning any of them on is a prompt change for every book naming a locked character — F20 is the standing warning — and it is Seth's call, not a consequence of a p-value. **Interiority is the unmeasured half**: F28 said the lockout does nothing measurable to it, but that was read with a NAME-ANCHORED counter that is blind to `he knew` and `his chest` — widening it on F53's prose found 25 events where the narrow one found 6. F28's conclusion needs re-scoring before it is trusted, and its stored prose is gone, so that needs a fresh run. |
 | ~~Deleting a chapter~~ | `DELETE /api/chapter`, a two-press confirm, and the hint explaining why the numbers do not close up | **Done, and it was never the feature that was missing.** #31 was filed as "there is no way to delete a chapter" and the only door was inside **End this chapter** — nobody hunting for delete presses the button that closes one. The Chapter panel names it now. A mislabelled entrance reads exactly like an absent feature, which is the second time that has happened here. |
 | **Tests** | **Do not read a number here. Twelve unit suites and eighteen driven-browser scenarios, each of which prints its own total** — `node --experimental-strip-types test/all.ts` and `bash test/ui/run.sh`. Plus `model` and `ritual`, which wait on real generations, `cover` and `entrypic`, which need `ANANSI_SEARCH` and the open web, and the evals in `bench/` | No HTTP-level suite yet. The client-contract check **runs both ways**: every `api.js` method needs a caller in `app.js`, and every route in `routes.ts` needs a method in `api.js` or a named entry in `NO_CLIENT`. It caught `POST /api/repair` arriving doorless on 2026-09-01. **THE COUNT USED TO LIVE HERE AND WENT STALE THREE TIMES IN THREE DAYS** — 405 naming a `mend` suite that is `check.ts`; then 418/771 with `wizard` at 47 after the rework took it to 58; then 456 within hours of being written. A derived number copied into a document is a number that is wrong by the next commit, and this row is the proof, so it no longer carries one. |
 
@@ -357,6 +357,15 @@ it against the live file. `db.exportStory` copies a story into a standalone data
 export carries them forward** into a file the current schema would never have created. The sentence
 above is true of the source and false of the database being written to, which is the most dangerous
 shape a true sentence takes in this document.
+
+**Corrected again 2026-09-05: they are gone from the database too, and this paragraph had become
+the stale one.** Walked every table in the live `anansi.db` with `PRAGMA table_info` — neither
+`system_block_override` nor `token_counts` exists on any of the 23. So both halves are now clean and
+nothing is carried forward by an export. What is worth keeping is the shape of the miss: the
+paragraph above was written as a WARNING about a document being true of the code and false of the
+disk, and it went on being read as live for a week after the disk agreed with the code. **A
+correction is a claim with a date on it and drifts exactly like the claim it corrected.** Counted
+with the command, not recalled — code and disk both hold 23 tables and the two lists diff clean.
 
 ## 3c. The UI overhaul, 2026-08-23
 
@@ -830,6 +839,13 @@ write-up with seats is `docs/findings/COUNCIL-05.md`; this is what it changed.
 21 tables, 66 routes, 24 markers, no dependencies, no build step. **244** unit checks in eleven
 suites, **488** browser checks in twelve scenarios, plus `model` (39) and `ritual` (24).
 
+> **Every number in the paragraph above is 2026-08-28's and none of them is today's.** Re-counted
+> 2026-09-05: **23 tables, 98 routes, 52 markers.** Left in place rather than edited, because this
+> paragraph is the sixth pass's own evidence and rewriting it would erase the thing it proves — the
+> section immediately below is titled *What was wrong here* and says every DERIVED count has stayed
+> true while every TRANSCRIBED one has drifted. This is the third instance, and it is the paragraph
+> that named the rule. **Do not read a count out of this section; run the command.**
+
 ### What was wrong here
 
 Three counts, corrected in place above: **15 tables → 21**, **34 engine tests → 44**, and
@@ -1099,6 +1115,15 @@ Waiting row. One definition behind both. Flags do not light it.
   after, with every port it binds free. Same shape as the flake recorded at the end of the 09-02
   section. Written down rather than explained, because a flake nobody writes down is a flake
   somebody rediscovers — and this one reads exactly like the ownership gate failing.
+  **Third instance, 2026-09-05, and one hypothesis is now dead.** Same message, same port. `ss -ltn`
+  was checked at the time and every port `scope.ts` binds was free, with only the live server on
+  5174 — so a stray server is ruled out for this instance rather than assumed away. It had just run
+  straight after `test/app.ts` in the same shell, so that was tested as the cause: `app.ts` then
+  `scope.ts` back to back, twice, **58 both times**, and three runs alone before that also passed.
+  Not the neighbour. Still unexplained, now with one refuted explanation, which is worth more than
+  the third sighting on its own. If it turns up again, the thing to capture is the CHILD's stderr —
+  the assertion prints `The child said: (nothing)`, and a boot failure that says nothing is the
+  actual mystery.
 - **`veil` is in the default scenario set and drives real generations**, despite `run.sh`'s own
   comment saying it is excluded. It fails under load and passes on a quiet box; it died mid-scenario
   on one run and reached its verdict on the next, at the same commit. Running the default set also

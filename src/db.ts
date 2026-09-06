@@ -1137,7 +1137,9 @@ export const entriesOf = (id: string) => q(
  *  read-through drawing a card twice, or drawing one the writer removed.
  *
  *  Tombstones are included, which is the whole reason this is separate from `entriesOf`. */
-export const claimedOrigins = (id: string) => new Set(
+// Module-private: four callers, all in this file. It was exported and named nowhere outside, which
+// is the over-export `bench/sweep.ts` reports and the same narrowing import.ts had on 2026-08-28.
+const claimedOrigins = (id: string) => new Set(
   (q('SELECT origin_id FROM entries WHERE story_id = ? AND origin_id IS NOT NULL').all(id) as any[])
     .map((r) => String(r.origin_id)));
 

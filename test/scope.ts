@@ -7,6 +7,9 @@
 process.env.ANANSI_DB = '/tmp/anansi-scope.db';
 import assert from 'node:assert';
 import { unlinkSync, readFileSync } from 'node:fs';
+// Raw http, because `fetch` decodes gzip transparently and hides the header while doing it. The
+// static check at the bottom of this file has to see what actually crossed the wire.
+import { get as httpGet } from 'node:http';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-scope.db' + f); } catch {} }
 const db = await import('../src/db.ts');
 const { routes, OPEN_ROUTES, storyIdOf, isPrivateHost } = await import('../src/routes.ts');
@@ -1669,6 +1672,40 @@ async function bootServer(port: number, env: Record<string, string>) {
     assert.match(real.headers.get('cache-control') ?? '', /no-cache/,
       'and keeps its no-cache header, which is what makes an edit live without a restart');
     ok('a missing static file is a 404, not the end of the process');
+
+    /* AND IT IS COMPRESSED, both ways round. `fetch` decodes gzip transparently and can hide the
+     * header while doing it, so this asks over raw http and reads the bytes off the socket — the
+     * only way to see what actually crossed the wire.
+     *
+     * BOTH DIRECTIONS, because a one-sided check here is the failure this repo keeps finding: a
+     * server that gzipped unconditionally would pass "the gzip arm is smaller" and be broken for
+     * any client that did not ask. So the identity arm asserts the bytes are the file's own length
+     * AND that no Content-Encoding rides on it.
+     *
+     * Falsified three ways before it was believed: returning `res.end(body)` from the gzip branch
+     * turns the first assertion red, dropping the accept-encoding guard turns the identity pair
+     * red, and dropping Vary turns the last one red. */
+    const raw = (enc: string | null) => new Promise<{ h: any; n: number }>((done, fail) => {
+      const req = httpGet(`${url}/web/app.js`,
+        { headers: enc ? { 'accept-encoding': enc } : {} }, (r: any) => {
+          let n = 0; r.on('data', (c: any) => { n += c.length; });
+          r.on('end', () => done({ h: r.headers, n }));
+        });
+      req.on('error', fail);
+    });
+    const onDisk = readFileSync(new URL('../web/app.js', import.meta.url)).length;
+    const zip = await raw('gzip');
+    assert.strictEqual(zip.h['content-encoding'], 'gzip', 'app.js is gzipped for a client that asks');
+    assert.ok(zip.n < onDisk / 2,
+      `and the compressed body is under half the file: ${zip.n} against ${onDisk} on disk`);
+    const plain = await raw('identity');
+    assert.strictEqual(plain.h['content-encoding'], undefined,
+      'a client that did not ask for gzip is not sent gzip');
+    assert.strictEqual(plain.n, onDisk, 'it gets the file whole');
+    assert.strictEqual(zip.h.vary, 'Accept-Encoding',
+      'and Vary rides on both, or a cache hands the wrong body to the wrong client');
+    assert.strictEqual(plain.h.vary, 'Accept-Encoding', 'on the identity answer too');
+    ok(`app.js crosses the wire gzipped — ${zip.n} bytes against ${onDisk}`);
   } finally { srv.kill(); }
 }
 

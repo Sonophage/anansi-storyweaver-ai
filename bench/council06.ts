@@ -444,11 +444,18 @@ const CASES: [string, Want, string][] = [
   ['"Tuesday," Machek says. He does not sit down.', { oddDialogue: false, unclosed: false },
    'the scoped case — double quotes, which the strip can see'],
   ['"Tuesday," Machek says. "He knows we have not signed the last three',
-   { unclosed: true, toldPron: true },
-   'THE SECOND HOLE, AND BOTH HALVES OF IT: a passage cut off at the token ceiling leaves an '
-   + 'opening quote unpaired, `narrationOnly` hands the rest back as narration, and a line of '
-   + 'DIALOGUE then scores as the narrator asserting a non-POV interior. This is not a hypothetical '
-   + '— it happened on run #2 of the base rate, and it is why the guard is counted'],
+   { unclosed: true, toldPron: false },
+   'THE SECOND HOLE, CLOSED — and this case is now the guard that it STAYS closed. It was written '
+   + 'asserting toldPron TRUE, recording the defect as it stood: a passage cut off at the token '
+   + 'ceiling leaves an opening quote unpaired, `narrationOnly` handed the rest back as narration, '
+   + 'and a line of DIALOGUE then scored as the narrator asserting a non-POV interior. It happened '
+   + 'on run #2 of the base rate. `QUOTED` in context.ts now closes an unterminated span at end of '
+   + 'input — the `(?:["”]|$)` alternative — so the narration here is ` Machek says. ` and '
+   + 'FALSE is the right answer. Measured, not reasoned: narrationOnly returns exactly that. '
+   + 'It can still fail — drop the `|$` alternative and the dialogue leaks back in and this goes '
+   + 'true. `unclosed` stays TRUE because counting truncated passages is still worth doing. '
+   + 'The expectation was stale rather than the code, which is only visible because this check was '
+   + 'finally run: it is one of sixteen `check` modes under bench/ and fifteen of them run nowhere.'],
 ];
 
 function runCases(): string[] {

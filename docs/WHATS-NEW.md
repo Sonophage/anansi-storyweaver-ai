@@ -10,6 +10,17 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-05 · The app opens about three times lighter
+
+### Less to wait for, especially on a phone
+Opening Anansi used to pull down just under a megabyte before it could draw anything, every single
+time. It now sends about a third of that. On the desk you may not notice; on a phone, on the sofa,
+on a slow connection, it is the difference between a pause and no pause.
+
+Nothing about the app changed — the same page, the same everything. It is only packed smaller on
+the way to you, and unpacked when it arrives. An edit still shows up the moment you reload, exactly
+as before.
+
 ## 2026-09-03 · What the other writer does arrives on its own
 
 ### No more refreshing

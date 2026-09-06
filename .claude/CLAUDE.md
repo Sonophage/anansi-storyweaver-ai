@@ -35,12 +35,16 @@ list.
    half its table names had stopped describing this app. It is still cited by SECTION from source
    comments, which is why it was archived rather than deleted.)
 2. `docs/findings/BUILD-STATE.md` — done / half-built / not started, audited against source.
-3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Fifty-one markers as
-   of 2026-09-03**, counted by that command, not recalled: `app.js` 9, `db.ts` 9, `routes.ts` 9,
-   `context.ts` 6, `bench/cast.ts` 3, `llama.ts` 2, `model.js` 2, `serve.ts` 2, `council06.ts` 2,
+3. `grep -rn "ponytail:" src web bench test *.ts *.html` — the debt ledger. **Fifty-two markers as
+   of 2026-09-05**, counted by that command, not recalled: `app.js` 9, `db.ts` 9, `routes.ts` 9,
+   `context.ts` 6, `bench/cast.ts` 3, `serve.ts` 3, `llama.ts` 2, `model.js` 2, `council06.ts` 2,
    and one each in `story.ts`, `prompts.ts`, `app.html`, `test/db.ts`, `bench/retire.ts`,
    `bench/decode.ts`, `bench/ledger-audit.ts`. Each names what is missing, why it was left, and the
    upgrade path.
+   (It read 51 with `serve.ts` at 2 until 2026-09-05. This one is NOT drift — a marker was genuinely
+   added, on the gzip in `sendText`, naming per-request compression and the mtime cache that would
+   replace it. Recorded separately from the two entries below because "the tally was wrong" and
+   "debt was taken on" are different events and only one of them is a cost.)
    (The count read 49 with `llama.ts` at 1 until 2026-09-02; it has two and has had two. Nothing was
    added — the tally had drifted, which is the argument for counting it with the command each time.)
    (It read 50 with `routes.ts` at 8 until 2026-09-03, and `routes.ts` had nine at the commit that
