@@ -413,4 +413,52 @@ const NOT_CARRIED: Record<string, string> = {
   ok('an oversized .db is refused before it is written, not after');
 }
 
+/* THE SCHEDULED EXPORT PRUNES ITS OWN BOOK AND NOTHING ELSE'S.
+ *
+ * Written because the obvious implementation is wrong on the REAL directory. `exportStory` names a
+ * file `<slug>-<stamp>.db`, and book titles nest: /data/anansi-books on 2026-09-06 held both
+ * `the-anagram-*` and `the-anagram-of-ash-*`, and both `test-*` and `test-library-*`. A prune that
+ * filtered on `startsWith(slug + '-')` alone would, while trimming The Anagram to its newest
+ * fourteen, have deleted all 87 exports of The Anagram of Ash.
+ *
+ * So the fixture below is that exact shape, and the assertion that matters is the SECOND one — the
+ * neighbour is untouched. Falsified by dropping the STAMPED test from the filter in db.ts, which
+ * turns it red and leaves the first assertion green: the trap is invisible to a check that only
+ * asks "did my own book get trimmed".
+ */
+{
+  const { mkdirSync, readdirSync, rmSync, writeFileSync } = await import('node:fs');
+  const dir = '/tmp/anansi-prune-test';
+  rmSync(dir, { recursive: true, force: true }); mkdirSync(dir, { recursive: true });
+
+  const short = db.createStory(owner, { title: 'The Anagram' });
+  const long = db.createStory(owner, { title: 'The Anagram of Ash' });
+  // The neighbour's exports, written first so they are the OLDEST by name — which is what a
+  // newest-first prune would reach for.
+  for (let i = 0; i < 6; i++) db.exportStory(long.id, owner, dir);
+  // A hand-taken file that this function did not write, and must never delete: same lesson as
+  // `backup()`'s `pre-*` incident.
+  writeFileSync(`${dir}/the-anagram-BY-HAND-before-the-rewrite.db`, 'x');
+  for (let i = 0; i < 5; i++) db.exportStory(short.id, owner, dir, 3);
+
+  const left = readdirSync(dir);
+  const mine = left.filter((f) => /^the-anagram-\d{4}-/.test(f));
+  const neighbour = left.filter((f) => f.startsWith('the-anagram-of-ash-'));
+  // THE NEIGHBOUR IS ASSERTED FIRST, deliberately. Both go red on a prefix-only filter, and the
+  // one that fires is the one whoever broke it reads. "The Anagram kept 1 of 3" sends them looking
+  // at the keep arithmetic; "it deleted another book's exports" is the actual defect.
+  assert.strictEqual(neighbour.length, 6,
+    `THE NESTING TRAP: pruning "The Anagram" must not touch "The Anagram of Ash" — `
+    + `it must keep all 6, got ${neighbour.length}`);
+  assert.strictEqual(mine.length, 3, `The Anagram keeps its newest 3, got ${mine.length}`);
+  assert.ok(left.includes('the-anagram-BY-HAND-before-the-rewrite.db'),
+    'a file this function did not write is not its business');
+  // And the default is still never-prune, or a hand export would delete the scheduled ones.
+  db.exportStory(short.id, owner, dir);
+  assert.strictEqual(readdirSync(dir).filter((f) => /^the-anagram-\d{4}-/.test(f)).length, 4,
+    'keep=0 is the default and prunes nothing');
+  rmSync(dir, { recursive: true, force: true });
+  ok('the per-book export prunes its own book, keeps the nested neighbour, and defaults to never');
+}
+
 console.log(`\n${n} checks passed`);

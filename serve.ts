@@ -582,7 +582,14 @@ const handler = async (req: any, res: any) => {
     const books = () => {
       let done = 0; const failed: string[] = [];
       for (const st of db.allStoriesForExport()) {
-        try { db.exportStory(st.id, st.ownerId, BOOKS); done++; }
+        // KEEP FOURTEEN PER BOOK. This kept everything until 2026-09-06 and ran on every BOOT as
+        // well as daily, so /data/anansi-books had reached 823 files and 3.6 GB, 109 of them copies
+        // of one book. `backup()` beside it has pruned since it was written; this never did.
+        //
+        // Fourteen matches the off-disk whole-database copy above, and for the same argument: this
+        // is the one you reach for after losing a filesystem, and fourteen of them is a fortnight.
+        // Per book, not per directory — see the nesting trap named at the prune itself.
+        try { db.exportStory(st.id, st.ownerId, BOOKS, 14); done++; }
         catch (e: any) { failed.push(`${st.title}: ${e?.message}`); }
       }
       if (!booksSaid) {

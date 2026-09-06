@@ -329,6 +329,24 @@ function migrate() {
   drop('stories', 'voice_sample',
        'COUNCIL-06 ship 4: F36 — a finished line in every prompt is lifted into the prose, and a '
        + 'whole paragraph of one is the largest version of that. Empty on all nine books');
+  /* Two columns dropped 2026-09-06, at Seth's word, after measuring both in the CODE and in the
+   * DATA rather than reading either off a document.
+   *
+   * `entries.priority` — two mentions in the entire tree, both the schema line itself, and all 256
+   * rows in the live library sat at the default 0. It was for the budget engine's ordering, which
+   * is the one part of that engine still unbuilt (reservation and the trim ladder are the others;
+   * eviction has existed since 2026-08-29). Nothing was lost because nothing was ever written.
+   *
+   * `chapters.summary_tokens` — 17 chapters, zero non-null, three of them carrying a summary. It
+   * was only ever set to NULL on a clear and copied on fork and export, so every standalone
+   * database handed to anybody carried an always-empty column forward. That is the exact defect
+   * the two drops above this were written for, arriving a third time.
+   *
+   * BOTH COME BACK BY DELETING THESE TWO LINES if the budget engine wants them — a dropped column
+   * with no data in it costs one `add()` to restore, which is why measuring the data first is what
+   * made this safe rather than brave. */
+  drop('entries', 'priority', 'stored and ignored since it was written; 0 on every row');
+  drop('chapters', 'summary_tokens', 'never populated on any chapter; NULL on all 17');
   // #9. On a database that already exists the CREATE above does not add it.
   add('generations', 'mend', 'TEXT');
   // THE WRITER'S OWN MODEL, kept across restarts. It lived in a Map in serve.ts, so every restart
@@ -438,7 +456,7 @@ CREATE TABLE IF NOT EXISTS chapters (
   -- they reach the model differently: this one only while the chapter is still empty, that one as
   -- a direction. (No backticks in here: this is inside a template literal.)
   opens_with TEXT,
-  summary TEXT, summary_tokens TEXT, summary_covers_through INTEGER, summary_hash TEXT,
+  summary TEXT, summary_covers_through INTEGER, summary_hash TEXT,
   status TEXT DEFAULT 'open',          -- open | closed
   -- Pull a compacted chapter's full prose back into context on demand. A summary is a record
   -- of what happened: it carries plot through compaction and throws tone away. Writing a
@@ -487,11 +505,10 @@ CREATE TABLE IF NOT EXISTS entries (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   owner_id TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, notes TEXT,
   entry_type TEXT DEFAULT 'character', activation TEXT DEFAULT 'always_on',
-  -- ponytail: priority is stored and ignored — it needs the budget engine to mean anything
   -- (SPEC §7.3/§7.5). sticky_for and proper_nouns ARE read: context.ts folds around
   -- properNouns and holds an entry open for stickyFor passages after it last fired. This
   -- comment claimed all three were dead until 2026-08-27; two of them had not been for weeks.
-  keys TEXT DEFAULT '[]', priority INTEGER DEFAULT 0, sticky_for INTEGER DEFAULT 3,
+  keys TEXT DEFAULT '[]', sticky_for INTEGER DEFAULT 3,
   proper_nouns INTEGER DEFAULT 1, last_editor TEXT DEFAULT 'human',
   -- Who last wrote each field, as {field: 'human'|'model'}. last_editor alone is entry-level,
   -- and an entry-level freeze rots backwards: by chapter 30 the stale entries are exactly the
@@ -1558,7 +1575,7 @@ export function delAfter(storyId: string, passageId: string):
       .run(storyId, storyId, cur.branch_id, cur.ordinal);
     q('DELETE FROM passages WHERE story_id = ? AND branch_id = ? AND ordinal > ?')
       .run(storyId, cur.branch_id, cur.ordinal);
-    const clear = q(`UPDATE chapters SET summary = NULL, summary_tokens = NULL,
+    const clear = q(`UPDATE chapters SET summary = NULL,
                        summary_covers_through = NULL, summary_hash = NULL
                      WHERE id = ? AND story_id = ?`);
     for (const id of chapters) clear.run(id, storyId);
@@ -2609,7 +2626,14 @@ export const allStoriesForExport = (): { id: string; ownerId: string; title: str
   (q('SELECT id, owner_id, title FROM stories WHERE status IS NULL OR status != ?').all('deleted') as any[])
     .map((r) => ({ id: r.id, ownerId: r.owner_id, title: r.title }));
 
-export function exportStory(storyId: string, ownerId: string, dir = join(dirname(FILE), 'exports')) {
+/** The stamp `exportStory` writes, and the pattern that recognises one. Anchored, because the
+ *  prune below decides what to delete with it.
+ *
+ *  `2026-09-06T02-07-49-434Z` — an ISO string with `:` and `.` replaced by `-`. */
+const STAMPED = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.db$/;
+
+export function exportStory(storyId: string, ownerId: string, dir = join(dirname(FILE), 'exports'),
+                            keep = 0) {
   if (!ownsStory(storyId, ownerId)) throw new Error('no such story');
   const story = q('SELECT title FROM stories WHERE id = ?').get(storyId) as any;
   mkdirSync(dir, { recursive: true });
@@ -2641,6 +2665,45 @@ export function exportStory(storyId: string, ownerId: string, dir = join(dirname
     copy.prepare('DELETE FROM users WHERE id != ?').run(ownerId);
     copy.exec('VACUUM;');
   } finally { copy.close(); }
+
+  /* PRUNE THIS BOOK'S OLD EXPORTS, and only this book's.
+   *
+   * `keep = 0` means never prune, which is what every caller got before 2026-09-06 and is still the
+   * default: an export somebody asked for by hand must not delete anything. Only the scheduled
+   * export in serve.ts passes a number.
+   *
+   * THE SLUG IS NOT A SAFE PREFIX ON ITS OWN, and this is the whole reason for `STAMPED`.
+   * Book titles nest. Measured against the real /data/anansi-books on 2026-09-06, which held two
+   * such pairs: `the-anagram` inside `the-anagram-of-ash`, and `test` inside `test-library`.
+   * `f.startsWith('the-anagram-')` matches `the-anagram-of-ash-2026-…` — so pruning The Anagram
+   * down to its newest fourteen would have deleted all 87 exports of The Anagram of Ash.
+   *
+   * So what follows the slug must be a STAMP and nothing else. That is the same lesson `backup()`
+   * above records from the `pre-*` incident — prune only what this function wrote, and be able to
+   * prove a candidate is one of yours — met here by a second, sharper filter, because a prefix
+   * alone is not proof when the prefixes nest.
+   *
+   * Newest-first by NAME, which is sound only because the stamp is ISO and fixed width: it sorts
+   * lexicographically in time order. That is a property of the format above, so the two must not
+   * drift apart — `STAMPED` is anchored to exactly the shape `stamp` builds. */
+  if (keep > 0) {
+    /* NEVER THE FILE THIS CALL JUST WROTE, whatever the filter above decides.
+     *
+     * `backup()` learned this on 2026-08-30 the expensive way: its candidates outsorted the fresh
+     * snapshot, so the snapshot was deleted and then `statSync`ed, and the server printed
+     * `backup failed: ENOENT` on every boot for twelve boots while the real backups were eaten.
+     *
+     * Reproduced here on purpose while falsifying the check below — removing `STAMPED` from the
+     * filter made this function delete its own output and crash on the `statSync` at the return,
+     * the identical failure. A prune whose correctness depends on a pattern matching correctly is
+     * one pattern bug away from destroying the thing it was called to create, so the freshly
+     * written file is excluded structurally instead. */
+    const just = out.slice(dir.length + 1);
+    const mine = readdirSync(dir)
+      .filter((f) => f !== just && f.startsWith(`${slug}-`) && STAMPED.test(f.slice(slug.length + 1)))
+      .sort().reverse();
+    for (const f of mine.slice(keep - 1)) { try { unlinkSync(join(dir, f)); } catch { /* already gone */ } }
+  }
   return { file: out, bytes: statSync(out).size, title: story.title };
 }
 
@@ -2678,10 +2741,10 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
       const nid = uid('c-');
       chapterMap.set(ch.id, nid);
       q(`INSERT INTO chapters (id,story_id,branch_id,idx,title,authors_note,opens_with,summary,
-          summary_tokens,summary_covers_through,summary_hash,status,created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+          summary_covers_through,summary_hash,status,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(nid, storyId, id, ch.idx, ch.title, ch.authors_note, ch.opens_with, ch.summary,
-          ch.summary_tokens, ch.summary_covers_through, ch.summary_hash, 'open', t);
+          ch.summary_covers_through, ch.summary_hash, 'open', t);
     }
 
     for (const p2 of q(`SELECT * FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1
