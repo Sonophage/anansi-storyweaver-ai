@@ -1051,8 +1051,29 @@ async function bootServer(port: number, env: Record<string, string>) {
   let cry = '';
   srv.stderr?.on('data', (d) => { cry += d; });
   const url = `http://127.0.0.1:${port}`;
+  /* 40 SECONDS, NOT 10, AND THE EXTRA THIRTY ARE A DIAGNOSIS RATHER THAN A CUSHION.
+   *
+   * This read `i < 40` with a 250 ms sleep — ten seconds — and produced an intermittent
+   * "no server came up on 5187" five times between 2026-09-02 and 2026-09-06. It was written down
+   * three times as an unexplained flake and it reads exactly like the ownership gate failing, which
+   * is the most expensive way for a check to be wrong in this repo.
+   *
+   * What settles it: the branch above this one tests `srv.exitCode !== null` FIRST and never fired.
+   * The child was alive every time. It had not crashed, it had not hit EADDRINUSE, its stderr was
+   * empty — it was still starting. And every one of the five happened under CPU load: after another
+   * suite in a sequential loop, and finally inside `test/all.ts` itself on the run that added the
+   * sixteen bench checks and took it to twenty-eight parallel node processes. Never once alone.
+   *
+   * Boot is not free: node parses ~200 KB of TypeScript with no build step, and `serve.ts` makes an
+   * HTTP call to the router for the slot size before it listens. Ten seconds is comfortable on an
+   * idle box and is not a bound on a busy one.
+   *
+   * THIS COSTS NOTHING WHEN THE SERVER IS HEALTHY. The loop exits on the first successful fetch, so
+   * a normal boot still returns in about a second; the only thing that got longer is how patient a
+   * genuine failure is before it reports, and 40 s of patience is cheaper than one more morning
+   * spent looking at an ownership gate that was never broken. */
   let up = false;
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 160; i++) {
     try { await fetch(url + '/', { signal: AbortSignal.timeout(500) }); up = true; break; }
     catch { await new Promise((r) => setTimeout(r, 250)); }
   }
@@ -1073,7 +1094,7 @@ async function bootServer(port: number, env: Record<string, string>) {
   }
   if (!up) {
     srv.kill();
-    assert.fail(`no server came up on ${port} in 10s, so nothing below tests the gate. ${why}`);
+    assert.fail(`no server came up on ${port} in 40s, so nothing below tests the gate. ${why}`);
   }
   return { srv, url };
 }

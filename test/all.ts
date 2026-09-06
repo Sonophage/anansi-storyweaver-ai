@@ -16,17 +16,47 @@ import { execFile } from 'node:child_process';
 // listed here rather than being a check nobody runs. `bench/order.ts` justified a change to
 // `src/blocks.ts` ORDER and then went red on the tree that shipped it, because nothing ran it.
 //
-// SIXTEEN files under bench/ have a `check` mode and only this one is listed. That is a real gap
-// and it is deliberately not closed here: the other fifteen have never run in a suite, so turning
-// them all on at once would surface unknown reds that belong to whoever wrote them, not to the
-// next person to run the tests. Add them one at a time, each with its own commit.
+/* ALL SIXTEEN BENCH CHECKS RUN HERE SINCE 2026-09-06, at Seth's word.
+ *
+ * This list carried one of them and a note saying the other fifteen were left off because turning
+ * them on at once "would surface unknown reds that belong to whoever wrote them". That was the
+ * right call while the reds were unknown. They are not any more: all sixteen were run on
+ * 2026-09-06, fourteen were already green, and the one that was red — `council06` — was red because
+ * its FIXTURE was stale rather than the code, asserting a truncation defect that `QUOTED` in
+ * context.ts had since closed. It is now a guard that the hole stays shut.
+ *
+ * They cost 228 ms wall clock, all sixteen, because they run in parallel with everything else here.
+ * The note's other instruction — one at a time, each with its own commit — is superseded rather than
+ * ignored: its purpose was to keep unknown reds from landing on the next person, and running them
+ * first is a stronger version of the same care.
+ */
 const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'check.ts', 'memory.ts', 'report.ts', 'talk.ts', 'forge.ts', 'web.ts', 'app.ts',
-                '../bench/order.ts check'];
+                ...['order', 'contractions', 'lockout', 'quote', 'ledger-audit', 'modes', 'drift',
+                    'rooms', 'fires', 'retire', 'reroll', 'cast', 'voice', 'utilisation', 'weight',
+                    'council06'].map((b) => `../bench/${b}.ts check`)];
 const started = Date.now();
 
+/* EVERY BENCH ENTRY GETS ITS OWN DATABASE, and this is not tidiness.
+ *
+ * The twelve suites above each set `process.env.ANANSI_DB` at the top of their own file, before
+ * db.ts is imported. Nothing under bench/ does — those files are written to be run by hand, where
+ * pointing at the live library is the POINT.
+ *
+ * Probed on 2026-09-06 rather than assumed: of the sixteen check modes, fifteen touch no database
+ * and `bench/rooms.ts check` opens one. Run from here with ANANSI_DB unset it would have opened
+ * Seth's live anansi.db READ-WRITE and run migrate() against it, in the middle of a test run,
+ * while he might be writing. `bench/order.ts` says the same thing about itself in its own header:
+ * "it is a second writer on the book, so do not describe it as harmless."
+ *
+ * So the guard is on the SPAWN and not on the one file that needs it today. A check added next
+ * month that opens a database is covered without anybody remembering this. */
 const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean }>((done) => {
+  const bench = s.startsWith('../bench/');
+  const env = bench
+    ? { ...process.env, ANANSI_DB: `/tmp/anansi-bench-${s.split('/')[2].split('.')[0]}.db` }
+    : process.env;
   execFile(process.execPath, ['--experimental-strip-types', ...s.split(' ')],
-    { cwd: import.meta.dirname, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+    { cwd: import.meta.dirname, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, env },
     (err, stdout, stderr) => done({ s, out: (stdout ?? '') + (stderr ?? ''), ok: !err }));
 }));
 
