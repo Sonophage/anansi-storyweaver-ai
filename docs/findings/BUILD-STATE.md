@@ -122,7 +122,7 @@ Nothing in this list is a surprise; the point is that adding to it requires writ
 | ~~`render.ts`~~ | **F9 retired as stated.** Dropping the title made no difference (F12). At n=300 per arm the true rate is 4.0%, not 10-20%, and restating canon near the generation point halves it — directionally, not significantly (F15). Open as a low-rate defect; the harness is `bench/ab.ts`. |
 | `prompts.ts` | The checker misses numeric contradictions. One case in twelve. |
 | `context.ts` | Word folding, sticky windows, proper-noun exemption and POV force-include are **done**. Still missing: secondary keys, `key_logic`, proximity bound, exclusion keys, regex keys — all of which address multi-word false-firing. |
-| `context.ts` | No budget engine — ceilings and a hard refusal only. No reservation, trim ladder, eviction, or `partial` state. |
+| `context.ts` | No budget engine — ceilings, an eviction order, and a hard refusal. **EVICTION IS BUILT and this row denied it until 2026-09-06**: F31 and F32 built one on 2026-08-29, `evict()` at `context.ts:1427` sorts canon by how it earned its place, EARLIER by chapter number and PROSE oldest-first, and it is called three times (canon 45%, EARLIER 25%, PROSE 60%). The marker at `context.ts:1386` corrected itself on the day and this document did not follow. Genuinely missing: **reservation, trim ladder, `partial` block state** — every block is included or omitted whole. |
 | `db.ts` | SQLite, not Postgres. No pgvector, no RLS. |
 | ~~`db.ts`~~ | **Done.** Copy-on-write forking, branch switching, discard. Every read follows the active branch. |
 | ~~`db.ts`~~ | **Done.** `arcs` collapse a run of chapters into one act-level summary; covered chapters stop being sent. |
@@ -165,7 +165,7 @@ them back changes nothing else. Add them with the code that fills them.
 
 **P6 — "The book is longer than the window and it still holds." 40-60h. Correctly waiting.**
 The meter, the 45% canon cap and the EARLIER ceiling were built ahead of the phase. The budget engine
-itself — reservation, trim ladder, eviction, `partial` states, `priority` — is not built, and §7.2's
+itself — reservation, trim ladder, `partial` states, `priority` — is not built (**eviction IS**, see §2b), and §7.2's
 trigger has not fired: nothing has overflowed since the chapter window landed. F13 doubled the slot to
 50,048, which pushes the trigger further out rather than closer.
 
@@ -457,7 +457,7 @@ leaves as a standalone database, and comes back through `src/import.ts`.
 3. **Activation depth** — secondary keys, `key_logic`, proximity, exclusion, regex. PLAN-03 notes
    this does *not* address F9, since the entry already fires. It addresses multi-word false-firing,
    which is a different and real problem.
-4. **The budget engine** — reservation, trim ladder, eviction, `partial` states. Still gated on the
+4. **The budget engine** — reservation, trim ladder, `partial` states. **Not eviction: that was built 2026-08-29 and three of this document's lines went on calling it missing for a week.** Still gated on the
    trigger in PLAN-02 §7.2, which has not fired: nothing has overflowed since the chapter window
    landed. `priority` stays stored and ignored until this exists.
 5. **The remaining surfaces** — design screens D9, D10, D14, and the service worker for offline
