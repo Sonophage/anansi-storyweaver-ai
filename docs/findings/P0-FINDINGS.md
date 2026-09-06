@@ -2656,3 +2656,74 @@ not looked for the cost of.
 between two runs on this fixture, p = 0.004 — a fixture whose baseline is not stable across time.
 Both arms here ran SIMULTANEOUSLY against one router, which is the design that controls for it and
 the only one this project trusts. A sequential version of this run would be worth nothing.
+
+## F57 — F54's third does not survive being measured on top of F53: 650 generations an arm, 8 action events in total, and the subject slot moves the WRONG WAY. The published effect was measured against a baseline that no longer ships (2026-09-05)
+
+Run because F54 was about to be turned on. It sits on `bugs.md` #3 — Seth: *"if the user does
+indeed write as their own character the ai takes that as a soft permission and begins to start
+writing actions and speech for that character"* — and `BUILD-STATE.md` had it as "built, measured,
+and off", action down about a third at p = 0.008.
+
+**The design.** `bench/lockout.ts` arm D on both sides — the case where the writer has already
+written him speaking and acting. Two servers, 5301 and 5302, against the one router, **650
+generations an arm, running simultaneously**, 0 errors either side. The arms differ in one env flag
+and nothing else, and both sit on ONE database file so the fixture cannot differ.
+
+**F53 IS ON IN BOTH ARMS, and that is the whole point of this run.** F54's published run had F53's
+marker off on both sides. F53 has shipped ON since 2026-09-01, so that measurement no longer
+describes any prompt this app sends. What a decision to flip F54 actually needs is its MARGINAL
+effect on top of what ships, and that is what this is.
+
+**The treatment was verified through `POST /api/manifest` before AND after the run**, the way F52
+prescribes. Before: `never write their dialogue` against `never write Aldis Fen's dialogue`. After:
+the same. The comparison is void if both servers sent one prompt, and nothing downstream can tell.
+
+**Density, which is the comparable metric.**
+
+| | their (ships today) | the name (F54) | events | p |
+|---|---|---|---|---|
+| his action | 0.22 | 0.07 | 6 vs 2 | 0.2895 |
+| his name | 0.61 | 0.97 | 17 vs 26 | 0.1697 |
+| he/him/his | 48.68 | 48.25 | 1348 vs 1295 | 0.8306 |
+| **SUBJECT SLOT** | **2.49** | **2.91** | 69 vs 78 | 0.3651 |
+
+27,691 and 26,841 words of narration. Marker leak into the prose, F35's warning: **0 of 650 on both
+sides.**
+
+**Nothing here is significant, and the one starred number is the artifact F51 already named.** The
+binary rate reads `acted 35.3% -> 7.7%, p = 0.0422` — and its denominator is **17 against 26**. The
+treatment moved the denominator: he is NAMED in narration in 26 runs against 17 (p = 0.21). A rate
+whose denominator the treatment moves is exactly what F51 warned this fixture does, and reading that
+star as a result would be the same mistake with a smaller n.
+
+**The mechanism claimed for F53 and F54 does not appear.** Both are supposed to work by moving him
+out of the subject slot — the only slot an action can live in. Here the subject slot goes UP, 2.49
+to 2.91. Not significantly, but not down, and a mechanism that is absent is not a mechanism that is
+merely unproven.
+
+**What this run cannot do is detect an effect, and the reason is the finding.** There are **8 action
+events across 1,300 generations**. The control arm — which is precisely what Anansi sends today —
+produces his action at 0.22 per 1,000 words of narration, six events in 650 runs. There is almost
+nothing left for a second treatment to remove. This is not F55's "underpowered": F55 had headroom
+and too few runs, this has 650 runs an arm and no headroom.
+
+**AND THE DENSITIES HERE MAY NOT BE COMPARED TO F54's.** F55 established that this fixture's
+baseline drifts by half between runs (p = 0.004), so only a within-run contrast means anything. The
+sentence this finding does NOT make is "0.22 is lower than F53's post-treatment 1.16". What it says
+is narrower and safe: within one simultaneous run, both arms sit near zero and the contrast is not
+significant.
+
+**What it settles.** F54 buys nothing measurable on top of what ships, so there is no argument from
+this data for turning it on — and turning on a prompt clause that measures flat is the F20 and F37
+mistake for the third time. It stays off. **What it does not settle** is whether F54's published
+third was real; it may well have been, against the pre-F53 baseline it was taken on. Both can be
+true, and that is the useful shape: **a treatment measured against a baseline that has since been
+improved does not carry its old number forward.**
+
+**The blast radius, measured the same day, because it is smaller than the docs implied.** Four books
+in the live library set a locked character with the switch on, and only **three** emit a lockout
+line at all: `Into the Blue` (26 passages), `The Reckoning at the Boutique Hotel` (1), and the demo's
+`The Tin Orchard` (18). `The Shadow's Debt` is first person, so COUNCIL-06's rule replaces the
+lockout with the narrator rule and F54 could not reach it. `BUILD-STATE.md` and `.claude/CLAUDE.md`
+both described this as a change to "every book naming a locked character"; it is three books, one of
+them a demo and one of them a single passage.
