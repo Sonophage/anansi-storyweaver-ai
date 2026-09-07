@@ -2711,4 +2711,43 @@ ok('the last word is a prefix so search works while it is being typed', () => {
     'only the LAST token gets the star; the earlier ones are words the writer finished');
 });
 
+
+/* THE SLICE CREATED A NEW PAIR THAT MUST AGREE, so it gets a guard in the same commit.
+ *
+ * `searchSQL` and `searchArgs` live in src/search.ts and are written apart from each other: one
+ * builds placeholders, the other builds values. A mismatch between them is not an error — SQLite
+ * binds what it is given and returns the WRONG ROWS, silently, which is the worst shape of bug this
+ * repo has a name for: two things that must agree with only one of them guarded.
+ *
+ * Counting `?` in the SQL and comparing it to the argument list is the whole check, and it is cheap
+ * because both are pure strings. Falsified by dropping the `if (storyId) args.push(storyId)` line,
+ * which turns the scoped case red while leaving the unscoped one green. */
+const searchSlice = await import('../src/search.ts');
+ok('the search SQL and its arguments agree, scoped and unscoped', () => {
+  const search = searchSlice;
+  // THE REAL PREDICATES, because the placeholder count depends on them and they live in db.ts.
+  // The first version of this check passed the literals 'OWNER' and 'LIVE', which carry no `?` at
+  // all, and it reported 3 against 9 — the test was wrong and the code was right. A guard on two
+  // things agreeing has to be built from the two things.
+  const LIVE_E = "(e.sync IS NULL OR e.sync != 'dropped')";
+  for (const storyId of [undefined, 's-1']) {
+    const sql = search.searchSQL(db.MINE(), LIVE_E, !!storyId);
+    const args = search.searchArgs('MATCH', 'owner', storyId);
+    const holes = (sql.match(/\?/g) ?? []).length;
+    assert.strictEqual(holes, args.length,
+      `${storyId ? 'scoped' : 'unscoped'}: SQL has ${holes} placeholders, searchArgs supplies ${args.length}`);
+  }
+});
+
+ok('the search slice never reaches for the database itself', () => {
+  const src = readFileSync(new URL('../src/search.ts', import.meta.url), 'utf8');
+  // The point of the slice: it owns the KNOWLEDGE and db.ts owns EXECUTION. If this file ever
+  // imports db.ts or node:sqlite it has stopped being a slice and started being a second writer
+  // on the book, with its own idea of what the ownership gate says.
+  assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/search.ts must not import db.ts');
+  assert.ok(!/node:sqlite/.test(src), 'src/search.ts must not open a database');
+  assert.ok(!/\bMINE\s*\(/.test(src.replace(/`[^`]*`/g, '')),
+    'the ownership gate is passed IN as a string; src/search.ts must not define or call it');
+});
+
 console.log(`\n${n} checks passed`);
