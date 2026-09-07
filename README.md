@@ -96,17 +96,17 @@ so superseded documents are kept and marked rather than deleted:
 | `docs/findings/BUILD-STATE.md` | **live.** Done / half-built / not started, audited against source |
 | `docs/archived/SPEC.md` | **archived 2026-09-03.** The engine argument, not a description of the app — its writing modes and half its table names stopped being true long before it moved. Still cited by section from source comments |
 | `docs/PROMPTS.md` | **live**, revision 2 — transcribed from the code |
-| `docs/plans/PLAN-02.md` | **live** except where PLAN-03 moves things or a finding overrides it |
-| `docs/plans/PLAN-03.md` | **live** re-ordering; its own F9 numbers are superseded by F15 |
-| `docs/plans/PLAN-04.md` | **proposal, not agreed.** Characters and chapters, for the design conversation |
+| `docs/archived/PLAN-02.md` | **live** except where PLAN-03 moves things or a finding overrides it |
+| `docs/archived/PLAN-03.md` | **live** re-ordering; its own F9 numbers are superseded by F15 |
+| `docs/archived/PLAN-04.md` | **proposal, not agreed.** Characters and chapters, for the design conversation |
 | `docs/archived/PLAN-01.md` | **superseded, do not follow.** Kept because COUNCIL-02 reviews it line by line |
 | `docs/archived/COUNCIL-01..04.md` | **historical record** of a review event. Cited by name from source comments |
-| `docs/plans/PLAN-06-MEMORY.md` | **live.** Memory, recall and the crowded scene; 2a/2b/2c/2d/2f closed, 2e part-built |
-| `docs/plans/PLAN-07-VEIL.md` | **live.** The veil goes full screen; its three bugs are fixed, the designed work is ahead |
+| `docs/archived/PLAN-06-MEMORY.md` | **live.** Memory, recall and the crowded scene; 2a/2b/2c/2d/2f closed, 2e part-built |
+| `docs/archived/PLAN-07-VEIL.md` | **live.** The veil goes full screen; its three bugs are fixed, the designed work is ahead |
 | `docs/checklist.md` | **live.** What is open and undecided. Opens with the questions waiting on Seth |
 | `docs/bugs.md` | **live.** Reported and not yet scoped |
 | `docs/findings/COUNCIL-05.md` | **live.** The code read first, the docs read second — 2026-08-28 |
-| `docs/plans/DECISIONS.md` | **live.** Four decisions still waiting |
+| `docs/archived/DECISIONS.md` | **live.** Four decisions still waiting |
 | `docs/archived/PLAN-01.md` | **superseded, do not follow.** Kept because COUNCIL-02 reviews it line by line |
 | `docs/archived/COUNCIL-01..04.md` | **historical record** of a review event. Cited by name from source comments |
 | `docs/archived/PLAN-05-TALK.md` | **built.** The scope talk shipped from |

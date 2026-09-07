@@ -101,7 +101,7 @@ echoed their own title.
 
 ---
 
-**Open bugs, scoped and not yet built** — see `docs/plans/PLAN-07-VEIL.md` for the veil half:
+**Open bugs, scoped and not yet built** — see `docs/archived/PLAN-07-VEIL.md` for the veil half:
 
 - **The hardware-keyboard toggle** is still in the themes footer and belongs only in the UI tab.
 - **A regression:** with it on, the input box moves again. It used to hold still, because there is
@@ -469,7 +469,7 @@ that walk sent you looking for them. **Owed a walk next round**, worded as "find
   paragraph count out of Continue's prompt, which halved it again on the bench fixture. The samples
   read as complete beats, but whether that is the book you want is a taste question no benchmark
   answers.
-- **The four decisions** in `docs/plans/DECISIONS.md`. §1 interiority's shape and §2 the 82.5% —
+- **The four decisions** in `docs/archived/DECISIONS.md`. §1 interiority's shape and §2 the 82.5% —
   F28 now says a standing instruction in the prompt does not touch interiority at all, so if you
   want that number moved it needs a different lever and which one is yours to pick. §3 prompt
   override composition, which is the one thing not built inside a finished item: an override
@@ -592,7 +592,7 @@ numbers: `docs/archived/COUNCIL-04.md`.
 
 ## Four decisions, and F28 moved two of them
 
-`docs/plans/DECISIONS.md`.
+`docs/archived/DECISIONS.md`.
 
 1. **Interiority's shape** — my recommendation is still option A, build nothing.
 2. **The 82.5%** — F28 now says a standing instruction in the prompt does not touch it. If you want

@@ -13,7 +13,7 @@ comments that replaced it. A file that gets grepped by name from a code comment 
 | measured numbers, which override every plan | `docs/findings/P0-FINDINGS.md` |
 | where a cold session starts | `docs/HANDOFF.md` |
 | the most recent audit of the code against the docs | `docs/findings/COUNCIL-05.md` |
-| the four decisions still waiting on Seth | `docs/plans/DECISIONS.md` |
+| the four decisions still waiting on Seth | `docs/archived/DECISIONS.md` |
 | the plans still being built from | `docs/plans/PLAN-02/03/04/06/07` |
 
 ---
@@ -25,7 +25,7 @@ replaces it in full. Kept because `COUNCIL-02` reviews it line by line, so the r
 without it.
 
 **`PLAN-05-TALK.md`** — the scope for talking to Anansi about the story. **Built.** Talk shipped, the
-route and the panel exist, and `docs/plans/DECISIONS.md` still points at this for the shape that was
+route and the panel exist, and `docs/archived/DECISIONS.md` still points at this for the shape that was
 agreed.
 
 **`NEXT-SESSION.md`** — a handoff written at the end of 2026-08-28, marked *superseded in part* the
