@@ -1160,7 +1160,7 @@ const LIVE = (a = '') => `(${a}sync IS NULL OR ${a}sync != 'dropped')`;
  *  #36. A `dropped` row is a TOMBSTONE and not a card: it says only "this book does not want the
  *  followed card with this origin". Excluding it here is what keeps it out of the ledger screen, out
  *  of an export, out of a copy-to-another-book, and out of every prompt — everything that reads this
- *  function means cards, and a tombstone is not one. `droppedOrigins` is the one reader that wants
+ *  function means cards, and a tombstone is not one. `droppedFollowed` is the one reader that wants
  *  them. */
 export const entriesOf = (id: string) => q(
   `SELECT * FROM entries WHERE story_id = ? AND ${LIVE()} ORDER BY rowid`).all(id) as any[];

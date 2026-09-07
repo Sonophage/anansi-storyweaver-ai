@@ -627,7 +627,7 @@ export const mark = (name, size = 19, colour = 'currentColor') =>
  *  is straight-quoted or properly paired; the upgrade is a paired-delimiter scan if an import ever
  *  brings in the other convention.
  */
-// Module-private: `tailOf` below is the only caller, in this file. Same over-export narrowing as
+// Module-private: `leftOffLine` below is the only caller, in this file. Same over-export narrowing as
 // `claimedOrigins` in db.ts \u2014 exported, named nowhere outside, so the surface was wider than meant.
 const narrationOf = (body) => String(body ?? '').replace(/["\u201c][^"\u201d]*["\u201d]/g, ' ');
 

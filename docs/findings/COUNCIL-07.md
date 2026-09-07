@@ -170,7 +170,7 @@ screen that violates it.
   land on, not that there are too few steps.
 - **Deleting the report.** The proposals are real and the router-asleep path is real. This is a
   demotion, not a cut.
-- **A full-screen ritual surface.** `docs/checklist.md` reserves that question for its own session,
+- **A full-screen ritual surface.** `docs/archived/checklist-2026-09-06.md` reserves that question for its own session,
   and the panel's docstring already refuses it for the stated reason. Nothing here needs it.
 
 

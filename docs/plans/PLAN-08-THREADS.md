@@ -19,7 +19,7 @@ nothing in the ledger can currently fire) · **the chapter-end half of #12**, be
   half-done.
 - **#9, contradictions arriving late.** The check reads the ledger. Fielded cards change its inputs,
   so doing #9 first is work thrown away. After, not beside.
-- **#11 / #7's voice half.** Prompt work, not ledger work, and `docs/checklist.md` already rules it
+- **#11 / #7's voice half.** Prompt work, not ledger work, and `docs/archived/checklist-2026-09-06.md` already rules it
   gets its own session with a probe first.
 - **#12's story-start half.** Comes with the ritual work later; nothing here needs it.
 

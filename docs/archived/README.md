@@ -8,7 +8,7 @@ comments that replaced it. A file that gets grepped by name from a code comment 
 
 | what you want | where it is |
 |---|---|
-| what is open, undecided, or owed | `docs/checklist.md` |
+| what is open, undecided, or owed | `docs/findings/BUILD-STATE.md` (its "What is missing" table). `docs/checklist.md` held this until 2026-09-06 and is now `docs/archived/checklist-2026-09-06.md` — it had drifted the same way BUILD-STATE had. |
 | what is built, half-built, not started, audited against source | `docs/findings/BUILD-STATE.md` |
 | measured numbers, which override every plan | `docs/findings/P0-FINDINGS.md` |
 | where a cold session starts | `docs/HANDOFF.md` |

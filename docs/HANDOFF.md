@@ -32,7 +32,7 @@
    run again. That is the harness working, not a regression — the message says so.
 
 **Where things live now.** `docs/SPEC.md` was archived today: it is `docs/archived/SPEC.md`, it is
-not a live reference, and four of its §15 gaps were carried to `docs/checklist.md` rather than being
+not a live reference, and four of its §15 gaps were carried to `docs/archived/checklist-2026-09-06.md` rather than being
 closed by moving a file. The debt ledger is **51 markers** — count it, never carry the number
 forward; it has drifted twice in two days.
 
