@@ -98,6 +98,28 @@ and `COUNCIL-04` 39 times. Archive rather than delete anything with citations.
   nothing they would notice gets no entry.
 - **Never write a raw control byte into source.** Use the escape. See the ledger note above.
 
+### Vertical slices, and where they stop
+
+`src/search.ts` is the pattern: one feature owning its schema, its triggers, its index backfill, its
+query grammar and its SQL shape, in one file. It replaced the same feature living in four places
+inside `db.ts` — the schema at one end, the backfill two hundred lines earlier in `migrate()`, the
+query fifteen hundred lines later.
+
+**What makes it a slice and not a fragment: it owns the KNOWLEDGE, `db.ts` keeps EXECUTION.** It
+never opens a database, and it never defines the ownership gate — `MINE()` is handed in as a string
+by the one module entitled to own it. The alternative was exporting `q` (233 uses) so the slice
+could run its own SQL, and passing the security predicate around. Neither is acceptable.
+
+So the test for the next slice: **can it own its knowledge without owning the primitives?** If it
+needs `q`, it is not a slice. And the layered modules that are left — `db.ts`, `routes.ts`,
+`context.ts` — are not a mistake to be undone: the dependency graph is clean and acyclic, and a
+typical change here touches one to three files. The size of those three is the problem, not the
+shape. Cut a slice out when a feature is genuinely self-contained; do not restructure to a plan.
+
+**Splitting creates a new pair that must agree.** `searchSQL` builds placeholders and `searchArgs`
+builds values; a mismatch returns wrong rows silently rather than erroring. Guard the seam in the
+same commit that cuts it — `test/db.ts` does, and the guard caught a bad test on its first run.
+
 ### Comments are load-bearing, and they drift too
 
 38% of this tree is comment — 59% in `context.ts` — and it is the reason the code is workable: the
