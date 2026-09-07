@@ -1387,7 +1387,31 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // now and this comment denied it until 2026-08-29: F31 and F32 built one, and `evict` below
   // sorts canon by how it earned its place, EARLIER by chapter number and PROSE oldest-first.
   // Deferred on measurement: prefill is fast (F1), the server refuses overflow rather than
-  // truncating (F3), and summaries bound the context. PLAN-02 §7.2 holds the trigger condition.
+  // truncating (F3), and summaries bound the context.
+  //
+  /* THE TRIGGER, WRITTEN OUT HERE RATHER THAN CITED. This line said "PLAN-02 §7.2 holds the trigger
+   * condition" and that was the only citation in the tree that made you go and read a document to
+   * know what the code meant. Worse, the sentence beside it named the wrong test.
+   *
+   * §7.2's actual words: **the trigger is NOT overflow.** "With canon above prose, one ledger edit
+   * invalidates the KV prefix, so the pain arrives as PREFILL GOT SLOW, and it will be misread as a
+   * hardware problem. The named trigger is: first prefill above N seconds, or first call where the
+   * prefix moved and the guard fired."
+   *
+   * So "nothing has overflowed" — the reason given for deferring, here and in every build-state
+   * document since — has never been the question. Overflow was explicitly ruled out as the signal
+   * by the plan that deferred the work.
+   *
+   * AND SOMETHING BEARING ON IT WAS MEASURED ON 2026-09-07, though it is not proof. Across 759
+   * prose runs: p50 9.7 s, p90 44.5 s, p99 115.3 s, and the latency tracks the gap since the last
+   * generation — 8.1 s while writing continuously, 20.7 s after 1-5 minutes, 33.2 s after 5-15.
+   * That is the shape §7.2 describes: the prefix moving and the cost landing on prefill. What it is
+   * NOT is a measurement of prefill itself — `latency_ms` covers the whole call, generation
+   * included, so this is consistent with the trigger rather than a reading of it.
+   *
+   * To settle it, measure prefill alone (the router reports it) against the same gap buckets. If
+   * prefill is what moves, the trigger has fired and this engine is owed. Nobody has run that, and
+   * for as long as that is true this comment is the honest state of the question. */
   // ---- ceilings, then the guard ----
   const byKind: Record<string, number> = {};
   for (const b of blocks) byKind[b.kind] = (byKind[b.kind] ?? 0) + b.tokens;

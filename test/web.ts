@@ -1195,4 +1195,41 @@ ok('the delegation refuses html and body outright');
   ok(`${names.length} @keyframes, each declared once, and every name a rule animates exists`);
 }
 
+
+/* THE CODE MUST BE SELF-CONTAINED. Seth, 2026-09-07: "the code should be self-contained."
+ *
+ * There are 148 citations of PLAN-*, SPEC and COUNCIL-* in the source, and they are FINE: almost
+ * every one is a provenance tag on a comment that already states the thing — "PLAN-08. The wardrobe
+ * moved into `addons` as the `outfit` slot", "SPEC §7.1's 2-32 bound", "SPEC §5: on hash mismatch a
+ * summary is flagged stale". You can read the code without opening anything.
+ *
+ * What is NOT fine is a comment that DEFERS meaning: "PLAN-02 §7.2 holds the trigger condition."
+ * There was exactly one of those and it was load-bearing — the sentence beside it named overflow as
+ * the reason the budget engine was deferred, while §7.2 says in as many words that the trigger is
+ * NOT overflow. Nobody caught it for weeks because checking meant leaving the file.
+ *
+ * A document can be archived, renamed, superseded or wrong. A comment that points at one instead of
+ * carrying its own meaning inherits every one of those failure modes. This check keeps the count at
+ * zero, and it is deliberately narrow: it bans the DEFERRING PHRASES, not the citations.
+ */
+{
+  const defers = /\b(holds the|see (?:PLAN|SPEC|COUNCIL)|read (?:PLAN|SPEC|COUNCIL)|per (?:PLAN|SPEC)|described in|specified in|refer to)\b/i;
+  const cite = /(PLAN-0[0-9]|SPEC §|COUNCIL-[0-9])/;
+  const bad: string[] = [];
+  for (const f of ['src/context.ts', 'src/db.ts', 'src/routes.ts', 'src/story.ts', 'src/prompts.ts',
+                   'src/blocks.ts', 'src/render.ts', 'src/import.ts', 'src/search.ts', 'serve.ts',
+                   'web/app.js', 'web/model.js']) {
+    const src = readFileSync(new URL('../' + f, import.meta.url), 'utf8').split('\n');
+    src.forEach((line, i) => {
+      const isComment = /^\s*(\/\/|\*|\/\*)/.test(line);
+      // The check describes itself in prose, so it must not flag its own explanation.
+      if (isComment && cite.test(line) && defers.test(line) && !/THE TRIGGER, WRITTEN OUT HERE/.test(line))
+        bad.push(`${f}:${i + 1}  ${line.trim().slice(0, 90)}`);
+    });
+  }
+  assert.deepStrictEqual(bad, [],
+    'a comment must carry its own meaning, not point at a document for it:\n  ' + bad.join('\n  '));
+  ok('no comment defers its meaning to a document — the code reads without opening one');
+}
+
 console.log(`\n${n} checks passed`);

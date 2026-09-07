@@ -97,6 +97,13 @@ and `COUNCIL-04` 39 times. Archive rather than delete anything with citations.
   WRITES BOOKS: no file names, no function names, no refactors, no test work. A commit that changes
   nothing they would notice gets no entry.
 - **Never write a raw control byte into source.** Use the escape. See the ledger note above.
+- **The code is self-contained.** Seth, 2026-09-07: *"the code should be self-contained."* Citing a
+  document is fine as PROVENANCE — "PLAN-08. The wardrobe moved into `addons` as the `outfit` slot"
+  reads without opening anything. Deferring MEANING to one is not: "PLAN-02 §7.2 holds the trigger
+  condition" made a reader leave the file, and for weeks nobody noticed that the sentence beside it
+  named the wrong test — §7.2 says the trigger is explicitly NOT overflow, while the comment gave
+  "nothing has overflowed" as the reason for deferring. A document can be archived, renamed or
+  superseded; a comment pointing at one inherits all of that. `test/web.ts` keeps the count at zero.
 
 ### Vertical slices, and where they stop
 
