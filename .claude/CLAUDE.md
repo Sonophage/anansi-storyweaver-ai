@@ -74,8 +74,14 @@ Run it; do not cite it.
    the path, and a per-file tally copied by hand. A count is only derived if the command sees the
    whole tree.
 
-`docs/archived/` holds superseded documents. They are not dead: the code cites `SPEC.md` 55 times
-and `COUNCIL-04` 39 times. Archive rather than delete anything with citations.
+**There is no `docs/archived/`.** It held 18 superseded documents and 7,029 lines and was deleted
+on 2026-09-07, once the code had been made self-contained: no comment defers its meaning to a
+document any more, so nothing in `src/` needs one to be readable.
+
+Comments still carry names like `PLAN-08 Phase 2` and `SPEC §7.1`. **Those are historical labels,
+not paths** — the document is in git history and nowhere else. The sentence around the label is
+the whole meaning; if one ever is not, that is the bug, and `test/web.ts` fails on the phrases that
+produce it. Do not go looking for the file, and do not re-create it.
 
 ## Conventions that are not negotiable
 

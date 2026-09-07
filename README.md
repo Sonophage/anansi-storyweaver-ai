@@ -87,34 +87,28 @@ docs/           spec, prompts, plans, councils, findings
 
 ## The docs, and which to trust
 
-Every document carries a status banner. The short version — these are a citation graph, not a pile,
-so superseded documents are kept and marked rather than deleted:
+Six live documents, and that is the whole set. There was an archive of 18 superseded ones; it was
+deleted on 2026-09-07, once the code had been made self-contained. Comments still carry names like
+`PLAN-08 Phase 2` and `SPEC §7.1` — those are **historical labels, not paths**. The sentence around
+the label carries the meaning, `test/web.ts` fails if one ever stops doing so, and the documents
+themselves live in git history.
 
 | | status |
 |---|---|
-| `docs/findings/P0-FINDINGS.md` | **authoritative.** Measured off the machine; wins over every other document on any point of fact |
-| `docs/findings/BUILD-STATE.md` | **live.** Done / half-built / not started, audited against source |
-| `docs/archived/SPEC.md` | **archived 2026-09-03.** The engine argument, not a description of the app — its writing modes and half its table names stopped being true long before it moved. Still cited by section from source comments |
+| `docs/findings/P0-FINDINGS.md` | **authoritative.** 59 measured findings. Wins over every other document on any point of fact, and the one thing here that cannot be re-derived by reading source |
+| `docs/findings/BUILD-STATE.md` | **live.** What is built and what is missing, every line carrying the command that checks it |
+| `docs/plans/PLAN.md` | **live.** Everything open: four decisions waiting on Seth, and the verified-missing work. Rewritten, never appended to |
+| `docs/WHATS-NEW.md` | **live.** The release notes the app serves at `GET /api/whatsnew` |
 | `docs/PROMPTS.md` | **live**, revision 2 — transcribed from the code |
-| `docs/archived/PLAN-02.md` | **live** except where PLAN-03 moves things or a finding overrides it |
-| `docs/archived/PLAN-03.md` | **live** re-ordering; its own F9 numbers are superseded by F15 |
-| `docs/archived/PLAN-04.md` | **proposal, not agreed.** Characters and chapters, for the design conversation |
-| `docs/archived/PLAN-01.md` | **superseded, do not follow.** Kept because COUNCIL-02 reviews it line by line |
-| `docs/archived/COUNCIL-01..04.md` | **historical record** of a review event. Cited by name from source comments |
-| `docs/archived/PLAN-06-MEMORY.md` | **live.** Memory, recall and the crowded scene; 2a/2b/2c/2d/2f closed, 2e part-built |
-| `docs/archived/PLAN-07-VEIL.md` | **live.** The veil goes full screen; its three bugs are fixed, the designed work is ahead |
-| `docs/checklist.md` | **live.** What is open and undecided. Opens with the questions waiting on Seth |
-| `docs/bugs.md` | **live.** Reported and not yet scoped |
-| `docs/findings/COUNCIL-05.md` | **live.** The code read first, the docs read second — 2026-08-28 |
-| `docs/archived/DECISIONS.md` | **live.** Four decisions still waiting |
-| `docs/archived/PLAN-01.md` | **superseded, do not follow.** Kept because COUNCIL-02 reviews it line by line |
-| `docs/archived/COUNCIL-01..04.md` | **historical record** of a review event. Cited by name from source comments |
-| `docs/archived/PLAN-05-TALK.md` | **built.** The scope talk shipped from |
-| `docs/archived/NEXT-SESSION.md` | **superseded in part.** The argument that produced BUILD-STATE §7 and §8 |
-| `docs/the-idea.md` | **historical.** The origin note |
+| `docs/findings/COUNCIL-05..10.md` | **historical record** of review events, kept for their arguments |
+| `docs/bugs.md` | **empty of open items** as of 2026-09-06; all eleven were verified built or answered |
+| `docs/HANDOFF.md` | **live**, and the oldest of these — read it against `status.ts` rather than trusting it |
 
-Everything is under `docs/` as of 2026-08-28; `README.md` is the only markdown left at the root, and
-`docs/archived/README.md` says what is in the archive and the rule for putting something there.
+And the one command that outranks all of them:
+
+```bash
+node --experimental-strip-types status.ts
+```
 
 ## The debt ledger
 

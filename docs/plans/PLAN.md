@@ -2,8 +2,8 @@
 
 **Written 2026-09-07 by replacing six plans with one.** Every line below was checked against the
 source on that day, with the command that checked it. Nothing here is copied from the documents it
-replaces; those became history the moment their work landed and are archived, not deleted, because
-the code cites them 126 times between them.
+replaces; those became history the moment their work landed, and they were deleted outright later
+the same day — see the last section.
 
 > **This file is REWRITTEN, never appended to.** A plan that is only ever added to describes
 > intentions in the present tense forever, which is how `PLAN-06 §2c` came within two commits of
@@ -66,8 +66,8 @@ Each line names how it was checked. Re-run the check rather than trusting the li
 
 ### Also open, smaller
 
-- **Sixteen `check` modes now run in `test/all.ts`; `bench/` holds more harnesses than that.** Any
-  new one should ship with a `check` mode and be listed there in the same commit.
+- **Every `check` mode under `bench/` runs in `test/all.ts`; `bench/` holds more harnesses than
+  that.** Any new one ships with a `check` mode and is listed there in the same commit.
 - **`refreshManifest()` has 45 call sites, no debounce and no dedupe.** Each pays a full assemble
   (20.5 ms) plus a `/tokenize` round trip (**156 ms**, the largest app-side cost by far). Caching
   the count on the assembled prompt text would remove most of them.
@@ -92,11 +92,15 @@ was the last "missing" row in the old build state.
 
 ---
 
-## Where the archived plans went, and why they were kept
+## The plans this replaces
 
-`docs/archived/` — `PLAN-02`, `PLAN-03`, `PLAN-04`, `PLAN-06-MEMORY`, `PLAN-07-VEIL`,
-`PLAN-08-THREADS`, `DECISIONS`. **Not deleted:** the code cites `PLAN-08` 73 times, `PLAN-06` 31,
-`PLAN-02` 16, `PLAN-07` 16 and `PLAN-04` 6, in comments explaining why something is the way it is.
-Deleting them turns those comments into dangling references. The rule is in `.claude/CLAUDE.md`:
-archive rather than delete anything with citations — a rule broken the day before this file was
-written, which is why it is stated here again.
+`PLAN-02`, `PLAN-03`, `PLAN-04`, `PLAN-06-MEMORY`, `PLAN-07-VEIL`, `PLAN-08-THREADS` and
+`DECISIONS`, plus `PLAN-01`, `PLAN-05-TALK`, `SPEC` and `COUNCIL-01..04`. **All deleted 2026-09-07**,
+along with the `docs/archived/` directory that held them — 18 files, 7,029 lines. They live in git
+history and nowhere else.
+
+They were kept for a day on the argument that the code cited them 148 times. That argument died when
+the code was made self-contained: every one of those citations is a provenance tag on a comment that
+already states the thing, and the single one that deferred its meaning to a document was rewritten to
+carry it. `test/web.ts` fails if another appears. **A name like `PLAN-08 Phase 2` in a comment is a
+historical label, not a path.** Do not go looking for the file, and do not re-create it.

@@ -3,9 +3,9 @@
 The previous version of this file ran to 1,138 lines and had been appended to for two weeks. It was
 wrong in five places on the day it was replaced, every one of them the same way: a row described
 something as missing, the thing got built, and nothing came back to the row. Its own §6 named that
-pattern in August and then did it three more times. It is parked at
-`docs/archived/BUILD-STATE-2026-09-06.md` as the record of what was believed. Do not read it for
-what is true.
+pattern in August and then did it three more times. It survives in git history as the record of
+what was believed; the archive that held it was deleted on 2026-09-07. Do not read it for what is
+true.
 
 **The rules this file lives by, because the last one died without them:**
 
@@ -31,9 +31,10 @@ bash test/ui/run.sh                                                             
 node --experimental-strip-types bench/sweep.ts                                    # dead code
 ```
 
-At the commit this was written: 23 tables, 98 routes, 52 markers, 57 findings. Those four numbers
-are here as a snapshot for a reader who wants to know the rough size of the thing, and they are the
-only ones in this file. **If they matter to your decision, re-run the commands.**
+**There were four numbers here and they are gone.** They said 23 tables, 98 routes, 52 markers, 57
+findings, and were labelled a harmless snapshot. Two of them were wrong within twenty-four hours —
+53 markers and 59 findings — in the file whose first rule is that transcribed numbers drift. They
+proved the rule instead of surviving it. Run `node --experimental-strip-types status.ts`.
 
 ---
 
@@ -75,7 +76,6 @@ re-run it rather than believe this table.
 | **Service worker / offline read** | no registration anywhere, no `sw.js` |
 | **`writerStats` counts only books you own** | reads `s.owner_id = ?`, not `MINE()` |
 | **A shared passage cannot say WHICH hand wrote it** | `passages.author` holds only `human`/`model`; no writer id column |
-| **Full-text search** — a `LIKE` scan | `db.search` |
 | **Design screens D9, D10, D14** | **UNVERIFIABLE FROM THIS REPO** — the design source is not in the tree |
 
 ---
@@ -96,26 +96,25 @@ Adding debt means writing down the ceiling. Retiring debt means deleting the mar
 ## The harness
 
 ```bash
-node --experimental-strip-types test/all.ts     # twelve suites + one bench check, no model needed
+node --experimental-strip-types test/all.ts     # twelve suites + every bench check, no model needed
 bash test/ui/run.sh                             # browser scenarios, needs port 5179
 ```
 
 **Known and open:**
 
-- **Sixteen `check` modes exist under `bench/`; `test/all.ts` runs one.** All sixteen were run on
-  2026-09-06 and all sixteen are green, in 228 ms in parallel. The reason not to wire them —
-  "unknown reds" — is therefore gone; what remains is `all.ts`'s own instruction to add them one at
-  a time with their own commit. Unresolved by choice, not by ignorance.
-- **`test/scope.ts` intermittently fails to boot its child on 5187**, three times recorded, most
-  recently 2026-09-05. Every port free at the time; "it ran after `app.ts`" was tested twice and
-  refuted. The child's stderr is empty, and that is the thing to capture next time.
+- **Every `check` mode under `bench/` now runs in `test/all.ts`** — wired 2026-09-07, 228 ms for
+  all of them in parallel. Each is spawned with its own `ANANSI_DB`, because one of them opens a
+  database and from the harness that would be the live library.
+- **`test/scope.ts`'s boot flake is diagnosed.** Five failures written down three times as a
+  mystery; the child was alive and still starting every time, and every instance was under CPU load.
+  The 10-second bound is 40 now. It only waits that long when something is genuinely wrong.
 - **`veil` is in the default browser set and drives real generations.** It fails under load and
   passes on a quiet box.
 - **No HTTP-level suite.** `test/scope.ts` is the closest and it is testing the gate, not contracts.
 
 ---
 
-## The five rules that hold measurement together
+## The rules that hold measurement together
 
 These are the reason `P0-FINDINGS.md` is worth more than this file. Each was bought with a wrong
 answer; the full case for each is in that document.

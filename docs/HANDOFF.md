@@ -31,8 +31,9 @@
    `test/ui/run.sh <one-scenario>` that goes red leaves `test/all.ts` failing until the harness is
    run again. That is the harness working, not a regression — the message says so.
 
-**Where things live now.** `docs/SPEC.md` was archived today: it is `docs/archived/SPEC.md`, it is
-not a live reference, and four of its §15 gaps were carried to `docs/archived/checklist-2026-09-06.md` rather than being
+**Where things live now.** `docs/SPEC.md` was archived on 2026-09-03 and DELETED with the rest of
+the archive on 2026-09-07; it lives in git history only. It was
+not a live reference, and four of its §15 gaps were carried into the checklist (also deleted) rather than being
 closed by moving a file. The debt ledger is **51 markers** — count it, never carry the number
 forward; it has drifted twice in two days.
 
