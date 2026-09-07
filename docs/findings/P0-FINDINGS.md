@@ -2799,3 +2799,87 @@ be true; F58 separates them and only the first survives as stated. **The lesson 
 p-value: a fixture built to make a DETECTOR sound can make a TREATMENT untestable, and nothing in
 the run reports that.** The detector note that justified the one-man scene was still in the file,
 still correct about detectors, and had outlived its own necessity by weeks.
+
+## F59 — measured in a real book at last: F54 is dead (40 vs 38 events, p = 0.91, 400 generations), and the lockout's failure is now located precisely — it stops him SPEAKING and THINKING completely and acts for him in one generation in five (2026-09-06)
+
+The third fixture and the first one made of prose somebody actually wrote. F57 measured F54 on a
+one-man scene where the pronoun could not be ambiguous; F58 added a second man and found the
+staged scene produced too few events to detect anything. This asks the same question of
+`Into the Blue` — 26 passages, third omniscient, locked character `Seth`, owner sonophage.
+
+**A new harness, `bench/lockout-book.ts`, and NOT an edit to `bench/lockout.ts`.** That file's
+fixture, directive and verb list ARE the definition of F28 and F51-F58; editing it to fit a
+different book would move published numbers silently. Nothing here is comparable to those and it
+does not pretend to be.
+
+**THE SHIPPED DETECTOR WOULD HAVE REPORTED THIS BOOK PERFECT.** `bench/lockout.ts` carries a
+past-tense verb list — reached, turned, stood — because its fixture is past tense. `Into the Blue`
+is written in PRESENT tense; its own prose says *"Seth stops typing."* Run the shipped detector over
+this book and it finds nothing, in a book that is full of it. A check that cannot fire reporting
+perfection, arriving in the most ordinary way there is: a detector that was correct for the fixture
+it was born in and silently wrong for everything else. The new one covers both tenses and ships 14
+validated cases, 7 that must flag and 7 that must not, one of them lifted verbatim from the book.
+
+### The baseline, out of prose already in the book
+
+No model call — just what the app has produced for this writer. All of it written 2026-09-03 and
+09-04, so **after** F53 shipped on 09-01: this is the current configuration, not history.
+
+| | passages | names him | ACTS as him | speaks | interior |
+|---|---|---|---|---|---|
+| **model** | 18 | 83% | **50% (9/18)** | 6% | 0% |
+| **the writer** | 8 | 0% | 0% | 0% | 0% |
+
+The writer never names him because he writes *as* him; the model names him in five of six passages
+and acts for him in half. This is Seth's `bugs.md` #3 report, measured in the book he reported it
+from, under the settings that ship today.
+
+### The arms
+
+200 generations each, two servers on one router, simultaneous, 0 errors, 21,266 and 21,082 words of
+narration. Treatment verified through `POST /api/manifest` before generating: `never write their`
+against `never write Seth's`.
+
+| | their (ships) | the name (F54) | p |
+|---|---|---|---|
+| his action, per 1,000 words | 1.88 | 1.80 | **0.9100** |
+| acted, per run | 20.0% (40/200) | 19.0% (38/200) | **0.8996** |
+| names him | 47.0% | 46.0% | 0.9202 |
+| spoke | 0/200 | 0/200 | 1.0 |
+| interior | 0/200 | 0/200 | 1.0 |
+
+**F54 IS DEAD AND THIS IS THE RUN THAT KILLS IT.** F57 and F58 were nulls on fixtures too thin to
+detect anything — 8 and 15 action events. This has **78**, on real prose, and finds a difference of
+two events in four hundred generations. Three fixtures, roughly 3,400 generations. It does nothing.
+It should be deleted rather than left switched off, on the precedent of `CANON-REPEAT` (F20) and
+F37's clause, both of which measured flat against their own control and were removed rather than
+kept as a flag somebody might one day turn on.
+
+### And the real finding is not about F54 at all
+
+**The lockout is not failing. It is failing at exactly one of the three things it forbids.**
+
+- **Dialogue: 0 of 400.** Perfect, both arms.
+- **Interiority: 0 of 400.** Perfect, both arms.
+- **Action: 20% of generations.** This is the whole leak.
+
+The instruction says *never write their dialogue, action, gesture or thought*. Two of those four
+hold absolutely across 400 generations of a real book. One leaks in one generation in five. Nobody
+knew that, because every previous run pooled the three into "any violation" or measured a fixture
+where the base rate was near zero.
+
+**What that rules out.** It is not that the model ignores the lockout — it obeys two thirds of it
+without exception. It is not a wording problem in the sense F54 tested, since naming him moves
+nothing. And it is not the writer's own prose teaching it, because the writer's eight passages
+contain zero instances and the model's contain nine.
+
+**What it does not settle, and is the obvious next run:** whether 20% is the lockout WORKING —
+down from some higher rate with it off — or the lockout doing nothing for action at all. That needs
+a lockout-on against lockout-off arm on this same book, which is two stories rather than two env
+flags, and it is the measurement that decides whether the next thing to build is a better sentence
+or something that is not a sentence at all.
+
+**Denominator note.** The stored prose says 50% of model passages and the fresh run says 20% of
+generations. Different denominators, not a contradiction: stored passages are the ones the writer
+KEPT and are longer, and a longer passage has more room to put him in the subject slot. The
+within-run contrast is what carries the finding either way.

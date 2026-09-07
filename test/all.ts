@@ -33,7 +33,7 @@ import { execFile } from 'node:child_process';
 const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'check.ts', 'memory.ts', 'report.ts', 'talk.ts', 'forge.ts', 'web.ts', 'app.ts',
                 ...['order', 'contractions', 'lockout', 'quote', 'ledger-audit', 'modes', 'drift',
                     'rooms', 'fires', 'retire', 'reroll', 'cast', 'voice', 'utilisation', 'weight',
-                    'council06'].map((b) => `../bench/${b}.ts check`)];
+                    'council06', 'lockout-book'].map((b) => `../bench/${b}.ts check`)];
 const started = Date.now();
 
 /* EVERY BENCH ENTRY GETS ITS OWN DATABASE, and this is not tidiness.
