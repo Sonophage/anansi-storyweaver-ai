@@ -2342,7 +2342,12 @@ export function copyLedger(fromStoryId: string, toStoryId: string, o: string) {
     if (!parent || !child) continue;
     if (linkEntries(toStoryId, parent, child, { confidence: g.confidence, keys: JSON.parse(g.keys || '[]') })) edges++;
   }
-  return { cards: map.size, edges };
+  /* `map` IS RETURNED, AND IT IS NOT FOR THE WIRE. `duplicateStory` needs source card -> copied
+   * card to carry the pins, the pictures and the timeline, none of which this function copies —
+   * and rebuilding that mapping by matching titles is the fragile version of a thing that is
+   * sitting right here. `ledgerInto` drops it before its two routes answer, so the JSON those
+   * routes send is unchanged; a Map spread into an object literal would arrive as `{}`. */
+  return { cards: map.size, edges, map };
 }
 
 export function delEntry(storyId: string, id: string) {
@@ -2775,6 +2780,240 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(storyId);
   return id;
+}
+
+/** THE WHOLE BOOK AGAIN, STANDING ON ITS OWN. Seth, 2026-09-11: *"copies threads independent of
+ *  the original."*
+ *
+ *  WHY A BRANCH CANNOT DO THIS, which is the question this answers. `entries` and `strings` are
+ *  keyed by story and have no branch column, so every branch of a book reads and writes ONE
+ *  ledger — `forkBranch` copies chapters, passages, pins and arcs and deliberately shares canon,
+ *  because a fact is true on every path. That is right for a fork and it is exactly what makes it
+ *  useless here: you cannot change who somebody is on one branch without changing it on the other.
+ *  A second book is the only shape in this schema where two ledgers exist.
+ *
+ *  And why it is not the button beside it. "Start a new book from these threads" is `copyLedger`
+ *  alone: the cast travels and the prose does not. This is both halves.
+ *
+ *  THE CHAPTER NUMBERS MEAN WHAT THEY MEANT, and three things ride on that. Read the note at the
+ *  foot of `copyEntry` first: it refuses to carry a card's timeline across because a state is
+ *  anchored to a chapter NUMBER and chapter 7 there is not chapter 7 here. In a whole-book copy it
+ *  is — every chapter arrives with its own `idx` — so `entry_states`, `strings` and
+ *  `retired_at_chapter` travel here and must not be lifted out of this function into any path that
+ *  copies between two different books.
+ *
+ *  WHAT DOES NOT COME, on purpose: passage revisions, generation logs, raised flags and open
+ *  proposals — workbench state about how the original got written rather than the book — and
+ *  `story_writers`, because a copy belongs to whoever pressed the button until they invite
+ *  somebody into it.
+ *
+ *  TWO STEPS RATHER THAN ONE TRANSACTION. `copyLedger` reaches `setAddonActive`, which opens a
+ *  transaction of its own, and SQLite has no nested ones. So the ledger lands first, by the same
+ *  path the button beside it already uses, and the prose is the atomic half. */
+export function duplicateStory(ownerId: string, storyId: string, title: string) {
+  if (!ownsStory(storyId, ownerId)) return null;
+  const src = getStory(storyId);
+  if (!src) return null;
+
+  const made = createStory(ownerId, {
+    title: title || `${src.title} — a copy`,
+    genre: src.genre, premise: src.premise, setting: src.setting, pov: src.pov,
+    persona: src.persona, writingStyle: src.writing_style, styleNote: src.style_note,
+    direction: src.direction, spice: src.spice, spiceNote: src.spice_note,
+    maxContext: src.max_context, model: src.model, lockedCharacter: src.locked_character,
+    lockoutOn: src.lockout_on !== 0,
+    // AN ARCHIVED BOOK COPIES ONTO THE SHELF. Carrying `archived` would answer the press with a
+    // book that is dimmed and last, which is indistinguishable from the press having done nothing.
+    // Every other status means what it says and travels.
+    status: src.status === 'archived' ? 'in_progress' : src.status,
+  });
+  /* The columns `createStory` does not take. `lore_from` is here and is NOT here in
+   * `import.fromExport` — the difference is real rather than an inconsistency: an export lands
+   * somewhere the world book does not exist, and this lands beside it. A copy of a book set in a
+   * world is a book set in that world. */
+  q(`UPDATE stories SET lore_from=?, is_world=?, world=?, world_note=?, auto_open=?, look=?,
+       chapter_hero=?, chapter_sticky=?, cover_opacity=? WHERE id=?`)
+    .run(src.lore_from ?? null, src.is_world ?? 0, src.world ?? null, src.world_note ?? null,
+      src.auto_open, src.look ?? null, src.chapter_hero, src.chapter_sticky, src.cover_opacity,
+      made.id);
+
+  const ledger = copyLedger(storyId, made.id, ownerId);
+  const cards = ledger?.map ?? new Map<string, string>();
+
+  const t = now();
+  const branchMap = new Map<string, string>();
+  const chapterMap = new Map<string, string>();
+  db.exec('BEGIN');
+  try {
+    /* WHAT `copyEntry` LEAVES BEHIND, put on here rather than by widening it. Four of these are
+     * read: `sticky_for` and `proper_nouns` are how `buildContext` folds a card in and holds it
+     * open, `retired_at_chapter` is how a finished thread stays finished, and `origin_id`/`sync`
+     * are what a card taken over from a world book CLAIMS.
+     *
+     * The origin pair matters most and is the least obvious: this copy carries `lore_from`, so it
+     * reads the same world through. A taken-over card arriving with no origin claims nothing, and
+     * the world's version then shows up BESIDE the copy — one name, two cards, and the writer's own
+     * wording in the one nothing reads.
+     *
+     * Widening `copyEntry` instead would change what a copy between two DIFFERENT books does, and
+     * `retired_at_chapter` is a chapter number: over there it means nothing. Here it means what it
+     * meant. */
+    for (const [from, to] of cards) {
+      const e = q(`SELECT sticky_for, proper_nouns, field_editors, retired_at_chapter, origin_id, sync
+                     FROM entries WHERE id = ?`).get(from) as any;
+      if (!e) continue;
+      q(`UPDATE entries SET sticky_for=?, proper_nouns=?, field_editors=?, retired_at_chapter=?,
+           origin_id=?, sync=? WHERE id=? AND story_id=?`)
+        .run(e.sticky_for, e.proper_nouns, e.field_editors, e.retired_at_chapter,
+          e.origin_id, e.sync, to, made.id);
+    }
+    /* AND THE TOMBSTONES, which `copyLedger` cannot see: `entriesOf` excludes them by design, since
+     * every path that means "cards" should not show an emptied row. But a tombstone is this book's
+     * decision ABOUT a world card — it is what keeps the read-through from handing it back. A copy
+     * that follows the same world without them has every card the original threw out walking
+     * straight back in. */
+    for (const tomb of q("SELECT * FROM entries WHERE story_id = ? AND sync = 'dropped'")
+      .all(storyId) as any[])
+      q(`INSERT INTO entries (id,story_id,owner_id,title,body,notes,entry_type,activation,keys,
+           sticky_for,proper_nouns,last_editor,field_editors,retired_at_chapter,origin_id,sync,
+           created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(uid('e-'), made.id, ownerId, tomb.title, tomb.body, tomb.notes, tomb.entry_type,
+          tomb.activation, tomb.keys, tomb.sticky_for, tomb.proper_nouns, tomb.last_editor,
+          tomb.field_editors, tomb.retired_at_chapter, tomb.origin_id, tomb.sync,
+          tomb.created_at, tomb.updated_at);
+
+    // The empty branch `createStory` minted goes, and its Chapter One goes with it on the cascade.
+    // Copying the source's branches ON TOP of it would leave a second trunk with nothing in it, and
+    // two rows claiming `is_primary` is a shape `deleteBranch` and `listStories` both read.
+    q('DELETE FROM branches WHERE id = ?').run(made.branchId);
+
+    for (const b of q('SELECT * FROM branches WHERE story_id = ? ORDER BY created_at')
+      .all(storyId) as any[]) {
+      const nid = uid('b-');
+      branchMap.set(b.id, nid);
+      q(`INSERT INTO branches (id,story_id,parent_id,name,fork_ordinal,is_primary,created_at)
+         VALUES (?,?,NULL,?,?,?,?)`)
+        .run(nid, made.id, b.name, b.fork_ordinal, b.is_primary, b.created_at);
+    }
+    // `parent_id` IN A SECOND PASS. A branch can be listed before the one it forked from — nothing
+    // orders `created_at` against the fork — so remapping in the first loop writes the SOURCE's id
+    // into this book for any child seen early, which is a row pointing across two stories.
+    for (const b of q('SELECT id, parent_id FROM branches WHERE story_id = ?').all(storyId) as any[])
+      if (b.parent_id && branchMap.has(b.parent_id))
+        q('UPDATE branches SET parent_id = ? WHERE id = ?')
+          .run(branchMap.get(b.parent_id), branchMap.get(b.id));
+
+    for (const ch of q('SELECT * FROM chapters WHERE story_id = ? ORDER BY idx').all(storyId) as any[]) {
+      const nb = branchMap.get(ch.branch_id);
+      if (!nb) continue;
+      const nid = uid('c-');
+      chapterMap.set(ch.id, nid);
+      // `status` IS COPIED, where `forkBranch` forces every chapter open. A fork is a place to
+      // write and must have somewhere to write; this is the same book again, and a closed chapter
+      // that reopened would put the next passage into a chapter the writer had finished.
+      q(`INSERT INTO chapters (id,story_id,branch_id,idx,title,authors_note,opens_with,summary,
+           summary_covers_through,summary_hash,status,keep_whole,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(nid, made.id, nb, ch.idx, ch.title, ch.authors_note, ch.opens_with, ch.summary,
+          ch.summary_covers_through, ch.summary_hash, ch.status, ch.keep_whole, ch.created_at);
+    }
+
+    // EVERY VARIANT, not only the selected one — the other difference from `forkBranch`, which
+    // takes the selected passage of each slot because a fork is a new path. A duplicate that
+    // dropped the takes would lose the re-rolls sitting behind every passage in the book.
+    // `passages_sel` is partial on `selected = 1`, so the rows come across as they stand.
+    for (const p2 of q(`SELECT * FROM passages WHERE story_id = ?
+                        ORDER BY ordinal, variant_index`).all(storyId) as any[]) {
+      const nch = chapterMap.get(p2.chapter_id), nb = branchMap.get(p2.branch_id);
+      if (!nch || !nb) continue;
+      q(`INSERT INTO passages (id,chapter_id,story_id,branch_id,slot_key,ordinal,variant_index,
+           selected,author,speaker,body,is_break,mode,directive,rejected,claimed,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(uid('p-'), nch, made.id, nb, p2.slot_key, p2.ordinal, p2.variant_index, p2.selected,
+          p2.author, p2.speaker, p2.body, p2.is_break, p2.mode, p2.directive, p2.rejected,
+          p2.claimed, p2.created_at);
+    }
+
+    // Both ends remapped. A pin needs the chapter AND the card, and the composite foreign keys on
+    // this table refuse it if either belongs to another story — which is the check doing the work
+    // if one of these maps is ever wrong.
+    for (const pin of q('SELECT * FROM chapter_pins WHERE story_id = ?').all(storyId) as any[]) {
+      const nch = chapterMap.get(pin.chapter_id), ne = cards.get(pin.entry_id);
+      if (!nch || !ne) continue;
+      q('INSERT INTO chapter_pins (chapter_id,entry_id,story_id,mode,created_at) VALUES (?,?,?,?,?)')
+        .run(nch, ne, made.id, pin.mode, pin.created_at);
+    }
+
+    for (const a of q('SELECT * FROM arcs WHERE story_id = ?').all(storyId) as any[]) {
+      const nb = branchMap.get(a.branch_id);
+      if (!nb) continue;
+      q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at)
+         VALUES (?,?,?,?,?,?,?,?)`)
+        .run(uid('a-'), made.id, nb, a.from_chapter, a.to_chapter, a.title, a.summary, a.created_at);
+    }
+
+    // What the book promised and has not paid. `import.fromExport` carries these for the reason
+    // that applies twice over here: a book that comes back without its unpaid promises is a
+    // different book, because the ledger says who everybody is and the strings are the only record
+    // of what is still owed.
+    for (const s2 of q('SELECT * FROM strings WHERE story_id = ?').all(storyId) as any[])
+      q(`INSERT INTO strings (id,story_id,title,body,from_chapter,owed_by,status,summoned,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?)`)
+        .run(uid('st-'), made.id, s2.title, s2.body, s2.from_chapter, s2.owed_by, s2.status,
+          s2.summoned, s2.created_at);
+
+    // Canon over time. See the header: the chapters kept their numbers, so these mean here what
+    // they meant there — which is the one condition `copyEntry` says has to hold.
+    for (const [from, to] of cards)
+      for (const es of q('SELECT * FROM entry_states WHERE entry_id = ? ORDER BY from_chapter')
+        .all(from) as any[])
+        q(`INSERT INTO entry_states (id,entry_id,from_chapter,body,before_mode,label,created_at)
+           VALUES (?,?,?,?,?,?,?)`)
+          .run(uid('st-'), to, es.from_chapter, es.body, es.before_mode, es.label, es.created_at);
+
+    /* THE ROOMS THAT HANG OFF NO CARD. `copyEntry` walks `addons` by `entry_id`, so a STORY-level
+     * room — `upsertAddon` takes a null entry and every read allows it — is invisible to
+     * `copyLedger` and would be dropped without a word. There are none in the live library today,
+     * which is exactly why this is the sort of thing that gets found a year late. */
+    for (const a of q('SELECT * FROM addons WHERE story_id = ? AND entry_id IS NULL')
+      .all(storyId) as any[])
+      q(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,from_chapter,
+           retired_at_chapter,created_at) VALUES (?,?,NULL,?,?,?,?,?,?,?,?)`)
+        // STAMPED NOW, not carried. Every other row here keeps the source's `created_at`, and this
+        // one does not on purpose: the rooms that DO hang off a card come through `copyEntry` ->
+        // `upsertAddon`, which stamps its own. Carrying it here would give one book two conventions
+        // for the same column depending on whether the room has a card, which is the shape of
+        // difference nobody looks for. `test/db.ts` compares the two halves and found this.
+        .run(uid('ad-'), made.id, a.slot, a.name, a.body, a.keys, a.active, a.from_chapter,
+          a.retired_at_chapter, t);
+
+    // The pictures: the book's cover and the threads' own. Blobs, copied as blobs.
+    const cover = q('SELECT jpeg, set_at FROM story_covers WHERE story_id = ?').get(storyId) as any;
+    if (cover)
+      q('INSERT INTO story_covers (story_id, jpeg, set_at) VALUES (?,?,?)')
+        .run(made.id, cover.jpeg, cover.set_at);
+    for (const [from, to] of cards) {
+      const img = q('SELECT jpeg, set_at FROM entry_images WHERE entry_id = ? AND story_id = ?')
+        .get(from, storyId) as any;
+      if (img)
+        q('INSERT INTO entry_images (entry_id, story_id, jpeg, set_at) VALUES (?,?,?,?)')
+          .run(to, made.id, img.jpeg, img.set_at);
+    }
+
+    // Where the writer was standing. `listStories` and every read resolve the active branch or fall
+    // back to the primary, so leaving this null would open the copy on main however far along
+    // another path the original was.
+    const active = src.active_branch && branchMap.get(src.active_branch);
+    q('UPDATE stories SET active_branch = ?, updated_at = ? WHERE id = ?')
+      .run(active ?? null, t, made.id);
+
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+
+  return { id: made.id, cards: ledger?.cards ?? 0, edges: ledger?.edges ?? 0,
+    branches: branchMap.size, chapters: chapterMap.size,
+    passages: (q('SELECT COUNT(*) AS n FROM passages WHERE story_id = ? AND selected = 1')
+      .get(made.id) as any).n };
 }
 
 export function setActiveBranch(storyId: string, branchId: string) {

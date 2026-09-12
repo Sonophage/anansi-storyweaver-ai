@@ -1167,7 +1167,12 @@ function ledgerInto(c: Ctx, from: string, into: string) {
     : into;
   if (!target) return null;
   const moved = db.copyLedger(from, target, c.owner);
-  return moved ? { ...moved, into: target } : null;
+  // The id map is for a caller inside the process; it is not part of either route's answer, and a
+  // Map spread into an object literal arrives on the wire as an empty one. Dropped by name so that
+  // adding a field to `copyLedger` cannot quietly change what these two routes send.
+  if (!moved) return null;
+  const { map: _cards, ...counts } = moved;
+  return { ...counts, into: target };
 }
 
 // ---- prewarm ----
@@ -1502,6 +1507,24 @@ export const routes: Record<string, Handler> = {
    *  nothing is moved — a card is copied, whole, and both books keep their own from then on. For
    *  a LINK rather than a copy, a book follows another's ledger instead; these are two different
    *  things and the surface says so where each is offered. */
+  /** THE WHOLE BOOK AGAIN, beside "start a new book from these threads" rather than instead of it:
+   *  that one takes the cast and leaves the prose, this one takes both. Seth, 2026-09-11, on why a
+   *  branch is not the answer: he wanted "a new set of threads that arnt connected", and every
+   *  branch of a book shares one ledger because `entries` has no branch column.
+   *
+   *  GATED BY THE DISPATCHER. It names `storyId`, so `storyIdOf` finds it and ownership is settled
+   *  before this handler runs; `duplicateStory` asks again anyway, which is the floor rather than a
+   *  second gate — it is reachable from the test harness with no request around it.
+   *
+   *  The shelf comes back with it for the same reason the route beside it sends one: the press
+   *  mints a book, and a client that has to ask again paints a shelf without it for a moment. */
+  'POST /api/story/duplicate': (c) => {
+    const made = db.duplicateStory(c.owner, String(c.body.storyId ?? ''),
+      String(c.body.title ?? '').trim());
+    if (!made) return { error: 'that book cannot be copied' };
+    return { ...made, stories: db.listStories(c.owner) };
+  },
+
   'POST /api/threads/copy': (c) => {
     const moved = ledgerInto(c, String(c.body.storyId ?? ''), String(c.body.into ?? 'new'));
     if (!moved) return { error: 'those threads cannot go to that book' };

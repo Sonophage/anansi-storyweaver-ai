@@ -2505,6 +2505,190 @@ ok('threads sent home land on the card they came from, and new ones arrive as ne
 });
 
 
+// ---- THE WHOLE BOOK AGAIN. Seth, 2026-09-11: "copies threads independent of the original."
+//
+// WHAT IS ACTUALLY BEING ASSERTED, and why a branch test would not do: `entries` and `strings` are
+// keyed by story and have no branch column, so every branch of a book reads ONE ledger. Two ledgers
+// that do not reach each other is the thing only a second book can give, and section 3 is it.
+//
+// SECTION 2 IS THE GUARD ON THE HAND-WRITTEN COLUMN LISTS. `duplicateStory` names its columns, and
+// this repo's most-repeated bug is a hand-written list that silently stops being complete —
+// `createStory` dropped a field the form sent three separate times, each with a comment saying so.
+// So the copy is compared to the source ROW BY ROW with only the remapped ids removed: a column
+// added to `passages` and forgotten in the copy fails here without anybody updating this test.
+//
+// It has one hole and it is worth naming rather than hiding: `sticky_for` and `proper_nouns` have
+// no writer anywhere in the app, so a copy that dropped them would land on the same schema default
+// the source has and the comparison would pass. They are driven off their defaults through `raw`
+// below for exactly that reason — a check that has only ever seen the default value has not been
+// tested against the case it exists for.
+const raw = new DatabaseSync('/tmp/anansi-test.db');
+ok('a book copies whole, and the copy shares nothing with the original', () => {
+  const me = db.owner('twice');
+  const src: any = db.createStory(me, { title: 'The Salt Road', genre: 'fantasy',
+    premise: 'A courier walks east.', setting: 'The pans', pov: 'third past',
+    writingStyle: 'Dry.', spice: 1, maxContext: 12_000 });
+
+  // Prose: two chapters, a re-roll behind one passage, an accent and a directive on another.
+  const p1 = db.addPassage({ storyId: src.id, branchId: src.branchId, chapterId: src.chapterId,
+    body: 'She left before the wells opened.', author: 'human' })!;
+  db.addVariant(src.id, p1, 'She left while the wells were still shut.');
+  db.addPassage({ storyId: src.id, branchId: src.branchId, chapterId: src.chapterId,
+    body: '"Then go," he said.', author: 'model', speaker: 'Renn', mode: 'speak',
+    directive: 'let him relent' });
+  const ended = db.endChapter(src.id, src.branchId, 'The Pans');
+  db.addPassage({ storyId: src.id, branchId: src.branchId, chapterId: ended.opened,
+    body: 'The salt took the light badly.', author: 'model' });
+
+  // A second path, which must arrive as a second path rather than being flattened into one.
+  const other = db.forkBranch(src.id, src.branchId, 1, 'she stayed')!;
+
+  // The ledger: two cards, a room, a connection, a pin, a state, a retirement, a string, an arc.
+  const courier = db.upsertEntry(src.id, me, { title: 'Ferran', body: 'Carries what cannot wait.',
+    activation: 'keyed', keys: ['Ferran'] })!;
+  const road = db.upsertEntry(src.id, me, { title: 'The Salt Road', body: 'Nine days of white.',
+    activation: 'always_on' })!;
+  // The two columns nothing in the app writes — see the header. Driven here so the comparison
+  // below is looking at values, not at two copies of the same default.
+  raw.prepare('UPDATE entries SET sticky_for = 7, proper_nouns = 0 WHERE id = ?').run(courier);
+  db.upsertAddon(src.id, courier, { slot: 'facts', name: 'His hands', body: 'Cracked to the bone.',
+    keys: ['hands'] });
+  // And a room hanging off no card at all, which `copyEntry` walks past — it goes by entry_id.
+  db.upsertAddon(src.id, null, { slot: 'facts', name: 'The pans', body: 'White to the horizon.',
+    keys: ['pans'] });
+  db.linkEntries(src.id, road, courier, { confidence: 0.8, keys: ['Ferran'] });
+  db.setPin(src.id, src.chapterId, courier, 'force_in');
+  db.upsertState(src.id, courier, { fromChapter: 2, body: 'He is walking with a limp.',
+    beforeMode: 'hint', label: 'after the crossing' });
+  db.setRetired(src.id, road, 2);
+  db.upsertString(src.id, { title: 'The sealed letter', body: 'He has not opened it.',
+    fromChapter: 1, owedBy: 9 });
+  db.addArc(src.id, { branchId: src.branchId, fromChapter: 1, toChapter: 1, title: 'Leaving',
+    summary: 'She goes.' });
+  db.setActiveBranch(src.id, other);
+
+  const copy = db.duplicateStory(me, src.id, 'The Salt Road (again)')!;
+  assert.ok(copy && copy.id !== src.id, 'a copy is a second book');
+
+  // ---- 1. It came across whole.
+  assert.strictEqual(copy.cards, 2, 'both threads travel');
+  assert.strictEqual(copy.branches, 2, 'and both paths, not only the one being written');
+  assert.strictEqual(copy.edges, 1, 'with the connection between the threads');
+  const count = (sql: string, id: string) => (raw.prepare(sql).get(id) as any).n;
+  for (const [what, sql] of [
+    ['passage', 'SELECT COUNT(*) AS n FROM passages WHERE story_id = ?'],
+    ['chapter', 'SELECT COUNT(*) AS n FROM chapters WHERE story_id = ?'],
+    ['branch', 'SELECT COUNT(*) AS n FROM branches WHERE story_id = ?'],
+    ['thread', 'SELECT COUNT(*) AS n FROM entries WHERE story_id = ?'],
+    ['room', 'SELECT COUNT(*) AS n FROM addons WHERE story_id = ?'],
+    ['pin', 'SELECT COUNT(*) AS n FROM chapter_pins WHERE story_id = ?'],
+    ['arc', 'SELECT COUNT(*) AS n FROM arcs WHERE story_id = ?'],
+    ['string', 'SELECT COUNT(*) AS n FROM strings WHERE story_id = ?'],
+    ['connection', 'SELECT COUNT(*) AS n FROM entry_edges WHERE story_id = ?'],
+    ['state', `SELECT COUNT(*) AS n FROM entry_states s JOIN entries e ON e.id = s.entry_id
+                 WHERE e.story_id = ?`],
+  ] as [string, string][])
+    assert.strictEqual(count(sql, copy.id), count(sql, src.id),
+      `the copy should hold as many ${what} rows as the book it came from`);
+
+  // Where the writer was standing travels: the copy opens on the path the original was on, not on
+  // main. `listStories` and every read resolve `active_branch` first, so a null here is a copy that
+  // silently opens somewhere else.
+  const activeName = (id: string) => (raw.prepare(
+    'SELECT b.name FROM stories s JOIN branches b ON b.id = s.active_branch WHERE s.id = ?')
+    .get(id) as any)?.name;
+  assert.strictEqual(activeName(copy.id), 'she stayed',
+    'the copy opens on the path the original was being written on');
+  // And the fork points at the copy's own trunk rather than back across the two books.
+  const parents = raw.prepare(`SELECT COUNT(*) AS n FROM branches c JOIN branches p ON p.id = c.parent_id
+                               WHERE c.story_id = ? AND p.story_id != c.story_id`).get(copy.id) as any;
+  assert.strictEqual(parents.n, 0, 'no branch in the copy is forked from a branch of the original');
+
+  // ---- 2. EVERY COLUMN, not only the ones somebody thought to name. Ids are stripped because they
+  // are the only thing meant to differ; anything else that differs is a column the copy dropped.
+  const strip = (r: any, drop: string[]) =>
+    Object.fromEntries(Object.entries(r).filter(([k]) => !drop.includes(k)));
+  const same = (what: string, sql: string, drop: string[], order: string) => {
+    const rows = (id: string) => (raw.prepare(`${sql} ORDER BY ${order}`).all(id) as any[])
+      .map((r) => strip(r, drop));
+    assert.deepStrictEqual(rows(copy.id), rows(src.id),
+      `every ${what} column should survive the copy — if this fails, a column was added to the ` +
+      'table and not to duplicateStory');
+  };
+  // ORDERED BY CONTENT, NOT BY ID. The fork copied chapter one and passage one onto the second
+  // path, so each of those exists twice per book with the same `idx`/`ordinal` — and SQLite is free
+  // to return tied rows in either order, which made this fail against a copy that was correct.
+  // Every column that distinguishes the twins is in the ORDER BY.
+  same('passage', 'SELECT * FROM passages WHERE story_id = ?',
+    ['id', 'chapter_id', 'story_id', 'branch_id'],
+    'ordinal, variant_index, selected, created_at, body');
+  same('chapter', 'SELECT * FROM chapters WHERE story_id = ?',
+    ['id', 'story_id', 'branch_id'], 'idx, status, created_at, title');
+  same('branch', 'SELECT * FROM branches WHERE story_id = ?',
+    ['id', 'story_id', 'parent_id'], 'name');
+  same('arc', 'SELECT * FROM arcs WHERE story_id = ?', ['id', 'story_id', 'branch_id'], 'from_chapter');
+  same('string', 'SELECT * FROM strings WHERE story_id = ?', ['id', 'story_id'], 'title');
+  // `created_at` is out for the same reason it is out of the thread comparison below: a copied room
+  // is WRITTEN, by `upsertAddon`, and it stamps the moment it wrote. Both halves of the room copy
+  // agree about that — the story-level loop in `duplicateStory` says so — and this is what noticed
+  // when they did not.
+  same('room', 'SELECT * FROM addons WHERE story_id = ?',
+    ['id', 'story_id', 'entry_id', 'created_at'], 'name');
+  // `created_at`/`updated_at` on a thread are stamped by `upsertEntry` as it writes, so those two
+  // legitimately differ. Every other column is the card itself.
+  same('thread', 'SELECT * FROM entries WHERE story_id = ?',
+    ['id', 'story_id', 'created_at', 'updated_at'], 'title');
+  same('state', `SELECT s.* FROM entry_states s JOIN entries e ON e.id = s.entry_id
+                   WHERE e.story_id = ?`, ['id', 'entry_id'], 'from_chapter');
+
+  // The two whose ids ARE the row, so they are named rather than compared.
+  const pin = raw.prepare(`SELECT p.mode, e.title FROM chapter_pins p JOIN entries e ON e.id = p.entry_id
+                             WHERE p.story_id = ?`).get(copy.id) as any;
+  assert.deepStrictEqual({ mode: pin?.mode, title: pin?.title },
+    { mode: 'force_in', title: 'Ferran' }, 'a pin lands on the copied chapter and the copied card');
+  const edge = raw.prepare(`SELECT pa.title AS parent, ch.title AS child FROM entry_edges g
+                              JOIN entries pa ON pa.id = g.parent_id
+                              JOIN entries ch ON ch.id = g.child_id WHERE g.story_id = ?`)
+    .get(copy.id) as any;
+  assert.deepStrictEqual({ p: edge?.parent, c: edge?.child },
+    { p: 'The Salt Road', c: 'Ferran' }, 'and a connection joins the copies, not the originals');
+
+  // ---- 3. AND NOTHING JOINS THEM. This is the ask, and it is the thing a branch cannot give.
+  const ferran = (story: string) => (db.entriesOf(story) as any[]).find((e) => e.title === 'Ferran');
+  db.upsertEntry(copy.id, me, { id: ferran(copy.id).id, title: 'Ferran',
+    body: 'Carries nothing any more.', activation: 'keyed', keys: ['Ferran'] });
+  assert.match(ferran(src.id).body, /cannot wait/,
+    'editing a thread in the copy must not reach the original — on a branch it would have');
+  assert.match(ferran(copy.id).body, /nothing any more/, 'and the edit landed where it was made');
+
+  db.upsertEntry(src.id, me, { title: 'The Weighmaster', body: 'Counts twice.',
+    activation: 'always_on' });
+  assert.strictEqual(db.entriesOf(copy.id).length, 2,
+    'a thread added to the original does not appear in the copy');
+  assert.strictEqual(db.entriesOf(src.id).length, 3, 'and the original has it');
+
+  const bodies = (story: string) => (raw.prepare(
+    'SELECT body FROM passages WHERE story_id = ? AND selected = 1 ORDER BY ordinal')
+    .all(story) as any[]).map((r) => r.body);
+  const before = bodies(src.id);
+  const head = raw.prepare('SELECT id FROM passages WHERE story_id = ? ORDER BY ordinal LIMIT 1')
+    .get(copy.id) as any;
+  db.delPassage(copy.id, head.id);
+  assert.deepStrictEqual(bodies(src.id), before,
+    'and deleting prose in the copy leaves the original untouched');
+});
+
+// The gate, asked in the direction that matters. Copying reads a whole book, so it is refused the
+// same way every other read of somebody else's book is.
+ok('a book that is not yours cannot be copied', () => {
+  const mine = db.owner('dup-mine'), theirs = db.owner('dup-theirs');
+  const book: any = db.createStory(theirs, { title: 'Not Yours', premise: 'x' });
+  assert.strictEqual(db.duplicateStory(mine, book.id, 'Mine Now'), null,
+    'another writer\'s book cannot be copied into yours');
+  assert.strictEqual(db.duplicateStory(mine, 'no-such-story', 'Nothing'), null,
+    'and neither can one that does not exist');
+});
+
 // ---- UNCLAIMED PASSAGES, AND WHAT CLAIMS THEM (bugs.md #9, 2026-09-01).
 //
 // The server persists a generation at completion now, so a passage survives the browser going away.

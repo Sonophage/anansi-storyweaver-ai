@@ -626,6 +626,42 @@ ok('a story cannot be deleted by someone who does not own it');
   }
   ok('threads can start a new book, and that is a copy rather than a link');
 
+  /* AND THE THIRD DOOR ON THAT PANEL: the whole book again, prose and all. Seth, 2026-09-11.
+   *
+   * Asserted HERE, beside the other two, because all three mint a book from an existing one and the
+   * differences between them are the entire point — copy the cast, follow the cast, or take the
+   * book. The one that matters at this seam is `lore_from`: a copy of a book set in a world is a
+   * book set in that world, where "start a new book from these threads" deliberately follows
+   * nothing. Two lines apart in `Keep`, opposite answers, so neither is left to the wording. */
+  {
+    const world = db.createWorld(alice, { title: 'The Ninefold' }).id;
+    db.upsertEntry(world, alice, { title: 'the Warden', body: '[never left]', entryType: 'lore' });
+    const book = db.storyFollowing(alice, world, 'A Writ')!.id;
+    db.addPassage({ storyId: book, branchId: db.activeBranchOf(book), chapterId: db.chapters(book)[0].id,
+      body: 'The writ came at first light.', author: 'human' });
+    const ctxFor = (body: any, owner: string) => ({ body, query: new URLSearchParams(), owner,
+      slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+      defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+
+    const r: any = routes['POST /api/story/duplicate'](ctxFor({ storyId: book, title: 'A Writ, again' }, alice));
+    assert.ok(!r.error, r.error);
+    assert.notStrictEqual(r.id, book, 'a second book, not this one');
+    assert.strictEqual(r.passages, 1, 'and the prose came with it — that is the whole difference');
+    assert.strictEqual((db.getStory(r.id) as any).lore_from, world,
+      'a copy of a book set in a world is set in that world — unlike the threads copy above');
+    assert.ok((r.stories ?? []).some((x: any) => x.id === r.id),
+      'the shelf comes back holding it, so the client need not ask again');
+
+    // THE GATE, in the direction that matters. `duplicateStory` asks for itself as well as being
+    // behind the dispatcher: the handler is reachable from a harness with no request around it.
+    const stolen: any = routes['POST /api/story/duplicate'](ctxFor({ storyId: book, title: 'Mine' }, bob));
+    assert.ok(stolen.error, "bob must not be able to copy alice's book");
+    assert.strictEqual(db.listStories(bob).length,
+      db.listStories(bob).filter((x: any) => x.title !== 'Mine').length,
+      'and nothing of hers landed on his shelf');
+  }
+  ok('the whole book copies, keeps the world it is set in, and refuses another writer');
+
   // AND A FOLLOWED BOOK CANNOT BE DELETED OUT FROM UNDER ITS FOLLOWERS. Built without a check
   // first, which the falsification caught: stubbing the guard left every assertion green.
   {

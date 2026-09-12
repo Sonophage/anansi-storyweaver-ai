@@ -10,6 +10,23 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-11 · Take a copy of a whole book
+
+### Make a copy of this whole book
+Under **Keep**, beside taking the book with you. It makes a second book holding everything this one
+holds: the prose in its chapters, every path you have branched, the threads with their rooms, their
+pictures and the connections between them, what the book still owes, and the world it is set in. It
+opens on the same chapter you were writing.
+
+Nothing you do in either one reaches the other after that. Rename somebody, burn a city down, take
+the story somewhere you were not willing to risk it — the book you started from does not move.
+
+**A branch could never do this.** Every path through one book shares its threads, so changing who
+somebody is on one path changes them on all of them. That is what a branch is for, and it is why it
+cannot give you a set of your own.
+
+Flags, re-roll history and anybody you write the original with stay with the original.
+
 ## 2026-09-06 · Search finds the word you typed
 
 ### It stopped matching the middle of other words

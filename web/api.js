@@ -129,6 +129,10 @@ export const api = {
   // Copy this book's threads into another, or into a new one — `into` of 'new' mints it. A COPY,
   // not a link: for a shared world a book follows another's ledger instead.
   copyThreads:  (storyId, into) => j('/api/threads/copy', 'POST', { storyId, into }),
+  // The same book twice. `copyThreads` above takes the cast and leaves the prose; this takes both,
+  // and the two books share nothing afterwards. A branch cannot do it — the branches of one book
+  // read one ledger, so a thread changed on either is changed on both.
+  duplicateStory: (storyId, title) => j('/api/story/duplicate', 'POST', { storyId, title }),
   story:        (id, chapter)    => j(`/api/story?story=${id}${chapter ? `&chapter=${chapter}` : ''}`),
   saveStory:    (id, story)      => j('/api/story', 'POST', { id, story }),
   saveChapter:  (storyId, chapterId, chapter) => j('/api/chapter', 'POST', { storyId, chapterId, chapter }),

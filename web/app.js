@@ -481,6 +481,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads',
+  // The whole book again, prose and all — the press beside `forkthreads`, which takes only the cast.
+  'dupbook',
   // Deletion that reaches whole runs of prose. Both are two presses, like every other delete.
   'delafter', 'delchapter',
   // #38. The editable re-roll instruction: go, and cancel.
@@ -2930,6 +2932,23 @@ const PANELS = {
         <button class="btn ghost" data-forkthreads="1" style="flex:1">Start a new book from
           these threads</button>
         ${tipMark('sForkThreads', 'Starting a new book from these threads')}</div>
+
+      <!-- THE SAME BOOK TWICE. Seth, 2026-09-11: "copies threads independent of the original."
+           BESIDE the button above rather than replacing it: that one is for carrying a cast into
+           something new, this one is for taking the book you have somewhere else without risking
+           the one you have. The web says what a branch does instead, because that is the question
+           this button is the answer to. -->
+      ${tipCard('sDuplicate', 'A second copy of this book', `<p>Everything: the prose in its
+        chapters, every path you have branched, the threads with their rooms and connections, and
+        what the book still owes. Nothing written in either one reaches the other after this.</p>
+        <p><strong>A branch is not this.</strong> Branches of one book share its threads &mdash;
+        change who somebody is on one path and they change on every path. That is the point of a
+        branch and it is why it cannot give you a separate set.</p>
+        <p>Flags, re-roll history and anyone else you write with stay with the original.</p>`)}
+      <div style="display:flex; align-items:center; gap:2px; margin-top:7px">
+        <button class="btn ghost" data-dupbook="1" style="flex:1">Make a copy of this whole
+          book</button>
+        ${tipMark('sDuplicate', 'A second copy of this book')}</div>
 
       <!-- WRITE IT WITH SOMEBODY. Seth, 2026-09-03: "i can call her into a book if need be."
            UNDER KEEP, beside taking a book with you and putting it away: all three are about what
@@ -8783,6 +8802,20 @@ document.addEventListener('click', async (e) => {
   if (d.unlink) {
     if (!armed(t, 'edge:' + d.unlink, 'Press again to disconnect these two.')) return;
     V = await api.unlink(S.storyId, d.unlink); paint(); return toast('Disconnected.'); }
+
+  if (d.dupbook) {
+    // ONE PRESS, no arming. Every other two-press control here destroys something; this only ever
+    // adds a book, and the undo for it is the delete that is already on this panel.
+    toast('Copying the whole book\u2026');
+    const r = await api.duplicateStory(S.storyId, `${V.story.title} \u2014 a copy`);
+    if (r.error) return toast(r.error);
+    LIB = r.stories ?? LIB;
+    // Straight into the copy, for the reason the press below says: a new book you cannot see is
+    // indistinguishable from a press that did nothing.
+    await openStory(r.id);
+    return toast(`Copied \u2014 ${r.passages} passage${r.passages === 1 ? '' : 's'}, ${
+      r.cards} thread${r.cards === 1 ? '' : 's'}.`);
+  }
 
   if (d.forkthreads) {
     const n = (V.entries ?? []).filter((e) => !e.sharedFrom).length;
