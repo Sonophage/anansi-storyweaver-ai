@@ -12,6 +12,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-09-11 · Take a copy of a whole book
 
+### Being refused with "over budget" when nothing was wrong with the book
+If the model happened to be asleep when the server started, the app never found out how much room
+it actually had and spent the rest of the day assuming the smallest amount it knows how to assume:
+about a seventh of the real figure. Everything worked until a book grew past that invisible line,
+and then writing stopped with a message about the budget and the story's spine — neither of which
+had anything to do with it. One server ran that way for thirty-three hours.
+
+It now asks again until it gets an answer, instead of asking once and giving up. Nothing to do at
+your end; a book that was refusing to continue will continue.
+
 ### Make a copy of this whole book
 Under **Keep**, beside taking the book with you. It makes a second book holding everything this one
 holds: the prose in its chapters, every path you have branched, the threads with their rooms, their

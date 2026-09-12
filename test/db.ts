@@ -382,6 +382,28 @@ ok('the reserve scales with the budget and with the reply length', () => {
   assert.strictEqual(short - long, 1400, 'every extra reply token costs a prompt token');
 });
 
+/* WHAT THE BOOT-TIME FALLBACK WAS WORTH, in the only units that matter (2026-09-11).
+ *
+ * `serve.ts` read the per-slot context once before it listened and kept `perSlot: 8192` when that
+ * threw — which it does whenever the router has the model asleep. The fallback then stood for the
+ * life of the process: one boot ran 33 hours on it, and a writer was refused mid-book with "over
+ * budget by 1015 tokens; the server would drop SPINE" on a book that had nothing wrong with it.
+ *
+ * The retry that fixes it is `slotNow`, checked in `test/engine.ts`. THIS is the half that says why
+ * anybody should care, and it is here rather than there because `budgetFor` lives in `story.ts`,
+ * which imports `db.ts` — a suite with no ANANSI_DB set that imports it opens the live library.
+ *
+ * Both numbers are written out rather than derived, so a change to the formula has to come and
+ * change them by hand and see what it is doing to a book. */
+ok('the slot the router reports is worth seven times the floor assumed without it', () => {
+  const floor = { global: 0, slots: 1, perSlot: 8192 };
+  const real = { global: 100096, slots: 2, perSlot: 50048 };
+  assert.strictEqual(story.budgetFor({ maxContext: null }, floor, 900), 6245,
+    'the assumed floor leaves 6,245 tokens — the number that refused a healthy book for 33 hours');
+  assert.strictEqual(story.budgetFor({ maxContext: null }, real, 900), 45590,
+    "and the router's own answer leaves 45,590");
+});
+
 // The ceiling stopped being the setting on 2026-08-30, because it was a guillotine: 41 of 181
 // prose runs at the old 450 default ended exactly ON it, mid-word. What the writer sets is a
 // target; this is the only place it becomes a ceiling.

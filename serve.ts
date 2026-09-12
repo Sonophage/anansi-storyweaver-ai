@@ -10,7 +10,7 @@ import { gzip as gzipCB } from 'node:zlib';
 import { extname, resolve } from 'node:path';
 import { routes, OPEN_ROUTES, storyIdOf } from './src/routes.ts';
 import type { Ctx } from './src/routes.ts';
-import { slotContext, model } from './src/llama.ts';
+import { slotNow, slotFirstRead, slotIsKnown, model } from './src/llama.ts';
 import { capFor } from './src/story.ts';
 import * as db from './src/db.ts';
 // `bus`, not `live`: this file already has a `live` Map of the generations in flight.
@@ -137,8 +137,10 @@ async function ownerOf(ip: string, headers?: Record<string, unknown>): Promise<s
   return account ? db.owner(account) : null;
 }
 
-let slot = { global: 0, slots: 1, perSlot: 8192 };
-try { slot = await slotContext(); } catch { /* model asleep; pages still load */ }
+// Read here so the banner below has a number, and asked again on every request until the router
+// answers — see `slotNow` in src/llama.ts for what the single boot-time read cost on 2026-09-11.
+// The await is only this one, before anything listens; the retry never blocks a request.
+await slotFirstRead();
 
 // Measured: with thinking on, this model spends its whole budget reasoning and returns
 // no prose on most runs. See P0-FINDINGS F5.
@@ -362,7 +364,10 @@ const handler = async (req: any, res: any) => {
       // second writer's call is unreachable from here by construction rather than by a check.
       stopLive: () => { const c = live.get(OWNER); if (!c) return false; c.abort(); return true; },
       body: req.method === 'GET' ? {} : await readBody(req),
-      query: url.searchParams, owner: OWNER, slot, gen: gens.get(OWNER) ?? GEN,
+      // NOT a value captured at boot. `slotNow` returns what is known and asks the router again in
+      // the background while it is still the fallback, so a server that started with the model
+      // asleep corrects itself on the next request instead of running the whole process on 8,192.
+      query: url.searchParams, owner: OWNER, slot: slotNow(), gen: gens.get(OWNER) ?? GEN,
       setGen: (g) => { const next = { ...(gens.get(OWNER) ?? GEN), ...g }; gens.set(OWNER, next); ctx.gen = next; },
       defaultModel: db.defaultModelOf(OWNER),
       setDefaultModel: (id) => { db.setDefaultModel(OWNER, id); ctx.defaultModel = id; },
@@ -501,7 +506,14 @@ const handler = async (req: any, res: any) => {
   console.log(`  writers       ${ALLOW.size ? [...ALLOW.keys()].join(', ') : `${DESK} (loopback only)`}`);
   console.log(`  admin         ${ADMIN}`);
   console.log(`  model         ${model()}`);
-  console.log(`  context       ${slot.global} / ${slot.slots} slots = ${slot.perSlot} per slot`);
+  // SAYS WHICH NUMBER THIS IS. The banner printed `0 / 1 slots = 8192 per slot` as though it were
+  // the router's answer, and that line was on screen for the 33 hours the bug lasted. A floor we
+  // assumed and a number we read are different claims and now read differently.
+  const s = slotNow();
+  console.log(slotIsKnown()
+    ? `  context       ${s.global} / ${s.slots} slots = ${s.perSlot} per slot`
+    : `  context       ${s.perSlot} per slot — ASSUMED, the router did not answer. Asking again `
+      + 'on the next request.');
   // WHOSE, when there is more than one writer. This counted only the DESK writer's shelf and
   // called it the library, so a two-writer box under-reported by however many books the other
   // writer had, and looked exactly like rows going missing.

@@ -92,6 +92,73 @@ export async function slotContext(): Promise<{ global: number; slots: number; pe
   return { global, slots, perSlot: Math.floor(global / slots) };
 }
 
+/** THE SLOT SIZE, ASKED UNTIL IT IS ANSWERED — not once at boot and then believed forever.
+ *
+ *  WHAT THIS COST, 2026-09-11. `serve.ts` read `slotContext()` once before it listened and fell
+ *  back to `perSlot: 8192` when it threw. It throws whenever the router has the model asleep, which
+ *  is any boot after a quiet stretch — and the fallback then stood for the LIFE OF THE PROCESS.
+ *  One such boot ran for 33 hours on 8,192, so `budgetFor` handed every book 6,245 tokens instead
+ *  of 45,590 and a writer was refused with *"over budget by 1015 tokens"* naming `SPINE` as what
+ *  would be dropped. Nothing was wrong with the book; it had a seventh of the room it should have
+ *  had, and nothing anywhere said so. The boot banner printed the wrong number too.
+ *
+ *  ASKED AGAIN ON DEMAND, NOT ON A TIMER. The number matters at the moment a prompt is built, and a
+ *  request is the only evidence anybody wants one. A timer would wake a sleeping model to ask it a
+ *  question nobody is waiting on — and `/props` does load the model, which is F13's shared cache
+ *  and 26 GiB of it.
+ *
+ *  IT DOES NOT BLOCK THE REQUEST THAT TRIGGERS IT. `/props` waits up to 30 seconds and loads a
+ *  sleeping model; awaiting that on a page load trades a silent wrong number for a visible
+ *  half-minute hang, which is the worse of the two. So the asking request answers with what is
+ *  known and the next one gets the truth — in practice the shelf and the book-open that come before
+ *  any Continue are more than enough, and the floor is one retryable refusal rather than 33 hours.
+ *
+ *  ONCE IT ANSWERS IT IS FIXED. A router does not change its context size under a running model,
+ *  so a successful read is never repeated; only the fallback keeps asking, and only every
+ *  `SLOT_RETRY_MS`, or a router that is down is asked once per request for 30 seconds each.
+ *
+ *  `ask` and `now` are parameters ONLY so `test/engine.ts` can drive this without a router. */
+export const SLOT_FALLBACK = { global: 0, slots: 1, perSlot: 8192 };
+export const SLOT_RETRY_MS = 60_000;
+let known: { global: number; slots: number; perSlot: number } = SLOT_FALLBACK;
+let askedAt = -Infinity;
+/** Whether the number below was ever actually read off the router, as opposed to being the floor
+ *  we assume when it will not say. The boot banner says which, so a server running on the fallback
+ *  is visible in the journal instead of being a number nobody questions. */
+export const slotIsKnown = () => known !== SLOT_FALLBACK;
+
+/** THE ONLY PLACE `known` IS WRITTEN, and that is deliberate: boot and the retry are two callers of
+ *  one assignment rather than two copies of it. A failure leaves the fallback standing, which is
+ *  what every caller already handles. */
+async function readSlot(ask: () => Promise<typeof known>) {
+  try { known = await ask(); }
+  catch { /* asleep, or down. The fallback is the honest answer until it is not. */ }
+  return known;
+}
+
+/** Boot. Waited on, because nothing is listening yet and the banner is about to make a claim. */
+export const slotFirstRead = (ask: () => Promise<typeof known> = slotContext) => {
+  askedAt = Date.now();
+  return readSlot(ask);
+};
+
+/** Every request after. Returns what is known and, while that is still the fallback, asks again in
+ *  the background — see the header for why it does not block the caller. */
+export function slotNow(ask: () => Promise<typeof known> = slotContext, now = Date.now()) {
+  if (known === SLOT_FALLBACK && now - askedAt >= SLOT_RETRY_MS) {
+    askedAt = now;
+    void readSlot(ask).then(() => {
+      if (slotIsKnown())
+        console.log(`  context       ${known.global} / ${known.slots} slots = ${known.perSlot} per `
+          + 'slot (read late — the model was asleep when the server started)');
+    });
+  }
+  return known;
+}
+
+/** For the test only: forget what was read, so a case can start from the fallback. */
+export const forgetSlot = () => { known = SLOT_FALLBACK; askedAt = -Infinity; };
+
 /** Prose transport.
  *
  *  MEASURED, not assumed. PLAN-02 §3 locked raw `/completion` on the anti-refusal

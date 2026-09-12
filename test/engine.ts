@@ -1889,4 +1889,72 @@ ok('a card with no body renders its facts bare, with no empty bracket left behin
   assert.doesNotMatch(out, /\n\n\n/, 'and no gap left by the missing body');
 });
 
+/* ---- THE SLOT SIZE IS ASKED UNTIL IT IS ANSWERED, not once at boot (2026-09-11).
+ *
+ * WHAT THIS IS GUARDING. `serve.ts` used to read the per-slot context once, before it listened, and
+ * keep `perSlot: 8192` when that threw — which it does whenever the router has the model asleep.
+ * The fallback then stood for the life of the process: one boot ran 33 hours on 8,192, so every
+ * book got a 6,245-token budget instead of 45,590 and the writer was refused with "over budget by
+ * 1015 tokens, the server would drop SPINE" — a message about a book that had nothing wrong with it.
+ *
+ * ONLY THE PLUMBING IS HERE. What those two slot sizes do to a book's budget is asserted in
+ * `test/db.ts`, beside the other `budgetFor` cases — `src/llama.ts` imports nothing at all, and
+ * this suite must keep it that way: `story.ts` pulls in `db.ts`, and `test/engine.ts` sets no
+ * ANANSI_DB, so importing it here opens the LIVE library read-write and migrates it. Done by
+ * accident while writing this very block, 2026-09-11.
+ *
+ * The ask is injected, so none of this needs a router either. */
+{
+  const { slotNow, slotFirstRead, slotIsKnown, forgetSlot, SLOT_FALLBACK, SLOT_RETRY_MS } =
+    await import('../src/llama.ts');
+  const flush = () => new Promise((r) => setImmediate(r));
+  const real = { global: 100096, slots: 2, perSlot: 50048 };
+
+  let asks = 0;
+  const asleep = () => { asks++; return Promise.reject(new Error('/props gave no usable context size')); };
+  const awake = () => { asks++; return Promise.resolve(real); };
+
+  forgetSlot();
+  assert.strictEqual(slotIsKnown(), false, 'nothing is known before anybody asks');
+  assert.strictEqual(slotNow(asleep, 0).perSlot, SLOT_FALLBACK.perSlot,
+    'and the floor is what a caller gets meanwhile — never a zero or a throw');
+  await flush();
+  assert.strictEqual(asks, 1, 'a request asks once');
+  assert.strictEqual(slotIsKnown(), false, 'a router that will not answer leaves the floor standing');
+
+  // THE COOLDOWN IS NOT COSMETIC. `/props` waits up to 30 seconds; without this a router that is
+  // down is asked once per request, and every one of those is a 30-second socket held open.
+  slotNow(asleep, SLOT_RETRY_MS - 1);
+  await flush();
+  assert.strictEqual(asks, 1, 'and it is not asked again inside the cooldown, however many requests arrive');
+  slotNow(asleep, SLOT_RETRY_MS);
+  await flush();
+  assert.strictEqual(asks, 2, 'once the cooldown is up it asks again — this is the half that was missing');
+
+  // The model wakes; the next request gets the truth.
+  slotNow(awake, SLOT_RETRY_MS * 2);
+  await flush();
+  assert.strictEqual(slotIsKnown(), true, 'and an answer is recorded');
+  assert.deepStrictEqual(slotNow(awake, SLOT_RETRY_MS * 3), real, 'as the router gave it');
+
+  // AND THEN IT STOPS. A router does not change its context size under a running model, so asking
+  // again is a wasted 30-second socket on every request for the life of the process.
+  const settled = asks;
+  slotNow(awake, SLOT_RETRY_MS * 99);
+  await flush();
+  assert.strictEqual(asks, settled, 'a slot that is known is never asked for again');
+
+  // The boot read is the same assignment, waited on, so the banner can make a true claim.
+  forgetSlot();
+  await slotFirstRead(awake);
+  assert.strictEqual(slotIsKnown(), true, 'the boot read records before anything listens');
+  forgetSlot();
+  await slotFirstRead(asleep);
+  assert.strictEqual(slotIsKnown(), false,
+    'and a boot with the model asleep says so rather than claiming 8192 came off the router');
+
+  forgetSlot();
+  n++; console.log('  ok  the slot size is asked again until the router answers, then never again');
+}
+
 console.log(`\n${n} checks passed`);
