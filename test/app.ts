@@ -231,8 +231,11 @@ const STORY = {
              * a report of what did — and every card above agrees under both answers, so the fixture
              * could not have caught it. These two disagree, in opposite directions.
              * Triggered, and the manifest says its words appeared. The old rule says "not in". */
+            /* `gaslamps` is a trigger word and NOTHING else — not in the title, the body or a
+             * room. Every other key in this fixture repeats its card's name, so deleting keys from
+             * the search left every assertion green. */
             { id: 'e-fired', title: 'The lamplighter', body: '[comes at six]',
-              entryType: 'character', activation: 'triggered', keys: ['lamplighter'],
+              entryType: 'character', activation: 'triggered', keys: ['lamplighter', 'gaslamps'],
               lastEditor: 'human', states: [], notes: '', addons: [] },
             /* Always on, and the manifest says the canon ceiling threw it out. The old rule says
              * "in", for a card the model never saw. */
@@ -428,9 +431,18 @@ let stubPassageId: string | undefined = undefined;
         { id: 'e-1', story: 's-1', storyTitle: 'The Ashfall Concordat', title: 'Halsey',
           body: 'A fence with a good coat and a better memory.', entryType: 'character',
           activation: 'always_on', keys: [], addons: [], outfits: [], imageAt: 1788300222000 },
+        /* A ROOM WITH TEXT IN IT, added 2026-09-11. Every card here had `addons: []`, which is the
+         * one shape that cannot fail the search: the cross-book box read title, body and keys and
+         * looked correct against a fixture where the body was where the text was. In the live
+         * library it is not — 464 of 483 cards keep their text in a room — so a fixture with no
+         * rooms was testing the case that does not happen. */
         { id: 'e-2', story: 's-2', storyTitle: 'The Salt Ledger', title: 'the Ambersand',
           body: 'A house that lends at ruin.', entryType: 'lore',
-          activation: 'triggered', keys: ['Ambersand'], addons: [], outfits: [] },
+          activation: 'triggered', keys: ['Ambersand'],
+          // `usury` is the ROOM's own trigger word and appears nowhere else, for the same reason.
+          addons: [{ id: 'a-amber', slot: 'facts', name: 'What it holds',
+                     body: 'Nine floors of debt in ledgers nobody balances.',
+                     keys: ['ledgers', 'usury'], active: true }], outfits: [] },
         // A card in the WORLD BOOK, so it has a group on the Threads page at all — the list is
         // grouped by book and built from entries, so a world book with no cards is not on it.
         { id: 'e-3', story: 's-5', storyTitle: 'The Tessellate', title: 'Ring Law',
@@ -1151,9 +1163,20 @@ ok('the bar counts chapters, and the reading is always open');
    * a `body` and 464 have their text in a room. A search over title, body and keys — which is what
    * the cross-book box next door does — is a search over titles and keys with an empty field
    * attached, and it would pass a check written against a fixture whose cards still had bodies. */
+  // BY A WORD THAT IS ONLY IN THE TITLE. `lamplighter` below is the card's name AND its trigger
+  // word, so it cannot tell a search that reads titles from one that reads keys — deleting the
+  // title from `threadText` left every other case here green.
+  typeIn('thq', 'Sereth');
+  assert.match(html('thlist'), /Envoy Sereth/,
+    'a thread is found by a word that appears only in its title');
+
+  typeIn('thq', 'gaslamps');
+  assert.match(html('thlist'), /The lamplighter/,
+    'and by a trigger word that appears nowhere else on the card');
+
   typeIn('thq', 'lamplighter');
   let list = html('thlist');
-  assert.match(list, /The lamplighter/, 'a thread is found by its name');
+  assert.match(list, /The lamplighter/, 'and by its name');
   assert.ok(!/Envoy Sereth/.test(list), 'and the ones that do not match are gone');
 
   typeIn('thq', 'unhurried');
@@ -3137,6 +3160,38 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(opened, /class="lbanner"/, 'the world book gets a banner too');
   assert.match(opened, /World book/, 'tagged as what it is, not as Writing');
   assert.match(opened, /Lore only/, 'and it says there is nothing written in it');
+
+  /* ---- AND THE BOX AT THE TOP SEARCHES THE SAME WORDS THE STORY'S OWN LIST DOES (2026-09-11).
+   *
+   * It read title, body and keys — which in this library is title and keys plus a column the
+   * 2026-08-29 migration emptied into the rooms. 23 of 483 cards still have a body. Both boxes go
+   * through `threadText` now, so there is one answer to "what can a thread be found by" instead of
+   * one per page, which is how they came to differ in the first place. */
+  typeIn('lq', 'nobody balances');
+  let found = html('books');
+  assert.match(found, /Ambersand/,
+    'a thread is found across books by words in a ROOM — where 464 of 483 cards keep their text');
+  assert.ok(!/Halsey/.test(found), 'and a card that does not match is gone');
+
+  typeIn('lq', 'What it holds');
+  assert.match(html('books'), /Ambersand/, "and by the room's own name");
+
+  typeIn('lq', 'good coat');
+  found = html('books');
+  assert.match(found, /Halsey/, 'the old fields still work — this widened the search, it did not move it');
+  assert.ok(!/Ambersand/.test(found), 'and still narrows');
+
+  // Title-only here too: `Halsey` appears in no body, no key and no room.
+  typeIn('lq', 'Halsey');
+  assert.match(html('books'), /Halsey/, 'and a card is still found by its name alone');
+
+  typeIn('lq', 'usury');
+  assert.match(html('books'), /Ambersand/,
+    "and by a ROOM's own trigger word — a room fires on its own keys, not only the card's");
+
+  typeIn('lq', '');
+  assert.match(html('books'), /Halsey/, 'clearing it brings every book back');
+  ok('the cross-book thread search reads the rooms too, through the same definition');
 
   // ---- AND IT PAINTS IN THE BOOK'S OWN COLOURS. Seth, 2026-09-03: "If a story has no image use
   // the Theme background" — the book's theme, not the app's, so a shelf of books with no covers

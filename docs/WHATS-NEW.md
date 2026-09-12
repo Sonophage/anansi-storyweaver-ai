@@ -26,10 +26,14 @@ context, because the model did not see it.
 
 Before you have written anything in a session there is no prompt to read, and the list says so.
 
-### A search bar on a book's threads
+### A search bar on a book's threads, and the one on every book's threads now finds more
 Under a story's threads, above the list. It searches names, trigger words, what a thread says and
 what is in its rooms — so you can find the card by something written inside it, not only by what
 you called it. Typing narrows the list and nothing else on the panel moves.
+
+The box on the wider **Threads** page, which searches every book at once, was looking at names,
+trigger words and a thread's body — and almost nothing keeps its text in the body any more, so it
+was really only searching names and trigger words. Both boxes look at the same words now.
 
 ### Being refused with "over budget" when nothing was wrong with the book
 If the model happened to be asleep when the server started, the app never found out how much room

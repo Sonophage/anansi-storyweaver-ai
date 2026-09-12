@@ -3804,7 +3804,9 @@ function ledgerBooks() {
     (S.ledgerKind === 'all' || e.entryType === S.ledgerKind) &&
     // #22 §4. A room filter is only ever offered under a kind, so it can only narrow within one.
     (!S.ledgerSlot || (e.addons ?? []).some((a) => a.slot === S.ledgerSlot)) &&
-    (!q || `${e.title} ${e.body} ${(e.keys || []).join(' ')}`.toLowerCase().includes(q)));
+    // `threadText`, not a second list of fields. This read title/body/keys until 2026-09-11, which
+    // is title and keys plus a column the migration emptied — see the note on that function.
+    (!q || threadText(e).includes(q)));
   const books = new Map();
   for (const e of kept) {
     if (!books.has(e.story)) books.set(e.story, { title: e.storyTitle, rows: [] });
@@ -5791,14 +5793,34 @@ function historyPanel() {
  *
  *  Rooms carry their NAME as well as their body: "his hands" is how you look for the card with the
  *  hands, and the name is the only place those words appear. */
+/** EVERY WORD A THREAD CAN BE FOUND BY, lowercased, in ONE place. The story's list and the
+ *  cross-book page both ask this question and they answered it differently: the cross-book box read
+ *  title, body and keys, which sounds complete and is not.
+ *
+ *  THE ROOMS ARE WHERE THE TEXT IS. The 2026-08-29 migration moved every card's body into its
+ *  `facts` room — 23 of the 483 cards in this library still have a `body`, and 464 keep their text
+ *  in a room. So a search over `body` is a search over a field that is empty 95% of the time, and
+ *  it would have looked correct against any fixture whose cards predate that migration.
+ *
+ *  Rooms carry their NAME and their own trigger words too: "his hands" is how you look for the card
+ *  with the hands, and the name is the only place those words appear. `notes` is in for the same
+ *  reason — it is text the writer put on the card, and an imported card's instruction fields land
+ *  there, so it is sometimes the only place a stranger's card says what it is.
+ *
+ *  Both lists get `addons` from the server already — the story view and `GET /api/ledger` both send
+ *  them — so none of this costs a request. */
+function threadText(e) {
+  return [e.title, e.body, e.notes, (e.keys || []).join(' '),
+    ...(e.addons ?? []).flatMap((a) => [a.name, a.body, (a.keys || []).join(' ')])]
+    .filter(Boolean).join(' ').toLowerCase();
+}
+
 function threadRows() {
   const groups = [['character', 'Characters'], ['lore', 'Lore'], ['item', 'Items'], ['rule', 'Rules']];
   const q = S.threadQ.trim().toLowerCase();
   const pin = pinModes();
   const mani = manifestNow();
-  const hit = (e) => !q || [e.title, e.body, (e.keys || []).join(' '),
-    ...(e.addons ?? []).flatMap((a) => [a.name, a.body])]
-    .join(' ').toLowerCase().includes(q);
+  const hit = (e) => !q || threadText(e).includes(q);
   const out = groups.map(([k, label]) => {
     const rows = (V.entries ?? []).filter((e) => e.entryType === k
       && (!S.onlyIn || inContext(e, pin, mani)) && hit(e));
