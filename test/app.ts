@@ -225,7 +225,20 @@ const STORY = {
             // And one this book TOOK OVER: an ordinary card of its own that remembers the origin.
             { id: 'e-took', title: 'Vantic law', body: '[nobody descends without a writ]',
               entryType: 'rule', activation: 'always_on', keys: [], lastEditor: 'human', states: [],
-              notes: '', addons: [], originId: 'e-origin' }],
+              notes: '', addons: [], originId: 'e-origin' },
+            /* THE TWO CARDS THAT CAN TELL THE TWO ANSWERS APART (2026-09-11). `In context` was
+             * computed from activation and pins, which is a guess about what WILL fire rather than
+             * a report of what did — and every card above agrees under both answers, so the fixture
+             * could not have caught it. These two disagree, in opposite directions.
+             * Triggered, and the manifest says its words appeared. The old rule says "not in". */
+            { id: 'e-fired', title: 'The lamplighter', body: '[comes at six]',
+              entryType: 'character', activation: 'triggered', keys: ['lamplighter'],
+              lastEditor: 'human', states: [], notes: '', addons: [] },
+            /* Always on, and the manifest says the canon ceiling threw it out. The old rule says
+             * "in", for a card the model never saw. */
+            { id: 'e-evicted', title: 'The Kesh Accord', body: '[signed under duress]',
+              entryType: 'rule', activation: 'always_on', keys: [], lastEditor: 'human',
+              states: [], notes: '', addons: [] }],
   follows: { id: 's-9', title: 'The Ash Cycle' },
   // WHICH THREADS HAVE A PICTURE. `e-1` does and `e-2` does not, so a view that draws one for every
   // card and a view that draws none both fail. `e-shared` has one too: a followed thread's picture
@@ -271,6 +284,10 @@ const STORY = {
 const MANIFEST = { manifest: { blocks: [
   { kind: 'SPINE', id: 'spine', text: '', tokens: 392, state: 'included', reason: 'capped' },
   { kind: 'CANON-ALWAYS', id: 'e-1', text: '', tokens: 5480, state: 'included', reason: 'always_on', firedBy: ['always_on'] },
+  // The pair that separates "what the rule guesses" from "what was actually assembled" — see the
+  // note beside them in the entries fixture. Both directions, or the check only ever sees agreement.
+  { kind: 'CANON-TRIGGERED', id: 'e-fired', text: '', tokens: 120, state: 'included', reason: 'keyword', firedBy: ['lamplighter'] },
+  { kind: 'CANON-ALWAYS', id: 'e-evicted', text: '', tokens: 300, state: 'omitted', reason: 'canon 45% ceiling' },
   { kind: 'EARLIER', id: 'c-1', text: '', tokens: 1920, state: 'omitted', reason: 'stale summary' },
   // A dropped ARC takes its whole range with it, which is what makes the count chapters rather
   // than blocks — one omitted block here is nine forgotten chapters.
@@ -1083,6 +1100,78 @@ ok('the header names the book, and carries no reading of its own');
   await new Promise((r) => setTimeout(r, 40));
 }
 ok('the bar counts chapters, and the reading is always open');
+
+/* ---- IN CONTEXT MEANS WHAT THE PROMPT ACTUALLY HOLDS (2026-09-11).
+ *
+ * Kia's book: 227 threads, every one TRIGGERED, none pinned. The chip read "In context 0" while
+ * thirty-three of them were in the prompt and the Context panel was listing them — two screens
+ * built to answer one question, disagreeing.
+ *
+ * The old rule read activation and pins, which is a guess about what WILL fire rather than a report
+ * of what DID. It is still the fallback, and only that: the manifest is the assembly the server
+ * actually built, block by block, ids and all.
+ *
+ * BOTH DIRECTIONS, because the rule and the manifest agree about the easy card and that is exactly
+ * why a one-card fixture could never have caught this. `e-2` is triggered and fired; `e-3` is
+ * always-on and was evicted. The old rule gets both backwards. */
+{
+  click({ panel: 'threads' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ onlyin: '1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const inCtx = html('sideBody');
+  assert.match(inCtx, /The lamplighter/,
+    'a TRIGGERED thread the manifest says fired is in context — the old rule called it out');
+  assert.ok(!/The Kesh Accord/.test(inCtx),
+    'and an ALWAYS-ON thread the ceiling evicted is not — the old rule called it in, for a card '
+    + 'the model never saw');
+  assert.match(inCtx, /Envoy Sereth/, 'the card both answers agree about is still there');
+  // The count on the chip is the same answer, so the number and the list cannot drift apart.
+  assert.match(inCtx, /In context <span[^>]*>2</, 'and the chip counts the two that are really in');
+  ok('In context is read off the assembled prompt, not guessed from activation');
+
+  // ---- AND THE LIST HAS A SEARCH BAR. Seth, 2026-09-11: "in the story under all threads can i get
+  // a search bar there?"
+  click({ onlyin: '0' });
+  await new Promise((r) => setTimeout(r, 40));
+  const all = html('sideBody');
+  assert.match(all, /id="thq"/, 'the threads list has its own search box');
+  assert.match(all, /id="thlist"/, 'and the rows are in a container it can redraw by itself');
+  // IT REDRAWS ITS OWN LIST AND NOTHING ELSE. Every other box on this panel is free text waiting on
+  // Save, so a keystroke that repaints the panel throws away what is half-typed — the bug this file
+  // records in seven other handlers. Asserted on the source, the way the story panel's chips are.
+  const src = (await import('node:fs')).readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  const handler = src.match(/id === 'thq'\)[\s\S]{0,260}/)?.[0] ?? '';
+  assert.match(handler, /thlist/, 'the search redraws the list');
+  assert.ok(!/\bpaint\(\)/.test(handler), 'and never repaints the panel around it');
+  ok('the story’s threads have a search bar that redraws only its own list');
+
+  /* AND IT FINDS THINGS, including the 95% of the library a naive search cannot see. The
+   * 2026-08-29 migration moved every card's body into its `facts` room: 23 of 483 cards still have
+   * a `body` and 464 have their text in a room. A search over title, body and keys — which is what
+   * the cross-book box next door does — is a search over titles and keys with an empty field
+   * attached, and it would pass a check written against a fixture whose cards still had bodies. */
+  typeIn('thq', 'lamplighter');
+  let list = html('thlist');
+  assert.match(list, /The lamplighter/, 'a thread is found by its name');
+  assert.ok(!/Envoy Sereth/.test(list), 'and the ones that do not match are gone');
+
+  typeIn('thq', 'unhurried');
+  assert.match(html('thlist'), /Envoy Sereth/,
+    'a thread is found by words that live in a ROOM — where 464 of 483 cards keep their text');
+
+  typeIn('thq', 'How she sounds');
+  assert.match(html('thlist'), /Envoy Sereth/,
+    "and by the room's NAME, which is how you look for the card with the hands");
+
+  typeIn('thq', 'zzzznotathing');
+  assert.match(html('thlist'), /No thread here matches/,
+    'a search that finds nothing says so — an empty list under a box you just typed in reads as broken');
+
+  typeIn('thq', '');
+  assert.match(html('thlist'), /Envoy Sereth/, 'and clearing the box brings the list back');
+  ok('the thread search reads the rooms, not just the title a card may not keep its text in');
+}
 
 // ---- THE STORY PANEL IS FOUR GROUPS BEHIND FOUR CHIPS (2026-09-02).
 // Seth: "this is so much information that its overwhelming. give it filter buttons to reach the

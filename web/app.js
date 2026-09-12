@@ -185,7 +185,7 @@ const S = {
   entryId: null, historyOf: null, newRoom: null, folds: {},
   // The ritual's three steps, and the kind chip on the third. Null means "premise", which is what
   // a cold load at #story/setup opens on: only a chapter close starts at the top.
-  setupStep: null, setupKind: 'character', setupSteer: '', propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', ctxView: 'blocks',
+  setupStep: null, setupKind: 'character', setupSteer: '', propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', threadQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, spark: null, ritual: null, setup: null,
   // Issue #32. Which of the chapter close's four passes did not run, by name, and why. Null means
   // no chapter has been closed this session; an empty object means all four ran.
@@ -248,6 +248,12 @@ const S = {
   fromBook: null,       // the book whose 'start a book here' box is open, on Threads
 };
 let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
+// WHICH BOOK `MANI` IS ABOUT. The comment on HERO_CTX says the manifest "belongs to the OPEN
+// story", and until now that was true only AFTER the fetch landed: `openStory` paints and THEN
+// calls `refreshManifest`, so the first paint of a newly-opened book read the previous book's
+// manifest. That was a percentage a few hundred milliseconds wrong; it stopped being harmless
+// when the Threads list started reading the same object to say which threads are live.
+let MANI_FOR = null;
 let MANIERR = null;   // why there is no manifest, when there is none
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
 // separate status route, and activity returns only generation rows.
@@ -2578,52 +2584,30 @@ const PANELS = {
         </div>
         ${S.onlyIn ? `<div style="display:flex; justify-content:flex-end">${
             tipMark('thInContext', 'What In context can see')}</div>
-          ${tipCard('thInContext', 'What In context can see', `<p>Always-on threads, plus anything
-          pinned into this chapter. A triggered thread is not listed here until you pin it &mdash;
-          whether its words appear depends on prose that is not written yet.</p>`)}` : ''}`;
+          ${tipCard('thInContext', 'What In context can see', manifestNow()
+            ? `<p>The threads that are actually in the prompt right now &mdash; read off the same
+              assembly the Context panel shows, so the two cannot disagree. A triggered thread is
+              here when its words have appeared, and an always-on one is missing when it was pushed
+              out to make room.</p>
+              <p>It moves as you write, because what fires moves as you write.</p>`
+            : `<p>Always-on threads, plus anything pinned into this chapter &mdash; the prompt has
+              not been assembled yet, so a triggered thread cannot be counted until it has.</p>`)}` : ''}`;
       })()}
-      ${shown.map(([k, label]) => {
-        const pin = pinModes();
-        const rows = V.entries.filter((e) => e.entryType === k
-          && (!S.onlyIn || inContext(e, pin)));
-        if (!rows.length) return '';
-        return `
-        <div class="lbl" style="letter-spacing:.1em; margin-top:6px">${label}</div>
-        ${rows.map((e) => entryCard(e)
-          + `<div style="display:flex; flex-wrap:wrap; gap:5px; margin:-4px 0 10px 2px">
-            <!-- THE CHIP IS THE SWITCH NOW. It read "Always on" / "Triggered" inside the card and
-                 said nothing you could press, so changing it was open the card, press Edit, find
-                 the row — three levels for a two-state flip. It cannot live INSIDE the card: the
-                 card is itself a button carrying data-entry, and a button inside a button is not
-                 valid HTML — the outer one swallows it. Out here it sits in the row the outfit
-                 chips already use, directly under the card it belongs to.
-                 NO aria-pressed, deliberately: the LABEL carries the state, and "pressed" on a
-                 two-way switch does not say which way. -->
-            <button data-flipact="${esc(e.id)}" class="tag" style="cursor:pointer; ${
-              (e.activation ?? 'always_on') === 'always_on'
-                ? 'border-color:rgba(217,178,106,.35); color:var(--gold)' : 'color:var(--dim)'}"
-              title="${(e.activation ?? 'always_on') === 'always_on'
-                ? 'Sent on every call. Press to send it only on its trigger words.'
-                : 'Sent only when a trigger word appears. Press to send it on every call.'}"
-              >${(e.activation ?? 'always_on') === 'always_on' ? 'Always on' : 'Triggered'}</button>
-            <!-- WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's
-                 name either way, so there was no non-visual way to tell which one is on. The full
-                 control lower down says it in words ("Worn — take it off"); this chip cannot, so it
-                 says it in aria. Read off the SAME o.active the style reads, deliberately: the
-                 lore chips once had aria-pressed keyed to a different field from their colour and
-                 sat permanently false under a lit button. -->
-            ${(e.outfits ?? []).map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
-              aria-pressed="${!!o.active}"
-              style="cursor:pointer; ${o.active
-                ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${esc(o.name)}</button>`).join('')}
-            ${(e.outfits ?? []).some((o) => o.active)
-              ? `<button data-wear="${e.id}:" class="tag" style="cursor:pointer; color:var(--dim)">nothing</button>` : ''}
-          </div>`).join('')}`;
-      }).join('')}
+      <!-- FINDING ONE BY NAME. Seth, 2026-09-11: "in the story under all threads can i get a search
+           bar there?" A book of 227 threads is four headings and a very long scroll, and the only
+           way to reach one was to remember which kind it was filed under.
+           IT REDRAWS ITS OWN LIST AND NOTHING ELSE, the same rule the cross-book box and the seed
+           box already follow: this panel holds free text that Save commits, and a full repaint on
+           a keystroke throws away whatever is half-typed above. -->
+      <input class="field" id="thq" aria-label="Search this book's threads"
+        value="${esc(S.threadQ)}" placeholder="Search these threads&hellip;"
+        style="margin:10px 0 0">
+      <div id="thlist" style="display:flex; flex-direction:column; gap:9px">${threadRows()}</div>
       ${shown.length ? '' : '<div class="hint" style="margin:0">Nothing written down yet. Canon is what the model is told and never allowed to contradict.</div>'}
-      ${shown.length && S.onlyIn && !V.entries.some((e) => inContext(e, pinModes()))
-        ? '<div class="hint" style="margin:0">Nothing is in context. Every thread here is triggered '
-          + 'and none is pinned into this chapter.</div>' : ''}
+      ${shown.length && S.onlyIn && !S.threadQ.trim() && !V.entries.some((e) => inContext(e, pinModes()))
+        ? `<div class="hint" style="margin:0">Nothing is in context. ${manifestNow()
+            ? 'None of these threads has been triggered by what is on the page.'
+            : 'Every thread here is triggered and none is pinned into this chapter.'}</div>` : ''}
       <!-- This panel is ONE story's threads, because entries are story-scoped in the schema. The
            page that spans every book already existed and had no door from inside a story: you had
            to leave first, and then know that Threads out there means something wider than Threads
@@ -5778,14 +5762,101 @@ function historyPanel() {
  *  remembers: `force_out` is applied BEFORE the always-on branch in `src/context.ts`, so a held-back
  *  always-on card is out. A second hand-written copy would get that backwards.
  *
- *  It cannot see a TRIGGERED card that is about to fire on a keyword — that depends on prose the
- *  panel has not been given. So the filter's own hint says so rather than the screen implying the
- *  list is complete. */
+ *  THE MANIFEST ANSWERS IT WHEN THERE IS ONE, and the rules below are the fallback rather than the
+ *  definition. Kia, 2026-09-11: a book of 227 threads, every one of them TRIGGERED and none pinned,
+ *  so this said "In context 0" while thirty-three of them were in the prompt and the Context panel
+ *  was showing them. The rule could not see a keyword fire — it has no prose — and a filter that
+ *  cannot see the common case is not a filter, it is a different question wearing the same label.
+ *
+ *  The manifest is not a guess about that: it is the list of blocks the server actually assembled,
+ *  ids and all. It also gets two things the rule never could — a card that fired on a keyword or on
+ *  stickiness, and an always-on card that was EVICTED by the canon ceiling, which the rule happily
+ *  called "in context" while the model never saw it.
+ *
+ *  Falls back the moment there is no manifest for this book — before the first fetch lands, or when
+ *  the router is asleep and the assemble failed. The hint under the chips says which answer is on
+ *  screen, because "0 of 227" means two completely different things in the two cases. */
+/** The story's threads, grouped by kind, filtered by the In-context chip and the search box.
+ *
+ *  ITS OWN FUNCTION so the search box can redraw the list without repainting the panel around it —
+ *  Premise, the voice and the room bodies up there are free text that Save commits, and a repaint
+ *  on a keystroke loses whatever is half-written. The cross-book box and the seed box are the same
+ *  shape for the same reason.
+ *
+ *  THE SEARCH READS THE ROOMS, and that is not thoroughness, it is the difference between working
+ *  and not. The 2026-08-29 migration moved every card's body into its `facts` room: 23 of the 483
+ *  cards in this library still have a `body`, and 464 have their text in a room. A search over
+ *  title, body and keys — which is what the cross-book box does — is a search over titles and keys
+ *  with a field that is empty 95% of the time bolted on.
+ *
+ *  Rooms carry their NAME as well as their body: "his hands" is how you look for the card with the
+ *  hands, and the name is the only place those words appear. */
+function threadRows() {
+  const groups = [['character', 'Characters'], ['lore', 'Lore'], ['item', 'Items'], ['rule', 'Rules']];
+  const q = S.threadQ.trim().toLowerCase();
+  const pin = pinModes();
+  const mani = manifestNow();
+  const hit = (e) => !q || [e.title, e.body, (e.keys || []).join(' '),
+    ...(e.addons ?? []).flatMap((a) => [a.name, a.body])]
+    .join(' ').toLowerCase().includes(q);
+  const out = groups.map(([k, label]) => {
+    const rows = (V.entries ?? []).filter((e) => e.entryType === k
+      && (!S.onlyIn || inContext(e, pin, mani)) && hit(e));
+    if (!rows.length) return '';
+    return `
+        <div class="lbl" style="letter-spacing:.1em; margin-top:6px">${label}</div>
+        ${rows.map((e) => entryCard(e)
+          + `<div style="display:flex; flex-wrap:wrap; gap:5px; margin:-4px 0 10px 2px">
+            <!-- THE CHIP IS THE SWITCH NOW. It read "Always on" / "Triggered" inside the card and
+                 said nothing you could press, so changing it was open the card, press Edit, find
+                 the row — three levels for a two-state flip. It cannot live INSIDE the card: the
+                 card is itself a button carrying data-entry, and a button inside a button is not
+                 valid HTML — the outer one swallows it. Out here it sits in the row the outfit
+                 chips already use, directly under the card it belongs to.
+                 NO aria-pressed, deliberately: the LABEL carries the state, and "pressed" on a
+                 two-way switch does not say which way. -->
+            <button data-flipact="${esc(e.id)}" class="tag" style="cursor:pointer; ${
+              (e.activation ?? 'always_on') === 'always_on'
+                ? 'border-color:rgba(217,178,106,.35); color:var(--gold)' : 'color:var(--dim)'}"
+              title="${(e.activation ?? 'always_on') === 'always_on'
+                ? 'Sent on every call. Press to send it only on its trigger words.'
+                : 'Sent only when a trigger word appears. Press to send it on every call.'}"
+              >${(e.activation ?? 'always_on') === 'always_on' ? 'Always on' : 'Triggered'}</button>
+            <!-- WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's
+                 name either way, so there was no non-visual way to tell which one is on. The full
+                 control lower down says it in words ("Worn — take it off"); this chip cannot, so it
+                 says it in aria. Read off the SAME o.active the style reads, deliberately: the
+                 lore chips once had aria-pressed keyed to a different field from their colour and
+                 sat permanently false under a lit button. -->
+            ${(e.outfits ?? []).map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
+              aria-pressed="${!!o.active}"
+              style="cursor:pointer; ${o.active
+                ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${esc(o.name)}</button>`).join('')}
+            ${(e.outfits ?? []).some((o) => o.active)
+              ? `<button data-wear="${e.id}:" class="tag" style="cursor:pointer; color:var(--dim)">nothing</button>` : ''}
+          </div>`).join('')}`;
+  }).join('');
+  // A SEARCH THAT FINDS NOTHING HAS TO SAY SO. An empty list under a box you have just typed into
+  // reads as the panel having broken, and the two reasons it can be empty need different answers.
+  if (out) return out;
+  if (q) return `<div class="hint" style="margin:8px 0 0">No thread here matches
+    &ldquo;${esc(S.threadQ.trim())}&rdquo;${S.onlyIn ? ' among the ones in context' : ''}.</div>`;
+  return '';
+}
+
+/** The manifest, and null unless it is THIS book's. Every reader goes through here rather than
+ *  touching `MANI`, so there is one answer to "is this current" instead of one per screen. */
+function manifestNow() { return MANI_FOR && MANI_FOR === S.storyId ? MANI : null; }
+
 function pinModes() {
   const ch = V?.currentChapter;
   return new Map((V?.pins ?? []).filter((p) => p.chapterId === ch?.id).map((p) => [p.entryId, p.mode]));
 }
-function inContext(e, pin) {
+function inContext(e, pin, mani = manifestNow()) {
+  // `state` matters as much as the id: an omitted block is one the engine built and then evicted,
+  // and a card the model never saw is not in context however it got listed.
+  if (mani) return mani.blocks.some((b) => b.id === e.id && b.state === 'included'
+    && (b.kind === 'CANON-ALWAYS' || b.kind === 'CANON-TRIGGERED'));
   return pin.get(e.id) === 'force_out' ? false
     : e.activation === 'always_on' ? true : pin.get(e.id) === 'force_in';
 }
@@ -6883,6 +6954,12 @@ async function openStory(id) {
   // Opening a book puts the rail on that book's menu. The menu button is how you get back to the
   // workspace one without leaving the story.
   S.railView = 'story';
+  // THE THREAD SEARCH IS PER BOOK AND DOES NOT TRAVEL. Threads are story-scoped, so a query left
+  // over from the last book filters this one's list against a word that is not in it — an empty
+  // panel under a box the writer did not type into here, which reads as the book having no threads.
+  // (`S.ledgerQ` next door is deliberately not reset: that box searches every book at once, so the
+  // query is still about what is on screen.)
+  S.threadQ = '';
   // And puts on the book's own look, if it has one. `V.look` null means follow the writer.
   resolveLook(V.look);
   if (S.models === null) loadModels();   // the Storyteller panel needs the list to offer one
@@ -7346,6 +7423,7 @@ async function refreshManifest() {
   // An overflow is not that case: it comes back WITH a manifest and an error, and the panel has a
   // rendering for it. So the manifest decides, not the error.
   MANI = r.manifest ?? null;
+  MANI_FOR = MANI ? asked : null;
   // THE EXACT COUNT WAS ALREADY IN THIS RESPONSE. `/api/manifest` does a /tokenize round trip and
   // has returned `exact` beside the manifest since the route was written; nothing ever read it, so
   // the bar drew `totals.used` — the ESTIMATE — and inherited both of PLAN-06's meter defects at
@@ -11268,6 +11346,13 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'lq') {
     S.ledgerQ = e.target.value;
     if ($('books')) $('books').innerHTML = ledgerBooks();
+    return;
+  }
+  // One story's threads. Its own list only, the same rule as the two above: this panel holds
+  // Premise, the voice and every room body as free text that Save commits.
+  if (e.target.id === 'thq') {
+    S.threadQ = e.target.value;
+    if ($('thlist')) $('thlist').innerHTML = threadRows();
     return;
   }
   if (e.target.id === 'q') {

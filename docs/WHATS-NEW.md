@@ -12,6 +12,25 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-09-11 · Take a copy of a whole book
 
+### In context now means what is actually in the prompt
+The **In context** filter on a book's threads was working it out from how each thread is set to
+fire, not from the prompt itself. So a thread that fires on a trigger word never appeared there
+however clearly it had fired, and a book whose threads are all triggered read "In context 0" while
+the Context panel sat beside it listing them. One book of 227 threads had thirty-three of them in
+the prompt and none of them on that list.
+
+It reads the assembled prompt now, so the two screens cannot disagree. A triggered thread appears
+the moment its words do, and it leaves when they stop being recent. It also does the other half
+honestly: an always-on thread that got pushed out to make room is no longer listed as being in
+context, because the model did not see it.
+
+Before you have written anything in a session there is no prompt to read, and the list says so.
+
+### A search bar on a book's threads
+Under a story's threads, above the list. It searches names, trigger words, what a thread says and
+what is in its rooms — so you can find the card by something written inside it, not only by what
+you called it. Typing narrows the list and nothing else on the panel moves.
+
 ### Being refused with "over budget" when nothing was wrong with the book
 If the model happened to be asleep when the server started, the app never found out how much room
 it actually had and spent the rest of the day assuming the smallest amount it knows how to assume:
