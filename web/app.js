@@ -7705,6 +7705,27 @@ async function regenerateLast() {
  *                directive in the request wins there, so sending it is the whole mechanism. */
 async function regenerateInto(id, steer, seed) {
   if (S.busy) return;
+  /* WRITING OVER YOUR OWN PARAGRAPH TAKES TWO PRESSES. Regenerate is drawn on the last passage and
+   * in every passage's tray whatever wrote it, so in a book you narrate yourself the thing most
+   * often under that button is your own prose — and a re-roll lands a model take in its slot,
+   * which is then what the page shows. Your words are kept, one press of ‹ › away, but nothing
+   * said so before the press and the take is already paid for by the time you find out.
+   *
+   * HERE AND NOT IN THE HANDLERS, because five presses reach this one function — the tray, the
+   * row under the last passage, the veil's pair, the same seed again, and a re-roll with an edited
+   * instruction — and a guard per press is the arithmetic `armed()` was written to end.
+   *
+   * The same helper every deletion uses, and the same one key: two armed buttons would be a screen
+   * where the next press could do either of two things you cannot take back. A model's passage is
+   * not guarded, because re-rolling one is the whole point of the button. */
+  const own = (V?.passages ?? []).find((p) => p.id === id);
+  if (own?.author === 'human' && !armed(
+    // The row under the last passage first: that is the visible press when there is one, and the
+    // tray's copy of the same button may be inside a tray nobody has opened.
+    document.querySelector(`.carry [data-re="${id}"]`) ?? document.querySelector(`[data-re="${id}"]`),
+    `reroll:${id}`,
+    'That passage is yours. Press Regenerate again to write a take over it — your words stay behind ‹ ›.'
+  )) return;
   S.busy = true; drawDock(); drawBar(); working('reroll');
   // A reroll of the LAST passage writes at the bottom, so the ghost belongs there too. Rerolling
   // one further up would put it in the wrong place, so that one waits — the take replaces a

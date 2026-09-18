@@ -167,4 +167,38 @@ for (const [label, on, off] of [
   ok("  and a press on it closes the sheet without re-rolling",
      !(await page.eval("!!document.querySelector('.rerollbox')")));
 }
+/* REGENERATE OVER YOUR OWN PARAGRAPH ASKS FIRST. 2026-09-18. The button is drawn on the last
+ * passage and in every tray whatever wrote it, so in a book the writer narrates themselves the
+ * usual thing under it is their own prose — and a re-roll lands a model take in that slot, which
+ * is what the page then shows. It is recoverable behind ‹ ›, and it was a single press.
+ *
+ * THE FIXTURE HAS NO HUMAN PASSAGE — seed.ts writes every one of them as the model — so this
+ * makes one through the write route, which is the same door the composer uses and costs no
+ * generation. That absence is also why nothing else here exercises the guard.
+ *
+ * ONE DIRECTION ONLY, deliberately: the second press generates, and a scenario in the default set
+ * cannot wait on the model. The other direction — that a MODEL passage re-rolls on one press — is
+ * what `test/ui/model.js` has always asserted, so it goes red there if this guard over-fires. */
+{
+  await page.eval(`(async () => { await fetch('/api/write', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ storyId: '${sid}', mode: 'narrate',
+      body: 'She set the key down on the sill and did not look at it again.' }) }); })()`);
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('#col .carry [data-re]')")); i++) await wait(250);
+  const before = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).passages.length)()`);
+  const mine = await page.eval(`(async () => {
+    const r = await (await fetch('/api/story?story=${sid}')).json();
+    const last = r.passages.filter(p => !p.isBreak).at(-1);
+    return last && last.author === 'human' ? last.id : null; })()`);
+  ok(`the writer's own passage is the one at the end (${mine})`, !!mine);
+  await page.eval("(() => { document.querySelector('#col .carry [data-re]').click(); return 1; })()");
+  await wait(700);
+  ok("  one press does not start a generation over it",
+     !(await page.eval("!!document.getElementById('ghost')")));
+  ok("  nothing was written", await page.eval(
+     `(async () => (await (await fetch('/api/story?story=${sid}')).json()).passages.length)()`) === before);
+  ok("  and it says why, rather than doing nothing visible", /yours/i.test(
+     (await page.eval("(() => { const t = document.getElementById('toast'); return t && !t.hidden ? t.textContent : ''; })()")) || ''));
+}
 console.log(red ? `\n  ${red} RED` : "\n  all green");

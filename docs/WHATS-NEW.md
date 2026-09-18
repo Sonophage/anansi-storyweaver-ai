@@ -34,6 +34,15 @@ removed rather than reworded — there are five instructions now, and a re-roll 
 passage was written with. If you had written your own re-roll wording, put what you want from it
 into the mode it applies to.
 
+### Regenerating over a paragraph you wrote asks first
+Regenerate sits on the last passage whether the model wrote it or you did, and pressing it puts a
+model take in that paragraph's place. Your words were never lost — they wait behind the ‹ › arrows
+— but the page changed under you on one press, and you had already paid for the take by the time
+you saw it.
+
+On a passage of your own it now takes two presses, the same as deleting. The model's own passages
+re-roll on one press, as before.
+
 ### Rewriting a card no longer stales half your chapters
 Chapter summaries go stale when the prose under them changes, and also when a card stops saying
 something a summary relies on — a stale summary is dropped from the prompt until you re-run it,
