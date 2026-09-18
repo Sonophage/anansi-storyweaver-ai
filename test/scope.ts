@@ -954,26 +954,31 @@ ok('a story cannot be deleted by someone who does not own it');
   assert.strictEqual(db.promptsOf(bob).speak, "BOB'S WORDING", "and leaves bob's alone");
   ok('prompt overrides are scoped to their owner, and blank is the reset');
 
-  /* AND `regenerate` IS ONE OF THEM. Seth, 2026-09-01: the re-roll's instruction should be editable
-   * "like the other commands under storyteller". The route's allow-list is what decides which keys
-   * the editor may save, so a sixth instruction the engine renders and the route refuses would be a
-   * box that silently never keeps what you type. Both directions, or this only watches one. */
+  /* FIVE KEYS, AND `regenerate` IS NOT ONE. It was from 2026-09-01 to 2026-09-18 — a wording of
+   * its own for a re-roll — and it named the passage a re-roll's prompt leaves out, so the model
+   * rewrote the passage before it. A re-roll re-runs the mode the passage was written with now.
+   *
+   * THREE LISTS MUST AGREE and this is the seam: the route's allow-list decides what the editor
+   * may save, `defaultModePrompts` decides what it shows, and `web/app.js` decides what it draws.
+   * A key any one of them keeps alone is either a box that silently never saves, or a row the
+   * engine will never read. Both directions asserted, or this only watches one. */
   {
-    const saved: any = routes['POST /api/prompts'](
+    const saved: any = routes['POST /api/prompts'](ctxI(alice, { key: 'narrate', text: 'MY NARRATE' }));
+    assert.ok(!saved?.error, `the five must still save: ${saved?.error}`);
+    assert.deepStrictEqual(Object.keys(saved.defaults).sort(),
+      ['act', 'continue', 'direct', 'narrate', 'speak'],
+      'the editor is shown exactly the five the route will accept');
+    const gone: any = routes['POST /api/prompts'](
       ctxI(alice, { key: 'regenerate', text: 'MY OWN RE-ROLL WORDING' }));
-    assert.ok(!saved?.error, `the editor must be able to save it: ${saved?.error}`);
-    assert.strictEqual(db.promptsOf(alice).regenerate, 'MY OWN RE-ROLL WORDING');
-    assert.strictEqual(saved.yours.regenerate, 'MY OWN RE-ROLL WORDING',
-      'and it comes back in the payload the editor redraws from, or the box blanks on Save');
-    assert.ok(saved.defaults.regenerate?.includes('Write this passage again'),
-      'beside the shipped wording it replaces, which is what the editor shows you');
-    // A KEY THAT IS NOT ON THE LIST IS STILL REFUSED. Adding one must not open the door to any key.
-    const junk: any = routes['POST /api/prompts'](ctxI(alice, { key: 'regenerte', text: 'typo' }));
+    assert.ok(gone?.error, 'a re-roll wording is refused: there is nothing for it to override');
+    assert.strictEqual(db.promptsOf(alice).regenerate, undefined);
+    // A KEY THAT IS NOT ON THE LIST IS STILL REFUSED. Removing one must not loosen the door.
+    const junk: any = routes['POST /api/prompts'](ctxI(alice, { key: 'narrte', text: 'typo' }));
     assert.ok(junk?.error, 'a key nobody defined is refused rather than stored');
-    assert.strictEqual(db.promptsOf(alice).regenerte, undefined);
-    db.setPrompt(alice, 'regenerate', '   ');
+    assert.strictEqual(db.promptsOf(alice).narrte, undefined);
+    db.setPrompt(alice, 'narrate', '   ');
   }
-  ok('the re-roll instruction saves and resets like the five modes, and a stray key still does not');
+  ok('the editor saves exactly the five modes the engine renders, and a stray key still does not');
 }
 
 // #18 §3. THE STYLE LIBRARY IS THE SAME TABLE WITH A NAMESPACED KEY, which means it inherits the
@@ -1477,41 +1482,58 @@ async function bootServer(port: number, env: Record<string, string>) {
   const m3: any = await routes['POST /api/manifest'](ctx(alice, { storyId: aStory.id, mode: 'continue' }));
   assert.doesNotMatch(m3.prompt, /lose his nerve/, 'a fresh call inherits nothing');
 
-  /* An undirected passage stays undirected — and since 2026-09-01 it gets the RE-ROLL's own
-   * instruction rather than the composer's mode. Seth asked for that wording to be editable, and it
-   * could not be until it existed: a re-roll used to borrow whichever mode was on screen, so asking
-   * for another take on a paragraph could arrive as "carry the scene forward by one small beat",
-   * which is the instruction for the NEXT passage. */
-  const plain = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
-    chapterId: aStory.chapterId, body: 'The hall is cold.', author: 'model' })!;
-  const m4: any = await routes['POST /api/manifest'](ctx(alice,
-    { storyId: aStory.id, regenerateOf: plain, mode: 'continue' }));
-  assert.doesNotMatch(m4.prompt, /based on this:/,
-    'a passage with no instruction is not forced into Direct');
-  assert.match(m4.prompt, /Write this passage again/, 'it asks for another take on this passage');
-  assert.doesNotMatch(m4.prompt, /Carry the scene forward/,
-    'and not for the next one, which is what borrowing the composer\'s mode used to say');
+  /* THE WHOLE PROMPT, NOT JUST THE DIRECTIVE — and this is the assertion the 2026-09-18 bug needed.
+   *
+   * A re-roll of passage N is assembled from the passages BEFORE N, so the take being replaced is
+   * not in the prompt. From 2026-09-01 the instruction that rode with it was a wording of its own,
+   * "Write this passage again" — naming a passage that had just been cut out. The model answered
+   * the only way it could: it rewrote N-1, the last passage it could see. In a book where the
+   * writer narrates and the model answers, Regenerate handed her back her own paragraph.
+   *
+   * So the rule is now a thing that can be checked rather than a wording that has to be judged:
+   * THE PROMPT A RE-ROLL SENDS IS THE PROMPT THAT WROTE THE PASSAGE. Build both and compare them.
+   * The composer is deliberately showing a DIFFERENT mode here — that is what used to leak in. */
+  const asked = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
+    chapterId: aStory.chapterId, body: 'The hall is cold.', author: 'human', mode: 'narrate' })!;
+  const first: any = await routes['POST /api/manifest'](ctx(alice,
+    { storyId: aStory.id, mode: 'narrate' }));
+  const answer = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
+    chapterId: aStory.chapterId, body: 'She does not answer.', author: 'model', mode: 'narrate' })!;
+  const again: any = await routes['POST /api/manifest'](ctx(alice,
+    { storyId: aStory.id, regenerateOf: answer, mode: 'continue' }));
+  assert.strictEqual(again.prompt, first.prompt,
+    'a re-roll must send the prompt that wrote the passage, to the byte');
+  assert.doesNotMatch(again.prompt, /Carry the scene forward/,
+    "the composer's mode must not leak into a re-roll — the passage decides");
+  assert.doesNotMatch(again.prompt, /She does not answer/,
+    'and the take being replaced stays out of it, or the re-roll is written against itself');
 
-  /* A SPOKEN PASSAGE KEEPS ITS MODE, because `MODE.regenerate` names no speaker and a re-roll of
-   * dialogue that forgets who is talking is worse than the arbitrary instruction it replaces. The
-   * PASSAGE decides, the way it already decides whether a re-roll is a Direct. */
+  /* THE FAILURE ITSELF, stated as its own assertion so it cannot come back quietly: no instruction
+   * may point at the passage being re-rolled, because that passage is the one thing the prompt
+   * does not have. "The passage above" and "the last passage" are fine — those are in it. */
+  assert.doesNotMatch(again.prompt, /this passage again/i,
+    'no instruction may name the passage a re-roll leaves out');
+
+  /* A SPOKEN PASSAGE KEEPS ITS SPEAKER, and the request here does not send one — it comes off the
+   * row, with the mode and the directive, because those are the three `addVariant` copies onto a
+   * take. A re-roll of dialogue that forgets who is talking writes the wrong mouth. */
   const said = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
-    chapterId: aStory.chapterId, body: '"Not tonight."', author: 'model', speaker: 'Halsey' })!;
+    chapterId: aStory.chapterId, body: '"Not tonight."', author: 'model', mode: 'speak',
+    speaker: 'Halsey' })!;
   const m5: any = await routes['POST /api/manifest'](ctx(alice,
-    { storyId: aStory.id, regenerateOf: said, mode: 'speak', speaker: 'Halsey' }));
-  assert.doesNotMatch(m5.prompt, /Write this passage again/,
-    'a spoken passage must not lose its speaker to the generic re-roll wording');
-  assert.match(m5.prompt, /Halsey/, 'it still says who is talking');
+    { storyId: aStory.id, regenerateOf: said, mode: 'continue' }));
+  assert.match(m5.prompt, /Halsey/, 'it still says who is talking, with no speaker in the request');
 
   /* AND THE PANEL SHOWS WHAT WILL BE SENT. `POST /api/manifest` builds the prompt the Context panel
    * draws and `generate` builds the one that goes out; the rule lived in `generate` alone at first,
    * so the panel previewed a prompt the writer would not get. One helper answers both now — this is
-   * the assertion that caught it. */
-  assert.match(m4.manifest.blocks.find((b: any) => b.kind === 'MODE')?.reason ?? '', /mode:regenerate/,
+   * the assertion that caught it, and it is why the speaker above had to be read here too. */
+  assert.match(again.manifest.blocks.find((b: any) => b.kind === 'MODE')?.reason ?? '', /mode:narrate/,
     'and the manifest names the instruction it used, so the panel can say so');
 
   db.delSlot(aStory.id, steered);
-  db.delSlot(aStory.id, plain);
+  db.delSlot(aStory.id, asked);
+  db.delSlot(aStory.id, answer);
   db.delSlot(aStory.id, said);
   ok('a reroll re-runs the instruction that made the passage, and only that passage');
 }

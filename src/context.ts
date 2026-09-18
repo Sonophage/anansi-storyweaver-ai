@@ -162,9 +162,6 @@ export interface Input {
   // than being read from a table down in the engine, because buildContext is pure below the line
   // in story.ts and this is a flag like any other.
   modePrompts?: Record<string, string>;
-  /** This call is another take on a passage that already exists, not the next one. Decides which
-   *  mode instruction is used — see `MODE.regenerate`. */
-  reroll?: boolean;
   /** Roughly how long the writer wants a passage, in words. Zero or absent is "let her decide",
    *  and then NOTHING about length reaches the model — which is the shipped default.
    *
@@ -220,25 +217,18 @@ const SPICE: Record<number, string> = {
  *  the writer's text is already the last passage and the model's job is to answer it. Getting
  *  that backwards is what made typed dialogue vanish into the prompt. */
 const MODE: Record<string, (d?: string, who?: string) => string> = {
-  /* ANOTHER TAKE ON THE SAME MOMENT. Seth, 2026-09-01: "the text for regenerate should also be
-   * editable like the other commands under storyteller and again should be sustomizable by user."
+  /* THERE IS NO `regenerate` HERE, AND THAT IS THE POINT. One lived here from 2026-09-01 to
+   * 2026-09-18 — "Write this passage again. Same moment, same canon, a different take on it." —
+   * and it named something the prompt does not contain. A re-roll of passage N is assembled from
+   * the passages BEFORE N (`assemble`, `ordinal < upToOrdinal`), because a new take must not be
+   * written with knowledge of what came after it. So the last passage the model could see was
+   * N-1, and "this passage" resolved to that: press Regenerate and the model rewrote the passage
+   * BEFORE the one you pressed it on. In a book where the writer narrates and the model answers,
+   * that handed her back her own paragraph every single time.
    *
-   * Until now a re-roll borrowed whichever mode the composer happened to be showing, so the
-   * instruction said "carry the scene forward" over a passage that already existed — and the one
-   * case that read correctly was a DIRECTED re-roll, because `inherit` sends it back as `direct`
-   * with the stored directive and Direct's line begins "Re write what happens based on this".
-   * The note at that string flagged the split as Seth's to call rather than mine. This is the call.
-   *
-   * SO IT IS ONLY USED WHEN THERE IS NO DIRECTIVE. A directed re-roll keeps Direct's line, because
-   * there the instruction IS the directive and this one would throw it away.
-   *
-   * NO LENGTH NAMED, like the other five: `test/engine.ts` guards that and F18/F29 are why — a
-   * named length is a length the model fills. The last line is F29's permission, said the way the
-   * other modes say it. */
-  regenerate: () => 'Write this passage again. Same moment, same canon, a different take on it.\n'
-    + 'Do not continue past where it ended, and do not resolve anything it left open.\n'
-    + 'Change the writing, not the events: another way through the same beat.\n'
-    + 'It may be shorter than what it replaces.',
+   * A re-roll re-runs the instruction the passage was written with instead — see `inherit` in
+   * routes.ts. The prompt is then identical to the one that produced the passage, which is the
+   * only thing "again" can honestly mean when the passage itself is not in the prompt. */
   // The Continue button. No directive, because there is nowhere to type one — a steer with no
   // input is a parameter nobody can set.
   // NO PARAGRAPH COUNT. It said "the next 1-2 paragraphs" and F18 is what a named length does: the
@@ -1347,14 +1337,12 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // beats a 500 from an undefined lookup, which is what a reload would otherwise produce.
     // The writer's own wording wins, with {{directive}} and {{speaker}} filled the same way the
     // shipped prompts fill them — an override without them is legal and simply mentions neither.
-    /* WHICH INSTRUCTION A RE-ROLL GETS. `reroll` is set by the route from `regenerateOf`, and it
-     * only changes the key when there is no directive — see the note on `MODE.regenerate`. Both the
-     * shipped string and the writer's override are looked up under the same key, so customising it
-     * works exactly as it does for the other five. */
-    // ONE PLACE DECIDES, and it is the route: which re-rolls qualify depends on the passage being
-    // re-rolled, which this side of the purity line cannot see. A second condition here would be a
-    // second rule to keep in step, and the one that went stale would be the silent one.
-    const key = input.reroll ? 'regenerate' : input.mode;
+    /* A RE-ROLL HAS NO INSTRUCTION OF ITS OWN. It arrives here as the mode the passage was written
+     * with — the route resolves that from the row, because which press wrote a passage is not
+     * something this side of the purity line can see. The key switch that used to sit here sent
+     * re-rolls to a wording that named a passage the prompt leaves out; see the note where
+     * `MODE.regenerate` used to be. */
+    const key = input.mode;
     const own = input.modePrompts?.[key]?.trim();
     const text = own
       ? own.replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')

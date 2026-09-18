@@ -3664,11 +3664,12 @@ const PANELS = {
         // shows what it is actually replacing rather than a second copy that goes stale.
         if (!S.prompts) return '<div class="hint" style="margin:0">Reading them&hellip;</div>';
         const { defaults, yours } = S.prompts;
-        // SIX, not five: `regenerate` is the re-roll's own wording. The route's EDITABLE_MODES
-        // and `defaultModePrompts` have both carried it since 2026-09-01 and this list did not,
-        // so the one instruction Seth asked to be able to edit was the one with no row. Last,
-        // in the order those two use.
-        return ['continue', 'speak', 'act', 'direct', 'narrate', 'regenerate'].map((k) => {
+        // FIVE. There was a sixth, `regenerate`, from 2026-09-01 to 2026-09-18: the re-roll's own
+        // wording. It named the passage being re-rolled, which is the one passage a re-roll's
+        // prompt leaves out, so the model rewrote the passage BEFORE it instead. A re-roll re-runs
+        // the mode the passage was written with now, and there is no sixth string to show. This
+        // list, the route's EDITABLE_MODES and `defaultModePrompts` are the three that must agree.
+        return ['continue', 'speak', 'act', 'direct', 'narrate'].map((k) => {
           const mine = yours[k];
           const open = S.promptOpen === k;
           return `<div class="card" style="margin-bottom:7px; gap:6px;
@@ -3680,8 +3681,8 @@ const PANELS = {
               <span style="margin-left:auto; color:var(--faint); font-size:12px">${open ? '\u2212' : '+'}</span>
             </button>
             ${open ? `${tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
-                instruction for this ${k === 'regenerate' ? 'press' : 'mode'}.
-                ${k === 'regenerate' ? 'Used when the passage you re-roll carries no instruction of its own \u2014 a directed one re-runs its own, which you edit on the passage. ' : ''}${
+                instruction for this mode. A re-roll re-runs the instruction the passage was
+                written with, so this is what it says on the way back round too. ${
                 k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
                   k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you are speaking as. ' : ''}
                 Empty it and press Save to go back to the shipped one.</p>`)}

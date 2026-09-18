@@ -1686,10 +1686,19 @@ export function delSlot(storyId: string, id: string) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
-/** The instruction a passage was written to, if it had one. Story-scoped like every other read
- *  here: the gate proves the story, and a passage id is not a story id. */
+/** WHAT THIS PASSAGE WAS ASKED FOR: the press, the voice and the instruction behind it. These are
+ *  the three `addVariant` copies onto another take of the same slot, and `routes.inherit` re-runs
+ *  a re-roll with them — a take is another answer to the same question, so the question has to
+ *  come back whole. Story-scoped like every other read here: the gate proves the story, and a
+ *  passage id is not a story id. */
+export const passageAsked = (storyId: string, id: string):
+  { mode: string | null; directive: string | null; speaker: string | null } | null =>
+  (q('SELECT mode, directive, speaker FROM passages WHERE id = ? AND story_id = ?')
+    .get(id, storyId) as any) ?? null;
+
+/** Just the instruction, which is what the surface asks for. One row-reader, above. */
 export const passageDirective = (storyId: string, id: string): string | null =>
-  (q('SELECT directive FROM passages WHERE id = ? AND story_id = ?').get(id, storyId) as any)?.directive ?? null;
+  passageAsked(storyId, id)?.directive ?? null;
 
 /** Sweep flags whose passage is gone, or which no longer clear the confidence floor. */
 export const pruneViolations = (floor = 0.6) => q(

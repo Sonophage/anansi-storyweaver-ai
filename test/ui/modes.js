@@ -181,12 +181,13 @@ ok(`  and it goes when the call ends (opacity ${gone})`, gone === '0');
 await page.goto(B + "/#" + sid + "/teller");
 await wait(900);
 const promptRows = await page.eval("[...document.querySelectorAll('[data-editprompt]')].map(b => b.dataset.editprompt).join(',')");
-// SIX ROWS. `regenerate` is the sixth editable instruction and the panel drew five, so from
-// 2026-09-01 to 2026-09-02 the route saved a key no box existed for and this assertion held the
-// bug in place: it asserted the count the surface had, not the count the route allows. The order
-// is the route's own EDITABLE_MODES order, so a key added there and forgotten here goes red.
-ok(`Storyteller offers all five modes and the re-roll to rewrite (${promptRows})`,
-   promptRows === 'continue,speak,act,direct,narrate,regenerate');
+// FIVE ROWS, and the count has now been wrong in both directions. It drew five while the route
+// saved six (2026-09-01 to 2026-09-02, a box that never existed for a key that saved), and it drew
+// six while the engine renders five (to 2026-09-18, when the re-roll's own wording turned out to
+// name the one passage a re-roll's prompt leaves out and was deleted). The order is the route's
+// own EDITABLE_MODES order, so a key added there and forgotten here goes red either way.
+ok(`Storyteller offers the five modes and nothing else (${promptRows})`,
+   promptRows === 'continue,speak,act,direct,narrate');
 await page.click('[data-editprompt="speak"]');
 await wait(300);
 ok("  opening one shows the shipped wording to edit",

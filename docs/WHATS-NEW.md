@@ -10,9 +10,31 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
-## 2026-09-18 · Rewriting a card no longer stales half your chapters
+## 2026-09-18 · Regenerate gives you another take, not your own paragraph back
 
-### A name that moved to another card is not a fact you lost
+### Regenerate was rewriting the passage before the one you pressed it on
+If you write a paragraph yourself, press Continue, and then press Regenerate on what came back,
+you were handed a rewrite of **your** paragraph instead of a second try at the model's. Press it
+again and the same thing happened again.
+
+Why: a re-roll is written from everything up to the passage you pressed it on, and never the
+passage itself — a new take must not know how the old one went. But the instruction that went with
+it said "write this passage again", and the passage it meant had been left out. The last thing the
+model could see was whatever came before, so that is what it wrote again. If you narrate and let
+the model answer, what came before was always your own writing.
+
+A re-roll now asks for exactly what was asked the first time. Press Regenerate on a passage the
+model narrated and it narrates that moment again; press it on one you spoke as your character and
+it answers the line again, still knowing who was talking; a passage written from an instruction
+still re-runs that instruction, which has always worked.
+
+**One thing is gone with it.** Regenerate had its own wording under Storyteller → Instructions,
+separate from the five modes. That wording is what named the missing passage, and it has been
+removed rather than reworded — there are five instructions now, and a re-roll uses the one the
+passage was written with. If you had written your own re-roll wording, put what you want from it
+into the mode it applies to.
+
+### Rewriting a card no longer stales half your chapters
 Chapter summaries go stale when the prose under them changes, and also when a card stops saying
 something a summary relies on — a stale summary is dropped from the prompt until you re-run it,
 so the book does not go on being told something that is no longer true.

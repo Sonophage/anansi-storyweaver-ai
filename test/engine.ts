@@ -507,48 +507,43 @@ ok('a 120-chapter book forgets its distant past, in one piece, and acts get it b
     `and it costs less than the summaries it replaced (${afterTokens} against ${beforeTokens})`);
 });
 
-/* A RE-ROLL HAS ITS OWN INSTRUCTION, and it is the writer's to change. Seth, 2026-09-01: "the text
- * for regenerate should also be editable like the other commands under storyteller and again should
- * be sustomizable by user."
+/* NO INSTRUCTION MAY NAME THE PASSAGE A RE-ROLL LEAVES OUT. 2026-09-18, and it cost a writer a
+ * day's presses.
  *
- * Until now a re-roll borrowed whichever mode the composer happened to be showing — so asking for
- * another take on an existing paragraph could arrive as "carry the scene forward by one small beat",
- * which is an instruction to write the NEXT passage. The one case that read correctly was a directed
- * re-roll, because `inherit` sends that back as `direct` and Direct's line begins "Re write". The
- * note on that string in `context.ts` flagged the split as Seth's call rather than mine.
+ * A re-roll of passage N is assembled from the passages BEFORE N — `assemble` filters
+ * `ordinal < upToOrdinal`, so a new take is not written with knowledge of what came after it, and
+ * the take being replaced is not in the prompt either. From 2026-09-01 a wording of its own rode
+ * with it, "Write this passage again", pointing at exactly the passage that had been cut. The last
+ * passage the model could see was N-1, so it wrote N-1 again: press Regenerate on the model's
+ * answer and you were handed back your own paragraph.
+ *
+ * The engine cannot see which passage is being re-rolled — that is the route's to know. What it
+ * CAN hold is the rule the wordings have to obey: they may point at what is in the prompt ("the
+ * passage above", "the last passage") and never at what is not. `test/scope.ts` holds the other
+ * half, that a re-roll's prompt is the prompt that wrote the passage, to the byte.
  */
-ok('a re-roll has its own instruction, overridable like the other five', () => {
+ok('no mode instruction points at a passage the prompt does not contain', () => {
   const modeText = (o: any) =>
     buildContext({ ...base(), ...o } as any, count).blocks.find((b) => b.kind === 'MODE')?.text ?? '';
-  const modeWhy = (o: any) =>
-    buildContext({ ...base(), ...o } as any, count).blocks.find((b) => b.kind === 'MODE')?.reason ?? '';
 
-  const plain = modeText({ mode: 'continue' as any });
-  const again = modeText({ mode: 'continue' as any, reroll: true });
-  assert.ok(/one small beat/.test(plain), 'the ordinary call still asks for the next beat');
-  assert.ok(/Write this passage again/.test(again), 'a re-roll asks for another take on this one');
-  assert.ok(!/one small beat/.test(again),
-    'and must NOT ask it to carry the scene forward — that is the instruction for the next passage');
-  // IT SAYS SO ON THE MANIFEST, which is what the Context panel draws: a writer looking at why a
-  // re-roll read oddly has to be able to see which instruction it used.
-  assert.strictEqual(modeWhy({ mode: 'continue' as any, reroll: true }), 'mode:regenerate');
+  for (const m of ['continue', 'speak', 'act', 'direct', 'narrate']) {
+    const t = modeText({ mode: m as any, directive: 'He drops it.' });
+    // THE DEICTIC IS THE DEFECT. "this passage" is the one that has no referent in a re-roll's
+    // prompt; the shipped modes that do point somewhere point at the prose that IS sent.
+    assert.doesNotMatch(t, /\bthis passage\b/i,
+      `${m} points at "this passage", which a re-roll's prompt does not contain`);
+  }
 
-  // NOT A CONTINUATION AND NOT A RESOLUTION, both stated, because those are the two ways another
-  // take goes wrong: it writes past the end, or it settles what the scene left open.
-  assert.match(again, /Do not continue past where it ended/);
-  assert.match(again, /do not resolve anything it left open/);
+  // AND THERE IS NO SIXTH WORDING TO POINT WITH. A key the engine does not render is a box in the
+  // editor that changes nothing, which is what the old one became the moment it was wrong.
+  assert.strictEqual(modeText({ mode: 'regenerate' as any }),
+                     modeText({ mode: 'continue' as any }),
+    'regenerate is not a mode: asking for it falls through to the neutral one');
 
-  // OVERRIDABLE UNDER ITS OWN KEY, exactly like the five. The engine looks the override up under the
-  // key it renders, so this is the whole of "customizable by user" from the engine's side.
-  const mine = modeText({ mode: 'continue' as any, reroll: true,
-                          modePrompts: { regenerate: 'ANOTHER PASS, MY WORDS.' } });
-  assert.strictEqual(mine, 'ANOTHER PASS, MY WORDS.', "the writer's own wording replaces it whole");
-  assert.strictEqual(modeWhy({ mode: 'continue' as any, reroll: true,
-                               modePrompts: { regenerate: 'x' } }), 'mode:regenerate · yours',
-    'and the manifest says it is theirs, the way it does for every other mode');
-  // AND AN OVERRIDE OF THE MODE IT IS NOT USING MUST NOT LEAK IN. Keyed lookup, not a fallback.
-  assert.match(modeText({ mode: 'continue' as any, reroll: true,
-                          modePrompts: { continue: 'WRONG ONE' } }), /Write this passage again/);
+  // The ordinary modes still say their own thing — the guard above must not be passing because
+  // every instruction went blank.
+  assert.match(modeText({ mode: 'continue' as any }), /one small beat/);
+  assert.match(modeText({ mode: 'narrate' as any }), /written by the author, not by you/);
 });
 
 // The five modes are not five labels on one behaviour. Two things separate them, and a mode set
@@ -566,11 +561,8 @@ ok('each mode says the one thing that distinguishes it', () => {
   // NO PROMPT MAY NAME A LENGTH. F18: a named length is a length the model fills, and three of
   // these carried one. The scope words do the work — one beat, cover the instruction, stop at a
   // natural beat — and max_tokens is the bound, because that one fails visibly.
-  // `regenerate` is asked for as a RE-ROLL, because that is the only way the engine renders it —
-  // as a mode name the lookup falls through to `continue` and the tripwire would test that instead.
-  const asked = (m: string) => (m === 'regenerate'
-    ? { mode: 'continue' as any, reroll: true } : { mode: m as any });
-  for (const m of ['continue', 'speak', 'act', 'direct', 'narrate', 'regenerate']) {
+  const asked = (m: string) => ({ mode: m as any });
+  for (const m of ['continue', 'speak', 'act', 'direct', 'narrate']) {
     const t = modeText({ ...asked(m), directive: 'He drops it.' });
     assert.doesNotMatch(t, /\d\s*-\s*\d\s+paragraphs?|\b(one|two|three|four|five)\s+paragraphs?\b/i,
       `${m} names a paragraph count, which is the defect F18 measured`);
@@ -586,7 +578,7 @@ ok('each mode says the one thing that distinguishes it', () => {
   // words in that character's mouth", and a check that fires on that is a check that has to be
   // deleted the first time it goes red for the wrong reason.
   const AIM = /Aim for roughly \d+ words/i;
-  for (const m of ['continue', 'speak', 'act', 'direct', 'narrate', 'regenerate']) {
+  for (const m of ['continue', 'speak', 'act', 'direct', 'narrate']) {
     const off = modeText({ ...asked(m), directive: 'He drops it.' });
     assert.doesNotMatch(off, AIM, `${m} carries a length target with none set`);
     const on = modeText({ ...asked(m), directive: 'He drops it.', targetWords: 400 });

@@ -158,9 +158,11 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
  *  This is the bound on the answer now that the grammar no longer holds one. */
 /** The five the writer may rewrite. `talk` is not one of them: it is Anansi's chat, not a way of
  *  writing prose, and handing it the same box would let a reworded chat prompt continue the book. */
-// `regenerate` is a sixth editable instruction rather than a mode you can press: it is what a
-// re-roll says when the passage carries no directive. The editor draws whatever is in this list.
-const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate', 'regenerate'];
+// FIVE, NOT SIX. `regenerate` was a sixth entry here from 2026-09-01 to 2026-09-18: a wording of
+// its own for a re-roll. It named a passage the prompt does not contain — see `inherit` — so a
+// re-roll now re-runs the instruction the passage was written with and there is nothing separate
+// to edit. The editor draws whatever is in this list, so it drew six rows and now draws five.
+const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate'];
 // #21 §2. The kinds the cast call will answer for. `SLOTS` is keyed by exactly these.
 const KINDS_ALL = Object.keys(SLOTS);
 
@@ -483,44 +485,42 @@ const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
     .filter((f: any) => f.body.trim());
 };
 
-/** A reroll of a directed passage re-runs the instruction that made it.
+/** A RE-ROLL RE-RUNS THE INSTRUCTION THAT WROTE THE PASSAGE. Mode, speaker and directive, which
+ *  are exactly the three fields `db.addVariant` already copies onto a new take — a take is another
+ *  answer to the same question, so it has to be asked the same question.
  *
- *  `direct` is the only mode whose template takes the directive — speak and act take a speaker and
- *  ignore it — so a stored directive is proof the passage was written in Direct, and the mode has to
- *  come back with it or the instruction reaches a template that never mentions it. An explicit
- *  directive in the request always wins: that is the writer typing a new one.
+ *  THIS IS THE WHOLE OF THE FIX FOR 2026-09-18, and the bug is worth keeping written down. The
+ *  prompt for a re-roll of passage N stops at N-1: `assemble` filters `ordinal < upToOrdinal`, so
+ *  the take being replaced is deliberately not in it — regenerating passage 3 of 50 must not see
+ *  the 47 that follow. From 2026-09-01 the instruction that rode with it was `MODE.regenerate`,
+ *  *"Write this passage again"* — naming a passage the prompt does not contain. The last passage
+ *  the model could see was N-1, so it wrote N-1 again. In a book where the writer narrates her own
+ *  prose and the model answers, that means pressing Regenerate handed her back her own paragraph,
+ *  every time. Four presses in her log, three of them inside ninety seconds.
+ *
+ *  So there is no separate re-roll wording any more. The prompt a re-roll sends is byte-identical
+ *  to the one that produced the passage, seed aside, and that is what "again" can honestly mean
+ *  when the passage itself is not in the room. `test/scope.ts` holds the two prompts side by side.
+ *
+ *  An explicit value in the request always wins: that is the writer typing a new one. A passage
+ *  written before `mode` was recorded (#14) has none, and falls back to the composer's, which is
+ *  what every re-roll used to do.
  *
  *  Both the generation and POST /api/manifest go through here, or the Context panel would preview a
  *  prompt the generation is not going to send. Not inside assemble(): buildContext is pure and this
  *  reads a row. */
-/** IS THIS CALL ANOTHER TAKE ON A PASSAGE THAT EXISTS, for the purpose of which INSTRUCTION it gets.
- *
- *  Seth, 2026-09-01: the re-roll's wording should be its own editable thing. `MODE.regenerate` is
- *  that wording; this decides who gets it, and the PASSAGE decides — the same way `inherit` below
- *  already lets the passage decide whether a re-roll is a Direct.
- *
- *    directed  keeps `direct` and its stored directive: there the instruction IS the directive, and
- *              a generic "write it again" would throw it away.
- *    spoken    keeps the composer's mode, so "say it as X" survives. `MODE.regenerate` names no
- *              speaker, and a re-roll of dialogue that forgets who is talking is worse than the
- *              arbitrary instruction this replaces.
- *    otherwise plain narration — the case a writer means by Regenerate, and the only one where the
- *              old behaviour was purely arbitrary: whichever mode the composer happened to show.
- *
- *  BOTH ROUTES ASK IT. `POST /api/manifest` builds the prompt the Context panel draws and
- *  `generate` builds the one that is sent; a rule in one of them is a panel that shows a prompt the
- *  writer will not get. The same argument the comment on `inherit`'s use in the manifest route
- *  already makes about overrides. */
-function isReroll(c: Ctx, v: any, directive?: string) {
-  const again = c.body.regenerateOf
-    ? v.passages.find((p: any) => p.id === c.body.regenerateOf) : null;
-  return !!again && !again.speaker && !(directive ?? '').trim();
-}
-
 function inherit(c: Ctx, mode: string, directive?: string) {
-  if (directive?.trim() || !c.body.regenerateOf) return { mode, directive };
-  const own = db.passageDirective(c.body.storyId, String(c.body.regenerateOf));
-  return own?.trim() ? { mode: 'direct', directive: own } : { mode, directive };
+  if (!c.body.regenerateOf) return { mode, directive, speaker: c.body.speaker };
+  const own = db.passageAsked(c.body.storyId, String(c.body.regenerateOf));
+  if (!own) return { mode, directive, speaker: c.body.speaker };
+  // `direct` is the only mode whose template takes the directive — speak and act take a speaker
+  // and ignore it — so a stored directive still decides the mode, ahead of the stored one.
+  const d = directive?.trim() ? directive : (own.directive?.trim() ? own.directive : undefined);
+  return {
+    mode: directive?.trim() ? mode : (own.directive?.trim() ? 'direct' : (own.mode || mode)),
+    directive: d,
+    speaker: c.body.speaker ?? own.speaker ?? undefined,
+  };
 }
 
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
@@ -530,7 +530,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   // against a book that is about to change under it. Only when a writer is here: a bench harness
   // counting generations is not standing behind anything.
   if (onDelta) db.claimPassages(c.body.storyId);
-  const { mode, directive } = inherit(c, mode0, directive0);
+  const { mode, directive, speaker } = inherit(c, mode0, directive0);
   /*  WHAT THE ROW DOES NOT SAY YET. `latency_ms` below starts at `t0`, which is AFTER the view,
    *  after the assembly and after the /tokenize round trip — so every latency number this project
    *  has ever quoted, F24 and F49 included, is the model call alone and the wall clock a writer
@@ -550,11 +550,9 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   const mAssemble = performance.now();
   const upTo = c.body.regenerateOf
     ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
-  const reroll = isReroll(c, v, directive);
   const { manifest, prompt } = assemble(v, c.slot, mode, directive, upTo,
-    Number(c.gen.max_tokens) || 900, c.body.speaker || undefined, db.promptsOf(c.owner),
-    Number(c.gen.target_words) || 0,
-    reroll);
+    Number(c.gen.max_tokens) || 900, speaker || undefined, db.promptsOf(c.owner),
+    Number(c.gen.target_words) || 0);
   const mTokenize = performance.now();
   if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
@@ -3158,12 +3156,12 @@ export const routes: Record<string, Handler> = {
     const m0 = inherit(c, c.body.mode ?? 'direct', c.body.directive);
     // The target rides too, and it has to: it is now a LINE IN THE MODE BLOCK, so a preview built
     // without it shows a prompt one instruction shorter than the one the generation sends.
+    // THE INHERITED SPEAKER TOO, not the composer's: `inherit` hands back all three of mode,
+    // directive and speaker, and a preview built from two of them is a preview of a prompt the
+    // generation will not send. That is the whole reason both routes go through one helper.
     const { manifest, prompt } = assemble(v, c.slot, m0.mode, m0.directive,
-      upTo, Number(c.gen.max_tokens) || 900, c.body.speaker || undefined, db.promptsOf(c.owner),
-      Number(c.gen.target_words) || 0,
-      // The same question `generate` asks, from the same helper — see `isReroll`. Asked with the
-      // INHERITED directive, or a re-roll of a directed passage would preview as a plain one.
-      isReroll(c, v, m0.directive));
+      upTo, Number(c.gen.max_tokens) || 900, m0.speaker || undefined, db.promptsOf(c.owner),
+      Number(c.gen.target_words) || 0);
     let exact: number | null = null;
     try { exact = await count(prompt, modelFor(v.story, c.defaultModel)); } catch { /* model asleep */ }
     return { manifest, prompt, exact };

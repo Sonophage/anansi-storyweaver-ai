@@ -322,12 +322,11 @@ export const capFor = (targetWords: number) =>
  *  goes stale, and the editor's whole job is to show the writer what they are replacing. */
 export function defaultModePrompts(): Record<string, string> {
   const out: Record<string, string> = {};
-  // `regenerate` is asked for as a RE-ROLL, because that is the only way the engine renders it —
-  // asking for it as a mode would hand back `continue`, which is the default the mode lookup falls
-  // to, and the editor would then show the writer the wrong string to replace.
-  for (const mode of ['continue', 'speak', 'act', 'direct', 'narrate', 'regenerate']) {
+  // FIVE. A re-roll had a sixth wording of its own until 2026-09-18 and it was asked for here as
+  // a RE-ROLL rather than as a mode. It is gone: a re-roll re-runs the mode the passage was
+  // written with, so there is no sixth string for the editor to show.
+  for (const mode of ['continue', 'speak', 'act', 'direct', 'narrate']) {
     const m = buildContext({
-      reroll: mode === 'regenerate',
       story: { title: '', genre: '', premise: '', setting: '', pov: '', writingStyle: '', spice: 2 },
       chapters: [], passages: [{ id: 'p', ordinal: 1, body: 'x.' }], entries: [],
       mode: mode as any, directive: '{{directive}}', speaker: '{{speaker}}',
@@ -342,10 +341,15 @@ export function defaultModePrompts(): Record<string, string> {
 export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
                          mode: string, directive?: string, upToOrdinal?: number, maxTokens = 900,
                          speaker?: string, modePrompts?: Record<string, string>,
-                         targetWords = 0, reroll = false) {
+                         targetWords = 0) {
   // Regenerating passage 3 of 50 must build the context that existed at passage 3. Sending
   // the whole document meant the "new take" was written with knowledge of the 47 passages
   // that come after it — which is not a regeneration, it is a summary of the future.
+  //
+  // STRICTLY BEFORE, so the passage being re-rolled is not in the prompt either. That is the
+  // half of this rule an instruction has to agree with: from 2026-09-01 the re-roll's wording
+  // said "write this passage again" about a passage cut out right here, and the model rewrote
+  // the one before it instead. `routes.inherit` carries the answer now.
   const passages = upToOrdinal == null ? v.passages
     : v.passages.filter((p) => p.ordinal < upToOrdinal);
   // COUNCIL-06 ship 3 · A BOOK IS NEVER WRITTEN WITH NO VOICE. `context.ts` gates the whole VOICE
@@ -361,7 +365,7 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
   const inp: Input = {
     story: withVoice as any, chapters: v.chapters, passages, arcs: v.arcs,
     entries: v.entries.map((e) => ({ ...e, body: entryText(e) })),
-    mode: mode as any, directive, speaker, currentChapter: v.currentChapter, reroll,
+    mode: mode as any, directive, speaker, currentChapter: v.currentChapter,
     // F52, under measurement. Read HERE, on the impure side, and handed to buildContext through
     // Input — the same rule the voice ladder above follows. Two servers against one router is how
     // this project runs an A/B, so the arm has to be a process-level thing.
