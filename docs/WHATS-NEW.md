@@ -10,6 +10,26 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-09-18 · Rewriting a card no longer stales half your chapters
+
+### A name that moved to another card is not a fact you lost
+Chapter summaries go stale when the prose under them changes, and also when a card stops saying
+something a summary relies on — a stale summary is dropped from the prompt until you re-run it,
+so the book does not go on being told something that is no longer true.
+
+That second rule was reading one card at a time. Rewrite a character's card from a list of facts
+into a description of who they are, and every other character's name that dropped out of it
+counted as a fact the book had lost — even though each of those characters has a card of their
+own, sitting there unchanged. One save could stale most of a book's summaries at once and quietly
+take them out of the prompt.
+
+Now a name that is still the name of a card in the book is not treated as lost. Rename that card
+and the summaries naming it do still go stale, which is the case the rule is there for: the book
+would otherwise be reading a name nothing in your ledger answers to.
+
+If you already have chapters marked **Stale** from this, re-run those summaries once and they
+will stay put.
+
 ## 2026-09-11 · Take a copy of a whole book
 
 ### In context now means what is actually in the prompt

@@ -94,6 +94,58 @@ ok('a summary goes stale only when the SELECTED prose changes', () => {
   db.editPassage(s.id, live.id, 'the selected prose, changed');
   assert.strictEqual(db.summaryStale(db.chapters(s.id)[0]), true);
 });
+// WHY BOTH DIRECTIONS ARE ASSERTED HERE: the filter this checks makes the staling rule quieter,
+// and a rule that has been made quiet enough is indistinguishable from one that never fires. The
+// second half is the detector fed something it was not written for — a fact that really did leave
+// the book — and it has to still go stale, or the guard has simply turned the feature off.
+//
+// The live failure, 2026-09-18: one card was rewritten from a bracketed state list into prose,
+// which dropped three OTHER characters' names out of it. All three still had cards of their own.
+// Four of the book's five summaries were nulled by that one save and left the prompt.
+ok('a name that is still a card does not stale a summary, a fact that has left the book does', () => {
+  const sc = db.createStory(o, { title: 'Cards', premise: 'p' });
+  db.addPassage({ ...sc, storyId: sc.id, body: 'Talia kissed Morgott and drank the Ironjar.' });
+  const ch = db.chapters(sc.id)[0] as any;
+  const fresh = () => db.setSummary(ch.id, 'Talia meets Morgott and is dosed with Ironjar.', 1,
+    db.proseHash(db.passagesOfChapter(ch.id).map((x: any) => x.body)));
+  const stale = () => db.summaryStale(db.chapters(sc.id)[0]);
+
+  db.upsertEntry(sc.id, o, { id: 'e-morgott', title: 'Morgott', body: '[Morgott: the Fell Omen]', keys: ['morgott'] });
+  db.upsertEntry(sc.id, o, { id: 'e-talia', title: 'Talia',
+    body: '[Talia: kissed Morgott; dosed with the Ironjar aromatic]', keys: ['talia'] });
+
+  fresh();
+  assert.strictEqual(stale(), false, 'the summary starts fresh against its own prose');
+  // Morgott leaves Talia's card. He is still a card, so nothing the summary says has stopped
+  // being true and it must stay in the prompt.
+  db.upsertEntry(sc.id, o, { id: 'e-talia', title: 'Talia',
+    body: '[Talia: a Tarnished; dosed with the Ironjar aromatic]', keys: ['talia'] });
+  assert.strictEqual(stale(), false,
+    'a name that moved off one card but still has a card of its own has not left the book');
+
+  // Ironjar is on no card at all. It leaves, and the summary is now the only thing that knows
+  // the word — which is the failure this function exists for.
+  db.upsertEntry(sc.id, o, { id: 'e-talia', title: 'Talia',
+    body: '[Talia: a Tarnished]', keys: ['talia'] });
+  assert.strictEqual(stale(), true, 'a fact on no other card has left the book, and stales');
+
+  // And the rename, the sharpest case: the summary now names somebody the ledger has never heard
+  // of. The old title is gone from the card list by the time the check reads it, so it stales.
+  //
+  // THE BYSTANDER IS WHAT MAKES THIS CHECK ABOUT TITLES. A card that merely MENTIONS Morgott is
+  // exactly what a rename leaves behind, so widening the haystack from titles to whole cards
+  // would read the leftover as proof the name survived and let the rename through — which is the
+  // one case this function was built for. Without this card the two rules are indistinguishable
+  // and the check passes under both.
+  db.upsertEntry(sc.id, o, { id: 'e-enia', title: 'Enia',
+    body: '[Enia: a Finger Reader; fears Morgott]', keys: ['enia'] });
+  fresh();
+  assert.strictEqual(stale(), false);
+  db.upsertEntry(sc.id, o, { id: 'e-morgott', title: 'Margit', body: '[Margit: the Fell Omen]', keys: ['margit'] });
+  assert.strictEqual(stale(), true, 'renaming the card the summary names stales it');
+
+  db.delStory(sc.id);   // off the shelf again: 'deleting a story cascades' counts what is on it
+});
 ok('ending a chapter closes the old one and opens the next', () => {
   const r = db.endChapter(s.id, s.branchId, 'Two');
   assert.strictEqual(r.idx, 2);

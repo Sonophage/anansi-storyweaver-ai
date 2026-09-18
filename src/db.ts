@@ -1433,9 +1433,10 @@ export const setSummary = (chapterId: string, summary: string, through: number, 
  *  nobody was watching.
  *
  *  THE RULE IS NARROW ON PURPOSE: a summary is stale only when a fact IT MENTIONS has LEFT the
- *  card. Not when the card changed at all -- that would stale half the book every time somebody
- *  fixed a comma, and a stale summary is DROPPED from the prompt until a writer re-runs it, so a
- *  false positive costs real context and a model call. Not two-way either; see the note above
+ *  card and is not another card's name (see the filter below). Not when the card changed at all --
+ *  that would stale half the book every time somebody fixed a comma, and a stale summary is
+ *  DROPPED from the prompt until a writer re-runs it, so a false positive costs real context and
+ *  a model call. Not two-way either; see the note above
  *  `factsLost` in context.ts for why a gained fact cannot be told from a capitalised verb.
  *
  *  IT MARKS STALE BY NULLING THE HASH, which is what `summaryStale` already treats as stale
@@ -1449,7 +1450,26 @@ export const setSummary = (chapterId: string, summary: string, through: number, 
  *  The writer sees it -- `web/app.js` renders "Stale — excluded from the prompt until it is
  *  re-run" on the chapter. This is not a silent removal. */
 export function staleSummariesFor(storyId: string, before: string, after: string): number {
-  const gone = factsLost(before, after);
+  let gone = factsLost(before, after);
+  if (!gone.length) return 0;
+  // A NAME THAT IS STILL A CARD HAS NOT LEFT THE BOOK, and this is the difference between a fact
+  // leaving and a fact MOVING. 2026-09-18: a writer rewrote one character's card from a bracketed
+  // state list into prose, which dropped the names of three other characters out of THAT card --
+  // and every one of them has a card of their own, unchanged. Four of the five chapter summaries
+  // in the book were nulled in one save and dropped out of the prompt, for summaries that were
+  // not lying about anything. The comparison is per-card; what a summary draws on is the whole
+  // ledger, and nothing bridged the two.
+  //
+  // TITLES ONLY, not every card's text. A mention elsewhere is weaker evidence than a card: it is
+  // what a rename leaves behind, and a rename is the sharpest case this function has -- the
+  // summary then names somebody the ledger has never heard of. Read AFTER the update by both
+  // callers, so a renamed card's OLD name is already gone from this list and still stales.
+  //
+  // Numbers pass through it in practice and are meant to: an age or a debt is a property of one
+  // card, so "40" surviving in some other card's title is not that fact surviving.
+  const cards = (q('SELECT title FROM entries WHERE story_id = ?').all(storyId) as any[])
+    .map((r) => String(r.title ?? '')).join('\n');
+  gone = gone.filter((g) => !cards.includes(g));
   if (!gone.length) return 0;
   const rows = q(`SELECT id, summary FROM chapters
                   WHERE story_id = ? AND summary IS NOT NULL AND summary_hash IS NOT NULL`)
