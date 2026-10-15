@@ -328,6 +328,8 @@ let shelfOverride: any = null;
 // closes a chapter. Undefined means it says nothing, which is both the all-ran case and the case
 // of an older server.
 let endPasses: any = undefined;
+// #46. Whether the close kept a summary that was yours. Undefined is every close but that one.
+let endKept: any = undefined;
 // bugs.md #9. Which row the stubbed generation says it landed, or undefined for an older server that
 // lands nothing and leaves the client to accept.
 let stubPassageId: string | undefined = undefined;
@@ -490,7 +492,7 @@ let stubPassageId: string | undefined = undefined;
     // Issue #32. What the chapter close reports about its own four passes. `undefined` is the
     // normal answer — every pass ran — and a route that predates the field returns nothing at all,
     // which has to read the same way.
-    : url.startsWith('/api/chapter/end') ? { ...STORY, passes: endPasses }
+    : url.startsWith('/api/chapter/end') ? { ...STORY, passes: endPasses, keptSummary: endKept }
     : url.startsWith('/api/manifest') ? MANIFEST
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
@@ -3395,6 +3397,31 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(side, /2 passes did not run/, 'two failures are counted as two');
   assert.match(side, /the summary/, 'both are named');
   assert.match(side, /the facts pass/, 'both are named');
+
+  // #46. A CLOSE THAT KEPT YOURS SAYS SO, and not as a pass that did not run. The route reports it
+  // as `keptSummary`; the summary line of the closing report reads the author off the chapter, so
+  // it is still right after a reload.
+  endPasses = { summary: null, memory: null, facts: null, finished: null };
+  endKept = true;
+  const wasChapters = STORY.chapters;
+  STORY.chapters = STORY.chapters.map((c: any) => c.id === 'c-2'
+    ? { ...c, summary: 'The envoy waits.', summaryAuthor: 'human' } : c) as any;
+  side = await closeChapter();
+  assert.match(String(nodes.get('toast').textContent), /kept your summary/,
+    'closing over yours says it kept your summary');
+  assert.doesNotMatch(side, /did not run/, '  and not as a pass that did not run');
+  click({ panel: 'ritual' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.match(html('sideBody'), /Kept your summary/, '  and the closing report says it too');
+  STORY.chapters = STORY.chapters.map((c: any) => c.id === 'c-2' ? { ...c, summaryAuthor: 'model' } : c) as any;
+  endKept = undefined;
+  side = await closeChapter();
+  assert.doesNotMatch(String(nodes.get('toast').textContent), /kept your summary/,
+    "  and a close over Anansi's does not say it");
+  click({ panel: 'ritual' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.match(html('sideBody'), /Summarised in/, "  and the closing report says Summarised");
+  STORY.chapters = wasChapters;
 
   endPasses = undefined;
   ok('a chapter close reports which of its four passes did not run, and why (#32)');

@@ -2026,7 +2026,9 @@ function ritualPanel() {
       closed ? '' : 'Nothing below has run.')}
 
     ${line(summary ? '--good' : closed ? '--warn' : '--chip',
-      summary ? `Summarised in ${plural(words, 'word', 'words')}` : 'Not summarised',
+      // #46. Yours is kept on close, never re-run, so the line says so instead of "Summarised".
+      summary ? `${ch.summaryAuthor === 'human' ? 'Kept your summary,' : 'Summarised in'} ${
+        plural(words, 'word', 'words')}` : 'Not summarised',
       summary ? esc(summary)
         : closed ? 'It did not come back — the router may have been asleep. Run it again below.' : '')}
 
@@ -9906,8 +9908,11 @@ document.addEventListener('click', async (e) => {
     // the sentence the writer reads without going looking, because "no facts were proposed" and
     // "the facts pass never ran" look identical on the queue.
     const missed = missedPasses();
+    // #46. A summary that was yours is kept, not re-run, and that is said rather than left silent.
+    const kept = r.keptSummary ? ' Kept your summary.' : '';
     if (missed.length) toast(`Chapter closed, but ${missed.map((m) => m.label).join(' and ')} `
-      + `did not run — ${missed[0].why}`);
+      + `did not run — ${missed[0].why}${kept}`);
+    else if (kept) toast('Chapter closed — kept your summary.');
     // THE OPENING PASSAGE IS NOT WRITTEN HERE ANY MORE — see `savesetup`. The beat rides near the
     // generation point on every call of a chapter, and writing its first passage from this line
     // wrote the one passage in the chapter that could not have it.
