@@ -10,25 +10,35 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
-## 2026-10-15 · You can write a chapter's summary yourself
+## 2026-10-14 · You can write a chapter's summary yourself
 
 ### You can write a chapter's summary yourself
 Every summary in Chapter → Summaries can be edited, or written from scratch for a chapter that has
 none. Anansi will not write over yours without asking twice — not when you press Summarise, and not
-when the chapter closes. Any chapter can be summarised again, not only the one you are in, so a
-stale summary is one press from coming back.
+when the chapter closes. When a close keeps your summary, the closing note says so. Every card says
+whose summary it is and how many words it is, and the count follows you as you type.
 
-A stale summary now stays out of everything Anansi is asked: chapter proposals leave it out too,
-and when you name its chapter in a question, Anansi is told the summary is stale instead of being
-sent it.
+### Any chapter can be summarised again
+Any chapter can be summarised again, not only the one you are in, so a stale summary is one press
+from coming back.
 
-Acts can be edited too. In Chapter → Acts, press Edit on an act to change what it says and what it
-is called; what you save is what Anansi is sent for those chapters. A count of its words follows
-you as you type, and past 220 it says the act takes more room in every prompt — it still saves.
+### A stale summary stays out of everything Anansi is asked
+Chapter proposals leave it out too, and when you name its chapter in a question, Anansi is told the
+summary is stale instead of being sent it.
 
-An act now tells you when a chapter under it has changed since it was written. Its card names the
-chapter, and it joins the waiting list, where you can wave it away until the next change. It still
-reaches Anansi. Saving the act yourself, or removing it and rolling the chapters up again, clears it.
+### Delete after names the summaries of yours it would clear
+Deleting everything below a passage clears the summary of every chapter it cuts into. If any of
+those summaries are yours, the first press names those chapters before you press again.
+
+### Acts can be edited too
+In Chapter → Acts, press Edit on an act to change what it says and what it is called; what you save
+is what Anansi is sent for those chapters. A count of its words follows you as you type, and past
+220 it says the act takes more room in every prompt — it still saves.
+
+### An act now tells you when a chapter under it has changed since it was written
+Its card names the chapter, and it joins the waiting list, where you can wave it away until the
+next change. It still reaches Anansi. Saving the act yourself, or removing it and rolling the
+chapters up again, clears it.
 
 ## 2026-09-18 · Regenerate gives you another take, not your own paragraph back
 
