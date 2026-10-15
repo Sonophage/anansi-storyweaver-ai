@@ -3049,7 +3049,7 @@ ok('a branch keeps what each act was built from, so out of date works on the for
     db.addPassage({ storyId: b.id, branchId: b.branchId, chapterId: chId, body })!;
   const sum = (chId: string, text: string) => {
     const ps = db.passagesOfChapter(chId);
-    db.setSummary(chId, text, ps.at(-1).ordinal, db.proseHash(ps.map((p: any) => p.body)));
+    db.setSummary(chId, text, ps.at(-1).ordinal, db.proseHash(ps.map((p: any) => p.body)), 'model');
   };
   at(b.chapterId, 'One.');
   const two = db.endChapter(b.id, b.branchId).opened;

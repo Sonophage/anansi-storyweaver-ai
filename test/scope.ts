@@ -1101,7 +1101,7 @@ ok('a story cannot be deleted by someone who does not own it');
   db.endChapter(book.id, book.branchId);
   const resum = (chId: string, text: string) => {
     const ps = db.passagesOfChapter(chId);
-    db.setSummary(chId, text, ps.at(-1).ordinal, db.proseHash(ps.map((p: any) => p.body)));
+    db.setSummary(chId, text, ps.at(-1).ordinal, db.proseHash(ps.map((p: any) => p.body)), 'model');
   };
   resum(ch1, 'Aldis takes the key from Marek.');
   resum(ch2, 'The vault floods.');
@@ -1132,6 +1132,13 @@ ok('a story cannot be deleted by someone who does not own it');
     title: 'Key to Water', summary: 'Aldis takes the key. The vault holds, for now.' }));
   assert.strictEqual(actIn(saved).outOfDate, null, 'saving the act by hand clears out of date');
   assert.ok(!waitingFor(saved), 'and takes it off the waiting list');
+
+  // A CHAPTER SUMMARY SAVED BY HAND (#43's route) is a change under the act like a re-run is. Only
+  // the act's own roll-up and hand save move what it was built from.
+  const mine: any = routes['POST /api/summary'](ctx(alice, { storyId: book.id, chapterId: ch2,
+    summary: 'The vault floods at every tide.' }));
+  assert.strictEqual(actIn(mine)?.outOfDate?.chapter, 2,
+    'a chapter summary saved by hand puts the act over it out of date');
 
   // THE OTHER CAUSE: the chapter's prose moves under its summary, so it is stale. A hand save of the
   // act does not clear this one -- the act can be vouched for, the chapter under it cannot.
