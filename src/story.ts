@@ -98,9 +98,10 @@ export function view(storyId: string, focusChapterId?: string) {
   const arcs = db.arcsOf(storyId);
   // #47. Which chapter under an act has changed since it was written, or null. Computed on read
   // from the chapters above, as stale is. It never takes the act out of the prompt.
+  // The chapters under an act, one definition for both reads below.
+  const under = (a: any) => chapters.filter((c) => c.index >= a.from_chapter && c.index <= a.to_chapter);
   const outOfDate = (a: any) => {
-    const r = db.actOutOfDate(a.summaries_hash,
-      chapters.filter((c) => c.index >= a.from_chapter && c.index <= a.to_chapter));
+    const r = db.actOutOfDate(a.summaries_hash, under(a));
     if (!r) return null;
     const ch = chapters.find((c) => c.index === r.chapter);
     return { ...r, title: ch?.title ?? null };
@@ -152,8 +153,7 @@ export function view(storyId: string, focusChapterId?: string) {
         acts: arcs.flatMap((a: any) => {
           const o = outOfDate(a);
           if (!o) return [];
-          const ref = `${a.id}:${db.proseHash([db.actPrint(
-            chapters.filter((c) => c.index >= a.from_chapter && c.index <= a.to_chapter))])}`;
+          const ref = `${a.id}:${db.proseHash([db.actPrint(under(a))])}`;
           return off.has(`act:${ref}`) ? [] : [{ id: a.id, ref, title: a.title,
             fromChapter: a.from_chapter, toChapter: a.to_chapter,
             chapter: o.chapter, why: o.why, chapterTitle: o.title }];

@@ -1446,14 +1446,15 @@ export const clearSummary = (storyId: string, chapterId: string) =>
   q(`UPDATE chapters SET summary = NULL, summary_covers_through = NULL, summary_hash = NULL,
        summary_author = NULL WHERE id = ? AND story_id = ?`).run(chapterId, storyId);
 
-/** WHAT A SUMMARY WRITTEN NOW WOULD COVER: the last passage with words in it, and the fingerprint
- *  of the chapter's selected prose as it is. Null when the chapter has no prose. One function for
- *  the model's summary and the writer's, so the two cannot be checked against different prose. */
-export function summaryCover(chapterId: string): { through: number; hash: string } | null {
+/** WHAT A SUMMARY WRITTEN NOW WOULD COVER: the passages with words in them, the last of them, and
+ *  the fingerprint of the chapter's selected prose as it is. Null when the chapter has no prose.
+ *  One function for the model's summary and the writer's, so the two cannot be checked against
+ *  different prose; the model's is written from `passages`, so it is not filtered a second time. */
+export function summaryCover(chapterId: string): { passages: any[]; through: number; hash: string } | null {
   const all = passagesOfChapter(chapterId);
   const ps = all.filter((p: any) => !p.is_break && p.body.trim());
   if (!ps.length) return null;
-  return { through: ps.at(-1)!.ordinal, hash: proseHash(all.map((p: any) => p.body)) };
+  return { passages: ps, through: ps.at(-1)!.ordinal, hash: proseHash(all.map((p: any) => p.body)) };
 }
 
 /** A SUMMARY SAVED BY HAND (#43). It is checked against the chapter's prose as it is now: the
@@ -3197,15 +3198,15 @@ export const delArc = (storyId: string, id: string) =>
   q('DELETE FROM arcs WHERE id = ? AND story_id = ?').run(id, storyId);
 /** An act edited by hand: its text and its title, and the fingerprint of its chapters as they are
  *  now — the writer has vouched for it against them, so it is no longer out of date (#47). Scoped
- *  by story like `delArc`, so an act id from another book changes nothing. Answers whether a row
- *  was changed. */
+ *  by story like `delArc`, so an act id from another book changes nothing. Answers whether the act
+ *  was found. */
 export function updateArc(storyId: string, id: string, title: string | null, summary: string) {
   const a = q('SELECT branch_id, from_chapter, to_chapter FROM arcs WHERE id = ? AND story_id = ?')
     .get(id, storyId) as any;
   if (!a) return false;
-  return Number(q('UPDATE arcs SET title = ?, summary = ?, summaries_hash = ? WHERE id = ? AND story_id = ?')
-    .run(title, summary, actPrintAt(storyId, a.branch_id, a.from_chapter, a.to_chapter, true), id, storyId)
-    .changes) > 0;
+  q('UPDATE arcs SET title = ?, summary = ?, summaries_hash = ? WHERE id = ? AND story_id = ?')
+    .run(title, summary, actPrintAt(storyId, a.branch_id, a.from_chapter, a.to_chapter, true), id, storyId);
+  return true;
 }
 
 /** FINISHED, from a chapter onward. A dead character, a burned building, a rule that stopped

@@ -991,18 +991,15 @@ async function retire(storyId: string, chapterId?: string) {
  *  The client's second press sends `replace`. The close never does, so its summary pass reports
  *  this same refusal and the other closing passes run as before. Stale or not does not matter:
  *  whether to fix or re-run yours is the writer's call. */
-const KEPT_YOURS = 'kept your summary';
-
 async function summarise(c: Ctx, storyId: string, chapterId?: string, replace = false) {
   const v = need(view(storyId), 'no such story');
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   if (ch.summary && ch.summaryAuthor === 'human' && !replace)
-    return { error: KEPT_YOURS, kept: true, chapterId: ch.id };
-  const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
+    return { error: 'kept your summary', kept: true, chapterId: ch.id };
   const cover = db.summaryCover(ch.id);
   if (!cover) return { error: 'nothing to summarise' };
   // 280 rather than 400: 180 words is about 240 tokens, and the old headroom was room to pad in.
-  const r = await chat(SUMMARY(180), ps.map((p: any) => p.body).join('\n\n'),
+  const r = await chat(SUMMARY(180), cover.passages.map((p: any) => p.body).join('\n\n'),
     { temperature: 0.2, max_tokens: 280, chat_template_kwargs: { enable_thinking: false } });
   const summary = clean(r.prose);
   db.setSummary(ch.id, summary, cover.through, cover.hash, 'model');
