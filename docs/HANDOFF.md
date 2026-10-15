@@ -27,7 +27,7 @@
    is not evidence until you have run it alone on an idle machine, and running the default set
    **competes with whoever is writing** on the shared two-slot router.
 
-3. **`test/web.ts` refuses a recorded browser red.** It reads `/tmp/anansi-ui-results.json`, so a
+3. **`test/web.ts` refuses a recorded browser red.** It reads `/tmp/anansi-ui-results-<checkout>.json` (one per checkout), so a
    `test/ui/run.sh <one-scenario>` that goes red leaves `test/all.ts` failing until the harness is
    run again. That is the harness working, not a regression — the message says so.
 

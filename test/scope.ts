@@ -1141,10 +1141,18 @@ ok('a story cannot be deleted by someone who does not own it');
     'a chapter summary saved by hand puts the act over it out of date');
 
   // THE OTHER CAUSE: the chapter's prose moves under its summary, so it is stale. A hand save of the
-  // act does not clear this one -- the act can be vouched for, the chapter under it cannot.
+  // act clears this one too (Seth, 2026-10-14): the writer has seen it and vouched for the act.
+  routes['POST /api/arc'](ctx(alice, { storyId: book.id, id: act,
+    title: 'Key to Water', summary: 'Aldis takes the key. The vault floods at every tide.' }));
   db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: ch1, body: 'He gave it back.' });
   const stale = actIn(view(book.id)).outOfDate;
   assert.deepStrictEqual([stale?.chapter, stale?.why], [1, 'stale'], 'a stale chapter under the act puts it out of date');
+  const vouched: any = routes['POST /api/arc'](ctx(alice, { storyId: book.id, id: act,
+    title: 'Key to Water', summary: 'Aldis takes the key, and gives it back.' }));
+  assert.strictEqual(actIn(vouched).outOfDate, null, 'saving the act by hand clears out of date even over a stale chapter');
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: ch2, body: 'The water rises.' });
+  assert.deepStrictEqual([actIn(view(book.id)).outOfDate?.chapter, actIn(view(book.id)).outOfDate?.why], [2, 'stale'],
+    'and a chapter that goes stale after that save still puts it out of date');
   ok('an act is out of date when a chapter under it changed, still reaches the model, and a hand save clears it');
 }
 

@@ -3,7 +3,9 @@
 //
 // `node --check` with module input parses without executing — no regex stripping, which is
 // how the first version of this test managed to report failures that were its own fault.
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert';
 
@@ -575,7 +577,10 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // behind a press when the card grew a face. The failure was ordering, not absence. A guard that
   // cannot fire on the thing it was built for reports perfection — F17, pointed at ourselves.
   {
-    const RESULTS = process.env.ANANSI_UI_RESULTS ?? '/tmp/anansi-ui-results.json';
+    // Per checkout, the same name `test/ui/run.sh` derives from the checkout's real path.
+    const root = realpathSync(fileURLToPath(new URL('..', import.meta.url)));
+    const RESULTS = process.env.ANANSI_UI_RESULTS
+      ?? `/tmp/anansi-ui-results-${createHash('sha256').update(root).digest('hex').slice(0, 8)}.json`;
     const scenarios = readdirSync(new URL('./ui/', import.meta.url))
       .filter((f) => f.endsWith('.js')).map((f) => f.replace(/\.js$/, '')).sort();
     let rec: Record<string, any> | null = null;

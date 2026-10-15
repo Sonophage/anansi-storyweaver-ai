@@ -1541,14 +1541,15 @@ export function summaryStale(chapter: any): boolean {
 }
 
 /** WHAT AN ACT WAS BUILT FROM (#47): one short hash per covered chapter's summary, keyed by the
- *  chapter's number, as `3:hash 4:hash`. Per chapter rather than one hash over all of them, so the
- *  check below can name WHICH chapter changed. Taken at roll-up and at a hand save (`addArc`,
+ *  chapter's number, as `3:hash 4:hash~`. Per chapter rather than one hash over all of them, so the
+ *  check below can name WHICH chapter changed. A trailing `~` records that the chapter was already
+ *  stale when the act was saved: the writer saw it and vouched for the act anyway. Taken at roll-up and at a hand save (`addArc`,
  *  `updateArc`), so either one makes the act current against its chapters as they are then.
  *  Function declarations, not consts: `backfillActPrints` runs inside `migrate()`, above the line
  *  where a const here would exist. */
-export function actPrint(chapters: { index: number; summary?: string | null }[]): string {
+export function actPrint(chapters: { index: number; summary?: string | null; summaryStale?: boolean }[]): string {
   return [...chapters].sort((a, b) => a.index - b.index)
-    .map((c) => `${c.index}:${summaryPrint(c.summary)}`).join(' ');
+    .map((c) => `${c.index}:${summaryPrint(c.summary)}${c.summaryStale ? '~' : ''}`).join(' ');
 }
 function summaryPrint(summary?: string | null) {
   return createHash('sha256').update(String(summary ?? '')).digest('hex').slice(0, 12);
@@ -1560,8 +1561,9 @@ function summaryPrint(summary?: string | null) {
  *    edited, or cleared);
  *  - `stale`: the chapter's summary no longer matches its prose, so the act describes prose that
  *    has moved.
- *  A stale chapter keeps its act out of date even after the act is saved by hand: the act can be
- *  vouched for, the chapter under it cannot, until it is summarised again.
+ *  A hand save of the act ALWAYS clears it, Seth's call on 2026-10-14: a chapter that was already
+ *  stale when the act was saved is recorded with `~` and does not count. A chapter that goes stale
+ *  AFTER the save still does.
  *  An act with no fingerprint has nothing to compare, so only the stale cause applies. Out of date
  *  never excludes: the context engine still sends the act, because covered chapters send nothing. */
 export function actOutOfDate(print: string | null | undefined,
@@ -1571,21 +1573,25 @@ export function actOutOfDate(print: string | null | undefined,
     const at = p.indexOf(':');
     return [Number(p.slice(0, at)), p.slice(at + 1)] as [number, string];
   }));
+  const vouched = (i: number) => was.get(i)?.endsWith('~') ?? false;
   const now = new Map(chapters.map((c) => [c.index, c]));
   const indices = [...new Set([...(print ? was.keys() : []), ...now.keys()])].sort((a, b) => a - b);
   for (const i of indices) {
     const c = now.get(i);
-    if (print && was.get(i) !== summaryPrint(c?.summary)) return { chapter: i, why: 'changed' };
-    if (c?.summaryStale) return { chapter: i, why: 'stale' };
+    if (print && was.get(i)?.replace(/~$/, '') !== summaryPrint(c?.summary)) return { chapter: i, why: 'changed' };
+    if (c?.summaryStale && !vouched(i)) return { chapter: i, why: 'stale' };
   }
   return null;
 }
 
-/** The fingerprint of an act's chapters as they are now, read from its own branch. */
-function actPrintAt(storyId: string, branchId: string, from: number, to: number): string {
-  return actPrint((db.prepare(`SELECT idx, summary FROM chapters
+/** The fingerprint of an act's chapters as they are now, read from its own branch. `withStale`
+ *  marks the chapters already stale; off for the migration backfill, which runs inside `migrate()`
+ *  before `summaryStale` can read passages. */
+function actPrintAt(storyId: string, branchId: string, from: number, to: number, withStale = false): string {
+  return actPrint((db.prepare(`SELECT id, idx, summary, summary_hash FROM chapters
       WHERE story_id = ? AND branch_id = ? AND idx BETWEEN ? AND ?`)
-    .all(storyId, branchId, from, to) as any[]).map((c) => ({ index: c.idx, summary: c.summary })));
+    .all(storyId, branchId, from, to) as any[])
+    .map((c) => ({ index: c.idx, summary: c.summary, summaryStale: withStale && summaryStale(c) })));
 }
 
 /** ACTS MADE BEFORE #47 had no fingerprint. This gives each one the fingerprint of its chapters'
@@ -3184,7 +3190,7 @@ export function addArc(storyId: string, a: any) {
   q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at,summaries_hash)
      VALUES (?,?,?,?,?,?,?,?,?)`)
     .run(id, storyId, a.branchId, a.fromChapter, a.toChapter, a.title ?? null, a.summary, now(),
-      actPrintAt(storyId, a.branchId, a.fromChapter, a.toChapter));
+      actPrintAt(storyId, a.branchId, a.fromChapter, a.toChapter, true));
   return id;
 }
 export const delArc = (storyId: string, id: string) =>
@@ -3198,7 +3204,7 @@ export function updateArc(storyId: string, id: string, title: string | null, sum
     .get(id, storyId) as any;
   if (!a) return false;
   return Number(q('UPDATE arcs SET title = ?, summary = ?, summaries_hash = ? WHERE id = ? AND story_id = ?')
-    .run(title, summary, actPrintAt(storyId, a.branch_id, a.from_chapter, a.to_chapter), id, storyId)
+    .run(title, summary, actPrintAt(storyId, a.branch_id, a.from_chapter, a.to_chapter, true), id, storyId)
     .changes) > 0;
 }
 
