@@ -3295,8 +3295,11 @@ const PANELS = {
         : c.summary ? `<button aria-expanded="false" data-expand="1" style="text-align:left; width:100%">
           <div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(c.summary)}</div>
         </button>
-        ${c.summaryStale ? '<div class="hint" style="color:var(--bad)">Stale — excluded from the prompt until it is re-run.</div>' : ''}
+        ${c.summaryStale ? '<div class="hint" style="color:var(--bad)">Stale — kept out of the prompt until it is summarised again or edited.</div>' : ''}
         <button data-editsum="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Edit</button>
+        ${/* #45. Re-runs THIS card's chapter, not the current one, so a stale summary on an older
+              chapter is one press from coming back into the prompt. */''}
+        <button data-summarize="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Summarise again</button>
         <button data-pullback="${c.id}" data-on="${c.keepWhole ? '0' : '1'}"
           style="font-size:11.5px; text-align:left; color:${c.keepWhole ? 'var(--gold)' : 'var(--faint)'}"
           >${c.keepWhole
@@ -9955,7 +9958,9 @@ document.addEventListener('click', async (e) => {
     return toast(text.trim() ? 'Saved. This summary is yours now.' : 'Summary removed.');
   }
   if (d.summarize) {
-    const r = await whileWorking(t, 'Summarising…', () => api.summarize(S.storyId, V.currentChapter.id));
+    // #45. A summary card names its own chapter; the other Summarise buttons say `1`, the current one.
+    const ch = V.chapters.some((x) => x.id === d.summarize) ? d.summarize : V.currentChapter.id;
+    const r = await whileWorking(t, 'Summarising…', () => api.summarize(S.storyId, ch));
     if (!r) return;
     if (r.error) return toast(r.error); V = await api.story(S.storyId); paint(); return; }
   if (d.extract) {
