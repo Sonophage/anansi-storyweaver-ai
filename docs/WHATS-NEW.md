@@ -10,6 +10,13 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-15 · You can write a chapter's summary yourself
+
+### You can write a chapter's summary yourself
+A stale summary now stays out of everything Anansi is asked: chapter proposals leave it out too,
+and when you name its chapter in a question, Anansi is told the summary is stale instead of being
+sent it.
+
 ## 2026-09-18 · Regenerate gives you another take, not your own paragraph back
 
 ### Regenerate was rewriting the passage before the one you pressed it on
