@@ -3426,6 +3426,41 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   endPasses = undefined;
   ok('a chapter close reports which of its four passes did not run, and why (#32)');
 
+  // ---- DELETE-AFTER NAMES THE SUMMARIES OF YOURS IT WOULD CLEAR (#46). It clears the summary of
+  // every chapter that loses a passage, and a summary that is yours is words the writer typed. The
+  // first press is where they learn which ones; the route is unchanged.
+  {
+    // A target with a `style`, because `armed()` rings a button that has no label to swap.
+    const press = (dataset: any) => (listeners.click ?? []).forEach((f: Function) => f({
+      target: { closest: () => ({ dataset, querySelector: () => null, style: {}, disabled: false, textContent: '' }) },
+    }));
+    const said = () => String(nodes.get('toast').textContent);
+    const wasChapters = STORY.chapters;
+    // Both chapters' summaries are yours. Cutting below p-0 (the last passage of c-1) removes only
+    // passages in c-2, so c-2 is named and c-1 is not.
+    STORY.chapters = STORY.chapters.map((c: any) => ({ ...c, summary: c.summary ?? 'The envoy waits.',
+      summaryAuthor: 'human' })) as any;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    press({ delafter: 'p-0' });
+    await new Promise((r) => setTimeout(r, 10));
+    assert.match(said(), /clears your summar(y|ies) of .*The Envoy/,
+      'delete-after names the chapter whose summary of yours it clears');
+    assert.doesNotMatch(said(), /Ashfall/, '  and not a chapter it does not cut into');
+    // Anansi's summary is not named: re-running it is one press, so there is nothing of yours to lose.
+    STORY.chapters = STORY.chapters.map((c: any) => ({ ...c, summaryAuthor: 'model' })) as any;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    press({ delafter: 'p-1' });
+    await new Promise((r) => setTimeout(r, 10));
+    assert.match(said(), /^Press again to delete every passage below this one\.$/,
+      "  and over Anansi's summaries it says only what it always said");
+    STORY.chapters = wasChapters;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    ok('delete-after names the chapters whose summary of yours it would clear');
+  }
+
   // ---- AND IT LANDS ON THE CARDS THE CLOSE PROPOSED, not past them.
   //
   // Seth, 2026-09-01: *"the new cards landed in step 1 of the new chapter instead of on step 2 where

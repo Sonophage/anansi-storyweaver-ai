@@ -9179,7 +9179,15 @@ document.addEventListener('click', async (e) => {
   if (d.delafter) {
     // The count comes back from the route rather than being predicted here: the press and the
     // delete are a round trip apart, and a second writer on the tailnet can add a passage in it.
-    if (!armed(t, 'after:' + d.delafter, 'Press again to delete every passage below this one.')) return;
+    // #46. It clears the summary of every chapter that loses a passage, so the ask names the ones
+    // that are yours. Same comparison as `db.delAfter`: every passage with a higher ordinal.
+    const at = V.passages.find((p) => p.id === d.delafter)?.ordinal ?? Infinity;
+    const cut = new Set(V.passages.filter((p) => p.ordinal > at).map((p) => p.chapterId));
+    const yours = V.chapters.filter((c) => cut.has(c.id) && c.summary && c.summaryAuthor === 'human')
+      .map((c) => c.title || `Chapter ${c.index}`);
+    if (!armed(t, 'after:' + d.delafter, 'Press again to delete every passage below this one.'
+      + (yours.length ? ` It also clears your ${yours.length === 1 ? 'summary' : 'summaries'} of `
+        + `${yours.join(', ')}.` : ''))) return;
     const r = await api.delAfter(S.storyId, d.delafter);
     if (r.error) return toast(r.error);
     V = r.deleted !== undefined ? r : await api.story(S.storyId);
