@@ -3008,4 +3008,29 @@ ok('the search slice never reaches for the database itself', () => {
     'the ownership gate is passed IN as a string; src/search.ts must not define or call it');
 });
 
+/* AN ACT IS OUT OF DATE (#47) when a chapter under it has changed since it was written: the
+ * chapter's summary no longer reads as it did when the act was built, or the chapter is stale. The
+ * check is pure -- the fingerprint the act stored, and the chapters it covers as they are now -- so
+ * it is asserted in both directions here, with no database and no route around it. */
+ok('an act is out of date when a covered summary changed or a covered chapter is stale, and not otherwise', () => {
+  const built = [{ index: 3, summary: 'Aldis borrows from Marek.' },
+                 { index: 4, summary: 'The vault floods.' }];
+  const print = db.actPrint(built);
+  const now = (over: any = {}) => built.map((c) => ({ ...c, summaryStale: false, ...(over[c.index] ?? {}) }));
+
+  assert.strictEqual(db.actOutOfDate(print, now()), null,
+    'nothing has changed, so the act is not out of date');
+  assert.deepStrictEqual(db.actOutOfDate(print, now({ 4: { summary: 'The vault holds.' } })),
+    { chapter: 4, why: 'changed' }, 'a covered summary re-written names that chapter');
+  assert.deepStrictEqual(db.actOutOfDate(print, now({ 3: { summaryStale: true } })),
+    { chapter: 3, why: 'stale' }, 'a covered chapter gone stale names that chapter');
+  assert.deepStrictEqual(db.actOutOfDate(print, now({ 3: { summaryStale: true }, 4: { summary: 'x' } })),
+    { chapter: 3, why: 'stale' }, 'with two causes it names the first chapter');
+  assert.deepStrictEqual(db.actOutOfDate(print, now({ 3: { summary: null } })),
+    { chapter: 3, why: 'changed' }, 'a summary taken away is a change too');
+  const redone = now({ 4: { summary: 'The vault holds.' } });
+  assert.strictEqual(db.actOutOfDate(db.actPrint(redone), redone), null,
+    'a fingerprint taken again from the chapters as they are now clears it');
+});
+
 console.log(`\n${n} checks passed`);

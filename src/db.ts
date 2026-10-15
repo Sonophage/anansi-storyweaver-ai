@@ -1491,6 +1491,47 @@ export function summaryStale(chapter: any): boolean {
   return proseHash(passagesOfChapter(chapter.id).map((p: any) => p.body)) !== chapter.summary_hash;
 }
 
+/** WHAT AN ACT WAS BUILT FROM (#47): one short hash per covered chapter's summary, keyed by the
+ *  chapter's number, as `3:hash 4:hash`. Per chapter rather than one hash over all of them, so the
+ *  check below can name WHICH chapter changed. Taken at roll-up and at a hand save (`addArc`,
+ *  `updateArc`), so either one makes the act current against its chapters as they are then.
+ *  Function declarations, not consts: `backfillActPrints` runs inside `migrate()`, above the line
+ *  where a const here would exist. */
+export function actPrint(chapters: { index: number; summary?: string | null }[]): string {
+  return [...chapters].sort((a, b) => a.index - b.index)
+    .map((c) => `${c.index}:${summaryPrint(c.summary)}`).join(' ');
+}
+function summaryPrint(summary?: string | null) {
+  return createHash('sha256').update(String(summary ?? '')).digest('hex').slice(0, 12);
+}
+
+/** IS AN ACT OUT OF DATE, and if so which chapter made it so. Computed on read, as stale is:
+ *  nothing stores "out of date". Two causes, checked chapter by chapter from the first:
+ *  - `changed`: the chapter's summary no longer matches what the act was built from (re-run,
+ *    edited, or cleared);
+ *  - `stale`: the chapter's summary no longer matches its prose, so the act describes prose that
+ *    has moved.
+ *  A stale chapter keeps its act out of date even after the act is saved by hand: the act can be
+ *  vouched for, the chapter under it cannot, until it is summarised again.
+ *  An act with no fingerprint has nothing to compare, so only the stale cause applies. Out of date
+ *  never excludes: the context engine still sends the act, because covered chapters send nothing. */
+export function actOutOfDate(print: string | null | undefined,
+  chapters: { index: number; summary?: string | null; summaryStale?: boolean }[],
+): { chapter: number; why: 'changed' | 'stale' } | null {
+  const was = new Map((print ?? '').split(' ').filter(Boolean).map((p) => {
+    const at = p.indexOf(':');
+    return [Number(p.slice(0, at)), p.slice(at + 1)] as [number, string];
+  }));
+  const now = new Map(chapters.map((c) => [c.index, c]));
+  const indices = [...new Set([...(print ? was.keys() : []), ...now.keys()])].sort((a, b) => a - b);
+  for (const i of indices) {
+    const c = now.get(i);
+    if (print && was.get(i) !== summaryPrint(c?.summary)) return { chapter: i, why: 'changed' };
+    if (c?.summaryStale) return { chapter: i, why: 'stale' };
+  }
+  return null;
+}
+
 export const passagesOfChapter = (chapterId: string) =>
   q('SELECT * FROM passages WHERE chapter_id = ? AND selected = 1 ORDER BY ordinal').all(chapterId) as any[];
 
