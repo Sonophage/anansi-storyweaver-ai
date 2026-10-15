@@ -190,6 +190,9 @@ const S = {
   // Issue #32. Which of the chapter close's four passes did not run, by name, and why. Null means
   // no chapter has been closed this session; an empty object means all four ran.
   ritualPasses: null,
+  // #46. The chapter whose summary the last close kept because it was yours, or null. Only a close
+  // knows it kept one, so the closing report reads this and not who wrote the summary.
+  ritualKept: null,
   // Issue #38. The passage whose re-roll instruction is open for editing, and the text in it.
   // Null means no editor is open, which is every press on an undirected passage.
   reroll: null,
@@ -2023,8 +2026,10 @@ function ritualPanel() {
       closed ? '' : 'Nothing below has run.')}
 
     ${line(summary ? '--good' : closed ? '--warn' : '--chip',
-      // #46. Yours is kept on close, never re-run, so the line says so instead of "Summarised".
-      summary ? `${ch.summaryAuthor === 'human' ? 'Kept your summary,' : 'Summarised in'} ${
+      // #46. "Kept" is what the close reported it did, so before a close, or after one that did not
+      // keep it, nothing says kept. Yours that was not kept is still not "Summarised": Anansi did not.
+      summary ? `${S.ritualKept === ch.id ? 'Kept your summary,'
+        : ch.summaryAuthor === 'human' ? 'Your summary,' : 'Summarised in'} ${
         plural(words, 'word', 'words')}` : 'Not summarised',
       summary ? esc(summary)
         : closed ? 'It did not come back — the router may have been asleep. Run it again below.' : '')}
@@ -4720,7 +4725,7 @@ function setupPanel() {
     <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--good)"></span>
     <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
       text-overflow:ellipsis; white-space:nowrap">${esc(justClosed.title || `Chapter ${justClosed.index}`)} closed${
-      justClosed.summary ? ', summarised' : ''}${queue.length ? ` &middot; ${queue.length} waiting` : ''}</span>
+      justClosed.summary ? (S.ritualKept === justClosed.id ? ', kept your summary' : ', summarised') : ''}${queue.length ? ` &middot; ${queue.length} waiting` : ''}</span>
     <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
       color:var(--label); opacity:.7">what it found</span></button>` : '';
 
@@ -9919,6 +9924,7 @@ document.addEventListener('click', async (e) => {
     // Kept for the report to draw, and said once here, because a writer who closed a chapter and
     // got no facts needs to know it was the model and not the chapter.
     S.ritualPasses = r.passes ?? null;
+    S.ritualKept = r.keptSummary ? closing.id : null;
     V = await api.story(S.storyId);
     // The panel stays on the chapter that just closed and recomputes its whole report from `V`.
     // refetch dropped — so the checklist vanished on the next unrelated press.

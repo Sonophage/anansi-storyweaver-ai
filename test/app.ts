@@ -3372,6 +3372,26 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     return html('sideBody');
   };
 
+  // #46. BEFORE ANY CLOSE NOTHING SAYS KEPT. A summary that is yours is only "kept" by a close that
+  // kept it; the closing report reads that off the close, not off who wrote the summary.
+  {
+    const wasChapters = STORY.chapters, wasCurrent = STORY.currentChapter;
+    STORY.chapters = STORY.chapters.map((c: any) => ({ ...c, summary: 'The envoy waits.',
+      summaryAuthor: 'human' })) as any;
+    // The report is about the chapter being written until one closes, and that is `currentChapter`.
+    STORY.currentChapter = { ...STORY.currentChapter, summary: 'The envoy waits.', summaryAuthor: 'human' } as any;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    click({ panel: 'ritual' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.doesNotMatch(html('sideBody'), /Kept your summary/i,
+      'before a close, the closing report does not say it kept your summary');
+    assert.match(html('sideBody'), /Your summary/, '  and it says the summary is yours');
+    STORY.chapters = wasChapters; STORY.currentChapter = wasCurrent;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+  }
+
   endPasses = undefined;
   let side = await closeChapter();
   assert.doesNotMatch(side, /did not run/,
@@ -3410,9 +3430,24 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(String(nodes.get('toast').textContent), /kept your summary/,
     'closing over yours says it kept your summary');
   assert.doesNotMatch(side, /did not run/, '  and not as a pass that did not run');
+  // The row at the top of setup names the chapter that closed once the next one is current. The
+  // stub answers with the same chapter object, so the next chapter is made by renaming it in place.
+  STORY.currentChapter.id = 'c-3';
+  click({ panel: 'setup' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.match(html('sideBody'), /closed, kept your summary/, '  and the row for the chapter that closed says it');
+  STORY.currentChapter.id = 'c-2';
   click({ panel: 'ritual' });
   await new Promise((r) => setTimeout(r, 30));
   assert.match(html('sideBody'), /Kept your summary/, '  and the closing report says it too');
+  // A CLOSE THAT DID NOT KEEP IT does not say kept, even over a summary that is yours: the report
+  // says what the close did, and this one did not keep anything.
+  endKept = false;
+  side = await closeChapter();
+  click({ panel: 'ritual' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.doesNotMatch(html('sideBody'), /Kept your summary/i,
+    '  and a close that did not keep it does not say kept, though the summary is yours');
   STORY.chapters = STORY.chapters.map((c: any) => c.id === 'c-2' ? { ...c, summaryAuthor: 'model' } : c) as any;
   endKept = undefined;
   side = await closeChapter();
