@@ -231,7 +231,9 @@ const S = {
   forgeOpen: null, forgeBusy: false,
   prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
   promptOpen: null,
-  arcOpen: null,        // the act whose text and title are open for editing, by id
+  // The act and the chapter summary open for editing, with what has been typed, so a repaint mid-edit
+  // puts the same words back. Null means no editor is open. `{ id, title, text }` and `{ id, text }`.
+  editArc: null, editSum: null,
   found: null,
   // The picture finder on ONE card: which thread it belongs to, the phrase, the rows. Null is shut.
   entryPic: null,          // the passage a search result sent you to, marked until you move on
@@ -544,6 +546,17 @@ function toast(msg) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 4200);
 }
 
+/** WHY AN ACT IS OUT OF DATE (#47), naming the first chapter under it that changed. One sentence
+ *  for the act's card and the waiting list, so the two cannot say it differently. */
+const actChanged = (n, why, title) => {
+  const ch = title && title !== `Chapter ${n}` ? `Chapter ${n}, ${title},` : `Chapter ${n}`;
+  return why === 'stale'
+    ? `${ch} has changed since this act was written: its summary no longer matches its prose. `
+      + 'The act still reaches the model.'
+    : `${ch} has a different summary from the one this act was written from. `
+      + 'The act still reaches the model. Read it, and save it to vouch for it.';
+};
+
 /** EVERY DELETION IS TWO PRESSES. Seth, 2026-08-30: "all deletions should have a double tap
  *  confirmation." Nothing in this app has an undo, so a press that removes writing is the one kind
  *  of press that cannot be taken back by pressing something else.
@@ -563,32 +576,6 @@ function toast(msg) {
  *  The label swap is what a desk sees and the toast is what a phone sees: `.lbl-txt` is hidden on
  *  a phone and several of these buttons are a bare glyph with no label at all, so those get a ring
  *  instead of having their × replaced by four words that do not fit. */
-/** WORDS IN A TEXT, and what an act's word count says. 220 is the bound the act prompt asks the
- *  model for; past it the count warns and never blocks — a long act is the writer's call, and the
- *  cost is prompt space on every call. */
-const wordsOf = (text) => (String(text ?? '').match(/\S+/g) || []).length;
-const actWords = (text) => {
-  const n = wordsOf(text);
-  return `${n} ${n === 1 ? 'word' : 'words'}${n > 220
-    ? ' <span style="color:var(--gold)">&middot; past 220, so it takes more of every prompt. It still saves.</span>' : ''}`;
-};
-/** WHY AN ACT IS OUT OF DATE (#47), naming the first chapter under it that changed. One sentence
- *  for the act's card and the waiting list, so the two cannot say it differently. */
-const actChanged = (n, why, title) => {
-  const ch = title && title !== `Chapter ${n}` ? `Chapter ${n}, ${title},` : `Chapter ${n}`;
-  return why === 'stale'
-    ? `${ch} has changed since this act was written: its summary no longer matches its prose. `
-      + 'The act still reaches the model.'
-    : `${ch} has a different summary from the one this act was written from. `
-      + 'The act still reaches the model. Read it, and save it to vouch for it.';
-};
-// The count follows the typing without a repaint, which would throw the caret and the edit away.
-document.addEventListener('input', (e) => {
-  if (!e.target?.matches?.('[data-arctext]')) return;
-  const out = e.target.closest('.card')?.querySelector('[data-arcwords]');
-  if (out) out.innerHTML = actWords(e.target.value);
-});
-
 function armed(t, key, ask) {
   if (S.confirmDel === key) { S.confirmDel = null; if (t) t.style.outline = ''; return true; }
   S.confirmDel = key;
@@ -3285,13 +3272,15 @@ const PANELS = {
           <span class="kind">${esc(c.title || `Chapter ${c.index}`)}</span>
           ${c.summary ? `<span data-sumauthor style="font-size:11px; color:var(--faint)">${
             c.summaryAuthor === 'human' ? 'yours' : 'Anansi&rsquo;s'}</span>` : ''}
-          ${c.summary ? `<span style="margin-left:auto; font-size:11px; color:var(--faint)">covers to ${c.coversThrough ?? '—'}</span>` : ''}</div>
-        ${editing ? `<textarea data-sumtext="${c.id}" rows="6" aria-label="Summary of ${esc(c.title || `Chapter ${c.index}`)}"
+          ${/* The word count is on every card, and while the card is being edited it is the editor's
+                live one instead, so the card never shows two counts that disagree. */''}
+          ${c.summary ? `<span style="margin-left:auto; font-size:11px; color:var(--faint)">covers to ${
+            c.coversThrough ?? '—'}${editing ? '' : ` &middot; ${plural(wordsIn(c.summary), 'word', 'words')}`}</span>` : ''}</div>
+        ${editing ? `<textarea data-sumtext="${c.id}" data-wordcap="${SUMMARY_WORDS}" rows="6"
+            aria-label="Summary of ${esc(c.title || `Chapter ${c.index}`)}"
             style="width:100%; font-size:12.5px; line-height:1.5">${esc(S.editSum.text)}</textarea>
+          ${wordLine(S.editSum.text, SUMMARY_WORDS)}
           <div style="display:flex; align-items:center; gap:9px; font-size:11.5px">
-            <span class="tnum" data-sumcount style="color:var(--faint)">${plural(wordsIn(S.editSum.text), 'word', 'words')}</span>
-            <span data-sumwarn style="color:var(--faint)" ${wordsIn(S.editSum.text) > SUMMARY_WORDS ? '' : 'hidden'}
-              >longer than the ${SUMMARY_WORDS} Anansi writes &mdash; it still saves</span>
             <button class="btn ghost" data-cancelsum="1" style="margin-left:auto">Cancel</button>
             <button class="btn" data-savesum="${c.id}">Save</button></div>`
         : c.summary ? `<button aria-expanded="false" data-expand="1" style="text-align:left; width:100%">
@@ -3310,33 +3299,36 @@ const PANELS = {
         : `<div class="hint">No summary.</div>${prose
           ? `<button data-editsum="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Write one</button>` : ''}`}
       </div>`; }).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
-      <button class="btn ghost" data-summarize="1">Summarise this chapter</button>
+      ${/* Only while the current chapter has no card: once it has a summary, its card carries
+            Summarise again, and this would be the same press twice. */
+        V.chapters.find((c) => c.id === V.currentChapter.id)?.summary ? ''
+        : '<button class="btn ghost" data-summarize="1">Summarise this chapter</button>'}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Acts${
         tipMark('chActs', 'Acts')}</div>
       ${tipCard('chActs', 'Acts', `<p>One summary standing in for a run of chapters. A chapter
         summary is about 220 tokens and they never stop arriving &mdash; at chapter 120 they do not
         fit, and the oldest silently stop being sent. An act is what they collapse into.</p>`)}
-      ${(V.arcs ?? []).map((a) => `<div class="card" style="margin-bottom:8px; gap:5px">
+      ${(V.arcs ?? []).map((a) => { const editing = S.editArc?.id === a.id; return `<div class="card" style="margin-bottom:8px; gap:5px">
         <div style="display:flex; align-items:center; gap:9px">
           <span class="kind">${esc(a.title || `Chapters ${a.fromChapter}–${a.toChapter}`)}</span>
-          <span style="margin-left:auto; font-size:11px; color:var(--faint)">chapters ${a.fromChapter}&ndash;${a.toChapter}
-            &middot; ${wordsOf(a.summary)} words</span>
+          <span style="margin-left:auto; font-size:11px; color:var(--faint)">chapters ${a.fromChapter}&ndash;${a.toChapter}${
+            editing ? '' : ` &middot; ${plural(wordsIn(a.summary), 'word', 'words')}`}</span>
           <button data-delarc="${a.id}" style="color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
-        ${a.outOfDate ? `<div data-arcstale style="font-size:11.5px; line-height:1.5; color:var(--gold)">Out of date.
+        ${a.outOfDate ? `<div data-arcoutofdate style="font-size:11.5px; line-height:1.5; color:var(--gold)">Out of date.
           ${esc(actChanged(a.outOfDate.chapter, a.outOfDate.why, a.outOfDate.title))}</div>` : ''}
-        ${S.arcOpen === a.id ? `
-          <input class="field" data-arctitle aria-label="The act's title" value="${esc(a.title ?? '')}"
+        ${editing ? `
+          <input class="field" data-arctitle aria-label="The act's title" value="${esc(S.editArc.title)}"
             placeholder="Chapters ${a.fromChapter}–${a.toChapter}">
-          <textarea class="field" data-arctext aria-label="What the act says"
-            style="min-height:132px; font-size:12.5px; line-height:1.5">${esc(a.summary)}</textarea>
-          <div class="hint" data-arcwords style="margin:0">${actWords(a.summary)}</div>
+          <textarea class="field" data-arctext data-wordcap="${ACT_WORDS}" aria-label="What the act says"
+            style="min-height:132px; font-size:12.5px; line-height:1.5">${esc(S.editArc.text)}</textarea>
+          ${wordLine(S.editArc.text, ACT_WORDS)}
           <div style="display:flex; gap:7px">
             <button class="btn ghost" data-savearc="${a.id}" style="flex:1">Save</button>
             <button class="btn ghost" data-cancelarc="1" style="width:110px">Cancel</button></div>`
         : `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(a.summary)}</div>
           <button data-editarc="${a.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Edit</button>`}
-        </div>`).join('')}
+        </div>`; }).join('')}
       ${(() => {
         // The range is computed rather than typed. Two number boxes is a question the writer has
         // to answer about their own token budget; the oldest run that is not in an act yet is the
@@ -4526,8 +4518,20 @@ const NAMED = new Set();
 // Two panels count things now. One definition, at the top of both.
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const wordsIn = (s) => (String(s ?? '').match(/\S+/g) || []).length;
-/** What a chapter summary is asked to stay under: `SUMMARY(180)` in src/routes.ts. Advisory only. */
-const SUMMARY_WORDS = 180;
+/** WHAT A CHAPTER SUMMARY AND AN ACT ARE ASKED TO STAY UNDER: the bounds the summary and act
+ *  prompts give the model, `SUMMARY(180)` and `ARC(from, to, 220)` in src/routes.ts. Advisory only:
+ *  past one the count warns and never blocks, because a long one is the writer's call and the cost
+ *  is prompt space on every call. `test/web.ts` fails if these and the prompts disagree. */
+const SUMMARY_WORDS = 180, ACT_WORDS = 220;
+/** THE COUNT UNDER A TEXT BOX BEING EDITED, and its warning past `cap`. One line for both editors;
+ *  the box carries the same cap as `data-wordcap`, and the one `input` listener near the bottom
+ *  redraws this in place from it, because a repaint would throw the caret away. */
+const wordLine = (text, cap) => {
+  const n = wordsIn(text);
+  return `<div class="hint" data-words style="margin:0"><span class="tnum" data-wordcount>${
+    plural(n, 'word', 'words')}</span> <span data-wordwarn style="color:var(--gold)" ${n > cap ? '' : 'hidden'}
+    >&middot; past ${cap}, so it takes more of every prompt. It still saves.</span></div>`;
+};
 const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next chapter'], ['more', 'Anyone new']];
 
 /** Issue #32. The four passes a chapter close runs, and what a writer calls each one.
@@ -8233,16 +8237,20 @@ document.addEventListener('change', (e) => {
  *  `input`, not `change`, because this is the half that has to follow the finger. The write is
  *  still on release.
  */
-// #43. The word count under a summary being edited, and the warning past what Anansi writes.
-// The draft is kept in `S` so a repaint mid-edit puts the same words back.
+// #43, #44. A chapter summary or an act being edited. The draft is kept in `S` so a repaint mid-edit
+// puts the same words back, and the count under the box follows the typing in place from the box's
+// own `data-wordcap` — a repaint would throw the caret away.
 document.addEventListener('input', (e) => {
-  const el = e.target;
-  if (!el?.dataset?.sumtext || S.editSum?.id !== el.dataset.sumtext) return;
-  S.editSum.text = el.value;
-  const n = wordsIn(el.value), card = el.closest('[data-sumcard]');
-  const count = card?.querySelector('[data-sumcount]'), warn = card?.querySelector('[data-sumwarn]');
+  const el = e.target, d = el?.dataset;
+  if (!d) return;
+  if (d.sumtext && S.editSum?.id === d.sumtext) S.editSum.text = el.value;
+  if (S.editArc && d.arctext !== undefined) S.editArc.text = el.value;
+  if (S.editArc && d.arctitle !== undefined) S.editArc.title = el.value;
+  if (!d.wordcap) return;
+  const n = wordsIn(el.value), card = el.closest('.card');
+  const count = card?.querySelector('[data-wordcount]'), warn = card?.querySelector('[data-wordwarn]');
   if (count) count.textContent = plural(n, 'word', 'words');
-  if (warn) warn.hidden = n <= SUMMARY_WORDS;
+  if (warn) warn.hidden = n <= Number(d.wordcap);
 });
 
 document.addEventListener('input', (e) => {
@@ -8506,16 +8514,17 @@ document.addEventListener('click', async (e) => {
     return toast('The act is gone; those chapters send their own summaries again.');
   }
 
-  // AN ACT, EDITED IN PLACE (#44). The text is read off the card at press time, the way the prompt
-  // editor reads its own, so a repaint between typing and Save cannot hand the route a stale copy.
-  if (d.editarc) { S.arcOpen = d.editarc; paint(); return; }
-  if (d.cancelarc) { S.arcOpen = null; paint(); return; }
+  // AN ACT, EDITED IN PLACE (#44). The draft lives in `S.editArc`, kept by the `input` listener, so
+  // a repaint between typing and Save puts the same words back and Save sends what was typed.
+  if (d.editarc) {
+    const a = (V.arcs ?? []).find((x) => x.id === d.editarc);
+    S.editArc = { id: d.editarc, title: a?.title ?? '', text: a?.summary ?? '' }; paint(); return;
+  }
+  if (d.cancelarc) { S.editArc = null; paint(); return; }
   if (d.savearc) {
-    const card = t.closest('.card') ?? document;
-    const r = await api.saveArc(S.storyId, d.savearc,
-      card.querySelector('[data-arctitle]')?.value ?? '', card.querySelector('[data-arctext]')?.value ?? '');
+    const r = await api.saveArc(S.storyId, d.savearc, S.editArc?.title ?? '', S.editArc?.text ?? '');
     if (r.error) return toast(r.error);
-    S.arcOpen = null;
+    S.editArc = null;
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
     return toast('The act is saved. It is what the model is sent for those chapters.');
   }
@@ -9963,7 +9972,8 @@ document.addEventListener('click', async (e) => {
   }
   if (d.cancelsum) { S.editSum = null; paint(); return; }
   if (d.savesum) {
-    const text = document.querySelector(`[data-sumtext="${d.savesum}"]`)?.value ?? S.editSum?.text ?? '';
+    if (S.editSum?.id !== d.savesum) return;
+    const text = S.editSum.text;
     if (!text.trim() && !armed(t, `sum:${d.savesum}`, 'Press again — this removes the summary.')) return;
     const r = await api.saveSummary(S.storyId, d.savesum, text);
     if (r.error) return toast(r.error);

@@ -142,12 +142,26 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   ok(`  a hand summary says it is yours (${await author(cur)})`, /yours/i.test(await author(cur)));
   const first = (await story()).chapters[0].id;
   ok(`  and Anansi's says so (${await author(first)})`, /Anansi/.test(await author(first)));
+  // EVERY CARD SAYS HOW LONG ITS SUMMARY IS, not only the one being edited: the count is the prompt
+  // space each one takes, and the list is where a writer compares them.
+  const counted = await Promise.all((await story()).chapters.filter((c) => c.summary).map(async (c) => {
+    const n = c.summary.trim().split(/\s+/).length;
+    const text = await page.eval(`document.querySelector('[data-sumcard="${c.id}"]')?.textContent ?? ''`);
+    return new RegExp(`\\b${n} words?\\b`).test(text.replace(/\s+/g, ' ')) ? '' : `${c.id} lacks "${n} words"`;
+  }));
+  ok(`  every summary card shows its word count (${counted.filter(Boolean).join('; ') || 'all'})`,
+    counted.every((x) => !x));
+  // ONE SUMMARISE FOR THE CURRENT CHAPTER. Its card carries Summarise again once it has a summary,
+  // so the button at the foot of the list would be the same press twice.
+  const foot = () => page.eval(`!!document.querySelector('#sideBody [data-summarize="1"]')`);
+  ok('  and with the current chapter on the list, there is no second Summarise at its foot', !(await foot()));
 
   await press(`[data-editsum="${cur}"]`);
   await wait(300);
   const box = () => page.eval(`(() => { const t = document.querySelector('[data-sumtext]');
-    const w = document.querySelector('[data-sumwarn]');
-    return t ? { text: t.value, count: document.querySelector('[data-sumcount]')?.textContent ?? '',
+    const c = t?.closest('[data-sumcard]'), w = c?.querySelector('[data-wordwarn]');
+    return t ? { text: t.value, count: c?.querySelector('[data-wordcount]')?.textContent ?? '',
+      counts: (c.textContent.replace(/\\s+/g, ' ').match(/\\b\\d+ words?\\b/g) ?? []).length,
       warn: !!w && w.offsetParent !== null, save: !!document.querySelector('[data-savesum]:not([disabled])') } : null; })()`);
   const b0 = await box();
   ok(`Edit opens the summary in a text box (${JSON.stringify(b0?.text)})`, b0?.text === 'Aldis keeps the key.');
@@ -158,9 +172,16 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   const b1 = await box();
   ok(`  the count follows the typing (${b1?.count})`, /^200 words/.test(b1?.count ?? ''));
   ok('  past 180 words a quiet warning shows, and Save is still there', b1?.warn === true && b1?.save === true);
+  ok(`  and the card shows one count while editing, not two (${b1?.counts})`, b1?.counts === 1);
   await type('Aldis keeps the key and says nothing.');
   const b2 = await box();
   ok(`  and under it the warning goes (${b2?.count})`, b2?.warn === false && /^7 words/.test(b2?.count ?? ''));
+  // A REPAINT MID-EDIT PUTS THE SAME WORDS BACK. The Chapter row repaints the panel.
+  await press('#rail [data-nav="chapter"]');
+  await wait(400);
+  const b3 = await box();
+  ok(`  a repaint keeps what was typed (${JSON.stringify(b3?.text)})`,
+    b3?.text === 'Aldis keeps the key and says nothing.' && /^7 words/.test(b3?.count ?? ''));
   await press('[data-cancelsum]');
   await wait(300);
   ok('Cancel leaves the summary exactly as it was', (await sumOf(cur)) === 'Aldis keeps the key.'
@@ -185,6 +206,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await press(`[data-savesum="${cur}"]`);
   await wait(900);
   ok('  and removes the summary on the second', (await sumOf(cur)) === null);
+  ok('  and with the current chapter off the list, Summarise this chapter is back at its foot', await foot());
 }
 
 // ---- 3b3. Summarise again on an OLDER chapter (#45). Until #45 the only Summarise sent the current
@@ -1478,7 +1500,13 @@ if (btn) {
   const arcOf = () => page.eval("(async () => (await (await fetch('/api/story?story=" + aid + "')).json()).arcs[0])()");
   const typeIn = (sel, text) => page.eval(`(() => { const t = document.querySelector(${JSON.stringify(sel)});
     if (!t) return 0; t.value = ${JSON.stringify(text)}; t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
-  const words = () => page.text('[data-arcwords]').then((x) => (x || '').replace(/\s+/g, ' ').trim());
+  // What the line under the box SHOWS: the count, and the warning only while it is not hidden.
+  const words = () => page.eval(`(() => { const l = document.querySelector('[data-words]'); if (!l) return '';
+    const w = l.querySelector('[data-wordwarn]');
+    return (l.querySelector('[data-wordcount]')?.textContent + (w && !w.hidden ? ' ' + w.textContent : ''))
+      .replace(/\\s+/g, ' ').trim(); })()`);
+  const counts = () => page.eval(`(document.querySelector('[data-arctext]')?.closest('.card')?.textContent ?? '')
+    .replace(/\\s+/g, ' ').match(/\\b\\d+ words?\\b/g)?.length ?? 0`);
   ok("the seed has a book with an act in it", !!aid);
   // #47. The seed summarised chapter two again after the act was built, so the act is out of date.
   await page.goto(B + "/#" + aid + "/waiting");
@@ -1493,7 +1521,7 @@ if (btn) {
   await wait(300);
   const was = await arcOf();
   ok(`  its act card offers Edit (${was?.title})`, await page.visible('[data-editarc]'));
-  const note = ((await page.text('[data-arcstale]')) || '').replace(/\s+/g, ' ').trim();
+  const note = ((await page.text('[data-arcoutofdate]')) || '').replace(/\s+/g, ' ').trim();
   ok(`  and its card says it is out of date, naming the chapter (${note})`, /Chapter 2/.test(note));
 
   await page.click('[data-editarc]');
@@ -1509,6 +1537,15 @@ if (btn) {
   ok("  and past 220 it warns, quietly", /past 220/.test(await words()));
   await typeIn('[data-arctext]', Array.from({ length: 220 }, () => 'rain').join(' '));
   ok(`  at 220 the warning is gone (${await words()})`, /^220 words$/.test(await words()));
+  ok(`  and the card shows one count while editing, not two (${await counts()})`, (await counts()) === 1);
+  // A REPAINT MID-EDIT PUTS THE SAME WORDS BACK, title and text. The Chapter row repaints the panel.
+  await typeIn('[data-arctitle]', 'A draft title');
+  await typeIn('[data-arctext]', 'A draft of the act.');
+  await page.eval(`(() => { document.querySelector('#rail [data-nav="chapter"]')?.click(); return 1; })()`);
+  await wait(400);
+  const kept0 = await page.eval(`JSON.stringify([document.querySelector('[data-arctitle]')?.value ?? null,
+    document.querySelector('[data-arctext]')?.value ?? null])`);
+  ok(`  a repaint keeps what was typed (${kept0})`, kept0 === JSON.stringify(['A draft title', 'A draft of the act.']));
 
   // CANCEL COSTS NOTHING: the typed text is thrown away and the act is what it was.
   await page.click('[data-cancelarc]');
@@ -1538,7 +1575,7 @@ if (btn) {
   ok("  past 220 words, because the warning never blocks", now.summary.split(' ').length === 230);
   ok("  the editor closes", !(await page.visible('[data-arctext]')));
   ok("  and the card shows the new text", /Marek water water/.test(await page.text('#sideBody') || ''));
-  ok("  and saving by hand cleared out of date", !(await page.visible('[data-arcstale]')));
+  ok("  and saving by hand cleared out of date", !(await page.visible('[data-arcoutofdate]')));
 }
 
 // ---- 16. strings: what the story owes, and what the model is told about it
