@@ -983,9 +983,21 @@ async function retire(storyId: string, chapterId?: string) {
   return { proposed, eligible: cands.length, unevidenced, chapter: ch.index };
 }
 
-async function summarise(c: Ctx, storyId: string, chapterId?: string) {
+/** YOURS IS NOT WRITTEN OVER ON ONE PRESS (#46). A summary the writer saved by hand is refused
+ *  here unless the call asks to `replace` it, and the refusal comes before the model is asked.
+ *
+ *  HERE AND NOT IN THE BUTTONS, the way `regenerateInto` guards a human passage: the Summarise
+ *  route and the chapter close both pass through this function, so one guard covers every door.
+ *  The client's second press sends `replace`. The close never does, so its summary pass reports
+ *  this same refusal and the other closing passes run as before. Stale or not does not matter:
+ *  whether to fix or re-run yours is the writer's call. */
+const KEPT_YOURS = 'kept your summary';
+
+async function summarise(c: Ctx, storyId: string, chapterId?: string, replace = false) {
   const v = need(view(storyId), 'no such story');
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
+  if (ch.summary && ch.summaryAuthor === 'human' && !replace)
+    return { error: KEPT_YOURS, kept: true, chapterId: ch.id };
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
   const cover = db.summaryCover(ch.id);
   if (!cover) return { error: 'nothing to summarise' };
@@ -3187,7 +3199,7 @@ export const routes: Record<string, Handler> = {
   },
 
   'POST /api/summarize': async (c) => {
-    const r = await summarise(c, c.body.storyId, c.body.chapterId);
+    const r = await summarise(c, c.body.storyId, c.body.chapterId, c.body.replace === true);
     return r.error ? r : { ...r, ...viewOf(c.body.storyId) };
   },
 

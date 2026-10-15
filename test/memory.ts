@@ -36,6 +36,9 @@ let styled = 'Short chapters, weather in every scene, nobody explains themselves
 /** And a chapter summary, which is plain prose and not the blob. Null leaves every call on the blob,
  *  which is what every block before the summary one relies on. #45. */
 let summed: string | null = null;
+/** How many times the fake was asked anything but /tokenize. #46 asserts a refusal happens BEFORE
+ *  any model call, and only a count can see a call whose answer was thrown away. */
+let calls = 0;
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -45,6 +48,7 @@ const srv = createServer((req, res) => {
     const send = (o: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(o)); };
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
+    calls++;
     asked = { system: b.messages?.[0]?.content ?? '', user: b.messages?.[1]?.content ?? '' };
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
@@ -719,6 +723,35 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.strictEqual(one?.summaryStale, false, 'and it is current again');
   assert.match(await promptNow(), /river alone, at night/, 'so it reaches the writing prompt');
   ok('Summarise again on an older chapter makes its stale summary current and sends it');
+}
+
+// ---- YOURS IS NOT WRITTEN OVER ON ONE PRESS (#46). The guard is in `summarise`, which the
+// Summarise route and the chapter close both pass through, and it refuses before any model call.
+{
+  const book = db.createStory(me, { title: 'Your summary' });
+  const first = book.chapterId;
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: first,
+    body: 'Mara crossed the river at night.', author: 'human' });
+  const MINE = 'Mara crosses at night, and tells nobody.';
+  const saved: any = await routes['POST /api/summary'](ctx({ storyId: book.id, chapterId: first, summary: MINE }));
+  assert.ok(!saved.error, `the hand save is accepted: ${saved.error ?? ''}`);
+  const chOf = (v: any) => (v.chapters ?? []).find((c: any) => c.id === first) ?? {};
+
+  summed = 'Mara crosses the river alone.';
+  const before = calls;
+  const refused: any = await routes['POST /api/summarize'](ctx({ storyId: book.id, chapterId: first }));
+  assert.ok(refused.error, 'Summarise over yours without replace is refused');
+  assert.strictEqual(calls, before, '  before any model call');
+  const still = chOf(await routes['GET /api/story']({ ...ctx({}), query: new URLSearchParams({ story: book.id }) }));
+  assert.strictEqual(still.summary, MINE, '  and your summary is untouched');
+  assert.strictEqual(still.summaryAuthor, 'human', '  and still yours');
+
+  const replaced: any = await routes['POST /api/summarize'](ctx({ storyId: book.id, chapterId: first, replace: true }));
+  summed = null;
+  assert.ok(!replaced.error, `with replace it re-runs: ${replaced.error ?? ''}`);
+  assert.strictEqual(chOf(replaced).summary, 'Mara crosses the river alone.', '  and the new summary lands');
+  assert.strictEqual(chOf(replaced).summaryAuthor, 'model', "  and it is Anansi's");
+  ok("Summarise refuses over yours before any model call, and replaces it when asked to");
 }
 
 srv.close();
