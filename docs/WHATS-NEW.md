@@ -10,6 +10,12 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-15 · You can write a chapter's summary yourself
+
+### You can write a chapter's summary yourself
+Every summary in Chapter → Summaries can be edited, or written from scratch for a chapter that has
+none.
+
 ## 2026-09-18 · Regenerate gives you another take, not your own paragraph back
 
 ### Regenerate was rewriting the passage before the one you pressed it on

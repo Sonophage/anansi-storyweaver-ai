@@ -468,6 +468,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
+  // #43. A chapter summary edited or written by hand.
+  'editsum', 'savesum', 'cancelsum',
   'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
@@ -3236,21 +3238,41 @@ const PANELS = {
         model whole. Everything before it goes as the summaries below &mdash; so if the model has
         forgotten something that happened back there, <b>pull that chapter back</b> and its prose is
         sent instead of its summary, until you let it go again.</p>`)}
-      ${V.chapters.filter((c) => c.summary).map((c) => `<div class="card"
+      ${/* #43. EVERY CHAPTER BEFORE THE ONE BEING WRITTEN, summarised or not, so a chapter with no
+            summary can be found and given one. The current chapter joins only once it has a
+            summary, which is what "Summarise this chapter" below has always shown here. */
+        V.chapters.filter((c) => c.index < V.currentChapter.index
+          || (c.id === V.currentChapter.id && c.summary)).map((c) => {
+        const editing = S.editSum?.id === c.id;
+        const prose = V.passages.some((p) => p.chapterId === c.id && !p.isBreak && String(p.body).trim());
+        return `<div class="card" data-sumcard="${c.id}"
         style="margin-bottom:8px; ${c.keepWhole ? 'border-color:var(--gold-dim);' : ''}">
-        <button aria-expanded="false" data-expand="1" style="text-align:left; width:100%">
-          <div style="display:flex; align-items:center; gap:9px">
-            <span class="kind">${esc(c.title || `Chapter ${c.index}`)}</span>
-            <span style="margin-left:auto; font-size:11px; color:var(--faint)">covers to ${c.coversThrough ?? '—'}</span></div>
+        <div style="display:flex; align-items:center; gap:9px">
+          <span class="kind">${esc(c.title || `Chapter ${c.index}`)}</span>
+          ${c.summary ? `<span data-sumauthor style="font-size:11px; color:var(--faint)">${
+            c.summaryAuthor === 'human' ? 'yours' : 'Anansi&rsquo;s'}</span>` : ''}
+          ${c.summary ? `<span style="margin-left:auto; font-size:11px; color:var(--faint)">covers to ${c.coversThrough ?? '—'}</span>` : ''}</div>
+        ${editing ? `<textarea data-sumtext="${c.id}" rows="6" aria-label="Summary of ${esc(c.title || `Chapter ${c.index}`)}"
+            style="width:100%; font-size:12.5px; line-height:1.5">${esc(S.editSum.text)}</textarea>
+          <div style="display:flex; align-items:center; gap:9px; font-size:11.5px">
+            <span class="tnum" data-sumcount style="color:var(--faint)">${plural(wordsIn(S.editSum.text), 'word', 'words')}</span>
+            <span data-sumwarn style="color:var(--faint)" ${wordsIn(S.editSum.text) > SUMMARY_WORDS ? '' : 'hidden'}
+              >longer than the ${SUMMARY_WORDS} Anansi writes &mdash; it still saves</span>
+            <button class="btn ghost" data-cancelsum="1" style="margin-left:auto">Cancel</button>
+            <button class="btn" data-savesum="${c.id}">Save</button></div>`
+        : c.summary ? `<button aria-expanded="false" data-expand="1" style="text-align:left; width:100%">
           <div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(c.summary)}</div>
         </button>
         ${c.summaryStale ? '<div class="hint" style="color:var(--bad)">Stale — excluded from the prompt until it is re-run.</div>' : ''}
+        <button data-editsum="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Edit</button>
         <button data-pullback="${c.id}" data-on="${c.keepWhole ? '0' : '1'}"
           style="font-size:11.5px; text-align:left; color:${c.keepWhole ? 'var(--gold)' : 'var(--faint)'}"
           >${c.keepWhole
             ? '&check; Sent whole &mdash; press to let it go back to its summary'
-            : 'Pull this chapter back &mdash; send its prose, not its summary'}</button>
-      </div>`).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
+            : 'Pull this chapter back &mdash; send its prose, not its summary'}</button>`
+        : `<div class="hint">No summary.</div>${prose
+          ? `<button data-editsum="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Write one</button>` : ''}`}
+      </div>`; }).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
       <button class="btn ghost" data-summarize="1">Summarise this chapter</button>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Acts${
@@ -4452,6 +4474,9 @@ const NAMED = new Set();
  *  came for — and only a chapter close starts at the top. */
 // Two panels count things now. One definition, at the top of both.
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const wordsIn = (s) => (String(s ?? '').match(/\S+/g) || []).length;
+/** What a chapter summary is asked to stay under: `SUMMARY(180)` in src/routes.ts. Advisory only. */
+const SUMMARY_WORDS = 180;
 const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next chapter'], ['more', 'Anyone new']];
 
 /** Issue #32. The four passes a chapter close runs, and what a writer calls each one.
@@ -8157,6 +8182,18 @@ document.addEventListener('change', (e) => {
  *  `input`, not `change`, because this is the half that has to follow the finger. The write is
  *  still on release.
  */
+// #43. The word count under a summary being edited, and the warning past what Anansi writes.
+// The draft is kept in `S` so a repaint mid-edit puts the same words back.
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el?.dataset?.sumtext || S.editSum?.id !== el.dataset.sumtext) return;
+  S.editSum.text = el.value;
+  const n = wordsIn(el.value), card = el.closest('[data-sumcard]');
+  const count = card?.querySelector('[data-sumcount]'), warn = card?.querySelector('[data-sumwarn]');
+  if (count) count.textContent = plural(n, 'word', 'words');
+  if (warn) warn.hidden = n <= SUMMARY_WORDS;
+});
+
 document.addEventListener('input', (e) => {
   const el = e.target;
   if (el?.type !== 'range') return;
@@ -9839,6 +9876,23 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId); paint();
     return toast(r.proposed ? `${r.proposed} proposed as finished, of ${r.eligible} this chapter names`
                             : `Nothing finished, of ${r.eligible ?? 0} this chapter names`);
+  }
+  // #43. A summary by hand. Saving it empty removes it, which is the one press here that loses
+  // words, so it takes two.
+  if (d.editsum) {
+    const c = V.chapters.find((x) => x.id === d.editsum);
+    S.editSum = { id: d.editsum, text: c?.summary ?? '' }; paint();
+    document.querySelector('[data-sumtext]')?.focus();
+    return;
+  }
+  if (d.cancelsum) { S.editSum = null; paint(); return; }
+  if (d.savesum) {
+    const text = document.querySelector(`[data-sumtext="${d.savesum}"]`)?.value ?? S.editSum?.text ?? '';
+    if (!text.trim() && !armed(t, `sum:${d.savesum}`, 'Press again — this removes the summary.')) return;
+    const r = await api.saveSummary(S.storyId, d.savesum, text);
+    if (r.error) return toast(r.error);
+    S.editSum = null; V = r; paint(); refreshManifest();
+    return toast(text.trim() ? 'Saved. This summary is yours now.' : 'Summary removed.');
   }
   if (d.summarize) {
     const r = await whileWorking(t, 'Summarising…', () => api.summarize(S.storyId, V.currentChapter.id));

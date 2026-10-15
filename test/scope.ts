@@ -810,7 +810,7 @@ ok('a story cannot be deleted by someone who does not own it');
   const bCh = db.chapters(bStory.id)[0];
   db.addPassage({ ...bStory, storyId: bStory.id, body: 'Bob wrote the word peregrine here.' });
   db.upsertEntry(bStory.id, bob, { title: 'Peregrine of Bob', body: '[a peregrine only bob knows]' });
-  db.setSummary(bCh.id, 'Bob summarised a peregrine.', 1, 'hash-b');
+  db.setSummary(bCh.id, 'Bob summarised a peregrine.', 1, 'hash-b', 'model');
   // And alice something that must survive being found.
   db.addPassage({ ...aStory, storyId: aStory.id, body: 'Alice also wrote peregrine.' });
 
@@ -1140,6 +1140,64 @@ async function bootServer(port: number, env: Record<string, string>) {
   return { srv, url };
 }
 
+/* ---- A CHAPTER SUMMARY CAN BE WRITTEN BY HAND (#43). A summary is the only thing the model sees
+ * of a chapter once the book moves past it, and until this route the writer could not change one.
+ *
+ * DRIVEN THROUGH THE ROUTE AND READ BACK OFF THE PROMPT, because what the writer is buying is what
+ * the model is sent. The chapter id is not something the dispatcher's gate resolves — it reads
+ * `storyId` and nothing else — so bob naming HIS story and HER chapter is the shape only the route
+ * can refuse. Bob naming her story is the dispatcher's, asserted against a real server below. Its
+ * own book, so nothing it leaves behind reaches another block. */
+{
+  const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 40_000, slots: 1, perSlot: 40_000 }, gen: { max_tokens: 900 }, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  const book = db.createStory(alice, { title: 'Three chapters' });
+  const first = book.chapterId;
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: first,
+    body: 'Mara crossed the river at night.', author: 'human' });
+  const empty = db.endChapter(book.id, book.branchId).opened;          // no prose, ever
+  const third = db.endChapter(book.id, book.branchId).opened;
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: third,
+    body: 'The third chapter has begun.', author: 'human' });
+  // Anansi's summary, gone stale: written against prose the chapter no longer has.
+  db.setSummary(first, 'Mara crossed the river by day.', 1, 'not-this-prose', 'model');
+  const promptNow = async () => ((await routes['POST /api/manifest'](ctx(alice,
+    { storyId: book.id, mode: 'continue' }))) as any).prompt as string;
+  const chapterOf = (v: any, id: string) => (v.chapters ?? []).find((c: any) => c.id === id);
+  const view = (id: string) => routes['GET /api/story']({ ...ctx(alice), query: new URLSearchParams(`story=${id}`) });
+  assert.doesNotMatch(await promptNow(), /river by day/, 'the fixture summary is stale and held back');
+
+  const save = (owner: string, storyId: string, chapterId: string, summary: string) =>
+    routes['POST /api/summary'](ctx(owner, { storyId, chapterId, summary })) as any;
+  const saved = save(alice, book.id, first, 'Mara crossed the river at night, alone.');
+  assert.ok(!saved.error, `a hand save is accepted: ${saved.error ?? ''}`);
+  const shown = chapterOf(saved, first);
+  assert.strictEqual(shown?.summary, 'Mara crossed the river at night, alone.', 'the view carries the new text');
+  assert.strictEqual(shown?.summaryAuthor, 'human', 'and marks it yours');
+  assert.strictEqual(shown?.summaryStale, false, 'and a stale summary fixed by hand is current');
+  assert.match(await promptNow(), /river at night, alone/, 'so it reaches the writing prompt');
+
+  const none = save(alice, book.id, empty, 'Something that never happened.');
+  assert.match(String(none.error ?? ''), /prose/i, 'a hand save on a chapter with no prose is refused');
+  assert.strictEqual(chapterOf(view(book.id), empty)?.summary ?? null, null, 'and nothing is stored');
+
+  // Bob, on his own story, naming her chapter. The gate passes it; the route must not.
+  const bobs = save(bob, bStory.id, first, 'BOB WAS HERE');
+  assert.ok(bobs.error, "a summary save naming another writer's chapter is refused");
+  assert.strictEqual(chapterOf(view(book.id), first)?.summary, 'Mara crossed the river at night, alone.',
+    'and nothing of hers changed');
+
+  const cleared = save(alice, book.id, first, '   ');
+  assert.ok(!cleared.error, `an empty save is accepted: ${cleared.error ?? ''}`);
+  const gone = chapterOf(cleared, first);
+  assert.strictEqual(gone?.summary ?? null, null, 'an empty save removes the summary');
+  assert.strictEqual(gone?.summaryAuthor ?? null, null, 'and who wrote it');
+  assert.strictEqual(gone?.coversThrough ?? null, null, 'and what it covered');
+  assert.doesNotMatch(await promptNow(), /river at night, alone/, 'and it leaves the prompt');
+  ok('a chapter summary is written by hand, counts as current, and only by its own writer');
+}
+
 {
   const PORT = 5187;
   const { srv, url } = await bootServer(PORT, {});
@@ -1169,6 +1227,13 @@ async function bootServer(port: number, env: Record<string, string>) {
     assert.ok((await pushed.json()).error, 'and the route is what refuses it');
     assert.strictEqual(db.entriesOf(aStory.id).length, herBefore,
       "nothing of bob's landed in alice's book");
+
+    // The summary save, as the other writer, on her story (#43). His story naming her chapter is
+    // the route's to refuse, and is asserted against the handler above.
+    const aCh = db.chapters(aStory.id)[0] as any;
+    const sumForeign = await post('/api/summary', { storyId: aStory.id, chapterId: aCh.id, summary: 'BOB' });
+    assert.strictEqual(sumForeign.status, 404, "a summary save naming another writer's story is refused");
+    assert.strictEqual((db.chapters(aStory.id)[0] as any).summary, aCh.summary, 'and her summary is as it was');
 
     // A gated route naming no story at all: the gate cannot resolve an owner, so it fails closed.
     const nameless = await post('/api/write', { body: 'no story named' });

@@ -113,6 +113,76 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   }
 }
 
+// ---- 3b2. A chapter summary edited by hand (#43): Edit, the live word count, Save, Cancel, and
+// emptying in two presses. The seeded book's earlier chapters have summaries and NO prose, and a
+// hand save on a chapter with no prose is refused — so the summary under edit is the current
+// chapter's, written through the route first. The route itself is covered in test/scope.ts; this
+// is the surface.
+{
+  const cur = (await story()).currentChapter.id;
+  const sumOf = async (id) => ((await story()).chapters.find((c) => c.id === id) ?? {}).summary ?? null;
+  const put = await page.eval(`(async () => (await (await fetch('/api/summary', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storyId: '${sid}',
+    chapterId: '${cur}', summary: 'Aldis keeps the key.' }) })).json()).error ?? 'saved')()`);
+  ok(`  the fixture summary is saved through the route (${put})`, put === 'saved');
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await rail()); i++) await wait(250);
+  await page.click('[data-nav="chapter"]');
+  await wait(500);
+  await page.click('[data-chaptab="summaries"]');
+  await wait(300);
+  const cards = await page.eval(`[...document.querySelectorAll('[data-sumcard]')].map(c => c.dataset.sumcard).join(',')`);
+  const all = (await story()).chapters.map((c) => c.id).join(',');
+  ok(`the Summaries list shows every chapter up to the one being written (${cards})`, cards === all);
+  const author = (id) => page.eval(`document.querySelector('[data-sumcard="${id}"] [data-sumauthor]')?.textContent ?? ''`);
+  ok(`  a hand summary says it is yours (${await author(cur)})`, /yours/i.test(await author(cur)));
+  const first = (await story()).chapters[0].id;
+  ok(`  and Anansi's says so (${await author(first)})`, /Anansi/.test(await author(first)));
+
+  await page.click(`[data-editsum="${cur}"]`);
+  await wait(300);
+  const box = () => page.eval(`(() => { const t = document.querySelector('[data-sumtext]');
+    const w = document.querySelector('[data-sumwarn]');
+    return t ? { text: t.value, count: document.querySelector('[data-sumcount]')?.textContent ?? '',
+      warn: !!w && w.offsetParent !== null, save: !!document.querySelector('[data-savesum]:not([disabled])') } : null; })()`);
+  const b0 = await box();
+  ok(`Edit opens the summary in a text box (${JSON.stringify(b0?.text)})`, b0?.text === 'Aldis keeps the key.');
+  ok(`  with its word count (${b0?.count})`, /^4 words/.test(b0?.count ?? ''));
+  const type = (s) => page.eval(`(() => { const t = document.querySelector('[data-sumtext]'); t.value = ${JSON.stringify(s)};
+    t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+  await type(Array(200).fill('word').join(' '));
+  const b1 = await box();
+  ok(`  the count follows the typing (${b1?.count})`, /^200 words/.test(b1?.count ?? ''));
+  ok('  past 180 words a quiet warning shows, and Save is still there', b1?.warn === true && b1?.save === true);
+  await type('Aldis keeps the key and says nothing.');
+  const b2 = await box();
+  ok(`  and under it the warning goes (${b2?.count})`, b2?.warn === false && /^7 words/.test(b2?.count ?? ''));
+  await page.click('[data-cancelsum]');
+  await wait(300);
+  ok('Cancel leaves the summary exactly as it was', (await sumOf(cur)) === 'Aldis keeps the key.'
+    && !(await page.eval("!!document.querySelector('[data-sumtext]')")));
+
+  await page.click(`[data-editsum="${cur}"]`);
+  await wait(300);
+  await type('Aldis keeps the key, and the bell says nothing.');
+  await page.click(`[data-savesum="${cur}"]`);
+  await wait(900);
+  ok('Save stores the new text', (await sumOf(cur)) === 'Aldis keeps the key, and the bell says nothing.');
+  const shown = await page.eval(`document.querySelector('[data-sumcard="${cur}"]')?.textContent ?? ''`);
+  ok('  and the card shows it, and the editor is closed', /the bell says nothing/.test(shown)
+    && !(await page.eval("!!document.querySelector('[data-sumtext]')")));
+
+  await page.click(`[data-editsum="${cur}"]`);
+  await wait(300);
+  await type('   ');
+  await page.click(`[data-savesum="${cur}"]`);
+  await wait(900);
+  ok('saving it empty does nothing on the first press', (await sumOf(cur)) !== null);
+  await page.click(`[data-savesum="${cur}"]`);
+  await wait(900);
+  ok('  and removes the summary on the second', (await sumOf(cur)) === null);
+}
+
 // ---- 3c. A thread's body is not cut off.
 //
 // It was a fixed 96px box, and an invented thread went from 60-120 words to 120-200 on

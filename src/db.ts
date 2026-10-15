@@ -185,6 +185,13 @@ function migrate() {
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   // The other half of the chapter's brief — see the note in the CREATE above.
   add('chapters', 'opens_with', 'TEXT');
+  // #43. Who wrote a chapter summary. Every summary before this column was the model's: there was
+  // no way to write one by hand. Keyed on the null so a second run changes nothing.
+  add('chapters', 'summary_author', 'TEXT');
+  try {
+    db.exec(`UPDATE chapters SET summary_author = 'model'
+             WHERE summary IS NOT NULL AND summary_author IS NULL`);
+  } catch { /* table not created yet on a fresh database */ }
   add('entries', 'field_editors', "TEXT DEFAULT '{}'");
   /* ISSUE #36 · A FOLLOWED CARD, PER CARD.
    *
@@ -467,6 +474,8 @@ CREATE TABLE IF NOT EXISTS chapters (
   -- a direction. (No backticks in here: this is inside a template literal.)
   opens_with TEXT,
   summary TEXT, summary_covers_through INTEGER, summary_hash TEXT,
+  -- WHO WROTE THE SUMMARY: human | model, the two values passages use. Null with no summary.
+  summary_author TEXT,
   status TEXT DEFAULT 'open',          -- open | closed
   -- Pull a compacted chapter's full prose back into context on demand. A summary is a record
   -- of what happened: it carries plot through compaction and throws tone away. Writing a
@@ -1419,9 +1428,42 @@ export function selectVariant(storyId: string, passageId: string) {
 export const proseHash = (bodies: string[]) =>
   createHash('sha256').update(bodies.join('\u0000')).digest('hex').slice(0, 32);
 
-export const setSummary = (chapterId: string, summary: string, through: number, hash: string) =>
-  q('UPDATE chapters SET summary=?, summary_covers_through=?, summary_hash=? WHERE id=?')
-    .run(summary, through, hash, chapterId);
+export const setSummary = (chapterId: string, summary: string, through: number, hash: string,
+    author: 'human' | 'model') =>
+  q('UPDATE chapters SET summary=?, summary_covers_through=?, summary_hash=?, summary_author=? WHERE id=?')
+    .run(summary, through, hash, author, chapterId);
+
+/** THE ONE WAY A SUMMARY IS REMOVED: the text and everything that describes it go together, so a
+ *  removed summary cannot leave an author or a fingerprint behind for the next one to inherit. */
+export const clearSummary = (storyId: string, chapterId: string) =>
+  q(`UPDATE chapters SET summary = NULL, summary_covers_through = NULL, summary_hash = NULL,
+       summary_author = NULL WHERE id = ? AND story_id = ?`).run(chapterId, storyId);
+
+/** WHAT A SUMMARY WRITTEN NOW WOULD COVER: the last passage with words in it, and the fingerprint
+ *  of the chapter's selected prose as it is. Null when the chapter has no prose. One function for
+ *  the model's summary and the writer's, so the two cannot be checked against different prose. */
+export function summaryCover(chapterId: string): { through: number; hash: string } | null {
+  const all = passagesOfChapter(chapterId);
+  const ps = all.filter((p: any) => !p.is_break && p.body.trim());
+  if (!ps.length) return null;
+  return { through: ps.at(-1)!.ordinal, hash: proseHash(all.map((p: any) => p.body)) };
+}
+
+/** A SUMMARY SAVED BY HAND (#43). It is checked against the chapter's prose as it is now: the
+ *  writer has vouched for it, so a stale summary fixed by hand is current again, and it is theirs
+ *  even if one word of Anansi's changed. An empty save removes the summary. The chapter must be in
+ *  this story: the dispatcher's gate resolves `storyId` only, never the chapter id. */
+export function writeSummary(storyId: string, chapterId: string, text: string): { error?: string } {
+  if (!q('SELECT 1 FROM chapters WHERE id = ? AND story_id = ?').get(chapterId, storyId))
+    return { error: 'That chapter is not in this book.' };
+  const summary = String(text ?? '').trim();
+  if (!summary) { clearSummary(storyId, chapterId); touch(storyId); return {}; }
+  const cover = summaryCover(chapterId);
+  if (!cover) return { error: 'This chapter has no prose yet, so there is nothing to summarise.' };
+  setSummary(chapterId, summary, cover.through, cover.hash, 'human');
+  touch(storyId);
+  return {};
+}
 
 /** A CARD EDIT CAN STALE A SUMMARY, and until 2026-08-30 it could not.
  *
@@ -1611,10 +1653,7 @@ export function delAfter(storyId: string, passageId: string):
       .run(storyId, storyId, cur.branch_id, cur.ordinal);
     q('DELETE FROM passages WHERE story_id = ? AND branch_id = ? AND ordinal > ?')
       .run(storyId, cur.branch_id, cur.ordinal);
-    const clear = q(`UPDATE chapters SET summary = NULL,
-                       summary_covers_through = NULL, summary_hash = NULL
-                     WHERE id = ? AND story_id = ?`);
-    for (const id of chapters) clear.run(id, storyId);
+    for (const id of chapters) clearSummary(storyId, id);
     // The empty ones after the cut. `NOT EXISTS` rather than a count, and `idx > ?` rather than
     // "not the cut's own chapter": a chapter BEFORE the cut that happened to be empty already was
     // empty before this press and is not this press's business.
@@ -2769,10 +2808,10 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
       const nid = uid('c-');
       chapterMap.set(ch.id, nid);
       q(`INSERT INTO chapters (id,story_id,branch_id,idx,title,authors_note,opens_with,summary,
-          summary_covers_through,summary_hash,status,created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+          summary_covers_through,summary_hash,summary_author,status,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(nid, storyId, id, ch.idx, ch.title, ch.authors_note, ch.opens_with, ch.summary,
-          ch.summary_covers_through, ch.summary_hash, 'open', t);
+          ch.summary_covers_through, ch.summary_hash, ch.summary_author, 'open', t);
     }
 
     for (const p2 of q(`SELECT * FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1
@@ -2941,10 +2980,11 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
       // write and must have somewhere to write; this is the same book again, and a closed chapter
       // that reopened would put the next passage into a chapter the writer had finished.
       q(`INSERT INTO chapters (id,story_id,branch_id,idx,title,authors_note,opens_with,summary,
-           summary_covers_through,summary_hash,status,keep_whole,created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+           summary_covers_through,summary_hash,summary_author,status,keep_whole,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(nid, made.id, nb, ch.idx, ch.title, ch.authors_note, ch.opens_with, ch.summary,
-          ch.summary_covers_through, ch.summary_hash, ch.status, ch.keep_whole, ch.created_at);
+          ch.summary_covers_through, ch.summary_hash, ch.summary_author, ch.status, ch.keep_whole,
+          ch.created_at);
     }
 
     // EVERY VARIANT, not only the selected one — the other difference from `forkBranch`, which

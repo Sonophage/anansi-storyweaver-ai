@@ -30,7 +30,7 @@ const made = db.createStory(me, { ...input.story, persona: 'Aldis Fen' });
 let chapterId = made.chapterId;
 for (const [i, c] of input.chapters.entries()) {
   db.updateChapter(made.id, chapterId, { title: c.title, authorsNote: c.authorsNote ?? '' });
-  if (c.summary) db.setSummary(chapterId, c.summary, 1, `seed-${i}`);
+  if (c.summary) db.setSummary(chapterId, c.summary, 1, `seed-${i}`, 'model');
   if (i < input.chapters.length - 1) chapterId = db.endChapter(made.id, made.branchId).opened;
 }
 // THE LAST ONE IS DIRECTED, and it is the only passage in this fixture that is. A passage carries
