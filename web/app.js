@@ -9943,7 +9943,12 @@ document.addEventListener('click', async (e) => {
   if (d.summarize) {
     // #45. A summary card names its own chapter; the other Summarise buttons say `1`, the current one.
     const ch = V.chapters.some((x) => x.id === d.summarize) ? d.summarize : V.currentChapter.id;
-    const r = await whileWorking(t, 'Summarising…', () => api.summarize(S.storyId, ch));
+    // #46. YOURS TAKES TWO PRESSES, on every Summarise button, because they all land here. The
+    // second press sends `replace`; the route refuses over yours without it, so this is the ask
+    // and the server is the guard. Anansi's own summary re-runs on one press.
+    const yours = V.chapters.find((x) => x.id === ch)?.summaryAuthor === 'human';
+    if (yours && !armed(t, `resum:${ch}`, 'Press again — this replaces your summary with Anansi\'s.')) return;
+    const r = await whileWorking(t, 'Summarising…', () => api.summarize(S.storyId, ch, yours));
     if (!r) return;
     if (r.error) return toast(r.error); V = await api.story(S.storyId); paint(); return; }
   if (d.extract) {

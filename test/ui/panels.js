@@ -237,16 +237,54 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await page.eval(`(() => { const real = window.__realFetch = window.fetch;
     window.fetch = async (u, o) => {
       if (!String(u).includes('/api/summarize')) return real(u, o);
-      const b = JSON.parse(o.body); window.__sumAsked = b.chapterId;
+      const b = JSON.parse(o.body); window.__sumAsked = b.chapterId; window.__sumReplace = b.replace ?? null;
       return real('/api/summary', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ storyId:b.storyId, chapterId:b.chapterId, summary:'The bell rings twice, and somebody comes.' }) });
     }; return 1; })()`);
-  await page.eval(`(() => { document.querySelector('[data-sumcard="${made.first}"] [data-summarize]')?.click(); return 1; })()`);
+  // YOURS TAKES TWO PRESSES (#46). This book's first summary was saved by hand above, so it is
+  // yours: the first press asks and sends nothing, the second sends `replace`.
+  const pressAgain = () => page.eval(`(() => { document.querySelector('[data-sumcard="${made.first}"] [data-summarize]')?.click(); return 1; })()`);
+  await pressAgain();
+  await wait(500);
+  const asked1 = await page.eval('window.__sumAsked ?? null');
+  const said = ((await page.text('#toast')) || '').trim();
+  ok(`one press of Summarise again over yours sends nothing (${asked1})`, asked1 === null);
+  ok(`  and asks first (${JSON.stringify(said)})`,
+     said === "Press again — this replaces your summary with Anansi's.");
+  await pressAgain();
   for (let i = 0; i < 20 && /Stale/.test(await card()); i++) await wait(250);
   const asked = await page.eval('window.__sumAsked ?? null');
+  const replace = await page.eval('window.__sumReplace ?? null');
   await page.eval('(() => { if (window.__realFetch) window.fetch = window.__realFetch; return 1; })()');
-  ok(`Summarise again on the card sends that card's chapter (${asked === made.first ? 'its own' : asked})`, asked === made.first);
+  ok(`the second press sends that card's chapter (${asked === made.first ? 'its own' : asked})`, asked === made.first);
+  ok(`  and asks to replace yours (${replace})`, replace === true);
   ok('  and the stale note goes', !/Stale/.test(await card()) && /rings twice/.test(await card()));
+}
+
+// ---- 3b4. Anansi's summary still re-runs on ONE press (#46): the guard is for yours only. The
+// Silver Key's first chapter carries Anansi's summary from the seed. The request is caught and
+// answered with an error, so no model is needed; what is asserted is that it was sent.
+{
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await rail()); i++) await wait(250);
+  await page.click('[data-nav="chapter"]');
+  await wait(500);
+  await page.click('[data-chaptab="summaries"]');
+  await wait(300);
+  const first = (await story()).chapters[0].id;
+  await page.eval(`(() => { const real = window.__realFetch = window.fetch; window.__sumAsked = null;
+    window.fetch = async (u, o) => {
+      if (!String(u).includes('/api/summarize')) return real(u, o);
+      const b = JSON.parse(o.body); window.__sumAsked = b.chapterId; window.__sumReplace = b.replace ?? null;
+      return new Response(JSON.stringify({ error: 'caught by the test' }), { headers: { 'Content-Type': 'application/json' } });
+    }; return 1; })()`);
+  await page.eval(`(() => { document.querySelector('[data-sumcard="${first}"] [data-summarize]')?.click(); return 1; })()`);
+  await wait(600);
+  const asked = await page.eval('window.__sumAsked ?? null');
+  const replace = await page.eval('window.__sumReplace ?? null');
+  await page.eval('(() => { if (window.__realFetch) window.fetch = window.__realFetch; return 1; })()');
+  ok(`one press of Summarise again over Anansi's sends it (${asked === first ? 'its own' : asked})`, asked === first);
+  ok(`  without asking to replace anything (${replace})`, !replace);
 }
 
 // ---- 3c. A thread's body is not cut off.

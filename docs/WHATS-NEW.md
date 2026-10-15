@@ -14,8 +14,9 @@ Everything below this line was written by that model call, before it was removed
 
 ### You can write a chapter's summary yourself
 Every summary in Chapter → Summaries can be edited, or written from scratch for a chapter that has
-none. Any chapter can be summarised again, not only the one you are in, so a stale summary is one
-press from coming back.
+none. Anansi will not write over yours without asking twice — not when you press Summarise, and not
+when the chapter closes. Any chapter can be summarised again, not only the one you are in, so a
+stale summary is one press from coming back.
 
 A stale summary now stays out of everything Anansi is asked: chapter proposals leave it out too,
 and when you name its chapter in a question, Anansi is told the summary is stale instead of being
