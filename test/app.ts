@@ -656,7 +656,7 @@ ok('one New story button, on the bar, and the shelf does not repeat it');
 // handler this file exists to drive and `click({ open: 's-1' })` silently opened nothing. The
 // failure surfaced thirty lines later as "the rail must switch to the story nav".
 const click = (dataset: any) => (listeners.click ?? []).forEach((f: Function) => f({
-  target: { closest: () => ({ dataset, querySelector: () => null, disabled: false, textContent: '' }) },
+  target: { closest: () => ({ dataset, querySelector: () => null, disabled: false, textContent: '', style: {} }) },
 }));
 // Switching mode is a change on the dial now, not a click on one of four buttons — see the rail
 // block below. `data-modesel` carries no value of its own; the chosen mode is the select's.
@@ -3445,6 +3445,15 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   click({ panel: 'ritual' });
   await new Promise((r) => setTimeout(r, 30));
   assert.match(html('sideBody'), /Kept your summary/, '  and the closing report says it too');
+  // Summarise again over it, both presses: Anansi has written over what the close kept, so the
+  // report stops saying kept.
+  click({ summarize: 'c-2' });
+  click({ summarize: 'c-2' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ panel: 'ritual' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.doesNotMatch(html('sideBody'), /Kept your summary/,
+    '  and once Anansi writes over it, the closing report stops saying kept');
   // A CLOSE THAT DID NOT KEEP IT does not say kept, even over a summary that is yours: the report
   // says what the close did, and this one did not keep anything.
   endKept = false;

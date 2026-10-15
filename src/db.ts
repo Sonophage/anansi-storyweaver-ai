@@ -1768,10 +1768,9 @@ function afterCut(storyId: string, passageId: string) {
 export function yoursClearedBy(storyId: string, passageId: string): { id: string; index: number; title: string | null }[] {
   const cut = afterCut(storyId, passageId);
   if (!cut?.chapters.length) return [];
-  return (q(`SELECT id, idx, title FROM chapters WHERE story_id = ? AND summary IS NOT NULL
+  return q(`SELECT id, idx AS "index", title FROM chapters WHERE story_id = ? AND summary IS NOT NULL
                AND summary_author = 'human' AND id IN (${cut.chapters.map(() => '?').join(',')})
-             ORDER BY idx`).all(storyId, ...cut.chapters) as any[])
-    .map((c) => ({ id: c.id, index: c.idx, title: c.title ?? null }));
+             ORDER BY idx`).all(storyId, ...cut.chapters) as any[];
 }
 
 /** Flags belong to the passage. SQLite will not cascade here — violations.passage_id has no

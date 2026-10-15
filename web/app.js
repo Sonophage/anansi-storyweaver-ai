@@ -9999,7 +9999,10 @@ document.addEventListener('click', async (e) => {
     if (yours && !armed(t, `resum:${ch}`, 'Press again — this replaces your summary with Anansi\'s.')) return;
     const r = await whileWorking(t, 'Summarising…', () => api.summarize(S.storyId, ch, yours));
     if (!r) return;
-    if (r.error) return toast(r.error); V = await api.story(S.storyId); paint(); return; }
+    if (r.error) return toast(r.error);
+    // What the close kept is gone once Anansi has written over it; the report must stop saying kept.
+    if (S.ritualKept === ch) S.ritualKept = null;
+    V = await api.story(S.storyId); paint(); return; }
   if (d.extract) {
     const r = await whileWorking(t, 'Reading the chapter…', () => api.extract(S.storyId, V.currentChapter.id));
     if (!r) return;

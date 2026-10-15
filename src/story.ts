@@ -96,10 +96,10 @@ export function view(storyId: string, focusChapterId?: string) {
   const addons = db.addonsOf(storyId);
   const pins = db.pinsOf(storyId);
   const arcs = db.arcsOf(storyId);
-  // #47. Which chapter under an act has changed since it was written, or null. Computed on read
-  // from the chapters above, as stale is. It never takes the act out of the prompt.
   // The chapters under an act, one definition for both reads below.
   const under = (a: any) => chapters.filter((c) => c.index >= a.from_chapter && c.index <= a.to_chapter);
+  // #47. Which chapter under an act has changed since it was written, or null. Computed on read
+  // from the chapters above, as stale is. It never takes the act out of the prompt.
   const outOfDate = (a: any) => {
     const r = db.actOutOfDate(a.summaries_hash, under(a));
     if (!r) return null;
