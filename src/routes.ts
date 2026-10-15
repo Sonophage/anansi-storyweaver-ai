@@ -1916,7 +1916,7 @@ export const routes: Record<string, Handler> = {
 
   'POST /api/dismiss': (c: Ctx) => {
     const kind = String(c.body.kind ?? '');
-    if (!['stale', 'horizon'].includes(kind))
+    if (!['stale', 'horizon', 'act'].includes(kind))
       throw Object.assign(new Error(`nothing is dismissed by "${kind}"`), { code: 400 });
     db.dismiss(c.body.storyId, kind, String(c.body.ref ?? ''));
     return viewOf(c.body.storyId);

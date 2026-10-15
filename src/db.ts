@@ -400,6 +400,10 @@ function migrate() {
   // before the first drop by the same guard the column drops use — this rewrites the file
   // somebody's novel is in, which is the whole reason that guard exists.
   repairStrandedChapters();
+  // #47. What each act was built from. Existing acts get their chapters as they are now; see
+  // `backfillActPrints` for what that does and does not promise.
+  add('arcs', 'summaries_hash', 'TEXT');
+  backfillActPrints();
 
   if ((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name = 'outfits'")
     .get() as any).n) {
@@ -484,7 +488,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS chapters_scope ON chapters(id, story_id);
 CREATE TABLE IF NOT EXISTS arcs (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   branch_id TEXT NOT NULL, from_chapter INTEGER NOT NULL, to_chapter INTEGER NOT NULL,
-  title TEXT, summary TEXT NOT NULL, created_at INTEGER NOT NULL);
+  title TEXT, summary TEXT NOT NULL, created_at INTEGER NOT NULL,
+  summaries_hash TEXT);                -- what it was built from: see actPrint
 CREATE INDEX IF NOT EXISTS arcs_story ON arcs(story_id, from_chapter);
 
 CREATE TABLE IF NOT EXISTS passages (
@@ -755,6 +760,8 @@ CREATE TABLE IF NOT EXISTS writer_look (
 -- last chapter of the range. So dismissing is not "never tell me again" — it is "not for this".
 -- Edit that chapter and the summary is stale against a new hash; write past the horizon and the
 -- range ends somewhere new; both come back, which is the difference between quiet and deaf.
+-- An out-of-date act (#47) is a third computed kind, keyed on the act and a hash of what its
+-- chapters' summaries say now, so the next change to one of them brings it back.
 --
 -- A mute is the third, and it is here rather than on violations.status for the same reason: the
 -- checker runs on EVERY new passage, so one entry that has drifted out of step with the prose is
@@ -765,7 +772,7 @@ CREATE TABLE IF NOT EXISTS writer_look (
 -- again once it settles, so the mute ends where the drift does. Lift it and the flags come back.
 CREATE TABLE IF NOT EXISTS dismissals (
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-  kind TEXT NOT NULL,               -- stale | horizon | mute
+  kind TEXT NOT NULL,               -- stale | horizon | act | mute
   ref TEXT NOT NULL,
   at INTEGER NOT NULL,
   PRIMARY KEY (story_id, kind, ref));
@@ -1530,6 +1537,28 @@ export function actOutOfDate(print: string | null | undefined,
     if (c?.summaryStale) return { chapter: i, why: 'stale' };
   }
   return null;
+}
+
+/** The fingerprint of an act's chapters as they are now, read from its own branch. */
+function actPrintAt(storyId: string, branchId: string, from: number, to: number): string {
+  return actPrint((db.prepare(`SELECT idx, summary FROM chapters
+      WHERE story_id = ? AND branch_id = ? AND idx BETWEEN ? AND ?`)
+    .all(storyId, branchId, from, to) as any[]).map((c) => ({ index: c.idx, summary: c.summary })));
+}
+
+/** ACTS MADE BEFORE #47 had no fingerprint. This gives each one the fingerprint of its chapters'
+ *  summaries AS THEY ARE AT MIGRATION TIME, and that is all it promises: an act whose chapter was
+ *  re-summarised before this ran is taken as matching, because nothing recorded what it was built
+ *  from. The check is honest from the migration forward. Runs inside `migrate()` on every boot and
+ *  touches only acts with no fingerprint, so a second run writes nothing. `db.prepare`, not `q`:
+ *  `q` is declared below the `migrate()` call. */
+export function backfillActPrints(): number {
+  const rows = db.prepare('SELECT id, story_id, branch_id, from_chapter, to_chapter FROM arcs WHERE summaries_hash IS NULL')
+    .all() as any[];
+  for (const a of rows)
+    db.prepare('UPDATE arcs SET summaries_hash = ? WHERE id = ?')
+      .run(actPrintAt(a.story_id, a.branch_id, a.from_chapter, a.to_chapter), a.id);
+  return rows.length;
 }
 
 export const passagesOfChapter = (chapterId: string) =>
@@ -2842,9 +2871,9 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
     for (const a of q('SELECT * FROM arcs WHERE story_id = ? AND branch_id = ?')
       .all(storyId, fromBranchId) as any[])
       if (a.to_chapter <= maxIdx)
-        q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at)
-           VALUES (?,?,?,?,?,?,?,?)`)
-          .run(uid('a-'), storyId, id, a.from_chapter, a.to_chapter, a.title, a.summary, t);
+        q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at,summaries_hash)
+           VALUES (?,?,?,?,?,?,?,?,?)`)
+          .run(uid('a-'), storyId, id, a.from_chapter, a.to_chapter, a.title, a.summary, t, a.summaries_hash);
 
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
@@ -3017,9 +3046,9 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
     for (const a of q('SELECT * FROM arcs WHERE story_id = ?').all(storyId) as any[]) {
       const nb = branchMap.get(a.branch_id);
       if (!nb) continue;
-      q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at)
-         VALUES (?,?,?,?,?,?,?,?)`)
-        .run(uid('a-'), made.id, nb, a.from_chapter, a.to_chapter, a.title, a.summary, a.created_at);
+      q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at,summaries_hash)
+         VALUES (?,?,?,?,?,?,?,?,?)`)
+        .run(uid('a-'), made.id, nb, a.from_chapter, a.to_chapter, a.title, a.summary, a.created_at, a.summaries_hash);
     }
 
     // What the book promised and has not paid. `import.fromExport` carries these for the reason
@@ -3110,18 +3139,28 @@ export const arcsOf = (storyId: string) => q(
   .all(storyId, activeBranchOf(storyId)) as any[];
 export function addArc(storyId: string, a: any) {
   const id = uid('a-');
-  q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at)
-     VALUES (?,?,?,?,?,?,?,?)`)
-    .run(id, storyId, a.branchId, a.fromChapter, a.toChapter, a.title ?? null, a.summary, now());
+  // The fingerprint is taken HERE and in `updateArc`, not by their callers, so a roll-up and a hand
+  // save cannot disagree about what "built from" means.
+  q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at,summaries_hash)
+     VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(id, storyId, a.branchId, a.fromChapter, a.toChapter, a.title ?? null, a.summary, now(),
+      actPrintAt(storyId, a.branchId, a.fromChapter, a.toChapter));
   return id;
 }
 export const delArc = (storyId: string, id: string) =>
   q('DELETE FROM arcs WHERE id = ? AND story_id = ?').run(id, storyId);
-/** An act edited by hand: its text and its title, nothing else. Scoped by story like `delArc`, so
- *  an act id from another book changes nothing. Answers whether a row was changed. */
-export const updateArc = (storyId: string, id: string, title: string | null, summary: string) =>
-  Number(q('UPDATE arcs SET title = ?, summary = ? WHERE id = ? AND story_id = ?')
-    .run(title, summary, id, storyId).changes) > 0;
+/** An act edited by hand: its text and its title, and the fingerprint of its chapters as they are
+ *  now — the writer has vouched for it against them, so it is no longer out of date (#47). Scoped
+ *  by story like `delArc`, so an act id from another book changes nothing. Answers whether a row
+ *  was changed. */
+export function updateArc(storyId: string, id: string, title: string | null, summary: string) {
+  const a = q('SELECT branch_id, from_chapter, to_chapter FROM arcs WHERE id = ? AND story_id = ?')
+    .get(id, storyId) as any;
+  if (!a) return false;
+  return Number(q('UPDATE arcs SET title = ?, summary = ?, summaries_hash = ? WHERE id = ? AND story_id = ?')
+    .run(title, summary, actPrintAt(storyId, a.branch_id, a.from_chapter, a.to_chapter), id, storyId)
+    .changes) > 0;
+}
 
 /** FINISHED, from a chapter onward. A dead character, a burned building, a rule that stopped
  *  applying — PLAN-08's "a thread can be finished", and the write half of a column that has had a

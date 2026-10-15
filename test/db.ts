@@ -3033,4 +3033,49 @@ ok('an act is out of date when a covered summary changed or a covered chapter is
     'a fingerprint taken again from the chapters as they are now clears it');
 });
 
+/* A BRANCH CARRIES WHAT EACH ACT WAS BUILT FROM. An act out of date on the trunk is out of date on
+ * the fork, naming the same chapter -- a fork that dropped the fingerprint would read every act as
+ * current. The whole-book copy is guarded by the every-column comparison above. */
+ok('a branch keeps what each act was built from, so out of date works on the fork', () => {
+  const me = db.owner('acts');
+  const b: any = db.createStory(me, { title: 'Fork of acts', premise: 'p' });
+  const at = (chId: string, body: string) =>
+    db.addPassage({ storyId: b.id, branchId: b.branchId, chapterId: chId, body })!;
+  const sum = (chId: string, text: string) => {
+    const ps = db.passagesOfChapter(chId);
+    db.setSummary(chId, text, ps.at(-1).ordinal, db.proseHash(ps.map((p: any) => p.body)));
+  };
+  at(b.chapterId, 'One.');
+  const two = db.endChapter(b.id, b.branchId).opened;
+  at(two, 'Two.');
+  db.endChapter(b.id, b.branchId);
+  const last = db.passagesOfChapter(two).at(-1).ordinal;
+  sum(b.chapterId, 'First.'); sum(two, 'Second.');
+  db.addArc(b.id, { branchId: b.branchId, fromChapter: 1, toChapter: 2, summary: 'Both.' });
+  sum(two, 'Second, again.');
+  const outOn = (storyId: string) => {
+    const a = db.arcsOf(storyId)[0];
+    const chs = db.chapters(storyId).filter((c: any) => c.idx >= a.from_chapter && c.idx <= a.to_chapter)
+      .map((c: any) => ({ index: c.idx, summary: c.summary, summaryStale: db.summaryStale(c) }));
+    return db.actOutOfDate(a.summaries_hash, chs);
+  };
+  assert.deepStrictEqual(outOn(b.id), { chapter: 2, why: 'changed' }, 'the act is out of date on the trunk');
+  const fork = db.forkBranch(b.id, b.branchId, last, 'the other way')!;
+  db.setActiveBranch(b.id, fork);
+  assert.deepStrictEqual(outOn(b.id), { chapter: 2, why: 'changed' },
+    'and on the fork, naming the same chapter');
+
+  // AN ACT FROM BEFORE #47 has no fingerprint. The migration gives it its chapters as they are now,
+  // and only acts that have none: a second run changes nothing. Read on the trunk again, where
+  // `two` is.
+  db.setActiveBranch(b.id, b.branchId);
+  raw.prepare('UPDATE arcs SET summaries_hash = NULL WHERE story_id = ?').run(b.id);
+  assert.ok(db.backfillActPrints() >= 2, 'the migration fills the acts that have no fingerprint');
+  assert.strictEqual(outOn(b.id), null, 'and takes their chapters as they are at migration time');
+  sum(two, 'Second, a third time.');
+  assert.deepStrictEqual(outOn(b.id), { chapter: 2, why: 'changed' }, 'from then on the check is live');
+  assert.strictEqual(db.backfillActPrints(), 0, 'and a second run writes nothing');
+  db.delStory(b.id);
+});
+
 console.log(`\n${n} checks passed`);
