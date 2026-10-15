@@ -58,7 +58,10 @@ fail=0
 # green" over sixteen of eighteen. `test/web.ts` reads this file and refuses a recorded death.
 # /tmp on purpose, at Seth's call: it is a fact about THIS machine at THIS moment, not about the
 # code, so it does not belong in the tree and must never be committed.
-RESULTS=${ANANSI_UI_RESULTS:-/tmp/anansi-ui-results.json}
+# ONE FILE PER CHECKOUT, keyed on the checkout's real path. A single /tmp name was shared by every
+# worktree on the machine, so a deliberate red in one (falsifying a test) failed `test/all.ts` in
+# all the others, 2026-10-14. `test/web.ts` derives the same name; the two must agree.
+RESULTS=${ANANSI_UI_RESULTS:-/tmp/anansi-ui-results-$(printf %s "$(pwd -P)" | sha256sum | cut -c1-8).json}
 rows=""
 for s in $scenarios; do
   fresh

@@ -29,8 +29,15 @@ if (db.listStories(me).some((s: any) => s.title === input.story.title)) {
   const acts = db.createStory(me, { title: 'A Book In Acts', premise: 'For editing an act.' });
   db.endChapter(acts.id, acts.branchId);
   db.endChapter(acts.id, acts.branchId);
+  // #47. The act is built from these two summaries, then chapter two is summarised again, so the act
+  // opens out of date naming it. The same write `summarise()` ends in, without the model in front.
+  const [one, two] = db.chapters(acts.id);
+  const sum = (id: string, text: string) => db.setSummary(id, text, 0, db.proseHash([]), 'model');
+  sum(one.id, 'Aldis borrows from Marek against the key.');
+  sum(two.id, 'Aldis learns the vault is below the waterline.');
   db.addArc(acts.id, { branchId: acts.branchId, fromChapter: 1, toChapter: 2, title: 'Short to Water',
     summary: 'Aldis borrows from Marek against the key, and learns the vault is below the waterline.' });
+  sum(two.id, 'Aldis learns the vault floods at every tide.');
 }
 
 // `persona` is a UI-level field the engine fixture does not carry — buildContext never reads a

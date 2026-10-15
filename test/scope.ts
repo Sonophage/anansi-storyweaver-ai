@@ -1084,6 +1084,78 @@ ok('a story cannot be deleted by someone who does not own it');
   ok('an act is edited in place, an empty one is refused, and only in its own book');
 }
 
+// AN ACT SAYS WHEN IT IS OUT OF DATE (#47). Asserted on the view the routes answer with and on the
+// prompt, never on the row. `summarise()` ends in `db.setSummary` with the prose fingerprint, so
+// `resum` below is a re-run without the model call in front of it.
+{
+  const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 40_000, slots: 1, perSlot: 40_000 }, gen: { max_tokens: 900 }, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  const { view } = await import('../src/story.ts');
+  const book = db.createStory(alice, { title: 'Alice, out of date' });
+  const ch1 = book.chapterId;
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: ch1, body: 'Aldis took the key.' });
+  const ch2 = db.endChapter(book.id, book.branchId, 'The Water').opened;
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: ch2, body: 'The vault flooded.' });
+  db.endChapter(book.id, book.branchId);
+  db.endChapter(book.id, book.branchId);
+  const resum = (chId: string, text: string) => {
+    const ps = db.passagesOfChapter(chId);
+    db.setSummary(chId, text, ps.at(-1).ordinal, db.proseHash(ps.map((p: any) => p.body)), 'model');
+  };
+  resum(ch1, 'Aldis takes the key from Marek.');
+  resum(ch2, 'The vault floods.');
+  const act = db.addArc(book.id, { branchId: book.branchId, fromChapter: 1, toChapter: 2,
+    title: 'Key to Water', summary: 'Aldis takes the key and the vault floods.' });
+  const actIn = (v: any) => (v.arcs ?? []).find((a: any) => a.id === act);
+
+  assert.strictEqual(actIn(view(book.id)).outOfDate, null, 'a fresh act is not out of date');
+
+  resum(ch2, 'The vault holds, for now.');
+  const changed = actIn(view(book.id)).outOfDate;
+  assert.strictEqual(changed?.chapter, 2, 're-summarising a chapter under the act puts it out of date');
+  assert.strictEqual(changed?.title, 'The Water', 'and the act names that chapter');
+  const sent = (await routes['POST /api/manifest'](ctx(alice, { storyId: book.id, mode: 'continue' })) as any).prompt;
+  assert.match(sent, /Aldis takes the key and the vault floods/, 'an out-of-date act still reaches the model');
+
+  // THE WAITING LIST carries it, and a dismissal is "not for this": keyed on the act and what its
+  // chapters say now, so the next change brings it back.
+  const waitingFor = (v: any) => (v.waiting.acts ?? []).find((a: any) => a.id === act);
+  const listed = waitingFor(view(book.id));
+  assert.strictEqual(listed?.chapter, 2, 'an out-of-date act is on the waiting list, naming the chapter');
+  const quiet: any = routes['POST /api/dismiss'](ctx(alice, { storyId: book.id, kind: 'act', ref: listed.ref }));
+  assert.ok(!waitingFor(quiet), 'waving it away takes it off the waiting list');
+  resum(ch2, 'The vault holds, and then it does not.');
+  assert.ok(waitingFor(view(book.id)), 'and the next change to that chapter brings it back');
+
+  const saved: any = routes['POST /api/arc'](ctx(alice, { storyId: book.id, id: act,
+    title: 'Key to Water', summary: 'Aldis takes the key. The vault holds, for now.' }));
+  assert.strictEqual(actIn(saved).outOfDate, null, 'saving the act by hand clears out of date');
+  assert.ok(!waitingFor(saved), 'and takes it off the waiting list');
+
+  // A CHAPTER SUMMARY SAVED BY HAND (#43's route) is a change under the act like a re-run is. Only
+  // the act's own roll-up and hand save move what it was built from.
+  const mine: any = routes['POST /api/summary'](ctx(alice, { storyId: book.id, chapterId: ch2,
+    summary: 'The vault floods at every tide.' }));
+  assert.strictEqual(actIn(mine)?.outOfDate?.chapter, 2,
+    'a chapter summary saved by hand puts the act over it out of date');
+
+  // THE OTHER CAUSE: the chapter's prose moves under its summary, so it is stale. A hand save of the
+  // act clears this one too (Seth, 2026-10-14): the writer has seen it and vouched for the act.
+  routes['POST /api/arc'](ctx(alice, { storyId: book.id, id: act,
+    title: 'Key to Water', summary: 'Aldis takes the key. The vault floods at every tide.' }));
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: ch1, body: 'He gave it back.' });
+  const stale = actIn(view(book.id)).outOfDate;
+  assert.deepStrictEqual([stale?.chapter, stale?.why], [1, 'stale'], 'a stale chapter under the act puts it out of date');
+  const vouched: any = routes['POST /api/arc'](ctx(alice, { storyId: book.id, id: act,
+    title: 'Key to Water', summary: 'Aldis takes the key, and gives it back.' }));
+  assert.strictEqual(actIn(vouched).outOfDate, null, 'saving the act by hand clears out of date even over a stale chapter');
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: ch2, body: 'The water rises.' });
+  assert.deepStrictEqual([actIn(view(book.id)).outOfDate?.chapter, actIn(view(book.id)).outOfDate?.why], [2, 'stale'],
+    'and a chapter that goes stale after that save still puts it out of date');
+  ok('an act is out of date when a chapter under it changed, still reaches the model, and a hand save clears it');
+}
+
 // A real server, because the gate is four lines inside serve.ts's request handler and testing a
 // copy of it would prove a copy. Spawned as a child on a spare port against this database, as
 // the OTHER writer.

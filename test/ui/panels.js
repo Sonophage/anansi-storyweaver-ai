@@ -1480,12 +1480,21 @@ if (btn) {
     if (!t) return 0; t.value = ${JSON.stringify(text)}; t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
   const words = () => page.text('[data-arcwords]').then((x) => (x || '').replace(/\s+/g, ' ').trim());
   ok("the seed has a book with an act in it", !!aid);
+  // #47. The seed summarised chapter two again after the act was built, so the act is out of date.
+  await page.goto(B + "/#" + aid + "/waiting");
+  await wait(900);
+  const waiting = (await page.text('#sideBody')) || '';
+  ok(`the waiting list carries the out-of-date act (${waiting.replace(/\s+/g, ' ').slice(0, 70)})`,
+     /Short to Water is out of date/.test(waiting) && /Chapter 2/.test(waiting)
+     && await page.visible('[data-dismiss="act"]'));
   await page.goto(B + "/#" + aid + "/chapter");
   await wait(900);
   await page.click('[data-chaptab="summaries"]');
   await wait(300);
   const was = await arcOf();
   ok(`  its act card offers Edit (${was?.title})`, await page.visible('[data-editarc]'));
+  const note = ((await page.text('[data-arcstale]')) || '').replace(/\s+/g, ' ').trim();
+  ok(`  and its card says it is out of date, naming the chapter (${note})`, /Chapter 2/.test(note));
 
   await page.click('[data-editarc]');
   await wait(300);
@@ -1529,6 +1538,7 @@ if (btn) {
   ok("  past 220 words, because the warning never blocks", now.summary.split(' ').length === 230);
   ok("  the editor closes", !(await page.visible('[data-arctext]')));
   ok("  and the card shows the new text", /Marek water water/.test(await page.text('#sideBody') || ''));
+  ok("  and saving by hand cleared out of date", !(await page.visible('[data-arcstale]')));
 }
 
 // ---- 16. strings: what the story owes, and what the model is told about it

@@ -407,6 +407,10 @@ function migrate() {
   // before the first drop by the same guard the column drops use — this rewrites the file
   // somebody's novel is in, which is the whole reason that guard exists.
   repairStrandedChapters();
+  // #47. What each act was built from. Existing acts get their chapters as they are now; see
+  // `backfillActPrints` for what that does and does not promise.
+  add('arcs', 'summaries_hash', 'TEXT');
+  backfillActPrints();
 
   if ((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name = 'outfits'")
     .get() as any).n) {
@@ -493,7 +497,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS chapters_scope ON chapters(id, story_id);
 CREATE TABLE IF NOT EXISTS arcs (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   branch_id TEXT NOT NULL, from_chapter INTEGER NOT NULL, to_chapter INTEGER NOT NULL,
-  title TEXT, summary TEXT NOT NULL, created_at INTEGER NOT NULL);
+  title TEXT, summary TEXT NOT NULL, created_at INTEGER NOT NULL,
+  summaries_hash TEXT);                -- what it was built from: see actPrint
 CREATE INDEX IF NOT EXISTS arcs_story ON arcs(story_id, from_chapter);
 
 CREATE TABLE IF NOT EXISTS passages (
@@ -764,6 +769,8 @@ CREATE TABLE IF NOT EXISTS writer_look (
 -- last chapter of the range. So dismissing is not "never tell me again" — it is "not for this".
 -- Edit that chapter and the summary is stale against a new hash; write past the horizon and the
 -- range ends somewhere new; both come back, which is the difference between quiet and deaf.
+-- An out-of-date act (#47) is a third computed kind, keyed on the act and a hash of what its
+-- chapters' summaries say now, so the next change to one of them brings it back.
 --
 -- A mute is the third, and it is here rather than on violations.status for the same reason: the
 -- checker runs on EVERY new passage, so one entry that has drifted out of step with the prose is
@@ -774,7 +781,7 @@ CREATE TABLE IF NOT EXISTS writer_look (
 -- again once it settles, so the mute ends where the drift does. Lift it and the flags come back.
 CREATE TABLE IF NOT EXISTS dismissals (
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-  kind TEXT NOT NULL,               -- stale | horizon | mute
+  kind TEXT NOT NULL,               -- stale | horizon | act | mute
   ref TEXT NOT NULL,
   at INTEGER NOT NULL,
   PRIMARY KEY (story_id, kind, ref));
@@ -1531,6 +1538,75 @@ export function summaryStale(chapter: any): boolean {
   if (!chapter.summary) return false;
   if (!chapter.summary_hash) return true;
   return proseHash(passagesOfChapter(chapter.id).map((p: any) => p.body)) !== chapter.summary_hash;
+}
+
+/** WHAT AN ACT WAS BUILT FROM (#47): one short hash per covered chapter's summary, keyed by the
+ *  chapter's number, as `3:hash 4:hash~`. Per chapter rather than one hash over all of them, so the
+ *  check below can name WHICH chapter changed. A trailing `~` records that the chapter was already
+ *  stale when the act was saved: the writer saw it and vouched for the act anyway. Taken at roll-up and at a hand save (`addArc`,
+ *  `updateArc`), so either one makes the act current against its chapters as they are then.
+ *  Function declarations, not consts: `backfillActPrints` runs inside `migrate()`, above the line
+ *  where a const here would exist. */
+export function actPrint(chapters: { index: number; summary?: string | null; summaryStale?: boolean }[]): string {
+  return [...chapters].sort((a, b) => a.index - b.index)
+    .map((c) => `${c.index}:${summaryPrint(c.summary)}${c.summaryStale ? '~' : ''}`).join(' ');
+}
+function summaryPrint(summary?: string | null) {
+  return createHash('sha256').update(String(summary ?? '')).digest('hex').slice(0, 12);
+}
+
+/** IS AN ACT OUT OF DATE, and if so which chapter made it so. Computed on read, as stale is:
+ *  nothing stores "out of date". Two causes, checked chapter by chapter from the first:
+ *  - `changed`: the chapter's summary no longer matches what the act was built from (re-run,
+ *    edited, or cleared);
+ *  - `stale`: the chapter's summary no longer matches its prose, so the act describes prose that
+ *    has moved.
+ *  A hand save of the act ALWAYS clears it, Seth's call on 2026-10-14: a chapter that was already
+ *  stale when the act was saved is recorded with `~` and does not count. A chapter that goes stale
+ *  AFTER the save still does.
+ *  An act with no fingerprint has nothing to compare, so only the stale cause applies. Out of date
+ *  never excludes: the context engine still sends the act, because covered chapters send nothing. */
+export function actOutOfDate(print: string | null | undefined,
+  chapters: { index: number; summary?: string | null; summaryStale?: boolean }[],
+): { chapter: number; why: 'changed' | 'stale' } | null {
+  const was = new Map((print ?? '').split(' ').filter(Boolean).map((p) => {
+    const at = p.indexOf(':');
+    return [Number(p.slice(0, at)), p.slice(at + 1)] as [number, string];
+  }));
+  const vouched = (i: number) => was.get(i)?.endsWith('~') ?? false;
+  const now = new Map(chapters.map((c) => [c.index, c]));
+  const indices = [...new Set([...(print ? was.keys() : []), ...now.keys()])].sort((a, b) => a - b);
+  for (const i of indices) {
+    const c = now.get(i);
+    if (print && was.get(i)?.replace(/~$/, '') !== summaryPrint(c?.summary)) return { chapter: i, why: 'changed' };
+    if (c?.summaryStale && !vouched(i)) return { chapter: i, why: 'stale' };
+  }
+  return null;
+}
+
+/** The fingerprint of an act's chapters as they are now, read from its own branch. `withStale`
+ *  marks the chapters already stale; off for the migration backfill, which runs inside `migrate()`
+ *  before `summaryStale` can read passages. */
+function actPrintAt(storyId: string, branchId: string, from: number, to: number, withStale = false): string {
+  return actPrint((db.prepare(`SELECT id, idx, summary, summary_hash FROM chapters
+      WHERE story_id = ? AND branch_id = ? AND idx BETWEEN ? AND ?`)
+    .all(storyId, branchId, from, to) as any[])
+    .map((c) => ({ index: c.idx, summary: c.summary, summaryStale: withStale && summaryStale(c) })));
+}
+
+/** ACTS MADE BEFORE #47 had no fingerprint. This gives each one the fingerprint of its chapters'
+ *  summaries AS THEY ARE AT MIGRATION TIME, and that is all it promises: an act whose chapter was
+ *  re-summarised before this ran is taken as matching, because nothing recorded what it was built
+ *  from. The check is honest from the migration forward. Runs inside `migrate()` on every boot and
+ *  touches only acts with no fingerprint, so a second run writes nothing. `db.prepare`, not `q`:
+ *  `q` is declared below the `migrate()` call. */
+export function backfillActPrints(): number {
+  const rows = db.prepare('SELECT id, story_id, branch_id, from_chapter, to_chapter FROM arcs WHERE summaries_hash IS NULL')
+    .all() as any[];
+  for (const a of rows)
+    db.prepare('UPDATE arcs SET summaries_hash = ? WHERE id = ?')
+      .run(actPrintAt(a.story_id, a.branch_id, a.from_chapter, a.to_chapter), a.id);
+  return rows.length;
 }
 
 export const passagesOfChapter = (chapterId: string) =>
@@ -2840,9 +2916,9 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
     for (const a of q('SELECT * FROM arcs WHERE story_id = ? AND branch_id = ?')
       .all(storyId, fromBranchId) as any[])
       if (a.to_chapter <= maxIdx)
-        q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at)
-           VALUES (?,?,?,?,?,?,?,?)`)
-          .run(uid('a-'), storyId, id, a.from_chapter, a.to_chapter, a.title, a.summary, t);
+        q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at,summaries_hash)
+           VALUES (?,?,?,?,?,?,?,?,?)`)
+          .run(uid('a-'), storyId, id, a.from_chapter, a.to_chapter, a.title, a.summary, t, a.summaries_hash);
 
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
@@ -3016,9 +3092,9 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
     for (const a of q('SELECT * FROM arcs WHERE story_id = ?').all(storyId) as any[]) {
       const nb = branchMap.get(a.branch_id);
       if (!nb) continue;
-      q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at)
-         VALUES (?,?,?,?,?,?,?,?)`)
-        .run(uid('a-'), made.id, nb, a.from_chapter, a.to_chapter, a.title, a.summary, a.created_at);
+      q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at,summaries_hash)
+         VALUES (?,?,?,?,?,?,?,?,?)`)
+        .run(uid('a-'), made.id, nb, a.from_chapter, a.to_chapter, a.title, a.summary, a.created_at, a.summaries_hash);
     }
 
     // What the book promised and has not paid. `import.fromExport` carries these for the reason
@@ -3109,18 +3185,28 @@ export const arcsOf = (storyId: string) => q(
   .all(storyId, activeBranchOf(storyId)) as any[];
 export function addArc(storyId: string, a: any) {
   const id = uid('a-');
-  q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at)
-     VALUES (?,?,?,?,?,?,?,?)`)
-    .run(id, storyId, a.branchId, a.fromChapter, a.toChapter, a.title ?? null, a.summary, now());
+  // The fingerprint is taken HERE and in `updateArc`, not by their callers, so a roll-up and a hand
+  // save cannot disagree about what "built from" means.
+  q(`INSERT INTO arcs (id,story_id,branch_id,from_chapter,to_chapter,title,summary,created_at,summaries_hash)
+     VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(id, storyId, a.branchId, a.fromChapter, a.toChapter, a.title ?? null, a.summary, now(),
+      actPrintAt(storyId, a.branchId, a.fromChapter, a.toChapter, true));
   return id;
 }
 export const delArc = (storyId: string, id: string) =>
   q('DELETE FROM arcs WHERE id = ? AND story_id = ?').run(id, storyId);
-/** An act edited by hand: its text and its title, nothing else. Scoped by story like `delArc`, so
- *  an act id from another book changes nothing. Answers whether a row was changed. */
-export const updateArc = (storyId: string, id: string, title: string | null, summary: string) =>
-  Number(q('UPDATE arcs SET title = ?, summary = ? WHERE id = ? AND story_id = ?')
-    .run(title, summary, id, storyId).changes) > 0;
+/** An act edited by hand: its text and its title, and the fingerprint of its chapters as they are
+ *  now — the writer has vouched for it against them, so it is no longer out of date (#47). Scoped
+ *  by story like `delArc`, so an act id from another book changes nothing. Answers whether a row
+ *  was changed. */
+export function updateArc(storyId: string, id: string, title: string | null, summary: string) {
+  const a = q('SELECT branch_id, from_chapter, to_chapter FROM arcs WHERE id = ? AND story_id = ?')
+    .get(id, storyId) as any;
+  if (!a) return false;
+  return Number(q('UPDATE arcs SET title = ?, summary = ?, summaries_hash = ? WHERE id = ? AND story_id = ?')
+    .run(title, summary, actPrintAt(storyId, a.branch_id, a.from_chapter, a.to_chapter, true), id, storyId)
+    .changes) > 0;
+}
 
 /** FINISHED, from a chapter onward. A dead character, a burned building, a rule that stopped
  *  applying — PLAN-08's "a thread can be finished", and the write half of a column that has had a

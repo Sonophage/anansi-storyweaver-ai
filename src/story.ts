@@ -96,6 +96,15 @@ export function view(storyId: string, focusChapterId?: string) {
   const addons = db.addonsOf(storyId);
   const pins = db.pinsOf(storyId);
   const arcs = db.arcsOf(storyId);
+  // #47. Which chapter under an act has changed since it was written, or null. Computed on read
+  // from the chapters above, as stale is. It never takes the act out of the prompt.
+  const outOfDate = (a: any) => {
+    const r = db.actOutOfDate(a.summaries_hash,
+      chapters.filter((c) => c.index >= a.from_chapter && c.index <= a.to_chapter));
+    if (!r) return null;
+    const ch = chapters.find((c) => c.index === r.chapter);
+    return { ...r, title: ch?.title ?? null };
+  };
   return {
     // PLAN-08. The slot list travels with the view rather than being copied into the browser: the
     // database enforces exclusivity off `src/slots.ts` and the screen has to agree with it, and a
@@ -138,6 +147,17 @@ export function view(storyId: string, focusChapterId?: string) {
         flags: db.violationsOf(storyId).filter((f: any) => f.status !== 'dismissed').length,
         stale: stale.map((c: any) => ({ id: c.id, index: c.index, title: c.title,
                                         ref: db.summaryHashOf(c.id) ?? c.id })),
+        // #47. Out-of-date acts. The ref is the act and what its chapters' summaries say NOW, so
+        // waving one away is "not for this": the next change to a chapter under it brings it back.
+        acts: arcs.flatMap((a: any) => {
+          const o = outOfDate(a);
+          if (!o) return [];
+          const ref = `${a.id}:${db.proseHash([db.actPrint(
+            chapters.filter((c) => c.index >= a.from_chapter && c.index <= a.to_chapter))])}`;
+          return off.has(`act:${ref}`) ? [] : [{ id: a.id, ref, title: a.title,
+            fromChapter: a.from_chapter, toChapter: a.to_chapter,
+            chapter: o.chapter, why: o.why, chapterTitle: o.title }];
+        }),
       };
     })(),
     // The chapter you are working in, not simply the last one. Every chapter-scoped feature —
@@ -214,7 +234,7 @@ export function view(storyId: string, focusChapterId?: string) {
     edges: db.edgesOf(storyId).map((e: any) => ({ id: e.id, parentId: e.parent_id,
       childId: e.child_id, confidence: e.confidence, keys: JSON.parse(e.keys || '[]') })),
     arcs: arcs.map((a: any) => ({ id: a.id, fromChapter: a.from_chapter, toChapter: a.to_chapter,
-      title: a.title, summary: a.summary })),
+      title: a.title, summary: a.summary, outOfDate: outOfDate(a) })),
     violations: db.violationsOf(storyId).map((v: any) => ({
       id: v.id, passageId: v.passage_id, entryId: v.entry_id, quote: v.quote,
       reason: v.reason, confidence: v.confidence, reached: v.reached !== 0,
