@@ -330,6 +330,9 @@ let shelfOverride: any = null;
 let endPasses: any = undefined;
 // #46. Whether the close kept a summary that was yours. Undefined is every close but that one.
 let endKept: any = undefined;
+// #46. What `GET /api/after` names for delete-after's first press, and the passage it was asked about.
+let afterYours: any[] = [];
+let afterAsked: string | null = null;
 // bugs.md #9. Which row the stubbed generation says it landed, or undefined for an older server that
 // lands nothing and leaves the client to accept.
 let stubPassageId: string | undefined = undefined;
@@ -493,6 +496,8 @@ let stubPassageId: string | undefined = undefined;
     // normal answer — every pass ran — and a route that predates the field returns nothing at all,
     // which has to read the same way.
     : url.startsWith('/api/chapter/end') ? { ...STORY, passes: endPasses, keptSummary: endKept }
+    : url.startsWith('/api/after?') ? (afterAsked = new URLSearchParams(url.split('?')[1]).get('id'),
+        { yours: afterYours })
     : url.startsWith('/api/manifest') ? MANIFEST
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
@@ -3463,34 +3468,32 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   // ---- DELETE-AFTER NAMES THE SUMMARIES OF YOURS IT WOULD CLEAR (#46). It clears the summary of
   // every chapter that loses a passage, and a summary that is yours is words the writer typed. The
-  // first press is where they learn which ones; the route is unchanged.
+  // first press is where they learn which ones. WHICH ones is the server's answer, read off the cut
+  // the delete makes (test/scope.ts holds the two together); this is that the press asks it about
+  // the passage pressed, and says what it was told.
   {
     // A target with a `style`, because `armed()` rings a button that has no label to swap.
     const press = (dataset: any) => (listeners.click ?? []).forEach((f: Function) => f({
       target: { closest: () => ({ dataset, querySelector: () => null, style: {}, disabled: false, textContent: '' }) },
     }));
     const said = () => String(nodes.get('toast').textContent);
-    const wasChapters = STORY.chapters;
-    // Both chapters' summaries are yours. Cutting below p-0 (the last passage of c-1) removes only
-    // passages in c-2, so c-2 is named and c-1 is not.
-    STORY.chapters = STORY.chapters.map((c: any) => ({ ...c, summary: c.summary ?? 'The envoy waits.',
-      summaryAuthor: 'human' })) as any;
     click({ open: 's-1' });
     await new Promise((r) => setTimeout(r, 40));
+    afterYours = [{ id: 'c-2', index: 2, title: 'The Envoy' }];
     press({ delafter: 'p-0' });
-    await new Promise((r) => setTimeout(r, 10));
-    assert.match(said(), /clears your summar(y|ies) of .*The Envoy/,
+    await new Promise((r) => setTimeout(r, 20));
+    assert.strictEqual(afterAsked, 'p-0', 'the first press asks about the passage pressed');
+    assert.match(said(), /clears your summary of The Envoy\./,
       'delete-after names the chapter whose summary of yours it clears');
-    assert.doesNotMatch(said(), /Ashfall/, '  and not a chapter it does not cut into');
-    // Anansi's summary is not named: re-running it is one press, so there is nothing of yours to lose.
-    STORY.chapters = STORY.chapters.map((c: any) => ({ ...c, summaryAuthor: 'model' })) as any;
+    assert.doesNotMatch(said(), /Ashfall/, '  and not a chapter the server did not name');
+    // Nothing of yours below the cut: it says only what it always said.
+    afterYours = [];
     click({ open: 's-1' });
     await new Promise((r) => setTimeout(r, 40));
     press({ delafter: 'p-1' });
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 20));
     assert.match(said(), /^Press again to delete every passage below this one\.$/,
-      "  and over Anansi's summaries it says only what it always said");
-    STORY.chapters = wasChapters;
+      "  and with nothing of yours below the cut it says only what it always said");
     click({ open: 's-1' });
     await new Promise((r) => setTimeout(r, 40));
     ok('delete-after names the chapters whose summary of yours it would clear');

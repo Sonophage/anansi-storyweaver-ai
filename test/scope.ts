@@ -1321,6 +1321,61 @@ async function bootServer(port: number, env: Record<string, string>) {
   ok('a chapter summary is written by hand, counts as current, and only by its own writer');
 }
 
+/* ---- DELETE-AFTER NAMES WHAT IT WOULD CLEAR OF YOURS (#46), and the server says which. The first
+ * press asks `GET /api/after` and the second is `DELETE /api/after`; both read one cut in `db.ts`,
+ * so the list the writer is shown and the summaries the delete clears cannot disagree. This
+ * asserts that on a fixture: the chapters named are exactly the ones whose summary of yours the
+ * delete then clears. Its own book. */
+{
+  const ctx = (owner: string, body: any = {}, query = '') => ({ body, query: new URLSearchParams(query),
+    owner, slot: { global: 40_000, slots: 1, perSlot: 40_000 }, gen: { max_tokens: 900 }, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  const book = db.createStory(alice, { title: 'Cut below' });
+  const at = (chapterId: string, body: string) =>
+    db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId, body, author: 'human' });
+  // The cut lands INSIDE chapter two, so two loses a passage and survives: that is the case where a
+  // delete that skipped a summary would leave it standing. Three and four are emptied and go whole.
+  const one = book.chapterId;
+  at(one, 'Mara crossed the river.');
+  const two = db.endChapter(book.id, book.branchId, 'The Ferry').opened;
+  const pointed = at(two, 'The ferryman asked for a coin.');
+  at(two, 'Mara paid him in salt.');
+  const three = db.endChapter(book.id, book.branchId, 'The Far Bank').opened;
+  at(three, 'The far bank was empty.');
+  const four = db.endChapter(book.id, book.branchId, 'The Road').opened;
+  at(four, 'The road went north.');
+  // Yours above the cut (one), yours in it (two) and below it (three), Anansi's below it (four).
+  for (const id of [one, two, three])
+    routes['POST /api/summary'](ctx(alice, { storyId: book.id, chapterId: id, summary: 'Summary by hand.' }));
+  db.setSummary(four, "Anansi's summary.", 1, 'x', 'model');
+  const before = db.chapters(book.id) as any[];
+
+  const asked: any = routes['GET /api/after'](ctx(alice, {}, `story=${book.id}&id=${pointed}`));
+  assert.ok(!asked.error, `the first press is answered: ${asked.error ?? ''}`);
+  const named = (asked.yours ?? []).map((c: any) => c.id).sort();
+  assert.deepStrictEqual(named, [two, three].sort(),
+    "delete-after names the chapters it cuts into whose summary is yours, and not Anansi's or one above it");
+  assert.deepStrictEqual(asked.yours.map((c: any) => c.title), ['The Ferry', 'The Far Bank'], '  by title, in order');
+
+  routes['DELETE /api/after'](ctx(alice, { storyId: book.id, id: pointed }));
+  const after = new Map((db.chapters(book.id) as any[]).map((c) => [c.id, c]));
+  const clearedYours = before.filter((c) => c.summary && c.summary_author === 'human'
+    && !after.get(c.id)?.summary).map((c) => c.id).sort();
+  assert.deepStrictEqual(clearedYours, named,
+    'the summaries of yours the delete clears are exactly the ones the first press named');
+  // The passage pressed is now the last in the book, and its own chapter's summary is yours again.
+  // Nothing is below it, so nothing is named: the passage pressed is kept, not cut.
+  routes['POST /api/summary'](ctx(alice, { storyId: book.id, chapterId: two, summary: 'Summary by hand.' }));
+  assert.deepStrictEqual((routes['GET /api/after'](ctx(alice, {}, `story=${book.id}&id=${pointed}`)) as any).yours, [],
+    "  and with nothing below the passage pressed, its own chapter's summary is not named");
+
+  // Bob, on his own story, naming her passage. The gate passes it; the cut is scoped to his story.
+  const peek: any = routes['GET /api/after'](ctx(bob, {}, `story=${bStory.id}&id=${at(one, 'More.')}`));
+  assert.deepStrictEqual(peek.yours ?? [], [], "and another writer's passage names nothing of hers");
+  db.delStory(book.id);
+  ok("delete-after's first press names exactly the summaries of yours its delete clears");
+}
+
 {
   const PORT = 5187;
   const { srv, url } = await bootServer(PORT, {});
@@ -1367,6 +1422,10 @@ async function bootServer(port: number, env: Record<string, string>) {
     assert.strictEqual(db.arcsOf(aStory.id).find((a: any) => a.id === herAct)?.summary,
       'What alice wrote down.', 'and her act is unchanged');
     db.delArc(aStory.id, herAct);
+
+    // Delete-after's first press (#46), asking about alice's passage as bob.
+    const peek = await fetch(url + `/api/after?story=${aStory.id}&id=${aPassage}`);
+    assert.strictEqual(peek.status, 404, "delete-after's first press must refuse another writer's story id");
 
     // A gated route naming no story at all: the gate cannot resolve an owner, so it fails closed.
     const nameless = await post('/api/write', { body: 'no story named' });

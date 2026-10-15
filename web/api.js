@@ -147,6 +147,8 @@ export const api = {
   // Everything below one passage, and a whole chapter. Both take storyId, which is what the
   // ownership gate in serve.ts reads.
   delAfter:     (storyId, id) => j('/api/after', 'DELETE', { storyId, id }),
+  // Delete-after's first press: the summaries of yours the delete would clear (#46).
+  afterYours:   (storyId, id) => j(`/api/after?story=${encodeURIComponent(storyId)}&id=${encodeURIComponent(id)}`),
   delChapter:   (storyId, id) => j('/api/chapter', 'DELETE', { storyId, id }),
   delPassage:   (storyId, id, allTakes) => j('/api/passage', 'DELETE',
                                              { storyId, id, ...(allTakes ? { allTakes: true } : {}) }),

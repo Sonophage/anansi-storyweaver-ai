@@ -2430,6 +2430,9 @@ export const routes: Record<string, Handler> = {
    *  — and a boolean that turns "remove this" into "remove three chapters" is a mis-set flag away
    *  from being the worst bug in the app. `storyId` in the body is what puts it behind the
    *  ownership gate in `serve.ts`, like every other route here. */
+  /** Delete-after's FIRST press (#46): which chapters' summaries of yours the delete would clear,
+   *  read off the same cut the delete makes, so the ask and the delete cannot disagree. */
+  'GET /api/after': (c) => ({ yours: db.yoursClearedBy(c.query.get('story') ?? '', c.query.get('id') ?? '') }),
   'DELETE /api/after': (c) => {
     const r = db.delAfter(c.body.storyId, c.body.id);
     if (r.error) return { error: r.error };

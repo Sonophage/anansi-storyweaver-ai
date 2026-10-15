@@ -9211,14 +9211,17 @@ document.addEventListener('click', async (e) => {
     // The count comes back from the route rather than being predicted here: the press and the
     // delete are a round trip apart, and a second writer on the tailnet can add a passage in it.
     // #46. It clears the summary of every chapter that loses a passage, so the ask names the ones
-    // that are yours. Same comparison as `db.delAfter`: every passage with a higher ordinal.
-    const at = V.passages.find((p) => p.id === d.delafter)?.ordinal ?? Infinity;
-    const cut = new Set(V.passages.filter((p) => p.ordinal > at).map((p) => p.chapterId));
-    const yours = V.chapters.filter((c) => cut.has(c.id) && c.summary && c.summaryAuthor === 'human')
-      .map((c) => c.title || `Chapter ${c.index}`);
-    if (!armed(t, 'after:' + d.delafter, 'Press again to delete every passage below this one.'
-      + (yours.length ? ` It also clears your ${yours.length === 1 ? 'summary' : 'summaries'} of `
-        + `${yours.join(', ')}.` : ''))) return;
+    // that are yours. The server says which, off the same cut the delete makes, so the ask and the
+    // delete cannot disagree; only the first press asks. If the ask fails, the press still asks.
+    const key = 'after:' + d.delafter;
+    let ask = 'Press again to delete every passage below this one.';
+    if (S.confirmDel !== key) {
+      const yours = ((await api.afterYours(S.storyId, d.delafter))?.yours ?? [])
+        .map((c) => c.title || `Chapter ${c.index}`);
+      if (yours.length) ask += ` It also clears your ${yours.length === 1 ? 'summary' : 'summaries'} of `
+        + `${yours.join(', ')}.`;
+    }
+    if (!armed(t, key, ask)) return;
     const r = await api.delAfter(S.storyId, d.delafter);
     if (r.error) return toast(r.error);
     V = r.deleted !== undefined ? r : await api.story(S.storyId);

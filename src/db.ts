@@ -1714,15 +1714,10 @@ export function delChapter(storyId: string, chapterId: string): { deleted: numbe
 export function delAfter(storyId: string, passageId: string):
     { deleted: number; emptied?: number; error?: string } {
   let emptied = 0;
-  const cur = q(`SELECT p.branch_id, p.ordinal, c.idx FROM passages p
-                 JOIN chapters c ON c.id = p.chapter_id
-                 WHERE p.id = ? AND p.story_id = ?`).get(passageId, storyId) as any;
-  if (!cur) return { deleted: 0, error: 'That passage is gone already.' };
-  const doomed = q(`SELECT id, chapter_id FROM passages
-                    WHERE story_id = ? AND branch_id = ? AND ordinal > ?`)
-    .all(storyId, cur.branch_id, cur.ordinal) as any[];
+  const cut = afterCut(storyId, passageId);
+  if (!cut) return { deleted: 0, error: 'That passage is gone already.' };
+  const { cur, doomed, chapters } = cut;
   if (!doomed.length) return { deleted: 0 };
-  const chapters = [...new Set(doomed.map((p) => p.chapter_id))];
   db.exec('BEGIN');
   try {
     q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
@@ -1751,6 +1746,32 @@ export function delAfter(storyId: string, passageId: string):
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(storyId);
   return { deleted: doomed.length, emptied };
+}
+
+/** WHAT DELETE-AFTER CUTS: the passage pointed at, every row below it on its branch, and the
+ *  chapters those rows are in. Null when the passage is not in this story. One function for the
+ *  delete and for `yoursClearedBy`, so what the first press names and what the second press clears
+ *  are decided by the same query. */
+function afterCut(storyId: string, passageId: string) {
+  const cur = q(`SELECT p.branch_id, p.ordinal, c.idx FROM passages p
+                 JOIN chapters c ON c.id = p.chapter_id
+                 WHERE p.id = ? AND p.story_id = ?`).get(passageId, storyId) as any;
+  if (!cur) return null;
+  const doomed = q(`SELECT id, chapter_id FROM passages
+                    WHERE story_id = ? AND branch_id = ? AND ordinal > ?`)
+    .all(storyId, cur.branch_id, cur.ordinal) as any[];
+  return { cur, doomed, chapters: [...new Set(doomed.map((p) => p.chapter_id as string))] };
+}
+
+/** THE SUMMARIES OF YOURS DELETE-AFTER WOULD CLEAR (#46), in chapter order, for its first press to
+ *  name. A summary that is Anansi's is not named: re-running it is one press. */
+export function yoursClearedBy(storyId: string, passageId: string): { id: string; index: number; title: string | null }[] {
+  const cut = afterCut(storyId, passageId);
+  if (!cut?.chapters.length) return [];
+  return (q(`SELECT id, idx, title FROM chapters WHERE story_id = ? AND summary IS NOT NULL
+               AND summary_author = 'human' AND id IN (${cut.chapters.map(() => '?').join(',')})
+             ORDER BY idx`).all(storyId, ...cut.chapters) as any[])
+    .map((c) => ({ id: c.id, index: c.idx, title: c.title ?? null }));
 }
 
 /** Flags belong to the passage. SQLite will not cascade here — violations.passage_id has no
