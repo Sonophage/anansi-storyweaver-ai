@@ -165,6 +165,8 @@ export const api = {
   // way in, and the browser always watches.
   generateLive: (o, onDelta, signal) => jStream('/api/generate', o, onDelta, signal),
   summarize:    (storyId, chapterId) => j('/api/summarize', 'POST', { storyId, chapterId }),
+  // A summary written by hand; an empty one removes it (#43).
+  saveSummary:  (storyId, chapterId, summary) => j('/api/summary', 'POST', { storyId, chapterId, summary }),
   search:       (q, story)       => j(`/api/search?q=${encodeURIComponent(q)}`
     + (story ? `&story=${encodeURIComponent(story)}` : '')),
   activity:     (storyId)        => j(`/api/activity?story=${storyId}`),

@@ -53,6 +53,7 @@ const toChapter = (c: any) => ({
   authorsNote: c.authors_note, opensWith: c.opens_with,
   status: c.status, coversThrough: c.summary_covers_through,
   summaryStale: db.summaryStale(c),
+  summaryAuthor: c.summary_author ?? null,
   keepWhole: !!c.keep_whole,
 });
 

@@ -80,7 +80,7 @@ ok('every edit is kept and revert restores without losing the current text', () 
 });
 ok('a summary goes stale only when the SELECTED prose changes', () => {
   const ch = db.chapters(s.id)[0] as any;
-  db.setSummary(ch.id, 'sum', 1, db.proseHash(db.passagesOfChapter(ch.id).map((x: any) => x.body)));
+  db.setSummary(ch.id, 'sum', 1, db.proseHash(db.passagesOfChapter(ch.id).map((x: any) => x.body)), 'model');
   assert.strictEqual(db.summaryStale(db.chapters(s.id)[0]), false);
 
   // Editing a discarded variant must NOT invalidate the summary — it covers the selected
@@ -107,7 +107,7 @@ ok('a name that is still a card does not stale a summary, a fact that has left t
   db.addPassage({ ...sc, storyId: sc.id, body: 'Talia kissed Morgott and drank the Ironjar.' });
   const ch = db.chapters(sc.id)[0] as any;
   const fresh = () => db.setSummary(ch.id, 'Talia meets Morgott and is dosed with Ironjar.', 1,
-    db.proseHash(db.passagesOfChapter(ch.id).map((x: any) => x.body)));
+    db.proseHash(db.passagesOfChapter(ch.id).map((x: any) => x.body)), 'model');
   const stale = () => db.summaryStale(db.chapters(sc.id)[0]);
 
   db.upsertEntry(sc.id, o, { id: 'e-morgott', title: 'Morgott', body: '[Morgott: the Fell Omen]', keys: ['morgott'] });
@@ -277,7 +277,7 @@ ok('delete-after takes every passage below, every take of each, and only the sum
   db.addPassage({ ...base, chapterId: c3.opened, body: 'a whole chapter below' });
   const ch = (id: string) => db.chapters(s3.id).find((c: any) => c.id === id) as any;
   const c1id = db.chapters(s3.id)[0].id;
-  for (const id of [c1id, c2.opened, c3.opened]) db.setSummary(id, 'a summary', 1, 'h');
+  for (const id of [c1id, c2.opened, c3.opened]) db.setSummary(id, 'a summary', 1, 'h', 'model');
 
   // THREE ROWS AND NOT TWO. A rerolled passage below the cut is three rows at one ordinal; leaving
   // the unselected ones leaves prose in the database that no screen can reach and that `delSlot`
@@ -300,6 +300,7 @@ ok('delete-after takes every passage below, every take of each, and only the sum
   // A chapter summary rides in every prompt. One describing prose that no longer exists is the
   // engine telling the model about a scene the book does not contain.
   assert.strictEqual(ch(c2.opened).summary, null, 'the chapter it cut into loses its summary');
+  assert.strictEqual(ch(c2.opened).summary_author, null, 'and who wrote it (#43)');
   assert.strictEqual(ch(c3.opened), undefined, 'the emptied chapter is gone, summary and all');
   // The negative case, which is what stops this passing against an implementation that simply
   // clears every summary in the book.
@@ -2614,8 +2615,13 @@ ok('a book copies whole, and the copy shares nothing with the original', () => {
   db.addPassage({ storyId: src.id, branchId: src.branchId, chapterId: ended.opened,
     body: 'The salt took the light badly.', author: 'model' });
 
+  // #43. A summary the writer wrote, so the copies below have an author to carry. Without one the
+  // column-by-column comparison in section 2 compares null with null and proves nothing about it.
+  assert.deepStrictEqual(db.writeSummary(src.id, src.chapterId, 'She leaves at dawn.'), {});
   // A second path, which must arrive as a second path rather than being flattened into one.
   const other = db.forkBranch(src.id, src.branchId, 1, 'she stayed')!;
+  assert.strictEqual((raw.prepare('SELECT summary_author AS a FROM chapters WHERE branch_id = ? AND idx = 1')
+    .get(other) as any)?.a, 'human', 'a branch keeps which summaries are yours');
 
   // The ledger: two cards, a room, a connection, a pin, a state, a retirement, a string, an arc.
   const courier = db.upsertEntry(src.id, me, { title: 'Ferran', body: 'Carries what cannot wait.',

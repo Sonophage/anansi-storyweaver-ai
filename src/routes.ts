@@ -987,13 +987,13 @@ async function summarise(c: Ctx, storyId: string, chapterId?: string) {
   const v = need(view(storyId), 'no such story');
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
-  if (!ps.length) return { error: 'nothing to summarise' };
-  const bodies = db.passagesOfChapter(ch.id).map((p: any) => p.body);
+  const cover = db.summaryCover(ch.id);
+  if (!cover) return { error: 'nothing to summarise' };
   // 280 rather than 400: 180 words is about 240 tokens, and the old headroom was room to pad in.
   const r = await chat(SUMMARY(180), ps.map((p: any) => p.body).join('\n\n'),
     { temperature: 0.2, max_tokens: 280, chat_template_kwargs: { enable_thinking: false } });
   const summary = clean(r.prose);
-  db.setSummary(ch.id, summary, ps.at(-1)!.ordinal, db.proseHash(bodies));
+  db.setSummary(ch.id, summary, cover.through, cover.hash, 'model');
   return { summary, chapterId: ch.id };
 }
 
@@ -3179,6 +3179,12 @@ export const routes: Record<string, Handler> = {
     ? { __stream: (send: (o: unknown) => void) =>
         generate(c, c.body.mode ?? 'direct', c.body.directive, 'prose', (d) => send({ d })) }
     : generate(c, c.body.mode ?? 'direct', c.body.directive),
+
+  /** A chapter summary saved by hand, or removed with an empty one (#43). */
+  'POST /api/summary': (c) => {
+    const r = db.writeSummary(c.body.storyId, c.body.chapterId, c.body.summary);
+    return r.error ? r : viewOf(c.body.storyId);
+  },
 
   'POST /api/summarize': async (c) => {
     const r = await summarise(c, c.body.storyId, c.body.chapterId);

@@ -896,9 +896,9 @@ ok('emptying the box gives her back the voice she shipped with');
   const c3 = (db.endChapter(book.id, book.branchId, 'Three') as any).opened;
   const FRESH = 'Aldis sold the boat to pay the moneylender.';
   const STALE = 'Aldis drowned the ferryman at the weir.';
-  db.setSummary(c1, FRESH, 1, db.proseHash(db.passagesOfChapter(c1).map((p: any) => p.body)));
+  db.setSummary(c1, FRESH, 1, db.proseHash(db.passagesOfChapter(c1).map((p: any) => p.body)), 'model');
   // A hash that matches no prose: the summary describes a version of chapter two that is gone.
-  db.setSummary(c2, STALE, 1, 'prose-that-moved');
+  db.setSummary(c2, STALE, 1, 'prose-that-moved', 'model');
   const wire = () => calls.map((b: any) => (b.messages ?? []).map((m: any) => m.content).join('\n'))
     .join('\n');
   const req = (body: any) => ({ body: { storyId: book.id, ...body },
