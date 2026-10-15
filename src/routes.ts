@@ -11,7 +11,7 @@ import { view, assemble, budgetFor, capFor, clean, defaultModePrompts, trimToSen
          voiceOf, anansiOf } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
-import { resolveBody, cardText, narrationOnly, quotedSpans, retirable, numbersIn, fires } from './context.ts';
+import { resolveBody, cardText, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches } from './context.ts';
 import { presets } from './presets.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
@@ -1960,7 +1960,8 @@ export const routes: Record<string, Handler> = {
   'POST /api/chapter/propose': async (c: Ctx) => {
     const v = viewOf(c.body.storyId);
     const ch = v.chapters.find((x: any) => x.id === c.body.chapterId) ?? v.currentChapter;
-    const before = v.chapters.filter((x: any) => x.index < ch.index && x.summary);
+    // A STALE SUMMARY STAYS OUT, as it does from the writing prompt: it describes prose that moved.
+    const before = v.chapters.filter((x: any) => x.index < ch.index && summaryReaches(x));
     // The tail of the previous chapter, narration only. Dialogue may lie, and this is being asked
     // where the story has GOT to — the same rule extract and remember follow.
     const tail = narrationOnly(v.passages.filter((p: any) => !p.isBreak)
@@ -2539,8 +2540,13 @@ export const routes: Record<string, Handler> = {
             + `:\n${String(e.body ?? '').slice(0, 1200)}`);
         } else if (m?.kind === 'chapter') {
           const ch = v.chapters.find((x: any) => x.id === id);
+          // A STALE SUMMARY IS NAMED AS STALE, not sent and not dropped in silence: the writer
+          // pointed at this chapter, and an empty entry would read as "nothing happened in it".
           if (ch) summoned.push(`Chapter ${ch.index}${ch.title ? ` — ${ch.title}` : ''}:\n`
-            + `${ch.summary ? String(ch.summary).slice(0, 1200) : 'no summary written yet'}`);
+            + (summaryReaches(ch) ? String(ch.summary).slice(0, 1200)
+              : ch.summary ? 'its summary is stale — the prose changed after it was written, so it '
+                + 'is not sent until it is summarised again'
+              : 'no summary written yet'));
         } else if (m?.kind === 'book') {
           const b = books.find((x: any) => x.id === id);
           if (b) summoned.push(`${b.title} — another of the writer's books:\n`
@@ -3490,8 +3496,7 @@ export const routes: Record<string, Handler> = {
   'POST /api/rollup': async (c) => {
     const v = viewOf(c.body.storyId);
     const from = Number(c.body.from), to = Number(c.body.to);
-    const run = v.chapters.filter((ch) => ch.index >= from && ch.index <= to && ch.summary
-      && !ch.summaryStale);
+    const run = v.chapters.filter((ch) => ch.index >= from && ch.index <= to && summaryReaches(ch));
     if (run.length < 2) return { error: 'need at least two summarised chapters to roll up' };
     const already = (v.arcs ?? []).some((a: any) => a.fromChapter <= to && a.toChapter >= from);
     if (already) return { error: 'those chapters are already inside an arc' };
@@ -3503,6 +3508,17 @@ export const routes: Record<string, Handler> = {
     db.addArc(v.id, { branchId: v.branchId, fromChapter: from, toChapter: to,
       title: `${run[0].title} to ${run.at(-1)!.title}`, summary });
     return { summary, ...viewOf(v.id) };
+  },
+  /** An act edited in place: text and title. An empty text is refused rather than stored, because
+   *  removing an act has one way already — its Remove — and a blank act would reach the model as a
+   *  heading with nothing under it. An empty title is no title, and the card shows the chapters. */
+  'POST /api/arc': (c) => {
+    const summary = String(c.body.summary ?? '').trim();
+    if (!summary) return { error: 'An act cannot be empty. To remove it, press ✕ on its card.' };
+    const title = String(c.body.title ?? '').trim() || null;
+    if (!db.updateArc(c.body.storyId, String(c.body.id ?? ''), title, summary))
+      return { error: 'that act is not in this book' };
+    return viewOf(c.body.storyId);
   },
   'DELETE /api/arc': (c) => { db.delArc(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
 

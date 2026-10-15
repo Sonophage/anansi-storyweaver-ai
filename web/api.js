@@ -172,6 +172,7 @@ export const api = {
   activity:     (storyId)        => j(`/api/activity?story=${storyId}`),
   rollup:       (storyId, from, to) => j('/api/rollup', 'POST', { storyId, from, to }),
   delArc:       (storyId, id)    => j('/api/arc', 'DELETE', { storyId, id }),
+  saveArc:      (storyId, id, title, summary) => j('/api/arc', 'POST', { storyId, id, title, summary }),
   settings:     (storyId, gen)   => j('/api/settings', 'POST', { storyId, ...gen }),
   // With a storyId it is that book's look; without one it is your default for every book.
   // `look: null` and a storyId puts the book back to following you.

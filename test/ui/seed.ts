@@ -20,6 +20,19 @@ if (db.listStories(me).some((s: any) => s.title === input.story.title)) {
   process.exit(0);
 }
 
+// A SECOND BOOK, WITH AN ACT IN IT, made first so The Silver Key stays the book touched last. An act
+// is only ever written by a roll-up, which is a model call, and a scenario that waits on the model
+// tests the router's mood (see the planted proposal below). Kept out of The Silver Key because an act
+// over its chapters one and two would replace their summaries in every prompt the other scenarios
+// read. Chapter three is current, so the act covers the two chapters behind it.
+{
+  const acts = db.createStory(me, { title: 'A Book In Acts', premise: 'For editing an act.' });
+  db.endChapter(acts.id, acts.branchId);
+  db.endChapter(acts.id, acts.branchId);
+  db.addArc(acts.id, { branchId: acts.branchId, fromChapter: 1, toChapter: 2, title: 'Short to Water',
+    summary: 'Aldis borrows from Marek against the key, and learns the vault is below the waterline.' });
+}
+
 // `persona` is a UI-level field the engine fixture does not carry — buildContext never reads a
 // main character's NAME, only the point of view. The surfaces need it: it fills the "You are"
 // control, and it is who Speak and Act default to. Without it the seeded story has no
@@ -66,4 +79,4 @@ db.addProposal(made.id, { kind: 'new', chapterId, title: 'The Vantic Rain',
 
 console.log(`  seeded ${input.story.title}: ${input.chapters.length} chapters, `
   + `${input.passages.length} passages, ${input.entries.length} entries, persona Aldis Fen, `
-  + `1 planted proposal`);
+  + `1 planted proposal, and A Book In Acts with one act`);

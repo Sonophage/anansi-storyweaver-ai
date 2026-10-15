@@ -231,6 +231,7 @@ const S = {
   forgeOpen: null, forgeBusy: false,
   prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
   promptOpen: null,
+  arcOpen: null,        // the act whose text and title are open for editing, by id
   found: null,
   // The picture finder on ONE card: which thread it belongs to, the phrase, the rows. Null is shut.
   entryPic: null,          // the passage a search result sent you to, marked until you move on
@@ -450,7 +451,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // ago, so these say what they do to a followed thread instead of reusing that word.
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
   'share', 'unshare',
-  'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc',
+  'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc', 'savearc', 'cancelarc',
   'newstring', 'delstring', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'reseed', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
@@ -562,6 +563,22 @@ function toast(msg) {
  *  The label swap is what a desk sees and the toast is what a phone sees: `.lbl-txt` is hidden on
  *  a phone and several of these buttons are a bare glyph with no label at all, so those get a ring
  *  instead of having their × replaced by four words that do not fit. */
+/** WORDS IN A TEXT, and what an act's word count says. 220 is the bound the act prompt asks the
+ *  model for; past it the count warns and never blocks — a long act is the writer's call, and the
+ *  cost is prompt space on every call. */
+const wordsOf = (text) => (String(text ?? '').match(/\S+/g) || []).length;
+const actWords = (text) => {
+  const n = wordsOf(text);
+  return `${n} ${n === 1 ? 'word' : 'words'}${n > 220
+    ? ' <span style="color:var(--gold)">&middot; past 220, so it takes more of every prompt. It still saves.</span>' : ''}`;
+};
+// The count follows the typing without a repaint, which would throw the caret and the edit away.
+document.addEventListener('input', (e) => {
+  if (!e.target?.matches?.('[data-arctext]')) return;
+  const out = e.target.closest('.card')?.querySelector('[data-arcwords]');
+  if (out) out.innerHTML = actWords(e.target.value);
+});
+
 function armed(t, key, ask) {
   if (S.confirmDel === key) { S.confirmDel = null; if (t) t.style.outline = ''; return true; }
   S.confirmDel = key;
@@ -3283,9 +3300,21 @@ const PANELS = {
       ${(V.arcs ?? []).map((a) => `<div class="card" style="margin-bottom:8px; gap:5px">
         <div style="display:flex; align-items:center; gap:9px">
           <span class="kind">${esc(a.title || `Chapters ${a.fromChapter}–${a.toChapter}`)}</span>
-          <span style="margin-left:auto; font-size:11px; color:var(--faint)">chapters ${a.fromChapter}&ndash;${a.toChapter}</span>
+          <span style="margin-left:auto; font-size:11px; color:var(--faint)">chapters ${a.fromChapter}&ndash;${a.toChapter}
+            &middot; ${wordsOf(a.summary)} words</span>
           <button data-delarc="${a.id}" style="color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
-        <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(a.summary)}</div></div>`).join('')}
+        ${S.arcOpen === a.id ? `
+          <input class="field" data-arctitle aria-label="The act's title" value="${esc(a.title ?? '')}"
+            placeholder="Chapters ${a.fromChapter}–${a.toChapter}">
+          <textarea class="field" data-arctext aria-label="What the act says"
+            style="min-height:132px; font-size:12.5px; line-height:1.5">${esc(a.summary)}</textarea>
+          <div class="hint" data-arcwords style="margin:0">${actWords(a.summary)}</div>
+          <div style="display:flex; gap:7px">
+            <button class="btn ghost" data-savearc="${a.id}" style="flex:1">Save</button>
+            <button class="btn ghost" data-cancelarc="1" style="width:110px">Cancel</button></div>`
+        : `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(a.summary)}</div>
+          <button data-editarc="${a.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Edit</button>`}
+        </div>`).join('')}
       ${(() => {
         // The range is computed rather than typed. Two number boxes is a question the writer has
         // to answer about their own token budget; the oldest run that is not in an act yet is the
@@ -8453,6 +8482,20 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
     return toast('The act is gone; those chapters send their own summaries again.');
+  }
+
+  // AN ACT, EDITED IN PLACE (#44). The text is read off the card at press time, the way the prompt
+  // editor reads its own, so a repaint between typing and Save cannot hand the route a stale copy.
+  if (d.editarc) { S.arcOpen = d.editarc; paint(); return; }
+  if (d.cancelarc) { S.arcOpen = null; paint(); return; }
+  if (d.savearc) {
+    const card = t.closest('.card') ?? document;
+    const r = await api.saveArc(S.storyId, d.savearc,
+      card.querySelector('[data-arctitle]')?.value ?? '', card.querySelector('[data-arctext]')?.value ?? '');
+    if (r.error) return toast(r.error);
+    S.arcOpen = null;
+    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
+    return toast('The act is saved. It is what the model is sent for those chapters.');
   }
 
   if (d.editprompt) { S.promptOpen = S.promptOpen === d.editprompt ? null : d.editprompt; paint(); return; }

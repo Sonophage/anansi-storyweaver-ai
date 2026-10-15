@@ -45,6 +45,13 @@ export interface Chapter {
   summaryStale?: boolean;   // covered prose changed since it was written — excluded, not trusted
   keepWhole?: boolean;      // pulled back in full: send this chapter's prose, not its summary
 }
+/** MAY THIS CHAPTER'S SUMMARY REACH THE MODEL. One answer for every read that sends one: the
+ *  writing prompt, the act roll-up, chapter proposals and a chapter named in a question. Until
+ *  #42 only the first two checked staleness, so a summary held back from the prompt still rode
+ *  into "What has happened" and into a question, describing prose the book no longer has.
+ *  `test/web.ts` fails if any of the four stops calling this. */
+export const summaryReaches = (c: Pick<Chapter, 'summary' | 'summaryStale'>) =>
+  !!c.summary && !c.summaryStale;
 export interface Passage {
   id: string; ordinal: number; body: string; isBreak?: boolean;
   chapterId?: string;              // which chapter it belongs to — decides what stays whole
@@ -1158,8 +1165,9 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     if (c.keepWhole) continue;   // its prose is being sent; a summary too would duplicate it
     if (covered(c.index)) continue;
     // SPEC §5: on hash mismatch a summary is flagged stale, excluded, and re-run. Left in,
-    // it contradicts the prose it no longer describes in every later call, forever.
-    if (c.summaryStale) {
+    // it contradicts the prose it no longer describes in every later call, forever. A summary
+    // is known to exist here, so the shared check fails only on stale.
+    if (!summaryReaches(c)) {
       blocks.push({ kind: 'EARLIER', id: c.id, text: '', tokens: 0,
         state: 'omitted', reason: 'summary stale — covered prose changed' });
       continue;

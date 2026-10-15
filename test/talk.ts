@@ -879,5 +879,60 @@ ok('emptying the box gives her back the voice she shipped with');
   ok('the writer can accept a change as a state instead, and a state needs a card to be a state of');
 }
 
+// ---- #42 · A STALE SUMMARY STAYS OUT OF EVERYTHING ANANSI IS ASKED ----
+//
+// The writing prompt and the act roll-up held a stale chapter summary back; chapter proposals and a
+// chapter the writer names in a question did not. A summary is stale when the prose it covers has
+// moved, so sending it tells the model about a book that no longer exists. What is asserted is what
+// reaches the wire, in both directions: the current summary arrives and the stale one does not, so
+// a route that sent nothing at all could not pass.
+{
+  const book = db.createStory(me, { title: 'The Ferry', premise: 'A ferryman in debt.' }) as any;
+  const base = { storyId: book.id, branchId: book.branchId };
+  const c1 = book.chapterId;
+  db.addPassage({ ...base, chapterId: c1, body: 'Aldis rowed the last crossing of the year.' });
+  const c2 = (db.endChapter(book.id, book.branchId, 'Two') as any).opened;
+  db.addPassage({ ...base, chapterId: c2, body: 'The river froze and the boat stayed tied.' });
+  const c3 = (db.endChapter(book.id, book.branchId, 'Three') as any).opened;
+  const FRESH = 'Aldis sold the boat to pay the moneylender.';
+  const STALE = 'Aldis drowned the ferryman at the weir.';
+  db.setSummary(c1, FRESH, 1, db.proseHash(db.passagesOfChapter(c1).map((p: any) => p.body)), 'model');
+  // A hash that matches no prose: the summary describes a version of chapter two that is gone.
+  db.setSummary(c2, STALE, 1, 'prose-that-moved', 'model');
+  const wire = () => calls.map((b: any) => (b.messages ?? []).map((m: any) => m.content).join('\n'))
+    .join('\n');
+  const req = (body: any) => ({ body: { storyId: book.id, ...body },
+    query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+
+  calls = [];
+  const r: any = await routes['POST /api/chapter/propose'](req({ chapterId: c3 }));
+  assert.ok(!r.error, r.error);
+  assert.ok(wire().includes(FRESH), 'a current summary still reaches chapter proposals');
+  assert.ok(!wire().includes(STALE),
+    'a stale chapter summary reached chapter proposals — "What has happened" told the model about '
+    + 'prose the book no longer has');
+  ok('chapter proposals send the current summary and hold the stale one back');
+
+  // A CHAPTER THE WRITER NAMES. Held back, and SAID to be held back: the writer pointed at it, so
+  // a silent gap would read to the model as "nothing happened in chapter two".
+  const named = (id: string) => routes['POST /api/talk'](req({
+    said: 'What happened in Chapter Two?', mentions: [{ kind: 'chapter', id }] }));
+  calls = [];
+  const a: any = await named(c2);
+  assert.ok(!a.error, a.error);
+  assert.ok(!wire().includes(STALE),
+    'a stale chapter summary reached the question when the writer named its chapter');
+  assert.match(wire(), /Chapter 2 — Two:\nits summary is stale/,
+    'the named chapter must say its summary is stale, not arrive empty');
+  calls = [];
+  const b: any = await named(c1);
+  assert.ok(!b.error, b.error);
+  assert.match(wire(), new RegExp(`Chapter 1[^\\n]*:\\n${FRESH}`),
+    'a named chapter with a current summary still sends it');
+  ok('a chapter named in a question sends a current summary, and says a stale one is stale');
+}
+
 srv.close();
 console.log(`\n${n} checks passed`);
