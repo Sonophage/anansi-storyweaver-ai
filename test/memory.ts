@@ -33,6 +33,9 @@ let finished: any[] = [];
 /** And what the STYLE role returns. Fourth key on the same blob, same reason: one fake server, and
  *  whichever role asked reads the key it wants. #18 §2. */
 let styled = 'Short chapters, weather in every scene, nobody explains themselves.';
+/** And a chapter summary, which is plain prose and not the blob. Null leaves every call on the blob,
+ *  which is what every block before the summary one relies on. #45. */
+let summed: string | null = null;
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -43,6 +46,8 @@ const srv = createServer((req, res) => {
       res.end(JSON.stringify(o)); };
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
     asked = { system: b.messages?.[0]?.content ?? '', user: b.messages?.[1]?.content ?? '' };
+    if (summed !== null) return send({ choices: [{ message: { content: summed } }],
+      usage: { prompt_tokens: 200, completion_tokens: 60 } });
     send({ choices: [{ message: { content: JSON.stringify({ characters: answer, entries: found,
                                                             finished, style: styled }) } }],
            usage: { prompt_tokens: 200, completion_tokens: 60 } });
@@ -686,6 +691,35 @@ let retProposal: any;
   assert.strictEqual(asked, null, 'and never asks');
 }
 ok('the house style is written from the genre and the premise, and never from the voice or the prose');
+
+// ---- Summarise again on an OLDER chapter (#45). The route always took a chapter id; until #45 the
+// client only ever sent the current one, so a stale summary behind it had no way back. What the
+// writer buys is the prompt: the stale summary is held back, and after the re-run the new one is in.
+{
+  const book = db.createStory(me, { title: 'Two chapters' });
+  const first = book.chapterId;
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: first,
+    body: 'Mara crossed the river at night.', author: 'human' });
+  const second = db.endChapter(book.id, book.branchId).opened;
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: second,
+    body: 'The second chapter has begun.', author: 'human' });
+  // Anansi's summary of chapter one, gone stale: written against prose the chapter no longer has.
+  db.setSummary(first, 'Mara crossed the river by day.', 1, 'not-this-prose', 'model');
+  const promptNow = async () => ((await routes['POST /api/manifest'](ctx(
+    { storyId: book.id, mode: 'continue' }))) as any).prompt as string;
+  assert.doesNotMatch(await promptNow(), /river by day/, 'the fixture summary is stale and held back');
+
+  summed = 'Mara crosses the river alone, at night.';
+  const r: any = await routes['POST /api/summarize'](ctx({ storyId: book.id, chapterId: first }));
+  summed = null;
+  assert.ok(!r.error, `the re-run is accepted: ${r.error ?? ''}`);
+  assert.strictEqual(r.chapterId, first, 'it ran on the chapter it was given, not the current one');
+  const one = (r.chapters ?? []).find((c: any) => c.id === first);
+  assert.strictEqual(one?.summary, 'Mara crosses the river alone, at night.', 'the older chapter has the new summary');
+  assert.strictEqual(one?.summaryStale, false, 'and it is current again');
+  assert.match(await promptNow(), /river alone, at night/, 'so it reaches the writing prompt');
+  ok('Summarise again on an older chapter makes its stale summary current and sends it');
+}
 
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
