@@ -2053,7 +2053,13 @@ export const routes: Record<string, Handler> = {
     };
     // Summarise on close rather than on a button nobody remembers. Summaries are what bound
     // the context without the budget engine; leaving it manual leaves the bound optional.
-    await run('summary', c.body.summarise !== false, () => summarise(c, v.id, closing));
+    //
+    // YOURS IS KEPT (#46). No `replace` here, so `summarise` refuses over a summary the writer
+    // saved by hand. That is the pass doing its job, not failing: it is reported as `keptSummary`
+    // and not in `passes`, which the surface reads as "did not run".
+    const summed = await run('summary', c.body.summarise !== false, () => summarise(c, v.id, closing));
+    const keptSummary = summed?.kept === true;
+    if (keptSummary) passes.summary = null;
     // The character memory, on the same terms: a chapter must be able to close with the model down.
     await run('memory', c.body.remember !== false, () => remember(v.id, closing));
     // And read it for facts. The comment above summarise applies to this word for word: the ledger
@@ -2076,7 +2082,7 @@ export const routes: Record<string, Handler> = {
     // accepting one is the only decision in the app that changes what the model is told for the
     // rest of the book.
     const retired = await run('finished', c.body.retire !== false, () => retire(v.id, closing));
-    return { ...r, extracted, retired, passes, ...viewOf(v.id) };
+    return { ...r, extracted, retired, passes, keptSummary, ...viewOf(v.id) };
   },
 
   // ---- history & revert. §7.4's safety argument is "you can revert" — this is the revert. ----

@@ -754,6 +754,27 @@ ok('the house style is written from the genre and the premise, and never from th
   ok("Summarise refuses over yours before any model call, and replaces it when asked to");
 }
 
+// ---- CLOSING A CHAPTER KEEPS YOURS (#46), even stale, and says so. The close never sends
+// `replace`, so its summary pass meets the same guard; memory, facts and the finished scan run.
+{
+  const book = db.createStory(me, { title: 'Closing on yours' });
+  const first = book.chapterId;
+  db.addPassage({ storyId: book.id, branchId: book.branchId, chapterId: first,
+    body: 'Mara crossed the river at night.', author: 'human' });
+  // Yours, and stale: written against prose the chapter no longer has.
+  const MINE = 'Mara crosses by day. \u2014 mine, with an odd  space.';
+  db.setSummary(first, MINE, 1, 'not-this-prose', 'human');
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: book.id }));
+  const one = (r.chapters ?? []).find((c: any) => c.id === first) ?? {};
+  assert.strictEqual(one.summary, MINE, 'closing leaves your summary byte-identical');
+  assert.strictEqual(one.summaryAuthor, 'human', '  and still yours');
+  assert.strictEqual(r.keptSummary, true, '  and the close reports it kept your summary');
+  assert.ok(!r.passes?.summary, `  not as a pass that failed (${r.passes?.summary})`);
+  assert.ok(['memory', 'facts', 'finished'].every((k) => k in (r.passes ?? {})),
+    `  the other passes ran (${Object.keys(r.passes ?? {}).join(', ')})`);
+  ok('closing a chapter keeps your summary, even stale, runs the other passes, and says so');
+}
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several
