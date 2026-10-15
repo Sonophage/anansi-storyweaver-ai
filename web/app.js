@@ -570,6 +570,16 @@ const actWords = (text) => {
   return `${n} ${n === 1 ? 'word' : 'words'}${n > 220
     ? ' <span style="color:var(--gold)">&middot; past 220, so it takes more of every prompt. It still saves.</span>' : ''}`;
 };
+/** WHY AN ACT IS OUT OF DATE (#47), naming the first chapter under it that changed. One sentence
+ *  for the act's card and the waiting list, so the two cannot say it differently. */
+const actChanged = (n, why, title) => {
+  const ch = title && title !== `Chapter ${n}` ? `Chapter ${n}, ${title},` : `Chapter ${n}`;
+  return why === 'stale'
+    ? `${ch} has changed since this act was written: its summary no longer matches its prose. `
+      + 'The act still reaches the model.'
+    : `${ch} has a different summary from the one this act was written from. `
+      + 'The act still reaches the model. Read it, and save it to vouch for it.';
+};
 // The count follows the typing without a repaint, which would throw the caret and the edit away.
 document.addEventListener('input', (e) => {
   if (!e.target?.matches?.('[data-arctext]')) return;
@@ -2282,6 +2292,11 @@ const PANELS = {
       title: `${c.title || `Chapter ${c.index}`} has a stale summary`,
       body: 'Its prose changed after the summary was written, so it is left out of the prompt until '
           + 'it is written again.' });
+    // #47. An act still reaches the model when it is out of date, so this says what to read, not
+    // what was dropped. The ref carries what its chapters say now: a later change brings it back.
+    for (const a of (w.acts ?? [])) off.push({ kind: 'act', ref: a.ref,
+      title: `${a.title || `Chapters ${a.fromChapter}–${a.toChapter}`} is out of date`,
+      body: actChanged(a.chapter, a.why, a.chapterTitle) });
     if (h) off.push({ kind: 'horizon', ref: String(h.to),
       title: `${h.chapters} chapter${h.chapters === 1 ? '' : 's'} no longer reach the model`,
       body: `Chapters ${h.from} to ${h.to}. Their summaries do not fit any more — Chapter, then `
@@ -3281,6 +3296,8 @@ const PANELS = {
           <span style="margin-left:auto; font-size:11px; color:var(--faint)">chapters ${a.fromChapter}&ndash;${a.toChapter}
             &middot; ${wordsOf(a.summary)} words</span>
           <button data-delarc="${a.id}" style="color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
+        ${a.outOfDate ? `<div data-arcstale style="font-size:11.5px; line-height:1.5; color:var(--gold)">Out of date.
+          ${esc(actChanged(a.outOfDate.chapter, a.outOfDate.why, a.outOfDate.title))}</div>` : ''}
         ${S.arcOpen === a.id ? `
           <input class="field" data-arctitle aria-label="The act's title" value="${esc(a.title ?? '')}"
             placeholder="Chapters ${a.fromChapter}–${a.toChapter}">

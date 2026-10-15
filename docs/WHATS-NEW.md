@@ -21,6 +21,10 @@ Acts can be edited too. In Chapter → Acts, press Edit on an act to change what
 is called; what you save is what Anansi is sent for those chapters. A count of its words follows
 you as you type, and past 220 it says the act takes more room in every prompt — it still saves.
 
+An act now tells you when a chapter under it has changed since it was written. Its card names the
+chapter, and it joins the waiting list, where you can wave it away until the next change. It still
+reaches Anansi. Saving the act yourself, or removing it and rolling the chapters up again, clears it.
+
 ## 2026-09-18 · Regenerate gives you another take, not your own paragraph back
 
 ### Regenerate was rewriting the passage before the one you pressed it on
