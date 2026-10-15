@@ -187,6 +187,68 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   ok('  and removes the summary on the second', (await sumOf(cur)) === null);
 }
 
+// ---- 3b3. Summarise again on an OLDER chapter (#45). Until #45 the only Summarise sent the current
+// chapter, so a stale summary behind it stayed out of the prompt with nothing on screen to bring it
+// back. Its own book, because it closes a chapter, and The Silver Key's current chapter is what
+// every later section reads.
+//
+// NO MODEL. The route's half — the re-run lands on the chapter it is given and is current — is in
+// test/memory.ts against a fake. What only a browser can show is which chapter the CARD sends and
+// that the card repaints, so the summarise request is answered by a hand save of the chapter it
+// names: the server's stale check still decides whether the note goes.
+{
+  const made = JSON.parse(await page.eval(`(async () => {
+    const post = (u, b) => fetch(u, { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(b) }).then((r) => r.json());
+    const r = await post('/api/stories', { title:'Summarise Again', genre:'test', premise:'x', pov:'third past' });
+    const id = r.storyId ?? r.id ?? (r.stories && r.stories.at(-1).id);
+    await post('/api/write', { storyId:id, body:'The bell rang once and nobody came down for it.' });
+    const v0 = await (await fetch('/api/story?story=' + id)).json();
+    const first = v0.currentChapter.id;
+    await post('/api/summary', { storyId:id, chapterId:first, summary:'The bell rings once.' });
+    await post('/api/chapter/end', { storyId:id, summarise:false, remember:false, extract:false, retire:false });
+    await post('/api/write', { storyId:id, body:'Morning, and the square was empty.' });
+    // Chapter one's prose moves under its summary, which makes the summary stale.
+    const p = v0.passages.find((x) => x.chapterId === first && !x.isBreak);
+    await post('/api/passage', { storyId:id, id:p.id, body:'The bell rang twice and somebody came down.' });
+    const v1 = await (await fetch('/api/story?story=' + id)).json();
+    return JSON.stringify({ id, first, current: v1.currentChapter.id,
+      stale: v1.chapters.find((c) => c.id === first)?.summaryStale ?? null }); })()`));
+  ok(`a book whose first chapter's summary is stale, one chapter on (${made.stale})`,
+     made.stale === true && made.current !== made.first);
+
+  await page.goto(B + "/#" + made.id);
+  for (let i = 0; i < 40 && !(await rail()); i++) await wait(250);
+  await page.click('[data-nav="chapter"]');
+  await wait(500);
+  await page.click('[data-chaptab="summaries"]');
+  await wait(300);
+  const card = () => page.eval(`document.querySelector('[data-sumcard="${made.first}"]')?.textContent ?? ''`);
+  ok('the older card says its summary is stale', /Stale/.test(await card()));
+  // THE NOTE, NOT THE CARD. The card's own Summarise again and Edit buttons match both words, so
+  // reading the whole card passed with the old "until it is re-run" note in place.
+  const note0 = await page.eval(`[...document.querySelectorAll('[data-sumcard="${made.first}"] .hint')]
+    .map((h) => h.textContent).find((t) => /Stale/.test(t)) ?? ''`);
+  ok(`  and that summarising it again or editing it brings it back (${note0})`,
+     /summari[sz]ed? again/i.test(note0) && /edit/i.test(note0));
+  const btn = await page.eval(`document.querySelector('[data-sumcard="${made.first}"] [data-summarize]')?.textContent.trim() ?? null`);
+  ok(`  and offers Summarise again (${JSON.stringify(btn)})`, /Summarise again/.test(btn ?? ''));
+
+  await page.eval(`(() => { const real = window.__realFetch = window.fetch;
+    window.fetch = async (u, o) => {
+      if (!String(u).includes('/api/summarize')) return real(u, o);
+      const b = JSON.parse(o.body); window.__sumAsked = b.chapterId;
+      return real('/api/summary', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ storyId:b.storyId, chapterId:b.chapterId, summary:'The bell rings twice, and somebody comes.' }) });
+    }; return 1; })()`);
+  await page.eval(`(() => { document.querySelector('[data-sumcard="${made.first}"] [data-summarize]')?.click(); return 1; })()`);
+  for (let i = 0; i < 20 && /Stale/.test(await card()); i++) await wait(250);
+  const asked = await page.eval('window.__sumAsked ?? null');
+  await page.eval('(() => { if (window.__realFetch) window.fetch = window.__realFetch; return 1; })()');
+  ok(`Summarise again on the card sends that card's chapter (${asked === made.first ? 'its own' : asked})`, asked === made.first);
+  ok('  and the stale note goes', !/Stale/.test(await card()) && /rings twice/.test(await card()));
+}
+
 // ---- 3c. A thread's body is not cut off.
 //
 // It was a fixed 96px box, and an invented thread went from 60-120 words to 120-200 on
