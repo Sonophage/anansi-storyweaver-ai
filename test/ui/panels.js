@@ -120,6 +120,10 @@ ok("  and no longer offers Where this is going, on this panel or any other",
 // is the surface.
 {
   const cur = (await story()).currentChapter.id;
+  // PRESSED THROUGH EVAL, NOT page.click. A click on a button that is not there kills the
+  // scenario, and the red the assertion after it would have reported is lost with it: a broken
+  // Cancel leaves no Edit to press, a one-press clear leaves no second Save.
+  const press = (sel) => page.eval(`(() => { document.querySelector('${sel}')?.click(); return 1; })()`);
   const sumOf = async (id) => ((await story()).chapters.find((c) => c.id === id) ?? {}).summary ?? null;
   const put = await page.eval(`(async () => (await (await fetch('/api/summary', { method: 'POST',
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storyId: '${sid}',
@@ -139,7 +143,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   const first = (await story()).chapters[0].id;
   ok(`  and Anansi's says so (${await author(first)})`, /Anansi/.test(await author(first)));
 
-  await page.click(`[data-editsum="${cur}"]`);
+  await press(`[data-editsum="${cur}"]`);
   await wait(300);
   const box = () => page.eval(`(() => { const t = document.querySelector('[data-sumtext]');
     const w = document.querySelector('[data-sumwarn]');
@@ -148,7 +152,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   const b0 = await box();
   ok(`Edit opens the summary in a text box (${JSON.stringify(b0?.text)})`, b0?.text === 'Aldis keeps the key.');
   ok(`  with its word count (${b0?.count})`, /^4 words/.test(b0?.count ?? ''));
-  const type = (s) => page.eval(`(() => { const t = document.querySelector('[data-sumtext]'); t.value = ${JSON.stringify(s)};
+  const type = (s) => page.eval(`(() => { const t = document.querySelector('[data-sumtext]'); if (!t) return 0; t.value = ${JSON.stringify(s)};
     t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
   await type(Array(200).fill('word').join(' '));
   const b1 = await box();
@@ -157,28 +161,28 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await type('Aldis keeps the key and says nothing.');
   const b2 = await box();
   ok(`  and under it the warning goes (${b2?.count})`, b2?.warn === false && /^7 words/.test(b2?.count ?? ''));
-  await page.click('[data-cancelsum]');
+  await press('[data-cancelsum]');
   await wait(300);
   ok('Cancel leaves the summary exactly as it was', (await sumOf(cur)) === 'Aldis keeps the key.'
     && !(await page.eval("!!document.querySelector('[data-sumtext]')")));
 
-  await page.click(`[data-editsum="${cur}"]`);
+  await press(`[data-editsum="${cur}"]`);
   await wait(300);
   await type('Aldis keeps the key, and the bell says nothing.');
-  await page.click(`[data-savesum="${cur}"]`);
+  await press(`[data-savesum="${cur}"]`);
   await wait(900);
   ok('Save stores the new text', (await sumOf(cur)) === 'Aldis keeps the key, and the bell says nothing.');
   const shown = await page.eval(`document.querySelector('[data-sumcard="${cur}"]')?.textContent ?? ''`);
   ok('  and the card shows it, and the editor is closed', /the bell says nothing/.test(shown)
     && !(await page.eval("!!document.querySelector('[data-sumtext]')")));
 
-  await page.click(`[data-editsum="${cur}"]`);
+  await press(`[data-editsum="${cur}"]`);
   await wait(300);
   await type('   ');
-  await page.click(`[data-savesum="${cur}"]`);
+  await press(`[data-savesum="${cur}"]`);
   await wait(900);
   ok('saving it empty does nothing on the first press', (await sumOf(cur)) !== null);
-  await page.click(`[data-savesum="${cur}"]`);
+  await press(`[data-savesum="${cur}"]`);
   await wait(900);
   ok('  and removes the summary on the second', (await sumOf(cur)) === null);
 }
