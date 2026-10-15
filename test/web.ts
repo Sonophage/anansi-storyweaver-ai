@@ -1213,6 +1213,25 @@ ok('the delegation refuses html and body outright');
   ok(`${readers.length} readers of chapter summaries use one stale check`);
 }
 
+// THE WORD BOUNDS UNDER THE TWO EDITORS ARE THE PROMPTS' BOUNDS (#43, #44). The client warns past
+// what the summary and act prompts ask the model for, and says so; the numbers live in both places,
+// so a prompt retuned without the client would leave the warning naming a bound nothing uses. Every
+// call of either prompt is read, and a missing one fails rather than skipping.
+{
+  const app = read('web/app.js'), routes = read('src/routes.ts');
+  const client = app.match(/const SUMMARY_WORDS = (\d+), ACT_WORDS = (\d+);/);
+  assert.ok(client, 'web/app.js: the SUMMARY_WORDS / ACT_WORDS line moved; update this guard');
+  const calls = (re: RegExp) => [...routes.matchAll(re)].map((m) => Number(m[1]));
+  const summary = calls(/\bSUMMARY\((\d+)\)/g), act = calls(/\bARC\(\s*\w+\s*,\s*\w+\s*,\s*(\d+)\s*\)/g);
+  assert.ok(summary.length && act.length,
+    `src/routes.ts: found ${summary.length} SUMMARY(n) and ${act.length} ARC(from, to, n) calls; expected both`);
+  for (const n of summary) assert.strictEqual(Number(client![1]), n,
+    `the summary editor warns past ${client![1]} words, the summary prompt asks for ${n}`);
+  for (const n of act) assert.strictEqual(Number(client![2]), n,
+    `the act editor warns past ${client![2]} words, the act prompt asks for ${n}`);
+  ok(`the editors' word bounds match the prompts (${client![1]}, ${client![2]})`);
+}
+
 // Two `@keyframes` of one name is not a syntax error, and not a visible one either: the later
 // declaration silently wins for every rule that references the name. `breathe` was declared twice
 // in app.html — .7-to-.28 for the veil's head and 1-to-.62 for #send.stopping — so the veil never
