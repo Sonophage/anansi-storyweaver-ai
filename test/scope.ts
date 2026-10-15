@@ -1033,6 +1033,57 @@ ok('a story cannot be deleted by someone who does not own it');
 // someone else's book — and an audit once found zero ownership checks on 27 routes, which is
 // what the gate exists to stop coming back.
 //
+// AN ACT IS EDITED IN PLACE (#44): text and title, through `POST /api/arc`. Asserted on what the
+// writer and the model see — the view the route answers with, and the prompt the Context panel
+// reads — and never on the row. The gate in serve.ts refuses another writer's STORY id; this block
+// covers the half the gate cannot see, an act id from another book under the caller's own story id.
+// The real-server block below sends the same route with alice's story id, as bob.
+{
+  const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 40_000, slots: 1, perSlot: 40_000 }, gen: { max_tokens: 900 }, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  // Chapter four is current and empty, so chapters one and two are behind the whole-prose window
+  // and an act over them is what EARLIER sends.
+  const book = db.createStory(alice, { title: 'Alice, in acts' });
+  for (let i = 0; i < 3; i++) db.endChapter(book.id, book.branchId);
+  const act = db.addArc(book.id, { branchId: book.branchId, fromChapter: 1, toChapter: 2,
+    title: 'Short to Water', summary: 'Aldis borrows against the key and learns the vault floods.' });
+  const actIn = (v: any) => (v.arcs ?? []).find((a: any) => a.id === act);
+  const promptOf = async () => (await routes['POST /api/manifest'](
+    ctx(alice, { storyId: book.id, mode: 'continue' })) as any).prompt as string;
+
+  const saved: any = routes['POST /api/arc'](ctx(alice, { storyId: book.id, id: act,
+    title: 'The debt', summary: 'Aldis pawns the key to Marek. The vault is under the waterline.' }));
+  assert.ok(!saved.error, `saving an act answers with the book, not ${saved.error}`);
+  assert.strictEqual(actIn(saved)?.summary, 'Aldis pawns the key to Marek. The vault is under the waterline.',
+    'the act reads back with the text the writer typed');
+  assert.strictEqual(actIn(saved)?.title, 'The debt', 'and the title the writer typed');
+  const sent = await promptOf();
+  assert.match(sent, /Ch1-2 The debt: Aldis pawns the key to Marek/,
+    'the edited act is what the writing prompt sends');
+  assert.doesNotMatch(sent, /borrows against the key/, 'and the old text is not also sent');
+
+  // EMPTY IS REFUSED, and points at the one way to remove an act. Whitespace is empty too: a
+  // blank act would reach the model as a heading with nothing under it.
+  const blank: any = routes['POST /api/arc'](ctx(alice, { storyId: book.id, id: act,
+    title: 'Gone', summary: '  \n ' }));
+  assert.match(blank.error ?? '', /remove/i, 'an empty act is refused, and the refusal points to Remove');
+  // The view the route serves, read without the route: `GET /api/story` also prewarms the live
+  // model, and nothing in this file may reach the router.
+  const after: any = (await import('../src/story.ts')).view(book.id);
+  assert.strictEqual(actIn(after)?.summary, 'Aldis pawns the key to Marek. The vault is under the waterline.',
+    'and the refused save changed nothing');
+  assert.strictEqual(actIn(after)?.title, 'The debt', 'not even the title that rode with it');
+
+  // ANOTHER WRITER'S ACT, under his own story id. The gate passes this — the story IS his — so the
+  // route is the whole defence.
+  const hijack: any = routes['POST /api/arc'](ctx(bob, { storyId: bStory.id, id: act,
+    title: 'BOB', summary: 'BOB WAS HERE' }));
+  assert.ok(hijack.error, "bob cannot edit alice's act by naming his own book");
+  assert.doesNotMatch(await promptOf(), /BOB WAS HERE/, "and alice's prompt does not carry his words");
+  ok('an act is edited in place, an empty one is refused, and only in its own book');
+}
+
 // A real server, because the gate is four lines inside serve.ts's request handler and testing a
 // copy of it would prove a copy. Spawned as a child on a spare port against this database, as
 // the OTHER writer.
@@ -1169,6 +1220,16 @@ async function bootServer(port: number, env: Record<string, string>) {
     assert.ok((await pushed.json()).error, 'and the route is what refuses it');
     assert.strictEqual(db.entriesOf(aStory.id).length, herBefore,
       "nothing of bob's landed in alice's book");
+
+    // An act save, #44's route, aimed at alice's book. Her act is created here rather than found,
+    // so the refusal below is a refusal of a real act and not of an id that never existed.
+    const herAct = db.addArc(aStory.id, { branchId: aStory.branchId, fromChapter: 1, toChapter: 1,
+      title: 'Hers', summary: 'What alice wrote down.' });
+    const actSave = await post('/api/arc', { storyId: aStory.id, id: herAct, summary: 'BOB WAS HERE' });
+    assert.strictEqual(actSave.status, 404, "an act save must refuse another writer's story id");
+    assert.strictEqual(db.arcsOf(aStory.id).find((a: any) => a.id === herAct)?.summary,
+      'What alice wrote down.', 'and her act is unchanged');
+    db.delArc(aStory.id, herAct);
 
     // A gated route naming no story at all: the gate cannot resolve an owner, so it fails closed.
     const nameless = await post('/api/write', { body: 'no story named' });

@@ -1296,6 +1296,67 @@ if (btn) {
      /Two summarised chapters/.test(acts));
 }
 
+// ---- 15b. an act is edited in place (#44): text and title, a live word count, a warning past 220
+// The seed's second book carries one act over chapters one and two, because writing one takes a roll-up
+// and a roll-up takes the model. Every check reads what the writer sees or what the server now holds.
+{
+  const aid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='A Book In Acts')?.id ?? null)()");
+  const arcOf = () => page.eval("(async () => (await (await fetch('/api/story?story=" + aid + "')).json()).arcs[0])()");
+  const typeIn = (sel, text) => page.eval(`(() => { const t = document.querySelector(${JSON.stringify(sel)});
+    if (!t) return 0; t.value = ${JSON.stringify(text)}; t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+  const words = () => page.text('[data-arcwords]').then((x) => (x || '').replace(/\s+/g, ' ').trim());
+  ok("the seed has a book with an act in it", !!aid);
+  await page.goto(B + "/#" + aid + "/chapter");
+  await wait(900);
+  await page.click('[data-chaptab="summaries"]');
+  await wait(300);
+  const was = await arcOf();
+  ok(`  its act card offers Edit (${was?.title})`, await page.visible('[data-editarc]'));
+
+  await page.click('[data-editarc]');
+  await wait(300);
+  ok("Edit opens the act's text in place",
+     await page.eval("document.querySelector('[data-arctext]')?.value ?? null") === was.summary);
+  ok("  and its title", await page.eval("document.querySelector('[data-arctitle]')?.value ?? null") === was.title);
+  ok(`  with a word count (${await words()})`, /^15 words$/.test(await words()));
+
+  // LIVE: the count follows the typing with no save and no repaint. 221 words is one past the bound.
+  await typeIn('[data-arctext]', Array.from({ length: 221 }, () => 'rain').join(' '));
+  ok(`  the count follows the typing (${await words()})`, /^221 words/.test(await words()));
+  ok("  and past 220 it warns, quietly", /past 220/.test(await words()));
+  await typeIn('[data-arctext]', Array.from({ length: 220 }, () => 'rain').join(' '));
+  ok(`  at 220 the warning is gone (${await words()})`, /^220 words$/.test(await words()));
+
+  // CANCEL COSTS NOTHING: the typed text is thrown away and the act is what it was.
+  await page.click('[data-cancelarc]');
+  await wait(300);
+  ok("Cancel closes the editor", !(await page.visible('[data-arctext]')));
+  const kept = await arcOf();
+  ok("  and leaves the act exactly as it was", kept.summary === was.summary && kept.title === was.title);
+
+  // AN EMPTY SAVE IS REFUSED, and the refusal points to the act's Remove.
+  await page.click('[data-editarc]');
+  await wait(300);
+  await typeIn('[data-arctext]', '   ');
+  await page.click('[data-savearc]');
+  await wait(600);
+  ok(`saving it empty is refused and points to Remove (${(await page.text('#toast') || '').trim().slice(0, 60)})`,
+     /remove/i.test(await page.text('#toast') || ''));
+  ok("  and the act is untouched", (await arcOf()).summary === was.summary);
+
+  // SAVE: a long act saves anyway — the warning advises, it never blocks.
+  const long = Array.from({ length: 230 }, (_, i) => (i ? 'water' : 'Marek')).join(' ');
+  await typeIn('[data-arctitle]', 'The debt');
+  await typeIn('[data-arctext]', long);
+  await page.click('[data-savearc]');
+  await wait(900);
+  const now = await arcOf();
+  ok(`Save stores the text and the title (${now.title})`, now.summary === long && now.title === 'The debt');
+  ok("  past 220 words, because the warning never blocks", now.summary.split(' ').length === 230);
+  ok("  the editor closes", !(await page.visible('[data-arctext]')));
+  ok("  and the card shows the new text", /Marek water water/.test(await page.text('#sideBody') || ''));
+}
+
 // ---- 16. strings: what the story owes, and what the model is told about it
 // Writer-facing until summoned, because a model handed an unresolved promise reaches for it.
 await page.goto(B + "/#" + sid3 + "/strings");

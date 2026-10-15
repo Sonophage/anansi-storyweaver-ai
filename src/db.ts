@@ -3076,6 +3076,11 @@ export function addArc(storyId: string, a: any) {
 }
 export const delArc = (storyId: string, id: string) =>
   q('DELETE FROM arcs WHERE id = ? AND story_id = ?').run(id, storyId);
+/** An act edited by hand: its text and its title, nothing else. Scoped by story like `delArc`, so
+ *  an act id from another book changes nothing. Answers whether a row was changed. */
+export const updateArc = (storyId: string, id: string, title: string | null, summary: string) =>
+  Number(q('UPDATE arcs SET title = ?, summary = ? WHERE id = ? AND story_id = ?')
+    .run(title, summary, id, storyId).changes) > 0;
 
 /** FINISHED, from a chapter onward. A dead character, a burned building, a rule that stopped
  *  applying — PLAN-08's "a thread can be finished", and the write half of a column that has had a

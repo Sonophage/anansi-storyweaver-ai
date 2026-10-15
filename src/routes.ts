@@ -3498,6 +3498,17 @@ export const routes: Record<string, Handler> = {
       title: `${run[0].title} to ${run.at(-1)!.title}`, summary });
     return { summary, ...viewOf(v.id) };
   },
+  /** An act edited in place: text and title. An empty text is refused rather than stored, because
+   *  removing an act has one way already — its Remove — and a blank act would reach the model as a
+   *  heading with nothing under it. An empty title is no title, and the card shows the chapters. */
+  'POST /api/arc': (c) => {
+    const summary = String(c.body.summary ?? '').trim();
+    if (!summary) return { error: 'An act cannot be empty. To remove it, press ✕ on its card.' };
+    const title = String(c.body.title ?? '').trim() || null;
+    if (!db.updateArc(c.body.storyId, String(c.body.id ?? ''), title, summary))
+      return { error: 'that act is not in this book' };
+    return viewOf(c.body.storyId);
+  },
   'DELETE /api/arc': (c) => { db.delArc(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
 
   // ---- misc ----

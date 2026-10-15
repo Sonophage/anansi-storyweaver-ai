@@ -10,6 +10,13 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-15 · You can write a chapter's summary yourself
+
+### You can write a chapter's summary yourself
+Acts can be edited too. In Chapter → Acts, press Edit on an act to change what it says and what it
+is called; what you save is what Anansi is sent for those chapters. A count of its words follows
+you as you type, and past 220 it says the act takes more room in every prompt — it still saves.
+
 ## 2026-09-18 · Regenerate gives you another take, not your own paragraph back
 
 ### Regenerate was rewriting the passage before the one you pressed it on
