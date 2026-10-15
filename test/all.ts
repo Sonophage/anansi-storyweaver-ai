@@ -12,6 +12,9 @@
 // Most changes need one or two suites, and a single suite has always run alone:
 //   node --experimental-strip-types test/engine.ts
 import { execFile } from 'node:child_process';
+import { serialise } from './lock.ts';
+// One run on the machine at a time; a second checkout waits its turn. See test/lock.ts.
+serialise();
 // An entry may carry arguments, so a harness whose self-check lives behind a subcommand can be
 // listed here rather than being a check nobody runs. `bench/order.ts` justified a change to
 // `src/blocks.ts` ORDER and then went red on the tree that shipped it, because nothing ran it.

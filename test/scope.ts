@@ -4,6 +4,9 @@
 // This exists because the audit found no ownership check on any route at all — the gate
 // and the scoped writes were added together, and this is what stops a new route quietly
 // arriving without either.
+// Fixed ports and a fixed database: one run on the machine at a time, also when run alone.
+import { serialise } from './lock.ts';
+serialise();
 process.env.ANANSI_DB = '/tmp/anansi-scope.db';
 import assert from 'node:assert';
 import { unlinkSync, readFileSync } from 'node:fs';

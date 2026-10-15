@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Every unit suite before a commit, about 11 seconds. Until 2026-10-15 nothing ran it but memory.
+# A second checkout's run is queued behind test/lock.ts, so parallel worktrees wait rather than
+# collide. The browser harness is too slow for every commit and stays a separate step.
+# Skip once, on purpose: git commit --no-verify.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+out=$(node --experimental-strip-types test/all.ts 2>&1); status=$?
+printf '%s\n' "$out" | tail -n 1
+[ $status -eq 0 ] || { printf '%s\n' "$out" | grep -E 'FAIL|Error|not ok' | head -20; echo "pre-commit: test/all.ts is red, commit refused"; }
+exit $status

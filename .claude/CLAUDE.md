@@ -24,6 +24,10 @@ false later. That is the failure mode here, and it is why this command exists.
 node --experimental-strip-types test/all.ts     # every suite; it prints its own total
 ```
 
+`.githooks/pre-commit` runs it on every commit once `git config core.hooksPath .githooks` is set
+(once per clone). Runs on the machine queue behind `test/lock.ts`, so parallel worktrees wait their
+turn instead of colliding on the fixed ports and `/tmp` databases.
+
 Run it before and after. No model needed, so there is no excuse for skipping it. It runs the twelve
 unit suites **and all seventeen `check` modes under `bench/`**, in parallel, in about 11 seconds.
 Each bench entry is spawned with its own `ANANSI_DB`: fifteen of the seventeen touch no database,

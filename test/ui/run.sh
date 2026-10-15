@@ -13,9 +13,10 @@ cd "$(dirname "$0")/../.."
 PORT=${ANANSI_UI_PORT:-5179}
 # One run at a time. The scenarios hardcode the port, so two concurrent runs kill each other's
 # servers and every scenario after the collision reports failures that are not there — which
-# cost real time to disbelieve, twice in one sitting.
+# cost real time to disbelieve, twice in one sitting. A second run WAITS for the first, and says
+# so: parallel worktrees used to get "wait for it" and an exit, and wrote their own wait loops.
 exec 9>/tmp/anansi-ui-$PORT.lock
-flock -n 9 || { echo "  another test/ui/run.sh is using port $PORT — wait for it"; exit 1; }
+flock -n 9 || { echo "  another test/ui/run.sh is using port $PORT — waiting for it"; flock 9; }
 WORK=$(mktemp -d /tmp/anansi-ui.XXXXXX)
 trap 'kill $(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP "pid=\K[0-9]+" | head -1) 2>/dev/null; rm -rf "$WORK"' EXIT
 
