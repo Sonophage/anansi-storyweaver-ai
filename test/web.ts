@@ -1172,6 +1172,42 @@ ok('the delegation refuses html and body outright');
     + `and adjacent ones differ by lightness (${GRANDFATHERED.size} pair grandfathered, still failing)`);
 }
 
+// ONE STALE CHECK FOR EVERY READ THAT SENDS A CHAPTER SUMMARY TO THE MODEL (#42). Four readers, and
+// until #42 two of them checked staleness and two did not, so a summary held back from the writing
+// prompt still reached chapter proposals and a question that named its chapter. Two things that
+// must agree, and only one of them guarded -- the shape the paired-vocabularies block above names.
+//
+// Each reader is located by anchors in its own source and must call `summaryReaches`. A raw
+// `.summaryStale` read anywhere in routes.ts, or a second one in context.ts, is a reader deciding
+// for itself, so it fails here too. A missing anchor fails rather than skipping: a check that
+// cannot find its target reports green otherwise.
+{
+  const sources: Record<string, string> = { context: read('src/context.ts'), routes: read('src/routes.ts') };
+  const region = (file: string, from: string, to: string) => {
+    const s = sources[file], a = s.indexOf(from);
+    assert.ok(a >= 0, `${file}: anchor "${from}" not found -- the reader moved; update this guard`);
+    const b = s.indexOf(to, a + from.length);
+    assert.ok(b >= 0, `${file}: end anchor "${to}" not found after "${from}"`);
+    return s.slice(a, b);
+  };
+  const readers: [string, string][] = [
+    ['the writing prompt (EARLIER)',
+      region('context', 'for (const c of chapters) {', "add('EARLIER', c.id")],
+    ['the act roll-up', region('routes', "'POST /api/rollup'", 'db.addArc(')],
+    ['chapter proposals', region('routes', "'POST /api/chapter/propose'", 'WHAT HAS HAPPENED')],
+    ['a chapter named in a question', region('routes', "m?.kind === 'chapter'", "m?.kind === 'book'")],
+  ];
+  for (const [who, src] of readers)
+    assert.ok(src.includes('summaryReaches('),
+      `${who} sends chapter summaries without the shared stale check (summaryReaches)`);
+  const raw = (s: string) => (s.match(/\.summaryStale\b/g) ?? []).length;
+  assert.strictEqual(raw(sources.routes), 0,
+    'routes.ts reads .summaryStale directly -- a reader deciding staleness for itself');
+  assert.strictEqual(raw(sources.context), 1,
+    'context.ts reads .summaryStale outside summaryReaches -- the one read allowed is its own');
+  ok(`${readers.length} readers of chapter summaries use one stale check`);
+}
+
 // Two `@keyframes` of one name is not a syntax error, and not a visible one either: the later
 // declaration silently wins for every rule that references the name. `breathe` was declared twice
 // in app.html — .7-to-.28 for the veil's head and 1-to-.62 for #send.stopping — so the veil never

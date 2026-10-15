@@ -13,6 +13,10 @@ Everything below this line was written by that model call, before it was removed
 ## 2026-10-15 · You can write a chapter's summary yourself
 
 ### You can write a chapter's summary yourself
+A stale summary now stays out of everything Anansi is asked: chapter proposals leave it out too,
+and when you name its chapter in a question, Anansi is told the summary is stale instead of being
+sent it.
+
 Acts can be edited too. In Chapter → Acts, press Edit on an act to change what it says and what it
 is called; what you save is what Anansi is sent for those chapters. A count of its words follows
 you as you type, and past 220 it says the act takes more room in every prompt — it still saves.
