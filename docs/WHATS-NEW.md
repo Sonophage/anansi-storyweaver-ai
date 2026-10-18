@@ -10,6 +10,13 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-18 · Delete after keeps the chapter you write in
+
+### Delete after keeps the chapter you write in
+If you closed a chapter and then deleted everything below its last passage, the empty chapter the
+close had opened was deleted too. That left the book with no open chapter and nowhere to write.
+Now the open chapter always stays, even when it is empty.
+
 ## 2026-10-14 · You can write a chapter's summary yourself
 
 ### You can write a chapter's summary yourself

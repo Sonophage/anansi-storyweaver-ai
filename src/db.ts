@@ -1709,8 +1709,12 @@ export function delChapter(storyId: string, chapterId: string): { deleted: numbe
  *  "an empty chapter at the end of a book is a heading with no prose under it" — and Seth asked for
  *  it finished the same day. Only chapters AFTER the cut and only ones now holding nothing: the
  *  chapter the cut lands in keeps everything at or above the passage pointed at, so it is never
- *  empty, and a chapter before the cut was never touched. The branch keeps its last chapter for the
- *  reason `delChapter` refuses to take one: there would be nowhere to write. */
+ *  empty, and a chapter before the cut was never touched.
+ *
+ *  NEVER THE OPEN CHAPTER, empty or not, for the reason `delChapter` refuses to take it: there would
+ *  be nowhere to write. Found in the live library on 2026-10-17, twice in "The Lands Between": a
+ *  close, then delete-after on the closed chapter's last passage, cut the break and took the empty
+ *  chapter the close had opened, which left every chapter in the book closed. */
 export function delAfter(storyId: string, passageId: string):
     { deleted: number; emptied?: number; error?: string } {
   let emptied = 0;
@@ -1728,19 +1732,16 @@ export function delAfter(storyId: string, passageId: string):
     for (const id of chapters) clearSummary(storyId, id);
     // The empty ones after the cut. `NOT EXISTS` rather than a count, and `idx > ?` rather than
     // "not the cut's own chapter": a chapter BEFORE the cut that happened to be empty already was
-    // empty before this press and is not this press's business.
-    emptied = (q(`SELECT COUNT(*) AS n FROM chapters
-                  WHERE story_id = ? AND branch_id = ? AND idx > ?
-                    AND NOT EXISTS (SELECT 1 FROM passages p WHERE p.chapter_id = chapters.id)`)
+    // empty before this press and is not this press's business. Said once, because the count and
+    // both deletes must pick the same chapters.
+    const empty = `story_id = ? AND branch_id = ? AND idx > ? AND status != 'open'
+                   AND NOT EXISTS (SELECT 1 FROM passages p WHERE p.chapter_id = chapters.id)`;
+    emptied = (q(`SELECT COUNT(*) AS n FROM chapters WHERE ${empty}`)
       .get(storyId, cur.branch_id, cur.idx) as any).n;
     if (emptied) {
-      q(`DELETE FROM proposals WHERE story_id = ? AND chapter_id IN
-           (SELECT id FROM chapters WHERE story_id = ? AND branch_id = ? AND idx > ?
-              AND NOT EXISTS (SELECT 1 FROM passages p WHERE p.chapter_id = chapters.id))`)
+      q(`DELETE FROM proposals WHERE story_id = ? AND chapter_id IN (SELECT id FROM chapters WHERE ${empty})`)
         .run(storyId, storyId, cur.branch_id, cur.idx);
-      q(`DELETE FROM chapters WHERE story_id = ? AND branch_id = ? AND idx > ?
-           AND NOT EXISTS (SELECT 1 FROM passages p WHERE p.chapter_id = chapters.id)`)
-        .run(storyId, cur.branch_id, cur.idx);
+      q(`DELETE FROM chapters WHERE ${empty}`).run(storyId, cur.branch_id, cur.idx);
     }
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }

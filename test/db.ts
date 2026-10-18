@@ -275,21 +275,26 @@ ok('delete-after takes every passage below, every take of each, and only the sum
   db.addVariant(s3.id, below, 'below it, rerolled');
   const c3 = db.endChapter(s3.id, s3.branchId, 'Three') as any;
   db.addPassage({ ...base, chapterId: c3.opened, body: 'a whole chapter below' });
+  // A fourth, open and holding prose, so chapter three is a CLOSED chapter the cut empties. The
+  // open chapter is never taken (see the test below), so without this one the claim about emptied
+  // chapters would have nothing it is allowed to remove.
+  const c4 = db.endChapter(s3.id, s3.branchId, 'Four') as any;
+  db.addPassage({ ...base, chapterId: c4.opened, body: 'the chapter being written' });
   const ch = (id: string) => db.chapters(s3.id).find((c: any) => c.id === id) as any;
   const c1id = db.chapters(s3.id)[0].id;
   for (const id of [c1id, c2.opened, c3.opened]) db.setSummary(id, 'a summary', 1, 'h', 'model');
 
-  // THREE ROWS AND NOT TWO. A rerolled passage below the cut is three rows at one ordinal; leaving
+  // FOUR ROWS AND NOT THREE. A rerolled passage below the cut is two rows at one ordinal; leaving
   // the unselected ones leaves prose in the database that no screen can reach and that `delSlot`
   // could later promote back into the book.
   const cut = db.delAfter(s3.id, keep);
-  assert.strictEqual(cut.deleted, 3, 'every take below the cut, not only the selected one');
+  assert.strictEqual(cut.deleted, 4, 'every take below the cut, not only the selected one');
   // AND THE CHAPTER IT EMPTIED. Chapter three held one passage and that passage was below the cut,
   // so what is left of it is a heading with no prose under it. Chapter two is NOT counted: the cut
   // lands in it and everything at or above the passage pointed at stays, so it is never empty.
   assert.strictEqual(cut.emptied, 1, 'the chapter left holding nothing goes with the prose');
-  assert.deepStrictEqual(db.chapters(s3.id).map((c: any) => c.idx), [1, 2],
-    'and only that one — the cut chapter and everything before it stay');
+  assert.deepStrictEqual(db.chapters(s3.id).map((c: any) => c.idx), [1, 2, 4],
+    'and only that one — the cut chapter, everything before it, and the open chapter stay');
   // EVERY TAKE, counted through `variantsBySlot` and not `passagesOf`. The latter reads the book
   // — one row per slot — so an implementation that deleted only the selected take would leave the
   // rerolled one in the database and this would still say 2. Falsified: adding `AND selected = 1`
@@ -309,6 +314,25 @@ ok('delete-after takes every passage below, every take of each, and only the sum
 
   assert.strictEqual(db.delAfter(s3.id, keep).deleted, 0, 'nothing below it the second time');
   db.delStory(s3.id);
+});
+
+// FOUND IN THE LIVE LIBRARY on 2026-10-17, twice in one book: "The Lands Between", chapters five
+// and six. The writer closed a chapter, then pressed delete-after on its last passage. That cut
+// the break the close had written, which left the chapter the close opened empty, and delete-after
+// took it as an emptied chapter. The book was left with every chapter closed and nowhere to write,
+// the state `delChapter` already refuses to make. The open chapter stays, empty.
+ok('delete-after never takes the open chapter, so a book keeps somewhere to write', () => {
+  const b = db.createStory(o, { title: 'Undo the close', premise: 'p' }) as any;
+  const base = { storyId: b.id, branchId: b.branchId };
+  const last = db.addPassage({ ...base, chapterId: b.chapterId, body: 'the last passage' });
+  db.addPassage({ ...base, chapterId: b.chapterId, body: '', author: 'human', isBreak: true });
+  db.endChapter(b.id, b.branchId);
+  const cut = db.delAfter(b.id, last);
+  assert.strictEqual(cut.deleted, 1, 'the break below the cut goes');
+  assert.strictEqual(cut.emptied, 0, 'and the open chapter is not counted as emptied');
+  assert.deepStrictEqual(db.chapters(b.id).map((c: any) => [c.idx, c.status]),
+    [[1, 'closed'], [2, 'open']], 'the chapter the close opened survives');
+  db.delStory(b.id);
 });
 
 ok('deleting a story cascades', () => {
