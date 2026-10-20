@@ -549,7 +549,7 @@ const handler = async (req: any, res: any) => {
   // against corruption and against a bad edit, and against nothing that takes the filesystem. The
   // open item since PLAN-02 deleted Neon was not backup, it was backup somewhere else.
   //
-  // `/data` is a different device — nvme0n1p2, xfs — where the repository is on the root
+  // `/data` is a different device — nvme1n1p2, xfs — where the repository is on the root
   // filesystem. Say what that buys precisely: it survives losing this filesystem and does NOT
   // survive losing the machine. Off-site is a further step and is not this one.
   //
@@ -577,7 +577,7 @@ const handler = async (req: any, res: any) => {
   // Daily rather than six-hourly because it is not a fresher copy of the same thing.
   //
   // Seth, 2026-08-27: "export story to data once a day. no off machine backup." So this stops at
-  // /data — a different device, nvme0n1p2 — and buys exactly what the copy above buys: it survives
+  // /data — a different device, nvme1n1p2 — and buys exactly what the copy above buys: it survives
   // losing this filesystem and does NOT survive losing the machine. Nothing here is off-site.
   //
   // Same failure manners as the copy above: loud once, so an export that is not happening is never
