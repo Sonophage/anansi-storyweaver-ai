@@ -559,7 +559,7 @@ const handler = async (req: any, res: any) => {
   //
   // Silent when the directory cannot be written, because a box without /data must still boot —
   // but LOUD once, on the first attempt, so a backup that is not happening is never quiet.
-  const FAR = process.env.ANANSI_BACKUP_DIR ?? '/data/anansi-backups';
+  const FAR = process.env.ANANSI_BACKUP_DIR ?? '/data/anansi/backups';
   if (PRIMARY && FAR && FAR !== 'off') {
     let farSaid = false;
     const far = () => { try {
@@ -588,7 +588,7 @@ const handler = async (req: any, res: any) => {
   // throwing under /proc on this kernel, and a sync hang here blocks the event loop, so the server
   // boots to silence and never answers. Real paths (/root, a missing root dir) throw EACCES at once.
   // If this ever appears to hang at boot, look at ANANSI_EXPORT_DIR before looking at the router.
-  const BOOKS = process.env.ANANSI_EXPORT_DIR ?? '/data/anansi-books';
+  const BOOKS = process.env.ANANSI_EXPORT_DIR ?? '/data/anansi/books';
   if (PRIMARY && BOOKS && BOOKS !== 'off') {
     let booksSaid = false;
     const books = () => {

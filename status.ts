@@ -94,8 +94,8 @@ if (pid && pid !== '0' && existsSync(`/proc/${pid}/environ`)) {
 // ---- backups, which are only real if they are recent ----
 console.log('');
 for (const [label, dir, keep] of [['near backups', root + 'backups', 12],
-                                  ['off-disk backups', process.env.ANANSI_BACKUP_DIR ?? '/data/anansi-backups', 14],
-                                  ['book exports', process.env.ANANSI_EXPORT_DIR ?? '/data/anansi-books', 0]] as const) {
+                                  ['off-disk backups', process.env.ANANSI_BACKUP_DIR ?? '/data/anansi/backups', 14],
+                                  ['book exports', process.env.ANANSI_EXPORT_DIR ?? '/data/anansi/books', 0]] as const) {
   if (!existsSync(dir)) { row(label, `${dir} — does not exist`); continue; }
   const fs = readdirSync(dir).filter((f) => f.endsWith('.db'));
   if (!fs.length) { row(label, `${dir} — EMPTY`); continue; }
