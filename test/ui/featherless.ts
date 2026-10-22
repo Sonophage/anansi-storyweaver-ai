@@ -75,9 +75,13 @@ const srv = createServer((req, res) => {
     if (req.url === '/v1/tokenize') return json(200, { count: 100 });
     if (req.url !== '/v1/chat/completions') return json(404, { error: { message: 'no route' } });
     const body = raw ? JSON.parse(raw) : {};
-    if (!body.stream) return json(200, { choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
-      usage: { prompt_tokens: 10, completion_tokens: 1 } });
+    // gpt-oss plans whatever it is told, and the real Featherless sends the plan as `reasoning`
+    // (checked 2026-10-22), not llama-server's `reasoning_content`. The fake does the same.
+    const plan = /gpt-oss/.test(body.model ?? '') ? 'The user wants a short answer.' : '';
+    if (!body.stream) return json(200, { choices: [{ message: { content: 'ok', ...(plan && { reasoning: plan }) },
+      finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 1 } });
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    if (plan) res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning: plan } }] })}\n\n`);
     res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'The fake wrote this.' },
       finish_reason: 'stop' }] })}\n\n`);
     res.end('data: [DONE]\n\n');

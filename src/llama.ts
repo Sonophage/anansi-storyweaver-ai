@@ -310,7 +310,9 @@ export async function readSSE(res: Response, onDelta: (d: string) => void) {
       if (o.error) throw new Error(o.error.message ?? JSON.stringify(o.error));
       const d = o.choices?.[0]?.delta ?? {};
       if (d.content) { out.prose += d.content; onDelta(d.content); }
-      if (d.reasoning_content) out.reasoning += d.reasoning_content;
+      // The plan, under either name: llama-server says `reasoning_content`, Featherless `reasoning`.
+      const plan = d.reasoning_content ?? d.reasoning;
+      if (plan) out.reasoning += plan;
       // Both ride on the final chunk, and only when stream_options asked for usage.
       if (o.usage) out.usage = o.usage;
       if (o.timings) out.timings = o.timings;
@@ -379,7 +381,7 @@ export async function chat(system: string, body: string, opts: Record<string, un
   const m = r.choices?.[0]?.message ?? {};
   return {
     prose: (m.content ?? '').trim(),
-    reasoning: m.reasoning_content ?? '',
+    reasoning: m.reasoning_content ?? m.reasoning ?? '',   // the plan under either name, as in readSSE
     usage: r.usage ?? {},
     timings: r.timings ?? {},
     // Same field, same meaning, on the path with no writer watching. Both paths return it or

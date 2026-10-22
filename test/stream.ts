@@ -16,7 +16,8 @@ const stopFake = await (async () => {
   const state = { closedEarly: false, finished: false, deltas: 0, unload: null as any,
     // Scripted JSON answers for the non-streaming path, shifted one per call, and a count of how
     // many were asked for. `structuredRetry`'s whole job is deciding whether to ask twice.
-    json: [] as string[], jsonCalls: 0 };
+    // A script entry is the answer's content, or a whole message when a case needs its other fields.
+    json: [] as (string | Record<string, string>)[], jsonCalls: 0 };
   const s = createServer((_req, res) => {
     // The release path. Recorded rather than merely answered, because the URL and the body shape
     // were read off a live router by probing, not out of documentation — so the thing worth
@@ -54,9 +55,10 @@ const stopFake = await (async () => {
     // so no existing check changes.
     if (state.json.length) {
       state.jsonCalls++;
-      const content = state.json.shift()!;
+      const next = state.json.shift()!;
+      const message = typeof next === 'string' ? { content: next } : next;
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return void res.end(JSON.stringify({ choices: [{ message: { content } }] }));
+      return void res.end(JSON.stringify({ choices: [{ message }] }));
     }
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     let i = 0;
@@ -160,6 +162,32 @@ await ok('a stream that stops early yields what arrived, and the caller sees no 
     assert.strictEqual(r.prose, 'The rain came sideways.');
     assert.deepStrictEqual(r.usage, {}, 'no usage was sent, so none is reported');
   });
+
+// THE PLAN ARRIVES UNDER TWO NAMES. llama-server parses it into `reasoning_content`; Featherless,
+// checked against the real API on 2026-10-22, sends it as `reasoning`. Reading only one name made
+// every remote plan invisible, so a model that always weaves was stored as one that obeys.
+await ok('a streamed plan is read under either name: reasoning (Featherless) or reasoning_content (llama-server)',
+  async () => {
+    for (const field of ['reasoning', 'reasoning_content']) {
+      const url = await serve([
+        frame({ choices: [{ delta: { [field]: 'The user wants ' } }] }),
+        frame({ choices: [{ delta: { [field]: 'one line.' } }] }),
+        delta('One line.'), 'data: [DONE]\n\n',
+      ]);
+      const r = await readSSE(await fetch(url, { method: 'POST' }), () => {});
+      assert.strictEqual(r.reasoning, 'The user wants one line.', `the plan in delta.${field} is kept`);
+      assert.strictEqual(r.prose, 'One line.', `and delta.${field} is never prose`);
+    }
+  });
+
+await ok('a waited-for plan is read under either name too', async () => {
+  stopFake.state.json = [{ content: 'ok', reasoning: 'A short answer.' },
+                         { content: 'ok', reasoning_content: 'A short answer.' }];
+  for (const field of ['reasoning', 'reasoning_content']) {
+    const r = await chat('s', 'b', { max_tokens: 24 });
+    assert.strictEqual(r.reasoning, 'A short answer.', `the plan in message.${field} is kept`);
+  }
+});
 
 await ok('only `data:` lines are prose', async () => {
   // The JSON payload on the `event:` line is contrived — llama-server does not send one. It is

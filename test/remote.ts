@@ -79,9 +79,10 @@ const flSrv = createServer((req, res) => {
     if (how === 'refuse') return json(400, { error: { message: `bad request for key ${KEY}` } });
     const answer = () => {
       // Two models plan when told not to, each the way a provider can show it: in the reasoning
-      // field, and inline in the prose.
+      // field, and inline in the prose. The field is `reasoning`, as the real Featherless names it
+      // (checked 2026-10-22); llama-server's `reasoning_content` is covered in test/stream.ts.
       const message = body.model === STUBBORN
-        ? { content: 'ok', reasoning_content: 'The user wants a short answer.' }
+        ? { content: 'ok', reasoning: 'The user wants a short answer.' }
         : body.model === PLANS_INLINE ? { content: '<think>A short answer, then.</think>ok' }
         : { content: 'The remote wrote this.' };
       if (!body.stream) return json(200, { choices: [{ message, finish_reason: 'stop' }],
