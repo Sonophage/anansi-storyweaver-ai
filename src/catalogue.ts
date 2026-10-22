@@ -13,7 +13,7 @@
  * and a catalogue many times larger would want a disk cache. Upgrade path is writing the list to
  * a file beside the key with its fetch time.
  */
-import { FEATHERLESS } from './llama.ts';
+import { FEATHERLESS, FEATHERLESS_AGENT } from './llama.ts';
 
 /** `cost` is Featherless's `concurrency_cost`: how many of the plan's units one call takes. */
 type CatalogueRow = { id: string; modelClass: string | null; context: number | null;
@@ -27,8 +27,10 @@ let cached: { at: number; rows: CatalogueRow[] } | null = null;
 export async function catalogue(now = Date.now()): Promise<CatalogueRow[]> {
   if (cached && now - cached.at < CATALOGUE_TTL_MS) return cached.rows;
   let r: Response;
-  try { r = await fetch(`${FEATHERLESS}/models`, { signal: AbortSignal.timeout(30_000) }); }
-  catch { throw new Error('cannot reach Featherless to read its catalogue'); }
+  try {
+    r = await fetch(`${FEATHERLESS}/models`,
+      { headers: FEATHERLESS_AGENT, signal: AbortSignal.timeout(30_000) });
+  } catch { throw new Error('cannot reach Featherless to read its catalogue'); }
   if (!r.ok) throw new Error(`the Featherless catalogue answered ${r.status}`);
   const d = await r.json() as any;
   // A field Featherless leaves out, or sends as something other than a positive number, is unknown.

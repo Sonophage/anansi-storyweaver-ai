@@ -71,6 +71,9 @@ const srv = createServer((req, res) => {
       res.writeHead(CARDS[card] ? 200 : 404, { 'Content-Type': 'text/plain' });
       return res.end(CARDS[card] ?? 'Entry not found');
     }
+    // As the real Featherless does: Node's default fetch User-Agent gets a 404 for the catalogue.
+    if (req.url === '/v1/models' && /^node$/i.test(String(req.headers['user-agent'] ?? '')))
+      return json(404, { error: { message: 'not found' } });
     if (req.url === '/v1/models') return json(200, { data: CATALOGUE });
     if (req.url === '/v1/tokenize') return json(200, { count: 100 });
     if (req.url !== '/v1/chat/completions') return json(404, { error: { message: 'no route' } });

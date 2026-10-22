@@ -53,6 +53,10 @@ const remoteName = (id: string) => id.slice(REMOTE_PREFIX.length);
 /** The base URL, `/v1` included. An env var so the test suite can point it at a fake. */
 export const FEATHERLESS = (process.env.ANANSI_FEATHERLESS_URL ?? 'https://api.featherless.ai/v1')
   .replace(/\/+$/, '');
+/** EVERY FEATHERLESS REQUEST NAMES ITSELF. Measured 2026-10-22 against the live API: the catalogue
+ *  answers Node's default `fetch` User-Agent ("node") with a 404 and anything that names itself
+ *  with a 200. Every fake passed without it, because no fake looked at the header. */
+export const FEATHERLESS_AGENT = { 'User-Agent': 'Anansi' };
 /** THE KEY LIVES IN A FILE, never in the repo or the database, and is read on each call rather than
  *  once at boot: a key added or rotated while the server runs is picked up without a restart, and
  *  a box with no file simply has no remote models — not an error at boot. */
@@ -106,7 +110,7 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
     let res: Response;
     try {
       res = await fetch(FEATHERLESS + path, { method: 'POST', signal, body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` } });
+        headers: { ...FEATHERLESS_AGENT, 'Content-Type': 'application/json', Authorization: `Bearer ${key}` } });
     } catch (e: any) {
       if (e?.name === 'TimeoutError') throw new Error(FEATHERLESS_LATE);
       if (e?.name === 'AbortError') throw new Error('the call was cancelled');

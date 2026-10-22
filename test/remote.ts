@@ -68,6 +68,10 @@ const flSrv = createServer((req, res) => {
     const json = (status: number, o: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
     if (req.url === '/v1/models') catReads.push(req.headers.authorization);
+    // AS THE REAL ONE DOES, measured 2026-10-22: Featherless answers the catalogue with a 404 to
+    // Node's own `fetch` User-Agent ("node") and a 200 to anything that names itself.
+    if (req.url === '/v1/models' && /^node$/i.test(String(req.headers['user-agent'] ?? '')))
+      return json(404, { error: { message: 'not found' } });
     if (req.url === '/v1/models') return json(200, { data: CATALOGUE });
     if (req.url === '/v1/tokenize') return json(200, { count: 321 });
     if (req.url !== '/v1/chat/completions') return json(404, { error: { message: 'no route' } });
