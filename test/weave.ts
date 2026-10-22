@@ -1,0 +1,201 @@
+// Weaving (#49): a book whose writer turns it on lets the model plan, unseen, before it writes. What
+// is under test is what reaches the model and what comes back: which calls are sent weaving on, the
+// reply cap they are given, the budget the Context panel shows against the one the call uses, and
+// the plan's length on the generation row.
+//
+// Driven against a FAKE llama-server, because every one of these is a number on the wire. What the
+// real model does with weaving on is F60: about 3,300 planning tokens a passage, the largest 4,552,
+// and a passage that never arrives when the cap cannot hold the plan (F5).
+//
+//   node --experimental-strip-types test/weave.ts
+import assert from 'node:assert';
+import { createServer } from 'node:http';
+import { unlinkSync } from 'node:fs';
+
+const DB = '/tmp/anansi-weave.db';
+for (const f of ['', '-wal', '-shm']) { try { unlinkSync(DB + f); } catch {} }
+process.env.ANANSI_DB = DB;
+
+/** What the fake was asked, in order: which kind of call, whether it was told to weave, its cap,
+ *  and the user message, so a warm can be compared with the prompt a preview shows. */
+let calls: { kind: string; weaving: unknown; maxTokens: number; user: string }[] = [];
+/** The plan the fake hands back with a passage, and the token count it reports for it, if any. */
+let plan = '';
+let planTokens: number | undefined;
+
+const srv = createServer((req, res) => {
+  let raw = '';
+  req.on('data', (d) => { raw += d; });
+  req.on('end', () => {
+    const b = JSON.parse(raw || '{}');
+    const send = (o: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(o)); };
+    // Short, so the exact count never refuses; the budget is what this file reads, not the count.
+    if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
+    const kind = b.response_format ? 'check' : b.max_tokens === 1 ? 'warm' : 'prose';
+    calls.push({ kind, weaving: b.chat_template_kwargs?.enable_thinking, maxTokens: b.max_tokens,
+      user: String(b.messages?.[1]?.content ?? '') });
+    if (kind === 'check') return send({ choices: [{ message: { content: JSON.stringify({ contradictions: [] }) } }],
+      usage: { prompt_tokens: 200, completion_tokens: 5 } });
+    send({ choices: [{ message: { content: 'She walks into the light.', reasoning_content: plan },
+                       finish_reason: 'stop' }],
+      usage: { prompt_tokens: 200, completion_tokens: 40,
+               ...(planTokens == null ? {} : { completion_tokens_details: { reasoning_tokens: planTokens } }) } });
+  });
+});
+await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
+
+// Imported AFTER the host is set: llama.ts reads it once, at module load.
+const db = await import('../src/db.ts');
+const { routes } = await import('../src/routes.ts');
+const { DatabaseSync } = await import('node:sqlite');
+const { SYSTEM } = await import('../src/render.ts');
+
+const me = db.owner('weaver');
+const book = (title: string) => {
+  const s = db.createStory(me, { title, premise: 'A city on a dead god.' });
+  db.upsertEntry(s.id, me, { title: 'The Murmur', body: 'Vel is the Murmur.', activation: 'always_on' });
+  db.addPassage({ ...s, storyId: s.id, body: 'The lower tiers still pulse.' });
+  return s;
+};
+const woven = book('Woven'), plain = book('Plain');
+
+// The shipped sampler's cap, as serve.ts ships it: 900 when the writer has set no length.
+const ctx = (body: any, perSlot = 50048) => ({ body, query: new URLSearchParams(), owner: me,
+  slot: { global: perSlot * 2, slots: 2, perSlot },
+  gen: { temperature: 0.85, top_p: 0.95, target_words: 0, max_tokens: 900 }, setGen: () => {} }) as any;
+// Through the story save, the way the Storyteller's switch reaches it.
+const story = await routes['POST /api/story'](ctx({ id: woven.id, story: { weaving: true } })) as any;
+assert.strictEqual(story.story.weaving, true, 'the story save turns weaving on');
+const write = async (id: string, perSlot?: number) => {
+  calls = [];
+  return routes['POST /api/generate'](ctx({ storyId: id, mode: 'direct', directive: 'She walks into the light.' },
+    perSlot)) as any;
+};
+
+let n = 0;
+// Message only — assertions run inline above. Passing a callback to THIS `ok` would print a green
+// check for a body that never ran. Refused rather than swallowed. See the note in test/app.ts.
+const ok = (m: string, fn?: unknown) => {
+  if (fn !== undefined) throw new Error(`ok() in this suite takes a message only, and was given a `
+    + `second argument for "${m}" — its body would never run. Put the assertions inline above it.`);
+  n++; console.log(`  ok  ${m}`);
+};
+
+// ---- 1. A WEAVING BOOK'S PASSAGE WEAVES, WITH THE ROOM TO. 900 + 5,000: the shipped prose cap and
+// the fixed allowance above F60's largest plan, 4,552. Without the raise the plan eats the 900 and
+// the passage never arrives (F5).
+{
+  const r = await write(woven.id);
+  assert.ok(!r.error, r.error);
+  const prose = calls.filter((x) => x.kind === 'prose');
+  assert.strictEqual(prose.length, 1, `one passage call: ${JSON.stringify(calls)}`);
+  assert.strictEqual(prose[0].weaving, true, 'a passage in a weaving book is sent weaving on');
+  assert.strictEqual(prose[0].maxTokens, 5900, 'with its cap raised by 5,000');
+
+  await write(plain.id);
+  const off = calls.filter((x) => x.kind === 'prose');
+  assert.strictEqual(off[0].weaving, false, 'a passage in a book that does not weave is sent weaving off');
+  assert.strictEqual(off[0].maxTokens, 900, 'with the cap the writer set and nothing added');
+  ok('a passage in a weaving book weaves with its cap raised by 5,000, and one in any other book does not');
+}
+
+// ---- 2. THE BACKGROUND NEVER WEAVES, in the same weaving book. The canon check is the one a writer
+// sets off by keeping a take, and it is structured: F23 measured a structured call that planned
+// first returning unparseable JSON on 3 calls in 5.
+{
+  const passageId = db.addPassage({ ...woven, storyId: woven.id, body: 'She walks into the light.' })!;
+  calls = [];
+  const r: any = await routes['POST /api/check'](ctx({ storyId: woven.id, passageId }));
+  assert.ok(!r.error, r.error);
+  const check = calls.filter((x) => x.kind === 'check');
+  assert.ok(check.length >= 1, `the check reached the model: ${JSON.stringify(calls)}`);
+  for (const x of check) {
+    assert.strictEqual(x.weaving, false, 'a background call in a weaving book is sent weaving off');
+    assert.ok(x.maxTokens < 5000, `and with its own cap, nothing added (${x.maxTokens})`);
+  }
+  ok('the canon check in a weaving book is sent weaving off, with its own cap');
+}
+
+// ---- 3. THE BUDGET THE PANEL SHOWS IS THE BUDGET THE CALL USES. The raised cap is reserved in the
+// context budget, so a weaving book's prompt has 5,000 fewer tokens of room — and the Storyteller's
+// meter (the view), the Context panel (POST /api/manifest) and the generation must all say so.
+{
+  const budgetOf = async (id: string) => {
+    const shown: any = (routes['GET /api/story'] as any)({ ...ctx({}), query: new URLSearchParams(`story=${id}`) });
+    const preview: any = await routes['POST /api/manifest'](ctx({ storyId: id, mode: 'direct',
+      directive: 'She walks into the light.' }));
+    const call = await write(id);
+    return { shown: shown.budget, preview: preview.manifest.totals.budget, call: call.manifest.totals.budget };
+  };
+  const w = await budgetOf(woven.id), p = await budgetOf(plain.id);
+  assert.strictEqual(w.preview, w.call, `the preview's budget is the weaving call's: ${JSON.stringify(w)}`);
+  assert.strictEqual(w.shown, w.call, "and so is the view's");
+  assert.strictEqual(p.preview, p.call, `and in a book that does not weave: ${JSON.stringify(p)}`);
+  assert.strictEqual(p.call - w.call, 5000, 'the weaving book has 5,000 fewer tokens of room');
+  ok("the view's budget, the preview's and the call's agree, and weaving reserves its 5,000 in them");
+}
+
+// ---- 4. THE WARM SENDS THE PREFIX THE PASSAGE WILL SEND. Opening a book warms its prompt in the
+// background, and a warm budgeted without the weaving room keeps prose the real call drops — which
+// warms a prefix nothing is going to ask for. A small slot and a long book, so the 5,000 decides
+// what stays.
+{
+  const long = db.createStory(me, { title: 'Long', premise: 'A city on a dead god.' });
+  for (let i = 1; i <= 30; i++)
+    db.addPassage({ ...long, storyId: long.id,
+      body: `Passage ${i}. ` + 'The lower tiers pulse under the rain, and the Murmur keeps her counsel. '.repeat(4) });
+  const SLOT = 9000;
+  const preview = async () => ((await routes['POST /api/manifest'](ctx({ storyId: long.id, mode: 'continue' },
+    SLOT))) as any).prompt as string;
+  const off = await preview();
+  await routes['POST /api/story'](ctx({ id: long.id, story: { weaving: true } }));
+  const on = await preview();
+  // The precondition, so the comparison below can fail: at this size weaving has to change the prompt.
+  assert.notStrictEqual(on, off, 'in this book the weaving room changes which prose reaches the prompt');
+
+  calls = [];
+  (routes['GET /api/story'] as any)({ ...ctx({}, SLOT), query: new URLSearchParams(`story=${long.id}`) });
+  for (let i = 0; i < 100 && !calls.some((x) => x.kind === 'warm'); i++) await new Promise((r) => setTimeout(r, 20));
+  const warm = calls.find((x) => x.kind === 'warm');
+  assert.ok(warm, `opening the book warmed it: ${JSON.stringify(calls.map((x) => x.kind))}`);
+  assert.strictEqual(warm!.weaving, false, 'a warm never weaves — it asks for one token');
+  assert.strictEqual(warm!.user, on.slice(SYSTEM.length), 'and it warms the prompt the weaving passage will send');
+  ok('opening a weaving book warms the prompt its passage will send, weaving room and all');
+}
+
+// ---- 5. THE PLAN'S LENGTH IS KEPT, AND THE PLAN IS NOT. The admin tunes the 5,000 from these
+// numbers, so they have to be on the row; the plan is never shown, so it must not be stored either.
+{
+  const raw = new DatabaseSync(DB, { readOnly: true });
+  const paramsOf = (genId: string) =>
+    JSON.parse((raw.prepare('SELECT params FROM generations WHERE id = ?').get(genId) as any).params);
+  const rowOf = (genId: string) => JSON.stringify(raw.prepare('SELECT * FROM generations WHERE id = ?').get(genId));
+  const PLAN = 'THE-PLAN-ITSELF Seth belongs to the writer; stop where he would act. ';
+
+  // The server's own count, when it gives one: llama.cpp and OpenAI-shaped APIs put it here.
+  plan = PLAN.repeat(10); planTokens = 3300;
+  const counted = await write(woven.id);
+  assert.strictEqual(paramsOf(counted.genId).plan, 3300, "the server's count of the plan is kept");
+  assert.strictEqual(paramsOf(counted.genId).weaving, true, 'and the row says the call wove');
+  assert.strictEqual(paramsOf(counted.genId).max_tokens, 5900, 'with the cap it was sent with');
+  assert.ok(!rowOf(counted.genId).includes('THE-PLAN-ITSELF'), 'and nothing of the plan is stored');
+
+  // No count from the server: the length of the plan, by the same estimate the budget uses
+  // (4.2 characters a token). 420 characters is 100 tokens.
+  plan = 'x'.repeat(420); planTokens = undefined;
+  const estimated = await write(woven.id);
+  assert.strictEqual(paramsOf(estimated.genId).plan, 100, 'without a count, the plan is measured from its length');
+
+  // A book that does not weave has no plan to record, and its row says nothing about one.
+  plan = ''; planTokens = undefined;
+  const none = await write(plain.id);
+  assert.ok(!('plan' in paramsOf(none.genId)), 'a call that did not weave records no plan length');
+  assert.strictEqual(paramsOf(none.genId).max_tokens, 900, 'and its own cap');
+  raw.close();
+  ok("a weaving passage's plan length lands on its generation row, and the plan does not");
+}
+
+console.log(`\n${n} checks passed`);
+srv.close();

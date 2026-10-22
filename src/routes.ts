@@ -10,7 +10,7 @@ import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, capFor, clean, defaultModePrompts, trimToSentence,
-         voiceOf, anansiOf } from './story.ts';
+         voiceOf, anansiOf, estimate } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, cardText, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches } from './context.ts';
@@ -92,6 +92,39 @@ const need = <T,>(v: T, msg: string): NonNullable<T> => {
   if (!v) throw Object.assign(new Error(msg), { code: 404 }); return v as NonNullable<T>; };
 /** A book's view as the background work reads it: no writer, so no model resolved for one. */
 const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such story');
+/** THE ROLES THAT WEAVE, and the only list of them. A call whose role is not here is sent weaving
+ *  off whatever its book says: summaries, the canon check, memory and extraction are background
+ *  work, and F23 measured a structured call that planned first truncating its own JSON on 3 calls in
+ *  5. Talk and Invent join this list when #57 measures them with weaving on; adding a role is this
+ *  one line, and `replyFor` below is what every caller reads it through. */
+export const WEAVING_ROLES: ReadonlySet<string> = new Set(['prose']);
+
+/** The room a weaving call is given on top of its role's own cap. Fixed, above the largest plan F60
+ *  measured (4,552 tokens; the median was about 3,300).
+ *
+ *  ponytail: one number for every model and every book. The upgrade path is the plan length each
+ *  weaving generation records in its params (`plan`), which is what this gets tuned from. The
+ *  trigger is a plan that lands near this number, or a weaving passage cut off at its cap. */
+export const WEAVE_ROOM = 5000;
+
+/** Whether this book weaves for the writer asking: its own switch. The server decides this, and the
+ *  client reads it off the view rather than deriving it again. */
+const bookWeaves = (_c: Ctx, v: { story: any }) => !!v.story?.weaving;
+
+/** A CALL'S REPLY CAP, AND WHETHER IT WEAVES, decided here and nowhere else.
+ *
+ *  `cap` is the role's own cap. A role on WEAVING_ROLES in a book that weaves gets WEAVE_ROOM on top
+ *  of it. The book's budget in `viewOf`, the generation, the Context panel's preview and the warm
+ *  all read this, so the panel shows the budget the call is going to use and the warm sends the
+ *  prefix the call is going to send. A second copy of this arithmetic is how those drift apart, the
+ *  failure `inherit`'s note names for the mode and the directive. */
+const replyFor = (c: Ctx, v: { story: any }, role: string, cap: number) => {
+  const weaves = WEAVING_ROLES.has(role) && bookWeaves(c, v);
+  return { weaves, maxTokens: cap + (weaves ? WEAVE_ROOM : 0) };
+};
+/** The prose cap the writer's sampler holds: derived from the target length by `capFor`. */
+const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
+
 /** A BOOK AS EVERY ROUTE HANDS IT BACK: the view, plus what writes it for the writer asking.
  *
  *  The browser takes any view a route answers with as the book itself. Routes used to answer with
@@ -101,8 +134,8 @@ const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no suc
  *  `bookOf` is only for work that never answers the browser. Nothing in the type system enforces
  *  that, and the remote suite checks two routes by name, so a new route that answers with `bookOf`
  *  would bring the old bug back unnoticed. `model` is the model that writes this book;
- *  `defaultModel` the writer's own; `pin` the book's remote pin as a model row; `budget` the room a
- *  prompt for `model` may take. */
+ *  `defaultModel` the writer's own; `pin` the book's remote pin as a model row; `weaves` whether a
+ *  passage in this book weaves; `budget` the room a passage's prompt for `model` may take. */
 const viewOf = (c: Ctx, id: string, chapter?: string) => {
   const v = bookOf(id, chapter);
   const model = writerModel(c, v);
@@ -110,7 +143,8 @@ const viewOf = (c: Ctx, id: string, chapter?: string) => {
     // The pin as a model row when it is a remote model on the owner's shortlist, so a guest's
     // picker can show the model that writes this book rather than calling it gone.
     pin: remotePin(c, v.story.model, v.owner),
-    budget: budgetFor(v.story, slotFor(c, v, model), Number(c.gen.max_tokens) || 900) };
+    weaves: bookWeaves(c, v),
+    budget: budgetFor(v.story, slotFor(c, v, model), replyFor(c, v, 'prose', proseCap(c)).maxTokens) };
 };
 
 /** Routes that must not be reachable with someone else's story id.
@@ -629,6 +663,14 @@ function inherit(c: Ctx, mode: string, directive?: string) {
   };
 }
 
+/** How long a plan ran, in tokens: the server's own count when it gives one (llama.cpp and
+ *  Featherless are both OpenAI-shaped, and that shape puts it under `completion_tokens_details`),
+ *  else the plan's text through the same estimate the budget uses. */
+const planLength = (r: { usage?: any; reasoning: string }) => {
+  const told = r.usage?.completion_tokens_details?.reasoning_tokens;
+  return typeof told === 'number' ? told : estimate(r.reasoning);
+};
+
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
   // ASKING FOR THE NEXT PASSAGE CLAIMS WHAT IS ALREADY THERE — "only claimed after the next
@@ -658,8 +700,11 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
   // Decided before the prompt is built, because a remote model is budgeted against its own limit.
   const using = writerModel(c, v);
+  // Whether this call weaves, and the cap that goes with it. The prompt is budgeted against the same
+  // cap the call is sent with, so the plan's room is reserved rather than taken out of the prose.
+  const reply = replyFor(c, v, role, proseCap(c));
   const { manifest, prompt } = assemble(v, slotFor(c, v, using), mode, directive, upTo,
-    Number(c.gen.max_tokens) || 900, speaker || undefined, db.promptsOf(c.owner),
+    reply.maxTokens, speaker || undefined, db.promptsOf(c.owner),
     Number(c.gen.target_words) || 0);
   const mTokenize = performance.now();
   if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
@@ -684,7 +729,6 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   const appMs = { view: Math.round((mAssemble - mView) * 10) / 10,
                   assemble: Math.round((mTokenize - mAssemble) * 10) / 10,
                   tokenize: Math.round((performance.now() - mTokenize) * 10) / 10 };
-  const sampler = c.gen;
   /* THE SEED, MINTED HERE AND WRITTEN DOWN.
    *
    * Nothing set one until now, so no generation in this app was ever reproducible: a passage a
@@ -707,13 +751,20 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // The story's own model, or the process default. `chat` spreads opts over its own defaults,
     // so naming it here is all it takes — every call has always carried a model name.
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
-      { ...sampler, seed, model: using, chat_template_kwargs: { enable_thinking: false } }, onDelta,
+      // `max_tokens` after the sampler, which carries the writer's own: a weaving call needs the
+      // raised one, and F5 is what the writer's one does to a plan.
+      { ...c.gen, max_tokens: reply.maxTokens, seed, model: using,
+        chat_template_kwargs: { enable_thinking: reply.weaves } }, onDelta,
       // Only the streaming call. `onDelta` is present exactly when there is a writer watching
       // this arrive, which is exactly when there is a Stop button to press.
       onDelta ? c.signal : undefined);
     const ms = Date.now() - t0;
     const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
-      params: { ...c.gen, seed, ms: appMs }, manifest, promptTokens: r.usage?.prompt_tokens,
+      // A weaving call says so, with the cap it was really sent and the plan's LENGTH — what the
+      // 5,000 is tuned from. The plan itself is never stored: it is never shown, and the row is.
+      params: { ...c.gen, seed, ms: appMs,
+                ...(reply.weaves ? { weaving: true, max_tokens: reply.maxTokens, plan: planLength(r) } : {}) },
+      manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     // THE CEILING, so it still has to be visible when it fires. `capFor` puts it well
     // above anything measured, but a runaway can reach it — and until now that arrived as a
@@ -1354,8 +1405,10 @@ function prewarm(c: Ctx, v: any) {
   warmedAt.set(v.id, Date.now());
   void (async () => {
     try {
+      // The cap the passage will be sent with, weaving room and all: a warm built against a larger
+      // budget than the call's would warm a prefix the call does not send.
       const { manifest, prompt } = assemble(v, c.slot, 'continue', undefined, undefined,
-        Number(c.gen.max_tokens) || 900, undefined, db.promptsOf(c.owner),
+        replyFor(c, v, 'prose', proseCap(c)).maxTokens, undefined, db.promptsOf(c.owner),
         Number(c.gen.target_words) || 0);
       // A book that cannot fit is a book whose real call is going to refuse anyway. Warming it
       // would send a prompt the server rejects and teach the cache nothing.
@@ -3394,8 +3447,10 @@ export const routes: Record<string, Handler> = {
     // THE INHERITED SPEAKER TOO, not the composer's: `inherit` hands back all three of mode,
     // directive and speaker, and a preview built from two of them is a preview of a prompt the
     // generation will not send. That is the whole reason both routes go through one helper.
+    // AND THE CAP, through the one helper the generation reads, so a weaving book's preview reserves
+    // the plan's room the way the call does.
     const { manifest, prompt } = assemble(v, slotFor(c, v, writerModel(c, v)), m0.mode, m0.directive,
-      upTo, Number(c.gen.max_tokens) || 900, m0.speaker || undefined, db.promptsOf(c.owner),
+      upTo, replyFor(c, v, 'prose', proseCap(c)).maxTokens, m0.speaker || undefined, db.promptsOf(c.owner),
       Number(c.gen.target_words) || 0);
     let exact: number | null = null;
     try { exact = await count(prompt, writerModel(c, v)); } catch { /* model asleep */ }
