@@ -29,3 +29,26 @@ _Avoid_: outdated, invalid
 An act whose chapters have changed since it was written. Unlike a stale summary, it still reaches
 the model, with a warning to the writer.
 _Avoid_: stale
+
+## Who writes
+
+**Local model**:
+A model run on this machine. Anansi's default, and the only kind that ever writes the
+background work: summaries, the canon check, memory.
+_Avoid_: router model, home model
+
+**Remote model**:
+A model run by Featherless and chosen on purpose by a writer. The book's text goes to Featherless
+for every passage it writes.
+_Avoid_: cloud model, API model, online model
+
+**Weaving**:
+A book's setting in which the model plans, unseen, before it writes a passage, a Talk reply or an
+invention. Off unless the writer turns it on for that book. The plan is never shown. Not the
+Voice of the weave, which is how the book is written.
+_Avoid_: thinking, reasoning, planning, chain of thought
+
+**Shortlist**:
+One writer's own list of remote models, added from the Featherless catalogue. It appears on that
+writer's model menu beside the local models, and on no one else's.
+_Avoid_: favourites, my models, library

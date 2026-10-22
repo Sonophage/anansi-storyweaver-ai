@@ -53,7 +53,7 @@ when something is genuinely wrong.
 **Docs drift from the code. The code wins.** When they disagree, read the code and fix the doc.
 Run it; do not cite it.
 
-1. **`docs/findings/P0-FINDINGS.md`** — measured numbers, 59 findings. The most valuable thing in
+1. **`docs/findings/P0-FINDINGS.md`** — measured numbers, 60 findings. The most valuable thing in
    the repo: these cost GPU time and cannot be re-derived by reading source. 47 F-numbers are cited
    from code comments explaining why something is the way it is.
 2. **`docs/findings/BUILD-STATE.md`** — what is built and what is missing, with the command that

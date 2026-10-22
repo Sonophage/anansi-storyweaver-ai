@@ -2883,3 +2883,92 @@ or something that is not a sentence at all.
 generations. Different denominators, not a contradiction: stored passages are the ones the writer
 KEPT and are longer, and a longer passage has more room to put him in the subject slot. The
 within-run contrast is what carries the finding either way.
+
+## F60 — thinking ON, with a budget it cannot exhaust, cuts acting for the locked character from 34% to 4% of generations (p = 0.0002), at 8x the latency; and the name-anchored lockout detector sees almost none of the leak (2026-10-21)
+
+F5 and F23 established that thinking must be off because it spends a 900-token budget before any
+prose. Neither measured whether thinking, given enough budget to finish, changes the prose. This
+does.
+
+**The design.** One prompt per fixture, taken from `POST /api/manifest` on a scratch server
+reading a `VACUUM INTO` copy of the library, so it is byte-for-byte what Anansi would send. Both
+arms then call the router directly with the app's own sampler (temperature 0.85, top_p 0.95,
+min_p 0.05) and the app's own system/user split. The arms differ in two things that cannot be
+separated: `enable_thinking` and `max_tokens` (OFF 900, the shipped cap; ON 8,000). Each pair
+shares a seed and runs simultaneously on the router's two slots. Model
+`Qwen3.6-WNTH-35B-A3B-NN`. 0 errors, 0 empty passages, 0 generations at the cap, in either arm.
+
+Fixtures: `Into the Blue` (owner sonophage), mode `direct`, directive *"Halsey's voice breaks and
+the room goes quiet."*, lockout on `Seth`, prompt 6,490 tokens, 50 pairs. `Sutera Remembers`
+(owner sonophage), mode `continue`, no locked character, 20 pairs.
+
+### Cost
+
+| | OFF | ON |
+|---|---|---|
+| median latency, Into the Blue | 7 s | 60 s |
+| median latency, Sutera | 6 s | 55 s |
+| completion tokens, Into the Blue, 50 runs | 10,624 | 166,727 |
+| median reasoning, Into the Blue | 0 | 13,381 chars (~3,300 tokens) |
+| median words of prose, Into the Blue | 170 | 195 |
+| median words of prose, Sutera | 114 | **390** |
+
+The ON arm's reasoning occupies the shared KV pool for the length of the call. With two writers
+on one `kv_unified` pool, that is ~3,300 more tokens per request in flight.
+
+### The lockout
+
+`bench/lockout-book.ts report` over the two arms, re-scored from stored prose:
+
+| | OFF | ON | p |
+|---|---|---|---|
+| names him | 26/50 (52%) | 3/50 (6%) | < 0.0001 |
+| acted (name + action verb, the shipped detector) | 2/50 | 0/50 | 0.49 |
+| spoke | 0/50 | 0/50 | 1.0 |
+| interior | 0/50 | 0/50 | 1.0 |
+
+**And with the pronoun counted.** The shipped detector is anchored on his NAME by design (the
+floor rule: a pronoun is never counted). In this scene Halsey is the only other person and is
+"she", so "he" is Seth. A one-off check, `\b(he|seth)\s+<the detector's verb forms>\b` over
+narration (dialogue stripped with the harness's own `strip`), validated once in each direction
+(*"He reaches for the cup."* flags, *"She reaches for the cup."* does not):
+
+| | OFF | ON | p (Fisher) |
+|---|---|---|---|
+| he/Seth + action verb | **17/50 (34%)** | **2/50 (4%)** | **0.0002** |
+
+The OFF arm's leak is pronoun-led: *"He watches her."* / *"He watches the way her thumb stutters
+against her clit…"* — Seth acting, invisible to a name-anchored counter. **The shipped detector saw
+2 of the 17.** Every lockout rate measured with `bench/lockout-book.ts` is a floor, as its report
+already says; on this scene the floor is about one eighth of the measured rate.
+
+**The mechanism, from the reasoning traces.** 29 of 50 ON traces restate the lockout before
+writing, e.g. *"Seth belongs to the writer — I must NOT write his dialogue, action, gesture, or
+thought… stop where Seth would act."* OFF has no step in which to read the rule back.
+
+### Repeating the writer's own text
+
+A sentence of six or more words that appears verbatim (normalised) in the last 3,000 characters of
+the prompt's prose. Detector validated once each way. Into the Blue: OFF 4/50, ON 10/50,
+p = 0.15 — not distinguishable from chance at this n. Sutera: 0/20 both arms.
+
+### What this does and does not settle
+
+- **Settles:** on this scene, a thinking pass with room to finish removes most of the action leak
+  that F59 located as the one open part of the lockout.
+- **Does not settle:** prose quality. Blind pairs were produced for the writer to judge; no
+  rubric here scores taste.
+- **Does not separate** thinking from the raised cap; the OFF arm at 8,000 would be an identical
+  prompt with more room it never uses (0 of 50 OFF generations came near 900).
+- **One fixture with a lockout, one directive, one model.** The pronoun check holds only where the
+  locked character is the only man in the scene; F58's two-man fixture is where it would break.
+- **Not comparable to F59's 20%.** F59 counted by name, on the book when it had 26 passages, with
+  a different directive. This run's name-anchored rate is 4% (2/50). Densities compare only
+  within one simultaneous run (F55, F57).
+- **The app cannot reproduce this as shipped.** `capFor` caps `max_tokens` at 2,000 and F5's
+  failure returns at that cap. A cheaper mechanism — a short rule-reading step, or a reasoning
+  budget — is the next measurement, not a switch to flip.
+
+**Harness.** Not committed. `think.ts` (the arms), `report.ts` (latency, length, echo, blind
+pairs) and `pron.ts` (the pronoun check) ran from the session scratch directory against port 5301.
+They land as a `bench/` entry with a `check` mode if this is pursued.
