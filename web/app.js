@@ -1655,21 +1655,22 @@ let STOP = null;
  *  opening a panel must not eat it, and opening a different book must not carry it across. */
 let DOCK_FOR = null;
 
-/** #56 · WHEN WEAVING DOES NOT FIT, the server's sentence and the two ways on, as a row on the
- *  composer.
+/** #56 · WHEN WEAVING DOES NOT FIT, the server's sentence and the two ways on, as a row where the
+ *  press was made: `where` is 'dock' for a passage (the composer), 'talk' for the Talk panel above
+ *  its ask box, and 'invent:<kind>' for the tray that writes a thread of that kind.
  *
  *  A row and not a toast: the app's toast is text only and goes away on its own, and this is a
- *  question the writer has to answer before anything is written. On the composer because that is
- *  where the press came from and where the hand still is; the veil has already come down, as it
- *  does on every refusal. It lasts until one of its buttons is pressed or the next generation
- *  starts, and only in the book it was refused in.
+ *  question the writer has to answer before anything is written. Where the press came from because
+ *  that is where the hand still is; for a passage the veil has already come down, as it does on
+ *  every refusal. It lasts until one of its buttons is pressed or the next call of its kind starts,
+ *  and only in the book it was refused in.
  *
  *  Write anyway is left off for an overflow: the weaving prompt would not fit, so sending it would
  *  only be refused again. The sentence is the server's (`weaveRefusal` in routes.ts); the client
  *  names nothing itself. */
-function weaveFitRow() {
+function weaveFitRow(where = 'dock') {
   const f = S.weaveFit;
-  if (!f || f.storyId !== S.storyId) return '';
+  if (!f || f.storyId !== S.storyId || f.where !== where) return '';
   return `<div id="weavefit" role="alert">
       <div class="hint">${esc(f.message)}</div>
       <div class="weavefitgo">${f.overflows ? ''
@@ -3717,6 +3718,7 @@ const PANELS = {
           before you send it.</p>`)}
       </div>` : ''}
 
+      ${weaveFitRow('talk')}
       <div style="display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid var(--line); position:relative">
         <!-- @ SUMMONS SOMETHING BY NAME. Issue #7: Anansi answers better when she is told which
              thread you mean than when she has to guess from a paraphrase. The list floats ABOVE
@@ -5277,6 +5279,7 @@ function inventTray(kind, label, placeholder, value = '') {
   // is a bug that produces a plausible answer to the wrong question.
   return `<div data-invtray style="display:flex; flex-direction:column; gap:7px; margin-top:4px;
       padding-top:9px; border-top:1px solid var(--line)">
+    ${weaveFitRow(`invent:${kind}`)}
     <textarea class="field" data-invdir aria-label="Steer what Anansi writes"
       placeholder="${esc(placeholder)}"
       style="min-height:44px; font-size:12.5px">${esc(value)}</textarea>
@@ -8041,13 +8044,100 @@ async function generate(mode = S.mode, again = null) {
   if (document.getElementById('ghost')) { VEIL_LAND = land; veilFinish(); } else land();
 }
 
-/** #56 · A WEAVING REFUSAL, held for the composer's row. `again(anyway)` is the press that was
- *  refused, ready to be sent once more: with the override for Write anyway, without it once
- *  weaving is off. The Context panel is asked again, because it carries the same refusal. */
-function weaveRefused(r, again) {
-  S.weaveFit = { ...r.weaveFit, storyId: S.storyId, again };
-  drawDock();
-  refreshManifest();
+/** What a tray's invention asks for. One builder for the press and for the same press sent again
+ *  from a weaving refusal's row, so the two cannot ask for different things; `anyway` is Write
+ *  anyway (#56). */
+const inventAsk = (kind, dir, search, anyway = false) => ({ kind, entryId: outfitOwner() || undefined,
+  direction: dir || undefined, search, ...(anyway ? { weaveAnyway: true } : {}) });
+
+/** #56. The same invention again, from the tray's weaving row: through the in-flight guard like the
+ *  press itself, on the tray's own button, found again because the tray has been redrawn since. */
+async function inventAgain(kind, dir, search, anyway) {
+  const t = document.querySelector(`[data-invent="${kind}"]`);
+  working('direct');
+  const r = await whileWorking(t, search ? 'Looking it up…' : 'Writing…',
+    () => api.invent(S.storyId, inventAsk(kind, dir, search, anyway)));
+  working(null);
+  return invented(r, kind, dir, search);
+}
+
+/** What a tray's invention came back with, put where the writer reads it. Its own function since
+ *  #56, because the press and the same press sent again from a weaving refusal's row both land here. */
+async function invented(r, kind, dir, search) {
+  if (!r) return;
+  if (r.weaveFit) return weaveRefused(r, (a) => inventAgain(kind, dir, search, a), `invent:${kind}`);
+  if (r.error) return toast(r.error);
+  if (r.card) {
+    // The open card, rewritten, unsaved. Same bargain as the outfit below and as every other
+    // thing Anansi offers: she fills the fields, the writer reads them and presses Save. The
+    // keys come with it because a card whose trigger words are not rewritten alongside its body
+    // is a card that still fires on the old one.
+    const set = (f, v) => { const el = document.querySelector(`[data-f="${f}"]`); if (el) el.value = v; };
+    set('title', r.card.title); set('body', r.card.body);
+    if (r.card.keys?.length) set('keys', r.card.keys.join(', '));
+    return toast('Written, not saved — read it, then press Save.');
+  }
+  // ONE PAIR OF BOXES ON THE SCREEN NOW, so a room and a coat land in the same place. This
+  // used to aim at data-newan for the slot, because the form drew one Add box per slot and they
+  // were all on screen at once; the tray at the top of the card is the only one left.
+  const written = r.addon ?? r.outfit;
+  if (written) {
+    // Straight into the form, unsaved. Add an outfit is still the writer's press — and filling
+    // the fields rather than writing the row is the whole difference between this and a
+    // generator that dresses her behind your back.
+    // The fields live behind "Write it myself", so opening the fold is part of handing the
+    // answer over. Filled but folded is the same as not written as far as the writer can tell.
+    document.querySelector('.outfitmine')?.setAttribute('open', '');
+    const name = document.querySelector('[data-of="name"]');
+    const body = document.querySelector('[data-of="body"]');
+    if (name) name.value = written.name;
+    if (body) { body.value = written.body; growFields(body.parentElement ?? document.body); }
+    return toast('Written, not saved — read it, then press Add.');
+  }
+  V = await api.story(S.storyId, V.currentChapter.id); paint();
+  return toast(r.duplicate ? `The ledger already says that about ${r.title}.`
+                           : `${r.title} proposed — waiting under Chapter.`);
+}
+
+/** The question already on the Talk window as yours, asked. Its own function since #56, so a
+ *  weaving refusal can ask it again from the Talk panel's row without putting it up twice: `anyway`
+ *  is Write anyway, and the conversation sent is the one before the question either way. */
+async function talk(said, mentions, anyway = false) {
+  if (S.weaveFit?.where === 'talk') S.weaveFit = null;
+  S.talk.busy = true;
+  drawSide(); working('direct');
+  const r = await api.talk(S.storyId, {
+    said, turns: S.talk.turns.slice(0, -1).map((t) => ({ you: t.you, text: t.text })),
+    search: S.talk.search ? said : undefined,
+    mentions: mentions.length ? mentions : undefined,
+    ...(anyway ? { weaveAnyway: true } : {}),
+  });
+  working(null);
+  S.talk.busy = false;
+  if (r.weaveFit) return weaveRefused(r, (a) => talk(said, mentions, a), 'talk');
+  if (r.error) { drawSide(); return toast(r.error); }
+  S.talk.searchable = r.searchable ?? S.talk.searchable;
+  S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
+    sources: r.sources ?? [], proposed: r.proposed ?? 0,
+    meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens of context` }];
+  S.talk.draft = r.directive || null;
+  // A thread that landed is a proposal, and the queue lives under Chapter.
+  if (r.proposed) V = await api.story(S.storyId);
+  paint();
+  const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
+  return;
+}
+
+/** #56 · A WEAVING REFUSAL, held for its row (see `weaveFitRow` for `where`). `again(anyway)` is the
+ *  press that was refused, ready to be sent once more: with the override for Write anyway, without
+ *  it once weaving is off. For a passage the Context panel is asked again, because it carries the
+ *  same refusal; Talk and Invent have no preview to ask. */
+function weaveRefused(r, again, where = 'dock') {
+  S.weaveFit = { ...r.weaveFit, storyId: S.storyId, where, again };
+  // Both redrawn, because there is one refusal at a time: a newer one elsewhere takes the older
+  // row away rather than leaving its buttons to act on this one.
+  drawDock(); drawSide();
+  if (where === 'dock') refreshManifest();
   announce(r.weaveFit.message);
 }
 
@@ -8925,43 +9015,13 @@ document.addEventListener('click', async (e) => {
     // The same preference the ask box keeps. Read at press time from the DOM because this tray is
     // built fresh each time it opens; written here so the two controls agree from now on.
     if (searchOn() !== search) setWebSearch(search);
+    // A new press takes this tray's refusal away; the answer may bring it back.
+    if (S.weaveFit?.where === `invent:${d.invent}`) S.weaveFit = null;
     working('direct');
     const r = await whileWorking(t, search ? 'Looking it up…' : 'Writing…',
-      () => api.invent(S.storyId, { kind: d.invent, entryId: outfitOwner() || undefined,
-        direction: dir || undefined, search }));
+      () => api.invent(S.storyId, inventAsk(d.invent, dir, search)));
     working(null);
-    if (!r) return;
-    if (r.error) return toast(r.error);
-    if (r.card) {
-      // The open card, rewritten, unsaved. Same bargain as the outfit below and as every other
-      // thing Anansi offers: she fills the fields, the writer reads them and presses Save. The
-      // keys come with it because a card whose trigger words are not rewritten alongside its body
-      // is a card that still fires on the old one.
-      const set = (f, v) => { const el = document.querySelector(`[data-f="${f}"]`); if (el) el.value = v; };
-      set('title', r.card.title); set('body', r.card.body);
-      if (r.card.keys?.length) set('keys', r.card.keys.join(', '));
-      return toast('Written, not saved — read it, then press Save.');
-    }
-    // ONE PAIR OF BOXES ON THE SCREEN NOW, so a room and a coat land in the same place. This
-    // used to aim at data-newan for the slot, because the form drew one Add box per slot and they
-    // were all on screen at once; the tray at the top of the card is the only one left.
-    const written = r.addon ?? r.outfit;
-    if (written) {
-      // Straight into the form, unsaved. Add an outfit is still the writer's press — and filling
-      // the fields rather than writing the row is the whole difference between this and a
-      // generator that dresses her behind your back.
-      // The fields live behind "Write it myself", so opening the fold is part of handing the
-      // answer over. Filled but folded is the same as not written as far as the writer can tell.
-      document.querySelector('.outfitmine')?.setAttribute('open', '');
-      const name = document.querySelector('[data-of="name"]');
-      const body = document.querySelector('[data-of="body"]');
-      if (name) name.value = written.name;
-      if (body) { body.value = written.body; growFields(body.parentElement ?? document.body); }
-      return toast('Written, not saved — read it, then press Add.');
-    }
-    V = await api.story(S.storyId, V.currentChapter.id); paint();
-    return toast(r.duplicate ? `The ledger already says that about ${r.title}.`
-                             : `${r.title} proposed — waiting under Chapter.`);
+    return invented(r, d.invent, dir, search);
   }
 
   // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
@@ -9744,25 +9804,7 @@ document.addEventListener('click', async (e) => {
       .map((m) => ({ kind: m.kind, id: m.id }));
     S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null,
       mentions: [] };
-    drawSide(); working('direct');
-    const r = await api.talk(S.storyId, {
-      said, turns: S.talk.turns.slice(0, -1).map((t) => ({ you: t.you, text: t.text })),
-      search: S.talk.search ? said : undefined,
-      mentions: mentions.length ? mentions : undefined,
-    });
-    working(null);
-    S.talk.busy = false;
-    if (r.error) { drawSide(); return toast(r.error); }
-    S.talk.searchable = r.searchable ?? S.talk.searchable;
-    S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
-      sources: r.sources ?? [], proposed: r.proposed ?? 0,
-      meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens of context` }];
-    S.talk.draft = r.directive || null;
-    // A thread that landed is a proposal, and the queue lives under Chapter.
-    if (r.proposed) V = await api.story(S.storyId);
-    paint();
-    const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
-    return;
+    return talk(said, mentions);
   }
   if (d.usedraft) {
     // HANDED to the composer, not sent. Direct mode, in the box, editable — the whole safety
@@ -10919,7 +10961,7 @@ document.addEventListener('click', async (e) => {
       if (r.error) { S.weaveFit = fit; drawDock(); return toast(r.error); }
       V = await api.story(S.storyId, V.currentChapter.id);
       paint();
-    } else drawDock();
+    } else { drawDock(); drawSide(); }
     await fit.again(d.weaveanyway !== undefined);
     return;
   }

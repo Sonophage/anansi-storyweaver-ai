@@ -347,6 +347,8 @@ let stubPassageId: string | undefined = undefined;
 let streamGate: Promise<void> | null = null, endGate: Promise<void> | null = null;
 // #56. When set, the stubbed generation answers with this one line and no prose: a refusal.
 let stubRefuse: any = null;
+// #56. The same for a Talk reply and an invention, which are plain JSON calls.
+let stubTalk: any = null, stubInvent: any = null;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
@@ -526,6 +528,8 @@ let stubRefuse: any = null;
     : url.startsWith('/api/after?') ? (afterAsked = new URLSearchParams(url.split('?')[1]).get('id'),
         { yours: afterYours })
     : url.startsWith('/api/manifest') ? MANIFEST
+    : url.startsWith('/api/talk') ? (stubTalk ?? { reply: 'It is about a debt.', seconds: 1, tokens: 10 })
+    : url.startsWith('/api/invent') ? (stubInvent ?? { title: 'The Rust Choir', duplicate: false })
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
   return { ok: true, json: async () => body };
@@ -2530,6 +2534,76 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
   } finally { delete (MANIFEST as any).weaveFit; }
 }
 ok('the Context panel carries the weaving refusal the press would get, and nothing when it fits');
+
+// #56 with #57. TALK AND INVENT ARE REFUSED THE SAME WAY, and get the same two ways on, drawn where
+// the press was made: in the Talk panel above the ask box, and in the tray that wrote the thread.
+{
+  const MSG = 'Weaving sets aside 5,000 tokens for Anansi to weave in, and in this book that would leave '
+    + 'out the 2 oldest passages still in view. Turn weaving off for this book, or write anyway and let them drop out.';
+  const refusal = { error: MSG, manifest: MANIFEST.manifest,
+    weaveFit: { overflows: false, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] } };
+  const talks = () => POSTED.filter((p: any) => p.url === '/api/talk');
+  const rowIn = (id: string) => html(id).match(/<div id="weavefit"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '';
+  try {
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    click({ panel: 'anansi' });
+    await new Promise((r) => setTimeout(r, 30));
+    // Talk: refused, then written anyway, and the question is asked once, not twice.
+    stubTalk = refusal; POSTED.length = 0;
+    (document as any).getElementById('askBox').value = 'What is this story about?';
+    click({ ask: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+    assert.ok(rowIn('sideBody').includes('2 oldest passages'), `a refused Talk draws the row in the Talk panel: ${rowIn('sideBody')}`);
+    assert.match(rowIn('sideBody'), /data-weaveanyway/, 'with Write anyway');
+    assert.match(rowIn('sideBody'), /data-weaveoff/, 'and Turn weaving off');
+    assert.ok(!rowIn('dockCol'), 'and not on the composer, which did not make the press');
+    stubTalk = null;
+    click({ weaveanyway: '1' });
+    await new Promise((r) => setTimeout(r, 80));
+    assert.strictEqual(talks().length, 2, 'write anyway asks again');
+    assert.strictEqual(talks()[1].body.weaveAnyway, true, 'with the override');
+    assert.strictEqual(talks()[1].body.said, 'What is this story about?', 'the same question');
+    assert.deepStrictEqual(talks()[1].body.turns, talks()[0].body.turns, 'with the conversation as it was, the question not repeated');
+    assert.ok(!rowIn('sideBody'), 'and the row is gone');
+    assert.ok(html('sideBody').includes('It is about a debt.'), 'and the answer arrives');
+
+    // Turn weaving off from a refused Talk: saved, then asked again without the override.
+    stubTalk = refusal; POSTED.length = 0;
+    (document as any).getElementById('askBox').value = 'Who is Marek?';
+    click({ ask: '1' });
+    await new Promise((r) => setTimeout(r, 60));
+    stubTalk = null;
+    click({ weaveoff: '1' });
+    await new Promise((r) => setTimeout(r, 100));
+    const off = POSTED.findIndex((p: any) => p.url === '/api/story' && p.body.story?.weaving === false);
+    const again = POSTED.findLastIndex((p: any) => p.url === '/api/talk');
+    assert.ok(off >= 0 && again > off, 'turn weaving off saves the switch, then asks again');
+    assert.ok(!POSTED[again].body.weaveAnyway, 'without the override');
+
+    // Invent: the tray in the new-thread form.
+    click({ panel: 'threads' }); click({ newlore: '1' }); click({ lorekind: 'lore' });
+    await new Promise((r) => setTimeout(r, 30));
+    stubInvent = refusal; POSTED.length = 0;
+    const press = (dataset: any) => (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => ({
+      dataset, querySelector: () => null, disabled: false, textContent: '', style: {}, closest: () => null }) } }));
+    press({ invent: 'lore' });
+    await new Promise((r) => setTimeout(r, 60));
+    assert.ok(rowIn('sideBody').includes('2 oldest passages'), 'a refused invention draws the row in its tray');
+    stubInvent = null;
+    click({ weaveanyway: '1' });
+    await new Promise((r) => setTimeout(r, 80));
+    const inv = POSTED.filter((p: any) => p.url === '/api/invent');
+    assert.strictEqual(inv.length, 2, 'write anyway invents again');
+    assert.strictEqual(inv[1].body.weaveAnyway, true, 'with the override');
+    assert.strictEqual(inv[1].body.kind, 'lore', 'the same kind');
+    assert.ok(!rowIn('sideBody'), 'and the row is gone');
+  } finally {
+    stubTalk = null; stubInvent = null;
+    click({ newlore: '1' }); click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+  }
+}
+ok('a refused Talk or invention gets the same row where it was asked, and each button asks again');
 
 // #53 · WHERE A MODEL RUNS, on every surface that names one: a circle in the local or the remote
 // colour, filled when a local model is awake and hollow when it is asleep (a remote one is always

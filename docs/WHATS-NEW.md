@@ -28,12 +28,22 @@ book until you turn it on, and it changes nothing in your other books. While she
 writing screen says Weaving and counts the seconds, and Stop still works. The switch takes the
 place of the old red note in that panel, which said this was not a setting.
 
+### When weaving does not fit
+Weaving sets aside room, and in a long book that room can push older passages, chapter summaries
+or threads out of what Anansi reads. When it would, she does not write. A row above the writing box
+says what would be left out and gives you two buttons. Write anyway writes the passage with
+weaving, and the oldest passages drop out first, as they already do in a book that runs long. Turn
+weaving off for this book turns the switch off and writes the passage as usual. The Context panel
+tells you the same thing before you press anything. If the book would not fit at all beside the
+room weaving needs, only Turn weaving off is offered.
+
 ### Talk and Invent weave too
 In a book with Weaving on, Anansi also weaves before she answers you in Talk and before she
 invents a thread or a room for a card. Both take longer while she does. If the room she needs to
 weave would push part of your book out of what she reads, she does not answer; she tells you what
-would be left out, and you can turn weaving off for that book. Summaries, the canon check and
-Remember this never weave.
+would be left out, with the same two buttons a passage gets: Write anyway, or Turn weaving off for
+this book. They appear in the Talk window, or in the place you asked for the invention. Summaries,
+the canon check and Remember this never weave.
 
 ### Find a model on Featherless
 The model menu at the foot of the rail has a new last row, Find a model. It opens a search over
