@@ -31,14 +31,15 @@ fresh() {
   # left to the defaults would read it, and a scenario that opened Find a model would spend plan
   # units. A scenario that needs remote models says so on its first line, `// needs:
   # fake-featherless`, and gets a fake one and a key file of its own; every other scenario gets no
-  # key and an address that refuses at once.
-  local fl_url="http://127.0.0.1:9/v1" fl_key="/nonexistent/featherless.key"
+  # key and an address that refuses at once. Hugging Face, which describes catalogue models, is the
+  # same fake at its root, or the same refusing address.
+  local fl_url="http://127.0.0.1:9/v1" fl_key="/nonexistent/featherless.key" hf_url="http://127.0.0.1:9"
   if head -1 "test/ui/$1.js" 2>/dev/null | grep -q '^// needs: fake-featherless'; then
     node --experimental-strip-types test/ui/featherless.ts "$WORK/fl.port" >"$WORK/fl.log" 2>&1 &
     FLPID=$!
     local m=0
     until [ -s "$WORK/fl.port" ]; do sleep 0.2; m=$((m+1)); [ $m -gt 50 ] && { echo "the fake Featherless never came up"; cat "$WORK/fl.log"; exit 1; }; done
-    fl_url="http://127.0.0.1:$(cat "$WORK/fl.port")/v1"
+    fl_url="http://127.0.0.1:$(cat "$WORK/fl.port")/v1" hf_url="http://127.0.0.1:$(cat "$WORK/fl.port")"
     fl_key="$WORK/fl.key"; printf 'fl-ui-fake-key\n' >"$fl_key"
   fi
   # The fixture is the WHOLE ground truth, and it did not used to be: this snapshotted the real
@@ -56,7 +57,7 @@ fresh() {
   # scenario that stops the model server mid-suite would fail every scenario after it, and would
   # do it on the machine somebody is writing on.
   ANANSI_PORT=$PORT ANANSI_DB="$WORK/db" ANANSI_LLAMA_UNIT=anansi-test-nonexistent.service \
-    ANANSI_FEATHERLESS_URL="$fl_url" ANANSI_FEATHERLESS_KEY_FILE="$fl_key" \
+    ANANSI_FEATHERLESS_URL="$fl_url" ANANSI_FEATHERLESS_KEY_FILE="$fl_key" ANANSI_HF_URL="$hf_url" \
     nohup node --experimental-strip-types serve.ts >"$WORK/serve.log" 2>&1 &
   local n=0
   until curl -sf -o /dev/null -m 2 "http://127.0.0.1:$PORT/"; do sleep 1; n=$((n+1)); [ $n -gt 30 ] && { echo "server never came up"; cat "$WORK/serve.log"; exit 1; }; done

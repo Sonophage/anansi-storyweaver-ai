@@ -728,12 +728,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     // method and a screen. Everything underneath still works: `POST /api/world` is live, existing
     // world books draw on Threads and keep their tag, and `storyFollowing` never cared whether the
     // book it follows is one. What has no door is making a NEW one.
-    newWorld: 'issue #34: the Name-a-world strip came off Threads and nothing replaced it (2026-08-31)',
-    // #52. The routes land first; the Find a model rows and the model info panel call these in the
-    // next commit, which takes both names out of here.
-    catalogueTags: '#52: wired by the Find a model rows in the next commit (2026-10-22)',
-    catalogueCard: '#52: wired by the Find a model expand in the next commit (2026-10-22)',
-  };
+    newWorld: 'issue #34: the Name-a-world strip came off Threads and nothing replaced it (2026-08-31)',  };
   const orphans = defined.filter((d) => !new RegExp(`\\bapi\\.${d}\\b`).test(app) && !(d in DEFERRED));
   assert.deepStrictEqual(orphans, [],
     `api.${orphans.join(', api.')} has no caller. Either wire it or add it to DEFERRED with a `

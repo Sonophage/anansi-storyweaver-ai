@@ -224,8 +224,12 @@ const S = {
   // #51. Find a model: the search over the Featherless catalogue, and this writer's shortlist.
   // `hits` is null until the first answer lands; `seq` drops an answer a later search overtook.
   find: { q: '', size: '', weaving: '', uncensored: true, hits: null, total: 0, sizes: [], weavings: [],
-          error: null, seq: 0 },
+          error: null, seq: 0, open: null },
   shortlist: null,
+  // #52. What Hugging Face says about remote models, by prefixed id, read through the server.
+  // `tags` for the rows, `cards` for an expanded row and the model info panel; `reading` keeps a
+  // read from being asked twice while it is in flight. `find.open` is the one expanded row.
+  hub: { tags: {}, cards: {}, reading: new Set() },
 
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
   lookTab: 'theme',     // which of Theme / Font / Size / UI the Aa menu is showing
@@ -483,7 +487,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
   'editsum', 'savesum', 'cancelsum',
-  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'findmodel', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -2100,19 +2104,85 @@ function ritualPanel() {
       style="margin-top:4px; color:var(--bad)">Delete ${esc(ch.title || `chapter ${ch.index}`)}</button>`;
 }
 
+/** A remote model's Hugging Face tags, as small lowercase chips. */
+const hubTagChips = (tags) => `<span class="hubtags" style="display:flex; gap:4px; flex-wrap:wrap">${
+  tags.map((t) => `<span class="tag" style="text-transform:none; letter-spacing:0; padding:1px 6px">${esc(t)}</span>`).join('')}</span>`;
+
+/** #52 \u00b7 WHAT A REMOTE MODEL IS, from its Hugging Face card: the model it was made from, the card's
+ *  first paragraph, and its tags. ONE RENDERER for the expanded Find a model row and the model info
+ *  panel, so the two can never describe the same model differently. `card` is the server's answer:
+ *  undefined while it is being read. The paragraph arrives already stripped to plain text; a card
+ *  with none shows the base model and the tags alone. */
+function remoteAbout(card) {
+  if (card === undefined) return '<div class="remoteabout hint" style="margin:0">Reading its model card&hellip;</div>';
+  if (card.error) return `<div class="remoteabout hint" style="margin:0; color:var(--warn)">${esc(card.error)}</div>`;
+  const base = card.base ?? [], tags = card.tags ?? [];
+  return `<div class="remoteabout" style="display:flex; flex-direction:column; gap:6px">
+    ${base.length ? `<span style="font-size:11px; color:var(--dim)">Made from ${
+      base.map((b) => `<code>${esc(b)}</code>`).join(', ')}</span>` : ''}
+    ${card.about ? `<div style="font-size:13px; line-height:1.55; color:var(--mute)">${esc(card.about)}</div>` : ''}
+    ${tags.length ? hubTagChips(tags) : ''}
+    ${!card.about && !base.length && !tags.length
+      ? '<span class="hint" style="margin:0">Its Hugging Face page says nothing about it.</span>' : ''}</div>`;
+}
+
+/** Read one model's card through the server, once, and redraw whatever shows it. */
+async function loadCard(id) {
+  if (id in S.hub.cards || S.hub.reading.has(id)) return;
+  S.hub.reading.add(id);
+  const r = await api.catalogueCard(id);
+  S.hub.reading.delete(id);
+  S.hub.cards[id] = r.error ? { error: r.error } : r;
+  if (S.panel === 'findmodel') findRedraw();
+  else if (S.panel === 'model') drawSide();
+}
+
+/** Tags for the rows on screen, in one call; the rows fill in as it answers. A model the answer
+ *  leaves out is recorded as having none, so it is not asked for again. */
+async function loadTags(ids) {
+  const want = [...new Set(ids)].filter((id) => !(id in S.hub.tags) && !S.hub.reading.has(`tags:${id}`));
+  if (!want.length) return;
+  want.forEach((id) => S.hub.reading.add(`tags:${id}`));
+  const r = await api.catalogueTags(want);
+  want.forEach((id) => { S.hub.reading.delete(`tags:${id}`); S.hub.tags[id] = r.tags?.[id] ?? []; });
+  if (S.panel === 'findmodel') findRedraw();
+}
+
 /** One model on the Find a model panel: the name the menu decodes, then what it costs the shared
- *  plan, what it holds, and whether it weaves. `act` is the button at the end of the row. */
+ *  plan, what it holds, and whether it weaves, then its tags. The name side is a button: pressing
+ *  it expands the row into its card. `act` is the button at the end of the row. */
 function foundRow(m, act) {
   const d = modelName(m.id);
+  const open = S.find.open === m.id;
   const facts = [m.cost == null ? 'cost not known' : `${m.cost} ${m.cost === 1 ? 'unit' : 'units'}`,
     m.context ? `${Number(m.context).toLocaleString()} context` : '', m.weaving ?? ''].filter(Boolean);
-  return `<div style="display:flex; align-items:center; gap:9px; padding:8px 4px;
-    border-bottom:1px solid var(--line)">
-    <span style="min-width:0; flex:1; display:flex; flex-direction:column; gap:1px">
+  const tags = S.hub.tags[m.id];
+  return `<div style="display:flex; flex-direction:column; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line)">
+    <div style="display:flex; align-items:center; gap:9px">
+    <button data-findmore="${esc(m.id)}" aria-expanded="${open}"
+      style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px; text-align:left">
       <span style="font-size:12.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
         title="${esc(m.id)}">${esc(d.name)}</span>
-      <span style="font-size:11px; color:var(--dim)">${esc(facts.join(' \u00b7 '))}</span></span>
-    ${act}</div>`;
+      <span style="font-size:11px; color:var(--dim)">${esc(facts.join(' \u00b7 '))}</span>
+      ${tags?.length && !open ? hubTagChips(tags) : ''}</button>
+    ${act}</div>
+    ${open ? remoteAbout(S.hub.cards[m.id]) : ''}</div>`;
+}
+
+/** Both lists on the Find a model panel, in place, for an answer that changes only their rows. */
+function findRedraw() {
+  if ($('findhits')) $('findhits').innerHTML = findHits();
+  if ($('findmine')) $('findmine').innerHTML = findMine();
+}
+
+/** The shortlist half of the Find a model panel. */
+function findMine() {
+  const mine = S.shortlist ?? [];
+  return S.shortlist === null ? '<div class="hint" style="margin:0">Reading your shortlist&hellip;</div>'
+    : mine.length === 0 ? `<div class="hint" style="margin:0">Nothing yet. A model you add below
+        appears here and on your model menu, and on no one else's.</div>`
+    : mine.map((m) => foundRow(m, `<button class="btn ghost" data-dropshort="${esc(m.id)}"
+        style="flex:0 0 auto; width:auto; font-size:11.5px; padding:5px 12px">Remove</button>`)).join('');
 }
 
 /** The results half, alone, so a keystroke can redraw it without the box it was typed in. */
@@ -2143,6 +2213,8 @@ async function findSearch(whole = false) {
   if (r.weavings) f.weavings = r.weavings;
   if (S.panel !== 'findmodel') return;
   if (whole || !$('findhits')) drawSide(); else $('findhits').innerHTML = findHits();
+  // The search answers without tags, so typing never waits on Hugging Face; they follow.
+  loadTags(f.hits.map((m) => m.id));
 }
 
 const PANELS = {
@@ -2185,6 +2257,12 @@ const PANELS = {
     // failure, and it does not need a third rendering of it to happen again.
     const live = writing && SRV.slot?.perSlot ? SRV.slot : null;
     const perSlot = live?.perSlot ?? m.perSlot;
+    // #52. A REMOTE MODEL HAS NO BLURB: nobody wrote one here, and its own card says more. The
+    // description block is the expanded Find a model row's, from the same renderer. The panel can
+    // be drawn without a press (a reload on it, the model now writing), so the read is asked for
+    // from here; loadCard reads each model once.
+    const remote = id.startsWith('featherless:');
+    if (remote) queueMicrotask(() => loadCard(id));
 
     // A fact and WHERE IT CAME FROM. The absent case says which source is silent rather than
     // showing a dash, because "the router's file does not mention this one" and "nobody has
@@ -2210,7 +2288,9 @@ const PANELS = {
       ${d.bits?.length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px">${
         [...d.bits, d.size].filter(Boolean).map((b) => `<span class="tag">${esc(b)}</span>`).join('')}</div>` : ''}
 
-      ${BLURB[d.name]
+      ${remote
+        ? `<div style="margin-bottom:6px">${remoteAbout(S.hub.cards[id])}</div>`
+        : BLURB[d.name]
         ? `<div style="font-size:13px; line-height:1.55; color:var(--mute); margin-bottom:6px">${
             esc(BLURB[d.name])}</div>`
         : `<div class="hint" style="margin:0 0 6px">Nothing is written down about this one. What is
@@ -2252,17 +2332,11 @@ const PANELS = {
    *  draws what comes back. Typing redraws only the results, so the box keeps its caret. */
   findmodel() {
     const f = S.find;
-    const mine = S.shortlist ?? [];
-    const opt = (v, l, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
+    const opt =(v, l, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
     return `<div style="display:flex; flex-direction:column; gap:14px">
       <div style="display:flex; flex-direction:column; gap:6px">
         <span class="kind">Your shortlist</span>
-        <div id="findmine" style="display:flex; flex-direction:column; gap:2px">${
-          S.shortlist === null ? '<div class="hint" style="margin:0">Reading your shortlist&hellip;</div>'
-          : mine.length === 0 ? `<div class="hint" style="margin:0">Nothing yet. A model you add below
-              appears here and on your model menu, and on no one else's.</div>`
-          : mine.map((m) => foundRow(m, `<button class="btn ghost" data-dropshort="${esc(m.id)}"
-              style="flex:0 0 auto; width:auto; font-size:11.5px; padding:5px 12px">Remove</button>`)).join('')}</div>
+        <div id="findmine" style="display:flex; flex-direction:column; gap:2px">${findMine()}</div>
       </div>
       <div style="display:flex; flex-direction:column; gap:8px; padding-top:12px; border-top:1px solid var(--line)">
         <span class="kind">Search Featherless</span>
@@ -9550,8 +9624,19 @@ document.addEventListener('click', async (e) => {
     S.panel = 'findmodel'; S.modelMenu = false;
     if (overlay()) S.rail = false;
     syncHash(); paint();
-    api.shortlist().then((r) => { S.shortlist = r.error ? [] : (r.models ?? []); if (S.panel === 'findmodel') drawSide(); });
+    api.shortlist().then((r) => {
+      S.shortlist = r.error ? [] : (r.models ?? []);
+      if (S.panel === 'findmodel') drawSide();
+      loadTags(S.shortlist.map((m) => m.id));
+    });
     findSearch(true);
+    return;
+  }
+  // #52. Expand a row into its card, or fold it. One row open at a time, so the list stays a list.
+  if (d.findmore) {
+    S.find.open = S.find.open === d.findmore ? null : d.findmore;
+    findRedraw();
+    if (S.find.open) loadCard(S.find.open);
     return;
   }
   // ADDING CALLS THE MODEL: one tiny call to learn whether it really weaves. So it is behind the

@@ -24,6 +24,13 @@ menu. Nobody else sees your shortlist. When you add a model, Anansi asks it one 
 to find out if it really weaves, so adding takes a moment. To take a model off your shortlist,
 press Remove on the same panel.
 
+### What a remote model is for
+Each model in Find a model now shows the tags its author gave it on Hugging Face, such as
+roleplay or creative-writing. Press a model's name to see the model it was made from and the
+first paragraph of its description. Banners and pictures are taken out, so you read only the
+text. If the description has no paragraph, you see the base model and the tags. The model
+information panel shows the same description for a model on your shortlist.
+
 ## 2026-10-18 · Delete after keeps the chapter you write in
 
 ### Delete after keeps the chapter you write in
