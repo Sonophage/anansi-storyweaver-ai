@@ -624,6 +624,10 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(!entry(BIG), 'and it is not stored');
   const under = await add('edge/Under-16k-heretic');
   assert.match(String(under.r.error), /at least 16,384/, 'a model under the floor is refused by name too');
+  const blind = await add('edge/No-Context-heretic', true);
+  assert.match(String(blind.r.error), /unknown number of tokens/,
+    'NO-CONTEXT: a model whose entry does not say what it holds is refused, even for the admin');
+  assert.strictEqual(blind.probes.length, 0, 'and no call is spent finding that out');
   const admin = await add(BIG, true);
   assert.ok(!admin.r.error, admin.r.error);
   assert.strictEqual(entry(BIG).cost, 4, 'the admin can add it, and its cost is recorded');

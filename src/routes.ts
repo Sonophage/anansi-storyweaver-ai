@@ -173,13 +173,18 @@ const writerModel = (c: Ctx, v: { story: any; owner?: string }) =>
   modelFor(v.story, c.defaultModel, (id, pinned) =>
     remoteReady() && db.shortlisted(pinned ? (v.owner ?? c.owner) : c.owner, id) != null);
 
+/** A catalogue read, or the `{ error }` a route answers with when Featherless cannot be read. */
+const fromCatalogue = async <T>(read: () => Promise<T>): Promise<T | { error: string }> => {
+  try { return await read(); }
+  catch (e: any) { return { error: e?.message ?? 'could not read the Featherless catalogue' }; }
+};
+
 /** Which of `ids` this writer may have described: remote ids the catalogue lists and the search
  *  would show them, as `{id, repo}`. The repo path is the catalogue's, so nothing the request says
  *  reaches the hub unless the catalogue has it too. */
 const describable = async (c: Ctx, ids: unknown[]) => {
-  let rows;
-  try { rows = await catalogue(); }
-  catch (e: any) { return { error: e?.message ?? 'could not read the Featherless catalogue' }; }
+  const rows = await fromCatalogue(catalogue);
+  if ('error' in rows) return rows;
   const byId = new Map(rows.map((r) => [r.id, r]));
   return ids.map(String).filter(isRemote).map((id) => ({ id, row: byId.get(id.slice(REMOTE_PREFIX.length)) }))
     .filter((x) => x.row && !refusal(x.row, c.admin) && isRepo(x.row.id))
@@ -1457,14 +1462,12 @@ export const routes: Record<string, Handler> = {
     if (!isRemote(id) || id.length <= REMOTE_PREFIX.length)
       return { error: `a remote model id starts with "${REMOTE_PREFIX}"` };
     if (!remoteReady()) return { error: "Featherless isn't set up on this server" };
-    let found;
-    try { found = await catalogueEntry(id.slice(REMOTE_PREFIX.length)); }
-    catch (e: any) { return { error: e?.message ?? 'could not read the Featherless catalogue' }; }
+    const found = await fromCatalogue(() => catalogueEntry(id.slice(REMOTE_PREFIX.length)));
+    if (found && 'error' in found) return found;
     if (!found) return { error: `Featherless does not list "${id.slice(REMOTE_PREFIX.length)}"` };
-    // Budgeting needs the number, so a model whose catalogue entry has none is not addable.
-    if (!found.context) return { error: 'Featherless does not say how much context this model holds' };
-    // The floor and the 4-unit gate: the same predicate the search uses, so what the search hides
-    // is what this refuses — and refused BEFORE the probe, so a refusal spends none of the plan.
+    // The floor (a model whose entry gives no context is under it) and the 4-unit gate: the same
+    // predicate the search uses, so what the search hides is what this refuses — and refused
+    // BEFORE the probe, so a refusal spends none of the plan.
     const no = refusal(found, c.admin);
     if (no) return { error: no };
     // THE PROBE. One tiny call with weaving off: a model that plans anyway cannot be switched off,
@@ -1482,9 +1485,8 @@ export const routes: Record<string, Handler> = {
    *  src/catalogue.ts; this only reads the query. `uncensored=0` is the one way to turn the
    *  default filter off. */
   'GET /api/catalogue': async (c: Ctx) => {
-    let rows;
-    try { rows = await catalogue(); }
-    catch (e: any) { return { error: e?.message ?? 'could not read the Featherless catalogue' }; }
+    const rows = await fromCatalogue(catalogue);
+    if ('error' in rows) return rows;
     const q = c.query;
     return searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
       weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0' }, c.admin, REMOTE_PREFIX);
