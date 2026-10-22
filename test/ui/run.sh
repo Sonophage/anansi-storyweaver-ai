@@ -19,7 +19,7 @@ exec 9>/tmp/anansi-ui-$PORT.lock
 flock -n 9 || { echo "  another test/ui/run.sh is using port $PORT — waiting for it"; flock 9; }
 WORK=$(mktemp -d /tmp/anansi-ui.XXXXXX)
 # The fake Featherless and the fake router, when the scenario before asked for them.
-FLPID=""; RTPID=""
+FLPID=""; RTPID=""; UI_FL_KEY=""
 trap 'kill $(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP "pid=\K[0-9]+" | head -1) $FLPID $RTPID 2>/dev/null; rm -rf "$WORK"' EXIT
 
 fresh() {
@@ -41,6 +41,9 @@ fresh() {
     fl_url="http://127.0.0.1:$(cat "$WORK/fl.port")/v1"
     fl_key="$WORK/fl.key"; printf 'fl-ui-fake-key\n' >"$fl_key"
   fi
+  # Handed to the scenario as ANANSI_UI_FL_KEY. The server reads the key file on every call, so a
+  # scenario that deletes it is a server with no key from then on, without a restart.
+  UI_FL_KEY="$fl_key"
   # A FAKE LOCAL ROUTER, for a scenario whose first line also names `fake-router`. Every other
   # scenario reads the real router, as it always has.
   local llama="${ANANSI_LLAMA:-http://127.0.0.1:8080}"
@@ -75,7 +78,7 @@ fresh() {
 # EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
 # green for a scenario nobody asked about — twice, per docs/HANDOFF.md.
 scenarios=${*:-}
-[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder marks"
+[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder marks fallback"
 # `cover` and `entrypic` are excluded too, and for a second reason: they need ANANSI_SEARCH pointing
 # at a working endpoint AND the open web. Run them by name, with that variable set on the test server.
 # `model`, `ritual` and `veil` are excluded from the default set: every step waits on a real
@@ -94,7 +97,7 @@ RESULTS=${ANANSI_UI_RESULTS:-/tmp/anansi-ui-results-$(printf %s "$(pwd -P)" | sh
 rows=""
 for s in $scenarios; do
   fresh "$s"
-  out=$(node --experimental-strip-types bench/drive.ts "http://127.0.0.1:$PORT/" "test/ui/$s.js" 2>&1)
+  out=$(ANANSI_UI_FL_KEY="$UI_FL_KEY" node --experimental-strip-types bench/drive.ts "http://127.0.0.1:$PORT/" "test/ui/$s.js" 2>&1)
   ok=$(printf '%s' "$out" | grep -c '^  ok')
   red=$(printf '%s' "$out" | grep -c 'RED \|FAIL')
   # Every scenario ends by printing its own verdict. If that line is missing the scenario did

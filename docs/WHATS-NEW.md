@@ -33,6 +33,24 @@ asleep and its first passage will take longer. A Featherless model always shows 
 In the Storyteller's list of models, each choice says the same thing in words. The model you are
 writing with is still the highlighted row.
 
+### When a Featherless model cannot write
+If you take a model off your shortlist while it is your default, or while one of your books is set
+to it, those books go back to the model on this machine. A message names each book, and says
+"your default" if that changed too. A book never writes with a different model from the one its
+panel shows.
+
+If Featherless cannot be reached, the passage stops with a message that says so. Nothing about
+your books changes, so you can try again when it is back.
+
+If this server is not set up for Featherless, Find a model is not on the model menu. The models on
+your shortlist still show, greyed, with the words "Featherless isn't set up", and you cannot pick
+them. Books set to one of them write with the model on this machine until Featherless is set up
+again, and the book's panel says so.
+
+A passage that a Featherless model wrote no longer offers "Roll it again on this seed" in
+History. Featherless does not give the same passage back for the same seed. Passages written on
+this machine still offer it.
+
 ## 2026-10-18 · Delete after keeps the chapter you write in
 
 ### Delete after keeps the chapter you write in
