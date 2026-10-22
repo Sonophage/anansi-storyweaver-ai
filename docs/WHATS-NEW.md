@@ -25,8 +25,12 @@ place of the old red note in that panel, which said this was not a setting.
 The model menu at the foot of the rail has a new last row, Find a model. It opens a search over
 the models Featherless runs. By default it shows only uncensored models; untick the box to see
 all of them. You can search by part of a name, by size, and by whether a model weaves, which means
-it plans before it writes. Models that never weave come first. Each model shows how much of the
-shared plan it uses and how much of a book it can hold. Models too small for a book are not shown.
+it plans before it writes. Models that never weave come first. Before you add a model, whether it
+weaves is a guess from the family it belongs to. The big families, such as Kimi, DeepSeek,
+MiniMax, GLM, Mistral Small and Llama, are guessed from what their makers publish. A family Anansi
+has not met yet says "not tried yet", and comes last, instead of claiming it does not weave.
+Adding a model still asks it. Each model shows how much of the shared plan it uses and how much
+of a book it can hold. Models too small for a book are not shown.
 
 Press Add and the model goes on your shortlist, at the top of the same panel and on your model
 menu. Nobody else sees your shortlist. When you add a model, Anansi asks it one short question

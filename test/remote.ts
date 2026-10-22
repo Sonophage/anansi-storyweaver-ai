@@ -32,6 +32,10 @@ const BIG = 'mlabonne/Llama-3.3-70B-Instruct-abliterated';
 const STUBBORN = 'liar/Gemma-4-31B-UNCENSORED';
 // Guessed "doesn't weave" from its class, and plans inline.
 const PLANS_INLINE = 'TheDrummer/Mistral-Small-Uncensored-24B';
+// Guessed "not tried yet": no family in the table. Obeys the probe, so it is stored as not weaving.
+const UNTRIED = 'odd/Step-3.5-Flash-heretic';
+// Its class holds Kimi-K2-Instruct, which does not weave; the name says this one always does.
+const THINKING = 'moonshotai/Kimi-K2-Thinking';
 
 /** The fake catalogue, in Featherless's own field names. One row per case the search must handle. */
 const CATALOGUE = [
@@ -44,6 +48,10 @@ const CATALOGUE = [
     concurrency_cost: 1 },
   { id: STUBBORN, model_class: 'gemma4-31b', context_length: 32768, concurrency_cost: 2 },
   { id: 'google/Gemma-4-26B-it', model_class: 'gemma4-26b', context_length: 32768, concurrency_cost: 2 },
+  // A family the guess table has never met (a real class from the live catalogue), and a Thinking
+  // id whose class also holds a model that does not weave.
+  { id: UNTRIED, model_class: 'step-3.5-199b', context_length: 32768, concurrency_cost: 1 },
+  { id: THINKING, model_class: 'kimi-k2', context_length: 32768, concurrency_cost: 1 },
   // The floor, from both sides: exactly 16k is shown, a hair under it is not, and so is a row that
   // does not say.
   { id: 'edge/Exactly-16k-heretic', model_class: 'llama3-8b', context_length: 16384, concurrency_cost: 1 },
@@ -582,13 +590,14 @@ const mark = () => ({ fl: fl.length, local: local.length });
     'every row carries the prefixed id the shortlist takes');
   assert.deepStrictEqual(ids(all), [
     PLANS_INLINE, 'edge/Exactly-16k-heretic',
-    STUBBORN, REMOTE, 'huihui/gpt-oss-20b-abliterated'],
-    'uncensored only, under 16k and the 4-unit model gone, and the ones that never weave first');
+    STUBBORN, REMOTE, 'huihui/gpt-oss-20b-abliterated', UNTRIED],
+    'uncensored only, under 16k and the 4-unit model gone, the ones that never weave first and the untried last');
   const row = all.models.find((m: any) => m.id === ID);
   assert.deepStrictEqual([row.cost, row.context, row.weaving], [2, 32768, 'can switch'],
     'a row says its unit cost, its context and its weaving guess');
   assert.strictEqual(all.models.find((m: any) => m.id.includes('gpt-oss')).weaving, 'always weaves');
   assert.strictEqual(all.models[0].weaving, "doesn't weave");
+  assert.strictEqual(all.models.at(-1).weaving, 'not tried yet', 'an unknown family is a guess that says so');
 
   const stock = await find('uncensored=0');
   assert.ok(ids(stock).includes('google/Gemma-4-26B-it'), 'turning uncensored-only off shows a stock model');
@@ -605,7 +614,9 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.deepStrictEqual(ids(await find(`weaving=${encodeURIComponent('can switch')}&size=31b`)), [STUBBORN],
     'and weaving with size');
   assert.deepStrictEqual(ids(await find('q=nothing-like-this')), [], 'a search that matches nothing is empty');
-  assert.deepStrictEqual(all.weavings, ["doesn't weave", 'can switch', 'always weaves'],
+  assert.deepStrictEqual(ids(await find(`weaving=${encodeURIComponent('not tried yet')}`)), [UNTRIED],
+    'the weaving filter takes the untried guess too');
+  assert.deepStrictEqual(all.weavings, ["doesn't weave", 'can switch', 'always weaves', 'not tried yet'],
     'the weaving words the filter offers are the ones the rows use, in sort order');
   assert.ok(all.sizes.includes('35b') && all.sizes.includes('24b'),
     'the size choices come from the catalogue itself');
@@ -619,6 +630,74 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(catReads.length, reads + 1, 'a day on, it is');
   assert.strictEqual(catReads.length, 2, 'and the searches above never read it themselves');
   ok('the search filters, combines, sorts non-weaving first, holds the 16k floor and the 4-unit gate');
+}
+
+// ---- 12b. the weaving guess for the big families, from the classes Featherless really sends ----
+{
+  // Every class string here is copied from the live catalogue (read 2026-10-22), with a real id
+  // that carries it, so the table is tested against what it will meet and not against names made
+  // up to fit it. One class can hold two behaviours (Kimi K2 holds Instruct and Thinking; GLM 4's
+  // 0414 class holds GLM-4 and the Z1 reasoner), and the id is what tells them apart.
+  const { search } = await import('../src/catalogue.ts');
+  const FAMILIES: [string, string | null, string][] = [
+    ['moonshotai/Kimi-K2-Instruct-0905', 'kimi-k2', "doesn't weave"],
+    ['moonshotai/Kimi-K2-Thinking', 'kimi-k2', 'always weaves'],
+    ['moonshotai/Kimi-K2.5', 'kimi-k25', 'always weaves'],
+    ['moonshotai/Kimi-K2.6', 'kimi-k25', 'always weaves'],
+    ['deepseek-ai/DeepSeek-V4-Flash', 'deepseek4-284b', 'can switch'],
+    ['deepseek-ai/DeepSeek-V4-Pro', 'deepseek4-1.6t', 'can switch'],
+    ['deepseek-ai/DeepSeek-V4.1-Flash', 'deepseek4-763b', 'can switch'],
+    ['MiniMaxAI/MiniMax-M2', 'minimax-m2', 'always weaves'],
+    ['MiniMaxAI/MiniMax-M2.1', 'minimax-m21', 'always weaves'],
+    ['MiniMaxAI/MiniMax-M2.5', 'minimax-m25', 'always weaves'],
+    ['MiniMaxAI/MiniMax-M2.7', 'minimax-m2-228b7', 'always weaves'],
+    ['zai-org/GLM-4.6', 'glm46-357b', 'can switch'],
+    ['zai-org/GLM-4.7', 'glm47-357b', 'can switch'],
+    ['zai-org/GLM-4.7-Flash', 'glm47-flash', 'can switch'],
+    ['zai-org/GLM-4-9B-0414', 'glm4-9b', "doesn't weave"],
+    ['unsloth/GLM-Z1-32B-0414', 'glm4-32b', 'always weaves'],
+    ['mistralai/Mistral-Small-24B-Instruct-2501', 'mistral-24b', "doesn't weave"],
+    ['mistralai/Mistral-Small-3.2-24B-Instruct-2506', 'mistral-24b-2503', "doesn't weave"],
+    // Magistral's plan is asked for in a system prompt Anansi writes and never includes, so the
+    // card cannot say which it does here; only trying it can. Not "doesn't weave", as its class
+    // alone would say.
+    ['mistralai/Magistral-Small-2509', 'mistral-24b-2503', 'not tried yet'],
+    ['mistralai/Magistral-Small-2506', 'mistral-24b', 'not tried yet'],
+    ['meta-llama/Llama-3.3-70B-Instruct', 'llama33-70b', "doesn't weave"],
+    ['meta-llama/Meta-Llama-3.1-70B-Instruct', 'llama31-70b', "doesn't weave"],
+    ['meta-llama/Llama-3.2-3B-Instruct', 'llama32-3b', "doesn't weave"],
+    ['NousResearch/Meta-Llama-3-70B-Instruct', 'llama3-70b', "doesn't weave"],
+    // A Llama 3 tune of a reasoner plans like the reasoner, whatever its class.
+    ['deepseek-ai/DeepSeek-R1-Distill-Llama-8B', 'llama31-8b', 'always weaves'],
+    // An id that says it does NOT think is not read as one that does.
+    ['jan-hq/Qwen3-4B-no-think', 'qwen3-4b', 'can switch'],
+    // The families nobody has looked at yet: a guess, and one that says so.
+    ['moonshotai/Kimi-K3', 'kimi3-2780b', 'not tried yet'],
+    ['MiniMaxAI/MiniMax-M3', 'minimax-m3', 'not tried yet'],
+    ['stepfun-ai/Step-3.5-Flash', 'step-3.5-199b', 'not tried yet'],
+    ['nobody/No-Class-At-All', null, 'not tried yet'],
+  ];
+  const rows = FAMILIES.map(([id, modelClass]) => ({ id, modelClass, context: 32768, cost: 1 }));
+  const found = search(rows, { uncensored: false }, false, '');
+  const got = new Map(found.models.map((m) => [m.id, m.weaving]));
+  for (const [id, modelClass, want] of FAMILIES)
+    assert.strictEqual(got.get(id), want, `${id} (${modelClass}) is guessed "${want}"`);
+  ok('the big families are guessed from their real classes, and the Thinking ids from their names');
+
+  // THE UNKNOWN IS ITS OWN LABEL: offered by the filter, last in the sort, and never mistaken for
+  // a model known not to weave.
+  assert.deepStrictEqual(found.weavings, ["doesn't weave", 'can switch', 'always weaves', 'not tried yet'],
+    'the filter offers the untried guess as a label of its own, last');
+  assert.deepStrictEqual(found.models.slice(-6).map((m) => m.weaving), Array(6).fill('not tried yet'),
+    'and the untried come after every model whose weaving is known');
+  const untried = search(rows, { uncensored: false, weaving: 'not tried yet' }, false, '');
+  assert.deepStrictEqual(untried.models.map((m) => m.id).sort(),
+    FAMILIES.filter(([, , w]) => w === 'not tried yet').map(([id]) => id).sort(),
+    'the weaving filter picks out exactly the untried');
+  const never = search(rows, { uncensored: false, weaving: "doesn't weave" }, false, '');
+  assert.ok(!never.models.some((m) => /Kimi-K3|MiniMax-M3|Step-3|No-Class|Magistral/.test(m.id)),
+    "and none of them is filed under doesn't weave");
+  ok('a family nobody has tried is labelled not tried yet, filtered and sorted as its own label');
 }
 
 // ---- 13. adding: one weaving-off probe, and the label and unit cost stored with the entry ----
@@ -652,6 +731,12 @@ const mark = () => ({ fl: fl.length, local: local.length });
     'and so is one that planned inline, though its class guessed it never would');
   await add('edge/Exactly-16k-heretic');
   assert.strictEqual(entry('edge/Exactly-16k-heretic').weaving, "doesn't weave");
+  await add(UNTRIED);
+  assert.strictEqual(entry(UNTRIED).weaving, "doesn't weave",
+    'an untried family that obeyed the probe is stored as what it did, never as not tried yet');
+  await add(THINKING);
+  assert.strictEqual(entry(THINKING).weaving, 'always weaves',
+    'a Thinking model that showed no plan keeps the guess its name gives, not its class');
   const listed = await routes['GET /api/shortlist'](ctx(writer));
   assert.ok(listed.models.every((m: any) => m.weaving && m.cost),
     'the shortlist route hands back the label and the cost with each entry');

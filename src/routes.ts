@@ -1559,7 +1559,7 @@ export const routes: Record<string, Handler> = {
       answer = await chat('Answer in one word.', 'Say ok.', { model: id, max_tokens: 24,
         temperature: 0, chat_template_kwargs: { enable_thinking: false } });
     } catch (e: any) { return { error: e?.message ?? 'Featherless did not answer' }; }
-    db.addToShortlist(c.owner, id, found.context, weavingFound(found.modelClass, answer), found.cost);
+    db.addToShortlist(c.owner, id, found.context, weavingFound(found, answer), found.cost);
     return { models: db.shortlistOf(c.owner) };
   },
   /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the 4-unit gate, the sort — is in
