@@ -233,6 +233,44 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
     assert.strictEqual(off[0].maxTokens, cap, `${name} keeps its own cap in a book that does not weave`);
   }
   ok('Talk and Invent weave in a weaving book with their caps raised by 5,000, and in any other book do not');
+
+  // "Remember this" is structured, writer-facing and shaped like an invention, and it is not on the
+  // role list: it must stay weaving off in the same book, or F23 comes back through the side door.
+  const passageId = db.addPassage({ ...woven, storyId: woven.id, body: 'The stair gave under her weight.' })!;
+  calls = [];
+  const m: any = await routes['POST /api/memo'](ctx({ storyId: woven.id, passageId }));
+  assert.ok(!m.error, m.error);
+  assert.strictEqual(calls.length, 1, `remember reached the model once: ${JSON.stringify(calls)}`);
+  assert.strictEqual(calls[0].weaving, false, '"Remember this" in a weaving book is sent weaving off');
+  ok('"Remember this" in a weaving book is sent weaving off');
+}
+
+// ---- 7. A WEAVING TALK OR INVENTION RECORDS ITS PLAN'S LENGTH, the number the 5,000 is tuned
+// from, and not the plan. The same rule as a passage: the server's count, else the length.
+{
+  const raw = new DatabaseSync(DB, { readOnly: true });
+  const last = (role: string) => raw.prepare('SELECT * FROM generations WHERE role = ? ORDER BY rowid DESC LIMIT 1')
+    .get(role) as any;
+  for (const [name, go, role, cap] of [['Talk', talk, 'talk', 2400], ['Invent', invent, 'invent:lore', 2000]] as const) {
+    plan = 'THE-PLAN-ITSELF '.repeat(20); planTokens = 3300;
+    assert.ok(!(await go(woven.id)).error);
+    const row = last(role), params = JSON.parse(row.params ?? '{}');
+    assert.strictEqual(params.plan, 3300, `${name}: the server's count of the plan is kept`);
+    assert.strictEqual(params.weaving, true, `${name}: the row says the call wove`);
+    assert.strictEqual(params.max_tokens, cap + 5000, `${name}: with the cap it was sent with`);
+    assert.ok(!JSON.stringify(row).includes('THE-PLAN-ITSELF'), `${name}: nothing of the plan is stored`);
+
+    plan = 'x'.repeat(420); planTokens = undefined;
+    assert.ok(!(await go(woven.id)).error);
+    assert.strictEqual(JSON.parse(last(role).params ?? '{}').plan, 100,
+      `${name}: without a count, the plan is measured from its length`);
+
+    plan = ''; planTokens = undefined;
+    assert.ok(!(await go(plain.id)).error);
+    assert.ok(!('plan' in JSON.parse(last(role).params ?? '{}')), `${name}: a call that did not weave records no plan`);
+  }
+  raw.close();
+  ok("a weaving Talk's and invention's plan length lands on the generation row, and the plan does not");
 }
 
 console.log(`\n${n} checks passed`);

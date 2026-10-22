@@ -674,6 +674,11 @@ const planLength = (r: { usage?: any; reasoning: string }) => {
   return typeof told === 'number' ? told : estimate(r.reasoning);
 };
 
+/** What a structured call's generation row says about weaving: the same three keys a weaving
+ *  passage records, or nothing at all for a call that did not weave. */
+const wove = (reply: { weaves: boolean; maxTokens: number }, r: { usage?: any; reasoning: string }) =>
+  reply.weaves ? { weaving: true, max_tokens: reply.maxTokens, plan: planLength(r) } : undefined;
+
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
   // ASKING FOR THE NEXT PASSAGE CLAIMS WHAT IS ALREADY THERE — "only claimed after the next
@@ -766,7 +771,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
       // A weaving call says so, with the cap it was really sent and the plan's LENGTH — what the
       // 5,000 is tuned from. The plan itself is never stored: it is never shown, and the row is.
       params: { ...c.gen, seed, ms: appMs,
-                ...(reply.weaves ? { weaving: true, max_tokens: reply.maxTokens, plan: planLength(r) } : {}) },
+                ...wove(reply, r) },
       manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     // THE CEILING, so it still has to be visible when it fires. `capFor` puts it well
@@ -2896,7 +2901,7 @@ export const routes: Record<string, Handler> = {
       { model: using, temperature: 0.4, max_tokens: reply.maxTokens,
         chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',
-      manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
+      params: wove(reply, r), manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     // Threads become proposals — the same pipeline extraction uses, so classify() and the dedupe
@@ -2994,7 +2999,8 @@ export const routes: Record<string, Handler> = {
       { model: writerModel(c, v), temperature: 0.9, max_tokens: reply.maxTokens,
         chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: writerModel(c, v),
-      role: `invent:${kind}`, manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
+      role: `invent:${kind}`, params: wove(reply, r), manifest, latencyMs: Date.now() - t0,
+      error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     // No URL in the body — see the note in the talk route. The results reach the model; the link

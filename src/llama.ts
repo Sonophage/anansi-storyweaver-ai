@@ -409,9 +409,13 @@ export async function structured(system: string, body: string, schema: unknown, 
     messages: [{ role: 'system', content: system }, { role: 'user', content: body }],
     ...opts,
   });
-  const txt = r.choices?.[0]?.message?.content ?? '{}';
-  try { return { data: JSON.parse(txt), raw: txt }; }
-  catch { return { data: null, raw: txt, error: 'model returned unparseable JSON' }; }
+  const m = r.choices?.[0]?.message ?? {};
+  const txt = m.content ?? '{}';
+  // The usage and the plan ride back with the answer, so a weaving caller can record the plan's
+  // LENGTH. The plan text goes no further than that caller: it is never shown and never stored.
+  const said = { usage: r.usage ?? {}, reasoning: m.reasoning_content ?? m.reasoning ?? '' };
+  try { return { data: JSON.parse(txt), raw: txt, ...said }; }
+  catch { return { data: null, raw: txt, error: 'model returned unparseable JSON', ...said }; }
 }
 
 /** One retry, for the failure a grammar cannot prevent.
