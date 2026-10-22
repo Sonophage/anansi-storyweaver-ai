@@ -18,12 +18,29 @@ PORT=${ANANSI_UI_PORT:-5179}
 exec 9>/tmp/anansi-ui-$PORT.lock
 flock -n 9 || { echo "  another test/ui/run.sh is using port $PORT — waiting for it"; flock 9; }
 WORK=$(mktemp -d /tmp/anansi-ui.XXXXXX)
-trap 'kill $(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP "pid=\K[0-9]+" | head -1) 2>/dev/null; rm -rf "$WORK"' EXIT
+# The fake Featherless, when the scenario before asked for one.
+FLPID=""
+trap 'kill $(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP "pid=\K[0-9]+" | head -1) $FLPID 2>/dev/null; rm -rf "$WORK"' EXIT
 
 fresh() {
   local pid; pid=$(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
   [ -n "$pid" ] && kill "$pid" 2>/dev/null
-  sleep 1; rm -f "$WORK"/db*
+  [ -n "$FLPID" ] && kill "$FLPID" 2>/dev/null; FLPID=""
+  sleep 1; rm -f "$WORK"/db* "$WORK"/fl.*
+  # NEVER THE REAL FEATHERLESS. This machine has a real key at the default path, so a test server
+  # left to the defaults would read it, and a scenario that opened Find a model would spend plan
+  # units. A scenario that needs remote models says so on its first line, `// needs:
+  # fake-featherless`, and gets a fake one and a key file of its own; every other scenario gets no
+  # key and an address that refuses at once.
+  local fl_url="http://127.0.0.1:9/v1" fl_key="/nonexistent/featherless.key"
+  if head -1 "test/ui/$1.js" 2>/dev/null | grep -q '^// needs: fake-featherless'; then
+    node --experimental-strip-types test/ui/featherless.ts "$WORK/fl.port" >"$WORK/fl.log" 2>&1 &
+    FLPID=$!
+    local m=0
+    until [ -s "$WORK/fl.port" ]; do sleep 0.2; m=$((m+1)); [ $m -gt 50 ] && { echo "the fake Featherless never came up"; cat "$WORK/fl.log"; exit 1; }; done
+    fl_url="http://127.0.0.1:$(cat "$WORK/fl.port")/v1"
+    fl_key="$WORK/fl.key"; printf 'fl-ui-fake-key\n' >"$fl_key"
+  fi
   # The fixture is the WHOLE ground truth, and it did not used to be: this snapshotted the real
   # anansi.db and seeded The Silver Key on top, so every scenario ran against the author's actual
   # library plus a fixture. That is invisible until the library changes. On 2026-08-26 it emptied and
@@ -39,6 +56,7 @@ fresh() {
   # scenario that stops the model server mid-suite would fail every scenario after it, and would
   # do it on the machine somebody is writing on.
   ANANSI_PORT=$PORT ANANSI_DB="$WORK/db" ANANSI_LLAMA_UNIT=anansi-test-nonexistent.service \
+    ANANSI_FEATHERLESS_URL="$fl_url" ANANSI_FEATHERLESS_KEY_FILE="$fl_key" \
     nohup node --experimental-strip-types serve.ts >"$WORK/serve.log" 2>&1 &
   local n=0
   until curl -sf -o /dev/null -m 2 "http://127.0.0.1:$PORT/"; do sleep 1; n=$((n+1)); [ $n -gt 30 ] && { echo "server never came up"; cat "$WORK/serve.log"; exit 1; }; done
@@ -47,7 +65,7 @@ fresh() {
 # EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
 # green for a scenario nobody asked about — twice, per docs/HANDOFF.md.
 scenarios=${*:-}
-[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge"
+[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder"
 # `cover` and `entrypic` are excluded too, and for a second reason: they need ANANSI_SEARCH pointing
 # at a working endpoint AND the open web. Run them by name, with that variable set on the test server.
 # `model`, `ritual` and `veil` are excluded from the default set: every step waits on a real
@@ -65,7 +83,7 @@ fail=0
 RESULTS=${ANANSI_UI_RESULTS:-/tmp/anansi-ui-results-$(printf %s "$(pwd -P)" | sha256sum | cut -c1-8).json}
 rows=""
 for s in $scenarios; do
-  fresh
+  fresh "$s"
   out=$(node --experimental-strip-types bench/drive.ts "http://127.0.0.1:$PORT/" "test/ui/$s.js" 2>&1)
   ok=$(printf '%s' "$out" | grep -c '^  ok')
   red=$(printf '%s' "$out" | grep -c 'RED \|FAIL')

@@ -133,5 +133,6 @@ export function search(rows: CatalogueRow[], q: Query, admin: boolean, prefix: s
   // a menu that shrinks as you filter hides the way back.
   const sizes = [...new Set(open.map((r) => sizeClass(r.modelClass)).filter(Boolean) as string[])]
     .sort((a, b) => parseFloat(a) - parseFloat(b));
-  return { models: found.slice(0, RESULT_CAP), total: found.length, sizes };
+  // The weaving words go to the browser too, so the filter offers exactly the labels used here.
+  return { models: found.slice(0, RESULT_CAP), total: found.length, sizes, weavings: WEAVING };
 }

@@ -121,8 +121,9 @@ const ok = (m: string, fn?: unknown) => {
     // at all: a double press on Accept sent two POST /api/stories and created TWO BOOKS. They were
     // deliberately kept OUT of this list while that was so — naming a handler here without reading
     // it is how a check comes to report perfection — and they are in it now because they are fixed.
+    // `addshort` joined on 2026-10-22 (#51): adding a remote model makes one probe call to it.
     const guarded = ['summarize', 'extract', 'refinished', 'remember', 'invent',
-                     'spark', 'acceptSpark'];
+                     'spark', 'acceptSpark', 'addshort'];
     const loose = guarded.filter((k) => {
       const m = new RegExp(`if \\(d\\.${k}[^\n]*\\)[\\s\\S]{0,900}?api\\.\\w+\\(`).exec(js);
       return !m || !/whileWorking\(/.test(m[0]);
@@ -535,7 +536,9 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
                     // every time you pressed a row that was not the current model. In the BUTTON
                     // form for the reason spelled out above — app.js explains this panel in a
                     // comment, and a check that matches its own documentation is decorative.
-                    model: /<button data-modelinfo=/ };
+                    model: /<button data-modelinfo=/,
+                    // #51. Its door is the last row of the same list, and its handler names it.
+                    findmodel: /<button data-findmodel="1"[\s\S]*S\.panel = 'findmodel'/ };
   for (const [name, opens] of Object.entries(byClick)) {
     assert.ok(opens.test(js), `the ${name} panel is not in the rail, so something must set S.panel to it`);
   }
@@ -726,12 +729,6 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     // world books draw on Threads and keep their tag, and `storyFollowing` never cared whether the
     // book it follows is one. What has no door is making a NEW one.
     newWorld: 'issue #34: the Name-a-world strip came off Threads and nothing replaced it (2026-08-31)',
-    // Issue #50, 2026-10-22. The shortlist routes and the menu listing landed first; the search
-    // sheet that adds and removes is issue #51, the next ticket. Take these out when it lands.
-    shortlist:     'issue #51: the search sheet is the next ticket (2026-10-22)',
-    addShortlist:  'issue #51: the search sheet is the next ticket (2026-10-22)',
-    dropShortlist: 'issue #51: the search sheet is the next ticket (2026-10-22)',
-    catalogue:     'issue #51: the search sheet lands later in the same ticket (2026-10-22)',
   };
   const orphans = defined.filter((d) => !new RegExp(`\\bapi\\.${d}\\b`).test(app) && !(d in DEFERRED));
   assert.deepStrictEqual(orphans, [],

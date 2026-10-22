@@ -10,6 +10,20 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-22 · Find a model on Featherless
+
+### Find a model on Featherless
+The model menu at the foot of the rail has a new last row, Find a model. It opens a search over
+the models Featherless runs. By default it shows only uncensored models; untick the box to see
+all of them. You can search by part of a name, by size, and by whether a model weaves, which means
+it plans before it writes. Models that never weave come first. Each model shows how much of the
+shared plan it uses and how much of a book it can hold. Models too small for a book are not shown.
+
+Press Add and the model goes on your shortlist, at the top of the same panel and on your model
+menu. Nobody else sees your shortlist. When you add a model, Anansi asks it one short question
+to find out if it really weaves, so adding takes a moment. To take a model off your shortlist,
+press Remove on the same panel.
+
 ## 2026-10-18 · Delete after keeps the chapter you write in
 
 ### Delete after keeps the chapter you write in

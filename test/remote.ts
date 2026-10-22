@@ -469,6 +469,8 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.deepStrictEqual(ids(await find(`weaving=${encodeURIComponent('can switch')}&size=31b`)), [STUBBORN],
     'and weaving with size');
   assert.deepStrictEqual(ids(await find('q=nothing-like-this')), [], 'a search that matches nothing is empty');
+  assert.deepStrictEqual(all.weavings, ["doesn't weave", 'can switch', 'always weaves'],
+    'the weaving words the filter offers are the ones the rows use, in sort order');
   assert.ok(all.sizes.includes('35b') && all.sizes.includes('24b'),
     'the size choices come from the catalogue itself');
 

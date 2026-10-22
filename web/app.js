@@ -221,6 +221,11 @@ const S = {
   memoing: null,        // the passage being turned into a thread, while Anansi is thinking
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
   modelMenu: false,     // the model list, open under the rail's footer
+  // #51. Find a model: the search over the Featherless catalogue, and this writer's shortlist.
+  // `hits` is null until the first answer lands; `seq` drops an answer a later search overtook.
+  find: { q: '', size: '', weaving: '', uncensored: true, hits: null, total: 0, sizes: [], weavings: [],
+          error: null, seq: 0 },
+  shortlist: null,
 
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
   lookTab: 'theme',     // which of Theme / Font / Size / UI the Aa menu is showing
@@ -398,6 +403,8 @@ TITLES.anansi = 'Anansi';
 // #25. Opened from a row in the rail's model list, and in TITLES so the link to a model can be
 // pasted like any other panel's. With no model named it reads the one that is writing.
 TITLES.model = 'The model';
+// #51. Opened from the last row of the rail's model list. About the account, like the model panel.
+TITLES.findmodel = 'Find a model';
 const WTITLES = {
   stories: () => [`My stories`, `${LIB.length} ${LIB.length === 1 ? 'story' : 'stories'}`],
   create: () => ['Create a story', 'Spark a skeleton, or start blank'],
@@ -476,7 +483,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
   'editsum', 'savesum', 'cancelsum',
-  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'findmodel', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -787,6 +794,9 @@ function drawRail() {
       <div class="hint" style="margin:6px 0 0">A press opens what is known about it — what it
         is for, how fast it has written here, how much context each writer gets — and the switch
         is on that panel. Yours, not the box's: a story that names its own model still wins.</div>
+      <button data-findmodel="1" style="display:flex; align-items:center; gap:9px; padding:8px 10px;
+        margin-top:6px; border-radius:var(--r); border:1px solid var(--line); width:100%;
+        text-align:left; font-size:12.5px; color:var(--gold-lit)">Find a model&hellip;</button>
     </div>` : ''}`;
 }
 
@@ -1831,8 +1841,9 @@ function drawSide() {
   if (S.panel === 'model' && S.models === null) loadModels();
   const side = $('side');
   // The model panel is the exception: it is about the box rather than about a book, and the rail
-  // footer that opens it is on screen outside a story too. Every other panel reads V.
-  side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'model');
+  // footer that opens it is on screen outside a story too. Every other panel reads V. Find a model
+  // is the same kind of panel, opened from the same footer.
+  side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'model' && S.panel !== 'findmodel');
   if (side.hidden) return;
   $('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
@@ -2089,6 +2100,51 @@ function ritualPanel() {
       style="margin-top:4px; color:var(--bad)">Delete ${esc(ch.title || `chapter ${ch.index}`)}</button>`;
 }
 
+/** One model on the Find a model panel: the name the menu decodes, then what it costs the shared
+ *  plan, what it holds, and whether it weaves. `act` is the button at the end of the row. */
+function foundRow(m, act) {
+  const d = modelName(m.id);
+  const facts = [m.cost == null ? 'cost not known' : `${m.cost} ${m.cost === 1 ? 'unit' : 'units'}`,
+    m.context ? `${Number(m.context).toLocaleString()} context` : '', m.weaving ?? ''].filter(Boolean);
+  return `<div style="display:flex; align-items:center; gap:9px; padding:8px 4px;
+    border-bottom:1px solid var(--line)">
+    <span style="min-width:0; flex:1; display:flex; flex-direction:column; gap:1px">
+      <span style="font-size:12.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
+        title="${esc(m.id)}">${esc(d.name)}</span>
+      <span style="font-size:11px; color:var(--dim)">${esc(facts.join(' \u00b7 '))}</span></span>
+    ${act}</div>`;
+}
+
+/** The results half, alone, so a keystroke can redraw it without the box it was typed in. */
+function findHits() {
+  const f = S.find;
+  if (f.error) return `<div class="hint" style="margin:0; color:var(--warn)">${esc(f.error)}</div>`;
+  if (f.hits === null) return '<div class="hint" style="margin:0">Reading the catalogue&hellip;</div>';
+  if (!f.hits.length) return '<div class="hint" style="margin:0">Nothing matches.</div>';
+  const have = new Set((S.shortlist ?? []).map((m) => m.id));
+  return f.hits.map((m) => foundRow(m, have.has(m.id)
+    ? '<span style="font-size:11px; color:var(--faint)">on your shortlist</span>'
+    : `<button class="btn" data-addshort="${esc(m.id)}" style="flex:0 0 auto; width:auto; font-size:11.5px; padding:5px 12px"
+        ><span class="lbl-txt">Add</span></button>`)).join('')
+    + (f.total > f.hits.length ? `<div class="hint" style="margin:6px 0 0">${f.hits.length} of
+        ${f.total} shown. Type more of a name to narrow it.</div>` : '');
+}
+
+/** Ask the server's search, and draw the answer. A later search can overtake an earlier one while
+ *  someone types, so only the newest answer is drawn. `whole` redraws the panel, for the first
+ *  answer, which brings the size choices with it. */
+async function findSearch(whole = false) {
+  const f = S.find, seq = ++f.seq;
+  const r = await api.catalogue({ q: f.q, size: f.size, weaving: f.weaving, uncensored: f.uncensored ? '1' : '0' });
+  if (seq !== f.seq) return;
+  f.error = r.error ?? null;
+  f.hits = r.error ? [] : (r.models ?? []); f.total = r.total ?? 0;
+  if (r.sizes) f.sizes = r.sizes;
+  if (r.weavings) f.weavings = r.weavings;
+  if (S.panel !== 'findmodel') return;
+  if (whole || !$('findhits')) drawSide(); else $('findhits').innerHTML = findHits();
+}
+
 const PANELS = {
   entry: entryEditor,
   /** The chapter that just ENDED, as a report. Closing lands on `setup` now rather than here —
@@ -2185,6 +2241,45 @@ const PANELS = {
               releases it.</div>`
           : `<button class="btn" data-pickmodel="${esc(id)}">Write with this one</button>`}
       </div></div>`;
+  },
+
+  /** #51 · FIND A MODEL. The writer's shortlist on top, because what you already have is the first
+   *  thing to see before adding more; the search below it. Remove lives here and nowhere else, so
+   *  the menu stays a place to pick from.
+   *
+   *  The search is the SERVER's: the browser never talks to Featherless, and the filters, the
+   *  context floor and the rule about models that take the whole plan are all decided there. This
+   *  draws what comes back. Typing redraws only the results, so the box keeps its caret. */
+  findmodel() {
+    const f = S.find;
+    const mine = S.shortlist ?? [];
+    const opt = (v, l, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
+    return `<div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; flex-direction:column; gap:6px">
+        <span class="kind">Your shortlist</span>
+        <div id="findmine" style="display:flex; flex-direction:column; gap:2px">${
+          S.shortlist === null ? '<div class="hint" style="margin:0">Reading your shortlist&hellip;</div>'
+          : mine.length === 0 ? `<div class="hint" style="margin:0">Nothing yet. A model you add below
+              appears here and on your model menu, and on no one else's.</div>`
+          : mine.map((m) => foundRow(m, `<button class="btn ghost" data-dropshort="${esc(m.id)}"
+              style="flex:0 0 auto; width:auto; font-size:11.5px; padding:5px 12px">Remove</button>`)).join('')}</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px; padding-top:12px; border-top:1px solid var(--line)">
+        <span class="kind">Search Featherless</span>
+        <input class="field" id="findq" type="search" aria-label="Search by name" value="${esc(f.q)}" placeholder="Part of a name" autocomplete="off"
+          style="width:100%">
+        <div style="display:flex; gap:6px; flex-wrap:wrap">
+          <select class="field" data-findsize="1" aria-label="Size" style="flex:1; width:auto">${opt('', 'Any size', !f.size)}${
+            f.sizes.map((z) => opt(z, z.toUpperCase(), z === f.size)).join('')}</select>
+          <select class="field" data-findweave="1" aria-label="Weaving" style="flex:1; width:auto">${opt('', 'Weaving: any', !f.weaving)}${
+            f.weavings.map((w) => opt(w, w, w === f.weaving)).join('')}</select>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--mute)">
+          <input type="checkbox" data-finduncensored="1"${f.uncensored ? ' checked' : ''}>
+          Uncensored only</label>
+      </div>
+      <div id="findhits" style="display:flex; flex-direction:column; gap:2px">${findHits()}</div>
+    </div>`;
   },
 
   /** Everything this book is waiting on, in one place.
@@ -8258,6 +8353,24 @@ document.addEventListener('input', (e) => {
   if (warn) warn.hidden = n <= Number(d.wordcap);
 });
 
+// #51. The Find a model box. Searches a moment after the typing stops, and redraws only the results.
+let findTimer = null;
+document.addEventListener('input', (e) => {
+  if (e.target?.id !== 'findq') return;
+  S.find.q = e.target.value;
+  clearTimeout(findTimer);
+  findTimer = setTimeout(() => findSearch(), 250);
+});
+document.addEventListener('change', (e) => {
+  const d = e.target?.dataset;
+  if (!d) return;
+  if (d.findsize !== undefined) S.find.size = e.target.value;
+  else if (d.findweave !== undefined) S.find.weaving = e.target.value;
+  else if (d.finduncensored !== undefined) S.find.uncensored = e.target.checked;
+  else return;
+  findSearch();
+});
+
 document.addEventListener('input', (e) => {
   const el = e.target;
   if (el?.type !== 'range') return;
@@ -9430,6 +9543,35 @@ document.addEventListener('click', async (e) => {
     // view the models. it should be on top."
     if (overlay()) S.rail = false;
     syncHash(); paint(); return;
+  }
+  // #51. Find a model. Opened from the foot of the rail's model list, so it shuts the rail behind
+  // it the way the model panel does.
+  if (d.findmodel) {
+    S.panel = 'findmodel'; S.modelMenu = false;
+    if (overlay()) S.rail = false;
+    syncHash(); paint();
+    api.shortlist().then((r) => { S.shortlist = r.error ? [] : (r.models ?? []); if (S.panel === 'findmodel') drawSide(); });
+    findSearch(true);
+    return;
+  }
+  // ADDING CALLS THE MODEL: one tiny call to learn whether it really weaves. So it is behind the
+  // in-flight guard like every other button that calls a model.
+  if (d.addshort) {
+    const r = await whileWorking(t, 'Adding…', () => api.addShortlist(d.addshort));
+    if (!r) return;
+    if (r.error) return toast(r.error);
+    S.shortlist = r.models ?? [];
+    loadModels(); drawSide();
+    const got = S.shortlist.find((m) => m.id === d.addshort);
+    return toast(`${modelName(d.addshort).name} is on your shortlist${got?.weaving ? ` — it ${
+      got.weaving === 'can switch' ? 'can switch weaving off' : got.weaving}` : ''}.`);
+  }
+  if (d.dropshort) {
+    const r = await api.dropShortlist(d.dropshort);
+    if (r.error) return toast(r.error);
+    S.shortlist = r.models ?? [];
+    loadModels(); drawSide();
+    return toast(`${modelName(d.dropshort).name} is off your shortlist.`);
   }
   if (d.pickmodel) {
     if (d.pickmodel === SRV.model) return;
