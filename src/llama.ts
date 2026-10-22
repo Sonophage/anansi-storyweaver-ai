@@ -18,10 +18,12 @@ let MODEL = process.env.ANANSI_MODEL ?? 'Qwen3.6-WNTH-35B-A3B-NN';
 
 /** Which model a call should use: the story's own, or the default.
  *
- *  Synchronous, so it cannot ask the router anything — it only enforces the allowlist. Whether the
- *  router actually serves the id is checked when the story is SAVED (`POST /api/story`), so a
- *  stored value was real at the time it was chosen. A model retired from presets.ini afterwards
- *  will fail at generation with the router's own message, which names it. */
+ *  Synchronous, so it cannot ask the router anything. A local id must pass the allowlist; a remote
+ *  id must pass `remoteOk`, which the caller supplies because only it knows the shortlists and
+ *  whether a key is set. An id that fails falls through: the pin to the default, the default to
+ *  MODEL. Whether the router actually serves a local id is checked when the story is SAVED
+ *  (`POST /api/story`), so a stored value was real at the time it was chosen. A model retired from
+ *  presets.ini afterwards will fail at generation with the router's own message, which names it. */
 export const modelFor = (story?: { model?: string | null } | null, dflt?: string | null,
                          remoteOk: (id: string, pinned: boolean) => boolean = () => false): string => {
   // THE ALLOWLIST GOVERNS LOCAL MODELS ONLY. A remote id is allowed when the caller says it is on
