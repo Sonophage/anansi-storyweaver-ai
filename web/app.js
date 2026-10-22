@@ -2282,7 +2282,8 @@ const PANELS = {
    *
    *  ABOUT THE BOX, NOT ABOUT A BOOK — hence the one exception in drawSide, and hence the note
    *  when the open story pins its own model: this switch is real but a pinned story outranks it,
-   *  and a panel that offered a switch without saying so would be lying by omission.
+   *  and a panel that offered a switch without saying so would be lying by omission. Its "writing
+   *  now" is the strip's reading (`writingNow`): in a book, the model that writes that book.
    */
   model() {
     const id = S.modelPick ?? SRV.model;
@@ -2344,11 +2345,8 @@ const PANELS = {
             above is decoded from its name; what is below is measured.</div>`}
 
       ${remote
-        // A REMOTE MODEL HAS NO ROUTER AND NO PRESET FILE. Its limit and its cost are the
-        // Featherless catalogue's, recorded when it was shortlisted, and it runs there.
         ? `${fact('Context, per writer', m.perSlot ? `${m.perSlot.toLocaleString()} tokens` : '',
-            m.ctxSize ? `Featherless holds ${m.ctxSize.toLocaleString()} for this model; a writer gets the smaller of that and the slot here`
-              : 'Featherless did not say how much this model holds')}
+            m.ctxSize ? `Featherless holds ${m.ctxSize.toLocaleString()} for this model; a writer gets the smaller of that and the slot here` : '')}
            ${fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of the shared plan` : '',
             m.cost ? 'counted against the plan both writers share, on Featherless, while it writes'
               : 'Featherless did not say what this model costs')}`
