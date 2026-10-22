@@ -12,6 +12,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-22 · Find a model on Featherless
 
+### A full model on Featherless waits its turn
+When a model on Featherless is full, Anansi now waits a few seconds and asks again, up to three
+times, as she already does when Featherless is busy. If it is still full, she tells you
+"Featherless is busy, try again". Before, you saw Featherless's own message after one try. Stop
+still works while she waits. She never switches to another model on her own. Adding a model to
+your shortlist waits the same way when that model is full.
+
 ### Let a book weave
 A book's Storyteller panel has a new switch, Weaving, just under the book's model. When it is on,
 Anansi weaves each passage in that book before she writes it: she works it out unseen, and then
