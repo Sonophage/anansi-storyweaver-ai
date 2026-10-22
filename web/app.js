@@ -5932,9 +5932,11 @@ function historyPanel() {
             "seed" on every old take would read as something broken. */
         t.seed == null ? '' : `<div style="display:flex; align-items:center; gap:8px; margin-top:8px">
         <span class="kind">seed ${esc(String(t.seed))}</span>
-        <button class="btn ghost" data-reseed="${esc(String(pid))}:${esc(String(t.seed))}"
+        ${/* NOT ON A REMOTE TAKE. Featherless does not give the same passage back for the same
+              seed, so the press would promise a roll it cannot deliver. The seed stays shown. */
+          t.remote ? '' : `<button class="btn ghost" data-reseed="${esc(String(pid))}:${esc(String(t.seed))}"
           style="width:auto; padding:0 14px; height:32px; font-size:11.5px; margin-left:auto"
-          >Roll it again on this seed</button></div>`}
+          >Roll it again on this seed</button>`}</div>`}
     </div>`).join('')
       : '<div class="hint">One take. Regenerate on a passage keeps the old one and both appear here.</div>'}
 

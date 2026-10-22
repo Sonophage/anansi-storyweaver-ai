@@ -20,6 +20,7 @@ import { join, dirname } from 'node:path';
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
 import { ALL_SLOTS, EXCLUSIVE_SLOTS } from './slots.ts';
 import { factsLost } from './context.ts';
+import { isRemote } from './llama.ts';
 
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
@@ -2713,11 +2714,18 @@ export const passageTakes = (storyId: string, id: string) => {
   // which is why no generation in this app was ever reproducible. Read off the generation the
   // passage was tied to rather than stored twice; null for every take written before that day, and
   // for anything a writer typed themselves.
-  return q(`SELECT p.id, p.body, p.author, p.variant_index, p.selected, p.rejected, p.created_at,
+  //
+  // AND WHETHER A REMOTE MODEL WROTE IT, off the same generation. Featherless does not reproduce a
+  // take from its seed (measured 2026-10-21: the same seed twice gave two different passages), so
+  // the History panel must not offer "the same roll again" on one — the seed is still shown.
+  return (q(`SELECT p.id, p.body, p.author, p.variant_index, p.selected, p.rejected, p.created_at,
               (SELECT json_extract(g.params, '$.seed') FROM generations g
-                WHERE g.passage_id = p.id ORDER BY g.created_at DESC LIMIT 1) AS seed
+                WHERE g.passage_id = p.id ORDER BY g.created_at DESC LIMIT 1) AS seed,
+              (SELECT g.model FROM generations g
+                WHERE g.passage_id = p.id ORDER BY g.created_at DESC LIMIT 1) AS model
               FROM passages p WHERE p.story_id = ? AND p.chapter_id = ? AND p.slot_key = ?
-             ORDER BY p.variant_index`).all(storyId, cur.chapter_id, cur.slot_key) as any[];
+             ORDER BY p.variant_index`).all(storyId, cur.chapter_id, cur.slot_key) as any[])
+    .map(({ model, ...t }) => ({ ...t, remote: isRemote(model) }));
 };
 export const entryHistory = (storyId: string, id: string) => q(
   `SELECT r.id, r.field, r.previous_value, r.replaced_at, r.replaced_by

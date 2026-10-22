@@ -533,5 +533,33 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('adding probes once with weaving off, stores the label and the cost, and holds the gate');
 }
 
+// ---- 14. a take a remote model wrote says so, and only those lose the reseed ----
+{
+  const book = db.createStory(me, { title: 'Two Hands' });
+  db.addPassage({ ...book, storyId: book.id, body: 'The tide came in.' });
+  const takeOf = async (passageId: string) =>
+    (await routes['GET /api/history'](ctx(me, {}, `story=${book.id}&passage=${passageId}`))).takes;
+  assert.strictEqual(db.defaultModelOf(me), ID, 'the writer starts this case on the remote model');
+  // Written and kept the way the composer does it without a stream: generate, then accept with the
+  // generation's id, which ties the take to the call that made it.
+  const write = async () => {
+    const g = await routes['POST /api/generate'](ctx(me, { storyId: book.id, mode: 'continue' }));
+    assert.ok(!g.error, g.error);
+    const v = await routes['POST /api/accept'](ctx(me, { storyId: book.id, body: g.prose,
+      mode: 'continue', genId: g.genId, check: false }));
+    return v.passages.at(-1).id;
+  };
+  const far = await write();
+  await routes['POST /api/model'](ctx(me, { model: 'Qwen3.6-WNTH-35B-A3B-NN' }));
+  const near = await write();
+  const [ft] = await takeOf(far), [nt] = await takeOf(near);
+  // The seed is there on both, so the flag — not a missing seed — is what hides the button.
+  assert.ok(ft.seed != null && nt.seed != null, 'both takes carry the seed that made them');
+  assert.strictEqual(ft.remote, true, 'RESEED: a take Featherless wrote is marked remote');
+  assert.strictEqual(nt.remote, false, 'RESEED: a take the local router wrote is not');
+  await routes['POST /api/model'](ctx(me, { model: ID }));
+  ok('a take says whether a remote model wrote it, beside the seed');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close();
