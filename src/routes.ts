@@ -210,6 +210,9 @@ const describable = async (c: Ctx, ids: unknown[]) => {
     .map((x) => ({ id: x.id, repo: x.row!.id }));
 };
 
+/** What the shortlist routes answer when the id they are handed is not a remote one. */
+const NOT_REMOTE = `a remote model id starts with "${REMOTE_PREFIX}"`;
+
 /** A remote id a writer may name as a default or a pin: on `owner`'s shortlist, with a key set.
  *  Returns the id so callers read as an assignment, the way `checkModel` does for local ones. */
 const shortlistedOrRefuse = (owner: string, id: string): string => {
@@ -1480,7 +1483,7 @@ export const routes: Record<string, Handler> = {
   'POST /api/shortlist': async (c: Ctx) => {
     const id = String(c.body.model ?? '');
     if (!isRemote(id) || id.length <= REMOTE_PREFIX.length)
-      return { error: `a remote model id starts with "${REMOTE_PREFIX}"` };
+      return { error: NOT_REMOTE };
     if (!remoteReady()) return { error: "Featherless isn't set up on this server" };
     const found = await fromCatalogue(() => catalogueEntry(id.slice(REMOTE_PREFIX.length)));
     if (found && 'error' in found) return found;
@@ -1542,10 +1545,10 @@ export const routes: Record<string, Handler> = {
     const id = String(c.body.model ?? '');
     // Only a remote id. A local one is on no shortlist, and clearing pins and the default by it
     // would send books that write locally back to the local default for no reason.
-    if (!isRemote(id)) return { error: `a remote model id starts with "${REMOTE_PREFIX}"` };
+    if (!isRemote(id)) return { error: NOT_REMOTE };
     db.removeFromShortlist(c.owner, id);
     const books = db.unpinModel(c.owner, id);
-    const wasDefault = !!id && c.defaultModel === id;
+    const wasDefault = c.defaultModel === id;
     if (wasDefault) c.setDefaultModel(null);
     const named = [...(wasDefault ? ['your default'] : []), ...books.map((t) => `“${t}”`)];
     const list = new Intl.ListFormat('en-GB').format(named);
