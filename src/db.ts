@@ -869,11 +869,9 @@ export const shortlistOf = (ownerId: string): { id: string; context: number; wea
   (q('SELECT model, context, weaving, cost, added_at FROM shortlist WHERE owner_id = ? ORDER BY added_at, model')
     .all(ownerId) as any[]).map((r) => ({ id: r.model, context: r.context, weaving: r.weaving,
       cost: r.cost, addedAt: r.added_at }));
-export const shortlisted = (ownerId: string, id: string): { id: string; context: number } | null => {
-  const r = q('SELECT model, context FROM shortlist WHERE owner_id = ? AND model = ?')
-    .get(ownerId, id) as any;
-  return r ? { id: r.model, context: r.context } : null;
-};
+/** The context `id` holds if it is on `ownerId`'s shortlist, else null. */
+export const shortlisted = (ownerId: string, id: string): number | null =>
+  (q('SELECT context FROM shortlist WHERE owner_id = ? AND model = ?').get(ownerId, id) as any)?.context ?? null;
 export const addToShortlist = (ownerId: string, id: string, context: number,
   weaving: string | null = null, cost: number | null = null) =>
   q(`INSERT INTO shortlist (owner_id, model, context, weaving, cost, added_at) VALUES (?,?,?,?,?,?)

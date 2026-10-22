@@ -171,7 +171,7 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
  *  a background call passes no model at all and stays on the local default (docs/adr/0001). */
 const writerModel = (c: Ctx, v: { story: any; owner?: string }) =>
   modelFor(v.story, c.defaultModel, (id, pinned) =>
-    remoteReady() && !!db.shortlisted(pinned ? (v.owner ?? c.owner) : c.owner, id));
+    remoteReady() && db.shortlisted(pinned ? (v.owner ?? c.owner) : c.owner, id) != null);
 
 /** Which of `ids` this writer may have described: remote ids the catalogue lists and the search
  *  would show them, as `{id, repo}`. The repo path is the catalogue's, so nothing the request says
@@ -191,7 +191,7 @@ const describable = async (c: Ctx, ids: unknown[]) => {
 const shortlistedOrRefuse = (owner: string, id: string): string => {
   if (!remoteReady())
     throw Object.assign(new Error("Featherless isn't set up on this server"), { code: 400 });
-  if (!db.shortlisted(owner, id))
+  if (db.shortlisted(owner, id) == null)
     throw Object.assign(new Error(`"${id}" is not on the shortlist of the writer who owns this choice`),
       { code: 400 });
   return id;
@@ -205,7 +205,7 @@ const shortlistedOrRefuse = (owner: string, id: string): string => {
 const slotFor = (c: Ctx, v: { owner?: string }, using: string): Slot => {
   if (!isRemote(using)) return c.slot;
   const held = db.shortlisted(v.owner ?? c.owner, using) ?? db.shortlisted(c.owner, using);
-  return held ? { ...c.slot, perSlot: Math.min(c.slot.perSlot, held.context) } : c.slot;
+  return held != null ? { ...c.slot, perSlot: Math.min(c.slot.perSlot, held) } : c.slot;
 };
 
 /** What Anansi is allowed to say, in tokens — reserved when the prompt is assembled and spent when
