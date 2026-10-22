@@ -345,6 +345,8 @@ let stubPassageId: string | undefined = undefined;
 // #55. When set, the stubbed stream holds its first line until this resolves: the stretch between
 // the press and the first word, which is the whole of the time a weaving call spends planning.
 let streamGate: Promise<void> | null = null, endGate: Promise<void> | null = null;
+// #56. When set, the stubbed generation answers with this one line and no prose: a refusal.
+let stubRefuse: any = null;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
@@ -367,7 +369,7 @@ let streamGate: Promise<void> | null = null, endGate: Promise<void> | null = nul
                                     manifest: MANIFEST.manifest })];
     // In one read, unless a test is holding the stream: then the first word waits on `streamGate`
     // and the end of the call on `endGate`, so the stretch between them can be looked at too.
-    const reads = streamGate ? [[lines[0]], [lines[1]]] : [lines];
+    const reads = stubRefuse ? [[JSON.stringify(stubRefuse)]] : streamGate ? [[lines[0]], [lines[1]]] : [lines];
     return { ok: true, status: 200, body: {
       getReader() {
         let i = 0;
@@ -2410,6 +2412,100 @@ ok('the Storyteller has a Weaving switch where the thinking note was, and it sav
   } finally { streamGate = null; endGate = null; (STORY as any).weaves = weaving; }
 }
 ok('a weaving book says Weaving with a running count from the press until the first word');
+
+// #56. WHEN WEAVING DOES NOT FIT. The server refuses a weaving passage that would leave part of the
+// book out, and offers two ways on. The app had no toast that carries actions, so the refusal is a
+// row on the composer: the sentence and two buttons, where the writer's hand already is. Each button
+// sends the same press again — Write anyway with the override, Turn weaving off after the switch.
+{
+  const MSG = 'Weaving sets aside 5,000 tokens for Anansi to weave in, and in this book that would leave '
+    + 'out the 4 oldest passages still in view. Turn weaving off for this book, or write anyway and let them drop out.';
+  const refusal = (overflows = false) => ({ error: MSG, manifest: MANIFEST.manifest,
+    weaveFit: { overflows, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] } });
+  const gens = () => POSTED.filter((p: any) => String(p.url).startsWith('/api/generate'));
+  const row = () => html('dockCol').match(/<div id="weavefit"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '';
+  const weaving = (STORY as any).weaves;
+  try {
+    (STORY as any).weaves = true; STORY.story.weaving = true;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+
+    // Refused: the row says what the server said, with both ways on, and nothing was written.
+    stubRefuse = refusal(); POSTED.length = 0;
+    click({ continue: '1' });
+    await new Promise((r) => setTimeout(r, 120));
+    assert.ok(row(), `a refusal draws the row on the composer: ${html('dockCol').slice(0, 200)}`);
+    assert.ok(row().includes('4 oldest passages still in view'), 'saying what would drop out');
+    assert.match(row(), /data-weaveanyway[^>]*>\s*Write anyway\s*</, 'offering to write anyway');
+    assert.match(row(), /data-weaveoff[^>]*>\s*Turn weaving off for this book\s*</, 'and to turn weaving off');
+    assert.doesNotMatch(row().replace(/<!--[\s\S]*?-->/g, ''), /\b(think|thinking|reasoning|planning)\b/i,
+      'in the writer\'s word, weaving');
+    assert.ok(!POSTED.some((p: any) => p.url === '/api/accept'), 'and nothing was kept');
+
+    // Write anyway: the same press again, with the override, and the row goes.
+    stubRefuse = null; POSTED.length = 0;
+    click({ weaveanyway: '1' });
+    await new Promise((r) => setTimeout(r, 300));
+    assert.strictEqual(gens().length, 1, 'write anyway sends one generation');
+    assert.strictEqual(gens()[0].body.weaveAnyway, true, 'with the override');
+    assert.strictEqual(gens()[0].body.mode, 'continue', 'as the same press');
+    assert.ok(!row(), 'and the row is gone');
+
+    // Turn weaving off: the book's switch flips, then the same press writes without the override.
+    stubRefuse = refusal(); POSTED.length = 0;
+    click({ continue: '1' });
+    await new Promise((r) => setTimeout(r, 120));
+    assert.ok(row(), 'refused again');
+    stubRefuse = null; POSTED.length = 0;
+    click({ weaveoff: '1' });
+    await new Promise((r) => setTimeout(r, 300));
+    const saved = POSTED.findIndex((p: any) => p.url === '/api/story' && p.body.story?.weaving === false);
+    const sent = POSTED.findIndex((p: any) => String(p.url).startsWith('/api/generate'));
+    assert.ok(saved >= 0, 'turning weaving off saves the switch');
+    assert.ok(sent > saved, 'and then writes');
+    assert.ok(!POSTED[sent].body.weaveAnyway, 'normally, with no override');
+    assert.ok(!row(), 'and the row is gone');
+
+    // Your own line is written ONCE. In Speaking As it reaches the page before the model is asked,
+    // so writing anyway must ask again without putting it on the page a second time.
+    pickMode('speak');
+    nodes.get('input').value = 'Hold the door.';
+    stubRefuse = refusal(); POSTED.length = 0;
+    click({ send: '1' });
+    await new Promise((r) => setTimeout(r, 200));
+    assert.ok(row(), 'a speaking line can be refused too');
+    stubRefuse = null;
+    click({ weaveanyway: '1' });
+    await new Promise((r) => setTimeout(r, 300));
+    assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/write').length, 1, 'your line goes on the page once');
+    assert.strictEqual(gens().at(-1)?.body.weaveAnyway, true, 'and the model is asked again, with the override');
+    assert.strictEqual(gens().at(-1)?.body.mode, 'speak', 'in the same mode');
+    pickMode('continue');
+
+    // A re-roll that is refused re-rolls the same passage when written anyway.
+    stubRefuse = refusal(); POSTED.length = 0;
+    click({ re: 'p-4' });
+    await new Promise((r) => setTimeout(r, 200));
+    assert.ok(row(), 'a re-roll can be refused');
+    stubRefuse = null; POSTED.length = 0;
+    click({ weaveanyway: '1' });
+    await new Promise((r) => setTimeout(r, 300));
+    assert.strictEqual(gens()[0]?.body.regenerateOf, 'p-4', 'write anyway re-rolls the same passage');
+    assert.strictEqual(gens()[0]?.body.weaveAnyway, true, 'with the override');
+
+    // An overflow cannot be written anyway: the prompt would not fit beside the plan's room.
+    stubRefuse = refusal(true);
+    click({ continue: '1' });
+    await new Promise((r) => setTimeout(r, 120));
+    assert.ok(row(), 'an overflow is refused on the row');
+    assert.doesNotMatch(row(), /data-weaveanyway/, 'with no Write anyway, because it would not fit');
+    assert.match(row(), /data-weaveoff/, 'and Turn weaving off still there');
+  } finally {
+    stubRefuse = null; (STORY as any).weaves = weaving; STORY.story.weaving = false;
+    click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+  }
+}
+ok('a weaving refusal is a row on the composer with Write anyway and Turn weaving off, and each sends the press again');
 
 // #53 · WHERE A MODEL RUNS, on every surface that names one: a circle in the local or the remote
 // colour, filled when a local model is awake and hollow when it is asleep (a remote one is always

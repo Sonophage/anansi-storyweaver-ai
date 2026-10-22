@@ -503,6 +503,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
   'pastecast', 'pastebook', 'forgehere', 'fromhere', 'startfrom', 'demo', 'holdback',
+  // #56. The two ways on from a weaving refusal, on the composer's row.
+  'weaveanyway', 'weaveoff',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -1651,6 +1653,29 @@ let STOP = null;
  *  opening a panel must not eat it, and opening a different book must not carry it across. */
 let DOCK_FOR = null;
 
+/** #56 · WHEN WEAVING DOES NOT FIT, the server's sentence and the two ways on, as a row on the
+ *  composer.
+ *
+ *  A row and not a toast: the app's toast is text only and goes away on its own, and this is a
+ *  question the writer has to answer before anything is written. On the composer because that is
+ *  where the press came from and where the hand still is; the veil has already come down, as it
+ *  does on every refusal. It lasts until one of its buttons is pressed or the next generation
+ *  starts, and only in the book it was refused in.
+ *
+ *  Write anyway is left off for an overflow: the weaving prompt would not fit, so sending it would
+ *  only be refused again. The sentence is the server's (`weaveRefusal` in routes.ts); the client
+ *  names nothing itself. */
+function weaveFitRow() {
+  const f = S.weaveFit;
+  if (!f || f.storyId !== S.storyId) return '';
+  return `<div id="weavefit" role="alert">
+      <div class="hint">${esc(f.message)}</div>
+      <div class="weavefitgo">${f.overflows ? ''
+        : '<button class="btn ghost" data-weaveanyway="1">Write anyway</button>'}
+        <button class="btn ghost" data-weaveoff="1">Turn weaving off for this book</button></div>
+    </div>`;
+}
+
 function drawDock() {
   if (!(S.place === 'story' && V)) { $('dock').hidden = true; DOCK_FOR = null; return; }
   $('dock').hidden = false;
@@ -1683,7 +1708,7 @@ function drawDock() {
   // <html> and an action, so `closest()` matched <html> on every click and nothing was editable.
   root.dataset.uiMode = S.mode;
 
-  $('dockCol').innerHTML = `
+  $('dockCol').innerHTML = `${weaveFitRow()}
     <div id="modes">
       <!-- ONE DIAL, NOT FOUR BUTTONS. Seth, 2026-09-02: "make speak, act, direct and narrate into
            a drop down. the selection should look like a button." Four modes on a rail alongside
@@ -7892,9 +7917,13 @@ async function openingPassage() {
   await generate('continue');
 }
 
-async function generate(mode = S.mode) {
+/** @param again  #56. The same press, sent again from the weaving refusal's row: `typed` is what
+ *                 the first press read, and `anyway` is Write anyway. Your own line already went on
+ *                 the page the first time, so a press sent again never writes it twice. */
+async function generate(mode = S.mode, again = null) {
   if (S.busy || !V) return;
-  const typed = $('input')?.value.trim() ?? '';
+  S.weaveFit = null;
+  const typed = again ? again.typed : ($('input')?.value.trim() ?? '');
 
   /* CO-OP ENDS HERE, and that is the whole of the mode. Your part goes on the page, the move passes
    * to the other writer, and the model is never asked. When you are stuck you change the dial to
@@ -7902,7 +7931,7 @@ async function generate(mode = S.mode) {
    *
    * BEFORE the seam and the ghost below: there is no generation to cover, so raising the veil for
    * one would be a full-screen wait for a POST that has already returned. */
-  if (mode === 'coop') {
+  if (mode === 'coop' && !again) {
     if (!typed) return toast('Write your part first — Co-op hands the move over without asking Anansi.');
     const w = await api.write(S.storyId, { body: typed, mode, chapterId: V.currentChapter.id });
     if (w.error) return toast(w.error);
@@ -7919,7 +7948,7 @@ async function generate(mode = S.mode) {
   // means "a named voice" and drives speech styling, and an action is narration.
   const who = mode === 'speak' || mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined;
 
-  if (YOURS) {
+  if (YOURS && !again) {
     if (!typed) return toast(mode === 'narrate'
       ? 'Write the passage first — Narrate puts your own prose on the page.'
       : 'Type what you want to say first, or press Continue.');
@@ -7931,7 +7960,7 @@ async function generate(mode = S.mode) {
     // bounced you to the end of the book, which is where the passage used to go anyway.
     V = await api.story(S.storyId, V.currentChapter.id);
     paint();
-  } else if (mode === 'direct' && !typed) {
+  } else if (mode === 'direct' && !typed && !again) {
     return toast('Say what happens next, or press Continue.');
   }
 
@@ -7946,7 +7975,8 @@ async function generate(mode = S.mode) {
   ghost();   // the roller, from the press until accept returns
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
-    directive: YOURS ? undefined : (typed || undefined), speaker: who },
+    directive: YOURS ? undefined : (typed || undefined), speaker: who,
+    ...(again?.anyway ? { weaveAnyway: true } : {}) },
     liveDelta, STOP.signal);
   STOP = null; weaveStop();
   // NOT `unghost()` ANY MORE on the way through. The veil comes down on an abort or an error, just
@@ -7964,6 +7994,10 @@ async function generate(mode = S.mode) {
     return toast(YOURS ? 'Stopped. Your line is still on the page.'
                  : typed ? 'Stopped. What you typed is still in the box.'
                  : 'Stopped. Nothing was written.');
+  }
+  if (r.weaveFit) {
+    S.busy = false; working(null);
+    return weaveRefused(r, (anyway) => generate(mode, { typed, anyway }));
   }
   if (r.error) { S.busy = false; drawDock(); working(null); return toast(r.error); }
   MANI = r.manifest;
@@ -7997,6 +8031,16 @@ async function generate(mode = S.mode) {
     if (said) toast(said);
   };
   if (document.getElementById('ghost')) { VEIL_LAND = land; veilFinish(); } else land();
+}
+
+/** #56 · A WEAVING REFUSAL, held for the composer's row. `again(anyway)` is the press that was
+ *  refused, ready to be sent once more: with the override for Write anyway, without it once
+ *  weaving is off. The Context panel is asked again, because it carries the same refusal. */
+function weaveRefused(r, again) {
+  S.weaveFit = { ...r.weaveFit, storyId: S.storyId, again };
+  drawDock();
+  refreshManifest();
+  announce(r.weaveFit.message);
 }
 
 /** #9 · WHAT THE CONTRADICTION REPAIR DID TO THIS TAKE, said at the take.
@@ -8080,8 +8124,9 @@ async function regenerateLast() {
  *                Undefined means "use whatever the passage was written from", which is
  *                `inherit()` on the server and is how this has always behaved. An explicit
  *                directive in the request wins there, so sending it is the whole mechanism. */
-async function regenerateInto(id, steer, seed) {
+async function regenerateInto(id, steer, seed, again = null) {
   if (S.busy) return;
+  S.weaveFit = null;
   /* WRITING OVER YOUR OWN PARAGRAPH TAKES TWO PRESSES. Regenerate is drawn on the last passage and
    * in every passage's tray whatever wrote it, so in a book you narrate yourself the thing most
    * often under that button is your own prose — and a re-roll lands a model take in its slot,
@@ -8096,7 +8141,8 @@ async function regenerateInto(id, steer, seed) {
    * where the next press could do either of two things you cannot take back. A model's passage is
    * not guarded, because re-rolling one is the whole point of the button. */
   const own = (V?.passages ?? []).find((p) => p.id === id);
-  if (own?.author === 'human' && !armed(
+  // A press sent again from the weaving refusal's row was already armed the first time.
+  if (own?.author === 'human' && !again && !armed(
     // The row under the last passage first: that is the visible press when there is one, and the
     // tray's copy of the same button may be inside a tray nobody has opened.
     document.querySelector(`.carry [data-re="${id}"]`) ?? document.querySelector(`[data-re="${id}"]`),
@@ -8127,6 +8173,7 @@ async function regenerateInto(id, steer, seed) {
     // new roll of the dice; with it the only remaining variables are the sampler and the prompt,
     // and the prompt is what the manifest on the row records. This is the whole of "get it back".
     ...(seed == null ? {} : { seed }),
+    ...(again?.anyway ? { weaveAnyway: true } : {}),
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined },
     liveDelta, STOP.signal);
   STOP = null; weaveStop();
@@ -8137,6 +8184,10 @@ async function regenerateInto(id, steer, seed) {
   if (r.aborted) {
     S.busy = false; drawDock(); drawBar(); working(null);
     return toast('Stopped. The take you had is untouched.');
+  }
+  if (r.weaveFit) {
+    S.busy = false; drawBar(); working(null);
+    return weaveRefused(r, (anyway) => regenerateInto(id, steer, seed, { anyway }));
   }
   if (r.error) { S.busy = false; drawDock(); drawBar(); working(null); return toast(r.error); }
   if (r.passageId) WATCHED.add(r.passageId);
@@ -10848,6 +10899,22 @@ document.addEventListener('click', async (e) => {
   // The composer's own copy of the Story panel's switch. Saves the one field and repaints the dock
   // only — a full repaint here would empty the line you are part-way through writing, which is the
   // rule the autosave path had to learn today.
+  // #56. The weaving refusal's two ways on. Each sends the refused press again: Write anyway with
+  // the override, Turn weaving off once the book's switch is saved and the book read back, so the
+  // server is the one that says it no longer weaves.
+  if (d.weaveanyway !== undefined || d.weaveoff !== undefined) {
+    const fit = S.weaveFit;
+    if (!fit || fit.storyId !== S.storyId) return;
+    S.weaveFit = null;
+    if (d.weaveoff !== undefined) {
+      const r = await api.saveStory(S.storyId, { weaving: false });
+      if (r.error) { S.weaveFit = fit; drawDock(); return toast(r.error); }
+      V = await api.story(S.storyId, V.currentChapter.id);
+      paint();
+    } else drawDock();
+    await fit.again(d.weaveanyway !== undefined);
+    return;
+  }
   if (d.holdback !== undefined) {
     const on = d.holdback === '1';
     const r = await api.saveStory(S.storyId, { lockoutOn: on });
