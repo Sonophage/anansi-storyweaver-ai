@@ -367,8 +367,9 @@ const MAX_LOADED = 2;
  *  Pulled out of the route so it can be checked without a router to ask — the route's other half
  *  is `checkModel`, which is a network call, and a decision nobody can test is a decision nobody
  *  knows the shape of. Switching to a model somebody else is already on is always fine: it loads
- *  nothing new, which is why this counts DISTINCT ids and not writers. */
-/*  A REMOTE MODEL LOADS NOTHING HERE, so it is never counted and switching to one is never refused
+ *  nothing new, which is why this counts DISTINCT ids and not writers.
+ *
+ *  A REMOTE MODEL LOADS NOTHING HERE, so it is never counted and switching to one is never refused
  *  — on either side: another writer on Featherless is not holding a model in this router. */
 export const tooManyModels = (others: string[], id: string, max = MAX_LOADED) =>
   !isRemote(id) && new Set([...others.filter((o) => o && !isRemote(o)), id]).size > max;
