@@ -88,8 +88,27 @@ export function isPrivateHost(h: string): boolean {
 // for a wide one at high quality and still refuses a phone camera original posted whole.
 const MAX_COVER = 1_000_000;
 
-const need = (v: any, msg: string) => { if (!v) throw Object.assign(new Error(msg), { code: 404 }); return v; };
-const viewOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such story');
+const need = <T,>(v: T, msg: string): NonNullable<T> => {
+  if (!v) throw Object.assign(new Error(msg), { code: 404 }); return v as NonNullable<T>; };
+/** A book's view as the background work reads it: no writer, so no model resolved for one. */
+const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such story');
+/** A BOOK AS EVERY ROUTE HANDS IT BACK: the view, plus what writes it for the writer asking.
+ *
+ *  The browser takes any view a route answers with as the book itself. About forty routes answered
+ *  with the bare view, so after saving a look or waving a warning away the strip fell back to the
+ *  writer default, the Storyteller lost the model it names, and a guest's picker called the
+ *  owner's remote pin a model nobody offers. Every route goes through this one, so none can leave
+ *  the fields out. `model` is the model that writes this book; `defaultModel` the writer's own;
+ *  `pin` the book's remote pin as a model row; `budget` the room a prompt for `model` may take. */
+const viewOf = (c: Ctx, id: string, chapter?: string) => {
+  const v = bookOf(id, chapter);
+  const model = writerModel(c, v);
+  return { ...v, model, defaultModel: writerModel(c, { story: null }),
+    // The pin as a model row when it is a remote model on the owner's shortlist, so a guest's
+    // picker can show the model that writes this book rather than calling it gone.
+    pin: remotePin(c, v.story.model, v.owner),
+    budget: budgetFor(v.story, slotFor(c, v, model), Number(c.gen.max_tokens) || 900) };
+};
 
 /** Routes that must not be reachable with someone else's story id.
  *
@@ -627,7 +646,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   const mView = performance.now();
   // Generating into the chapter you are reading, for the same reason writing does — and it also
   // decides the CONTEXT: revising chapter three should see chapter three, not the whole book.
-  const v = viewOf(c.body.storyId, c.body.chapterId);
+  const v = viewOf(c, c.body.storyId, c.body.chapterId);
   const mAssemble = performance.now();
   const upTo = c.body.regenerateOf
     ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
@@ -872,7 +891,7 @@ async function remember(storyId: string, chapterId: string) {
  *  It matters more now that this fires on its own: a mistake behind a button is made when you press
  *  it, and a mistake on chapter close is made every chapter. */
 async function extract(storyId: string, chapterId?: string) {
-  const v = viewOf(storyId);
+  const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
   if (!ps.length) return { error: 'nothing to read in this chapter' };
@@ -925,7 +944,7 @@ async function extract(storyId: string, chapterId?: string) {
 const SCAN_BUDGET = 40_000;
 
 async function extractStory(storyId: string, entryId: string) {
-  const v = viewOf(storyId);
+  const v = bookOf(storyId);
   const who = (v.entries as any[]).find((e) => e.id === entryId);
   if (!who) return { error: 'no such thread' };
 
@@ -1007,7 +1026,7 @@ async function extractStory(storyId: string, entryId: string) {
  *  Ceiling: four calls on a long chapter. Upgrade path: one call answering both, with both arms
  *  measured by `bench/retire.ts` before the old shape is deleted. */
 async function retire(storyId: string, chapterId?: string) {
-  const v = viewOf(storyId);
+  const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
   if (!ps.length) return { proposed: 0, eligible: 0 };
@@ -1914,19 +1933,15 @@ export const routes: Record<string, Handler> = {
 
   // ---- one story ----
   'GET /api/story':      (c) => {
-    const v = viewOf(c.query.get('story')!, c.query.get('chapter') ?? undefined);
+    const v = viewOf(c, c.query.get('story')!, c.query.get('chapter') ?? undefined);
     prewarm(c, v);
     // Detached, and guarded three ways above. Opening the book is the moment the writer is least
     // likely to be waiting on anything, and the moment their next prompt is most predictable.
-    // `model` is what will actually write THIS story — the story's own if it names one.
-    return { ...v, model: writerModel(c, v), defaultModel: writerModel(c, { story: null }), slot: c.slot, gen: c.gen,
-      // The pin as a model row when it is a remote model on the owner's shortlist, so a guest's
-      // picker can show the model that writes this book rather than calling it gone.
-      pin: remotePin(c, v.story.model, (v as any).owner),
+    // The model, the pin and the budget come with every view (`viewOf`); opening adds the rest.
+    return { ...v, slot: c.slot, gen: c.gen,
       // Whether Anansi's web search is available at all. Reported here so the checkbox is right
       // the moment the panel opens, rather than correcting itself after the first question.
-      searchable: searchConfigured(),
-      budget: budgetFor(v.story, slotFor(c, v, writerModel(c, v)), Number(c.gen.max_tokens) || 900) };
+      searchable: searchConfigured() };
   },
   /** A world book. Just the cards: no prose is ever written in it, and it stays off the shelf. */
   'POST /api/world': (c: Ctx) => {
@@ -1969,9 +1984,9 @@ export const routes: Record<string, Handler> = {
           `the router does not serve "${want}" — or it is not on this app's allowlist`), { code: 400 });
     }
     db.updateStory(c.body.id, c.body.story);
-    return viewOf(c.body.id);
+    return viewOf(c, c.body.id);
   },
-  'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c.body.storyId); },
+  'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c, c.body.storyId); },
 
   /** What the chapter about to be written should be called, and what it has to do.
    *
@@ -2117,11 +2132,11 @@ export const routes: Record<string, Handler> = {
     if (!['stale', 'horizon', 'act'].includes(kind))
       throw Object.assign(new Error(`nothing is dismissed by "${kind}"`), { code: 400 });
     db.dismiss(c.body.storyId, kind, String(c.body.ref ?? ''));
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
 
   'POST /api/memo': async (c: Ctx) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const p = v.passages.find((x: any) => x.id === c.body.passageId);
     if (!p) return { error: 'no such passage' };
     const ch = v.chapters.find((x: any) => x.id === p.chapterId) ?? v.currentChapter;
@@ -2156,7 +2171,7 @@ export const routes: Record<string, Handler> = {
   },
 
   'POST /api/chapter/propose': async (c: Ctx) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const ch = v.chapters.find((x: any) => x.id === c.body.chapterId) ?? v.currentChapter;
     // A STALE SUMMARY STAYS OUT, as it does from the writing prompt: it describes prose that moved.
     const before = v.chapters.filter((x: any) => x.index < ch.index && summaryReaches(x));
@@ -2205,7 +2220,7 @@ export const routes: Record<string, Handler> = {
   'POST /api/chapter/end': async (c) => {
     // Closing a chapter is standing behind everything in it.
     db.claimPassages(c.body.storyId);
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     // A break is a real passage so NEW SCENE has something to fire on and ordinals stay dense.
     db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
       body: c.body.note ?? '', author: 'human', isBreak: true });
@@ -2268,7 +2283,7 @@ export const routes: Record<string, Handler> = {
     // accepting one is the only decision in the app that changes what the model is told for the
     // rest of the book.
     const retired = await run('finished', c.body.retire !== false, () => retire(v.id, closing));
-    return { ...r, extracted, retired, passes, keptSummary, ...viewOf(v.id) };
+    return { ...r, extracted, retired, passes, keptSummary, ...viewOf(c, v.id) };
   },
 
   // ---- history & revert. §7.4's safety argument is "you can revert" — this is the revert. ----
@@ -2286,7 +2301,7 @@ export const routes: Record<string, Handler> = {
   'POST /api/revert':      (c) => {
     if (c.body.passageId) db.revertPassage(c.body.storyId, c.body.passageId, c.body.revisionId);
     else db.revertEntryField(c.body.storyId, c.body.entryId, c.body.revisionId);
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
   // Gated: it copies every tenant's book and returns the host path, and twelve presses
   // evict everyone's snapshots.
@@ -2415,7 +2430,7 @@ export const routes: Record<string, Handler> = {
     if (!mate) return { error: 'no such writer here' };
     if (c.body.remove) db.dropWriter(st.id, mate.id);
     else db.addWriter(st.id, mate.id);
-    return viewOf(st.id);
+    return viewOf(c, st.id);
   },
 
   'POST /api/write':   (c) => {
@@ -2424,7 +2439,7 @@ export const routes: Record<string, Handler> = {
     // took chapters.at(-1), so paging back to chapter one and typing put the passage at the end
     // of the last chapter — off-screen, and generated against the wrong context. Chapter paging
     // made that one click away; it was reachable from the rail before that.
-    const v = viewOf(c.body.storyId, c.body.chapterId);
+    const v = viewOf(c, c.body.storyId, c.body.chapterId);
     if (c.body.body?.trim()) db.addPassage({ storyId: v.id, branchId: v.branchId!,
       chapterId: v.currentChapter.id, body: c.body.body.trim(), author: 'human',
       speaker: c.body.speaker ?? null, mode: c.body.mode });
@@ -2433,11 +2448,11 @@ export const routes: Record<string, Handler> = {
     // written your part in co-op. Seth, 2026-09-03, on calling the model when stuck: "it stays
     // with me."
     if (c.body.mode === 'coop' && c.body.body?.trim()) db.handOver(v.id, c.owner);
-    return viewOf(v.id);
+    return viewOf(c, v.id);
   },
   'POST /api/accept':  (c) => {
     // Accepting lands where the generation was aimed.
-    const v = viewOf(c.body.storyId, c.body.chapterId);
+    const v = viewOf(c, c.body.storyId, c.body.chapterId);
     // Regenerate over an existing slot keeps every take; a fresh accept appends.
     const id = c.body.variantOf
       ? db.addVariant(v.id, c.body.variantOf, c.body.body)
@@ -2452,30 +2467,30 @@ export const routes: Record<string, Handler> = {
     // SPEC §8.4: check on SELECT, not on every variant. Detached — a flag is not worth
     // making the writer wait, and it appears on the next refresh.
     if (id && c.body.check !== false) void check(c, v.id, id).catch(() => {});
-    return viewOf(v.id);
+    return viewOf(c, v.id);
   },
-  'POST /api/variant':   (c) => { db.selectVariant(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+  'POST /api/variant':   (c) => { db.selectVariant(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
   // ---- branches ----
   /** Fork at a passage. Copy-on-write: the new path gets its own rows, so regenerating on it
    *  cannot rewrite the one you came from. */
   'POST /api/fork': (c) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const at = v.passages.find((p) => p.id === c.body.passageId)?.ordinal
       ?? v.passages.at(-1)?.ordinal ?? 0;
     const id = db.forkBranch(v.id, v.branchId!, at, c.body.name);
     if (!id) return { error: 'could not fork from that branch' };
     db.setActiveBranch(v.id, id);
-    return viewOf(v.id);
+    return viewOf(c, v.id);
   },
   'POST /api/branch':    (c) => {
     if (!db.setActiveBranch(c.body.storyId, c.body.id)) return { error: 'no such branch' };
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
   'DELETE /api/branch':  (c) => {
     if (!db.deleteBranch(c.body.storyId, c.body.id))
-      return { ...viewOf(c.body.storyId), error: 'the first path cannot be removed' };
-    return viewOf(c.body.storyId);
+      return { ...viewOf(c, c.body.storyId), error: 'the first path cannot be removed' };
+    return viewOf(c, c.body.storyId);
   },
   /** REPAIR ONE PASSAGE, BECAUSE THE WRITER PRESSED IT. Issue #9, option 2, chosen by Seth on
    *  2026-09-01 out of three: leave it, a button on the flag, or back on the critical path.
@@ -2592,26 +2607,26 @@ export const routes: Record<string, Handler> = {
           reason: x.why, confidence: x.confidence, reached: f?.reached !== false });
       }
     }
-    return { ...m, passageId: variant, view: viewOf(storyId) };
+    return { ...m, passageId: variant, view: viewOf(c, storyId) };
   },
 
   'POST /api/check':     (c) => check(c, c.body.storyId, c.body.passageId),
   'POST /api/violation': (c) => { db.setViolationStatus(c.body.storyId, c.body.id, c.body.status ?? 'dismissed');
-    return viewOf(c.body.storyId); },
+    return viewOf(c, c.body.storyId); },
   // Quiet this entry for this chapter, or lift it. Dismiss handles one flag; this handles the
   // stream of them that one drifting entry produces while a chapter is still being written.
   'POST /api/mute': (c) => {
     const ref = `${c.body.chapterId}:${c.body.entryId}`;
     if (c.body.off) db.unmute(c.body.storyId, 'mute', ref);
     else db.dismiss(c.body.storyId, 'mute', ref);
-    return viewOf(c.body.storyId, c.body.chapterId);
+    return viewOf(c, c.body.storyId, c.body.chapterId);
   },
-  'POST /api/passage':   (c) => { db.editPassage(c.body.storyId, c.body.id, c.body.body); return viewOf(c.body.storyId); },
+  'POST /api/passage':   (c) => { db.editPassage(c.body.storyId, c.body.id, c.body.body); return viewOf(c, c.body.storyId); },
   'DELETE /api/passage': (c) => {
     // One take, or the whole slot. Two intents behind one press, so the caller says which.
     const gone = c.body.allTakes ? db.delSlot(c.body.storyId, c.body.id)
                                  : (db.delPassage(c.body.storyId, c.body.id), 1);
-    return { ...viewOf(c.body.storyId), deleted: gone };
+    return { ...viewOf(c, c.body.storyId), deleted: gone };
   },
   /** Delete-after's FIRST press (#46): which chapters' summaries of yours the delete would clear,
    *  read off the same cut the delete makes, so the ask and the delete cannot disagree. */
@@ -2625,7 +2640,7 @@ export const routes: Record<string, Handler> = {
   'DELETE /api/after': (c) => {
     const r = db.delAfter(c.body.storyId, c.body.id);
     if (r.error) return { error: r.error };
-    return { ...viewOf(c.body.storyId), deleted: r.deleted };
+    return { ...viewOf(c, c.body.storyId), deleted: r.deleted };
   },
   /** A chapter and everything only ever about it. Refusing the last one is decided in `db.ts` and
    *  reported here rather than being a silent no-op: a press that does nothing and says nothing is
@@ -2633,12 +2648,12 @@ export const routes: Record<string, Handler> = {
   'DELETE /api/chapter': (c) => {
     const r = db.delChapter(c.body.storyId, c.body.id);
     if (r.error) return { error: r.error };
-    return { ...viewOf(c.body.storyId), deleted: r.deleted };
+    return { ...viewOf(c, c.body.storyId), deleted: r.deleted };
   },
 
   // ---- ledger ----
-  'POST /api/entry':   (c) => { db.upsertEntry(c.body.storyId, c.owner, c.body.entry); return viewOf(c.body.storyId); },
-  'DELETE /api/entry': (c) => { db.delEntry(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+  'POST /api/entry':   (c) => { db.upsertEntry(c.body.storyId, c.owner, c.body.entry); return viewOf(c, c.body.storyId); },
+  'DELETE /api/entry': (c) => { db.delEntry(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
   /** The same card in another book. Exported to, or imported from — one operation, and which one it
    *  is depends only on which book the writer is standing in.
@@ -2661,7 +2676,7 @@ export const routes: Record<string, Handler> = {
     const made = db.unlinkEntry(String(c.body.storyId), c.owner, String(c.body.entryId ?? ''));
     if (!made) return { error: 'that card is not one this book follows, or this book has already '
       + 'made its own decision about it' };
-    return { entryId: made, ...viewOf(c.body.storyId) };
+    return { entryId: made, ...viewOf(c, c.body.storyId) };
   },
   /** Hand it back, and say which version survives. `keep: 'mine'` writes this book's wording up
    *  into the world book first, so every book following it gets what was written here. */
@@ -2670,14 +2685,14 @@ export const routes: Record<string, Handler> = {
       c.body.keep === 'mine' ? 'mine' : 'theirs');
     if (!r) return { error: 'that card has no book to go back to — the original is gone, so this '
       + 'copy is the only one left' };
-    return { ...r, ...viewOf(c.body.storyId) };
+    return { ...r, ...viewOf(c, c.body.storyId) };
   },
   /** Remove it from this book without touching the book it lives in. */
   'POST /api/entry/drop': (c) => {
     const made = db.dropFollowed(String(c.body.storyId), c.owner, String(c.body.entryId ?? ''));
     if (!made) return { error: 'that card is not one this book follows, or this book has already '
       + 'made its own decision about it' };
-    return { dropped: made, ...viewOf(c.body.storyId) };
+    return { dropped: made, ...viewOf(c, c.body.storyId) };
   },
 
   'POST /api/entry/copy': (c) => {
@@ -2688,7 +2703,7 @@ export const routes: Record<string, Handler> = {
     if (into === from) return { error: 'that card is already in this book' };
     const made = db.copyEntry(from, into, c.owner, entryId);
     if (!made) return { error: 'no such card in that book' };
-    return { copied: made, into, ...viewOf(into) };
+    return { copied: made, into, ...viewOf(c, into) };
   },
 
   /** Anansi: the conversation. Ephemeral — turns come from the client and are never stored, so
@@ -2698,7 +2713,7 @@ export const routes: Record<string, Handler> = {
    *  proposals queue where they wait like every other proposal, and the directive is handed back
    *  for the composer to hold unsent. This route writes nothing to the story itself. */
   'POST /api/talk': async (c: Ctx) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const said = String(c.body.said ?? '').trim().slice(0, 2000);
     if (!said) return { error: 'say something first' };
 
@@ -2864,7 +2879,7 @@ export const routes: Record<string, Handler> = {
    *  offer and is subject to the same dedupe. There is deliberately no path from this route into
    *  the ledger. */
   'POST /api/invent': async (c: Ctx) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const kind = String(c.body.kind ?? '');
     // PLAN-08. Every addon slot invents the same way an outfit already did — it belongs to a card
     // and comes back as a form, not a proposal. Seth: "the option that we have for the ai to fill
@@ -2941,7 +2956,7 @@ export const routes: Record<string, Handler> = {
     const ok = db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id,
       title: String(r.data.title).trim(), body: String(r.data.body).trim(),
       entryType: kind, keys: r.data.keys ?? [] });
-    return { ...viewOf(v.id), proposed: ok ? 1 : 0, title: String(r.data.title).trim(),
+    return { ...viewOf(c, v.id), proposed: ok ? 1 : 0, title: String(r.data.title).trim(),
              duplicate: !ok, seconds: +((Date.now() - t0) / 1000).toFixed(1) };
   },
 
@@ -2957,14 +2972,14 @@ export const routes: Record<string, Handler> = {
   'POST /api/addon':    (c) => {
     const id = db.upsertAddon(c.body.storyId, c.body.entryId ?? null, c.body.addon ?? {});
     if (!id) return { error: 'that is not a room this kind of card has, or not a card in this book' };
-    return { addonId: id, ...viewOf(c.body.storyId) };
+    return { addonId: id, ...viewOf(c, c.body.storyId) };
   },
   // Two ways a room reaches the model and this is the writer's half: `active` is pinning it on,
   // its keys are it arriving on its own. Exclusive slots clear their siblings inside the same
   // transaction — see `setAddonActive`, and the partial unique index behind it.
   'POST /api/addon/on': (c) => { db.setAddonActive(c.body.storyId, c.body.id, !!c.body.on);
-                                 return viewOf(c.body.storyId); },
-  'DELETE /api/addon':  (c) => { db.delAddon(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+                                 return viewOf(c, c.body.storyId); },
+  'DELETE /api/addon':  (c) => { db.delAddon(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
   /** A FORGED THREAD, PASTED IN. The other half of the forge: `GET /api/forge` hands out the shape,
    *  this reads it back.
@@ -3000,7 +3015,7 @@ export const routes: Record<string, Handler> = {
    * clean-up, and it is why this one is cheap enough to run twice on a whim.
    */
   'POST /api/world/cast': async (c: Ctx) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     // The hatch: whatever was typed for this pull, else the book's own world.
     const world = (String(c.body.world ?? '').trim() || String((v.story as any).world ?? '').trim())
       .slice(0, 120);
@@ -3108,7 +3123,7 @@ export const routes: Record<string, Handler> = {
    * this runs; `test/scope.ts` proves that for every route that names a story, this one included.
    */
   'POST /api/fromweb': async (c: Ctx) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const subject = String(c.body.subject ?? '').trim().slice(0, 200);
     if (!subject) return { error: 'say what to look up first' };
     const kind = String(c.body.kind ?? 'character').trim();
@@ -3253,13 +3268,13 @@ export const routes: Record<string, Handler> = {
       title, body: cardBody, entryType: kind,
       keys: r.data.keys ?? [], source: sources.map((x) => x.url),
       rooms: Object.keys(filled).length ? filled : null });
-    return { ...viewOf(v.id), proposed: ok ? 1 : 0, title, duplicate: !ok,
+    return { ...viewOf(c, v.id), proposed: ok ? 1 : 0, title, duplicate: !ok,
              sources: sources.map((x) => x.url), rooms: Object.keys(filled),
              seconds: +((Date.now() - t0) / 1000).toFixed(1) };
   },
 
   'POST /api/thread/paste': (c: Ctx) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const text = String(c.body.text ?? '').trim();
     if (!text) return { error: 'paste the JSON first' };
     // A model asked for bare JSON hands back a fence about a third of the time. Strip one if it is
@@ -3314,7 +3329,7 @@ export const routes: Record<string, Handler> = {
       made.push({ id, title, rooms: w.made });
     }
     if (!made.length) return { error: notes[0] ?? 'nothing in that paste was a card' };
-    return { made, notes, ...viewOf(c.body.storyId) };
+    return { made, notes, ...viewOf(c, c.body.storyId) };
   },
 
   // PLAN-08 Phase 3's missing half. The engine has read `entry_edges` since 2026-08-28 — a card
@@ -3330,9 +3345,9 @@ export const routes: Record<string, Handler> = {
     const id = db.linkEntries(c.body.storyId, c.body.parentId, c.body.childId,
       { confidence: c.body.confidence });
     if (!id) return { error: 'those two cannot be connected that way, or already are' };
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
-  'DELETE /api/link': (c) => { db.unlinkEntries(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+  'DELETE /api/link': (c) => { db.unlinkEntries(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
   // PLAN-08 Phase 4. A thread can be finished, and it can be brought back — `atChapter: null`
   // lifts it, which is `setPin`'s contract and the reason there is one route and not two. This is
@@ -3343,26 +3358,26 @@ export const routes: Record<string, Handler> = {
     const at = c.body.atChapter == null ? null : Number(c.body.atChapter);
     if (at != null && !(Number.isInteger(at) && at > 0)) return { error: 'that is not a chapter' };
     if (!db.setRetired(c.body.storyId, c.body.id, at)) return { error: 'no such card in this book' };
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
   // The way back when the router was down at chapter end — the exact case `POST /api/remember`
   // exists for, and the reason that route was called a bug for not existing.
   'POST /api/finished': async (c) => ({ ...(await retire(c.body.storyId, c.body.chapterId)),
-                                        ...viewOf(c.body.storyId) }),
+                                        ...viewOf(c, c.body.storyId) }),
 
   // Canon over time. The state in force is resolved at assembly, so writing chapter 3
   // cannot see what chapter 7 establishes.
-  'POST /api/state':   (c) => { db.upsertState(c.body.storyId, c.body.entryId, c.body.state); return viewOf(c.body.storyId); },
+  'POST /api/state':   (c) => { db.upsertState(c.body.storyId, c.body.entryId, c.body.state); return viewOf(c, c.body.storyId); },
   /** Per-chapter override. `mode` null clears it. */
   'POST /api/pin':     (c) => {
     const ok = db.setPin(c.body.storyId, c.body.chapterId, c.body.entryId, c.body.mode ?? null);
-    return { ...viewOf(c.body.storyId), ...(ok ? {} : { error: 'that chapter or entry is not in this story' }) };
+    return { ...viewOf(c, c.body.storyId), ...(ok ? {} : { error: 'that chapter or entry is not in this story' }) };
   },
-  'DELETE /api/state': (c) => { db.delState(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+  'DELETE /api/state': (c) => { db.delState(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
   // ---- engine ----
   'POST /api/manifest': async (c) => {
-    const v = viewOf(c.body.storyId, c.body.chapterId);
+    const v = viewOf(c, c.body.storyId, c.body.chapterId);
     const upTo = c.body.regenerateOf
       ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
     // The same overrides the generation will use, so the Context panel shows the prompt that will
@@ -3391,12 +3406,12 @@ export const routes: Record<string, Handler> = {
   /** A chapter summary saved by hand, or removed with an empty one (#43). */
   'POST /api/summary': (c) => {
     const r = db.writeSummary(c.body.storyId, c.body.chapterId, c.body.summary);
-    return r.error ? r : viewOf(c.body.storyId);
+    return r.error ? r : viewOf(c, c.body.storyId);
   },
 
   'POST /api/summarize': async (c) => {
     const r = await summarise(c, c.body.storyId, c.body.chapterId, c.body.replace === true);
-    return r.error ? r : { ...r, ...viewOf(c.body.storyId) };
+    return r.error ? r : { ...r, ...viewOf(c, c.body.storyId) };
   },
 
   /** Export. The only claim in SPEC §12 that had no mechanism; Lens 3 costed it at four
@@ -3455,11 +3470,11 @@ export const routes: Record<string, Handler> = {
       throw Object.assign(new Error('that is not a JPEG'), { code: 400 });
     if (!db.setEntryImage(c.body.storyId, String(c.body.id ?? ''), buf))
       throw Object.assign(new Error('that thread is not in this book'), { code: 404 });
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
   'DELETE /api/entry/image': (c: Ctx) => {
     db.delEntryImage(c.body.storyId, String(c.body.id ?? ''));
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
   /** Served as bytes, inline, with a long cache: the URL carries the `set_at`, so it names one
    *  version of one picture and can never go stale. Same bargain GET /api/cover makes. */
@@ -3485,7 +3500,7 @@ export const routes: Record<string, Handler> = {
     if (!(buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff))
       throw Object.assign(new Error('that is not a JPEG'), { code: 400 });
     db.setCover(c.body.storyId, buf);
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
 
   'GET /api/cover': (c: Ctx) => {
@@ -3496,7 +3511,7 @@ export const routes: Record<string, Handler> = {
       headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } } };
   },
 
-  'DELETE /api/cover': (c: Ctx) => { db.delCover(c.body.storyId); return viewOf(c.body.storyId); },
+  'DELETE /api/cover': (c: Ctx) => { db.delCover(c.body.storyId); return viewOf(c, c.body.storyId); },
 
   /** Read a chapter and propose ledger entries. Nothing written here is canon: every
    *  proposal is held until accepted (design screen 28). Re-running is safe — the unique
@@ -3514,7 +3529,7 @@ export const routes: Record<string, Handler> = {
    *  small enough that a re-roll is cheap enough to press twice.
    */
   'POST /api/style': async (c: Ctx) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const genre = String(v.story.genre ?? '').trim();
     const premise = String(v.story.premise ?? '').trim();
     if (!genre && !premise) {
@@ -3657,7 +3672,7 @@ export const routes: Record<string, Handler> = {
       }
       db.setProposalStatus(c.body.storyId, id, c.body.accept ? 'accepted' : 'rejected');
     }
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
 
   /** MOVE A PROPOSAL before deciding it: the room it lands in, and the words that wake the card.
@@ -3676,7 +3691,7 @@ export const routes: Record<string, Handler> = {
   'POST /api/proposal/where': (c) => {
     const p = db.proposal(c.body.storyId, c.body.id);
     if (!p) return { error: 'no such proposal' };
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const onto = p.entry_id ? (v.entries as any[]).find((x) => x.id === p.entry_id) : null;
     const asked = String(c.body.field ?? '');
     // The same three refusals `roomAsked` makes, and for the same reasons — a room needs a card to
@@ -3691,18 +3706,18 @@ export const routes: Record<string, Handler> = {
     // written — the hazard the decide handler's own note has warned about since it was written.
     db.setProposalWhere(c.body.storyId, c.body.id,
       { field, target: offer === 'said' ? null : offer, keys, body: String(c.body.body ?? p.body) });
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
 
   /** Collapse a run of chapters into one act-level summary. The chapters it covers stop
    *  being sent individually, which is what stops EARLIER growing with the book. */
   'POST /api/string':   (c) => { db.upsertString(c.body.storyId, c.body.string ?? {});
-                                 return viewOf(c.body.storyId); },
+                                 return viewOf(c, c.body.storyId); },
   'DELETE /api/string': (c) => { db.delString(c.body.storyId, c.body.id);
-                                 return viewOf(c.body.storyId); },
+                                 return viewOf(c, c.body.storyId); },
 
   'POST /api/rollup': async (c) => {
-    const v = viewOf(c.body.storyId);
+    const v = viewOf(c, c.body.storyId);
     const from = Number(c.body.from), to = Number(c.body.to);
     const run = v.chapters.filter((ch) => ch.index >= from && ch.index <= to && summaryReaches(ch));
     if (run.length < 2) return { error: 'need at least two summarised chapters to roll up' };
@@ -3715,7 +3730,7 @@ export const routes: Record<string, Handler> = {
     if (!summary) return { error: 'the roll-up returned nothing usable' };
     db.addArc(v.id, { branchId: v.branchId, fromChapter: from, toChapter: to,
       title: `${run[0].title} to ${run.at(-1)!.title}`, summary });
-    return { summary, ...viewOf(v.id) };
+    return { summary, ...viewOf(c, v.id) };
   },
   /** An act edited in place: text and title. An empty text is refused rather than stored, because
    *  removing an act has one way already — its Remove — and a blank act would reach the model as a
@@ -3726,9 +3741,9 @@ export const routes: Record<string, Handler> = {
     const title = String(c.body.title ?? '').trim() || null;
     if (!db.updateArc(c.body.storyId, String(c.body.id ?? ''), title, summary))
       return { error: 'that act is not in this book' };
-    return viewOf(c.body.storyId);
+    return viewOf(c, c.body.storyId);
   },
-  'DELETE /api/arc': (c) => { db.delArc(c.body.storyId, c.body.id); return viewOf(c.body.storyId); },
+  'DELETE /api/arc': (c) => { db.delArc(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
   // ---- misc ----
   /** The evidence behind PLAN-02 §7.2's trigger: when prefill gets slow, or the prefix keeps
@@ -3819,7 +3834,7 @@ export const routes: Record<string, Handler> = {
       if (!db.ownsStory(c.body.storyId, c.owner))
         throw Object.assign(new Error('no such story'), { code: 404 });
       db.setStoryLook(c.body.storyId, c.owner, look);
-      return viewOf(c.body.storyId);
+      return viewOf(c, c.body.storyId);
     }
     db.setLook(c.owner, look ?? {});
     return { look: db.lookOf(c.owner) };

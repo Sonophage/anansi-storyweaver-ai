@@ -920,5 +920,34 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('a guest in a remote-pinned book is told the pin, its source and whether it is ready');
 }
 
+// ---- 21. an ordinary action on a book hands back the same model, pin and room as opening it ----
+//
+// About forty routes answer with the book's view, and the browser takes that answer as the book.
+// When those answers lacked the resolved model, the remote pin and the budget, saving a look or
+// waving a warning away put the writer default back on the strip, emptied the Storyteller's "using",
+// and left a guest's picker calling the owner's remote pin a model nobody offers.
+{
+  const owner = db.owner('view-owner'), guest = db.owner('view-guest');
+  const a = await routes['POST /api/shortlist'](ctx(owner, { model: ID }));
+  assert.ok(!a.error, a.error);
+  const book = db.createStory(owner, { title: 'Same Light' });
+  db.addPassage({ ...book, storyId: book.id, body: 'The lamp kept its own counsel.' });
+  await routes['POST /api/story'](ctx(owner, { id: book.id, story: { model: ID } }));
+  db.addWriter(book.id, guest);
+  const keys = (v: any) => ({ model: v.model, defaultModel: v.defaultModel, pin: v.pin, budget: v.budget });
+  for (const [who, w] of [['owner', owner], ['guest', guest]] as const) {
+    const opened = keys(await routes['GET /api/story'](ctx(w, {}, `story=${book.id}`)));
+    assert.strictEqual(opened.model, ID, `the detector: the book writes remotely for the ${who}`);
+    assert.strictEqual(opened.pin?.id, ID, `the detector: and the ${who} is told its pin`);
+    const look = await routes['POST /api/look'](ctx(w, { storyId: book.id, look: { theme: 'ink' } }));
+    assert.deepStrictEqual(keys(look), opened,
+      `BARE-VIEW: after a look save the ${who} is handed the same model, pin and room`);
+    const dismissed = await routes['POST /api/dismiss'](ctx(w, { storyId: book.id, kind: 'stale', ref: 'x' }));
+    assert.deepStrictEqual(keys(dismissed), opened,
+      `BARE-VIEW: and after waving a warning away, too (${who})`);
+  }
+  ok('an ordinary action hands back the book with the model, pin and room that opening it gives');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close(); hubSrv.close();
