@@ -48,7 +48,8 @@ room weaving needs, only Turn weaving off is offered.
 
 ### Talk and Invent weave too
 In a book with Weaving on, Anansi also weaves before she answers you in Talk and before she
-invents a thread or a room for a card. Both take longer while she does. If the room she needs to
+invents a thread or a room for a card. Both take longer while she does. An invention sets aside
+more room than a passage or a Talk answer, because what she weaves for one runs longer. If the room she needs to
 weave would push part of your book out of what she reads, she does not answer; she tells you what
 would be left out, with the same two buttons a passage gets: Write anyway, or Turn weaving off for
 this book. They appear in the Talk window, or in the place you asked for the invention. Summaries,
