@@ -799,6 +799,14 @@ export const coverPrompt = (story) => {
 export const pinIsDead = (pin, models) => !!pin && Array.isArray(models) && models.length > 0
   && !models.some((m) => m?.id === pin);
 
+/** THIS WRITER'S MODEL LIST, PLUS THE BOOK'S OWN PIN ROW. A guest in a shared book sees their own
+ *  models and their own shortlist, never the owner's, so a book the owner pinned to a remote model
+ *  would read as pinned to one nobody offers. The server sends that pin as a row (`pin`) when it is
+ *  on the owner's shortlist; the shelf and the Storyteller picker both read the list through this,
+ *  so they agree with what writes the book. A list not asked for yet stays null. */
+export const withPin = (models, pin) =>
+  !pin || !Array.isArray(models) || models.some((m) => m?.id === pin.id) ? models : [...models, pin];
+
 export function modelFacts(m) {
   const bits = [];
   if (m?.perSlot) bits.push(`${Math.round(m.perSlot / 1000)}k each`);

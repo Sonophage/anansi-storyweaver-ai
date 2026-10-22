@@ -402,7 +402,11 @@ let stubPassageId: string | undefined = undefined;
       // books from archived ones under their own header, and with no archived book in the
       // fixture that split renders identically either way and the assertion below cannot fail.
       { id: 's-4', title: 'The Drowned Almanac', status: 'archived', updatedAt: 0, words: 60,
-        last: 'It ended.', proposed: 0, unpaid: 0, flags: 0 },
+        last: 'It ended.', proposed: 0, unpaid: 0, flags: 0,
+        // A BOOK SHARED WITH THIS WRITER, pinned by its owner to a remote model on the OWNER's
+        // shortlist. This writer's model list never holds it; the row the server sends does.
+        model: 'featherless:owner/Lent-Remote-24B', pin: { id: 'featherless:owner/Lent-Remote-24B',
+          status: 'remote', source: 'remote', ready: true, ctxSize: 32768, perSlot: 32768 } },
       // A WORLD BOOK ON THE SHELF FIXTURE, added 2026-08-31 after one crashed the Threads page
       // in Seth's hands. storyCard assigned to a `const tags` for world books and threw, which
       // killed drawPage inside loadLedger and left the page reading "Reading the threads…" for
@@ -3074,6 +3078,8 @@ ok('a book can be started from threads already in the library, and they are copi
   assert.match(card('s-2'), /write-nt-qwen36-h/, 'and the mark carries the id, which is what 400s');
   assert.doesNotMatch(card('s-3'), /model missing/, 'a book pinned to a model that IS served is not');
   assert.doesNotMatch(card('s-1'), /model missing/, 'and a book with no pin cannot be broken this way');
+  assert.doesNotMatch(card('s-4'), /model missing/,
+    "GUEST-PIN: nor a shared book pinned to a remote model on its owner's shortlist");
   assert.strictEqual((shelf.match(/model missing/g) ?? []).length, 1, 'exactly the one that is wrong');
 
   // THE CASE THAT MATTERS MOST CANNOT BE STAGED FROM OUT HERE. By the time the shelf renders in
@@ -3091,6 +3097,19 @@ ok('a book can be started from threads already in the library, and they are copi
   assert.strictEqual(pinIsDead('write-nt-qwen36-h', []), false,
     'and an empty list is the router being down, or an allowlist matching nothing, which is not '
     + "this book's fault either");
+
+  // THE OWNER'S REMOTE PIN, seen by a guest. The guest's list lacks it; the book's own pin row is
+  // what the server says writes it, and the shelf and the picker both read the list with it added.
+  const { withPin } = await import('../web/model.js');
+  const lent = { id: 'featherless:owner/Lent-Remote-24B', status: 'remote', source: 'remote', ready: true };
+  assert.strictEqual(pinIsDead(lent.id, live), true, "the detector: alone, the guest's list calls it dead");
+  assert.strictEqual(pinIsDead(lent.id, withPin(live, lent)), false, 'GUEST-PIN: with the pin row it is not');
+  const opts = modelOptions(withPin(live, lent), lent.id);
+  const picked = opts.find((o: any) => o.selected);
+  assert.deepStrictEqual([picked?.value, picked?.gone, picked?.status], [lent.id, false, 'remote'],
+    'GUEST-PIN: the picker selects the pin as a remote model, not as one the router dropped');
+  assert.strictEqual(withPin(live, null), live, 'no pin row leaves the list as it was');
+  assert.strictEqual(withPin([...live, lent], lent).length, live.length + 1, 'and a listed pin is not added twice');
 }
 ok('the shelf marks a book pinned to a model the router no longer serves');
 

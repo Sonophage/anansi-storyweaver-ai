@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, whereRuns, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
+import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -3782,6 +3782,8 @@ const PANELS = {
 
   teller() {
     const g = V.gen ?? SRV.gen ?? {};
+    // The writer's models plus this book's own remote pin, which a guest's list does not hold.
+    const listed = withPin(S.models, V.pin);
     // ONE RENDERER, EVERY SLIDER. The mark goes on the row that carries the name and the reading,
     // and the card above the track — the same order as the panels swept before this. A slider is
     // the shape where an explanation underneath is worst: you have already dragged it.
@@ -3814,10 +3816,10 @@ const PANELS = {
             <p>The route takes a story id, which makes it look per-story; it is not. Per-story
             sampling needs PLAN-02's <code>engine_config</code>, which was never built.</p>`)}</span></div>
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Model</div>
-      ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
-        : S.models.length === 0 ? emptyModels()
+      ${listed === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
+        : listed.length === 0 ? emptyModels()
         : `<select class="field" data-storymodel="1" aria-label="The model this book is written with">
-            ${modelOptions(S.models, V.story.model).map((o) => `<option value="${esc(o.value)}"${
+            ${modelOptions(listed, V.story.model).map((o) => `<option value="${esc(o.value)}"${
               o.selected ? ' selected' : ''}${o.ready === false ? ' disabled' : ''}>${
               !o.value ? `Default &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
               : o.gone ? `${esc(modelName(o.value).name)} &mdash; the router no longer offers this`
@@ -3846,7 +3848,7 @@ const PANELS = {
             const using = V.model;
             const d = modelName(using);
             return `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:8px">
-              ${runsMark(using, S.models.find((m) => m.id === using)?.status)}
+              ${runsMark(using, listed.find((m) => m.id === using)?.status)}
               ${d.bits.map((b) => `<span class="tag">${esc(b)}</span>`).join('')}
               ${d.size ? `<span class="tag">${esc(d.size)}</span>` : ''}
               <button data-modelinfo="${esc(using)}" style="margin-left:auto; color:var(--gold);
@@ -6285,7 +6287,7 @@ const WORLD_TAG = 'World book';
 // status only shows when a story is finished or parked.
 // #18 §5. `pinIsDead` is in web/model.js: it is a pure rule, and the case that matters most —
 // the router's list not having arrived yet — cannot be staged from outside this file.
-const deadPin = (s) => pinIsDead(s?.model, S.models);
+const deadPin = (s) => pinIsDead(s?.model, withPin(S.models, s?.pin));
 
 /** The one line of the writer's own prose that a card carries.
  *

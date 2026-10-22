@@ -58,6 +58,12 @@ A passage that a Featherless model wrote no longer offers "Roll it again on this
 History. Featherless does not give the same passage back for the same seed. Passages written on
 this machine still offer it.
 
+### A shared book set to a Featherless model
+If the other writer sets a book you share to a model on their shortlist, you now see that model in
+the book's Storyteller panel, and the book's card on your shelf no longer says "model missing". The
+model is not added to your own shortlist. If Featherless is not set up, the panel says so, and the
+book writes with the model on this machine.
+
 ## 2026-10-18 · Delete after keeps the chapter you write in
 
 ### Delete after keeps the chapter you write in

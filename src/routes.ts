@@ -208,6 +208,20 @@ const slotFor = (c: Ctx, v: { owner?: string }, using: string): Slot => {
   return held != null ? { ...c.slot, perSlot: Math.min(c.slot.perSlot, held) } : c.slot;
 };
 
+/** A REMOTE MODEL AS A MODEL ROW: the one shape the model menu, the Storyteller picker and the
+ *  shelf read. `ready` is false when the server has no key — listed, and not pickable. */
+const remoteRow = (c: Ctx, id: string, context: number, speed?: { tps?: number; runs?: number }) =>
+  ({ id, status: 'remote', source: 'remote', ready: remoteReady(), ctxSize: context,
+     perSlot: Math.min(context, c.slot.perSlot), tps: speed?.tps, runs: speed?.runs });
+
+/** A BOOK'S REMOTE PIN, as a model row, or null. Checked against the OWNER's shortlist, the way
+ *  `writerModel` checks it, because a guest's own list does not hold the owner's models: without
+ *  this the guest's picker and shelf read the pin as a model nobody offers while it wrote. */
+const remotePin = (c: Ctx, pin: string | null | undefined, owner: string) => {
+  const context = pin && isRemote(pin) ? db.shortlisted(owner, pin) : null;
+  return context == null ? null : remoteRow(c, pin!, context);
+};
+
 /** What Anansi is allowed to say, in tokens — reserved when the prompt is assembled and spent when
  *  the call is made, because they were two different numbers.
  *
@@ -1324,7 +1338,9 @@ function prewarm(c: Ctx, v: any) {
 
 export const routes: Record<string, Handler> = {
   // ---- library ----
-  'GET /api/stories':    (c) => (warmModel(c), { stories: db.listStories(c.owner), model: c.defaultModel ?? model(),
+  'GET /api/stories':    (c) => (warmModel(c), {
+    stories: db.listStories(c.owner).map((s: any) => ({ ...s, pin: remotePin(c, s.model, s.owner_id) })),
+    model: c.defaultModel ?? model(),
     // Still reported: `admin` decides who may stop the router. It no longer decides who sees The
     // Web — that opened to everyone on 2026-08-31.
     admin: c.admin, demo: c.demo,
@@ -1422,9 +1438,7 @@ export const routes: Record<string, Handler> = {
     // "not set up" rather than as a wiped list; `remote` says the same once for the whole menu. A
     // yes or a no, never the key or where it is kept.
     const ready = remoteReady();
-    const mine = db.shortlistOf(c.owner).map((m) => ({ id: m.id, status: 'remote', source: 'remote',
-      ready, ctxSize: m.context, perSlot: Math.min(m.context, c.slot.perSlot),
-      tps: speed[m.id]?.tps, runs: speed[m.id]?.runs }));
+    const mine = db.shortlistOf(c.owner).map((m) => remoteRow(c, m.id, m.context, speed[m.id]));
     const local = (ms: any[]) => ms.map((m) => ({ ...dress(m), source: 'local' }));
     // `active` is the model that WRITES for this writer, resolved, not the stored default: with no
     // key, or a default since removed, the strip must name the local one that is really writing.
@@ -1903,6 +1917,9 @@ export const routes: Record<string, Handler> = {
     // likely to be waiting on anything, and the moment their next prompt is most predictable.
     // `model` is what will actually write THIS story — the story's own if it names one.
     return { ...v, model: writerModel(c, v), defaultModel: writerModel(c, { story: null }), slot: c.slot, gen: c.gen,
+      // The pin as a model row when it is a remote model on the owner's shortlist, so a guest's
+      // picker can show the model that writes this book rather than calling it gone.
+      pin: remotePin(c, v.story.model, (v as any).owner),
       // Whether Anansi's web search is available at all. Reported here so the checkbox is right
       // the moment the panel opens, rather than correcting itself after the first question.
       searchable: searchConfigured(),

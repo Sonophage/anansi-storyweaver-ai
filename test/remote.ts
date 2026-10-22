@@ -878,5 +878,43 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('no key: the shortlist is listed but not pickable, and pins and defaults write locally');
 }
 
+// ---- 20. a guest in a book its owner pinned to a remote model sees the model that writes it ----
+//
+// The guest's own model list is their local models and THEIR shortlist, so the owner's remote pin
+// is not on it. Without the book saying what its pin is, the guest's picker read it as "the router
+// no longer offers this" and their shelf marked the book "model missing" while it wrote remotely.
+{
+  const owner = db.owner('pin-owner'), guest = db.owner('pin-guest');
+  const a = await routes['POST /api/shortlist'](ctx(owner, { model: ID }));
+  assert.ok(!a.error, a.error);
+  const book = db.createStory(owner, { title: 'Shared Light' });
+  db.addPassage({ ...book, storyId: book.id, body: 'Two writers, one lamp.' });
+  await routes['POST /api/story'](ctx(owner, { id: book.id, story: { model: ID } }));
+  db.addWriter(book.id, guest);
+  const plain = db.createStory(owner, { title: 'Shared Dark' });
+  db.addWriter(plain.id, guest);
+  assert.strictEqual(db.shortlistOf(guest).length, 0, 'the detector: the guest shortlisted nothing');
+
+  const v = await routes['GET /api/story'](ctx(guest, {}, `story=${book.id}`));
+  assert.strictEqual(v.model, ID, 'the book writes remotely for the guest too');
+  assert.strictEqual(v.pin?.id, ID, 'GUEST-PIN: the open book names its remote pin as a model row');
+  assert.deepStrictEqual([v.pin.source, v.pin.ready], ['remote', true], 'GUEST-PIN: remote, and ready');
+  assert.strictEqual(v.pin.perSlot, Math.min(v.slot.perSlot, 32768), 'with the room the owner\'s entry gives it');
+
+  const shelf = await routes['GET /api/stories'](ctx(guest));
+  const row = shelf.stories.find((s: any) => s.id === book.id);
+  assert.strictEqual(row?.pin?.id, ID, 'GUEST-PIN: the shelf row carries the same pin row');
+  assert.strictEqual(shelf.stories.find((s: any) => s.id === plain.id)?.pin, null,
+    'and a book with no remote pin carries none');
+
+  unlinkSync(KEY_FILE);
+  try {
+    const off = await routes['GET /api/story'](ctx(guest, {}, `story=${book.id}`));
+    assert.strictEqual(off.pin?.ready, false, 'GUEST-PIN: with no key the pin row says not ready');
+    assert.notStrictEqual(off.model, ID, 'which is the truth: the book writes locally then');
+  } finally { writeFileSync(KEY_FILE, KEY + '\n'); }
+  ok('a guest in a remote-pinned book is told the pin, its source and whether it is ready');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close(); hubSrv.close();
