@@ -16,7 +16,8 @@ Everything below this line was written by that model call, before it was removed
 When a model on Featherless is full, Anansi now waits a few seconds and asks again, up to three
 times, as she already does when Featherless is busy. If it is still full, she tells you
 "Featherless is busy, try again". Before, you saw Featherless's own message after one try. Stop
-still works while she waits. She never switches to another model on her own.
+still works while she waits. She never switches to another model on her own. Adding a model to
+your shortlist waits the same way when that model is full.
 
 ### Let a book weave
 A book's Storyteller panel has a new switch, Weaving, just under the book's model. When it is on,

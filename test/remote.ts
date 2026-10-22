@@ -703,6 +703,12 @@ const mark = () => ({ fl: fl.length, local: local.length });
     'and so is one that planned inline, though its class guessed it never would');
   await add('edge/Exactly-16k-heretic');
   assert.strictEqual(entry('edge/Exactly-16k-heretic').weaving, "doesn't weave");
+  // A model at capacity when it is added waits its turn, as a passage does, rather than failing.
+  script.push('capacity');
+  const full = await add('google/Gemma-4-26B-it');
+  assert.ok(!full.r.error, `ADD-CAPACITY: adding a model at capacity retries before failing (${full.r.error})`);
+  assert.strictEqual(full.probes.length, 2, 'ADD-CAPACITY: one at-capacity answer, then the probe that worked');
+  assert.ok(entry('google/Gemma-4-26B-it'), 'and it is stored');
   const listed = await routes['GET /api/shortlist'](ctx(writer));
   assert.ok(listed.models.every((m: any) => m.weaving && m.cost),
     'the shortlist route hands back the label and the cost with each entry');
