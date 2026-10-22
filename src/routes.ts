@@ -13,7 +13,9 @@ import { view, assemble, budgetFor, capFor, clean, defaultModePrompts, trimToSen
          voiceOf, anansiOf, estimate } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
-import { resolveBody, cardText, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches } from './context.ts';
+import { resolveBody, cardText, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches,
+         weaveFit } from './context.ts';
+import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
@@ -126,6 +128,54 @@ const replyFor = (c: Ctx, v: { story: any }, role: string, cap: number) => {
 };
 /** The prose cap the writer's sampler holds: derived from the target length by `capFor`. */
 const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
+
+/** #56 · WHAT THE WRITER IS TOLD WHEN WEAVING DOES NOT FIT, in the words of the book and not of the
+ *  engine: passages, chapter summaries and threads, never PROSE or EARLIER. It ends on the two ways
+ *  on, because those are the two buttons drawn beside it. An overflow offers only one: writing anyway
+ *  would send a prompt that does not fit. */
+const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }) => {
+  const room = `Weaving sets aside ${WEAVE_ROOM.toLocaleString('en')} tokens for Anansi to weave in`;
+  if (fit.overflows) return `${room}, and this book's prompt would not fit beside them. `
+    + 'Turn weaving off for this book to write.';
+  const of = (kind: string) => fit.drops.filter((b) => b.kind === kind);
+  const and = (xs: string[]) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
+  const parts: string[] = [];
+  const prose = of('PROSE').length;
+  if (prose) parts.push(prose === 1 ? 'the oldest passage still in view' : `the ${prose} oldest passages still in view`);
+  // A chapter's summary is one block; an act's carries its range in its id and stands for all of it.
+  const chapters = of('EARLIER').reduce((n, b) => {
+    const arc = /^arc-(\d+)-(\d+)$/.exec(b.id);
+    return n + (arc ? Number(arc[2]) - Number(arc[1]) + 1 : 1);
+  }, 0);
+  if (chapters) parts.push(chapters === 1 ? 'the summary of an earlier chapter' : `the summaries of ${chapters} earlier chapters`);
+  const threads = fit.drops.filter((b) => b.kind.startsWith('CANON'))
+    .map((b) => v.entries?.find((e: any) => e.id === b.id)?.title ?? 'a thread');
+  if (threads.length) parts.push(threads.length === 1 ? `the thread ${threads[0]}`
+    : `the threads ${and(threads.length > 3 ? [...threads.slice(0, 3), `${threads.length - 3} more`] : threads)}`);
+  // Nothing else is evicted today (the engine's ceilings touch only those three); named by count
+  // rather than dropped, so a fourth kind can never make this sentence claim less than it costs.
+  const other = fit.drops.length - prose - of('EARLIER').length - threads.length;
+  if (other > 0) parts.push(other === 1 ? 'one more part of the book' : `${other} more parts of the book`);
+  return `${room}, and in this book that would leave out ${and(parts)}. `
+    + 'Turn weaving off for this book, or write anyway and let them drop out.';
+};
+
+/** #56 · A CALL'S PROMPT, ASSEMBLED AT THE CAP IT WILL BE SENT WITH, AND WHETHER WEAVING FITS IT.
+ *
+ *  `build` assembles the call's prompt at a given reply cap; this asks for it once at the cap
+ *  `replyFor` decides and, when the call weaves, once more at the role's own cap, and hands both to
+ *  the engine's `weaveFit`. The generation refuses on `refusal` unless the writer chose to write
+ *  anyway; the Context panel's preview carries the same `refusal`, so the panel and the press say
+ *  one thing. A call that does not weave is assembled once and never refused here. */
+const weaveAssemble = (c: Ctx, v: { story: any; entries?: any[] }, role: string, cap: number,
+                       build: (maxTokens: number) => { manifest: Manifest; prompt: string }) => {
+  const reply = replyFor(c, v, role, cap);
+  const built = build(reply.maxTokens);
+  const fit = reply.weaves ? weaveFit(build(cap).manifest, built.manifest) : null;
+  const refusal = fit && { overflows: fit.overflows, message: weaveRefusal(v, fit),
+    drops: fit.drops.map((b) => ({ kind: b.kind, id: b.id })) };
+  return { reply, ...built, refusal };
+};
 
 /** A BOOK AS EVERY ROUTE HANDS IT BACK: the view, plus what writes it for the writer asking.
  *
@@ -704,11 +754,14 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   const using = writerModel(c, v);
   // Whether this call weaves, and the cap that goes with it. The prompt is budgeted against the same
   // cap the call is sent with, so the plan's room is reserved rather than taken out of the prose.
-  const reply = replyFor(c, v, role, proseCap(c));
-  const { manifest, prompt } = assemble(v, slotFor(c, v, using), mode, directive, upTo,
-    reply.maxTokens, speaker || undefined, db.promptsOf(c.owner),
-    Number(c.gen.target_words) || 0);
+  // And whether weaving's room would leave part of the book out (#56), which is refused unless the
+  // writer pressed Write anyway. An overflow is refused either way: writing anyway cannot fit it.
+  const { reply, manifest, prompt, refusal } = weaveAssemble(c, v, role, proseCap(c), (cap) =>
+    assemble(v, slotFor(c, v, using), mode, directive, upTo, cap, speaker || undefined,
+      db.promptsOf(c.owner), Number(c.gen.target_words) || 0));
   const mTokenize = performance.now();
+  if (refusal && (!c.body.weaveAnyway || refusal.overflows))
+    return { error: refusal.message, weaveFit: refusal, manifest };
   if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
   // The estimate draws the meter; this decides. One /tokenize before a call that costs
@@ -3451,12 +3504,14 @@ export const routes: Record<string, Handler> = {
     // generation will not send. That is the whole reason both routes go through one helper.
     // AND THE CAP, through the one helper the generation reads, so a weaving book's preview reserves
     // the plan's room the way the call does.
-    const { manifest, prompt } = assemble(v, slotFor(c, v, writerModel(c, v)), m0.mode, m0.directive,
-      upTo, replyFor(c, v, 'prose', proseCap(c)).maxTokens, m0.speaker || undefined, db.promptsOf(c.owner),
-      Number(c.gen.target_words) || 0);
+    // AND THE REFUSAL (#56): the preview is the weaving assembly, which is what Write anyway sends,
+    // and it carries the same `weaveFit` the press would be refused with.
+    const { manifest, prompt, refusal } = weaveAssemble(c, v, 'prose', proseCap(c), (cap) =>
+      assemble(v, slotFor(c, v, writerModel(c, v)), m0.mode, m0.directive, upTo, cap,
+        m0.speaker || undefined, db.promptsOf(c.owner), Number(c.gen.target_words) || 0));
     let exact: number | null = null;
     try { exact = await count(prompt, writerModel(c, v)); } catch { /* model asleep */ }
-    return { manifest, prompt, exact };
+    return { manifest, prompt, exact, weaveFit: refusal };
   },
   // Streaming is opt-in per call, not a second route: the gate, the budget check, the /tokenize
   // and the generation log are the same code either way. p50 was 5.7s of blank page before the

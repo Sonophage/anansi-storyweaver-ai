@@ -197,5 +197,73 @@ const ok = (m: string, fn?: unknown) => {
   ok("a weaving passage's plan length lands on its generation row, and the plan does not");
 }
 
+// ---- 6. WHEN WEAVING DOES NOT FIT (#56). A long book in a small slot: the 5,000 the plan is given
+// would push its oldest prose out of the prompt. The call is refused before anything reaches the
+// model, with a message naming what would drop out; the writer can write anyway, which sends the
+// weaving assembly with the oldest prose gone, or turn weaving off, which writes normally.
+{
+  const big = db.createStory(me, { title: 'Big', premise: 'A city on a dead god.' });
+  for (let i = 1; i <= 30; i++)
+    db.addPassage({ ...big, storyId: big.id,
+      body: `Passage ${i}. ` + 'The lower tiers pulse under the rain, and the Murmur keeps her counsel. '.repeat(4) });
+  await routes['POST /api/story'](ctx({ id: big.id, story: { weaving: true } }));
+  const SLOT = 9000;
+  const ask = async (extra: any = {}) => {
+    calls = [];
+    return routes['POST /api/generate'](ctx({ storyId: big.id, mode: 'continue', ...extra }, SLOT)) as any;
+  };
+
+  // Refused: nothing is sent, and the answer says what would drop out, and that writing anyway is open.
+  const refused = await ask();
+  assert.ok(refused.weaveFit, `a weaving call that would drop prose is refused: ${JSON.stringify(refused).slice(0, 300)}`);
+  assert.strictEqual(calls.filter((x) => x.kind === 'prose').length, 0, 'and nothing reaches the model');
+  assert.strictEqual(refused.weaveFit.overflows, false, 'it is not an overflow, so writing anyway is on offer');
+  const named = refused.weaveFit.drops.map((b: any) => b.id);
+  assert.ok(named.length >= 2 && refused.weaveFit.drops.every((b: any) => b.kind === 'PROSE'),
+    `here it is prose that drops: ${JSON.stringify(refused.weaveFit)}`);
+  assert.match(refused.error, new RegExp(`the ${named.length} oldest passages`), `the refusal names what drops: ${refused.error}`);
+  assert.match(refused.error, /weav/i, 'in the word the writer knows');
+  assert.doesNotMatch(refused.error, /think|reason|plan/i, 'and never the words the app does not use');
+
+  // The Context panel says the same before the press: its preview is the weaving assembly, and it
+  // carries the refusal the call gives.
+  const preview: any = await routes['POST /api/manifest'](ctx({ storyId: big.id, mode: 'continue' }, SLOT));
+  assert.deepStrictEqual(preview.weaveFit, refused.weaveFit, 'the preview carries the refusal the call gives');
+  assert.strictEqual(preview.manifest.totals.budget, refused.manifest.totals.budget, 'against the same budget');
+
+  // Write anyway: the weaving assembly goes, weaving on with its raised cap, the named prose left out.
+  const anyway = await ask({ weaveAnyway: true });
+  assert.ok(!anyway.error, anyway.error);
+  const sent = calls.filter((x) => x.kind === 'prose');
+  assert.strictEqual(sent.length, 1, 'write anyway sends the passage');
+  assert.strictEqual(sent[0].weaving, true, 'weaving on');
+  assert.strictEqual(sent[0].maxTokens, 5900, 'with the raised cap');
+  assert.strictEqual(sent[0].user, preview.prompt.slice(SYSTEM.length), 'and the prompt the preview showed');
+  const gone = anyway.manifest.blocks.filter((b: any) => b.kind === 'PROSE' && b.state === 'omitted').map((b: any) => b.id);
+  assert.deepStrictEqual(gone, named, 'the passages left out are the ones the refusal named');
+
+  // Turn weaving off: the switch flips, and the same press writes normally.
+  const off: any = await routes['POST /api/story'](ctx({ id: big.id, story: { weaving: false } }));
+  assert.strictEqual(off.weaves, false, 'the book no longer weaves');
+  const plainly = await ask();
+  assert.ok(!plainly.error && !plainly.weaveFit, plainly.error);
+  const normal = calls.filter((x) => x.kind === 'prose');
+  assert.strictEqual(normal[0].weaving, false, 'with weaving off');
+  assert.strictEqual(normal[0].maxTokens, 900, 'and the cap the writer set');
+  ok('a weaving call that would drop prose is refused, naming it; write anyway sends it, and weaving off writes normally');
+}
+
+// ---- 7. A TRUE OVERFLOW STAYS THE OVERFLOW ERROR. A slot so small the book does not fit even
+// without weaving: that is not weaving's refusal, and writing anyway cannot help.
+{
+  calls = [];
+  const r: any = await routes['POST /api/generate'](ctx({ storyId: woven.id, mode: 'continue' }, 1500));
+  assert.ok(r.error, 'a book that does not fit at all is refused');
+  assert.ok(!r.weaveFit, `with the overflow error, not the weaving one: ${r.error}`);
+  assert.strictEqual(r.error, r.manifest.overflowReason, "which is the engine's own overflow reason");
+  assert.strictEqual(calls.filter((x) => x.kind === 'prose').length, 0, 'and nothing reaches the model');
+  ok('a book that overflows without weaving gets the overflow error, not the weaving refusal');
+}
+
 console.log(`\n${n} checks passed`);
 srv.close();
