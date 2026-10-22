@@ -58,6 +58,11 @@ A passage that a Featherless model wrote no longer offers "Roll it again on this
 History. Featherless does not give the same passage back for the same seed. Passages written on
 this machine still offer it.
 
+### The model at the foot of the rail is the one writing this book
+In a book, the model named at the foot of the rail is now the one that writes that book, with its
+spider or feather. If the book is set to its own model, that model is named, not your default. On
+the shelf it still names your default.
+
 ### A shared book set to a Featherless model
 If the other writer sets a book you share to a model on their shortlist, you now see that model in
 the book's Storyteller panel, and the book's card on your shelf no longer says "model missing". The

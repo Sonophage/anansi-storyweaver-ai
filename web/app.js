@@ -722,6 +722,10 @@ function drawRail() {
   // again. Seth: "anansies web can be removed from the story menu since we already have a button
   // that pulls up the main menu and its the same amount of clicks."
   const back = '';
+  // What the strip at the foot names: in a book, `V.model`, the model the server resolved for it;
+  // elsewhere the writer default. `SRV.model` alone changes meaning whenever the list is read again.
+  const inBook = S.place === 'story' && !!V?.model;
+  const writing = inBook ? V.model : SRV.model;
   const tail = storyMenu && V?.story?.is_world
     // A world book has no chapters to list and nothing to write in. What it has is its lore, and
     // the rail says so rather than showing an empty Chapters heading.
@@ -779,20 +783,23 @@ function drawRail() {
       style="margin-top:auto; padding:14px 20px; border-top:1px solid var(--line); display:flex;
       align-items:center; gap:12px; white-space:nowrap; overflow:hidden; width:100%; text-align:left">
       <!-- #53. The model's own row once the list has been read. Before that, a local model is
-           marked awake while the router answers, which is what this dot said before it had a row. -->
-      ${runsMark(SRV.model, S.models?.find((m) => m.id === SRV.model)?.status ?? (SRV.slot ? 'loaded' : 'unloaded'))}
+           marked awake while the router answers, which is what this dot said before it had a row.
+           In a book, the model named is the one that WRITES it, resolved by the server with its
+           pin, remote pins included; on the shelf, the writer's default. -->
+      ${runsMark(writing, withPin(S.models, inBook ? V.pin : null)?.find((m) => m.id === writing)?.status
+        ?? (SRV.slot ? 'loaded' : 'unloaded'))}
       <span class="txt" style="display:flex; flex-direction:column; gap:2px; min-width:0">
         <span style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
-          title="${esc(SRV.model || '')}">${esc(modelName(SRV.model).name)}</span>
+          title="${esc(writing || '')}">${esc(modelName(writing).name)}</span>
         <!-- WHAT IT IS, not only what it is called. #25, and Seth on 2026-08-29: "we need the
              uncensored writing roleplay and the nn label on all three panels." The family alone
              ("Qwen3.6") says nothing about whether it writes or roleplays, whether it refuses, or
              whether it is one of the three that scored write 8/10 in the bakeoff — and all four of
              those are already in the id. One decode, three surfaces: here, the list below, and the
              Storyteller. The size is left out of the badges on purpose; this strip is nowrap. -->
-        ${modelName(SRV.model).bits.length ? `<span style="font-size:11px; color:var(--gold-dim);
-          overflow:hidden; text-overflow:ellipsis">${esc(modelName(SRV.model).bits.join(' \u00b7 '))}</span>` : ''}
-        <span style="font-size:11px; color:var(--dim)">${whereRuns(SRV.model).remote ? 'on Featherless'
+        ${modelName(writing).bits.length ? `<span style="font-size:11px; color:var(--gold-dim);
+          overflow:hidden; text-overflow:ellipsis">${esc(modelName(writing).bits.join(' \u00b7 '))}</span>` : ''}
+        <span style="font-size:11px; color:var(--dim)">${whereRuns(writing).remote ? 'on Featherless'
           : SRV.slot ? `slot ${SRV.slot.perSlot.toLocaleString()}` : 'llama-server asleep'}</span>
       </span></button>
     ${S.modelMenu ? `<div class="scroll" style="max-height:46vh; border-top:1px solid var(--line);

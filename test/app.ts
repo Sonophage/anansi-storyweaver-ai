@@ -2352,6 +2352,20 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   const using = runs(beside.slice(0, beside.indexOf('What it is')));
   assert.deepStrictEqual([using.where, using.awake, using.feather], ['remote', true, true],
     'beside the select, the mark for the model this book is written by');
+  // THE STRIP NAMES WHAT WRITES THE OPEN BOOK. The writer default here is local; this book's
+  // resolved model is remote, so a strip that read only the default would show the spider. The
+  // model list is read again first (taking another model off the shortlist does that), because a
+  // fresh list is what put the writer default back on the strip while the book wrote remotely.
+  click({ dropshort: 'featherless:Other/Unused-12B' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ modelmenu: '1' }); click({ modelmenu: '1' });
+  const bookStrip = visible(html('rail'));
+  const sAt = bookStrip.indexOf('<button data-modelmenu=');
+  const stripBtn = bookStrip.slice(sAt, bookStrip.indexOf('</button>', sAt));
+  const writing = runs(stripBtn);
+  assert.deepStrictEqual([writing.where, writing.feather], ['remote', true],
+    'BOOK-STRIP: in a book pinned to a remote model, the strip marks it remote, with the feather');
+  assert.match(stripBtn, /Kestrel Heretic 24B/, 'BOOK-STRIP: and names the model that writes the book');
   STORY.model = wasModel;
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
