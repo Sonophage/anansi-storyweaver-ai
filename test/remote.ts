@@ -592,5 +592,52 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('Featherless unreachable fails the passage plainly and changes no pin or default');
 }
 
+// ---- 16. removing a model a writer is using sends those books back to the local default ----
+{
+  const writer = db.owner('remover'), neighbour = db.owner('remover-neighbour');
+  const LOCAL0 = 'Qwen3.6-WNTH-35B-A3B-NN';
+  for (const w of [writer, neighbour]) {
+    const a = await routes['POST /api/shortlist'](ctx(w, { model: ID }));
+    assert.ok(!a.error, a.error);
+  }
+  await routes['POST /api/model'](ctx(writer, { model: ID }));
+  const pin = async (w: string, title: string) => {
+    const s = db.createStory(w, { title });
+    await routes['POST /api/story'](ctx(w, { id: s.id, story: { model: ID } }));
+    assert.strictEqual(db.getStory(s.id).model, ID, `"${title}" is pinned to the remote model`);
+    return s;
+  };
+  const north = await pin(writer, 'North Light'), south = await pin(writer, 'South Light');
+  const plain = db.createStory(writer, { title: 'Unpinned' });
+  const theirs = await pin(neighbour, 'Next Door');
+
+  const r = await routes['POST /api/shortlist/remove'](ctx(writer, { model: ID }));
+  assert.deepStrictEqual(r.models, [], 'the model is off the shortlist');
+  assert.ok(r.toast, 'FALLBACK: the remove says what moved');
+  assert.match(r.toast, /your default/i, 'FALLBACK: the toast names the writer default');
+  assert.ok(r.toast.includes('North Light') && r.toast.includes('South Light'),
+    'FALLBACK: and each book that was pinned to it');
+  assert.ok(!r.toast.includes('Unpinned') && !r.toast.includes('Next Door'),
+    'and no book that was not, nor anyone else\'s');
+  assert.match(r.toast, /local/, 'and says where they went');
+
+  // CLEARED, NOT LEFT DANGLING: the screen shows the pin it stores, so a pin left pointing at a
+  // model the writer no longer has would claim a model that is not writing.
+  assert.strictEqual(db.getStory(north.id).model, null, 'the pin is cleared');
+  assert.strictEqual(db.getStory(south.id).model, null);
+  assert.notStrictEqual(db.defaultModelOf(writer), ID, 'and so is the default');
+  const v = await routes['GET /api/story'](ctx(writer, {}, `story=${north.id}`));
+  assert.strictEqual(v.model, LOCAL0, 'the book is written by the local default now');
+  const listed = await routes['GET /api/models'](ctx(writer));
+  assert.strictEqual(listed.active, LOCAL0, 'and the strip says so');
+
+  assert.strictEqual(db.getStory(theirs.id).model, ID, 'OWNER: the neighbour\'s pin is untouched');
+  assert.strictEqual(db.shortlistOf(neighbour).length, 1, 'and so is their shortlist');
+
+  const again = await routes['POST /api/shortlist/remove'](ctx(neighbour, { model: `featherless:${SMALL}` }));
+  assert.ok(!again.toast, 'removing a model nothing used says nothing more');
+  ok('removing a model in use clears the writer\'s own pins and default, and the toast names them');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close();

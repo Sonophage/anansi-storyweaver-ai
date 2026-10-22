@@ -33,7 +33,7 @@ export interface Ctx {
   gen: Record<string, any>; setGen: (g: Record<string, any>) => void;
   // The writer's own fallback model, and whether they run the box. Both come from serve.ts:
   // `admin` is an identity question and the sampler map already lives there.
-  defaultModel: string | null; setDefaultModel: (id: string) => void;
+  defaultModel: string | null; setDefaultModel: (id: string | null) => void;
   /** Whether this writer is currently looking at the demo library, and the switch for it. The
    *  account it resolves to is decided in serve.ts and is never named by the client. */
   demo: boolean; setDemo: (on: boolean) => void;
@@ -1449,9 +1449,23 @@ export const routes: Record<string, Handler> = {
     return searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
       weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0' }, c.admin, REMOTE_PREFIX);
   },
+  /** REMOVE, AND SAY WHAT MOVED. A model that was this writer's default or the pin on books they
+   *  own would otherwise go on being named on screen while the local default wrote. So those pins
+   *  and the default are cleared here, and the toast names each book and "your default" — the one
+   *  place a writer learns that a book changed hands. Cleared rather than left to fall through:
+   *  re-adding the model later must not quietly take the books back either. */
   'POST /api/shortlist/remove': (c: Ctx) => {
-    db.removeFromShortlist(c.owner, String(c.body.model ?? ''));
-    return { models: db.shortlistOf(c.owner) };
+    const id = String(c.body.model ?? '');
+    db.removeFromShortlist(c.owner, id);
+    const books = db.unpinModel(c.owner, id);
+    const wasDefault = !!id && c.defaultModel === id;
+    if (wasDefault) c.setDefaultModel(null);
+    const named = [...(wasDefault ? ['your default'] : []), ...books.map((t) => `“${t}”`)];
+    const list = named.length < 2 ? named.join('')
+      : `${named.slice(0, -1).join(', ')} and ${named.at(-1)}`;
+    return { models: db.shortlistOf(c.owner),
+      ...(named.length ? { toast: `${list[0].toUpperCase()}${list.slice(1)} ${
+        named.length === 1 ? 'goes' : 'go'} back to the local default.` } : {}) };
   },
   // Releasing the models and bringing them back. GATED — not on the OPEN list — because it stops
   // a service both tenants share. The action is checked against a fixed list here as well as in

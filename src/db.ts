@@ -882,6 +882,15 @@ export const addToShortlist = (ownerId: string, id: string, context: number,
     .run(ownerId, id, context, weaving, cost, now());
 export const removeFromShortlist = (ownerId: string, id: string) =>
   q('DELETE FROM shortlist WHERE owner_id = ? AND model = ?').run(ownerId, id);
+/** Clear every pin to `id` on the books `ownerId` OWNS, and return their titles. Owned, not
+ *  `MINE()`: a pin stands on the book owner's shortlist, so a book this writer was only called into
+ *  never rested on theirs, and its pin is the owner's to keep. */
+export const unpinModel = (ownerId: string, id: string): string[] => {
+  const titles = (q('SELECT title FROM stories WHERE owner_id = ? AND model = ? ORDER BY title')
+    .all(ownerId, id) as any[]).map((r) => r.title);
+  if (titles.length) q('UPDATE stories SET model = NULL WHERE owner_id = ? AND model = ?').run(ownerId, id);
+  return titles;
+};
 
 /** What the OTHER writers are set to. The release policy in routes.ts needs it — getting it wrong
  *  means taking a model out from under somebody mid-book — and it must read every account, not

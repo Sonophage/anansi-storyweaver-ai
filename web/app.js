@@ -9591,7 +9591,10 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     S.shortlist = r.models ?? [];
     loadModels(); drawSide();
-    return toast(`${modelName(d.dropshort).name} is off your shortlist.`);
+    // The server cleared any pin or default this model held and names them in `toast`. The open
+    // book is read again, so the Storyteller names the model that writes it now.
+    if (r.toast && S.place === 'story' && V) { V = await api.story(S.storyId); paint(); refreshManifest(); }
+    return toast(`${modelName(d.dropshort).name} is off your shortlist.${r.toast ? ` ${r.toast}` : ''}`);
   }
   if (d.pickmodel) {
     if (d.pickmodel === SRV.model) return;
