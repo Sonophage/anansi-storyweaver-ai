@@ -95,9 +95,10 @@ const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no suc
 /** THE ROLES THAT WEAVE, and the only list of them. A call whose role is not here is sent weaving
  *  off whatever its book says: summaries, the canon check, memory and extraction are background
  *  work, and F23 measured a structured call that planned first truncating its own JSON on 3 calls in
- *  5. Talk and Invent are on it with the same 5,000 of room F23 said any future use
- *  needs; if either returns unparseable JSON with weaving on, it comes off this list. Adding or
- *  removing a role is this one line, and `replyFor` below is what every caller reads it through. */
+ *  5. Talk and Invent are on it with WEAVE_ROOM on top of their own caps, the raised budget F23
+ *  says any future use needs. `bench/weave-json.ts` is the measurement it also asks for: if either
+ *  role returns unparseable JSON with weaving on, it comes off this list. Adding or removing a role
+ *  is this one line, and `replyFor` below is what every caller reads it through. */
 export const WEAVING_ROLES: ReadonlySet<string> = new Set(['prose', 'talk', 'invent']);
 
 /** The room a weaving call is given on top of its role's own cap. Fixed, above the largest plan F60
