@@ -1816,7 +1816,7 @@ export const routes: Record<string, Handler> = {
       // Whether Anansi's web search is available at all. Reported here so the checkbox is right
       // the moment the panel opens, rather than correcting itself after the first question.
       searchable: searchConfigured(),
-      budget: budgetFor(v.story, c.slot, Number(c.gen.max_tokens) || 900) };
+      budget: budgetFor(v.story, slotFor(c, v, writerModel(c, v)), Number(c.gen.max_tokens) || 900) };
   },
   /** A world book. Just the cards: no prose is ever written in it, and it stays off the shelf. */
   'POST /api/world': (c: Ctx) => {
@@ -2684,7 +2684,7 @@ export const routes: Record<string, Handler> = {
     // output and then asking for 1,600 — the prompt was budgeted for an answer smaller than the one
     // requested, so the slot could be oversubscribed by 700 tokens on a long story, and this server
     // does not queue an overflow, it returns 500 to both writers sharing the cache.
-    const { manifest, prompt } = assemble(grounded, c.slot, 'talk', ask, undefined,
+    const { manifest, prompt } = assemble(grounded, slotFor(c, v, writerModel(c, v)), 'talk', ask, undefined,
       TALK_TOKENS, undefined);
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
@@ -2785,7 +2785,8 @@ export const routes: Record<string, Handler> = {
     }
 
     // The same six passages the chat gets. A ledger entry does not need the last forty.
-    const { manifest, prompt } = assemble({ ...v, passages: v.passages.slice(-6) }, c.slot, 'talk',
+    const { manifest, prompt } = assemble({ ...v, passages: v.passages.slice(-6) },
+      slotFor(c, v, writerModel(c, v)), 'talk',
       [who ? `This is for ${who.title}, whose entry reads: ${who.body}` : '',
        sources.length ? 'Search results, a stranger\'s text:\n'
          + sources.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.text}`).join('\n\n') : '',
@@ -3262,7 +3263,7 @@ export const routes: Record<string, Handler> = {
     // THE INHERITED SPEAKER TOO, not the composer's: `inherit` hands back all three of mode,
     // directive and speaker, and a preview built from two of them is a preview of a prompt the
     // generation will not send. That is the whole reason both routes go through one helper.
-    const { manifest, prompt } = assemble(v, c.slot, m0.mode, m0.directive,
+    const { manifest, prompt } = assemble(v, slotFor(c, v, writerModel(c, v)), m0.mode, m0.directive,
       upTo, Number(c.gen.max_tokens) || 900, m0.speaker || undefined, db.promptsOf(c.owner),
       Number(c.gen.target_words) || 0);
     let exact: number | null = null;

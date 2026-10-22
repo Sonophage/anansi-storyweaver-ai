@@ -149,5 +149,72 @@ const chats = () => fl.filter((r) => r.path === '/v1/chat/completions');
   ok('a shortlisted remote model writes a passage, with the key, and the row keeps its id');
 }
 
+const ID = `featherless:${REMOTE}`;
+/** Everything a writer or a log could ever be shown, in one string, for the key checks. */
+const leaked = (...out: unknown[]) => [...out.map((o) => JSON.stringify(o ?? null)), ...printed,
+  JSON.stringify(db.recentGenerations(story.id, 200))].join('\n').includes(KEY);
+/** Drive the streaming generation the way serve.ts does: the handler returns `{__stream}` and the
+ *  last thing it sends is what the non-streaming route would have returned. */
+const streamed = async (body: any) => {
+  const out: any[] = [];
+  const h = await routes['POST /api/generate'](ctx(me, { ...body, stream: true }));
+  const last = await h.__stream((o: unknown) => out.push(o));
+  return { deltas: out.map((o) => o.d).filter(Boolean), last };
+};
+
+// ---- 2. it streams like a local one, and only documented sampler keys reach Featherless ----
+{
+  fl.length = 0;
+  const { deltas, last } = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.ok(!last.error, last.error);
+  assert.deepStrictEqual(deltas, ['The remote ', 'streamed this.'], 'the deltas arrive as they land');
+  assert.strictEqual(last.prose, 'The remote streamed this.');
+  assert.ok(last.passageId, 'and the streamed passage lands in the book');
+  const body = chats().at(-1)!.body;
+  assert.strictEqual(body.stream, true);
+  for (const k of ['dry_multiplier', 'xtc_probability', 'target_words', 'thinking'])
+    assert.ok(!(k in body), `${k} is llama.cpp's or the app's own, and is not sent to Featherless`);
+  assert.strictEqual(body.temperature, 0.85, 'the documented sampler keys still go');
+  assert.strictEqual(body.min_p, 0.05);
+  assert.ok(Number.isInteger(body.seed), 'and so does the seed');
+  ok('a remote passage streams, and only documented sampler keys are sent');
+}
+
+// ---- 3. the exact count comes from Featherless, and the budget is the smaller limit ----
+{
+  fl.length = 0;
+  const r = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  const tok = fl.find((x) => x.path === '/v1/tokenize');
+  assert.ok(tok, 'the budget guard asked Featherless to count');
+  assert.strictEqual(tok!.body.model, REMOTE, 'for the remote model');
+  assert.strictEqual(typeof tok!.body.text, 'string', 'with {model, text}, the way Featherless takes it');
+  assert.strictEqual(r.manifest.totals.used, 321, 'and its {count} is the number the guard used');
+
+  // The same book, budgeted locally against a slot the size of the catalogue's 32,768: that is the
+  // budget a remote call must get, because the writer's slot here is 50,048.
+  db.setDefaultModel(me, 'Qwen3.6-WNTH-35B-A3B-NN');
+  const at = (perSlot: number) => {
+    const c = ctx(me, { storyId: story.id, mode: 'continue' });
+    c.slot = { ...c.slot, perSlot };
+    return c;
+  };
+  const local32 = (await routes['POST /api/manifest'](at(32768))).manifest.totals.budget;
+  const local16 = (await routes['POST /api/manifest'](at(16000))).manifest.totals.budget;
+  const local50 = (await routes['POST /api/manifest'](at(50048))).manifest.totals.budget;
+  db.setDefaultModel(me, ID);
+  // Without this the checks below could pass on a fixture whose budget ignores the slot.
+  assert.ok(local16 < local32 && local32 < local50, 'the budget in this fixture moves with the slot');
+  assert.strictEqual(r.manifest.totals.budget, local32,
+    'a remote passage is budgeted against the model\'s own 32,768, not the 50,048 slot');
+  const small = await routes['POST /api/generate'](at(16000));
+  assert.strictEqual(small.manifest.totals.budget, local16,
+    'and against the slot when the slot is the smaller of the two');
+  const preview = await routes['POST /api/manifest'](at(50048));
+  assert.strictEqual(preview.manifest.totals.budget, local32,
+    'the Context panel previews the same budget the generation uses');
+  assert.strictEqual(preview.exact, 321, 'and counts with Featherless too');
+  ok('a remote call counts with Featherless and is budgeted against the smaller limit');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close();
