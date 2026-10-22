@@ -287,6 +287,17 @@ export const modelName = (id) => {
   return { id, name, detail: quant ?? '', bits: quant ? [quant] : [], size: '' };
 };
 
+/** WHERE A MODEL RUNS, AND WHETHER IT IS AWAKE (#53). The prefix decides the source, here as on
+ *  the server. A local model is awake only when the router says `loaded`: one still loading, or
+ *  one the router cannot describe, is not yet writing at speed. A remote model is always shown
+ *  awake, because Featherless shows no sleeping state a writer could act on. */
+export const whereRuns = (id, status) => {
+  const remote = String(id ?? '').startsWith('featherless:');
+  const awake = remote || status === 'loaded';
+  return { remote, awake, glyph: remote ? 'feather' : 'spider',
+    words: remote ? 'remote, on Featherless' : `local, ${awake ? 'awake' : 'asleep'}` };
+};
+
 /** WHAT A MODEL IS GOOD AT, which is the one thing #25 asks for that nothing can derive.
  *
  *  Everything else on the panel is read: the router says what exists, presets.ini says the context,
@@ -464,6 +475,20 @@ const opaque = (c) => {
   return `rgb(${n[0]},${n[1]},${n[2]})`;
 };
 
+/** THE SAME COLOUR ON THE FAR SIDE OF THE WHEEL: its hue turned 180 degrees, its saturation and
+ *  lightness kept. Reads `#rrggbb`, like `mix`, which is what every theme's `good` is. */
+const opposite = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const hi = Math.max(r, g, b), lo = Math.min(r, g, b), l = (hi + lo) / 2, d = hi - lo;
+  const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  const h0 = !d ? 0 : hi === r ? ((g - b) / d) % 6 : hi === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  const h = ((h0 * 60 + 360) % 360 + 180) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const [R, G, B] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+    : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return `rgb(${[R, G, B].map((v) => Math.round((v + m) * 255)).join(',')})`;
+};
+
 /** Every custom property a theme sets, derived from its row.
  *
  *  "toward" brightens the ink; "away" fades it toward the paper. Fading toward black on a light
@@ -534,6 +559,13 @@ export function themeVars(key) {
      * which press produced a passage, and this one says a second writer did — it should read as a
      * different hand, not as a different setting. */
     '--m-coop': mix(S.good, toward, .12),
+    /* WHERE A MODEL RUNS (#53): the circle on every model row. Local is the theme's own `good`,
+     * the colour the awake dot already had, so a local model looks as it did. Remote is that same
+     * colour turned to the far side of the colour wheel, at the same saturation and lightness, so
+     * the two are as far apart in hue as a theme allows and the remote one reads as well on the
+     * rail as the local one does. No theme's existing colours could serve: in five of the nine,
+     * two of the accent, the speech colour and `good` share a hue. */
+    '--src-local': S.good, '--src-remote': opposite(S.good),
     // (--speak-tint / --act-tint lived here. Removed 2026-08-27: only one of the pair was
     // visible, so the row read as broken rather than as distinguishing the two modes.)
     // (--head, --dock and --panel-line lived here. Removed 2026-09-05: no rule anywhere named any
@@ -602,6 +634,19 @@ export const MARK = {
           + 'M10 5.6C11.9 4.4 14.4 4.1 16.3 4.3V14.8C14.4 14.6 11.9 14.9 10 16.2',
   menu:     'M3 6.5h14M3 10h14M3 13.5h14',
   chevron:  'M8 5.5 13 10 8 14.5',
+  // WHERE A MODEL RUNS (#53). They ride beside the source circle on the menu rows, the strip and
+  // the Storyteller, so the source never rests on colour alone. Drawn for 15px, which is where they
+  // sit: a spider is a head, a body and four bent legs a side, few enough strokes that the legs
+  // still read as legs at menu size. Local is the spider because the house is hers.
+  spider:   'M10 5.4A1.5 1.5 0 1 1 10 8.4A1.5 1.5 0 1 1 10 5.4'
+          + 'M10 8.6A2.8 2.8 0 1 1 10 14.2A2.8 2.8 0 1 1 10 8.6'
+          + 'M8.8 7.2 6.4 5.2 5.6 2.8M7.6 9.8 5 8.4 2.8 9M7.4 11.6 4.8 12.2 3 14.6M8.2 13.4 6.6 15.4 6.4 17.8'
+          + 'M11.2 7.2 13.6 5.2 14.4 2.8M12.4 9.8 15 8.4 17.2 9M12.6 11.6 15.2 12.2 17 14.6M11.8 13.4 13.4 15.4 13.6 17.8',
+  // Remote is the feather: it comes from somewhere else, by air. A shaft, the two edges of its
+  // vane meeting at the tip, and one notch cut into the vane so it reads as a feather and not a leaf.
+  feather:  'M4 16.8C7.6 13 11.4 8.8 16.2 3.4'
+          + 'M16.2 3.4C11.6 4.2 7.8 7.6 7.2 13.4M16.2 3.4C16.2 8.2 13 11.8 7.2 13.4'
+          + 'M12.2 7.6 14.8 8.2',
 };
 
 /** One mark, at one weight. `size` is the box; the stroke never changes with it — that is what

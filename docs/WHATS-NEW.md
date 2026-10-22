@@ -24,6 +24,15 @@ menu. Nobody else sees your shortlist. When you add a model, Anansi asks it one 
 to find out if it really weaves, so adding takes a moment. To take a model off your shortlist,
 press Remove on the same panel.
 
+### See where each model runs
+Every model on the model menu, at the foot of the rail and in a book's Storyteller panel now has
+a small circle and a sign beside its name. A spider means the model runs on this machine. A
+feather means it runs on Featherless. The circle has one colour for each, in every theme. For a
+model on this machine, a full circle means it is awake and ready, and an empty one means it is
+asleep and its first passage will take longer. A Featherless model always shows a full circle.
+In the Storyteller's list of models, each choice says the same thing in words. The model you are
+writing with is still the highlighted row.
+
 ### What a remote model is for
 Each model in Find a model now shows the tags its author gave it on Hugging Face, such as
 roleplay or creative-writing. Press a model's name to see the model it was made from and the

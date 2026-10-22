@@ -476,7 +476,11 @@ let stubPassageId: string | undefined = undefined;
           ctxSize: 100096, parallel: 2, perSlot: 50048, tps: 58.4, runs: 58 },
         { id: 'Wayfarer-2-RPNT-12B', status: 'unloaded',
           ctxSize: 32768, parallel: 2, perSlot: 16384, tps: 41.2, runs: 3 },
-        { id: 'Sorcerer-9-WNT-70B', status: 'unloaded' }] }
+        { id: 'Sorcerer-9-WNT-70B', status: 'unloaded' },
+        // #53. A remote row, in the shape the route gives it: its status says where it runs, not
+        // whether it is awake, because Featherless keeps no model asleep that a writer can see.
+        { id: 'featherless:Grey/Kestrel-Heretic-24B', status: 'remote', source: 'remote',
+          ctxSize: 32768, perSlot: 32768 }] }
     // #21. A skeleton, not a created story — which is the whole reason it lands on the page to be
     // edited before anything is written.
     : url.startsWith('/api/style') ? { style: 'Wet streets and short sentences.' }
@@ -1621,7 +1625,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     '--narr', '--label', '--mute', '--dim', '--faint', '--ink-ghost', '--rule', '--line', '--edge',
     '--edge-lit', '--chip', '--field', '--gold', '--gold-dim', '--gold-lit', '--on-gold', '--bad',
     '--good', '--warn', '--you-rule', '--speak-rule', '--chrome', '--m-coop',
-    '--chrome-ink', '--chrome-dim', '--chrome-line'];
+    '--chrome-ink', '--chrome-dim', '--chrome-line', '--src-local', '--src-remote'];
   // --head, --dock and --panel-line came out of this list AND out of themeVars on 2026-09-05,
   // together, because no rule in app.html or web/ ever named one of them. Taking a name out of
   // here alone would be the bad half of the change: this list is what makes nine themes agree, so
@@ -1659,6 +1663,30 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       + 'and the derivation exists to make that 4.5 without anyone checking by eye');
   }
   ok('nine themes, every token derived from one row each, every hint above 4.5:1');
+
+  // #53 · THE TWO SOURCE COLOURS. Each must read on the rail and on the side panel, where the
+  // circles sit, at 3:1 (the floor for a mark that is not text), and the two must be far apart in
+  // hue, or local and remote look alike in that theme. Hue is read off the colour itself, not off
+  // how themeVars derived it.
+  const hue = (c: string) => {
+    const [r, g, b] = rgb(c)!.map((x) => x / 255);
+    const hi = Math.max(r, g, b), d = hi - Math.min(r, g, b);
+    if (!d) return NaN;
+    const h = hi === r ? ((g - b) / d) % 6 : hi === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return (h * 60 + 360) % 360;
+  };
+  for (const [name, spec] of Object.entries(THEMES)) {
+    const v: any = themeVars(name);
+    for (const k of ['--src-local', '--src-remote'])
+      for (const ground of ['rail', 'sheet']) {
+        const r = ratio(v[k], (spec as any)[ground]);
+        assert.ok(r >= 3, `${name}: ${k} is ${r.toFixed(2)}:1 on the ${ground}, under the 3:1 a circle needs`);
+      }
+    const gap = Math.abs(hue(v['--src-local']) - hue(v['--src-remote']));
+    assert.ok(Math.min(gap, 360 - gap) >= 90,
+      `${name}: local and remote are ${Math.min(gap, 360 - gap).toFixed(0)} degrees apart in hue, too close to tell apart`);
+  }
+  ok('the local and remote circles read on the rail and the panel, and differ in hue, in every theme');
 }
 }
 
@@ -2247,6 +2275,84 @@ ok('the model panel reads the router, the preset file, this database and the id,
   STORY.model = wasModel;
 }
 ok('the rail label, the rail list and the Storyteller all read the id the panel reads');
+
+// #53 · WHERE A MODEL RUNS, on every surface that names one: a circle in the local or the remote
+// colour, filled when a local model is awake and hollow when it is asleep (a remote one is always
+// filled), and beside it a spider for local or a feather for remote, so colour is never the only
+// cue. Read off the rendered rows, one model at a time, so a row cannot borrow another row's mark.
+{
+  const { MARK } = await import('../web/model.js');
+  const visible = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
+  const first = (name: string) => `d="M${MARK[name].split('M').filter(Boolean)[0]}"`;
+  // The one mark inside a stretch of HTML: which source, whether awake, how the circle is painted,
+  // and which glyph rides beside it.
+  const runs = (h: string) => {
+    const all = [...h.matchAll(/<span data-runs="(local|remote)" data-awake="([01])"([\s\S]*?)<\/svg><\/span>/g)];
+    assert.strictEqual(all.length, 1, `expected exactly one where-it-runs mark, found ${all.length}`);
+    const [, where, awake, body] = all[0];
+    const ring = /border-radius:50%[^"]*border:1\.5px solid var\(--src-(local|remote)\)[^"]*background:([^;"]+)/.exec(body);
+    assert.ok(ring, 'the mark carries a circle drawn in a source token');
+    return { where, awake: awake === '1', ring: ring![1], fill: ring![2].trim(),
+      spider: body.includes(first('spider')), feather: body.includes(first('feather')) };
+  };
+
+  click({ modelmenu: '1' });
+  for (let i = 0; i < 20 && !/tok\/s/.test(html('rail')); i++) await new Promise((r) => setTimeout(r, 25));
+  const rail = visible(html('rail'));
+  const row = (id: string) => {
+    const at = rail.indexOf(`<button data-modelinfo="${id}"`);
+    assert.ok(at > 0, `the menu lists ${id}`);
+    return rail.slice(at, rail.indexOf('</button>', at));
+  };
+
+  const awake = runs(row('Qwen3.6-WNTH-35B-A3B-NN'));
+  assert.deepStrictEqual([awake.where, awake.awake, awake.ring, awake.fill, awake.spider, awake.feather],
+    ['local', true, 'local', 'var(--src-local)', true, false],
+    'a loaded local model: a filled circle in the local colour, and the spider');
+  const asleep = runs(row('Wayfarer-2-RPNT-12B'));
+  assert.deepStrictEqual([asleep.where, asleep.awake, asleep.ring, asleep.fill, asleep.spider],
+    ['local', false, 'local', 'transparent', true],
+    'an unloaded local model: the same colour, hollow, and still the spider');
+  const remote = runs(row('featherless:Grey/Kestrel-Heretic-24B'));
+  assert.deepStrictEqual([remote.where, remote.awake, remote.ring, remote.fill, remote.spider, remote.feather],
+    ['remote', true, 'remote', 'var(--src-remote)', false, true],
+    'a remote model: always filled, in the remote colour, with the feather');
+  assert.match(row('featherless:Grey/Kestrel-Heretic-24B'), /Kestrel Heretic 24B/,
+    'and the row still names it by its decoded name');
+
+  // THE STRIP at the foot of the rail. Read with the menu shut, so the only mark in the rail's
+  // button is the strip's own.
+  click({ modelmenu: '1' });
+  const strip = visible(html('rail'));
+  const at = strip.indexOf('<button data-modelmenu=');
+  const mine = runs(strip.slice(at, strip.indexOf('</button>', at)));
+  assert.strictEqual(mine.where, 'local', 'the strip marks the model writing now as local');
+  assert.ok(mine.spider, 'with the spider');
+
+  // THE STORYTELLER'S PICKER is a <select>, and an <option> holds text and nothing else. So each
+  // option says where its model runs in words, and the drawn mark sits beside the select, for the
+  // model this book is written by.
+  const wasModel = STORY.model;
+  STORY.model = 'featherless:Grey/Kestrel-Heretic-24B';
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'teller' });
+  await new Promise((r) => setTimeout(r, 30));
+  const teller = visible(html('sideBody'));
+  const option = (id: string) => teller.match(new RegExp(`<option value="${id}"[^>]*>([^<]*)</option>`))?.[1] ?? '';
+  assert.match(option('Qwen3\\.6-WNTH-35B-A3B-NN'), / · local, awake$/, 'a loaded local option says so');
+  assert.match(option('Wayfarer-2-RPNT-12B'), / · local, asleep$/, 'an unloaded one says so');
+  assert.match(option('featherless:Grey/Kestrel-Heretic-24B'), / · remote, on Featherless$/,
+    'and a remote option says where it runs');
+  const beside = teller.slice(teller.indexOf('</select>'));
+  const using = runs(beside.slice(0, beside.indexOf('What it is')));
+  assert.deepStrictEqual([using.where, using.awake, using.feather], ['remote', true, true],
+    'beside the select, the mark for the model this book is written by');
+  STORY.model = wasModel;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  ok('menu rows, the strip and the book\'s picker carry the circle and the spider or the feather');
+}
 
 // #17 · HAVE A COVER DRAWN. Seth asked for Pinterest; Pinterest's own API cannot search Pinterest
 // — /v5/search/pins reads only pins you have already saved — so this is the free, keyless thing
