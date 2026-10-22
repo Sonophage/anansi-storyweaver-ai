@@ -31,6 +31,9 @@ const NOT_LISTED = 'nobody/Not-In-The-Catalogue';
 const fl: { path: string; auth: string | undefined; body: any }[] = [];
 /** How the next chat calls should go, shifted one per call. Empty means "answer normally". */
 const script: ('429' | 'midstream' | 'cold' | 'refuse')[] = [];
+/** Every catalogue read, by the Authorization header it carried. Kept apart from `fl`, which blocks
+ *  clear as they go. */
+const catReads: (string | undefined)[] = [];
 
 const flSrv = createServer((req, res) => {
   let raw = '';
@@ -40,6 +43,7 @@ const flSrv = createServer((req, res) => {
     fl.push({ path: req.url ?? '', auth: req.headers.authorization, body });
     const json = (status: number, o: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
+    if (req.url === '/v1/models') catReads.push(req.headers.authorization);
     if (req.url === '/v1/models') return json(200, { data: [
       { id: REMOTE, model_class: 'qwen3-35b-a3b', context_length: 32768 },
       { id: SMALL, model_class: 'llama3-8b', context_length: 4096 },
@@ -375,6 +379,24 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const src = (await import('node:fs')).readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
   assert.strictEqual(src.match(/\bmodelFor\(/g)?.length, 1, 'routes.ts calls modelFor in one place');
   ok('summaries, memory and extraction stay local; writer calls resolve through one helper');
+}
+
+// ---- 11. only a real catalogue model, by its prefixed id, goes on a shortlist ----
+{
+  const other = db.owner('adder');
+  const bare = await routes['POST /api/shortlist'](ctx(other, { model: REMOTE }));
+  assert.match(String(bare.error), /starts with "featherless:"/, 'an id without its prefix is refused');
+  const unknown = await routes['POST /api/shortlist'](ctx(other, { model: `featherless:${NOT_LISTED}` }));
+  assert.match(String(unknown.error), /does not list/, 'a model Featherless does not list is refused');
+  const added = await routes['POST /api/shortlist'](ctx(other, { model: ID }));
+  assert.deepStrictEqual(added.models.map((x: any) => [x.id, x.context]), [[ID, 32768]],
+    'a listed one is added, with the context its catalogue entry gives');
+  assert.strictEqual(catReads.length, 1,
+    'the catalogue was read once, for the first add of the suite, and reused since');
+  assert.strictEqual(catReads[0], undefined, 'and it is public, so the key is not sent to read it');
+  const gone = await routes['POST /api/shortlist/remove'](ctx(other, { model: ID }));
+  assert.deepStrictEqual(gone.models, [], 'remove takes it off');
+  ok('a shortlist takes a listed remote id only, and the catalogue is read once and keyless');
 }
 
 console.log(`\n${n} checks green`);
