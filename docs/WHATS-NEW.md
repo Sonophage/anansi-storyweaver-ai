@@ -33,6 +33,13 @@ asleep and its first passage will take longer. A Featherless model always shows 
 In the Storyteller's list of models, each choice says the same thing in words. The model you are
 writing with is still the highlighted row.
 
+### What a remote model is for
+Each model in Find a model now shows the tags its author gave it on Hugging Face, such as
+roleplay or creative-writing. Press a model's name to see the model it was made from and the
+first paragraph of its description. Banners and pictures are taken out, so you read only the
+text. If the description has no paragraph, you see the base model and the tags. The model
+information panel shows the same description for a model on your shortlist.
+
 ### When a Featherless model cannot write
 If you take a model off your shortlist while it is your default, or while one of your books is set
 to it, those books go back to the model on this machine. A message names each book, and says

@@ -1,6 +1,7 @@
 // needs: fake-featherless
-// Find a model: open it from the rail's model menu, search the catalogue, add a model to the
-// shortlist, and remove it again. Runs against the fake Featherless that test/ui/run.sh starts for
+// Find a model: open it from the rail's model menu, search the catalogue, see each row's tags,
+// expand a row for its base model and card, add a model to the shortlist, read the same card on
+// the model info panel, and remove it again. Runs against the fake Featherless that test/ui/run.sh starts for
 // a scenario whose first line asks for one, so it is fast and spends nothing.
 //
 //   test/ui/run.sh finder
@@ -58,6 +59,32 @@ ok(`the weaving filter narrows it (${ids.length})`, ids.length === 1 && ids[0].i
 await page.pick('[data-findweave]', '');
 await wait(700);
 
+// ---- 3b. tags in every row, and expanding a row for the base model and the card's first paragraph
+const MISTRAL = "featherless:TheDrummer/Mistral-Small-Uncensored-24B";
+const rowsAndTags = () => page.eval(`[document.querySelectorAll('#findhits [data-findmore]').length,
+  document.querySelectorAll('#findhits [data-findmore] .hubtags').length]`);
+ok("every result row shows its Hugging Face tags",
+  await until(`(() => { const r = document.querySelectorAll('#findhits [data-findmore]');
+    return r.length > 0 && [...r].every((b) => b.querySelector('.hubtags')); })()`));
+console.log(`      (${(await rowsAndTags()).join(' rows, ')} with tags)`);
+ok("a row's tags are the author's own words", /roleplay/.test(await page.eval(
+  `document.querySelector('[data-findmore="${QWEN}"] .hubtags')?.textContent ?? ''`)));
+const about = (scope) => page.eval(`document.querySelector('${scope} .remoteabout')?.innerText ?? ''`);
+await page.click(`[data-findmore="${QWEN}"]`);
+ok("expanding a row reads its card", await until(`/abliterated finetune/.test(document.querySelector('#findhits .remoteabout')?.innerText ?? '')`));
+let text = await about('#findhits');
+ok("and shows the base model", /Qwen\/Qwen3\.6-35B-A3B/.test(text));
+ok("the card's first paragraph is plain text, its banner stripped",
+  /long-form fiction & roleplay/.test(text) && !/[<>{}]|banner|gradient|img|QWEN HERETIC/.test(text));
+const sheetBlock = await page.eval("document.querySelector('#findhits .remoteabout')?.innerHTML ?? ''");
+await page.click(`[data-findmore="${MISTRAL}"]`);
+ok("a card with no paragraph", await until(`(document.querySelector('#findhits .remoteabout')?.innerText ?? '').includes('mistralai')`));
+text = await about('#findhits');
+ok("shows the base model and the tags only, and never raw markup",
+  /adventure/.test(text) && !/[<>{}]|style|img|kofi/i.test(text) && !/qwen/i.test(text));
+await page.click(`[data-findmore="${MISTRAL}"]`);
+ok("pressing it again folds it", await until("!document.querySelector('#findhits .remoteabout')"));
+
 // ---- 4. add: one press, onto the shortlist and the menu
 await page.click(`[data-addshort="${QWEN}"]`);
 ok("adding puts it on the shortlist at the top of the sheet",
@@ -70,7 +97,21 @@ await page.click('[data-modelmenu="1"]');
 ok("it appears on the writer's model menu", await until(`!!document.querySelector('#rail [data-modelinfo="${QWEN}"]')`));
 ok("and the menu has no remove — remove lives in the sheet", await page.eval("!document.querySelector('#rail [data-dropshort]')"));
 
-// ---- 5. remove, from the sheet
+// ---- 4b. the model info panel describes a remote model with the same block
+await page.click(`#rail [data-modelinfo="${QWEN}"]`);
+ok("the model info panel for a remote model shows its card",
+  await until(`/abliterated finetune/.test(document.querySelector('#sideBody .remoteabout')?.innerText ?? '')`));
+text = await about('#sideBody');
+ok("with the base model and the tags, as plain text",
+  /Qwen\/Qwen3\.6-35B-A3B/.test(text) && /roleplay/.test(text) && !/[<>{}]/.test(text));
+ok("drawn by the same renderer as the expanded row: the same block, to the character",
+  sheetBlock !== '' && await page.eval("document.querySelector('#sideBody .remoteabout')?.innerHTML ?? ''") === sheetBlock);
+ok("and not the hint for a local model with nothing written down",
+  !/Nothing is written down about this one/.test(await page.eval("document.getElementById('sideBody').innerText")));
+
+// ---- 5. remove, from the sheet, reached again through the menu the info panel closed
+await page.click('[data-modelmenu="1"]');
+await until("!!document.querySelector('[data-findmodel]')");
 await page.click('[data-findmodel]');
 await until(`!!document.querySelector('#findmine [data-dropshort="${QWEN}"]')`);
 await page.click(`[data-dropshort="${QWEN}"]`);

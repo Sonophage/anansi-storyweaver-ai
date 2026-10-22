@@ -57,9 +57,10 @@ const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean
   const bench = s.startsWith('../bench/');
   /* AND NO SUITE EVER REACHES THE REAL FEATHERLESS. This machine has a real key at the default path,
    * so a suite that so much as names a remote id would otherwise spend plan units. A missing key
-   * file and a port that refuses at once are the floor; test/remote.ts sets its own fake over it. */
+   * file and a port that refuses at once are the floor; test/remote.ts sets its own fake over it.
+   * Hugging Face, which describes catalogue models, gets the same refusing port. */
   const offline = { ANANSI_FEATHERLESS_KEY_FILE: '/nonexistent/featherless.key',
-                    ANANSI_FEATHERLESS_URL: 'http://127.0.0.1:9/v1' };
+                    ANANSI_FEATHERLESS_URL: 'http://127.0.0.1:9/v1', ANANSI_HF_URL: 'http://127.0.0.1:9' };
   const env = bench
     ? { ...process.env, ...offline, ANANSI_DB: `/tmp/anansi-bench-${s.split('/')[2].split('.')[0]}.db` }
     : { ...process.env, ...offline };
