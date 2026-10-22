@@ -21,6 +21,13 @@ book until you turn it on, and it changes nothing in your other books. While she
 writing screen says Weaving and counts the seconds, and Stop still works. The switch takes the
 place of the old red note in that panel, which said this was not a setting.
 
+### Talk and Invent weave too
+In a book with Weaving on, Anansi also weaves before she answers you in Talk and before she
+invents a thread or a room for a card. Both take longer while she does. If the room she needs to
+weave would push part of your book out of what she reads, she does not answer; she tells you what
+would be left out, and you can turn weaving off for that book. Summaries, the canon check and
+Remember this never weave.
+
 ### Find a model on Featherless
 The model menu at the foot of the rail has a new last row, Find a model. It opens a search over
 the models Featherless runs. By default it shows only uncensored models; untick the box to see
