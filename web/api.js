@@ -252,6 +252,10 @@ export const api = {
   dropShortlist: (model)         => j('/api/shortlist/remove', 'POST', { model }),
   // The Featherless catalogue, searched by the server. `q` takes q, size, weaving and uncensored.
   catalogue:    (q)              => j(`/api/catalogue?${new URLSearchParams(q)}`),
+  // What a catalogue model is, from Hugging Face through the server: the tags of a page of rows
+  // in one call, and one model's base model and card paragraph when a row is expanded.
+  catalogueTags: (models)        => j('/api/catalogue/tags', 'POST', { models }),
+  catalogueCard: (model)         => j(`/api/catalogue/card?${new URLSearchParams({ model })}`),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
   runImport:    (name, data, into) => j('/api/import', 'POST', { name, data, into: into || undefined }),
   setCover:     (storyId, dataUrl) => j('/api/cover', 'POST', { storyId, dataUrl }),

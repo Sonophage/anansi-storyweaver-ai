@@ -11,14 +11,17 @@ process.env.ANANSI_DB = '/tmp/anansi-scope.db';
 // NEVER THE REAL FEATHERLESS. This machine has a real key at the default path, so without these a
 // shortlist check here would read it and fetch the live catalogue. In its place, a fake that
 // lists two models — one of them takes the whole plan, for the admin check — and refuses
-// everything else with a 404.
+// everything else with a 404. It stands in for Hugging Face too, so the catalogue's describe routes
+// never reach the real hub; `hubAsked` records what they asked it.
 process.env.ANANSI_FEATHERLESS_KEY_FILE = '/nonexistent/featherless.key';
+const hubAsked: string[] = [];
 import assert from 'node:assert';
 import { unlinkSync, readFileSync } from 'node:fs';
 // Raw http, because `fetch` decodes gzip transparently and hides the header while doing it. The
 // static check at the bottom of this file has to see what actually crossed the wire.
 import { get as httpGet, createServer } from 'node:http';
 const flFake = createServer((req, res) => {
+  if (!req.url?.startsWith('/v1/')) hubAsked.push(decodeURIComponent(req.url ?? ''));
   res.writeHead(req.url === '/v1/models' ? 200 : 404, { 'Content-Type': 'application/json' });
   res.end(req.url === '/v1/models' ? JSON.stringify({ data: [
     { id: 'someone/Small-heretic', model_class: 'qwen3_5moe-35b', context_length: 32768, concurrency_cost: 2 },
@@ -28,6 +31,7 @@ const flFake = createServer((req, res) => {
 await new Promise<void>((r) => flFake.listen(0, '127.0.0.1', r));
 flFake.unref();
 process.env.ANANSI_FEATHERLESS_URL = `http://127.0.0.1:${(flFake.address() as any).port}/v1`;
+process.env.ANANSI_HF_URL = `http://127.0.0.1:${(flFake.address() as any).port}`;
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-scope.db' + f); } catch {} }
 const db = await import('../src/db.ts');
 const { routes, OPEN_ROUTES, storyIdOf, isPrivateHost } = await import('../src/routes.ts');
@@ -1669,6 +1673,25 @@ async function bootServer(port: number, env: Record<string, string>) {
   assert.deepStrictEqual(await seen(false), ['featherless:someone/Small-heretic'],
     'a writer who is not the admin is never shown it');
   ok('the catalogue search is open, and shows a 4-unit model to the admin alone');
+
+  // DESCRIBING A MODEL: the tags of a page of rows, and one expanded card. The same admin question,
+  // so a model the search hides cannot be found out through its description — and the hub is not
+  // even asked about it.
+  const WHOLE = 'featherless:someone/Whole-Plan-70B-abliterated', SMALL = 'featherless:someone/Small-heretic';
+  for (const r of ['POST /api/catalogue/tags', 'GET /api/catalogue/card'])
+    assert.ok(OPEN_ROUTES.has(r), `${r} names no story, so it is open and asks the admin question itself`);
+  const describe = (admin: boolean) => ({
+    tags: async () => (await routes['POST /api/catalogue/tags']({ ...ctx(bob, { models: [WHOLE, SMALL] }), admin }) as any).tags,
+    card: async () => routes['GET /api/catalogue/card']({ ...ctx(bob), query: new URLSearchParams({ model: WHOLE }), admin }) as any,
+  });
+  hubAsked.length = 0;
+  assert.deepStrictEqual(Object.keys(await describe(false).tags()), [SMALL], 'a writer gets tags for what they are shown');
+  assert.ok((await describe(false).card()).error, "and cannot expand the 4-unit model's card");
+  assert.ok(!hubAsked.some((p) => p.includes('Whole-Plan')), 'and the hub is never asked about it for them');
+  assert.ok(Object.keys(await describe(true).tags()).includes(WHOLE), 'the admin gets its tags');
+  assert.ok(!(await describe(true).card()).error, 'and its card');
+  assert.ok(hubAsked.some((p) => p.includes('Whole-Plan')), 'which the hub was asked for, so the refusal above was the gate');
+  ok('describing a catalogue model holds the same admin gate as the search');
 }
 
 // ---- A NEW CARD'S DESCRIPTION LANDS IN `facts`, NOT IN THE BODY (issue #39, 2026-09-01).

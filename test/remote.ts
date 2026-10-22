@@ -102,6 +102,99 @@ const flSrv = createServer((req, res) => {
 await new Promise<void>((r) => flSrv.listen(0, '127.0.0.1', r));
 process.env.ANANSI_FEATHERLESS_URL = `http://127.0.0.1:${(flSrv.address() as any).port}/v1`;
 
+/* A FAKE HUGGING FACE, for the tags, the base model and the model card. Real Hugging Face is never
+ * called: its cards change under the assertions. Each case is a card shape seen in the wild. */
+const HEAVY_CARD = `---
+license: apache-2.0
+base_model: Qwen/Qwen3.6-35B-A3B
+tags:
+- heretic
+---
+<style>
+.banner { color: gold; font-size: 2em; }
+
+.banner img { width: 100%; }
+</style>
+<!-- a comment the author left
+for themselves -->
+<div align="center" style="background: linear-gradient(#000, #333); padding: 12px;">
+<img src="https://example.com/banner.png" alt="banner">
+
+<h1 style="color:gold">QWEN HERETIC</h1>
+</div>
+
+# Qwen3.6 35B Heretic
+
+[![License](https://img.shields.io/badge/license-apache-blue)](https://example.com/license) [![Discord](https://img.shields.io/badge/discord-join-7289da)](https://discord.gg/x)
+
+> [!NOTE]
+> Quantized versions are linked below.
+
+| Quant | Size |
+|---|---|
+| Q4 | 20 GB |
+
+This is an **abliterated** finetune of [Qwen3.6-35B-A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) for long-form fiction &amp; <b>roleplay</b>. It keeps the base model's prose and drops its refusals.
+
+A second paragraph that must not appear.
+`;
+/** Every block is banner, heading, list or code: there is no paragraph to show. The style block at
+ *  the end is never closed, so only the check that markup survived can keep its CSS off the row. */
+const NO_PARAGRAPH_CARD = `<div align="center"><img src="https://example.com/x.png"></div>
+
+<p align="center"><a href="https://ko-fi.com/x"><img src="https://example.com/kofi.png"></a></p>
+
+## Gemma 4 31B Uncensored
+
+- roleplay
+- creative writing
+
+\`\`\`python
+print("this is code and not a description of anything at all here")
+\`\`\`
+
+<div style="display: flex; gap: 8px;">
+<span style="color: red; font-weight: bold;">NEW</span>
+</div>
+
+<style>
+body { background: #000; color: #fff; font-family: serif; margin: 0 auto; }
+`;
+const HUB_MODELS: Record<string, any> = {
+  [REMOTE]: { id: REMOTE, tags: ['transformers', 'safetensors', 'qwen3_5_moe', 'text-generation',
+    'heretic', 'license:apache-2.0', 'base_model:Qwen/Qwen3.6-35B-A3B', 'region:us', 'en'],
+    cardData: { tags: ['heretic', 'uncensored', 'roleplay', 'creative-writing'],
+      base_model: 'Qwen/Qwen3.6-35B-A3B' } },
+  // No author tags: the hub's own tags are shown, with the machine ones dropped.
+  [STUBBORN]: { id: STUBBORN, tags: ['gemma4', 'text-generation', 'abliterated', 'roleplay',
+    'conversational', 'endpoints_compatible', 'region:us', 'license:gemma'],
+    cardData: { base_model: ['google/gemma-4-31b-it'] } },
+};
+const CARDS: Record<string, string> = { [REMOTE]: HEAVY_CARD, [STUBBORN]: NO_PARAGRAPH_CARD };
+/** What reached the fake hub, newest last, with any Authorization it carried. */
+const hubHits: { path: string; auth: string | undefined }[] = [];
+const hubSrv = createServer((req, res) => {
+  const path = decodeURIComponent(req.url ?? '');
+  hubHits.push({ path, auth: req.headers.authorization });
+  const api = /^\/api\/models\/(.+)$/.exec(path)?.[1];
+  const card = /^\/(.+)\/raw\/main\/README\.md$/.exec(path)?.[1];
+  // A renamed repo answers with a redirect to its new name on the same host — and one that tries
+  // to send the server somewhere else is the case the fixed host exists for.
+  if (api === 'huihui/gpt-oss-20b-abliterated') {
+    res.writeHead(307, { Location: `/api/models/${PLANS_INLINE}` }); return res.end(); }
+  if (api === 'edge/Exactly-16k-heretic') {
+    res.writeHead(302, { Location: 'http://169.254.169.254/latest/meta-data' }); return res.end(); }
+  if (api && HUB_MODELS[api]) {
+    res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(HUB_MODELS[api])); }
+  if (api === PLANS_INLINE) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ id: PLANS_INLINE, tags: ['mistral', 'adventure'] })); }
+  if (card && CARDS[card]) { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end(CARDS[card]); }
+  res.writeHead(404, { 'Content-Type': 'application/json' }); res.end('{"error":"Repository not found"}');
+});
+await new Promise<void>((r) => hubSrv.listen(0, '127.0.0.1', r));
+process.env.ANANSI_HF_URL = `http://127.0.0.1:${(hubSrv.address() as any).port}`;
+
 /** What reached the fake LOCAL router. */
 const local: { path: string; body: any }[] = [];
 const localSrv = createServer((req, res) => {
@@ -533,5 +626,82 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('adding probes once with weaving off, stores the label and the cost, and holds the gate');
 }
 
+// ---- 14. tags for the result rows: one batched call, cached, and never the 4-unit gate's hole ----
+{
+  const BIG_ID = `featherless:${BIG}`, STUB_ID = `featherless:${STUBBORN}`;
+  const tagsOf = async (models: string[], admin = false) => {
+    const c = ctx(me, { models }); c.admin = admin;
+    return routes['POST /api/catalogue/tags'](c);
+  };
+  hubHits.length = 0;
+  const r = await tagsOf([ID, STUB_ID, BIG_ID, 'featherless:nobody/Not-In-The-Catalogue', 'not-remote']);
+  assert.ok(!r.error, r.error);
+  assert.deepStrictEqual(r.tags[ID], ['heretic', 'uncensored', 'roleplay', 'creative-writing'],
+    "the author's own card tags are the ones shown, in their order");
+  assert.deepStrictEqual(r.tags[STUB_ID], ['gemma4', 'abliterated', 'roleplay'],
+    "with none, the hub's tags, without the machine ones (license:, region:, text-generation...)");
+  assert.ok(!(BIG_ID in r.tags), 'GATE: no tags for a model this writer is not shown');
+  assert.ok(!hubHits.some((h) => h.path.includes(BIG)), 'and the hub is not even asked about it');
+  assert.ok(!hubHits.some((h) => h.path.includes('Not-In-The-Catalogue')),
+    'nor about a model the catalogue does not list: the server is not a proxy to any repo');
+  assert.ok(hubHits.every((h) => h.auth === undefined), 'the Featherless key never goes to Hugging Face');
+  const asked = hubHits.length;
+  const again = await tagsOf([ID, STUB_ID]);
+  assert.deepStrictEqual(again.tags[ID], r.tags[ID]);
+  assert.strictEqual(hubHits.length, asked, 'tags already read are served from the cache');
+
+  // ONE HOP ON THE SAME HOST: a renamed repo is followed; a redirect off the host is not.
+  const moved = await tagsOf(['featherless:huihui/gpt-oss-20b-abliterated', 'featherless:edge/Exactly-16k-heretic']);
+  assert.deepStrictEqual(moved.tags['featherless:huihui/gpt-oss-20b-abliterated'], ['mistral', 'adventure'],
+    'a redirect to the same host is followed once');
+  assert.ok(!hubHits.some((h) => h.path.includes('meta-data')), 'a redirect off the host is never followed');
+  assert.deepStrictEqual(moved.tags['featherless:edge/Exactly-16k-heretic'] ?? [], [],
+    'and that model simply has no tags');
+  ok('result tags come in one batched call, cached, from the fixed host only, inside the gate');
+}
+
+// ---- 15. expand: the base model and the card's first real paragraph, banners stripped ----
+{
+  const card = async (model: string, admin = false) => {
+    const c = ctx(me, {}, `model=${encodeURIComponent(model)}`); c.admin = admin;
+    return routes['GET /api/catalogue/card'](c);
+  };
+  hubHits.length = 0;
+  const heavy = await card(ID);
+  assert.ok(!heavy.error, heavy.error);
+  assert.strictEqual(heavy.about, 'This is an abliterated finetune of Qwen3.6-35B-A3B for long-form '
+    + "fiction & roleplay. It keeps the base model's prose and drops its refusals.",
+    'STRIP: the first real paragraph, as plain text, past the style block, the banner, the badges, '
+    + 'the callout and the table');
+  assert.deepStrictEqual(heavy.base, ['Qwen/Qwen3.6-35B-A3B'], 'the base model, from the card data');
+  assert.deepStrictEqual(heavy.tags, ['heretic', 'uncensored', 'roleplay', 'creative-writing']);
+  assert.ok(hubHits.some((h) => h.path === `/${REMOTE}/raw/main/README.md`), 'the card was read from the hub');
+
+  const bare = await card(`featherless:${STUBBORN}`);
+  assert.ok(!bare.error, bare.error);
+  assert.strictEqual(bare.about, null, 'a card with no paragraph has no description');
+  assert.deepStrictEqual(bare.base, ['google/gemma-4-31b-it'], 'but still its base model');
+  assert.deepStrictEqual(bare.tags, ['gemma4', 'abliterated', 'roleplay'], 'and its tags');
+  assert.ok(!/[<>{}]|style|img|```/.test([heavy, bare].flatMap((x) => [x.about ?? '', ...x.tags, ...x.base]).join(' ')),
+    'never raw markup, either card');
+
+  const none = await card('featherless:edge/Exactly-16k-heretic');
+  assert.ok(!none.error, none.error);
+  assert.deepStrictEqual([none.about, none.base, none.tags], [null, [], []],
+    'a model the hub knows nothing about answers empty, not an error');
+
+  const asked = hubHits.length;
+  await card(ID);
+  assert.strictEqual(hubHits.length, asked, 'an expanded card is served from the cache the second time');
+
+  const big = await card(`featherless:${BIG}`);
+  assert.ok(big.error, 'GATE: a writer cannot read the card of a model the search hides from them');
+  assert.ok(!(await card(`featherless:${BIG}`, true)).error, 'the admin can');
+  assert.ok((await card('featherless:nobody/Not-In-The-Catalogue')).error,
+    'a model the catalogue does not list is refused');
+  assert.ok((await card('featherless:../../etc/passwd')).error, 'and so is a path that is not a repo');
+  ok('expand gives the base model and the first paragraph as text, and only base and tags when there is none');
+}
+
 console.log(`\n${n} checks green`);
-flSrv.close(); localSrv.close();
+flSrv.close(); localSrv.close(); hubSrv.close();

@@ -1,7 +1,8 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX } from './llama.ts';
-import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound } from './catalogue.ts';
+import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
+  hubTagsFor, hubCard, isRepo } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
@@ -125,6 +126,9 @@ export const OPEN_ROUTES = new Set([
   // The Featherless catalogue. Names no story and holds nothing of anyone's; what differs by
   // writer is the admin question, which the handler asks of c.admin.
   'GET /api/catalogue',
+  // What a catalogue model is, from Hugging Face. The same: nothing of anyone's, and the handler
+  // asks the admin question so a model hidden from the search cannot be described either.
+  'POST /api/catalogue/tags', 'GET /api/catalogue/card',
   // Names no story — it is about the FORMAT, not about a book. Open means the gate does not run, so
   // the handler asks the admin question itself; that check is the whole of its protection.
   'GET /api/forge',
@@ -168,6 +172,19 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
 const writerModel = (c: Ctx, v: { story: any; owner?: string }) =>
   modelFor(v.story, c.defaultModel, (id, pinned) =>
     remoteReady() && !!db.shortlisted(pinned ? (v.owner ?? c.owner) : c.owner, id));
+
+/** Which of `ids` this writer may have described: remote ids the catalogue lists and the search
+ *  would show them, as `{id, repo}`. The repo path is the catalogue's, so nothing the request says
+ *  reaches the hub unless the catalogue has it too. */
+const describable = async (c: Ctx, ids: unknown[]) => {
+  let rows;
+  try { rows = await catalogue(); }
+  catch (e: any) { return { error: e?.message ?? 'could not read the Featherless catalogue' }; }
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return ids.map(String).filter(isRemote).map((id) => ({ id, row: byId.get(id.slice(REMOTE_PREFIX.length)) }))
+    .filter((x) => x.row && !refusal(x.row, c.admin) && isRepo(x.row.id))
+    .map((x) => ({ id: x.id, repo: x.row!.id }));
+};
 
 /** A remote id a writer may name as a default or a pin: on `owner`'s shortlist, with a key set.
  *  Returns the id so callers read as an assignment, the way `checkModel` does for local ones. */
@@ -1448,6 +1465,28 @@ export const routes: Record<string, Handler> = {
     const q = c.query;
     return searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
       weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0' }, c.admin, REMOTE_PREFIX);
+  },
+  /** TAGS FOR A PAGE OF RESULTS, in one call. The search answers at once without them — reading
+   *  Hugging Face for a hundred rows would make every keystroke wait on it — and the browser asks
+   *  for the tags of the rows it drew, which fill in as this answers. Cached a day per model, so a
+   *  search that brings back models already seen is answered without a single read.
+   *  Only models this writer could be shown: the same predicate as the search, so a 4-unit model's
+   *  tags are not a way to learn it is there, and an id the catalogue does not list is never read. */
+  'POST /api/catalogue/tags': async (c: Ctx) => {
+    const repos = await describable(c, (Array.isArray(c.body.models) ? c.body.models : []).slice(0, RESULT_CAP));
+    if ('error' in repos) return repos;
+    const found = await hubTagsFor(repos.map((r) => r.repo));
+    return { tags: Object.fromEntries(repos.filter((r) => r.repo in found).map((r) => [r.id, found[r.repo]])) };
+  },
+  /** EXPAND: the base model and the first paragraph of the card, for the Find a model row and for
+   *  the model info panel. Same gate as the tags. */
+  'GET /api/catalogue/card': async (c: Ctx) => {
+    const id = String(c.query.get('model') ?? '');
+    const one = await describable(c, [id]);
+    if ('error' in one) return one;
+    if (!one.length) return { error: 'Featherless does not list that model for you' };
+    try { return { id, ...(await hubCard(one[0].repo)) }; }
+    catch (e: any) { return { error: e?.message ?? 'Hugging Face did not answer' }; }
   },
   'POST /api/shortlist/remove': (c: Ctx) => {
     db.removeFromShortlist(c.owner, String(c.body.model ?? ''));
