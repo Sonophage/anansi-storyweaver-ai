@@ -1445,6 +1445,13 @@ async function bootServer(port: number, env: Record<string, string>) {
       'What alice wrote down.', 'and her act is unchanged');
     db.delArc(aStory.id, herAct);
 
+    // #55. The weaving switch, aimed at alice's book. It rides the story save like every story
+    // field, so this is that route refusing a stranger with the one field the ticket added.
+    const weaveBefore = (db.getStory(aStory.id) as any).weaving;
+    const weave = await post('/api/story', { id: aStory.id, story: { weaving: true } });
+    assert.strictEqual(weave.status, 404, "the weaving switch on another writer's book is refused");
+    assert.strictEqual((db.getStory(aStory.id) as any).weaving, weaveBefore, 'and her book weaves as it did');
+
     // Delete-after's first press (#46), asking about alice's passage as bob.
     const peek = await fetch(url + `/api/after?story=${aStory.id}&id=${aPassage}`);
     assert.strictEqual(peek.status, 404, "delete-after's first press must refuse another writer's story id");

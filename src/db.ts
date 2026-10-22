@@ -384,6 +384,10 @@ function migrate() {
   // to add an on and off switch since sometimes i do want it to write for me." Defaults ON, so
   // every story that already names someone keeps the behaviour it has.
   add('stories', 'lockout_on', 'INTEGER DEFAULT 1');
+  // #55. WEAVING, the book's own switch: the model plans unseen before it writes. Defaults OFF,
+  // because a weaving passage measured 60 s against 7 s (F60) and no book should get that slower
+  // without its writer asking.
+  add('stories', 'weaving', 'INTEGER DEFAULT 0');
   // #24. A TABLE rather than a column, so it does not go through `drop` above. Its five batches
   // were written into docs/WHATS-NEW.md before this shipped; the file is the record now and the
   // model call that filled this is gone. Guarded on existence so the line is quiet on a database
@@ -2626,7 +2630,7 @@ export function updateStory(id: string, s: any) {
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       direction=?,spice=?,spice_note=?,max_context=?,status=?,model=?,
-      locked_character=?,lockout_on=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
+      locked_character=?,lockout_on=?,weaving=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
       lore_from=?,style_note=?,world=?,world_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
@@ -2637,6 +2641,8 @@ export function updateStory(id: string, s: any) {
       // Same shape as autoOpen below: boolean over the wire, integer in the column, and `undefined`
       // means leave it — so a panel that does not show this switch cannot turn it off.
       Number(p('lockoutOn', 'lockout_on') ? 1 : 0),
+      // The same shape again, in the column's own slot directly after the lockout's.
+      Number(p('weaving', 'weaving') ? 1 : 0),
       Number(p('chapterHero', 'chapter_hero') ? 1 : 0),
       Number(p('chapterSticky', 'chapter_sticky') ? 1 : 0),
       Math.max(0, Math.min(100, Number(p('coverOpacity', 'cover_opacity')) || 0)),
@@ -3050,10 +3056,10 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
    * somewhere the world book does not exist, and this lands beside it. A copy of a book set in a
    * world is a book set in that world. */
   q(`UPDATE stories SET lore_from=?, is_world=?, world=?, world_note=?, auto_open=?, look=?,
-       chapter_hero=?, chapter_sticky=?, cover_opacity=? WHERE id=?`)
+       chapter_hero=?, chapter_sticky=?, cover_opacity=?, weaving=? WHERE id=?`)
     .run(src.lore_from ?? null, src.is_world ?? 0, src.world ?? null, src.world_note ?? null,
       src.auto_open, src.look ?? null, src.chapter_hero, src.chapter_sticky, src.cover_opacity,
-      made.id);
+      src.weaving ?? 0, made.id);
 
   const ledger = copyLedger(storyId, made.id, ownerId);
   const cards = ledger?.map ?? new Map<string, string>();

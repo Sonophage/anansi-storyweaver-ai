@@ -39,6 +39,9 @@ const toStory = (r: any) => ({
   maxContext: r.max_context, status: r.status,
   spiceNote: r.spice_note, model: r.model, lockedCharacter: r.locked_character,
   lockoutOn: r.lockout_on !== 0,
+  // #55. Whether this book weaves. Off on a row written before the column existed, as the column's
+  // own default is. Whether a CALL weaves is decided in routes.ts, from this and the call's role.
+  weaving: !!r.weaving,
   // Whether the surface should ask for the opening passage itself. Absent on a row written before
   // the column existed, so it reads as ON, which is the default the column carries too.
   autoOpen: r.auto_open == null ? true : !!r.auto_open,

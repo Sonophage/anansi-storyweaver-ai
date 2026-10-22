@@ -1564,6 +1564,31 @@ ok('auto-open is on by default, survives a partial save, and can be turned off',
   assert.strictEqual(read().autoOpen, true, 'and back on again');
 });
 
+// #55. Weaving is the book's own switch, off unless the writer turns it on for that book: a weaving
+// passage measured 60 s against 7 s (F60), so a book that wove without being asked would be a book
+// that went eight times slower overnight.
+ok('weaving is off by default, turns on through the story save, survives a partial one, and copies', () => {
+  const me = db.owner('weave-test');
+  const st = db.createStory(me, { title: 'The Loom' });
+  const read = (id = st.id) => story.view(id)!.story as any;
+  assert.strictEqual(read().weaving, false, 'a new book does not weave');
+
+  db.updateStory(st.id, { weaving: true });
+  assert.strictEqual(read().weaving, true, 'the story save turns it on');
+  // Beside the lockout in one UPDATE, so a value bound one slot early would move one onto the other.
+  assert.strictEqual(read().lockoutOn, true, 'and turning it on leaves the lockout where it was');
+  db.updateStory(st.id, { title: 'The Loom, renamed' });
+  assert.strictEqual(read().weaving, true, 'a save of another field leaves it on');
+  db.updateStory(st.id, { lockoutOn: false });
+  assert.strictEqual(read().weaving, true, 'and so does the switch beside it');
+
+  const copy = db.duplicateStory(me, st.id, 'The Loom, again')!;
+  assert.strictEqual(read(copy.id).weaving, true, 'a copy of a weaving book weaves');
+
+  db.updateStory(st.id, { weaving: false });
+  assert.strictEqual(read().weaving, false, 'and off is a value too');
+});
+
 ok('a flag on a take you rolled away from is not counted and not shown', () => {
   const me = db.owner('flag-test');
   const st = db.createStory(me, { title: 'The Flagged' });
