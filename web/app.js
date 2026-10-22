@@ -271,6 +271,8 @@ let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null
 // when the Threads list started reading the same object to say which threads are live.
 let MANI_FOR = null;
 let MANIERR = null;   // why there is no manifest, when there is none
+// #56. The weaving refusal the next press would get, as the preview carries it; null when it fits.
+let MANIFIT = null;
 // model, slot, gen and budget ride along on /api/stories and /api/story — there is no
 // separate status route, and activity returns only generation rows.
 let SRV = { model: null, slot: null, gen: {}, admin: false, demo: false, me: null, mates: [] };
@@ -2628,6 +2630,11 @@ const PANELS = {
           >${MANI.totals.used.toLocaleString()} / ${budget.toLocaleString()}${MANI_EXACT ? '' : ' (est.)'}</span></div>
       <div class="meter">${Object.entries(agg).map(([k, v]) =>
         `<i style="width:${(v * scale / budget * 100).toFixed(2)}%; background:${BLOCK_COLOR[k] ?? 'var(--ink-ghost)'}"></i>`).join('')}</div>
+      ${MANIFIT ? `<div style="display:flex; align-items:flex-start; gap:10px; padding:10px 0">
+          <span style="width:8px; height:8px; border-radius:50%; background:var(--bad); margin-top:5px; flex:0 0 auto"></span>
+          <span style="flex:1; display:flex; flex-direction:column; gap:4px">
+            <span style="font-size:13px; color:var(--ink)">The next passage will be refused as things stand</span>
+            <span class="hint" style="margin:0">${esc(MANIFIT.message)}</span></span></div>` : ''}
       ${(() => {
         const h = horizon();
         if (!h) return '';
@@ -7869,6 +7876,7 @@ async function refreshManifest() {
   if (MANI_EXACT) MANI = { ...MANI, totals: { ...MANI.totals, used: r.exact } };
   PROMPT = r.manifest ? (r.prompt ?? '') : '';
   MANIERR = r.manifest ? null : (r.error ?? null);
+  MANIFIT = r.manifest ? (r.weaveFit ?? null) : null;
   drawBar(); drawMeter();
   if (S.panel === 'context') drawSide();
 }

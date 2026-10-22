@@ -2507,6 +2507,30 @@ ok('a weaving book says Weaving with a running count from the press until the fi
 }
 ok('a weaving refusal is a row on the composer with Write anyway and Turn weaving off, and each sends the press again');
 
+// #56. THE CONTEXT PANEL SAYS IT BEFORE THE PRESS. Its preview is the weaving assembly, which is what
+// Write anyway sends, and it carries the same refusal the press would get — so the panel and the
+// press never disagree about whether this passage can be written as things stand.
+{
+  const MSG = 'Weaving sets aside 5,000 tokens for Anansi to weave in, and in this book that would leave '
+    + 'out the oldest passage still in view. Turn weaving off for this book, or write anyway and let them drop out.';
+  try {
+    (MANIFEST as any).weaveFit = { overflows: false, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] };
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    click({ panel: 'context' });
+    await new Promise((r) => setTimeout(r, 40));
+    assert.ok(html('sideBody').includes('the oldest passage still in view'), 'the Context panel carries the refusal');
+    delete (MANIFEST as any).weaveFit;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    if (!html('sideBody').includes('Assembled for the next call')) click({ panel: 'context' });
+    await new Promise((r) => setTimeout(r, 40));
+    assert.ok(html('sideBody').includes('Assembled for the next call'), 'precondition: the Context panel is open');
+    assert.ok(!html('sideBody').includes('still in view'), 'and says nothing when weaving fits');
+  } finally { delete (MANIFEST as any).weaveFit; }
+}
+ok('the Context panel carries the weaving refusal the press would get, and nothing when it fits');
+
 // #53 · WHERE A MODEL RUNS, on every surface that names one: a circle in the local or the remote
 // colour, filled when a local model is awake and hollow when it is asleep (a remote one is always
 // filled), and beside it a spider for local or a feather for remote, so colour is never the only
