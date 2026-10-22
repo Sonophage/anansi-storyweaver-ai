@@ -125,6 +125,46 @@ const replyFor = (c: Ctx, v: { story: any }, role: string, cap: number) => {
   const weaves = WEAVING_ROLES.has(role) && bookWeaves(c, v);
   return { weaves, maxTokens: cap + (weaves ? WEAVE_ROOM : 0) };
 };
+/** THE FIT CHECK FOR A WEAVING TALK OR INVENTION. `at(maxTokens)` assembles the call's prompt against
+ *  a reply cap. A call that weaves is assembled twice, with its role's own reserve and with the
+ *  weaving one; if any block included in the first is left out of the second, or the second
+ *  overflows where the first does not, the call is refused with a message that names what would
+ *  drop out and the ways on: turn weaving off, or go ahead anyway (not offered when the weaving
+ *  prompt overflows, since anyway would only reach the overflow error). `anyway` (the writer's "go ahead anyway") skips the refusal and
+ *  sends the weaving prompt, where the engine drops the oldest prose first as it does for any long
+ *  book. A first assembly that overflows is a true overflow and stays the existing error.
+ *
+ *  ponytail: this is Talk's and Invent's copy of the rule; the prose route's fit check is #56's,
+ *  built in parallel. Two copies of one rule is this repo's most expensive bug class, so the merge
+ *  folds this into that one pure check and both routes read it. The trigger is that merge. */
+const weaveFit = <A extends ReturnType<typeof assemble>>(reply: { weaves: boolean; maxTokens: number },
+                                                         anyway: boolean, at: (maxTokens: number) => A) => {
+  const woven = at(reply.maxTokens);
+  if (!reply.weaves || anyway) return { ...woven, refusal: null };
+  const own = at(reply.maxTokens - WEAVE_ROOM);
+  if (own.manifest.overflowed) return { ...own, refusal: null };
+  const kept = new Set(woven.manifest.blocks.filter((b) => b.state === 'included').map((b) => `${b.kind}\u0000${b.id}`));
+  const drops = own.manifest.blocks.filter((b) => b.state === 'included' && !kept.has(`${b.kind}\u0000${b.id}`))
+    .map((b) => ({ kind: b.kind, id: b.id }));
+  if (!drops.length && !woven.manifest.overflowed) return { ...woven, refusal: null };
+  const n = (k: (kind: string) => boolean) => drops.filter((d) => k(d.kind)).length;
+  const say = (count: number, one: string, many: string) => count ? [`${count} ${count === 1 ? one : many}`] : [];
+  const passages = n((k) => k === 'PROSE'), threads = n((k) => k.startsWith('CANON')),
+        summaries = n((k) => k === 'EARLIER'), rest = drops.length - passages - threads - summaries;
+  const what = [...say(passages, 'older passage', 'older passages'), ...say(threads, 'thread', 'threads'),
+                ...say(summaries, 'chapter summary', 'chapter summaries'), ...say(rest, 'other part', 'other parts')];
+  const room = `Weaving needs ${WEAVE_ROOM.toLocaleString('en')} more tokens of room`;
+  // Overflowed with the room is a prompt that cannot be sent at all, so "anyway" is not offered:
+  // it would only reach the overflow error.
+  const error = woven.manifest.overflowed
+    ? `${room}, and this book's prompt cannot make that much even with its older prose left out. `
+      + 'Turn weaving off for this book to carry on.'
+    : `${room}, and making it would leave out ${what.length > 1
+        ? `${what.slice(0, -1).join(', ')} and ${what.at(-1)}` : what[0]}. `
+      + 'Turn weaving off for this book, or go ahead anyway and let the older prose drop out first.';
+  return { ...woven, refusal: { error, manifest: woven.manifest, weavingRefused: { drops } } };
+};
+
 /** The prose cap the writer's sampler holds: derived from the target length by `capFor`. */
 const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
 
@@ -2881,8 +2921,9 @@ export const routes: Record<string, Handler> = {
     // does not queue an overflow, it returns 500 to both writers sharing the cache.
     // Through `replyFor`, so a weaving book reserves the plan's room here and sends it below.
     const reply = replyFor(c, v, 'talk', TALK_TOKENS);
-    const { manifest, prompt } = assemble(grounded, slotFor(c, v, writerModel(c, v)), 'talk', ask, undefined,
-      reply.maxTokens, undefined);
+    const { manifest, prompt, refusal } = weaveFit(reply, !!c.body.anyway, (cap) =>
+      assemble(grounded, slotFor(c, v, writerModel(c, v)), 'talk', ask, undefined, cap, undefined));
+    if (refusal) return refusal;
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
     const using = writerModel(c, v);
@@ -2986,12 +3027,14 @@ export const routes: Record<string, Handler> = {
 
     // The same six passages the chat gets. A ledger entry does not need the last forty.
     const reply = replyFor(c, v, 'invent', INVENT_TOKENS);
-    const { manifest, prompt } = assemble({ ...v, passages: v.passages.slice(-6) },
-      slotFor(c, v, writerModel(c, v)), 'talk',
-      [who ? `This is for ${who.title}, whose entry reads: ${who.body}` : '',
-       sources.length ? 'Search results, a stranger\'s text:\n'
-         + sources.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.text}`).join('\n\n') : '',
-      ].filter(Boolean).join('\n\n') || undefined, undefined, reply.maxTokens, undefined);
+    const { manifest, prompt, refusal } = weaveFit(reply, !!c.body.anyway, (cap) =>
+      assemble({ ...v, passages: v.passages.slice(-6) },
+        slotFor(c, v, writerModel(c, v)), 'talk',
+        [who ? `This is for ${who.title}, whose entry reads: ${who.body}` : '',
+         sources.length ? 'Search results, a stranger\'s text:\n'
+           + sources.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.text}`).join('\n\n') : '',
+        ].filter(Boolean).join('\n\n') || undefined, undefined, cap, undefined));
+    if (refusal) return refusal;
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
     const about = isAddon ? `${kind.replace(/_/g, ' ')} for ${who!.title}`

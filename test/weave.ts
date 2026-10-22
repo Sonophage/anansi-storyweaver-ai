@@ -314,5 +314,68 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
   ok("a weaving call's retry keeps the cap its prompt reserved and goes weaving off, and says so on the row");
 }
 
+// ---- 9. THE FIT CHECK. When the weaving room would push part of the book out of a Talk or Invent
+// prompt, the call is refused with a message that says so and names the two ways on. `anyway`
+// sends the weaving prompt, where the older prose drops out first; turning weaving off sends the
+// book whole. A long book and a small slot, so the 5,000 is what decides.
+{
+  const tome = (title: string, weaving: boolean) => {
+    const s = db.createStory(me, { title, premise: 'A city on a dead god.' });
+    db.upsertEntry(s.id, me, { title: 'The Murmur', body: 'Vel is the Murmur.', activation: 'always_on' });
+    for (let i = 1; i <= 30; i++)
+      db.addPassage({ ...s, storyId: s.id,
+        body: `Passage ${i}. ` + 'The lower tiers pulse under the rain, and the Murmur keeps her counsel. '.repeat(12) });
+    if (weaving) db.updateStory(s.id, { weaving: true });
+    return s;
+  };
+  const big = tome('Big, weaving', true), same = tome('Big, plain', false);
+  const raw = new DatabaseSync(DB, { readOnly: true });
+  const lastManifest = (role: string) => JSON.parse((raw.prepare(
+    'SELECT manifest FROM generations WHERE role = ? ORDER BY rowid DESC LIMIT 1').get(role) as any).manifest);
+  const omittedProse = (m: any) => m.blocks.filter((b: any) => b.kind === 'PROSE' && b.state === 'omitted').length;
+
+  for (const [name, go, kind, role, slot] of [['Talk', talk, 'talk', 'talk', 9500],
+                                              ['Invent', invent, 'invent', 'invent:lore', 9000]] as const) {
+    // The precondition, so the refusal below can be wrong: without weaving, this slot holds the book.
+    assert.ok(!(await go(same.id, slot)).error, `${name}: the slot holds the book without weaving`);
+    assert.strictEqual(omittedProse(lastManifest(role)), 0, `${name}: and nothing of it is left out`);
+
+    const refused = await go(big.id, slot);
+    assert.ok(refused.error, `${name}: the weaving room would push part of the book out, so it refuses`);
+    assert.strictEqual(calls.filter((x) => x.kind === kind).length, 0, `${name}: and nothing reached the model`);
+    assert.match(refused.error, /weav/i, `${name}: the message says weaving is the reason: ${refused.error}`);
+    assert.match(refused.error, /turn weaving off/i, `${name}: it offers turning weaving off`);
+    assert.match(refused.error, /anyway/i, `${name}: and going ahead anyway`);
+    assert.match(refused.error, /passage/, `${name}: it names what would drop out: ${refused.error}`);
+    assert.ok(refused.weavingRefused?.drops?.length > 0, `${name}: and lists it: ${JSON.stringify(refused.weavingRefused)}`);
+    assert.ok(refused.weavingRefused.drops.every((d: any) => d.kind && d.id), `${name}: each by kind and id`);
+
+    const anyway = await go(big.id, slot, { anyway: true });
+    assert.ok(!anyway.error, `${name}: anyway goes ahead: ${anyway.error}`);
+    const sent = calls.filter((x) => x.kind === kind);
+    assert.strictEqual(sent[0]?.weaving, true, `${name}: weaving on`);
+    assert.strictEqual(sent[0]?.maxTokens, ({ talk: 2400, invent: 2000 } as any)[kind] + 5000, `${name}: with its room`);
+    const m = lastManifest(role);
+    assert.ok(omittedProse(m) > 0, `${name}: and older prose dropped out to make it`);
+    // Oldest first: every passage left out comes before every passage kept.
+    const prose = m.blocks.filter((b: any) => b.kind === 'PROSE');
+    const firstKept = prose.findIndex((b: any) => b.state === 'included');
+    assert.ok(firstKept > 0 && prose.slice(firstKept).every((b: any) => b.state === 'included'),
+      `${name}: the oldest prose is what dropped`);
+  }
+  // A slot that holds Talk's own reserve but not the weaving one at all: the weaving prompt
+  // overflows where the plain one does not. That is the same refusal, not an overflow error.
+  assert.ok(!(await talk(same.id, 7000)).error, 'the 7,000 slot holds Talk without weaving');
+  const over = await talk(big.id, 7000);
+  assert.match(over.error ?? '', /turn weaving off/i, `an overflow the weaving room causes is the refusal: ${over.error}`);
+  assert.ok(over.weavingRefused, 'and says so in its shape');
+  assert.doesNotMatch(over.error, /anyway/i, 'and does not offer an anyway that would only overflow');
+  // A slot too small for the book even without weaving is the error it always was.
+  const tiny = await talk(big.id, 2000);
+  assert.ok(tiny.error && !tiny.weavingRefused, `a true overflow stays the existing error: ${tiny.error}`);
+  raw.close();
+  ok('a weaving Talk or invention that would push part of the book out refuses, and anyway drops the oldest prose');
+}
+
 console.log(`\n${n} checks passed`);
 srv.close();
