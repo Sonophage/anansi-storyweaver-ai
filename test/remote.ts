@@ -30,6 +30,8 @@ const NOT_LISTED = 'nobody/Not-In-The-Catalogue';
 const BIG = 'mlabonne/Llama-3.3-70B-Instruct-abliterated';
 // Guessed "can switch" from its class, and plans anyway when asked not to: the probe's case.
 const STUBBORN = 'liar/Gemma-4-31B-UNCENSORED';
+// Guessed "doesn't weave" from its class, and plans inline.
+const PLANS_INLINE = 'TheDrummer/Mistral-Small-Uncensored-24B';
 
 /** The fake catalogue, in Featherless's own field names. One row per case the search must handle. */
 const CATALOGUE = [
@@ -38,7 +40,7 @@ const CATALOGUE = [
   { id: BIG, model_class: 'llama33-70b', context_length: 32768, concurrency_cost: 4 },
   { id: 'huihui/gpt-oss-20b-abliterated', model_class: 'gpt-oss-20b', context_length: 32768,
     concurrency_cost: 1 },
-  { id: 'TheDrummer/Mistral-Small-Uncensored-24B', model_class: 'mistral-24b', context_length: 32768,
+  { id: PLANS_INLINE, model_class: 'mistral-24b', context_length: 32768,
     concurrency_cost: 1 },
   { id: STUBBORN, model_class: 'gemma4-31b', context_length: 32768, concurrency_cost: 2 },
   { id: 'google/Gemma-4-26B-it', model_class: 'gemma4-26b', context_length: 32768, concurrency_cost: 2 },
@@ -73,8 +75,14 @@ const flSrv = createServer((req, res) => {
     if (how === '429') return json(429, { error: { message: `concurrency limit, key ${KEY}` } });
     if (how === 'refuse') return json(400, { error: { message: `bad request for key ${KEY}` } });
     const answer = () => {
-      if (!body.stream) return json(200, { choices: [{ message: { content: 'The remote wrote this.' },
-        finish_reason: 'stop' }], usage: { prompt_tokens: 321, completion_tokens: 5 } });
+      // Two models plan when told not to, each the way a provider can show it: in the reasoning
+      // field, and inline in the prose.
+      const message = body.model === STUBBORN
+        ? { content: 'ok', reasoning_content: 'The user wants a short answer.' }
+        : body.model === PLANS_INLINE ? { content: '<think>A short answer, then.</think>ok' }
+        : { content: 'The remote wrote this.' };
+      if (!body.stream) return json(200, { choices: [{ message, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 321, completion_tokens: 5 } });
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       const f = (o: unknown) => res.write(`data: ${JSON.stringify(o)}\n\n`);
       f({ choices: [{ delta: { content: 'The remote ' } }] });
@@ -437,7 +445,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(all.models.every((m: any) => m.id.startsWith('featherless:')),
     'every row carries the prefixed id the shortlist takes');
   assert.deepStrictEqual(ids(all), [
-    'TheDrummer/Mistral-Small-Uncensored-24B', 'edge/Exactly-16k-heretic',
+    PLANS_INLINE, 'edge/Exactly-16k-heretic',
     STUBBORN, REMOTE, 'huihui/gpt-oss-20b-abliterated'],
     'uncensored only, under 16k and the 4-unit model gone, and the ones that never weave first');
   const row = all.models.find((m: any) => m.id === ID);
@@ -454,7 +462,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.deepStrictEqual(ids(await find('q=gemma')), [STUBBORN], 'free text, case-insensitive, on the name');
   assert.deepStrictEqual(ids(await find('q=gemma&uncensored=0')), ['google/Gemma-4-26B-it', STUBBORN],
     'free text and the uncensored switch combine');
-  assert.deepStrictEqual(ids(await find('size=24b')), ['TheDrummer/Mistral-Small-Uncensored-24B'],
+  assert.deepStrictEqual(ids(await find('size=24b')), [PLANS_INLINE],
     'the size class filter');
   assert.deepStrictEqual(ids(await find(`weaving=${encodeURIComponent('can switch')}`)), [STUBBORN, REMOTE],
     'the weaving filter');
@@ -465,6 +473,54 @@ const mark = () => ({ fl: fl.length, local: local.length });
     'the size choices come from the catalogue itself');
 
   ok('the search filters, combines, sorts non-weaving first, holds the 16k floor and the 4-unit gate');
+}
+
+// ---- 13. adding: one weaving-off probe, and the label and unit cost stored with the entry ----
+{
+  const writer = db.owner('prober');
+  const add = async (id: string, admin = false) => {
+    const c = ctx(writer, { model: `featherless:${id}` }); c.admin = admin;
+    const m = mark();
+    const r = await routes['POST /api/shortlist'](c);
+    return { r, probes: since(m).fl, local: since(m).local };
+  };
+  const entry = (id: string) =>
+    (db.shortlistOf(writer) as any[]).find((x) => x.id === `featherless:${id}`);
+
+  const first = await add(REMOTE);
+  assert.ok(!first.r.error, first.r.error);
+  assert.strictEqual(first.probes.length, 1, 'adding makes exactly one call');
+  const p = first.probes[0].body;
+  assert.strictEqual(p.model, REMOTE, 'to the model being added');
+  assert.strictEqual(p.chat_template_kwargs?.enable_thinking, false, 'with weaving off');
+  assert.ok(p.max_tokens > 0 && p.max_tokens <= 32, 'and a tiny answer');
+  assert.strictEqual(first.local.length, 0, 'the probe never goes to the local router');
+  assert.deepStrictEqual([entry(REMOTE).weaving, entry(REMOTE).cost], ['can switch', 2],
+    'a model that obeyed is stored as its class guess, with its unit cost');
+
+  await add(STUBBORN);
+  assert.strictEqual(entry(STUBBORN).weaving, 'always weaves',
+    'a model that planned anyway, in the reasoning field, is stored as always weaving');
+  await add(PLANS_INLINE);
+  assert.strictEqual(entry(PLANS_INLINE).weaving, 'always weaves',
+    'and so is one that planned inline, though its class guessed it never would');
+  await add('edge/Exactly-16k-heretic');
+  assert.strictEqual(entry('edge/Exactly-16k-heretic').weaving, "doesn't weave");
+  const listed = await routes['GET /api/shortlist'](ctx(writer));
+  assert.ok(listed.models.every((m: any) => m.weaving && m.cost),
+    'the shortlist route hands back the label and the cost with each entry');
+
+  // THE GATE, ON ADD. Refused before the probe, so a refusal spends none of the plan.
+  const big = await add(BIG);
+  assert.match(String(big.r.error), /only the admin/, 'GATE: adding a 4-unit model as a writer is refused');
+  assert.strictEqual(big.probes.length, 0, 'and no call is spent finding that out');
+  assert.ok(!entry(BIG), 'and it is not stored');
+  const under = await add('edge/Under-16k-heretic');
+  assert.match(String(under.r.error), /at least 16,384/, 'a model under the floor is refused by name too');
+  const admin = await add(BIG, true);
+  assert.ok(!admin.r.error, admin.r.error);
+  assert.strictEqual(entry(BIG).cost, 4, 'the admin can add it, and its cost is recorded');
+  ok('adding probes once with weaving off, stores the label and the cost, and holds the gate');
 }
 
 console.log(`\n${n} checks green`);

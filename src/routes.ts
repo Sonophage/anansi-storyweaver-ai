@@ -1,7 +1,7 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX } from './llama.ts';
-import { catalogue, catalogueEntry, search as searchCatalogue } from './catalogue.ts';
+import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
@@ -1423,7 +1423,19 @@ export const routes: Record<string, Handler> = {
     if (!found) return { error: `Featherless does not list "${id.slice(REMOTE_PREFIX.length)}"` };
     // Budgeting needs the number, so a model whose catalogue entry has none is not addable.
     if (!found.context) return { error: 'Featherless does not say how much context this model holds' };
-    db.addToShortlist(c.owner, id, found.context);
+    // The floor and the 4-unit gate: the same predicate the search uses, so what the search hides
+    // is what this refuses — and refused BEFORE the probe, so a refusal spends none of the plan.
+    const no = refusal(found, c.admin);
+    if (no) return { error: no };
+    // THE PROBE. One tiny call with weaving off: a model that plans anyway cannot be switched off,
+    // and the label the writer reads should say what it did rather than what its class suggests.
+    // A failed probe fails the add — a model that cannot answer two words is not ready to write.
+    let answer;
+    try {
+      answer = await chat('Answer in one word.', 'Say ok.', { model: id, max_tokens: 24,
+        temperature: 0, chat_template_kwargs: { enable_thinking: false } });
+    } catch (e: any) { return { error: e?.message ?? 'Featherless did not answer' }; }
+    db.addToShortlist(c.owner, id, found.context, weavingFound(found.modelClass, answer), found.cost);
     return { models: db.shortlistOf(c.owner) };
   },
   /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the 4-unit gate, the sort — is in
