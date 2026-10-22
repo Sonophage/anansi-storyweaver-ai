@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
+import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, whereRuns, pinIsDead, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -664,6 +664,19 @@ const owedHere = () => (V?.proposals ?? []).length
 const owedAnywhere = () => waiting(LIB ?? [], SRV.me ?? null)
   .reduce((n, r) => n + (Number(r.total) || 0), 0);
 
+/** WHERE A MODEL RUNS, drawn (#53): a circle in the local or the remote colour, filled when awake
+ *  and hollow when asleep, and the spider or the feather beside it in the same colour. One drawing
+ *  for the menu rows, the strip and the Storyteller, so the three cannot disagree. The words go in
+ *  the title and the label, for a reader who cannot tell the two colours apart. */
+const runsMark = (id, status) => {
+  const w = whereRuns(id, status), tone = `var(--src-${w.remote ? 'remote' : 'local'})`;
+  return `<span data-runs="${w.remote ? 'remote' : 'local'}" data-awake="${w.awake ? 1 : 0}" role="img"
+    title="${w.words}" aria-label="${w.words}" style="display:inline-flex; align-items:center; gap:4px;
+    flex:0 0 auto; color:${tone}"><span style="width:8px; height:8px; box-sizing:border-box;
+    border-radius:50%; border:1.5px solid ${tone}; background:${w.awake ? tone : 'transparent'}"></span>${
+    mark(w.glyph, 15)}</span>`;
+};
+
 // ---------- rail ----------
 function drawRail() {
   // Which menu, not where you are. Inside a story the rail can be showing either one.
@@ -760,7 +773,9 @@ function drawRail() {
     <button data-modelmenu="1" aria-expanded="${!!S.modelMenu}"
       style="margin-top:auto; padding:14px 20px; border-top:1px solid var(--line); display:flex;
       align-items:center; gap:12px; white-space:nowrap; overflow:hidden; width:100%; text-align:left">
-      <span style="width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:${SRV.slot ? 'var(--good)' : 'var(--warn)'}"></span>
+      <!-- #53. The model's own row once the list has been read. Before that, a local model is
+           marked awake while the router answers, which is what this dot said before it had a row. -->
+      ${runsMark(SRV.model, S.models?.find((m) => m.id === SRV.model)?.status ?? (SRV.slot ? 'loaded' : 'unloaded'))}
       <span class="txt" style="display:flex; flex-direction:column; gap:2px; min-width:0">
         <span style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
           title="${esc(SRV.model || '')}">${esc(modelName(SRV.model).name)}</span>
@@ -772,8 +787,8 @@ function drawRail() {
              Storyteller. The size is left out of the badges on purpose; this strip is nowrap. -->
         ${modelName(SRV.model).bits.length ? `<span style="font-size:11px; color:var(--gold-dim);
           overflow:hidden; text-overflow:ellipsis">${esc(modelName(SRV.model).bits.join(' \u00b7 '))}</span>` : ''}
-        <span style="font-size:11px; color:var(--dim)">${SRV.slot
-          ? `slot ${SRV.slot.perSlot.toLocaleString()}` : 'llama-server asleep'}</span>
+        <span style="font-size:11px; color:var(--dim)">${whereRuns(SRV.model).remote ? 'on Featherless'
+          : SRV.slot ? `slot ${SRV.slot.perSlot.toLocaleString()}` : 'llama-server asleep'}</span>
       </span></button>
     ${S.modelMenu ? `<div class="scroll" style="max-height:46vh; border-top:1px solid var(--line);
       padding:8px 12px 12px; display:flex; flex-direction:column; gap:2px">
@@ -782,8 +797,7 @@ function drawRail() {
         : S.models.map((m) => `<button data-modelinfo="${esc(m.id)}"
             style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r);
             width:100%; text-align:left; background:${m.id === SRV.model ? 'rgba(217,178,106,.10)' : 'transparent'}">
-            <span style="width:6px; height:6px; border-radius:50%; flex:0 0 auto; background:${
-              m.id === SRV.model ? 'var(--gold)' : m.status === 'unloaded' ? 'var(--edge-lit)' : 'var(--good)'}"></span>
+            ${runsMark(m.id, m.status)}
             <span class="txt" style="min-width:0; display:flex; flex-direction:column; gap:1px">
               <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
                 color:${m.id === SRV.model ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
@@ -3721,9 +3735,12 @@ const PANELS = {
               o.selected ? ' selected' : ''}>${
               !o.value ? `Default &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
               : o.gone ? `${esc(modelName(o.value).name)} &mdash; the router no longer offers this`
-              : `${esc([modelName(o.value).name, modelName(o.value).detail].filter(Boolean).join(' — '))}${
-                  o.status === 'loaded' ? ' · awake' : ''}`}</option>`).join('')}
+              : `${esc([modelName(o.value).name, modelName(o.value).detail].filter(Boolean).join(' — '))} · ${
+                  whereRuns(o.value, o.status).words}`}</option>`).join('')}
           </select>
+          <!-- #53. An option holds text and nothing else, so each one says in words where its model
+               runs, and the drawn mark sits in the row below, beside the badges of the model this
+               book is written by. -->
           <!-- THE THIRD SURFACE. Same decode as the rail's label and the rail's list, and the
                door to the same panel — the one place that says what this model is good at, how
                fast it has written here, and how much context one writer gets. The option text
@@ -3743,6 +3760,7 @@ const PANELS = {
             const using = V.model;
             const d = modelName(using);
             return `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:8px">
+              ${runsMark(using, S.models.find((m) => m.id === using)?.status)}
               ${d.bits.map((b) => `<span class="tag">${esc(b)}</span>`).join('')}
               ${d.size ? `<span class="tag">${esc(d.size)}</span>` : ''}
               <button data-modelinfo="${esc(using)}" style="margin-left:auto; color:var(--gold);
