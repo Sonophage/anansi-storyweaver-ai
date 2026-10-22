@@ -1503,6 +1503,9 @@ export const routes: Record<string, Handler> = {
    *  re-adding the model later must not quietly take the books back either. */
   'POST /api/shortlist/remove': (c: Ctx) => {
     const id = String(c.body.model ?? '');
+    // Only a remote id. A local one is on no shortlist, and clearing pins and the default by it
+    // would send books that write locally back to the local default for no reason.
+    if (!isRemote(id)) return { error: `a remote model id starts with "${REMOTE_PREFIX}"` };
     db.removeFromShortlist(c.owner, id);
     const books = db.unpinModel(c.owner, id);
     const wasDefault = !!id && c.defaultModel === id;

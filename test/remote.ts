@@ -810,6 +810,24 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('removing a model in use clears the writer\'s own pins and default, and the toast names them');
 }
 
+// ---- 18b. remove takes only a remote id: a local one clears no pin and no default ----
+{
+  const writer = db.owner('local-remover');
+  const LOCAL0 = 'Qwen3.6-WNTH-35B-A3B-NN';
+  await routes['POST /api/model'](ctx(writer, { model: LOCAL0 }));
+  assert.strictEqual(db.defaultModelOf(writer), LOCAL0, 'the detector: the default is the local model');
+  const s = db.createStory(writer, { title: 'Local Light' });
+  await routes['POST /api/story'](ctx(writer, { id: s.id, story: { model: LOCAL0 } }));
+  assert.strictEqual(db.getStory(s.id).model, LOCAL0, 'the detector: the book is pinned to it');
+
+  const r = await routes['POST /api/shortlist/remove'](ctx(writer, { model: LOCAL0 }));
+  assert.ok(r.error, 'LOCAL-REMOVE: a local id is refused');
+  assert.ok(!r.toast, 'and nothing is said to have moved');
+  assert.strictEqual(db.getStory(s.id).model, LOCAL0, 'LOCAL-REMOVE: the local pin is untouched');
+  assert.strictEqual(db.defaultModelOf(writer), LOCAL0, 'LOCAL-REMOVE: and so is the default');
+  ok('remove refuses a local id, and clears no pin and no default');
+}
+
 // ---- 19. no key: the shortlist shows, unpickable, and every pin and default writes locally ----
 {
   const writer = db.owner('keyless');
