@@ -189,8 +189,13 @@ another character's name, a line of dialogue read as a POV break.
 list was renamed on 2026-08-27; the old `write-nt-*` names return `400 model not found`.
 `ANANSI_MODEL` overrides the default in `llama.ts`; a story may pin its own in `stories.model`.
 
-It is a reasoning model: **`chat_template_kwargs: {enable_thinking: false}` is mandatory** for
-prose. With thinking on it returned no prose at all on three runs of four.
+It is a reasoning model: **`chat_template_kwargs: {enable_thinking: false}` is sent on every call
+unless the book weaves.** With thinking on at a prose cap it returned no prose at all on three runs
+of four (F5), and structured roles truncate their JSON the same way (F23). Weaving (the writer's
+word; the code's flag is still `enable_thinking`) is a per-book switch, off by default: only the
+roles on `WEAVING_ROLES` in `routes.ts` turn it on, and `replyFor` raises their cap by 5,000 so the
+plan cannot eat the passage (F60). Every other call sends it off. Never raise a cap for weaving
+anywhere but `replyFor`, or the Context panel previews a budget the call does not use.
 
 Two concurrent writers at full budget fit with a ~5,700-token margin. Oversubscribing the shared
 cache does not queue — both requests die with HTTP 500. **Do not raise the per-slot budget.**

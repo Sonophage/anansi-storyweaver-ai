@@ -444,10 +444,11 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
  *  a process two people share, so a runaway pattern would have stalled the other writer's
  *  generation as well as its author's.
  *
- *  THE `<think>` STRIP STAYS AND IS NOT DEFENSIVE. This is a reasoning model, and
- *  `enable_thinking: false` is mandatory for prose precisely because the tags come back otherwise.
- *  Deleting this with the rest of the function would put them in the prose the first time that
- *  flag is missed. */
+ *  THE `<think>` STRIP STAYS AND IS NOT DEFENSIVE. This is a reasoning model. A passage in a book
+ *  that does not weave is sent `enable_thinking: false`, and the tags come back without it; one in
+ *  a book that weaves asks for the plan on purpose and relies on the server to keep it in its own
+ *  field. Deleting this with the rest of the function would put the tags in the prose the first
+ *  time either of those fails. */
 export function clean(text: string) {
   return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 }
