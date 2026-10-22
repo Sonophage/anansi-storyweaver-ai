@@ -726,6 +726,11 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     // world books draw on Threads and keep their tag, and `storyFollowing` never cared whether the
     // book it follows is one. What has no door is making a NEW one.
     newWorld: 'issue #34: the Name-a-world strip came off Threads and nothing replaced it (2026-08-31)',
+    // Issue #50, 2026-10-22. The shortlist routes and the menu listing landed first; the search
+    // sheet that adds and removes is issue #51, the next ticket. Take these out when it lands.
+    shortlist:     'issue #51: the search sheet is the next ticket (2026-10-22)',
+    addShortlist:  'issue #51: the search sheet is the next ticket (2026-10-22)',
+    dropShortlist: 'issue #51: the search sheet is the next ticket (2026-10-22)',
   };
   const orphans = defined.filter((d) => !new RegExp(`\\bapi\\.${d}\\b`).test(app) && !(d in DEFERRED));
   assert.deepStrictEqual(orphans, [],

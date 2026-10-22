@@ -1,6 +1,8 @@
 // llama-server client. Everything the engine needs from the outside world lives here,
 // so buildContext itself stays pure.
 
+import { readFileSync } from 'node:fs';
+
 const HOST = process.env.ANANSI_LLAMA ?? 'http://127.0.0.1:8080';
 // The DEFAULT model, for a story that names none. Every call already carried a model name — the
 // only reason switching was process-wide is that this one variable answered for everybody.
@@ -20,9 +22,108 @@ let MODEL = process.env.ANANSI_MODEL ?? 'Qwen3.6-WNTH-35B-A3B-NN';
  *  router actually serves the id is checked when the story is SAVED (`POST /api/story`), so a
  *  stored value was real at the time it was chosen. A model retired from presets.ini afterwards
  *  will fail at generation with the router's own message, which names it. */
-export const modelFor = (story?: { model?: string | null } | null, dflt?: string | null): string =>
-  story?.model && allowed(story.model) ? story.model
-    : (dflt && allowed(dflt) ? dflt : MODEL);
+export const modelFor = (story?: { model?: string | null } | null, dflt?: string | null,
+                         remoteOk: (id: string, pinned: boolean) => boolean = () => false): string => {
+  // THE ALLOWLIST GOVERNS LOCAL MODELS ONLY. A remote id is allowed when the caller says it is on
+  // the right writer's shortlist and a key is configured — this module cannot know either, so the
+  // question is handed in. `pinned` says whose shortlist: a book's pin is checked against the
+  // book's OWNER, a default against the writer asking. The default answer is no, so a caller that
+  // forgets to ask gets the local default and never a remote model nobody chose.
+  const fits = (id: string, pinned: boolean) => isRemote(id) ? remoteOk(id, pinned) : allowed(id);
+  return story?.model && fits(story.model, true) ? story.model
+    : (dflt && fits(dflt, false) ? dflt : MODEL);
+};
+
+/* ---- REMOTE MODELS: one adapter, Featherless only (docs/adr/0001) ----
+ *
+ * A remote id is the Featherless id behind a fixed prefix that no local preset uses, and it is
+ * stored that way everywhere — writer default, book pin, generation row — so the prefix alone
+ * decides where a call goes. Local ids go to the router exactly as before.
+ *
+ * NEVER A FALLBACK. A remote call that fails reports why; nothing here retries it on another
+ * model, because a passage written by a model the writer did not choose is the one failure a
+ * writer cannot see. */
+export const REMOTE_PREFIX = 'featherless:';
+export const isRemote = (id?: string | null): boolean => !!id && id.startsWith(REMOTE_PREFIX);
+const remoteName = (id: string) => id.slice(REMOTE_PREFIX.length);
+
+/** The base URL, `/v1` included. An env var so the test suite can point it at a fake. */
+export const FEATHERLESS = (process.env.ANANSI_FEATHERLESS_URL ?? 'https://api.featherless.ai/v1')
+  .replace(/\/+$/, '');
+/** THE KEY LIVES IN A FILE, never in the repo or the database, and is read on each call rather than
+ *  once at boot: a key added or rotated while the server runs is picked up without a restart, and
+ *  a box with no file simply has no remote models — not an error at boot. */
+const KEY_FILE = process.env.ANANSI_FEATHERLESS_KEY_FILE
+  ?? `${process.env.HOME ?? ''}/.config/anansi/featherless.key`;
+const featherlessKey = (): string | null => {
+  try { return readFileSync(KEY_FILE, 'utf8').trim() || null; } catch { return null; }
+};
+export const remoteReady = () => !!featherlessKey();
+/** Whatever Featherless says goes through this before it can reach a toast, a log line or a
+ *  generation row. Its own error text has no reason to carry the key; this is the floor for the
+ *  day it does. */
+const redact = (s: string) => {
+  const k = featherlessKey();
+  return k ? s.split(k).join('[key]') : s;
+};
+
+/** WHAT FEATHERLESS DOCUMENTS, and nothing else goes. The writer's sampler carries llama.cpp-only
+ *  keys — `dry_multiplier`, `xtc_probability` — and app-only ones like `target_words`; a key a
+ *  provider does not know is at best ignored and at worst a 400 on every passage. `text` is the
+ *  tokenize body's one field. */
+const DOCUMENTED = new Set(['model', 'messages', 'text', 'temperature', 'top_p', 'top_k', 'min_p',
+  'presence_penalty', 'frequency_penalty', 'repetition_penalty', 'stop', 'max_tokens', 'seed',
+  'stream', 'stream_options', 'chat_template_kwargs', 'response_format']);
+
+/** THE 429 RETRY. One key serves both writers, so they share one plan's units, and Featherless
+ *  refuses with 429 when a call would go over. Two writers colliding for a moment is the common
+ *  case, so three retries across about twenty seconds, then the writer is told plainly. The env
+ *  var exists only so the test suite can shrink the wait. */
+const BACKOFF = (process.env.ANANSI_FEATHERLESS_BACKOFF_MS ?? '2000,6000,12000')
+  .split(',').map(Number).filter((n) => n >= 0);
+export const FEATHERLESS_BUSY = 'Featherless is busy, try again';
+
+const pause = (ms: number, signal?: AbortSignal) => new Promise<void>((done, fail) => {
+  const t = setTimeout(done, ms);
+  signal?.addEventListener('abort', () => {
+    clearTimeout(t); fail(Object.assign(new Error('the call was cancelled'), { name: 'AbortError' }));
+  }, { once: true });
+});
+
+/** One POST to Featherless, with the key, retried on 429 and on nothing else. */
+async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal): Promise<Response> {
+  const key = featherlessKey();
+  if (!key) throw new Error("Featherless isn't set up on this server — there is no key file");
+  const payload = Object.fromEntries(Object.entries(body).filter(([k]) => DOCUMENTED.has(k)));
+  payload.model = remoteName(String(body.model));
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(FEATHERLESS + path, { method: 'POST', signal, body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` } });
+    } catch (e: any) {
+      if (e?.name === 'TimeoutError')
+        throw new Error('Featherless did not answer in time. A model it is loading can take a '
+          + 'minute — try again.');
+      if (e?.name === 'AbortError') throw new Error('the call was cancelled');
+      throw new Error('cannot reach Featherless. This machine may be offline.');
+    }
+    if (res.status === 429) {
+      await res.body?.cancel().catch(() => {});
+      if (attempt < BACKOFF.length) { await pause(BACKOFF[attempt], signal); continue; }
+      throw new Error(FEATHERLESS_BUSY);
+    }
+    if (!res.ok) {
+      // ITS MESSAGE, NOT ITS BODY. The status and what Featherless says went wrong, redacted and
+      // bounded; the raw body is never echoed to a writer.
+      const raw = await res.text().catch(() => '');
+      let said = '';
+      try { said = String(JSON.parse(raw)?.error?.message ?? ''); } catch { /* not JSON */ }
+      throw new Error(`Featherless answered ${res.status}${said ? `: ${redact(said).slice(0, 200)}` : ''}`);
+    }
+    return res;
+  }
+}
 
 /** `fetch`, with a message that says which thing is unreachable and what to do about it.
  *
@@ -44,7 +145,10 @@ export async function reach(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
-async function post(path: string, body: unknown, ms = 900_000): Promise<any> {
+async function post(path: string, body: any, ms = 900_000): Promise<any> {
+  // A remote model's call goes to Featherless, whose paths are the router's without the `/v1`.
+  if (isRemote(body?.model))
+    return (await featherless(path.replace(/^\/v1/, ''), body, AbortSignal.timeout(ms))).json();
   const res = await reach(HOST + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -59,7 +163,13 @@ export async function tokenize(content: string, model = MODEL): Promise<number[]
   return (await post('/tokenize', { model, content })).tokens;
 }
 
+/** The exact count, from whichever server will run the prompt. Featherless takes `{model, text}`
+ *  and answers `{count}` rather than the router's token list (probed 2026-10-21), so the number
+ *  means the same either way and the budget guard in `generate` runs before a remote call too. */
 export async function count(content: string, model = MODEL): Promise<number> {
+  if (isRemote(model))
+    return Number((await (await featherless('/tokenize', { model, text: content },
+      AbortSignal.timeout(120_000))).json()).count);
   return (await tokenize(content, model)).length;
 }
 
@@ -220,32 +330,40 @@ export async function readSSE(res: Response, onDelta: (d: string) => void) {
 export async function chat(system: string, body: string, opts: Record<string, unknown> = {},
                            onDelta?: (d: string) => void, stop?: AbortSignal, ceilingMs = 900_000) {
   if (onDelta) {
-    const res = await reach(HOST + '/v1/chat/completions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: MODEL, temperature: 0.85, top_p: 0.95, max_tokens: 900,
-        chat_template_kwargs: { enable_thinking: false },
-        messages: [{ role: 'system', content: system }, { role: 'user', content: body }],
-        ...opts,
-        // Last, so no caller can turn streaming off while asking for deltas. include_usage is
-        // what puts the token counts on the final chunk; without it logGeneration records nulls.
-        stream: true, stream_options: { include_usage: true },
-      }),
-      // The timeout is the ceiling; `stop` is the writer pressing Stop. Either one ends the call,
-      // and `any` is what lets the second exist WITHOUT giving up the first. Writing this as
-      // `stop ?? timeout` also stops on Stop, passes an obvious test, and quietly removes the
-      // ceiling from every generation a writer is watching — which is all of them.
-      //
-      // `ceilingMs` is a parameter for exactly one reason: without it the ceiling cannot be
-      // tested, because nothing is going to wait fifteen minutes to find out it is gone. No
-      // caller passes it but the check in test/stream.ts.
-      signal: stop ? AbortSignal.any([AbortSignal.timeout(ceilingMs), stop])
-                   : AbortSignal.timeout(ceilingMs),
-    });
+    const payload: Record<string, any> = {
+      model: MODEL, temperature: 0.85, top_p: 0.95, max_tokens: 900,
+      chat_template_kwargs: { enable_thinking: false },
+      messages: [{ role: 'system', content: system }, { role: 'user', content: body }],
+      ...opts,
+      // Last, so no caller can turn streaming off while asking for deltas. include_usage is
+      // what puts the token counts on the final chunk; without it logGeneration records nulls.
+      stream: true, stream_options: { include_usage: true },
+    };
+    // The timeout is the ceiling; `stop` is the writer pressing Stop. Either one ends the call,
+    // and `any` is what lets the second exist WITHOUT giving up the first. Writing this as
+    // `stop ?? timeout` also stops on Stop, passes an obvious test, and quietly removes the
+    // ceiling from every generation a writer is watching — which is all of them.
+    //
+    // `ceilingMs` is a parameter for exactly one reason: without it the ceiling cannot be
+    // tested, because nothing is going to wait fifteen minutes to find out it is gone. No
+    // caller passes it but the check in test/stream.ts.
+    const signal = stop ? AbortSignal.any([AbortSignal.timeout(ceilingMs), stop])
+                        : AbortSignal.timeout(ceilingMs);
+    const remote = isRemote(payload.model);
+    const res = remote ? await featherless('/chat/completions', payload, signal)
+      : await reach(HOST + '/v1/chat/completions', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload), signal });
     if (!res.ok) throw new Error(`/v1/chat/completions ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    const on = String((opts as any).model ?? MODEL);
+    const on = String(payload.model);
     enter(on);
-    try { return await readSSE(res, onDelta); } finally { leave(on); }
+    try { return await readSSE(res, onDelta); }
+    catch (e: any) {
+      // A remote stream that fails after the 200 is still Featherless talking: its words are
+      // redacted like any other answer of its, and the take fails rather than landing half-written.
+      if (!remote || e?.name === 'AbortError' || stop?.aborted) throw e;
+      throw new Error(`Featherless stopped mid-passage: ${redact(String(e?.message ?? e)).slice(0, 200)}`);
+    } finally { leave(on); }
   }
   const r = await post('/v1/chat/completions', {
     model: MODEL, temperature: 0.85, top_p: 0.95, max_tokens: 900,
@@ -388,6 +506,8 @@ export function releasable(previous: string, o: {
  *  Never throws. A release that fails is a model that sleeps in 900 seconds instead, which is
  *  what happened before this existed — so it is not worth failing a writer's model switch over. */
 export async function unload(id: string): Promise<{ ok: boolean; error?: string }> {
+  // The floor, whatever the caller: a remote model was never loaded here.
+  if (isRemote(id)) return { ok: false, error: 'a remote model is not loaded on this machine' };
   try {
     const r = await reach(`${HOST}/models/unload`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

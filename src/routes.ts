@@ -1,6 +1,7 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
-         releasable, unload, busyOn } from './llama.ts';
+         releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX } from './llama.ts';
+import { catalogueEntry } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
@@ -118,6 +119,9 @@ export const OPEN_ROUTES = new Set([
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
   // Account-wide, like the sampler. Owner-scoped in SQL — every read and write takes c.owner.
   'GET /api/prompts', 'POST /api/prompts',
+  // A writer's own shortlist of remote models. Names no story; every read and write takes c.owner,
+  // so another writer's list cannot be named. test/scope.ts proves it with two owners.
+  'GET /api/shortlist', 'POST /api/shortlist', 'POST /api/shortlist/remove',
   // Names no story — it is about the FORMAT, not about a book. Open means the gate does not run, so
   // the handler asks the admin question itself; that check is the whole of its protection.
   'GET /api/forge',
@@ -149,6 +153,40 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
   // what catches the next route to borrow the name.
   return body?.storyId ?? body?.id ?? body?.into ?? query.get('story') ?? null;
 }
+
+/** WHICH MODEL WRITES FOR THIS WRITER IN THIS BOOK — the one place a route asks.
+ *
+ *  `modelFor` holds the order (pin, then writer default, then the boot default) and cannot see the
+ *  database, so the shortlist question is answered here: a remote id stands only when a key is
+ *  configured and the id is on the right writer's shortlist — the book's OWNER for a pin, since a
+ *  writer called into a shared book did not choose it, and the writer asking for a default.
+ *  Anything else falls through to the local default. Every writer-facing call goes through this;
+ *  a background call passes no model at all and stays on the local default (docs/adr/0001). */
+const writerModel = (c: Ctx, v: { story: any; owner?: string }) =>
+  modelFor(v.story, c.defaultModel, (id, pinned) =>
+    remoteReady() && !!db.shortlisted(pinned ? (v.owner ?? c.owner) : c.owner, id));
+
+/** A remote id a writer may name as a default or a pin: on `owner`'s shortlist, with a key set.
+ *  Returns the id so callers read as an assignment, the way `checkModel` does for local ones. */
+const shortlistedOrRefuse = (owner: string, id: string): string => {
+  if (!remoteReady())
+    throw Object.assign(new Error("Featherless isn't set up on this server"), { code: 400 });
+  if (!db.shortlisted(owner, id))
+    throw Object.assign(new Error(`"${id}" is not on the shortlist of the writer who owns this choice`),
+      { code: 400 });
+  return id;
+};
+
+/** The room a prompt for `using` may take: the per-writer slot, or less.
+ *
+ *  A remote model holds what its catalogue entry says — 32,768 for nearly all of them — and the
+ *  per-writer slot here is larger, so budgeting a remote call against the slot alone would send a
+ *  prompt Featherless refuses. The smaller of the two, recorded when the model was shortlisted. */
+const slotFor = (c: Ctx, v: { owner?: string }, using: string): Slot => {
+  if (!isRemote(using)) return c.slot;
+  const held = db.shortlisted(v.owner ?? c.owner, using) ?? db.shortlisted(c.owner, using);
+  return held ? { ...c.slot, perSlot: Math.min(c.slot.perSlot, held.context) } : c.slot;
+};
 
 /** What Anansi is allowed to say, in tokens — reserved when the prompt is assembled and spent when
  *  the call is made, because they were two different numbers.
@@ -290,8 +328,10 @@ const MAX_LOADED = 2;
  *  is `checkModel`, which is a network call, and a decision nobody can test is a decision nobody
  *  knows the shape of. Switching to a model somebody else is already on is always fine: it loads
  *  nothing new, which is why this counts DISTINCT ids and not writers. */
+/*  A REMOTE MODEL LOADS NOTHING HERE, so it is never counted and switching to one is never refused
+ *  — on either side: another writer on Featherless is not holding a model in this router. */
 export const tooManyModels = (others: string[], id: string, max = MAX_LOADED) =>
-  new Set([...others.filter(Boolean), id]).size > max;
+  !isRemote(id) && new Set([...others.filter((o) => o && !isRemote(o)), id]).size > max;
 
 /** A title and a three-to-six-sentence beat. Small next to the others, and it still gets a named
  *  constant rather than a literal, because the one thing every role here has in common is that
@@ -550,7 +590,9 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   const mAssemble = performance.now();
   const upTo = c.body.regenerateOf
     ? v.passages.find((p) => p.id === c.body.regenerateOf)?.ordinal : undefined;
-  const { manifest, prompt } = assemble(v, c.slot, mode, directive, upTo,
+  // Decided before the prompt is built, because a remote model is budgeted against its own limit.
+  const using = writerModel(c, v);
+  const { manifest, prompt } = assemble(v, slotFor(c, v, using), mode, directive, upTo,
     Number(c.gen.max_tokens) || 900, speaker || undefined, db.promptsOf(c.owner),
     Number(c.gen.target_words) || 0);
   const mTokenize = performance.now();
@@ -558,7 +600,6 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
 
   // The estimate draws the meter; this decides. One /tokenize before a call that costs
   // ~30s of prefill is cheap, and it is the only number the server will agree with.
-  const using = modelFor(v.story, c.defaultModel);
   try {
     const exact = await count(prompt, using);
     manifest.totals.used = exact;
@@ -1220,7 +1261,9 @@ const MODEL_WARM_EVERY = 10 * 60_000;
 const modelWarmedAt = new Map<string, number>();
 function warmModel(c: Ctx) {
   const using = c.defaultModel ?? model();
-  if (warming || busyOn(using) > 0) return;
+  // Nothing to wake on this machine, and a warm call to Featherless spends shared plan units on a
+  // passage nobody asked for.
+  if (isRemote(using) || warming || busyOn(using) > 0) return;
   if (Date.now() - (modelWarmedAt.get(c.owner) ?? 0) < MODEL_WARM_EVERY) return;
   warming = true;
   modelWarmedAt.set(c.owner, Date.now());
@@ -1237,8 +1280,9 @@ const PREWARM_EVERY = 5 * 60_000;
 const warmedAt = new Map<string, number>();
 let warming = false;
 function prewarm(c: Ctx, v: any) {
-  const using = modelFor(v.story, c.defaultModel);
-  if (warming || busyOn(using) > 0) return;
+  const using = writerModel(c, v);
+  // Local only, for the reason `warmModel` gives.
+  if (isRemote(using) || warming || busyOn(using) > 0) return;
   if (Date.now() - (warmedAt.get(v.id) ?? 0) < PREWARM_EVERY) return;
   warming = true;
   warmedAt.set(v.id, Date.now());
@@ -1351,9 +1395,37 @@ export const routes: Record<string, Handler> = {
     const dress = (m: any) => ({ ...m,
       ctxSize: meta[m.id]?.ctxSize, parallel: meta[m.id]?.parallel, perSlot: meta[m.id]?.perSlot,
       tps: speed[m.id]?.tps, runs: speed[m.id]?.runs });
-    try { return { models: (await models()).map(dress), active: c.defaultModel ?? model(), allow: allowList() }; }
-    catch (e: any) { return { models: [], active: c.defaultModel ?? model(), allow: allowList(),
+    // LOCAL FIRST, EXACTLY AS BEFORE, THEN THIS WRITER'S SHORTLIST. The allowlist governs the local
+    // half only. The shortlist is listed even when the router is down — it does not live there.
+    const mine = db.shortlistOf(c.owner).map((m) => ({ id: m.id, status: 'remote', source: 'remote',
+      ctxSize: m.context, perSlot: Math.min(m.context, c.slot.perSlot),
+      tps: speed[m.id]?.tps, runs: speed[m.id]?.runs }));
+    const local = (ms: any[]) => ms.map((m) => ({ ...dress(m), source: 'local' }));
+    try { return { models: [...local(await models()), ...mine], active: c.defaultModel ?? model(),
+                   allow: allowList() }; }
+    catch (e: any) { return { models: mine, active: c.defaultModel ?? model(), allow: allowList(),
       error: e?.message ?? 'the router did not answer' }; }
+  },
+  /* THE SHORTLIST: list, add, remove. Each names no story, so all three are on OPEN_ROUTES and each
+   * scopes itself by `c.owner` — there is no way to name another writer's list. */
+  'GET /api/shortlist': (c: Ctx) => ({ models: db.shortlistOf(c.owner), ready: remoteReady() }),
+  'POST /api/shortlist': async (c: Ctx) => {
+    const id = String(c.body.model ?? '');
+    if (!isRemote(id) || id.length <= REMOTE_PREFIX.length)
+      return { error: `a remote model id starts with "${REMOTE_PREFIX}"` };
+    if (!remoteReady()) return { error: "Featherless isn't set up on this server" };
+    let found;
+    try { found = await catalogueEntry(id.slice(REMOTE_PREFIX.length)); }
+    catch (e: any) { return { error: e?.message ?? 'could not read the Featherless catalogue' }; }
+    if (!found) return { error: `Featherless does not list "${id.slice(REMOTE_PREFIX.length)}"` };
+    // Budgeting needs the number, so a model whose catalogue entry has none is not addable.
+    if (!found.context) return { error: 'Featherless does not say how much context this model holds' };
+    db.addToShortlist(c.owner, id, found.context);
+    return { models: db.shortlistOf(c.owner) };
+  },
+  'POST /api/shortlist/remove': (c: Ctx) => {
+    db.removeFromShortlist(c.owner, String(c.body.model ?? ''));
+    return { models: db.shortlistOf(c.owner) };
   },
   // Releasing the models and bringing them back. GATED — not on the OPEN list — because it stops
   // a service both tenants share. The action is checked against a fixed list here as well as in
@@ -1384,7 +1456,10 @@ export const routes: Record<string, Handler> = {
   'POST /api/model': async (c: Ctx) => {
     try {
       const was = c.defaultModel;
-      const id = await checkModel(String(c.body.model ?? ''));
+      const want = String(c.body.model ?? '');
+      // A remote id is checked against THIS writer's shortlist, not the router: the router has
+      // never heard of it, and the shortlist is the only thing that makes it this writer's to pick.
+      const id = isRemote(want) ? shortlistedOrRefuse(c.owner, want) : await checkModel(want);
       // A REFUSAL IS A MESSAGE; A 500 MID-GENERATION IS LOST WORK. Oversubscribing the shared cache
       // does not queue — both requests die (`.claude/CLAUDE.md`), and the writer who loses is
       // whoever was already writing. So the count is checked BEFORE the switch is recorded, and a
@@ -1406,7 +1481,8 @@ export const routes: Record<string, Handler> = {
       // else a cold load in the middle of their prose. `releasable` names every clause; this
       // gathers the four facts it cannot see for itself.
       let released: string | null = null, kept: string | null = null;
-      if (was) {
+      // A remote model was never in the router, so there is nothing to release.
+      if (was && !isRemote(was)) {
         const verdict = releasable(was, {
           active: id, bootDefault: model(),
           otherDefaults: c.otherDefaults?.() ?? [],
@@ -1736,7 +1812,7 @@ export const routes: Record<string, Handler> = {
     // Detached, and guarded three ways above. Opening the book is the moment the writer is least
     // likely to be waiting on anything, and the moment their next prompt is most predictable.
     // `model` is what will actually write THIS story — the story's own if it names one.
-    return { ...v, model: modelFor(v.story, c.defaultModel), defaultModel: c.defaultModel ?? model(), slot: c.slot, gen: c.gen,
+    return { ...v, model: writerModel(c, v), defaultModel: c.defaultModel ?? model(), slot: c.slot, gen: c.gen,
       // Whether Anansi's web search is available at all. Reported here so the checkbox is right
       // the moment the panel opens, rather than correcting itself after the first question.
       searchable: searchConfigured(),
@@ -1773,7 +1849,10 @@ export const routes: Record<string, Handler> = {
     // world before it is stored. Refused here rather than at generation time, where the failure
     // would arrive mid-sentence and look like the model breaking.
     const want = c.body.story?.model;
-    if (want) {
+    // A remote pin must be on the shortlist of the writer who OWNS the book — `writerModel` checks
+    // the pin against that writer too, so a guest cannot pin the owner's book to a model of theirs.
+    if (want && isRemote(want)) shortlistedOrRefuse(db.getStory(c.body.id)?.owner_id ?? c.owner, want);
+    else if (want) {
       const known = await models().catch(() => [] as { id: string }[]);
       if (known.length && !known.some((m) => m.id === want))
         throw Object.assign(new Error(
@@ -1949,7 +2028,7 @@ export const routes: Record<string, Handler> = {
     ].filter(Boolean).join('\n\n');
 
     const r = await structuredRetry(MEMO, body, inventSchema('lore'),
-      { model: modelFor(v.story, c.defaultModel), max_tokens: MEMO_TOKENS });
+      { model: writerModel(c, v), max_tokens: MEMO_TOKENS });
     if (!r.data?.title || !r.data?.body) return { error: r.error ?? 'nothing usable came back' };
 
     // WHERE IT CAME FROM, on the proposal. Seth asked for it and it is nearly free — a thread
@@ -2001,7 +2080,7 @@ export const routes: Record<string, Handler> = {
     const enough = (d: any) => String(d?.title ?? '').trim().length > 0
       && String(d?.note ?? '').trim().length >= 40;
     const r = await structuredRetry(CHAPTER, body, CHAPTER_SCHEMA,
-      { model: modelFor(v.story, c.defaultModel), max_tokens: CHAPTER_TOKENS }, enough);
+      { model: writerModel(c, v), max_tokens: CHAPTER_TOKENS }, enough);
     if (!r.data?.title) return { error: r.error ?? 'nothing usable came back' };
     // Past the retry and still short: hand back what there is and SAY the beat is missing. A title
     // alone is worth having, and the surface must not present an empty box as a filled one.
@@ -2340,7 +2419,7 @@ export const routes: Record<string, Handler> = {
 
     const broken = before.found.map((x: any) =>
       `- Canon: ${facts[x.canon - 1]?.body}\n  You wrote: "${x.quote}"`).join('\n');
-    const using = modelFor(v.story, c.defaultModel);
+    const using = writerModel(c, v);
     const t0 = Date.now();
     const genId = db.logGeneration({ storyId, chapterId: chapter.id, model: using, role: 'repair',
       manifest: asOf.manifest, latencyMs: 0, error: null });
@@ -2609,7 +2688,7 @@ export const routes: Record<string, Handler> = {
       TALK_TOKENS, undefined);
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
-    const using = modelFor(v.story, c.defaultModel);
+    const using = writerModel(c, v);
     const t0 = Date.now();
     // Thinking OFF, and this is a correction. It was ON here on the argument that F5's finding —
     // thinking returns no prose — was about PROSE, and that analysis is what thinking is for.
@@ -2719,8 +2798,8 @@ export const routes: Record<string, Handler> = {
     const t0 = Date.now();
     const r = await structuredRetry(INVENT(about, steer, sources.length > 0, isAddon),
       prompt.slice(SYSTEM.length), inventSchema(kind),
-      { model: modelFor(v.story, c.defaultModel), temperature: 0.9, max_tokens: INVENT_TOKENS });
-    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: modelFor(v.story, c.defaultModel),
+      { model: writerModel(c, v), temperature: 0.9, max_tokens: INVENT_TOKENS });
+    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: writerModel(c, v),
       role: `invent:${kind}`, manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
@@ -2857,9 +2936,9 @@ export const routes: Record<string, Handler> = {
     const r = await structuredRetry(WORLD_CAST(world, KINDS_ALL, want), body,
       worldCastSchema(KINDS_ALL, want),
       // Cold, like the pull: this is a reading of what the results name, not an invention.
-      { model: modelFor(v.story, c.defaultModel), temperature: 0.2, max_tokens: 700 });
+      { model: writerModel(c, v), temperature: 0.2, max_tokens: 700 });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id,
-      model: modelFor(v.story, c.defaultModel), role: 'worldcast',
+      model: writerModel(c, v), role: 'worldcast',
       latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
@@ -2983,9 +3062,9 @@ export const routes: Record<string, Handler> = {
     const r = await structuredRetry(FROM_WEB(kind, subject, rooms), body, fromWebSchema(kind, rooms),
       // COLD, at 0.2. Every other creative call in this app runs hot because invention is the
       // point; this one is transcription and a warm model is a model that embroiders.
-      { model: modelFor(v.story, c.defaultModel), temperature: 0.2, max_tokens: INVENT_TOKENS });
+      { model: writerModel(c, v), temperature: 0.2, max_tokens: INVENT_TOKENS });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id,
-      model: modelFor(v.story, c.defaultModel), role: `fromweb:${kind}`,
+      model: writerModel(c, v), role: `fromweb:${kind}`,
       latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
@@ -3187,7 +3266,7 @@ export const routes: Record<string, Handler> = {
       upTo, Number(c.gen.max_tokens) || 900, m0.speaker || undefined, db.promptsOf(c.owner),
       Number(c.gen.target_words) || 0);
     let exact: number | null = null;
-    try { exact = await count(prompt, modelFor(v.story, c.defaultModel)); } catch { /* model asleep */ }
+    try { exact = await count(prompt, writerModel(c, v)); } catch { /* model asleep */ }
     return { manifest, prompt, exact };
   },
   // Streaming is opt-in per call, not a second route: the gate, the budget check, the /tokenize
@@ -3332,7 +3411,7 @@ export const routes: Record<string, Handler> = {
     }
     const r = await structuredRetry(STYLE_NOTE,
       `Genre: ${genre || 'not set'}\n\nPremise: ${premise || 'not set'}`, STYLE_SCHEMA,
-      { model: modelFor(v.story, c.defaultModel), temperature: 0.7, max_tokens: 400 });
+      { model: writerModel(c, v), temperature: 0.7, max_tokens: 400 });
     const style = String(r.data?.style ?? '').trim();
     if (!style) return { error: r.error ?? 'nothing usable came back' };
     return { style };

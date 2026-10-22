@@ -246,6 +246,10 @@ export const api = {
   talk:         (storyId, o)     => j('/api/talk', 'POST', { storyId, ...o }),
   bug:          (o)              => j('/api/bug', 'POST', o),
   setModel:     (model, storyId) => j('/api/model', 'POST', { model, storyId }),
+  // The writer's own remote models. `model` is the prefixed id, as stored everywhere else.
+  shortlist:    ()               => j('/api/shortlist'),
+  addShortlist: (model)          => j('/api/shortlist', 'POST', { model }),
+  dropShortlist: (model)         => j('/api/shortlist/remove', 'POST', { model }),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
   runImport:    (name, data, into) => j('/api/import', 'POST', { name, data, into: into || undefined }),
   setCover:     (storyId, dataUrl) => j('/api/cover', 'POST', { storyId, dataUrl }),

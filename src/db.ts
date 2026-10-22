@@ -462,6 +462,17 @@ CREATE TABLE IF NOT EXISTS prompt_overrides (
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (owner_id, key));
 
+-- One writer's own list of remote models (GLOSSARY: Shortlist). Per owner, and read by nobody
+-- else: it is what lets a remote id stand as that writer's default or as a pin on their book.
+-- The context is the catalogue's context_length when the model was added, and it is what a
+-- remote call is budgeted against, so generating never has to fetch the catalogue.
+CREATE TABLE IF NOT EXISTS shortlist (
+  owner_id TEXT NOT NULL REFERENCES users(id),
+  model TEXT NOT NULL,                 -- the remote id, prefix included
+  context INTEGER NOT NULL,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, model));
+
 CREATE TABLE IF NOT EXISTS branches (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   parent_id TEXT, name TEXT NOT NULL, fork_ordinal INTEGER, is_primary INTEGER DEFAULT 0,
@@ -844,6 +855,23 @@ export const defaultModelOf = (ownerId: string): string | null =>
 
 export const setDefaultModel = (ownerId: string, id: string | null) =>
   q('UPDATE users SET default_model = ? WHERE id = ?').run(id, ownerId);
+
+/** THE SHORTLIST, always by owner. Every read and write names the owner, so one writer's list is
+ *  unreachable from another's account by construction — the same shape as `promptsOf`. */
+export const shortlistOf = (ownerId: string): { id: string; context: number; addedAt: number }[] =>
+  (q('SELECT model, context, added_at FROM shortlist WHERE owner_id = ? ORDER BY added_at, model')
+    .all(ownerId) as any[]).map((r) => ({ id: r.model, context: r.context, addedAt: r.added_at }));
+export const shortlisted = (ownerId: string, id: string): { id: string; context: number } | null => {
+  const r = q('SELECT model, context FROM shortlist WHERE owner_id = ? AND model = ?')
+    .get(ownerId, id) as any;
+  return r ? { id: r.model, context: r.context } : null;
+};
+export const addToShortlist = (ownerId: string, id: string, context: number) =>
+  q(`INSERT INTO shortlist (owner_id, model, context, added_at) VALUES (?,?,?,?)
+     ON CONFLICT(owner_id, model) DO UPDATE SET context = excluded.context`)
+    .run(ownerId, id, context, now());
+export const removeFromShortlist = (ownerId: string, id: string) =>
+  q('DELETE FROM shortlist WHERE owner_id = ? AND model = ?').run(ownerId, id);
 
 /** What the OTHER writers are set to. The release policy in routes.ts needs it — getting it wrong
  *  means taking a model out from under somebody mid-book — and it must read every account, not
