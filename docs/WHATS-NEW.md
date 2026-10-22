@@ -12,6 +12,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-22 · Find a model on Featherless
 
+### Let a book weave
+A book's Storyteller panel has a new switch, Weaving, just under the book's model. When it is on,
+Anansi weaves each passage in that book before she writes it: she works it out unseen, and then
+the prose arrives as usual. You never see what she wove. A passage takes longer, often a minute
+or more, and the book has less room for older chapters while she weaves. Weaving is off for every
+book until you turn it on, and it changes nothing in your other books. While she weaves, the
+writing screen says Weaving and counts the seconds, and Stop still works. The switch takes the
+place of the old red note in that panel, which said this was not a setting.
+
 ### Find a model on Featherless
 The model menu at the foot of the rail has a new last row, Find a model. It opens a search over
 the models Featherless runs. By default it shows only uncensored models; untick the box to see
