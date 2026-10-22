@@ -1464,6 +1464,15 @@ async function bootServer(port: number, env: Record<string, string>) {
     const open = await fetch(url + '/api/stories');
     assert.strictEqual(open.status, 200, 'a route on the open list still answers');
 
+    // #55. THE WRITER'S `thinking` KEY IS GONE, from the shipped sampler and from the settings
+    // route. Weaving is the book's switch now, and two switches for one thing would disagree. Asked
+    // of a real server because the shipped sampler lives in serve.ts and nowhere a suite can import.
+    const shipped = (await open.json()).gen;
+    assert.ok(shipped && !('thinking' in shipped), `the shipped sampler has no thinking key: ${JSON.stringify(shipped)}`);
+    const stale = await (await post('/api/settings', { storyId: bStory.id, thinking: true, temperature: 0.7 })).json();
+    assert.ok(!('thinking' in stale.gen), 'a stale tab that posts thinking is ignored');
+    assert.strictEqual(stale.gen.temperature, 0.7, 'and the rest of the same post still lands');
+
     ok('the dispatcher itself fails closed — a real server, as the other writer');
   } finally { srv.kill(); }
 }

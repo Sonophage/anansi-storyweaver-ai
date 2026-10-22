@@ -142,8 +142,10 @@ async function ownerOf(ip: string, headers?: Record<string, unknown>): Promise<s
 // The await is only this one, before anything listens; the retry never blocks a request.
 await slotFirstRead();
 
-// Measured: with thinking on, this model spends its whole budget reasoning and returns
-// no prose on most runs. See P0-FINDINGS F5.
+// The writer's sampler. No weaving key: whether a call weaves is the BOOK's switch and the call's
+// role, decided in routes.ts. A per-writer `thinking: false` sat here until #55 and nothing in the
+// app ever set it; at this sampler's ceiling it would have brought back F5, a whole budget spent
+// planning and no prose.
 const GEN: Record<string, any> = {
   temperature: 0.85, top_p: 0.95, min_p: 0.05,
   // THE CEILING IS NOT THE SETTING, and for five days it was. This said 450 on the argument that a
@@ -156,7 +158,7 @@ const GEN: Record<string, any> = {
   // `target_words` is now what the writer sets and the only one of the two she ever sees. Zero is
   // "let her decide": no number reaches the model, which is the behaviour F29 measured and is
   // still the default. `max_tokens` is derived from it and exists only to stop a runaway.
-  dry_multiplier: 0, xtc_probability: 0, thinking: false,
+  dry_multiplier: 0, xtc_probability: 0,
   target_words: 0, max_tokens: capFor(0),
 };
 // Per owner, not per process. Two writers sharing one sampler would share max_tokens with it, and

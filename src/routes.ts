@@ -684,7 +684,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   const appMs = { view: Math.round((mAssemble - mView) * 10) / 10,
                   assemble: Math.round((mTokenize - mAssemble) * 10) / 10,
                   tokenize: Math.round((performance.now() - mTokenize) * 10) / 10 };
-  const { thinking, ...sampler } = c.gen;
+  const sampler = c.gen;
   /* THE SEED, MINTED HERE AND WRITTEN DOWN.
    *
    * Nothing set one until now, so no generation in this app was ever reproducible: a passage a
@@ -707,7 +707,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // The story's own model, or the process default. `chat` spreads opts over its own defaults,
     // so naming it here is all it takes — every call has always carried a model name.
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
-      { ...sampler, seed, model: using, chat_template_kwargs: { enable_thinking: !!thinking } }, onDelta,
+      { ...sampler, seed, model: using, chat_template_kwargs: { enable_thinking: false } }, onDelta,
       // Only the streaming call. `onDelta` is present exactly when there is a writer watching
       // this arrive, which is exactly when there is a Stop button to press.
       onDelta ? c.signal : undefined);
@@ -3807,9 +3807,6 @@ export const routes: Record<string, Handler> = {
     kind: x.kind, id: x.id, storyId: x.story_id, story: x.story_title,
     where: `${x.story_title} · ${x.loc}`, body: x.body,
   })) }),
-  // Gated deliberately. `gen` is one process-wide object, so an open route means one writer's
-  // sampler lands on another's next generation — including `thinking: true`, which measured
-  // as returning no prose at all (F5). Naming a story at least proves you are a tenant.
   /** Theme, font, prose size and UI scale.
    *
    *  Naming a story sets that BOOK's look; naming none sets the writer's default. One route
@@ -3846,6 +3843,11 @@ export const routes: Record<string, Handler> = {
     return { look: db.lookOf(c.owner) };
   },
 
+  // Gated deliberately: naming a story at least proves you are a tenant. The sampler is per writer
+  // (the `gens` map in serve.ts), and since #55 it holds no weaving key — a `thinking: true` here
+  // once meant every call that writer made planned against a prose ceiling and returned no prose
+  // at all (F5). Weaving is the book's switch now, and a stale tab that posts the old key is
+  // ignored like any other unknown one.
   'POST /api/settings': (c) => {
     // Whitelisted. This body was spread straight into the chat payload, so `messages`,
     // `model` or `response_format` from a client would have replaced the prompt itself.
@@ -3854,12 +3856,11 @@ export const routes: Record<string, Handler> = {
     // what made the slider a guillotine. A stale tab that still posts one is ignored here the
     // same way any unknown key is, and a reload gives it the new control.
     const allowed = ['temperature', 'top_p', 'min_p', 'dry_multiplier', 'xtc_probability',
-      'target_words', 'thinking'] as const;
+      'target_words'] as const;
     const clean: Record<string, any> = {};
     for (const k of allowed) {
       if (!(k in c.body)) continue;
       const v = c.body[k];
-      if (k === 'thinking') { clean[k] = !!v; continue; }
       const n = Number(v);
       if (!Number.isFinite(n)) continue;
       if (k === 'target_words') {
