@@ -639,5 +639,55 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('removing a model in use clears the writer\'s own pins and default, and the toast names them');
 }
 
+// ---- 17. no key: the shortlist shows, unpickable, and every pin and default writes locally ----
+{
+  const writer = db.owner('keyless');
+  const LOCAL0 = 'Qwen3.6-WNTH-35B-A3B-NN';
+  const a = await routes['POST /api/shortlist'](ctx(writer, { model: ID }));
+  assert.ok(!a.error, a.error);
+  await routes['POST /api/model'](ctx(writer, { model: ID }));
+  const book = db.createStory(writer, { title: 'Keyless' });
+  db.addPassage({ ...book, storyId: book.id, body: 'The keeper lost the key.' });
+  await routes['POST /api/story'](ctx(writer, { id: book.id, story: { model: ID } }));
+
+  // The detector first: with the key in place the same reads must say remote, or the checks below
+  // could pass on a list that never marked anything.
+  const keyed = await routes['GET /api/models'](ctx(writer));
+  assert.strictEqual(keyed.remote, true, 'with a key, the list says remote models are set up');
+  assert.strictEqual(keyed.models.find((m: any) => m.id === ID).ready, true, 'and the row is pickable');
+  assert.strictEqual(keyed.active, ID, 'and the strip names the remote default');
+
+  // The key is read on every call, so taking the file away is the server with no key configured.
+  unlinkSync(KEY_FILE);
+  try {
+    const r = await routes['GET /api/models'](ctx(writer));
+    assert.ok(!r.error, r.error);
+    assert.strictEqual(r.remote, false, 'NO KEY: the list says remote models are not set up');
+    assert.ok(!JSON.stringify(r).includes(KEY_FILE), 'and says nothing about where the key would be');
+    const row = r.models.find((m: any) => m.id === ID);
+    assert.ok(row, 'NO KEY: the shortlisted model is still listed, so the list does not look wiped');
+    assert.strictEqual(row.ready, false, 'NO KEY: and marked as not pickable');
+    assert.strictEqual(r.active, LOCAL0, 'NO KEY: the strip names the model that really writes');
+
+    const v = await routes['GET /api/story'](ctx(writer, {}, `story=${book.id}`));
+    assert.strictEqual(v.model, LOCAL0, 'NO KEY: a pinned book is written by the local default');
+    assert.strictEqual(v.defaultModel, LOCAL0, 'and its "Default" names the local one too');
+    assert.strictEqual(v.story.model, ID, 'the pin itself is kept, for when the key comes back');
+
+    const m = mark();
+    const g = await routes['POST /api/generate'](ctx(writer, { storyId: book.id, mode: 'continue' }));
+    assert.ok(!g.error, g.error);
+    assert.strictEqual(since(m).fl.length, 0, 'NO KEY: nothing goes to Featherless');
+    assert.ok(since(m).local.every((x) => x.body.model === LOCAL0) && since(m).local.length >= 1,
+      'the passage is written locally, by the local default');
+
+    const pick = await routes['POST /api/model'](ctx(writer, { model: ID }));
+    assert.match(String(pick.error), /isn't set up/, 'NO KEY: the shortlisted model cannot be picked');
+    const sl = await routes['GET /api/shortlist'](ctx(writer));
+    assert.deepStrictEqual([sl.ready, sl.models.length], [false, 1], 'and the shortlist route agrees');
+  } finally { writeFileSync(KEY_FILE, KEY + '\n'); }
+  ok('no key: the shortlist is listed but not pickable, and pins and defaults write locally');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close();

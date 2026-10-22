@@ -1400,13 +1400,21 @@ export const routes: Record<string, Handler> = {
       tps: speed[m.id]?.tps, runs: speed[m.id]?.runs });
     // LOCAL FIRST, EXACTLY AS BEFORE, THEN THIS WRITER'S SHORTLIST. The allowlist governs the local
     // half only. The shortlist is listed even when the router is down — it does not live there.
+    //
+    // WITH NO KEY the shortlist is still listed, each row `ready: false`, so a missing key reads as
+    // "not set up" rather than as a wiped list; `remote` says the same once for the whole menu. A
+    // yes or a no, never the key or where it is kept.
+    const ready = remoteReady();
     const mine = db.shortlistOf(c.owner).map((m) => ({ id: m.id, status: 'remote', source: 'remote',
-      ctxSize: m.context, perSlot: Math.min(m.context, c.slot.perSlot),
+      ready, ctxSize: m.context, perSlot: Math.min(m.context, c.slot.perSlot),
       tps: speed[m.id]?.tps, runs: speed[m.id]?.runs }));
     const local = (ms: any[]) => ms.map((m) => ({ ...dress(m), source: 'local' }));
-    try { return { models: [...local(await models()), ...mine], active: c.defaultModel ?? model(),
+    // `active` is the model that WRITES for this writer, resolved, not the stored default: with no
+    // key, or a default since removed, the strip must name the local one that is really writing.
+    const active = writerModel(c, { story: null });
+    try { return { models: [...local(await models()), ...mine], active, remote: ready,
                    allow: allowList() }; }
-    catch (e: any) { return { models: mine, active: c.defaultModel ?? model(), allow: allowList(),
+    catch (e: any) { return { models: mine, active, remote: ready, allow: allowList(),
       error: e?.message ?? 'the router did not answer' }; }
   },
   /* THE SHORTLIST: list, add, remove. Each names no story, so all three are on OPEN_ROUTES and each
@@ -1852,7 +1860,7 @@ export const routes: Record<string, Handler> = {
     // Detached, and guarded three ways above. Opening the book is the moment the writer is least
     // likely to be waiting on anything, and the moment their next prompt is most predictable.
     // `model` is what will actually write THIS story — the story's own if it names one.
-    return { ...v, model: writerModel(c, v), defaultModel: c.defaultModel ?? model(), slot: c.slot, gen: c.gen,
+    return { ...v, model: writerModel(c, v), defaultModel: writerModel(c, { story: null }), slot: c.slot, gen: c.gen,
       // Whether Anansi's web search is available at all. Reported here so the checkbox is right
       // the moment the panel opens, rather than correcting itself after the first question.
       searchable: searchConfigured(),

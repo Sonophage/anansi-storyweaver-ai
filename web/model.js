@@ -225,7 +225,10 @@ const PURPOSE = { RP: 'Roleplay', W: 'Write', A: 'Agentic' };
  *  is there. Keeping it selectable is deliberate: it is what the story is actually set to, and a
  *  control must show the state it edits before it can be trusted to change it. */
 export const modelOptions = (models, pinned) => {
-  const list = (models ?? []).map((m) => ({ value: m.id, status: m.status, gone: false }));
+  // `ready` is false only on a remote model when the server has no Featherless key: it is listed,
+  // so the pin is visible, and cannot be chosen.
+  const list = (models ?? []).map((m) => ({ value: m.id, status: m.status, gone: false,
+    ready: m.ready !== false }));
   const orphan = pinned && !list.some((o) => o.value === pinned)
     ? [{ value: pinned, status: null, gone: true }] : [];
   return [{ value: '', status: null, gone: false }, ...orphan, ...list]

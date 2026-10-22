@@ -226,6 +226,7 @@ const S = {
   find: { q: '', size: '', weaving: '', uncensored: true, hits: null, total: 0, sizes: [], weavings: [],
           error: null, seq: 0 },
   shortlist: null,
+  remote: false,        // #54. Whether the server has a Featherless key, from /api/models
 
   imp: { name: null, data: null, preview: null, into: '', busy: false, done: null },
   lookTab: 'theme',     // which of Theme / Font / Size / UI the Aa menu is showing
@@ -794,7 +795,17 @@ function drawRail() {
       padding:8px 12px 12px; display:flex; flex-direction:column; gap:2px">
       ${S.models === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
         : S.models.length === 0 ? emptyModels()
-        : S.models.map((m) => `<button data-modelinfo="${esc(m.id)}"
+        // A REMOTE MODEL WITH NO KEY ON THE SERVER is still listed, so the shortlist does not look
+        // wiped, but as a dimmed row and not a button: nothing to open, nothing to pick.
+        : S.models.map((m) => m.source === 'remote' && m.ready === false
+          ? `<div data-unready="${esc(m.id)}" aria-disabled="true" title="Featherless isn't set up"
+              style="display:flex; align-items:center; gap:9px; padding:8px 10px; opacity:.55">
+              ${runsMark(m.id, m.status)}
+              <span class="txt" style="min-width:0; display:flex; flex-direction:column; gap:1px">
+                <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis; color:var(--dim)"
+                  >${esc(modelName(m.id).name)}</span>
+                <span style="font-size:11px; color:var(--dim)">Featherless isn't set up</span></span></div>`
+          : `<button data-modelinfo="${esc(m.id)}"
             style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r);
             width:100%; text-align:left; background:${m.id === SRV.model ? 'rgba(217,178,106,.10)' : 'transparent'}">
             ${runsMark(m.id, m.status)}
@@ -808,9 +819,10 @@ function drawRail() {
       <div class="hint" style="margin:6px 0 0">A press opens what is known about it — what it
         is for, how fast it has written here, how much context each writer gets — and the switch
         is on that panel. Yours, not the box's: a story that names its own model still wins.</div>
-      <button data-findmodel="1" style="display:flex; align-items:center; gap:9px; padding:8px 10px;
+      ${/* Only when the server has a Featherless key. Without one there is nothing to add from. */
+        S.remote ? `<button data-findmodel="1" style="display:flex; align-items:center; gap:9px; padding:8px 10px;
         margin-top:6px; border-radius:var(--r); border:1px solid var(--line); width:100%;
-        text-align:left; font-size:12.5px; color:var(--gold-lit)">Find a model&hellip;</button>
+        text-align:left; font-size:12.5px; color:var(--gold-lit)">Find a model&hellip;</button>` : ''}
     </div>` : ''}`;
 }
 
@@ -3732,11 +3744,11 @@ const PANELS = {
         : S.models.length === 0 ? emptyModels()
         : `<select class="field" data-storymodel="1" aria-label="The model this book is written with">
             ${modelOptions(S.models, V.story.model).map((o) => `<option value="${esc(o.value)}"${
-              o.selected ? ' selected' : ''}>${
+              o.selected ? ' selected' : ''}${o.ready === false ? ' disabled' : ''}>${
               !o.value ? `Default &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
               : o.gone ? `${esc(modelName(o.value).name)} &mdash; the router no longer offers this`
               : `${esc([modelName(o.value).name, modelName(o.value).detail].filter(Boolean).join(' — '))} · ${
-                  whereRuns(o.value, o.status).words}`}</option>`).join('')}
+                  o.ready === false ? "Featherless isn't set up" : whereRuns(o.value, o.status).words}`}</option>`).join('')}
           </select>
           <!-- #53. An option holds text and nothing else, so each one says in words where its model
                runs, and the drawn mark sits in the row below, beside the badges of the model this
@@ -3767,7 +3779,12 @@ const PANELS = {
                 font-size:11px; letter-spacing:.12em; text-transform:uppercase"
                 >What it is</button></div>`;
           })()}
-          <div class="hint">${V.story.model
+          <div class="hint">${V.story.model && whereRuns(V.story.model).remote && V.model !== V.story.model
+            // The server resolved the pin to the local default (no key, or the model is off the
+            // owner's shortlist), so the hint must not claim the pinned model writes this book.
+            ? `This story is pinned to <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
+               which cannot write now, so <code>${esc(modelName(V.model).name)}</code> writes it.`
+            : V.story.model
             ? `This story is written by <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
                whatever any other story uses.`
             : 'This story uses whatever Preferences is set to. Name one here and it stops moving when that does.'}
@@ -7095,6 +7112,8 @@ async function loadModels() {
   const r = await api.models();
   S.models = r.error ? [] : (r.models ?? []);
   S.allow = r.allow ?? [];
+  // Whether the server holds a Featherless key: a yes or a no, never the key itself.
+  S.remote = r.remote === true;
   if (r.active) SRV.model = r.active;
   // #18 §5. The shelf reads this list too now — a book pinned to a model the router no longer
   // serves is marked on its own card, and the mark cannot be drawn before the answer lands.
