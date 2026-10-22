@@ -2,6 +2,7 @@
 // so buildContext itself stays pure.
 
 import { readFileSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const HOST = process.env.ANANSI_LLAMA ?? 'http://127.0.0.1:8080';
 // The DEFAULT model, for a story that names none. Every call already carried a model name — the
@@ -83,13 +84,11 @@ const DOCUMENTED = new Set(['model', 'messages', 'text', 'temperature', 'top_p',
  *  var exists only so the test suite can shrink the wait. */
 const BACKOFF = (process.env.ANANSI_FEATHERLESS_BACKOFF_MS ?? '2000,6000,12000')
   .split(',').map(Number).filter((n) => n >= 0);
-export const FEATHERLESS_BUSY = 'Featherless is busy, try again';
+const FEATHERLESS_BUSY = 'Featherless is busy, try again';
 
-const pause = (ms: number, signal?: AbortSignal) => new Promise<void>((done, fail) => {
-  const t = setTimeout(done, ms);
-  signal?.addEventListener('abort', () => {
-    clearTimeout(t); fail(Object.assign(new Error('the call was cancelled'), { name: 'AbortError' }));
-  }, { once: true });
+/** The wait between tries, cut short by the writer pressing Stop. */
+const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signal }).catch(() => {
+  throw Object.assign(new Error('the call was cancelled'), { name: 'AbortError' });
 });
 
 /** One POST to Featherless, with the key, retried on 429 and on nothing else. */

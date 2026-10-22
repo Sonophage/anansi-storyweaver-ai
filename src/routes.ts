@@ -1528,8 +1528,7 @@ export const routes: Record<string, Handler> = {
     const wasDefault = !!id && c.defaultModel === id;
     if (wasDefault) c.setDefaultModel(null);
     const named = [...(wasDefault ? ['your default'] : []), ...books.map((t) => `“${t}”`)];
-    const list = named.length < 2 ? named.join('')
-      : `${named.slice(0, -1).join(', ')} and ${named.at(-1)}`;
+    const list = new Intl.ListFormat('en-GB').format(named);
     return { models: db.shortlistOf(c.owner),
       ...(named.length ? { toast: `${list[0].toUpperCase()}${list.slice(1)} ${
         named.length === 1 ? 'goes' : 'go'} back to the local default.` } : {}) };

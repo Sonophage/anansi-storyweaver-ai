@@ -2245,7 +2245,7 @@ async function findSearch(whole = false) {
   if (r.sizes) f.sizes = r.sizes;
   if (r.weavings) f.weavings = r.weavings;
   if (S.panel !== 'findmodel') return;
-  if (whole || !$('findhits')) drawSide(); else $('findhits').innerHTML = findHits();
+  if (whole || !$('findhits')) drawSide(); else findRedraw();
   // The search answers without tags, so typing never waits on Hugging Face; they follow.
   loadTags(f.hits.map((m) => m.id));
 }

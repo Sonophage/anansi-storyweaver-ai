@@ -16,7 +16,7 @@
 import { FEATHERLESS } from './llama.ts';
 
 /** `cost` is Featherless's `concurrency_cost`: how many of the plan's units one call takes. */
-export type CatalogueRow = { id: string; modelClass: string | null; context: number | null;
+type CatalogueRow = { id: string; modelClass: string | null; context: number | null;
   cost: number | null };
 
 export const CATALOGUE_TTL_MS = 24 * 60 * 60_000;
@@ -31,13 +31,13 @@ export async function catalogue(now = Date.now()): Promise<CatalogueRow[]> {
   catch { throw new Error('cannot reach Featherless to read its catalogue'); }
   if (!r.ok) throw new Error(`the Featherless catalogue answered ${r.status}`);
   const d = await r.json() as any;
+  // A field Featherless leaves out, or sends as something other than a positive number, is unknown.
+  const pos = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
   const rows = (d.data ?? []).map((m: any) => ({
     id: String(m.id),
     modelClass: m.model_class ? String(m.model_class) : null,
-    context: Number.isFinite(Number(m.context_length)) && Number(m.context_length) > 0
-      ? Number(m.context_length) : null,
-    cost: Number.isFinite(Number(m.concurrency_cost)) && Number(m.concurrency_cost) > 0
-      ? Number(m.concurrency_cost) : null,
+    context: pos(m.context_length),
+    cost: pos(m.concurrency_cost),
   }));
   cached = { at: now, rows };
   return rows;
@@ -52,12 +52,12 @@ export const catalogueEntry = async (featherlessId: string) =>
 /** THE FLOOR. Anansi's prompt for one passage is a few thousand tokens before the book is in it,
  *  and a model that holds less than this refuses every passage once the book has any length. A row
  *  that does not say what it holds is under the floor too: budgeting needs the number. */
-export const MIN_CONTEXT = 16_384;
+const MIN_CONTEXT = 16_384;
 
 /** THE PLAN IS 4 UNITS, and a model that costs 4 takes all of it: while one writer uses it the
  *  other cannot write at all. Only the admin, who pays for the plan, may choose that. A row that
  *  does not say its cost is treated as the worst case — the gate fails closed. */
-export const WHOLE_PLAN = 4;
+const WHOLE_PLAN = 4;
 
 /** Why `row` cannot go on this writer's shortlist, or null when it can. ONE PREDICATE for the
  *  search and the add, so the search never offers what the add would refuse. */
@@ -72,11 +72,11 @@ export function refusal(row: CatalogueRow, admin: boolean): string | null {
 
 /** The names the decensoring work goes by. Case-insensitive, anywhere in the id. */
 const UNCENSORED = /heretic|abliterat|uncensor/i;
-export const isUncensored = (id: string) => UNCENSORED.test(id);
+const isUncensored = (id: string) => UNCENSORED.test(id);
 
 /** WEAVING, as the writer reads it. The order is the sort order: a model that never plans is ready
  *  to write the moment it answers, so it comes first. */
-export const WEAVING = ["doesn't weave", 'can switch', 'always weaves'] as const;
+const WEAVING = ["doesn't weave", 'can switch', 'always weaves'] as const;
 export type Weaving = typeof WEAVING[number];
 
 /** THE GUESS, from the model's class, before anyone has called it. One table, here. The probe on
@@ -92,7 +92,7 @@ const GUESS: [RegExp, Weaving][] = [
   [/^gpt-oss|r1\b|^qwq|think/i, 'always weaves'],
   [/^qwen3|^gemma4|^glm4[5-9]/i, 'can switch'],
 ];
-export const weavingGuess = (modelClass: string | null): Weaving =>
+const weavingGuess = (modelClass: string | null): Weaving =>
   GUESS.find(([re]) => re.test(modelClass ?? ''))?.[1] ?? "doesn't weave";
 
 /** What the probe on add found. Asked with weaving off: any plan in the answer means the model
@@ -103,16 +103,17 @@ export const weavingFound = (modelClass: string | null, answer: { prose: string;
     : weavingGuess(modelClass);
 
 /** The weight in the class name — `qwen3_5moe-35b` is 35b. Null for a class that does not say. */
-export const sizeClass = (modelClass: string | null): string | null =>
+const sizeClass = (modelClass: string | null): string | null =>
   /-(\d+(?:\.\d+)?b)\b/i.exec(modelClass ?? '')?.[1].toLowerCase() ?? null;
 
 export type Found = { id: string; cost: number | null; context: number; weaving: Weaving;
   size: string | null };
-export type Query = { text?: string; size?: string; weaving?: string; uncensored?: boolean };
+type Query = { text?: string; size?: string; weaving?: string; uncensored?: boolean };
 
 /** RESULTS ARE CAPPED. 778 uncensored models is a list nobody reads; a search narrows it.
  *  ponytail: a fixed cap with no paging. Ceiling: past the first 100 a writer must type more.
- *  Upgrade path is an offset in the query. */
+ *  Revisit when a writer cannot reach a model by typing more of its name. Upgrade path is an
+ *  offset in the query. */
 export const RESULT_CAP = 100;
 
 /** THE SEARCH, pure: rows in, rows out. `prefix` is handed in so the ids that leave here are the
@@ -176,7 +177,7 @@ async function hub(path: string, ms: number): Promise<string | null> {
     }
     if (!r.ok) return null;
     const text = await r.text();
-    return text.length > CARD_BYTES ? text.slice(0, CARD_BYTES) : text;
+    return text.slice(0, CARD_BYTES);
   }
   return null;
 }
@@ -192,7 +193,7 @@ const TAG_CAP = 8;
 /** The tags a row shows. The author's own (`cardData.tags`) when there are any, since they are the
  *  ones written for a reader; else the hub's. Either way without the machinery and without
  *  two-letter language codes. */
-export function hubTags(info: any): string[] {
+function hubTags(info: any): string[] {
   const own = Array.isArray(info?.cardData?.tags) ? info.cardData.tags : [];
   const pick = own.length ? own : Array.isArray(info?.tags) ? info.tags : [];
   const seen = new Set<string>();
@@ -212,7 +213,8 @@ const infoCache = new Map<string, { at: number; info: HubInfo }>();
 const cardCache = new Map<string, { at: number; about: string | null }>();
 
 /** Tags and base model for one repo. A repo the hub does not answer for is cached as empty. */
-export async function hubInfo(repo: string, now = Date.now()): Promise<HubInfo> {
+async function hubInfo(repo: string): Promise<HubInfo> {
+  const now = Date.now();
   const hit = infoCache.get(repo);
   if (hit && now - hit.at < CATALOGUE_TTL_MS) return hit.info;
   const raw = await hub(`/api/models/${repo}`, 10_000);
@@ -242,8 +244,9 @@ export async function hubTagsFor(repos: string[]): Promise<Record<string, string
 }
 
 /** The expanded row: tags, base model, and the card's first real paragraph, or null without one. */
-export async function hubCard(repo: string, now = Date.now()) {
-  const info = await hubInfo(repo, now);
+export async function hubCard(repo: string) {
+  const now = Date.now();
+  const info = await hubInfo(repo);
   const hit = cardCache.get(repo);
   let about: string | null;
   if (hit && now - hit.at < CATALOGUE_TTL_MS) about = hit.about;
@@ -267,7 +270,7 @@ const ABOUT_WORDS = 8;
  *  and if anything that looks like markup or CSS survives the stripping, the block is skipped
  *  rather than shown. A card with no such block has no description: the row shows its tags and
  *  base model alone, never raw markup. */
-export function cardParagraph(readme: string): string | null {
+function cardParagraph(readme: string): string | null {
   let s = readme.replace(/\r\n?/g, '\n').replace(/^﻿/, '');
   s = s.replace(/^---\n[\s\S]*?\n---[ \t]*(?:\n|$)/, '');
   s = s.replace(/<!--[\s\S]*?(?:-->|$)/g, '\n');
