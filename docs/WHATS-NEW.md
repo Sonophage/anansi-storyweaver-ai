@@ -12,6 +12,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-22 · Find a model on Featherless
 
+### Models that always weave
+Some models on Featherless weave whatever they are asked; your shortlist says "always weaves"
+beside them. A book written by one of those now gets the same room as a book with Weaving on, even
+with its switch off, so the passage, the Talk answer and the invention still arrive. The writing
+screen and the Talk window say Weaving while it waits. Most Featherless models hold less of a book
+than this machine does, so weaving fits less often there. When it does not fit, the message says
+that the model's own limit is the reason, and offers the same two buttons. The Talk window now
+says Asking while it waits in a book that does not weave.
+
 ### A full model on Featherless waits its turn
 When a model on Featherless is full, Anansi now waits a few seconds and asks again, up to three
 times, as she already does when Featherless is busy. If it is still full, she tells you
@@ -48,8 +57,8 @@ the canon check and Remember this never weave.
 ### Find a model on Featherless
 The model menu at the foot of the rail has a new last row, Find a model. It opens a search over
 the models Featherless runs. By default it shows only uncensored models; untick the box to see
-all of them. You can search by part of a name, by size, and by whether a model weaves, which means
-it plans before it writes. Models that never weave come first. Before you add a model, whether it
+all of them. You can search by part of a name, by size, and by whether a model weaves before it
+writes. Models that never weave come first. Before you add a model, whether it
 weaves is a guess from the family it belongs to. The big families, such as Kimi, DeepSeek,
 MiniMax, GLM, Mistral Small and Llama, are guessed from what their makers publish. A family Anansi
 has not met yet says "not tried yet", and comes last, instead of claiming it does not weave.
