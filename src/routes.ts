@@ -108,7 +108,9 @@ export const WEAVING_ROLES: ReadonlySet<string> = new Set(['prose']);
 export const WEAVE_ROOM = 5000;
 
 /** Whether this book weaves for the writer asking: its own switch. The server decides this, and the
- *  client reads it off the view rather than deriving it again. */
+ *  client reads it off the view rather than deriving it again. `_c` is unread today and is the
+ *  writer asking: a model whose recorded label is "always weaves" weaves with the switch off, and
+ *  which model writes a book depends on who asks (`writerModel`). That rule is #58's. */
 const bookWeaves = (_c: Ctx, v: { story: any }) => !!v.story?.weaving;
 
 /** A CALL'S REPLY CAP, AND WHETHER IT WEAVES, decided here and nowhere else.
