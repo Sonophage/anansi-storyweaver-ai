@@ -243,8 +243,8 @@ const remoteRow = (c: Ctx, id: string, context: number, speed?: { tps?: number; 
  *  `writerModel` checks it, because a guest's own list does not hold the owner's models: without
  *  this the guest's picker and shelf read the pin as a model nobody offers while it wrote. */
 const remotePin = (c: Ctx, pin: string | null | undefined, owner: string) => {
-  const context = pin && isRemote(pin) ? db.shortlisted(owner, pin) : null;
-  return context == null ? null : remoteRow(c, pin!, context);
+  const held = pin && isRemote(pin) ? db.shortlistOf(owner).find((m) => m.id === pin) : undefined;
+  return held ? remoteRow(c, held.id, held.context, undefined, held.cost) : null;
 };
 
 /** What Anansi is allowed to say, in tokens — reserved when the prompt is assembled and spent when

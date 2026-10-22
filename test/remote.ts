@@ -904,6 +904,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(v.pin?.id, ID, 'GUEST-PIN: the open book names its remote pin as a model row');
   assert.deepStrictEqual([v.pin.source, v.pin.ready], ['remote', true], 'GUEST-PIN: remote, and ready');
   assert.strictEqual(v.pin.perSlot, Math.min(v.slot.perSlot, 32768), 'with the room the owner\'s entry gives it');
+  assert.strictEqual(v.pin.cost, 2, 'GUEST-PIN: and the unit cost the owner\'s shortlist holds for it');
 
   const shelf = await routes['GET /api/stories'](ctx(guest));
   const row = shelf.stories.find((s: any) => s.id === book.id);

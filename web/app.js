@@ -682,6 +682,14 @@ const runsMark = (id, status) => {
     mark(w.glyph, 15)}</span>`;
 };
 
+/** WHAT WRITES NOW, and the list a model is looked up in. In a book: `V.model`, the model the server
+ *  resolved for it, and the writer's list with the book's own pin row (a guest's list never holds
+ *  the owner's remote pin). Elsewhere: the writer default and the writer's list. The strip and the
+ *  model panel both read these, so they cannot name two different models as writing. */
+const inBookNow = () => S.place === 'story' && !!V?.model;
+const writingNow = () => inBookNow() ? V.model : SRV.model;
+const modelsHere = () => withPin(S.models, inBookNow() ? V.pin : null);
+
 // ---------- rail ----------
 function drawRail() {
   // Which menu, not where you are. Inside a story the rail can be showing either one.
@@ -722,10 +730,9 @@ function drawRail() {
   // again. Seth: "anansies web can be removed from the story menu since we already have a button
   // that pulls up the main menu and its the same amount of clicks."
   const back = '';
-  // What the strip at the foot names: in a book, `V.model`, the model the server resolved for it;
-  // elsewhere the writer default. `SRV.model` alone changes meaning whenever the list is read again.
-  const inBook = S.place === 'story' && !!V?.model;
-  const writing = inBook ? V.model : SRV.model;
+  // What the strip at the foot names. `SRV.model` alone changes meaning whenever the list is read
+  // again, so the strip reads `writingNow`.
+  const writing = writingNow();
   const tail = storyMenu && V?.story?.is_world
     // A world book has no chapters to list and nothing to write in. What it has is its lore, and
     // the rail says so rather than showing an empty Chapters heading.
@@ -786,7 +793,7 @@ function drawRail() {
            marked awake while the router answers, which is what this dot said before it had a row.
            In a book, the model named is the one that WRITES it, resolved by the server with its
            pin, remote pins included; on the shelf, the writer's default. -->
-      ${runsMark(writing, withPin(S.models, inBook ? V.pin : null)?.find((m) => m.id === writing)?.status
+      ${runsMark(writing, modelsHere()?.find((m) => m.id === writing)?.status
         ?? (SRV.slot ? 'loaded' : 'unloaded'))}
       <span class="txt" style="display:flex; flex-direction:column; gap:2px; min-width:0">
         <span style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
@@ -2281,8 +2288,12 @@ const PANELS = {
     const id = S.modelPick ?? SRV.model;
     if (!id) return '<div class="hint" style="margin:0">No model is named yet.</div>';
     const d = modelName(id);
-    const m = (S.models ?? []).find((x) => x.id === id) ?? {};
-    const writing = id === SRV.model;
+    // Looked up the way the strip looks it up, so a guest opening the owner's remote pin reads its
+    // row, limit and cost included, rather than finding nothing and saying Featherless was silent.
+    const m = (modelsHere() ?? []).find((x) => x.id === id) ?? {};
+    const writing = id === writingNow();
+    // The server takes a remote default only from this writer's OWN shortlist.
+    const mine = (S.models ?? []).some((x) => x.id === id);
     const pinned = V?.story?.model;
     // TWO NUMBERS FOR ONE THING, forty-eight apart. `presets.ini` says ctx-size 100000 over two
     // slots; llama-server rounds its own allocation up and reports 50,048, which is the number the
@@ -2367,6 +2378,9 @@ const PANELS = {
           // A remote model with no key on the server cannot be picked, so nothing offers it.
           : remote && !S.remote
           ? `<div class="hint" style="margin:0">Featherless isn't set up on this server.</div>`
+          : remote && !mine
+          ? `<div class="hint" style="margin:0">This book's owner chose it, and it is
+              not on your shortlist, so it cannot be your default. Find a model can add it.</div>`
           : `<button class="btn" data-pickmodel="${esc(id)}">Write with this one</button>`}
       </div></div>`;
   },

@@ -2403,6 +2403,64 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   ok('menu rows, the strip and the book\'s picker carry the circle and the spider or the feather');
 }
 
+// THE MODEL PANEL IN A BOOK reads what writes that book. "Writing now" is the book's model, not the
+// writer default; a guest opening the owner's remote pin is told its limit and its cost from the
+// pin row the book carries, not "Featherless did not say", which was false; and a remote model not
+// on this writer's own shortlist offers no switch, because the server refuses it as a default.
+{
+  const strip = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
+  const LENT = 'featherless:owner/Lent-Remote-24B';
+  const lentRow = { id: LENT, status: 'remote', source: 'remote', ready: true, ctxSize: 32768, perSlot: 32768, cost: 2 };
+  const was = { model: STORY.model, pin: (STORY as any).pin, story: (STORY.story as any).model };
+  const panelFor = async (id: string) => {
+    click({ modelinfo: id });
+    await new Promise((r) => setTimeout(r, 30));
+    return strip(html('sideBody'));
+  };
+  modelsRemote = true;
+  click({ dropshort: 'featherless:Other/Unused-12B' });
+  await new Promise((r) => setTimeout(r, 40));
+
+  // A guest in a book the owner pinned to a remote model on the OWNER's shortlist.
+  STORY.model = LENT; (STORY as any).pin = lentRow; (STORY.story as any).model = LENT;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  // The list read again, which puts the writer default back in SRV.model: opening a book had set it
+  // to the book's model, so a panel comparing with SRV.model passed right after opening.
+  click({ dropshort: 'featherless:Other/Unused-12B' });
+  await new Promise((r) => setTimeout(r, 40));
+  const lent = await panelFor(LENT);
+  assert.match(lent, /Featherless holds 32,768/, 'LENT-PANEL: the limit, from the pin row the book carries');
+  assert.match(lent, /2 units of the shared plan/, 'LENT-PANEL: and the cost the owner\'s shortlist holds');
+  assert.doesNotMatch(lent, /did not say/, 'LENT-PANEL: never "Featherless did not say", which is false');
+  assert.match(lent, /writing now/, 'WRITING-NOW: the model that writes the open book is the one writing');
+  assert.doesNotMatch(lent, /data-pickmodel=/, 'LENT-PANEL: and no switch to a model off this writer\'s list');
+  const dflt = await panelFor('write-nt-qwen36-h');
+  assert.doesNotMatch(dflt, /writing now/, 'WRITING-NOW: the writer default does not write this book');
+
+  // The same pin when it is not what writes the book (the book falls back to a local model): the
+  // panel still offers no switch, because the guest's own shortlist does not hold it.
+  STORY.model = 'Qwen3.6-WNTH-35B-A3B-NN';
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  const idle = await panelFor(LENT);
+  assert.doesNotMatch(idle, /writing now/, 'the detector: here the pin is not writing');
+  assert.doesNotMatch(idle, /data-pickmodel=/,
+    'LENT-PANEL: a remote model off this writer\'s own shortlist offers no Write with this one');
+  assert.match(idle, /not on your shortlist/, 'LENT-PANEL: and says why');
+  const own = await panelFor('featherless:Grey/Kestrel-Heretic-24B');
+  assert.match(own, /data-pickmodel="featherless:Grey\/Kestrel-Heretic-24B"/,
+    'while a remote model on the writer\'s own shortlist still offers the switch');
+
+  STORY.model = was.model; (STORY as any).pin = was.pin; (STORY.story as any).model = was.story;
+  modelsRemote = false;
+  click({ dropshort: 'featherless:Other/Unused-12B' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+}
+ok('the model panel in a book names what writes it, reads a lent pin\'s limit and cost, and offers no switch it cannot make');
+
 // ONE PREFIX. Whether a model is remote is decided from its id's prefix, on the server by
 // `REMOTE_PREFIX` and in the browser by `whereRuns`. Two spellings of it drift apart silently, so
 // the browser's constant is held equal to the server's, and the browser spells it in one place.

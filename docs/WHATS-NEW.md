@@ -65,13 +65,18 @@ this machine still offer it.
 ### The model at the foot of the rail is the one writing this book
 In a book, the model named at the foot of the rail is now the one that writes that book, with its
 spider or feather. If the book is set to its own model, that model is named, not your default. On
-the shelf it still names your default.
+the shelf it still names your default. The model information panel marks the same model as
+"writing now", and the name stays right after you change the book's look or anything else in it.
 
 ### A shared book set to a Featherless model
 If the other writer sets a book you share to a model on their shortlist, you now see that model in
 the book's Storyteller panel, and the book's card on your shelf no longer says "model missing". The
 model is not added to your own shortlist. If Featherless is not set up, the panel says so, and the
 book writes with the model on this machine.
+
+Its model information panel shows how much of a book it can hold and how much of the shared plan it
+uses. It has no "Write with this one" button, because the model is not on your shortlist. Add it
+in Find a model if you want to write with it in your own books.
 
 ## 2026-10-18 · Delete after keeps the chapter you write in
 
