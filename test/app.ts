@@ -136,7 +136,10 @@ const STORY = {
            // This book asks for its cover at the head of each chapter, which is what makes the
            // plate render at all. Off is the default everywhere else, so the check below is
            // testing the switch rather than the absence of one.
-           chapterHero: true },
+           chapterHero: true,
+           // #55. Off, as every book is until its writer turns it on.
+           weaving: false },
+  weaves: false,
   // The moment the cover was set, which is the cache key the immutable URL is built on. Never the
   // bytes: the shelf and the plate are both told only when it changed.
   cover: 1756300000,
@@ -2310,6 +2313,55 @@ ok('the model panel reads the router, the preset file, this database and the id,
   STORY.model = wasModel;
 }
 ok('the rail label, the rail list and the Storyteller all read the id the panel reads');
+
+// #55. THE WEAVING SWITCH, where the "Thinking is off, and not a setting" note was. That note
+// contradicts a switch, so the two cannot both be on the panel; and the writer's word is Weaving.
+{
+  const visible = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
+  const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'teller' });
+  await new Promise((r) => setTimeout(r, 30));
+  const teller = visible(html('sideBody'));
+  assert.doesNotMatch(teller, /Thinking is off/, 'the old note is gone');
+  assert.doesNotMatch(teller, /genThinking/, 'and its tip card with it');
+  const box = teller.match(/<input type="checkbox" data-story="weaving"[^>]*>/)?.[0];
+  assert.ok(box, 'the panel has a weaving switch, saved as a story field');
+  assert.doesNotMatch(box!, /checked/, 'off, for a book that does not weave');
+  assert.match(teller, /Weaving/, 'named Weaving');
+  // The tip is the trade in one sentence: slower, and it takes room from the book.
+  const tip = teller.match(/id="tip-weaving"[\s\S]*?<\/p>/)?.[0] ?? '';
+  assert.match(tip, /slower/i, `the tip says it is slower: ${tip}`);
+  assert.match(tip, /room/i, 'and that it takes room');
+  // The switch and its tip only: the model picker above decodes preset ids, whose own words are
+  // the model's and not this switch's.
+  const label = teller.match(/<label[^>]*>\s*<input type="checkbox" data-story="weaving"[\s\S]*?<\/label>/)?.[0] ?? '';
+  assert.ok(label, 'the switch has a label');
+  assert.doesNotMatch(tip + label, /\b(think|thinking|reasoning|planning)\b/i,
+    'and neither it nor its tip calls weaving thinking, reasoning or planning');
+  // The switch sits after the book's model and before the sampler: everything about what writes
+  // this book in one place.
+  const at = (re: RegExp) => teller.search(re);
+  assert.ok(at(/data-storymodel/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/>Sampling</),
+    'between the book\'s model and the sampler');
+
+  STORY.story.weaving = true;
+  click({ panel: 'teller' }); click({ panel: 'teller' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.match(visible(html('sideBody')).match(/<input type="checkbox" data-story="weaving"[^>]*>/)?.[0] ?? '',
+    /checked/, 'and on, for a book that does');
+  STORY.story.weaving = false;
+
+  POSTED.length = 0;
+  changeIn({ dataset: { story: 'weaving' }, type: 'checkbox', checked: true });
+  await new Promise((r) => setTimeout(r, 30));
+  const saved = POSTED.find((p: any) => String(p.url) === '/api/story');
+  assert.strictEqual(saved?.body.story.weaving, true, 'turning it on saves it to the book, with no Save pressed');
+  assert.ok(POSTED.some((p: any) => String(p.url).startsWith('/api/manifest')),
+    'and the Context panel asks again, because the budget just changed');
+}
+ok('the Storyteller has a Weaving switch where the thinking note was, and it saves itself');
 
 // #53 · WHERE A MODEL RUNS, on every surface that names one: a circle in the local or the remote
 // colour, filled when a local model is awake and hollow when it is asleep (a remote one is always

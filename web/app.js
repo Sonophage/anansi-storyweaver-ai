@@ -3834,7 +3834,7 @@ const PANELS = {
       </div>`;
     return `<div style="display:flex; flex-direction:column">
       <!-- Issue #33. This was the last thing on the longest panel in the app — under the model
-           list, the sampler, the thinking note and this story's calls. The three sliders save
+           list, the sampler, the weaving switch and this story's calls. The three sliders save
            themselves on release now, so pressing this is a confirmation rather than the only way to
            commit them; it stays because a settings screen with no Save reads as one that did not
            take. -->
@@ -3900,6 +3900,17 @@ const PANELS = {
             : 'This story uses whatever Preferences is set to. Name one here and it stops moving when that does.'}
             The router holds three at once, so switching between them usually costs nothing &mdash; one that is
             asleep costs a load on the first call.</div>`}
+      <!-- #55. WEAVING, this book's own switch, beside the model that writes it. It replaced a note
+           that said thinking was off and not a setting, which is no longer true once a book can
+           weave. A [data-story] checkbox, so it saves itself and the Context panel asks again: the
+           budget it shows is smaller by the room the plan is given. The writer's word is Weaving;
+           the server decides from it which calls weave. -->
+      ${tipCard('weaving', 'Weaving', `<p>Anansi weaves each passage unseen before she writes it,
+        which is slower and sets aside room that would otherwise hold more of your book.</p>`)}
+      <label style="display:flex; align-items:center; gap:10px; margin:16px 0 2px; font-size:13px;
+        color:var(--ink)">
+        <input type="checkbox" data-story="weaving" ${V.story.weaving ? 'checked' : ''}>
+        Weaving${tipMark('weaving', 'Weaving')}</label>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Sampling</div>
       ${slider('Surprise', 'temperature', g.temperature ?? 0.85, 2,
@@ -3910,14 +3921,6 @@ const PANELS = {
         'Roughly how long a passage should run. Anansi aims for it and is allowed to come in under '
         + 'it — she is not cut off at it. All the way left leaves the length to her, which is how '
         + 'every book here was written until now.')}
-      <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 0; border-top:1px solid rgba(255,255,255,.04)">
-        <span style="width:8px; height:8px; border-radius:50%; background:var(--bad); margin-top:5px; flex:0 0 auto"></span>
-        <span style="flex:1; display:flex; flex-direction:column; gap:4px">
-          <span style="font-size:13.5px; color:var(--ink)">Thinking is off, and not a setting${
-            tipMark('genThinking', 'Thinking is off, and not a setting')}</span>
-          ${tipCard('genThinking', 'Thinking is off, and not a setting', `<p>With it on this model
-            spent the whole budget reasoning and returned no prose on three runs in four. The
-            transport pins it off.</p>`)}</span></div>
       <!-- #18 §3. THE WRITER'S DEFAULT VOICE, which had no surface at all before this. Only the
            two buttons inside the spark wizard ever read it, and the server quietly backfills it
            into any book created with the voice box left blank — so a page of text nobody had seen
