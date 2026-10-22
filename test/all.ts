@@ -55,9 +55,14 @@ const started = Date.now();
  * month that opens a database is covered without anybody remembering this. */
 const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean }>((done) => {
   const bench = s.startsWith('../bench/');
+  /* AND NO SUITE EVER REACHES THE REAL FEATHERLESS. This machine has a real key at the default path,
+   * so a suite that so much as names a remote id would otherwise spend plan units. A missing key
+   * file and a port that refuses at once are the floor; test/remote.ts sets its own fake over it. */
+  const offline = { ANANSI_FEATHERLESS_KEY_FILE: '/nonexistent/featherless.key',
+                    ANANSI_FEATHERLESS_URL: 'http://127.0.0.1:9/v1' };
   const env = bench
-    ? { ...process.env, ANANSI_DB: `/tmp/anansi-bench-${s.split('/')[2].split('.')[0]}.db` }
-    : process.env;
+    ? { ...process.env, ...offline, ANANSI_DB: `/tmp/anansi-bench-${s.split('/')[2].split('.')[0]}.db` }
+    : { ...process.env, ...offline };
   execFile(process.execPath, ['--experimental-strip-types', ...s.split(' ')],
     { cwd: import.meta.dirname, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, env },
     (err, stdout, stderr) => done({ s, out: (stdout ?? '') + (stderr ?? ''), ok: !err }));

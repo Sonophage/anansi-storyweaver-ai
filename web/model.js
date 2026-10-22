@@ -276,7 +276,10 @@ export const modelName = (id) => {
       return { id, name: parts.slice(0, at).join(' '), detail, bits, size };
     }
   }
-  const [repo, quant] = id.split(':');
+  // A remote id is a Featherless repo path behind `featherless:`, which says where the model runs
+  // and is not part of its name. Split on the colon as it stands and every remote model would be
+  // called "featherless".
+  const [repo, quant] = id.replace(/^featherless:/, '').split(':');
   const org = repo.includes('/') ? repo.split('/')[0].toLowerCase() : '';
   // The org name is often repeated inside the repo name as well, and once is enough.
   const name = (repo.split('/').pop() ?? repo).replace(/[-_]?GGUF$/i, '')

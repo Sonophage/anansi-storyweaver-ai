@@ -570,6 +570,12 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   // any of them could be mistaken for a CODE. This one carries MTP, GGUF and a quant.
   const hf = modelName('HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:Q8_K_P');
   assert.deepStrictEqual(hf.bits, ['Q8_K_P'], 'a repo path decodes as a repo path, not as a preset');
+  // A remote id is a Featherless repo path behind its prefix. The prefix is where it runs, not a
+  // name — read as `repo:quant` it would show every remote model as "featherless".
+  const fl = modelName('featherless:llmfan46/Qwen3.6-35B-A3B-uncensored-heretic');
+  assert.strictEqual(fl.name, 'Qwen3.6 35B A3B uncensored heretic', 'a remote id decodes its repo path');
+  assert.strictEqual(fl.id, 'featherless:llmfan46/Qwen3.6-35B-A3B-uncensored-heretic',
+    'and keeps the stored id whole');
 }
 ok('a preset id in the 2026-08-27 convention decodes to purpose, thinking, decensoring and tier');
 

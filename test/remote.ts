@@ -82,7 +82,8 @@ const localSrv = createServer((req, res) => {
     const json = (o: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(o)); };
     if (req.url === '/v1/models') return json({ data: [
-      { id: 'Qwen3.6-WNTH-35B-A3B-NN', status: { value: 'loaded' } } ] });
+      { id: 'Qwen3.6-WNTH-35B-A3B-NN', status: { value: 'loaded' } },
+      { id: 'Gemma-4-WNTH-31B-NN', status: { value: 'unloaded' } } ] });
     if (req.url === '/tokenize') return json({ tokens: Array.from({ length: 200 }, (_, i) => i) });
     if (req.url === '/models/unload') return json({});
     json({ choices: [{ message: { content: JSON.stringify({ characters: [], entries: [] }) } }],
@@ -276,6 +277,104 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(Date.now() - t0 >= 1400, 'the fake really did hold the first call');
   assert.strictEqual(r.prose, 'The remote wrote this.', 'and the passage still came back');
   ok('a first call to a model Featherless is loading waits rather than fails');
+}
+
+// ---- 7. the router's controls are never called for a remote id ----
+{
+  const LOCAL = 'Gemma-4-WNTH-31B-NN';   // not the boot default, so it can be released
+  let m = mark();
+  // Remote -> local -> remote. Each switch away from a model asks whether to release it.
+  for (const to of [LOCAL, ID]) {
+    const r = await routes['POST /api/model'](ctx(me, { model: to }));
+    assert.ok(!r.error, r.error);
+  }
+  const unloads = local.slice(m.local).filter((x) => x.path === '/models/unload');
+  assert.ok(unloads.every((x) => x.body.model === LOCAL),
+    'only the local model was ever released; a remote id never reaches unload');
+  assert.ok(unloads.length === 1, 'and the local one was, so this check can see an unload at all');
+  const { unload } = await import('../src/llama.ts');
+  assert.strictEqual((await unload(ID)).ok, false, 'unload refuses a remote id whoever calls it');
+
+  // Opening the app and opening the book each warm the writer's model. Not on Featherless.
+  m = mark();
+  await routes['GET /api/stories'](ctx(me));
+  await routes['GET /api/story'](ctx(me, {}, `story=${story.id}`));
+  await new Promise((r) => setTimeout(r, 50));
+  assert.strictEqual(since(m).fl.length, 0, 'no warm call is spent on Featherless');
+  const { tooManyModels } = await import('../src/routes.ts');
+  assert.strictEqual(tooManyModels(['a', 'b'], ID), false, 'a remote model loads nothing here');
+  assert.strictEqual(tooManyModels(['a', ID], 'b'), false, 'and another writer on one is not a load');
+  ok('unload, warming and the loaded-model count never touch a remote id');
+}
+
+// ---- 8. the menu: local models as before, then this writer's shortlist, each with its source ----
+{
+  const other = db.owner('other-writer');
+  const r = await routes['GET /api/models'](ctx(me));
+  assert.deepStrictEqual(r.models.map((m: any) => [m.id, m.source]),
+    [['Gemma-4-WNTH-31B-NN', 'local'], ['Qwen3.6-WNTH-35B-A3B-NN', 'local'], [ID, 'remote']], 'local first, then the shortlist');
+  assert.strictEqual(r.models[2].perSlot, 32768, 'a remote row says the room it really has');
+  const theirs = await routes['GET /api/models'](ctx(other));
+  assert.deepStrictEqual(theirs.models.map((m: any) => m.id), ['Gemma-4-WNTH-31B-NN', 'Qwen3.6-WNTH-35B-A3B-NN'],
+    'and no one else sees it');
+  ok('the models route lists local models, then the writer\'s own shortlist, with sources');
+}
+
+// ---- 9. a remote default or pin must be on the owning writer's shortlist ----
+{
+  const other = db.owner('pin-other');
+  const theirs = db.createStory(other, { title: 'Not Mine' });
+  const set = await routes['POST /api/model'](ctx(other, { model: ID }));
+  assert.match(String(set.error), /not on the shortlist/, 'a default off your shortlist is refused');
+  assert.notStrictEqual(db.defaultModelOf(other), ID, 'and not stored');
+  await assert.rejects(routes['POST /api/story'](ctx(other, { id: theirs.id, story: { model: ID } })),
+    /not on the shortlist/, 'a pin off the owner\'s shortlist is refused');
+  await assert.rejects(routes['POST /api/story'](ctx(me, { id: story.id,
+    story: { model: `featherless:${NOT_LISTED}` } })), /not on the shortlist/,
+    'and so is a remote id nobody shortlisted');
+
+  const pinned = db.createStory(me, { title: 'Pinned' });
+  await routes['POST /api/story'](ctx(me, { id: pinned.id, story: { model: ID } }));
+  assert.strictEqual(db.getStory(pinned.id).model, ID, 'a shortlisted pin is stored unchanged');
+
+  // A remote id written past the routes — an old row, or a model since removed — is not trusted:
+  // it falls back to the local default rather than reaching Featherless.
+  db.setDefaultModel(other, ID);
+  db.updateStory(theirs.id, { model: ID });
+  const v = await routes['GET /api/story'](ctx(other, {}, `story=${theirs.id}`));
+  assert.strictEqual(v.model, 'Qwen3.6-WNTH-35B-A3B-NN', 'off the shortlist, the local default writes');
+  ok('a remote default or pin stands only on the owning writer\'s shortlist');
+}
+
+// ---- 10. background work stays on the local default whatever the writer picked ----
+{
+  assert.strictEqual(db.defaultModelOf(me), ID, 'the writer is on the remote model');
+  const m = mark();
+  const chapterId = (db.chapters(story.id)[0] as any).id;
+  await routes['POST /api/remember'](ctx(me, { storyId: story.id, chapterId }));
+  await routes['POST /api/extract'](ctx(me, { storyId: story.id, chapterId }));
+  const went = since(m);
+  assert.strictEqual(went.fl.length, 0, 'memory and extraction never reach Featherless');
+  assert.ok(went.local.length >= 2, 'they went to the local router');
+  assert.ok(went.local.every((x) => !String(x.body?.model ?? '').startsWith('featherless:')),
+    'under a local id');
+
+  // Talk is something the writer asked for, so it follows the writer's model — structured, with the
+  // strict schema Featherless enforces.
+  const t = mark();
+  await routes['POST /api/talk'](ctx(me, { storyId: story.id, said: 'Who keeps the lamp?' }));
+  const talked = since(t).fl;
+  assert.ok(talked.length >= 1 && talked.every((x) => x.body.model === REMOTE),
+    'Talk goes to the remote model the writer chose');
+  assert.strictEqual(talked[0].body.response_format?.json_schema?.strict, true,
+    'with its schema, strict');
+  assert.strictEqual(since(t).local.length, 0, 'and not to the local router');
+
+  // The one door. Every writer-facing call resolves its model through `writerModel`, which is the
+  // only place the shortlist is asked; a second `modelFor(` would be a call that can skip it.
+  const src = (await import('node:fs')).readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
+  assert.strictEqual(src.match(/\bmodelFor\(/g)?.length, 1, 'routes.ts calls modelFor in one place');
+  ok('summaries, memory and extraction stay local; writer calls resolve through one helper');
 }
 
 console.log(`\n${n} checks green`);

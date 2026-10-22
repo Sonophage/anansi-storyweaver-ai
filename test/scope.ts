@@ -8,6 +8,10 @@
 import { serialise } from './lock.ts';
 serialise();
 process.env.ANANSI_DB = '/tmp/anansi-scope.db';
+// NEVER THE REAL FEATHERLESS. This machine has a real key at the default path, so without these a
+// shortlist check here would read it and fetch the live catalogue. Port 9 refuses at once.
+process.env.ANANSI_FEATHERLESS_KEY_FILE = '/nonexistent/featherless.key';
+process.env.ANANSI_FEATHERLESS_URL = 'http://127.0.0.1:9/v1';
 import assert from 'node:assert';
 import { unlinkSync, readFileSync } from 'node:fs';
 // Raw http, because `fetch` decodes gzip transparently and hides the header while doing it. The
@@ -1605,6 +1609,41 @@ async function bootServer(port: number, env: Record<string, string>) {
     "Alice's own voice.", "a new story starts in the writer's own voice");
 
   ok("the voice of the weave is per writer, resets to the shipped one, and starts a new story");
+}
+
+// THE SHORTLIST, WITH TWO OWNERS. Its three routes name no story, so the gate never runs for them
+// and each one scopes itself by c.owner — this is the check that it does. Alice's list is seeded
+// directly: adding through the route needs a key and the catalogue, and this suite never talks to
+// Featherless (test/remote.ts drives the add against a fake).
+{
+  const { routes, OPEN_ROUTES } = await import('../src/routes.ts');
+  const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, otherDefaults: () => [], admin: false }) as any;
+  const HERS = 'featherless:someone/Alices-Model-heretic';
+  for (const r of ['GET /api/shortlist', 'POST /api/shortlist', 'POST /api/shortlist/remove'])
+    assert.ok(OPEN_ROUTES.has(r), `${r} names no story, so it is open and scopes itself`);
+  db.addToShortlist(alice, HERS, 32768);
+
+  const ids = async (owner: string) =>
+    ((await routes['GET /api/shortlist'](ctx(owner))) as any).models.map((m: any) => m.id);
+  assert.deepStrictEqual(await ids(alice), [HERS], 'alice sees her shortlist');
+  assert.deepStrictEqual(await ids(bob), [], "bob does not see alice's");
+
+  // Bob naming her model, and her, changes nothing of hers.
+  await routes['POST /api/shortlist/remove'](ctx(bob, { model: HERS, owner: alice }));
+  assert.deepStrictEqual(await ids(alice), [HERS], "bob's remove cannot reach alice's list");
+  await routes['POST /api/shortlist'](ctx(bob, { model: HERS, owner: alice }));
+  assert.deepStrictEqual(await ids(alice), [HERS], "bob's add cannot write alice's list");
+  const models: any = await routes['GET /api/models'](ctx(bob));
+  assert.ok(!models.models.some((m: any) => m.id === HERS), "her model is not on bob's menu");
+  const set: any = await routes['POST /api/model'](ctx(bob, { model: HERS }));
+  assert.ok(set.error, "bob cannot make alice's shortlisted model his default");
+
+  // And alice's own remove works, so the refusals above are about the owner and not a dead route.
+  await routes['POST /api/shortlist/remove'](ctx(alice, { model: HERS }));
+  assert.deepStrictEqual(await ids(alice), [], 'alice can remove her own');
+  ok("a writer's shortlist is unreachable from another writer's account, through all three routes");
 }
 
 // ---- A NEW CARD'S DESCRIPTION LANDS IN `facts`, NOT IN THE BODY (issue #39, 2026-09-01).
