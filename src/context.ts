@@ -736,6 +736,24 @@ export function fires(entry: Entry, window: string): string[] {
  *  Lives here rather than in `routes.ts` so that `bench/` and `test/engine.ts` can both reach it:
  *  importing it from there would pull `src/db.ts`, which opens the database writable and migrates
  *  it at module load, which is the objection `bench/ledger-audit.ts` already records. */
+/** #56 · WHETHER A WEAVING CALL FITS: the same book assembled twice, once with the normal reply
+ *  reserve (`normal`) and once with the weaving one (`woven`), which differ only in budget.
+ *
+ *  Null when weaving costs the book nothing. Otherwise the blocks the normal assembly kept and the
+ *  weaving one left out, and whether the weaving prompt overflows outright. The engine has no
+ *  'partial' state (see Block in blocks.ts), so "a block made partial or omitted" is exactly
+ *  "omitted, or the prompt overflowed".
+ *
+ *  A book that overflows WITHOUT weaving is not refused here: that is the overflow error the call
+ *  already gives, and weaving has nothing to do with it. Pure, like `buildContext`: the caller
+ *  assembles both and decides what to do with the answer. */
+export function weaveFit(normal: Manifest, woven: Manifest): { drops: Block[]; overflows: boolean } | null {
+  if (normal.overflowed) return null;
+  const kept = new Set(normal.blocks.filter((b) => b.state === 'included').map((b) => `${b.kind}\u0000${b.id}`));
+  const drops = woven.blocks.filter((b) => b.state !== 'included' && kept.has(`${b.kind}\u0000${b.id}`));
+  return drops.length || woven.overflowed ? { drops, overflows: woven.overflowed } : null;
+}
+
 /** Every number in a text, with the thing it counts. F43.
  *
  *  The checker is BLIND to numbers — 0 of 4 wrong counts against 4 of 4 of everything else — and a

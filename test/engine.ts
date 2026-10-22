@@ -1,7 +1,8 @@
 // One runnable check. Fails if the engine's load-bearing behaviour breaks.
 //   node --experimental-strip-types test/engine.ts
 import assert from 'node:assert';
-import { buildContext, resolveBody, fires, retirable, numbersIn, narrationOnly, quotedSpans, factsIn, factsLost } from '../src/context.ts';
+import { buildContext, resolveBody, fires, retirable, numbersIn, narrationOnly, quotedSpans, factsIn, factsLost,
+         weaveFit } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
 import { render } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
@@ -1879,6 +1880,67 @@ ok('a card with no body renders its facts bare, with no empty bracket left behin
   // The empty body must leave NOTHING behind.
   assert.doesNotMatch(out, /\[\s*\]/, 'no empty bracket where the body would have been');
   assert.doesNotMatch(out, /\n\n\n/, 'and no gap left by the missing body');
+});
+
+/* #56 · WHEN WEAVING DOES NOT FIT. A weaving call reserves 5,000 more tokens for the plan, so its
+ * budget is smaller, and the engine's ceilings then drop more of the book. The fit check compares the
+ * two assemblies — the normal reserve and the weaving one — and refuses when a block the normal
+ * assembly kept is left out of the weaving one, or when the weaving one does not fit at all. The
+ * engine has no 'partial' state (blocks.ts), so "partial or omitted" is "omitted, or overflowed".
+ *
+ * Twenty passages of about a hundred tokens each: at 4,000 the prose ceiling (60%) holds all of them;
+ * at 2,000 it holds about twelve, so the oldest drop. */
+ok('the weaving fit check refuses exactly when the weaving reserve drops a block the normal one kept', () => {
+  const long = (): Input => { const i = base();
+    i.passages = Array.from({ length: 20 }, (_, k) => ({ id: `p${k + 1}`, ordinal: k + 1,
+      body: `Passage ${k + 1}. ` + 'The rain ran down the archive steps and nobody came. '.repeat(7) }));
+    return i; };
+  const at = (budget: number) => { const i = long(); i.budget = budget; return buildContext(i, count); };
+
+  // Refuse: the weaving budget evicts prose the normal one kept, and the refusal names those blocks.
+  const normal = at(4000), woven = at(2000);
+  assert.ok(!normal.overflowed && !woven.overflowed, 'precondition: both assemblies fit');
+  assert.ok(!normal.blocks.some((b) => b.kind === 'PROSE' && b.state === 'omitted'),
+    'precondition: the normal assembly keeps every passage');
+  const refused = weaveFit(normal, woven);
+  assert.ok(refused, 'a weaving reserve that drops prose is refused');
+  assert.strictEqual(refused!.overflows, false, 'and it is not an overflow: the weaving prompt fits');
+  const dropped = refused!.drops.map((b) => b.id);
+  assert.ok(dropped.length >= 1 && dropped.every((id) => /^p\d+$/.test(id)), `only prose drops here: ${dropped}`);
+  // Write anyway sends `woven` as it stands, so its own omissions ARE the override's ordering:
+  // the oldest prose goes first, by the engine's existing rule.
+  const gone = woven.blocks.filter((b) => b.kind === 'PROSE' && b.state === 'omitted').map((b) => b.id);
+  assert.deepStrictEqual(dropped, gone, 'the refusal names what the weaving assembly leaves out');
+  assert.deepStrictEqual(gone, gone.map((_, k) => `p${k + 1}`), `and that is the oldest prose, in order: ${gone}`);
+
+  // Pass: room for both, and nothing the normal assembly kept is lost.
+  assert.strictEqual(weaveFit(at(9000), at(7000)), null, 'a weaving reserve that drops nothing passes');
+
+  // A block the normal assembly had ALREADY left out is not the weaving reserve's doing.
+  const tight = at(2600);
+  assert.ok(tight.blocks.some((b) => b.kind === 'PROSE' && b.state === 'omitted'), 'precondition: 2,600 drops some');
+  const twice = weaveFit(tight, woven)!;
+  assert.ok(twice.drops.every((b) => tight.blocks.find((x) => x.id === b.id)?.state === 'included'),
+    'only blocks the normal assembly included are named');
+  assert.ok(twice.drops.length < refused!.drops.length, 'so fewer are named than against the roomy one');
+
+  // The weaving prompt does not fit at all while the normal one does: refused, as an overflow.
+  const crushed = at(150);
+  assert.ok(crushed.overflowed, 'precondition: 150 overflows');
+  assert.strictEqual(weaveFit(normal, crushed)?.overflows, true, 'a weaving prompt that overflows is refused');
+  // And when nothing CAN be evicted — a short book whose prompt is all anchors — the overflow alone
+  // is the refusal: no block is named, and it is still refused.
+  const bare = (budget: number) => { const i = base(); i.entries = []; i.chapters = [i.chapters[2]];
+    i.budget = budget; return buildContext(i, count); };
+  const roomy = bare(4000), cramped = bare(120);
+  assert.ok(!roomy.overflowed && cramped.overflowed, 'precondition: the bare book fits at 4,000 and not at 120');
+  const bareFit = weaveFit(roomy, cramped);
+  assert.deepStrictEqual(bareFit && { n: bareFit.drops.length, overflows: bareFit.overflows }, { n: 0, overflows: true },
+    'an overflow with nothing to drop is refused, as an overflow');
+
+  // A TRUE overflow — the normal prompt does not fit either — is not this check's to refuse. It is
+  // the existing error, whatever weaving does.
+  assert.strictEqual(weaveFit(at(150), at(100)), null, 'a book that overflows without weaving is the overflow error');
 });
 
 /* ---- THE SLOT SIZE IS ASKED UNTIL IT IS ANSWERED, not once at boot (2026-09-11).
