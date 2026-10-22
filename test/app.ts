@@ -324,6 +324,9 @@ let refuseNth = 0;
 // shelf, a sleeping router. Pressing the logo reloads the library, so a test can change what comes
 // back and then ask for it. Null means "the fixture", which is every other test here.
 let shelfOverride: any = null;
+// Whether the canned model list says the server holds a Featherless key. Off, as it was before the
+// field existed; a check that needs it on sets it and reads the list again.
+let modelsRemote = false;
 // Issue #32. What `POST /api/chapter/end` says about its own four passes, for the one test that
 // closes a chapter. Undefined means it says nothing, which is both the all-ran case and the case
 // of an older server.
@@ -475,7 +478,7 @@ let stubPassageId: string | undefined = undefined;
           kinds: [{ k: 'character', n: 9 }, { k: 'lore', n: 6 }, { k: 'item', n: 2 }],
           days: [{ d: day(9), n: 4, w: 1200 }, { d: day(1), n: 6, w: 2400 }] };
       })()
-    : url.startsWith('/api/models') ? { active: 'write-nt-qwen36-h', allow: [], models: [
+    : url.startsWith('/api/models') ? { active: 'write-nt-qwen36-h', allow: [], remote: modelsRemote, models: [
         { id: 'Qwen3.6-WNTH-35B-A3B-NN', status: 'loaded',
           ctxSize: 100096, parallel: 2, perSlot: 50048, tps: 58.4, runs: 58 },
         { id: 'Wayfarer-2-RPNT-12B', status: 'unloaded',
@@ -484,7 +487,7 @@ let stubPassageId: string | undefined = undefined;
         // #53. A remote row, in the shape the route gives it: its status says where it runs, not
         // whether it is awake, because Featherless keeps no model asleep that a writer can see.
         { id: 'featherless:Grey/Kestrel-Heretic-24B', status: 'remote', source: 'remote',
-          ctxSize: 32768, perSlot: 32768 }] }
+          ctxSize: 32768, perSlot: 32768, cost: 2 }] }
     // #21. A skeleton, not a created story — which is the whole reason it lands on the page to be
     // edited before anything is written.
     : url.startsWith('/api/style') ? { style: 'Wet streets and short sentences.' }
@@ -2211,6 +2214,34 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.match(bare, /nothing has been written with it here yet/);
   assert.match(bare, /Nothing is written down about this one/, 'and no blurb is invented for it');
   assert.match(bare, /Write/, 'while what the id itself encodes is still read');
+
+  // A REMOTE MODEL'S PANEL SAYS WHAT IS TRUE ON FEATHERLESS. It has no router and no preset file,
+  // so wording about either is wrong for it; its context limit and its unit cost come from the
+  // Featherless catalogue. Comments are stripped first, so a comment cannot satisfy a match.
+  const strip = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
+  const FAR = 'featherless:Grey/Kestrel-Heretic-24B';
+  click({ modelinfo: FAR });
+  await new Promise((r) => setTimeout(r, 30));
+  const far = strip(html('sideBody'));
+  assert.doesNotMatch(far, /preset file/, 'REMOTE-PANEL: no preset-file wording for a remote model');
+  assert.doesNotMatch(far, /router/, 'REMOTE-PANEL: and no router wording');
+  assert.match(far, /32,768 tokens/, 'the room one writer gets');
+  assert.match(far, /Featherless holds 32,768/, 'REMOTE-PANEL: and the limit Featherless gives it');
+  assert.match(far, /2 units of the shared plan/, 'REMOTE-PANEL: its unit cost');
+  assert.match(far, /on Featherless/, 'REMOTE-PANEL: and where it runs');
+  assert.doesNotMatch(far, /data-pickmodel=/,
+    'REMOTE-PANEL: with Featherless not set up, there is no Write with this one');
+
+  // With a key, the switch is back. The list is read again so the panel learns it.
+  modelsRemote = true;
+  click({ dropshort: 'featherless:Other/Unused-12B' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ modelinfo: FAR });
+  assert.match(html('sideBody'), /data-pickmodel="featherless:Grey\/Kestrel-Heretic-24B"/,
+    'and with Featherless set up, the switch is on the panel');
+  modelsRemote = false;
+  click({ dropshort: 'featherless:Other/Unused-12B' });
+  await new Promise((r) => setTimeout(r, 40));
 }
 ok('the model panel reads the router, the preset file, this database and the id, and names each');
 

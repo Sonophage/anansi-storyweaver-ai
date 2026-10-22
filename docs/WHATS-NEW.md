@@ -40,6 +40,10 @@ first paragraph of its description. Banners and pictures are taken out, so you r
 text. If the description has no paragraph, you see the base model and the tags. The model
 information panel shows the same description for a model on your shortlist.
 
+For a model on your shortlist, the model information panel also says that it runs on Featherless,
+how much of a book Featherless lets it hold, and how much of the shared plan it uses. If this
+server is not set up for Featherless, the panel says so and has no "Write with this one" button.
+
 ### When a Featherless model cannot write
 If you take a model off your shortlist while it is your default, or while one of your books is set
 to it, those books go back to the model on this machine. A message names each book, and says

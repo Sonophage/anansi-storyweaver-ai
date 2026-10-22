@@ -2311,6 +2311,7 @@ const PANELS = {
       <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
         <span class="serif" style="font-size:19px; color:var(--ink-bright)">${esc(d.name)}</span>
         ${writing ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">writing now</span>'
+          : remote ? '<span class="tag">on Featherless</span>'
           : m.status === 'unloaded' ? '<span class="tag">asleep</span>'
           : m.status === 'loaded' ? '<span class="tag" style="color:var(--good)">loaded</span>' : ''}</div>
       <!-- The id is what the router answers to and what ANANSI_MODEL takes, so it is on the panel
@@ -2329,7 +2330,16 @@ const PANELS = {
         : `<div class="hint" style="margin:0 0 6px">Nothing is written down about this one. What is
             above is decoded from its name; what is below is measured.</div>`}
 
-      ${fact('Context, per writer',
+      ${remote
+        // A REMOTE MODEL HAS NO ROUTER AND NO PRESET FILE. Its limit and its cost are the
+        // Featherless catalogue's, recorded when it was shortlisted, and it runs there.
+        ? `${fact('Context, per writer', m.perSlot ? `${m.perSlot.toLocaleString()} tokens` : '',
+            m.ctxSize ? `Featherless holds ${m.ctxSize.toLocaleString()} for this model; a writer gets the smaller of that and the slot here`
+              : 'Featherless did not say how much this model holds')}
+           ${fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of the shared plan` : '',
+            m.cost ? 'counted against the plan both writers share, on Featherless, while it writes'
+              : 'Featherless did not say what this model costs')}`
+        : fact('Context, per writer',
         perSlot ? `${perSlot.toLocaleString()} tokens` : '',
         live
           ? `${live.global.toLocaleString()} across the ${live.slots} ${live.slots === 1 ? 'slot' : 'slots'} the running server opened`
@@ -2350,8 +2360,11 @@ const PANELS = {
 
       <div style="margin-top:16px">
         ${writing
-          ? `<div class="hint" style="margin:0">This is the one writing. Switching to another
-              releases it.</div>`
+          ? `<div class="hint" style="margin:0">This is the one writing.${remote ? '' : ` Switching to another
+              releases it.`}</div>`
+          // A remote model with no key on the server cannot be picked, so nothing offers it.
+          : remote && !S.remote
+          ? `<div class="hint" style="margin:0">Featherless isn't set up on this server.</div>`
           : `<button class="btn" data-pickmodel="${esc(id)}">Write with this one</button>`}
       </div></div>`;
   },

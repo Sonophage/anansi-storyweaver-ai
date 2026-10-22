@@ -210,9 +210,10 @@ const slotFor = (c: Ctx, v: { owner?: string }, using: string): Slot => {
 
 /** A REMOTE MODEL AS A MODEL ROW: the one shape the model menu, the Storyteller picker and the
  *  shelf read. `ready` is false when the server has no key — listed, and not pickable. */
-const remoteRow = (c: Ctx, id: string, context: number, speed?: { tps?: number; runs?: number }) =>
+const remoteRow = (c: Ctx, id: string, context: number, speed?: { tps?: number; runs?: number },
+                   cost?: number | null) =>
   ({ id, status: 'remote', source: 'remote', ready: remoteReady(), ctxSize: context,
-     perSlot: Math.min(context, c.slot.perSlot), tps: speed?.tps, runs: speed?.runs });
+     perSlot: Math.min(context, c.slot.perSlot), tps: speed?.tps, runs: speed?.runs, cost: cost ?? null });
 
 /** A BOOK'S REMOTE PIN, as a model row, or null. Checked against the OWNER's shortlist, the way
  *  `writerModel` checks it, because a guest's own list does not hold the owner's models: without
@@ -1438,7 +1439,7 @@ export const routes: Record<string, Handler> = {
     // "not set up" rather than as a wiped list; `remote` says the same once for the whole menu. A
     // yes or a no, never the key or where it is kept.
     const ready = remoteReady();
-    const mine = db.shortlistOf(c.owner).map((m) => remoteRow(c, m.id, m.context, speed[m.id]));
+    const mine = db.shortlistOf(c.owner).map((m) => remoteRow(c, m.id, m.context, speed[m.id], m.cost));
     const local = (ms: any[]) => ms.map((m) => ({ ...dress(m), source: 'local' }));
     // `active` is the model that WRITES for this writer, resolved, not the stored default: with no
     // key, or a default since removed, the strip must name the local one that is really writing.
