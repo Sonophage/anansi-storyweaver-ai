@@ -29,10 +29,10 @@ node --experimental-strip-types test/all.ts     # every suite; it prints its own
 turn instead of colliding on the fixed ports and `/tmp` databases.
 
 Run it before and after. No model needed, so there is no excuse for skipping it. It runs the thirteen
-unit suites **and all seventeen `check` modes under `bench/`**, in parallel, in about 11 seconds.
-Each bench entry is spawned with its own `ANANSI_DB`: fifteen of the seventeen touch no database,
+unit suites **and all eighteen `check` modes under `bench/`**, in parallel, in about 11 seconds.
+Each bench entry is spawned with its own `ANANSI_DB`: most of them touch no database,
 `bench/rooms.ts` opens one, and without that guard it would open the live library read-write and
-migrate it mid-run.
+migrate it mid-run. `bench/weave-json.ts` opens a scratch one of its own, whatever `ANANSI_DB` says.
 
 The browser harness is separate and slower: `bash test/ui/run.sh`.
 

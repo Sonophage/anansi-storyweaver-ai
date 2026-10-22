@@ -22,6 +22,8 @@ let calls: { kind: string; weaving: unknown; maxTokens: number; user: string }[]
 /** The plan the fake hands back with a passage, and the token count it reports for it, if any. */
 let plan = '';
 let planTokens: number | undefined;
+/** Set to cut the next structured answer off mid-object, the way a plan that ate the cap does. */
+let cutNext = false;
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -32,11 +34,24 @@ const srv = createServer((req, res) => {
       res.end(JSON.stringify(o)); };
     // Short, so the exact count never refuses; the budget is what this file reads, not the count.
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
-    const kind = b.response_format ? 'check' : b.max_tokens === 1 ? 'warm' : 'prose';
+    // A structured call is named by its schema: Talk's has a reply, Invent's a title, the check's
+    // its contradictions. Anything else with a grammar is counted as a check, which is background.
+    const props = b.response_format?.json_schema?.schema?.properties ?? {};
+    const kind = b.response_format ? (props.reply ? 'talk' : props.title ? 'invent' : 'check')
+      : b.max_tokens === 1 ? 'warm' : 'prose';
     calls.push({ kind, weaving: b.chat_template_kwargs?.enable_thinking, maxTokens: b.max_tokens,
       user: String(b.messages?.[1]?.content ?? '') });
     if (kind === 'check') return send({ choices: [{ message: { content: JSON.stringify({ contradictions: [] }) } }],
       usage: { prompt_tokens: 200, completion_tokens: 5 } });
+    const cut = cutNext && (kind === 'talk' || kind === 'invent');
+    if (cut) cutNext = false;
+    if (kind === 'talk' || kind === 'invent') return send({ choices: [{ message: {
+        content: JSON.stringify(kind === 'talk' ? { reply: 'It is about a debt.', entries: [] }
+          : { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]', keys: ['choir'] })
+          .slice(0, cut ? 12 : undefined),
+        reasoning_content: plan } }],
+      usage: { prompt_tokens: 200, completion_tokens: 40,
+               ...(planTokens == null ? {} : { completion_tokens_details: { reasoning_tokens: planTokens } }) } });
     send({ choices: [{ message: { content: 'She walks into the light.', reasoning_content: plan },
                        finish_reason: 'stop' }],
       usage: { prompt_tokens: 200, completion_tokens: 40,
@@ -197,7 +212,172 @@ const ok = (m: string, fn?: unknown) => {
   ok("a weaving passage's plan length lands on its generation row, and the plan does not");
 }
 
-// ---- 6. WHEN WEAVING DOES NOT FIT (#56). A long book in a small slot: the 5,000 the plan is given
+// ---- 6. TALK AND INVENT WEAVE IN A WEAVING BOOK, WITH THE SAME ROOM. Their own caps, 2,400 and
+// 2,000, plus the 5,000. In any other book they are sent weaving off with their own caps, as before.
+const talk = async (id: string, perSlot?: number, extra: any = {}) => {
+  calls = [];
+  return routes['POST /api/talk'](ctx({ storyId: id, said: 'What is this story about?', ...extra }, perSlot)) as any;
+};
+const invent = async (id: string, perSlot?: number, extra: any = {}) => {
+  calls = [];
+  return routes['POST /api/invent'](ctx({ storyId: id, kind: 'lore', ...extra }, perSlot)) as any;
+};
+{
+  for (const [name, go, kind, cap] of [['Talk', talk, 'talk', 2400], ['Invent', invent, 'invent', 2000]] as const) {
+    const r = await go(woven.id);
+    assert.ok(!r.error, `${name}: ${r.error}`);
+    const on = calls.filter((x) => x.kind === kind);
+    assert.strictEqual(on.length, 1, `${name} reached the model once: ${JSON.stringify(calls)}`);
+    assert.strictEqual(on[0].weaving, true, `${name} in a weaving book is sent weaving on`);
+    assert.strictEqual(on[0].maxTokens, cap + 5000, `${name} gets its own cap raised by 5,000`);
+
+    const p = await go(plain.id);
+    assert.ok(!p.error, `${name}: ${p.error}`);
+    const off = calls.filter((x) => x.kind === kind);
+    assert.strictEqual(off[0].weaving, false, `${name} in a book that does not weave is sent weaving off`);
+    assert.strictEqual(off[0].maxTokens, cap, `${name} keeps its own cap in a book that does not weave`);
+  }
+  ok('Talk and Invent weave in a weaving book with their caps raised by 5,000, and in any other book do not');
+
+  // "Remember this" is structured, writer-facing and shaped like an invention, and it is not on the
+  // role list: it must stay weaving off in the same book, or F23 comes back through the side door.
+  const passageId = db.addPassage({ ...woven, storyId: woven.id, body: 'The stair gave under her weight.' })!;
+  calls = [];
+  const m: any = await routes['POST /api/memo'](ctx({ storyId: woven.id, passageId }));
+  assert.ok(!m.error, m.error);
+  assert.strictEqual(calls.length, 1, `remember reached the model once: ${JSON.stringify(calls)}`);
+  assert.strictEqual(calls[0].weaving, false, '"Remember this" in a weaving book is sent weaving off');
+  ok('"Remember this" in a weaving book is sent weaving off');
+}
+
+// ---- 7. A WEAVING TALK OR INVENTION RECORDS ITS PLAN'S LENGTH, the number the 5,000 is tuned
+// from, and not the plan. The same rule as a passage: the server's count, else the length.
+{
+  const raw = new DatabaseSync(DB, { readOnly: true });
+  const last = (role: string) => raw.prepare('SELECT * FROM generations WHERE role = ? ORDER BY rowid DESC LIMIT 1')
+    .get(role) as any;
+  for (const [name, go, role, cap] of [['Talk', talk, 'talk', 2400], ['Invent', invent, 'invent:lore', 2000]] as const) {
+    plan = 'THE-PLAN-ITSELF '.repeat(20); planTokens = 3300;
+    assert.ok(!(await go(woven.id)).error);
+    const row = last(role), params = JSON.parse(row.params ?? '{}');
+    assert.strictEqual(params.plan, 3300, `${name}: the server's count of the plan is kept`);
+    assert.strictEqual(params.weaving, true, `${name}: the row says the call wove`);
+    assert.strictEqual(params.max_tokens, cap + 5000, `${name}: with the cap it was sent with`);
+    assert.ok(!JSON.stringify(row).includes('THE-PLAN-ITSELF'), `${name}: nothing of the plan is stored`);
+
+    plan = 'x'.repeat(420); planTokens = undefined;
+    assert.ok(!(await go(woven.id)).error);
+    assert.strictEqual(JSON.parse(last(role).params ?? '{}').plan, 100,
+      `${name}: without a count, the plan is measured from its length`);
+
+    plan = ''; planTokens = undefined;
+    assert.ok(!(await go(plain.id)).error);
+    assert.ok(!('plan' in JSON.parse(last(role).params ?? '{}')), `${name}: a call that did not weave records no plan`);
+  }
+  raw.close();
+  ok("a weaving Talk's and invention's plan length lands on the generation row, and the plan does not");
+}
+
+// ---- 8. A WEAVING CALL'S RETRY STAYS INSIDE THE ROOM ITS PROMPT WAS BUDGETED FOR. The retry exists
+// for an object that ran out of room, and it doubles the cap for every other call. Doubled here,
+// Talk's 7,400 becomes 14,800 against a prompt that reserved 7,400: the slot is oversubscribed, and
+// this server answers that with a 500 to both writers on it. So the retry keeps the reserved cap and
+// is sent weaving off, which hands the whole of it to the answer. The row says the call wove (the
+// plan was made, and its length is the number the 5,000 is tuned from) and that it was retried.
+{
+  const raw = new DatabaseSync(DB, { readOnly: true });
+  const last = (role: string) => JSON.parse((raw.prepare(
+    'SELECT params FROM generations WHERE role = ? ORDER BY rowid DESC LIMIT 1').get(role) as any).params ?? '{}');
+  for (const [name, go, kind, role, cap] of [['Talk', talk, 'talk', 'talk', 2400],
+                                             ['Invent', invent, 'invent', 'invent:lore', 2000]] as const) {
+    plan = 'x'.repeat(4200); planTokens = undefined; cutNext = true;
+    const r = await go(woven.id);
+    assert.ok(!r.error, `${name}: the retry answered: ${r.error}`);
+    const sent = calls.filter((x) => x.kind === kind);
+    assert.strictEqual(sent.length, 2, `${name}: a cut-off answer is retried once: ${JSON.stringify(sent)}`);
+    assert.strictEqual(sent[0].weaving, true, `${name}: the first try wove`);
+    assert.strictEqual(sent[1].maxTokens, cap + 5000, `${name}: the retry keeps the cap the prompt reserved, `
+      + `not double it (${sent[1].maxTokens})`);
+    assert.strictEqual(sent[1].weaving, false, `${name}: and is sent weaving off, so the answer has all of it`);
+    const params = last(role);
+    assert.strictEqual(params.weaving, true, `${name}: the row says the call wove`);
+    assert.strictEqual(params.retried, true, `${name}: and that it was retried`);
+    assert.strictEqual(params.plan, 1000, `${name}: with the length of the plan that was made`);
+  }
+  // In a book that does not weave the retry is what it always was: double, at least 2,000.
+  cutNext = true;
+  await talk(plain.id);
+  const sent = calls.filter((x) => x.kind === 'talk');
+  assert.deepStrictEqual(sent.map((x) => x.maxTokens), [2400, 4800], 'a Talk that does not weave still doubles');
+  plan = '';
+  raw.close();
+  ok("a weaving call's retry keeps the cap its prompt reserved and goes weaving off, and says so on the row");
+}
+
+// ---- 9. THE FIT CHECK. When the weaving room would push part of the book out of a Talk or Invent
+// prompt, the call is refused with a message that says so and names the two ways on. `weaveAnyway`
+// sends the weaving prompt, where the older prose drops out first; turning weaving off sends the
+// book whole. A long book and a small slot, so the 5,000 is what decides.
+{
+  const tome = (title: string, weaving: boolean) => {
+    const s = db.createStory(me, { title, premise: 'A city on a dead god.' });
+    db.upsertEntry(s.id, me, { title: 'The Murmur', body: 'Vel is the Murmur.', activation: 'always_on' });
+    for (let i = 1; i <= 30; i++)
+      db.addPassage({ ...s, storyId: s.id,
+        body: `Passage ${i}. ` + 'The lower tiers pulse under the rain, and the Murmur keeps her counsel. '.repeat(12) });
+    if (weaving) db.updateStory(s.id, { weaving: true });
+    return s;
+  };
+  const big = tome('Big, weaving', true), same = tome('Big, plain', false);
+  const raw = new DatabaseSync(DB, { readOnly: true });
+  const lastManifest = (role: string) => JSON.parse((raw.prepare(
+    'SELECT manifest FROM generations WHERE role = ? ORDER BY rowid DESC LIMIT 1').get(role) as any).manifest);
+  const omittedProse = (m: any) => m.blocks.filter((b: any) => b.kind === 'PROSE' && b.state === 'omitted').length;
+
+  for (const [name, go, kind, role, slot] of [['Talk', talk, 'talk', 'talk', 9500],
+                                              ['Invent', invent, 'invent', 'invent:lore', 9000]] as const) {
+    // The precondition, so the refusal below can be wrong: without weaving, this slot holds the book.
+    assert.ok(!(await go(same.id, slot)).error, `${name}: the slot holds the book without weaving`);
+    assert.strictEqual(omittedProse(lastManifest(role)), 0, `${name}: and nothing of it is left out`);
+
+    const refused = await go(big.id, slot);
+    assert.ok(refused.error, `${name}: the weaving room would push part of the book out, so it refuses`);
+    assert.strictEqual(calls.filter((x) => x.kind === kind).length, 0, `${name}: and nothing reached the model`);
+    assert.match(refused.error, /weav/i, `${name}: the message says weaving is the reason: ${refused.error}`);
+    assert.match(refused.error, /turn weaving off/i, `${name}: it offers turning weaving off`);
+    assert.match(refused.error, /anyway/i, `${name}: and going ahead anyway`);
+    assert.match(refused.error, /passage/, `${name}: it names what would drop out: ${refused.error}`);
+    assert.ok(refused.weaveFit?.drops?.length > 0, `${name}: and lists it: ${JSON.stringify(refused.weaveFit)}`);
+    assert.ok(refused.weaveFit.drops.every((d: any) => d.kind && d.id), `${name}: each by kind and id`);
+
+    const anyway = await go(big.id, slot, { weaveAnyway: true });
+    assert.ok(!anyway.error, `${name}: anyway goes ahead: ${anyway.error}`);
+    const sent = calls.filter((x) => x.kind === kind);
+    assert.strictEqual(sent[0]?.weaving, true, `${name}: weaving on`);
+    assert.strictEqual(sent[0]?.maxTokens, ({ talk: 2400, invent: 2000 } as any)[kind] + 5000, `${name}: with its room`);
+    const m = lastManifest(role);
+    assert.ok(omittedProse(m) > 0, `${name}: and older prose dropped out to make it`);
+    // Oldest first: every passage left out comes before every passage kept.
+    const prose = m.blocks.filter((b: any) => b.kind === 'PROSE');
+    const firstKept = prose.findIndex((b: any) => b.state === 'included');
+    assert.ok(firstKept > 0 && prose.slice(firstKept).every((b: any) => b.state === 'included'),
+      `${name}: the oldest prose is what dropped`);
+  }
+  // A slot that holds Talk's own reserve but not the weaving one at all: the weaving prompt
+  // overflows where the plain one does not. That is the same refusal, not an overflow error.
+  assert.ok(!(await talk(same.id, 7000)).error, 'the 7,000 slot holds Talk without weaving');
+  const over = await talk(big.id, 7000);
+  assert.match(over.error ?? '', /turn weaving off/i, `an overflow the weaving room causes is the refusal: ${over.error}`);
+  assert.ok(over.weaveFit, 'and says so in its shape');
+  assert.doesNotMatch(over.error, /anyway/i, 'and does not offer an anyway that would only overflow');
+  // A slot too small for the book even without weaving is the error it always was.
+  const tiny = await talk(big.id, 2000);
+  assert.ok(tiny.error && !tiny.weaveFit, `a true overflow stays the existing error: ${tiny.error}`);
+  raw.close();
+  ok('a weaving Talk or invention that would push part of the book out refuses, and anyway drops the oldest prose');
+}
+
+// ---- 10. WHEN WEAVING DOES NOT FIT, FOR A PASSAGE. A long book in a small slot: the 5,000 the plan is given
 // would push its oldest prose out of the prompt. The call is refused before anything reaches the
 // model, with a message naming what would drop out; the writer can write anyway, which sends the
 // weaving assembly with the oldest prose gone, or turn weaving off, which writes normally.
@@ -253,7 +433,7 @@ const ok = (m: string, fn?: unknown) => {
   ok('a weaving call that would drop prose is refused, naming it; write anyway sends it, and weaving off writes normally');
 }
 
-// ---- 7. A TRUE OVERFLOW STAYS THE OVERFLOW ERROR. A slot so small the book does not fit even
+// ---- 11. A TRUE OVERFLOW STAYS THE OVERFLOW ERROR. A slot so small the book does not fit even
 // without weaving: that is not weaving's refusal, and writing anyway cannot help.
 {
   calls = [];

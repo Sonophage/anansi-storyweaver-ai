@@ -52,6 +52,12 @@ await search("");
 await page.click('[data-finduncensored]');
 await wait(700);
 ok("turning uncensored-only off shows a stock model", (await hits()).some((i) => i.includes("Gemma-4-26B-it")));
+ids = await hits();
+const untried = await page.eval("document.querySelector('#findhits [title$=\"Step-3.5-Flash\"]')?.parentElement?.textContent ?? ''");
+ok(`a family Anansi has not met says not tried yet, last (${JSON.stringify(untried.trim().slice(-40))})`,
+  /not tried yet/.test(untried) && !/doesn't weave/.test(untried) && ids.at(-1).includes("Step-3.5-Flash"));
+ok("and the weaving filter offers it", await page.eval(`[...document.querySelectorAll('[data-findweave] option')]
+  .some((o) => o.value === 'not tried yet')`));
 await page.pick('[data-findweave]', 'always weaves');
 await wait(700);
 ids = await hits();

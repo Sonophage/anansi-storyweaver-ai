@@ -97,9 +97,11 @@ const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no suc
 /** THE ROLES THAT WEAVE, and the only list of them. A call whose role is not here is sent weaving
  *  off whatever its book says: summaries, the canon check, memory and extraction are background
  *  work, and F23 measured a structured call that planned first truncating its own JSON on 3 calls in
- *  5. Talk and Invent join this list when #57 measures them with weaving on; adding a role is this
- *  one line, and `replyFor` below is what every caller reads it through. */
-export const WEAVING_ROLES: ReadonlySet<string> = new Set(['prose']);
+ *  5. Talk and Invent are on it with WEAVE_ROOM on top of their own caps, the raised budget F23
+ *  says any future use needs. `bench/weave-json.ts` is the measurement it also asks for: if either
+ *  role returns unparseable JSON with weaving on, it comes off this list. Adding or removing a role
+ *  is this one line, and `replyFor` below is what every caller reads it through. */
+export const WEAVING_ROLES: ReadonlySet<string> = new Set(['prose', 'talk', 'invent']);
 
 /** The room a weaving call is given on top of its role's own cap. Fixed, above the largest plan F60
  *  measured (4,552 tokens; the median was about 3,300).
@@ -126,6 +128,7 @@ const replyFor = (c: Ctx, v: { story: any }, role: string, cap: number) => {
   const weaves = WEAVING_ROLES.has(role) && bookWeaves(c, v);
   return { weaves, maxTokens: cap + (weaves ? WEAVE_ROOM : 0) };
 };
+
 /** The prose cap the writer's sampler holds: derived from the target length by `capFor`. */
 const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
 
@@ -164,9 +167,14 @@ const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }) => {
  *
  *  `build` assembles the call's prompt at a given reply cap; this asks for it once at the cap
  *  `replyFor` decides and, when the call weaves, once more at the role's own cap, and hands both to
- *  the engine's `weaveFit`. The generation refuses on `refusal` unless the writer chose to write
- *  anyway; the Context panel's preview carries the same `refusal`, so the panel and the press say
- *  one thing. A call that does not weave is assembled once and never refused here. */
+ *  the engine's `weaveFit`. A passage, a Talk reply and an invention all come through here, so the
+ *  rule, the message and the shape are one: `stop`, when set, is the whole answer to send back —
+ *  `{ error, weaveFit: { overflows, message, drops }, manifest }` — and it is set unless the request
+ *  carries `weaveAnyway` (the writer's Write anyway). An overflow is refused either way: writing
+ *  anyway would send a prompt that does not fit. The Context panel's preview carries the same
+ *  `refusal`, so the panel and the press say one thing. A call that does not weave is assembled
+ *  once and never refused here, and a book that overflows without weaving is the overflow error
+ *  the caller already gives. */
 const weaveAssemble = (c: Ctx, v: { story: any; entries?: any[] }, role: string, cap: number,
                        build: (maxTokens: number) => { manifest: Manifest; prompt: string }) => {
   const reply = replyFor(c, v, role, cap);
@@ -174,7 +182,9 @@ const weaveAssemble = (c: Ctx, v: { story: any; entries?: any[] }, role: string,
   const fit = reply.weaves ? weaveFit(build(cap).manifest, built.manifest) : null;
   const refusal = fit && { overflows: fit.overflows, message: weaveRefusal(v, fit),
     drops: fit.drops.map((b) => ({ kind: b.kind, id: b.id })) };
-  return { reply, ...built, refusal };
+  const stop = refusal && (!c.body.weaveAnyway || refusal.overflows)
+    ? { error: refusal.message, weaveFit: refusal, manifest: built.manifest } : null;
+  return { reply, ...built, refusal, stop };
 };
 
 /** A BOOK AS EVERY ROUTE HANDS IT BACK: the view, plus what writes it for the writer asking.
@@ -723,6 +733,14 @@ const planLength = (r: { usage?: any; reasoning: string }) => {
   return typeof told === 'number' ? told : estimate(r.reasoning);
 };
 
+/** What a structured call's generation row says about weaving: the same three keys a weaving
+ *  passage records, or nothing at all for a call that did not weave. */
+const wove = (reply: { weaves: boolean; maxTokens: number },
+              r: { usage?: any; reasoning: string; retried?: boolean }) =>
+  reply.weaves ? { weaving: true, max_tokens: reply.maxTokens, plan: planLength(r),
+                   // `structuredRetry`'s weaving retry: the answer that landed was written without the plan.
+                   ...(r.retried ? { retried: true } : {}) } : undefined;
+
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
   // ASKING FOR THE NEXT PASSAGE CLAIMS WHAT IS ALREADY THERE — "only claimed after the next
@@ -756,12 +774,11 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   // cap the call is sent with, so the plan's room is reserved rather than taken out of the prose.
   // And whether weaving's room would leave part of the book out (#56), which is refused unless the
   // writer pressed Write anyway. An overflow is refused either way: writing anyway cannot fit it.
-  const { reply, manifest, prompt, refusal } = weaveAssemble(c, v, role, proseCap(c), (cap) =>
+  const { reply, manifest, prompt, stop } = weaveAssemble(c, v, role, proseCap(c), (cap) =>
     assemble(v, slotFor(c, v, using), mode, directive, upTo, cap, speaker || undefined,
       db.promptsOf(c.owner), Number(c.gen.target_words) || 0));
   const mTokenize = performance.now();
-  if (refusal && (!c.body.weaveAnyway || refusal.overflows))
-    return { error: refusal.message, weaveFit: refusal, manifest };
+  if (stop) return stop;
   if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
   // The estimate draws the meter; this decides. One /tokenize before a call that costs
@@ -818,7 +835,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
       // A weaving call says so, with the cap it was really sent and the plan's LENGTH — what the
       // 5,000 is tuned from. The plan itself is never stored: it is never shown, and the row is.
       params: { ...c.gen, seed, ms: appMs,
-                ...(reply.weaves ? { weaving: true, max_tokens: reply.maxTokens, plan: planLength(r) } : {}) },
+                ...wove(reply, r) },
       manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     // THE CEILING, so it still has to be visible when it fires. `capFor` puts it well
@@ -1612,7 +1629,7 @@ export const routes: Record<string, Handler> = {
       answer = await chat('Answer in one word.', 'Say ok.', { model: id, max_tokens: 24,
         temperature: 0, chat_template_kwargs: { enable_thinking: false } });
     } catch (e: any) { return { error: e?.message ?? 'Featherless did not answer' }; }
-    db.addToShortlist(c.owner, id, found.context, weavingFound(found.modelClass, answer), found.cost);
+    db.addToShortlist(c.owner, id, found.context, weavingFound(found, answer), found.cost);
     return { models: db.shortlistOf(c.owner) };
   },
   /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the 4-unit gate, the sort — is in
@@ -2923,28 +2940,34 @@ export const routes: Record<string, Handler> = {
     // output and then asking for 1,600 — the prompt was budgeted for an answer smaller than the one
     // requested, so the slot could be oversubscribed by 700 tokens on a long story, and this server
     // does not queue an overflow, it returns 500 to both writers sharing the cache.
-    const { manifest, prompt } = assemble(grounded, slotFor(c, v, writerModel(c, v)), 'talk', ask, undefined,
-      TALK_TOKENS, undefined);
+    // Through `replyFor`, so a weaving book reserves the plan's room here and sends it below.
+    // And the fit check every weaving call shares (#56), refused unless the writer said write anyway.
+    const { reply, manifest, prompt, stop } = weaveAssemble(c, v, 'talk', TALK_TOKENS, (cap) =>
+      assemble(grounded, slotFor(c, v, writerModel(c, v)), 'talk', ask, undefined, cap, undefined));
+    if (stop) return stop;
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
     const using = writerModel(c, v);
     const t0 = Date.now();
-    // Thinking OFF, and this is a correction. It was ON here on the argument that F5's finding —
-    // thinking returns no prose — was about PROSE, and that analysis is what thinking is for.
-    // MEASURED, on the first five real calls: 3 of 5 came back `model returned unparseable JSON`.
-    // The mechanism is F5's exactly. Reasoning eats the token budget, the JSON is truncated before
-    // it closes, and the parse fails. Thinking and structured output do not compose on this build.
+    // Weaving only in a weaving book, and only with the room for it. Thinking was once ON here for
+    // every call, on the argument that F5's finding — thinking returns no prose — was about PROSE.
+    // MEASURED, on the first five real calls (F23): 3 of 5 came back `model returned unparseable
+    // JSON`. The mechanism is F5's exactly: reasoning ate the token budget and the JSON was
+    // truncated before it closed. So it is off unless the book weaves, and a weaving call is sent
+    // with WEAVE_ROOM on top of TALK_TOKENS, reserved in the prompt's budget above.
     //
-    // structuredRetry rather than structured: the retry doubles max_tokens and drops temperature,
-    // which is the right response to a truncated object whatever caused it.
+    // structuredRetry rather than structured: the retry drops temperature and gives the answer more
+    // room, which is the right response to a truncated object whatever caused it. Out of a weaving
+    // book that is double the cap; in one it is the same cap with weaving off (see structuredRetry).
     // The contract, then the writer's voice. That order is F37's, not arithmetic: the register
     // instruction nearest the material wins, and the register is the half that was losing to the
     // book's own VOICE block until `context.ts` stopped sending it here.
     const r = await structuredRetry(`${TALK_CONTRACT}\n\n${anansiOf(c.owner)}`,
       prompt.slice(SYSTEM.length), TALK_SCHEMA,
-      { model: using, temperature: 0.4, max_tokens: TALK_TOKENS });
+      { model: using, temperature: 0.4, max_tokens: reply.maxTokens,
+        chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',
-      manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
+      params: wove(reply, r), manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     // Threads become proposals — the same pipeline extraction uses, so classify() and the dedupe
@@ -3024,12 +3047,14 @@ export const routes: Record<string, Handler> = {
     }
 
     // The same six passages the chat gets. A ledger entry does not need the last forty.
-    const { manifest, prompt } = assemble({ ...v, passages: v.passages.slice(-6) },
-      slotFor(c, v, writerModel(c, v)), 'talk',
-      [who ? `This is for ${who.title}, whose entry reads: ${who.body}` : '',
-       sources.length ? 'Search results, a stranger\'s text:\n'
-         + sources.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.text}`).join('\n\n') : '',
-      ].filter(Boolean).join('\n\n') || undefined, undefined, INVENT_TOKENS, undefined);
+    const { reply, manifest, prompt, stop } = weaveAssemble(c, v, 'invent', INVENT_TOKENS, (cap) =>
+      assemble({ ...v, passages: v.passages.slice(-6) },
+        slotFor(c, v, writerModel(c, v)), 'talk',
+        [who ? `This is for ${who.title}, whose entry reads: ${who.body}` : '',
+         sources.length ? 'Search results, a stranger\'s text:\n'
+           + sources.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.text}`).join('\n\n') : '',
+        ].filter(Boolean).join('\n\n') || undefined, undefined, cap, undefined));
+    if (stop) return stop;
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
     const about = isAddon ? `${kind.replace(/_/g, ' ')} for ${who!.title}`
@@ -3038,9 +3063,11 @@ export const routes: Record<string, Handler> = {
     const t0 = Date.now();
     const r = await structuredRetry(INVENT(about, steer, sources.length > 0, isAddon),
       prompt.slice(SYSTEM.length), inventSchema(kind),
-      { model: writerModel(c, v), temperature: 0.9, max_tokens: INVENT_TOKENS });
+      { model: writerModel(c, v), temperature: 0.9, max_tokens: reply.maxTokens,
+        chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: writerModel(c, v),
-      role: `invent:${kind}`, manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
+      role: `invent:${kind}`, params: wove(reply, r), manifest, latencyMs: Date.now() - t0,
+      error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     // No URL in the body — see the note in the talk route. The results reach the model; the link

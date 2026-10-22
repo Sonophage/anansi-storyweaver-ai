@@ -23,6 +23,8 @@ const CATALOGUE = [
   { id: 'huihui/gpt-oss-20b-abliterated', model_class: 'gpt-oss-20b',
     context_length: 32768, concurrency_cost: 1 },
   { id: 'google/Gemma-4-26B-it', model_class: 'gemma4-26b', context_length: 32768, concurrency_cost: 2 },
+  // A family the weaving guess has never met: shown as untried, never as "doesn't weave".
+  { id: 'stepfun-ai/Step-3.5-Flash', model_class: 'step-3.5-199b', context_length: 32768, concurrency_cost: 1 },
   { id: 'someone/Tiny-Ctx-heretic', model_class: 'llama3-8b', context_length: 4096, concurrency_cost: 1 },
 ];
 
@@ -35,6 +37,7 @@ const HUB: Record<string, any> = {
     cardData: { base_model: ['mistralai/Mistral-Small-24B-Instruct-2501'] } },
   'huihui/gpt-oss-20b-abliterated': { tags: ['gpt_oss', 'abliterated'], cardData: {} },
   'google/Gemma-4-26B-it': { tags: ['gemma4', 'conversational'], cardData: { base_model: 'google/gemma-4-26b' } },
+  'stepfun-ai/Step-3.5-Flash': { tags: ['step3p5', 'conversational'], cardData: {} },
 };
 const CARDS: Record<string, string> = {
   'llmfan46/Qwen3.6-35B-A3B-uncensored-heretic': `---

@@ -100,7 +100,7 @@ const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signa
   throw e;
 });
 
-/** One POST to Featherless, with the key, retried on 429 and on nothing else. */
+/** One POST to Featherless, with the key, retried on 429 and at capacity, and on nothing else. */
 async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal): Promise<Response> {
   const key = featherlessKey();
   if (!key) throw new Error("Featherless isn't set up on this server — there is no key file");
@@ -116,20 +116,21 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
       if (e?.name === 'AbortError') throw new Error('the call was cancelled');
       throw new Error('cannot reach Featherless. This machine may be offline.');
     }
-    if (res.status === 429) {
-      await res.body?.cancel().catch(() => {});
+    if (res.ok) return res;
+    // AT CAPACITY IS BUSY TOO. Featherless says a model is full with a 503 whose body carries
+    // `capacity_exhausted` (seen live 2026-10-22 on two models). It passes in moments, as a 429
+    // does, so it waits on the same schedule and ends in the same words. Any other 503 is not it.
+    let error: any = null;
+    if (res.status === 429) await res.body?.cancel().catch(() => {});
+    else try { error = JSON.parse(await res.text())?.error; } catch { /* unreadable, or not JSON */ }
+    if (res.status === 429 || (res.status === 503 && error?.code === 'capacity_exhausted')) {
       if (attempt < BACKOFF.length) { await pause(BACKOFF[attempt], signal); continue; }
       throw new Error(FEATHERLESS_BUSY);
     }
-    if (!res.ok) {
-      // ITS MESSAGE, NOT ITS BODY. The status and what Featherless says went wrong, redacted and
-      // bounded; the raw body is never echoed to a writer.
-      const raw = await res.text().catch(() => '');
-      let said = '';
-      try { said = String(JSON.parse(raw)?.error?.message ?? ''); } catch { /* not JSON */ }
-      throw new Error(`Featherless answered ${res.status}${said ? `: ${redact(said).slice(0, 200)}` : ''}`);
-    }
-    return res;
+    // ITS MESSAGE, NOT ITS BODY. The status and what Featherless says went wrong, redacted and
+    // bounded; the raw body is never echoed to a writer.
+    const said = String(error?.message ?? '');
+    throw new Error(`Featherless answered ${res.status}${said ? `: ${redact(said).slice(0, 200)}` : ''}`);
   }
 }
 
@@ -409,9 +410,13 @@ export async function structured(system: string, body: string, schema: unknown, 
     messages: [{ role: 'system', content: system }, { role: 'user', content: body }],
     ...opts,
   });
-  const txt = r.choices?.[0]?.message?.content ?? '{}';
-  try { return { data: JSON.parse(txt), raw: txt }; }
-  catch { return { data: null, raw: txt, error: 'model returned unparseable JSON' }; }
+  const m = r.choices?.[0]?.message ?? {};
+  const txt = m.content ?? '{}';
+  // The usage and the plan ride back with the answer, so a weaving caller can record the plan's
+  // LENGTH. The plan text goes no further than that caller: it is never shown and never stored.
+  const said = { usage: r.usage ?? {}, reasoning: m.reasoning_content ?? m.reasoning ?? '' };
+  try { return { data: JSON.parse(txt), raw: txt, ...said }; }
+  catch { return { data: null, raw: txt, error: 'model returned unparseable JSON', ...said }; }
 }
 
 /** One retry, for the failure a grammar cannot prevent.
@@ -440,8 +445,16 @@ export async function structuredRetry(system: string, body: string, schema: unkn
   // of room, so a caller who already asked for more than 2000 would have been retried with LESS
   // and the retry could only fail harder. Callers that name no budget keep the old number.
   const asked = Number((opts as any).max_tokens) || 1000;
-  const again = await structured(system, body, schema,
-    { ...opts, max_tokens: Math.max(2000, asked * 2), temperature: 0.1 });
+  // A WEAVING CALL IS RETRIED AT THE SAME CAP, WEAVING OFF. Its cap already carries the plan's room,
+  // and its prompt was budgeted against exactly that cap: doubled, Talk's 7,400 becomes 14,800 and
+  // the slot is oversubscribed, which this server answers with a 500 to every writer sharing it.
+  // What ran out of room was most likely the plan (F23), so the retry makes none and the whole cap
+  // goes to the answer. The plan that WAS made is what the row records, so its length is kept.
+  const weaving = (opts as any).chat_template_kwargs?.enable_thinking === true;
+  const tried = await structured(system, body, schema, weaving
+    ? { ...opts, temperature: 0.1, chat_template_kwargs: { enable_thinking: false } }
+    : { ...opts, max_tokens: Math.max(2000, asked * 2), temperature: 0.1 });
+  const again = weaving ? { ...tried, usage: first.usage, reasoning: first.reasoning, retried: true } : tried;
   // A second empty answer is reported as empty rather than as a parse failure. The caller asked
   // for something specific and did not get it twice; saying "unparseable" would send whoever
   // reads the error looking at the wrong thing.
