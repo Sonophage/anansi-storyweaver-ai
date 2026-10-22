@@ -1131,5 +1131,112 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('an ordinary action hands back the book with the model, pin and room that opening it gives');
 }
 
+// ---- 22. a model that always weaves gets weaving's room with the book's switch off (#58) ----
+//
+// The label is the one the shortlist recorded when the model was added: STUBBORN planned when the
+// probe told it not to. A model like that plans whatever it is sent, so a passage capped at the
+// writer's 400 would be all plan and no prose (F5). It gets the 5,000 on every call that weaves.
+{
+  const w = db.owner('always-writer');
+  const ALWAYS = `featherless:${STUBBORN}`;
+  for (const id of [ALWAYS, ID]) {
+    const a = await routes['POST /api/shortlist'](ctx(w, { model: id }));
+    assert.ok(!a.error, a.error);
+  }
+  const label = (id: string) => (db.shortlistOf(w) as any[]).find((x) => x.id === id)?.weaving;
+  assert.strictEqual(label(ALWAYS), 'always weaves', 'the detector: the probe recorded it as always weaving');
+  assert.strictEqual(label(ID), 'can switch', 'the detector: and the other model as one that can switch');
+  const book = db.createStory(w, { title: 'Always' });
+  db.addPassage({ ...book, storyId: book.id, body: 'The lamp turned on its own.' });
+  const pin = async (model: string) =>
+    routes['POST /api/story'](ctx(w, { id: book.id, story: { model } }));
+
+  await pin(ALWAYS);
+  const v = await routes['GET /api/story'](ctx(w, {}, `story=${book.id}`));
+  assert.strictEqual(v.story.weaving, false, 'the detector: the book\'s own switch is off');
+  assert.strictEqual(v.weaves, true, 'ALWAYS-WEAVES: the view says the book weaves, so the writer sees Weaving');
+  fl.length = 0;
+  const g = await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
+  assert.ok(!g.error, g.error);
+  assert.strictEqual(chats().at(-1)!.body.max_tokens, 5400,
+    'ALWAYS-WEAVES: a passage is sent the writer\'s 400 plus 5,000 with the switch off');
+  fl.length = 0;
+  await routes['POST /api/talk'](ctx(w, { storyId: book.id, said: 'What is this story about?' }));
+  assert.strictEqual(chats()[0]?.body.max_tokens, 7400, 'ALWAYS-WEAVES: and so is Talk, 2,400 plus 5,000');
+  const bg = await routes['POST /api/manifest'](ctx(w, { storyId: book.id, mode: 'continue' }));
+  assert.strictEqual(bg.manifest.totals.budget, v.budget, 'the Context panel reserves the room the view does');
+
+  // The control: the same book on a model that can switch, with the switch off, is not raised.
+  await pin(ID);
+  const plain = await routes['GET /api/story'](ctx(w, {}, `story=${book.id}`));
+  assert.strictEqual(plain.weaves, false, 'a model that can switch, with the switch off, does not weave');
+  fl.length = 0;
+  await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
+  assert.strictEqual(chats().at(-1)!.body.max_tokens, 400, 'and its passage is sent the writer\'s 400');
+  ok('a model that always weaves gets the raised cap with the switch off, in the view, a passage and Talk');
+}
+
+// ---- 23. on a 32k model, weaving's room refuses where the local slot would not (#58) ----
+//
+// About 16,700 tokens of prose. The prose ceiling is 60% of the budget: about 24,800 on the local
+// 50,048 slot with weaving's room, about 17,900 on a 32,768 model without it, and about 15,000 on
+// a 32,768 model with it. So only the last drops passages, and the message says the model's own
+// limit is why.
+{
+  const w = db.owner('small-limit-writer');
+  const ALWAYS = `featherless:${STUBBORN}`;
+  for (const id of [ALWAYS, ID]) {
+    const a = await routes['POST /api/shortlist'](ctx(w, { model: id }));
+    assert.ok(!a.error, a.error);
+  }
+  const book = db.createStory(w, { title: 'Long Shore' });
+  for (let i = 0; i < 20; i++)
+    db.addPassage({ ...book, storyId: book.id,
+      body: `Passage ${i}. ` + 'The lamp kept turning over the water, and nobody came to tend it. '.repeat(52) });
+  const set = (story: any) => routes['POST /api/story'](ctx(w, { id: book.id, story }));
+  const preview = async (perSlot = 50048) => {
+    const c = ctx(w, { storyId: book.id, mode: 'continue' });
+    c.slot = { ...c.slot, perSlot };
+    return routes['POST /api/manifest'](c);
+  };
+
+  await set({ weaving: true });
+  const local = await preview();
+  assert.ok(!local.manifest.overflowed, 'the detector: the book fits the local slot');
+  assert.strictEqual(local.weaveFit, null, 'REMOTE-LIMIT: a local model on the 50,048 slot weaves this book whole');
+
+  await set({ model: ID });
+  const remoteOff = await set({ weaving: false });
+  assert.strictEqual(remoteOff.model, ID, 'the detector: the book writes on the 32k model');
+  assert.strictEqual((await preview()).weaveFit, null, 'the detector: without weaving it fits the 32k model whole');
+
+  await set({ weaving: true });
+  const remote = await preview();
+  assert.ok(remote.weaveFit && !remote.weaveFit.overflows,
+    `REMOTE-LIMIT: weaving on the 32k model would drop part of the book (${JSON.stringify(remote.weaveFit)})`);
+  assert.ok(remote.weaveFit.drops.some((d: any) => d.kind === 'PROSE'), 'and what drops is the oldest prose');
+  assert.match(remote.weaveFit.message, /32,768 tokens/, 'REMOTE-LIMIT: the message gives the model\'s own limit');
+  assert.match(remote.weaveFit.message, /this book's model/i, 'REMOTE-LIMIT: and says it is the model\'s, not the book\'s');
+  fl.length = 0;
+  const g = await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
+  assert.strictEqual(g.error, remote.weaveFit.message, 'the press is refused with the same words');
+  assert.strictEqual(chats().length, 0, 'and nothing reaches Featherless');
+
+  // The same slot, locally: refused for the book's length, and the message does not blame a model.
+  db.setDefaultModel(w, 'Qwen3.6-WNTH-35B-A3B-NN');
+  await set({ model: null });
+  const tight = await preview(32768);
+  assert.ok(tight.weaveFit, 'the detector: a local slot of 32,768 refuses this book too');
+  assert.doesNotMatch(tight.weaveFit.message, /this book's model/i,
+    'REMOTE-LIMIT: a local refusal does not name a model\'s limit, because the slot is the writer\'s');
+
+  // A model that always weaves, with the switch off, is refused the same way.
+  await set({ model: ALWAYS, weaving: false });
+  const always = await preview();
+  assert.ok(always.weaveFit, 'ALWAYS-WEAVES: the fit check applies with the switch off');
+  assert.match(always.weaveFit.message, /32,768 tokens/, 'and names the model\'s limit');
+  ok('a 32k model refuses weaving where the local slot would not, and the refusal names the model\'s limit');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close(); hubSrv.close();

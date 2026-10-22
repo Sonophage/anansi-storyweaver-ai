@@ -111,11 +111,17 @@ export const WEAVING_ROLES: ReadonlySet<string> = new Set(['prose', 'talk', 'inv
  *  trigger is a plan that lands near this number, or a weaving passage cut off at its cap. */
 export const WEAVE_ROOM = 5000;
 
-/** Whether this book weaves for the writer asking: its own switch. The server decides this, and the
- *  client reads it off the view rather than deriving it again. `_c` is unread today and is the
- *  writer asking: a model whose recorded label is "always weaves" weaves with the switch off, and
- *  which model writes a book depends on who asks (`writerModel`). That rule is #58's. */
-const bookWeaves = (_c: Ctx, v: { story: any }) => !!v.story?.weaving;
+/** Whether this book weaves for the writer asking: its own switch, or a model that always weaves.
+ *  The server decides this, and the client reads it off the view rather than deriving it again.
+ *
+ *  #58. A model whose recorded label is "always weaves" plans whatever it is sent, so with the
+ *  switch off and the role's own cap the plan would eat the reply (F5); it weaves on every call on
+ *  WEAVING_ROLES instead, and gets the same room and the same fit check. The label is the one the
+ *  shortlist recorded when the model was added, read through `heldFor`, the owner rule `slotFor`
+ *  reads the model's context through. Which model writes a book depends on who asks, so `c` is the
+ *  writer asking. A local model has no label: it is one that can switch. */
+const bookWeaves = (c: Ctx, v: { story: any; owner?: string }) => !!v.story?.weaving
+  || heldFor(c, v, writerModel(c, v))?.weaving === 'always weaves';
 
 /** A CALL'S REPLY CAP, AND WHETHER IT WEAVES, decided here and nowhere else.
  *
@@ -135,11 +141,16 @@ const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
 /** #56 · WHAT THE WRITER IS TOLD WHEN WEAVING DOES NOT FIT, in the words of the book and not of the
  *  engine: passages, chapter summaries and threads, never PROSE or EARLIER. It ends on the two ways
  *  on, because those are the two buttons drawn beside it. An overflow offers only one: writing anyway
- *  would send a prompt that does not fit. */
-const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }) => {
+ *  would send a prompt that does not fit.
+ *
+ *  #58. `limit` is set when the book's model holds less than the writer's slot (a remote model's
+ *  own context, 32,768 for nearly all of them), because then that limit, not the book's length
+ *  alone, is why weaving does not fit, and the same book would weave whole on a local model. */
+const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }, limit: number | null) => {
   const room = `Weaving sets aside ${WEAVE_ROOM.toLocaleString('en')} tokens for Anansi to weave in`;
-  if (fit.overflows) return `${room}, and this book's prompt would not fit beside them. `
-    + 'Turn weaving off for this book to write.';
+  const own = limit != null && `${limit.toLocaleString('en')} tokens, this book's model's own limit`;
+  if (fit.overflows) return `${room}, and this book's prompt would not fit beside them${
+    own ? ` in the ${own}` : ''}. Turn weaving off for this book to write.`;
   const of = (kind: string) => fit.drops.filter((b) => b.kind === kind);
   const and = (xs: string[]) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
   const parts: string[] = [];
@@ -159,7 +170,7 @@ const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }) => {
   // rather than dropped, so a fourth kind can never make this sentence claim less than it costs.
   const other = fit.drops.length - prose - of('EARLIER').length - threads.length;
   if (other > 0) parts.push(other === 1 ? 'one more part of the book' : `${other} more parts of the book`);
-  return `${room}, and in this book that would leave out ${and(parts)}. `
+  return `${room}, and ${own ? `in the ${own}, ` : 'in this book '}that would leave out ${and(parts)}. `
     + 'Turn weaving off for this book, or write anyway and let them drop out.';
 };
 
@@ -180,7 +191,10 @@ const weaveAssemble = (c: Ctx, v: { story: any; entries?: any[] }, role: string,
   const reply = replyFor(c, v, role, cap);
   const built = build(reply.maxTokens);
   const fit = reply.weaves ? weaveFit(build(cap).manifest, built.manifest) : null;
-  const refusal = fit && { overflows: fit.overflows, message: weaveRefusal(v, fit),
+  // The model's own limit is the reason only when it is smaller than the slot the writer has.
+  const held = fit ? slotFor(c, v, writerModel(c, v)).perSlot : null;
+  const refusal = fit && { overflows: fit.overflows,
+    message: weaveRefusal(v, fit, held != null && held < c.slot.perSlot ? held : null),
     drops: fit.drops.map((b) => ({ kind: b.kind, id: b.id })) };
   const stop = refusal && (!c.body.weaveAnyway || refusal.overflows)
     ? { error: refusal.message, weaveFit: refusal, manifest: built.manifest } : null;
@@ -329,9 +343,18 @@ const shortlistedOrRefuse = (owner: string, id: string): string => {
  *  per-writer slot here is larger, so budgeting a remote call against the slot alone would send a
  *  prompt Featherless refuses. The smaller of the two, recorded when the model was shortlisted. */
 const slotFor = (c: Ctx, v: { owner?: string }, using: string): Slot => {
-  if (!isRemote(using)) return c.slot;
-  const held = db.shortlisted(v.owner ?? c.owner, using) ?? db.shortlisted(c.owner, using);
+  const held = heldFor(c, v, using)?.context;
   return held != null ? { ...c.slot, perSlot: Math.min(c.slot.perSlot, held) } : c.slot;
+};
+
+/** The shortlist entry `using` is held under for this book: the owner's list first, then the
+ *  writer asking. Null for a local model, which is on nobody's shortlist. `slotFor` reads the
+ *  model's context through this and `bookWeaves` its weaving label, so the two cannot disagree
+ *  about whose entry describes the model. */
+const heldFor = (c: Ctx, v: { owner?: string }, using: string) => {
+  if (!isRemote(using)) return null;
+  const find = (owner: string) => db.shortlistOf(owner).find((m) => m.id === using);
+  return find(v.owner ?? c.owner) ?? find(c.owner) ?? null;
 };
 
 /** A REMOTE MODEL AS A MODEL ROW: the one shape the model menu, the Storyteller picker and the
