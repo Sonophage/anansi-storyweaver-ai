@@ -86,10 +86,9 @@ const BACKOFF = (process.env.ANANSI_FEATHERLESS_BACKOFF_MS ?? '2000,6000,12000')
   .split(',').map(Number).filter((n) => n >= 0);
 const FEATHERLESS_BUSY = 'Featherless is busy, try again';
 
-/** The wait between tries, cut short by the writer pressing Stop. */
-const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signal }).catch(() => {
-  throw Object.assign(new Error('the call was cancelled'), { name: 'AbortError' });
-});
+/** The wait between tries, cut short by the writer pressing Stop. Stopped, it rejects with an
+ *  AbortError, and a caller checks only that name. */
+const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signal });
 
 /** One POST to Featherless, with the key, retried on 429 and on nothing else. */
 async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal): Promise<Response> {

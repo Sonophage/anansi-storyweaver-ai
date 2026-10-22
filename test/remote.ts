@@ -374,6 +374,31 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('a 429 is retried three times, then reported, and never falls back');
 }
 
+// ---- 4b. Stop during the 429 back-off ends the call at once, not when the wait runs out ----
+//
+// The schedule above is shrunk to 10 ms, so a wait that ignored Stop would still look prompt. A
+// second copy of the adapter is loaded with a real-sized wait: the back-off is read once, when the
+// module is first imported, and a query string makes a separate module.
+{
+  const was = process.env.ANANSI_FEATHERLESS_BACKOFF_MS;
+  process.env.ANANSI_FEATHERLESS_BACKOFF_MS = '5000,5000,5000';
+  const slow = await import('../src/llama.ts?slow-backoff');
+  process.env.ANANSI_FEATHERLESS_BACKOFF_MS = was;
+  const m = mark();
+  script.push('429', '429', '429', '429');
+  const stop = new AbortController();
+  setTimeout(() => stop.abort(), 150);
+  const t0 = Date.now();
+  const e: any = await slow.chat('s', 'b', { model: ID }, () => {}, stop.signal).then(() => null, (x) => x);
+  const took = Date.now() - t0;
+  script.length = 0;
+  assert.ok(e, 'the call does not succeed');
+  assert.ok(took < 2000, `STOP-BACKOFF: Stop ends the back-off at once (took ${took} ms of a 5,000 ms wait)`);
+  assert.strictEqual(e.name, 'AbortError', 'STOP-BACKOFF: it ends as a stop, which is all a caller checks');
+  assert.strictEqual(since(m).fl.length, 1, 'and no retry is sent after Stop');
+  ok('Stop during the 429 back-off ends the call at once, with no retry after it');
+}
+
 // ---- 5. any other refusal, and a stream that fails mid-passage, report and never fall back ----
 {
   let m = mark();
