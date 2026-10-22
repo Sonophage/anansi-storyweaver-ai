@@ -2403,6 +2403,25 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   ok('menu rows, the strip and the book\'s picker carry the circle and the spider or the feather');
 }
 
+// ONE PREFIX. Whether a model is remote is decided from its id's prefix, on the server by
+// `REMOTE_PREFIX` and in the browser by `whereRuns`. Two spellings of it drift apart silently, so
+// the browser's constant is held equal to the server's, and the browser spells it in one place.
+{
+  const { REMOTE_PREFIX: browser, whereRuns } = await import('../web/model.js');
+  const { REMOTE_PREFIX: server } = await import('../src/llama.ts');
+  assert.strictEqual(browser, server, "PREFIX: the browser's remote prefix is the server's");
+  assert.strictEqual(whereRuns(`${server}Grey/Kestrel-Heretic-24B`).remote, true,
+    'PREFIX: and an id with the server prefix reads as remote in the browser');
+  assert.strictEqual(whereRuns('Qwen3.6-WNTH-35B-A3B-NN').remote, false, 'and one without it as local');
+  const { readFileSync } = await import('node:fs');
+  // Code only: a line comment may name the prefix, and saying it is not deciding with it.
+  const code = ['model.js', 'app.js', 'api.js'].map((f) => readFileSync(new URL(`../web/${f}`, import.meta.url), 'utf8')
+    .split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n')).join('\n');
+  assert.strictEqual((code.match(/featherless:/g) ?? []).length, 1,
+    'PREFIX: the browser writes the prefix once, in the constant, and decides remote-ness from it');
+  ok("the browser's remote prefix is the server's, and is written once");
+}
+
 // #17 · HAVE A COVER DRAWN. Seth asked for Pinterest; Pinterest's own API cannot search Pinterest
 // — /v5/search/pins reads only pins you have already saved — so this is the free, keyless thing
 // that does what was actually wanted. Verified against the live endpoint on 2026-08-29 before a

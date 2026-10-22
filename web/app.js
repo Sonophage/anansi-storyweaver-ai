@@ -2270,6 +2270,8 @@ const PANELS = {
    *  the context and how many ways it is cut, THIS DATABASE says how fast it has actually written
    *  here, and the ID ITSELF says purpose, thinking and decensoring once it is decoded. The blurb
    *  is the only hand-written part, and it is quoted from the stanza comments in presets.ini.
+   *  A REMOTE model has no router and no preset file: its context and its cost are the Featherless
+   *  catalogue's, recorded on the shortlist, and its description is its Hugging Face card.
    *
    *  ABOUT THE BOX, NOT ABOUT A BOOK — hence the one exception in drawSide, and hence the note
    *  when the open story pins its own model: this switch is real but a pinned story outranks it,
@@ -2294,7 +2296,7 @@ const PANELS = {
     // description block is the expanded Find a model row's, from the same renderer. The panel can
     // be drawn without a press (a reload on it, the model now writing), so the read is asked for
     // from here; loadCard reads each model once.
-    const remote = id.startsWith('featherless:');
+    const remote = whereRuns(id).remote;
     if (remote) queueMicrotask(() => loadCard(id));
 
     // A fact and WHERE IT CAME FROM. The absent case says which source is silent rather than

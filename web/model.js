@@ -279,10 +279,10 @@ export const modelName = (id) => {
       return { id, name: parts.slice(0, at).join(' '), detail, bits, size };
     }
   }
-  // A remote id is a Featherless repo path behind `featherless:`, which says where the model runs
+  // A remote id is a Featherless repo path behind REMOTE_PREFIX, which says where the model runs
   // and is not part of its name. Split on the colon as it stands and every remote model would be
   // called "featherless".
-  const [repo, quant] = id.replace(/^featherless:/, '').split(':');
+  const [repo, quant] = (whereRuns(id).remote ? id.slice(REMOTE_PREFIX.length) : id).split(':');
   const org = repo.includes('/') ? repo.split('/')[0].toLowerCase() : '';
   // The org name is often repeated inside the repo name as well, and once is enough.
   const name = (repo.split('/').pop() ?? repo).replace(/[-_]?GGUF$/i, '')
@@ -290,12 +290,16 @@ export const modelName = (id) => {
   return { id, name, detail: quant ?? '', bits: quant ? [quant] : [], size: '' };
 };
 
+/** THE PREFIX ON EVERY REMOTE MODEL'S ID: the server's `REMOTE_PREFIX`, which test/app.ts holds
+ *  this equal to. The browser decides remote-ness through `whereRuns` and nowhere else. */
+export const REMOTE_PREFIX = 'featherless:';
+
 /** WHERE A MODEL RUNS, AND WHETHER IT IS AWAKE (#53). The prefix decides the source, here as on
  *  the server. A local model is awake only when the router says `loaded`: one still loading, or
  *  one the router cannot describe, is not yet writing at speed. A remote model is always shown
  *  awake, because Featherless shows no sleeping state a writer could act on. */
 export const whereRuns = (id, status) => {
-  const remote = String(id ?? '').startsWith('featherless:');
+  const remote = String(id ?? '').startsWith(REMOTE_PREFIX);
   const awake = remote || status === 'loaded';
   return { remote, awake, glyph: remote ? 'feather' : 'spider',
     words: remote ? 'remote, on Featherless' : `local, ${awake ? 'awake' : 'asleep'}` };
