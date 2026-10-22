@@ -474,6 +474,14 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(all.sizes.includes('35b') && all.sizes.includes('24b'),
     'the size choices come from the catalogue itself');
 
+  // A DAY'S CACHE. Every search above was served without a fresh read; a day later, one is made.
+  const { catalogue, CATALOGUE_TTL_MS } = await import('../src/catalogue.ts');
+  const reads = catReads.length;
+  await catalogue(Date.now() + CATALOGUE_TTL_MS - 60_000);
+  assert.strictEqual(catReads.length, reads, 'within the day the catalogue is not read again');
+  await catalogue(Date.now() + CATALOGUE_TTL_MS + 60_000);
+  assert.strictEqual(catReads.length, reads + 1, 'a day on, it is');
+  assert.strictEqual(catReads.length, 2, 'and the searches above never read it themselves');
   ok('the search filters, combines, sorts non-weaving first, holds the 16k floor and the 4-unit gate');
 }
 
