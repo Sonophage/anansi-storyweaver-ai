@@ -85,10 +85,16 @@ const DOCUMENTED = new Set(['model', 'messages', 'text', 'temperature', 'top_p',
 const BACKOFF = (process.env.ANANSI_FEATHERLESS_BACKOFF_MS ?? '2000,6000,12000')
   .split(',').map(Number).filter((n) => n >= 0);
 const FEATHERLESS_BUSY = 'Featherless is busy, try again';
+const FEATHERLESS_LATE = 'Featherless did not answer in time. A model it is loading can take a '
+  + 'minute — try again.';
 
 /** The wait between tries, cut short by the writer pressing Stop. Stopped, it rejects with an
- *  AbortError, and a caller checks only that name. */
-const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signal });
+ *  AbortError, and a caller checks only that name. The call's ceiling can end the same wait, and
+ *  that is not a stop: it says Featherless ran out of time, as a ceiling during the request does. */
+const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signal }).catch((e) => {
+  if (signal?.reason?.name === 'TimeoutError') throw new Error(FEATHERLESS_LATE);
+  throw e;
+});
 
 /** One POST to Featherless, with the key, retried on 429 and on nothing else. */
 async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal): Promise<Response> {
@@ -102,9 +108,7 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
       res = await fetch(FEATHERLESS + path, { method: 'POST', signal, body: JSON.stringify(payload),
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` } });
     } catch (e: any) {
-      if (e?.name === 'TimeoutError')
-        throw new Error('Featherless did not answer in time. A model it is loading can take a '
-          + 'minute — try again.');
+      if (e?.name === 'TimeoutError') throw new Error(FEATHERLESS_LATE);
       if (e?.name === 'AbortError') throw new Error('the call was cancelled');
       throw new Error('cannot reach Featherless. This machine may be offline.');
     }

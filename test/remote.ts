@@ -397,6 +397,16 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(e.name, 'AbortError', 'STOP-BACKOFF: it ends as a stop, which is all a caller checks');
   assert.strictEqual(since(m).fl.length, 1, 'and no retry is sent after Stop');
   ok('Stop during the 429 back-off ends the call at once, with no retry after it');
+
+  // The ceiling firing in the same wait is not the writer pressing Stop, and must not read as one.
+  script.push('429', '429', '429', '429');
+  const t1 = Date.now();
+  const late: any = await slow.chat('s', 'b', { model: ID }, () => {}, undefined, 150).then(() => null, (x) => x);
+  script.length = 0;
+  assert.ok(Date.now() - t1 < 2000, 'TIMEOUT-BACKOFF: the ceiling ends the back-off at once');
+  assert.notStrictEqual(late?.name, 'AbortError', 'TIMEOUT-BACKOFF: a ceiling is not reported as a stop');
+  assert.match(String(late?.message), /did not answer in time/, 'TIMEOUT-BACKOFF: it says Featherless ran out of time');
+  ok('the ceiling firing during the back-off says Featherless did not answer in time');
 }
 
 // ---- 5. any other refusal, and a stream that fails mid-passage, report and never fall back ----

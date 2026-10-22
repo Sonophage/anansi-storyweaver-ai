@@ -94,12 +94,15 @@ const need = <T,>(v: T, msg: string): NonNullable<T> => {
 const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such story');
 /** A BOOK AS EVERY ROUTE HANDS IT BACK: the view, plus what writes it for the writer asking.
  *
- *  The browser takes any view a route answers with as the book itself. About forty routes answered
- *  with the bare view, so after saving a look or waving a warning away the strip fell back to the
+ *  The browser takes any view a route answers with as the book itself. Routes used to answer with
+ *  the bare view, so after saving a look or waving a warning away the strip fell back to the
  *  writer default, the Storyteller lost the model it names, and a guest's picker called the
- *  owner's remote pin a model nobody offers. Every route goes through this one, so none can leave
- *  the fields out. `model` is the model that writes this book; `defaultModel` the writer's own;
- *  `pin` the book's remote pin as a model row; `budget` the room a prompt for `model` may take. */
+ *  owner's remote pin a model nobody offers. Every route that hands a book back now calls this one;
+ *  `bookOf` is only for work that never answers the browser. Nothing in the type system enforces
+ *  that, and the remote suite checks two routes by name, so a new route that answers with `bookOf`
+ *  would bring the old bug back unnoticed. `model` is the model that writes this book;
+ *  `defaultModel` the writer's own; `pin` the book's remote pin as a model row; `budget` the room a
+ *  prompt for `model` may take. */
 const viewOf = (c: Ctx, id: string, chapter?: string) => {
   const v = bookOf(id, chapter);
   const model = writerModel(c, v);
@@ -803,7 +806,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
  *  overflow error rather than a partial memory, and the fix then is per-scene rather than
  *  per-chapter. */
 async function remember(storyId: string, chapterId: string) {
-  const v = need(view(storyId), 'no such story');
+  const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
   if (!ps.length) return { remembered: 0 };
@@ -1096,7 +1099,7 @@ async function retire(storyId: string, chapterId?: string) {
  *  this same refusal and the other closing passes run as before. Stale or not does not matter:
  *  whether to fix or re-run yours is the writer's call. */
 async function summarise(c: Ctx, storyId: string, chapterId?: string, replace = false) {
-  const v = need(view(storyId), 'no such story');
+  const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   if (ch.summary && ch.summaryAuthor === 'human' && !replace)
     return { error: 'kept your summary', kept: true, chapterId: ch.id };
@@ -1151,7 +1154,7 @@ export function classify(existing: any[], p: any) {
  *  Runs on a SELECTED passage, not on every variant — checking takes are wasted calls on
  *  prose the writer may never keep. Flags only; nothing is rewritten. */
 async function check(c: Ctx, storyId: string, passageId: string) {
-  const v = need(view(storyId), 'no such story');
+  const v = bookOf(storyId);
   const passage = v.passages.find((p) => p.id === passageId);
   if (!passage) return { error: 'no such passage' };
 
@@ -2525,7 +2528,7 @@ export const routes: Record<string, Handler> = {
    *  parse, one line from the writer being told their prose was fixed when nothing had been read. */
   'POST /api/repair': async (c) => {
     const storyId = String(c.body.storyId);
-    const v = need(view(storyId), 'no such story');
+    const v = bookOf(storyId);
     const passageId = String(c.body.passageId ?? '');
     const passage = v.passages.find((p: any) => p.id === passageId);
     if (!passage) return { error: 'no such passage' };
@@ -3420,7 +3423,7 @@ export const routes: Record<string, Handler> = {
   /** Export. The only claim in SPEC §12 that had no mechanism; Lens 3 costed it at four
    *  hours and called it the highest value-per-hour item in the plan. */
   'GET /api/export': (c) => {
-    const v = need(view(c.query.get('story')!), 'no such story');
+    const v = bookOf(c.query.get('story')!);
     const fmt = c.query.get('format') ?? 'md';
     const safe = v.story.title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-') || 'story';
     if (fmt === 'json') return { __raw: { type: 'application/json',
