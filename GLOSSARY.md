@@ -43,9 +43,10 @@ for every passage it writes.
 _Avoid_: cloud model, API model, online model
 
 **Weaving**:
-A book's setting in which the model plans, unseen, before it writes a passage, a Talk reply or an
-invention. Off unless the writer turns it on for that book. The plan is never shown. Not the
-Voice of the weave, which is how the book is written.
+The model planning, unseen, before it writes a passage, a Talk reply or an invention. Two uses: a
+book's setting (off unless the writer turns it on for that book), and what a model can do (it
+doesn't weave, it can switch weaving on and off, or it always weaves). The plan is never shown. Not
+the Voice of the weave, which is how the book is written.
 _Avoid_: thinking, reasoning, planning, chain of thought
 
 **Shortlist**:
