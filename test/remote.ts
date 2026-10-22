@@ -54,7 +54,7 @@ const CATALOGUE = [
 /** What reached the fake Featherless, newest last. */
 const fl: { path: string; auth: string | undefined; body: any }[] = [];
 /** How the next chat calls should go, shifted one per call. Empty means "answer normally". */
-const script: ('429' | 'midstream' | 'cold' | 'refuse')[] = [];
+const script: ('429' | 'midstream' | 'cold' | 'refuse' | 'down')[] = [];
 /** Every catalogue read, by the Authorization header it carried. Kept apart from `fl`, which blocks
  *  clear as they go. */
 const catReads: (string | undefined)[] = [];
@@ -72,6 +72,9 @@ const flSrv = createServer((req, res) => {
     if (req.url === '/v1/tokenize') return json(200, { count: 321 });
     if (req.url !== '/v1/chat/completions') return json(404, { error: { message: 'no route' } });
     const how = script.shift();
+    // Unreachable: the connection drops with no answer at all, which is what fetch sees when the
+    // machine is offline or Featherless is down.
+    if (how === 'down') return req.socket.destroy();
     if (how === '429') return json(429, { error: { message: `concurrency limit, key ${KEY}` } });
     if (how === 'refuse') return json(400, { error: { message: `bad request for key ${KEY}` } });
     const answer = () => {
@@ -559,6 +562,34 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(nt.remote, false, 'RESEED: a take the local router wrote is not');
   await routes['POST /api/model'](ctx(me, { model: ID }));
   ok('a take says whether a remote model wrote it, beside the seed');
+}
+
+// ---- 15. Featherless unreachable: the passage fails plainly and no pin or default moves ----
+{
+  const book = db.createStory(me, { title: 'Dark Water' });
+  db.addPassage({ ...book, storyId: book.id, body: 'No light on the water.' });
+  await routes['POST /api/story'](ctx(me, { id: book.id, story: { model: ID } }));
+  assert.strictEqual(db.getStory(book.id).model, ID, 'the book is pinned to the remote model');
+  const before = db.passagesOfChapter((db.chapters(book.id)[0] as any).id).length;
+
+  let m = mark();
+  script.push('down');
+  const r = await routes['POST /api/generate'](ctx(me, { storyId: book.id, mode: 'continue' }));
+  assert.match(String(r.error), /^cannot reach Featherless/, 'UNREACHABLE: the passage fails, plainly');
+  assert.strictEqual(since(m).fl.length, 1, 'one attempt: an unreachable server is not a 429');
+  assert.strictEqual(since(m).local.length, 0, 'NO FALLBACK: nothing went to the local router');
+
+  m = mark();
+  script.push('down');
+  const h = await routes['POST /api/generate'](ctx(me, { storyId: book.id, mode: 'continue', stream: true }));
+  const last = await h.__stream(() => {});
+  assert.match(String(last.error), /^cannot reach Featherless/, 'and the streamed passage says the same');
+  assert.strictEqual(since(m).local.length, 0, 'with no fallback either');
+  assert.strictEqual(db.passagesOfChapter((db.chapters(book.id)[0] as any).id).length, before,
+    'nothing landed in the book');
+  assert.strictEqual(db.getStory(book.id).model, ID, 'UNREACHABLE: the pin is unchanged');
+  assert.strictEqual(db.defaultModelOf(me), ID, 'UNREACHABLE: and so is the writer default');
+  ok('Featherless unreachable fails the passage plainly and changes no pin or default');
 }
 
 console.log(`\n${n} checks green`);
