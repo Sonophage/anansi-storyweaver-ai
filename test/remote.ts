@@ -216,5 +216,67 @@ const streamed = async (body: any) => {
   ok('a remote call counts with Featherless and is budgeted against the smaller limit');
 }
 
+/** Every chat that went anywhere since `mark`: Featherless's, and the local router's. */
+const since = (mark: { fl: number; local: number }) => ({
+  fl: fl.slice(mark.fl).filter((r) => r.path === '/v1/chat/completions'),
+  local: local.slice(mark.local).filter((r) => r.path === '/v1/chat/completions'),
+});
+const mark = () => ({ fl: fl.length, local: local.length });
+
+// ---- 4. a 429 is retried, then reported; it never falls back to another model ----
+{
+  // The detector first: a leak check that cannot see the key reports a clean run forever.
+  assert.ok(leaked({ said: `x${KEY}x` }), 'the leak check finds the key when it is there');
+  let m = mark();
+  script.push('429', '429', '429');
+  const r = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.ok(!r.error, r.error);
+  assert.strictEqual(since(m).fl.length, 4, 'three 429s, then the fourth attempt wrote the passage');
+
+  m = mark();
+  script.push('429', '429', '429', '429');
+  const busy = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.strictEqual(busy.error, 'Featherless is busy, try again', 'the composer is told plainly');
+  const tried = since(m);
+  assert.strictEqual(tried.fl.length, 4, 'one call and three retries, no more');
+  assert.ok(tried.fl.every((x) => x.body.model === REMOTE), 'every attempt was the chosen model');
+  assert.strictEqual(tried.local.length, 0, 'NO FALLBACK: nothing went to the local router instead');
+  assert.ok(!leaked(r, busy), 'the key appears in no response, log line or generation row');
+  ok('a 429 is retried three times, then reported, and never falls back');
+}
+
+// ---- 5. any other refusal, and a stream that fails mid-passage, report and never fall back ----
+{
+  let m = mark();
+  script.push('refuse');
+  const refused = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.match(String(refused.error), /^Featherless answered 400/, 'a refusal says who refused');
+  assert.ok(refused.error.includes('[key]'), 'its message is kept, with the key cut out of it');
+  assert.strictEqual(since(m).fl.length, 1, 'a 400 is not retried');
+  assert.strictEqual(since(m).local.length, 0, 'and nothing fell back to the local router');
+
+  m = mark();
+  const before = db.passagesOfChapter((db.chapters(story.id)[0] as any).id).length;
+  script.push('midstream');
+  const { last } = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.match(String(last.error), /^Featherless stopped mid-passage/, 'the passage fails, plainly');
+  assert.strictEqual(db.passagesOfChapter((db.chapters(story.id)[0] as any).id).length, before,
+    'and no half-written passage lands in the book');
+  assert.strictEqual(since(m).local.length, 0, 'NO FALLBACK after a mid-stream failure either');
+  assert.ok(!leaked(refused, last), 'the key appears in no response, log line or generation row');
+  ok('a refusal or a mid-stream failure is reported with the key cut out, and never falls back');
+}
+
+// ---- 6. a cold model is slow, not failed ----
+{
+  script.push('cold');
+  const t0 = Date.now();
+  const r = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.ok(!r.error, r.error);
+  assert.ok(Date.now() - t0 >= 1400, 'the fake really did hold the first call');
+  assert.strictEqual(r.prose, 'The remote wrote this.', 'and the passage still came back');
+  ok('a first call to a model Featherless is loading waits rather than fails');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close();
