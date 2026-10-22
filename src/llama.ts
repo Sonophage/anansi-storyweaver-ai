@@ -100,7 +100,7 @@ const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signa
   throw e;
 });
 
-/** One POST to Featherless, with the key, retried on 429 and on nothing else. */
+/** One POST to Featherless, with the key, retried on 429 and at capacity, and on nothing else. */
 async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal): Promise<Response> {
   const key = featherlessKey();
   if (!key) throw new Error("Featherless isn't set up on this server — there is no key file");
@@ -116,20 +116,21 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
       if (e?.name === 'AbortError') throw new Error('the call was cancelled');
       throw new Error('cannot reach Featherless. This machine may be offline.');
     }
-    if (res.status === 429) {
-      await res.body?.cancel().catch(() => {});
+    if (res.ok) return res;
+    // AT CAPACITY IS BUSY TOO. Featherless says a model is full with a 503 whose body carries
+    // `capacity_exhausted` (seen live 2026-10-22 on two models). It passes in moments, as a 429
+    // does, so it waits on the same schedule and ends in the same words. Any other 503 is not it.
+    let error: any = null;
+    if (res.status === 429) await res.body?.cancel().catch(() => {});
+    else try { error = JSON.parse(await res.text())?.error; } catch { /* unreadable, or not JSON */ }
+    if (res.status === 429 || (res.status === 503 && error?.code === 'capacity_exhausted')) {
       if (attempt < BACKOFF.length) { await pause(BACKOFF[attempt], signal); continue; }
       throw new Error(FEATHERLESS_BUSY);
     }
-    if (!res.ok) {
-      // ITS MESSAGE, NOT ITS BODY. The status and what Featherless says went wrong, redacted and
-      // bounded; the raw body is never echoed to a writer.
-      const raw = await res.text().catch(() => '');
-      let said = '';
-      try { said = String(JSON.parse(raw)?.error?.message ?? ''); } catch { /* not JSON */ }
-      throw new Error(`Featherless answered ${res.status}${said ? `: ${redact(said).slice(0, 200)}` : ''}`);
-    }
-    return res;
+    // ITS MESSAGE, NOT ITS BODY. The status and what Featherless says went wrong, redacted and
+    // bounded; the raw body is never echoed to a writer.
+    const said = String(error?.message ?? '');
+    throw new Error(`Featherless answered ${res.status}${said ? `: ${redact(said).slice(0, 200)}` : ''}`);
   }
 }
 

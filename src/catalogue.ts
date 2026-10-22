@@ -77,32 +77,64 @@ const UNCENSORED = /heretic|abliterat|uncensor/i;
 const isUncensored = (id: string) => UNCENSORED.test(id);
 
 /** WEAVING, as the writer reads it. The order is the sort order: a model that never plans is ready
- *  to write the moment it answers, so it comes first. */
-const WEAVING = ["doesn't weave", 'can switch', 'always weaves'] as const;
+ *  to write the moment it answers, so it comes first. "not tried yet" is a guess and only a guess:
+ *  the family is not in the table below, so nothing is known, and it sorts last because it may
+ *  plan. The probe on add never stores it — once tried, a model has done one thing or the other. */
+const WEAVING = ["doesn't weave", 'can switch', 'always weaves', 'not tried yet'] as const;
 export type Weaving = typeof WEAVING[number];
+const UNTRIED: Weaving = 'not tried yet';
 
-/** THE GUESS, from the model's class, before anyone has called it. One table, here. The probe on
- *  add replaces it with what the model actually did (`weavingFound`).
- *    always: gpt-oss and the R1-style reasoners plan whatever they are told.
- *    can switch: Qwen 3.x, Gemma 4 and GLM 4.5+ honour `enable_thinking`.
- *  Anything else — the older Llama and Mistral classes, and a class this table has not met — is
- *  guessed as not weaving.
- *  ponytail: a hand-kept list of class names. Ceiling: a new reasoning family is guessed wrong
- *  until it is added here; the probe still records the truth on add. Upgrade path is reading a
- *  capability field if Featherless ever publishes one. */
-const GUESS: [RegExp, Weaving][] = [
-  [/^gpt-oss|r1\b|^qwq|think/i, 'always weaves'],
-  [/^qwen3|^gemma4|^glm4[5-9]/i, 'can switch'],
+/** THE GUESS, before anyone has called the model. One table, here; the search rows, the weaving
+ *  filter and the sort all read it through `weavingGuess`, and the probe on add replaces it with
+ *  what the model actually did (`weavingFound`). The test is Anansi's own switch: a model "can
+ *  switch" only if its template honours `enable_thinking`, the one key Anansi sends.
+ *
+ *  BY NAME FIRST, because one class can hold two behaviours: `kimi-k2` holds Kimi-K2-Instruct and
+ *  Kimi-K2-Thinking, `glm4-32b` holds GLM-4-0414 and the GLM-Z1 reasoner, and the R1 distills
+ *  carry Llama and Qwen classes. An id that says it does NOT think (`no-think`, `NoThinking`,
+ *  `non-thinking`) is left to its class. Magistral is named so its Mistral Small class does not
+ *  file it as "doesn't weave": its plan is asked for in a system prompt (its card), Anansi writes
+ *  that prompt and never includes it, so only trying it can say.
+ *
+ *  THEN BY CLASS. The class strings are Featherless's own `model_class`, read 2026-10-22; the label
+ *  is from each family's chat template on Hugging Face, the same day:
+ *    always: gpt-oss; MiniMax M2.x (the template opens a plan on every answer); Kimi K2.5/K2.6
+ *      (`kimi-k25`; its switch is a `thinking` key, so `enable_thinking: false` leaves it on).
+ *    can switch: Qwen 3.x, Gemma 4, GLM 4.5-4.7 (template reads `enable_thinking`), DeepSeek V4
+ *      (`deepseek4-*`: V4.1's template takes `enable_thinking`; V4 and V4-Pro ship no template,
+ *      and their card documents a non-think mode).
+ *    doesn't weave: Kimi K2 Instruct, GLM-4-0414, Mistral Small, Llama 2 and 3.x and the older
+ *      Mistral classes — no plan anywhere in their templates.
+ *  Anything else is "not tried yet", never a confident "doesn't weave".
+ *  ponytail: a hand-kept list of class names. Ceiling: a new family reads "not tried yet" until it
+ *  is added here, and a hosted template that differs from the published one is guessed wrong; the
+ *  probe still records the truth on add. Upgrade path is reading a capability field if Featherless
+ *  ever publishes one. */
+const BY_NAME: [RegExp, Weaving][] = [
+  [/(?<!no[-_ ]?|non[-_ ]?)think|(^|[^a-z0-9])r1([^a-z0-9]|$)|qwq|glm-?z1/i, 'always weaves'],
+  [/magistral/i, UNTRIED],
 ];
-const weavingGuess = (modelClass: string | null): Weaving =>
-  GUESS.find(([re]) => re.test(modelClass ?? ''))?.[1] ?? "doesn't weave";
+const BY_CLASS: [RegExp, Weaving][] = [
+  [/^gpt-?oss|^minimax-m2|^kimi-k25/i, 'always weaves'],
+  [/^qwen3|^gemma4|^glm4[5-9]|^deepseek4-/i, 'can switch'],
+  [/^kimi-k2$|^glm4-|^llama[23]|^mistral-(24b|v0|nemo)/i, "doesn't weave"],
+];
+const weavingGuess = (row: { id: string; modelClass: string | null }): Weaving => {
+  const name = row.id.slice(row.id.indexOf('/') + 1);
+  return BY_NAME.find(([re]) => re.test(name))?.[1]
+    ?? BY_CLASS.find(([re]) => re.test(row.modelClass ?? ''))?.[1] ?? UNTRIED;
+};
 
 /** What the probe on add found. Asked with weaving off: any plan in the answer means the model
- *  cannot be switched off. No plan keeps the class guess — an absent plan from a model guessed to
- *  always weave is more likely hidden by the provider than missing. */
-export const weavingFound = (modelClass: string | null, answer: { prose: string; reasoning: string }):
-  Weaving => (answer.reasoning.trim() || /<think>/i.test(answer.prose)) ? 'always weaves'
-    : weavingGuess(modelClass);
+ *  cannot be switched off. No plan keeps the guess — an absent plan from a model guessed to always
+ *  weave is more likely hidden by the provider than missing — except an untried guess, which the
+ *  probe has now tried: told not to weave, it did not. */
+export const weavingFound = (row: { id: string; modelClass: string | null },
+  answer: { prose: string; reasoning: string }): Weaving => {
+  if (answer.reasoning.trim() || /<think>/i.test(answer.prose)) return 'always weaves';
+  const guess = weavingGuess(row);
+  return guess === UNTRIED ? "doesn't weave" : guess;
+};
 
 /** The weight in the class name — `qwen3_5moe-35b` is 35b. Null for a class that does not say. */
 const sizeClass = (modelClass: string | null): string | null =>
@@ -127,7 +159,7 @@ export function search(rows: CatalogueRow[], q: Query, admin: boolean, prefix: s
     .filter((r) => q.uncensored === false || isUncensored(r.id))
     .filter((r) => !text || r.id.toLowerCase().includes(text))
     .map((r) => ({ id: prefix + r.id, cost: r.cost, context: r.context as number,
-      weaving: weavingGuess(r.modelClass), size: sizeClass(r.modelClass) }))
+      weaving: weavingGuess(r), size: sizeClass(r.modelClass) }))
     .filter((r) => !q.size || r.size === q.size.toLowerCase())
     .filter((r) => !q.weaving || r.weaving === q.weaving)
     .sort((a, b) => WEAVING.indexOf(a.weaving) - WEAVING.indexOf(b.weaving)

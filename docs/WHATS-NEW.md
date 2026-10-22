@@ -12,6 +12,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-22 · Find a model on Featherless
 
+### A full model on Featherless waits its turn
+When a model on Featherless is full, Anansi now waits a few seconds and asks again, up to three
+times, as she already does when Featherless is busy. If it is still full, she tells you
+"Featherless is busy, try again". Before, you saw Featherless's own message after one try. Stop
+still works while she waits. She never switches to another model on her own. Adding a model to
+your shortlist waits the same way when that model is full.
+
 ### Let a book weave
 A book's Storyteller panel has a new switch, Weaving, just under the book's model. When it is on,
 Anansi weaves each passage in that book before she writes it: she works it out unseen, and then
@@ -32,8 +39,12 @@ Remember this never weave.
 The model menu at the foot of the rail has a new last row, Find a model. It opens a search over
 the models Featherless runs. By default it shows only uncensored models; untick the box to see
 all of them. You can search by part of a name, by size, and by whether a model weaves, which means
-it plans before it writes. Models that never weave come first. Each model shows how much of the
-shared plan it uses and how much of a book it can hold. Models too small for a book are not shown.
+it plans before it writes. Models that never weave come first. Before you add a model, whether it
+weaves is a guess from the family it belongs to. The big families, such as Kimi, DeepSeek,
+MiniMax, GLM, Mistral Small and Llama, are guessed from what their makers publish. A family Anansi
+has not met yet says "not tried yet", and comes last, instead of claiming it does not weave.
+Adding a model still asks it. Each model shows how much of the shared plan it uses and how much
+of a book it can hold. Models too small for a book are not shown.
 
 Press Add and the model goes on your shortlist, at the top of the same panel and on your model
 menu. Nobody else sees your shortlist. When you add a model, Anansi asks it one short question
