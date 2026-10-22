@@ -3703,7 +3703,8 @@ const PANELS = {
               </div>
             </div>`;
           })()}
-        ${t.busy ? '<div class="hint" style="margin:0">Thinking&hellip;</div>' : ''}
+        ${/* Weaving only when the server says this book weaves (Talk is on its weaving roles). */
+          t.busy ? `<div class="hint" style="margin:0">${V?.weaves ? 'Weaving' : 'Asking'}&hellip;</div>` : ''}
       </div>
 
       ${t.draft ? `<div class="card" style="gap:8px; border-color:rgba(217,178,106,.34)">

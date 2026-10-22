@@ -2605,6 +2605,38 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
 }
 ok('a refused Talk or invention gets the same row where it was asked, and each button asks again');
 
+// #58 · WHAT THE TALK PANEL SAYS WHILE IT WAITS. Weaving when the book weaves (the server's
+// `weaves`, which a model that always weaves sets too), and Asking otherwise. Never Thinking: the
+// glossary keeps that word off the page.
+{
+  const weaving = (STORY as any).weaves;
+  const said = async (weaves: boolean) => {
+    (STORY as any).weaves = weaves;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    click({ panel: 'anansi' });
+    await new Promise((r) => setTimeout(r, 30));
+    let open!: (v: any) => void;
+    stubTalk = new Promise((r) => { open = r; });
+    (document as any).getElementById('askBox').value = 'What is this story about?';
+    click({ ask: '1' });
+    await new Promise((r) => setTimeout(r, 30));
+    const busy = html('sideBody');
+    open({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
+    await new Promise((r) => setTimeout(r, 60));
+    return busy;
+  };
+  try {
+    const plain = await said(false);
+    assert.match(plain, /Asking&hellip;/, 'TALK-BUSY: a Talk call that does not weave says Asking while it waits');
+    assert.doesNotMatch(plain, /Thinking|Weaving/, 'TALK-BUSY: and never Thinking or Weaving');
+    const woven = await said(true);
+    assert.match(woven, /Weaving&hellip;/, 'TALK-BUSY: a Talk call in a book that weaves says Weaving');
+    assert.doesNotMatch(woven, /Thinking/, 'TALK-BUSY: and never Thinking');
+  } finally { stubTalk = null; (STORY as any).weaves = weaving; }
+}
+ok('the Talk panel says Weaving while it waits in a book that weaves, and Asking in any other');
+
 // #53 · WHERE A MODEL RUNS, on every surface that names one: a circle in the local or the remote
 // colour, filled when a local model is awake and hollow when it is asleep (a remote one is always
 // filled), and beside it a spider for local or a feather for remote, so colour is never the only

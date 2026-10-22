@@ -1688,8 +1688,8 @@ await page.eval("(() => { document.querySelector('[data-askfill]').click(); retu
 await wait(500);
 ok("  tapping one fills the box",
    (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
-ok("  and does not send it — no answer, no thinking",
-   !/Thinking/.test(await page.text('#sideBody') || ''));
+ok("  and does not send it — no answer, nothing waiting",
+   !/Asking…|Weaving…/.test(await page.text('#sideBody') || ''));
 await wait(1200);
 ok("  and it is still there a moment later, not eaten by a repaint",
    (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
