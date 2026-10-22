@@ -32,11 +32,21 @@ const srv = createServer((req, res) => {
       res.end(JSON.stringify(o)); };
     // Short, so the exact count never refuses; the budget is what this file reads, not the count.
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
-    const kind = b.response_format ? 'check' : b.max_tokens === 1 ? 'warm' : 'prose';
+    // A structured call is named by its schema: Talk's has a reply, Invent's a title, the check's
+    // its contradictions. Anything else with a grammar is counted as a check, which is background.
+    const props = b.response_format?.json_schema?.schema?.properties ?? {};
+    const kind = b.response_format ? (props.reply ? 'talk' : props.title ? 'invent' : 'check')
+      : b.max_tokens === 1 ? 'warm' : 'prose';
     calls.push({ kind, weaving: b.chat_template_kwargs?.enable_thinking, maxTokens: b.max_tokens,
       user: String(b.messages?.[1]?.content ?? '') });
     if (kind === 'check') return send({ choices: [{ message: { content: JSON.stringify({ contradictions: [] }) } }],
       usage: { prompt_tokens: 200, completion_tokens: 5 } });
+    if (kind === 'talk' || kind === 'invent') return send({ choices: [{ message: {
+        content: JSON.stringify(kind === 'talk' ? { reply: 'It is about a debt.', entries: [] }
+          : { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]', keys: ['choir'] }),
+        reasoning_content: plan } }],
+      usage: { prompt_tokens: 200, completion_tokens: 40,
+               ...(planTokens == null ? {} : { completion_tokens_details: { reasoning_tokens: planTokens } }) } });
     send({ choices: [{ message: { content: 'She walks into the light.', reasoning_content: plan },
                        finish_reason: 'stop' }],
       usage: { prompt_tokens: 200, completion_tokens: 40,
@@ -195,6 +205,34 @@ const ok = (m: string, fn?: unknown) => {
   assert.strictEqual(paramsOf(none.genId).max_tokens, 900, 'and its own cap');
   raw.close();
   ok("a weaving passage's plan length lands on its generation row, and the plan does not");
+}
+
+// ---- 6. TALK AND INVENT WEAVE IN A WEAVING BOOK, WITH THE SAME ROOM. Their own caps, 2,400 and
+// 2,000, plus the 5,000. In any other book they are sent weaving off with their own caps, as before.
+const talk = async (id: string, perSlot?: number, extra: any = {}) => {
+  calls = [];
+  return routes['POST /api/talk'](ctx({ storyId: id, said: 'What is this story about?', ...extra }, perSlot)) as any;
+};
+const invent = async (id: string, perSlot?: number, extra: any = {}) => {
+  calls = [];
+  return routes['POST /api/invent'](ctx({ storyId: id, kind: 'lore', ...extra }, perSlot)) as any;
+};
+{
+  for (const [name, go, kind, cap] of [['Talk', talk, 'talk', 2400], ['Invent', invent, 'invent', 2000]] as const) {
+    const r = await go(woven.id);
+    assert.ok(!r.error, `${name}: ${r.error}`);
+    const on = calls.filter((x) => x.kind === kind);
+    assert.strictEqual(on.length, 1, `${name} reached the model once: ${JSON.stringify(calls)}`);
+    assert.strictEqual(on[0].weaving, true, `${name} in a weaving book is sent weaving on`);
+    assert.strictEqual(on[0].maxTokens, cap + 5000, `${name} gets its own cap raised by 5,000`);
+
+    const p = await go(plain.id);
+    assert.ok(!p.error, `${name}: ${p.error}`);
+    const off = calls.filter((x) => x.kind === kind);
+    assert.strictEqual(off[0].weaving, false, `${name} in a book that does not weave is sent weaving off`);
+    assert.strictEqual(off[0].maxTokens, cap, `${name} keeps its own cap in a book that does not weave`);
+  }
+  ok('Talk and Invent weave in a weaving book with their caps raised by 5,000, and in any other book do not');
 }
 
 console.log(`\n${n} checks passed`);

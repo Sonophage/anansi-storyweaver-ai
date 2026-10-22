@@ -95,9 +95,10 @@ const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no suc
 /** THE ROLES THAT WEAVE, and the only list of them. A call whose role is not here is sent weaving
  *  off whatever its book says: summaries, the canon check, memory and extraction are background
  *  work, and F23 measured a structured call that planned first truncating its own JSON on 3 calls in
- *  5. Talk and Invent join this list when #57 measures them with weaving on; adding a role is this
- *  one line, and `replyFor` below is what every caller reads it through. */
-export const WEAVING_ROLES: ReadonlySet<string> = new Set(['prose']);
+ *  5. Talk and Invent are on it with the same 5,000 of room F23 said any future use
+ *  needs; if either returns unparseable JSON with weaving on, it comes off this list. Adding or
+ *  removing a role is this one line, and `replyFor` below is what every caller reads it through. */
+export const WEAVING_ROLES: ReadonlySet<string> = new Set(['prose', 'talk', 'invent']);
 
 /** The room a weaving call is given on top of its role's own cap. Fixed, above the largest plan F60
  *  measured (4,552 tokens; the median was about 3,300).
@@ -2870,17 +2871,20 @@ export const routes: Record<string, Handler> = {
     // output and then asking for 1,600 — the prompt was budgeted for an answer smaller than the one
     // requested, so the slot could be oversubscribed by 700 tokens on a long story, and this server
     // does not queue an overflow, it returns 500 to both writers sharing the cache.
+    // Through `replyFor`, so a weaving book reserves the plan's room here and sends it below.
+    const reply = replyFor(c, v, 'talk', TALK_TOKENS);
     const { manifest, prompt } = assemble(grounded, slotFor(c, v, writerModel(c, v)), 'talk', ask, undefined,
-      TALK_TOKENS, undefined);
+      reply.maxTokens, undefined);
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
     const using = writerModel(c, v);
     const t0 = Date.now();
-    // Thinking OFF, and this is a correction. It was ON here on the argument that F5's finding —
-    // thinking returns no prose — was about PROSE, and that analysis is what thinking is for.
-    // MEASURED, on the first five real calls: 3 of 5 came back `model returned unparseable JSON`.
-    // The mechanism is F5's exactly. Reasoning eats the token budget, the JSON is truncated before
-    // it closes, and the parse fails. Thinking and structured output do not compose on this build.
+    // Weaving only in a weaving book, and only with the room for it. Thinking was once ON here for
+    // every call, on the argument that F5's finding — thinking returns no prose — was about PROSE.
+    // MEASURED, on the first five real calls (F23): 3 of 5 came back `model returned unparseable
+    // JSON`. The mechanism is F5's exactly: reasoning ate the token budget and the JSON was
+    // truncated before it closed. So it is off unless the book weaves, and a weaving call is sent
+    // with WEAVE_ROOM on top of TALK_TOKENS, reserved in the prompt's budget above.
     //
     // structuredRetry rather than structured: the retry doubles max_tokens and drops temperature,
     // which is the right response to a truncated object whatever caused it.
@@ -2889,7 +2893,8 @@ export const routes: Record<string, Handler> = {
     // book's own VOICE block until `context.ts` stopped sending it here.
     const r = await structuredRetry(`${TALK_CONTRACT}\n\n${anansiOf(c.owner)}`,
       prompt.slice(SYSTEM.length), TALK_SCHEMA,
-      { model: using, temperature: 0.4, max_tokens: TALK_TOKENS });
+      { model: using, temperature: 0.4, max_tokens: reply.maxTokens,
+        chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',
       manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
@@ -2971,12 +2976,13 @@ export const routes: Record<string, Handler> = {
     }
 
     // The same six passages the chat gets. A ledger entry does not need the last forty.
+    const reply = replyFor(c, v, 'invent', INVENT_TOKENS);
     const { manifest, prompt } = assemble({ ...v, passages: v.passages.slice(-6) },
       slotFor(c, v, writerModel(c, v)), 'talk',
       [who ? `This is for ${who.title}, whose entry reads: ${who.body}` : '',
        sources.length ? 'Search results, a stranger\'s text:\n'
          + sources.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.text}`).join('\n\n') : '',
-      ].filter(Boolean).join('\n\n') || undefined, undefined, INVENT_TOKENS, undefined);
+      ].filter(Boolean).join('\n\n') || undefined, undefined, reply.maxTokens, undefined);
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
     const about = isAddon ? `${kind.replace(/_/g, ' ')} for ${who!.title}`
@@ -2985,7 +2991,8 @@ export const routes: Record<string, Handler> = {
     const t0 = Date.now();
     const r = await structuredRetry(INVENT(about, steer, sources.length > 0, isAddon),
       prompt.slice(SYSTEM.length), inventSchema(kind),
-      { model: writerModel(c, v), temperature: 0.9, max_tokens: INVENT_TOKENS });
+      { model: writerModel(c, v), temperature: 0.9, max_tokens: reply.maxTokens,
+        chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: writerModel(c, v),
       role: `invent:${kind}`, manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
