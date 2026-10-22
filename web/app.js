@@ -1796,6 +1796,9 @@ function drawDock() {
            hide once the words start — and between those two, a writer who left the veil early had
            NO way to stop a generation at all. The veil's Stop was the only one in the app.
            So: while she is writing and there is no veil in front of you, this is Stop. -->
+      <!-- #55. WHILE A WEAVING BOOK'S PASSAGE IS BEING WOVEN, the count, here and on the veil. Only
+           drawn while it runs; weaveStop empties it, and the next draw leaves it out. -->
+      ${WEAVE_T0 != null ? `<span id="weaving" class="weaving tnum" aria-live="polite">${weaveWords()}</span>` : ''}
       ${S.busy && !veilUp()
         ? `<button id="send" data-stop="1" aria-label="Stop writing"
              title="Stop">${mark('send', 18)}</button>`
@@ -7465,6 +7468,11 @@ function ghost() {
   // now is: the blur, the rule, and nothing else. A surface that promises a shape cannot keep the
   // promise, because the app does not know how long the passage is until it has one.
   g.innerHTML = `<div class="narr">
+      <!-- #55. "Weaving… Ns" while a weaving book's passage is planned, unseen. A deliberate
+           addition to "the blur, the rule, and nothing else": a weaving wait is a median 60 s
+           (F60), and a minute of blur with nothing counting reads as a hang. Empty, and so not
+           drawn, for every other passage and from the first word on. -->
+      <div class="veilweave" aria-live="polite">${WEAVE_T0 != null ? weaveWords() : ''}</div>
       <div class="veilrow">
         <div class="veilmeter" aria-hidden="true"><i></i></div>
         <div class="veiltext" aria-live="polite"></div>
@@ -7496,6 +7504,40 @@ function ghost() {
  *  token and never raised it if the model errored before then. The veil still goes up on the press;
  *  on success it holds, and on an abort or an error it comes down. */
 let PEND = '', DRAIN = null, VEIL_DONE = false, LAST_TICK = 0, TIP = [], SEEN = 0;
+
+/** #55. "WEAVING…" AND THE SECONDS, from the press until the first word of prose.
+ *
+ *  Only for a book the server says weaves (`V.weaves`): the client does not decide which calls
+ *  weave, it only reads the answer. A weaving passage spends a median 60 s planning before its
+ *  first word (F60), and the plan is never sent to the browser, so the count is the only sign
+ *  that anything is happening. It is written into the two places that show it — the veil and the
+ *  composer — once a second, by text rather than a redraw, because a redraw of the dock eats what
+ *  the writer is typing. `WEAVE_T0` is the press; null means nothing is being woven. */
+let WEAVE_T0 = null, WEAVE_TICK = null;
+const weaveWords = () => `Weaving\u2026 ${Math.floor((Date.now() - WEAVE_T0) / 1000)}s`;
+function weaveShow() {
+  const words = WEAVE_T0 == null ? '' : weaveWords();
+  const veil = document.getElementById('ghost')?.querySelector?.('.veilweave');
+  if (veil) veil.textContent = words;
+  const dock = document.getElementById('weaving');
+  if (dock) dock.textContent = words;
+}
+/** At the press, before the composer and the veil are drawn, so both are drawn already counting. */
+function weaveStart() {
+  weaveStop();
+  if (!V?.weaves) return;
+  WEAVE_T0 = Date.now();
+  WEAVE_TICK = setInterval(weaveShow, 1000);
+}
+/** At the first word, and again when the call ends however it ended — a Stop, an error, or a
+ *  passage with no words — so the count can never outlive its call. */
+function weaveStop() {
+  if (WEAVE_TICK != null) clearInterval(WEAVE_TICK);
+  WEAVE_TICK = null;
+  if (WEAVE_T0 == null) return;
+  WEAVE_T0 = null;
+  weaveShow();
+}
 
 /** THE PAGE UPDATE, HELD BACK UNTIL THE VEIL GOES. Seth, 2026-09-02: "dont send the content to the
  *  main page until that tap happens ... otherwise it overloads the browser."
@@ -7538,6 +7580,8 @@ const veilUp = () => {
 };
 
 function liveDelta(d) {
+  // The first word of prose is the end of the weaving, whether or not a veil is up to show it.
+  if (d && WEAVE_T0 != null) weaveStop();
   const el = veilText();
   if (!el || !d) return;
   el.closest('.veil')?.classList.add('written');
@@ -7895,6 +7939,7 @@ async function generate(mode = S.mode) {
   // because for Speak and Act your own line has already landed by now, and that line is the one
   // you would be reading from.
   S.seam = V?.passages?.filter((p) => !p.isBreak).at(-1)?.id ?? null;
+  weaveStart();
   S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
@@ -7903,7 +7948,7 @@ async function generate(mode = S.mode) {
   const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
     directive: YOURS ? undefined : (typed || undefined), speaker: who },
     liveDelta, STOP.signal);
-  STOP = null;
+  STOP = null; weaveStop();
   // NOT `unghost()` ANY MORE on the way through. The veil comes down on an abort or an error, just
   // below, so a failure can never trap anyone — that is PLAN-07 bug 1's rule and it still holds. On
   // success it stays up and becomes the take, and the writer leaves it by typing.
@@ -8058,6 +8103,7 @@ async function regenerateInto(id, steer, seed) {
     `reroll:${id}`,
     'That passage is yours. Press Regenerate again to write a take over it — your words stay behind ‹ ›.'
   )) return;
+  weaveStart();
   S.busy = true; drawDock(); drawBar(); working('reroll');
   // A reroll of the LAST passage writes at the bottom, so the ghost belongs there too. Rerolling
   // one further up would put it in the wrong place, so that one waits — the take replaces a
@@ -8083,7 +8129,7 @@ async function regenerateInto(id, steer, seed) {
     ...(seed == null ? {} : { seed }),
     speaker: S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona || undefined) : undefined },
     liveDelta, STOP.signal);
-  STOP = null;
+  STOP = null; weaveStop();
   // Same rule as `generate`: down on a failure, held on a success. `atEnd` decides whether there is
   // a veil here at all, and every one of these is a no-op when there is not.
   if (r.aborted || r.error) unghost();

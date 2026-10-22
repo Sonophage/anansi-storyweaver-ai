@@ -263,6 +263,12 @@ input, textarea { font:inherit; color:inherit; }
   color:var(--ink); white-space:pre-wrap; overflow-wrap:break-word; scrollbar-width:none; }
 #ghost.veil .veiltext::-webkit-scrollbar { display:none; }
 #ghost.veil .veilrow { display:flex; align-items:stretch; gap:22px; }
+/* #55. "WEAVING… 12s", above the prose while a weaving book's passage is planned. In the same
+   small capitals as Stop, in the muted ink so it reads as a state and not a control. Empty for every
+   other wait and from the first word on, and an empty one takes no room. */
+#ghost.veil .veilweave { font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--mute); font-variant-numeric:tabular-nums; }
+#ghost.veil .veilweave:empty { display:none; }
 #ghost.veil .veilmeter { flex:0 0 3px; width:3px; align-self:stretch; background:var(--chip);
   border-radius:var(--r-tight); overflow:hidden; }
 #ghost.veil .veilmeter i { display:block; width:100%; height:0; background:var(--gold);
@@ -1207,6 +1213,10 @@ html[data-work="ai"]       #frame { --work:var(--gold); }
    the gold was wrong on. The padding stays: it is the gap between the field and the edge of the
    dock, and it was never the line's. */
 #inputRow { display:flex; align-items:flex-end; gap:16px; padding:0 0 14px; }
+/* #55. The same count beside Send, for a writer who left the veil while the passage was woven. */
+#inputRow .weaving { align-self:center; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--mute); white-space:nowrap; }
+#inputRow .weaving:empty { display:none; }
 /* THE BOX IS THE HEIGHT OF THE BUTTONS BESIDE IT. It was one line tall — 26px against a 34px Send
    on a desk and 24px against 44px on a phone — so the row read as a stripe with two discs on the
    end of it, and the first character typed changed its height. The padding is what makes one line

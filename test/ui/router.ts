@@ -19,6 +19,10 @@ const MODELS = [
   { id: 'Wayfarer-2-RPNT-12B', status: { value: 'unloaded' } },
 ];
 
+/** How long a weaving call plans before its first word. F60 measured a median 60 s; a scenario
+ *  needs only enough to see two counts and press Stop. */
+const WEAVE_MS = 4500;
+
 const srv = createServer((req, res) => {
   let raw = '';
   req.on('data', (d) => { raw += d; });
@@ -34,9 +38,21 @@ const srv = createServer((req, res) => {
     if (!body.stream) return json({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 10, completion_tokens: 1 } });
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'The fake router wrote this.' },
-      finish_reason: 'stop' }] })}\n\n`);
-    res.end('data: [DONE]\n\n');
+    const prose = () => {
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'The fake router wrote this.' },
+        finish_reason: 'stop' }] })}\n\n`);
+      res.end('data: [DONE]\n\n');
+    };
+    // #55. A WEAVING CALL PLANS FIRST, so this one does: a plan in pieces for WEAVE_MS, the way the
+    // real router streams one, then the prose. Long enough for a scenario to watch the count run and
+    // to press Stop in the middle of it. A stopped call closes the socket, and the plan stops with it.
+    if (body.chat_template_kwargs?.enable_thinking !== true) return prose();
+    const started = Date.now();
+    const plan = setInterval(() => {
+      if (Date.now() - started >= WEAVE_MS) { clearInterval(plan); return prose(); }
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: 'The plan, unseen. ' } }] })}\n\n`);
+    }, 250);
+    res.on('close', () => clearInterval(plan));
   });
 });
 srv.listen(0, '127.0.0.1', () => writeFileSync(portFile, String((srv.address() as any).port)));

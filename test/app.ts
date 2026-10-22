@@ -342,6 +342,9 @@ let afterAsked: string | null = null;
 // bugs.md #9. Which row the stubbed generation says it landed, or undefined for an older server that
 // lands nothing and leaves the client to accept.
 let stubPassageId: string | undefined = undefined;
+// #55. When set, the stubbed stream holds its first line until this resolves: the stretch between
+// the press and the first word, which is the whole of the time a weaving call spends planning.
+let streamGate: Promise<void> | null = null, endGate: Promise<void> | null = null;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
@@ -361,12 +364,20 @@ let stubPassageId: string | undefined = undefined;
                                     // test rather than fixed: a constant here leaked into every other
                                     // block that drives a generation and marked their passage watched.
                                     ...(stubPassageId ? { passageId: stubPassageId } : {}),
-                                    manifest: MANIFEST.manifest })].join('\n') + '\n';
+                                    manifest: MANIFEST.manifest })];
+    // In one read, unless a test is holding the stream: then the first word waits on `streamGate`
+    // and the end of the call on `endGate`, so the stretch between them can be looked at too.
+    const reads = streamGate ? [[lines[0]], [lines[1]]] : [lines];
     return { ok: true, status: 200, body: {
       getReader() {
-        let sent = false;
-        return { read: async () => sent ? { done: true }
-          : (sent = true, { done: false, value: new TextEncoder().encode(lines) }) };
+        let i = 0;
+        return { read: async () => {
+          if (i >= reads.length) return { done: true };
+          // Read at the moment of the read, so a test can close the end after the press.
+          const gate = i === 0 ? streamGate : endGate;
+          if (gate) await gate;
+          return { done: false, value: new TextEncoder().encode(reads[i++].join('\n') + '\n') };
+        } };
       },
     } } as any;
   }
@@ -2362,6 +2373,43 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
     'and the Context panel asks again, because the budget just changed');
 }
 ok('the Storyteller has a Weaving switch where the thinking note was, and it saves itself');
+
+// #55. "WEAVING…" AND THE SECONDS, from the press until the first word. A weaving passage measured a
+// median 60 s of silence before its prose (F60), which reads as a hung app without a count. The
+// composer is the half this harness can see: its stub veil has no inside to read, and the browser
+// scenario test/ui/weave.js reads that one.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  let open!: () => void;
+  const weaving = (STORY as any).weaves;
+  try {
+    // A book that does not weave says nothing of the kind while it waits.
+    streamGate = new Promise<void>((r) => { open = r; });
+    void click({ continue: '1' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.doesNotMatch(html('dockCol'), /Weaving/, 'a book that does not weave never says Weaving');
+    open(); await new Promise((r) => setTimeout(r, 60));
+
+    (STORY as any).weaves = true;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    streamGate = new Promise<void>((r) => { open = r; });
+    void click({ continue: '1' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.match(html('dockCol'), /Weaving/, 'the composer says Weaving while it waits');
+    assert.match(html('dockCol'), /id="weaving"[^>]*>Weaving… 0s</, 'with the seconds, from nought');
+    await new Promise((r) => setTimeout(r, 1100));
+    assert.match(String(nodes.get('weaving')?.textContent), /^Weaving… 1s$/, 'and the count runs');
+    // The first word, with the call still open behind it: the count ends at the word, not at the end.
+    let end!: () => void;
+    endGate = new Promise<void>((r) => { end = r; });
+    open(); await new Promise((r) => setTimeout(r, 60));
+    assert.strictEqual(String(nodes.get('weaving')?.textContent ?? ''), '', 'the first word ends it');
+    end(); await new Promise((r) => setTimeout(r, 60));
+  } finally { streamGate = null; endGate = null; (STORY as any).weaves = weaving; }
+}
+ok('a weaving book says Weaving with a running count from the press until the first word');
 
 // #53 · WHERE A MODEL RUNS, on every surface that names one: a circle in the local or the remote
 // colour, filled when a local model is awake and hollow when it is asleep (a remote one is always

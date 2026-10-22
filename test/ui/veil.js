@@ -59,6 +59,13 @@ const send = async (text) => {
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories[0].id)()");
 await page.goto(B + "/#" + sid);
 for (let i = 0; i < 40; i++) { if (await page.eval("!!document.querySelector('#rail [data-nav]')")) break; await wait(250); }
+// #55. WEAVING STAYS OFF HERE. Every timing below is a real generation's, and a weaving one plans
+// unseen for a median 60 s before its first word (F60), so the first-frame and streaming checks
+// would be measuring the plan. The seeded book is off by default; asserted, so a seed that turned
+// it on fails here by name rather than as a slow veil.
+ok("the book under test does not weave", await page.eval(`(async () => {
+  const v = await (await fetch('/api/story?story=${sid}')).json();
+  return v.story.weaving === false && v.weaves === false; })()`));
 
 // ---- 1. before the first token: nothing held open, the tint already there, Stop offered
 await send("The rain does not stop.");
