@@ -54,7 +54,7 @@ const CATALOGUE = [
 /** What reached the fake Featherless, newest last. */
 const fl: { path: string; auth: string | undefined; body: any }[] = [];
 /** How the next chat calls should go, shifted one per call. Empty means "answer normally". */
-const script: ('429' | 'midstream' | 'cold' | 'refuse' | 'down')[] = [];
+const script: ('429' | 'capacity' | 'unavailable' | 'midstream' | 'cold' | 'refuse' | 'down')[] = [];
 /** Every catalogue read, by the Authorization header it carried. Kept apart from `fl`, which blocks
  *  clear as they go. */
 const catReads: (string | undefined)[] = [];
@@ -80,6 +80,12 @@ const flSrv = createServer((req, res) => {
     // machine is offline or Featherless is down.
     if (how === 'down') return req.socket.destroy();
     if (how === '429') return json(429, { error: { message: `concurrency limit, key ${KEY}` } });
+    // AT CAPACITY, AS THE REAL ONE SAYS IT (seen live 2026-10-22 on two models): a 503 whose body
+    // names the model and carries the code. Any other 503 has no such code.
+    if (how === 'capacity') return json(503, { error: { message: `${body.model} is temporarily at `
+      + 'capacity. Please try again shortly.', type: 'server_error', code: 'capacity_exhausted' } });
+    if (how === 'unavailable') return json(503, { error: { message: `service unavailable, key ${KEY}`,
+      type: 'server_error' } });
     if (how === 'refuse') return json(400, { error: { message: `bad request for key ${KEY}` } });
     const answer = () => {
       // Two models plan when told not to, each the way a provider can show it: in the reasoning
@@ -411,6 +417,51 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.notStrictEqual(late?.name, 'AbortError', 'TIMEOUT-BACKOFF: a ceiling is not reported as a stop');
   assert.match(String(late?.message), /did not answer in time/, 'TIMEOUT-BACKOFF: it says Featherless ran out of time');
   ok('the ceiling firing during the back-off says Featherless did not answer in time');
+}
+
+// ---- 4c. at capacity is retried like a 429, then reported as busy; it never falls back ----
+{
+  let m = mark();
+  script.push('capacity', 'capacity', 'capacity');
+  const r = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.ok(!r.error, `CAPACITY-RETRY: three at-capacity answers, then the passage (${r.error})`);
+  assert.strictEqual(since(m).fl.length, 4, 'CAPACITY-RETRY: retried on the 429 schedule');
+
+  m = mark();
+  script.push('capacity', 'capacity', 'capacity', 'capacity');
+  const busy = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.strictEqual(busy.error, 'Featherless is busy, try again', 'CAPACITY-BUSY: reported as busy, plainly');
+  const tried = since(m);
+  assert.strictEqual(tried.fl.length, 4, 'one call and three retries, no more');
+  assert.ok(tried.fl.every((x) => x.body.model === REMOTE), 'every attempt was the chosen model');
+  assert.strictEqual(tried.local.length, 0, 'NO FALLBACK: nothing went to the local router instead');
+
+  m = mark();
+  script.push('unavailable');
+  const other = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.match(String(other.error), /^Featherless answered 503: service unavailable/,
+    'OTHER-503: a 503 that is not at capacity keeps its own message');
+  assert.ok(String(other.error).includes('[key]'), 'with the key cut out of it');
+  assert.strictEqual(since(m).fl.length, 1, 'OTHER-503: and is not retried');
+  assert.strictEqual(since(m).local.length, 0, 'and nothing fell back to the local router');
+
+  // Stop during the at-capacity wait, on the real-sized schedule (see 4b for why a second copy).
+  const was = process.env.ANANSI_FEATHERLESS_BACKOFF_MS;
+  process.env.ANANSI_FEATHERLESS_BACKOFF_MS = '5000,5000,5000';
+  const slow = await import('../src/llama.ts?slow-capacity');
+  process.env.ANANSI_FEATHERLESS_BACKOFF_MS = was;
+  m = mark();
+  script.push('capacity', 'capacity', 'capacity', 'capacity');
+  const stop = new AbortController();
+  setTimeout(() => stop.abort(), 150);
+  const t0 = Date.now();
+  const e: any = await slow.chat('s', 'b', { model: ID }, () => {}, stop.signal).then(() => null, (x) => x);
+  const took = Date.now() - t0;
+  script.length = 0;
+  assert.ok(took < 2000, `STOP-CAPACITY: Stop ends the at-capacity wait at once (took ${took} ms)`);
+  assert.strictEqual(e?.name, 'AbortError', 'STOP-CAPACITY: it ends as a stop');
+  assert.strictEqual(since(m).fl.length, 1, 'and no retry is sent after Stop');
+  ok('at capacity is retried like a 429, reported as busy, stoppable, and never falls back');
 }
 
 // ---- 5. any other refusal, and a stream that fails mid-passage, report and never fall back ----
