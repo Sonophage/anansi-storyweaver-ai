@@ -18,15 +18,15 @@ PORT=${ANANSI_UI_PORT:-5179}
 exec 9>/tmp/anansi-ui-$PORT.lock
 flock -n 9 || { echo "  another test/ui/run.sh is using port $PORT — waiting for it"; flock 9; }
 WORK=$(mktemp -d /tmp/anansi-ui.XXXXXX)
-# The fake Featherless, when the scenario before asked for one.
-FLPID=""
-trap 'kill $(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP "pid=\K[0-9]+" | head -1) $FLPID 2>/dev/null; rm -rf "$WORK"' EXIT
+# The fake Featherless and the fake router, when the scenario before asked for them.
+FLPID=""; RTPID=""
+trap 'kill $(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP "pid=\K[0-9]+" | head -1) $FLPID $RTPID 2>/dev/null; rm -rf "$WORK"' EXIT
 
 fresh() {
   local pid; pid=$(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
   [ -n "$pid" ] && kill "$pid" 2>/dev/null
-  [ -n "$FLPID" ] && kill "$FLPID" 2>/dev/null; FLPID=""
-  sleep 1; rm -f "$WORK"/db* "$WORK"/fl.*
+  [ -n "$FLPID$RTPID" ] && kill $FLPID $RTPID 2>/dev/null; FLPID=""; RTPID=""
+  sleep 1; rm -f "$WORK"/db* "$WORK"/fl.* "$WORK"/rt.*
   # NEVER THE REAL FEATHERLESS. This machine has a real key at the default path, so a test server
   # left to the defaults would read it, and a scenario that opened Find a model would spend plan
   # units. A scenario that needs remote models says so on its first line, `// needs:
@@ -40,6 +40,16 @@ fresh() {
     until [ -s "$WORK/fl.port" ]; do sleep 0.2; m=$((m+1)); [ $m -gt 50 ] && { echo "the fake Featherless never came up"; cat "$WORK/fl.log"; exit 1; }; done
     fl_url="http://127.0.0.1:$(cat "$WORK/fl.port")/v1"
     fl_key="$WORK/fl.key"; printf 'fl-ui-fake-key\n' >"$fl_key"
+  fi
+  # A FAKE LOCAL ROUTER, for a scenario whose first line also names `fake-router`. Every other
+  # scenario reads the real router, as it always has.
+  local llama="${ANANSI_LLAMA:-http://127.0.0.1:8080}"
+  if head -1 "test/ui/$1.js" 2>/dev/null | grep -q '^// needs: .*\bfake-router\b'; then
+    node --experimental-strip-types test/ui/router.ts "$WORK/rt.port" >"$WORK/rt.log" 2>&1 &
+    RTPID=$!
+    local r=0
+    until [ -s "$WORK/rt.port" ]; do sleep 0.2; r=$((r+1)); [ $r -gt 50 ] && { echo "the fake router never came up"; cat "$WORK/rt.log"; exit 1; }; done
+    llama="http://127.0.0.1:$(cat "$WORK/rt.port")"
   fi
   # The fixture is the WHOLE ground truth, and it did not used to be: this snapshotted the real
   # anansi.db and seeded The Silver Key on top, so every scenario ran against the author's actual
@@ -56,7 +66,7 @@ fresh() {
   # scenario that stops the model server mid-suite would fail every scenario after it, and would
   # do it on the machine somebody is writing on.
   ANANSI_PORT=$PORT ANANSI_DB="$WORK/db" ANANSI_LLAMA_UNIT=anansi-test-nonexistent.service \
-    ANANSI_FEATHERLESS_URL="$fl_url" ANANSI_FEATHERLESS_KEY_FILE="$fl_key" \
+    ANANSI_FEATHERLESS_URL="$fl_url" ANANSI_FEATHERLESS_KEY_FILE="$fl_key" ANANSI_LLAMA="$llama" \
     nohup node --experimental-strip-types serve.ts >"$WORK/serve.log" 2>&1 &
   local n=0
   until curl -sf -o /dev/null -m 2 "http://127.0.0.1:$PORT/"; do sleep 1; n=$((n+1)); [ $n -gt 30 ] && { echo "server never came up"; cat "$WORK/serve.log"; exit 1; }; done
@@ -65,7 +75,7 @@ fresh() {
 # EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
 # green for a scenario nobody asked about — twice, per docs/HANDOFF.md.
 scenarios=${*:-}
-[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder"
+[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder marks"
 # `cover` and `entrypic` are excluded too, and for a second reason: they need ANANSI_SEARCH pointing
 # at a working endpoint AND the open web. Run them by name, with that variable set on the test server.
 # `model`, `ritual` and `veil` are excluded from the default set: every step waits on a real
