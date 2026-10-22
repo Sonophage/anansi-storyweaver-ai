@@ -212,8 +212,12 @@ const ok = (m: string, fn?: unknown) => {
   ok("a weaving passage's plan length lands on its generation row, and the plan does not");
 }
 
-// ---- 6. TALK AND INVENT WEAVE IN A WEAVING BOOK, WITH THE SAME ROOM. Their own caps, 2,400 and
-// 2,000, plus the 5,000. In any other book they are sent weaving off with their own caps, as before.
+// ---- 6. TALK AND INVENT WEAVE IN A WEAVING BOOK, EACH WITH ITS ROLE'S ROOM. Their own caps, 2,400
+// and 2,000, plus 5,000 for Talk and 7,000 for Invent: bench/weave-json.ts measured Invent's plans
+// at a median of 4,372 tokens and a largest of 5,613 on 2026-10-22, two of five over 5,000. In any
+// other book they are sent weaving off with their own caps, as before.
+/** The room each role is given on top of its own cap, from the spec and the measurement above. */
+const ROOM = { talk: 5000, invent: 7000 } as const;
 const talk = async (id: string, perSlot?: number, extra: any = {}) => {
   calls = [];
   return routes['POST /api/talk'](ctx({ storyId: id, said: 'What is this story about?', ...extra }, perSlot)) as any;
@@ -229,7 +233,7 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
     const on = calls.filter((x) => x.kind === kind);
     assert.strictEqual(on.length, 1, `${name} reached the model once: ${JSON.stringify(calls)}`);
     assert.strictEqual(on[0].weaving, true, `${name} in a weaving book is sent weaving on`);
-    assert.strictEqual(on[0].maxTokens, cap + 5000, `${name} gets its own cap raised by 5,000`);
+    assert.strictEqual(on[0].maxTokens, cap + ROOM[kind], `${name} gets its own cap raised by its role's room`);
 
     const p = await go(plain.id);
     assert.ok(!p.error, `${name}: ${p.error}`);
@@ -237,7 +241,7 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
     assert.strictEqual(off[0].weaving, false, `${name} in a book that does not weave is sent weaving off`);
     assert.strictEqual(off[0].maxTokens, cap, `${name} keeps its own cap in a book that does not weave`);
   }
-  ok('Talk and Invent weave in a weaving book with their caps raised by 5,000, and in any other book do not');
+  ok('Talk and Invent weave in a weaving book with their caps raised by 5,000 and 7,000, and in any other book do not');
 
   // "Remember this" is structured, writer-facing and shaped like an invention, and it is not on the
   // role list: it must stay weaving off in the same book, or F23 comes back through the side door.
@@ -250,19 +254,20 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
   ok('"Remember this" in a weaving book is sent weaving off');
 }
 
-// ---- 7. A WEAVING TALK OR INVENTION RECORDS ITS PLAN'S LENGTH, the number the 5,000 is tuned
+// ---- 7. A WEAVING TALK OR INVENTION RECORDS ITS PLAN'S LENGTH, the number its room is tuned
 // from, and not the plan. The same rule as a passage: the server's count, else the length.
 {
   const raw = new DatabaseSync(DB, { readOnly: true });
   const last = (role: string) => raw.prepare('SELECT * FROM generations WHERE role = ? ORDER BY rowid DESC LIMIT 1')
     .get(role) as any;
-  for (const [name, go, role, cap] of [['Talk', talk, 'talk', 2400], ['Invent', invent, 'invent:lore', 2000]] as const) {
+  for (const [name, go, role, cap, room] of [['Talk', talk, 'talk', 2400, ROOM.talk],
+                                              ['Invent', invent, 'invent:lore', 2000, ROOM.invent]] as const) {
     plan = 'THE-PLAN-ITSELF '.repeat(20); planTokens = 3300;
     assert.ok(!(await go(woven.id)).error);
     const row = last(role), params = JSON.parse(row.params ?? '{}');
     assert.strictEqual(params.plan, 3300, `${name}: the server's count of the plan is kept`);
     assert.strictEqual(params.weaving, true, `${name}: the row says the call wove`);
-    assert.strictEqual(params.max_tokens, cap + 5000, `${name}: with the cap it was sent with`);
+    assert.strictEqual(params.max_tokens, cap + room, `${name}: with the cap it was sent with`);
     assert.ok(!JSON.stringify(row).includes('THE-PLAN-ITSELF'), `${name}: nothing of the plan is stored`);
 
     plan = 'x'.repeat(420); planTokens = undefined;
@@ -283,7 +288,7 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
 // Talk's 7,400 becomes 14,800 against a prompt that reserved 7,400: the slot is oversubscribed, and
 // this server answers that with a 500 to both writers on it. So the retry keeps the reserved cap and
 // is sent weaving off, which hands the whole of it to the answer. The row says the call wove (the
-// plan was made, and its length is the number the 5,000 is tuned from) and that it was retried.
+// plan was made, and its length is the number its room is tuned from) and that it was retried.
 {
   const raw = new DatabaseSync(DB, { readOnly: true });
   const last = (role: string) => JSON.parse((raw.prepare(
@@ -296,7 +301,7 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
     const sent = calls.filter((x) => x.kind === kind);
     assert.strictEqual(sent.length, 2, `${name}: a cut-off answer is retried once: ${JSON.stringify(sent)}`);
     assert.strictEqual(sent[0].weaving, true, `${name}: the first try wove`);
-    assert.strictEqual(sent[1].maxTokens, cap + 5000, `${name}: the retry keeps the cap the prompt reserved, `
+    assert.strictEqual(sent[1].maxTokens, cap + ROOM[kind], `${name}: the retry keeps the cap the prompt reserved, `
       + `not double it (${sent[1].maxTokens})`);
     assert.strictEqual(sent[1].weaving, false, `${name}: and is sent weaving off, so the answer has all of it`);
     const params = last(role);
@@ -317,7 +322,7 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
 // ---- 9. THE FIT CHECK. When the weaving room would push part of the book out of a Talk or Invent
 // prompt, the call is refused with a message that says so and names the two ways on. `weaveAnyway`
 // sends the weaving prompt, where the older prose drops out first; turning weaving off sends the
-// book whole. A long book and a small slot, so the 5,000 is what decides.
+// book whole. A long book and a small slot, so the role's room is what decides.
 {
   const tome = (title: string, weaving: boolean) => {
     const s = db.createStory(me, { title, premise: 'A city on a dead god.' });
@@ -335,7 +340,7 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
   const omittedProse = (m: any) => m.blocks.filter((b: any) => b.kind === 'PROSE' && b.state === 'omitted').length;
 
   for (const [name, go, kind, role, slot] of [['Talk', talk, 'talk', 'talk', 9500],
-                                              ['Invent', invent, 'invent', 'invent:lore', 9000]] as const) {
+                                              ['Invent', invent, 'invent', 'invent:lore', 11000]] as const) {
     // The precondition, so the refusal below can be wrong: without weaving, this slot holds the book.
     assert.ok(!(await go(same.id, slot)).error, `${name}: the slot holds the book without weaving`);
     assert.strictEqual(omittedProse(lastManifest(role)), 0, `${name}: and nothing of it is left out`);
@@ -344,6 +349,8 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
     assert.ok(refused.error, `${name}: the weaving room would push part of the book out, so it refuses`);
     assert.strictEqual(calls.filter((x) => x.kind === kind).length, 0, `${name}: and nothing reached the model`);
     assert.match(refused.error, /weav/i, `${name}: the message says weaving is the reason: ${refused.error}`);
+    assert.match(refused.error, new RegExp(`sets aside ${ROOM[kind].toLocaleString('en')} tokens`),
+      `${name}: it gives the room its own role sets aside: ${refused.error}`);
     assert.match(refused.error, /turn weaving off/i, `${name}: it offers turning weaving off`);
     assert.match(refused.error, /anyway/i, `${name}: and going ahead anyway`);
     assert.match(refused.error, /passage/, `${name}: it names what would drop out: ${refused.error}`);
@@ -354,7 +361,7 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
     assert.ok(!anyway.error, `${name}: anyway goes ahead: ${anyway.error}`);
     const sent = calls.filter((x) => x.kind === kind);
     assert.strictEqual(sent[0]?.weaving, true, `${name}: weaving on`);
-    assert.strictEqual(sent[0]?.maxTokens, ({ talk: 2400, invent: 2000 } as any)[kind] + 5000, `${name}: with its room`);
+    assert.strictEqual(sent[0]?.maxTokens, ({ talk: 2400, invent: 2000 } as any)[kind] + ROOM[kind], `${name}: with its room`);
     const m = lastManifest(role);
     assert.ok(omittedProse(m) > 0, `${name}: and older prose dropped out to make it`);
     // Oldest first: every passage left out comes before every passage kept.

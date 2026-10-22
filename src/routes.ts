@@ -94,22 +94,28 @@ const need = <T,>(v: T, msg: string): NonNullable<T> => {
   if (!v) throw Object.assign(new Error(msg), { code: 404 }); return v as NonNullable<T>; };
 /** A book's view as the background work reads it: no writer, so no model resolved for one. */
 const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such story');
-/** THE ROLES THAT WEAVE, and the only list of them. A call whose role is not here is sent weaving
- *  off whatever its book says: summaries, the canon check, memory and extraction are background
- *  work, and F23 measured a structured call that planned first truncating its own JSON on 3 calls in
- *  5. Talk and Invent are on it with WEAVE_ROOM on top of their own caps, the raised budget F23
- *  says any future use needs. `bench/weave-json.ts` is the measurement it also asks for: if either
- *  role returns unparseable JSON with weaving on, it comes off this list. Adding or removing a role
- *  is this one line, and `replyFor` below is what every caller reads it through. */
-export const WEAVING_ROLES: ReadonlySet<string> = new Set(['prose', 'talk', 'invent']);
-
-/** The room a weaving call is given on top of its role's own cap. Fixed, above the largest plan F60
- *  measured (4,552 tokens; the median was about 3,300).
+/** THE ROLES THAT WEAVE, AND THE ROOM EACH IS GIVEN, the only list of them. A call whose role is not
+ *  here is sent weaving off whatever its book says: summaries, the canon check, memory and
+ *  extraction are background work, and F23 measured a structured call that planned first
+ *  truncating its own JSON on 3 calls in 5. Talk and Invent are on it with their room on top of
+ *  their own caps, the raised budget F23 says any future use needs. `bench/weave-json.ts` is the
+ *  measurement it also asks for: if either role returns unparseable JSON with weaving on, it comes
+ *  off this list. Adding or removing a role is one line here, and `replyFor` below is what every
+ *  caller reads it through.
  *
- *  ponytail: one number for every model and every book. The upgrade path is the plan length each
- *  weaving generation records in its params (`plan`), which is what this gets tuned from. The
- *  trigger is a plan that lands near this number, or a weaving passage cut off at its cap. */
-export const WEAVE_ROOM = 5000;
+ *  The room is the tokens a weaving call gets on top of its role's own cap. Prose: 5,000, above the
+ *  largest plan F60 measured (4,552 tokens; the median was about 3,300). Talk: 5,000;
+ *  bench/weave-json.ts on 2026-10-22 (the local default, n=5) measured its largest plan at 2,508.
+ *  Invent: 7,000; the same run measured its plans at a median of 4,372 and a largest of 5,613, two
+ *  of five over 5,000.
+ *
+ *  ponytail: one number per role, for every model and every book, from small samples. The ceiling
+ *  is the plans measured so far. The upgrade path is the plan length each weaving generation
+ *  records in its params (`plan`), which is what these get tuned from. The trigger is a recorded
+ *  plan that lands near its role's number, or a weaving call cut off at its cap. */
+export const WEAVE_ROOM: Readonly<Record<string, number>> = { prose: 5000, talk: 5000, invent: 7000 };
+/** The roles that weave, as a set: WEAVE_ROOM's keys, so a role cannot weave without a room. */
+export const WEAVING_ROLES: ReadonlySet<string> = new Set(Object.keys(WEAVE_ROOM));
 
 /** Whether this book weaves for the writer asking: its own switch, or a model that always weaves.
  *  The server decides this, and the client reads it off the view rather than deriving it again.
@@ -125,14 +131,15 @@ const bookWeaves = (c: Ctx, v: { story: any; owner?: string }) => !!v.story?.wea
 
 /** A CALL'S REPLY CAP, AND WHETHER IT WEAVES, decided here and nowhere else.
  *
- *  `cap` is the role's own cap. A role on WEAVING_ROLES in a book that weaves gets WEAVE_ROOM on top
- *  of it. The book's budget in `viewOf`, the generation, the Context panel's preview and the warm
- *  all read this, so the panel shows the budget the call is going to use and the warm sends the
- *  prefix the call is going to send. A second copy of this arithmetic is how those drift apart, the
+ *  `cap` is the role's own cap. A role on WEAVING_ROLES in a book that weaves gets its WEAVE_ROOM
+ *  on top of it, and `room` says how much that was. The book's budget in `viewOf`, the generation,
+ *  the Context panel's preview and the warm all read this, so the panel shows the budget the call
+ *  is going to use and the warm sends the prefix the call is going to send. A second copy of this arithmetic is how those drift apart, the
  *  failure `inherit`'s note names for the mode and the directive. */
 const replyFor = (c: Ctx, v: { story: any }, role: string, cap: number) => {
   const weaves = WEAVING_ROLES.has(role) && bookWeaves(c, v);
-  return { weaves, maxTokens: cap + (weaves ? WEAVE_ROOM : 0) };
+  const room = weaves ? WEAVE_ROOM[role] : 0;
+  return { weaves, room, maxTokens: cap + room };
 };
 
 /** The prose cap the writer's sampler holds: derived from the target length by `capFor`. */
@@ -146,8 +153,9 @@ const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
  *  #58. `limit` is set when the book's model holds less than the writer's slot (a remote model's
  *  own context, 32,768 for nearly all of them), because then that limit, not the book's length
  *  alone, is why weaving does not fit, and the same book would weave whole on a local model. */
-const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }, limit: number | null) => {
-  const room = `Weaving sets aside ${WEAVE_ROOM.toLocaleString('en')} tokens for Anansi to weave in`;
+const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }, tokens: number,
+                      limit: number | null) => {
+  const room = `Weaving sets aside ${tokens.toLocaleString('en')} tokens for Anansi to weave in`;
   const own = limit != null && `${limit.toLocaleString('en')} tokens, this book's model's own limit`;
   if (fit.overflows) return `${room}, and this book's prompt would not fit beside them${
     own ? ` in the ${own}` : ''}. Turn weaving off for this book to write.`;
@@ -194,7 +202,7 @@ const weaveAssemble = (c: Ctx, v: { story: any; entries?: any[] }, role: string,
   // The model's own limit is the reason only when it is smaller than the slot the writer has.
   const held = fit ? slotFor(c, v, writerModel(c, v)).perSlot : null;
   const refusal = fit && { overflows: fit.overflows,
-    message: weaveRefusal(v, fit, held != null && held < c.slot.perSlot ? held : null),
+    message: weaveRefusal(v, fit, reply.room, held != null && held < c.slot.perSlot ? held : null),
     drops: fit.drops.map((b) => ({ kind: b.kind, id: b.id })) };
   const stop = refusal && (!c.body.weaveAnyway || refusal.overflows)
     ? { error: refusal.message, weaveFit: refusal, manifest: built.manifest } : null;
@@ -2977,7 +2985,7 @@ export const routes: Record<string, Handler> = {
     // MEASURED, on the first five real calls (F23): 3 of 5 came back `model returned unparseable
     // JSON`. The mechanism is F5's exactly: reasoning ate the token budget and the JSON was
     // truncated before it closed. So it is off unless the book weaves, and a weaving call is sent
-    // with WEAVE_ROOM on top of TALK_TOKENS, reserved in the prompt's budget above.
+    // with Talk's WEAVE_ROOM on top of TALK_TOKENS, reserved in the prompt's budget above.
     //
     // structuredRetry rather than structured: the retry drops temperature and gives the answer more
     // room, which is the right response to a truncated object whatever caused it. Out of a weaving

@@ -2,7 +2,7 @@
 //
 // F23 is why this exists. Talk once shipped with thinking on, and 3 of its first 5 real calls came
 // back `model returned unparseable JSON`: the plan ate the cap and the object was cut off before it
-// closed. Weaving puts Talk and Invent back on that path with 5,000 more tokens of room, and F23's
+// closed. Weaving puts Talk and Invent back on that path with more room (WEAVE_ROOM, per role), and F23's
 // own last line is that any such use "needs a raised budget and a measurement, not an argument".
 // This is the measurement. If either role fails it, that role comes off WEAVING_ROLES in
 // src/routes.ts before release, and F23 gets a follow-up.
@@ -123,11 +123,11 @@ if (CHECK) {
   console.log('\n  weave-json check — the tally, before anything it says about the real model is believed\n');
 
   for (const x of ROLES) {
-    const cap = x.role === 'talk' ? 7400 : 7000;
+    const cap = x.role === 'talk' ? 7400 : 9000;
     play = 'valid'; seen = [];
     const good = await once(x);
     ok(`${x.role}: the call this harness sends weaves`, seen[0]?.weaving === true);
-    ok(`${x.role}:   with its cap raised by 5,000 (${seen[0]?.maxTokens})`, seen[0]?.maxTokens === cap);
+    ok(`${x.role}:   with its cap raised by its role's room (${seen[0]?.maxTokens})`, seen[0]?.maxTokens === cap);
     ok(`${x.role}: a whole answer with a plan is a pass`, verdict(good) === 'pass');
 
     play = 'cut';
