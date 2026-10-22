@@ -22,6 +22,16 @@ WORK=$(mktemp -d /tmp/anansi-ui.XXXXXX)
 FLPID=""; RTPID=""; UI_FL_KEY=""
 trap 'kill $(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP "pid=\K[0-9]+" | head -1) $FLPID $RTPID 2>/dev/null; rm -rf "$WORK"' EXIT
 
+# Start the fake in test/ui/$1.ts on a port the system picks, and wait for it to write the port to
+# $WORK/$2.port. Sets FAKEPID and FAKEPORT; a fake that never comes up ends the run with its log.
+fake() {
+  node --experimental-strip-types "test/ui/$1.ts" "$WORK/$2.port" >"$WORK/$2.log" 2>&1 &
+  FAKEPID=$!
+  local i=0
+  until [ -s "$WORK/$2.port" ]; do sleep 0.2; i=$((i+1)); [ $i -gt 50 ] && { echo "the fake $1 never came up"; cat "$WORK/$2.log"; exit 1; }; done
+  FAKEPORT=$(cat "$WORK/$2.port")
+}
+
 fresh() {
   local pid; pid=$(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
   [ -n "$pid" ] && kill "$pid" 2>/dev/null
@@ -35,11 +45,8 @@ fresh() {
   # same fake at its root, or the same refusing address.
   local fl_url="http://127.0.0.1:9/v1" fl_key="/nonexistent/featherless.key" hf_url="http://127.0.0.1:9"
   if head -1 "test/ui/$1.js" 2>/dev/null | grep -q '^// needs: fake-featherless'; then
-    node --experimental-strip-types test/ui/featherless.ts "$WORK/fl.port" >"$WORK/fl.log" 2>&1 &
-    FLPID=$!
-    local m=0
-    until [ -s "$WORK/fl.port" ]; do sleep 0.2; m=$((m+1)); [ $m -gt 50 ] && { echo "the fake Featherless never came up"; cat "$WORK/fl.log"; exit 1; }; done
-    fl_url="http://127.0.0.1:$(cat "$WORK/fl.port")/v1" hf_url="http://127.0.0.1:$(cat "$WORK/fl.port")"
+    fake featherless fl; FLPID=$FAKEPID
+    fl_url="http://127.0.0.1:$FAKEPORT/v1" hf_url="http://127.0.0.1:$FAKEPORT"
     fl_key="$WORK/fl.key"; printf 'fl-ui-fake-key\n' >"$fl_key"
   fi
   # Handed to the scenario as ANANSI_UI_FL_KEY. The server reads the key file on every call, so a
@@ -49,11 +56,8 @@ fresh() {
   # scenario reads the real router, as it always has.
   local llama="${ANANSI_LLAMA:-http://127.0.0.1:8080}"
   if head -1 "test/ui/$1.js" 2>/dev/null | grep -q '^// needs: .*\bfake-router\b'; then
-    node --experimental-strip-types test/ui/router.ts "$WORK/rt.port" >"$WORK/rt.log" 2>&1 &
-    RTPID=$!
-    local r=0
-    until [ -s "$WORK/rt.port" ]; do sleep 0.2; r=$((r+1)); [ $r -gt 50 ] && { echo "the fake router never came up"; cat "$WORK/rt.log"; exit 1; }; done
-    llama="http://127.0.0.1:$(cat "$WORK/rt.port")"
+    fake router rt; RTPID=$FAKEPID
+    llama="http://127.0.0.1:$FAKEPORT"
   fi
   # The fixture is the WHOLE ground truth, and it did not used to be: this snapshotted the real
   # anansi.db and seeded The Silver Key on top, so every scenario ran against the author's actual
