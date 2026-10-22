@@ -676,8 +676,11 @@ const planLength = (r: { usage?: any; reasoning: string }) => {
 
 /** What a structured call's generation row says about weaving: the same three keys a weaving
  *  passage records, or nothing at all for a call that did not weave. */
-const wove = (reply: { weaves: boolean; maxTokens: number }, r: { usage?: any; reasoning: string }) =>
-  reply.weaves ? { weaving: true, max_tokens: reply.maxTokens, plan: planLength(r) } : undefined;
+const wove = (reply: { weaves: boolean; maxTokens: number },
+              r: { usage?: any; reasoning: string; retried?: boolean }) =>
+  reply.weaves ? { weaving: true, max_tokens: reply.maxTokens, plan: planLength(r),
+                   // `structuredRetry`'s weaving retry: the answer that landed was written without the plan.
+                   ...(r.retried ? { retried: true } : {}) } : undefined;
 
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
@@ -2891,8 +2894,9 @@ export const routes: Record<string, Handler> = {
     // truncated before it closed. So it is off unless the book weaves, and a weaving call is sent
     // with WEAVE_ROOM on top of TALK_TOKENS, reserved in the prompt's budget above.
     //
-    // structuredRetry rather than structured: the retry doubles max_tokens and drops temperature,
-    // which is the right response to a truncated object whatever caused it.
+    // structuredRetry rather than structured: the retry drops temperature and gives the answer more
+    // room, which is the right response to a truncated object whatever caused it. Out of a weaving
+    // book that is double the cap; in one it is the same cap with weaving off (see structuredRetry).
     // The contract, then the writer's voice. That order is F37's, not arithmetic: the register
     // instruction nearest the material wins, and the register is the half that was losing to the
     // book's own VOICE block until `context.ts` stopped sending it here.

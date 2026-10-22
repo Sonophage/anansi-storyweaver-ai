@@ -22,6 +22,8 @@ let calls: { kind: string; weaving: unknown; maxTokens: number; user: string }[]
 /** The plan the fake hands back with a passage, and the token count it reports for it, if any. */
 let plan = '';
 let planTokens: number | undefined;
+/** Set to cut the next structured answer off mid-object, the way a plan that ate the cap does. */
+let cutNext = false;
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -41,9 +43,12 @@ const srv = createServer((req, res) => {
       user: String(b.messages?.[1]?.content ?? '') });
     if (kind === 'check') return send({ choices: [{ message: { content: JSON.stringify({ contradictions: [] }) } }],
       usage: { prompt_tokens: 200, completion_tokens: 5 } });
+    const cut = cutNext && (kind === 'talk' || kind === 'invent');
+    if (cut) cutNext = false;
     if (kind === 'talk' || kind === 'invent') return send({ choices: [{ message: {
         content: JSON.stringify(kind === 'talk' ? { reply: 'It is about a debt.', entries: [] }
-          : { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]', keys: ['choir'] }),
+          : { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]', keys: ['choir'] })
+          .slice(0, cut ? 12 : undefined),
         reasoning_content: plan } }],
       usage: { prompt_tokens: 200, completion_tokens: 40,
                ...(planTokens == null ? {} : { completion_tokens_details: { reasoning_tokens: planTokens } }) } });
@@ -271,6 +276,42 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
   }
   raw.close();
   ok("a weaving Talk's and invention's plan length lands on the generation row, and the plan does not");
+}
+
+// ---- 8. A WEAVING CALL'S RETRY STAYS INSIDE THE ROOM ITS PROMPT WAS BUDGETED FOR. The retry exists
+// for an object that ran out of room, and it doubles the cap for every other call. Doubled here,
+// Talk's 7,400 becomes 14,800 against a prompt that reserved 7,400: the slot is oversubscribed, and
+// this server answers that with a 500 to both writers on it. So the retry keeps the reserved cap and
+// is sent weaving off, which hands the whole of it to the answer. The row says the call wove (the
+// plan was made, and its length is the number the 5,000 is tuned from) and that it was retried.
+{
+  const raw = new DatabaseSync(DB, { readOnly: true });
+  const last = (role: string) => JSON.parse((raw.prepare(
+    'SELECT params FROM generations WHERE role = ? ORDER BY rowid DESC LIMIT 1').get(role) as any).params ?? '{}');
+  for (const [name, go, kind, role, cap] of [['Talk', talk, 'talk', 'talk', 2400],
+                                             ['Invent', invent, 'invent', 'invent:lore', 2000]] as const) {
+    plan = 'x'.repeat(4200); planTokens = undefined; cutNext = true;
+    const r = await go(woven.id);
+    assert.ok(!r.error, `${name}: the retry answered: ${r.error}`);
+    const sent = calls.filter((x) => x.kind === kind);
+    assert.strictEqual(sent.length, 2, `${name}: a cut-off answer is retried once: ${JSON.stringify(sent)}`);
+    assert.strictEqual(sent[0].weaving, true, `${name}: the first try wove`);
+    assert.strictEqual(sent[1].maxTokens, cap + 5000, `${name}: the retry keeps the cap the prompt reserved, `
+      + `not double it (${sent[1].maxTokens})`);
+    assert.strictEqual(sent[1].weaving, false, `${name}: and is sent weaving off, so the answer has all of it`);
+    const params = last(role);
+    assert.strictEqual(params.weaving, true, `${name}: the row says the call wove`);
+    assert.strictEqual(params.retried, true, `${name}: and that it was retried`);
+    assert.strictEqual(params.plan, 1000, `${name}: with the length of the plan that was made`);
+  }
+  // In a book that does not weave the retry is what it always was: double, at least 2,000.
+  cutNext = true;
+  await talk(plain.id);
+  const sent = calls.filter((x) => x.kind === 'talk');
+  assert.deepStrictEqual(sent.map((x) => x.maxTokens), [2400, 4800], 'a Talk that does not weave still doubles');
+  plan = '';
+  raw.close();
+  ok("a weaving call's retry keeps the cap its prompt reserved and goes weaving off, and says so on the row");
 }
 
 console.log(`\n${n} checks passed`);

@@ -444,8 +444,16 @@ export async function structuredRetry(system: string, body: string, schema: unkn
   // of room, so a caller who already asked for more than 2000 would have been retried with LESS
   // and the retry could only fail harder. Callers that name no budget keep the old number.
   const asked = Number((opts as any).max_tokens) || 1000;
-  const again = await structured(system, body, schema,
-    { ...opts, max_tokens: Math.max(2000, asked * 2), temperature: 0.1 });
+  // A WEAVING CALL IS RETRIED AT THE SAME CAP, WEAVING OFF. Its cap already carries the plan's room,
+  // and its prompt was budgeted against exactly that cap: doubled, Talk's 7,400 becomes 14,800 and
+  // the slot is oversubscribed, which this server answers with a 500 to every writer sharing it.
+  // What ran out of room was most likely the plan (F23), so the retry makes none and the whole cap
+  // goes to the answer. The plan that WAS made is what the row records, so its length is kept.
+  const weaving = (opts as any).chat_template_kwargs?.enable_thinking === true;
+  const tried = await structured(system, body, schema, weaving
+    ? { ...opts, temperature: 0.1, chat_template_kwargs: { enable_thinking: false } }
+    : { ...opts, max_tokens: Math.max(2000, asked * 2), temperature: 0.1 });
+  const again = weaving ? { ...tried, usage: first.usage, reasoning: first.reasoning, retried: true } : tried;
   // A second empty answer is reported as empty rather than as a parse failure. The caller asked
   // for something specific and did not get it twice; saying "unparseable" would send whoever
   // reads the error looking at the wrong thing.
