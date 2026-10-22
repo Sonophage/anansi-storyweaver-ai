@@ -26,6 +26,28 @@ process.env.ANANSI_FEATHERLESS_BACKOFF_MS = '10,10,10';
 const REMOTE = 'llmfan46/Qwen3.6-35B-A3B-uncensored-heretic';
 const SMALL = 'someone/Tiny-Ctx-heretic';
 const NOT_LISTED = 'nobody/Not-In-The-Catalogue';
+// Takes the whole plan: admin only. Uncensored, so the default search would show it to anyone.
+const BIG = 'mlabonne/Llama-3.3-70B-Instruct-abliterated';
+// Guessed "can switch" from its class, and plans anyway when asked not to: the probe's case.
+const STUBBORN = 'liar/Gemma-4-31B-UNCENSORED';
+
+/** The fake catalogue, in Featherless's own field names. One row per case the search must handle. */
+const CATALOGUE = [
+  { id: REMOTE, model_class: 'qwen3_5moe-35b', context_length: 32768, concurrency_cost: 2 },
+  { id: SMALL, model_class: 'llama3-8b', context_length: 4096, concurrency_cost: 1 },
+  { id: BIG, model_class: 'llama33-70b', context_length: 32768, concurrency_cost: 4 },
+  { id: 'huihui/gpt-oss-20b-abliterated', model_class: 'gpt-oss-20b', context_length: 32768,
+    concurrency_cost: 1 },
+  { id: 'TheDrummer/Mistral-Small-Uncensored-24B', model_class: 'mistral-24b', context_length: 32768,
+    concurrency_cost: 1 },
+  { id: STUBBORN, model_class: 'gemma4-31b', context_length: 32768, concurrency_cost: 2 },
+  { id: 'google/Gemma-4-26B-it', model_class: 'gemma4-26b', context_length: 32768, concurrency_cost: 2 },
+  // The floor, from both sides: exactly 16k is shown, a hair under it is not, and so is a row that
+  // does not say.
+  { id: 'edge/Exactly-16k-heretic', model_class: 'llama3-8b', context_length: 16384, concurrency_cost: 1 },
+  { id: 'edge/Under-16k-heretic', model_class: 'llama3-8b', context_length: 16000, concurrency_cost: 1 },
+  { id: 'edge/No-Context-heretic', model_class: 'llama3-8b', concurrency_cost: 1 },
+];
 
 /** What reached the fake Featherless, newest last. */
 const fl: { path: string; auth: string | undefined; body: any }[] = [];
@@ -44,10 +66,7 @@ const flSrv = createServer((req, res) => {
     const json = (status: number, o: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
     if (req.url === '/v1/models') catReads.push(req.headers.authorization);
-    if (req.url === '/v1/models') return json(200, { data: [
-      { id: REMOTE, model_class: 'qwen3-35b-a3b', context_length: 32768 },
-      { id: SMALL, model_class: 'llama3-8b', context_length: 4096 },
-    ] });
+    if (req.url === '/v1/models') return json(200, { data: CATALOGUE });
     if (req.url === '/v1/tokenize') return json(200, { count: 321 });
     if (req.url !== '/v1/chat/completions') return json(404, { error: { message: 'no route' } });
     const how = script.shift();
@@ -397,6 +416,55 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const gone = await routes['POST /api/shortlist/remove'](ctx(other, { model: ID }));
   assert.deepStrictEqual(gone.models, [], 'remove takes it off');
   ok('a shortlist takes a listed remote id only, and the catalogue is read once and keyless');
+}
+
+// ---- 12. the search: uncensored by default, filters that combine, the floor, the sort ----
+{
+  const find = async (query = '', admin = false) => {
+    const c = ctx(me, {}, query); c.admin = admin;
+    const r = await routes['GET /api/catalogue'](c);
+    assert.ok(!r.error, r.error);
+    return r;
+  };
+  const ids = (r: any) => r.models.map((m: any) => m.id.replace('featherless:', ''));
+
+  const all = await find();
+  // THE 4-UNIT GATE. The detector first: the admin's search must see BIG, or "nobody else sees it"
+  // could be a model the search lost for some other reason.
+  assert.ok(ids(await find('', true)).includes(BIG), 'the admin is shown the model that takes the whole plan');
+  assert.ok(!ids(all).includes(BIG), 'GATE: no one else is ever shown a 4-unit model');
+  assert.ok(!ids(await find('q=llama&uncensored=0')).includes(BIG), 'GATE: not even by name');
+  assert.ok(all.models.every((m: any) => m.id.startsWith('featherless:')),
+    'every row carries the prefixed id the shortlist takes');
+  assert.deepStrictEqual(ids(all), [
+    'TheDrummer/Mistral-Small-Uncensored-24B', 'edge/Exactly-16k-heretic',
+    STUBBORN, REMOTE, 'huihui/gpt-oss-20b-abliterated'],
+    'uncensored only, under 16k and the 4-unit model gone, and the ones that never weave first');
+  const row = all.models.find((m: any) => m.id === ID);
+  assert.deepStrictEqual([row.cost, row.context, row.weaving], [2, 32768, 'can switch'],
+    'a row says its unit cost, its context and its weaving guess');
+  assert.strictEqual(all.models.find((m: any) => m.id.includes('gpt-oss')).weaving, 'always weaves');
+  assert.strictEqual(all.models[0].weaving, "doesn't weave");
+
+  const stock = await find('uncensored=0');
+  assert.ok(ids(stock).includes('google/Gemma-4-26B-it'), 'turning uncensored-only off shows a stock model');
+  assert.ok(!ids(stock).some((i: string) => /16k|No-Context|Tiny/.test(i) && !i.includes('Exactly')),
+    'and the floor still holds with the filter off');
+
+  assert.deepStrictEqual(ids(await find('q=gemma')), [STUBBORN], 'free text, case-insensitive, on the name');
+  assert.deepStrictEqual(ids(await find('q=gemma&uncensored=0')), ['google/Gemma-4-26B-it', STUBBORN],
+    'free text and the uncensored switch combine');
+  assert.deepStrictEqual(ids(await find('size=24b')), ['TheDrummer/Mistral-Small-Uncensored-24B'],
+    'the size class filter');
+  assert.deepStrictEqual(ids(await find(`weaving=${encodeURIComponent('can switch')}`)), [STUBBORN, REMOTE],
+    'the weaving filter');
+  assert.deepStrictEqual(ids(await find(`weaving=${encodeURIComponent('can switch')}&size=31b`)), [STUBBORN],
+    'and weaving with size');
+  assert.deepStrictEqual(ids(await find('q=nothing-like-this')), [], 'a search that matches nothing is empty');
+  assert.ok(all.sizes.includes('35b') && all.sizes.includes('24b'),
+    'the size choices come from the catalogue itself');
+
+  ok('the search filters, combines, sorts non-weaving first, holds the 16k floor and the 4-unit gate');
 }
 
 console.log(`\n${n} checks green`);

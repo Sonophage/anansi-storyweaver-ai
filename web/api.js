@@ -250,6 +250,8 @@ export const api = {
   shortlist:    ()               => j('/api/shortlist'),
   addShortlist: (model)          => j('/api/shortlist', 'POST', { model }),
   dropShortlist: (model)         => j('/api/shortlist/remove', 'POST', { model }),
+  // The Featherless catalogue, searched by the server. `q` takes q, size, weaving and uncensored.
+  catalogue:    (q)              => j(`/api/catalogue?${new URLSearchParams(q)}`),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
   runImport:    (name, data, into) => j('/api/import', 'POST', { name, data, into: into || undefined }),
   setCover:     (storyId, dataUrl) => j('/api/cover', 'POST', { storyId, dataUrl }),

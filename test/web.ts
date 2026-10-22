@@ -731,6 +731,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     shortlist:     'issue #51: the search sheet is the next ticket (2026-10-22)',
     addShortlist:  'issue #51: the search sheet is the next ticket (2026-10-22)',
     dropShortlist: 'issue #51: the search sheet is the next ticket (2026-10-22)',
+    catalogue:     'issue #51: the search sheet lands later in the same ticket (2026-10-22)',
   };
   const orphans = defined.filter((d) => !new RegExp(`\\bapi\\.${d}\\b`).test(app) && !(d in DEFERRED));
   assert.deepStrictEqual(orphans, [],

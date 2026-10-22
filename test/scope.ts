@@ -9,14 +9,25 @@ import { serialise } from './lock.ts';
 serialise();
 process.env.ANANSI_DB = '/tmp/anansi-scope.db';
 // NEVER THE REAL FEATHERLESS. This machine has a real key at the default path, so without these a
-// shortlist check here would read it and fetch the live catalogue. Port 9 refuses at once.
+// shortlist check here would read it and fetch the live catalogue. In its place, a fake that
+// lists two models — one of them takes the whole plan, for the admin check — and refuses
+// everything else with a 404.
 process.env.ANANSI_FEATHERLESS_KEY_FILE = '/nonexistent/featherless.key';
-process.env.ANANSI_FEATHERLESS_URL = 'http://127.0.0.1:9/v1';
 import assert from 'node:assert';
 import { unlinkSync, readFileSync } from 'node:fs';
 // Raw http, because `fetch` decodes gzip transparently and hides the header while doing it. The
 // static check at the bottom of this file has to see what actually crossed the wire.
-import { get as httpGet } from 'node:http';
+import { get as httpGet, createServer } from 'node:http';
+const flFake = createServer((req, res) => {
+  res.writeHead(req.url === '/v1/models' ? 200 : 404, { 'Content-Type': 'application/json' });
+  res.end(req.url === '/v1/models' ? JSON.stringify({ data: [
+    { id: 'someone/Small-heretic', model_class: 'qwen3_5moe-35b', context_length: 32768, concurrency_cost: 2 },
+    { id: 'someone/Whole-Plan-70B-abliterated', model_class: 'llama33-70b', context_length: 32768,
+      concurrency_cost: 4 }] }) : '{}');
+});
+await new Promise<void>((r) => flFake.listen(0, '127.0.0.1', r));
+flFake.unref();
+process.env.ANANSI_FEATHERLESS_URL = `http://127.0.0.1:${(flFake.address() as any).port}/v1`;
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-scope.db' + f); } catch {} }
 const db = await import('../src/db.ts');
 const { routes, OPEN_ROUTES, storyIdOf, isPrivateHost } = await import('../src/routes.ts');
@@ -1644,6 +1655,20 @@ async function bootServer(port: number, env: Record<string, string>) {
   await routes['POST /api/shortlist/remove'](ctx(alice, { model: HERS }));
   assert.deepStrictEqual(await ids(alice), [], 'alice can remove her own');
   ok("a writer's shortlist is unreachable from another writer's account, through all three routes");
+
+  // THE CATALOGUE SEARCH. It holds nothing of anyone's, so the two-owner question is the admin one:
+  // the model that takes the whole plan is shown to the admin and to nobody else.
+  assert.ok(OPEN_ROUTES.has('GET /api/catalogue'), 'the search names no story, so it is open');
+  const seen = async (admin: boolean) => {
+    const r: any = await routes['GET /api/catalogue']({ ...ctx(bob), admin });
+    assert.ok(!r.error, r.error);
+    return r.models.map((m: any) => m.id);
+  };
+  assert.ok((await seen(true)).includes('featherless:someone/Whole-Plan-70B-abliterated'),
+    'the admin is shown the 4-unit model');
+  assert.deepStrictEqual(await seen(false), ['featherless:someone/Small-heretic'],
+    'a writer who is not the admin is never shown it');
+  ok('the catalogue search is open, and shows a 4-unit model to the admin alone');
 }
 
 // ---- A NEW CARD'S DESCRIPTION LANDS IN `facts`, NOT IN THE BODY (issue #39, 2026-09-01).

@@ -1,7 +1,7 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX } from './llama.ts';
-import { catalogueEntry } from './catalogue.ts';
+import { catalogue, catalogueEntry, search as searchCatalogue } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
@@ -122,6 +122,9 @@ export const OPEN_ROUTES = new Set([
   // A writer's own shortlist of remote models. Names no story; every read and write takes c.owner,
   // so another writer's list cannot be named. test/scope.ts proves it with two owners.
   'GET /api/shortlist', 'POST /api/shortlist', 'POST /api/shortlist/remove',
+  // The Featherless catalogue. Names no story and holds nothing of anyone's; what differs by
+  // writer is the admin question, which the handler asks of c.admin.
+  'GET /api/catalogue',
   // Names no story — it is about the FORMAT, not about a book. Open means the gate does not run, so
   // the handler asks the admin question itself; that check is the whole of its protection.
   'GET /api/forge',
@@ -1422,6 +1425,17 @@ export const routes: Record<string, Handler> = {
     if (!found.context) return { error: 'Featherless does not say how much context this model holds' };
     db.addToShortlist(c.owner, id, found.context);
     return { models: db.shortlistOf(c.owner) };
+  },
+  /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the 4-unit gate, the sort — is in
+   *  src/catalogue.ts; this only reads the query. `uncensored=0` is the one way to turn the
+   *  default filter off. */
+  'GET /api/catalogue': async (c: Ctx) => {
+    let rows;
+    try { rows = await catalogue(); }
+    catch (e: any) { return { error: e?.message ?? 'could not read the Featherless catalogue' }; }
+    const q = c.query;
+    return searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
+      weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0' }, c.admin, REMOTE_PREFIX);
   },
   'POST /api/shortlist/remove': (c: Ctx) => {
     db.removeFromShortlist(c.owner, String(c.body.model ?? ''));
