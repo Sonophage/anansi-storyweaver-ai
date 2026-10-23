@@ -9,10 +9,23 @@
 //
 // Listens on a port the system picks and writes the number to <port-file> once it is listening.
 import { createServer } from 'node:http';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 const portFile = process.argv[2];
 if (!portFile) throw new Error('usage: featherless.ts <port-file>');
+/** HOW THE NEXT STREAMED PASSAGES GO, for a scenario that needs a stream other than the plain one:
+ *  a JSON list beside the port file (`fl.script`, in the scenario's own scratch folder, which the
+ *  scenario finds beside the key file run.sh hands it). One entry is taken per streamed call;
+ *  a missing or empty list is the plain answer. `run.sh` clears the folder between scenarios. */
+const scriptFile = join(dirname(portFile), 'fl.script');
+const nextHow = (): string | undefined => {
+  if (!existsSync(scriptFile)) return undefined;
+  const list = JSON.parse(readFileSync(scriptFile, 'utf8') || '[]');
+  const how = list.shift();
+  writeFileSync(scriptFile, JSON.stringify(list));
+  return how;
+};
 
 /** In Featherless's own field names. One row per thing the Find a model scenario looks for. */
 const CATALOGUE = [
@@ -86,8 +99,56 @@ const srv = createServer((req, res) => {
     const plan = /gpt-oss/.test(body.model ?? '') ? 'The user wants a short answer.' : '';
     if (!body.stream) return json(200, { choices: [{ message: { content: 'ok', ...(plan && { reasoning: plan }) },
       finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 1 } });
+    const how = nextHow();
+    // At capacity, as the real one says it: a 503 with the code, which the server retries.
+    if (how === 'capacity') return json(503, { error: { message: `${body.model} is temporarily at `
+      + 'capacity. Please try again shortly.', type: 'server_error', code: 'capacity_exhausted' } });
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    const f = (o: unknown) => res.write(`data: ${JSON.stringify(o)}\n\n`);
     if (plan) res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning: plan } }] })}\n\n`);
+    // Past the cap (#62): a word a chunk, a sentence every seventh, twice as many as were asked for.
+    if (how === 'overcap') {
+      const n = Number(body.max_tokens) * 2;
+      for (let k = 0; k < n; k++) f({ choices: [{ delta: { content: k % 7 === 6 ? 'end. ' : 'word ' } }] });
+      f({ choices: [{ delta: {}, finish_reason: 'length' }] });
+      return res.end('data: [DONE]\n\n');
+    }
+    // Some words, then the failure in-band after the 200.
+    if (how === 'midstream') {
+      f({ choices: [{ delta: { content: 'The fake began ' } }] });
+      f({ error: { message: 'upstream died' } });
+      return res.end();
+    }
+    // A plan first, under Featherless's own field name, then the prose.
+    if (how === 'plan') {
+      for (let k = 0; k < 5; k++) f({ choices: [{ delta: { reasoning: 'The plan, unseen. ' } }] });
+      f({ choices: [{ delta: { content: 'The fake planned this.' }, finish_reason: 'stop' }] });
+      return res.end('data: [DONE]\n\n');
+    }
+    // Slowly, a word every 300 ms for about three seconds, so a scenario can act while it arrives.
+    if (how === 'slow') {
+      const words = 'The fake wrote this slowly, a word at a time, while you watched.'.split(/(?<= )/);
+      const next = () => {
+        if (res.destroyed) return;
+        const w = words.shift();
+        if (w == null) { f({ choices: [{ delta: {}, finish_reason: 'stop' }] }); return void res.end('data: [DONE]\n\n'); }
+        f({ choices: [{ delta: { content: w } }] });
+        setTimeout(next, 300);
+      };
+      return next();
+    }
+    // One word and done, as Hearthfire-24B answered twice in the live library (2026-10-22).
+    if (how === 'one') {
+      f({ choices: [{ delta: { content: 'She' }, finish_reason: 'stop' }] });
+      return res.end('data: [DONE]\n\n');
+    }
+    // In pieces, with the usage-only chunk after the last word, as the real one streams.
+    if (how === 'pieces') {
+      for (const w of ['The fake ', 'wrote ', 'this ', 'in pieces.']) f({ choices: [{ delta: { content: w } }] });
+      f({ choices: [{ delta: {}, finish_reason: 'stop' }] });
+      f({ choices: [], usage: { prompt_tokens: 100, completion_tokens: 4 } });
+      return res.end('data: [DONE]\n\n');
+    }
     res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'The fake wrote this.' },
       finish_reason: 'stop' }] })}\n\n`);
     res.end('data: [DONE]\n\n');
