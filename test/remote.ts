@@ -68,7 +68,7 @@ const CATALOGUE = [
 const fl: { path: string; auth: string | undefined; body: any }[] = [];
 /** How the next chat calls should go, shifted one per call. Empty means "answer normally". */
 const script: ('429' | 'capacity' | 'unavailable' | 'midstream' | 'cold' | 'refuse' | 'down'
-  | 'overcap' | 'atcap')[] = [];
+  | 'overcap' | 'atcap' | 'streamcap' | 'capafter')[] = [];
 /** The last long stream the fake wrote: how many content chunks went out, how many it meant to
  *  send, and whether the connection closed before it had finished. */
 const long = { sent: 0, meant: 0, closedEarly: false };
@@ -121,6 +121,14 @@ const flSrv = createServer((req, res) => {
         usage: { prompt_tokens: 321, completion_tokens: 5 } });
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       const f = (o: unknown) => res.write(`data: ${JSON.stringify(o)}\n\n`);
+      // AT CAPACITY INSIDE THE STREAM, AS THE REAL ONE SAID IT (Kia, 2026-10-22 20:23 and 20:24): a
+      // 200, the stream opened, then an `error` object carrying only the message. `streamcap` says it
+      // before any content, `capafter` after the first words of the passage.
+      if (how === 'streamcap' || how === 'capafter') {
+        if (how === 'capafter') f({ choices: [{ delta: { content: 'The remote ' } }] });
+        f({ error: { message: `${body.model} is temporarily at capacity. Please try again shortly.` } });
+        return res.end();
+      }
       // PAST THE CAP, AS THE REAL ONE DID (2026-10-22): Anubis-70B sent 900 as max_tokens and got
       // 1,423 tokens back, then `finish_reason: "length"`. One word per chunk, a sentence every
       // seventh, written a few at a time so a reader that stops early can be told from one that
@@ -508,6 +516,60 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(e?.name, 'AbortError', 'STOP-CAPACITY: it ends as a stop');
   assert.strictEqual(since(m).fl.length, 1, 'and no retry is sent after Stop');
   ok('at capacity is retried like a 429, reported as busy, stoppable, and never falls back');
+}
+
+// ---- 4d. at capacity INSIDE the stream, before any content, is retried like the 503 (#64) ----
+{
+  let m = mark();
+  script.push('streamcap', 'streamcap', 'streamcap');
+  const r = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.ok(!r.last.error, `STREAMCAP-RETRY: three in-stream capacity errors, then the passage (${r.last.error})`);
+  assert.strictEqual(since(m).fl.length, 4, 'STREAMCAP-RETRY: retried on the 429 schedule');
+  assert.deepStrictEqual(r.deltas, ['The remote ', 'streamed this.'], 'and the passage arrives once, whole');
+
+  m = mark();
+  script.push('streamcap', 'streamcap', 'streamcap', 'streamcap');
+  const busy = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.strictEqual(busy.last.error, 'Featherless is busy, try again', 'STREAMCAP-BUSY: reported as busy, plainly');
+  assert.strictEqual(since(m).fl.length, 4, 'one call and three retries, no more');
+  assert.strictEqual(since(m).local.length, 0, 'NO FALLBACK: nothing went to the local router instead');
+
+  // ONE SCHEDULE, whichever way Featherless says it: a 503 and an in-stream error share the tries.
+  m = mark();
+  script.push('capacity', 'streamcap', 'capacity', 'streamcap');
+  const mixed = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.strictEqual(mixed.last.error, 'Featherless is busy, try again',
+    'SHARED-SCHEDULE: two 503s and two in-stream errors are four tries, then busy');
+  assert.strictEqual(since(m).fl.length, 4, 'SHARED-SCHEDULE: and no fifth call');
+
+  // After content it is a failure, as any mid-stream failure is: no silent restart of a half passage.
+  m = mark();
+  const before = db.passagesOfChapter((db.chapters(story.id)[0] as any).id).length;
+  script.push('capafter');
+  const late = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.match(String(late.last.error), /^Featherless stopped mid-passage: .*at capacity/,
+    'CAPAFTER-FAILS: capacity after the first words fails the passage, as today');
+  assert.strictEqual(since(m).fl.length, 1, 'CAPAFTER-FAILS: and is not retried');
+  assert.strictEqual(db.passagesOfChapter((db.chapters(story.id)[0] as any).id).length, before,
+    'and no half-written passage lands in the book');
+
+  // Stop during the wait after an in-stream capacity error, on the real-sized schedule (see 4b).
+  const was = process.env.ANANSI_FEATHERLESS_BACKOFF_MS;
+  process.env.ANANSI_FEATHERLESS_BACKOFF_MS = '5000,5000,5000';
+  const slow = await import('../src/llama.ts?slow-streamcap');
+  process.env.ANANSI_FEATHERLESS_BACKOFF_MS = was;
+  m = mark();
+  script.push('streamcap', 'streamcap', 'streamcap', 'streamcap');
+  const stop = new AbortController();
+  setTimeout(() => stop.abort(), 150);
+  const t0 = Date.now();
+  const e: any = await slow.chat('s', 'b', { model: ID }, () => {}, stop.signal).then(() => null, (x) => x);
+  const took = Date.now() - t0;
+  script.length = 0;
+  assert.ok(took < 2000, `STOP-STREAMCAP: Stop ends the wait at once (took ${took} ms)`);
+  assert.strictEqual(e?.name, 'AbortError', 'STOP-STREAMCAP: it ends as a stop');
+  assert.strictEqual(since(m).fl.length, 1, 'and no retry is sent after Stop');
+  ok('at capacity inside the stream is retried before content, fails after it, and Stop ends it at once');
 }
 
 // ---- 5. any other refusal, and a stream that fails mid-passage, report and never fall back ----
