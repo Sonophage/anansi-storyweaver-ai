@@ -12,13 +12,18 @@
  *
  * So: a document that wants a number carries the command. This IS the command.
  *
- * READ-ONLY AND IT MUST STAY THAT WAY. It opens the library to count, which `src/db.ts` does
- * read-write at module load with a migrate() -- so this is a second writer on the book in the same
- * sense `bench/order.ts` warns about itself. It makes no model call, binds no port, and writes
- * nothing of its own. Point ANANSI_DB elsewhere to ask about a different database.
+ * READ-ONLY, AND `test/status.ts` HOLDS IT THERE (#65). It opens the library with its own read-only
+ * connection and never through `src/db.ts`, because db.ts opens the file read-write at module load
+ * and runs migrate(), which runs `repairStrandedChapters()`. That is how a status run on 2026-10-18
+ * 00:11 opened Chapter 7 of a book in the live library. db.ts is still imported, against an
+ * in-memory database, for the two things only it knows: the schema the code would build, and the
+ * stories-per-owner query. If the file's schema is older than the code, this says so and does not
+ * migrate it; starting the server does that. It makes no model call, binds no port, and writes
+ * nothing. Point ANANSI_DB elsewhere to ask about a different database.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 
 const root = new URL('.', import.meta.url).pathname;
 const sh = (cmd: string) => { try { return execFileSync('sh', ['-c', cmd], { cwd: root, encoding: 'utf8' }).trim(); } catch { return ''; } };
@@ -40,32 +45,57 @@ row('dependencies', existsSync(root + 'package.json') ? 'A package.json EXISTS �
 
 // ---- the database ----
 console.log('');
-let db: any = null;
-try { db = await import('./src/db.ts'); } catch (e: any) { row('database', `could not open: ${e?.message}`); }
-if (db) {
-  const one = (sql: string) => { try { return (db.raw ?? (globalThis as any)).x; } catch { return null; } };
-  row('database file', db.FILE);
-  const stories = db.storiesPerOwner() as any[];
-  row('library', `${stories.reduce((a, s) => a + s.n, 0)} stories · ${stories.map((s) => `${s.login} ${s.n}`).join(', ')}`);
+const FILE = process.env.ANANSI_DB ?? root + 'anansi.db';
+let lib: DatabaseSync | null = null;
+let code: any = null;
+const was = process.env.ANANSI_DB;
+try {
+  lib = new DatabaseSync(FILE, { readOnly: true });
+  // THE CODE'S SCHEMA, built where it can do no harm: db.ts reads ANANSI_DB when it loads, so it is
+  // pointed at memory for the import and given back after.
+  process.env.ANANSI_DB = ':memory:';
+  code = await import('./src/db.ts');
+} catch (e: any) { row('database', `could not open: ${e?.message}`); }
+finally { if (was === undefined) delete process.env.ANANSI_DB; else process.env.ANANSI_DB = was; }
+if (lib && code) {
+  const all = (c: DatabaseSync, sql: string) => c.prepare(sql).all() as any[];
+  const count = (sql: string) => { try { return String((lib!.prepare(sql).get() as any).n); } catch { return ''; } };
+  row('database file', FILE);
+  /* THE SCHEMA, compared and never repaired. Every table and column the code builds, against the
+   * file. Migrating here would be the write this file exists not to make, so a file that is behind
+   * is reported, and the server's own boot migrates it.
+   * ponytail: tables and columns only, not indexes or triggers; compare sqlite_master.sql too if a
+   * migration ever changes only an index. */
+  const cols = (c: DatabaseSync) => new Set(all(c, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+    .flatMap((t) => [t.name, ...all(c, `PRAGMA table_info("${t.name}")`).map((k) => `${t.name}.${k.name}`)]));
+  const want = cols(code.db), have = cols(lib);
+  const missing = [...want].filter((k) => !have.has(k)), extra = [...have].filter((k) => !want.has(k));
+  if (missing.length || extra.length)
+    row('schema', `OLDER THAN THE CODE, not migrated by status · ${[...missing.map((k) => `missing ${k}`), ...extra.map((k) => `still has ${k}`)].join(', ')} · start the server once to migrate it`);
+  try {
+    const stories = all(lib, code.STORIES_PER_OWNER);
+    row('library', `${stories.reduce((a, s) => a + s.n, 0)} stories · ${stories.map((s) => `${s.login} ${s.n}`).join(', ')}`);
+  } catch (e: any) { row('library', `could not count: ${e?.message}`); }
   // Tables and columns come from the file itself, never from the CREATE statements in db.ts --
   // SQLite has no implicit drop, so the source and the disk can disagree and have.
   /* THE SHADOW TABLES ARE NOT TABLES, and the first version of this line counted them. It answered
    * 38 against a schema of 23, because each FTS5 virtual table brings four shadow tables of its own
    * (_data, _idx, _docsize, _config). A status line that inflates by 65% the day search shipped is
    * the same disease this file exists to cure, so it is split rather than filtered quietly. */
-  const real = sh(`sqlite3 "${db.FILE}" "select count(*) from sqlite_master where type='table' and name not like 'sqlite_%' and name not like 'fts_%';"`);
-  const idx = sh(`sqlite3 "${db.FILE}" "select count(*) from sqlite_master where type='table' and name like 'fts_%' and sql like 'CREATE VIRTUAL%';"`);
-  row('tables on disk', real ? `${real}${idx ? `  (+ ${idx} search indexes and their shadows)` : ''}` : '(sqlite3 not on PATH)');
+  const real = count("select count(*) n from sqlite_master where type='table' and name not like 'sqlite_%' and name not like 'fts_%';");
+  const idx = count("select count(*) n from sqlite_master where type='table' and name like 'fts_%' and sql like 'CREATE VIRTUAL%';");
+  row('tables on disk', `${real}${idx ? `  (+ ${idx} search indexes and their shadows)` : ''}`);
 
   /* THE SEARCH INDEX, and it is asked the way that actually works. COUNT(*) on an external-content
    * FTS5 table reads the CONTENT table, so it answers "full" on a completely empty index -- which is
    * exactly how the first cut of the search feature shipped returning nothing for every query. The
    * b-tree shadow is empty until the index is built; that is the honest question. */
   for (const [fts, src] of [['fts_passages', 'passages'], ['fts_entries', 'entries'], ['fts_chapters', 'chapters']]) {
-    const idx = sh(`sqlite3 "${db.FILE}" "select count(*) from ${fts}_idx;" 2>/dev/null`);
-    const rows = sh(`sqlite3 "${db.FILE}" "select count(*) from ${src};" 2>/dev/null`);
+    const idx = count(`select count(*) n from ${fts}_idx;`);
+    const rows = count(`select count(*) n from ${src};`);
     row(`search index ${src}`, idx === '' ? 'no such index' : Number(idx) > 0 ? `built (${rows} rows indexed)` : `EMPTY — search returns nothing for ${rows} rows`);
   }
+  lib.close();
 }
 
 /* ---- WHAT THE MODEL IS ACTUALLY BEING TOLD ----

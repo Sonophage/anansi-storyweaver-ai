@@ -14,6 +14,11 @@ Everything it prints is derived at the moment you run it: routes, debt markers, 
 whether the search index is actually populated, **which prompt flags the running server has**, and
 how old each backup is. Nothing in it is typed by hand.
 
+It is **read-only**: it opens the library with a read-only connection, runs no migration and no
+repair, and leaves the file byte-identical (`test/status.ts` checks this). If the file's schema is
+older than the code it prints a `schema` line naming what is missing; starting the server migrates
+it.
+
 Read it instead of trusting a number written in a document — including the ones in this file. On
 2026-09-06 five separate documented claims were wrong the same way: true when written, quietly
 false later. That is the failure mode here, and it is why this command exists.

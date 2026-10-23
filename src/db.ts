@@ -2860,9 +2860,12 @@ export function backup(dir = join(dirname(FILE), 'backups'), keep = 12) {
  *  Counted the same way `listStories` counts, deliberately: no status filter, so the two agree by
  *  construction and the banner cannot drift from the shelf it is summing. */
 export const storiesPerOwner = (): { login: string; n: number }[] =>
-  q(`SELECT u.login AS login, COUNT(s.id) AS n FROM users u
+  q(STORIES_PER_OWNER).all() as any[];
+/** The query itself, exported for `status.ts`, which runs it on its own read-only connection to
+ *  the file. One query, so the status line and the boot banner cannot count two different ways. */
+export const STORIES_PER_OWNER = `SELECT u.login AS login, COUNT(s.id) AS n FROM users u
        JOIN stories s ON s.owner_id = u.id
-      GROUP BY u.id ORDER BY n DESC, u.login`).all() as any[];
+      GROUP BY u.id ORDER BY n DESC, u.login`;
 
 /** Every story and who owns it, for the scheduled export. Not `listStories`, which is per owner
  *  and shaped for the shelf — this is the whole library, across every writer on the box. */
