@@ -100,12 +100,28 @@ const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signa
   throw e;
 });
 
-/** One POST to Featherless, with the key, retried on 429 and at capacity, and on nothing else. */
+/** #61 · WHETHER A REMOTE MODEL'S CHAT TEMPLATE TAKES THE WEAVING SWITCH, as the probe on add found
+ *  and the shortlist stored. Some refuse it outright: Featherless answered
+ *  `vprilepskii/Harbinger-24B-biprojected-norm-preserving-abliterated` with a 400 ("The request was
+ *  rejected as invalid") for any body carrying `chat_template_kwargs` — `enable_thinking: false`,
+ *  `thinking: false`, even `{}` — and a normal completion without it (seen live 2026-10-22). This
+ *  module cannot read the shortlist (db.ts imports it), so whoever can hands the question in, as
+ *  `modelFor`'s caller does. Unasked, every model takes it: what was sent before this existed. */
+let takesSwitch: (id: string) => boolean = () => true;
+export const askSwitchWith = (fn: (id: string) => boolean) => { takesSwitch = fn; };
+
+/** One POST to Featherless, with the key, retried on 429 and at capacity, and on nothing else.
+ *
+ *  THE FIELD IS LEFT OFF HERE, for every call to a model whose template refuses it: a passage,
+ *  Talk, an invention and every other call that follows the book's model, whichever of them set it
+ *  and whichever left it to `chat`'s default. Decided from the stored fact, never by sending it and
+ *  seeing. `weaveSwitch` (never sent) overrides the fact for the probe, which is how it learns it. */
 async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal): Promise<Response> {
   const key = featherlessKey();
   if (!key) throw new Error("Featherless isn't set up on this server — there is no key file");
   const payload = Object.fromEntries(Object.entries(body).filter(([k]) => DOCUMENTED.has(k)));
   payload.model = remoteName(String(body.model));
+  if (!(body.weaveSwitch ?? takesSwitch(String(body.model)))) delete payload.chat_template_kwargs;
   for (let attempt = 0; ; attempt++) {
     let res: Response;
     try {
@@ -130,7 +146,9 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
     // ITS MESSAGE, NOT ITS BODY. The status and what Featherless says went wrong, redacted and
     // bounded; the raw body is never echoed to a writer.
     const said = String(error?.message ?? '');
-    throw new Error(`Featherless answered ${res.status}${said ? `: ${redact(said).slice(0, 200)}` : ''}`);
+    // The status rides on the error, so the probe on add can tell a refusal from a failure.
+    throw Object.assign(new Error(`Featherless answered ${res.status}${said ? `: ${redact(said).slice(0, 200)}` : ''}`),
+      { status: res.status });
   }
 }
 

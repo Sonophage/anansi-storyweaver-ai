@@ -128,12 +128,16 @@ const weavingGuess = (row: { id: string; modelClass: string | null }): Weaving =
 /** What the probe on add found. Asked with weaving off: any plan in the answer means the model
  *  cannot be switched off. No plan keeps the guess — an absent plan from a model guessed to always
  *  weave is more likely hidden by the provider than missing — except an untried guess, which the
- *  probe has now tried: told not to weave, it did not. */
+ *  probe has now tried: told not to weave, it did not.
+ *
+ *  #61. `takes` is false when the model's template refused the switch and the probe answered
+ *  without it. Such a model cannot be asked to weave, so a guess of "can switch" is not what it
+ *  can do: with no plan it is stored as not weaving. */
 export const weavingFound = (row: { id: string; modelClass: string | null },
-  answer: { prose: string; reasoning: string }): Weaving => {
+  answer: { prose: string; reasoning: string }, takes = true): Weaving => {
   if (answer.reasoning.trim() || /<think>/i.test(answer.prose)) return 'always weaves';
   const guess = weavingGuess(row);
-  return guess === UNTRIED ? "doesn't weave" : guess;
+  return guess === UNTRIED || (!takes && guess === 'can switch') ? "doesn't weave" : guess;
 };
 
 /** The weight in the class name — `qwen3_5moe-35b` is 35b. Null for a class that does not say. */

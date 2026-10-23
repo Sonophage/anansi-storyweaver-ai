@@ -1,6 +1,6 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
-         releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX } from './llama.ts';
+         releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
   hubTagsFor, hubCard, isRepo } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
@@ -19,6 +19,10 @@ import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
+
+// #61. The Featherless adapter reads whether a model's template takes the weaving switch from the
+// shortlist, through this, on every remote call. See `askSwitchWith` in llama.ts.
+askSwitchWith(db.takesSwitch);
 
 export interface Ctx {
   body: any; query: URLSearchParams; owner: string; slot: Slot;
@@ -126,8 +130,18 @@ export const WEAVING_ROLES: ReadonlySet<string> = new Set(Object.keys(WEAVE_ROOM
  *  shortlist recorded when the model was added, read through `heldFor`, the owner rule `slotFor`
  *  reads the model's context through. Which model writes a book depends on who asks, so `c` is the
  *  writer asking. A local model has no label: it is one that can switch. */
-const bookWeaves = (c: Ctx, v: { story: any; owner?: string }) => !!v.story?.weaving
+const bookWeaves = (c: Ctx, v: { story: any; owner?: string }) => (!!v.story?.weaving && canWeave(c, v))
   || heldFor(c, v, writerModel(c, v))?.weaving === 'always weaves';
+
+/** #61 · Whether the model that writes this book can be asked to weave: false only for a remote
+ *  model whose chat template refused the switch when it was added (see `askSwitchWith`). The
+ *  book's switch is then ignored and cannot be turned on, because the model is never sent it. */
+const canWeave = (c: Ctx, v: { story: any; owner?: string }) =>
+  heldFor(c, v, writerModel(c, v))?.takesSwitch !== false;
+
+/** What the writer is told when weaving is turned on for a book whose model cannot take it. */
+const CANNOT_WEAVE = "This book's model can't be asked to weave, so weaving can't be turned on for "
+  + 'this book. Pick a model that can, and turn it on then.';
 
 /** A CALL'S REPLY CAP, AND WHETHER IT WEAVES, decided here and nowhere else.
  *
@@ -227,7 +241,7 @@ const viewOf = (c: Ctx, id: string, chapter?: string) => {
     // The pin as a model row when it is a remote model on the owner's shortlist, so a guest's
     // picker can show the model that writes this book rather than calling it gone.
     pin: remotePin(c, v.story.model, v.owner),
-    weaves: bookWeaves(c, v),
+    weaves: bookWeaves(c, v), canWeave: canWeave(c, v),
     budget: budgetFor(v.story, slotFor(c, v, model), replyFor(c, v, 'prose', proseCap(c)).maxTokens) };
 };
 
@@ -1655,12 +1669,26 @@ export const routes: Record<string, Handler> = {
     // THE PROBE. One tiny call with weaving off: a model that plans anyway cannot be switched off,
     // and the label the writer reads should say what it did rather than what its class suggests.
     // A failed probe fails the add — a model that cannot answer two words is not ready to write.
-    let answer;
-    try {
-      answer = await chat('Answer in one word.', 'Say ok.', { model: id, max_tokens: 24,
-        temperature: 0, chat_template_kwargs: { enable_thinking: false } });
-    } catch (e: any) { return { error: e?.message ?? 'Featherless did not answer' }; }
-    db.addToShortlist(c.owner, id, found.context, weavingFound(found, answer), found.cost);
+    //
+    // #61. A 400 to the probe may be the model's template refusing the switch itself, which some
+    // do: then it is asked once without the field. If that answers, it is asked with the field
+    // once more, so a refusal the switch did not cause is not stored as one; if the field is
+    // refused again, the model is stored as taking no switch and every call after leaves it off.
+    // Any other failure, or a model that refuses both ways, fails the add with the first answer.
+    const probe = (send: boolean) => chat('Answer in one word.', 'Say ok.', { model: id, max_tokens: 24,
+      temperature: 0, chat_template_kwargs: { enable_thinking: false }, weaveSwitch: send });
+    let answer, takes = true;
+    try { answer = await probe(true); }
+    catch (e: any) {
+      const without = e?.status === 400 ? await probe(false).catch(() => null) : null;
+      if (!without) return { error: e?.message ?? 'Featherless did not answer' };
+      try { answer = await probe(true); }
+      catch (again: any) {
+        if (again?.status !== 400) return { error: again?.message ?? 'Featherless did not answer' };
+        answer = without; takes = false;
+      }
+    }
+    db.addToShortlist(c.owner, id, found.context, weavingFound(found, answer, takes), found.cost, takes);
     return { models: db.shortlistOf(c.owner) };
   },
   /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the 4-unit gate, the sort — is in
@@ -2144,6 +2172,13 @@ export const routes: Record<string, Handler> = {
       if (known.length && !known.some((m) => m.id === want))
         throw Object.assign(new Error(
           `the router does not serve "${want}" — or it is not on this app's allowlist`), { code: 400 });
+    }
+    // #61. Turning weaving on is refused for a book whose model cannot take the switch: the model
+    // the book will have after this save, which may be the one this same save picks.
+    if (c.body.story?.weaving === true) {
+      const v = bookOf(c.body.id);
+      if (!canWeave(c, { ...v, story: { ...v.story, ...('model' in c.body.story ? { model: want } : {}) } }))
+        throw Object.assign(new Error(CANNOT_WEAVE), { code: 400 });
     }
     db.updateStory(c.body.id, c.body.story);
     return viewOf(c, c.body.id);

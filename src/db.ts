@@ -418,6 +418,9 @@ function migrate() {
   // #51. What the probe on add found, and the plan units the model takes.
   add('shortlist', 'weaving', 'TEXT');
   add('shortlist', 'cost', 'INTEGER');
+  // #61. Whether the model's chat template takes the weaving switch. NULL on rows added before the
+  // probe asked, which were all added with the switch sent and answered, so NULL reads as yes.
+  add('shortlist', 'takes_switch', 'INTEGER');
   backfillActPrints();
 
   if ((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name = 'outfits'")
@@ -480,6 +483,7 @@ CREATE TABLE IF NOT EXISTS shortlist (
   context INTEGER NOT NULL,
   weaving TEXT,                        -- what the probe on add found, in the words the writer reads
   cost INTEGER,                        -- the catalogue's concurrency_cost at add time: plan units
+  takes_switch INTEGER,                -- 0 when the chat template refuses the weaving switch
   added_at INTEGER NOT NULL,
   PRIMARY KEY (owner_id, model));
 
@@ -867,21 +871,30 @@ export const setDefaultModel = (ownerId: string, id: string | null) =>
   q('UPDATE users SET default_model = ? WHERE id = ?').run(id, ownerId);
 
 /** THE SHORTLIST, always by owner. Every read and write names the owner, so one writer's list is
- *  unreachable from another's account by construction — the same shape as `promptsOf`. */
+ *  unreachable from another's account by construction — the same shape as `promptsOf`. The one
+ *  exception is `takesSwitch`, below, which says why. */
 export const shortlistOf = (ownerId: string): { id: string; context: number; weaving: string | null;
-  cost: number | null; addedAt: number }[] =>
-  (q('SELECT model, context, weaving, cost, added_at FROM shortlist WHERE owner_id = ? ORDER BY added_at, model')
+  cost: number | null; takesSwitch: boolean; addedAt: number }[] =>
+  (q('SELECT model, context, weaving, cost, takes_switch, added_at FROM shortlist WHERE owner_id = ? ORDER BY added_at, model')
     .all(ownerId) as any[]).map((r) => ({ id: r.model, context: r.context, weaving: r.weaving,
-      cost: r.cost, addedAt: r.added_at }));
+      cost: r.cost, takesSwitch: r.takes_switch !== 0, addedAt: r.added_at }));
+/** #61 · WHETHER `id`'s chat template takes the weaving switch, for the Featherless adapter, which
+ *  is handed a model id and nothing else. THE ONE SHORTLIST READ NOT BY OWNER, on purpose: this is
+ *  a fact about how Featherless serves the model, the same for every writer who adds it, and it
+ *  never leaves the server — it decides only whether a field is sent. The entry added last wins.
+ *  A model on nobody's list takes it, as every model did before the probe asked. */
+export const takesSwitch = (id: string): boolean =>
+  (q('SELECT takes_switch FROM shortlist WHERE model = ? ORDER BY added_at DESC LIMIT 1').get(id) as any)
+    ?.takes_switch !== 0;
 /** The context `id` holds if it is on `ownerId`'s shortlist, else null. */
 export const shortlisted = (ownerId: string, id: string): number | null =>
   (q('SELECT context FROM shortlist WHERE owner_id = ? AND model = ?').get(ownerId, id) as any)?.context ?? null;
 export const addToShortlist = (ownerId: string, id: string, context: number,
-  weaving: string | null = null, cost: number | null = null) =>
-  q(`INSERT INTO shortlist (owner_id, model, context, weaving, cost, added_at) VALUES (?,?,?,?,?,?)
+  weaving: string | null = null, cost: number | null = null, takes = true) =>
+  q(`INSERT INTO shortlist (owner_id, model, context, weaving, cost, takes_switch, added_at) VALUES (?,?,?,?,?,?,?)
      ON CONFLICT(owner_id, model) DO UPDATE SET context = excluded.context,
-       weaving = excluded.weaving, cost = excluded.cost`)
-    .run(ownerId, id, context, weaving, cost, now());
+       weaving = excluded.weaving, cost = excluded.cost, takes_switch = excluded.takes_switch`)
+    .run(ownerId, id, context, weaving, cost, takes ? 1 : 0, now());
 export const removeFromShortlist = (ownerId: string, id: string) =>
   q('DELETE FROM shortlist WHERE owner_id = ? AND model = ?').run(ownerId, id);
 /** Clear every pin to `id` on the books `ownerId` OWNS, and return their titles. Owned, not

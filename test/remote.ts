@@ -36,6 +36,9 @@ const PLANS_INLINE = 'TheDrummer/Mistral-Small-Uncensored-24B';
 const UNTRIED = 'odd/Step-3.5-Flash-heretic';
 // Its class holds Kimi-K2-Instruct, which does not weave; the name says this one always does.
 const THINKING = 'moonshotai/Kimi-K2-Thinking';
+// Its chat template refuses the weaving switch: Featherless answers 400 to any body that carries
+// `chat_template_kwargs`, and a normal completion without it (seen live 2026-10-22, both ways).
+const NO_SWITCH = 'vprilepskii/Harbinger-24B-biprojected-norm-preserving-abliterated';
 
 /** The fake catalogue, in Featherless's own field names. One row per case the search must handle. */
 const CATALOGUE = [
@@ -52,6 +55,8 @@ const CATALOGUE = [
   // id whose class also holds a model that does not weave.
   { id: UNTRIED, model_class: 'step-3.5-199b', context_length: 32768, concurrency_cost: 1 },
   { id: THINKING, model_class: 'kimi-k2', context_length: 32768, concurrency_cost: 1 },
+  // Class, context and cost as the live catalogue gives them (read 2026-10-22).
+  { id: NO_SWITCH, model_class: 'mistral-24b', context_length: 32768, concurrency_cost: 2 },
   // The floor, from both sides: exactly 16k is shown, a hair under it is not, and so is a row that
   // does not say.
   { id: 'edge/Exactly-16k-heretic', model_class: 'llama3-8b', context_length: 16384, concurrency_cost: 1 },
@@ -83,6 +88,11 @@ const flSrv = createServer((req, res) => {
     if (req.url === '/v1/models') return json(200, { data: CATALOGUE });
     if (req.url === '/v1/tokenize') return json(200, { count: 321 });
     if (req.url !== '/v1/chat/completions') return json(404, { error: { message: 'no route' } });
+    // AS THE REAL ONE ANSWERS THIS MODEL, word for word (2026-10-22): the field at all, even empty
+    // or under another key, is a 400. Before the script, because nothing else is looked at first.
+    if (body.model === NO_SWITCH && 'chat_template_kwargs' in body)
+      return json(400, { error: { message: 'The request was rejected as invalid. Please check your '
+        + 'request parameters.', type: 'invalid_request_error', code: 'bad_request', param: null } });
     const how = script.shift();
     // Unreachable: the connection drops with no answer at all, which is what fetch sees when the
     // machine is offline or Featherless is down.
@@ -640,7 +650,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(all.models.every((m: any) => m.id.startsWith('featherless:')),
     'every row carries the prefixed id the shortlist takes');
   assert.deepStrictEqual(ids(all), [
-    PLANS_INLINE, 'edge/Exactly-16k-heretic',
+    PLANS_INLINE, 'edge/Exactly-16k-heretic', NO_SWITCH,
     STUBBORN, REMOTE, 'huihui/gpt-oss-20b-abliterated', UNTRIED],
     'uncensored only, under 16k and the 4-unit model gone, the ones that never weave first and the untried last');
   const row = all.models.find((m: any) => m.id === ID);
@@ -658,7 +668,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.deepStrictEqual(ids(await find('q=gemma')), [STUBBORN], 'free text, case-insensitive, on the name');
   assert.deepStrictEqual(ids(await find('q=gemma&uncensored=0')), ['google/Gemma-4-26B-it', STUBBORN],
     'free text and the uncensored switch combine');
-  assert.deepStrictEqual(ids(await find('size=24b')), [PLANS_INLINE],
+  assert.deepStrictEqual(ids(await find('size=24b')), [PLANS_INLINE, NO_SWITCH],
     'the size class filter');
   assert.deepStrictEqual(ids(await find(`weaving=${encodeURIComponent('can switch')}`)), [STUBBORN, REMOTE],
     'the weaving filter');
@@ -1236,6 +1246,97 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(always.weaveFit, 'ALWAYS-WEAVES: the fit check applies with the switch off');
   assert.match(always.weaveFit.message, /32,768 tokens/, 'and names the model\'s limit');
   ok('a 32k model refuses weaving where the local slot would not, and the refusal names the model\'s limit');
+}
+
+// ---- 24. a model whose template refuses the weaving switch is added, and writes without it (#61) ----
+//
+// The fake answers NO_SWITCH as the real Featherless does: a 400 for any body that carries
+// `chat_template_kwargs`. The add learns that once and stores it with the entry; every call after
+// reads the stored fact and leaves the field off, so nothing is tried and refused on a passage.
+{
+  const w = db.owner('no-switch-writer');
+  const HARB = `featherless:${NO_SWITCH}`;
+  const entry = (id: string) => (db.shortlistOf(w) as any[]).find((x) => x.id === id);
+  let m = mark();
+  const added = await routes['POST /api/shortlist'](ctx(w, { model: HARB }));
+  assert.ok(!added.error, `NO-SWITCH: a model whose template refuses the switch is still added (${added.error})`);
+  const probes = since(m).fl;
+  assert.ok('chat_template_kwargs' in probes[0].body, 'the detector: the first probe carries the switch');
+  assert.ok(probes.length >= 2 && !('chat_template_kwargs' in probes[1].body),
+    'NO-SWITCH: refused, the probe asks once more with no switch at all');
+  assert.strictEqual(entry(HARB).takesSwitch, false, 'NO-SWITCH: the entry records that its template takes no switch');
+  assert.strictEqual(entry(HARB).weaving, "doesn't weave", 'and that it does not weave');
+  const other = await routes['POST /api/shortlist'](ctx(w, { model: ID }));
+  assert.ok(!other.error, other.error);
+  assert.strictEqual(entry(ID).takesSwitch, true, 'the control: a model that answered with the switch takes it');
+
+  const book = db.createStory(w, { title: 'No Switch' });
+  db.addPassage({ ...book, storyId: book.id, body: 'The lamp turned on its own.' });
+  const set = (story: any) => routes['POST /api/story'](ctx(w, { id: book.id, story }));
+  await set({ model: ID, weaving: true });
+  await set({ model: HARB });
+  const v = await routes['GET /api/story'](ctx(w, {}, `story=${book.id}`));
+  assert.strictEqual(v.model, HARB, 'the detector: the book is written by the refusing model');
+  assert.strictEqual(v.canWeave, false, 'NO-SWITCH: the view says this book\'s model cannot be asked to weave');
+  assert.strictEqual(v.weaves, false, 'NO-SWITCH: so a book switched to it does not weave');
+
+  // Writing: a streamed passage, a waited-for one, and Talk. Each is one call, without the field.
+  m = mark();
+  const h = await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue', stream: true }));
+  const last = await h.__stream(() => {});
+  assert.ok(!last.error, `NO-SWITCH: a streamed passage writes (${last.error})`);
+  const g = await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
+  assert.ok(!g.error, `NO-SWITCH: a waited-for passage writes (${g.error})`);
+  const calls = since(m).fl;
+  assert.strictEqual(calls.length, 2, 'NO-SWITCH: one call a passage, nothing tried and refused first');
+  assert.ok(calls.every((r) => !('chat_template_kwargs' in r.body)), 'NO-SWITCH: neither carries the field');
+  assert.strictEqual(calls[1].body.max_tokens, 400, 'and a passage gets no weaving room');
+  // Talk is a structured call, and this fake answers it with prose, so it is refused as unparseable
+  // after its one retry. What matters here is that Featherless never answered it with a 400.
+  m = mark();
+  const talk = await routes['POST /api/talk'](ctx(w, { storyId: book.id, said: 'What is this story about?' }));
+  assert.doesNotMatch(String(talk.error ?? ''), /400/, 'NO-SWITCH: Talk is not refused for the field');
+  assert.ok(since(m).fl.length && since(m).fl.every((r) => !('chat_template_kwargs' in r.body)),
+    'NO-SWITCH: and Talk is sent without it too, its retry included');
+
+  // The control: the model that takes the switch is still sent it.
+  m = mark();
+  await set({ model: ID });
+  await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
+  assert.strictEqual(since(m).fl[0].body.chat_template_kwargs?.enable_thinking, true,
+    'the control: a model that takes the switch is sent it, and this book weaves on it');
+
+  // Turning weaving on for a book whose model cannot take it is refused, in the writer's words.
+  await set({ weaving: false });
+  await set({ model: HARB });
+  await assert.rejects(set({ weaving: true }), (e: any) => e.code === 400
+    && /can't be asked to weave/.test(e.message) && !/think|reason|plan/i.test(e.message),
+    'NO-SWITCH: weaving cannot be turned on for a book whose model cannot take the switch');
+  assert.strictEqual(db.getStory(book.id)?.weaving, 0, 'and the switch stays off');
+  await assert.rejects(routes['POST /api/story'](ctx(w, { id: book.id, story: { model: HARB, weaving: true } })),
+    /can't be asked to weave/, 'nor in the same save that picks the model');
+  ok('a model whose template refuses the switch is added, writes without the field, and cannot weave');
+}
+
+// ---- 25. a 400 on add for any other reason is learnt as nothing, and on a call is never retried ----
+{
+  const w = db.owner('flaky-adder');
+  const GEMMA = 'featherless:google/Gemma-4-26B-it';
+  let m = mark();
+  script.push('refuse');
+  const added = await routes['POST /api/shortlist'](ctx(w, { model: GEMMA }));
+  assert.ok(!added.error, added.error);
+  assert.strictEqual((db.shortlistOf(w) as any[]).find((x) => x.id === GEMMA)?.takesSwitch, true,
+    'ONE-400: a refusal the switch did not cause does not record the model as refusing it');
+  assert.ok(since(m).fl.length <= 3, 'and finding that out costs at most three tiny calls');
+
+  m = mark();
+  script.push('refuse', 'refuse', 'refuse');
+  const no = await routes['POST /api/shortlist'](ctx(w, { model: `featherless:${REMOTE}` }));
+  assert.match(String(no.error), /^Featherless answered 400/, 'ONE-400: a model that refuses every probe is not added');
+  assert.ok(!(db.shortlistOf(w) as any[]).some((x) => x.id === `featherless:${REMOTE}`), 'and is not stored');
+  script.length = 0;
+  ok('a 400 the switch did not cause is reported as before, and never stored as a refusal of it');
 }
 
 console.log(`\n${n} checks green`);
