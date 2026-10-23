@@ -112,9 +112,6 @@ if (pid && pid !== '0' && existsSync(`/proc/${pid}/environ`)) {
   row('server', `pid ${pid}, up since ${sh(`ps -o lstart= -p ${pid}`)}`);
   row('prompt flags', [
     `prose-author ${get('ANANSI_PROSE_AUTHOR') === '0' ? 'OFF' : 'ON'}`,
-    `lockout-named ${get('ANANSI_LOCKOUT_NAMED') === '1' ? 'ON' : 'off'}`,
-    `lockout-clause ${get('ANANSI_LOCKOUT_CLAUSE') === '1' ? 'ON' : 'off'}`,
-    `lockout-noun ${get('ANANSI_LOCKOUT_NOUN') === '1' ? 'ON' : 'off'}`,
   ].join(' · '));
   row('writers allowed', (get('ANANSI_ALLOW') ?? '(unset — loopback only)').split(',').length + ' in ANANSI_ALLOW');
 } else {

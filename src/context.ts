@@ -93,15 +93,6 @@ export interface Input {
   // without being told whose line it is.
   speaker?: string;
   pins?: Record<string, 'force_in' | 'force_out'>;   // per-chapter overrides, SPEC §7.4 step 7
-  /** F52. One extra sentence on the lockout line, telling the model that the locked character's
-   *  lines in the prose above were written BY the writer and are not a pattern to continue.
-   *
-   *  A FLAG BECAUSE IT IS UNDER MEASUREMENT, not because it is a setting. F51 found the mechanism:
-   *  `Passage` carries no author, so the recent-prose block is a flat run of text with no marking of
-   *  who wrote what — the lockout forbids the thing, and the prose two hundred tokens later shows
-   *  recent examples of exactly that thing, with no way to tell they are the writer's. It reaches
-   *  here through Input and never through process.env, because buildContext is pure. */
-  lockoutClause?: boolean;
   /** F53. Mark the writer's OWN passages in the prose the model is continuing, so the lockout has
    *  something concrete to point at rather than a rule contradicted by recent examples.
    *
@@ -110,44 +101,6 @@ export interface Input {
    *  measurement, and because F35 is the standing warning: give this model new vocabulary and it
    *  turns it into section headers, so the marker leaking into output is itself a thing to count. */
   proseAuthor?: boolean;
-  /** F54. Say the NAME where the lockout line currently says "their" and "they".
-   *
-   *  Seth, 2026-09-01: *"what if instead of their we put the name in instead."*
-   *
-   *  The line names the locked character three times already and then leans on a pronoun for the
-   *  two clauses that carry the actual prohibition — "never write THEIR dialogue", "never state what
-   *  THEY feel". A pronoun needs a referent resolved; a name does not, and F37 is the standing
-   *  evidence that this model pays attention to explicitness in exactly this way (the same rule
-   *  buried in a line bought nothing at 10.7%; spelled out on its own line naming the thing, it held
-   *  at ~98%).
-   *
-   *  THE FIRST/SECOND-PERSON BRANCH ALREADY WRITES THIS WAY — it names the teller five times and
-   *  uses no pronoun for them at all — so this is not a new idiom, it is the third-person branch
-   *  catching up with the one beside it.
-   *
-   *  A FLAG BECAUSE IT IS UNDER MEASUREMENT. The third-person text is the one instruction in this
-   *  stack with a strong measured effect (F28: acted 76% -> 25%, p = 0.0005), and COUNCIL-06's note
-   *  says in as many words that it is not to be reworded casually. Reaches here through Input and
-   *  never through process.env, because buildContext is pure. */
-  lockoutNamed?: boolean;
-  /** F55. The name, but in NOUN form, so no mental verb sits next to it.
-   *
-   *  F54 measured `lockoutNamed` and found both halves of one result: action fell about a third
-   *  (p = 0.008), and the narrow interiority counter went from 1 run in 650 to 11 — every one of
-   *  them the construction `${locked} felt ...`, six of those near-verbatim repeats of "felt the
-   *  shift in the air", and not one of them `knew`, `decided`, `feared` or `hoped`.
-   *
-   *  The increase is the verb FELT, and the verb FELT is what F54's line puts directly beside his
-   *  name: "never state what X feels, knows or decides." F35 is the standing warning that this model
-   *  does something with the vocabulary you hand it; here the vocabulary was the prohibition's own.
-   *
-   *  So this changes the SECOND clause only, from a verb the name governs to nouns it possesses.
-   *  The first clause was already in noun form and is untouched. The naming stays; the adjacency
-   *  goes. If action still falls and `felt` does not rise, this is the version to ship.
-   *
-   *  IMPLIES NAMING and supersedes the verb form when both are set — additive rather than a value on
-   *  `lockoutNamed`, so F54's exact wording stays in the tree and reproducible. */
-  lockoutNoun?: boolean;
   /** A take the writer rejected and is regenerating away from, if the caller chose to send it.
    *
    *  OFF BY DEFAULT AND THAT IS THE POINT. `db.rejectTake` has recorded rejections since it was
@@ -1286,22 +1239,13 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
         + `say, do and leave behind. Never state what anyone but ${teller} thinks, feels or intends; `
         + `where ${teller} can only guess, write the guess as a guess.]`
       : locked
-      // F54. The two clauses that carry the prohibition, with the NAME in place of the pronoun.
-      // Same clauses, same order, same length either way — only the referent changes, so an arm
-      // that moves is the naming and not a rewrite.
-      // F54 named the character; F55 puts the second clause in NOUN form so no mental verb sits
-      // beside the name. `named` is true for either, because the noun form is a naming too.
-      ? (() => { const named = input.lockoutNamed || input.lockoutNoun;
-                 return `[${locked} belongs to the writer: never write ${named ? `${locked}'s` : 'their'} `
-        + `dialogue, action, gesture or thought, `
-        + `and never state ${input.lockoutNoun ? `${locked}'s thoughts, knowledge or decisions`
-            : named ? `what ${locked} feels, knows or decides` : 'what they feel, know or decide'}.`
-        + (input.lockoutClause
-          ? ` Where ${locked} speaks or acts in the passages above, the writer wrote it — that is `
-            + `not permission and not a pattern to continue.` : '')
-        + ` Write the world's answer instead — what `
+      // Three rewordings of this line were measured: an extra clause (F52), the name in place of
+      // the pronoun (F54) and the name in noun form (F55). None was shown to beat it (F52, F55,
+      // F57-F59), so they were deleted rather than kept as switches.
+      ? `[${locked} belongs to the writer: never write their dialogue, action, gesture or thought, `
+        + `and never state what they feel, know or decide. Write the world's answer instead — what `
         + `the others say and do, what the room does, what happens to ${locked}. Stop where `
-        + `${locked} would act.]`; })()
+        + `${locked} would act.]`
       : '', keep: true },
     /* THE CHAPTER'S BRIEF, IN TWO HALVES THAT REACH THE MODEL DIFFERENTLY (2026-09-02).
      *

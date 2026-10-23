@@ -390,10 +390,6 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     story: withVoice as any, chapters: v.chapters, passages, arcs: v.arcs,
     entries: v.entries.map((e) => ({ ...e, body: entryText(e) })),
     mode: mode as any, directive, speaker, currentChapter: v.currentChapter,
-    // F52, under measurement. Read HERE, on the impure side, and handed to buildContext through
-    // Input — the same rule the voice ladder above follows. Two servers against one router is how
-    // this project runs an A/B, so the arm has to be a process-level thing.
-    lockoutClause: process.env.ANANSI_LOCKOUT_CLAUSE === '1',
     /* SHIPPED ON, 2026-09-01, at Seth's word. F53 measured it: marking the writer's own passages
      * HALVES the model's action for the locked character (2.47 -> 1.16 per 1,000 words of narration,
      * p = 0.00001, 650 generations an arm against a simultaneous control). The mechanism is that he
@@ -412,10 +408,6 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
      * against a lockout-off arm. A shipped default with a way to turn it off on one server is what
      * makes those runnable. */
     proseAuthor: process.env.ANANSI_PROSE_AUTHOR !== '0',
-    // F54, under measurement. Seth's question, 2026-09-01: the name where the line says "their".
-    lockoutNamed: process.env.ANANSI_LOCKOUT_NAMED === '1',
-    // F55. The same naming with the second clause in noun form, so no mental verb touches the name.
-    lockoutNoun: process.env.ANANSI_LOCKOUT_NOUN === '1',
     // Only the summoned ones, and the filter is here rather than in the engine so buildContext
     // never has to know what a string's status means.
     strings: (v as any).strings?.filter((x: any) => x.summoned && x.status === 'open') ?? [],
