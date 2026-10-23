@@ -35,7 +35,7 @@ const STEMS = ['reach','turn','stand','step','walk','take','draw','put','pull','
   'fire','sit','rise','lean','kneel','wait','stop','start','go','come','give','let','make','count',
   'shift','straighten','spit','swallow','blink','breathe','type','smile','laugh','speak','say','leave',
   'answer','ask','listen','点'].filter((s) => /^[a-z]+$/.test(s));
-const FORMS = STEMS.flatMap((v) => [v, `${v}s`, `${v}ed`, `${v}d`, `${v}es`]);
+export const FORMS = STEMS.flatMap((v) => [v, `${v}s`, `${v}ed`, `${v}d`, `${v}es`]);
 const NAME = WHO.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const ACTED = new RegExp(`\\b${NAME}\\s+(?:had\\s+|has\\s+|then\\s+|slowly\\s+|just\\s+)?(?:${FORMS.join('|')})\\b`, 'i');
@@ -83,7 +83,12 @@ const CASES: [string, Partial<ReturnType<typeof score>>, string][] = [
   ['Halsey knows what she means.', { told: false }, 'her interior is not his'],
 ];
 
-if (process.argv[2] === 'check') {
+/* IMPORTED, IT IS THE DETECTOR AND NOTHING ELSE. `bench/lockout-cheap.ts` reads `score` and `FORMS`
+ * from here, and without this an importer's own `check` would run this file's check and exit, and
+ * any other argument would start an arm against a live server. */
+const CMD = import.meta.main ? process.argv[2] : 'imported';
+
+if (CMD === 'check') {
   let bad = 0;
   for (const [text, want, why] of CASES) {
     const got: any = score(text);
@@ -101,7 +106,7 @@ const j = (u: string, b?: unknown, m = 'POST') => fetch(B + u, b ? { method: m,
 
 /* THE BASELINE, out of the prose already in the book. No model call, no arms — just what the app
  * has actually produced for this writer under whatever settings were in force when it did. */
-if (process.argv[2] === 'base') {
+if (CMD === 'base') {
   const db = await import('../src/db.ts');
   // `q` is module-private in db.ts, deliberately. Find the book the way the app does: every owner's
   // shelf, then by title — which also means this cannot read a book nobody on the box owns.
@@ -134,7 +139,7 @@ if (process.argv[2] === 'base') {
   process.exit(0);
 }
 
-if (process.argv[2] === 'report') {
+if (CMD === 'report') {
   const { fisher, poisson, per1000 } = await import('./stats.ts');
   const arms = ([[process.env.ARM_A ?? 'control', process.env.CTL!],
                  [process.env.ARM_B ?? 'treatment', process.env.TRT!]] as [string, string][])
@@ -172,6 +177,7 @@ if (process.argv[2] === 'report') {
 }
 
 // ---- an arm ----
+if (CMD !== 'imported') {
 const n = Number(process.argv[3] ?? 20);
 mkdirSync(OUTDIR, { recursive: true });
 const OUT = `${OUTDIR}/run.jsonl`;
@@ -188,3 +194,4 @@ for (let i = 0; i < n; i++) {
   appendFileSync(OUT, JSON.stringify(row) + '\n');
 }
 console.log(`  ${n} done -> ${OUT}`);
+}
