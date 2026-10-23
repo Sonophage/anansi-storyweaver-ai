@@ -11673,7 +11673,9 @@ document.addEventListener('change', (e) => {
       if (r.error) return toast(r.error);
       V = await api.story(S.storyId);
       paint(); refreshManifest();
-      toast(model ? `This story is written by ${model} now.` : 'Back to the default model.');
+      // #61. `r.toast` is the server saying the move turned this book's weaving off.
+      const moved = model ? `This story is written by ${model} now.` : 'Back to the default model.';
+      toast(r.toast ? `${moved} ${r.toast}` : moved);
     });
     return;
   }

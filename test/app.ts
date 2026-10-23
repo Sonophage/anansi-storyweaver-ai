@@ -2409,6 +2409,27 @@ ok('the Storyteller has a Weaving switch where the thinking note was, and it sav
 }
 ok('a book whose model cannot be asked to weave, or always weaves, says so in the Storyteller, with no switch');
 
+// #61 · A BOOK MOVED TO A MODEL THAT CANNOT TAKE THE SWITCH has its weaving turned off by the server,
+// which says so in the save's `toast`; the picker shows that sentence with the model it picked.
+{
+  const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+  try {
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    (STORY as any).toast = 'Weaving is off for this book now (fixture).';
+    changeIn({ dataset: { storymodel: '1' }, value: 'featherless:someone/No-Switch' });
+    await new Promise((r) => setTimeout(r, 60));
+    const said = String(nodes.get('toast').textContent);
+    assert.match(said, /Weaving is off for this book now \(fixture\)\./, `MOVE-TOAST: the writer is told weaving went off: ${said}`);
+    assert.match(said, /written by/, 'MOVE-TOAST: beside the model it picked');
+    delete (STORY as any).toast;
+    changeIn({ dataset: { storymodel: '1' }, value: 'Qwen3.6-WNTH-35B-A3B-NN' });
+    await new Promise((r) => setTimeout(r, 60));
+    assert.doesNotMatch(String(nodes.get('toast').textContent), /Weaving/, 'the control: a move that clears nothing says nothing of weaving');
+  } finally { delete (STORY as any).toast; }
+}
+ok('a book moved to a model that cannot take the switch says its weaving went off');
+
 // #55. "WEAVING…" AND THE SECONDS, from the press until the first word. A weaving passage measured a
 // median 60 s of silence before its prose (F60), which reads as a hung app without a count. The
 // composer is the half this harness can see: its stub veil has no inside to read, and the browser

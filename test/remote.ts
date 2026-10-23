@@ -1281,7 +1281,15 @@ const mark = () => ({ fl: fl.length, local: local.length });
   db.addPassage({ ...book, storyId: book.id, body: 'The lamp turned on its own.' });
   const set = (story: any) => routes['POST /api/story'](ctx(w, { id: book.id, story }));
   await set({ model: ID, weaving: true });
-  await set({ model: HARB });
+  // Moving a weaving book to a model that cannot take the switch turns the book's weaving off, and
+  // says so, so no setting is left on that nothing reads and the panel no longer shows.
+  const moved = await set({ model: HARB });
+  assert.strictEqual(moved.story.weaving, false, 'MOVE-CLEARS: the book\'s weaving is turned off');
+  assert.strictEqual(db.getStory(book.id)?.weaving, 0, 'MOVE-CLEARS: and stored off');
+  assert.match(String(moved.toast), /weaving is off/i, `MOVE-CLEARS: and the writer is told: ${moved.toast}`);
+  assert.doesNotMatch(String(moved.toast), /think|reason|plan/i, 'in the writer\'s words');
+  const stay = await set({ model: HARB });
+  assert.strictEqual(stay.toast, undefined, 'MOVE-CLEARS: a save that clears nothing says nothing');
   const v = await routes['GET /api/story'](ctx(w, {}, `story=${book.id}`));
   assert.strictEqual(v.model, HARB, 'the detector: the book is written by the refusing model');
   assert.match(String(v.weaveNote), /can't be asked to weave/, 'NO-SWITCH: the view says this book\'s model cannot be asked to weave');
@@ -1308,7 +1316,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
 
   // The control: the model that takes the switch is still sent it.
   m = mark();
-  await set({ model: ID });
+  await set({ model: ID, weaving: true });
   await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
   assert.strictEqual(since(m).fl[0].body.chat_template_kwargs?.enable_thinking, true,
     'the control: a model that takes the switch is sent it, and this book weaves on it');

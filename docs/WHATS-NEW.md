@@ -18,6 +18,8 @@ your shortlist failed. Now Anansi finds this out once, when you add the model, a
 The model goes on your shortlist and writes passages, Talk answers and inventions like any other.
 It never weaves, so a book written by it has no Weaving switch: the Storyteller panel says that
 this book's model can't be asked to weave, and to pick a model that can if you want weaving.
+If you move a book with Weaving on to one of these models, Anansi turns its Weaving off and tells
+you so.
 
 ### Models that always weave
 Some models on Featherless weave whatever they are asked; your shortlist says "always weaves"
