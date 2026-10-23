@@ -10,6 +10,23 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-23 · Featherless when it is full
+
+### A busy Featherless model is tried again
+Sometimes a Featherless model starts a passage and then says it is full before it has written a
+word. Before, the passage failed with "Featherless stopped mid-passage". Now Anansi waits and
+tries again, the same way it does when Featherless says it is full at the start, and tells you
+Featherless is busy if it is still full after about twenty seconds. Stop still ends it at once.
+If the model has already written some of the passage, it fails as before, so a half-written
+passage is never quietly started over.
+
+### Every Featherless answer stops at its length
+Yesterday a streamed Featherless passage learned to stop at its length. Now everything else does
+too: a passage you wait for, a Talk answer, an invention and Anansi's other work. A passage that
+runs long is trimmed back to its last finished sentence, and you are told it was trimmed. A Talk
+answer or an invention that runs long is asked for again, the same as one that was cut off, so
+you never get half of one. Nothing changes for this machine's models.
+
 ## 2026-10-22 · Find a model on Featherless
 
 ### A Featherless passage stops at its length

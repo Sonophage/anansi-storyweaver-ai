@@ -89,6 +89,11 @@ const DOCUMENTED = new Set(['model', 'messages', 'text', 'temperature', 'top_p',
 const BACKOFF = (process.env.ANANSI_FEATHERLESS_BACKOFF_MS ?? '2000,6000,12000')
   .split(',').map(Number).filter((n) => n >= 0);
 const FEATHERLESS_BUSY = 'Featherless is busy, try again';
+/** #64 · AT CAPACITY, SAID INSIDE A STREAM. Featherless can answer 200, open the stream, and then
+ *  send an `error` object whose message is "<model> is temporarily at capacity. Please try again
+ *  shortly." (Kia, 2026-10-22 20:23 and 20:24). Only the message was seen, so the message is what
+ *  is matched; the up-front 503's code is taken too, in case the stream ever carries it. */
+const atCapacity = (e: any) => e?.code === 'capacity_exhausted' || /\bat capacity\b/i.test(String(e?.message ?? ''));
 const FEATHERLESS_LATE = 'Featherless did not answer in time. A model it is loading can take a '
   + 'minute — try again.';
 
@@ -116,13 +121,16 @@ export const askSwitchWith = (fn: (id: string) => boolean) => { takesSwitch = fn
  *  Talk, an invention and every other call that follows the book's model, whichever of them set it
  *  and whichever left it to `chat`'s default. Decided from the stored fact, never by sending it and
  *  seeing. `weaveSwitch` (never sent) overrides the fact for the probe, which is how it learns it. */
-async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal): Promise<Response> {
+async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal,
+                           first = 0): Promise<Response & { attempt: number }> {
   const key = featherlessKey();
   if (!key) throw new Error("Featherless isn't set up on this server — there is no key file");
   const payload = Object.fromEntries(Object.entries(body).filter(([k]) => DOCUMENTED.has(k)));
   payload.model = remoteName(String(body.model));
   if (!(body.weaveSwitch ?? takesSwitch(String(body.model)))) delete payload.chat_template_kwargs;
-  for (let attempt = 0; ; attempt++) {
+  // `first` and the `attempt` on the answer let a caller that finds capacity INSIDE the stream go on
+  // with the same schedule rather than start a fresh one (#64).
+  for (let attempt = first; ; attempt++) {
     let res: Response;
     try {
       res = await fetch(FEATHERLESS + path, { method: 'POST', signal, body: JSON.stringify(payload),
@@ -132,7 +140,7 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
       if (e?.name === 'AbortError') throw new Error('the call was cancelled');
       throw new Error('cannot reach Featherless. This machine may be offline.');
     }
-    if (res.ok) return res;
+    if (res.ok) return Object.assign(res, { attempt });
     // AT CAPACITY IS BUSY TOO. Featherless says a model is full with a 503 whose body carries
     // `capacity_exhausted` (seen live 2026-10-22 on two models). It passes in moments, as a 429
     // does, so it waits on the same schedule and ends in the same words. Any other 503 is not it.
@@ -172,10 +180,28 @@ export async function reach(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
+/** #64 · A REMOTE ANSWER THAT WAS NOT STREAMED KEEPS ITS CAP TOO. A streamed one is stopped at the
+ *  cap in `readSSE`; this is the same rule for the answer that arrives whole, as one did at 1,213
+ *  tokens of a 900 cap (F62). It has no token boundaries to cut on, only the count Featherless
+ *  reports, so the text is cut in proportion to it and ends as the streamed one does: `length`.
+ *  `generate` trims that to the last sentence and flags it, and `structured` treats it as a cut
+ *  answer, never as JSON. No usage, nothing to measure against, and the answer is left alone.
+ *  ponytail: proportional cut, approximate by a few tokens either way; cut on the tokenizer's
+ *  boundaries if a writer ever sees a capped passage land visibly long or short. */
+function keepCap(r: any, cap: number) {
+  const used = Number(r?.usage?.completion_tokens);
+  const m = r?.choices?.[0]?.message;
+  if (!(cap > 0) || !(used > cap) || typeof m?.content !== 'string') return r;
+  m.content = m.content.slice(0, Math.floor(m.content.length * cap / used));
+  r.choices[0].finish_reason = 'length';
+  return r;
+}
+
 async function post(path: string, body: any, ms = 900_000): Promise<any> {
   // A remote model's call goes to Featherless, whose paths are the router's without the `/v1`.
   if (isRemote(body?.model))
-    return (await featherless(path.replace(/^\/v1/, ''), body, AbortSignal.timeout(ms))).json();
+    return keepCap(await (await featherless(path.replace(/^\/v1/, ''), body, AbortSignal.timeout(ms))).json(),
+      Number(body.max_tokens));
   const res = await reach(HOST + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -335,7 +361,9 @@ export async function readSSE(res: Response, onDelta: (d: string) => void, cap =
       try { o = JSON.parse(payload); } catch { continue; }
       // llama-server reports a mid-stream failure in-band, after a 200. Silently returning the
       // prose written so far would present a truncated passage as a finished one.
-      if (o.error) throw new Error(o.error.message ?? JSON.stringify(o.error));
+      // The code rides on the error, so a caller can tell "at capacity" from any other failure.
+      if (o.error) throw Object.assign(new Error(o.error.message ?? JSON.stringify(o.error)),
+        { code: o.error.code });
       const d = o.choices?.[0]?.delta ?? {};
       // #62 · PAST THE CAP, THE STREAM IS OVER, and it ends the way the server ending it at the cap
       // would have: `length`, which `generate` already trims to the last sentence and flags as cut.
@@ -392,22 +420,36 @@ export async function chat(system: string, body: string, opts: Record<string, un
     const signal = stop ? AbortSignal.any([AbortSignal.timeout(ceilingMs), stop])
                         : AbortSignal.timeout(ceilingMs);
     const remote = isRemote(payload.model);
-    const res = remote ? await featherless('/chat/completions', payload, signal)
-      : await reach(HOST + '/v1/chat/completions', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload), signal });
-    if (!res.ok) throw new Error(`/v1/chat/completions ${res.status}: ${(await res.text()).slice(0, 300)}`);
     const on = String(payload.model);
-    enter(on);
-    // The cap is Anansi's to keep only on a remote call: Featherless was seen running past it
-    // (#62), and the local router honours it itself, so a local stream is read to its end.
-    try { return await readSSE(res, onDelta, remote ? Number(payload.max_tokens) || 900 : Infinity); }
-    catch (e: any) {
-      // A remote stream that fails after the 200 is still Featherless talking: its words are
-      // redacted like any other answer of its, and the take fails rather than landing half-written.
-      if (!remote || e?.name === 'AbortError' || stop?.aborted) throw e;
-      throw new Error(`Featherless stopped mid-passage: ${redact(String(e?.message ?? e)).slice(0, 200)}`);
-    } finally { leave(on); }
+    // #64 · AT CAPACITY BEFORE THE FIRST WORD IS TRIED AGAIN, on the schedule the 503 uses and
+    // sharing its tries, so a mix of the two still ends in the same words after the same four calls.
+    // After a word has reached the page it is a failure like any other mid-stream one: a passage
+    // is never silently restarted under the writer's eyes. Only a remote call loops.
+    for (let tries = 0; ; tries++) {
+      const res = remote ? await featherless('/chat/completions', payload, signal, tries)
+        : await reach(HOST + '/v1/chat/completions', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload), signal });
+      if (!res.ok) throw new Error(`/v1/chat/completions ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      if (remote) tries = (res as any).attempt;
+      let wrote = false;
+      enter(on);
+      // The cap is Anansi's to keep only on a remote call: Featherless was seen running past it
+      // (#62), and the local router honours it itself, so a local stream is read to its end.
+      try {
+        return await readSSE(res, (d) => { wrote = true; onDelta(d); },
+          remote ? Number(payload.max_tokens) || 900 : Infinity);
+      } catch (e: any) {
+        if (!remote || e?.name === 'AbortError' || stop?.aborted) throw e;
+        if (!wrote && atCapacity(e)) {
+          if (tries < BACKOFF.length) { await pause(BACKOFF[tries], signal); continue; }
+          throw new Error(FEATHERLESS_BUSY);
+        }
+        // A remote stream that fails after the 200 is still Featherless talking: its words are
+        // redacted like any other answer of its, and the take fails rather than landing half-written.
+        throw new Error(`Featherless stopped mid-passage: ${redact(String(e?.message ?? e)).slice(0, 200)}`);
+      } finally { leave(on); }
+    }
   }
   const r = await post('/v1/chat/completions', {
     model: MODEL, temperature: 0.85, top_p: 0.95, max_tokens: 900,
@@ -438,18 +480,24 @@ export async function chat(system: string, body: string, opts: Record<string, un
  *  pinned low: a prose temperature under a tight grammar walks low-probability legal paths
  *  and produces valid JSON that says nothing. */
 export async function structured(system: string, body: string, schema: unknown, opts = {}) {
-  const r = await post('/v1/chat/completions', {
+  const payload = {
     model: MODEL, temperature: 0.2, top_p: 0.9, max_tokens: 1200,
     chat_template_kwargs: { enable_thinking: false },
     response_format: { type: 'json_schema', json_schema: { name: 'out', schema, strict: true } },
     messages: [{ role: 'system', content: system }, { role: 'user', content: body }],
     ...opts,
-  });
+  };
+  const r = await post('/v1/chat/completions', payload);
   const m = r.choices?.[0]?.message ?? {};
   const txt = m.content ?? '{}';
   // The usage and the plan ride back with the answer, so a weaving caller can record the plan's
   // LENGTH. The plan text goes no further than that caller: it is never shown and never stored.
   const said = { usage: r.usage ?? {}, reasoning: m.reasoning_content ?? m.reasoning ?? '' };
+  // #64 · A REMOTE ANSWER PAST ITS CAP IS A CUT ANSWER, even if what came back would parse: it is
+  // what the cap cutting it mid-object gives, so `structuredRetry` asks again as it does for that.
+  // Only remote: the local router stops at its own cap, and its answers are read as they always were.
+  if (isRemote(payload.model) && r.choices?.[0]?.finish_reason === 'length')
+    return { data: null, raw: txt, error: 'the answer ran past its length and was cut', ...said };
   try { return { data: JSON.parse(txt), raw: txt, ...said }; }
   catch { return { data: null, raw: txt, error: 'model returned unparseable JSON', ...said }; }
 }

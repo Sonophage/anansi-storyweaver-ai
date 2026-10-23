@@ -68,7 +68,7 @@ const CATALOGUE = [
 const fl: { path: string; auth: string | undefined; body: any }[] = [];
 /** How the next chat calls should go, shifted one per call. Empty means "answer normally". */
 const script: ('429' | 'capacity' | 'unavailable' | 'midstream' | 'cold' | 'refuse' | 'down'
-  | 'overcap' | 'atcap')[] = [];
+  | 'overcap' | 'atcap' | 'streamcap' | 'capafter')[] = [];
 /** The last long stream the fake wrote: how many content chunks went out, how many it meant to
  *  send, and whether the connection closed before it had finished. */
 const long = { sent: 0, meant: 0, closedEarly: false };
@@ -117,10 +117,29 @@ const flSrv = createServer((req, res) => {
         ? { content: 'ok', reasoning: 'The user wants a short answer.' }
         : body.model === PLANS_INLINE ? { content: '<think>A short answer, then.</think>ok' }
         : { content: 'The remote wrote this.' };
+      // #64 · PAST THE CAP WITH NO STREAM, as one did (1,213 of 900, F62). The same words as the
+      // streamed overrun, in one answer, with the usage that says how far over it went. A call asking
+      // for JSON gets JSON that PARSES, so a check that only reads the parse cannot see the overrun.
+      if (!body.stream && (how === 'overcap' || how === 'atcap')) {
+        const cap = Number(body.max_tokens);
+        const n = how === 'overcap' ? cap * 2 : cap;
+        const words = Array.from({ length: n }, (_, k) => (k % 7 === 6 ? 'end.' : 'word')).join(' ');
+        return json(200, { choices: [{ message: { content: body.response_format
+          ? JSON.stringify({ note: words }) : words }, finish_reason: how === 'overcap' ? 'length' : 'stop' }],
+          usage: { prompt_tokens: 321, completion_tokens: n } });
+      }
       if (!body.stream) return json(200, { choices: [{ message, finish_reason: 'stop' }],
         usage: { prompt_tokens: 321, completion_tokens: 5 } });
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       const f = (o: unknown) => res.write(`data: ${JSON.stringify(o)}\n\n`);
+      // AT CAPACITY INSIDE THE STREAM, AS THE REAL ONE SAID IT (Kia, 2026-10-22 20:23 and 20:24): a
+      // 200, the stream opened, then an `error` object carrying only the message. `streamcap` says it
+      // before any content, `capafter` after the first words of the passage.
+      if (how === 'streamcap' || how === 'capafter') {
+        if (how === 'capafter') f({ choices: [{ delta: { content: 'The remote ' } }] });
+        f({ error: { message: `${body.model} is temporarily at capacity. Please try again shortly.` } });
+        return res.end();
+      }
       // PAST THE CAP, AS THE REAL ONE DID (2026-10-22): Anubis-70B sent 900 as max_tokens and got
       // 1,423 tokens back, then `finish_reason: "length"`. One word per chunk, a sentence every
       // seventh, written a few at a time so a reader that stops early can be told from one that
@@ -510,6 +529,60 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('at capacity is retried like a 429, reported as busy, stoppable, and never falls back');
 }
 
+// ---- 4d. at capacity INSIDE the stream, before any content, is retried like the 503 (#64) ----
+{
+  let m = mark();
+  script.push('streamcap', 'streamcap', 'streamcap');
+  const r = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.ok(!r.last.error, `STREAMCAP-RETRY: three in-stream capacity errors, then the passage (${r.last.error})`);
+  assert.strictEqual(since(m).fl.length, 4, 'STREAMCAP-RETRY: retried on the 429 schedule');
+  assert.deepStrictEqual(r.deltas, ['The remote ', 'streamed this.'], 'and the passage arrives once, whole');
+
+  m = mark();
+  script.push('streamcap', 'streamcap', 'streamcap', 'streamcap');
+  const busy = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.strictEqual(busy.last.error, 'Featherless is busy, try again', 'STREAMCAP-BUSY: reported as busy, plainly');
+  assert.strictEqual(since(m).fl.length, 4, 'one call and three retries, no more');
+  assert.strictEqual(since(m).local.length, 0, 'NO FALLBACK: nothing went to the local router instead');
+
+  // ONE SCHEDULE, whichever way Featherless says it: a 503 and an in-stream error share the tries.
+  m = mark();
+  script.push('capacity', 'streamcap', 'capacity', 'streamcap');
+  const mixed = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.strictEqual(mixed.last.error, 'Featherless is busy, try again',
+    'SHARED-SCHEDULE: two 503s and two in-stream errors are four tries, then busy');
+  assert.strictEqual(since(m).fl.length, 4, 'SHARED-SCHEDULE: and no fifth call');
+
+  // After content it is a failure, as any mid-stream failure is: no silent restart of a half passage.
+  m = mark();
+  const before = db.passagesOfChapter((db.chapters(story.id)[0] as any).id).length;
+  script.push('capafter');
+  const late = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.match(String(late.last.error), /^Featherless stopped mid-passage: .*at capacity/,
+    'CAPAFTER-FAILS: capacity after the first words fails the passage, as today');
+  assert.strictEqual(since(m).fl.length, 1, 'CAPAFTER-FAILS: and is not retried');
+  assert.strictEqual(db.passagesOfChapter((db.chapters(story.id)[0] as any).id).length, before,
+    'and no half-written passage lands in the book');
+
+  // Stop during the wait after an in-stream capacity error, on the real-sized schedule (see 4b).
+  const was = process.env.ANANSI_FEATHERLESS_BACKOFF_MS;
+  process.env.ANANSI_FEATHERLESS_BACKOFF_MS = '5000,5000,5000';
+  const slow = await import('../src/llama.ts?slow-streamcap');
+  process.env.ANANSI_FEATHERLESS_BACKOFF_MS = was;
+  m = mark();
+  script.push('streamcap', 'streamcap', 'streamcap', 'streamcap');
+  const stop = new AbortController();
+  setTimeout(() => stop.abort(), 150);
+  const t0 = Date.now();
+  const e: any = await slow.chat('s', 'b', { model: ID }, () => {}, stop.signal).then(() => null, (x) => x);
+  const took = Date.now() - t0;
+  script.length = 0;
+  assert.ok(took < 2000, `STOP-STREAMCAP: Stop ends the wait at once (took ${took} ms)`);
+  assert.strictEqual(e?.name, 'AbortError', 'STOP-STREAMCAP: it ends as a stop');
+  assert.strictEqual(since(m).fl.length, 1, 'and no retry is sent after Stop');
+  ok('at capacity inside the stream is retried before content, fails after it, and Stop ends it at once');
+}
+
 // ---- 5. any other refusal, and a stream that fails mid-passage, report and never fall back ----
 {
   let m = mark();
@@ -561,6 +634,54 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(plain.last.prose, 'The remote streamed this.', 'a short take is whole');
   assert.strictEqual(plain.last.cut, false, 'and not cut');
   ok('a remote stream past its cap is stopped there, trimmed and flagged; one that stops itself is untouched');
+}
+
+// ---- 5c. a remote answer that is not streamed keeps its cap too (#64) ----
+{
+  let m = mark();
+  script.push('overcap');
+  const r = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.ok(!r.error, r.error);
+  const cap = Number(since(m).fl.at(-1)!.body.max_tokens);
+  assert.ok(cap > 0, 'the call carried a cap');
+  const words = r.prose.split(/\s+/).length;
+  assert.ok(words <= cap, `WAITED-CAP: no more than the cap lands (${words} words of a ${cap} cap)`);
+  assert.strictEqual(r.cut, true, 'WAITED-FLAG: the passage is recorded as cut, as a capped one is');
+  assert.ok(/end\.$/.test(r.prose), 'and trimmed back to the last whole sentence');
+
+  script.push('atcap');
+  const at = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.strictEqual(at.prose.split(/\s+/).length, cap, 'WAITED-UNDER: an answer that stopped at the cap is whole');
+  assert.strictEqual(at.cut, false, 'WAITED-UNDER: and not cut');
+
+  // A structured answer past its cap is a cut answer, even when what came back parses: it is tried
+  // again with the room doubled, exactly as an answer the cap cut mid-object is, and never handed on.
+  const { structuredRetry } = await import('../src/llama.ts');
+  const NOTE = { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] };
+  m = mark();
+  script.push('overcap', 'atcap');
+  const s1 = await structuredRetry('s', 'b', NOTE, { model: ID, max_tokens: 50 });
+  const tried = since(m).fl;
+  assert.strictEqual(tried.length, 2, 'STRUCT-CAP: an answer past its cap is not taken; it is asked again');
+  assert.strictEqual(tried[1].body.max_tokens, 2000, 'with the room a cut answer gets (double, never under 2,000)');
+  assert.strictEqual(s1.data?.note?.split(' ').length, 2000, 'and the answer that kept its cap is the one used');
+
+  script.push('overcap', 'overcap');
+  const s2 = await structuredRetry('s', 'b', NOTE, { model: ID, max_tokens: 50 });
+  assert.strictEqual(s2.data, null, 'STRUCT-REFUSED: past its cap twice, no JSON is handed on');
+  assert.match(String(s2.error), /past its length/, 'STRUCT-REFUSED: and the error says why');
+
+  // Local calls are untouched: the router keeps its own cap, so its count is not second-guessed.
+  // The fake router always says 10 tokens, here against a cap of 5.
+  m = mark();
+  const LOCAL = 'Qwen3.6-WNTH-35B-A3B-NN';
+  const loc = await structuredRetry('s', 'b', NOTE, { model: LOCAL, max_tokens: 5 });
+  assert.ok(loc.data, 'LOCAL-UNCHANGED: a local structured answer over its count is still taken');
+  assert.strictEqual(since(m).local.length, 1, 'LOCAL-UNCHANGED: and not asked again');
+  const { chat } = await import('../src/llama.ts');
+  const said = await chat('s', 'b', { model: LOCAL, max_tokens: 5 });
+  assert.strictEqual(said.prose, JSON.stringify({ characters: [], entries: [] }), 'LOCAL-UNCHANGED: a local answer is whole');
+  ok('a remote answer that is not streamed keeps its cap: prose is cut and flagged, JSON is asked again');
 }
 
 // ---- 6. a cold model is slow, not failed ----
