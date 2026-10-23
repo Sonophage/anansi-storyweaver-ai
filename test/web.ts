@@ -124,9 +124,15 @@ const ok = (m: string, fn?: unknown) => {
     // `addshort` joined on 2026-10-22 (#51): adding a remote model makes one probe call to it.
     const guarded = ['summarize', 'extract', 'refinished', 'remember', 'invent',
                      'spark', 'acceptSpark', 'addshort'];
+    // A handler may hand its press to one named function, which a weaving refusal's row calls too
+    // (`invent` and `inventAgain`, #56): then that function is the one that must hold the guard, and
+    // it is read in the handler's place. One hop only, and only for a handler with no api call of
+    // its own before it hands off.
+    const reach = (head: string) => new RegExp(`${head}[\\s\\S]{0,900}?api\\.\\w+\\(`).exec(js)?.[0];
     const loose = guarded.filter((k) => {
-      const m = new RegExp(`if \\(d\\.${k}[^\n]*\\)[\\s\\S]{0,900}?api\\.\\w+\\(`).exec(js);
-      return !m || !/whileWorking\(/.test(m[0]);
+      const hop = new RegExp(`if \\(d\\.${k}[^\n]*\\) \\{[^{}]*?return (\\w+)\\([^;]*;\\s*\\}`).exec(js);
+      const m = hop && !/api\.\w+\(/.test(hop[0]) ? reach(`async function ${hop[1]}\\(`) : reach(`if \\(d\\.${k}[^\n]*\\)`);
+      return !m || !/whileWorking\(/.test(m);
     });
     assert.deepStrictEqual(loose, [],
       'a button that calls the model must go through whileWorking(), or a second press is a second '

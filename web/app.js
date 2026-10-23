@@ -7577,7 +7577,7 @@ function weaveStart() {
 /** At the first word, and again when the call ends however it ended — a Stop, an error, or a
  *  passage with no words — so the count can never outlive its call. */
 function weaveStop() {
-  if (WEAVE_TICK != null) clearInterval(WEAVE_TICK);
+  clearInterval(WEAVE_TICK);
   WEAVE_TICK = null;
   if (WEAVE_T0 == null) return;
   WEAVE_T0 = null;
@@ -8054,19 +8054,18 @@ async function generate(mode = S.mode, again = null) {
   if (document.getElementById('ghost')) { VEIL_LAND = land; veilFinish(); } else land();
 }
 
-/** What a tray's invention asks for. One builder for the press and for the same press sent again
- *  from a weaving refusal's row, so the two cannot ask for different things; `anyway` is Write
- *  anyway (#56). */
-const inventAsk = (kind, dir, search, anyway = false) => ({ kind, entryId: outfitOwner() || undefined,
-  direction: dir || undefined, search, ...(anyway ? { weaveAnyway: true } : {}) });
-
-/** #56. The same invention again, from the tray's weaving row: through the in-flight guard like the
- *  press itself, on the tray's own button, found again because the tray has been redrawn since. */
-async function inventAgain(kind, dir, search, anyway) {
-  const t = document.querySelector(`[data-invent="${kind}"]`);
+/** A tray's invention: the press, and the same press sent again from a weaving refusal's row, so
+ *  the two cannot ask for different things; `anyway` is Write anyway (#56). Through the in-flight
+ *  guard on the tray's own button, which a press hands in and a row's button finds again, because
+ *  the tray has been redrawn since. A new ask takes this tray's refusal away; the answer may bring
+ *  it back. */
+async function inventAgain(kind, dir, search, anyway = false,
+                           t = document.querySelector(`[data-invent="${kind}"]`)) {
+  if (S.weaveFit?.where === `invent:${kind}`) S.weaveFit = null;
   working('direct');
   const r = await whileWorking(t, search ? 'Looking it up…' : 'Writing…',
-    () => api.invent(S.storyId, inventAsk(kind, dir, search, anyway)));
+    () => api.invent(S.storyId, { kind, entryId: outfitOwner() || undefined,
+      direction: dir || undefined, search, ...(anyway ? { weaveAnyway: true } : {}) }));
   working(null);
   return invented(r, kind, dir, search);
 }
@@ -8135,7 +8134,6 @@ async function talk(said, mentions, anyway = false) {
   if (r.proposed) V = await api.story(S.storyId);
   paint();
   const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
-  return;
 }
 
 /** #56 · A WEAVING REFUSAL, held for its row (see `weaveFitRow` for `where`). `again(anyway)` is the
@@ -9025,13 +9023,7 @@ document.addEventListener('click', async (e) => {
     // The same preference the ask box keeps. Read at press time from the DOM because this tray is
     // built fresh each time it opens; written here so the two controls agree from now on.
     if (searchOn() !== search) setWebSearch(search);
-    // A new press takes this tray's refusal away; the answer may bring it back.
-    if (S.weaveFit?.where === `invent:${d.invent}`) S.weaveFit = null;
-    working('direct');
-    const r = await whileWorking(t, search ? 'Looking it up…' : 'Writing…',
-      () => api.invent(S.storyId, inventAsk(d.invent, dir, search)));
-    working(null);
-    return invented(r, d.invent, dir, search);
+    return inventAgain(d.invent, dir, search, false, t);
   }
 
   // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
