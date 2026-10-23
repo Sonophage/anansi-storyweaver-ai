@@ -2741,12 +2741,61 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     const plain = await said(false);
     assert.match(plain, /Asking&hellip;/, 'TALK-BUSY: a Talk call that does not weave says Asking while it waits');
     assert.doesNotMatch(plain, /Thinking|Weaving/, 'TALK-BUSY: and never Thinking or Weaving');
-    const woven = await said(true);
-    assert.match(woven, /Weaving&hellip;/, 'TALK-BUSY: a Talk call in a book that weaves says Weaving');
-    assert.doesNotMatch(woven, /Thinking/, 'TALK-BUSY: and never Thinking');
+    assert.doesNotMatch(html('dockCol'), /id="weaving"/, 'and the composer shows no count');
+    // A weaving Talk call gets the composer's count, and the composer does not: it made no press.
+    (STORY as any).weaves = true;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    click({ panel: 'anansi' });
+    await new Promise((r) => setTimeout(r, 30));
+    let open!: (v: any) => void;
+    stubTalk = new Promise((r) => { open = r; });
+    (document as any).getElementById('askBox').value = 'What is this story about?';
+    click({ ask: '1' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.match(html('sideBody'), /id="talkweaving"[^>]*>Weaving… 0s</, 'TALK-COUNT: a weaving Talk call says Weaving with the seconds');
+    assert.doesNotMatch(html('dockCol'), /id="weaving"/, 'TALK-COUNT: and the composer, which made no press, shows no count');
+    await new Promise((r) => setTimeout(r, 1100));
+    assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Weaving… 1s', 'TALK-COUNT: and the count runs');
+    open({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
+    await new Promise((r) => setTimeout(r, 60));
+    assert.doesNotMatch(html('sideBody'), /Weaving…/, 'TALK-COUNT: the answer ends it');
+    assert.doesNotMatch(html('sideBody'), /Thinking/, 'and never Thinking');
   } finally { stubTalk = null; (STORY as any).weaves = weaving; }
 }
-ok('the Talk panel says Weaving while it waits in a book that weaves, and Asking in any other');
+ok('the Talk panel counts the seconds while a weaving call waits, and says Asking in any other');
+
+// #58 · AN INVENTION THAT WEAVES COUNTS ON ITS TRAY'S BUTTON, as the composer does; one that does not
+// keeps saying Writing.
+{
+  const weaving = (STORY as any).weaves;
+  const pressed = async (weaves: boolean) => {
+    (STORY as any).weaves = weaves;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    let open!: (v: any) => void;
+    stubInvent = new Promise((r) => { open = r; });
+    const t: any = { dataset: { invent: 'lore' }, querySelector: () => null, disabled: false, textContent: 'Invent',
+      style: {}, closest: () => null };
+    (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => t } }));
+    await new Promise((r) => setTimeout(r, 30));
+    const busy = String(t.textContent);
+    await new Promise((r) => setTimeout(r, 1100));
+    const later = String(t.textContent);
+    open({ title: 'The Rust Choir', duplicate: false });
+    await new Promise((r) => setTimeout(r, 60));
+    return { busy, later, after: String(t.textContent) };
+  };
+  try {
+    const woven = await pressed(true);
+    assert.strictEqual(woven.busy, 'Weaving… 0s', 'INVENT-COUNT: a weaving invention says Weaving with the seconds');
+    assert.strictEqual(woven.later, 'Weaving… 1s', 'INVENT-COUNT: and the count runs');
+    assert.strictEqual(woven.after, 'Invent', 'INVENT-COUNT: and the button comes back when it answers');
+    const plain = await pressed(false);
+    assert.strictEqual(plain.busy, 'Writing…', 'the control: an invention that does not weave says Writing');
+  } finally { stubInvent = null; (STORY as any).weaves = weaving; }
+}
+ok('an invention that weaves counts the seconds on its button, and one that does not says Writing');
 
 // #53 · WHERE A MODEL RUNS, on every surface that names one: a circle in the local or the remote
 // colour, filled when a local model is awake and hollow when it is asleep (a remote one is always
