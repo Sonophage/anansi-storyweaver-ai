@@ -2800,6 +2800,66 @@ ok('the Talk panel counts the seconds while a weaving call waits, and says Askin
 }
 ok('an invention that weaves counts the seconds on its button, and one that does not says Writing');
 
+// #58 · EACH CALL HAS ITS OWN COUNT. Talk can be asked while a passage weaves (its press checks only
+// that Talk is free), so the two counts run side by side: starting one does not empty the other, and
+// the passage's first word ends the passage's count, never Talk's.
+{
+  const weaving = (STORY as any).weaves;
+  let open!: () => void, answer!: (v: any) => void;
+  try {
+    (STORY as any).weaves = true;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    streamGate = new Promise<void>((r) => { open = r; });
+    let end!: () => void;
+    endGate = new Promise<void>((r) => { end = r; });
+    void click({ continue: '1' });
+    await new Promise((r) => setTimeout(r, 30));
+    click({ panel: 'anansi' });
+    await new Promise((r) => setTimeout(r, 30));
+    stubTalk = new Promise((r) => { answer = r; });
+    (document as any).getElementById('askBox').value = 'What is this story about?';
+    click({ ask: '1' });
+    await new Promise((r) => setTimeout(r, 1100));
+    assert.strictEqual(String(nodes.get('weaving')?.textContent), 'Weaving… 1s',
+      'TWO-COUNTS: a Talk press leaves the weaving passage\'s count running');
+    assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Weaving… 1s',
+      'TWO-COUNTS: and Talk counts its own');
+    open(); await new Promise((r) => setTimeout(r, 60));
+    assert.strictEqual(String(nodes.get('weaving')?.textContent ?? ''), '', 'TWO-COUNTS: the passage\'s first word ends the passage\'s count');
+    await new Promise((r) => setTimeout(r, 1000));
+    assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Weaving… 2s',
+      'TWO-COUNTS: and Talk, still weaving, keeps counting');
+    answer({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
+    end(); await new Promise((r) => setTimeout(r, 60));
+  } finally { streamGate = null; endGate = null; stubTalk = null; (STORY as any).weaves = weaving; }
+}
+ok('a passage and a Talk call that weave at once each keep their own count');
+
+// #58 · A SECOND PRESS ON A BUSY INVENTION IS NOT A NEW CALL, so it does not touch the first's count.
+{
+  const weaving = (STORY as any).weaves;
+  let answer!: (v: any) => void;
+  try {
+    (STORY as any).weaves = true;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    stubInvent = new Promise((r) => { answer = r; });
+    const t: any = { dataset: { invent: 'lore' }, querySelector: () => null, disabled: false, textContent: 'Invent',
+      style: {}, closest: () => null };
+    const press = () => (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => t } }));
+    press();
+    await new Promise((r) => setTimeout(r, 1050));
+    press();
+    await new Promise((r) => setTimeout(r, 1000));
+    assert.strictEqual(String(t.textContent), 'Weaving… 2s', 'BUSY-INVENT: the second press leaves the first call\'s count running');
+    answer({ title: 'The Rust Choir', duplicate: false });
+    await new Promise((r) => setTimeout(r, 60));
+    assert.strictEqual(String(t.textContent), 'Invent', 'BUSY-INVENT: and the button comes back when it answers');
+  } finally { stubInvent = null; (STORY as any).weaves = weaving; }
+}
+ok('a second press on a weaving invention does not reset the first press\'s count');
+
 // #53 · WHERE A MODEL RUNS, on every surface that names one: a circle in the local or the remote
 // colour, filled when a local model is awake and hollow when it is asleep (a remote one is always
 // filled), and beside it a spider for local or a feather for remote, so colour is never the only

@@ -645,18 +645,14 @@ async function withRing(fn) {
   finally { if (mine && root.dataset.work === 'ai') working(null); }
 }
 
-/** `label` null is the weaving count (#58): the button's label is handed to `weaveStart`'s count,
- *  which a weaving invention has already started, and taken back when the call ends. */
 async function whileWorking(t, label, fn) {
   if (t?.dataset.busy) return null;
   const lbl = t?.querySelector('.lbl-txt') ?? t, was = lbl?.textContent;
   if (t) { t.dataset.busy = '1'; t.disabled = true; }
-  if (lbl && label == null) { WEAVE_AT = lbl; lbl.textContent = weaveWords(); }
-  else if (lbl) lbl.textContent = label;
+  if (lbl) lbl.textContent = label;
   try { return await withRing(fn); }
   finally {
     if (t) { delete t.dataset.busy; t.disabled = false; }
-    if (WEAVE_AT === lbl) WEAVE_AT = null;
     if (lbl) lbl.textContent = was;
   }
 }
@@ -1835,7 +1831,7 @@ function drawDock() {
            So: while she is writing and there is no veil in front of you, this is Stop. -->
       <!-- #55. WHILE A WEAVING BOOK'S PASSAGE IS BEING WOVEN, the count, here and on the veil. Only
            drawn while it runs; weaveStop empties it, and the next draw leaves it out. -->
-      ${WEAVE_T0 != null && WEAVE_AT === 'dock' ? `<span id="weaving" class="weaving tnum" aria-live="polite">${weaveWords()}</span>` : ''}
+      ${weavingAt('dock') ? `<span id="weaving" class="weaving tnum" aria-live="polite">${weaveWords('dock')}</span>` : ''}
       ${S.busy && !veilUp()
         ? `<button id="send" data-stop="1" aria-label="Stop writing"
              title="Stop">${mark('send', 18)}</button>`
@@ -3714,8 +3710,8 @@ const PANELS = {
           })()}
         ${/* The weaving count only while this Talk call weaves (the server's word, read at the
              press by weaveStart), and Asking for one that does not. */
-          t.busy ? (WEAVE_T0 != null && WEAVE_AT === 'talk'
-            ? `<div id="talkweaving" class="hint tnum" aria-live="polite" style="margin:0">${weaveWords()}</div>`
+          t.busy ? (weavingAt('talk')
+            ? `<div id="talkweaving" class="hint tnum" aria-live="polite" style="margin:0">${weaveWords('talk')}</div>`
             : '<div class="hint" style="margin:0">Asking&hellip;</div>') : ''}
       </div>
 
@@ -7524,7 +7520,7 @@ function ghost() {
            addition to "the blur, the rule, and nothing else": a weaving wait is a median 60 s
            (F60), and a minute of blur with nothing counting reads as a hang. Empty, and so not
            drawn, for every other passage and from the first word on. -->
-      <div class="veilweave" aria-live="polite">${WEAVE_T0 != null ? weaveWords() : ''}</div>
+      <div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
       <div class="veilrow">
         <div class="veilmeter" aria-hidden="true"><i></i></div>
         <div class="veiltext" aria-live="polite"></div>
@@ -7566,36 +7562,36 @@ let PEND = '', DRAIN = null, VEIL_DONE = false, LAST_TICK = 0, TIP = [], SEEN = 
  *  rather than a redraw, because a redraw of the dock eats what the writer is typing.
  *
  *  #58. Talk and Invent weave too, and wait as long, so they count the same way, each where its
- *  press was made: `WEAVE_AT` is 'dock' for a passage (the veil and the composer), 'talk' for the
- *  Talk window's line, and for an invention the label of the tray's button, which `whileWorking`
- *  hands over when it is given no label of its own. `WEAVE_T0` is the press; null means nothing is
- *  being woven. */
-let WEAVE_T0 = null, WEAVE_TICK = null, WEAVE_AT = null;
-const weaveWords = () => `Weaving\u2026 ${Math.floor((Date.now() - WEAVE_T0) / 1000)}s`;
-function weaveShow() {
-  const words = WEAVE_T0 == null ? '' : weaveWords();
-  const at = WEAVE_AT === 'dock'
+ *  press was made. ONE COUNT PER PLACE, because the calls overlap: Talk can be asked while a
+ *  passage weaves, and an invention while either does. `WEAVES` maps the place to its press time:
+ *  'dock' for a passage (the veil and the composer), 'talk' for the Talk window's line, and for an
+ *  invention the label of the tray's button. A place absent from it is not being woven for. */
+const WEAVES = new Map();
+const weaveWords = (at = 'dock') => `Weaving\u2026 ${Math.floor((Date.now() - WEAVES.get(at).t0) / 1000)}s`;
+const weavingAt = (at) => WEAVES.has(at);
+function weaveShow(at) {
+  const words = WEAVES.has(at) ? weaveWords(at) : '';
+  const els = at === 'dock'
     ? [document.getElementById('ghost')?.querySelector?.('.veilweave'), document.getElementById('weaving')]
-    : WEAVE_AT === 'talk' ? [document.getElementById('talkweaving')] : [WEAVE_AT];
-  for (const el of at) if (el) el.textContent = words;
+    : at === 'talk' ? [document.getElementById('talkweaving')] : [at];
+  for (const el of els) if (el) el.textContent = words;
 }
-/** At the press, before the place that shows it is drawn, so it is drawn already counting. Says
- *  whether this call weaves. */
+/** At the press, once the call is going to be sent, and before the place that shows it is drawn,
+ *  so it is drawn already counting. A button's label is written at once, since nothing redraws it. */
 function weaveStart(at = 'dock') {
-  weaveStop();
-  if (!V?.weaves) return false;
-  WEAVE_T0 = Date.now(); WEAVE_AT = at;
-  WEAVE_TICK = setInterval(weaveShow, 1000);
-  return true;
+  weaveStop(at);
+  if (!V?.weaves) return;
+  WEAVES.set(at, { t0: Date.now(), tick: setInterval(() => weaveShow(at), 1000) });
+  if (typeof at !== 'string') weaveShow(at);
 }
-/** At the first word, and again when the call ends however it ended — a Stop, an error, or a
- *  passage with no words — so the count can never outlive its call. */
-function weaveStop() {
-  clearInterval(WEAVE_TICK);
-  WEAVE_TICK = null;
-  if (WEAVE_T0 == null) return;
-  WEAVE_T0 = null;
-  weaveShow();
+/** At the call's own first word, and again when it ends however it ended — a Stop, an error, or a
+ *  passage with no words — so a count can never outlive its call, nor be ended by another one. */
+function weaveStop(at = 'dock') {
+  const w = WEAVES.get(at);
+  if (!w) return;
+  clearInterval(w.tick);
+  WEAVES.delete(at);
+  weaveShow(at);
 }
 
 /** THE PAGE UPDATE, HELD BACK UNTIL THE VEIL GOES. Seth, 2026-09-02: "dont send the content to the
@@ -7639,8 +7635,8 @@ const veilUp = () => {
 };
 
 function liveDelta(d) {
-  // The first word of prose is the end of the weaving, whether or not a veil is up to show it.
-  if (d && WEAVE_T0 != null) weaveStop();
+  // The first word of prose is the end of the passage's weaving, whether or not a veil is up to show it.
+  if (d) weaveStop('dock');
   const el = veilText();
   if (!el || !d) return;
   el.closest('.veil')?.classList.add('written');
@@ -8077,11 +8073,16 @@ async function inventAgain(kind, dir, search, anyway = false,
                            t = document.querySelector(`[data-invent="${kind}"]`)) {
   if (S.weaveFit?.where === `invent:${kind}`) S.weaveFit = null;
   working('direct');
-  // A null label is the weaving count, on this button (see `weaveStart`).
-  const r = await whileWorking(t, weaveStart(null) ? null : search ? 'Looking it up…' : 'Writing…',
-    () => api.invent(S.storyId, { kind, entryId: outfitOwner() || undefined,
-      direction: dir || undefined, search, ...(anyway ? { weaveAnyway: true } : {}) }));
-  working(null); weaveStop();
+  // The weaving count goes on this button's label, started inside the guard so a second press on a
+  // busy button never touches the first press's count.
+  const lbl = t?.querySelector('.lbl-txt') ?? t;
+  const r = await whileWorking(t, search ? 'Looking it up…' : 'Writing…', () => {
+    weaveStart(lbl);
+    return api.invent(S.storyId, { kind, entryId: outfitOwner() || undefined,
+      direction: dir || undefined, search, ...(anyway ? { weaveAnyway: true } : {}) })
+      .finally(() => weaveStop(lbl));
+  });
+  working(null);
   return invented(r, kind, dir, search);
 }
 
@@ -8137,7 +8138,7 @@ async function talk(said, mentions, anyway = false) {
     mentions: mentions.length ? mentions : undefined,
     ...(anyway ? { weaveAnyway: true } : {}),
   });
-  working(null); weaveStop();
+  working(null); weaveStop('talk');
   S.talk.busy = false;
   if (r.weaveFit) return weaveRefused(r, (a) => talk(said, mentions, a), 'talk');
   if (r.error) { drawSide(); return toast(r.error); }
