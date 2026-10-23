@@ -8,11 +8,11 @@
 //   node --experimental-strip-types bench/compact.ts --propose             # model reads, writes a review file. No DB writes.
 //   node --experimental-strip-types bench/compact.ts --write <review.json> # applies it, after a backup.
 //
-// THREE MODES, NOT TWO, and the middle one is the reason. `bench/tofacts.ts` gets away with
-// dry-run-then-write because its dry run can print exactly what it will do: it is a deterministic
-// move. This one puts a MODEL between the before and the after, so a dry run cannot show the
-// result without paying for it. Splitting propose from write means the words that will land in
-// the ledger are on disk, readable, before anything is overwritten.
+// THREE MODES, NOT TWO, and the middle one is the reason. The one-off tofacts migration got away
+// with dry-run-then-write because its dry run could print exactly what it would do: it was a
+// deterministic move. This one puts a MODEL between the before and the after, so a dry run cannot
+// show the result without paying for it. Splitting propose from write means the words that will
+// land in the ledger are on disk, readable, before anything is overwritten.
 //
 // AND `addons` HAS NO REVISION TABLE. `entries` has `entry_revisions` and a revert route; a room
 // does not. So an in-place rewrite of a room is undoable ONLY from the database snapshot `--write`
@@ -22,8 +22,9 @@
 // and he is not asking for them to be touched.
 //
 // ponytail: rooms only, not `entries.body` and not chapter summaries. The body is empty across the
-// whole library since tofacts.ts ran, and summaries have their own band in SUMMARY(maxWords). If
-// either grows a length problem later this is the shape to copy, not to extend.
+// whole library since the tofacts migration ran, and summaries have their own band in
+// SUMMARY(maxWords). If either grows a length problem later this is the shape to copy, not to
+// extend.
 
 import assert from 'node:assert';
 import { writeFileSync, readFileSync, mkdirSync, statSync } from 'node:fs';

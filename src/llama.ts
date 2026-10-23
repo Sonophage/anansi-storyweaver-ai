@@ -331,7 +331,7 @@ export const forgetSlot = () => { known = SLOT_FALLBACK; askedAt = -Infinity; };
  *  worse: the reasoning arrives as plain prose ("Here's a thinking process:") with no
  *  tag to strip. Only `/v1/chat/completions` has the server parse reasoning into a
  *  separate `reasoning_content` field, which is the difference between strippable and
- *  not. See bench/transports.ts and docs/findings/P0-FINDINGS.md.
+ *  not. F4 in docs/findings/P0-FINDINGS.md has the measurement.
  *
  *  Cost: no raw buffer control, so DIRECTIVE-at-depth is bounded by the template.
  *  Revisit if a non-reasoning model is chosen. */

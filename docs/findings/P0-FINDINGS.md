@@ -17,7 +17,7 @@ router** with 8 models. Working model: **`write-nt-qwen36-h`** —
 
 ## F1 — The inherited latency figures were wrong, in the project's favour
 
-`bench/measure.py`
+`bench/measure.py` (deleted 2026-10-23 as a one-off on a retired model; it is in git history)
 
 | | inherited (COUNCIL-01 L3 → SPEC 10.3 → PLAN-01/02 §9) | measured |
 |---|---|---|
@@ -44,7 +44,7 @@ every council warned about.
 
 ## F3 — The server refuses overflow. It does not silently truncate.
 
-`bench/overflow.py` → `overflow.log`
+`bench/overflow.py` → `overflow.log` (deleted 2026-10-23 as a one-off on a retired model; it is in git history)
 
 A 48,130-token prompt returns `HTTP 500 {"message":"Context size has been exceeded."}`. The canary at
 the head was never dropped, because nothing was dropped.
@@ -56,7 +56,7 @@ its severity was overstated by every seat, including the pen. `--no-context-shif
 
 ## F4 — Raw `/completion` is the wrong transport for this model
 
-`bench/transports.ts`
+`bench/transports.ts` (deleted 2026-10-23 as a one-off on a retired model; it is in git history)
 
 PLAN-02 §3 locked native `/completion` for prose on the anti-refusal argument. Measured against a
 reasoning model served with `--jinja`:
@@ -74,7 +74,7 @@ non-reasoning model is chosen.
 
 ## F5 — Chain-of-thought must be disabled, and only one mechanism works
 
-`bench/nothink.ts`
+`bench/nothink.ts` (deleted 2026-10-23 as a one-off on a retired model; it is in git history)
 
 | variant | wall | reasoning | prose |
 |---|---|---|---|
