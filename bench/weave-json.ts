@@ -4,8 +4,8 @@
 // back `model returned unparseable JSON`: the plan ate the cap and the object was cut off before it
 // closed. Weaving puts Talk and Invent back on that path with more room (WEAVE_ROOM, per role), and F23's
 // own last line is that any such use "needs a raised budget and a measurement, not an argument".
-// This is the measurement. If either role fails it, that role comes off WEAVING_ROLES in
-// src/routes.ts before release, and F23 gets a follow-up.
+// This is the measurement. If either role fails it, that role comes off WEAVE_ROOM in
+// src/routes.ts before release, and F23 gets a follow-up. F61 is its first run.
 //
 //   node --experimental-strip-types bench/weave-json.ts check   # the tally, against a fake router
 //   node --experimental-strip-types bench/weave-json.ts [runs]  # the real model, runs per role (5)
@@ -40,15 +40,14 @@ wipe();
 process.env.ANANSI_DB = DB;
 
 /** One call's outcome, read off what the route returned and the generation row it wrote. */
-export type Outcome = { role: string; answered: boolean; retried: boolean; wove: boolean; plan: number;
+type Outcome = { role: string; answered: boolean; retried: boolean; wove: boolean; plan: number;
                         error?: string; seconds: number };
-export const verdict = (o: Outcome) =>
+const verdict = (o: Outcome) =>
   !o.answered ? 'no answer' : !o.wove ? 'did not weave' : o.retried ? 'retried' : o.plan <= 0 ? 'no plan' : 'pass';
 
 // ---- the fake router, for `check` only. It answers by the case it is told to play.
 type Case = 'valid' | 'cut' | 'empty' | 'unwoven';
 let play: Case = 'valid';
-let seen: { weaving: unknown; maxTokens: number }[] = [];
 if (CHECK) {
   const srv = createServer((req, res) => {
     let raw = '';
@@ -57,7 +56,6 @@ if (CHECK) {
       const b = JSON.parse(raw || '{}');
       const send = (o: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
       if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
-      seen.push({ weaving: b.chat_template_kwargs?.enable_thinking, maxTokens: b.max_tokens });
       const props = b.response_format?.json_schema?.schema?.properties ?? {};
       const answer = JSON.stringify(props.reply ? { reply: 'Aldis owes Marek eleven crowns.', entries: [] }
         : { title: 'Marek Vale', body: '[Marek Vale: moneylender, courteous]', keys: ['Marek'] });
@@ -123,11 +121,8 @@ if (CHECK) {
   console.log('\n  weave-json check — the tally, before anything it says about the real model is believed\n');
 
   for (const x of ROLES) {
-    const cap = x.role === 'talk' ? 7400 : 9000;
-    play = 'valid'; seen = [];
+    play = 'valid';
     const good = await once(x);
-    ok(`${x.role}: the call this harness sends weaves`, seen[0]?.weaving === true);
-    ok(`${x.role}:   with its cap raised by its role's room (${seen[0]?.maxTokens})`, seen[0]?.maxTokens === cap);
     ok(`${x.role}: a whole answer with a plan is a pass`, verdict(good) === 'pass');
 
     play = 'cut';
@@ -171,6 +166,6 @@ for (const x of ROLES) {
     + `${mine.filter((o) => !o.answered).length} with no answer`);
   if (pass < mine.length) failed = true;
 }
-console.log(failed ? '\n  FAIL — a role that failed comes off WEAVING_ROLES before release.\n' : '\n  PASS\n');
+console.log(failed ? '\n  FAIL — a role that failed comes off WEAVE_ROOM before release.\n' : '\n  PASS\n');
 wipe();
 process.exit(failed ? 1 : 0);

@@ -117,16 +117,14 @@ const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no suc
  *  is the plans measured so far. The upgrade path is the plan length each weaving generation
  *  records in its params (`plan`), which is what these get tuned from. The trigger is a recorded
  *  plan that lands near its role's number, or a weaving call cut off at its cap. */
-export const WEAVE_ROOM: Readonly<Record<string, number>> = { prose: 5000, talk: 5000, invent: 7000 };
-/** The roles that weave, as a set: WEAVE_ROOM's keys, so a role cannot weave without a room. */
-export const WEAVING_ROLES: ReadonlySet<string> = new Set(Object.keys(WEAVE_ROOM));
+const WEAVE_ROOM: Readonly<Record<string, number>> = { prose: 5000, talk: 5000, invent: 7000 };
 
 /** Whether this book weaves for the writer asking: its own switch, or a model that always weaves.
  *  The server decides this, and the client reads it off the view rather than deriving it again.
  *
  *  #58. A model whose recorded label is "always weaves" plans whatever it is sent, so with the
  *  switch off and the role's own cap the plan would eat the reply (F5); it weaves on every call on
- *  WEAVING_ROLES instead, and gets the same room and the same fit check. The label is the one the
+ *  WEAVE_ROOM instead, and gets the same room and the same fit check. The label is the one the
  *  shortlist recorded when the model was added, read through `heldFor`, the owner rule `slotFor`
  *  reads the model's context through. Which model writes a book depends on who asks, so `c` is the
  *  writer asking. A local model has no label: it is one that can switch. */
@@ -157,13 +155,13 @@ const weaveNote = (c: Ctx, v: { story: any; owner?: string }) =>
 
 /** A CALL'S REPLY CAP, AND WHETHER IT WEAVES, decided here and nowhere else.
  *
- *  `cap` is the role's own cap. A role on WEAVING_ROLES in a book that weaves gets its WEAVE_ROOM
+ *  `cap` is the role's own cap. A role on WEAVE_ROOM in a book that weaves gets its room
  *  on top of it, and `room` says how much that was. The book's budget in `viewOf`, the generation,
  *  the Context panel's preview and the warm all read this, so the panel shows the budget the call
  *  is going to use and the warm sends the prefix the call is going to send. A second copy of this arithmetic is how those drift apart, the
  *  failure `inherit`'s note names for the mode and the directive. */
 const replyFor = (c: Ctx, v: { story: any }, role: string, cap: number) => {
-  const weaves = WEAVING_ROLES.has(role) && bookWeaves(c, v);
+  const weaves = role in WEAVE_ROOM && bookWeaves(c, v);
   const room = weaves ? WEAVE_ROOM[role] : 0;
   return { weaves, room, maxTokens: cap + room };
 };
@@ -786,21 +784,18 @@ function inherit(c: Ctx, mode: string, directive?: string) {
   };
 }
 
-/** How long a plan ran, in tokens: the server's own count when it gives one (llama.cpp and
- *  Featherless are both OpenAI-shaped, and that shape puts it under `completion_tokens_details`),
- *  else the plan's text through the same estimate the budget uses. */
-const planLength = (r: { usage?: any; reasoning: string }) => {
-  const told = r.usage?.completion_tokens_details?.reasoning_tokens;
-  return typeof told === 'number' ? told : estimate(r.reasoning);
-};
-
-/** What a structured call's generation row says about weaving: the same three keys a weaving
- *  passage records, or nothing at all for a call that did not weave. */
+/** What a weaving call's generation row says about weaving, or nothing at all for a call that did
+ *  not weave. `plan` is how long the plan ran, in tokens: the server's own count when it gives one
+ *  (llama.cpp and Featherless are both OpenAI-shaped, and that shape puts it under
+ *  `completion_tokens_details`), else the plan's text through the same estimate the budget uses. */
 const wove = (reply: { weaves: boolean; maxTokens: number },
-              r: { usage?: any; reasoning: string; retried?: boolean }) =>
-  reply.weaves ? { weaving: true, max_tokens: reply.maxTokens, plan: planLength(r),
-                   // `structuredRetry`'s weaving retry: the answer that landed was written without the plan.
-                   ...(r.retried ? { retried: true } : {}) } : undefined;
+              r: { usage?: any; reasoning: string; retried?: boolean }) => {
+  if (!reply.weaves) return undefined;
+  const told = r.usage?.completion_tokens_details?.reasoning_tokens;
+  return { weaving: true, max_tokens: reply.maxTokens, plan: typeof told === 'number' ? told : estimate(r.reasoning),
+           // `structuredRetry`'s weaving retry: the answer that landed was written without the plan.
+           ...(r.retried ? { retried: true } : {}) };
+};
 
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
