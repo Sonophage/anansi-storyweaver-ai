@@ -10963,8 +10963,6 @@ document.addEventListener('click', async (e) => {
   // The door on the create screen. `data-forgehere` carries '1' to open and '' to shut, so the one
   // button is both and there is no second action name for closing.
   if (d.forgehere !== undefined) { S.forgeHere = d.forgehere === '1'; drawPage(); return; }
-  // The demo library. Everything on screen belongs to the library you were looking at, so this
-  // drops the open book and reloads the shelf rather than trying to reconcile the two.
   // #56. The weaving refusal's ways on. Write anyway and Turn weaving off each send the refused
   // press again: Write anyway with the override, Turn weaving off once the book's switch is saved
   // and the book read back, so the server is the one that says it no longer weaves. #58. Use
@@ -11001,6 +10999,8 @@ document.addEventListener('click', async (e) => {
       ? `Holding ${V.story.lockedCharacter} back. The model will not write them.`
       : `Letting the model write ${V.story.lockedCharacter} for now.`);
   }
+  // The demo library. Everything on screen belongs to the library you were looking at, so this
+  // drops the open book and reloads the shelf rather than trying to reconcile the two.
   if (d.demo !== undefined) {
     const on = d.demo === '1';
     const r = await api.setDemo(on);
