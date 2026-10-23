@@ -460,6 +460,15 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
     drops: [{ kind: 'EARLIER', id: 'arc-3-11' }, { kind: 'EARLIER', id: 'c-14' }] } as any, 5000, null);
   assert.match(said, /the summaries of 10 earlier chapters/, `ACT-COUNT: an act of chapters 3 to 11 is nine of them, and a chapter one: ${said}`);
   ok('an act left out is counted as the chapters it stands for');
+
+  // A model that always weaves: an overflow offers only another model, since weaving cannot be
+  // turned off for it and writing anyway would not fit.
+  const over = weaveRefusal({ entries: [] }, { overflows: true, drops: [] } as any, 5000, 32768, true);
+  assert.match(over, /Use another model for this book to write\.$/, `ALWAYS-OVERFLOW: another model is the one way on: ${over}`);
+  assert.doesNotMatch(over, /turn weaving off|write anyway/i, 'ALWAYS-OVERFLOW: and nothing else is offered');
+  const plainOver = weaveRefusal({ entries: [] }, { overflows: true, drops: [] } as any, 5000, null);
+  assert.match(plainOver, /Turn weaving off for this book to write\.$/, 'the control: a switched book still offers the switch');
+  ok('an overflow on a model that always weaves offers only another model');
 }
 
 console.log(`\n${n} checks passed`);

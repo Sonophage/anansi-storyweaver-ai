@@ -2540,6 +2540,67 @@ ok('a weaving book says Weaving with a running count from the press until the fi
 }
 ok('a weaving refusal is a row on the composer with Write anyway and Turn weaving off, and each sends the press again');
 
+// #58 · A MODEL THAT ALWAYS WEAVES IS REFUSED WITH ANOTHER WAY ON. Turning weaving off cannot change
+// what such a model does, so the row never offers it: Write anyway (when the prompt still fits) and
+// Use another model for this book, which opens the book's model picker in the Storyteller.
+{
+  const MSG = 'Weaving sets aside 5,000 tokens for Anansi to weave in, and in this book that would leave '
+    + 'out the 4 oldest passages still in view. Use another model for this book, or write anyway and let them drop out.';
+  const refusal = (overflows = false) => ({ error: MSG, manifest: MANIFEST.manifest,
+    weaveFit: { overflows, alwaysWeaves: true, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] } });
+  const row = () => html('dockCol').match(/<div id="weavefit"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '';
+  const weaving = (STORY as any).weaves;
+  try {
+    (STORY as any).weaves = true;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+
+    stubRefuse = refusal(); POSTED.length = 0;
+    click({ continue: '1' });
+    await new Promise((r) => setTimeout(r, 120));
+    assert.ok(row(), 'ALWAYS-ROW: a refusal on a model that always weaves draws the row');
+    assert.doesNotMatch(row(), /data-weaveoff/, 'ALWAYS-ROW: with no Turn weaving off, which cannot work for it');
+    assert.match(row(), /data-weaveanyway[^>]*>\s*Write anyway\s*</, 'ALWAYS-ROW: Write anyway');
+    assert.match(row(), /data-weavemodel[^>]*>\s*Use another model for this book\s*</, 'ALWAYS-ROW: and Use another model for this book');
+
+    // Use another model: the Storyteller opens on the book's model picker, nothing is saved or sent.
+    stubRefuse = null; POSTED.length = 0;
+    click({ weavemodel: '1' });
+    await new Promise((r) => setTimeout(r, 80));
+    assert.match(html('sideBody'), /data-storymodel/, 'ALWAYS-MODEL: the Storyteller opens on the book\'s model picker');
+    assert.ok(!row(), 'ALWAYS-MODEL: and the row is gone');
+    assert.ok(!POSTED.some((p: any) => p.url === '/api/story' || String(p.url).startsWith('/api/generate')),
+      'ALWAYS-MODEL: and nothing is saved or written until the writer picks');
+
+    // Write anyway still sends the same press with the override.
+    stubRefuse = refusal(); POSTED.length = 0;
+    click({ continue: '1' });
+    await new Promise((r) => setTimeout(r, 120));
+    stubRefuse = null; POSTED.length = 0;
+    click({ weaveanyway: '1' });
+    await new Promise((r) => setTimeout(r, 300));
+    const gens = POSTED.filter((p: any) => String(p.url).startsWith('/api/generate'));
+    assert.strictEqual(gens.length, 1, 'ALWAYS-ANYWAY: write anyway sends one generation');
+    assert.strictEqual(gens[0].body.weaveAnyway, true, 'ALWAYS-ANYWAY: with the override');
+
+    // An overflow: another model is the only way on.
+    stubRefuse = refusal(true);
+    click({ continue: '1' });
+    await new Promise((r) => setTimeout(r, 120));
+    assert.ok(row(), 'ALWAYS-OVERFLOW: an overflow is refused on the row');
+    assert.doesNotMatch(row(), /data-weaveanyway|data-weaveoff/, 'ALWAYS-OVERFLOW: with neither Write anyway nor Turn weaving off');
+    assert.match(row(), /data-weavemodel/, 'ALWAYS-OVERFLOW: only Use another model for this book');
+    stubRefuse = null;
+    click({ weavemodel: '1' });
+    await new Promise((r) => setTimeout(r, 80));
+    assert.match(html('sideBody'), /data-storymodel/, 'ALWAYS-OVERFLOW: which opens the model picker');
+  } finally {
+    stubRefuse = null; (STORY as any).weaves = weaving;
+    click({ panel: '' }); click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+  }
+}
+ok('a refusal on a model that always weaves offers Write anyway and another model, never Turn weaving off');
+
 // #56. THE CONTEXT PANEL SAYS IT BEFORE THE PRESS. Its preview is the weaving assembly, which is what
 // Write anyway sends, and it carries the same refusal the press would get — so the panel and the
 // press never disagree about whether this passage can be written as things stand.

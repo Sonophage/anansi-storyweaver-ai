@@ -21,12 +21,15 @@ this book's model can't be asked to weave, and to pick a model that can if you w
 
 ### Models that always weave
 Some models on Featherless weave whatever they are asked; your shortlist says "always weaves"
-beside them. A book written by one of those now gets the same room as a book with Weaving on, even
-with its switch off, so the passage, the Talk answer and the invention still arrive. The writing
-screen and the Talk window say Weaving while it waits. Most Featherless models hold less of a book
-than this machine does, so weaving fits less often there. When it does not fit, the message says
-that the model's own limit is the reason, and offers the same two buttons. The Talk window now
-says Asking while it waits in a book that does not weave.
+beside them. A book written by one of those now gets the same room as a book with Weaving on, so
+the passage, the Talk answer and the invention still arrive. The Storyteller panel says "This
+model always weaves" where the Weaving switch would be, because the switch cannot change what that
+model does. The writing screen and the Talk window say Weaving while it waits. Most Featherless
+models hold less of a book than this machine does, so weaving fits less often there. When it does
+not fit, the message says that the model's own limit is the reason. It offers Write anyway and
+Use another model for this book, which opens the book's model picker. It never offers to turn
+weaving off. If the book would not fit at all, only Use another model for this book is offered.
+The Talk window now says Asking while it waits in a book that does not weave.
 
 ### A full model on Featherless waits its turn
 When a model on Featherless is full, Anansi now waits a few seconds and asks again, up to three

@@ -1246,6 +1246,12 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const always = await preview();
   assert.ok(always.weaveFit, 'ALWAYS-WEAVES: the fit check applies with the switch off');
   assert.match(always.weaveFit.message, /32,768 tokens/, 'and names the model\'s limit');
+  // Turning weaving off cannot help a model that always weaves, so it is never offered.
+  assert.strictEqual(always.weaveFit.alwaysWeaves, true, 'ALWAYS-WEAVES: the refusal says the model always weaves');
+  assert.doesNotMatch(always.weaveFit.message, /turn weaving off/i, 'ALWAYS-WEAVES: and never offers to turn weaving off');
+  assert.match(always.weaveFit.message, /use another model for this book, or write anyway/i,
+    'ALWAYS-WEAVES: it offers another model, or writing anyway');
+  assert.strictEqual(remote.weaveFit.alwaysWeaves, false, 'the control: a book weaving by its switch is not marked so');
   ok('a 32k model refuses weaving where the local slot would not, and the refusal names the model\'s limit');
 }
 

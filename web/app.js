@@ -505,8 +505,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'forgeopen', 'forgecopy', 'pastethread',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
   'pastecast', 'pastebook', 'forgehere', 'fromhere', 'startfrom', 'demo', 'holdback',
-  // #56. The two ways on from a weaving refusal, on the composer's row.
-  'weaveanyway', 'weaveoff',
+  // #56. The ways on from a weaving refusal, on the composer's row; #58 another model, for a
+  // model that always weaves.
+  'weaveanyway', 'weaveoff', 'weavemodel',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
   'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
@@ -1667,7 +1668,10 @@ let DOCK_FOR = null;
  *
  *  Write anyway is left off for an overflow: the weaving prompt would not fit, so sending it would
  *  only be refused again. The sentence is the server's (`weaveRefusal` in routes.ts); the client
- *  names nothing itself. */
+ *  names nothing itself.
+ *
+ *  #58. A book whose model always weaves (`alwaysWeaves` on the refusal) gets Use another model for
+ *  this book in place of Turn weaving off, which cannot change what that model does. */
 function weaveFitRow(where = 'dock') {
   const f = S.weaveFit;
   if (!f || f.storyId !== S.storyId || f.where !== where) return '';
@@ -1675,7 +1679,8 @@ function weaveFitRow(where = 'dock') {
       <div class="hint">${esc(f.message)}</div>
       <div class="weavefitgo">${f.overflows ? ''
         : '<button class="btn ghost" data-weaveanyway="1">Write anyway</button>'}
-        <button class="btn ghost" data-weaveoff="1">Turn weaving off for this book</button></div>
+        ${f.alwaysWeaves ? '<button class="btn ghost" data-weavemodel="1">Use another model for this book</button>'
+          : '<button class="btn ghost" data-weaveoff="1">Turn weaving off for this book</button>'}</div>
     </div>`;
 }
 
@@ -10951,16 +10956,20 @@ document.addEventListener('click', async (e) => {
   if (d.forgehere !== undefined) { S.forgeHere = d.forgehere === '1'; drawPage(); return; }
   // The demo library. Everything on screen belongs to the library you were looking at, so this
   // drops the open book and reloads the shelf rather than trying to reconcile the two.
-  // The composer's own copy of the Story panel's switch. Saves the one field and repaints the dock
-  // only — a full repaint here would empty the line you are part-way through writing, which is the
-  // rule the autosave path had to learn today.
-  // #56. The weaving refusal's two ways on. Each sends the refused press again: Write anyway with
-  // the override, Turn weaving off once the book's switch is saved and the book read back, so the
-  // server is the one that says it no longer weaves.
-  if (d.weaveanyway !== undefined || d.weaveoff !== undefined) {
+  // #56. The weaving refusal's ways on. Write anyway and Turn weaving off each send the refused
+  // press again: Write anyway with the override, Turn weaving off once the book's switch is saved
+  // and the book read back, so the server is the one that says it no longer weaves. #58. Use
+  // another model sends nothing: it opens the Storyteller on the book's model picker, and the
+  // writer presses again once they have picked.
+  if (d.weaveanyway !== undefined || d.weaveoff !== undefined || d.weavemodel !== undefined) {
     const fit = S.weaveFit;
     if (!fit || fit.storyId !== S.storyId) return;
     S.weaveFit = null;
+    if (d.weavemodel !== undefined) {
+      S.panel = 'teller'; syncHash(); paint();
+      document.querySelector('[data-storymodel]')?.focus?.();
+      return;
+    }
     if (d.weaveoff !== undefined) {
       const r = await api.saveStory(S.storyId, { weaving: false });
       if (r.error) { S.weaveFit = fit; drawDock(); return toast(r.error); }
@@ -10970,6 +10979,9 @@ document.addEventListener('click', async (e) => {
     await fit.again(d.weaveanyway !== undefined);
     return;
   }
+  // The composer's own copy of the Story panel's switch. Saves the one field and repaints the dock
+  // only — a full repaint here would empty the line you are part-way through writing, which is the
+  // rule the autosave path had to learn today.
   if (d.holdback !== undefined) {
     const on = d.holdback === '1';
     const r = await api.saveStory(S.storyId, { lockoutOn: on });

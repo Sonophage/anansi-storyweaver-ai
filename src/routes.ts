@@ -178,13 +178,16 @@ const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
  *
  *  #58. `limit` is set when the book's model holds less than the writer's slot (a remote model's
  *  own context, 32,768 for nearly all of them), because then that limit, not the book's length
- *  alone, is why weaving does not fit, and the same book would weave whole on a local model. */
+ *  alone, is why weaving does not fit, and the same book would weave whole on a local model.
+ *  `always` is set when the book's model always weaves: turning weaving off cannot change that, so
+ *  the way on it names is another model for the book, the button the client draws in its place. */
 export const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }, tokens: number,
-                      limit: number | null) => {
+                      limit: number | null, always = false) => {
   const room = `Weaving sets aside ${tokens.toLocaleString('en')} tokens for Anansi to weave in`;
   const own = limit != null && `${limit.toLocaleString('en')} tokens, this book's model's own limit`;
+  const off = always ? 'Use another model for this book' : 'Turn weaving off for this book';
   if (fit.overflows) return `${room}, and this book's prompt would not fit beside them${
-    own ? ` in the ${own}` : ''}. Turn weaving off for this book to write.`;
+    own ? ` in the ${own}` : ''}. ${off} to write.`;
   const of = (kind: string) => fit.drops.filter((b) => b.kind === kind);
   const and = (xs: string[]) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
   const parts: string[] = [];
@@ -205,7 +208,7 @@ export const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }
   const other = fit.drops.length - prose - of('EARLIER').length - threads.length;
   if (other > 0) parts.push(other === 1 ? 'one more part of the book' : `${other} more parts of the book`);
   return `${room}, and ${own ? `in the ${own}, ` : 'in this book '}that would leave out ${and(parts)}. `
-    + 'Turn weaving off for this book, or write anyway and let them drop out.';
+    + `${off}, or write anyway and let them drop out.`;
 };
 
 /** #56 · A CALL'S PROMPT, ASSEMBLED AT THE CAP IT WILL BE SENT WITH, AND WHETHER WEAVING FITS IT.
@@ -214,7 +217,7 @@ export const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }
  *  `replyFor` decides and, when the call weaves, once more at the role's own cap, and hands both to
  *  the engine's `weaveFit`. A passage, a Talk reply and an invention all come through here, so the
  *  rule, the message and the shape are one: `stop`, when set, is the whole answer to send back —
- *  `{ error, weaveFit: { overflows, message, drops }, manifest }` — and it is set unless the request
+ *  `{ error, weaveFit: { overflows, alwaysWeaves, message, drops }, manifest }` — and it is set unless the request
  *  carries `weaveAnyway` (the writer's Write anyway). An overflow is refused either way: writing
  *  anyway would send a prompt that does not fit. The Context panel's preview carries the same
  *  `refusal`, so the panel and the press say one thing. A call that does not weave is assembled
@@ -227,8 +230,9 @@ const weaveAssemble = (c: Ctx, v: { story: any; entries?: any[] }, role: string,
   const fit = reply.weaves ? weaveFit(build(cap).manifest, built.manifest) : null;
   // The model's own limit is the reason only when it is smaller than the slot the writer has.
   const held = fit ? slotFor(c, v, writerModel(c, v)).perSlot : null;
-  const refusal = fit && { overflows: fit.overflows,
-    message: weaveRefusal(v, fit, reply.room, held != null && held < c.slot.perSlot ? held : null),
+  const always = !!fit && alwaysWeaves(c, v);
+  const refusal = fit && { overflows: fit.overflows, alwaysWeaves: always,
+    message: weaveRefusal(v, fit, reply.room, held != null && held < c.slot.perSlot ? held : null, always),
     drops: fit.drops.map((b) => ({ kind: b.kind, id: b.id })) };
   const stop = refusal && (!c.body.weaveAnyway || refusal.overflows)
     ? { error: refusal.message, weaveFit: refusal, manifest: built.manifest } : null;
