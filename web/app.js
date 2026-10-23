@@ -863,6 +863,8 @@ function drawRail() {
 function horizon() {
   if (!MANI || !V) return null;
   const idx = new Map(V.chapters.map((c) => [c.id, c.index]));
+  // ponytail: a copy of context.ts's actSpan pattern, because the browser cannot import the engine;
+  // test/engine.ts pins it to actId. Serve the range on the manifest block if a third reader appears.
   const at = (b) => {
     const arc = /^arc-(\d+)-(\d+)$/.exec(b.id);
     return arc ? [Number(arc[1]), Number(arc[2])] : [idx.get(b.id), idx.get(b.id)];

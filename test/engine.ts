@@ -1,6 +1,7 @@
 // One runnable check. Fails if the engine's load-bearing behaviour breaks.
 //   node --experimental-strip-types test/engine.ts
 import assert from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { buildContext, resolveBody, fires, retirable, numbersIn, narrationOnly, quotedSpans, factsIn, factsLost,
          weaveFit } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
@@ -1010,6 +1011,27 @@ ok('an arc replaces the chapters it covers, instead of joining them', () => {
   assert.match(text, /What the first six did/);
   assert.ok(!/Summary of chapter 3\./.test(text), 'a covered chapter is not sent again');
   assert.match(text, /Summary of chapter 7\./, 'an uncovered one still is');
+});
+
+// The browser cannot import context.ts, so `horizon()` in web/app.js reads an act's chapters out of
+// its block id with its own copy of the pattern. This pins the copy to what the engine writes: an act
+// block the engine built, read by the regex taken out of horizon's own source.
+ok('the browser reads an act block id the way the engine writes it', () => {
+  const i = base();
+  i.currentChapter = { id: 'cur', index: 12, title: 'now' };
+  i.chapters = Array.from({ length: 10 }, (_, k) => ({
+    id: `c${k + 1}`, index: k + 1, title: `Ch${k + 1}`, summary: `Summary of chapter ${k + 1}.` }));
+  i.arcs = [{ fromChapter: 2, toChapter: 7, summary: 'The middle.' }];
+  const act = buildContext(i, count).blocks.find((b) => b.kind === 'EARLIER' && /The middle/.test(b.text));
+  assert.ok(act, 'the detector: the engine built the act block');
+  const app = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  const body = app.slice(app.indexOf('function horizon()'), app.indexOf('function contextPct()'));
+  const src = /exec\(b\.id\)/.test(body) && /const arc = \/(.+?)\/\.exec\(b\.id\)/.exec(body)?.[1];
+  assert.ok(src, 'the detector: horizon() still reads the act id with a regex of its own');
+  const m = new RegExp(src).exec(act!.id);
+  assert.deepStrictEqual(m && [Number(m[1]), Number(m[2])], [2, 7],
+    `ACT-ID: horizon()'s pattern ${src} reads ${act!.id} as chapters 2 to 7`);
+  assert.strictEqual(new RegExp(src).exec('c-4'), null, 'and a chapter block is not read as an act');
 });
 
 ok('under the ceiling, rolling up is what keeps early history at all', () => {
