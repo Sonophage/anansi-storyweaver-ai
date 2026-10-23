@@ -139,12 +139,21 @@ const ok = (m: string, fn?: unknown) => {
     // (`invent` and `inventAgain`, #56): then that function is the one that must hold the guard, and
     // it is read in the handler's place. One hop only, and only for a handler with no api call of
     // its own before it hands off.
-    const reach = (head: string) => new RegExp(`${head}[\\s\\S]{0,900}?api\\.\\w+\\(`).exec(js)?.[0];
-    const loose = guarded.filter((k) => {
-      const hop = new RegExp(`if \\(d\\.${k}[^\n]*\\) \\{[^{}]*?return (\\w+)\\([^;]*;\\s*\\}`).exec(js);
+    const looseIn = (src: string, names: string[]) => names.filter((k) => {
+      const reach = (head: string) => new RegExp(`${head}[\\s\\S]{0,900}?api\\.\\w+\\(`).exec(src)?.[0];
+      const hop = new RegExp(`if \\(d\\.${k}[^\n]*\\) \\{[^{}]*?return (\\w+)\\([^;]*;\\s*\\}`).exec(src);
       const m = hop && !/api\.\w+\(/.test(hop[0]) ? reach(`async function ${hop[1]}\\(`) : reach(`if \\(d\\.${k}[^\n]*\\)`);
       return !m || !/whileWorking\(/.test(m);
     });
+    // The detector, both directions of the hop: a handler that hands its press to a function with
+    // no guard is caught, and one whose function holds the guard is not.
+    const hopTo = (body: string) => `if (d.invent) { return inventAgain(d.invent); }\n`
+      + `async function inventAgain(k, t) {\n${body}\n}`;
+    assert.deepStrictEqual(looseIn(hopTo('  const r = await api.invent(k);'), ['invent']), ['invent'],
+      'HOP-DETECTOR: a hop to a function that calls the model with no whileWorking is caught');
+    assert.deepStrictEqual(looseIn(hopTo('  const r = await whileWorking(t, "Writing", () => api.invent(k));'), ['invent']), [],
+      'HOP-DETECTOR: and a hop to one that holds the guard is not');
+    const loose = looseIn(js, guarded);
     assert.deepStrictEqual(loose, [],
       'a button that calls the model must go through whileWorking(), or a second press is a second '
       + 'request and the router answers 500 rather than queueing');
