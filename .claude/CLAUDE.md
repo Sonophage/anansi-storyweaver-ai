@@ -28,8 +28,9 @@ node --experimental-strip-types test/all.ts     # every suite; it prints its own
 (once per clone). Runs on the machine queue behind `test/lock.ts`, so parallel worktrees wait their
 turn instead of colliding on the fixed ports and `/tmp` databases.
 
-Run it before and after. No model needed, so there is no excuse for skipping it. It runs the thirteen
-unit suites **and all eighteen `check` modes under `bench/`**, in parallel, in about 11 seconds.
+Run it before and after. No model needed, so there is no excuse for skipping it. It runs the fourteen
+unit suites **and all eighteen `check` modes under `bench/`**, in parallel, in about 20 seconds
+(`suites` in `test/all.ts` is the list).
 Each bench entry is spawned with its own `ANANSI_DB`: most of them touch no database,
 `bench/rooms.ts` opens one, and without that guard it would open the live library read-write and
 migrate it mid-run. `bench/weave-json.ts` opens a scratch one of its own, whatever `ANANSI_DB` says.
@@ -53,9 +54,11 @@ when something is genuinely wrong.
 **Docs drift from the code. The code wins.** When they disagree, read the code and fix the doc.
 Run it; do not cite it.
 
-1. **`docs/findings/P0-FINDINGS.md`** — measured numbers, 60 findings. The most valuable thing in
-   the repo: these cost GPU time and cannot be re-derived by reading source. 47 F-numbers are cited
-   from code comments explaining why something is the way it is.
+1. **`docs/findings/P0-FINDINGS.md`** — measured numbers, 61 findings
+   (`grep -c '^## F[0-9]' docs/findings/P0-FINDINGS.md`). The most valuable thing in the repo:
+   these cost GPU time and cannot be re-derived by reading source. Most F-numbers are cited from
+   code comments explaining why something is the way it is
+   (`grep -arohE '\bF[0-9]{1,2}\b' src web bench test | sort -u | wc -l` counts them).
 2. **`docs/findings/BUILD-STATE.md`** — what is built and what is missing, with the command that
    checks each line. Rewritten from scratch 2026-09-06 after the previous version reached 1,138
    append-only lines and was wrong in five places. **It is rewritten, never appended to.**
@@ -193,12 +196,13 @@ It is a reasoning model: **`chat_template_kwargs: {enable_thinking: false}` is s
 unless the book weaves.** With thinking on at a prose cap it returned no prose at all on three runs
 of four (F5), and structured roles truncate their JSON the same way (F23). Weaving (the writer's
 word; the code's flag is still `enable_thinking`) is a per-book switch, off by default: only the
-roles on `WEAVING_ROLES` in `routes.ts` turn it on, and `replyFor` raises their cap by the role's
-`WEAVE_ROOM` (prose 5,000, Talk 5,000, Invent 7,000) so the plan cannot eat the reply (F60). Every
+roles on `WEAVE_ROOM` in `routes.ts` turn it on, and `replyFor` raises their cap by the role's
+room (prose 5,000, Talk 5,000, Invent 7,000) so the plan cannot eat the reply (F60, F61). Every
 other call sends it off. Never raise a cap for weaving anywhere but `replyFor`, or the Context panel
 previews a budget the call does not use. A remote model whose template refuses the field (a 400 for
 any body carrying it) is recorded as such by the probe on add, and the Featherless adapter leaves
-the field off every call to it.
+the field off every call to it. `db.takesSwitch` is the one reader of that fact, for the adapter and
+for the book's `canWeave` alike.
 
 Two concurrent writers at full budget fit with a ~5,700-token margin. Oversubscribing the shared
 cache does not queue — both requests die with HTTP 500. **Do not raise the per-slot budget.**

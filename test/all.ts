@@ -28,7 +28,7 @@ serialise();
  * its FIXTURE was stale rather than the code, asserting a truncation defect that `QUOTED` in
  * context.ts had since closed. It is now a guard that the hole stays shut.
  *
- * They cost 228 ms wall clock, all sixteen, because they run in parallel with everything else here.
+ * They cost 228 ms wall clock, all of them, because they run in parallel with everything else here.
  * The note's other instruction — one at a time, each with its own commit — is superseded rather than
  * ignored: its purpose was to keep unknown reds from landing on the next person, and running them
  * first is a stronger version of the same care.
@@ -41,7 +41,7 @@ const started = Date.now();
 
 /* EVERY BENCH ENTRY GETS ITS OWN DATABASE, and this is not tidiness.
  *
- * The twelve suites above each set `process.env.ANANSI_DB` at the top of their own file, before
+ * The unit suites above each set `process.env.ANANSI_DB` at the top of their own file, before
  * db.ts is imported. Nothing under bench/ does — those files are written to be run by hand, where
  * pointing at the live library is the POINT.
  *

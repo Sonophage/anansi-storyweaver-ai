@@ -2972,3 +2972,42 @@ p = 0.15 — not distinguishable from chance at this n. Sutera: 0/20 both arms.
 **Harness.** Not committed. `think.ts` (the arms), `report.ts` (latency, length, echo, blind
 pairs) and `pron.ts` (the pronoun check) ran from the session scratch directory against port 5301.
 They land as a `bench/` entry with a `check` mode if this is pursued.
+
+## F61 — Talk and Invent return whole JSON with weaving on, 5 of 5 each, and an invention's plan runs more than twice a Talk reply's: its largest, 5,613 tokens, is over the 5,000 a passage is given (2026-10-22)
+
+F23 measured Talk with thinking on returning unparseable JSON on 3 of its first 5 calls, and said
+any future use "needs a raised budget and a measurement". Weaving put Talk and Invent back on that
+path with a raised cap (their own cap plus a room). This is the measurement.
+
+**The design.** `bench/weave-json.ts`, real mode, 5 runs per role, one call at a time. Each call
+goes through the app's own `POST /api/talk` and `POST /api/invent` routes, in a weaving book seeded
+from `test/fixture.ts` into a scratch database, so the prompt, the cap, the weaving flag and the
+retry are the ones the app sends. Model `Qwen3.6-WNTH-35B-A3B-NN` on the local router, 50,048
+tokens a slot. Talk sent with 2,400 + 5,000; Invent (`character`) with 2,000 + 5,000 for this run.
+
+**A pass is strict.** The route gave a usable answer, AND its first try parsed (no weaving-off
+retry from `structuredRetry`), AND the call made a plan. The harness's `check` mode proves the
+tally tells those apart against a fake router, in the default suite.
+
+| role | pass | plan median | plan largest |
+|---|---|---|---|
+| Talk | **5/5** | 1,792 | 2,508 |
+| Invent (`character`) | **5/5** | 4,372 | **5,613** |
+
+Out of how many could have failed: all 10, since every call wove (F10). 0 retried, 0 with no
+answer: a retry or an empty answer is not a pass.
+
+**Why Invent's room is 7,000.** Two of the five invention plans ran over 5,000 tokens, the room a
+passage gets. With 5,000 on top of its own 2,000, the largest plan (5,613) leaves 1,387 tokens for
+the card, and a plan a little longer would cut the object off: F23's failure. `WEAVE_ROOM` in
+`src/routes.ts` gives Invent 7,000 and keeps Talk at 5,000, about twice Talk's largest plan.
+
+### What this does and does not settle
+
+- **Settles:** at n = 5 a role, on this model and this fixture, weaving does not break Talk's or
+  Invent's JSON, so both stay on `WEAVE_ROOM`.
+- **Does not settle:** the rate. 0 of 5 is "under about 45%" at 95%, not "never" (F12).
+- **One fixture, one invention kind, one model.** A remote model, or a longer book, plans its own
+  length; the `plan` each weaving generation records in its params is what the room gets tuned
+  from.
+- **Latency was not part of the verdict,** and is not recorded here.
