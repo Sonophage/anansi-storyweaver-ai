@@ -703,8 +703,9 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const FAMILIES: [string, string | null, string][] = [
     ['moonshotai/Kimi-K2-Instruct-0905', 'kimi-k2', "doesn't weave"],
     ['moonshotai/Kimi-K2-Thinking', 'kimi-k2', 'always weaves'],
-    ['moonshotai/Kimi-K2.5', 'kimi-k25', 'always weaves'],
-    ['moonshotai/Kimi-K2.6', 'kimi-k25', 'always weaves'],
+    // K2.6 was sent `enable_thinking: false` live on 2026-10-22 and wrote with no plan.
+    ['moonshotai/Kimi-K2.5', 'kimi-k25', 'can switch'],
+    ['moonshotai/Kimi-K2.6', 'kimi-k25', 'can switch'],
     ['deepseek-ai/DeepSeek-V4-Flash', 'deepseek4-284b', 'can switch'],
     ['deepseek-ai/DeepSeek-V4-Pro', 'deepseek4-1.6t', 'can switch'],
     ['deepseek-ai/DeepSeek-V4.1-Flash', 'deepseek4-763b', 'can switch'],

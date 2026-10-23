@@ -98,25 +98,27 @@ const UNTRIED: Weaving = 'not tried yet';
  *
  *  THEN BY CLASS. The class strings are Featherless's own `model_class`, read 2026-10-22; the label
  *  is from each family's chat template on Hugging Face, the same day:
- *    always: gpt-oss; MiniMax M2.x (the template opens a plan on every answer); Kimi K2.5/K2.6
- *      (`kimi-k25`; its switch is a `thinking` key, so `enable_thinking: false` leaves it on).
+ *    always: gpt-oss; MiniMax M2.x (the template opens a plan on every answer).
  *    can switch: Qwen 3.x, Gemma 4, GLM 4.5-4.7 (template reads `enable_thinking`), DeepSeek V4
  *      (`deepseek4-*`: V4.1's template takes `enable_thinking`; V4 and V4-Pro ship no template,
- *      and their card documents a non-think mode).
+ *      and their card documents a non-think mode), Kimi K2.5/K2.6 (`kimi-k25`: the published
+ *      template's key is `thinking`, but K2.6 sent `enable_thinking: false` through Featherless on
+ *      2026-10-22 wrote with no plan, so the hosted one takes Anansi's key).
  *    doesn't weave: Kimi K2 Instruct, GLM-4-0414, Mistral Small, Llama 2 and 3.x and the older
  *      Mistral classes — no plan anywhere in their templates.
  *  Anything else is "not tried yet", never a confident "doesn't weave".
  *  ponytail: a hand-kept list of class names. Ceiling: a new family reads "not tried yet" until it
  *  is added here, and a hosted template that differs from the published one is guessed wrong; the
  *  probe still records the truth on add. Upgrade path is reading a capability field if Featherless
- *  ever publishes one. */
+ *  ever publishes one. Trigger: a probe on add that stores a label other than its guess, or a
+ *  family the writers search for that reads "not tried yet". */
 const BY_NAME: [RegExp, Weaving][] = [
   [/(?<!no[-_ ]?|non[-_ ]?)think|(^|[^a-z0-9])r1([^a-z0-9]|$)|qwq|glm-?z1/i, 'always weaves'],
   [/magistral/i, UNTRIED],
 ];
 const BY_CLASS: [RegExp, Weaving][] = [
-  [/^gpt-?oss|^minimax-m2|^kimi-k25/i, 'always weaves'],
-  [/^qwen3|^gemma4|^glm4[5-9]|^deepseek4-/i, 'can switch'],
+  [/^gpt-?oss|^minimax-m2/i, 'always weaves'],
+  [/^qwen3|^gemma4|^glm4[5-9]|^deepseek4-|^kimi-k25/i, 'can switch'],
   [/^kimi-k2$|^glm4-|^llama[23]|^mistral-(24b|v0|nemo)/i, "doesn't weave"],
 ];
 const weavingGuess = (row: { id: string; modelClass: string | null }): Weaving => {
