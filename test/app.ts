@@ -2820,16 +2820,18 @@ ok('an invention that weaves counts the seconds on its button, and one that does
     stubTalk = new Promise((r) => { answer = r; });
     (document as any).getElementById('askBox').value = 'What is this story about?';
     click({ ask: '1' });
+    // Seconds as numbers, and rising rather than exact: Talk's count starts a turn after its press,
+    // so an exact second is a race with this suite's own load.
+    const secs = (id: string) => Number(/^Weaving… (\d+)s$/.exec(String(nodes.get(id)?.textContent))?.[1] ?? NaN);
     await new Promise((r) => setTimeout(r, 1100));
-    assert.strictEqual(String(nodes.get('weaving')?.textContent), 'Weaving… 1s',
-      'TWO-COUNTS: a Talk press leaves the weaving passage\'s count running');
-    assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Weaving… 1s',
-      'TWO-COUNTS: and Talk counts its own');
+    assert.ok(secs('weaving') >= 1, `TWO-COUNTS: a Talk press leaves the weaving passage's count running (${nodes.get('weaving')?.textContent})`);
+    const talkAt = secs('talkweaving');
+    assert.ok(talkAt >= 0, `TWO-COUNTS: and Talk counts its own (${nodes.get('talkweaving')?.textContent})`);
     open(); await new Promise((r) => setTimeout(r, 60));
     assert.strictEqual(String(nodes.get('weaving')?.textContent ?? ''), '', 'TWO-COUNTS: the passage\'s first word ends the passage\'s count');
-    await new Promise((r) => setTimeout(r, 1000));
-    assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Weaving… 2s',
-      'TWO-COUNTS: and Talk, still weaving, keeps counting');
+    await new Promise((r) => setTimeout(r, 1100));
+    assert.ok(secs('talkweaving') > talkAt,
+      `TWO-COUNTS: and Talk, still weaving, keeps counting (${talkAt} then ${nodes.get('talkweaving')?.textContent})`);
     answer({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
     end(); await new Promise((r) => setTimeout(r, 60));
   } finally { streamGate = null; endGate = null; stubTalk = null; (STORY as any).weaves = weaving; }
@@ -2848,11 +2850,13 @@ ok('a passage and a Talk call that weave at once each keep their own count');
     const t: any = { dataset: { invent: 'lore' }, querySelector: () => null, disabled: false, textContent: 'Invent',
       style: {}, closest: () => null };
     const press = () => (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => t } }));
+    const secs = () => Number(/^Weaving… (\d+)s$/.exec(String(t.textContent))?.[1] ?? NaN);
     press();
     await new Promise((r) => setTimeout(r, 1050));
+    const first = secs();
     press();
-    await new Promise((r) => setTimeout(r, 1000));
-    assert.strictEqual(String(t.textContent), 'Weaving… 2s', 'BUSY-INVENT: the second press leaves the first call\'s count running');
+    await new Promise((r) => setTimeout(r, 1100));
+    assert.ok(secs() > first, `BUSY-INVENT: the second press leaves the first call's count running (${first} then ${t.textContent})`);
     answer({ title: 'The Rust Choir', duplicate: false });
     await new Promise((r) => setTimeout(r, 60));
     assert.strictEqual(String(t.textContent), 'Invent', 'BUSY-INVENT: and the button comes back when it answers');
