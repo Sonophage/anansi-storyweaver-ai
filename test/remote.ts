@@ -1370,7 +1370,18 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const fv = await routes['GET /api/story'](ctx(a, {}, `story=${forced.id}`));
   assert.strictEqual(fv.weaves, true, 'ALWAYS-NO-SWITCH: a model that always plans weaves');
   assert.strictEqual(fv.weaveNote, 'This model always weaves.', 'ALWAYS-NO-SWITCH: and the Storyteller says so');
-  ok('one reader says whether a model takes the switch, the latest add wins, and always weaves is said as such');
+  // Moving a weaving book onto it: the book still weaves, so nothing says weaving went off, and the
+  // switch is left as the writer set it for the next model.
+  const W = 'featherless:someone/Takes-Switch-24B';
+  db.addToShortlist(a, W, 32768, 'can switch', 1, true);
+  const moving = db.createStory(a, { title: 'Moving' });
+  db.updateStory(moving.id, { model: W, weaving: true });
+  const mv = await routes['POST /api/story'](ctx(a, { id: moving.id, story: { model: Z } }));
+  assert.strictEqual(mv.weaves, true, 'the detector: the moved book weaves on its new model');
+  assert.strictEqual(mv.toast, undefined, `ALWAYS-MOVE: no toast says weaving went off for a book that still weaves (${mv.toast})`);
+  assert.strictEqual(mv.story.weaving, true, 'ALWAYS-MOVE: and the book\'s switch is left as it was');
+
+  ok('one reader says whether a model takes the switch, the latest add wins, always weaves is said as such, and a move onto it says nothing of weaving off');
 }
 
 // ---- 25. a 400 on add for any other reason is learnt as nothing, and on a call is never retried ----

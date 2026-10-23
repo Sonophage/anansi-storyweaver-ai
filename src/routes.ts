@@ -2187,12 +2187,15 @@ export const routes: Record<string, Handler> = {
     // #61. Turning weaving on is refused for a book whose model cannot take the switch: the model
     // the book will have after this save, which may be the one this same save picks. And a weaving
     // book moved to such a model has its weaving turned off, with a toast that says so: left on, it
-    // would be a setting nothing reads, behind a switch the Storyteller no longer draws.
+    // would be a setting nothing reads, behind a switch the Storyteller no longer draws. Unless the
+    // new model always weaves: the book still weaves, so nothing went off, and the switch is left as
+    // the writer set it for whichever model comes next.
     const v = bookOf(c.body.id);
     const after = { ...v, story: { ...v.story, ...(c.body.story && 'model' in c.body.story ? { model: want } : {}) } };
     const cannot = !!c.body.story && !canWeave(c, after);
     if (cannot && c.body.story.weaving === true) throw Object.assign(new Error(CANNOT_WEAVE), { code: 400 });
-    const cleared = cannot && 'model' in c.body.story && !!v.story.weaving && c.body.story.weaving === undefined;
+    const cleared = cannot && 'model' in c.body.story && !!v.story.weaving && c.body.story.weaving === undefined
+      && !alwaysWeaves(c, after);
     db.updateStory(c.body.id, cleared ? { ...c.body.story, weaving: false } : c.body.story);
     return { ...viewOf(c, c.body.id),
       ...(cleared ? { toast: "Weaving is off for this book now: its new model can't be asked to weave." } : {}) };
