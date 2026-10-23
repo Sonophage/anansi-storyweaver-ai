@@ -8074,17 +8074,16 @@ async function generate(mode = S.mode, again = null) {
 async function inventAgain(kind, dir, search, anyway = false,
                            t = document.querySelector(`[data-invent="${kind}"]`)) {
   if (S.weaveFit?.where === `invent:${kind}`) S.weaveFit = null;
-  working('direct');
-  // The weaving count goes on this button's label, started inside the guard so a second press on a
-  // busy button never touches the first press's count.
+  // The ring and the weaving count both go up inside the guard, so a second press on a busy button
+  // touches neither: it returns before the fn runs, and the first press's call still owns them.
   const lbl = t?.querySelector('.lbl-txt') ?? t;
   const r = await whileWorking(t, search ? 'Looking it up…' : 'Writing…', () => {
+    working('direct');
     weaveStart(lbl);
     return api.invent(S.storyId, { kind, entryId: outfitOwner() || undefined,
       direction: dir || undefined, search, ...(anyway ? { weaveAnyway: true } : {}) })
-      .finally(() => weaveStop(lbl));
+      .finally(() => { weaveStop(lbl); working(null); });
   });
-  working(null);
   return invented(r, kind, dir, search);
 }
 

@@ -2845,6 +2845,8 @@ ok('a passage and a Talk call that weave at once each keep their own count');
     press();
     await new Promise((r) => setTimeout(r, 1100));
     assert.ok(secs() > first, `BUSY-INVENT: the second press leaves the first call's count running (${first} then ${t.textContent})`);
+    assert.ok((globalThis as any).document.documentElement.dataset.work,
+      'BUSY-INVENT: and the working ring stays up while the first call runs');
     answer({ title: 'The Rust Choir', duplicate: false });
     await new Promise((r) => setTimeout(r, 60));
     assert.strictEqual(String(t.textContent), 'Invent', 'BUSY-INVENT: and the button comes back when it answers');
