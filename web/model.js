@@ -268,7 +268,6 @@ export const modelName = (id) => {
       // 900 tokens of reasoning and no prose at all, and GLM-4.7-Flash honours the switch while
       // Huihui-ThinkingCap's is UNTESTED on its architecture. Silence here means "nothing to
       // watch"; the word means "watch this one".
-      // The word is "weaves" since #49, the writer's word for it.
       const bits = [PURPOSE[role]];
       if (think === 'T') bits.push('weaves');
       // Never "censored" for the other case. See the note above CODE.

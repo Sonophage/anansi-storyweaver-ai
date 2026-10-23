@@ -2596,17 +2596,8 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
     assert.ok(!POSTED.some((p: any) => p.url === '/api/story' || String(p.url).startsWith('/api/generate')),
       'ALWAYS-MODEL: and nothing is saved or written until the writer picks');
 
-    // Write anyway still sends the same press with the override.
-    stubRefuse = refusal(); POSTED.length = 0;
-    click({ continue: '1' });
-    await new Promise((r) => setTimeout(r, 120));
-    stubRefuse = null; POSTED.length = 0;
-    click({ weaveanyway: '1' });
-    await new Promise((r) => setTimeout(r, 300));
-    const gens = POSTED.filter((p: any) => String(p.url).startsWith('/api/generate'));
-    assert.strictEqual(gens.length, 1, 'ALWAYS-ANYWAY: write anyway sends one generation');
-    assert.strictEqual(gens[0].body.weaveAnyway, true, 'ALWAYS-ANYWAY: with the override');
-
+    // Write anyway and Use another model are one handler whatever the refusal says, so pressing
+    // them is the #56 block's Write anyway and ALWAYS-MODEL above; here only what is drawn differs.
     // An overflow: another model is the only way on.
     stubRefuse = refusal(true);
     click({ continue: '1' });
@@ -2615,9 +2606,6 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
     assert.doesNotMatch(row(), /data-weaveanyway|data-weaveoff/, 'ALWAYS-OVERFLOW: with neither Write anyway nor Turn weaving off');
     assert.match(row(), /data-weavemodel/, 'ALWAYS-OVERFLOW: only Use another model for this book');
     stubRefuse = null;
-    click({ weavemodel: '1' });
-    await new Promise((r) => setTimeout(r, 80));
-    assert.match(html('sideBody'), /data-storymodel/, 'ALWAYS-OVERFLOW: which opens the model picker');
   } finally {
     stubRefuse = null; (STORY as any).weaves = weaving;
     click({ panel: '' }); click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));

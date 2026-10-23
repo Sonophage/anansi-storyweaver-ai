@@ -1446,9 +1446,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
    *  before "c2" — which is how a 120-chapter book ended up keeping chapters 6-9, 52-55 and
    *  96-99. Arcs are placed at the chapter they start from. */
   const chapterAt = new Map(chapters.map((c) => [c.id, c.index]));
-  const earlierAt = (b: Block) => {
-    return actSpan(b.id)?.from ?? chapterAt.get(b.id) ?? 0;
-  };
+  const earlierAt = (b: Block) => actSpan(b.id)?.from ?? chapterAt.get(b.id) ?? 0;
 
   /** How strongly a triggered canon block earned its place. Lower goes first.
    *

@@ -355,9 +355,7 @@ export async function readSSE(res: Response, onDelta: (d: string) => void) {
 
 /** `onDelta` turns the same call into a stream. Everything else — the model, the sampler,
  *  thinking off by default, the return shape — is identical, so `generate` has one code path and
- *  the caller decides whether the writer is watched or waited for. A weaving call overrides the
- *  default through `opts` (`chat_template_kwargs: { enable_thinking: true }`, with the raised cap
- *  `replyFor` in routes.ts gives it). */
+ *  the caller decides whether the writer is watched or waited for. */
 export async function chat(system: string, body: string, opts: Record<string, unknown> = {},
                            onDelta?: (d: string) => void, stop?: AbortSignal, ceilingMs = 900_000) {
   if (onDelta) {
