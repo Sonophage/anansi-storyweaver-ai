@@ -1540,6 +1540,15 @@ function drawDoc() {
   syncTray();
 }
 
+/** THE SETUP DRAFT FOR ONE CHAPTER, or null. Issue #66: the draft carried no chapter, and the
+ *  setup panel and its Save both read `V.currentChapter` — which is whatever chapter is in focus,
+ *  not the one the draft was written for. Close a chapter, let Anansi name the next one, look back
+ *  at the chapter that closed, press Save: the next chapter's name landed on the closed one. Every
+ *  read of the draft goes through here, so a draft is only ever shown or saved on its own chapter. */
+function draftFor(chapterId) {
+  return S.setup && S.setup.chapterId === chapterId ? S.setup : null;
+}
+
 /** Ask Anansi what this chapter is called and what it has to do, and put the answer in the boxes.
  *
  *  Into `S.setup` rather than into the DOM, because the panel renders from state — ticking a
@@ -1562,12 +1571,15 @@ async function nameChapter(chapterId) {
   // Whatever is already typed WINS. This fires on its own when both boxes are empty, and a writer
   // who started typing in the seconds it took is a writer whose words must not be replaced.
   const ch = V?.chapters.find((c) => c.id === chapterId);
-  const live = { title: document.querySelector('[data-setup="title"]')?.value ?? '',
-                 note: document.querySelector('[data-setup="note"]')?.value ?? '',
-                 opens: document.querySelector('[data-setup="opens"]')?.value ?? '' };
+  // THE BOXES ON SCREEN ONLY IF THEY ARE THIS CHAPTER'S (#66). The writer may have moved to another
+  // chapter while Anansi was thinking, and that chapter's title is not something typed for this one.
+  const here = V?.currentChapter?.id === chapterId;
+  const box = (k) => (here ? document.querySelector(`[data-setup="${k}"]`)?.value
+                           : draftFor(chapterId)?.[k]) ?? '';
+  const live = { title: box('title'), note: box('note'), opens: box('opens') };
   const typed = live.title.trim() && live.title.trim() !== `Chapter ${ch?.index}` ? live.title.trim() : '';
   // The opening rides back with the other two, and is kept the same way: typed wins over offered.
-  S.setup = { title: typed || r.title, note: live.note.trim() || r.note,
+  S.setup = { chapterId, title: typed || r.title, note: live.note.trim() || r.note,
               opens: live.opens.trim() || (r.opens ?? '') };
   drawSide();
   // Do not claim she filled a box she left empty. The beat is the half that matters — it rides
@@ -4897,7 +4909,7 @@ function setupPanel() {
   // Rendered from state, not from the DOM. Ticking a character repaints this panel, and reading
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
-  const form = S.setup ?? { title: ch.title ?? '', note: ch.authorsNote ?? '',
+  const form = draftFor(ch.id) ?? { title: ch.title ?? '', note: ch.authorsNote ?? '',
                             opens: ch.opensWith ?? '' };
   /* WHICH CHAPTER THIS PANEL IS DEBRIEFING, from the data when the session cannot say.
    *
@@ -10332,17 +10344,24 @@ document.addEventListener('click', async (e) => {
     paint(); refreshManifest(); return;
   }
   if (d.savesetup) {
-    const title = S.setup?.title ?? document.querySelector('[data-setup="title"]')?.value ?? '';
-    const note = S.setup?.note ?? document.querySelector('[data-setup="note"]')?.value ?? '';
-    const opens = S.setup?.opens ?? document.querySelector('[data-setup="opens"]')?.value ?? '';
+    // THE CHAPTER'S OWN VALUE LAST, never ''. "Start writing" sits on the Anyone new step, where
+    // the three boxes are not drawn, so with no draft an empty fallback saved a blank title and
+    // beat over the ones the chapter had (#66).
+    const ch = V.currentChapter, draft = draftFor(ch.id);
+    const box = (k) => document.querySelector(`[data-setup="${k}"]`)?.value;
+    const title = draft?.title ?? box('title') ?? ch.title ?? '';
+    const note = draft?.note ?? box('note') ?? ch.authorsNote ?? '';
+    const opens = draft?.opens ?? box('opens') ?? ch.opensWith ?? '';
     // BOTH HALVES, BEFORE openingPassage() BELOW. That call writes the chapter's first passage and
     // it is the only one the opening is sent for, so a save that dropped it would mean the box on
     // this screen could never reach the passage it was written for.
-    const r = await api.saveChapter(S.storyId, V.currentChapter.id,
+    const r = await api.saveChapter(S.storyId, ch.id,
       { title, authorsNote: note, opensWith: opens });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId);
-    S.setup = null; S.setupStep = null; S.panel = 'context'; syncHash(); paint(); refreshManifest();
+    // Only this chapter's draft is spent. Another chapter's is still waiting for its own Save.
+    if (draft) S.setup = null;
+    S.setupStep = null; S.panel = 'context'; syncHash(); paint(); refreshManifest();
     toast(note.trim() ? 'Set. Write when ready.' : 'Saved. No beat set, which is fine.');
     // AFTER the beat is set, never before. This used to fire from the close, which meant the first
     // passage of every chapter was the only one written without the line that steers the rest of it.
@@ -12030,7 +12049,8 @@ document.addEventListener('input', (e) => {
     return;
   }
   if (e.target.dataset?.setup) {
-    S.setup = { title: document.querySelector('[data-setup="title"]')?.value ?? '',
+    S.setup = { chapterId: V.currentChapter.id,
+                title: document.querySelector('[data-setup="title"]')?.value ?? '',
                 note: document.querySelector('[data-setup="note"]')?.value ?? '' };
     // Kept apart from the two that get SAVED. The steer is an instruction to Anansi about what to
     // suggest, never a field on the chapter, and folding it into S.setup would send it to

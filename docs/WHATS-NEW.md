@@ -10,6 +10,15 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-23 · A chapter keeps its own name
+
+### The next chapter's name stays on the next chapter
+When you closed a chapter, Anansi suggested a name for the next one. If you then looked back at
+the chapter you had just closed and pressed Save there, the suggested name was saved onto the
+closed chapter instead. Now a suggestion stays with the chapter it was made for, and waits there
+until you save it. Pressing Start writing on the Anyone new step also no longer clears a
+chapter's name and where it ends.
+
 ## 2026-10-22 · Find a model on Featherless
 
 ### A Featherless passage stops at its length
