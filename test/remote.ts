@@ -1381,7 +1381,23 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(mv.toast, undefined, `ALWAYS-MOVE: no toast says weaving went off for a book that still weaves (${mv.toast})`);
   assert.strictEqual(mv.story.weaving, true, 'ALWAYS-MOVE: and the book\'s switch is left as it was');
 
-  ok('one reader says whether a model takes the switch, the latest add wins, always weaves is said as such, and a move onto it says nothing of weaving off');
+  // The label is read the way the switch is: one fact about the model, the latest add's. The book's
+  // owner added it as one that can switch; a later add found it always weaves, so the book weaves.
+  const L = 'featherless:someone/Label-Latest-24B';
+  db.addToShortlist(a, L, 32768, 'can switch', 1, true); await tick();
+  db.addToShortlist(b, L, 32768, 'always weaves', 1, true);
+  const labelled = db.createStory(a, { title: 'Label' });
+  db.updateStory(labelled.id, { model: L });
+  const lv = await routes['GET /api/story'](ctx(a, {}, `story=${labelled.id}`));
+  assert.strictEqual(lv.model, L, 'the detector: the book is written by the model');
+  assert.strictEqual(lv.weaves, true, 'LABEL-LATEST: the latest add says the model always weaves, so the book weaves');
+  assert.strictEqual(lv.weaveNote, 'This model always weaves.', 'LABEL-LATEST: and the Storyteller says so');
+  // And back: the latest add is the owner's own again, so the model can switch and this book's
+  // switch, off, decides.
+  await tick(); db.addToShortlist(a, L, 32768, 'can switch', 1, true);
+  const back = await routes['GET /api/story'](ctx(a, {}, `story=${labelled.id}`));
+  assert.strictEqual(back.weaves, false, 'LABEL-LATEST: a re-add that says it can switch is the fact again');
+  ok('one reader says whether a model takes the switch and whether it always weaves, the latest add wins for both, and a move onto one that always weaves says nothing of weaving off');
 }
 
 // ---- 25. a 400 on add for any other reason is learnt as nothing, and on a call is never retried ----

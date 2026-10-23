@@ -872,23 +872,27 @@ export const setDefaultModel = (ownerId: string, id: string | null) =>
 
 /** THE SHORTLIST, always by owner. Every read and write names the owner, so one writer's list is
  *  unreachable from another's account by construction — the same shape as `promptsOf`. The one
- *  exception is `takesSwitch`, below, which says why, and which is the only reader of whether a
- *  model takes the weaving switch: this list does not carry it, so nothing can read it a second way. */
+ *  exception is `modelFact`, below, which says why, and which is the only reader of how Featherless
+ *  serves a model: whether it takes the weaving switch, and whether it always weaves. This list
+ *  carries the weaving label for the shortlist's own display, never for deciding a call. */
 export const shortlistOf = (ownerId: string): { id: string; context: number; weaving: string | null;
   cost: number | null; addedAt: number }[] =>
   (q('SELECT model, context, weaving, cost, added_at FROM shortlist WHERE owner_id = ? ORDER BY added_at, model')
     .all(ownerId) as any[]).map((r) => ({ id: r.model, context: r.context, weaving: r.weaving,
       cost: r.cost, addedAt: r.added_at }));
-/** #61 · WHETHER `id`'s chat template takes the weaving switch, for the Featherless adapter, which
- *  is handed a model id and nothing else, and for `canWeave` in routes.ts, so the book and the call
- *  read one fact. THE ONE SHORTLIST READ NOT BY OWNER, on purpose: this is a fact about how
- *  Featherless serves the model, the same for every writer who adds it, and it never leaves the
- *  server. The entry added last wins: `addToShortlist` moves `added_at` on a re-add, because a
- *  re-add probes again. A model on nobody's list, and a local model, takes it, as every model did
- *  before the probe asked. */
-export const takesSwitch = (id: string): boolean =>
-  (q('SELECT takes_switch FROM shortlist WHERE model = ? ORDER BY added_at DESC LIMIT 1').get(id) as any)
-    ?.takes_switch !== 0;
+/** #61 · HOW FEATHERLESS SERVES `id`: whether its chat template takes the weaving switch, and the
+ *  weaving label its add recorded. For the Featherless adapter, which is handed a model id and
+ *  nothing else (`takesSwitch`), and for `canWeave` and `alwaysWeaves` in routes.ts, so the book and
+ *  the call read one fact. THE ONE SHORTLIST READ NOT BY OWNER, on purpose: this is a fact about the
+ *  model, the same for every writer who adds it, and it never leaves the server. The entry added
+ *  last wins: `addToShortlist` moves `added_at` on a re-add, because a re-add probes again. A model
+ *  on nobody's list, and a local model, takes the switch, as every model did before the probe
+ *  asked, and has no label. */
+export const modelFact = (id: string): { takesSwitch: boolean; weaving: string | null } => {
+  const r = q('SELECT takes_switch, weaving FROM shortlist WHERE model = ? ORDER BY added_at DESC LIMIT 1').get(id) as any;
+  return { takesSwitch: r?.takes_switch !== 0, weaving: r?.weaving ?? null };
+};
+export const takesSwitch = (id: string): boolean => modelFact(id).takesSwitch;
 /** The context `id` holds if it is on `ownerId`'s shortlist, else null. */
 export const shortlisted = (ownerId: string, id: string): number | null =>
   (q('SELECT context FROM shortlist WHERE owner_id = ? AND model = ?').get(ownerId, id) as any)?.context ?? null;

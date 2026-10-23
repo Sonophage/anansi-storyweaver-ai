@@ -125,16 +125,16 @@ const WEAVE_ROOM: Readonly<Record<string, number>> = { prose: 5000, talk: 5000, 
  *  #58. A model whose recorded label is "always weaves" plans whatever it is sent, so with the
  *  switch off and the role's own cap the plan would eat the reply (F5); it weaves on every call on
  *  WEAVE_ROOM instead, and gets the same room and the same fit check. The label is the one the
- *  shortlist recorded when the model was added, read through `heldFor`, the owner rule `slotFor`
- *  reads the model's context through. Which model writes a book depends on who asks, so `c` is the
- *  writer asking. A local model has no label: it is one that can switch. */
+ *  latest add recorded, read through `db.modelFact` with the switch fact, because both are facts
+ *  about how Featherless serves the model. Which model writes a book depends on who asks, so `c` is
+ *  the writer asking. A local model has no label: it is one that can switch. */
 const bookWeaves = (c: Ctx, v: { story: any; owner?: string }) => (!!v.story?.weaving && canWeave(c, v))
   || alwaysWeaves(c, v);
 
-/** Whether the model that writes this book always weaves: its recorded label, read through
- *  `heldFor`. Such a book weaves with its switch off, and turning weaving off cannot change that. */
+/** Whether the model that writes this book always weaves: the latest add's label (`db.modelFact`).
+ *  Such a book weaves with its switch off, and turning weaving off cannot change that. */
 const alwaysWeaves = (c: Ctx, v: { story: any; owner?: string }) =>
-  heldFor(c, v, writerModel(c, v))?.weaving === ALWAYS_WEAVES;
+  db.modelFact(writerModel(c, v)).weaving === ALWAYS_WEAVES;
 
 /** #61 · Whether the model that writes this book can be asked to weave: false only for a remote
  *  model whose chat template refused the switch when it was added. The book's switch is then
@@ -385,8 +385,8 @@ const slotFor = (c: Ctx, v: { owner?: string }, using: string): Slot => {
 
 /** The shortlist entry `using` is held under for this book: the owner's list first, then the
  *  writer asking. Null for a local model, which is on nobody's shortlist. `slotFor` reads the
- *  model's context through this and `bookWeaves` its weaving label, so the two cannot disagree
- *  about whose entry describes the model. */
+ *  model's context through this: what a writer added is what they budget against. Whether the model
+ *  weaves is not read here but through `db.modelFact`, a fact about the model and not the writer. */
 const heldFor = (c: Ctx, v: { owner?: string }, using: string) => {
   if (!isRemote(using)) return null;
   const find = (owner: string) => db.shortlistOf(owner).find((m) => m.id === using);

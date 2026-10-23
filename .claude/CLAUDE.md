@@ -201,8 +201,9 @@ room (prose 5,000, Talk 5,000, Invent 7,000) so the plan cannot eat the reply (F
 other call sends it off. Never raise a cap for weaving anywhere but `replyFor`, or the Context panel
 previews a budget the call does not use. A remote model whose template refuses the field (a 400 for
 any body carrying it) is recorded as such by the probe on add, and the Featherless adapter leaves
-the field off every call to it. `db.takesSwitch` is the one reader of that fact, for the adapter and
-for the book's `canWeave` alike.
+the field off every call to it. `db.modelFact` is the one reader of how Featherless serves a model
+(takes the switch, always weaves), newest add wins, for the adapter and the book's `canWeave` and
+`alwaysWeaves` alike.
 
 Two concurrent writers at full budget fit with a ~5,700-token margin. Oversubscribing the shared
 cache does not queue — both requests die with HTTP 500. **Do not raise the per-slot budget.**
