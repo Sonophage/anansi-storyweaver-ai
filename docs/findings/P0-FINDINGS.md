@@ -3010,4 +3010,6 @@ the card, and a plan a little longer would cut the object off: F23's failure. `W
 - **One fixture, one invention kind, one model.** A remote model, or a longer book, plans its own
   length; the `plan` each weaving generation records in its params is what the room gets tuned
   from.
-- **Latency was not part of the verdict,** and is not recorded here.
+- **Latency was not part of the verdict,** but the run printed it per call, one call at a time:
+  Talk 31.9–48.1 s (median 35.8), Invent 82.4–122 s (median 90.2). Against F60's 7 s for an
+  unwoven passage, a weaving Invent is the slowest thing a writer can press.
