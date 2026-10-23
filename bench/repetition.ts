@@ -45,6 +45,9 @@ const MODELS = ['TheDrummer/Anubis-70B-v1.2', 'Tetratype/Gemma-4-26B-A4B-it-here
 const ARMS: (number | null)[] = [null, 1.05, 1.1];
 const DB = `/tmp/anansi-repetition-${process.pid}.db`;
 const wipe = (f: string) => { for (const x of ['', '-wal', '-shm']) { try { unlinkSync(f + x); } catch {} } };
+// THE COPY GOES ON EVERY EXIT, not only the clean ones. The real run's copy holds a writer's book,
+// and a red check or a thrown error used to leave it in /tmp: five were found there on 2026-10-22.
+process.on('exit', () => wipe(DB));
 
 /* ---------- the detector ---------- */
 

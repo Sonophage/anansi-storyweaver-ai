@@ -29,7 +29,7 @@ node --experimental-strip-types test/all.ts     # every suite; it prints its own
 turn instead of colliding on the fixed ports and `/tmp` databases.
 
 Run it before and after. No model needed, so there is no excuse for skipping it. It runs the fourteen
-unit suites **and all eighteen `check` modes under `bench/`**, in parallel, in about 20 seconds
+unit suites **and all nineteen `check` modes under `bench/`**, in parallel, in about 20 seconds
 (`suites` in `test/all.ts` is the list).
 Each bench entry is spawned with its own `ANANSI_DB`: most of them touch no database,
 `bench/rooms.ts` opens one, and without that guard it would open the live library read-write and
@@ -54,7 +54,7 @@ when something is genuinely wrong.
 **Docs drift from the code. The code wins.** When they disagree, read the code and fix the doc.
 Run it; do not cite it.
 
-1. **`docs/findings/P0-FINDINGS.md`** — measured numbers, 61 findings
+1. **`docs/findings/P0-FINDINGS.md`** — measured numbers, 62 findings
    (`grep -c '^## F[0-9]' docs/findings/P0-FINDINGS.md`). The most valuable thing in the repo:
    these cost GPU time and cannot be re-derived by reading source. Most F-numbers are cited from
    code comments explaining why something is the way it is

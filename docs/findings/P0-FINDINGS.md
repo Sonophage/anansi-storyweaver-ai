@@ -3013,3 +3013,44 @@ the card, and a plan a little longer would cut the object off: F23's failure. `W
 - **Latency was not part of the verdict,** but the run printed it per call, one call at a time:
   Talk 31.9–48.1 s (median 35.8), Invent 82.4–122 s (median 90.2). Against F60's 7 s for an
   unwoven passage, a weaving Invent is the slowest thing a writer can press.
+
+## F62 — Featherless does not hold Anubis-70B to its cap on a long prompt, and a light repetition penalty stopped its runaways at n = 3 but shortened every passage (2026-10-22)
+
+**The overrun.** Anansi sends `max_tokens` to Featherless (it is on the adapter's list of documented
+keys). On a short prompt `TheDrummer/Anubis-70B-v1.2` honours it: asked for 2,000 words at a cap
+of 900, it returned exactly 900 tokens, `finish_reason: length`, twice. On the real *Into the Blue*
+prompt (6,827 tokens by the local count) it did not: one replay returned 1,423 tokens with
+`finish_reason: length` against a cap of 900, and 5 of the 11 Anubis passages written that day
+logged 1,218 / 1,327 / 1,799 / 1,799 / 1,799. The Gemma antislop stayed under (896, 884). Content
+chunks equalled `usage.completion_tokens` exactly on both models (120 and 120; 1,423 and 1,423), so
+counting chunks counts tokens. #62 stops a remote STREAM at its cap on Anansi's side; a remote call
+that is not streamed (Talk, Invent, structured calls) is not capped there, and the overrun was seen
+on one of those too (below: 1,213 of 900, non-streamed).
+
+**The runaways.** Two Anubis takes that day were nothing but one character ("The!!!!…", 4,977 chars;
+"Her!!!!…", 1,803 chars). Locally the DRY sampler guards against this; Featherless is not sent DRY.
+
+**The arms.** `bench/repetition.ts 3`: two remote models, arms no penalty / `repetition_penalty`
+1.05 / 1.1, 3 runs each, interleaved, one call at a time, through `POST /api/generate` (not
+streamed) on a scratch copy of the library. A runaway is a run of 12 of one character, 6 of one
+word, or 15% of the text in one phrase; the detector was validated on the two real takes and on
+prose it was not written for.
+
+| model | arm | runaway | past the cap | tokens median | words median |
+|---|---|---|---|---|---|
+| Anubis-70B-v1.2 | none | **1 of 3** (899-char run) | 1 (1,213 of 900) | 478 | 374 |
+| Anubis-70B-v1.2 | 1.05 | 0 of 3 | 0 | 399 | 329 |
+| Anubis-70B-v1.2 | 1.1 | 0 of 3 | 0 | 295 | 244 |
+| Gemma-4-26B-A4B antislop | none | 0 of 3 | 0 | 482 | 393 |
+| Gemma-4-26B-A4B antislop | 1.05 | 0 of 3 | 0 | 259 | 215 |
+| Gemma-4-26B-A4B antislop | 1.1 | 0 of 3 | 0 | 231 | 195 |
+
+**What this does and does not settle.**
+- **Does not settle that the penalty prevents runaways.** 1 of 3 against 0 of 3 is one event; at
+  this n it cannot be told from chance (F10, F12).
+- **Does show a cost, in the same direction on both models and both values:** every penalty arm's
+  median passage is shorter than its control (Anubis 478 → 399 → 295 tokens; Gemma 482 → 259 → 231).
+  n = 3, so the size is loose; the direction held in all four comparisons.
+- **The app sends no penalty** (`REMOTE_REPETITION_PENALTY = null`). The cap is the guard that is
+  proven; a penalty needs a larger run (runaways are rare, so n in the tens per arm) before it is
+  worth a shorter passage on every call.
