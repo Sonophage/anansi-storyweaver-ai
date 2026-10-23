@@ -12,6 +12,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-22 · Find a model on Featherless
 
+### Models that can't be asked to weave
+A few models on Featherless refuse to be asked about weaving at all, and before, adding one to
+your shortlist failed. Now Anansi finds this out once, when you add the model, and remembers it.
+The model goes on your shortlist and writes passages, Talk answers and inventions like any other.
+It never weaves, so a book written by it has no Weaving switch: the Storyteller panel says that
+this book's model can't be asked to weave, and to pick a model that can if you want weaving.
+
 ### Models that always weave
 Some models on Featherless weave whatever they are asked; your shortlist says "always weaves"
 beside them. A book written by one of those now gets the same room as a book with Weaving on, even

@@ -2380,6 +2380,30 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
 }
 ok('the Storyteller has a Weaving switch where the thinking note was, and it saves itself');
 
+// #61. A BOOK WHOSE MODEL CANNOT BE ASKED TO WEAVE: its template refuses the switch, so the server
+// says `canWeave: false` and ignores the book's own switch. The panel offers no switch to press and
+// says why, in the writer's word.
+{
+  const visible = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
+  const was = (STORY as any).canWeave;
+  try {
+    (STORY as any).canWeave = false;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    click({ panel: 'teller' });
+    await new Promise((r) => setTimeout(r, 30));
+    const teller = visible(html('sideBody'));
+    assert.doesNotMatch(teller, /data-story="weaving"/, 'CANNOT-WEAVE: no switch is offered for a model that cannot take it');
+    const said = teller.match(/<div[^>]*id="cannotweave"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '';
+    assert.match(said, /can't be asked to weave/, `CANNOT-WEAVE: the panel says so plainly: ${said}`);
+    assert.doesNotMatch(said, /\b(think|thinking|reasoning|planning|template)\b/i, 'in the writer\'s words');
+    const at = (re: RegExp) => teller.search(re);
+    assert.ok(at(/data-storymodel/) < at(/id="cannotweave"/) && at(/id="cannotweave"/) < at(/>Sampling</),
+      'where the switch would be');
+  } finally { (STORY as any).canWeave = was; }
+}
+ok('a book whose model cannot be asked to weave says so in the Storyteller, with no switch');
+
 // #55. "WEAVING…" AND THE SECONDS, from the press until the first word. A weaving passage measured a
 // median 60 s of silence before its prose (F60), which reads as a hung app without a count. The
 // composer is the half this harness can see: its stub veil has no inside to read, and the browser

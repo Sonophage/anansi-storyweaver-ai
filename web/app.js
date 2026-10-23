@@ -3942,13 +3942,18 @@ const PANELS = {
            that said thinking was off and not a setting, which is no longer true once a book can
            weave. A [data-story] checkbox, so it saves itself and the Context panel asks again: the
            budget it shows is smaller by the room the plan is given. The writer's word is Weaving;
-           the server decides from it which calls weave. -->
-      ${tipCard('weaving', 'Weaving', `<p>Anansi weaves each passage unseen before she writes it,
+           the server decides from it which calls weave.
+           #61. A model whose template refuses the switch is never sent it, so the server says
+           canWeave is false and the switch is not drawn: the sentence says why instead. -->
+      ${V.canWeave === false ? `<div id="cannotweave" class="hint" style="margin:16px 0 2px">This
+        book's model can't be asked to weave, so this book can't weave. Pick a model above that
+        can, to turn weaving on.</div>`
+      : `${tipCard('weaving', 'Weaving', `<p>Anansi weaves each passage unseen before she writes it,
         which is slower and sets aside room that would otherwise hold more of your book.</p>`)}
       <label style="display:flex; align-items:center; gap:10px; margin:16px 0 2px; font-size:13px;
         color:var(--ink)">
         <input type="checkbox" data-story="weaving" ${V.story.weaving ? 'checked' : ''}>
-        Weaving${tipMark('weaving', 'Weaving')}</label>
+        Weaving${tipMark('weaving', 'Weaving')}</label>`}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Sampling</div>
       ${slider('Surprise', 'temperature', g.temperature ?? 0.85, 2,
