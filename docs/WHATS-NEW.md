@@ -10,7 +10,7 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
-## 2026-10-23 · Featherless when it is full
+## 2026-10-23 · Featherless when it is full, and a chapter keeps its own name
 
 ### A busy Featherless model is tried again
 Sometimes a Featherless model starts a passage and then says it is full before it has written a
@@ -26,6 +26,13 @@ too: a passage you wait for, a Talk answer, an invention and Anansi's other work
 runs long is trimmed back to its last finished sentence, and you are told it was trimmed. A Talk
 answer or an invention that runs long is asked for again, the same as one that was cut off, so
 you never get half of one. Nothing changes for this machine's models.
+
+### The next chapter's name stays on the next chapter
+When you closed a chapter, Anansi suggested a name for the next one. If you then looked back at
+the chapter you had just closed and pressed Save there, the suggested name was saved onto the
+closed chapter instead. Now a suggestion stays with the chapter it was made for, and waits there
+until you save it. Pressing Start writing on the Anyone new step also no longer clears a
+chapter's name and where it ends.
 
 ## 2026-10-22 · Find a model on Featherless
 

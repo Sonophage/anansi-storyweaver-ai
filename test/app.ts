@@ -5020,4 +5020,71 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   ok("whether Anansi looks things up is remembered per device, and still starts off");
 }
 
+// ---- #66. THE NAME PROPOSED FOR THE NEXT CHAPTER LANDS ON THE NEXT CHAPTER.
+//
+// "The Lands Between" chapter 6 was found titled with a name that read like chapter 7's proposal.
+// A stateful fake of the four chapter routes, so a close really opens a new chapter and a save
+// really lands on the chapter it names; everything else falls through to the canned server.
+{
+  const canned = (globalThis as any).fetch;
+  const chs: any[] = STORY.chapters.map((c: any) => ({ ...c }));
+  const viewAt = (focus?: string | null) => ({ ...STORY, chapters: chs.map((c) => ({ ...c })),
+    currentChapter: { ...(chs.find((c) => c.id === focus) ?? chs.at(-1)) } });
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    const body = init?.body ? JSON.parse(init.body) : null;
+    const reply = (o: any) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
+    if (url.startsWith('/api/story?')) {
+      return reply(viewAt(new URLSearchParams(url.split('?')[1]).get('chapter')));
+    }
+    if (url === '/api/chapter/end') {
+      POSTED.push({ url, body });
+      const open = chs.at(-1); open.status = 'closed';
+      chs.push({ id: `c-${chs.length + 1}`, index: chs.length + 1, title: `Chapter ${chs.length + 1}`,
+        summary: null, authorsNote: null, opensWith: null, status: 'open', coversThrough: null,
+        summaryStale: false, keepWhole: false });
+      return reply({ closed: open.id, passes: {}, ...viewAt() });
+    }
+    if (url === '/api/chapter/propose') {
+      POSTED.push({ url, body });
+      return reply({ chapterId: body.chapterId, title: "The Fell Omen's Tale",
+        note: 'By the end the omen has to be read aloud, and someone has to believe it.', opens: '' });
+    }
+    if (url === '/api/chapter') {
+      POSTED.push({ url, body });
+      const c = chs.find((x) => x.id === body.chapterId);
+      if (c && body.chapter.title !== undefined) c.title = body.chapter.title;
+      if (c && body.chapter.authorsNote !== undefined) c.authorsNote = body.chapter.authorsNote;
+      return reply(viewAt(body.chapterId));
+    }
+    return canned(url, init);
+  };
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const titleOf = (id: string) => chs.find((c) => c.id === id)?.title;
+
+  click({ open: 's-1' }); await settle();
+  // Close c-2 ('The Envoy'). The close lands on setup and Anansi names c-3.
+  click({ endchapter: '1' }); await settle(); await settle();
+  assert.ok(POSTED.some((p: any) => p.url === '/api/chapter/propose' && p.body.chapterId === 'c-3'),
+    'the close asked Anansi to name the chapter it opened');
+  // The writer looks back at the chapter that just closed, and saves setup THERE. The draft was
+  // written for c-3; the screen now reads c-2.
+  click({ chapter: 'c-2' }); await settle();
+  click({ panel: 'setup' }); await settle();
+  click({ setupstep: 'premise' }); await settle();
+  assert.doesNotMatch(html('sideBody'), /Fell Omen/,
+    "the closed chapter's setup does not show the name proposed for the next one");
+  click({ savesetup: '1' }); await settle();
+  assert.strictEqual(titleOf('c-2'), 'The Envoy',
+    'the chapter that closed keeps its own title after the next one is named');
+  // Back to the chapter being written, where the proposal was for.
+  click({ chapter: 'c-3' }); await settle();
+  click({ panel: 'setup' }); await settle();
+  click({ setupstep: 'premise' }); await settle();
+  click({ savesetup: '1' }); await settle();
+  assert.strictEqual(titleOf('c-3'), "The Fell Omen's Tale",
+    'and the chapter that opened gets the name proposed for it');
+  (globalThis as any).fetch = canned;
+  ok('a name proposed for the next chapter lands on the next chapter, not the one that closed');
+}
+
 console.log(`\n${n} checks passed`);
