@@ -12,6 +12,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-22 · Find a model on Featherless
 
+### A Featherless passage stops at its length
+Some Featherless models, given a long book, kept writing well past the passage length you set:
+twice as long or more. Anansi now stops reading such a passage once it reaches that length, and
+tells Featherless to stop too. What lands is trimmed back to its last finished sentence, and you
+are told it was trimmed, the same as any passage that reaches its length. A passage that ends on
+its own is not touched, and nothing changes for this machine's models.
+
 ### Weaving, in one word
 The model menu used to say "thinking" or "no thinking" beside some of this machine's models. It
 now says "weaves" or "doesn't weave", the same word the Storyteller and Find a model use. The

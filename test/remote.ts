@@ -67,7 +67,11 @@ const CATALOGUE = [
 /** What reached the fake Featherless, newest last. */
 const fl: { path: string; auth: string | undefined; body: any }[] = [];
 /** How the next chat calls should go, shifted one per call. Empty means "answer normally". */
-const script: ('429' | 'capacity' | 'unavailable' | 'midstream' | 'cold' | 'refuse' | 'down')[] = [];
+const script: ('429' | 'capacity' | 'unavailable' | 'midstream' | 'cold' | 'refuse' | 'down'
+  | 'overcap' | 'atcap')[] = [];
+/** The last long stream the fake wrote: how many content chunks went out, how many it meant to
+ *  send, and whether the connection closed before it had finished. */
+const long = { sent: 0, meant: 0, closedEarly: false };
 /** Every catalogue read, by the Authorization header it carried. Kept apart from `fl`, which blocks
  *  clear as they go. */
 const catReads: (string | undefined)[] = [];
@@ -117,6 +121,28 @@ const flSrv = createServer((req, res) => {
         usage: { prompt_tokens: 321, completion_tokens: 5 } });
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       const f = (o: unknown) => res.write(`data: ${JSON.stringify(o)}\n\n`);
+      // PAST THE CAP, AS THE REAL ONE DID (2026-10-22): Anubis-70B sent 900 as max_tokens and got
+      // 1,423 tokens back, then `finish_reason: "length"`. One word per chunk, a sentence every
+      // seventh, written a few at a time so a reader that stops early can be told from one that
+      // read it all. `atcap` stops on its own at exactly the cap, the case that must be left alone.
+      if (how === 'overcap' || how === 'atcap') {
+        const cap = Number(body.max_tokens);
+        Object.assign(long, { sent: 0, meant: how === 'overcap' ? cap * 2 : cap, closedEarly: false });
+        let done = false;
+        res.on('close', () => { if (!done) long.closedEarly = true; });
+        const next = () => {
+          if (res.destroyed) return;
+          for (let k = 0; k < 25 && long.sent < long.meant; k++, long.sent++)
+            f({ choices: [{ delta: { content: long.sent % 7 === 6 ? 'end. ' : 'word ' } }] });
+          if (long.sent < long.meant) return void setTimeout(next, 1);
+          f({ choices: [{ delta: {}, finish_reason: how === 'overcap' ? 'length' : 'stop' }] });
+          f({ choices: [], usage: { prompt_tokens: 321, completion_tokens: long.sent } });
+          res.write('data: [DONE]\n\n');
+          done = true;
+          res.end();
+        };
+        return next();
+      }
       f({ choices: [{ delta: { content: 'The remote ' } }] });
       if (how === 'midstream') {
         f({ error: { message: `upstream died, key ${KEY}` } });
@@ -502,6 +528,37 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(since(m).local.length, 0, 'NO FALLBACK after a mid-stream failure either');
   assert.ok(!leaked(refused, last), 'the key appears in no response, log line or generation row');
   ok('a refusal or a mid-stream failure is reported with the key cut out, and never falls back');
+}
+
+// ---- 5b. a remote stream that runs past its cap is cut at the cap, as a capped passage is (#62) ----
+{
+  const m = mark();
+  script.push('overcap');
+  const { deltas, last } = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.ok(!last.error, last.error);
+  const cap = Number(since(m).fl.at(-1)!.body.max_tokens);
+  assert.ok(cap > 0, 'the call carried a cap');
+  assert.ok(deltas.length <= cap, `CAP-READ: no more than the cap reached the page (${deltas.length} of a ${cap} cap)`);
+  // The close travels over a socket, so it is not instant. A bounded wait rather than a sleep.
+  for (let i = 0; i < 100 && !long.closedEarly; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.ok(long.closedEarly, 'CAP-ABORT: the upstream request was closed before Featherless finished');
+  assert.ok(long.sent < long.meant, `and Featherless did not get to send all ${long.meant}`);
+  assert.strictEqual(last.cut, true, 'CAP-FLAG: the passage is recorded as cut, as a capped one is');
+  assert.ok(/end\.$/.test(last.prose), 'and trimmed back to the last whole sentence');
+  assert.ok(last.passageId, 'and it still lands in the book');
+
+  // The same call stopping on its own at exactly the cap is untouched: whole, and not cut.
+  script.push('atcap');
+  const at = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.ok(!at.last.error, at.last.error);
+  assert.strictEqual(at.deltas.length, cap, 'UNDER-CAP: every chunk of a stream that stopped at the cap arrived');
+  assert.strictEqual(at.last.cut, false, 'UNDER-CAP: and it is not recorded as cut');
+  assert.ok(!long.closedEarly, 'and nothing closed it early');
+
+  const plain = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.strictEqual(plain.last.prose, 'The remote streamed this.', 'a short take is whole');
+  assert.strictEqual(plain.last.cut, false, 'and not cut');
+  ok('a remote stream past its cap is stopped there, trimmed and flagged; one that stops itself is untouched');
 }
 
 // ---- 6. a cold model is slow, not failed ----

@@ -268,6 +268,16 @@ await ok('a generation nobody stops still runs to the end', async () => {
   assert.ok(stopFake.state.finished, 'and the model must have been left to finish');
   assert.ok(!stopFake.state.closedEarly, 'with nothing cut short');
 });
+await ok('a local stream is never cut at its cap by Anansi: only a remote one is (#62)', async () => {
+  // The fake sends forty chunks whatever it is asked for. The local router honours max_tokens
+  // itself, so a stream that runs longer is the router's word, and this side reads it all.
+  stopFake.state.closedEarly = false; stopFake.state.finished = false;
+  const seen: string[] = [];
+  const r = await chat('system', 'body', { max_tokens: 10 }, (d) => seen.push(d));
+  assert.strictEqual(seen.length, 40, `LOCAL-WHOLE: every chunk arrived, not the first ten (${seen.length})`);
+  assert.strictEqual(r.finish, 'stop', 'and it ended as the router said it did');
+  assert.ok(stopFake.state.finished && !stopFake.state.closedEarly, 'with nothing cut short');
+});
 await ok('the fifteen-minute ceiling survives being composed with Stop', async () => {
   // The failure this exists for is `stop ?? AbortSignal.timeout(...)`: it stops on Stop, it looks
   // right, and it silently drops the ceiling from every generation a writer is watching — leaving

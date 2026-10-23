@@ -314,9 +314,10 @@ export const forgetSlot = () => { known = SLOT_FALLBACK; askedAt = -Infinity; };
  *  Exported for `test/stream.ts`, which drives it from a fake server: a `data:` line split
  *  across two network reads is the classic way a hand-written SSE reader loses a token, and
  *  that case cannot be produced by asking the real model nicely. */
-export async function readSSE(res: Response, onDelta: (d: string) => void) {
+export async function readSSE(res: Response, onDelta: (d: string) => void, cap = Infinity) {
   const out = { prose: '', reasoning: '', usage: {} as any, timings: {} as any, finish: '' };
   const reader = res.body!.getReader();
+  let chunks = 0;
   const dec = new TextDecoder();
   let buf = '';
   for (;;) {
@@ -336,6 +337,18 @@ export async function readSSE(res: Response, onDelta: (d: string) => void) {
       // prose written so far would present a truncated passage as a finished one.
       if (o.error) throw new Error(o.error.message ?? JSON.stringify(o.error));
       const d = o.choices?.[0]?.delta ?? {};
+      // #62 · PAST THE CAP, THE STREAM IS OVER, and it ends the way the server ending it at the cap
+      // would have: `length`, which `generate` already trims to the last sentence and flags as cut.
+      // Cancelling the body closes the connection, so the far end stops writing too. Counted in
+      // content chunks, one per token as a streaming server sends them: the stream carries no
+      // running token count, and `usage` arrives only at the end, too late to stop anything. A
+      // server that packs several tokens into one chunk is stopped later than the cap, never
+      // sooner, so a take that ends on its own under the cap is never cut by this.
+      if (d.content && ++chunks > cap) {
+        out.finish = 'length';
+        await reader.cancel().catch(() => {});
+        return { ...out, prose: out.prose.trim() };
+      }
       if (d.content) { out.prose += d.content; onDelta(d.content); }
       // The plan, under either name: llama-server says `reasoning_content`, Featherless `reasoning`.
       const plan = d.reasoning_content ?? d.reasoning;
@@ -386,7 +399,9 @@ export async function chat(system: string, body: string, opts: Record<string, un
     if (!res.ok) throw new Error(`/v1/chat/completions ${res.status}: ${(await res.text()).slice(0, 300)}`);
     const on = String(payload.model);
     enter(on);
-    try { return await readSSE(res, onDelta); }
+    // The cap is Anansi's to keep only on a remote call: Featherless was seen running past it
+    // (#62), and the local router honours it itself, so a local stream is read to its end.
+    try { return await readSSE(res, onDelta, remote ? Number(payload.max_tokens) || 900 : Infinity); }
     catch (e: any) {
       // A remote stream that fails after the 200 is still Featherless talking: its words are
       // redacted like any other answer of its, and the take fails rather than landing half-written.
