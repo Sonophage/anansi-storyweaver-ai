@@ -1113,17 +1113,6 @@ ok('forking copies the path so far and leaves the parent alone', () => {
   db.delStory(s7.id);
 });
 
-ok('the first path cannot be deleted, a fork can', () => {
-  const s8 = db.createStory(o, { title: 'B' });
-  db.addPassage({ ...s8, storyId: s8.id, body: 'x' });
-  const f = db.forkBranch(s8.id, s8.branchId, 1, 'other')!;
-  assert.strictEqual(db.deleteBranch(s8.id, s8.branchId), false, 'the trunk stays');
-  db.setActiveBranch(s8.id, f);
-  assert.strictEqual(db.deleteBranch(s8.id, f), true);
-  assert.strictEqual(db.activeBranchOf(s8.id), s8.branchId, 'and you land back on the trunk');
-  db.delStory(s8.id);
-});
-
 // A snapshot must include writes still sitting in the -wal. `cp` of the main file does not, and
 // silently: it cost an A/B run where one arm was seeded and the other cp-ed from it, so that arm
 // generated with no prose in context and the manifests differed by a whole block. Measured

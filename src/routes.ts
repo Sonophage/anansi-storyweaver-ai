@@ -2725,11 +2725,6 @@ export const routes: Record<string, Handler> = {
     if (!db.setActiveBranch(c.body.storyId, c.body.id)) return { error: 'no such branch' };
     return viewOf(c, c.body.storyId);
   },
-  'DELETE /api/branch':  (c) => {
-    if (!db.deleteBranch(c.body.storyId, c.body.id))
-      return { ...viewOf(c, c.body.storyId), error: 'the first path cannot be removed' };
-    return viewOf(c, c.body.storyId);
-  },
   /** REPAIR ONE PASSAGE, BECAUSE THE WRITER PRESSED IT. Issue #9, option 2, chosen by Seth on
    *  2026-09-01 out of three: leave it, a button on the flag, or back on the critical path.
    *

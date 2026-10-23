@@ -679,7 +679,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   const llama = readFileSync(new URL('../src/llama.ts', import.meta.url), 'utf8');
   assert.match(llama, /ANANSI_MODELS/, 'the allowlist reads an env var');
   assert.match(llama, /export const allowed\b/, 'and exposes a predicate the routes can use');
-  assert.match(llama, /if \(!allowed\(id\)\)/, 'setModel refuses anything off the list');
+  assert.match(llama, /if \(!allowed\(id\)\)/, 'checkModel refuses anything off the list');
   const routes = readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
   assert.ok(!/POST \/api\/(models|allow)/.test(routes),
     'nothing may write the allowlist over HTTP');
@@ -739,7 +739,6 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   }
 
   const DEFERRED: Record<string, string> = {
-    delBranch: 'forking exists; deleting a branch has no screen yet',
     // PLAN-08 Phase 3, 2026-08-28. The engine reads addons and the routes write them; the editor
     // that would call these is the next slice and is what Seth asked for in the same sitting —
     // the card's face, the anchors per slot, and Anansi filling any of them. Deferred with a date

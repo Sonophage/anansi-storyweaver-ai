@@ -3132,7 +3132,7 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
 
     // The empty branch `createStory` minted goes, and its Chapter One goes with it on the cascade.
     // Copying the source's branches ON TOP of it would leave a second trunk with nothing in it, and
-    // two rows claiming `is_primary` is a shape `deleteBranch` and `listStories` both read.
+    // two rows claiming `is_primary` is a shape `listStories` reads.
     q('DELETE FROM branches WHERE id = ?').run(made.branchId);
 
     for (const b of q('SELECT * FROM branches WHERE story_id = ? ORDER BY created_at')
@@ -3269,17 +3269,6 @@ export function setActiveBranch(storyId: string, branchId: string) {
   const b = q('SELECT 1 FROM branches WHERE id = ? AND story_id = ?').get(branchId, storyId);
   if (!b) return false;
   q('UPDATE stories SET active_branch = ? WHERE id = ?').run(branchId, storyId);
-  return true;
-}
-export function deleteBranch(storyId: string, branchId: string) {
-  const b = q('SELECT * FROM branches WHERE id = ? AND story_id = ?').get(branchId, storyId) as any;
-  if (!b || b.is_primary) return false;          // the trunk is not removable
-  const st = q('SELECT active_branch FROM stories WHERE id = ?').get(storyId) as any;
-  if (st?.active_branch === branchId) {
-    const main = q('SELECT id FROM branches WHERE story_id = ? AND is_primary = 1').get(storyId) as any;
-    q('UPDATE stories SET active_branch = ? WHERE id = ?').run(main?.id ?? null, storyId);
-  }
-  q('DELETE FROM branches WHERE id = ?').run(branchId);
   return true;
 }
 

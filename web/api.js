@@ -155,7 +155,6 @@ export const api = {
   pickVariant:  (storyId, id)    => j('/api/variant', 'POST', { storyId, id }),
   fork:         (storyId, passageId, name) => j('/api/fork', 'POST', { storyId, passageId, name }),
   switchBranch: (storyId, id)    => j('/api/branch', 'POST', { storyId, id }),
-  delBranch:    (storyId, id)    => j('/api/branch', 'DELETE', { storyId, id }),
   saveEntry:    (storyId, entry) => j('/api/entry', 'POST', { storyId, entry }),
   delEntry:     (storyId, id)    => j('/api/entry', 'DELETE', { storyId, id }),
   // `storyId` is the book the entry lives in, which is what the ownership gate reads; `into` is

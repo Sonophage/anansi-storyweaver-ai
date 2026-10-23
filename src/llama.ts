@@ -15,7 +15,7 @@ const HOST = process.env.ANANSI_LLAMA ?? 'http://127.0.0.1:8080';
 // Renamed on the router 2026-08-27 — the whole preset list was rewritten and `write-nt-qwen36-h`
 // stopped existing, so every call answered `400 model not found` until this changed. ANANSI_MODEL
 // still wins; this is only what a box with nothing set falls back to.
-let MODEL = process.env.ANANSI_MODEL ?? 'Qwen3.6-WNTH-35B-A3B-NN';
+const MODEL = process.env.ANANSI_MODEL ?? 'Qwen3.6-WNTH-35B-A3B-NN';
 
 /** Which model a call should use: the story's own, or the default.
  *
@@ -679,14 +679,6 @@ export async function checkModel(id: string): Promise<string> {
   const known = await models();
   if (!known.some((m) => m.id === id)) throw new Error(`the router does not serve "${id}"`);
   return id;
-}
-
-/** Switch the model this PROCESS falls back to when neither the writer nor the story names one.
- *  Not what `POST /api/model` calls any more — one writer's choice must not land on the other's
- *  prose. Kept for a caller that genuinely means the boot default. */
-export async function setModel(id: string): Promise<string> {
-  MODEL = await checkModel(id);
-  return MODEL;
 }
 
 // ---- Fetch: the one outbound request this app makes ----
