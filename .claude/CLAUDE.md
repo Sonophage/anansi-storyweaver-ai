@@ -193,9 +193,12 @@ It is a reasoning model: **`chat_template_kwargs: {enable_thinking: false}` is s
 unless the book weaves.** With thinking on at a prose cap it returned no prose at all on three runs
 of four (F5), and structured roles truncate their JSON the same way (F23). Weaving (the writer's
 word; the code's flag is still `enable_thinking`) is a per-book switch, off by default: only the
-roles on `WEAVING_ROLES` in `routes.ts` turn it on, and `replyFor` raises their cap by 5,000 so the
-plan cannot eat the passage (F60). Every other call sends it off. Never raise a cap for weaving
-anywhere but `replyFor`, or the Context panel previews a budget the call does not use.
+roles on `WEAVING_ROLES` in `routes.ts` turn it on, and `replyFor` raises their cap by the role's
+`WEAVE_ROOM` (prose 5,000, Talk 5,000, Invent 7,000) so the plan cannot eat the reply (F60). Every
+other call sends it off. Never raise a cap for weaving anywhere but `replyFor`, or the Context panel
+previews a budget the call does not use. A remote model whose template refuses the field (a 400 for
+any body carrying it) is recorded as such by the probe on add, and the Featherless adapter leaves
+the field off every call to it.
 
 Two concurrent writers at full budget fit with a ~5,700-token margin. Oversubscribing the shared
 cache does not queue — both requests die with HTTP 500. **Do not raise the per-slot budget.**
