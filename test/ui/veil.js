@@ -14,6 +14,14 @@
 // THE ONE THAT MATTERS MOST is section 4: PLAN-07 bug 1 was a veil that could be left up by a
 // failure, and the veil now deliberately HOLDS on success. Those two facts together are how you
 // build a trap, so the abort path is asserted rather than assumed.
+//
+// THE MODEL IS WOKEN BEFORE ANYTHING IS TIMED (#67). The router sleeps a model after 900 s idle,
+// and loading it again takes far longer than any wait below allows. On 2026-10-22 this scenario
+// went red on a cold model ("the veil went up again") and green on an immediate re-run with no
+// change, so a red from a cold start reads exactly like a red from the code. The app's own warm on
+// opening (`warmModel` in src/routes.ts) does not cover it: it fires and is not waited for. So this
+// makes the same call the app makes, one token from the model this book writes with, straight to
+// the router, and WAITS for it. After that, a red here is a finding about the veil.
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
@@ -66,6 +74,16 @@ for (let i = 0; i < 40; i++) { if (await page.eval("!!document.querySelector('#r
 ok("the book under test does not weave", await page.eval(`(async () => {
   const v = await (await fetch('/api/story?story=${sid}')).json();
   return v.story.weaving === false && v.weaves === false; })()`));
+
+// THE WARM. Same shape as `warmModel`: max_tokens 1, thinking off. The model is the one the view
+// says writes this book, and the router is the one the test server reads: both inherit ANANSI_LLAMA
+// from run.sh's environment, default :8080. Five minutes is the bound, for a 26 GiB load from disk.
+const using = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).model)()`);
+const woke = await fetch((process.env.ANANSI_LLAMA ?? "http://127.0.0.1:8080") + "/v1/chat/completions", {
+  method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(300_000),
+  body: JSON.stringify({ model: using, max_tokens: 1, temperature: 0, chat_template_kwargs: { enable_thinking: false },
+    messages: [{ role: "user", content: "ok" }] }) }).then((r) => r.ok, () => false);
+ok(`the model is awake before the timing starts (${using})`, woke);
 
 // ---- 1. before the first token: nothing held open, the tint already there, Stop offered
 await send("The rain does not stop.");
