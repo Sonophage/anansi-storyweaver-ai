@@ -1265,11 +1265,11 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok('chat_template_kwargs' in probes[0].body, 'the detector: the first probe carries the switch');
   assert.ok(probes.length >= 2 && !('chat_template_kwargs' in probes[1].body),
     'NO-SWITCH: refused, the probe asks once more with no switch at all');
-  assert.strictEqual(entry(HARB).takesSwitch, false, 'NO-SWITCH: the entry records that its template takes no switch');
+  assert.strictEqual(db.takesSwitch(HARB), false, 'NO-SWITCH: the model is recorded as taking no switch');
   assert.strictEqual(entry(HARB).weaving, "doesn't weave", 'and that it does not weave');
   const other = await routes['POST /api/shortlist'](ctx(w, { model: ID }));
   assert.ok(!other.error, other.error);
-  assert.strictEqual(entry(ID).takesSwitch, true, 'the control: a model that answered with the switch takes it');
+  assert.strictEqual(db.takesSwitch(ID), true, 'the control: a model that answered with the switch takes it');
 
   const book = db.createStory(w, { title: 'No Switch' });
   db.addPassage({ ...book, storyId: book.id, body: 'The lamp turned on its own.' });
@@ -1278,7 +1278,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   await set({ model: HARB });
   const v = await routes['GET /api/story'](ctx(w, {}, `story=${book.id}`));
   assert.strictEqual(v.model, HARB, 'the detector: the book is written by the refusing model');
-  assert.strictEqual(v.canWeave, false, 'NO-SWITCH: the view says this book\'s model cannot be asked to weave');
+  assert.match(String(v.weaveNote), /can't be asked to weave/, 'NO-SWITCH: the view says this book\'s model cannot be asked to weave');
   assert.strictEqual(v.weaves, false, 'NO-SWITCH: so a book switched to it does not weave');
 
   // Writing: a streamed passage, a waited-for one, and Talk. Each is one call, without the field.
@@ -1319,6 +1319,46 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('a model whose template refuses the switch is added, writes without the field, and cannot weave');
 }
 
+// ---- 24b. one reader for "does this model take the switch", and the latest add wins ----
+//
+// The Featherless adapter decides whether the field is sent from `db.takesSwitch`, which is not by
+// owner: a fact about how Featherless serves the model. The view must read the same fact, or a book
+// is told it weaves while its model is never sent the switch. And the fact is the latest add's: a
+// model re-added after someone else added it is described by that re-add.
+{
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+  const X = 'featherless:someone/Latest-Wins-24B';
+  const a = db.owner('latest-a'), b = db.owner('latest-b');
+  db.addToShortlist(a, X, 32768, "doesn't weave", 1, false); await tick();
+  db.addToShortlist(b, X, 32768, 'can switch', 1, true); await tick();
+  db.addToShortlist(a, X, 32768, "doesn't weave", 1, false);
+  assert.strictEqual(db.takesSwitch(X), false, 'LATEST-WINS: a re-add is the latest fact about the model');
+
+  // The book's owner holds the model as taking the switch; a later add found it does not. The call
+  // path sends no switch, so the view must not say this book weaves.
+  const Y = 'featherless:someone/One-Reader-24B';
+  db.addToShortlist(a, Y, 32768, 'can switch', 1, true); await tick();
+  db.addToShortlist(b, Y, 32768, "doesn't weave", 1, false);
+  const book = db.createStory(a, { title: 'One Reader' });
+  db.updateStory(book.id, { model: Y, weaving: true });
+  const v = await routes['GET /api/story'](ctx(a, {}, `story=${book.id}`));
+  assert.strictEqual(v.model, Y, 'the detector: the book is written by the model');
+  assert.strictEqual(db.takesSwitch(Y), false, 'the detector: the call path sends it no switch');
+  assert.strictEqual(v.weaves, false, 'ONE-READER: so the book does not weave, by the same fact the call reads');
+  assert.match(String(v.weaveNote), /can't be asked to weave/, 'ONE-READER: and the Storyteller says it cannot');
+
+  // A model that refuses the switch AND always plans: it weaves, the count shows, and the Storyteller
+  // says it always weaves rather than that it cannot.
+  const Z = 'featherless:someone/Always-No-Switch-24B';
+  db.addToShortlist(a, Z, 32768, 'always weaves', 1, false);
+  const forced = db.createStory(a, { title: 'Always' });
+  db.updateStory(forced.id, { model: Z });
+  const fv = await routes['GET /api/story'](ctx(a, {}, `story=${forced.id}`));
+  assert.strictEqual(fv.weaves, true, 'ALWAYS-NO-SWITCH: a model that always plans weaves');
+  assert.strictEqual(fv.weaveNote, 'This model always weaves.', 'ALWAYS-NO-SWITCH: and the Storyteller says so');
+  ok('one reader says whether a model takes the switch, the latest add wins, and always weaves is said as such');
+}
+
 // ---- 25. a 400 on add for any other reason is learnt as nothing, and on a call is never retried ----
 {
   const w = db.owner('flaky-adder');
@@ -1327,7 +1367,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   script.push('refuse');
   const added = await routes['POST /api/shortlist'](ctx(w, { model: GEMMA }));
   assert.ok(!added.error, added.error);
-  assert.strictEqual((db.shortlistOf(w) as any[]).find((x) => x.id === GEMMA)?.takesSwitch, true,
+  assert.strictEqual(db.takesSwitch(GEMMA), true,
     'ONE-400: a refusal the switch did not cause does not record the model as refusing it');
   assert.ok(since(m).fl.length <= 3, 'and finding that out costs at most three tiny calls');
 

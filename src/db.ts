@@ -872,17 +872,20 @@ export const setDefaultModel = (ownerId: string, id: string | null) =>
 
 /** THE SHORTLIST, always by owner. Every read and write names the owner, so one writer's list is
  *  unreachable from another's account by construction — the same shape as `promptsOf`. The one
- *  exception is `takesSwitch`, below, which says why. */
+ *  exception is `takesSwitch`, below, which says why, and which is the only reader of whether a
+ *  model takes the weaving switch: this list does not carry it, so nothing can read it a second way. */
 export const shortlistOf = (ownerId: string): { id: string; context: number; weaving: string | null;
-  cost: number | null; takesSwitch: boolean; addedAt: number }[] =>
-  (q('SELECT model, context, weaving, cost, takes_switch, added_at FROM shortlist WHERE owner_id = ? ORDER BY added_at, model')
+  cost: number | null; addedAt: number }[] =>
+  (q('SELECT model, context, weaving, cost, added_at FROM shortlist WHERE owner_id = ? ORDER BY added_at, model')
     .all(ownerId) as any[]).map((r) => ({ id: r.model, context: r.context, weaving: r.weaving,
-      cost: r.cost, takesSwitch: r.takes_switch !== 0, addedAt: r.added_at }));
+      cost: r.cost, addedAt: r.added_at }));
 /** #61 · WHETHER `id`'s chat template takes the weaving switch, for the Featherless adapter, which
- *  is handed a model id and nothing else. THE ONE SHORTLIST READ NOT BY OWNER, on purpose: this is
- *  a fact about how Featherless serves the model, the same for every writer who adds it, and it
- *  never leaves the server — it decides only whether a field is sent. The entry added last wins.
- *  A model on nobody's list takes it, as every model did before the probe asked. */
+ *  is handed a model id and nothing else, and for `canWeave` in routes.ts, so the book and the call
+ *  read one fact. THE ONE SHORTLIST READ NOT BY OWNER, on purpose: this is a fact about how
+ *  Featherless serves the model, the same for every writer who adds it, and it never leaves the
+ *  server. The entry added last wins: `addToShortlist` moves `added_at` on a re-add, because a
+ *  re-add probes again. A model on nobody's list, and a local model, takes it, as every model did
+ *  before the probe asked. */
 export const takesSwitch = (id: string): boolean =>
   (q('SELECT takes_switch FROM shortlist WHERE model = ? ORDER BY added_at DESC LIMIT 1').get(id) as any)
     ?.takes_switch !== 0;
@@ -893,7 +896,8 @@ export const addToShortlist = (ownerId: string, id: string, context: number,
   weaving: string | null = null, cost: number | null = null, takes = true) =>
   q(`INSERT INTO shortlist (owner_id, model, context, weaving, cost, takes_switch, added_at) VALUES (?,?,?,?,?,?,?)
      ON CONFLICT(owner_id, model) DO UPDATE SET context = excluded.context,
-       weaving = excluded.weaving, cost = excluded.cost, takes_switch = excluded.takes_switch`)
+       weaving = excluded.weaving, cost = excluded.cost, takes_switch = excluded.takes_switch,
+       added_at = excluded.added_at`)
     .run(ownerId, id, context, weaving, cost, takes ? 1 : 0, now());
 export const removeFromShortlist = (ownerId: string, id: string) =>
   q('DELETE FROM shortlist WHERE owner_id = ? AND model = ?').run(ownerId, id);

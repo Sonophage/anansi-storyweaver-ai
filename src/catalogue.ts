@@ -83,6 +83,9 @@ const isUncensored = (id: string) => UNCENSORED.test(id);
 const WEAVING = ["doesn't weave", 'can switch', 'always weaves', 'not tried yet'] as const;
 export type Weaving = typeof WEAVING[number];
 const UNTRIED: Weaving = 'not tried yet';
+/** The label of a model that plans whatever it is sent. Exported: the server reads a stored label
+ *  against it to decide that such a model's book always weaves. */
+export const ALWAYS_WEAVES: Weaving = 'always weaves';
 
 /** THE GUESS, before anyone has called the model. One table, here; the search rows, the weaving
  *  filter and the sort all read it through `weavingGuess`, and the probe on add replaces it with
@@ -113,11 +116,11 @@ const UNTRIED: Weaving = 'not tried yet';
  *  ever publishes one. Trigger: a probe on add that stores a label other than its guess, or a
  *  family the writers search for that reads "not tried yet". */
 const BY_NAME: [RegExp, Weaving][] = [
-  [/(?<!no[-_ ]?|non[-_ ]?)think|(^|[^a-z0-9])r1([^a-z0-9]|$)|qwq|glm-?z1/i, 'always weaves'],
+  [/(?<!no[-_ ]?|non[-_ ]?)think|(^|[^a-z0-9])r1([^a-z0-9]|$)|qwq|glm-?z1/i, ALWAYS_WEAVES],
   [/magistral/i, UNTRIED],
 ];
 const BY_CLASS: [RegExp, Weaving][] = [
-  [/^gpt-?oss|^minimax-m2/i, 'always weaves'],
+  [/^gpt-?oss|^minimax-m2/i, ALWAYS_WEAVES],
   [/^qwen3|^gemma4|^glm4[5-9]|^deepseek4-|^kimi-k25/i, 'can switch'],
   [/^kimi-k2$|^glm4-|^llama[23]|^mistral-(24b|v0|nemo)/i, "doesn't weave"],
 ];
@@ -137,7 +140,7 @@ const weavingGuess = (row: { id: string; modelClass: string | null }): Weaving =
  *  can do: with no plan it is stored as not weaving. */
 export const weavingFound = (row: { id: string; modelClass: string | null },
   answer: { prose: string; reasoning: string }, takes = true): Weaving => {
-  if (answer.reasoning.trim() || /<think>/i.test(answer.prose)) return 'always weaves';
+  if (answer.reasoning.trim() || /<think>/i.test(answer.prose)) return ALWAYS_WEAVES;
   const guess = weavingGuess(row);
   return guess === UNTRIED || (!takes && guess === 'can switch') ? "doesn't weave" : guess;
 };

@@ -2,7 +2,7 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
-  hubTagsFor, hubCard, isRepo } from './catalogue.ts';
+  hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
@@ -131,17 +131,29 @@ export const WEAVING_ROLES: ReadonlySet<string> = new Set(Object.keys(WEAVE_ROOM
  *  reads the model's context through. Which model writes a book depends on who asks, so `c` is the
  *  writer asking. A local model has no label: it is one that can switch. */
 const bookWeaves = (c: Ctx, v: { story: any; owner?: string }) => (!!v.story?.weaving && canWeave(c, v))
-  || heldFor(c, v, writerModel(c, v))?.weaving === 'always weaves';
+  || alwaysWeaves(c, v);
+
+/** Whether the model that writes this book always weaves: its recorded label, read through
+ *  `heldFor`. Such a book weaves with its switch off, and turning weaving off cannot change that. */
+const alwaysWeaves = (c: Ctx, v: { story: any; owner?: string }) =>
+  heldFor(c, v, writerModel(c, v))?.weaving === ALWAYS_WEAVES;
 
 /** #61 · Whether the model that writes this book can be asked to weave: false only for a remote
- *  model whose chat template refused the switch when it was added (see `askSwitchWith`). The
- *  book's switch is then ignored and cannot be turned on, because the model is never sent it. */
-const canWeave = (c: Ctx, v: { story: any; owner?: string }) =>
-  heldFor(c, v, writerModel(c, v))?.takesSwitch !== false;
+ *  model whose chat template refused the switch when it was added. The book's switch is then
+ *  ignored and cannot be turned on, because the model is never sent it. `db.takesSwitch` is the
+ *  fact the Featherless adapter reads to leave the field off (`askSwitchWith`), so the book and the
+ *  call cannot disagree; it is true for a local model and for one on nobody's list. */
+const canWeave = (c: Ctx, v: { story: any; owner?: string }) => db.takesSwitch(writerModel(c, v));
 
-/** What the writer is told when weaving is turned on for a book whose model cannot take it. */
+/** What the writer is told when this book's model cannot take the switch: in the Storyteller, where
+ *  the switch would be, and when weaving is turned on for such a book anyway. */
 const CANNOT_WEAVE = "This book's model can't be asked to weave, so weaving can't be turned on for "
   + 'this book. Pick a model that can, and turn it on then.';
+
+/** What the Storyteller shows in place of the Weaving switch, or null when the switch is drawn. A
+ *  model that always weaves says so first, because it does weave, whether or not it takes the switch. */
+const weaveNote = (c: Ctx, v: { story: any; owner?: string }) =>
+  alwaysWeaves(c, v) ? 'This model always weaves.' : canWeave(c, v) ? null : CANNOT_WEAVE;
 
 /** A CALL'S REPLY CAP, AND WHETHER IT WEAVES, decided here and nowhere else.
  *
@@ -241,7 +253,7 @@ const viewOf = (c: Ctx, id: string, chapter?: string) => {
     // The pin as a model row when it is a remote model on the owner's shortlist, so a guest's
     // picker can show the model that writes this book rather than calling it gone.
     pin: remotePin(c, v.story.model, v.owner),
-    weaves: bookWeaves(c, v), canWeave: canWeave(c, v),
+    weaves: bookWeaves(c, v), weaveNote: weaveNote(c, v),
     budget: budgetFor(v.story, slotFor(c, v, model), replyFor(c, v, 'prose', proseCap(c)).maxTokens) };
 };
 

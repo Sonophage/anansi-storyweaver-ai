@@ -2380,29 +2380,34 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
 }
 ok('the Storyteller has a Weaving switch where the thinking note was, and it saves itself');
 
-// #61. A BOOK WHOSE MODEL CANNOT BE ASKED TO WEAVE: its template refuses the switch, so the server
-// says `canWeave: false` and ignores the book's own switch. The panel offers no switch to press and
-// says why, in the writer's word.
+// #61, #58. A BOOK WHOSE MODEL CANNOT BE ASKED TO WEAVE, OR ALWAYS WEAVES: the server sends the
+// sentence to show where the switch would be (`weaveNote`), and the panel offers no switch to press.
+// The sentence is the server's, so the client carries no copy of it: the fixture's words are not
+// the shipped ones, and the panel must show the fixture's.
 {
   const visible = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
-  const was = (STORY as any).canWeave;
-  try {
-    (STORY as any).canWeave = false;
+  const was = (STORY as any).weaveNote;
+  const teller = async (note: string) => {
+    (STORY as any).weaveNote = note;
     click({ open: 's-1' });
     await new Promise((r) => setTimeout(r, 40));
     click({ panel: 'teller' });
     await new Promise((r) => setTimeout(r, 30));
-    const teller = visible(html('sideBody'));
-    assert.doesNotMatch(teller, /data-story="weaving"/, 'CANNOT-WEAVE: no switch is offered for a model that cannot take it');
-    const said = teller.match(/<div[^>]*id="cannotweave"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '';
-    assert.match(said, /can't be asked to weave/, `CANNOT-WEAVE: the panel says so plainly: ${said}`);
-    assert.doesNotMatch(said, /\b(think|thinking|reasoning|planning|template)\b/i, 'in the writer\'s words');
-    const at = (re: RegExp) => teller.search(re);
-    assert.ok(at(/data-storymodel/) < at(/id="cannotweave"/) && at(/id="cannotweave"/) < at(/>Sampling</),
-      'where the switch would be');
-  } finally { (STORY as any).canWeave = was; }
+    return visible(html('sideBody'));
+  };
+  try {
+    for (const note of ['The fixture model cannot be asked to weave.', 'This model always weaves.']) {
+      const t = await teller(note);
+      assert.doesNotMatch(t, /data-story="weaving"/, `WEAVE-NOTE: no switch is offered: ${note}`);
+      const said = t.match(/<div[^>]*id="weavenote"[^>]*>([\s\S]*?)<\/div>/)?.[1]?.trim() ?? '';
+      assert.strictEqual(said, note, 'WEAVE-NOTE: the panel shows the server\'s sentence, and no copy of its own');
+      const at = (re: RegExp) => t.search(re);
+      assert.ok(at(/data-storymodel/) < at(/id="weavenote"/) && at(/id="weavenote"/) < at(/>Sampling</),
+        'where the switch would be');
+    }
+  } finally { (STORY as any).weaveNote = was; }
 }
-ok('a book whose model cannot be asked to weave says so in the Storyteller, with no switch');
+ok('a book whose model cannot be asked to weave, or always weaves, says so in the Storyteller, with no switch');
 
 // #55. "WEAVING…" AND THE SECONDS, from the press until the first word. A weaving passage measured a
 // median 60 s of silence before its prose (F60), which reads as a hung app without a count. The
