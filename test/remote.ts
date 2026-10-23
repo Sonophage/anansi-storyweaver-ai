@@ -357,6 +357,8 @@ const streamed = async (body: any) => {
   assert.strictEqual(body.stream, true);
   for (const k of ['dry_multiplier', 'xtc_probability', 'target_words', 'thinking'])
     assert.ok(!(k in body), `${k} is llama.cpp's or the app's own, and is not sent to Featherless`);
+  assert.ok(!('repetition_penalty' in body),
+    'NO-PENALTY: no repetition penalty is sent while REMOTE_REPETITION_PENALTY is off (#62)');
   assert.strictEqual(body.temperature, 0.85, 'the documented sampler keys still go');
   assert.strictEqual(body.min_p, 0.05);
   assert.ok(Number.isInteger(body.seed), 'and so does the seed');

@@ -797,6 +797,16 @@ const wove = (reply: { weaves: boolean; maxTokens: number },
            ...(r.retried ? { retried: true } : {}) };
 };
 
+/** #62 · THE REPETITION GUARD FOR REMOTE PROSE, AND IT IS OFF. On this machine the DRY sampler
+ *  keeps a passage out of a loop; Featherless is not sent DRY (it does not document it), so a remote
+ *  passage has no guard, and Anubis-70B wrote two takes that were nothing but exclamation marks
+ *  (4,977 and 1,803 characters, 2026-10-22). Featherless documents `repetition_penalty`. A number is
+ *  set here only once a run has shown it helps: null sends nothing. Only remote prose would carry
+ *  it, and the writer's sampler, spread after it, wins.
+ *  ponytail: off until `bench/repetition.ts` (no penalty against 1.05 and 1.1, two remote models,
+ *  a real book) has run. Set the value it chose, or leave null and record that it showed nothing. */
+export const REMOTE_REPETITION_PENALTY: number | null = null;
+
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
   // ASKING FOR THE NEXT PASSAGE CLAIMS WHAT IS ALREADY THERE — "only claimed after the next
@@ -881,7 +891,9 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
       // `max_tokens` after the sampler, which carries the writer's own: a weaving call needs the
       // raised one, and F5 is what the writer's one does to a plan.
-      { ...c.gen, max_tokens: reply.maxTokens, seed, model: using,
+      { ...(isRemote(using) && REMOTE_REPETITION_PENALTY != null
+          ? { repetition_penalty: REMOTE_REPETITION_PENALTY } : {}),
+        ...c.gen, max_tokens: reply.maxTokens, seed, model: using,
         chat_template_kwargs: { enable_thinking: reply.weaves } }, onDelta,
       // Only the streaming call. `onDelta` is present exactly when there is a writer watching
       // this arrive, which is exactly when there is a Stop button to press.
