@@ -20,6 +20,13 @@ Featherless is busy if it is still full after about twenty seconds. Stop still e
 If the model has already written some of the passage, it fails as before, so a half-written
 passage is never quietly started over.
 
+### Every Featherless answer stops at its length
+Yesterday a streamed Featherless passage learned to stop at its length. Now everything else does
+too: a passage you wait for, a Talk answer, an invention and Anansi's other work. A passage that
+runs long is trimmed back to its last finished sentence, and you are told it was trimmed. A Talk
+answer or an invention that runs long is asked for again, the same as one that was cut off, so
+you never get half of one. Nothing changes for this machine's models.
+
 ## 2026-10-22 · Find a model on Featherless
 
 ### A Featherless passage stops at its length

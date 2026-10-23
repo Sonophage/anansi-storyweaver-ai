@@ -117,6 +117,17 @@ const flSrv = createServer((req, res) => {
         ? { content: 'ok', reasoning: 'The user wants a short answer.' }
         : body.model === PLANS_INLINE ? { content: '<think>A short answer, then.</think>ok' }
         : { content: 'The remote wrote this.' };
+      // #64 · PAST THE CAP WITH NO STREAM, as one did (1,213 of 900, F62). The same words as the
+      // streamed overrun, in one answer, with the usage that says how far over it went. A call asking
+      // for JSON gets JSON that PARSES, so a check that only reads the parse cannot see the overrun.
+      if (!body.stream && (how === 'overcap' || how === 'atcap')) {
+        const cap = Number(body.max_tokens);
+        const n = how === 'overcap' ? cap * 2 : cap;
+        const words = Array.from({ length: n }, (_, k) => (k % 7 === 6 ? 'end.' : 'word')).join(' ');
+        return json(200, { choices: [{ message: { content: body.response_format
+          ? JSON.stringify({ note: words }) : words }, finish_reason: how === 'overcap' ? 'length' : 'stop' }],
+          usage: { prompt_tokens: 321, completion_tokens: n } });
+      }
       if (!body.stream) return json(200, { choices: [{ message, finish_reason: 'stop' }],
         usage: { prompt_tokens: 321, completion_tokens: 5 } });
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -623,6 +634,54 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(plain.last.prose, 'The remote streamed this.', 'a short take is whole');
   assert.strictEqual(plain.last.cut, false, 'and not cut');
   ok('a remote stream past its cap is stopped there, trimmed and flagged; one that stops itself is untouched');
+}
+
+// ---- 5c. a remote answer that is not streamed keeps its cap too (#64) ----
+{
+  let m = mark();
+  script.push('overcap');
+  const r = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.ok(!r.error, r.error);
+  const cap = Number(since(m).fl.at(-1)!.body.max_tokens);
+  assert.ok(cap > 0, 'the call carried a cap');
+  const words = r.prose.split(/\s+/).length;
+  assert.ok(words <= cap, `WAITED-CAP: no more than the cap lands (${words} words of a ${cap} cap)`);
+  assert.strictEqual(r.cut, true, 'WAITED-FLAG: the passage is recorded as cut, as a capped one is');
+  assert.ok(/end\.$/.test(r.prose), 'and trimmed back to the last whole sentence');
+
+  script.push('atcap');
+  const at = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.strictEqual(at.prose.split(/\s+/).length, cap, 'WAITED-UNDER: an answer that stopped at the cap is whole');
+  assert.strictEqual(at.cut, false, 'WAITED-UNDER: and not cut');
+
+  // A structured answer past its cap is a cut answer, even when what came back parses: it is tried
+  // again with the room doubled, exactly as an answer the cap cut mid-object is, and never handed on.
+  const { structuredRetry } = await import('../src/llama.ts');
+  const NOTE = { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] };
+  m = mark();
+  script.push('overcap', 'atcap');
+  const s1 = await structuredRetry('s', 'b', NOTE, { model: ID, max_tokens: 50 });
+  const tried = since(m).fl;
+  assert.strictEqual(tried.length, 2, 'STRUCT-CAP: an answer past its cap is not taken; it is asked again');
+  assert.strictEqual(tried[1].body.max_tokens, 2000, 'with the room a cut answer gets (double, never under 2,000)');
+  assert.strictEqual(s1.data?.note?.split(' ').length, 2000, 'and the answer that kept its cap is the one used');
+
+  script.push('overcap', 'overcap');
+  const s2 = await structuredRetry('s', 'b', NOTE, { model: ID, max_tokens: 50 });
+  assert.strictEqual(s2.data, null, 'STRUCT-REFUSED: past its cap twice, no JSON is handed on');
+  assert.match(String(s2.error), /past its length/, 'STRUCT-REFUSED: and the error says why');
+
+  // Local calls are untouched: the router keeps its own cap, so its count is not second-guessed.
+  // The fake router always says 10 tokens, here against a cap of 5.
+  m = mark();
+  const LOCAL = 'Qwen3.6-WNTH-35B-A3B-NN';
+  const loc = await structuredRetry('s', 'b', NOTE, { model: LOCAL, max_tokens: 5 });
+  assert.ok(loc.data, 'LOCAL-UNCHANGED: a local structured answer over its count is still taken');
+  assert.strictEqual(since(m).local.length, 1, 'LOCAL-UNCHANGED: and not asked again');
+  const { chat } = await import('../src/llama.ts');
+  const said = await chat('s', 'b', { model: LOCAL, max_tokens: 5 });
+  assert.strictEqual(said.prose, JSON.stringify({ characters: [], entries: [] }), 'LOCAL-UNCHANGED: a local answer is whole');
+  ok('a remote answer that is not streamed keeps its cap: prose is cut and flagged, JSON is asked again');
 }
 
 // ---- 6. a cold model is slow, not failed ----

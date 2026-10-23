@@ -180,10 +180,28 @@ export async function reach(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
+/** #64 · A REMOTE ANSWER THAT WAS NOT STREAMED KEEPS ITS CAP TOO. A streamed one is stopped at the
+ *  cap in `readSSE`; this is the same rule for the answer that arrives whole, as one did at 1,213
+ *  tokens of a 900 cap (F62). It has no token boundaries to cut on, only the count Featherless
+ *  reports, so the text is cut in proportion to it and ends as the streamed one does: `length`.
+ *  `generate` trims that to the last sentence and flags it, and `structured` treats it as a cut
+ *  answer, never as JSON. No usage, nothing to measure against, and the answer is left alone.
+ *  ponytail: proportional cut, approximate by a few tokens either way; cut on the tokenizer's
+ *  boundaries if a writer ever sees a capped passage land visibly long or short. */
+function keepCap(r: any, cap: number) {
+  const used = Number(r?.usage?.completion_tokens);
+  const m = r?.choices?.[0]?.message;
+  if (!(cap > 0) || !(used > cap) || typeof m?.content !== 'string') return r;
+  m.content = m.content.slice(0, Math.floor(m.content.length * cap / used));
+  r.choices[0].finish_reason = 'length';
+  return r;
+}
+
 async function post(path: string, body: any, ms = 900_000): Promise<any> {
   // A remote model's call goes to Featherless, whose paths are the router's without the `/v1`.
   if (isRemote(body?.model))
-    return (await featherless(path.replace(/^\/v1/, ''), body, AbortSignal.timeout(ms))).json();
+    return keepCap(await (await featherless(path.replace(/^\/v1/, ''), body, AbortSignal.timeout(ms))).json(),
+      Number(body.max_tokens));
   const res = await reach(HOST + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -462,18 +480,24 @@ export async function chat(system: string, body: string, opts: Record<string, un
  *  pinned low: a prose temperature under a tight grammar walks low-probability legal paths
  *  and produces valid JSON that says nothing. */
 export async function structured(system: string, body: string, schema: unknown, opts = {}) {
-  const r = await post('/v1/chat/completions', {
+  const payload = {
     model: MODEL, temperature: 0.2, top_p: 0.9, max_tokens: 1200,
     chat_template_kwargs: { enable_thinking: false },
     response_format: { type: 'json_schema', json_schema: { name: 'out', schema, strict: true } },
     messages: [{ role: 'system', content: system }, { role: 'user', content: body }],
     ...opts,
-  });
+  };
+  const r = await post('/v1/chat/completions', payload);
   const m = r.choices?.[0]?.message ?? {};
   const txt = m.content ?? '{}';
   // The usage and the plan ride back with the answer, so a weaving caller can record the plan's
   // LENGTH. The plan text goes no further than that caller: it is never shown and never stored.
   const said = { usage: r.usage ?? {}, reasoning: m.reasoning_content ?? m.reasoning ?? '' };
+  // #64 · A REMOTE ANSWER PAST ITS CAP IS A CUT ANSWER, even if what came back would parse: it is
+  // what the cap cutting it mid-object gives, so `structuredRetry` asks again as it does for that.
+  // Only remote: the local router stops at its own cap, and its answers are read as they always were.
+  if (isRemote(payload.model) && r.choices?.[0]?.finish_reason === 'length')
+    return { data: null, raw: txt, error: 'the answer ran past its length and was cut', ...said };
   try { return { data: JSON.parse(txt), raw: txt, ...said }; }
   catch { return { data: null, raw: txt, error: 'model returned unparseable JSON', ...said }; }
 }
