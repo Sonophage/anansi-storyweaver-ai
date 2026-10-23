@@ -4529,11 +4529,11 @@ function sparkReview() {
   const rerollField = (k) => `<button data-spfield="${k}" ${busy || S.spark.spField ? 'disabled' : ''}
       style="background:none; border:0; padding:2px 0 0; cursor:pointer; font-size:11px;
       letter-spacing:.1em; text-transform:uppercase; color:var(--gold-dim)"
-    >${S.spark.spField === k ? 'thinking&hellip;' : 'ask again for this'}</button>`;
+    >${S.spark.spField === k ? 'asking&hellip;' : 'ask again for this'}</button>`;
 
   const reroll = (label) => S.spark.idea
     ? `<button class="btn ghost" data-spreroll="1" ${busy ? 'disabled' : ''}
-        style="margin-top:6px">${S.spark.sparking ? 'Thinking&hellip;' : esc(label)}</button>` : '';
+        style="margin-top:6px">${S.spark.sparking ? 'Asking&hellip;' : esc(label)}</button>` : '';
 
   const body = key === 'book'
     /* THE BOOK. Title, genre, premise — and the voice, which was on the last step where it was
@@ -4572,7 +4572,7 @@ function sparkReview() {
             button is the other half of "be able to be rerolled to fit the story", and neither
             saves: this is a skeleton and nothing here is written until Accept. -->
        <button class="btn ghost" data-spstyle="1" ${busy ? 'disabled' : ''}
-         style="margin:-4px 0 10px; font-size:11.5px">${S.spark.styling ? 'Thinking&hellip;'
+         style="margin:-4px 0 10px; font-size:11.5px">${S.spark.styling ? 'Asking&hellip;'
            : s.styleNote ? 'Write another' : 'Have Anansi write it'}</button>`
     : key === 'you'
     // YOU. AFTER the cast, at Seth's direction — see the note on STEPS. The usual answer is now
@@ -4652,7 +4652,7 @@ function sparkReview() {
              <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label>
            <button class="btn ghost" data-sprecast="${i}" ${busy ? 'disabled' : ''}
              style="margin-left:auto; width:auto; padding:0 13px; height:30px; font-size:11.5px"
-             >${S.spark.recasting === i ? 'Thinking&hellip;' : 'Re-roll this one'}</button>
+             >${S.spark.recasting === i ? 'Asking&hellip;' : 'Re-roll this one'}</button>
          </div></div>`).join('')}
        <!-- #40, 2026-09-01 · SUGGESTED FIRST, THEN KEPT OR DROPPED, THEN STEERED. Seth: "having them
             suggested is good and then the writer can state what they need after choosing what stays
@@ -5146,7 +5146,7 @@ function setupPanel() {
       value="${esc(S.setupSteer ?? '')}"
       placeholder="Steer it — a turn you want, someone who has to be in it" style="margin-top:14px">
     <button class="btn ghost" data-name="${ch.id}" ${S.naming ? 'disabled' : ''} style="margin-top:7px">${
-      S.naming ? 'Thinking&hellip;' : (!placeholder || form.note.trim())
+      S.naming ? 'Asking&hellip;' : (!placeholder || form.note.trim())
         ? 'Have Anansi suggest another' : 'Have Anansi name it'}</button>
 
     <!-- ANYONE NEW IS THE ACCENTED PRESS AND IT COMES FIRST, at Seth's direction 2026-09-01: "make
@@ -10573,7 +10573,7 @@ document.addEventListener('click', async (e) => {
       // selected from the start."
       idea, kinds: [...KINDS], casting: false, sparking: false, follow: null, castTried: false,
       // #28. The writer's line about the cast, sent with every ask on that step. `recasting` holds
-      // the INDEX being re-rolled rather than a boolean, because the button that says "Thinking…"
+      // the INDEX being re-rolled rather than a boolean, because the button that says "Asking…"
       // has to be the one that was pressed.
       castSteer: '', recasting: null,
       // The house style: `styling` is the call in flight, `styled` is the once-only autofill having

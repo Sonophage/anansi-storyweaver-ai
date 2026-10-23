@@ -105,6 +105,17 @@ const ok = (m: string, fn?: unknown) => {
       + 'words instead of writing it');
   }
   ok('no HTML comment closes early and leaks its own words onto the page');
+  // #49 · NO BUTTON SAYS IT IS THINKING. The glossary keeps "thinking" off the page: a call that
+  // weaves says Weaving, and one that does not says Asking. Read over the whole script, comments
+  // included, because a busy word is a string and a comment quoting one is as easy to copy back.
+  {
+    const busy = [...js.matchAll(/thinking(&hellip;|\u2026|\\u2026)/gi)].map((m) => m[0]);
+    assert.deepStrictEqual(busy, [], 'BUSY-WORDS: a busy button says Asking or Weaving, never Thinking');
+    // The detector, against the shapes it must catch.
+    for (const s of ['Thinking&hellip;', 'thinking\u2026', 'Thinking\\u2026'])
+      assert.ok(/thinking(&hellip;|\u2026|\\u2026)/i.test(s), `the detector catches ${s}`);
+  }
+  ok('no busy button says Thinking');
   // COUNCIL 09 §1 · EVERY MODEL CALL FROM A BUTTON GOES THROUGH ONE IN-FLIGHT GUARD.
   //
   // Four handlers fired a model pass behind a toast and nothing else, on the panel a writer reaches
