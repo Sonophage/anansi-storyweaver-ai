@@ -14,7 +14,7 @@ import { view, assemble, budgetFor, capFor, clean, defaultModePrompts, trimToSen
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, cardText, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches,
-         weaveFit } from './context.ts';
+         weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
 import { writeFileSync } from 'node:fs';
@@ -167,7 +167,7 @@ const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
  *  #58. `limit` is set when the book's model holds less than the writer's slot (a remote model's
  *  own context, 32,768 for nearly all of them), because then that limit, not the book's length
  *  alone, is why weaving does not fit, and the same book would weave whole on a local model. */
-const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }, tokens: number,
+export const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }, tokens: number,
                       limit: number | null) => {
   const room = `Weaving sets aside ${tokens.toLocaleString('en')} tokens for Anansi to weave in`;
   const own = limit != null && `${limit.toLocaleString('en')} tokens, this book's model's own limit`;
@@ -180,8 +180,8 @@ const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }, token
   if (prose) parts.push(prose === 1 ? 'the oldest passage still in view' : `the ${prose} oldest passages still in view`);
   // A chapter's summary is one block; an act's carries its range in its id and stands for all of it.
   const chapters = of('EARLIER').reduce((n, b) => {
-    const arc = /^arc-(\d+)-(\d+)$/.exec(b.id);
-    return n + (arc ? Number(arc[2]) - Number(arc[1]) + 1 : 1);
+    const act = actSpan(b.id);
+    return n + (act ? act.to - act.from + 1 : 1);
   }, 0);
   if (chapters) parts.push(chapters === 1 ? 'the summary of an earlier chapter' : `the summaries of ${chapters} earlier chapters`);
   const threads = fit.drops.filter((b) => b.kind.startsWith('CANON'))

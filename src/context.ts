@@ -826,6 +826,15 @@ export function retirable(entries: Entry[], window: string, persona?: string | n
   });
 }
 
+/** AN ACT'S BLOCK ID, and the one reader of it. An act's EARLIER block carries the chapters it
+ *  stands for in its id, so the engine's placement and a refusal that counts what dropped out read
+ *  the range one way. The writer and the reader sit together because they must agree. */
+const actId = (from: number, to: number) => `arc-${from}-${to}`;
+export const actSpan = (id: string): { from: number; to: number } | null => {
+  const m = /^arc-(\d+)-(\d+)$/.exec(id);
+  return m ? { from: Number(m[1]), to: Number(m[2]) } : null;
+};
+
 export function buildContext(input: Input, count: (s: string) => number): Manifest {
   const { story, chapters, passages, entries, currentChapter, budget } = input;
   const tailTokens = input.tailTokens ?? 200;
@@ -1174,7 +1183,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // An arc reaching into the whole-prose window is held back: the chapters it covers are
     // still being sent in full, so summarising them as well is the duplication §7.3 deleted.
     if (a.toChapter >= wholeFrom) continue;
-    add('EARLIER', `arc-${a.fromChapter}-${a.toChapter}`,
+    add('EARLIER', actId(a.fromChapter, a.toChapter),
       `Ch${a.fromChapter}-${a.toChapter}${a.title ? ` ${a.title}` : ''}: ${a.summary}`, 'arc');
   }
 
@@ -1438,8 +1447,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
    *  96-99. Arcs are placed at the chapter they start from. */
   const chapterAt = new Map(chapters.map((c) => [c.id, c.index]));
   const earlierAt = (b: Block) => {
-    const arc = /^arc-(\d+)-/.exec(b.id);
-    return arc ? Number(arc[1]) : chapterAt.get(b.id) ?? 0;
+    return actSpan(b.id)?.from ?? chapterAt.get(b.id) ?? 0;
   };
 
   /** How strongly a triggered canon block earned its place. Lower goes first.

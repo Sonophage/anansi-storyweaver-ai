@@ -452,5 +452,15 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
   ok('a book that overflows without weaving gets the overflow error, not the weaving refusal');
 }
 
+// ---- 12. AN ACT THAT DROPS OUT IS COUNTED AS THE CHAPTERS IT STANDS FOR. Its range is in its id,
+// read by the engine's own parser, so the refusal and the engine cannot read one id two ways.
+{
+  const { weaveRefusal } = await import('../src/routes.ts');
+  const said = weaveRefusal({ entries: [] }, { overflows: false,
+    drops: [{ kind: 'EARLIER', id: 'arc-3-11' }, { kind: 'EARLIER', id: 'c-14' }] } as any, 5000, null);
+  assert.match(said, /the summaries of 10 earlier chapters/, `ACT-COUNT: an act of chapters 3 to 11 is nine of them, and a chapter one: ${said}`);
+  ok('an act left out is counted as the chapters it stands for');
+}
+
 console.log(`\n${n} checks passed`);
 srv.close();
