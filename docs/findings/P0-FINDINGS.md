@@ -3054,3 +3054,51 @@ prose it was not written for.
 - **The app sends no penalty** (`REMOTE_REPETITION_PENALTY = null`). The cap is the guard that is
   proven; a penalty needs a larger run (runaways are rare, so n in the tens per arm) before it is
   worth a shorter passage on every call.
+
+## F63 — none of the cheap substitutes keeps weaving's lockout gain, and a one-line rule naming the locked character makes the leak worse: 44% against 12% (p = 0.0007) (2026-10-23)
+
+F60 found that a full plan (weaving) cut acting for the locked character, and its plans showed the
+model restating the lockout before writing. This asks whether something cheaper than a ~3,000-token
+plan does the same.
+
+**The design.** `bench/lockout-cheap.ts 50`, local `Qwen3.6-WNTH-35B-A3B-NN`, Into the Blue (Seth
+locked, lockout on), directive *"Halsey's voice breaks and the room goes quiet."*, a scratch copy of
+the library. Four arms, interleaved and rotated each round, one seed per round shared by all four,
+two in flight (one per router slot), every call verified against its own manifest and generation
+row; 0 failed in 200. Through the app's own `POST /api/generate` (not streamed):
+1. **off** — weaving off.
+2. **weave** — the book's switch on; cap 900 + 5,000.
+3. **rule** — weaving off; the writer's Direct prompt plus one last line: *"Before you write: Seth
+   belongs to the writer — write what happens to Seth, never what Seth does."*
+4. **ask** — a 60-token weaving-off question first (*whose actions must you not write?*), its first
+   sentence fed back as a line of the directive.
+
+| arm | could | acted, pronoun-counted | acted, name-counted | latency median / largest | words median |
+|---|---|---|---|---|---|
+| off | 30 | 6/50 (12%) | 1/50 (2%) | 7.1 s / 20.2 s | 181 |
+| weave | 9 | 1/50 (2%) · p 0.11 vs off | 0/50 | 86.6 s / 131.7 s | 214 |
+| rule | 42 | **22/50 (44%) · p 0.0007 vs off** | 1/50 | 9.4 s / 20.0 s | 238 |
+| ask | 21 | 4/50 (8%) · p 0.74 vs off | 1/50 | 10.2 s / 18.8 s | 195 |
+
+"could" is the informative denominator: passages whose narration names him or says "he". The ask
+arm's question named Seth 50 of 50 times (median 2.4 s). Weave's plans: median 3,156 tokens,
+largest 4,691, inside the 5,900 cap.
+
+**What this settles.**
+- **The rule line backfires.** Naming the locked character at the end of the prompt makes the model
+  write about him — he is in 42 of 50 narrations against 30 — and act for him in 44% against 12%.
+  The flagged sentences are actions ("He holds her gaze…", "he just watches. He lets the silence
+  stretch"). An instruction that names what not to do primes it. Do not ship a rule line.
+- **Asking first buys nothing measurable** (8% against 12%, p = 0.74) and costs a second call.
+- **Weaving is still the lowest (2%), but at this baseline the difference is not significant
+  (p = 0.11).** The baseline here is 12%, not F60's 34%: a different chapter state of the same book
+  a day later, and F55 says baselines drift. Weaving's gain is partly *avoidance*: he is in 9 of its
+  50 narrations against off's 30 — it writes around him.
+
+**What it does not settle.** One scene, one directive, one model, n = 50. The pronoun count assumes
+Seth is the only man present, and it counts a narrated refusal to act ("He does not pull away") as
+an action — the off arm's flags include those, so its 12% may run high. The name count (a floor)
+moves nothing in any arm.
+
+**Harness.** `bench/lockout-cheap.ts` (check mode in test/all.ts; detector validated both ways).
+The run's raw rows held prose from the writer's book and were deleted after this was written.
