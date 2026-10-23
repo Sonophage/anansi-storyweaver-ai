@@ -102,7 +102,6 @@ themselves live in git history.
 | `docs/PROMPTS.md` | **live**, revision 2 — transcribed from the code |
 | `docs/findings/COUNCIL-05..10.md` | **historical record** of review events, kept for their arguments |
 | `docs/bugs.md` | **empty of open items** as of 2026-09-06; all eleven were verified built or answered |
-| `docs/HANDOFF.md` | **live**, and the oldest of these — read it against `status.ts` rather than trusting it |
 
 And the one command that outranks all of them:
 

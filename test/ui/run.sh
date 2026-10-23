@@ -82,7 +82,7 @@ fresh() {
 }
 
 # EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
-# green for a scenario nobody asked about — twice, per docs/HANDOFF.md.
+# green for a scenario nobody asked about — twice, per the old handoff notes.
 scenarios=${*:-}
 [ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder marks fallback weave weavefit reroll"
 # `cover` and `entrypic` are excluded too, and for a second reason: they need ANANSI_SEARCH pointing
