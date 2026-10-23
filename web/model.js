@@ -190,7 +190,9 @@ export const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) =>
 // attribute — the id is what you type into ANANSI_MODEL and what the router answers to.
 //
 // THINKING IS NEVER DROPPED. `t` versus `nt` is the difference between prose and 900 tokens of
-// reasoning and no prose at all, so it is spelled out rather than left as a letter.
+// reasoning and no prose at all, so it is spelled out rather than left as a letter, in the
+// writer's word for it (#49): "weaves" and "doesn't weave". Only the shown words; the ids keep
+// their T and NT.
 const FAMILY = { qwen36: 'Qwen3.6', qwen38: 'Qwen3.8', tcap27: 'ThinkingCap 27B', ornith: 'Ornith' };
 const ROLE = { write: 'Write', rp: 'Roleplay', agentic: 'Agentic' };
 
@@ -240,7 +242,7 @@ export const modelName = (id) => {
   const alias = /^(write|rp|agentic)-(n?t)-([a-z0-9]+)-([a-z0-9]+)$/.exec(id);
   if (alias) {
     const [, role, think, family, tail] = alias;
-    const bits = [think === 't' ? 'thinking' : 'no thinking', tail === 'h' ? 'uncensored' : tail];
+    const bits = [think === 't' ? 'weaves' : "doesn't weave", tail === 'h' ? 'uncensored' : tail];
     return { id, name: `${ROLE[role]} \u00b7 ${FAMILY[family] ?? family}`,
              detail: bits.join(' \u00b7 '), bits, size: '' };
   }
@@ -266,8 +268,9 @@ export const modelName = (id) => {
       // 900 tokens of reasoning and no prose at all, and GLM-4.7-Flash honours the switch while
       // Huihui-ThinkingCap's is UNTESTED on its architecture. Silence here means "nothing to
       // watch"; the word means "watch this one".
+      // The word is "weaves" since #49, the writer's word for it.
       const bits = [PURPOSE[role]];
-      if (think === 'T') bits.push('thinking');
+      if (think === 'T') bits.push('weaves');
       // Never "censored" for the other case. See the note above CODE.
       bits.push(heretic ? 'uncensored' : 'trained open');
       if (tail.includes('NN')) bits.push('novel tier');

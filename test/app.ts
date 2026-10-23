@@ -554,10 +554,13 @@ assert.match(html('rail'), /Write \u00b7 Qwen3\.6/, 'the rail names the model in
 assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one hover away');
 {
   const { modelName } = await import('../web/model.js');
-  // Thinking on this model means 900 tokens of reasoning and no prose at all — three runs of four.
-  // A label that drops it is a label that hides the one setting that decides whether prose arrives.
-  assert.match(modelName('write-nt-qwen36-h').detail, /no thinking/);
-  assert.match(modelName('agentic-t-qwen38-h').detail, /(?<!no )thinking/, 't must read as thinking');
+  // Weaving on this model means 900 tokens of plan and no prose at all — three runs of four. A
+  // label that drops it is a label that hides the one setting that decides whether prose arrives.
+  // The id's code says T or NT; the label says it in the writer's word (#49).
+  assert.match(modelName('write-nt-qwen36-h').detail, /doesn't weave/, "MODEL-LABEL: nt reads as doesn't weave");
+  assert.match(modelName('agentic-t-qwen38-h').detail, /(?<!n't )weaves/, 'MODEL-LABEL: t must read as weaves');
+  assert.doesNotMatch(modelName('write-nt-qwen36-h').detail + modelName('agentic-t-qwen38-h').detail, /think/i,
+    'MODEL-LABEL: and neither says thinking');
   // Two of the router's presets are the same repo at different quants, so the name alone cannot
   // tell them apart and the detail is not decoration.
   const a = modelName('HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:32K');
@@ -587,9 +590,9 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   // transport pins enable_thinking:false on every call and not thinking is the normal case. A `T`
   // model is the other thing entirely — thinking left on returned no prose at all on three runs of
   // four — so silence means "nothing to watch" and the word means "watch this one".
-  assert.ok(modelName('GLM-4.7-Flash-RPTH-30B').bits.includes('thinking'),
-    'a T model must say so on every surface that shows the badges');
-  assert.doesNotMatch(q.detail, /thinking/,
+  assert.ok(modelName('GLM-4.7-Flash-RPTH-30B').bits.includes('weaves'),
+    'MODEL-LABEL: a T model must say it weaves on every surface that shows the badges');
+  assert.doesNotMatch(q.detail, /weav|think/,
     'and an NT model says nothing about it rather than saying the boring half out loud');
   // H ABSENT IS NOT CENSORED. presets.ini is explicit that Wayfarer-2 and Muse were trained open
   // and never censored, which is a different claim from refusing — and the surface must not turn
@@ -608,7 +611,7 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   assert.strictEqual(fl.id, 'featherless:llmfan46/Qwen3.6-35B-A3B-uncensored-heretic',
     'and keeps the stored id whole');
 }
-ok('a preset id in the 2026-08-27 convention decodes to purpose, thinking, decensoring and tier');
+ok('a preset id in the 2026-08-27 convention decodes to purpose, weaving, decensoring and tier');
 
 // THE BLURB MAP IS HAND-WRITTEN, AND THE LAST RENAME EMPTIED EVERY MAP LIKE IT SILENTLY. Keyed by
 // the family `modelName` decodes, so this walks the current preset list both ways: a blurb whose

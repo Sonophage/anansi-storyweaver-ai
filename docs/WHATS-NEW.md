@@ -12,6 +12,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-22 · Find a model on Featherless
 
+### Weaving, in one word
+The model menu used to say "thinking" or "no thinking" beside some of this machine's models. It
+now says "weaves" or "doesn't weave", the same word the Storyteller and Find a model use. The
+buttons in the new-book wizard and the chapter naming now say Asking while they wait.
+
 ### Models that can't be asked to weave
 A few models on Featherless refuse to be asked about weaving at all, and before, adding one to
 your shortlist failed. Now Anansi finds this out once, when you add the model, and remembers it.
