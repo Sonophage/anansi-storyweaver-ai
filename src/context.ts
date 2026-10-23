@@ -697,45 +697,6 @@ export function fires(entry: Entry, window: string): string[] {
   });
 }
 
-/** The cards a closing chapter may be ASKED to finish. PLAN-08 Phase 4.
- *
- *  A gate in front of the model, not a decision. Three refusals, and each one is a defect that
- *  would otherwise be invisible:
- *
- *  NAMED BY THIS CHAPTER. A card the closing chapter never mentions cannot be judged finished by
- *  reading it — there is no sentence to judge. Offering the whole ledger is how a scan retires a
- *  character it read no line about. The title is appended to the keys because
- *  `bench/ledger-audit.ts` measured the live library on 2026-08-28: eleven of twelve entries carry
- *  keys that are only their own title back, and one carries none at all, so asking `fires` alone
- *  would make a keyless card invisible here and shrink the denominator in silence. Two characters
- *  minimum on the append — SPEC §7.1's floor, owned by `db.keysOf` and restated rather than
- *  imported because this module has no database below it and never will.
- *
- *  A PLACE IS NEVER FINISHED; IT CHANGES. Seth, 2026-08-29: *"locations usually get revisited. the
- *  end of chapter should update that its closed or in ruins or burnt or destroyed."* F40 measured
- *  the scan finishing a building the prose called "closed for the last time" three times out of
- *  three, in both arms, while correctly leaving a man who walked out alone — it reads a shut
- *  building as gone and a person walking away as offstage. Both readings are defensible; the
- *  answer is that the question was wrong. A burned gate still exists, still gets walked through,
- *  and the model needs to know it is a ruin NOW — which is what `lore`'s `history` and `appearance`
- *  rooms are for, and what a per-field proposal already writes into them.
- *
- *  Items go with places, and for a nearer reason than it looks: a melted key is still a thing the
- *  story refers to, and what it WAS is its `provenance`. Only a person and a law stop being
- *  subjects at all.
- *
- *  ALREADY CARRYING A THRESHOLD. Whatever number is on it, the writer chose it. Re-proposing it
- *  every close turns the queue into noise, and a model revising somebody's decision is not a
- *  proposal, it is an argument.
- *
- *  NEVER THE POINT-OF-VIEW CHARACTER. `buildContext` applies the retirement branch BEFORE its
- *  `isPov` branch, so a retired persona card is omitted from every prompt with nothing on screen
- *  saying so — the protagonist quietly stops being described. The writer may still do it by hand;
- *  the scan must never suggest it.
- *
- *  Lives here rather than in `routes.ts` so that `bench/` and `test/engine.ts` can both reach it:
- *  importing it from there would pull `src/db.ts`, which opens the database writable and migrates
- *  it at module load, which is the objection `bench/ledger-audit.ts` already records. */
 /** #56 · WHETHER A WEAVING CALL FITS: the same book assembled twice, once with the normal reply
  *  reserve (`normal`) and once with the weaving one (`woven`), which differ only in budget.
  *
@@ -814,6 +775,45 @@ export function numbersIn(text: string): { value: number; unit: string }[] {
   return out;
 }
 
+/** The cards a closing chapter may be ASKED to finish. PLAN-08 Phase 4.
+ *
+ *  A gate in front of the model, not a decision. Three refusals, and each one is a defect that
+ *  would otherwise be invisible:
+ *
+ *  NAMED BY THIS CHAPTER. A card the closing chapter never mentions cannot be judged finished by
+ *  reading it — there is no sentence to judge. Offering the whole ledger is how a scan retires a
+ *  character it read no line about. The title is appended to the keys because
+ *  `bench/ledger-audit.ts` measured the live library on 2026-08-28: eleven of twelve entries carry
+ *  keys that are only their own title back, and one carries none at all, so asking `fires` alone
+ *  would make a keyless card invisible here and shrink the denominator in silence. Two characters
+ *  minimum on the append — SPEC §7.1's floor, owned by `db.keysOf` and restated rather than
+ *  imported because this module has no database below it and never will.
+ *
+ *  A PLACE IS NEVER FINISHED; IT CHANGES. Seth, 2026-08-29: *"locations usually get revisited. the
+ *  end of chapter should update that its closed or in ruins or burnt or destroyed."* F40 measured
+ *  the scan finishing a building the prose called "closed for the last time" three times out of
+ *  three, in both arms, while correctly leaving a man who walked out alone — it reads a shut
+ *  building as gone and a person walking away as offstage. Both readings are defensible; the
+ *  answer is that the question was wrong. A burned gate still exists, still gets walked through,
+ *  and the model needs to know it is a ruin NOW — which is what `lore`'s `history` and `appearance`
+ *  rooms are for, and what a per-field proposal already writes into them.
+ *
+ *  Items go with places, and for a nearer reason than it looks: a melted key is still a thing the
+ *  story refers to, and what it WAS is its `provenance`. Only a person and a law stop being
+ *  subjects at all.
+ *
+ *  ALREADY CARRYING A THRESHOLD. Whatever number is on it, the writer chose it. Re-proposing it
+ *  every close turns the queue into noise, and a model revising somebody's decision is not a
+ *  proposal, it is an argument.
+ *
+ *  NEVER THE POINT-OF-VIEW CHARACTER. `buildContext` applies the retirement branch BEFORE its
+ *  `isPov` branch, so a retired persona card is omitted from every prompt with nothing on screen
+ *  saying so — the protagonist quietly stops being described. The writer may still do it by hand;
+ *  the scan must never suggest it.
+ *
+ *  Lives here rather than in `routes.ts` so that `bench/` and `test/engine.ts` can both reach it:
+ *  importing it from there would pull `src/db.ts`, which opens the database writable and migrates
+ *  it at module load, which is the objection `bench/ledger-audit.ts` already records. */
 export function retirable(entries: Entry[], window: string, persona?: string | null): Entry[] {
   const who = String(persona ?? '').trim().toLowerCase();
   return entries.filter((e) => {

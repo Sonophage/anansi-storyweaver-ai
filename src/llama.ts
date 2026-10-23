@@ -354,8 +354,10 @@ export async function readSSE(res: Response, onDelta: (d: string) => void) {
 }
 
 /** `onDelta` turns the same call into a stream. Everything else — the model, the sampler,
- *  thinking off, the return shape — is identical, so `generate` has one code path and the
- *  caller decides whether the writer is watched or waited for. */
+ *  thinking off by default, the return shape — is identical, so `generate` has one code path and
+ *  the caller decides whether the writer is watched or waited for. A weaving call overrides the
+ *  default through `opts` (`chat_template_kwargs: { enable_thinking: true }`, with the raised cap
+ *  `replyFor` in routes.ts gives it). */
 export async function chat(system: string, body: string, opts: Record<string, unknown> = {},
                            onDelta?: (d: string) => void, stop?: AbortSignal, ceilingMs = 900_000) {
   if (onDelta) {
@@ -400,7 +402,9 @@ export async function chat(system: string, body: string, opts: Record<string, un
     // 900-token budget reasoning and returned zero prose on 3 of 4 runs (3.5k chars of
     // reasoning, nothing else), at 15s. Off: 5.9s, zero reasoning, 1292 chars of prose.
     // `reasoning_budget: 0` and a `/no_think` suffix both fail silently on this build —
-    // only the template kwarg works. A prose engine has no use for visible CoT.
+    // only the template kwarg works. A prose engine has no use for visible CoT, so this is the
+    // default; a weaving call turns it on through `opts`, which is spread last, with the plan's
+    // room added to its cap (F60), and the plan is never shown.
     chat_template_kwargs: { enable_thinking: false },
     messages: [{ role: 'system', content: system }, { role: 'user', content: body }],
     ...opts,
