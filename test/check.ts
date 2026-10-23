@@ -1,9 +1,9 @@
 // The contradiction check: what it is shown, what it stores, and that it is NOT on the way to the
 // page. This file was test/mend.ts until 2026-08-31, when the blocking repair in `generate` was
 // removed — F30 measured it at a flat 1,456 ms on every take, firing 0 repairs in 6, and it ran on
-// every variant, which SPEC §8.4 says not to do. `POST /api/accept` runs this detector detached on
-// the take the writer kept and files a flag. The repair is gone: it cannot rewrite prose the writer
-// is already reading.
+// every variant, which SPEC §8.4 says not to do. The detector runs detached on the take that lands
+// (from `POST /api/accept` or the streamed `generate`, #69) and files a flag. The repair is gone: it
+// cannot rewrite prose the writer is already reading.
 //
 // Driven against a FAKE llama-server, because what is under test is WHICH calls are made and what
 // they are told — never something the real model can be asked for reliably. The fake answers by
@@ -29,6 +29,7 @@ let reply: any = { prose: BROKEN, found: 1, inDialogue: false, canon: 1 };
 // a repair that worked, `[1, 1]` one that did not, `[1, 2]` one that made it worse. Null means
 // every check answers `reply.found`, which is what every test before the repair ones relies on.
 let foundSeq: (number | 'junk')[] | null = null;
+let holdCheck: Promise<void> | null = null;
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -44,7 +45,12 @@ const srv = createServer((req, res) => {
     const system = b.messages?.[0]?.content ?? '';
     const user = b.messages?.[1]?.content ?? '';
     const kind = b.response_format ? 'check' : 'prose';
-    calls.push({ kind, system, user, maxTokens: b.max_tokens });
+    calls.push({ kind, system, user, maxTokens: b.max_tokens, model: b.model });
+    // A held check answers only once the test lets it, so a test can see what the writer has
+    // before the check is done. Null answers at once, which every test before section 6 relies on.
+    if (kind === 'check' && holdCheck) { const gate = holdCheck; return void gate.then(() => answer()); }
+    answer();
+    function answer() {
     // Shifted BEFORE the content is built, so a sequence that runs out falls back rather than
     // silently repeating the last answer.
     const seq = kind === 'check' && foundSeq?.length ? foundSeq.shift()! : null;
@@ -57,7 +63,16 @@ const srv = createServer((req, res) => {
           () => ({ canon: reply.canon ?? 1, quote: reply.inDialogue ? `"${BROKEN}"` : BROKEN,
                    why: 'She cannot both be and not be the Murmur.', confidence: 0.9 })) })
       : reply.inDialogue ? `Vel spoke. "${BROKEN}"` : reply.prose;
+    // The streamed generation asks with `stream: true` and reads server-sent events.
+    if (b.stream) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 200, completion_tokens: 40 } })}\n\n`);
+      return res.end('data: [DONE]\n\n');
+    }
     send({ choices: [{ message: { content } }], usage: { prompt_tokens: 200, completion_tokens: 40 } });
+    }
   });
 });
 await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
@@ -385,6 +400,61 @@ const ok = (m: string, fn?: unknown) => {
   }
 
   foundSeq = null;
+}
+
+// ---- 6 · A STREAMED PASSAGE IS CHECKED WHERE IT LANDS (#69). Since the streamed `generate`
+// persists the passage itself, the client never calls `POST /api/accept` on that path, and accept
+// was the only place the check ran: the live library held 0 flags over 627 generations. The streamed
+// path and accept now go through one call, on the take that lands, detached.
+{
+  const { model } = await import('../src/llama.ts');
+  const streamed = async (body: any) => {
+    const h: any = await routes['POST /api/generate'](ctx({ storyId: story.id, mode: 'direct',
+      directive: 'She walks into the light.', ...body, stream: true }));
+    return h.__stream(() => {});
+  };
+  const flagsOn = (id: string) => db.violationsOf(story.id).filter((v: any) => v.passage_id === id);
+  const settle = () => new Promise((r) => setTimeout(r, 300));
+
+  // DETACHED. The check is held unanswered, and the passage must still come back and be in the
+  // book: a writer is never kept waiting on a flag.
+  let release!: () => void;
+  holdCheck = new Promise<void>((r) => { release = r; });
+  reply = { prose: BROKEN, found: 1, inDialogue: false, canon: 1 };
+  calls = [];
+  // Raced against a clock, so a check that blocks the passage fails here by name instead of
+  // hanging the suite on a gate nothing will open.
+  const r: any = await Promise.race([streamed({}),
+    new Promise((res) => setTimeout(() => res({ held: true }), 5000))]);
+  assert.ok(!r.held, 'the passage must come back while the check is still unanswered');
+  assert.ok(!r.error, r.error);
+  assert.ok(r.passageId, 'the streamed passage lands in the book');
+  assert.deepStrictEqual(flagsOn(r.passageId), [], 'and it is back before the check has answered');
+  release(); holdCheck = null;
+  await settle();
+  const checks = calls.filter((x) => x.kind === 'check');
+  assert.strictEqual(checks.length, 1, `the landed take is checked once, and was checked ${checks.length} times`);
+  assert.strictEqual(flagsOn(r.passageId).length, 1,
+    'a streamed passage that contradicts canon gets a flag, the same as an accepted one');
+  ok('a streamed passage that contradicts canon is flagged, without waiting for the check');
+
+  // BACKGROUND WORK STAYS LOCAL (ADR 0001): the check passes no model, so it asks the default.
+  assert.strictEqual(checks[0].model, model(), 'the check asks the local default model');
+  ok('  and the check asks the local default model, as all background work does');
+
+  // A RE-ROLL checks the take it lands, once, and leaves the passed-over take alone.
+  const REROLL = `${BROKEN} The lamps went out one by one.`;
+  reply = { ...reply, prose: REROLL };
+  calls = [];
+  const again: any = await streamed({ regenerateOf: r.passageId });
+  assert.ok(!again.error, again.error);
+  assert.ok(again.passageId && again.passageId !== r.passageId, 'the re-roll lands as a new take');
+  await settle();
+  const rechecks = calls.filter((x) => x.kind === 'check');
+  assert.strictEqual(rechecks.length, 1, `a re-roll makes one check, and made ${rechecks.length}`);
+  assert.match(rechecks[0].user, /lamps went out one by one/, 'and it checks the new take');
+  assert.strictEqual(flagsOn(again.passageId).length, 1, 'which carries its own flag');
+  ok('  a re-roll checks the new take once, and not the take it passed over');
 }
 
 console.log(`\n${n} checks passed`);

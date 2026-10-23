@@ -12,6 +12,14 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-23 · Featherless when it is full, and a chapter keeps its own name
 
+### Contradictions are flagged again
+Anansi is meant to read each new passage against your cards and flag a line that contradicts
+them. Since the start of September it had stopped doing that for every passage you write, so no
+flags appeared, even when a passage broke your canon. Now each passage is read again once it is
+on the page, and a contradiction shows up as a flag, as it did before. You do not wait for it:
+the passage arrives first and the flag follows. A re-roll is read once, and the take you moved
+away from is not read again.
+
 ### A busy Featherless model is tried again
 Sometimes a Featherless model starts a passage and then says it is full before it has written a
 word. Before, the passage failed with "Featherless stopped mid-passage". Now Anansi waits and

@@ -913,12 +913,12 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // trimmed rather than left to wonder where the rest went.
     const cut = r.finish === 'length';
     const prose = cut ? trimToSentence(clean(r.prose)) : clean(r.prose);
-    // THE CONTRADICTION CHECK IS NOT ON THIS PATH ANY MORE. It was a blocking `mend` here on every
-    // generation: F30 measured a flat 1,456 ms of it — about a third of a warm take — firing 0
+    // THE CONTRADICTION CHECK DOES NOT BLOCK THIS PATH ANY MORE. It was a blocking `mend` here on
+    // every generation: F30 measured a flat 1,456 ms of it — about a third of a warm take — firing 0
     // repairs in 6. It also ran on every variant, which is the thing SPEC §8.4 says not to do.
-    // `POST /api/accept` already runs the same detector, detached, on the take the writer actually
-    // kept, and files a flag from it. Seth, 2026-08-31: "remove it from the critical path. instead
-    // just add a flag after ... if the writer keeps writing then it can silently be ignored."
+    // It runs detached now, through `checkLanded` on the take that lands below, and files a flag.
+    // Seth, 2026-08-31: "remove it from the critical path. instead just add a flag after ... if
+    // the writer keeps writing then it can silently be ignored."
     //
     // The repair went with it, and that is a real loss stated plainly: a rewrite cannot happen once
     // the prose is on the page. `mend` and the MEND prompt are in git if the fix is ever wanted as
@@ -952,7 +952,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
         : db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
             body: prose, author: 'model', speaker: c.body.speaker ?? null,
             mode, directive: directive ?? null, claimed: false });
-      if (landed) db.tieGeneration(String(genId), String(landed));
+      if (landed) { db.tieGeneration(String(genId), String(landed)); checkLanded(c, v.id, String(landed)); }
       // A re-roll away from a take is a judgement about the take, not just a replacement — the same
       // rule `accept` follows.
       if (c.body.regenerateOf && c.body.rejected !== false) db.rejectTake(v.id, String(c.body.regenerateOf));
@@ -1338,6 +1338,20 @@ export function classify(existing: any[], p: any) {
     delta: kind === 'conflict'
       ? `Would overwrite a body you pinned: "${hit.body.slice(0, 70)}…"`
       : `Was: "${hit.body.slice(0, 70)}…"` };
+}
+
+/** CHECK THE LANDED TAKE — the one call site for it, shared by `POST /api/accept` and the
+ *  streamed `generate`, which persists its own passage and so never reaches accept. Until #69 the
+ *  check lived in accept alone, and from 2026-09-01, when streamed passages began landing
+ *  server-side, it ran on none of them: 0 flags over 627 generations. Two copies is how one of
+ *  them goes quiet, so there is one.
+ *
+ *  On the take that LANDS, which SPEC §8.4 asks for: a re-roll checks its new take, and the take
+ *  it passed over is not checked again. Detached — a flag is not worth making the writer wait, and
+ *  it appears on the next refresh. Background work, so it names no model and runs on the local
+ *  default (ADR 0001). */
+function checkLanded(c: Ctx, storyId: string, passageId: string) {
+  void check(c, storyId, passageId).catch(() => {});
 }
 
 /** Check one passage against the canon that reached the prompt for it.
@@ -2690,9 +2704,7 @@ export const routes: Record<string, Handler> = {
     if (id && c.body.genId) db.tieGeneration(String(c.body.genId), String(id));
     // Regenerating away from a take is a judgement about it, not just a replacement.
     if (c.body.variantOf && c.body.rejected) db.rejectTake(v.id, String(c.body.variantOf));
-    // SPEC §8.4: check on SELECT, not on every variant. Detached — a flag is not worth
-    // making the writer wait, and it appears on the next refresh.
-    if (id && c.body.check !== false) void check(c, v.id, id).catch(() => {});
+    if (id && c.body.check !== false) checkLanded(c, v.id, id);
     return viewOf(c, v.id);
   },
   'POST /api/variant':   (c) => { db.selectVariant(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
