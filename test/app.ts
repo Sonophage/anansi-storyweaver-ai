@@ -547,7 +547,7 @@ for (const id of ['rail', 'bar', 'page']) {
 }
 ok('the workspace boots with no undefined fields');
 
-assert.match(html('rail'), /My stories/);
+assert.match(html('rail'), /Rack/);
 // The id is what the router answers to and what ANANSI_MODEL takes, so it stays — in the title,
 // where it is one hover away instead of the first thing the rail says.
 assert.match(html('rail'), /Write \u00b7 Qwen3\.6/, 'the rail names the model in words');
@@ -733,9 +733,9 @@ for (const id of ['rail', 'bar', 'col', 'dockCol', 'sideBody']) {
 }
 ok('the story surface renders with no undefined fields');
 
-assert.match(html('rail'), /Context/, 'the rail must switch to the story nav');
+assert.match(html('rail'), /Measurements/, 'the rail must switch to the story nav');
 assert.match(html('rail'), /The Envoy/, 'and list chapters by title');
-assert.ok(!/My stories/.test(html('rail')), 'and drop the workspace nav');
+assert.ok(!/>Rack</.test(html('rail')), 'and drop the workspace nav');
 ok('the rail swaps navigation when a story opens');
 
 // TWO menus, one rail, and which one is showing is no longer decided by where you are — the menu
@@ -743,12 +743,12 @@ ok('the rail swaps navigation when a story opens');
 // one. Both directions asserted from inside an OPEN story, because that is the only place the two
 // can disagree: outside one they are the same answer and a broken split still passes.
 click({ railview: 'workspace' });
-assert.match(html('rail'), /My stories/,
+assert.match(html('rail'), /Rack/,
   'the menu button must reach the workspace menu without leaving the story');
 assert.ok(!/list chapters|Chapters/.test(html('rail')),
   'and the chapter list goes with it — it named a book you are no longer looking at');
 click({ railview: 'story' });
-assert.match(html('rail'), /Context/, "the story's name must bring its own menu back");
+assert.match(html('rail'), /Measurements/, "the story's name must bring its own menu back");
 assert.match(html('rail'), /Anansi<\/span>/, 'which is where Anansi lives');
 ok('the menu and the story name are two doors onto one rail');
 
@@ -1137,7 +1137,7 @@ ok('the header names the book, and carries no reading of its own');
   assert.ok(!/width:/.test(html('ctxbar')),
     'the bar no longer fills to a percentage; the context number lives in the reading');
   assert.ok(!nodes.get('ctxbar').hidden, 'and it is shown while a story is open');
-  assert.ok(!/\d+ words|context \d+%/.test(html('bar')),
+  assert.ok(!/\d+ words|\d+% full/.test(html('bar')),
     'and the header carries neither the word count nor the percentage any more');
 
   // ALWAYS OPEN, with no press at all — Seth, 2026-09-02: "have this always visible." It used to be
@@ -1145,9 +1145,9 @@ ok('the header names the book, and carries no reading of its own');
   // waited for one could not be opened by anybody.
   const read = html('ctxread');
   assert.ok(!nodes.get('ctxread').hidden, 'the reading is open with nothing pressed');
-  assert.match(read, /chapter 2 of 2/, 'which says which chapter you are on');
+  assert.match(read, /scene 2 of 2/, 'which says which scene you are on');
   assert.match(read, /words/, 'and how many words are in it');
-  assert.match(read, new RegExp(`context ${pct}%`), 'and what the context costs');
+  assert.match(read, new RegExp(`${pct}% full`), 'and how full the measurements are');
   assert.match(read, /data-panel="context"/, 'with the way through to the blocks behind it');
 
   // NO ROOM IS NOT NO BAR. A budget of zero — llama-server unreachable so the slot is unknown, or
@@ -1159,7 +1159,7 @@ ok('the header names the book, and carries no reading of its own');
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
   assert.ok(!nodes.get('ctxbar').hidden, 'the bar stays when there is no room — that is when it matters');
-  assert.match(html('ctxread'), /no room/, 'and the reading says so in words, with nothing pressed');
+  assert.match(html('ctxread'), /no space/, 'and the reading says so in words, with nothing pressed');
   MANIFEST.manifest.totals.budget = realBudget;
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
@@ -1425,7 +1425,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const strings = html('sideBody');
   assert.match(strings, /Anansi noticed/, 'a proposed string waits under Strings');
   assert.match(strings, /The debt nobody has called in/);
-  assert.match(strings, /set up in chapter 2/, 'with the chapter it came from');
+  assert.match(strings, /set up in scene 2/, 'with the scene it came from');
   assert.match(strings, /The letter he has not opened/, 'beside the ones already tied');
   assert.doesNotMatch(strings, /Witness rite/, 'and not the thread proposals');
 
@@ -3304,7 +3304,7 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   click({ entry: 'e-done' });
   await new Promise((r) => setTimeout(r, 30));
   const done = html('sideBody');
-  assert.match(done, /Finished from chapter 2/, 'the face marks a finished card');
+  assert.match(done, /Hemmed at scene 2/, 'the face marks a hemmed thread');
   assert.doesNotMatch(done, /data-unretire=/, 'and offers no control — that is what the form is for');
   assert.doesNotMatch(done, /data-retire=/, 'in either direction');
 
@@ -3315,7 +3315,7 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   // test/web.ts asserts that one for the same reason: a wrong press is otherwise invisible AND
   // permanent.
   assert.match(form, /data-unretire="e-done"/, 'the form brings it back');
-  assert.match(form, /Finished from chapter 2/, 'and says what it is bringing back from');
+  assert.match(form, /Hemmed at scene 2/, 'and says what it is bringing back from');
 
   click({ entry: 'e-1' });
   click({ cardview: 'form' });
@@ -4490,7 +4490,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(css, /id="sideBody" class="scroll"/,
     '#sideBody must carry .scroll or nothing in the panel can be sticky against it');
 
-  for (const [panel, label] of [['story', 'Story'], ['chapter', 'This chapter'], ['teller', 'Storyteller']]) {
+  for (const [panel, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['teller', 'Storyteller']]) {
     click({ panel });
     await new Promise((r) => setTimeout(r, 40));
     const body = html('sideBody');

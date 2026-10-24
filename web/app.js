@@ -342,7 +342,7 @@ const SNAV = [
   // than deciding, and a thing you look for is a thing you want at the top of the list.
   ['search', 'search', 'Prose search'],
   // Everything this book is waiting on, in one place — see the panel for why one place matters.
-  ['waiting', 'threads', 'Waiting'],
+  ['waiting', 'threads', 'Workbench'],
   /* TWO ROWS, TWO WORDS THAT ARE NOT EACH OTHER'S PLURAL — Seth, 2026-09-02: "We need a way to
    * differentiate chapter and chapters." Chapter and Chapters sat next to each other and the only
    * thing telling them apart was a final s, on a rail read at 11px in small caps.
@@ -359,10 +359,10 @@ const SNAV = [
    * THE KEYS DO NOT MOVE. `chapter` and `chapters` are what the hash carries, what PANEL_WAS maps
    * three retired names onto, and what every bookmark holds — a renamed key is a broken deep link
    * for no gain, which the note on `prefs` in WNAV already says. */
-  ['story', 'story', 'Story'], ['chapter', 'chapter', 'This chapter'],
-  ['chapters', 'chapter', 'Chapters'],
+  ['story', 'story', 'Tale'], ['chapter', 'chapter', 'This scene'],
+  ['chapters', 'chapter', 'Scenes'],
   ['threads', 'threads', 'Threads'], ['strings', 'strings', 'Strings'],
-  ['context', 'context', 'Context'],
+  ['context', 'context', 'Measurements'],
   ['teller', 'teller', 'Storyteller'],
 ];
 // Anansi came OFF this list on 2026-08-27. It is a button on the composer row, beside + Thread —
@@ -373,7 +373,7 @@ const SNAV = [
 // the change. Cheaper to map them than to serve a blank panel.
 const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
 const WNAV = [
-  ['stories', 'stories', 'My stories'], ['create', 'create', 'Create a story'],
+  ['stories', 'stories', 'Rack'], ['create', 'create', 'Cut a new tale'],
   ['canon', 'threads', 'Threads'], ['import', 'import', 'Import'],
   // #23: it is a writing record, not a settings screen. The panel key stays `prefs` so every
   // bookmark and open tab still resolves — a renamed key is a broken deep link for no gain.
@@ -387,7 +387,7 @@ const WNAV = [
   //
   // "The Web", in the case the other rows use. Seth, 2026-08-31: "the case in the menu needs to
   // match the other menu items so it should be name The Web."
-  ['forge', 'threads', 'The Web'],
+  ['forge', 'threads', 'Pattern book'],
 ];
 /** The rail as this account sees it. Everything in WNAV, for everyone: The Web was admin-only from
  *  2026-08-30 until Seth tested it as the second writer — "allow this to not only be for the admin.
@@ -402,10 +402,10 @@ const TITLES = Object.fromEntries(SNAV.map(([k, , l]) => [k, l]));
 // out broke `#<story>/anansi` silently: the link resolved to the default panel and the header had
 // no title. Same shape as the retired names that had to be mapped BEFORE the validity check
 // rather than after — a panel that exists and cannot be addressed is half a panel.
-TITLES.entry = 'Ledger entry';
-TITLES.history = 'History';
-TITLES.setup = 'The next chapter';
-TITLES.ritual = 'Ending the chapter';
+TITLES.entry = 'Thread';
+TITLES.history = 'Alterations';
+TITLES.setup = 'The next scene';
+TITLES.ritual = 'Hemming the scene';
 TITLES.anansi = 'Anansi';
 // #25. Opened from a row in the rail's model list, and in TITLES so the link to a model can be
 // pasted like any other panel's. With no model named it reads the one that is writing.
@@ -413,24 +413,24 @@ TITLES.model = 'The model';
 // #51. Opened from the last row of the rail's model list. About the account, like the model panel.
 TITLES.findmodel = 'Find a model';
 const WTITLES = {
-  stories: () => [`My stories`, `${LIB.length} ${LIB.length === 1 ? 'story' : 'stories'}`],
-  create: () => ['Create a story', 'Spark a skeleton, or start blank'],
+  stories: () => [`Rack`, `${LIB.length} ${LIB.length === 1 ? 'tale' : 'tales'}`],
+  create: () => ['Cut a new tale', 'Spark one from an idea, or start blank'],
   canon: () => {
     // Counts the whole ledger, not the open story — the page shows every book. It used to say
     // "open a story first" while listing entries from four of them.
     const n = LEDGER?.length ?? 0;
     const books = new Set((LEDGER ?? []).map((e) => e.story)).size;
     return ['Threads', LEDGER === null ? 'reading…'
-      : `${n} ${n === 1 ? 'thread' : 'threads'} across ${books} ${books === 1 ? 'story' : 'stories'}`];
+      : `${n} ${n === 1 ? 'thread' : 'threads'} across ${books} ${books === 1 ? 'tale' : 'tales'}`];
   },
   import: () => ['Import', 'Character cards, Anansi exports, AI Dungeon'],
-  prefs: () => ['What you have written', 'words, passages, takes not chosen'],
+  prefs: () => ['What you have written', 'words, passages, fittings not chosen'],
   news: () => ['What changed', 'what is new in Anansi'],
   bug: () => ['Report an issue', 'sent without your writing'],
   // "The Web", to match the menu row. Renamed there on 2026-08-31 and missed here, so the row
   // said one thing and the page it opened said another. Seth: "the web, on the menu it says the
   // web on tha page it does not."
-  forge: () => ['The Web', 'prompts to hand another model, so what it writes lands whole'],
+  forge: () => ['Pattern book', 'prompts to hand another model, so what it writes lands whole'],
 };
 
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
@@ -566,10 +566,17 @@ function toast(msg) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 4200);
 }
 
+/** A SCENE'S NAME ON SCREEN. A new scene is stored with the title "Chapter N" (db.ts writes it,
+ *  and the importer writes "Chapter One"), and the code keeps that word: it is stored data, and the
+ *  model is sent the title. The screen says Scene. So a title that is only the stored number reads
+ *  as "Scene N", and `numbered` answers "is this the placeholder, not a name?" for either word. */
+const numbered = (t, n) => { const v = String(t ?? '').trim(); return !v || v === `Chapter ${n}` || v === `Scene ${n}`; };
+const sceneName = (c) => (c && !numbered(c.title, c.index) ? c.title.trim() : `Scene ${c?.index ?? ''}`);
+
 /** WHY AN ACT IS OUT OF DATE (#47), naming the first chapter under it that changed. One sentence
  *  for the act's card and the waiting list, so the two cannot say it differently. */
 const actChanged = (n, why, title) => {
-  const ch = title && title !== `Chapter ${n}` ? `Chapter ${n}, ${title},` : `Chapter ${n}`;
+  const ch = !numbered(title, n) ? `Scene ${n}, ${title},` : `Scene ${n}`;
   return why === 'stale'
     ? `${ch} has changed since this act was written: its summary no longer matches its prose. `
       + 'The act still reaches the model.'
@@ -712,7 +719,7 @@ function drawRail() {
     <span style="width:19px; height:19px; display:flex; align-items:center; justify-content:center;
       flex:0 0 auto; color:${SRV.demo ? 'var(--gold)' : 'var(--faint)'}">${mark('book')}</span>
     <span class="txt" style="font-size:13px; color:${SRV.demo ? 'var(--gold-lit)' : 'var(--mute)'}">${
-      SRV.demo ? 'Leave the demo library' : 'Demo library'}</span></button>`;
+      SRV.demo ? 'Leave the demo rack' : 'Demo rack'}</span></button>`;
   const active = storyMenu ? S.panel : S.wpage;
   const item = ([k, g, l]) => {
     const on = k === active;
@@ -752,7 +759,7 @@ function drawRail() {
          c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis;
          color:${c.id === V.currentChapter.id ? 'var(--gold-lit)' : 'var(--faint)'}"><span class="txt">${
-         esc(c.title || `Chapter ${c.index}`)}</span></button>`).join('')}`
+         esc(sceneName(c))}</span></button>`).join('')}`
     // NO "Open" LIST HERE, only the demo switch. It reprinted the first four books in a rail whose first row is already
     // My stories, which is the same door with a complete list behind it. Seth, 2026-08-31: "the
     // open option in the main menu that should be removed."
@@ -928,7 +935,7 @@ function drawMeter() {
    * now — a focusable control that does nothing is worse than no control. The context percentage
    * it used to draw is in that reading, in words, including the no-room case the red bar carried. */
   bar.setAttribute('aria-label', V.chapters.length === 1
-    ? 'One chapter' : `Chapter ${at + 1} of ${V.chapters.length}`);
+    ? 'One scene' : `Scene ${at + 1} of ${V.chapters.length}`);
   bar.innerHTML = V.chapters.map((c, i) =>
     `<i class="${i === at ? 'at' : ''}"></i>`).join('');
 
@@ -938,12 +945,12 @@ function drawMeter() {
    * three-pixel rule; it was behind a press because the bar was the door, not because it is loud. */
   read.hidden = false;
   read.innerHTML = `
-    <span>chapter ${at + 1} of ${V.chapters.length}</span>
+    <span>scene ${at + 1} of ${V.chapters.length}</span>
     <span class="tnum">${words.toLocaleString()} words</span>
     <span class="tnum" style="color:${(pct == null || pct >= 100) ? 'var(--bad)' : 'var(--gold-dim)'}">${
-      pct == null ? (noRoom ? 'no room' : 'context unknown') : `context ${pct}%`}</span>
+      pct == null ? (noRoom ? 'no space' : 'size unknown') : `${pct}% full`}</span>
     ${h ? `<span style="color:var(--gold-dim)">${h.chapters} ${
-      h.chapters === 1 ? 'chapter' : 'chapters'} not sent</span>` : ''}
+      h.chapters === 1 ? 'scene' : 'scenes'} not sent</span>` : ''}
     <button data-panel="context" style="margin-left:auto">what is in it &rsaquo;</button>`;
 }
 
@@ -963,7 +970,7 @@ function drawBar() {
   // sitting in the one place on screen that is about the writing. The chapter is what you are in;
   // the model is in the rail's footer, where it can also be changed.
   const [title, sub] = inStory
-    ? [V.story.title, V.currentChapter.title || `Chapter ${V.currentChapter.index}`]
+    ? [V.story.title, sceneName(V.currentChapter)]
     : (WTITLES[S.wpage] || WTITLES.stories)();
   $('bar').innerHTML = `
     <!-- THE MAIN MENU IS THE LOGO NOW. Seth, 2026-08-28: "the maine menu moveing forward will be
@@ -1431,7 +1438,7 @@ function drawDoc() {
   const plateOf = (c) => wantsCover && !stick
     ? `<div class="plate" style="background:url('${api.coverUrl(S.storyId, V.cover)}') center/cover no-repeat">
         <span class="fade"></span>
-        <span class="serif plate-title">${esc(c.title || `Chapter ${c.index}`)}</span></div>`
+        <span class="serif plate-title">${esc(sceneName(c))}</span></div>`
     : '';
   const plate = plateOf(ch);
   // The reading column opens 40px down, which is right when a chapter begins with a text band and
@@ -1478,8 +1485,8 @@ function drawDoc() {
     ${plateFor}
     <div class="band">
       <div style="font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--label)">
-        Chapter ${c.index}</div>
-      ${plateFor ? '' : `<div class="serif band-title">${esc(c.title || `Chapter ${c.index}`)}</div>`}
+        Scene ${c.index}</div>
+      ${plateFor ? '' : `<div class="serif band-title">${esc(sceneName(c))}</div>`}
       ${(() => { const e = epigraphOf(list); return e ? `<div class="band-epi"><i></i><span class="serif">${esc(e)}</span></div>` : ''; })()}
       <div class="band-rule"></div>
     </div>
@@ -1577,7 +1584,7 @@ async function nameChapter(chapterId) {
   const box = (k) => (here ? document.querySelector(`[data-setup="${k}"]`)?.value
                            : draftFor(chapterId)?.[k]) ?? '';
   const live = { title: box('title'), note: box('note'), opens: box('opens') };
-  const typed = live.title.trim() && live.title.trim() !== `Chapter ${ch?.index}` ? live.title.trim() : '';
+  const typed = !numbered(live.title, ch?.index) ? live.title.trim() : '';
   // The opening rides back with the other two, and is kept the same way: typed wins over offered.
   S.setup = { chapterId, title: typed || r.title, note: live.note.trim() || r.note,
               opens: live.opens.trim() || (r.opens ?? '') };
@@ -1622,7 +1629,7 @@ async function chapterBrief() {
   const t = box('[data-chapter-title]'), o = box('[data-chapter-opens]'), n = box('[data-chapter-note]');
   const blank = (el) => el && !String(el.value ?? '').trim();
   const kept = [];
-  if (t && (blank(t) || t.value.trim() === `Chapter ${ch.index}`)) t.value = r.title;
+  if (t && numbered(t.value, ch.index)) t.value = r.title;
   else if (t) kept.push('the name');
   if (blank(o) && r.opens) o.value = r.opens;
   else if (o && r.opens) kept.push('how it starts');
@@ -2003,10 +2010,10 @@ function proposalCard(p) {
   const canMove = !!onto && !['retire', 'state', 'string'].includes(p.entryType);
   const rooms = canMove ? (V.slots?.[onto.entryType] ?? []).map((sl) => sl.name) : [];
   const where = p.entryType === 'retire'
-    ? `Stops reaching the model from chapter ${esc(String(at))}. Every chapter before it still has
+    ? `Stops reaching the model from scene ${esc(String(at))}. Every chapter before it still has
        it, and Waiting can bring it back.`
     : p.entryType === 'state'
-    ? `Replaces the whole description from chapter ${esc(String(at))} on.`
+    ? `Replaces the whole description from scene ${esc(String(at))} on.`
     : room
     ? `Lands in ${esc(room)} on ${esc(p.title)}. The rest of the card is left exactly as it is.`
     : '';
@@ -2112,7 +2119,7 @@ function ritualPanel() {
   // PAST TENSE ON THE HEADING. This panel and `setupPanel` sit one press apart in the same tray,
   // are about two different chapters, and opened with a chapter name in the same style in the same
   // place. One of them is history and nothing said so.
-  return `<div class="lbl" style="letter-spacing:.1em">${esc(ch.title || `Chapter ${ch.index}`)}${
+  return `<div class="lbl" style="letter-spacing:.1em">${esc(sceneName(ch))}${
       closed ? ' &middot; closed' : ''}</div>
     <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin:6px 0 18px">${closed
       ? 'What closing it found. Nothing here is canon until you accept it, and accepting happens on Waiting.'
@@ -2191,7 +2198,7 @@ function ritualPanel() {
       <p>The chapters after it keep the numbers they have &mdash; a change over time is anchored to
       a chapter number, so closing the gap would move it to a different chapter.</p>`)}
     <button class="btn ghost" data-delchapter="${esc(ch.id)}"
-      style="margin-top:4px; color:var(--bad)">Delete ${esc(ch.title || `chapter ${ch.index}`)}</button>`;
+      style="margin-top:4px; color:var(--bad)">Delete ${esc(sceneName(ch))}</button>`;
 }
 
 /** A remote model's Hugging Face tags, as small lowercase chips. */
@@ -2557,7 +2564,7 @@ const PANELS = {
       'These stopped reaching the model at the chapter named. Every chapter before it still has them.',
       finished.map((e) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
         <span style="font-size:13px; color:var(--mute)">${esc(e.title)}</span>
-        <span style="font-size:11px; color:var(--faint)">from chapter ${esc(String(e.retiredAtChapter))}</span>
+        <span style="font-size:11px; color:var(--faint)">from scene ${esc(String(e.retiredAtChapter))}</span>
         <button data-unretire="${e.id}" style="margin-left:auto; padding:7px 12px; border-radius:var(--r);
           border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Bring it back</button></div>`).join('')));
 
@@ -2565,7 +2572,7 @@ const PANELS = {
     // state that made each worth saying, so this is "not for this", never "never again".
     const off = [];
     for (const c of (w.stale ?? [])) off.push({ kind: 'stale', ref: c.ref,
-      title: `${c.title || `Chapter ${c.index}`} has a stale summary`,
+      title: `${sceneName(c)} has a stale summary`,
       body: 'Its prose changed after the summary was written, so it is left out of the prompt until '
           + 'it is written again.' });
     // #47. An act still reaches the model when it is out of date, so this says what to read, not
@@ -2850,7 +2857,7 @@ const PANELS = {
         ${tipCard('thRead', 'Reading the chapter', `<p>Reads what is already on the page and proposes
           entries for it. Nothing is accepted automatically &mdash; proposals wait for you under
           Chapter. This is the ritual's third step, on its own, without ending the chapter.</p>`)}
-        <button class="btn ghost" data-loreread="1">Scan ${esc(V.currentChapter.title || `chapter ${V.currentChapter.index}`)} for facts</button>
+        <button class="btn ghost" data-loreread="1">Scan ${esc(sceneName(V.currentChapter))} for facts</button>
       </div>`;
     }
     const groups = [['character', 'Characters', 'character'], ['lore', 'Lore', 'lore'],
@@ -3380,7 +3387,7 @@ const PANELS = {
           style="text-align:left; width:100%; margin-bottom:8px; gap:6px;
           ${here ? 'border-color:var(--gold-dim)' : ''}">
           <div style="display:flex; align-items:baseline; gap:9px">
-            <span class="platename" style="font-size:16px">${esc(c.title || `Chapter ${c.index}`)}</span>
+            <span class="platename" style="font-size:16px">${esc(sceneName(c))}</span>
             ${here ? '<span class="tag" style="border-color:rgba(217,178,106,.35); color:var(--gold)">writing</span>' : ''}
             <span class="tnum" style="margin-left:auto; font-size:11px; color:var(--faint)"
               >${c.index}</span></div>
@@ -3462,7 +3469,7 @@ const PANELS = {
           color:var(--gold-dim)">${S.naming ? 'Asking&hellip;' : '↻ Have Anansi write these'}</button>
       </div>
       <input class="field" id="f-chapter-title" data-chapter-title="1" value="${esc(ch.title ?? '')}"
-        placeholder="Chapter ${ch.index}">
+        placeholder="Scene ${ch.index}">
       <!-- TWO BOXES, NOT ONE. It was a single "This chapter must end with", and that one line rode
            beside the generation point on every call — Seth: "the start should be used as information
            for the very first scene and the where is this going is only used as a suggestion for the
@@ -3502,7 +3509,7 @@ const PANELS = {
         <p>The chapters after it keep the numbers they have &mdash; a change over time is anchored
         to a chapter number, so closing the gap would move it to a different chapter.</p>`)}
       <button class="btn ghost" data-delchapter="${esc(ch.id)}"
-        style="margin-top:4px; color:var(--bad)">Delete ${esc(ch.title || `chapter ${ch.index}`)}</button>
+        style="margin-top:4px; color:var(--bad)">Delete ${esc(sceneName(ch))}</button>
       </div>
 
       <div class="sgroup" data-group="proposed">
@@ -3560,7 +3567,7 @@ const PANELS = {
         return `<div class="card" data-sumcard="${c.id}"
         style="margin-bottom:8px; ${c.keepWhole ? 'border-color:var(--gold-dim);' : ''}">
         <div style="display:flex; align-items:center; gap:9px">
-          <span class="kind">${esc(c.title || `Chapter ${c.index}`)}</span>
+          <span class="kind">${esc(sceneName(c))}</span>
           ${c.summary ? `<span data-sumauthor style="font-size:11px; color:var(--faint)">${
             c.summaryAuthor === 'human' ? 'yours' : 'Anansi&rsquo;s'}</span>` : ''}
           ${/* The word count is on every card, and while the card is being edited it is the editor's
@@ -3568,7 +3575,7 @@ const PANELS = {
           ${c.summary ? `<span style="margin-left:auto; font-size:11px; color:var(--faint)">covers to ${
             c.coversThrough ?? '—'}${editing ? '' : ` &middot; ${plural(wordsIn(c.summary), 'word', 'words')}`}</span>` : ''}</div>
         ${editing ? `<textarea data-sumtext="${c.id}" data-wordcap="${SUMMARY_WORDS}" rows="6"
-            aria-label="Summary of ${esc(c.title || `Chapter ${c.index}`)}"
+            aria-label="Summary of ${esc(sceneName(c))}"
             style="width:100%; font-size:12.5px; line-height:1.5">${esc(S.editSum.text)}</textarea>
           ${wordLine(S.editSum.text, SUMMARY_WORDS)}
           <div style="display:flex; align-items:center; gap:9px; font-size:11.5px">
@@ -3794,7 +3801,7 @@ const PANELS = {
           ${x.summoned ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">in play</span>' : ''}
           <span style="margin-left:auto; font-size:11px; color:${late ? 'var(--bad)' : 'var(--faint)'}">${
             x.status !== 'open' ? esc(x.status)
-            : late ? `owed by ${x.owedBy}, and it is chapter ${here}`
+            : late ? `owed by ${x.owedBy}, and it is scene ${here}`
             : since != null ? `${since === 0 ? 'set up this chapter' : `${since} ${since === 1 ? 'chapter' : 'chapters'} ago`}`
             : ''}</span></div>
         ${x.body ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(x.body)}</div>` : ''}
@@ -3827,7 +3834,7 @@ const PANELS = {
             <div style="display:flex; align-items:center; gap:8px">
               <span style="font-size:14px; color:var(--ink-bright)">${esc(p.title)}</span>
               <span style="margin-left:auto; font-size:11px; color:var(--faint)">${
-                p.keys?.[0] ? `set up in chapter ${esc(p.keys[0])}` : ''}</span></div>
+                p.keys?.[0] ? `set up in scene ${esc(p.keys[0])}` : ''}</span></div>
             <textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} promises"
               style="margin:0; min-height:64px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
             <div style="display:flex; gap:7px">
@@ -4963,7 +4970,7 @@ function setupPanel() {
   // (db.ts:933), so a fresh chapter always has a title and the first version of this test never
   // fired once — the driver saw "Chapter 4" in the box, called it filled, and reported the note
   // empty. A title that is exactly this chapter's own number is the placeholder, not a name.
-  const placeholder = !form.title.trim() || form.title.trim() === `Chapter ${ch.index}`;
+  const placeholder = numbered(form.title, ch.index);
   if (!S.naming && !NAMED.has(ch.id) && placeholder && !form.note.trim()) {
     NAMED.add(ch.id);
     nameChapter(ch.id);
@@ -5030,7 +5037,7 @@ function setupPanel() {
     border-radius:var(--r); border:1px solid var(--chip); background:transparent">
     <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--good)"></span>
     <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
-      text-overflow:ellipsis; white-space:nowrap">${esc(justClosed.title || `Chapter ${justClosed.index}`)} closed${
+      text-overflow:ellipsis; white-space:nowrap">${esc(sceneName(justClosed))} closed${
       justClosed.summary ? (S.ritualKept === justClosed.id ? ', kept your summary' : ', summarised') : ''}${queue.length ? ` &middot; ${queue.length} waiting` : ''}</span>
     <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
       color:var(--label); opacity:.7">what it found</span></button>` : '';
@@ -5039,7 +5046,7 @@ function setupPanel() {
   if (step === 'cards') return `<div style="display:flex; flex-direction:column">
     ${rail}
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${
-      esc(justClosed?.title || `Chapter ${justClosed?.index ?? ''}`)} changed ${
+      esc(sceneName(justClosed))} changed ${
       plural(left.length, 'card', 'cards')}${tipMark('setLeft', 'What the chapter left')}</div>
     ${tipCard('setLeft', 'What the chapter left', `<p>Nothing here is canon until you accept it, and
       nothing here is required &mdash; what you leave stays in Waiting.</p>`)}
@@ -5118,7 +5125,7 @@ function setupPanel() {
   return `<div style="display:flex; flex-direction:column">
     ${rail}
     ${closedRow}
-    <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(ch.title || `Chapter ${ch.index}`)}${
+    <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(sceneName(ch))}${
       tipMark('setNext', 'Setting up the next chapter')}</div>
     ${tipCard('setNext', 'Setting up the next chapter', `<p>Nothing here is required. Leave it and
       write.</p>`)}
@@ -5540,7 +5547,7 @@ function cardFace(e, slots) {
          is true of it; changing what is true of it is what the form is for. The way back is not
          lost — it moved next to the way out, which is where it belongs. -->
     ${e.retiredAtChapter != null ? `<div style="font-size:12px; color:var(--warn); margin:0 0 10px">
-      Finished from chapter ${esc(String(e.retiredAtChapter))}.</div>` : ''}
+      Hemmed at scene ${esc(String(e.retiredAtChapter))}.</div>` : ''}
     <!-- #36. A CARD THIS BOOK TOOK OVER. It is an ordinary card now — every control below works on
          it — and this says where it came from and offers it back, in both directions: keep the
          world's version, or send this book's up so every book following it gets what was written
@@ -6031,8 +6038,8 @@ function entryEditor() {
       <button data-retire="${e.id}" class="btn ghost" style="flex:1">Mark this finished</button>
       ${tipMark('cardRetire', 'Marking this finished')}</div>`
       : `<button data-unretire="${e.id}" class="btn ghost" style="margin-top:20px">Bring it back</button>
-    <div class="hint">Finished from chapter ${esc(String(e.retiredAtChapter))} &mdash; it stops
-      reaching the model there and every chapter before it still has it. Bringing it back undoes
+    <div class="hint">Hemmed at scene ${esc(String(e.retiredAtChapter))} &mdash; it stops
+      reaching the model there, and every scene before it still has it. Bringing it back undoes
       that from now on.</div>`}
     <!-- #27. The whole book read for this ONE thread, which is why the button is here and not
          beside "Read this chapter for facts" in the Chapter panel: that one is about a chapter and
@@ -6467,7 +6474,7 @@ function storyCard(s, i, hero) {
           <span style="margin-left:auto">${s.updated_at ? touchedAgo(s.updated_at) : ''}</span></span>`
       : `<span style="display:flex; align-items:baseline; gap:8px">
           <span class="kind">${s.last_chapter_idx
-            ? `left off · ${esc(s.last_chapter_title || `chapter ${s.last_chapter_idx}`)}`
+            ? `left off · ${esc(sceneName({ title: s.last_chapter_title, index: s.last_chapter_idx }))}`
             : 'nothing written yet'}</span>
           <span style="margin-left:auto; font-size:11px; color:var(--faint)">${
             s.updated_at ? touchedAgo(s.updated_at) : ''}</span></span>
@@ -6501,7 +6508,7 @@ const ART = [
  *  bottom edge against the viewport, not this band's own height.
  */
 function resumeBand(s) {
-  const chapter = s.last_chapter_title || (s.last_chapter_idx ? `Chapter ${s.last_chapter_idx}` : '');
+  const chapter = s.last_chapter_idx ? sceneName({ title: s.last_chapter_title, index: s.last_chapter_idx }) : (s.last_chapter_title || '');
   // ONE sentence, not the design's three. Measured: a portrait cover at four across makes a
   // 433px card, and the first shelf row only clears a 900px viewport if this band stays
   // under ~280 — which is one sentence of prose, the meter and the actions.
@@ -6549,7 +6556,7 @@ function resumeBand(s) {
                : 'nothing written yet &mdash; the first passage is one press away'}</span>`}
       ${chapters ? `<span style="display:flex; flex-direction:column; gap:7px; max-width:680px">
         <span class="kind" style="display:flex; align-items:baseline; gap:12px; color:var(--label)">
-          <span>chapter ${at || 1} of ${chapters}</span>
+          <span>scene ${at || 1} of ${chapters}</span>
           <span style="color:var(--faint)">${(s.chapter_words ?? 0).toLocaleString()} words this chapter</span>
           <!-- "no target set" STOOD HERE AND IS GONE. Seth, 2026-09-01: "on the my stories the
                header on says no target set." It was there to explain why no progress bar is drawn:
@@ -8901,7 +8908,7 @@ document.addEventListener('click', async (e) => {
     // not work — the same reason extraction's count is reported rather than swallowed.
     S.panel = 'chapter'; syncHash(); paint();
     return toast(r.proposed
-      ? `"${r.title}" is waiting in the chapter queue, from chapter ${r.chapter}. Nothing is canon yet.`
+      ? `"${r.title}" is waiting in the chapter queue, from scene ${r.chapter}. Nothing is canon yet.`
       : r.note ?? 'already proposed');
   }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
@@ -9673,7 +9680,7 @@ document.addEventListener('click', async (e) => {
     let ask = 'Press again to delete every passage below this one.';
     if (S.confirmDel !== key) {
       const yours = ((await api.afterYours(S.storyId, d.delafter))?.yours ?? [])
-        .map((c) => c.title || `Chapter ${c.index}`);
+        .map((c) => sceneName(c));
       if (yours.length) ask += ` It also clears your ${yours.length === 1 ? 'summary' : 'summaries'} of `
         + `${yours.join(', ')}.`;
     }
@@ -11879,8 +11886,8 @@ function atFind(q, wide = false) {
   for (const e of V?.entries ?? []) if (hit(e.title)) add(e.title, 'thread', 'this book', e.id);
   for (const c of V?.chapters ?? []) {
     const t = (c.title || '').trim();
-    if (hit(t) || hit(`chapter ${c.index}`))
-      add(t && t !== `Chapter ${c.index}` ? t : `Chapter ${c.index}`, 'chapter', 'this book', c.id);
+    if (hit(t) || hit(`scene ${c.index}`) || hit(`chapter ${c.index}`))
+      add(sceneName(c), 'chapter', 'this tale', c.id);
   }
   if (wide) {
     for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your shelf', b.id);

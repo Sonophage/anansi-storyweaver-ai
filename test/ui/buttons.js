@@ -89,7 +89,7 @@ ok("Edit focuses the passage text", await page.eval("document.activeElement?.dat
 // leaving it up would hide the paragraph it just put the caret in. So it is reopened for History.
 await page.dbl('#col .block .narr, #col .block .said');   // the ⋯ handle is gone; double tap opens the tray
 await page.click('[data-hi="' + pid + '"]');
-ok("History opens its panel", (await page.text('#sideHead') || '').includes('History'));
+ok("Alterations opens its panel", (await page.text('#sideHead') || '').includes('Alterations'));
 ok("  and offers a branch from that passage", await page.eval("!!document.querySelector('[data-fork]')"));
 
 // ---- 3b. Delete asks first, and does not take the other takes with it

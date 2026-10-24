@@ -33,8 +33,8 @@ ok("  and Trajectory, What the chapter added and Branches are no longer rows of 
 
 // ---- 2. every row opens a panel with content in it. A nav row pointing at a panel that no
 // longer exists renders an empty tray, which is exactly what a rename gets wrong.
-for (const [k, label] of [['story', 'Story'], ['chapter', 'This chapter'], ['threads', 'Threads'],
-                          ['context', 'Context'], ['search', 'Prose search'], ['teller', 'Storyteller']]) {
+for (const [k, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['threads', 'Threads'],
+                          ['context', 'Measurements'], ['search', 'Prose search'], ['teller', 'Storyteller']]) {
   await page.click(`[data-nav="${k}"]`);
   await wait(500);
   const body = (await page.text('#sideBody') || '').replace(/\s+/g, ' ').trim();
@@ -625,9 +625,9 @@ ok(`  and so is the reading — the header names the book (${JSON.stringify(bar.
 // The label became "This chapter" on 2026-09-02 — Chapter and Chapters differed by one letter on a
 // rail read at 11px. The KEYS did not move, which is the whole reason these three old links still
 // land: what a retired name maps onto is a key, not a word.
-for (const [old, now] of [['inspector', 'Context'], ['cast', 'Threads'],
-                          ['traj', 'This chapter'], ['queue', 'This chapter'],
-                          ['branches', 'This chapter']]) {
+for (const [old, now] of [['inspector', 'Measurements'], ['cast', 'Threads'],
+                          ['traj', 'This scene'], ['queue', 'This scene'],
+                          ['branches', 'This scene']]) {
   await page.goto(B + "/#" + sid + "/" + old);
   await wait(700);
   const got = (await head()).trim();
