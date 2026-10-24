@@ -84,9 +84,9 @@ export const waiting = (list, me = null) => {
   return [
     mine.length ? { key: 'turn', total: mine.length, panel: null,
       storyId: mine[0].id, storyTitle: mine[0].title,
-      label: mine.length === 1 ? `your move in ${mine[0].title}` : `your move in ${mine.length} books` } : null,
-    kind('proposed', 'thread proposed', 'threads proposed', 'chapter'),
-    kind('unpaid', 'promise unpaid', 'promises unpaid', 'strings'),
+      label: mine.length === 1 ? `your move in ${mine[0].title}` : `your move in ${mine.length} tales` } : null,
+    kind('proposed', 'thread basted', 'threads basted', 'chapter'),
+    kind('unpaid', 'string not tied off', 'strings not tied off', 'strings'),
     // NOT flags. Seth, 2026-08-31: "that flag can be opened but it can be silently ignored, it
     // doesn't have to go in the waiting menu option or the rail at all. if the writer keeps
     // writing then it can silently be ignored." A contradiction is worth recording and worth
@@ -99,7 +99,7 @@ export const waiting = (list, me = null) => {
 // IS — the lines these stand for are in src/context.ts and they say the same thing at length.
 export const SPICE = [
   'nothing sexual — ends at the kiss', 'desire, not sex — stops at the door',
-  'on the page, in the book\u2019s voice', 'direct, and the acts named', 'fully explicit',
+  'on the page, in the tale\u2019s voice', 'direct, with everything named', 'fully explicit',
 ];
 
 /** #20. Six bare strings with no hint anywhere, in three places. Spice already does this properly
@@ -121,16 +121,16 @@ export const STORY_FIELDS = [
   { k: 'premise',      label: 'Premise', area: true },
   { k: 'setting',      label: 'Setting' },
   { k: 'pov',          label: 'Point of view' },
-  { k: 'persona',      label: 'You are', hint: 'The character you speak as in Speak mode.' },
+  { k: 'persona',      label: 'You play', hint: 'The character you speak as in Speak mode.' },
   // #18. These were ONE field with a wrapper that called it a sample while every story in the
   // library held instructions. The hint was wrong in the same way and is now true of each half.
-  { k: 'writingStyle', label: 'Voice of the weave', area: true,
+  { k: 'writingStyle', label: 'Voice', area: true,
     hint: 'How the narration behaves, as instructions. This is the half F37 measured: on its own '
-        + 'line, naming narration, with the forms spelled out. Leave it empty and the book is '
-        + 'written in the house voice \u2014 there is no such thing as a book with none.' },
-  { k: 'styleNote',    label: 'How this book is written', area: true,
-    hint: 'This book\'s genre flavour, kept apart from the voice: romance and science fiction are '
-        + 'not the same writing style. It gets its own block under the voice.' },
+        + 'line, naming narration, with the forms spelled out. Leave it empty and the tale is '
+        + 'written in the house voice \u2014 there is no such thing as a tale with none.' },
+  { k: 'styleNote',    label: 'Genre flavour', area: true,
+    hint: 'This tale\'s genre flavour, kept apart from the voice: romance and science fiction are '
+        + 'not the same writing style. It is sent on its own, under the voice.' },
 ];
 
 export const isSpeech = (t) => /^["“]/.test(String(t).trim());
@@ -237,12 +237,18 @@ export const modelOptions = (models, pinned) => {
     .map((o) => ({ ...o, selected: o.value === (pinned ?? '') }));
 };
 
+/** HOW A MODEL SPINS, in the writer's word. The catalogue and the shortlist store "weaves" (the
+ *  server's values, kept in the database and sent back as the filter), and the screen says Spinning,
+ *  which is the glossary's word for the unseen plan. Only the shown words change; the value stays. */
+export const spinWord = (w) => ({ "doesn't weave": "doesn't spin", 'can switch': 'can switch spinning',
+  'always weaves': 'always spins' })[w] ?? w;
+
 export const modelName = (id) => {
   if (!id) return { name: 'no model', detail: '', id: '', bits: [], size: '' };
   const alias = /^(write|rp|agentic)-(n?t)-([a-z0-9]+)-([a-z0-9]+)$/.exec(id);
   if (alias) {
     const [, role, think, family, tail] = alias;
-    const bits = [think === 't' ? 'weaves' : "doesn't weave", tail === 'h' ? 'uncensored' : tail];
+    const bits = [think === 't' ? 'spins' : "doesn't spin", tail === 'h' ? 'uncensored' : tail];
     return { id, name: `${ROLE[role]} \u00b7 ${FAMILY[family] ?? family}`,
              detail: bits.join(' \u00b7 '), bits, size: '' };
   }
@@ -269,7 +275,7 @@ export const modelName = (id) => {
       // Huihui-ThinkingCap's is UNTESTED on its architecture. Silence here means "nothing to
       // watch"; the word means "watch this one".
       const bits = [PURPOSE[role]];
-      if (think === 'T') bits.push('weaves');
+      if (think === 'T') bits.push('spins');
       // Never "censored" for the other case. See the note above CODE.
       bits.push(heretic ? 'uncensored' : 'trained open');
       if (tail.includes('NN')) bits.push('novel tier');
@@ -324,7 +330,7 @@ export const whereRuns = (id, status) => {
  *  a `blurb =` key per stanza in presets.ini, read by src/presets.ts alongside ctx-size.
  */
 export const BLURB = {
-  'Qwen3.6': 'The house default. 35B with 3B active, so it writes at roughly twelve times the '
+  'Qwen3.6': 'The house model. 35B with 3B active, so it writes at roughly twelve times the '
     + 'speed of the dense models here and still scored write 8/10 in the 2026-08-27 bakeoff. Its '
     + 'one documented quirk is person: it was the only model in that bakeoff that did not hold '
     + 'the person constraint.',
@@ -333,15 +339,15 @@ export const BLURB = {
   'Artemis 1.1': 'The same Gemma 4 base, decensored by roleplay finetune rather than by ablation '
     + '— it is on the box so that the method is the only variable between the two. Best '
     + 'register match in the 2026-08-27 bakeoff.',
-  'GLM 4.7 Flash': 'A thinking model that honours enable_thinking:false, verified on this box '
-    + '2026-08-26. Left on, it returned 3,741 characters of reasoning and empty prose to a '
+  'GLM 4.7 Flash': 'A model that spins, and honours enable_thinking:false, the switch that stops it, verified on this box '
+    + '2026-08-26. Left spinning, it returned 3,741 characters of plan and empty prose to a '
     + 'two-sentence ask. Anansi sends the switch on every call.',
   'Ornith 1.0': 'The same architecture and quant as Qwen3.6, abliterated rather than finetuned, '
     + 'carried as the controlled test where ablation is the only variable. Ablation removes '
     + 'refusals; it does not move a model’s prose.',
   'Harbinger': 'Mistral-Small 24B, trained by LatitudeGames for multi-turn adventure — this '
     + 'is what AI Dungeon serves on its premium tier. In the bakeoff it wrote in AI Dungeon’s '
-    + 'frame rather than the card’s, and omitted the header the write task required.',
+    + 'frame rather than the character card’s, and omitted the header the write task required.',
   'Wayfarer 2': 'Mistral-Nemo 12B, trained on text adventures where a character can fail and take '
     + 'injury; nothing else here is trained for that. Held at 32k rather than its advertised 128k. '
     + 'It returned 392 words against a 600–800 floor in the bakeoff.',
@@ -351,8 +357,8 @@ export const BLURB = {
   'Qwen3.8': 'A HauhauCS uncensored finetune rather than an ablation. 27.8B dense, so every '
     + 'parameter moves per token: 12.7 tok/s measured against Qwen3.6’s 51.9. It earns its '
     + 'place on vision and on a newer base, never on throughput.',
-  'Huihui ThinkingCap': 'An abliterated Qwen3.6 27B with speculative decoding. It emits think '
-    + 'blocks, and enable_thinking:false is UNTESTED on this architecture — which for prose '
+  'Huihui ThinkingCap': 'An abliterated Qwen3.6 27B with speculative decoding. It spins in the '
+    + 'open, and enable_thinking:false is UNTESTED on this architecture — which for prose '
     + 'is the difference between a passage and nothing at all.',
 };
 
@@ -382,12 +388,12 @@ export const BLOCK_COLOR = {
 // still the ones in the prompt, the manifest and src/blocks.ts — this is the surface only.
 export const BLOCK_ORIGIN = {
   SPINE:             ['Premise & setting',       'story'],
-  VOICE:             ['Voice of the weave',      'story'],
-  STYLE:             ['How this book is written', 'story'],
+  VOICE:             ['Voice',                   'story'],
+  STYLE:             ['Genre flavour',           'story'],
   'CANON-ALWAYS':    ['Threads, always on',      'canon'],
-  'CANON-TRIGGERED': ['Threads, on a keyword',   'canon'],
+  'CANON-TRIGGERED': ['Threads, on a word',      'canon'],
   STRING:            ['Strings you summoned',    'strings'],
-  EARLIER:           ['Summaries in context',    'traj'],
+  EARLIER:           ['Scene summaries',         'traj'],
   PROSE:             ['The prose above',         'doc'],
   DIRECTIVE:         ['Point of view & register', 'story'],
   TAIL:              ['Where you left off',      'doc'],

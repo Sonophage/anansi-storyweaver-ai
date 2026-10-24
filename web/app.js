@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
+import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -2214,7 +2214,7 @@ const hubTagChips = (tags) => `<span class="hubtags" style="display:flex; gap:4p
  *  undefined while it is being read. The paragraph arrives already stripped to plain text; a card
  *  with none shows the base model and the tags alone. */
 function remoteAbout(card) {
-  if (card === undefined) return '<div class="remoteabout hint" style="margin:0">Reading its model card&hellip;</div>';
+  if (card === undefined) return '<div class="remoteabout hint" style="margin:0">Reading what its makers wrote&hellip;</div>';
   if (card.error) return `<div class="remoteabout hint" style="margin:0; color:var(--warn)">${esc(card.error)}</div>`;
   const base = card.base ?? [], tags = card.tags ?? [];
   return `<div class="remoteabout" style="display:flex; flex-direction:column; gap:6px">
@@ -2255,7 +2255,7 @@ function foundRow(m, act) {
   const d = modelName(m.id);
   const open = S.find.open === m.id;
   const facts = [m.cost == null ? 'cost not known' : `${m.cost} ${m.cost === 1 ? 'unit' : 'units'}`,
-    m.context ? `${Number(m.context).toLocaleString()} context` : '', m.weaving ?? ''].filter(Boolean);
+    m.context ? `${Number(m.context).toLocaleString()} tokens` : '', spinWord(m.weaving ?? '')].filter(Boolean);
   const tags = S.hub.tags[m.id];
   return `<div style="display:flex; flex-direction:column; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line)">
     <div style="display:flex; align-items:center; gap:9px">
@@ -2405,29 +2405,29 @@ const PANELS = {
             above is decoded from its name; what is below is measured.</div>`}
 
       ${remote
-        ? `${fact('Context, per writer', m.perSlot ? `${m.perSlot.toLocaleString()} tokens` : '',
-            m.ctxSize ? `Featherless holds ${m.ctxSize.toLocaleString()} for this model; a writer gets the smaller of that and the slot here` : '')}
+        ? `${fact('Reading space, per writer', m.perSlot ? `${m.perSlot.toLocaleString()} tokens` : '',
+            m.ctxSize ? `Featherless holds ${m.ctxSize.toLocaleString()} for this model; a writer gets the smaller of that and their share here` : '')}
            ${fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of the shared plan` : '',
             m.cost ? 'counted against the plan both writers share, on Featherless, while it writes'
               : 'Featherless did not say what this model costs')}`
-        : fact('Context, per writer',
+        : fact('Reading space, per writer',
         perSlot ? `${perSlot.toLocaleString()} tokens` : '',
         live
-          ? `${live.global.toLocaleString()} across the ${live.slots} ${live.slots === 1 ? 'slot' : 'slots'} the running server opened`
+          ? `${live.global.toLocaleString()} shared ${live.slots} ${live.slots === 1 ? 'way' : 'ways'} by the running server`
           : m.perSlot && m.ctxSize && m.parallel
-          ? `${m.ctxSize.toLocaleString()} cut across ${m.parallel} ${m.parallel === 1 ? 'slot' : 'slots'} in the router's preset file`
+          ? `${m.ctxSize.toLocaleString()} shared ${m.parallel} ${m.parallel === 1 ? 'way' : 'ways'} in the router's preset file`
           : "the router's preset file does not mention this one")}
 
       ${fact('Speed, measured here',
         m.tps ? `${m.tps} tok/s` : '',
         m.tps
-          ? `median of ${m.runs} ${m.runs === 1 ? 'call' : 'calls'} in this library${m.runs < 5 ? ', which is too few to lean on' : ''}`
+          ? `median of ${m.runs} ${m.runs === 1 ? 'call' : 'calls'} on this machine${m.runs < 5 ? ', which is too few to lean on' : ''}`
           : 'nothing has been written with it here yet')}
 
       ${pinned && pinned !== id
-        ? `<div class="hint" style="margin:12px 0 0; color:var(--warn)">This book pins its own model
-            &mdash; <code>${esc(modelName(pinned).name)}</code> &mdash; and a pinned story outranks
-            this switch. Change it in Story.</div>` : ''}
+        ? `<div class="hint" style="margin:12px 0 0; color:var(--warn)">This tale has its own model
+            &mdash; <code>${esc(modelName(pinned).name)}</code> &mdash; and this tale's model comes
+            before this switch. Change it in Tale.</div>` : ''}
 
       <div style="margin-top:16px">
         ${writing
@@ -2437,8 +2437,8 @@ const PANELS = {
           : remote && !S.remote
           ? `<div class="hint" style="margin:0">Featherless isn't set up on this server.</div>`
           : remote && !mine
-          ? `<div class="hint" style="margin:0">This book's owner chose it, and it is
-              not on your shortlist, so it cannot be your default. Find a model can add it.</div>`
+          ? `<div class="hint" style="margin:0">This tale's owner chose it, and it is
+              not on your shortlist, so it cannot be your model. Find a model can add it.</div>`
           : `<button class="btn" data-pickmodel="${esc(id)}">Write with this one</button>`}
       </div></div>`;
   },
@@ -2465,8 +2465,8 @@ const PANELS = {
         <div style="display:flex; gap:6px; flex-wrap:wrap">
           <select class="field" data-findsize="1" aria-label="Size" style="flex:1; width:auto">${opt('', 'Any size', !f.size)}${
             f.sizes.map((z) => opt(z, z.toUpperCase(), z === f.size)).join('')}</select>
-          <select class="field" data-findweave="1" aria-label="Weaving" style="flex:1; width:auto">${opt('', 'Weaving: any', !f.weaving)}${
-            f.weavings.map((w) => opt(w, w, w === f.weaving)).join('')}</select>
+          <select class="field" data-findweave="1" aria-label="Spinning" style="flex:1; width:auto">${opt('', 'Spinning: any', !f.weaving)}${
+            f.weavings.map((w) => opt(w, spinWord(w), w === f.weaving)).join('')}</select>
         </div>
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--mute)">
           <input type="checkbox" data-finduncensored="1"${f.uncensored ? ' checked' : ''}>
@@ -2503,12 +2503,12 @@ const PANELS = {
 
     const rows = [];
     if (props.length) rows.push(section(
-      `${props.length} thread${props.length === 1 ? '' : 's'} proposed`,
-      'Nothing is canon until you accept it, and the box is what gets written.',
+      `${props.length} thread${props.length === 1 ? '' : 's'} basted`,
+      'Basted is tacked on loosely: nothing is in the tale until you weave it in, and the box is what gets written.',
       `<div style="display:flex; flex-direction:column; gap:9px">${props.map(proposalCard).join('')}</div>`));
 
     if (owed.length) rows.push(section(
-      `${owed.length} promise${owed.length === 1 ? '' : 's'} unpaid`,
+      `${owed.length} string${owed.length === 1 ? '' : 's'} not tied off`,
       'Summoning one puts it in front of the model. Until then it is yours alone.',
       owed.map((x) => `<div class="card" style="margin-bottom:8px; gap:6px">
         <div style="display:flex; align-items:center; gap:9px">
@@ -2519,30 +2519,30 @@ const PANELS = {
         <div style="display:flex; gap:7px">
           <button data-summon="${x.id}" style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
             ${x.summoned ? 'background:var(--gold); color:var(--on-gold)' : 'border:1px solid var(--chip); color:var(--mute)'};
-            font-size:11.5px">${x.summoned ? 'In play — put it away' : 'Summon it'}</button>
+            font-size:11.5px">${x.summoned ? 'Summoned — dismiss it' : 'Summon it'}</button>
           <button data-stringstatus="${x.id}:paid" style="width:96px; text-align:center; padding:8px 0;
-            border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Paid</button>
+            border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Tied off</button>
         </div></div>`).join('')));
 
     if (flags.length) rows.push(section(
-      `${flags.length} contradiction${flags.length === 1 ? '' : 's'} flagged`,
-      'The checker read the prose against canon. Dismissing one leaves the prose alone.',
+      `${flags.length} knot${flags.length === 1 ? '' : 's'}`,
+      'A knot is a line of narration that contradicts a thread. Clearing one leaves the prose alone.',
       flags.map((f) => {
         const e = V.entries.find((x) => x.id === f.entryId);
         const unseen = f.reached === false;
         return `<div class="card" style="margin-bottom:8px; gap:6px;
           border-color:${unseen ? 'rgba(217,178,106,.34)' : 'rgba(200,80,80,.34)'}">
           <div class="kind" style="color:${unseen ? 'var(--warn)' : 'var(--bad)'}">${unseen
-            ? `never sent · ${esc(e?.title ?? 'canon')}` : `contradiction · ${esc(e?.title ?? 'canon')}`}</div>
+            ? `never sent · ${esc(e?.title ?? 'a thread')}` : `knot · ${esc(e?.title ?? 'a thread')}`}</div>
           ${f.reason ? `<div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(f.reason)}</div>` : ''}
           <div style="display:flex; gap:7px">
             <button data-goflag="${f.passageId}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Show me the passage</button>
             <button data-dropflag="${f.id}" style="width:96px; text-align:center; padding:8px 0;
-              border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Dismiss</button>
+              border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Clear</button>
           </div>
           ${f.entryId ? `<button data-mute="${f.entryId}" style="text-align:left; padding:7px 0 0;
-            color:var(--faint); font-size:11px">Ignore ${esc(e?.title ?? 'this')} for the rest of this chapter</button>` : ''}
+            color:var(--faint); font-size:11px">Ignore ${esc(e?.title ?? 'this')} for the rest of this scene</button>` : ''}
           </div>`;
       }).join('')));
 
@@ -2550,12 +2550,12 @@ const PANELS = {
     // listed here with the press that lifts it, so "not for now" never silently becomes "never".
     const muted = (V.muted ?? []).map((id) => V.entries.find((x) => x.id === id)).filter(Boolean);
     if (muted.length) rows.push(section(
-      `${muted.length} quieted in this chapter`,
-      'The checker is not reading the prose against these while the chapter moves. Lift one and it is.',
+      `${muted.length} ignored in this scene`,
+      'Knots with these are not looked for while the scene moves on. Watch one again and they are.',
       muted.map((m) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
         <span style="font-size:13px; color:var(--mute)">${esc(m.title)}</span>
         <button data-unmute="${m.id}" style="margin-left:auto; padding:7px 12px; border-radius:var(--r);
-          border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Listen again</button></div>`).join('')));
+          border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Watch again</button></div>`).join('')));
 
     // THE SAME ARGUMENT AS THE MUTES ABOVE, one step further. A retired card stops reaching the
     // model for the rest of the book and the Threads screen draws it exactly like a live one, so
@@ -2563,8 +2563,8 @@ const PANELS = {
     // the view since Phase 2 and nothing has ever rendered it.
     const finished = (V.entries ?? []).filter((e) => e.retiredAtChapter != null);
     if (finished.length) rows.push(section(
-      `${finished.length} finished`,
-      'These stopped reaching the model at the chapter named. Every chapter before it still has them.',
+      `${finished.length} hemmed`,
+      'A hemmed thread is one the tale is done with. These stopped reaching the model at the scene named; every scene before it still has them.',
       finished.map((e) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
         <span style="font-size:13px; color:var(--mute)">${esc(e.title)}</span>
         <span style="font-size:11px; color:var(--faint)">from scene ${esc(String(e.retiredAtChapter))}</span>
@@ -2576,26 +2576,26 @@ const PANELS = {
     const off = [];
     for (const c of (w.stale ?? [])) off.push({ kind: 'stale', ref: c.ref,
       title: `${sceneName(c)} has a stale summary`,
-      body: 'Its prose changed after the summary was written, so it is left out of the prompt until '
+      body: 'Its prose changed after the summary was written, so the model is not sent it until '
           + 'it is written again.' });
     // #47. An act still reaches the model when it is out of date, so this says what to read, not
     // what was dropped. The ref carries what its chapters say now: a later change brings it back.
     for (const a of (w.acts ?? [])) off.push({ kind: 'act', ref: a.ref,
-      title: `${a.title || `Chapters ${a.fromChapter}–${a.toChapter}`} is out of date`,
+      title: `${a.title || `Scenes ${a.fromChapter}–${a.toChapter}`} is out of date`,
       body: actChanged(a.chapter, a.why, a.chapterTitle) });
     if (h) off.push({ kind: 'horizon', ref: String(h.to),
-      title: `${h.chapters} chapter${h.chapters === 1 ? '' : 's'} no longer reach the model`,
-      body: `Chapters ${h.from} to ${h.to}. Their summaries do not fit any more — Chapter, then `
-          + 'Acts, collapses a run of them into one.' });
+      title: `${h.chapters} scene${h.chapters === 1 ? '' : 's'} no longer reach the model`,
+      body: `Scenes ${h.from} to ${h.to}. Their summaries do not fit any more — This scene, then `
+          + 'Panels, rolls a run of them into one.' });
 
     if (!rows.length && !off.length) {
       // In her own voice, at Seth's asking: an empty panel that says nothing is indistinguishable
       // from a broken one.
       return `<div class="card" style="gap:6px">
-        <div class="kind">nothing is waiting</div>
+        <div class="kind">the workbench is clear</div>
         <div style="font-size:13.5px; line-height:1.6; color:var(--mute)">Nothing is owed and
-          nothing is arguing with itself. The book is quiet &mdash; which is not the same as
-          finished. Go and make me something to worry about.</div></div>`;
+          nothing is arguing with itself. The tale is quiet &mdash; which is not the same as
+          done. Go and make me something to worry about.</div></div>`;
     }
 
     return `${rows.join('')}
@@ -2610,14 +2610,14 @@ const PANELS = {
   history: historyPanel,
   context() {
     if (!MANI) return `<div class="hint">${MANIERR
-      ? `The prompt could not be assembled: ${esc(MANIERR)}`
-      : 'Open the composer once and the manifest appears here.'}</div>`;
+      ? `The measurements could not be taken: ${esc(MANIERR)}`
+      : 'Open the composer once and the measurements appear here.'}</div>`;
     if (S.ctxView === 'prompt') {
       return `<div style="display:flex; flex-direction:column">
         ${ctxTabs()}
         <div style="display:flex; justify-content:flex-end">${
-          tipMark('ctxPrompt', 'The prompt sent')}</div>
-        ${tipCard('ctxPrompt', 'The prompt sent', `<p>Exactly what the next call will send, in
+          tipMark('ctxPrompt', 'Exactly as sent')}</div>
+        ${tipCard('ctxPrompt', 'Exactly as sent', `<p>Exactly what the next call will send, in
           order. Nothing is added between here and the model.</p>`)}
         <pre style="white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,monospace;
           font-size:11.5px; line-height:1.55; color:var(--narr); background:var(--field);
@@ -2641,21 +2641,21 @@ const PANELS = {
         <div style="display:flex; align-items:flex-start; gap:12px; padding:12px 0">
           <span style="width:8px; height:8px; border-radius:50%; background:var(--bad); margin-top:5px; flex:0 0 auto"></span>
           <span style="flex:1; display:flex; flex-direction:column; gap:5px">
-            <span style="font-size:13.5px; color:var(--ink)">There is no room for a prompt</span>
+            <span style="font-size:13.5px; color:var(--ink)">There is no space for a prompt</span>
             <span class="hint" style="margin:0">${esc(MANI.overflowReason
-              ?? "This story's context cap leaves nothing after the space reserved for the reply.")}</span></span></div>
-        <div class="row"><span style="color:var(--ink)">Assembled anyway</span>
+              ?? "This tale's reading space leaves nothing after the space kept for the reply.")}</span></span></div>
+        <div class="row"><span style="color:var(--ink)">Measured anyway</span>
           <span class="tnum" style="margin-left:auto; color:var(--faint)">${MANI.totals.used.toLocaleString()} tokens</span></div>
-        <div class="row"><span style="color:var(--ink)">Room for it</span>
+        <div class="row"><span style="color:var(--ink)">Space for it</span>
           <span class="tnum" style="margin-left:auto; color:var(--bad)">none</span></div>
-        <div class="hint">Shorten Passage length in Storyteller, or turn weaving off for this book:
-          both are room kept for the reply.</div></div>`;
+        <div class="hint">Shorten Passage length in Storyteller, or turn spinning off for this tale:
+          both are space kept for the reply.</div></div>`;
     }
     const budget = MANI.totals.budget;
     return `<div style="display:flex; flex-direction:column; gap:2px">
       ${ctxTabs()}
       <div style="display:flex; align-items:baseline; gap:10px; font-size:12.5px; color:var(--mute)">
-        <span>Assembled for the next call</span>
+        <span>Measured for the next call</span>
         <span class="tnum" style="margin-left:auto; color:var(--faint)" data-exact="${MANI_EXACT ? 1 : 0}"
           title="${MANI_EXACT ? 'Counted by the model\u2019s own tokenizer'
             : 'Estimated \u2014 the model is not answering, so this is characters divided by a constant'}"
@@ -2673,10 +2673,10 @@ const PANELS = {
         return `<div style="display:flex; align-items:flex-start; gap:10px; padding:10px 0">
           <span style="width:8px; height:8px; border-radius:50%; background:var(--gold-dim); margin-top:5px; flex:0 0 auto"></span>
           <span style="flex:1; display:flex; flex-direction:column; gap:4px">
-            <span style="font-size:13px; color:var(--ink)">Chapters ${h.from}&ndash;${h.to} are past the horizon${helpMark('horizon')}</span>
+            <span style="font-size:13px; color:var(--ink)">Scenes ${h.from}&ndash;${h.to} are past the horizon${helpMark('horizon')}</span>
             ${tipCard('horizon', HELP.horizon.title, `${helpText('horizon')}<p>Their summaries no
               longer reach the model, so it cannot draw on them or stay consistent with them.
-              <strong>Chapter &rarr; Acts</strong> collapses a run of them into one summary that
+              <strong>This scene &rarr; Panels</strong> rolls a run of them into one summary that
               does fit.</p>`)}</span></div>`;
       })()}
       ${(() => {
@@ -2687,10 +2687,10 @@ const PANELS = {
         const prose = (agg.PROSE ?? 0) + (agg.TAIL ?? 0);
         const pct = Math.round(MANI.totals.used / budget * 100);
         if (!prose) return '';
-        return `${tipCard('ctxCompact', 'Compacting now', `<p>Summarises the open chapter, so its
+        return `${tipCard('ctxCompact', 'Compacting now', `<p>Summarises the open scene, so its
             prose stops being sent line by line. Prose is ${prose.toLocaleString()} of the
             ${MANI.totals.used.toLocaleString()} tokens here${pct >= 70
-              ? ' &mdash; and you are at ' + pct + '% of the budget.' : '.'}</p>`)}
+              ? ' &mdash; and you are at ' + pct + '% full.' : '.'}</p>`)}
           <div style="display:flex; align-items:center; gap:2px; margin:10px 0 8px">
             <button class="btn ghost" data-summarize="1" style="flex:1">Compact now</button>
             ${tipMark('ctxCompact', 'Compacting now')}</div>`;
@@ -2732,9 +2732,9 @@ const PANELS = {
         }).join('');
       })()}
       <div style="display:flex; justify-content:flex-end; margin-top:14px">${
-        tipMark('ctxCaps', 'How the budget is shared out')}</div>
-      ${tipCard('ctxCaps', 'How the budget is shared out', `<p>Canon is capped at 45% of the slot,
-        earlier chapters at 25%, recent prose at 60%. The tail is never evicted.</p>
+        tipMark('ctxCaps', 'How the space is shared out')}</div>
+      ${tipCard('ctxCaps', 'How the space is shared out', `<p>Threads are capped at 45% of the
+        space, earlier scenes at 25%, recent prose at 60%. The last lines are never left out.</p>
         <p>Click one of the rows above the line to reach what put it there; the dimmed rows are what
         came off, and lead nowhere.</p>`)}</div>`;
   },
@@ -5234,7 +5234,7 @@ function ctxTabs() {
     padding:8px 0; border-radius:var(--r); border:1px solid ${S.ctxView === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
     background:${S.ctxView === k ? 'rgba(217,178,106,.12)' : 'transparent'};
     color:${S.ctxView === k ? 'var(--gold-lit)' : 'var(--mute)'}">${l}</button>`;
-  return `<div style="display:flex; gap:6px; margin-bottom:14px">${t('blocks', 'Blocks')}${t('prompt', 'Prompt sent')}</div>`;
+  return `<div style="display:flex; gap:6px; margin-bottom:14px">${t('blocks', 'What goes in')}${t('prompt', 'Exactly as sent')}</div>`;
 }
 
 /** The same three controls wherever something can be invented: a line of direction, the web-search
@@ -6576,7 +6576,7 @@ function resumeBand(s) {
       </span>` : ''}
       <span class="bandacts">
         <button class="btn bandgo" data-carryon="${esc(s.id)}">Carry on writing</button>
-        <button class="btn ghost bandgo" data-readfrom="${esc(s.id)}">Read from chapter one</button>
+        <button class="btn ghost bandgo" data-readfrom="${esc(s.id)}">Read from scene one</button>
         <span class="bandgap"></span>
         <span class="bandchips">
         <!-- WHAT IS OWED, BESIDE THE BOOK IT IS ABOUT. This replaces the page-level strip: an owed
@@ -6585,10 +6585,10 @@ function resumeBand(s) {
              into whichever one has the most of a kind and so cannot answer "in THIS book". -->
         ${Number(s.proposed) ? `<button class="chip" data-owed="${esc(s.id)}" data-owedpanel="chapter"
           style="font-size:11.5px; padding:6px 12px; border-color:var(--gold-dim)">${s.proposed} thread${
-          s.proposed === 1 ? '' : 's'} proposed</button>` : ''}
+          s.proposed === 1 ? '' : 's'} basted</button>` : ''}
         ${Number(s.unpaid) ? `<button class="chip" data-owed="${esc(s.id)}" data-owedpanel="strings"
-          style="font-size:11.5px; padding:6px 12px">${s.unpaid} promise${
-          s.unpaid === 1 ? '' : 's'} unpaid</button>` : ''}
+          style="font-size:11.5px; padding:6px 12px">${s.unpaid} string${
+          s.unpaid === 1 ? '' : 's'} not tied off</button>` : ''}
         </span>
       </span>
     </span>
@@ -9911,7 +9911,7 @@ document.addEventListener('click', async (e) => {
     loadModels(); drawSide();
     const got = S.shortlist.find((m) => m.id === d.addshort);
     return toast(`${modelName(d.addshort).name} is on your shortlist${got?.weaving ? ` — it ${
-      got.weaving === 'can switch' ? 'can switch weaving off' : got.weaving}` : ''}.`);
+      got.weaving === 'can switch' ? 'can switch spinning off' : spinWord(got.weaving)}` : ''}.`);
   }
   if (d.dropshort) {
     const r = await api.dropShortlist(d.dropshort);

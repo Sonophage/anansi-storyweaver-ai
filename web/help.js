@@ -14,23 +14,24 @@ export const HELP = {
   threads: {
     title: 'Threads',
     body: `<p>What the model is told is true. A thread is a fact that stays true: who someone is,
-      what a place is, a rule the world runs on.</p>
-      <p><strong>Always on</strong> reaches every call. <strong>Triggered</strong> arrives only when
-      its words appear in what you are writing.</p>
+      what a place is, a rule the tale runs on.</p>
+      <p><strong>Always on</strong> reaches every call. <strong>On a word</strong> arrives only when
+      one of its wake words appears in what you are writing.</p>
       <p>A character lying is not a fact.</p>`,
   },
   strings: {
     title: 'Strings',
-    body: `<p>A promise the story has made and not paid.</p>
+    body: `<p>A promise the tale has made and not kept: something set up that must pay off later.</p>
       <p>What makes it a string rather than a thread is that it is unresolved.
       <em>Aldis owns a letter</em> is a thread. <em>Aldis has not opened the letter</em> is a string.</p>
-      <p>A string is yours alone until you put it in play. In play, the model is told what is owed
-      &mdash; and told not to pay it yet.</p>`,
+      <p>A string is yours alone until you summon it. Summoned, the model is told what is owed
+      &mdash; and told not to resolve it yet. A string the tale keeps is tied off; one it abandons
+      is snipped.</p>`,
   },
   states: {
-    title: 'Canon over time',
-    body: `<p>People change, and canon that cannot change is the wrong shape for a novel.</p>
-      <p>A state is a description that comes into force from a chapter onward. The one in force
+    title: 'Threads over time',
+    body: `<p>People change, and a thread that cannot change is the wrong shape for a novel.</p>
+      <p>A state is a description that comes into force from a scene onward. The one in force
       <strong>replaces</strong> the body rather than adding to it &mdash; so a state has to describe
       the whole person as they now are, not only what changed. A state that says <em>her arm is
       broken</em> and nothing else has quietly deleted her eyes.</p>
@@ -38,18 +39,19 @@ export const HELP = {
       without saying what, so foreshadowing has somewhere to come from.</p>`,
   },
   persona: {
-    title: 'Who you are',
-    body: `<p>The character you speak as. It fills the byline, and it is who Speak and Act default to.</p>
-      <p>It can be nobody. A story narrated from outside has no persona, and that is a real answer.</p>`,
+    title: 'You play',
+    body: `<p>The character you speak as. It fills the byline, and it is who Speak and Act start from.</p>
+      <p>It can be nobody. A tale narrated from outside has nobody to play, and that is a real answer.</p>`,
   },
   locked: {
-    title: 'The one the model never writes',
-    body: `<p>No dialogue, no action, no interior for them &mdash; because you write them.</p>
-      <p>It does not stop the room reacting to them. What others say and do about them is still the
+    title: 'Hands off',
+    body: `<p>The character the model keeps its hands off: no dialogue, no action, no interior for
+      them &mdash; because you write them.</p>
+      <p>It does not stop the scene reacting to them. What others say and do about them is still the
       model's to write, and that is the point.</p>`,
   },
   voice: {
-    title: 'Voice of the weave',
+    title: 'Voice',
     body: `<p>How the prose sounds, in your words. It rides in every call, so it is the largest single
       thing you control about the register.</p>
       <p>A few hundred words of your own writing beats any description of it. <em>Short sentences,
@@ -64,22 +66,22 @@ export const HELP = {
   },
   horizon: {
     title: 'The horizon',
-    body: `<p>A long book does not fit, and pretending otherwise is how a model forgets chapter
+    body: `<p>A long tale does not fit, and pretending otherwise is how a model forgets scene
       three.</p>
-      <p>Chapters are summarised as they close. When the budget runs out the oldest summaries stop
-      being sent, and the bar says how many. <strong>Acts</strong> collapse a run of chapters into
-      one summary, which is how the early book keeps reaching the model at chapter forty.</p>`,
+      <p>Scenes are summarised as they are hemmed. When the space runs out the oldest summaries stop
+      being sent, and the bar says how many. A <strong>panel</strong> rolls a run of scenes into
+      one summary, which is how the early tale keeps reaching the model at scene forty.</p>`,
   },
   context: {
-    title: 'Context',
+    title: 'Measurements',
     body: `<p>What actually reached the model on the last call, in order, and what came off.</p>
-      <p>The percentage is of the slot, not of the book. A row that was dropped says why.</p>`,
+      <p>The percentage is of the space one writer has, not of the tale. A row that was left out says why.</p>`,
   },
   anansi: {
     title: 'Anansi',
-    body: `<p>It has kept every thread of the story and can be asked about it. It answers from the
-      canon, the chapter summaries and the recent passages, and it names what it drew on.</p>
-      <p>It proposes and never writes. A thread it offers waits under Chapter until you accept it;
-      a directive it writes lands in the composer unsent.</p>`,
+    body: `<p>She has kept every thread of the tale and can be asked about it. She answers from the
+      threads, the scene summaries and the recent passages, and she names what she drew on.</p>
+      <p>She bastes and never writes. A thread she offers waits under This scene until you weave it
+      in; a directive she writes lands in the composer unsent.</p>`,
   },
 };

@@ -557,8 +557,8 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   // Weaving on this model means 900 tokens of plan and no prose at all — three runs of four. A
   // label that drops it is a label that hides the one setting that decides whether prose arrives.
   // The id's code says T or NT; the label says it in the writer's word (#49).
-  assert.match(modelName('write-nt-qwen36-h').detail, /doesn't weave/, "MODEL-LABEL: nt reads as doesn't weave");
-  assert.match(modelName('agentic-t-qwen38-h').detail, /(?<!n't )weaves/, 'MODEL-LABEL: t must read as weaves');
+  assert.match(modelName('write-nt-qwen36-h').detail, /doesn't spin/, "MODEL-LABEL: nt reads as doesn't spin");
+  assert.match(modelName('agentic-t-qwen38-h').detail, /(?<!n't )spins/, 'MODEL-LABEL: t must read as spins');
   assert.doesNotMatch(modelName('write-nt-qwen36-h').detail + modelName('agentic-t-qwen38-h').detail, /think/i,
     'MODEL-LABEL: and neither says thinking');
   // Two of the router's presets are the same repo at different quants, so the name alone cannot
@@ -590,8 +590,8 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   // transport pins enable_thinking:false on every call and not thinking is the normal case. A `T`
   // model is the other thing entirely — thinking left on returned no prose at all on three runs of
   // four — so silence means "nothing to watch" and the word means "watch this one".
-  assert.ok(modelName('GLM-4.7-Flash-RPTH-30B').bits.includes('weaves'),
-    'MODEL-LABEL: a T model must say it weaves on every surface that shows the badges');
+  assert.ok(modelName('GLM-4.7-Flash-RPTH-30B').bits.includes('spins'),
+    'MODEL-LABEL: a T model must say it spins on every surface that shows the badges');
   assert.doesNotMatch(q.detail, /weav|think/,
     'and an NT model says nothing about it rather than saying the boring half out loud');
   // H ABSENT IS NOT CENSORED. presets.ini is explicit that Wayfarer-2 and Muse were trained open
@@ -1382,9 +1382,9 @@ ok('what came off collapses to one row per reason, with a count');
 // so a writer who never opens the Context panel still finds out.
 assert.match(html('bar'), /10 scenes not sent/,
   'the bar names how many chapters the model can no longer read (1 plus the arc\'s nine)');
-assert.match(html('sideBody'), /Chapters 1&ndash;11 are past the horizon/,
+assert.match(html('sideBody'), /Scenes 1&ndash;11 are past the horizon/,
   'and the panel names which — the range, not the block count');
-assert.match(html('sideBody'), /Acts<\/strong> collapses/, 'and what to do about it');
+assert.match(html('sideBody'), /Panels<\/strong> rolls/, 'and what to do about it');
 ok('a book past its horizon says so on the bar, not only in a dimmed row');
 
 // Two kinds of offer, two places to answer them. A promise Anansi noticed belongs beside the
@@ -1752,7 +1752,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ];
   const w = waiting(shelf);
   assert.deepStrictEqual(w.map((x: any) => x.label),
-    ['5 threads proposed', '2 promises unpaid'],
+    ['5 threads basted', '2 strings not tied off'],
     'it counts across books, and says one thread rather than one threads');
 
   // AND FLAGS ARE NOT IN IT, on purpose, since 2026-08-31. The contradiction check moved off the
@@ -1914,8 +1914,8 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const page = html('page');
   // The KIND, with its own number, which is the whole reason this moved. A digit alone was the
   // old strip's failure and an assertion that only counted chips could not see it.
-  assert.match(page, /2 threads proposed/, 'the chip says what is waiting, not how many kinds');
-  assert.match(page, /1 promise unpaid/, 'and singular reads as singular');
+  assert.match(page, /2 threads basted/, 'the chip says what is waiting, not how many kinds');
+  assert.match(page, /1 string not tied off/, 'and singular reads as singular');
   // Each kind opens the panel that DECIDES it. The old strip sent every chip to 'waiting'
   // regardless, because it had thrown the kind away before it drew anything.
   assert.match(page, /data-owed="s-1" data-owedpanel="chapter"/, 'proposals open the chapter panel');
@@ -2206,7 +2206,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.doesNotMatch(panel, /100,096 tokens/, 'never the whole window as if it were the budget');
   // `esc` turns the apostrophe in "router's" into an entity, hence the class rather than the
   // character — a regex written with the literal apostrophe cannot match the rendered panel.
-  assert.match(panel, /100,096 cut across 2 slots in the router.{0,6}s preset file/,
+  assert.match(panel, /100,096 shared 2 ways in the router.{0,6}s preset file/,
     'with which of the four sources it came from beside it');
   assert.match(panel, /58\.4 tok\/s/, 'measured here, not claimed');
   assert.match(panel, /median of 58 calls/);
@@ -2223,7 +2223,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   click({ modelinfo: 'write-nt-qwen36-h' });
   const loaded = html('sideBody');
   assert.match(loaded, /50,048 tokens/, 'the running server\'s own figure, not the file\'s 50,000');
-  assert.match(loaded, /100,096 across the 2 slots the running server opened/, 'and it says so');
+  assert.match(loaded, /100,096 shared 2 ways by the running server/, 'and it says so');
   assert.match(loaded, /writing now/, 'and this is the one writing');
   assert.doesNotMatch(loaded, /data-pickmodel=/, 'so there is nothing to switch to');
 
@@ -2234,7 +2234,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   // A THIN SAMPLE SAYS SO. 41.2 tok/s off three calls and off two hundred are different claims.
   click({ modelinfo: 'Wayfarer-2-RPNT-12B' });
   const thin = html('sideBody');
-  assert.match(thin, /median of 3 calls in this library, which is too few to lean on/);
+  assert.match(thin, /median of 3 calls on this machine, which is too few to lean on/);
   assert.match(thin, /trained open/, 'and no H does not read as censored');
 
   // THE SOURCE THAT IS SILENT IS NAMED. A model the preset file does not carry and nobody has
@@ -2638,9 +2638,9 @@ ok('a refusal on a model that always weaves offers Write anyway and another mode
     delete (MANIFEST as any).weaveFit;
     click({ open: 's-1' });
     await new Promise((r) => setTimeout(r, 40));
-    if (!html('sideBody').includes('Assembled for the next call')) click({ panel: 'context' });
+    if (!html('sideBody').includes('Measured for the next call')) click({ panel: 'context' });
     await new Promise((r) => setTimeout(r, 40));
-    assert.ok(html('sideBody').includes('Assembled for the next call'), 'precondition: the Context panel is open');
+    assert.ok(html('sideBody').includes('Measured for the next call'), 'precondition: the Context panel is open');
     assert.ok(!html('sideBody').includes('still in view'), 'and says nothing when weaving fits');
   } finally { delete (MANIFEST as any).weaveFit; }
 }

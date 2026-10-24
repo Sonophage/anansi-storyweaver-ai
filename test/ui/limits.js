@@ -52,7 +52,7 @@ ok("  and the composer is usable again", await page.eval("!document.getElementBy
 await page.click('[data-panel="context"]');
 await wait(900);
 const side = (await page.text('#sideBody') || '');
-ok("the Context panel shows the overflow", /omitted|ceiling|over|refus|drop|no room/i.test(side));
+ok("the Context panel shows the overflow", /omitted|ceiling|over|refus|drop|left out|no space/i.test(side));
 
 // A cap below the reply reserve gives a budget of zero. It used to render as "Context -168%" and
 // "406 / -242"; clamping it at zero then gave "Context Infinity%" and "406 / 1", because the
@@ -62,7 +62,7 @@ ok(`no nonsense percentage in the header (${JSON.stringify(head.replace(/\s+/g,'
    !/-\d+%|Infinity|NaN/.test(head));
 ok("  it says there is no space instead", /No space/.test(head));
 ok("  and the panel explains why, not a meter against nothing",
-   /no room for a prompt/i.test(side) && !/\/ 1\b/.test(side));
+   /no space for a prompt/i.test(side) && !/\/ 1\b/.test(side));
 
 // ---- put the budget back
 await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
