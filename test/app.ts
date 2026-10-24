@@ -1192,7 +1192,7 @@ ok('the bar counts chapters, and the reading is always open');
     + 'the model never saw');
   assert.match(inCtx, /Envoy Sereth/, 'the card both answers agree about is still there');
   // The count on the chip is the same answer, so the number and the list cannot drift apart.
-  assert.match(inCtx, /In context <span[^>]*>2</, 'and the chip counts the two that are really in');
+  assert.match(inCtx, /Sent now <span[^>]*>2</, 'and the chip counts the two that are really in');
   ok('In context is read off the assembled prompt, not guessed from activation');
 
   // ---- AND THE LIST HAS A SEARCH BAR. Seth, 2026-09-11: "in the story under all threads can i get
@@ -1423,7 +1423,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   click({ panel: 'strings' });
   await new Promise((r) => setTimeout(r, 30));
   const strings = html('sideBody');
-  assert.match(strings, /Anansi noticed/, 'a proposed string waits under Strings');
+  assert.match(strings, /Basted by Anansi/, 'a proposed string waits under Strings');
   assert.match(strings, /The debt nobody has called in/);
   assert.match(strings, /set up in scene 2/, 'with the scene it came from');
   assert.match(strings, /The letter he has not opened/, 'beside the ones already tied');
@@ -2358,11 +2358,11 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   const box = teller.match(/<input type="checkbox" data-story="weaving"[^>]*>/)?.[0];
   assert.ok(box, 'the panel has a weaving switch, saved as a story field');
   assert.doesNotMatch(box!, /checked/, 'off, for a book that does not weave');
-  assert.match(teller, /Weaving/, 'named Weaving');
+  assert.match(teller, /Spinning/, 'named Spinning');
   // The tip is the trade in one sentence: slower, and it takes room from the book.
   const tip = teller.match(/id="tip-weaving"[\s\S]*?<\/p>/)?.[0] ?? '';
   assert.match(tip, /slower/i, `the tip says it is slower: ${tip}`);
-  assert.match(tip, /room/i, 'and that it takes room');
+  assert.match(tip, /space/i, 'and that it takes space');
   // The switch and its tip only: the model picker above decodes preset ids, whose own words are
   // the model's and not this switch's.
   const label = teller.match(/<label[^>]*>\s*<input type="checkbox" data-story="weaving"[\s\S]*?<\/label>/)?.[0] ?? '';
@@ -2456,7 +2456,7 @@ ok('a book moved to a model that cannot take the switch says its weaving went of
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' });
     await new Promise((r) => setTimeout(r, 30));
-    assert.doesNotMatch(html('dockCol'), /Weaving/, 'a book that does not weave never says Weaving');
+    assert.doesNotMatch(html('dockCol'), /Spinning/, 'a book that does not spin never says Spinning');
     open(); await new Promise((r) => setTimeout(r, 60));
 
     (STORY as any).weaves = true;
@@ -2465,10 +2465,10 @@ ok('a book moved to a model that cannot take the switch says its weaving went of
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' });
     await new Promise((r) => setTimeout(r, 30));
-    assert.match(html('dockCol'), /Weaving/, 'the composer says Weaving while it waits');
-    assert.match(html('dockCol'), /id="weaving"[^>]*>Weaving… 0s</, 'with the seconds, from nought');
+    assert.match(html('dockCol'), /Spinning/, 'the composer says Spinning while it waits');
+    assert.match(html('dockCol'), /id="weaving"[^>]*>Spinning… 0s</, 'with the seconds, from nought');
     await new Promise((r) => setTimeout(r, 1100));
-    assert.match(String(nodes.get('weaving')?.textContent), /^Weaving… 1s$/, 'and the count runs');
+    assert.match(String(nodes.get('weaving')?.textContent), /^Spinning… 1s$/, 'and the count runs');
     // The first word, with the call still open behind it: the count ends at the word, not at the end.
     let end!: () => void;
     endGate = new Promise<void>((r) => { end = r; });
@@ -2753,13 +2753,13 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     (document as any).getElementById('askBox').value = 'What is this story about?';
     click({ ask: '1' });
     await new Promise((r) => setTimeout(r, 30));
-    assert.match(html('sideBody'), /id="talkweaving"[^>]*>Weaving… 0s</, 'TALK-COUNT: a weaving Talk call says Weaving with the seconds');
+    assert.match(html('sideBody'), /id="talkweaving"[^>]*>Spinning… 0s</, 'TALK-COUNT: a weaving Talk call says Weaving with the seconds');
     assert.doesNotMatch(html('dockCol'), /id="weaving"/, 'TALK-COUNT: and the composer, which made no press, shows no count');
     await new Promise((r) => setTimeout(r, 1100));
-    assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Weaving… 1s', 'TALK-COUNT: and the count runs');
+    assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Spinning… 1s', 'TALK-COUNT: and the count runs');
     open({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
     await new Promise((r) => setTimeout(r, 60));
-    assert.doesNotMatch(html('sideBody'), /Weaving…/, 'TALK-COUNT: the answer ends it');
+    assert.doesNotMatch(html('sideBody'), /Spinning…/, 'TALK-COUNT: the answer ends it');
     assert.doesNotMatch(html('sideBody'), /Thinking/, 'and never Thinking');
   } finally { stubTalk = null; (STORY as any).weaves = weaving; }
 }
@@ -2788,8 +2788,8 @@ ok('the Talk panel counts the seconds while a weaving call waits, and says Askin
   };
   try {
     const woven = await pressed(true);
-    assert.strictEqual(woven.busy, 'Weaving… 0s', 'INVENT-COUNT: a weaving invention says Weaving with the seconds');
-    assert.strictEqual(woven.later, 'Weaving… 1s', 'INVENT-COUNT: and the count runs');
+    assert.strictEqual(woven.busy, 'Spinning… 0s', 'INVENT-COUNT: a weaving invention says Weaving with the seconds');
+    assert.strictEqual(woven.later, 'Spinning… 1s', 'INVENT-COUNT: and the count runs');
     assert.strictEqual(woven.after, 'Invent', 'INVENT-COUNT: and the button comes back when it answers');
     const plain = await pressed(false);
     assert.strictEqual(plain.busy, 'Writing…', 'the control: an invention that does not weave says Writing');
@@ -2819,7 +2819,7 @@ ok('an invention that weaves counts the seconds on its button, and one that does
     click({ ask: '1' });
     // Seconds as numbers, and rising rather than exact: Talk's count starts a turn after its press,
     // so an exact second is a race with this suite's own load.
-    const secs = (id: string) => Number(/^Weaving… (\d+)s$/.exec(String(nodes.get(id)?.textContent))?.[1] ?? NaN);
+    const secs = (id: string) => Number(/^Spinning… (\d+)s$/.exec(String(nodes.get(id)?.textContent))?.[1] ?? NaN);
     await new Promise((r) => setTimeout(r, 1100));
     assert.ok(secs('weaving') >= 1, `TWO-COUNTS: a Talk press leaves the weaving passage's count running (${nodes.get('weaving')?.textContent})`);
     const talkAt = secs('talkweaving');
@@ -2847,7 +2847,7 @@ ok('a passage and a Talk call that weave at once each keep their own count');
     const t: any = { dataset: { invent: 'lore' }, querySelector: () => null, disabled: false, textContent: 'Invent',
       style: {}, closest: () => null };
     const press = () => (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => t } }));
-    const secs = () => Number(/^Weaving… (\d+)s$/.exec(String(t.textContent))?.[1] ?? NaN);
+    const secs = () => Number(/^Spinning… (\d+)s$/.exec(String(t.textContent))?.[1] ?? NaN);
     press();
     await new Promise((r) => setTimeout(r, 1050));
     const first = secs();
@@ -3453,7 +3453,7 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
   click({ panel: 'story' });
   await new Promise((r) => setTimeout(r, 30));
   const story = html('sideBody');
-  assert.match(story, /Taken out of this book/, 'what this book has removed is named');
+  assert.match(story, /Taken out of this tale/, 'what this book has removed is named');
   assert.match(story, /The Quay Office/, 'by title');
   assert.match(story, /data-bringback="e-stone"/, 'with the way back beside it');
   ok('a followed thread can be edited, taken over, or taken out — and each face offers only what '

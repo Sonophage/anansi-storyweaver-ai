@@ -2789,17 +2789,17 @@ const PANELS = {
           one in below &mdash; a forged thread says what kind it is itself.</div>`
         : ROOMS.includes(S.lore.kind) ? ((S.lore.kind === 'outfit' ? cast : V.entries).length ? `
         <div style="display:flex; justify-content:flex-end">${
-          tipMark('thRoom', 'Writing a room')}</div>
-        ${tipCard('thRoom', 'Writing a room', `<p>It hangs on them unworn, and what Anansi writes
-          lands in the fields rather than in the proposals queue &mdash; read it, then press Add an
-          outfit.</p>
+          tipMark('thRoom', 'Writing a pocket')}</div>
+        ${tipCard('thRoom', 'Writing a pocket', `<p>A pocket is a named section inside a thread,
+          switched on or off. It hangs on them unworn, and what Anansi writes lands in the fields
+          rather than being basted &mdash; read it, then press Add an outfit.</p>
           <p>Wearing one is a press on the list behind this tray: what she owns and what she has ON
           are different questions.</p>`)}
         ${roomForm(V.entries.filter((e) => (V.slots?.[e.entryType] ?? [])
             .some((sl) => sl.name === S.lore.kind)), null, S.lore.kind)}`
-        : `<div class="hint" style="margin:0">No card to hang it on yet. A room belongs to a thread,
-          so write one of those down first.</div>`) : `
-        ${tipCard('thNew', 'A new thread', `<p>Opens an empty entry for you to fill in. Nothing
+        : `<div class="hint" style="margin:0">No thread to hang it on yet. A pocket belongs to a
+          thread, so write one of those down first.</div>`) : `
+        ${tipCard('thNew', 'A new thread', `<p>Opens an empty thread for you to fill in. Nothing
           reaches the model until it has a body.</p>`)}
         <div style="display:flex; align-items:center; gap:2px">
           <button class="btn" data-newentry="${esc(S.lore.kind)}" style="flex:1">New ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}</button>
@@ -2809,8 +2809,8 @@ const PANELS = {
               above the tray, which is where every other explanation on this panel now is. */ ''}
         <div style="display:flex; justify-content:flex-end; margin-top:10px">${
           tipMark('thInvent', 'Having Anansi write one')}</div>
-        ${tipCard('thInvent', 'Having Anansi write one', `<p>It goes to the proposals queue under
-          Chapter, like everything else Anansi offers. Nothing is canon until you accept it.</p>`)}
+        ${tipCard('thInvent', 'Having Anansi write one', `<p>It is basted under This scene, like
+          everything else Anansi offers. Nothing basted is in the tale until you weave it in.</p>`)}
         ${inventTray(S.lore.kind, `Or have Anansi write ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}`,
                      'a rival cartographer, or nothing at all and let it choose')}`}
 
@@ -2830,36 +2830,37 @@ const PANELS = {
              is the inverse — the subject's canon outranks the book's, and the book is not sent.
              IT GOES TO THE PROPOSALS QUEUE, like everything else Anansi offers: "I would be able to
              choose what and when it gets pulled." The URLs it read ride along on the proposal. -->
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or pull one off the web${
-          tipMark('thWeb', 'Pulling one off the web')}</div>
-        ${tipCard('thWeb', 'Pulling one off the web', `<p>Every fact comes from what the search
-          found, and a gap is left as a gap rather than filled in &mdash; written from inside the
-          world, not as an encyclopedia entry about it.</p>
-          <p>It looks for the rooms as well as the card, and both arrive together: accepting it
-          under Chapter writes the rooms the search could fill. Nothing is canon until you accept
-          it, and the pages it read are on the proposal. Your own SearXNG does the searching.</p>`)}
+        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or look one up online${
+          tipMark('thWeb', 'Looking one up online')}</div>
+        ${tipCard('thWeb', 'Looking one up online', `<p>Every fact comes from what the search
+          found, and a gap is left as a gap rather than filled in &mdash; written from inside its
+          own story, not as an encyclopedia article about it.</p>
+          <p>It looks for the pockets as well as the thread, and both arrive together, basted:
+          weaving it in under This scene writes the pockets the search could fill. Nothing is in the
+          tale until you weave it in, and the pages it read ride along. Your own SearXNG does the
+          searching.</p>`)}
         <input class="field" data-webwho aria-label="What to look up"
           placeholder="Paul Atreides, a Warhammer primarch, an author"
           style="margin:0">
         <button class="btn ghost" data-fromweb="${esc(S.lore?.kind ?? 'character')}"
           ${S.webPulling ? 'disabled' : ''} style="margin-top:7px">${
-          S.webPulling ? 'Looking it up&hellip;' : 'Look it up and write the card'}</button>
+          S.webPulling ? 'Looking it up&hellip;' : 'Look it up and write the thread'}</button>
 
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or paste one in${
           tipMark('thPaste', 'Pasting one in')}</div>
-        ${tipCard('thPaste', 'Pasting one in', `<p>This lands straight in the ledger with its rooms,
-          rather than going to the proposals queue &mdash; you wrote it elsewhere, so it is yours
-          already. The prompt that produces this shape is on The Web.</p>`)}
+        ${tipCard('thPaste', 'Pasting one in', `<p>This lands straight in the tale with its pockets,
+          rather than being basted &mdash; you wrote it elsewhere, so it is yours already. The
+          pattern that produces this shape is in the Pattern book.</p>`)}
         <textarea class="field" data-pastebox aria-label="Paste a thread as JSON"
-          placeholder="Paste JSON from the forge &mdash; one card, or a list of them"
+          placeholder="Paste JSON from the Pattern book &mdash; one thread, or a list of them"
           style="min-height:74px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
         <button class="btn ghost" data-pastethread="1">Read it and add</button>
 
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or read the chapter${
-          tipMark('thRead', 'Reading the chapter')}</div>
-        ${tipCard('thRead', 'Reading the chapter', `<p>Reads what is already on the page and proposes
-          entries for it. Nothing is accepted automatically &mdash; proposals wait for you under
-          Chapter. This is the ritual's third step, on its own, without ending the chapter.</p>`)}
+        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or read the scene${
+          tipMark('thRead', 'Reading the scene')}</div>
+        ${tipCard('thRead', 'Reading the scene', `<p>Reads what is already on the page and bastes
+          threads for it. Nothing is woven in by itself &mdash; what is basted waits for you under
+          This scene. This is the facts step of hemming, on its own, without hemming the scene.</p>`)}
         <button class="btn ghost" data-loreread="1">Scan ${esc(sceneName(V.currentChapter))} for facts</button>
       </div>`;
     }
@@ -2883,7 +2884,7 @@ const PANELS = {
            panel above the list was five doors to one flow.
            NO "Add" LABEL EITHER: it was the heading over the four, and one button that says what
            it does needs nothing over it. -->
-      <button class="btn ghost" data-newlore="1" style="margin-top:0">+ Thread, or read the chapter</button>
+      <button class="btn ghost" data-newlore="1" style="margin-top:0">+ Thread, or read the scene</button>
       <!-- WHAT IS IN CONTEXT, WITHOUT LEAVING THE LIST. Seth, 2026-09-01: "have a currently in
            context view that just filters what is in context and a fast way to switch from always
            on to triggered right now its three levels deep."
@@ -2901,21 +2902,21 @@ const PANELS = {
                context is the first thing that you see." It is the question the panel is open to
                answer; All is the wider view you fall back to. The default is untouched — All is
                still the filter in force, this is which chip the eye lands on. */
-            [['1', 'In context', n], ['0', 'All', V.entries.length]].map(([v, l, c]) =>
+            [['1', 'Sent now', n], ['0', 'All', V.entries.length]].map(([v, l, c]) =>
             `<button class="chip" data-onlyin="${v}" aria-pressed="${(S.onlyIn ? '1' : '0') === v}"
               style="flex:1; text-align:center; cursor:pointer">${l} <span
               class="tnum" style="color:var(--faint)">${c}</span></button>`).join('')}
         </div>
         ${S.onlyIn ? `<div style="display:flex; justify-content:flex-end">${
-            tipMark('thInContext', 'What In context can see')}</div>
-          ${tipCard('thInContext', 'What In context can see', manifestNow()
-            ? `<p>The threads that are actually in the prompt right now &mdash; read off the same
-              assembly the Context panel shows, so the two cannot disagree. A triggered thread is
-              here when its words have appeared, and an always-on one is missing when it was pushed
-              out to make room.</p>
-              <p>It moves as you write, because what fires moves as you write.</p>`
-            : `<p>Always-on threads, plus anything pinned into this chapter &mdash; the prompt has
-              not been assembled yet, so a triggered thread cannot be counted until it has.</p>`)}` : ''}`;
+            tipMark('thInContext', 'What Sent now can see')}</div>
+          ${tipCard('thInContext', 'What Sent now can see', manifestNow()
+            ? `<p>The threads the model is actually sent right now &mdash; read off the same
+              measurements the Measurements drawer shows, so the two cannot disagree. An on-a-word
+              thread is here when one of its wake words has appeared, and an always-on one is
+              missing when it was pushed out to make space.</p>
+              <p>It moves as you write, because what wakes moves as you write.</p>`
+            : `<p>Always-on threads, plus anything brought into this scene &mdash; nothing has been
+              measured yet, so an on-a-word thread cannot be counted until it has.</p>`)}` : ''}`;
       })()}
       <!-- FINDING ONE BY NAME. Seth, 2026-09-11: "in the story under all threads can i get a search
            bar there?" A book of 227 threads is four headings and a very long scroll, and the only
@@ -2923,24 +2924,24 @@ const PANELS = {
            IT REDRAWS ITS OWN LIST AND NOTHING ELSE, the same rule the cross-book box and the seed
            box already follow: this panel holds free text that Save commits, and a full repaint on
            a keystroke throws away whatever is half-typed above. -->
-      <input class="field" id="thq" aria-label="Search this book's threads"
+      <input class="field" id="thq" aria-label="Search this tale's threads"
         value="${esc(S.threadQ)}" placeholder="Search these threads&hellip;"
         style="margin:10px 0 0">
       <div id="thlist" style="display:flex; flex-direction:column; gap:9px">${threadRows()}</div>
-      ${shown.length ? '' : '<div class="hint" style="margin:0">Nothing written down yet. Canon is what the model is told and never allowed to contradict.</div>'}
+      ${shown.length ? '' : '<div class="hint" style="margin:0">Nothing written down yet. A thread is a fact the model is told and never allowed to contradict.</div>'}
       ${shown.length && S.onlyIn && !S.threadQ.trim() && !V.entries.some((e) => inContext(e, pinModes()))
-        ? `<div class="hint" style="margin:0">Nothing is in context. ${manifestNow()
-            ? 'None of these threads has been triggered by what is on the page.'
-            : 'Every thread here is triggered and none is pinned into this chapter.'}</div>` : ''}
+        ? `<div class="hint" style="margin:0">Nothing is sent now. ${manifestNow()
+            ? 'None of these threads has been woken by a word on the page.'
+            : 'Every thread here is on a word and none is brought into this scene.'}</div>` : ''}
       <!-- This panel is ONE story's threads, because entries are story-scoped in the schema. The
            page that spans every book already existed and had no door from inside a story: you had
            to leave first, and then know that Threads out there means something wider than Threads
            in here. -->
       <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
-        <button class="btn ghost" data-leave="canon" style="flex:1">Every book's threads</button>
-        ${tipMark('thWider', "Every book's threads")}</div>
-      ${tipCard('thWider', "Every book's threads", `<p>${V.entries.length} in this story. The wider
-        list spans every book you have, and is where to look when you cannot remember which one a
+        <button class="btn ghost" data-leave="canon" style="flex:1">Every tale's threads</button>
+        ${tipMark('thWider', "Every tale's threads")}</div>
+      ${tipCard('thWider', "Every tale's threads", `<p>${V.entries.length} in this tale. The wider
+        list spans every tale you have, and is where to look when you cannot remember which one a
         thread is in.</p>`)}</div>`;
   },
 
@@ -3017,7 +3018,7 @@ const PANELS = {
            records seven separate times. All four groups are drawn and the attribute on the
            container picks the one you see, so switching cannot lose a word. -->
       <div style="display:flex; gap:6px; margin:0 0 14px">
-        ${[['voice', 'Voice'], ['book', 'The book'], ['world', 'The world'], ['keep', 'Keep']]
+        ${[['voice', 'Voice'], ['book', 'The tale'], ['world', 'Setting'], ['keep', 'Keep']]
           .map(([k, label]) => `<button class="chip" data-storytab="${k}"
             aria-pressed="${tab === k}" style="flex:1; text-align:center; cursor:pointer"
             >${label}</button>`).join('')}
@@ -3075,17 +3076,17 @@ const PANELS = {
            The anonymous tier serves sana at 665x886 and ignores width, height and model, so
            there are no controls for those: a control that is ignored is a control that lies. -->
       ${drawTray()}
-      ${V.cover ? `${tipCard('sHero', 'Using it at the head of every chapter', `<p>The same picture,
-        as a plate above each chapter's title. There is no second image to choose &mdash; a chapter
+      ${V.cover ? `${tipCard('sHero', 'Using it at the head of every scene', `<p>The same picture,
+        as a plate above each scene's title. There is no second image to choose &mdash; a scene
         shows the cover or nothing.</p>`)}
       <label style="display:flex; align-items:center; gap:9px; margin-top:11px; cursor:pointer">
         <input type="checkbox" data-story="chapterHero" ${V.story.chapterHero ? 'checked' : ''}>
-        <span style="font-size:13px; color:var(--ink)">Use it at the head of every chapter</span>${
-          tipMark('sHero', 'Using it at the head of every chapter')}</label>` : ''}
+        <span style="font-size:13px; color:var(--ink)">Use it at the head of every scene</span>${
+          tipMark('sHero', 'Using it at the head of every scene')}</label>` : ''}
 
       ${V.cover && V.story.chapterHero ? `${tipCard('sSticky', 'Keeping it behind the prose', `<p>It
         stays put and the writing moves over it, fading left to right into the page. Instead of a
-        plate at the head of the chapter that scrolls away with it.</p>`)}
+        plate at the head of the scene that scrolls away with it.</p>`)}
       <label style="display:flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer">
         <input type="checkbox" data-story="chapterSticky" ${V.story.chapterSticky ? 'checked' : ''}>
         <span style="font-size:13px; color:var(--ink)">Keep it behind the prose while you read</span>${
@@ -3116,18 +3117,18 @@ const PANELS = {
            is writing in before it knows anything else; and it narrows a web pull's search, which is
            measured: "Medusa" alone returns the Gorgon, and "Medusa Warhammer 40,000" returns the
            Iron Hands homeworld. -->
-      <label class="lbl" for="f-story-world">The world or IP this belongs to${
-        tipMark('sWorld', 'The world or IP this belongs to')}</label>
-      ${tipCard('sWorld', 'The world or IP this belongs to', `<p>Sent with every call, beside the
-        genre. It also scopes what a thread pulled off the web searches for, so a name that means
+      <label class="lbl" for="f-story-world">The universe or IP this belongs to${
+        tipMark('sWorld', 'The universe or IP this belongs to')}</label>
+      ${tipCard('sWorld', 'The universe or IP this belongs to', `<p>Sent with every call, beside the
+        genre. It also narrows what a thread looked up online searches for, so a name that means
         two things finds the right one.</p>`)}
       <input class="field" id="f-story-world" data-story="world" value="${esc(V.story.world ?? '')}"
-        placeholder="Warhammer 40,000, Dune, Sunless Sea — or nothing, for a world of your own">
+        placeholder="Warhammer 40,000, Dune, Sunless Sea — or nothing, for one of your own">
       <label class="lbl" for="f-story-worldNote">What is true in it${
         tipMark('sWorldNote', 'What is true in it')}</label>
-      ${tipCard('sWorldNote', 'What is true in it', `<p>The shape of the world rather than of this
-        book: what everyone in it knows, what it runs on, what is impossible there. Trimmed before
-        the premise if a prompt runs long, so put what cannot be lost in the premise instead.</p>`)}
+      ${tipCard('sWorldNote', 'What is true in it', `<p>The shape of the universe rather than of this
+        tale: what everyone in it knows, what it runs on, what is impossible there. Trimmed before
+        the premise if there is too little space, so put what cannot be lost in the premise instead.</p>`)}
       <textarea class="field" id="f-story-worldNote" data-story="worldNote"
         >${esc(V.story.worldNote ?? '')}</textarea>
 
@@ -3142,9 +3143,9 @@ const PANELS = {
            ONE AT A TIME, NOT IN PARALLEL, and that is not a preference: the model has two slots and
            F13 measured that oversubscribing the shared cache does not queue — both requests die
            with an HTTP 500. Six names in parallel would be six failures. -->
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Pull threads out of a world</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Pull threads out of a universe</div>
       <div style="display:flex; gap:7px">
-        <input class="field" data-worldwho aria-label="Which world to pull from"
+        <input class="field" data-worldwho aria-label="Which universe to pull from"
           value="${esc(S.worldCast?.world ?? V.story.world ?? '')}"
           placeholder="${esc(V.story.world || 'Warhammer 40,000, Dune, Sunless Sea')}"
           style="margin:0; flex:1">
@@ -3173,51 +3174,52 @@ const PANELS = {
         <div style="display:flex; justify-content:flex-end">${
           tipMark('sPullPace', 'Pulling the ticked ones')}</div>
         ${tipCard('sPullPace', 'Pulling the ticked ones', `<p>One at a time, about eight seconds
-          each, and each one lands in the proposals queue under Chapter with the pages it read.
-          Nothing is canon until you accept it there.</p>`)}` : ''}
+          each, and each one is basted under This scene with the pages it read. Nothing is in the
+          tale until you weave it in there.</p>`)}` : ''}
 
       ${pick('setting', `Setting${tipMark('sSetting', 'Setting')}`, lore.map((e) => e.title),
         V.story.setting, 'Not set',
-        tipCard('sSetting', 'Setting', `<p>Drawn from the lore and items in this story's ledger.</p>`))}
+        tipCard('sSetting', 'Setting', `<p>Drawn from the lore and item threads in this tale.</p>`))}
       ${pick('pov', 'Point of view', POV, V.story.pov, 'Not set')}
       <!-- #20 §1. The third place a point of view is picked, and the last one without an example.
            Six bare strings say what the camera is called; a line of prose says where it stands. -->
       <div class="hint">${esc(POV_EXAMPLE[V.story.pov] ?? '')}</div>
-      ${pick('persona', `You are${helpMark('persona')}`, cast.map((e) => e.title), V.story.persona,
+      ${pick('persona', `You play${helpMark('persona')}`, cast.map((e) => e.title), V.story.persona,
         PERSONA_NONE, helpBody('persona'))}
       <div class="hint">${PERSONA_HINT}</div>
-      ${pick('lockedCharacter', `The model never writes${helpMark('locked')}`,
+      ${pick('lockedCharacter', `Hands off${helpMark('locked')}`,
         cast.map((e) => e.title), V.story.lockedCharacter, LOCKED_NONE, helpBody('locked'))}
       ${V.story.lockedCharacter ? holdBack(V.story.lockedCharacter, V.story.lockoutOn !== false,
         'data-story') : ''}
       <div class="hint">${lockoutHint(V.story.lockedCharacter, V.story.lockoutOn !== false)}
         ${LOCKED_ASIDE}</div>
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Part of a world${
-        tipMark('sFollows', 'Part of a world')}</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Cut from a bolt${
+        tipMark('sFollows', 'Cut from a bolt')}</div>
       <select class="field" data-story="loreFrom" style="margin:0">
         <option value="">Stands on its own</option>
         ${LIB.filter((x) => x.id !== S.storyId && x.lore_from !== S.storyId)
           .map((x) => `<option value="${esc(x.id)}"${
             V.loreFrom === x.id ? ' selected' : ''}>Follows ${esc(x.title)}</option>`).join('')}
       </select>
-      ${tipCard('sFollows', 'Part of a world', `<p>${V.follows
-        ? `Every thread in ${esc(V.follows.title)} reaches this book too, and fires by the same
-           rules. They are the same cards, not copies &mdash; edit one there, or here, and it
-           changes in both. Any single thread can be taken over or taken out on its own card.`
-        : `A world bible is just a book that holds threads. Follow it and its cast, its places and
-           its rules reach this book without being copied into it.`}</p>`)}
+      ${tipCard('sFollows', 'Cut from a bolt', `<p>${V.follows
+        ? `Every thread in ${esc(V.follows.title)} reaches this tale too, and wakes by the same
+           rules. They are the same threads, not copies &mdash; alter one there, or here, and it
+           changes in both. Any single thread can be taken over or taken out on its own page.`
+        : `A bolt is a collection of threads that tales draw on, with no prose of its own, like a
+           bolt of cloth many garments are cut from. Follow one and its cast, its places and its
+           rules reach this tale without being copied into it.`}</p>`)}
       <!-- #36. WHAT THIS BOOK HAS TAKEN OUT, by name. Removing a followed thread writes a tombstone
            rather than deleting anything, so it is reversible — but only if it is listed somewhere,
            or "remove" is a one-way door with no undo on any screen. -->
       ${(V.dropped ?? []).length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:18px"
-        >Taken out of this book</div>
+        >Taken out of this tale</div>
       ${V.dropped.map((x) => `<div class="row">
         <span style="color:var(--ink)">${esc(x.title)}</span>
         <button data-bringback="${esc(x.id)}" style="margin-left:auto; padding:6px 11px;
           border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11px"
           >Bring it back</button></div>`).join('')}
-      <div class="hint" style="margin-top:0">Still in ${esc(V.follows?.title ?? 'the book it lives in')},
-        untouched. This book just stopped seeing ${
+      <div class="hint" style="margin-top:0">Still in ${esc(V.follows?.title ?? 'the bolt it lives in')},
+        untouched. This tale just stopped seeing ${
         V.dropped.length === 1 ? 'it' : 'them'}.</div>` : ''}
 
       </div>
@@ -3233,30 +3235,30 @@ const PANELS = {
           style="flex:1; text-decoration:none">JSON</a>
       </div>
       <button class="btn ghost" data-exportdb="1" style="margin-top:7px">As a standalone database</button>
-      ${tipCard('sForkThreads', 'Starting a new book from these threads', `<p>A COPY, and both books
-        keep their own from then on. For one world across several books, follow another book's
-        threads above instead &mdash; that is a link, not a copy.</p>`)}
+      ${tipCard('sForkThreads', 'Cutting a new tale from these threads', `<p>A COPY, and both tales
+        keep their own from then on. For one set of threads across several tales, follow a bolt
+        above instead &mdash; that is a link, not a copy.</p>`)}
       <div style="display:flex; align-items:center; gap:2px; margin-top:7px">
-        <button class="btn ghost" data-forkthreads="1" style="flex:1">Start a new book from
+        <button class="btn ghost" data-forkthreads="1" style="flex:1">Cut a new tale from
           these threads</button>
-        ${tipMark('sForkThreads', 'Starting a new book from these threads')}</div>
+        ${tipMark('sForkThreads', 'Cutting a new tale from these threads')}</div>
 
       <!-- THE SAME BOOK TWICE. Seth, 2026-09-11: "copies threads independent of the original."
            BESIDE the button above rather than replacing it: that one is for carrying a cast into
            something new, this one is for taking the book you have somewhere else without risking
            the one you have. The web says what a branch does instead, because that is the question
            this button is the answer to. -->
-      ${tipCard('sDuplicate', 'A second copy of this book', `<p>Everything: the prose in its
-        chapters, every path you have branched, the threads with their rooms and connections, and
-        what the book still owes. Nothing written in either one reaches the other after this.</p>
-        <p><strong>A branch is not this.</strong> Branches of one book share its threads &mdash;
+      ${tipCard('sDuplicate', 'A second copy of this tale', `<p>Everything: the prose in its
+        scenes, every path you have branched, the threads with their pockets and stitches, and
+        what the tale still owes. Nothing written in either one reaches the other after this.</p>
+        <p><strong>A branch is not this.</strong> Branches of one tale share its threads &mdash;
         change who somebody is on one path and they change on every path. That is the point of a
         branch and it is why it cannot give you a separate set.</p>
-        <p>Flags, re-roll history and anyone else you write with stay with the original.</p>`)}
+        <p>Knots, old fittings and anyone else you write with stay with the original.</p>`)}
       <div style="display:flex; align-items:center; gap:2px; margin-top:7px">
         <button class="btn ghost" data-dupbook="1" style="flex:1">Make a copy of this whole
-          book</button>
-        ${tipMark('sDuplicate', 'A second copy of this book')}</div>
+          tale</button>
+        ${tipMark('sDuplicate', 'A second copy of this tale')}</div>
 
       <!-- WRITE IT WITH SOMEBODY. Seth, 2026-09-03: "i can call her into a book if need be."
            UNDER KEEP, beside taking a book with you and putting it away: all three are about what
@@ -3276,10 +3278,10 @@ const PANELS = {
         if (!mates.length || (owner && owner.id !== SRV.me)) return '';
         return `<div class="lbl" style="letter-spacing:.1em; margin-top:26px">Write it with someone${
           tipMark('sShare', 'Writing it with someone')}</div>
-        ${tipCard('sShare', 'Writing it with someone', `<p>They get the book and everything in it
-          &mdash; its threads, their rooms and what changed about them over time. They cannot delete
-          it.</p>
-          <p>With two of you in a book, <strong>Co-op</strong> appears on the composer's dial: your
+        ${tipCard('sShare', 'Writing it with someone', `<p>They get the tale and everything in it
+          &mdash; its threads, their pockets and what changed about them over time. They cannot
+          delete it.</p>
+          <p>With two of you in a tale, <strong>Co-op</strong> appears on the composer's dial: your
           part goes on the page and the move passes to them, without asking Anansi. A light along
           the top of the screen says when it is your move.</p>`)}
         ${writers.filter((w) => !w.owns).map((w) => `<div class="row">
@@ -3287,33 +3289,33 @@ const PANELS = {
           <button class="btn ghost" data-unshare="${esc(w.login)}" style="margin-left:auto;
             width:auto; padding:0 14px; height:32px; font-size:11.5px">Take them out</button></div>`).join('')}
         ${free.length ? `<div style="display:flex; gap:7px; align-items:center; margin-top:8px">
-          <select class="field" id="f-share" aria-label="Who to write this book with" style="margin:0; flex:1">
+          <select class="field" id="f-share" aria-label="Who to write this tale with" style="margin:0; flex:1">
             ${free.map((m) => `<option value="${esc(m.login)}">${esc(m.name)}</option>`).join('')}
           </select>
           <button class="btn ghost" data-share="1" style="width:auto; padding:0 16px; height:38px;
             font-size:12px; white-space:nowrap">Call them in</button></div>`
-        : '<div class="hint" style="margin:6px 0 0">Everybody here is already in this book.</div>'}`;
+        : '<div class="hint" style="margin:6px 0 0">Everybody here is already in this tale.</div>'}`;
       })()}
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Put it away${
-        tipMark('sArchive', 'Put it away')}</div>
-      ${tipCard('sArchive', 'Put it away', `<p>${V.story.status === 'archived'
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Fold it away${
+        tipMark('sArchive', 'Fold it away')}</div>
+      ${tipCard('sArchive', 'Fold it away', `<p>${V.story.status === 'archived'
         ? 'It goes back among the others, in the order you last wrote in it.'
-        : 'It stays on the shelf, dimmed and last. Nothing is deleted and nothing leaves the prompt.'}</p>`)}
+        : 'It stays on the rack, dimmed and last. Nothing is deleted and nothing the model is sent changes.'}</p>`)}
       <button class="btn ghost" data-archive="${V.story.status === 'archived' ? 'in_progress' : 'archived'}">${
-        V.story.status === 'archived' ? 'Take it off the shelf-end' : 'Archive this story'}</button>
+        V.story.status === 'archived' ? 'Unfold it' : 'Fold this tale away'}</button>
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--bad)">Danger</div>
       <button class="btn ghost" data-delstory="1" style="color:var(--bad)">${
-        S.confirmDelete ? 'Press again to delete this story for good' : 'Delete this story'}</button>
+        S.confirmDelete ? 'Press again to delete this tale for good' : 'Delete this tale'}</button>
       <div class="hint">${S.confirmDelete
-        ? 'Every chapter and passage goes with it. Snapshots in backups/ still have it.'
+        ? 'Every scene and passage goes with it. Snapshots in backups/ still have it.'
         : 'Export it first if you might want it back.'}</div>
       ${S.confirmDelete && (V.entries ?? []).length && LIB.filter((x) => x.id !== S.storyId).length
         ? `<div class="card" style="margin-top:10px; gap:8px">
         <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">Its ${
           (V.entries ?? []).length} thread${(V.entries ?? []).length === 1 ? '' : 's'} do not have to
-          go with it. A cast, a city and its rules outlive the book they were written for.</div>
+          go with it. A cast, a city and its rules outlive the tale they were written for.</div>
         <select class="field" data-rescue="1" style="margin:0">
           <option value="">Let them go too</option>
           <!-- #36. THE BOOK THIS ONE FOLLOWS, FIRST AND BY NAME. Seth: "if a book is deleted. it
@@ -3323,16 +3325,16 @@ const PANELS = {
                this book took over lands back ON the card it came from rather than beside it. -->
           ${V.follows ? `<option value="${esc(V.follows.id)}">Send them home to ${
             esc(V.follows.title)}</option>` : ''}
-          <option value="new">Move them into a new book</option>
+          <option value="new">Move them into a new tale</option>
           ${LIB.filter((x) => x.id !== S.storyId && x.id !== V.follows?.id)
             .map((x) => `<option value="${esc(x.id)}">Move them into ${esc(x.title)}</option>`).join('')}
         </select>
         <div style="display:flex; justify-content:flex-end">${
-          tipMark('sMoveOut', 'What travels with a card')}</div>
-        ${tipCard('sMoveOut', 'What travels with a card', `<p>Each card arrives with its rooms, its
-          wardrobe and the connections between the ones that travel. Its changes over time do not:
-          chapter nine there is not chapter nine here. Strings and prose stay with the book.</p>
-          ${V.follows ? `<p>Threads taken over from ${esc(V.follows.title)} go back onto the card
+          tipMark('sMoveOut', 'What travels with a thread')}</div>
+        ${tipCard('sMoveOut', 'What travels with a thread', `<p>Each thread arrives with its
+          pockets, its wardrobe and the stitches between the ones that travel. Its changes over time
+          do not: scene nine there is not scene nine here. Strings and prose stay with the tale.</p>
+          ${V.follows ? `<p>Threads taken over from ${esc(V.follows.title)} go back onto the thread
             they came from, so nothing is doubled &mdash; anything written here is new to it.</p>`
             : ''}`)}</div>` : ''}      </div></div>`;
   },
@@ -3492,7 +3494,7 @@ const PANELS = {
         is shown to the reader.</p>`)}
       <textarea class="field" id="f-chapter-note" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
       ${tipCard('chRitual', 'Hem this scene', `<p>Opens the scene's own screen, where it is hemmed:
-        finished, summarised, and the next scene opened.</p>`)}
+        closed, summarised, and the next scene opened.</p>`)}
       <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
         <button class="btn ghost" data-ritual="1" style="flex:1">Hem this scene</button>
         ${tipMark('chRitual', 'Hem this scene')}</div>
@@ -3531,13 +3533,13 @@ const PANELS = {
             under another name, and "Ledgers", which is the card "The Ledger"), and a changed
             proposal edits a room. Neither is safe by the dozen. */ ''}
       ${S.propKind === 'new' && shown.length > 1
-        ? `${tipCard('chAddAll', 'Weaving in all of them', `<p>Only offered for new threads. A new
+        ? `${tipCard('chAddAll', 'Weave in all of them', `<p>Only offered for new threads. A new
              thread is one you can delete; a conflict and a change both write into threads you
              already have.</p>`)}
            <div style="display:flex; align-items:center; gap:2px; margin-bottom:6px">
              <button class="btn ghost" data-acceptall="new" ${S.busy ? 'disabled' : ''}
                style="flex:1; margin:0">Weave in all ${shown.length}</button>${
-               tipMark('chAddAll', 'Weaving in all of them')}</div>` : ''}
+               tipMark('chAddAll', 'Weave in all of them')}</div>` : ''}
       ${shown.map(proposalCard).join('') || `<div class="hint" style="margin:0">${
         ps.length ? 'Nothing of that kind.' : 'Nothing basted. Hemming a scene reads it for new facts and for what it did to the people in it.'}</div>`}
       ${(V.proposals ?? []).some((p) => p.entryType === 'string')
@@ -3698,7 +3700,7 @@ const PANELS = {
                    thing on a phone. The search still happens and still reaches her; the writer just
                    is not handed the bibliography. -->
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
-                border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} proposed &mdash; waiting under Chapter</button>` : ''}
+                border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} basted &mdash; waiting under This scene</button>` : ''}
               ${turn.meta ? `<div style="font-size:11px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
             </div>`).join('')
           : (() => {
@@ -3713,9 +3715,9 @@ const PANELS = {
             const cast = (V.entries ?? []).filter((e) => e.entryType === 'character');
             const who = cast[0]?.title;
             const asks = [
-              ['strings', 'What has this story set up and not paid off?'],
+              ['strings', 'What has this tale set up and not tied off?'],
               who && ['threads', `Who is ${who}, and what do we know for certain?`],
-              ['search', 'What has the story never said outright?'],
+              ['search', 'What has the tale never said outright?'],
               ['chapter', 'Set up the next scene for me.'],
             ].filter(Boolean);
             /* THE INTRO CAME OUT, 2026-09-03. It said what web/help.js already says under this
@@ -3761,14 +3763,14 @@ const PANELS = {
         <div id="atlist" hidden></div>
         <div id="askWrap">
           <div id="askMirror" aria-hidden="true"></div>
-          <textarea class="field" id="askBox" aria-label="Ask Anansi about this story"
-      placeholder="Ask Anansi about this story&hellip;"
+          <textarea class="field" id="askBox" aria-label="Ask Anansi about this tale"
+      placeholder="Ask Anansi about this tale&hellip;"
             style="min-height:64px; margin:0"></textarea>
         </div>
         <div style="display:flex; align-items:center; gap:8px">
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
             t.searchable === false ? 'var(--faint)' : 'var(--mute)'}"
-            title="${t.searchable === false ? 'Web search is not set up on this server' : 'Look it up on the web first'}">
+            title="${t.searchable === false ? 'Web search is not set up on this server' : 'Look it up online first'}">
             <input type="checkbox" data-websearch="1" ${t.search ? 'checked' : ''}
               ${t.searchable === false ? 'disabled' : ''}> Search before responding
           </label>
@@ -3801,19 +3803,19 @@ const PANELS = {
         x.summoned ? 'rgba(217,178,106,.42)' : late ? 'var(--bad)' : 'var(--chip)'}">
         <div style="display:flex; align-items:baseline; gap:9px">
           <span class="kind">${esc(x.title)}</span>
-          ${x.summoned ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">in play</span>' : ''}
+          ${x.summoned ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">summoned</span>' : ''}
           <span style="margin-left:auto; font-size:11px; color:${late ? 'var(--bad)' : 'var(--faint)'}">${
-            x.status !== 'open' ? esc(x.status)
+            x.status !== 'open' ? esc(x.status === 'paid' ? 'tied off' : x.status === 'dropped' ? 'snipped' : x.status)
             : late ? `owed by ${x.owedBy}, and it is scene ${here}`
-            : since != null ? `${since === 0 ? 'set up this chapter' : `${since} ${since === 1 ? 'chapter' : 'chapters'} ago`}`
+            : since != null ? `${since === 0 ? 'set up this scene' : `${since} ${since === 1 ? 'scene' : 'scenes'} ago`}`
             : ''}</span></div>
         ${x.body ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(x.body)}</div>` : ''}
         <div style="display:flex; gap:6px; flex-wrap:wrap">
           <button class="btn ghost" data-summon="${x.id}" style="width:auto; padding:0 12px; height:30px; font-size:11px">${
-            x.summoned ? 'Put it away' : 'Put it in play'}</button>
+            x.summoned ? 'Dismiss' : 'Summon'}</button>
           ${x.status === 'open'
-            ? `<button class="btn ghost" data-stringstatus="${x.id}:paid" style="width:auto; padding:0 12px; height:30px; font-size:11px">Paid off</button>
-               <button class="btn ghost" data-stringstatus="${x.id}:dropped" style="width:auto; padding:0 12px; height:30px; font-size:11px">Let it go</button>`
+            ? `<button class="btn ghost" data-stringstatus="${x.id}:paid" style="width:auto; padding:0 12px; height:30px; font-size:11px">Tied off</button>
+               <button class="btn ghost" data-stringstatus="${x.id}:dropped" style="width:auto; padding:0 12px; height:30px; font-size:11px">Snip it</button>`
             : `<button class="btn ghost" data-stringstatus="${x.id}:open" style="width:auto; padding:0 12px; height:30px; font-size:11px">Still open</button>`}
           <button data-delstring="${x.id}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button>
         </div></div>`;
@@ -3829,9 +3831,10 @@ const PANELS = {
         // spotted belongs next to the promises you already know about.
         const mine = (V.proposals ?? []).filter((p) => p.entryType === 'string');
         if (!mine.length) return '';
-        return `<div class="lbl" style="letter-spacing:.1em; margin-top:0">Anansi noticed${
-            tipMark('strNoticed', 'Anansi noticed')}</div>
-          ${tipCard('strNoticed', 'Anansi noticed', `<p>Nothing is tied until you accept it.</p>`)}
+        return `<div class="lbl" style="letter-spacing:.1em; margin-top:0">Basted by Anansi${
+            tipMark('strNoticed', 'Basted by Anansi')}</div>
+          ${tipCard('strNoticed', 'Basted by Anansi', `<p>Basted is tacked on loosely: none of these
+            is a string of the tale until you weave it in.</p>`)}
           ${mine.map((p) => `<div class="card" style="margin-bottom:8px; gap:8px;
             border-color:rgba(217,178,106,.28)">
             <div style="display:flex; align-items:center; gap:8px">
@@ -3842,7 +3845,7 @@ const PANELS = {
               style="margin:0; min-height:64px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
             <div style="display:flex; gap:7px">
               <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
-                border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Tie it</button>
+                border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Weave it in</button>
               <button data-decide="reject" data-id="${p.id}" aria-label="Reject this"
               style="width:38px; text-align:center; padding:8px 0;
                 border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button>
@@ -3850,24 +3853,24 @@ const PANELS = {
           <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Owed</div>`;
       })()}
       ${open.length ? open.map(row).join('') : '<div class="hint" style="margin:0">Nothing owed yet.</div>'}
-      ${done.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Tied off</div>
+      ${done.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Tied off or snipped</div>
         ${done.map(row).join('')}` : ''}
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Tie a new one${
-        tipMark('strNew', 'Tie a new one')}</div>
-      ${tipCard('strNew', 'Tie a new one', `<p>Anansi proposes these too &mdash; they arrive in the
-        queue under Chapter with everything else it offers.</p>`)}
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">A new string${
+        tipMark('strNew', 'A new string')}</div>
+      ${tipCard('strNew', 'A new string', `<p>Anansi bastes these too &mdash; they arrive under This
+        scene with everything else she offers.</p>`)}
       <input class="field" data-st2="title" aria-label="What to call the promise"
         placeholder="The letter he has not opened">
       <textarea class="field" data-st2="body" aria-label="What was promised, and to whom"
         placeholder="What was promised, and to whom"
         style="min-height:52px; margin-top:6px"></textarea>
       <div style="display:flex; gap:6px; margin-top:6px">
-        <input class="field" data-st2="fromChapter" aria-label="The chapter it was set up in"
-          value="${here}" placeholder="From chapter" style="flex:1">
-        <input class="field" data-st2="owedBy" aria-label="The chapter it should be paid by"
-          placeholder="Owed by chapter" style="flex:1">
+        <input class="field" data-st2="fromChapter" aria-label="The scene it was set up in"
+          value="${here}" placeholder="From scene" style="flex:1">
+        <input class="field" data-st2="owedBy" aria-label="The scene it should be tied off by"
+          placeholder="Owed by scene" style="flex:1">
       </div>
-      <button class="btn" data-newstring="1" style="margin-top:8px">Tie it</button>
+      <button class="btn" data-newstring="1" style="margin-top:8px">Add the string</button>
     </div>`;
   },
 
@@ -3880,8 +3883,8 @@ const PANELS = {
         S.searchAll ? 'every story' : esc(V?.story.title ?? 'this story')}">
       <label style="display:flex; align-items:center; gap:8px; margin:10px 0 4px; font-size:12px; color:var(--mute)">
         <input type="checkbox" id="searchAll" ${S.searchAll ? 'checked' : ''}>
-        Look in my other stories too</label>
-      <div class="hint" style="margin-bottom:14px">Searches this book's prose, threads and summaries.</div>
+        Look in my other tales too</label>
+      <div class="hint" style="margin-bottom:14px">Searches this tale's prose, threads and summaries.</div>
       <div id="hits">${searchHits()}</div></div>`;
   },
 
@@ -3913,20 +3916,20 @@ const PANELS = {
       <div style="display:flex; align-items:flex-start; gap:12px; padding:0 0 4px">
         <span style="width:8px; height:8px; border-radius:50%; background:var(--warn); margin-top:5px; flex:0 0 auto"></span>
         <span style="flex:1; display:flex; flex-direction:column; gap:4px">
-          <span style="font-size:13.5px; color:var(--ink)">These are shared, not per story${
-            tipMark('genShared', 'These are shared, not per story')}</span>
-          ${tipCard('genShared', 'These are shared, not per story', `<p>The sampler belongs to you,
-            not to the server: changing it here changes it for every story YOU write and leaves the
+          <span style="font-size:13.5px; color:var(--ink)">These are yours, not per tale${
+            tipMark('genShared', 'These are yours, not per tale')}</span>
+          ${tipCard('genShared', 'These are yours, not per tale', `<p>The sampler belongs to you,
+            not to the server: changing it here changes it for every tale YOU write and leaves the
             other writer alone.</p>
-            <p>The route takes a story id, which makes it look per-story; it is not. Per-story
-            sampling needs PLAN-02's <code>engine_config</code>, which was never built.</p>`)}</span></div>
+            <p>It is set from inside a tale, which makes it look per-tale; it is not. Per-tale
+            sampling was never built.</p>`)}</span></div>
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Model</div>
       ${listed === null ? '<div class="hint" style="margin:0">Asking the router&hellip;</div>'
         : listed.length === 0 ? emptyModels()
-        : `<select class="field" data-storymodel="1" aria-label="The model this book is written with">
+        : `<select class="field" data-storymodel="1" aria-label="This tale's model">
             ${modelOptions(listed, V.story.model).map((o) => `<option value="${esc(o.value)}"${
               o.selected ? ' selected' : ''}${o.ready === false ? ' disabled' : ''}>${
-              !o.value ? `Default &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
+              !o.value ? `Your model &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
               : o.gone ? `${esc(modelName(o.value).name)} &mdash; the router no longer offers this`
               : `${esc([modelName(o.value).name, modelName(o.value).detail].filter(Boolean).join(' — '))} · ${
                   o.ready === false ? "Featherless isn't set up" : whereRuns(o.value, o.status).words}`}</option>`).join('')}
@@ -3963,59 +3966,60 @@ const PANELS = {
           <div class="hint">${V.story.model && whereRuns(V.story.model).remote && V.model !== V.story.model
             // The server resolved the pin to the local default (no key, or the model is off the
             // owner's shortlist), so the hint must not claim the pinned model writes this book.
-            ? `This story is pinned to <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
+            ? `This tale's model is <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
                which cannot write now, so <code>${esc(modelName(V.model).name)}</code> writes it.`
             : V.story.model
-            ? `This story is written by <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
-               whatever any other story uses.`
-            : 'This story uses your default model, the one at the foot of the menu. Name one here and this story keeps it whatever your default becomes.'}</div>`}
+            ? `This tale's model is <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
+               whatever any other tale uses.`
+            : 'This tale uses your model, the one at the foot of the menu. Name one here and it becomes this tale&rsquo;s model, whatever your model becomes.'}</div>`}
       <!-- #55. WEAVING, this book's own switch, beside the model that writes it. It replaced a note
            that said thinking was off and not a setting, which is no longer true once a book can
            weave. A [data-story] checkbox, so it saves itself and the Context panel asks again: the
-           budget it shows is smaller by the room the plan is given. The writer's word is Weaving;
+           budget it shows is smaller by the room the plan is given. The writer's word is Spinning;
            the server decides from it which calls weave.
            #61, #58. A model whose template refuses the switch is never sent it, and a model that
            always weaves cannot be switched off, so for either the server sends weaveNote, the
            sentence to show here instead of the switch. Its words are the server's alone. -->
       ${V.weaveNote ? `<div id="weavenote" class="hint" style="margin:16px 0 2px">${esc(V.weaveNote)}</div>`
-      : `${tipCard('weaving', 'Weaving', `<p>Anansi weaves each passage unseen before she writes it,
-        which is slower and sets aside room that would otherwise hold more of your book.</p>`)}
+      : `${tipCard('weaving', 'Spinning', `<p>Anansi spins each passage unseen before she writes it:
+        she plans it first, and the plan is never shown. It is slower, and it sets aside space that
+        would otherwise hold more of your tale.</p>`)}
       <label style="display:flex; align-items:center; gap:10px; margin:16px 0 2px; font-size:13px;
         color:var(--ink)">
         <input type="checkbox" data-story="weaving" ${V.story.weaving ? 'checked' : ''}>
-        Weaving${tipMark('weaving', 'Weaving')}</label>`}
+        Spinning${tipMark('weaving', 'Spinning')}</label>`}
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Sampling</div>
       ${slider('Surprise', 'temperature', g.temperature ?? 0.85, 2,
-        'How far the model will reach for a less obvious word. Prose only — structured roles run pinned at 0.2, because a loose sampler under a tight grammar writes valid JSON that says nothing.')}
+        'How far the model will reach for a less obvious word. Prose only — structured roles always run at 0.2, because a loose sampler under a tight grammar writes valid JSON that says nothing.')}
       ${slider('Focus', 'top_p', g.top_p ?? 0.95, 1,
         'How much of the field it considers at all. Lower is tighter and more predictable.')}
       ${slider('Passage length', 'target_words', g.target_words ?? 0, 2000,
         'Roughly how long a passage should run. Anansi aims for it and is allowed to come in under '
         + 'it — she is not cut off at it. All the way left leaves the length to her, which is how '
-        + 'every book here was written until now.')}
+        + 'every tale here was written until now.')}
       <!-- #18 §3. THE WRITER'S DEFAULT VOICE, which had no surface at all before this. Only the
            two buttons inside the spark wizard ever read it, and the server quietly backfills it
            into any book created with the voice box left blank — so a page of text nobody had seen
            was reaching the model and there was nowhere to go and look at it. Here, because this
            panel is already the one that says out loud that its contents are shared and not per
            story. -->
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Your voice, for every book</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Your voice, for every tale</div>
       ${S.prompts?.voice ? `
-        <textarea class="field grow" data-mydefaultvoice aria-label="Your voice, for every book"
+        <textarea class="field grow" data-mydefaultvoice aria-label="Your voice, for every tale"
           style="min-height:110px; font-size:12.5px;
           line-height:1.5">${esc(S.prompts.voice.mine ?? S.prompts.voice.shipped)}</textarea>
         <div style="display:flex; gap:7px">
           <button class="btn ghost" data-setvoice="1" style="flex:1">${
-            S.prompts.voice.mine ? 'Save it as your default' : 'Make this your default'}</button>
+            S.prompts.voice.mine ? 'Save it as your voice' : 'Make this your voice'}</button>
         </div>
         <div class="hint">${S.prompts.voice.mine
-          ? `Yours. A new book starts from this unless you write it one of its own, and emptying the
-             box puts the shipped voice back.`
-          : `The shipped voice, which is what a new book starts from today. Change it and save, and
-             every book you make after that starts from yours instead.`}
-          It is COPIED into a book at creation &mdash; changing it here does not rewrite books that
-          already exist.</div>`
+          ? `Yours. A new tale starts from this unless you write it one of its own, and emptying the
+             box puts the house cut back.`
+          : `The house cut, which is what a new tale starts from today. Change it and save, and
+             every tale you cut after that starts from yours instead.`}
+          It is COPIED into a tale when it is cut &mdash; changing it here does not rewrite tales
+          that already exist.</div>`
         : '<div class="hint">Reading it&hellip;</div>'}
 
       <!-- HOW ANANSI TALKS, and it is a different thing from the box above it. That one is how
@@ -4034,17 +4038,17 @@ const PANELS = {
             S.prompts.anansi.mine ? 'Save how she talks' : 'Make this how she talks'}</button>
         </div>
         <div class="hint">${S.prompts.anansi.mine
-          ? `Yours, on every book. Emptying the box puts her shipped voice back.`
-          : `Her shipped voice. Change it and save, and she answers you like this everywhere.`}
+          ? `Yours, on every tale. Emptying the box puts her house cut back.`
+          : `Her house cut. Change it and save, and she answers you like this everywhere.`}
           Her register only &mdash; what she may offer you, and the rule that she never invents a
-          fact the story does not have, is not in this box and cannot be edited away.</div>`
+          fact the tale does not have, is not in this box and cannot be altered away.</div>`
         : '<div class="hint">Reading it&hellip;</div>'}
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">The five modes and the re-roll, in your words${
-        tipMark('genPrompts', 'The five modes and the re-roll')}</div>
-      ${tipCard('genPrompts', 'The five modes and the re-roll', `<p>Global to you, not to a story,
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">The five modes and Reweave, in your words${
+        tipMark('genPrompts', 'The five modes and Reweave')}</div>
+      ${tipCard('genPrompts', 'The five modes and Reweave', `<p>Yours on every tale, not on one,
         and they reach the model exactly as written &mdash; nothing is added between the box and the
-        prompt. Read one in <strong>Context &rarr; Prompt sent</strong> before you trust it.</p>`)}
+        model. Read one in <strong>Measurements &rarr; Exactly as sent</strong> before you trust it.</p>`)}
       ${(() => {
         // The shipped wording comes from the server, rendered by the engine itself, so the box
         // shows what it is actually replacing rather than a second copy that goes stale.
@@ -4067,31 +4071,32 @@ const PANELS = {
               <span style="margin-left:auto; color:var(--faint); font-size:12px">${open ? '\u2212' : '+'}</span>
             </button>
             ${open ? `${tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
-                instruction for this mode. A re-roll re-runs the instruction the passage was
-                written with, so this is what it says on the way back round too. ${
+                instruction for this mode. Reweave runs the instruction the passage was
+                written with again, so this is what it says on the way back round too. ${
                 k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
                   k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you are speaking as. ' : ''}
-                Empty it and press Save to go back to the shipped one.</p>`)}
+                Empty it and press Save, or press Back to the house cut, to wear the one Anansi
+                ships with again.</p>`)}
               <textarea class="field" data-prompttext aria-label="The whole instruction for ${esc(k)}"
                 style="min-height:132px; font-family:ui-monospace,monospace;
                 font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
               <div style="display:flex; gap:7px">
                 <button class="btn ghost" data-saveprompt="${k}" style="flex:1">Save</button>
-                <button class="btn ghost" data-resetprompt="${k}" style="width:110px">Default</button>
+                <button class="btn ghost" data-resetprompt="${k}" style="flex:1">Back to the house cut</button>
               </div>` : ''}
           </div>`;
         }).join('');
       })()}
 
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">This story's calls</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">This tale's calls</div>
       ${(ACT?.runs ?? []).slice(0, 3).map((r) => `<div class="row">
         <span style="color:var(--ink)">${esc(r.role ?? 'prose')}${r.error ? ' · failed' : ''}</span>
         <span class="tnum" style="margin-left:auto; color:var(--faint)">${
           r.promptTokens ? r.promptTokens.toLocaleString() + ' tok' : '—'}${
           r.prefillSeconds ? ` · ${r.prefillSeconds}s prefill` : ''}${
           r.seconds ? ` · ${r.seconds}s` : ''}</span></div>`).join('')
-        || '<div class="hint">No calls logged for this story yet.</div>'}
+        || '<div class="hint">No calls logged for this tale yet.</div>'}
       ${ACT?.worstPrefillSeconds ? `<div class="row"><span style="color:var(--ink)">Worst prefill</span>
         <span class="tnum" style="margin-left:auto; color:var(--faint)">${ACT.worstPrefillSeconds}s</span></div>` : ''}
       ${(() => {
@@ -5097,13 +5102,13 @@ function setupPanel() {
         tipMark('setFresh', 'New threads, basted')}</div>
       ${tipCard('setFresh', 'New threads, basted', `<p>Nothing basted is in the tale until you weave
         it in, and what you leave stays on the Workbench.</p>`)}
-      ${fresh.length > 1 ? `${tipCard('setAddAll', 'Weaving in all the new threads', `<p>Only the new
+      ${fresh.length > 1 ? `${tipCard('setAddAll', 'Weave in all the new threads', `<p>Only the new
         ones. A change writes into a thread you already have, so those stay one at a time under What
         it left.</p>`)}
       <div style="display:flex; align-items:center; gap:2px; margin-bottom:10px">
         <button class="btn ghost" data-acceptall="new" style="flex:1; margin:0"
           >Weave in all ${plural(fresh.length, 'new thread', 'new threads')}</button>
-        ${tipMark('setAddAll', 'Weaving in all the new threads')}</div>` : ''}
+        ${tipMark('setAddAll', 'Weave in all the new threads')}</div>` : ''}
       <div style="display:flex; flex-direction:column; gap:9px">${fresh.map(proposalCard).join('')}</div>` : ''}
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Who is in it${
         tipMark('setWho', 'Who is in it')}</div>
@@ -7586,7 +7591,7 @@ let PEND = '', DRAIN = null, VEIL_DONE = false, LAST_TICK = 0, TIP = [], SEEN = 
  *  'dock' for a passage (the veil and the composer), 'talk' for the Talk window's line, and for an
  *  invention the label of the tray's button. A place absent from it is not being woven for. */
 const WEAVES = new Map();
-const weaveWords = (at = 'dock') => `Weaving\u2026 ${Math.floor((Date.now() - WEAVES.get(at).t0) / 1000)}s`;
+const weaveWords = (at = 'dock') => `Spinning\u2026 ${Math.floor((Date.now() - WEAVES.get(at).t0) / 1000)}s`;
 const weavingAt = (at) => WEAVES.has(at);
 function weaveShow(at) {
   const words = WEAVES.has(at) ? weaveWords(at) : '';

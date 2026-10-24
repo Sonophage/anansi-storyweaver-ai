@@ -252,7 +252,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   const note0 = await page.eval(`[...document.querySelectorAll('[data-sumcard="${made.first}"] .hint')]
     .map((h) => h.textContent).find((t) => /Stale/.test(t)) ?? ''`);
   ok(`  and that summarising it again or editing it brings it back (${note0})`,
-     /summari[sz]ed? again/i.test(note0) && /edit/i.test(note0));
+     /summari[sz]ed? again/i.test(note0) && /alter/i.test(note0));
   const btn = await page.eval(`document.querySelector('[data-sumcard="${made.first}"] [data-summarize]')?.textContent.trim() ?? null`);
   ok(`  and offers Summarise again (${JSON.stringify(btn)})`, /Summarise again/.test(btn ?? ''));
 
@@ -475,9 +475,9 @@ ok("  which is a SENTENCE, not the whole passage",
 // not as a value: the count is the fixture's business and would change with it.
 ok("  with the word count among the stats",
    chapRows.every((r) => r.stats.some((t) => /^[\d,]+ words$/.test(t))));
-ok("  and how many passages, and whether it is open or closed",
+ok("  and how many passages, and whether it is open or hemmed",
    chapRows.every((r) => r.stats.some((t) => /passages?$/.test(t))
-     && r.stats.some((t) => t === 'open' || t === 'closed')));
+     && r.stats.some((t) => t === 'open' || t === 'hemmed')));
 ok("  and what the model is sent for it",
    chapRows.every((r) => r.stats.some((t) => /summar|sent whole/.test(t))));
 ok("  with exactly one marked as the one you are writing",
@@ -830,7 +830,7 @@ ok("  and the tray has its own door from in here", await page.visible('#sideBody
 await page.click('#sideBody [data-newlore="1"]');
 await wait(700);
 const lore = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
-ok("  it opens a tray with both ways in", /Write it down/.test(lore) && /read the chapter/i.test(lore));
+ok("  it opens a tray with both ways in", /Write it down/.test(lore) && /read the scene/i.test(lore));
 // #27. EVERY ROOM joins the four card kinds, not just the outfit. They are NOT kinds — KINDS is the
 // entry TYPE and draws the editor's type buttons, where a room is not a thing an entry can be — so
 // this asserts the tray's list, which is deliberately longer than that one. Compared against the
@@ -1480,8 +1480,8 @@ if (pick) {
 await page.goto(B + "/#" + sid3 + "/chapter");
 await wait(900);
 const acts = (await page.text('#sideBody') || '');
-ok("the Chapter panel has an Acts section", /Acts/.test(acts));
-ok("  and says why one is wanted", /at chapter 120|do not fit/i.test(acts));
+ok("the Chapter panel has a Panels section", /Panels/.test(acts));
+ok("  and says why one is wanted", /at scene 120|do not fit/i.test(acts));
 // The seed story has no summaries, so the honest state is "there is nothing to roll up yet"
 // rather than a button that would fail.
 const btn = await page.eval("document.querySelector('[data-rollup]')?.dataset.rollup ?? null");
@@ -1489,7 +1489,7 @@ if (btn) {
   ok(`  and the button names the range it will take (${btn})`, /^\d+:\d+$/.test(btn));
 } else {
   ok("  and with nothing summarised it says so instead of offering a button that would fail",
-     /Two summarised chapters/.test(acts));
+     /Two summarised scenes/.test(acts));
 }
 
 // ---- 15b. an act is edited in place (#44): text and title, a live word count, a warning past 220
@@ -1589,7 +1589,7 @@ await wait(900);
 // panel's mark opens, and the line below asserts that too so deleting the copy cannot delete both.
 {
   const body = (await page.text('#sideBody')) || '';
-  ok("Strings is a panel of its own", /Tie a new one/i.test(body) && /Owed|Nothing owed/i.test(body));
+  ok("Strings is a panel of its own", /A new string/i.test(body) && /Owed|Nothing owed/i.test(body));
   ok("  and what a string IS is still one press away", /promise the story has made and not paid/i.test(body));
 }
 await page.eval(`(() => {
@@ -1633,7 +1633,7 @@ ok("marking it paid takes it out of the prompt", !/has not opened/.test(await pr
 // passes on an empty queue is a check that proves nothing.
 await page.goto(B + "/#" + sid3 + "/chapter");
 await wait(700);
-ok("the Chapter queue is about facts", !/Anansi noticed/.test(await page.text('#sideBody') || ''));
+ok("the Chapter queue is about facts", !/Basted by Anansi/.test(await page.text('#sideBody') || ''));
 
 // ---- 18. the chapter opens with a band, and the running head runs
 // A chapter used to begin with a 10px label and go straight into the paragraph, which reads as a
@@ -1689,7 +1689,7 @@ await wait(500);
 ok("  tapping one fills the box",
    (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
 ok("  and does not send it — no answer, nothing waiting",
-   !/Asking…|Weaving…/.test(await page.text('#sideBody') || ''));
+   !/Asking…|Spinning…/.test(await page.text('#sideBody') || ''));
 await wait(1200);
 ok("  and it is still there a moment later, not eaten by a repaint",
    (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
