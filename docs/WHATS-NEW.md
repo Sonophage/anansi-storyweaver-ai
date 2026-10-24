@@ -12,6 +12,14 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-23 · Featherless when it is full, and a chapter keeps its own name
 
+### Summaries, cards and new books use your model
+Chapter summaries, act roll-ups, the cards Anansi finds when a chapter closes, the changes it
+notices in a character, the cards it marks as finished, the scan of a single card, and the ideas
+when you start a new book were always written by the model on this machine. Now they use the
+model you write with, so a book on Featherless gets them from Featherless too. That means more
+of your book's text goes to Featherless. The check for lines that contradict your cards still
+runs on this machine, and so does everything for a model that always weaves.
+
 ### No model that takes more than half the Featherless plan
 Some Featherless models take three or all four of the plan's units, so while one writer used one,
 the other could not write at all. Those models are now gone from every shortlist, and Find a

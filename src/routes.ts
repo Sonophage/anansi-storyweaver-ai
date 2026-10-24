@@ -335,11 +335,20 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
  *  database, so the shortlist question is answered here: a remote id stands only when a key is
  *  configured and the id is on the right writer's shortlist — the book's OWNER for a pin, since a
  *  writer called into a shared book did not choose it, and the writer asking for a default.
- *  Anything else falls through to the local default. Every writer-facing call goes through this;
- *  a background call passes no model at all and stays on the local default (docs/adr/0001). */
+ *  Anything else falls through to the local default. Every writer-facing call goes through this,
+ *  and so does most background work, through `backgroundModel` below (docs/adr/0002). */
 const writerModel = (c: Ctx, v: { story: any; owner?: string }) =>
   modelFor(v.story, c.defaultModel, (id, pinned) =>
     remoteReady() && db.shortlisted(pinned ? (v.owner ?? c.owner) : c.owner, id) != null);
+
+/** The model for the background work that follows the writer (docs/adr/0002): chapter summaries
+ *  and roll-ups, the book-creation sparks, and the card passes (extraction, the one-card scan,
+ *  memory, retiring). The writer's model, except one that ALWAYS weaves: these calls run on short
+ *  caps (a summary is 280 tokens) that a plan would eat whole (F5, F23), so such a book keeps them
+ *  on the local default. The canon check is not on the list; it passes no model and stays local.
+ *  `v.story` is null for the sparks, which run before there is a book: the writer's default. */
+const backgroundModel = (c: Ctx, v: { story: any; owner?: string }) =>
+  alwaysWeaves(c, v) ? model() : writerModel(c, v);
 
 /** A catalogue read, or the `{ error }` a route answers with when Featherless cannot be read. */
 const fromCatalogue = async <T>(read: () => Promise<T>): Promise<T | { error: string }> => {
@@ -996,7 +1005,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
  *  the prompt. Fine at chapter length; a chapter long enough to overflow the slot returns the
  *  overflow error rather than a partial memory, and the fix then is per-scene rather than
  *  per-chapter. */
-async function remember(storyId: string, chapterId: string) {
+async function remember(c: Ctx, storyId: string, chapterId: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
@@ -1011,7 +1020,7 @@ async function remember(storyId: string, chapterId: string) {
   const inForce = cast.map((e: any) => `${e.title}: ${cardText(e, ch.index)}`).join('\n\n');
 
   const r = await structuredRetry(MEMORY, `${text}\n\n---\n\n${inForce}`, MEMORY_SCHEMA,
-    { max_tokens: MEMORY_TOKENS });
+    { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
   if (!r.data?.characters) return { remembered: 0, error: r.error ?? null };
 
   const norm = (t: string) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -1087,7 +1096,7 @@ async function remember(storyId: string, chapterId: string) {
  *  handed it the lie. `remember`'s is the tested pattern, so `remember`'s is the one that stays.
  *  It matters more now that this fires on its own: a mistake behind a button is made when you press
  *  it, and a mistake on chapter close is made every chapter. */
-async function extract(storyId: string, chapterId?: string) {
+async function extract(c: Ctx, storyId: string, chapterId?: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
@@ -1095,7 +1104,7 @@ async function extract(storyId: string, chapterId?: string) {
   const existing = db.entriesOf(v.id);
   const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
   if (!text.trim()) return { error: 'this chapter is all dialogue — nothing the narrator committed' };
-  const r = await structuredRetry(EXTRACT, text, EXTRACT_SCHEMA);
+  const r = await structuredRetry(EXTRACT, text, EXTRACT_SCHEMA, { model: backgroundModel(c, v) });
   if (!r.data?.entries) return { error: r.error ?? 'extraction returned nothing usable' };
   let added = 0;
   for (const e of r.data.entries) {
@@ -1140,7 +1149,7 @@ async function extract(storyId: string, chapterId?: string) {
  *  Proposals only, like everything else here. Nothing becomes canon until it is accepted. */
 const SCAN_BUDGET = 40_000;
 
-async function extractStory(storyId: string, entryId: string) {
+async function extractStory(c: Ctx, storyId: string, entryId: string) {
   const v = bookOf(storyId);
   const who = (v.entries as any[]).find((e) => e.id === entryId);
   if (!who) return { error: 'no such thread' };
@@ -1174,7 +1183,7 @@ async function extractStory(storyId: string, entryId: string) {
   taken.reverse();
 
   const r = await structuredRetry(SCAN_HEAD + `THE SUBJECT: ${title}\n\n` + EXTRACT,
-    taken.map((h) => h.text).join('\n\n'), EXTRACT_SCHEMA);
+    taken.map((h) => h.text).join('\n\n'), EXTRACT_SCHEMA, { model: backgroundModel(c, v) });
   if (!r.data?.entries) {
     return { error: r.error ?? 'the scan returned nothing usable',
              mentioned: hits.length, read: taken.length };
@@ -1222,7 +1231,7 @@ async function extractStory(storyId: string, entryId: string) {
  *  measured prompt to answer a second question is how a measurement stops meaning anything.
  *  Ceiling: four calls on a long chapter. Upgrade path: one call answering both, with both arms
  *  measured by `bench/retire.ts` before the old shape is deleted. */
-async function retire(storyId: string, chapterId?: string) {
+async function retire(c: Ctx, storyId: string, chapterId?: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
@@ -1238,7 +1247,7 @@ async function retire(storyId: string, chapterId?: string) {
   const inForce = cands.map((e: any) => `${e.title}: ${cardText(e, ch.index)}`).join('\n\n');
   const r = await structuredRetry(RETIRE,
     `${text}\n\n---\n\n${inForce}`, retireSchema(cands.map((e: any) => e.title)) as any,
-    { max_tokens: RETIRE_TOKENS });
+    { model: backgroundModel(c, v), max_tokens: RETIRE_TOKENS });
   if (!r.data?.finished) return { proposed: 0, eligible: cands.length, error: r.error ?? null };
 
   // IN FORCE FROM THE NEXT CHAPTER, not this one. `src/context.ts` drops on
@@ -1298,7 +1307,8 @@ async function summarise(c: Ctx, storyId: string, chapterId?: string, replace = 
   if (!cover) return { error: 'nothing to summarise' };
   // 280 rather than 400: 180 words is about 240 tokens, and the old headroom was room to pad in.
   const r = await chat(SUMMARY(180), cover.passages.map((p: any) => p.body).join('\n\n'),
-    { temperature: 0.2, max_tokens: 280, chat_template_kwargs: { enable_thinking: false } });
+    { model: backgroundModel(c, v), temperature: 0.2, max_tokens: 280,
+      chat_template_kwargs: { enable_thinking: false } });
   const summary = clean(r.prose);
   db.setSummary(ch.id, summary, cover.through, cover.hash, 'model');
   return { summary, chapterId: ch.id };
@@ -1978,7 +1988,8 @@ export const routes: Record<string, Handler> = {
   'POST /api/spark': async (c) => {
     const idea = String(c.body.idea ?? '').trim();
     if (idea.length < 8) return { error: 'give it a sentence to work from' };
-    const r = await structuredRetry(SPARK, idea, SPARK_SCHEMA, { max_tokens: SPARK_TOKENS });
+    const r = await structuredRetry(SPARK, idea, SPARK_SCHEMA,
+      { model: backgroundModel(c, { story: null }), max_tokens: SPARK_TOKENS });
     if (!r.data?.title) return { error: r.error ?? 'the spark returned nothing usable' };
     const d = r.data;
     return {
@@ -2026,7 +2037,8 @@ export const routes: Record<string, Handler> = {
       `\nWRITE THE ${field.toUpperCase()}.`,
     ].filter(Boolean).join('\n\n');
     const r = await structuredRetry(SPARK_FIELD, seen, SPARK_FIELD_SCHEMA,
-      { max_tokens: field === 'premise' ? SPARK_TOKENS : 200 });
+      { model: backgroundModel(c, { story: null }),
+        max_tokens: field === 'premise' ? SPARK_TOKENS : 200 });
     const value = String(r.data?.value ?? '').trim();
     if (!value) return { error: r.error ?? 'nothing usable came back' };
     return { field, value };
@@ -2071,7 +2083,7 @@ export const routes: Record<string, Handler> = {
          replacing.join('; ')}` : '',
        steer ? `THE WRITER WANTS THIS CAST TO: ${steer}` : '',
       ].filter(Boolean).join('\n\n'), castSchema(kinds),
-      { max_tokens: CAST_TOKENS });
+      { model: backgroundModel(c, { story: null }), max_tokens: CAST_TOKENS });
     if (!r.data?.entries?.length) return { error: r.error ?? 'the cast returned nothing usable' };
     // The enum makes a wrong kind unreachable through the grammar; this is the belt to that
     // braces, and it costs one comparison.
@@ -2107,7 +2119,7 @@ export const routes: Record<string, Handler> = {
     }
     const r = await structuredRetry(STYLE_NOTE,
       `Genre: ${genre || 'not set'}\n\nPremise: ${premise || 'not set'}`, STYLE_SCHEMA,
-      { temperature: 0.7, max_tokens: 400 });
+      { model: backgroundModel(c, { story: null }), temperature: 0.7, max_tokens: 400 });
     const style = String(r.data?.style ?? '').trim();
     if (!style) return { error: r.error ?? 'nothing usable came back' };
     return { style };
@@ -2139,7 +2151,8 @@ export const routes: Record<string, Handler> = {
         ? `Cast:\n${cast.map((e: any) => `- ${e.title} (${e.entryType}): ${e.body}`).join('\n')}`
         : 'Cast: nobody yet.',
     ].join('\n\n');
-    const r = await structuredRetry(REVIEW, body, REVIEW_SCHEMA, { max_tokens: REVIEW_TOKENS });
+    const r = await structuredRetry(REVIEW, body, REVIEW_SCHEMA,
+      { model: backgroundModel(c, { story: null }), max_tokens: REVIEW_TOKENS });
     if (!r.data) return { error: r.error ?? 'the second look returned nothing usable' };
     const have = new Set(cast.map((e: any) => String(e.title ?? '').trim().toLowerCase()));
     return {
@@ -2502,7 +2515,7 @@ export const routes: Record<string, Handler> = {
     const keptSummary = summed?.kept === true;
     if (keptSummary) passes.summary = null;
     // The character memory, on the same terms: a chapter must be able to close with the model down.
-    await run('memory', c.body.remember !== false, () => remember(v.id, closing));
+    await run('memory', c.body.remember !== false, () => remember(c, v.id, closing));
     // And read it for facts. The comment above summarise applies to this word for word: the ledger
     // is the only tier that survives compaction — prose falls out of the chapter window, summaries
     // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
@@ -2516,13 +2529,13 @@ export const routes: Record<string, Handler> = {
     // step 3, so moving it here without handing the answer back would have run the extractor
     // twice per close — one wasted model call, and a surface that reports on a different pass
     // from the one that happened.
-    const extracted = await run('facts', c.body.extract !== false, () => extract(v.id, closing));
+    const extracted = await run('facts', c.body.extract !== false, () => extract(c, v.id, closing));
     // And ask which of them the chapter FINISHED. Last of the four deliberately: it is the only
     // step that takes something away, and a writer reading the queue should meet what the chapter
     // added before what it ended. Nothing is written here either — a retirement is a proposal, and
     // accepting one is the only decision in the app that changes what the model is told for the
     // rest of the book.
-    const retired = await run('finished', c.body.retire !== false, () => retire(v.id, closing));
+    const retired = await run('finished', c.body.retire !== false, () => retire(c, v.id, closing));
     return { ...r, extracted, retired, passes, keptSummary, ...viewOf(c, v.id) };
   },
 
@@ -3605,7 +3618,7 @@ export const routes: Record<string, Handler> = {
   },
   // The way back when the router was down at chapter end — the exact case `POST /api/remember`
   // exists for, and the reason that route was called a bug for not existing.
-  'POST /api/finished': async (c) => ({ ...(await retire(c.body.storyId, c.body.chapterId)),
+  'POST /api/finished': async (c) => ({ ...(await retire(c, c.body.storyId, c.body.chapterId)),
                                         ...viewOf(c, c.body.storyId) }),
 
   // Canon over time. The state in force is resolved at assembly, so writing chapter 3
@@ -3763,7 +3776,7 @@ export const routes: Record<string, Handler> = {
   /** Read a chapter and propose ledger entries. Nothing written here is canon: every
    *  proposal is held until accepted (design screen 28). Re-running is safe — the unique
    *  index on content hash means the same fact is not proposed twice. */
-  'POST /api/extract': async (c) => extract(c.body.storyId, c.body.chapterId),
+  'POST /api/extract': async (c) => extract(c, c.body.storyId, c.body.chapterId),
   /** #18 §2 · WRITE THIS BOOK'S HOUSE STYLE, from its genre and its premise.
    *
    *  Proposes, never writes: it hands the words back and the writer presses Save, the same bargain
@@ -3792,11 +3805,11 @@ export const routes: Record<string, Handler> = {
 
   // #27. Entity-scoped by construction: it names a thread rather than a chapter, so there is no
   // shape of this request that asks for a general story-wide sweep.
-  'POST /api/scanstory': async (c) => extractStory(c.body.storyId, c.body.entryId),
+  'POST /api/scanstory': async (c) => extractStory(c, c.body.storyId, c.body.entryId),
   // Re-runnable: a chapter that closed with the router down gets its memory when it comes back, and
   // the subject hash stops a second run proposing the same character twice.
   'POST /api/remember': async (c: Ctx) => {
-    const out = await remember(c.body.storyId, c.body.chapterId);
+    const out = await remember(c, c.body.storyId, c.body.chapterId);
     return { ...out, proposals: db.proposalsOf(c.body.storyId) };
   },
 
@@ -3972,7 +3985,8 @@ export const routes: Record<string, Handler> = {
     if (already) return { error: 'those chapters are already inside an arc' };
     const text = run.map((ch) => `Chapter ${ch.index} — ${ch.title}: ${ch.summary}`).join('\n\n');
     const r = await chat(ARC(from, to, 220), text,
-      { temperature: 0.2, max_tokens: 500, chat_template_kwargs: { enable_thinking: false } });
+      { model: backgroundModel(c, v), temperature: 0.2, max_tokens: 500,
+        chat_template_kwargs: { enable_thinking: false } });
     const summary = clean(r.prose);
     if (!summary) return { error: 'the roll-up returned nothing usable' };
     db.addArc(v.id, { branchId: v.branchId, fromChapter: from, toChapter: to,

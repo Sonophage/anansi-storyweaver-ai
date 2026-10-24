@@ -763,18 +763,64 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('a remote default or pin stands only on the owning writer\'s shortlist');
 }
 
-// ---- 10. background work stays on the local default whatever the writer picked ----
+// ---- 10. background work follows the writer's model, except the canon check (ADR 0002) ----
 {
   assert.strictEqual(db.defaultModelOf(me), ID, 'the writer is on the remote model');
-  const m = mark();
   const chapterId = (db.chapters(story.id)[0] as any).id;
-  await routes['POST /api/remember'](ctx(me, { storyId: story.id, chapterId }));
-  await routes['POST /api/extract'](ctx(me, { storyId: story.id, chapterId }));
-  const went = since(m);
-  assert.strictEqual(went.fl.length, 0, 'memory and extraction never reach Featherless');
-  assert.ok(went.local.length >= 2, 'they went to the local router');
-  assert.ok(went.local.every((x) => !String(x.body?.model ?? '').startsWith('featherless:')),
-    'under a local id');
+  // A card the narration names, so memory, the one-card scan and retiring each have work to do and
+  // none of them returns before its call. Without it this block could pass on calls never made.
+  const keeper = db.upsertEntry(story.id, me, { title: 'Keeper', body: 'The keeper of the lamp.',
+    entryType: 'character' });
+  db.addPassage({ ...story, storyId: story.id, body: 'The keeper climbed the stair and lit the lamp.' });
+  const passes: [string, string, any][] = [
+    ['chapter summary', 'POST /api/summarize', { storyId: story.id, chapterId, replace: true }],
+    ['memory', 'POST /api/remember', { storyId: story.id, chapterId }],
+    ['extraction', 'POST /api/extract', { storyId: story.id, chapterId }],
+    ['the one-card scan', 'POST /api/scanstory', { storyId: story.id, entryId: keeper }],
+    ['retiring', 'POST /api/finished', { storyId: story.id, chapterId }],
+    ['the book spark', 'POST /api/spark', { idea: 'A lighthouse that keeps itself.' }],
+  ];
+  // A warm (max_tokens 1) that an earlier section's GET /api/story sent detached can land inside
+  // a window here. It writes nothing, so it is not counted as a pass going local.
+  const work = (xs: any[]) => xs.filter((x) => x.body.max_tokens !== 1);
+  for (const [name, route, body] of passes) {
+    const m = mark();
+    await routes[route](ctx(me, body));
+    const went = { fl: since(m).fl, local: work(since(m).local) };
+    assert.ok(went.fl.length >= 1, `BACKGROUND-REMOTE: ${name} reaches Featherless (${went.fl.length} calls)`);
+    assert.ok(went.fl.every((x) => x.body.model === REMOTE), `BACKGROUND-REMOTE: ${name} under the writer's model`);
+    assert.strictEqual(went.local.length, 0, `BACKGROUND-REMOTE: ${name} does not touch the local router`);
+  }
+
+  // THE CANON CHECK STAYS LOCAL. It runs on every passage, so on Featherless it would take a unit
+  // from whoever writes next.
+  const passageId = (db.passagesOf(story.id).at(-1) as any).id;
+  const c0 = mark();
+  await routes['POST /api/check'](ctx(me, { storyId: story.id, passageId }));
+  assert.strictEqual(since(c0).fl.length, 0, 'CHECK-LOCAL: the canon check never reaches Featherless');
+  assert.ok(work(since(c0).local).length >= 1, 'CHECK-LOCAL: it went to the local router');
+
+  // A MODEL THAT ALWAYS WEAVES keeps its writer's background work local: a 280-token summary is
+  // room for a plan and nothing else.
+  const weaver = db.owner('always-weaver');
+  const ALWAYS = `featherless:${STUBBORN}`;
+  db.addToShortlist(weaver, ALWAYS, 32768, 'always weaves', 2);
+  db.setDefaultModel(weaver, ALWAYS);
+  const wbook = db.createStory(weaver, { title: 'Plans First' });
+  db.addPassage({ ...wbook, storyId: wbook.id, body: 'A plan, then the prose.' });
+  const w = mark();
+  await routes['POST /api/summarize'](ctx(weaver, { storyId: wbook.id,
+    chapterId: (db.chapters(wbook.id)[0] as any).id }));
+  assert.strictEqual(since(w).fl.length, 0, 'ALWAYS-WEAVES-LOCAL: its summary stays off Featherless');
+  assert.strictEqual(work(since(w).local).length, 1, 'ALWAYS-WEAVES-LOCAL: and goes to the local router');
+
+  // EVERY MODEL CALL IN routes.ts NAMES ITS MODEL, except the canon check's two. A background call
+  // added later with no model would quietly go local; this is the line that notices.
+  const routesSrc = (await import('node:fs')).readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
+  const calls = [...routesSrc.matchAll(/await (?:chat|structuredRetry)\(([A-Z_]+)[\s\S]*?\);/g)];
+  const unnamed = calls.filter((x) => !/\bmodel:/.test(x[0])).map((x) => x[1]).sort();
+  assert.deepStrictEqual(unnamed, ['CHECK', 'NUMBERS'], 'NAMED: only the canon check passes no model');
+  assert.ok(calls.length >= 20, `NAMED: and the scan saw the calls (${calls.length})`);
 
   // Talk is something the writer asked for, so it follows the writer's model — structured, with the
   // strict schema Featherless enforces.
@@ -791,7 +837,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   // only place the shortlist is asked; a second `modelFor(` would be a call that can skip it.
   const src = (await import('node:fs')).readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
   assert.strictEqual(src.match(/\bmodelFor\(/g)?.length, 1, 'routes.ts calls modelFor in one place');
-  ok('summaries, memory and extraction stay local; writer calls resolve through one helper');
+  ok('background work follows the writer, the canon check stays local, and calls resolve through one helper');
 }
 
 // ---- 11. only a real catalogue model, by its prefixed id, goes on a shortlist ----

@@ -1,5 +1,8 @@
 # Remote models sit beside the local one, and never write the background work
 
+Partly superseded by ADR 0002: the background work now follows the writer's model, except the
+canon check.
+
 Anansi can use models run by Featherless as well as the local router. Every model id carries its
 source, and there is one adapter, for Featherless only: no general "any provider" layer was built,
 because no second provider has been chosen. One server-side Featherless key serves every writer, so

@@ -438,9 +438,9 @@ const ok = (m: string, fn?: unknown) => {
     'a streamed passage that contradicts canon gets a flag, the same as an accepted one');
   ok('a streamed passage that contradicts canon is flagged, without waiting for the check');
 
-  // BACKGROUND WORK STAYS LOCAL (ADR 0001): the check passes no model, so it asks the default.
+  // THE CANON CHECK STAYS LOCAL (ADR 0002): it passes no model, so it asks the default.
   assert.strictEqual(checks[0].model, model(), 'the check asks the local default model');
-  ok('  and the check asks the local default model, as all background work does');
+  ok('  and the check asks the local default model, which the rest of the background work no longer does');
 
   // A RE-ROLL checks the take it lands, once, and leaves the passed-over take alone.
   const REROLL = `${BROKEN} The lamps went out one by one.`;

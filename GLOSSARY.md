@@ -33,8 +33,8 @@ _Avoid_: stale
 ## Who writes
 
 **Local model**:
-A model run on this machine. Anansi's default, and the only kind that ever writes the
-background work: summaries, the canon check, memory.
+A model run on this machine. Anansi's default, and the only kind that ever runs the canon check.
+The rest of the background work follows the writer's model (ADR 0002).
 _Avoid_: router model, home model
 
 **Remote model**:
