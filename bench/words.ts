@@ -5,6 +5,7 @@
 //   bash test/ui/run.sh shots                                  # writes the record
 //   node --experimental-strip-types bench/words.ts             # ~/.cache/anansi-v2/shots/text.json
 //   node --experimental-strip-types bench/words.ts some/text.json
+//   node --experimental-strip-types bench/words.ts s-waiting   # one surface, string by string
 //   node --experimental-strip-types bench/words.ts check       # the detector's own cases
 //
 // The count is distinct strings, so it is the work left rather than how often the rail repeats.
@@ -70,6 +71,15 @@ if (process.argv[2] === 'check') {
   assert.deepStrictEqual(n(['Open The Web']), { 'the web': 1 }, 'phrases match as phrases');
   assert.ok(glossary().length > 30, 'the real glossary parses into its terms');
   console.log('  ok  words: 9 cases, both directions');
+} else if (process.argv[2] && !process.argv[2].endsWith('.json')) {
+  // ONE SURFACE, string by string: the worklist for that screen.
+  const file = join(process.env.HOME ?? '', '.cache/anansi-v2/shots/text.json');
+  const lines: string[] = JSON.parse(readFileSync(file, 'utf8'))[process.argv[2]] ?? [];
+  const all = glossary();
+  for (const l of new Set(lines)) {
+    const hit = count(all, [l]);
+    if (hit.length) console.log(`  [${hit.map((h) => `${h.avoid}→${h.term}`).join('; ')}]  ${l}`);
+  }
 } else {
   const file = process.argv[2] ?? join(process.env.HOME ?? '', '.cache/anansi-v2/shots/text.json');
   // What changed is left out: its old entries are history, written in the words of their day.
