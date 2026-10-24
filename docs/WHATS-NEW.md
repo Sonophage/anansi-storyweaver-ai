@@ -12,6 +12,14 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-24 · Longer passages, and room for a big model to plan
 
+### Plainer words, and the machine's numbers only for the admin
+Notes written for the person who runs the machine are gone from the screens both writers see: the
+search, What changed, Report an issue, web search and the model menu now say what they do in plain
+words. The model menu says where a model runs instead of a slot size. The slot, the canon cap and
+Snapshot now on What you have written show only for the admin. The Create page now calls Anansi
+"her", as the rest of the app does, and two notes that pointed to a Preferences page that no longer
+exists now say where to look.
+
 ### Paid in Waiting pays the promise
 The Paid button beside a promise in Waiting only took it out of play; the promise stayed unpaid.
 It now marks the promise paid, the same as Paid off in Strings.

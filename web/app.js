@@ -425,8 +425,8 @@ const WTITLES = {
   },
   import: () => ['Import', 'Character cards, Anansi exports, AI Dungeon'],
   prefs: () => ['What you have written', 'words, passages, takes not chosen'],
-  news: () => ['What changed', 'written by Anansi, from the work itself'],
-  bug: () => ['Report an issue', 'filed on the repo, without the prose'],
+  news: () => ['What changed', 'what is new in Anansi'],
+  bug: () => ['Report an issue', 'sent without your writing'],
   // "The Web", to match the menu row. Renamed there on 2026-08-31 and missed here, so the row
   // said one thing and the page it opened said another. Seth: "the web, on the menu it says the
   // web on tha page it does not."
@@ -788,9 +788,9 @@ function drawRail() {
     <div class="scroll" style="flex:1; min-height:0; padding:0 16px; display:flex; flex-direction:column"
       >${rows.map(item).join('')}${tail}</div>
     <!-- The model, and the place to change it. It was a label: the one thing on this rail that
-         named something you can act on and could not be acted on. Preferences still holds the
-         allowlist, the router's state and the stop/restart — this is the switch, where you are
-         already looking when you wonder what is writing. -->
+         named something you can act on and could not be acted on. The router's stop and restart
+         left the screen with Preferences (#23) — this is the switch, where you are already looking
+         when you wonder what is writing. -->
     <button data-modelmenu="1" aria-expanded="${!!S.modelMenu}"
       style="margin-top:auto; padding:14px 20px; border-top:1px solid var(--line); display:flex;
       align-items:center; gap:12px; white-space:nowrap; overflow:hidden; width:100%; text-align:left">
@@ -812,7 +812,7 @@ function drawRail() {
         ${modelName(writing).bits.length ? `<span style="font-size:11px; color:var(--gold-dim);
           overflow:hidden; text-overflow:ellipsis">${esc(modelName(writing).bits.join(' \u00b7 '))}</span>` : ''}
         <span style="font-size:11px; color:var(--dim)">${whereRuns(writing).remote ? 'on Featherless'
-          : SRV.slot ? `slot ${SRV.slot.perSlot.toLocaleString()}` : 'llama-server asleep'}</span>
+          : SRV.slot ? 'on this machine' : 'on this machine, asleep'}</span>
       </span></button>
     ${S.modelMenu ? `<div class="scroll" style="max-height:46vh; border-top:1px solid var(--line);
       padding:8px 12px 12px; display:flex; flex-direction:column; gap:2px">
@@ -1053,8 +1053,8 @@ function drawBar() {
 function emptyModels() {
   const allow = S.allow ?? [];
   if (!allow.length) {
-    return `<div class="hint" style="margin:0">The router did not answer, or it serves nothing.
-      Preferences can restart it.</div>`;
+    return `<div class="hint" style="margin:0">The local model did not answer. It has to be
+      restarted on the machine Anansi runs on.</div>`;
   }
   return `<div class="hint" style="margin:0; color:var(--warn)">The router answered, and your
     allowlist matched none of it. <code>ANANSI_MODELS</code> is
@@ -2638,7 +2638,8 @@ const PANELS = {
           <span class="tnum" style="margin-left:auto; color:var(--faint)">${MANI.totals.used.toLocaleString()} tokens</span></div>
         <div class="row"><span style="color:var(--ink)">Room for it</span>
           <span class="tnum" style="margin-left:auto; color:var(--bad)">none</span></div>
-        <div class="hint">Raise the cap in Story &amp; chapter, or lower Max tokens under Storyteller.</div></div>`;
+        <div class="hint">Shorten Passage length in Storyteller, or turn weaving off for this book:
+          both are room kept for the reply.</div></div>`;
     }
     const budget = MANI.totals.budget;
     return `<div style="display:flex; flex-direction:column; gap:2px">
@@ -3757,7 +3758,7 @@ const PANELS = {
         <div style="display:flex; align-items:center; gap:8px">
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
             t.searchable === false ? 'var(--faint)' : 'var(--mute)'}"
-            title="${t.searchable === false ? 'Set ANANSI_SEARCH on the server to enable this' : 'Look it up on the web first'}">
+            title="${t.searchable === false ? 'Web search is not set up on this server' : 'Look it up on the web first'}">
             <input type="checkbox" data-websearch="1" ${t.search ? 'checked' : ''}
               ${t.searchable === false ? 'disabled' : ''}> Search before responding
           </label>
@@ -3766,8 +3767,7 @@ const PANELS = {
             style="margin-left:auto; width:auto; padding:0 22px; height:38px">${t.busy ? '&hellip;' : 'Ask'}</button>
         </div>
         ${t.searchable === false
-          ? `<div class="hint" style="margin:0">Off until <code>ANANSI_SEARCH</code> names a service
-             you trust &mdash; it is the only outbound request this app can make.</div>`
+          ? `<div class="hint" style="margin:0">Web search is not set up on this server.</div>`
           : ''}
       </div>
     </div>`;
@@ -3871,7 +3871,7 @@ const PANELS = {
       <label style="display:flex; align-items:center; gap:8px; margin:10px 0 4px; font-size:12px; color:var(--mute)">
         <input type="checkbox" id="searchAll" ${S.searchAll ? 'checked' : ''}>
         Look in my other stories too</label>
-      <div class="hint" style="margin-bottom:14px">A LIKE scan over prose, entries and summaries. Fine at this size.</div>
+      <div class="hint" style="margin-bottom:14px">Searches this book's prose, threads and summaries.</div>
       <div id="hits">${searchHits()}</div></div>`;
   },
 
@@ -3958,9 +3958,7 @@ const PANELS = {
             : V.story.model
             ? `This story is written by <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
                whatever any other story uses.`
-            : 'This story uses whatever Preferences is set to. Name one here and it stops moving when that does.'}
-            The router holds three at once, so switching between them usually costs nothing &mdash; one that is
-            asleep costs a load on the first call.</div>`}
+            : 'This story uses your default model, the one at the foot of the menu. Name one here and this story keeps it whatever your default becomes.'}</div>`}
       <!-- #55. WEAVING, this book's own switch, beside the model that writes it. It replaced a note
            that said thinking was off and not a setting, which is no longer true once a book can
            weave. A [data-story] checkbox, so it saves itself and the Context panel asks again: the
@@ -5314,7 +5312,7 @@ function inventTray(kind, label, placeholder, value = '') {
     <div style="display:flex; align-items:center; gap:9px">
       <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
         searchable ? 'var(--mute)' : 'var(--faint)'}"
-        title="${searchable ? 'Look it up on the web before writing it' : 'Set ANANSI_SEARCH on the server to enable this'}">
+        title="${searchable ? 'Look it up on the web before writing it' : 'Web search is not set up on this server'}">
         <!-- SAME WORDING AND SAME REMEMBERED PREFERENCE as the ask box's. Seth, 2026-09-01: "the
              checkmark should say search before responding" and "have it so that anansi can search
              just in general in case we need it for the other modules." One preference, honoured
@@ -6674,10 +6672,7 @@ const WPAGES = {
     // difference between release notes and a status line.
     const batches = (NEWS.all?.length ? NEWS.all : [NEWS]);
     return `<div class="split"><div style="flex:1; min-width:0">
-      <div class="hint" style="margin:0 0 14px">Kept by hand in the repository, written in the same
-        commit as the work it describes. #24: this used to be a model call over the git log, which
-        was slow on the first view after every commit and said nothing on three different failures
-        without telling them apart.</div>
+      <div class="hint" style="margin:0 0 14px">Everything you would notice, newest first.</div>
       ${batches.map((b, i) => `<div style="margin-bottom:${i === batches.length - 1 ? 0 : 26}px">
         <div class="serif" style="font-size:${i ? 19 : 25}px; line-height:1.15; color:var(--ink-bright)">${
           esc(b.headline ?? '')}</div>
@@ -6865,9 +6860,9 @@ const WPAGES = {
     }
     return `<div class="split">
       <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; max-width:640px">
-        <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">Hand him one thread</div>
+        <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">Hand her one thread</div>
         <div style="font-size:14px; line-height:1.65; color:var(--mute)">Spark takes an idea and returns a skeleton.
-          Every field stays editable, and the cast comes back as ledger entries you accept or drop.</div>
+          Every field stays editable, and the cast comes back as threads you accept or drop.</div>
         <textarea id="idea" class="field serif" aria-label="The idea to spark a book from"
           placeholder="Six houses have one winter to sign a peace none of them wants…"
           style="font-size:17px; line-height:1.6; min-height:130px"></textarea>
@@ -7098,12 +7093,10 @@ const WPAGES = {
       ${S.bugError ? `<div class="hint" style="color:var(--bad)">${esc(S.bugError)}<br>
         Nothing you wrote is lost &mdash; it is still in the box.</div>` : ''}
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">What goes with it</div>
-      <div class="hint" style="margin:0">The commit that is running and whether the server is older
-        than it &mdash; which is the thing that has cost a round trip on every round of reports so
-        far. The model, the slot size, the surface you are on, and the story's <em>id</em>.</div>
-      <div class="hint"><strong>Not the prose.</strong> Not a passage, not the premise, not a ledger
-        entry. The story is named by id and nothing else, and the report says so on its own face.</div>
-      <div class="hint">Filed through <code>gh</code>, so no token lives in this app.</div>
+      <div class="hint" style="margin:0">Which version of Anansi is running, the model, the screen
+        you are on, and a code that names the story.</div>
+      <div class="hint"><strong>Not your writing.</strong> No passage, no premise, no thread. The
+        story is named by its code and nothing else.</div>
     </div>`;
   },
 
@@ -7206,7 +7199,7 @@ const WPAGES = {
             ${t.tokensOut ? row('Words the model wrote', n(t.tokensOut), 'counted as tokens') : ''}`;
         })()}
       </div>
-      <div class="aside">
+      ${SRV.admin ? `<div class="aside">
         <div class="lbl" style="letter-spacing:.1em">Slot</div>
         <div class="row"><span style="color:var(--ink)">Context per writer</span>
           <span class="tnum" style="margin-left:auto; color:var(--faint)">${slot ? slot.toLocaleString() : '—'}</span></div>
@@ -7218,7 +7211,7 @@ const WPAGES = {
         <div class="row"><span style="color:var(--ink)">Snapshots</span>
           <span style="margin-left:auto; color:var(--faint)">12 kept · every 30 min</span></div>
         <div class="hint">Snapshots land on the same disk. Off-machine backup is still on you.</div>
-        <button class="btn ghost" data-backup="1" style="margin-top:14px">Snapshot now</button></div></div>`;
+        <button class="btn ghost" data-backup="1" style="margin-top:14px">Snapshot now</button></div>` : ''}</div>`;
   },
 };
 

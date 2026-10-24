@@ -654,8 +654,11 @@ ok('every preset on the box has a blurb, and every blurb still belongs to a pres
   assert.ok(!String(glyphRun).includes('text'), 'the head takes no prose, so it cannot rewrite any');
   ok('the writing head is a run of glyphs and the prose is never an input to it');
 }
-assert.match(html('rail'), /slot 50,048/);
-ok('the rail shows the workspace nav, the model and the real slot size');
+// Where it runs, in the writer's words. The slot size was here until 2026-10-24: a number for the
+// person who runs the machine, on a screen both writers see.
+assert.match(html('rail'), /on this machine/);
+assert.doesNotMatch(html('rail'), /slot 50,048|llama-server/, 'and no machine numbers');
+ok('the rail shows the workspace nav, the model and where it runs');
 
 assert.match(html('page'), /The Ashfall Concordat/);
 // ONE New story button, and it is the rail's — #19. It was on the page too, between the hero and
@@ -2047,8 +2050,11 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.doesNotMatch(page, /data-pickmodel=/,
     'and the second copy of the model list — the rail footer has the one that stays');
   assert.match(page, /What you have written/, 'the writing record is what the page is now');
-  assert.match(page, /data-backup=|data-exportdb=|Backups/i, 'and the backups door stays');
-  ok('Preferences is a writing record: the operator console is gone, the stats and backups stay');
+  // The slot, the canon cap and the snapshot button are the machine's, not the writer's: since
+  // 2026-10-24 only the admin sees them. This fixture's writer is not the admin.
+  assert.doesNotMatch(page, /data-backup=|Canon cap|Context per writer/,
+    'ADMIN-ONLY: a writer who is not the admin is not shown the machine');
+  ok('Preferences is a writing record: the operator console is gone, and the machine is the admin\'s');
 
   // ---- AND THE RECORD ITSELF. Seth, 2026-09-03: "We need to make these stats better and see if we
   // can add more. this is a really nice panel i want to take more advantage of."

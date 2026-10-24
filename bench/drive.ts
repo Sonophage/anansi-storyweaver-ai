@@ -258,6 +258,12 @@ const page = {
    *  includes its own furniture. A layout assertion that says "at 1440x900" has to mean the
    *  viewport or it is measuring this driver's chrome, so it says so here. Same override `shot`
    *  already uses for a sized screenshot, given a name of its own. */
+  /** Ask the page for reduced motion, so the title decode and other animations land at once. For
+   *  screenshots, which otherwise catch a heading half-decoded and read it as garbage. */
+  async still() {
+    await send('Emulation.setEmulatedMedia',
+      { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  },
   async viewport(w: number, h: number) {
     await send('Emulation.setDeviceMetricsOverride',
       { width: w, height: h, deviceScaleFactor: 1, mobile: w < 720 });
