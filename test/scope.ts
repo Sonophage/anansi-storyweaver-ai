@@ -16,7 +16,7 @@ process.env.ANANSI_DB = '/tmp/anansi-scope.db';
 process.env.ANANSI_FEATHERLESS_KEY_FILE = '/nonexistent/featherless.key';
 const hubAsked: string[] = [];
 import assert from 'node:assert';
-import { unlinkSync, readFileSync } from 'node:fs';
+import { unlinkSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 // Raw http, because `fetch` decodes gzip transparently and hides the header while doing it. The
 // static check at the bottom of this file has to see what actually crossed the wire.
 import { get as httpGet, createServer } from 'node:http';
@@ -806,6 +806,9 @@ ok('a story cannot be deleted by someone who does not own it');
   // Straight through db: this block runs long before the route helpers are defined, and the row is
   // the whole point rather than the path that writes it.
   db.setPrompt(alice, 'voice', 'Alice keeps an override.');
+  // And a shortlist, the second table that holds a writer with no cascade (#48). From the day both
+  // writers had one, every book on the live library failed to export (found 2026-10-24).
+  db.addToShortlist(alice, 'featherless:someone/Alice-Model', 32768, 'can switch', 2, true);
   const bOut = db.exportStory(bStory.id, bob, '/tmp/anansi-export-test');
   assert.ok(bOut?.file, "bob's book must export while alice keeps a prompt override");
   const bDb = new DatabaseSync(bOut.file);
@@ -815,13 +818,28 @@ ok('a story cannot be deleted by someone who does not own it');
     const foreign = (bDb.prepare('SELECT owner_id FROM prompt_overrides').all() as any[])
       .filter((r: any) => r.owner_id !== bob);
     assert.deepStrictEqual(foreign, [], "and none of alice's overrides travel in it");
+    assert.deepStrictEqual(bDb.prepare('SELECT owner_id FROM shortlist').all(), [],
+      "nor alice's shortlist");
   } finally { bDb.close(); }
   unlinkSync(bOut.file);
+
+  // A FAILED EXPORT LEAVES NOTHING. The snapshot is the whole library, so a copy left behind holds
+  // alice's books under bob's book's name. A trap table that no export clears makes it fail.
+  const trapDir = '/tmp/anansi-export-trap';
+  rmSync(trapDir, { recursive: true, force: true });
+  const raw = new DatabaseSync(process.env.ANANSI_DB!);
+  raw.exec('CREATE TABLE trap (story_id TEXT REFERENCES stories(id))');
+  raw.prepare('INSERT INTO trap VALUES (?)').run(aStory.id);
+  try {
+    assert.throws(() => db.exportStory(bStory.id, bob, trapDir), /FOREIGN KEY/, 'the detector: the trap fails the export');
+    assert.deepStrictEqual(readdirSync(trapDir), [], 'EXPORT-FAIL: a failed export leaves no copy of the library behind');
+  } finally { raw.exec('DROP TABLE trap'); raw.close(); rmSync(trapDir, { recursive: true, force: true }); }
   // PUT IT BACK. The prompts block further down asserts that a writer starts with no voice of their
   // own, and this file shares one database top to bottom — leaving the row behind reddens an
   // assertion four hundred lines away about something else entirely. A blank deletes it (db.ts:1328).
   db.setPrompt(alice, 'voice', '');
-  ok("a second writer's book exports while the desk keeps prompt overrides");
+  db.removeFromShortlist(alice, 'featherless:someone/Alice-Model');
+  ok("a second writer's book exports while the desk keeps prompt overrides and a shortlist");
 }
 
 // The OPEN routes bypass the gate, so their only protection is the SQL. Nothing asserted that.

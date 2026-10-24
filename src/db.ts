@@ -2889,6 +2889,10 @@ export function exportStory(storyId: string, ownerId: string, dir = join(dirname
   const out = join(dir, `${slug}-${stamp}.db`);
   snapshot(out);
   const copy = new DatabaseSync(out);
+  /* A FAILED EXPORT DELETES ITS FILE. The snapshot is the WHOLE library, every writer's books, and
+   * it is trimmed to one story only after it is written. Until 2026-10-24 a failure part-way left
+   * that whole copy behind, named after this one book, in the export directory. */
+  let ok = false;
   try {
     copy.exec('PRAGMA foreign_keys = ON;');
     copy.prepare('DELETE FROM stories WHERE id != ?').run(storyId);
@@ -2907,11 +2911,23 @@ export function exportStory(storyId: string, ownerId: string, dir = join(dirname
      * is the half that matters, because hers are the ones the desk cannot see.
      *
      * `!= ownerId` and not a blanket delete: the export keeps the owner's own overrides, which is
-     * consistent with keeping their user row — how the book reads is part of the book. */
-    copy.prepare('DELETE FROM prompt_overrides WHERE owner_id != ?').run(ownerId);
+     * consistent with keeping their user row — how the book reads is part of the book.
+     *
+     * EVERY SUCH TABLE, read off the schema, not named by hand. `shortlist` (#48) was the second
+     * one: from the day both writers had a shortlist, every book failed to export, and the only
+     * sign was the same line at boot. A third table added the same way is covered here unchanged. */
+    const held = copy.prepare(`SELECT m.name AS tbl, f."from" AS col FROM sqlite_master m,
+      pragma_foreign_key_list(m.name) f WHERE m.type = 'table' AND m.name != 'stories'
+      AND f."table" = 'users' AND f.on_delete != 'CASCADE'`).all() as { tbl: string; col: string }[];
+    for (const { tbl, col } of held)
+      copy.prepare(`DELETE FROM "${tbl}" WHERE "${col}" != ?`).run(ownerId);
     copy.prepare('DELETE FROM users WHERE id != ?').run(ownerId);
     copy.exec('VACUUM;');
-  } finally { copy.close(); }
+    ok = true;
+  } finally {
+    copy.close();
+    if (!ok) try { unlinkSync(out); } catch { /* never written */ }
+  }
 
   /* PRUNE THIS BOOK'S OLD EXPORTS, and only this book's.
    *
