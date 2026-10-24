@@ -2472,8 +2472,9 @@ const PANELS = {
    *  under Strings, flags beside the passage they are about, the horizon on a bar — which is
    *  exactly the problem: four panels to find out whether anything wanted you.
    *
-   *  Reads `V.waiting`, computed by the engine, so this panel and the shelf cannot disagree about
-   *  whether a book is owed anything.
+   *  Proposals and promises come off `V.proposals` and `V.strings`, the same lists `owedHere`
+   *  counts for the rail, so the light and this panel cannot disagree. `V.waiting` adds what the
+   *  engine works out: stale summaries and out-of-date acts.
    */
   waiting() {
     const w = V?.waiting;
@@ -2509,7 +2510,7 @@ const PANELS = {
           <button data-summon="${x.id}" style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
             ${x.summoned ? 'background:var(--gold); color:var(--on-gold)' : 'border:1px solid var(--chip); color:var(--mute)'};
             font-size:11.5px">${x.summoned ? 'In play — put it away' : 'Summon it'}</button>
-          <button data-stringstatus="${x.id}" style="width:96px; text-align:center; padding:8px 0;
+          <button data-stringstatus="${x.id}:paid" style="width:96px; text-align:center; padding:8px 0;
             border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Paid</button>
         </div></div>`).join('')));
 

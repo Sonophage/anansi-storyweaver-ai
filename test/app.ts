@@ -837,6 +837,9 @@ ok('a book can keep its cover behind the prose instead, at a strength it chooses
   assert.match(w, /data-pbody=/, 'and what lands is the box, which is why the box has to be here');
   // Strings and flags, each with the action that belongs to them.
   assert.match(w, /data-summon=/, 'a promise is summoned here');
+  // The handler reads the status after the colon. Without one the save fell back to open and only
+  // took the promise out of play, so "Paid" never paid (found 2026-10-24).
+  assert.match(w, /data-stringstatus="[^"]+:paid"/, 'PAID: and paid off here, naming the status it sets');
   assert.match(w, /data-dropflag=/, 'a contradiction is dismissed here');
   assert.match(w, /data-goflag=/, 'or followed to the passage it is about');
   // And it no longer sends you away to do any of it.

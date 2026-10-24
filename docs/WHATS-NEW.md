@@ -12,6 +12,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-24 · Longer passages, and room for a big model to plan
 
+### Paid in Waiting pays the promise
+The Paid button beside a promise in Waiting only took it out of play; the promise stayed unpaid.
+It now marks the promise paid, the same as Paid off in Strings.
+
 ### Passages up to 2,000 words
 The Passage length slider now goes up to 2,000 words. It was 1,000. A longer passage leaves a
 little less room for the rest of the book in what the model reads.

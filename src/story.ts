@@ -137,18 +137,15 @@ export function view(storyId: string, focusChapterId?: string) {
     // whether Co-op is on the dial at all.
     writers: db.writersOf(storyId),
     turn: s.turn ?? null,
-    // What this book is waiting on, in one place. Every part of it was already on the surface
-    // somewhere — proposals under the chapter, strings under Strings, flags beside a passage, the
-    // horizon on a bar — which is the problem: a writer had to visit four panels to find out
-    // whether anything wanted them. Computed here so the panel and the shelf agree by construction.
+    // What the Waiting panel lists that is not already on the view: stale summaries and
+    // out-of-date acts, less the ones the writer waved away. Proposals, strings and flags are read
+    // straight off `proposals`, `strings` and `violations`. Counts of those three sat here until
+    // 2026-10-24, read by nothing, and the strings one counted differently from the panel.
     waiting: (() => {
       const off = db.dismissed(storyId);
       const stale = chapters.filter((c: any) => c.summary && c.summaryStale
         && !off.has(`stale:${db.summaryHashOf(c.id) ?? c.id}`));
       return {
-        proposals: db.proposalsOf(storyId).length,
-        strings: db.stringsOf(storyId).filter((x: any) => x.status === 'open' && !x.summoned).length,
-        flags: db.violationsOf(storyId).filter((f: any) => f.status !== 'dismissed').length,
         stale: stale.map((c: any) => ({ id: c.id, index: c.index, title: c.title,
                                         ref: db.summaryHashOf(c.id) ?? c.id })),
         // #47. Out-of-date acts. The ref is the act and what its chapters' summaries say NOW, so
