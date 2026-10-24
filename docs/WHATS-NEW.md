@@ -12,6 +12,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-23 · Featherless when it is full, and a chapter keeps its own name
 
+### No model that takes the whole Featherless plan
+Some Featherless models take all four of the plan's units, so while one writer used one, the
+other could not write at all. Those models are now gone from every shortlist, and Find a model
+no longer shows them to anyone. Every model you can pick now leaves room for the other writer.
+If one was your default, your books go back to the local model until you pick another.
+
 ### Contradictions are flagged again
 Anansi is meant to read each new passage against your cards and flag a line that contradicts
 them. Since the start of September it had stopped doing that for every passage you write, so no

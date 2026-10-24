@@ -291,11 +291,11 @@ export const OPEN_ROUTES = new Set([
   // A writer's own shortlist of remote models. Names no story; every read and write takes c.owner,
   // so another writer's list cannot be named. test/scope.ts proves it with two owners.
   'GET /api/shortlist', 'POST /api/shortlist', 'POST /api/shortlist/remove',
-  // The Featherless catalogue. Names no story and holds nothing of anyone's; what differs by
-  // writer is the admin question, which the handler asks of c.admin.
+  // The Featherless catalogue. Names no story and holds nothing of anyone's, and it answers every
+  // writer the same: `refusal` hides a model that takes the whole plan from all of them.
   'GET /api/catalogue',
   // What a catalogue model is, from Hugging Face. The same: nothing of anyone's, and the handler
-  // asks the admin question so a model hidden from the search cannot be described either.
+  // asks `refusal` so a model hidden from the search cannot be described either.
   'POST /api/catalogue/tags', 'GET /api/catalogue/card',
   // Names no story — it is about the FORMAT, not about a book. Open means the gate does not run, so
   // the handler asks the admin question itself; that check is the whole of its protection.
@@ -355,7 +355,7 @@ const describable = async (c: Ctx, ids: unknown[]) => {
   if ('error' in rows) return rows;
   const byId = new Map(rows.map((r) => [r.id, r]));
   return ids.map(String).filter(isRemote).map((id) => ({ id, row: byId.get(id.slice(REMOTE_PREFIX.length)) }))
-    .filter((x) => x.row && !refusal(x.row, c.admin) && isRepo(x.row.id))
+    .filter((x) => x.row && !refusal(x.row) && isRepo(x.row.id))
     .map((x) => ({ id: x.id, repo: x.row!.id }));
 };
 
@@ -1701,7 +1701,7 @@ export const routes: Record<string, Handler> = {
     // The floor (a model whose entry gives no context is under it) and the 4-unit gate: the same
     // predicate the search uses, so what the search hides is what this refuses — and refused
     // BEFORE the probe, so a refusal spends none of the plan.
-    const no = refusal(found, c.admin);
+    const no = refusal(found);
     if (no) return { error: no };
     // THE PROBE. One tiny call with weaving off: a model that plans anyway cannot be switched off,
     // and the label the writer reads should say what it did rather than what its class suggests.
@@ -1736,7 +1736,7 @@ export const routes: Record<string, Handler> = {
     if ('error' in rows) return rows;
     const q = c.query;
     return searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
-      weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0' }, c.admin, REMOTE_PREFIX);
+      weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0' }, REMOTE_PREFIX);
   },
   /** TAGS FOR A PAGE OF RESULTS, in one call. The search answers at once without them — reading
    *  Hugging Face for a hundred rows would make every keystroke wait on it — and the browser asks

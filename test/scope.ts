@@ -10,7 +10,7 @@ serialise();
 process.env.ANANSI_DB = '/tmp/anansi-scope.db';
 // NEVER THE REAL FEATHERLESS. This machine has a real key at the default path, so without these a
 // shortlist check here would read it and fetch the live catalogue. In its place, a fake that
-// lists two models — one of them takes the whole plan, for the admin check — and refuses
+// lists two models — one of them takes the whole plan, for the 4-unit check — and refuses
 // everything else with a 404. It stands in for Hugging Face too, so the catalogue's describe routes
 // never reach the real hub; `hubAsked` records what they asked it.
 process.env.ANANSI_FEATHERLESS_KEY_FILE = '/nonexistent/featherless.key';
@@ -1676,26 +1676,26 @@ async function bootServer(port: number, env: Record<string, string>) {
   assert.deepStrictEqual(await ids(alice), [], 'alice can remove her own');
   ok("a writer's shortlist is unreachable from another writer's account, through all three routes");
 
-  // THE CATALOGUE SEARCH. It holds nothing of anyone's, so the two-owner question is the admin one:
-  // the model that takes the whole plan is shown to the admin and to nobody else.
+  // THE CATALOGUE SEARCH. It holds nothing of anyone's, and since 2026-10-23 it answers the admin
+  // and every other writer the same: the model that takes the whole plan is shown to nobody.
   assert.ok(OPEN_ROUTES.has('GET /api/catalogue'), 'the search names no story, so it is open');
   const seen = async (admin: boolean) => {
     const r: any = await routes['GET /api/catalogue']({ ...ctx(bob), admin });
     assert.ok(!r.error, r.error);
     return r.models.map((m: any) => m.id);
   };
-  assert.ok((await seen(true)).includes('featherless:someone/Whole-Plan-70B-abliterated'),
-    'the admin is shown the 4-unit model');
+  assert.deepStrictEqual(await seen(true), ['featherless:someone/Small-heretic'],
+    'the admin is not shown the 4-unit model');
   assert.deepStrictEqual(await seen(false), ['featherless:someone/Small-heretic'],
-    'a writer who is not the admin is never shown it');
-  ok('the catalogue search is open, and shows a 4-unit model to the admin alone');
+    'and neither is any other writer');
+  ok('the catalogue search is open, and shows a 4-unit model to nobody');
 
-  // DESCRIBING A MODEL: the tags of a page of rows, and one expanded card. The same admin question,
+  // DESCRIBING A MODEL: the tags of a page of rows, and one expanded card. The same 4-unit gate,
   // so a model the search hides cannot be found out through its description — and the hub is not
   // even asked about it.
   const WHOLE = 'featherless:someone/Whole-Plan-70B-abliterated', SMALL = 'featherless:someone/Small-heretic';
   for (const r of ['POST /api/catalogue/tags', 'GET /api/catalogue/card'])
-    assert.ok(OPEN_ROUTES.has(r), `${r} names no story, so it is open and asks the admin question itself`);
+    assert.ok(OPEN_ROUTES.has(r), `${r} names no story, so it is open and asks the 4-unit question itself`);
   const describe = (admin: boolean) => ({
     tags: async () => (await routes['POST /api/catalogue/tags']({ ...ctx(bob, { models: [WHOLE, SMALL] }), admin }) as any).tags,
     card: async () => routes['GET /api/catalogue/card']({ ...ctx(bob), query: new URLSearchParams({ model: WHOLE }), admin }) as any,
@@ -1704,10 +1704,12 @@ async function bootServer(port: number, env: Record<string, string>) {
   assert.deepStrictEqual(Object.keys(await describe(false).tags()), [SMALL], 'a writer gets tags for what they are shown');
   assert.ok((await describe(false).card()).error, "and cannot expand the 4-unit model's card");
   assert.ok(!hubAsked.some((p) => p.includes('Whole-Plan')), 'and the hub is never asked about it for them');
-  assert.ok(Object.keys(await describe(true).tags()).includes(WHOLE), 'the admin gets its tags');
-  assert.ok(!(await describe(true).card()).error, 'and its card');
-  assert.ok(hubAsked.some((p) => p.includes('Whole-Plan')), 'which the hub was asked for, so the refusal above was the gate');
-  ok('describing a catalogue model holds the same admin gate as the search');
+  assert.deepStrictEqual(Object.keys(await describe(true).tags()), [SMALL], 'the admin gets no tags for it either');
+  assert.ok((await describe(true).card()).error, 'nor its card');
+  assert.ok(!hubAsked.some((p) => p.includes('Whole-Plan')), 'and the hub is never asked about it for anyone');
+  assert.ok(hubAsked.some((p) => p.includes('Small-heretic')),
+    'while it was asked about the model beside it, so the refusals above are the gate and not a dead hub');
+  ok('describing a catalogue model holds the same 4-unit gate as the search');
 }
 
 // ---- A NEW CARD'S DESCRIPTION LANDS IN `facts`, NOT IN THE BODY (issue #39, 2026-09-01).

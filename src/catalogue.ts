@@ -57,18 +57,20 @@ export const catalogueEntry = async (featherlessId: string) =>
 const MIN_CONTEXT = 16_384;
 
 /** THE PLAN IS 4 UNITS, and a model that costs 4 takes all of it: while one writer uses it the
- *  other cannot write at all. Only the admin, who pays for the plan, may choose that. A row that
- *  does not say its cost is treated as the worst case — the gate fails closed. */
+ *  other cannot write at all. Nobody may add one, the admin included (Seth, 2026-10-23, removing
+ *  his own three so the background work can follow the writer's model). A row that does not say
+ *  its cost is treated as the worst case — the gate fails closed. */
 const WHOLE_PLAN = 4;
 
 /** Why `row` cannot go on this writer's shortlist, or null when it can. ONE PREDICATE for the
  *  search and the add, so the search never offers what the add would refuse. */
-export function refusal(row: CatalogueRow, admin: boolean): string | null {
+export function refusal(row: CatalogueRow): string | null {
   if (!row.context || row.context < MIN_CONTEXT)
     return `this model holds ${row.context ? row.context.toLocaleString('en') : 'an unknown number of'}`
       + ` tokens, and Anansi needs at least ${MIN_CONTEXT.toLocaleString('en')}`;
-  if (!admin && (row.cost == null || row.cost >= WHOLE_PLAN))
-    return 'this model takes the whole Featherless plan, and only the admin can add one';
+  if (row.cost == null || row.cost >= WHOLE_PLAN)
+    return 'this model takes the whole Featherless plan, so no other writer could write '
+      + 'while it runs';
   return null;
 }
 
@@ -161,8 +163,8 @@ export const RESULT_CAP = 100;
 
 /** THE SEARCH, pure: rows in, rows out. `prefix` is handed in so the ids that leave here are the
  *  ones the shortlist takes, without this file deciding what a remote id looks like. */
-export function search(rows: CatalogueRow[], q: Query, admin: boolean, prefix: string) {
-  const open = rows.filter((r) => !refusal(r, admin));
+export function search(rows: CatalogueRow[], q: Query, prefix: string) {
+  const open = rows.filter((r) => !refusal(r));
   const text = (q.text ?? '').trim().toLowerCase();
   const found: Found[] = open
     .filter((r) => q.uncensored === false || isUncensored(r.id))
