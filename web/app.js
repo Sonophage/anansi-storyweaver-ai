@@ -578,10 +578,10 @@ const sceneName = (c) => (c && !numbered(c.title, c.index) ? c.title.trim() : `S
 const actChanged = (n, why, title) => {
   const ch = !numbered(title, n) ? `Scene ${n}, ${title},` : `Scene ${n}`;
   return why === 'stale'
-    ? `${ch} has changed since this act was written: its summary no longer matches its prose. `
-      + 'The act still reaches the model.'
-    : `${ch} has a different summary from the one this act was written from. `
-      + 'The act still reaches the model. Read it, and save it to vouch for it.';
+    ? `${ch} has changed since this panel was written: its summary no longer matches its prose. `
+      + 'The panel still reaches the model.'
+    : `${ch} has a different summary from the one this panel was written from. `
+      + 'The panel still reaches the model. Read it, and save it to vouch for it.';
 };
 
 /** EVERY DELETION IS TWO PRESSES. Seth, 2026-08-30: "all deletions should have a double tap
@@ -2012,12 +2012,12 @@ function proposalCard(p) {
   const canMove = !!onto && !['retire', 'state', 'string'].includes(p.entryType);
   const rooms = canMove ? (V.slots?.[onto.entryType] ?? []).map((sl) => sl.name) : [];
   const where = p.entryType === 'retire'
-    ? `Stops reaching the model from scene ${esc(String(at))}. Every chapter before it still has
-       it, and Waiting can bring it back.`
+    ? `Hemmed at scene ${esc(String(at))}: it stops reaching the model there. Every scene before it
+       still has it, and it can be brought back.`
     : p.entryType === 'state'
     ? `Replaces the whole description from scene ${esc(String(at))} on.`
     : room
-    ? `Lands in ${esc(room)} on ${esc(p.title)}. The rest of the card is left exactly as it is.`
+    ? `Lands in the ${esc(room)} pocket of ${esc(p.title)}. The rest of the thread is left exactly as it is.`
     : '';
   return `<div class="card" style="gap:8px">
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
@@ -2027,8 +2027,8 @@ function proposalCard(p) {
             <span class="up" style="margin-left:auto; font-size:11px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
           ${where ? `<div style="font-size:11px; line-height:1.45; color:var(--faint)">${where}</div>` : ''}
           ${p.field && p.target ? `<div style="font-size:11px; line-height:1.45; color:var(--warn)">${esc(p.title)}
-            already has ${/^[aeiou]/i.test(room) ? 'an' : 'a'} ${esc(room)}. Add this beside it, or put
-            it in place of the one there.</div>` : ''}
+            already has ${/^[aeiou]/i.test(room) ? 'an' : 'a'} ${esc(room)}. Weave this in beside it, or
+            put it in place of the one there.</div>` : ''}
           ${p.delta && p.delta.trim() !== (p.body ?? '').trim()
             ? `<div style="font-size:12px; line-height:1.45; color:var(--faint)">${esc(p.delta)}</div>` : ''}
           ${p.entryType === 'retire'
@@ -2039,26 +2039,26 @@ function proposalCard(p) {
             <label style="font-size:11px; color:var(--faint)" for="pw-${p.id}">Goes in</label>
             <select class="field" id="pw-${p.id}" data-pwhere="${p.id}"
               style="margin:0; flex:1; min-width:130px; padding:6px 8px; font-size:11.5px">
-              <option value=""${p.field ? '' : ' selected'}>the card's own Info</option>
+              <option value=""${p.field ? '' : ' selected'}>the thread's own Info</option>
               ${rooms.map((r) => `<option value="${r}"${p.field === r ? ' selected' : ''}
                 >${esc(r.replace(/_/g, ' '))}</option>`).join('')}</select>
             <input class="field" data-pkeys="${p.id}" value="${esc(keys.join(', '))}"
-              placeholder="words that wake it" aria-label="Trigger words for ${esc(p.title)}"
+              placeholder="words that wake it" aria-label="Wake words for ${esc(p.title)}"
               style="margin:0; flex:1; min-width:130px; padding:6px 8px; font-size:11.5px"></div>
           <label style="display:flex; gap:7px; align-items:center; font-size:11px; color:var(--faint)">
             <input type="checkbox" data-pstate="${p.id}">
-            <span>Make it a state instead, from chapter</span>
+            <span>Make it a state instead, from scene</span>
             <input class="field" type="number" min="1" data-pchap="${p.id}"
-              value="${V.currentChapter?.index ?? 1}" aria-label="State from chapter"
+              value="${V.currentChapter?.index ?? 1}" aria-label="State from scene"
               style="margin:0; width:56px; padding:4px 6px; font-size:11.5px"></label>` : ''}
           <div style="display:flex; gap:7px">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">${
-                p.field && p.target ? 'Add beside it' : 'Accept'}</button>
+                p.field && p.target ? 'Weave in beside it' : 'Weave it in'}</button>
             ${p.field && p.target ? `<button data-decide="replace" data-id="${p.id}"
               style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
               border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Replace it</button>` : ''}
-            <button data-decide="reject" data-id="${p.id}" aria-label="Reject this proposal"
+            <button data-decide="reject" data-id="${p.id}" aria-label="Reject this"
               style="width:38px; text-align:center; padding:8px 0;
               border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">&#10005;</button></div></div>`;
 }
@@ -2122,21 +2122,22 @@ function ritualPanel() {
   // are about two different chapters, and opened with a chapter name in the same style in the same
   // place. One of them is history and nothing said so.
   return `<div class="lbl" style="letter-spacing:.1em">${esc(sceneName(ch))}${
-      closed ? ' &middot; closed' : ''}</div>
+      closed ? ' &middot; hemmed' : ''}</div>
     <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin:6px 0 18px">${closed
-      ? 'What closing it found. Nothing here is canon until you accept it, and accepting happens on Waiting.'
-      : `Closing a chapter summarises it, reads it for new facts, remembers what it did to the people
-         in it, and asks which threads it finished. Nothing it finds becomes canon until you accept it.`}</div>
+      ? 'What hemming it found. All of it is basted: nothing is in the tale until you weave it in, on the Workbench.'
+      : `Hemming a scene summarises it, reads it for new facts, notes what it did to the people
+         in it, and asks which threads it is done with. Everything it finds is basted &mdash; tacked
+         on loosely &mdash; and nothing is in the tale until you weave it in.`}</div>
 
-    ${closed ? '' : `${tipCard('ritEnd', 'Ending this chapter', `<p>It closes here and the next one
-      opens. The prose stays exactly where it is.</p>`)}
+    ${closed ? '' : `${tipCard('ritEnd', 'Hem this scene', `<p>Hemming finishes the scene: it closes
+      here and the next one opens. The prose stays exactly where it is.</p>`)}
     <div style="display:flex; align-items:center; gap:2px">
       <button class="btn" data-endchapter="1" style="flex:1">${
-        S.ritual ? esc(S.ritual) : 'End this chapter'}</button>
-      ${tipMark('ritEnd', 'Ending this chapter')}</div>`}
+        S.ritual ? esc(S.ritual) : 'Hem this scene'}</button>
+      ${tipMark('ritEnd', 'Hem this scene')}</div>`}
 
     <div style="margin-top:20px">
-    ${line(closed ? '--good' : '--chip', closed ? 'Closed, and the next one opened' : 'Not closed yet',
+    ${line(closed ? '--good' : '--chip', closed ? 'Hemmed, and the next one opened' : 'Not hemmed yet',
       closed ? '' : 'Nothing below has run.')}
 
     ${line(summary ? '--good' : closed ? '--warn' : '--chip',
@@ -2153,37 +2154,37 @@ function ritualPanel() {
         : 'Nothing changed anybody')}
 
     ${line(facts.length ? '--good' : '--chip',
-      facts.length ? `Read for facts — ${plural(facts.length, 'proposed', 'proposed')}`
-        : 'No new threads came out of this chapter')}
+      facts.length ? `Read for facts — ${plural(facts.length, 'basted', 'basted')}`
+        : 'No new threads came out of this scene')}
 
     ${line(of('retire').length ? '--warn' : '--chip',
-      of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} proposed as finished`
-        : 'Nothing was proposed as finished')}
+      of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} basted to be hemmed`
+        : 'No thread was basted to be hemmed')}
     </div>
 
-    ${queued ? `${tipCard('ritDecide', 'Deciding the proposals', `<p>On Waiting, beside everything
-      else this book is owed. Nothing is canon until you accept it.</p>`)}
+    ${queued ? `${tipCard('ritDecide', 'Deciding what is basted', `<p>On the Workbench, beside
+      everything else this tale is owed. Nothing basted is in the tale until you weave it in.</p>`)}
     <div style="display:flex; align-items:center; gap:2px; margin-top:8px">
       <button class="btn" data-panel="waiting" style="flex:1">Decide the ${
-        plural(queued, 'proposal', 'proposals')}</button>
-      ${tipMark('ritDecide', 'Deciding the proposals')}</div>` : ''}
+        plural(queued, 'basted thing', 'basted things')}</button>
+      ${tipMark('ritDecide', 'Deciding what is basted')}</div>` : ''}
 
-    ${tipCard('ritSetup', 'Setting up the next chapter', `<p>Its name, its brief, and who is in
+    ${tipCard('ritSetup', 'Setting up the next scene', `<p>Its name, its brief, and who is in
       it.</p>`)}
     <div style="display:flex; align-items:center; gap:2px; margin-top:8px">
-      <button class="btn ghost" data-panel="setup" style="flex:1">Set up the next chapter</button>
-      ${tipMark('ritSetup', 'Setting up the next chapter')}</div>
+      <button class="btn ghost" data-panel="setup" style="flex:1">Set up the next scene</button>
+      ${tipMark('ritSetup', 'Setting up the next scene')}</div>
 
     ${closed ? `<div class="lbl" style="letter-spacing:.1em; margin-top:24px">Run a pass again${
       tipMark('ritAgain', 'Running a pass again')}</div>
-    ${tipCard('ritAgain', 'Running a pass again', `<p>Every pass at chapter end is wrapped so the
-      chapter still closes with the model down. If a line above came back blank, this is the way
+    ${tipCard('ritAgain', 'Running a pass again', `<p>Every pass of hemming is wrapped so the scene
+      still closes with the model down. If a line above came back blank, this is the way
       back.</p>`)}
     <div style="display:flex; flex-wrap:wrap; gap:6px">
       <button class="btn ghost" data-summarize="1" style="flex:1 1 40%">Summary</button>
       <button class="btn ghost" data-remember="1" style="flex:1 1 40%">Changes</button>
       <button class="btn ghost" data-extract="1" style="flex:1 1 40%">Facts</button>
-      <button class="btn ghost" data-refinished="1" style="flex:1 1 40%">Finished</button>
+      <button class="btn ghost" data-refinished="1" style="flex:1 1 40%">Hemmed threads</button>
     </div>` : ''}
 
     <!-- DELETE THE CHAPTER. Seth, 2026-08-30: "we also need a delete chapter", "deletion is
@@ -2194,11 +2195,11 @@ function ritualPanel() {
          chapter 5 is anchored to the number, so closing the gap would move every timeline in the
          book to a chapter that is not the one it meant. See src/db.ts delChapter. -->
     <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete${
-      tipMark('ritDelete', 'Delete this chapter')}</div>
-    ${tipCard('ritDelete', 'Delete this chapter', `<p>Its prose, its edits, its summary and anything
-      it proposed. There is no undo.</p>
-      <p>The chapters after it keep the numbers they have &mdash; a change over time is anchored to
-      a chapter number, so closing the gap would move it to a different chapter.</p>`)}
+      tipMark('ritDelete', 'Delete this scene')}</div>
+    ${tipCard('ritDelete', 'Delete this scene', `<p>Its prose, its alterations, its summary and
+      anything it basted. There is no undo.</p>
+      <p>The scenes after it keep the numbers they have &mdash; a change over time is anchored to
+      a scene number, so closing the gap would move it to a different scene.</p>`)}
     <button class="btn ghost" data-delchapter="${esc(ch.id)}"
       style="margin-top:4px; color:var(--bad)">Delete ${esc(sceneName(ch))}</button>`;
 }
@@ -3371,7 +3372,7 @@ const PANELS = {
     const total = rows.reduce((n, r) => n + r.words, 0);
     return `<div style="display:flex; flex-direction:column">
       <div class="hint" style="margin:0 0 4px">${V.chapters.length} ${
-        V.chapters.length === 1 ? 'chapter' : 'chapters'} &middot; ${total.toLocaleString()} words.
+        V.chapters.length === 1 ? 'scene' : 'scenes'} &middot; ${total.toLocaleString()} words.
         Press one to write in it.</div>
       ${rows.map(({ c, mine, words, first }) => {
         const here = c.id === V.currentChapter.id;
@@ -3381,7 +3382,7 @@ const PANELS = {
         const stats = [
           `${words.toLocaleString()} words`,
           `${mine.length} ${mine.length === 1 ? 'passage' : 'passages'}`,
-          c.status === 'closed' ? 'closed' : 'open',
+          c.status === 'closed' ? 'hemmed' : 'open',
           c.keepWhole ? 'sent whole'
             : c.summary ? (c.summaryStale ? 'summary stale' : 'summarised') : 'no summary',
         ];
@@ -3419,7 +3420,7 @@ const PANELS = {
     const KINDOF = (p) => p.entryType === 'retire' ? 'retire'
       : p.kind === 'memory' ? 'changed' : (p.kind ?? 'conflict');
     const PKINDS = [['all', 'Everything'], ['new', 'New'], ['conflict', 'Conflicts'],
-                    ['changed', 'Changed'], ['retire', 'Finished']];
+                    ['changed', 'Changed'], ['retire', 'To hem']];
     const nOf = (k) => k === 'all' ? ps.length : ps.filter((p) => KINDOF(p) === k).length;
     const shown = S.propKind === 'all' ? ps : ps.filter((p) => KINDOF(p) === S.propKind);
     const pchip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
@@ -3449,8 +3450,8 @@ const PANELS = {
               pass walked straight past Summaries and Branches, which is the same blindness a
               writer has. Zero is drawn as nothing rather than as 0: "Summaries" is a place you can
               go, "Summaries 0" reads as a broken counter. */
-          [['this', 'This chapter', 0],
-           ['proposed', 'Proposed', ps.length],
+          [['this', 'This scene', 0],
+           ['proposed', 'Basted', ps.length],
            ['summaries', 'Summaries', V.chapters.filter((c) => c.summary).length],
            ['branches', 'Branches', (V.branches ?? []).length > 1 ? (V.branches ?? []).length : 0]]
           .map(([k, label, n]) => `<button class="chip" data-chaptab="${k}"
@@ -3478,23 +3479,23 @@ const PANELS = {
            direction of the chapter, not something used by the ai at every beat. it tries to end the
            chapter early if it uses it that way." They now reach the model differently; the hints
            under them say how, because that difference is the whole reason there are two. -->
-      <label class="lbl" for="f-chapter-opens">How this chapter starts${
-        tipMark('chOpens', 'How this chapter starts')}</label>
-      ${tipCard('chOpens', 'How this chapter starts', `<p>Sent only while the chapter is empty, for
-        its first passage. Once there is prose on the page it stops being sent &mdash; the opening
-        has happened.</p>`)}
+      <label class="lbl" for="f-chapter-opens">Opens with${
+        tipMark('chOpens', 'Opens with')}</label>
+      ${tipCard('chOpens', 'Opens with', `<p>How the scene starts. Sent only while the scene is
+        empty, for its first passage. Once there is prose on the page it stops being sent &mdash;
+        the opening has happened.</p>`)}
       <textarea class="field" id="f-chapter-opens" data-chapter-opens="1">${esc(ch.opensWith ?? '')}</textarea>
-      <label class="lbl" for="f-chapter-note">Where this chapter ends${
-        tipMark('chEnds', 'Where this chapter ends')}</label>
-      ${tipCard('chEnds', 'Where this chapter ends', `<p>Sent as the chapter's direction, every time,
-        with the model told not to steer toward it or wrap the chapter up to reach it. Neither box
+      <label class="lbl" for="f-chapter-note">Heads toward${
+        tipMark('chEnds', 'Heads toward')}</label>
+      ${tipCard('chEnds', 'Heads toward', `<p>Where the scene is going, eventually. Sent every time,
+        with the model told not to steer toward it or wrap the scene up to reach it. Neither box
         is shown to the reader.</p>`)}
       <textarea class="field" id="f-chapter-note" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
-      ${tipCard('chRitual', 'Ending this chapter', `<p>Opens the chapter's own screen, where it
-        closes.</p>`)}
+      ${tipCard('chRitual', 'Hem this scene', `<p>Opens the scene's own screen, where it is hemmed:
+        finished, summarised, and the next scene opened.</p>`)}
       <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
-        <button class="btn ghost" data-ritual="1" style="flex:1">End this chapter</button>
-        ${tipMark('chRitual', 'Ending this chapter')}</div>
+        <button class="btn ghost" data-ritual="1" style="flex:1">Hem this scene</button>
+        ${tipMark('chRitual', 'Hem this scene')}</div>
 
       <!-- ISSUE #31, filed as "there is no way to delete a chapter". There was one, and it is the
            same button as below — but its ONLY door was the chapter's own screen, which you reach by
@@ -3505,18 +3506,18 @@ const PANELS = {
            numbers not closing up. A second copy of that logic is the drift this file keeps
            recording; a second DOOR onto it is what was actually missing. -->
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete${
-        tipMark('chDelete', 'Delete this chapter')}</div>
-      ${tipCard('chDelete', 'Delete this chapter', `<p>Its prose, its edits, its summary and anything
-        it proposed. There is no undo.</p>
-        <p>The chapters after it keep the numbers they have &mdash; a change over time is anchored
-        to a chapter number, so closing the gap would move it to a different chapter.</p>`)}
+        tipMark('chDelete', 'Delete this scene')}</div>
+      ${tipCard('chDelete', 'Delete this scene', `<p>Its prose, its alterations, its summary and
+        anything it basted. There is no undo.</p>
+        <p>The scenes after it keep the numbers they have &mdash; a change over time is anchored
+        to a scene number, so closing the gap would move it to a different scene.</p>`)}
       <button class="btn ghost" data-delchapter="${esc(ch.id)}"
         style="margin-top:4px; color:var(--bad)">Delete ${esc(sceneName(ch))}</button>
       </div>
 
       <div class="sgroup" data-group="proposed">
-      <div class="lbl" style="letter-spacing:.1em; margin-top:0">What this chapter added</div>
-      <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Nothing here is canon until you accept it.</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:0">What this scene basted</div>
+      <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Basted is tacked on loosely: nothing here is in the tale until you weave it in.</div>
       <div style="display:flex; flex-direction:column; gap:9px">
       ${ps.length ? `<div style="display:flex; gap:7px; flex-wrap:wrap; margin-bottom:4px">
         ${PKINDS.filter(([k]) => nOf(k)).map(([k, l]) => `<button data-pkind="${k}"
@@ -3530,35 +3531,35 @@ const PANELS = {
             under another name, and "Ledgers", which is the card "The Ledger"), and a changed
             proposal edits a room. Neither is safe by the dozen. */ ''}
       ${S.propKind === 'new' && shown.length > 1
-        ? `${tipCard('chAddAll', 'Adding all of them', `<p>Only offered for new threads. A new card
-             is one you can delete; a conflict and a change both write into cards you already
-             have.</p>`)}
+        ? `${tipCard('chAddAll', 'Weaving in all of them', `<p>Only offered for new threads. A new
+             thread is one you can delete; a conflict and a change both write into threads you
+             already have.</p>`)}
            <div style="display:flex; align-items:center; gap:2px; margin-bottom:6px">
              <button class="btn ghost" data-acceptall="new" ${S.busy ? 'disabled' : ''}
-               style="flex:1; margin:0">Add all ${shown.length}</button>${
-               tipMark('chAddAll', 'Adding all of them')}</div>` : ''}
+               style="flex:1; margin:0">Weave in all ${shown.length}</button>${
+               tipMark('chAddAll', 'Weaving in all of them')}</div>` : ''}
       ${shown.map(proposalCard).join('') || `<div class="hint" style="margin:0">${
-        ps.length ? 'Nothing of that kind.' : 'Nothing proposed. Closing a chapter reads it for new facts and for what it did to the people in it.'}</div>`}
+        ps.length ? 'Nothing of that kind.' : 'Nothing basted. Hemming a scene reads it for new facts and for what it did to the people in it.'}</div>`}
       ${(V.proposals ?? []).some((p) => p.entryType === 'string')
         ? `<button class="btn ghost" data-panel="strings" style="margin-top:6px">${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length === 1 ? '' : 's'
-          } proposed &mdash; they wait under Strings</button>` : ''}
-      <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this chapter for facts</button>
+          } basted &mdash; they wait under Strings</button>` : ''}
+      <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this scene for facts</button>
       <!-- POST /api/remember was finished, tested, and reachable from nowhere until 2026-08-27.
            Closing a chapter runs it; this is the way back when the router was down at the time,
            which is the one case the route was written for. -->
-      <button class="btn ghost" data-remember="1" style="margin-top:6px">Remember what it did to the
+      <button class="btn ghost" data-remember="1" style="margin-top:6px">Note what it did to the
         people in it</button></div>
       </div>
 
       <div class="sgroup" data-group="summaries">
-      <div class="lbl" style="letter-spacing:.1em; margin-top:0">Summaries in context${
-        tipMark('chSummaries', 'Summaries in context')}</div>
-      ${tipCard('chSummaries', 'Summaries in context', `<p>The chapter you are writing goes to the
+      <div class="lbl" style="letter-spacing:.1em; margin-top:0">Scene summaries${
+        tipMark('chSummaries', 'Scene summaries')}</div>
+      ${tipCard('chSummaries', 'Scene summaries', `<p>The scene you are writing goes to the
         model whole. Everything before it goes as the summaries below &mdash; so if the model has
-        forgotten something that happened back there, <b>pull that chapter back</b> and its prose is
-        sent instead of its summary, until you let it go again.</p>`)}
+        forgotten something that happened back there, <b>pull that scene back</b> and its prose is
+        sent instead of its summary, until you send it back to its summary.</p>`)}
       ${/* #43. EVERY CHAPTER BEFORE THE ONE BEING WRITTEN, summarised or not, so a chapter with no
             summary can be found and given one. The current chapter joins only once it has a
             summary, which is what "Summarise this chapter" below has always shown here. */
@@ -3586,48 +3587,48 @@ const PANELS = {
         : c.summary ? `<button aria-expanded="false" data-expand="1" style="text-align:left; width:100%">
           <div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(c.summary)}</div>
         </button>
-        ${c.summaryStale ? '<div class="hint" style="color:var(--bad)">Stale — kept out of the prompt until it is summarised again or edited.</div>' : ''}
-        <button data-editsum="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Edit</button>
+        ${c.summaryStale ? '<div class="hint" style="color:var(--bad)">Stale — not sent to the model until it is summarised again or altered.</div>' : ''}
+        <button data-editsum="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Alter</button>
         ${/* #45. Re-runs THIS card's chapter, not the current one, so a stale summary on an older
               chapter is one press from coming back into the prompt. */''}
         <button data-summarize="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Summarise again</button>
         <button data-pullback="${c.id}" data-on="${c.keepWhole ? '0' : '1'}"
           style="font-size:11.5px; text-align:left; color:${c.keepWhole ? 'var(--gold)' : 'var(--faint)'}"
           >${c.keepWhole
-            ? '&check; Sent whole &mdash; press to let it go back to its summary'
-            : 'Pull this chapter back &mdash; send its prose, not its summary'}</button>`
+            ? '&check; Sent whole &mdash; press to send its summary again'
+            : 'Pull this scene back &mdash; send its prose, not its summary'}</button>`
         : `<div class="hint">No summary.</div>${prose
           ? `<button data-editsum="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Write one</button>` : ''}`}
-      </div>`; }).join('') || '<div class="hint">No summaries yet. Closing a chapter writes one.</div>'}
+      </div>`; }).join('') || '<div class="hint">No summaries yet. Hemming a scene writes one.</div>'}
       ${/* Only while the current chapter has no card: once it has a summary, its card carries
             Summarise again, and this would be the same press twice. */
         V.chapters.find((c) => c.id === V.currentChapter.id)?.summary ? ''
-        : '<button class="btn ghost" data-summarize="1">Summarise this chapter</button>'}
+        : '<button class="btn ghost" data-summarize="1">Summarise this scene</button>'}
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Acts${
-        tipMark('chActs', 'Acts')}</div>
-      ${tipCard('chActs', 'Acts', `<p>One summary standing in for a run of chapters. A chapter
-        summary is about 220 tokens and they never stop arriving &mdash; at chapter 120 they do not
-        fit, and the oldest silently stop being sent. An act is what they collapse into.</p>`)}
+      <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Panels${
+        tipMark('chActs', 'Panels')}</div>
+      ${tipCard('chActs', 'Panels', `<p>A panel is one summary standing in for a run of scenes. A
+        scene summary is about 220 tokens and they never stop arriving &mdash; at scene 120 they do
+        not fit, and the oldest silently stop being sent. A panel is what they are rolled into.</p>`)}
       ${(V.arcs ?? []).map((a) => { const editing = S.editArc?.id === a.id; return `<div class="card" style="margin-bottom:8px; gap:5px">
         <div style="display:flex; align-items:center; gap:9px">
-          <span class="kind">${esc(a.title || `Chapters ${a.fromChapter}–${a.toChapter}`)}</span>
-          <span style="margin-left:auto; font-size:11px; color:var(--faint)">chapters ${a.fromChapter}&ndash;${a.toChapter}${
+          <span class="kind">${esc(a.title || `Scenes ${a.fromChapter}–${a.toChapter}`)}</span>
+          <span style="margin-left:auto; font-size:11px; color:var(--faint)">scenes ${a.fromChapter}&ndash;${a.toChapter}${
             editing ? '' : ` &middot; ${plural(wordsIn(a.summary), 'word', 'words')}`}</span>
           <button data-delarc="${a.id}" style="color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
         ${a.outOfDate ? `<div data-arcoutofdate style="font-size:11.5px; line-height:1.5; color:var(--gold)">Out of date.
           ${esc(actChanged(a.outOfDate.chapter, a.outOfDate.why, a.outOfDate.title))}</div>` : ''}
         ${editing ? `
-          <input class="field" data-arctitle aria-label="The act's title" value="${esc(S.editArc.title)}"
-            placeholder="Chapters ${a.fromChapter}–${a.toChapter}">
-          <textarea class="field" data-arctext data-wordcap="${ACT_WORDS}" aria-label="What the act says"
+          <input class="field" data-arctitle aria-label="The panel's title" value="${esc(S.editArc.title)}"
+            placeholder="Scenes ${a.fromChapter}–${a.toChapter}">
+          <textarea class="field" data-arctext data-wordcap="${ACT_WORDS}" aria-label="What the panel says"
             style="min-height:132px; font-size:12.5px; line-height:1.5">${esc(S.editArc.text)}</textarea>
           ${wordLine(S.editArc.text, ACT_WORDS)}
           <div style="display:flex; gap:7px">
             <button class="btn ghost" data-savearc="${a.id}" style="flex:1">Save</button>
             <button class="btn ghost" data-cancelarc="1" style="width:110px">Cancel</button></div>`
         : `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(a.summary)}</div>
-          <button data-editarc="${a.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Edit</button>`}
+          <button data-editarc="${a.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Alter</button>`}
         </div>`; }).join('')}
       ${(() => {
         // The range is computed rather than typed. Two number boxes is a question the writer has
@@ -3637,18 +3638,18 @@ const PANELS = {
         const run = V.chapters
           .filter((c) => c.summary && !c.summaryStale && !inArc(c.index) && c.id !== V.currentChapter.id)
           .map((c) => c.index).sort((x, y) => x - y);
-        if (run.length < 2) return `<div class="hint" style="margin:0">Two summarised chapters
-          outside an act are needed before there is anything to roll up${
-            (V.arcs ?? []).length ? '' : ', and closing a chapter is what writes a summary'}.</div>`;
+        if (run.length < 2) return `<div class="hint" style="margin:0">Two summarised scenes
+          outside a panel are needed before there is anything to roll into one${
+            (V.arcs ?? []).length ? '' : ', and hemming a scene is what writes a summary'}.</div>`;
         // Consecutive from the oldest — a gap means a chapter is unsummarised or already in an act.
         let last = run[0];
         for (const i of run.slice(1)) { if (i !== last + 1) break; last = i; }
-        return `${tipCard('chRollup', 'Rolling chapters into one act', `<p>Their own summaries stop
-            being sent and this stands in for them. Undo it by removing the act.</p>`)}
+        return `${tipCard('chRollup', 'Rolling scenes into one panel', `<p>Their own summaries stop
+            being sent and the panel stands in for them. Undo it by removing the panel.</p>`)}
           <div style="display:flex; align-items:center; gap:2px">
             <button class="btn ghost" data-rollup="${run[0]}:${last}"${S.busy ? ' disabled' : ''}
-              style="flex:1">Roll chapters ${run[0]}&ndash;${last} into one act</button>${
-              tipMark('chRollup', 'Rolling chapters into one act')}</div>`;
+              style="flex:1">Roll scenes ${run[0]}&ndash;${last} into one panel</button>${
+              tipMark('chRollup', 'Rolling scenes into one panel')}</div>`;
       })()}
       </div>
 
@@ -3842,7 +3843,7 @@ const PANELS = {
             <div style="display:flex; gap:7px">
               <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
                 border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Tie it</button>
-              <button data-decide="reject" data-id="${p.id}" aria-label="Reject this proposal"
+              <button data-decide="reject" data-id="${p.id}" aria-label="Reject this"
               style="width:38px; text-align:center; padding:8px 0;
                 border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">✕</button>
             </div></div>`).join('')}
@@ -4852,7 +4853,7 @@ const wordLine = (text, cap) => {
     plural(n, 'word', 'words')}</span> <span data-wordwarn style="color:var(--gold)" ${n > cap ? '' : 'hidden'}
     >&middot; past ${cap}, so it takes more of every prompt. It still saves.</span></div>`;
 };
-const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next chapter'], ['more', 'Anyone new']];
+const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next scene'], ['more', 'Anyone new']];
 
 /** Issue #32. The four passes a chapter close runs, and what a writer calls each one.
  *
@@ -4860,7 +4861,7 @@ const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next chapter'],
  *  for; one whose value is null ran; one with a string failed and the string is why.
  */
 const PASSES = [['summary', 'the summary'], ['memory', 'the character memory'],
-                ['facts', 'the facts pass'], ['finished', 'the finished-threads scan']];
+                ['facts', 'the facts pass'], ['finished', 'the scan for threads to hem']];
 
 /** Which of them did not run, in the order they run in. Empty when everything ran, which is the
  *  normal case — so every caller can treat length as "is there anything to say". */
@@ -4883,21 +4884,21 @@ function passReport() {
       color:var(--bad)">${missed.length === 1 ? 'One pass did not run' : `${missed.length} passes did not run`}</span>
     ${missed.map((m) => `<span style="font-size:12.5px; line-height:1.5; color:var(--mute)">
       <span style="color:var(--ink)">${esc(m.label)}</span> &mdash; ${esc(m.why)}</span>`).join('')}
-    <span class="hint" style="margin:0">Nothing was lost: the chapter closed and the prose is
+    <span class="hint" style="margin:0">Nothing was lost: the scene is hemmed and the prose is
       untouched. Each pass has its own button on this screen, so run it again when the model is
       back up.</span></div>`;
 }
 
 function setupPanel() {
   const ch = V?.currentChapter;
-  if (!ch) return '<div class="hint">No chapter open.</div>';
+  if (!ch) return '<div class="hint">No scene open.</div>';
   const pin = pinModes();
   // In this chapter or not, for every entry — including always-on ones. Shared with the Threads
   // list's In-context filter, so the two screens cannot disagree about what "in context" means.
   const on = (e) => inContext(e, pin);
-  const why = (e) => pin.get(e.id) === 'force_out' ? 'held back'
-    : e.activation === 'always_on' ? 'always on' : pin.get(e.id) === 'force_in' ? 'pinned in'
-    : 'on its keywords';
+  const why = (e) => pin.get(e.id) === 'force_out' ? 'left out'
+    : e.activation === 'always_on' ? 'always on' : pin.get(e.id) === 'force_in' ? 'brought in'
+    : 'on a word';
 
   const q = (S.setupQ ?? '').trim().toLowerCase();
   const match = (e) => !q || `${e.title} ${e.body} ${(e.keys ?? []).join(' ')}`.toLowerCase().includes(q);
@@ -5039,8 +5040,8 @@ function setupPanel() {
     border-radius:var(--r); border:1px solid var(--chip); background:transparent">
     <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--good)"></span>
     <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
-      text-overflow:ellipsis; white-space:nowrap">${esc(sceneName(justClosed))} closed${
-      justClosed.summary ? (S.ritualKept === justClosed.id ? ', kept your summary' : ', summarised') : ''}${queue.length ? ` &middot; ${queue.length} waiting` : ''}</span>
+      text-overflow:ellipsis; white-space:nowrap">${esc(sceneName(justClosed))} hemmed${
+      justClosed.summary ? (S.ritualKept === justClosed.id ? ', kept your summary' : ', summarised') : ''}${queue.length ? ` &middot; ${queue.length} on the workbench` : ''}</span>
     <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
       color:var(--label); opacity:.7">what it found</span></button>` : '';
 
@@ -5049,9 +5050,10 @@ function setupPanel() {
     ${rail}
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${
       esc(sceneName(justClosed))} changed ${
-      plural(left.length, 'card', 'cards')}${tipMark('setLeft', 'What the chapter left')}</div>
-    ${tipCard('setLeft', 'What the chapter left', `<p>Nothing here is canon until you accept it, and
-      nothing here is required &mdash; what you leave stays in Waiting.</p>`)}
+      plural(left.length, 'thread', 'threads')}${tipMark('setLeft', 'What the scene left')}</div>
+    ${tipCard('setLeft', 'What the scene left', `<p>All of it is basted: nothing here is in the tale
+      until you weave it in, and nothing here is required &mdash; what you leave stays on the
+      Workbench.</p>`)}
     <!-- Issue #32, ABOVE the queue. An empty queue is the thing being explained, so the
          explanation has to arrive before the writer reads the emptiness as "no facts here". -->
     <div style="margin-top:12px">${passReport()}</div>
@@ -5061,7 +5063,7 @@ function setupPanel() {
     <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">
       ${left.map(proposalCard).join('')
         || '<div class="hint" style="margin:0">Nothing it changed about a thread you already have.</div>'}</div>
-    <button class="btn" data-setupstep="premise" style="margin-top:16px">Next &mdash; the next chapter</button>
+    <button class="btn" data-setupstep="premise" style="margin-top:16px">Next &mdash; the next scene</button>
     ${skip}
   </div>`;
 
@@ -5072,10 +5074,10 @@ function setupPanel() {
       ${rail}
       <div class="serif" style="font-size:21px; color:var(--ink-bright)">Anyone new</div>
       <div style="display:flex; justify-content:flex-end; margin-top:6px">${
-        tipMark('setInvent', 'Having Anansi write one for this chapter')}</div>
-      ${tipCard('setInvent', 'Having Anansi write one for this chapter', `<p>Anansi reads the beat
-        you just set and proposes a card for it. It goes to Waiting like everything else she offers;
-        nothing is canon until you accept it.</p>`)}
+        tipMark('setInvent', 'Having Anansi write one for this scene')}</div>
+      ${tipCard('setInvent', 'Having Anansi write one for this scene', `<p>Anansi reads where you
+        said the scene heads and bastes a thread for it. It goes to the Workbench like everything
+        else she offers; nothing is in the tale until you weave it in.</p>`)}
       <div style="display:flex; gap:6px; margin-top:12px">${KINDS.map((k) => `<button data-setupkind="${k}" aria-pressed="${k === kind}"
         style="flex:1; text-align:center; font-size:11px; padding:8px 0; border-radius:var(--r);
         border:1px solid ${k === kind ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
@@ -5085,39 +5087,39 @@ function setupPanel() {
            adding new cards based on that premise", and a box that says "based on the premise" while
            being empty is a box the writer has to retype the premise into. It is editable, because
            the whole point of a steer is that it is yours. -->
-      ${inventTray(kind, `Have Anansi write ${kind === 'character' ? 'someone' : 'something'} for this chapter`,
-        'what this chapter needs', form.note.trim())}
+      ${inventTray(kind, `Have Anansi write ${kind === 'character' ? 'someone' : 'something'} for this scene`,
+        'what this scene needs', form.note.trim())}
       <!-- THE NEW THREADS, HERE. Anansi's offers land in one queue wherever they came from, and a
            card asked for in the tray directly above this used to appear two steps away. Both sources
            are the same thing to a writer: a thread this book does not have yet. -->
       ${fresh.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">${
-        plural(fresh.length, 'new thread', 'new threads')} waiting${
-        tipMark('setFresh', 'New threads waiting')}</div>
-      ${tipCard('setFresh', 'New threads waiting', `<p>Nothing is canon until you accept it, and what
-        you leave stays in Waiting.</p>`)}
-      ${fresh.length > 1 ? `${tipCard('setAddAll', 'Adding all the new cards', `<p>Only the new ones.
-        A change writes into a card you already have, so those stay one at a time under What it
-        left.</p>`)}
+        plural(fresh.length, 'new thread', 'new threads')} basted${
+        tipMark('setFresh', 'New threads, basted')}</div>
+      ${tipCard('setFresh', 'New threads, basted', `<p>Nothing basted is in the tale until you weave
+        it in, and what you leave stays on the Workbench.</p>`)}
+      ${fresh.length > 1 ? `${tipCard('setAddAll', 'Weaving in all the new threads', `<p>Only the new
+        ones. A change writes into a thread you already have, so those stay one at a time under What
+        it left.</p>`)}
       <div style="display:flex; align-items:center; gap:2px; margin-bottom:10px">
         <button class="btn ghost" data-acceptall="new" style="flex:1; margin:0"
-          >Add all ${plural(fresh.length, 'new card', 'new cards')}</button>
-        ${tipMark('setAddAll', 'Adding all the new cards')}</div>` : ''}
+          >Weave in all ${plural(fresh.length, 'new thread', 'new threads')}</button>
+        ${tipMark('setAddAll', 'Weaving in all the new threads')}</div>` : ''}
       <div style="display:flex; flex-direction:column; gap:9px">${fresh.map(proposalCard).join('')}</div>` : ''}
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Who is in it${
         tipMark('setWho', 'Who is in it')}</div>
-      ${tipCard('setWho', 'Who is in it', `<p>Ticked means it is sent for this chapter whether or not
-        anyone says its name. Unticking an always-on entry holds it back for this chapter only. Both
-        cost or save their canon on every call, so tick what is actually in the room.</p>`)}
-      <input class="field" id="setupQ" aria-label="Find a thread in this story's ledger"
+      ${tipCard('setWho', 'Who is in it', `<p>Ticked means it is sent for this scene whether or not
+        anyone says its name. Unticking an always-on thread leaves it out for this scene only. Each
+        one costs space on every call, so tick what is actually in the scene.</p>`)}
+      <input class="field" id="setupQ" aria-label="Find a thread in this tale"
         value="${esc(S.setupQ ?? '')}"
-        placeholder="Find someone or something in this story's ledger">
+        placeholder="Find someone or something in this tale's threads">
       <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Who</div>
       ${cast.length ? cast.map((e) => row(e, 'pin')).join('')
         : `<div class="hint" style="margin:0">${q ? 'Nobody matches that.' : 'No characters yet.'}</div>`}
       <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Where, and what</div>
       ${places.length ? places.map((e) => row(e, 'place')).join('')
         : `<div class="hint" style="margin:0">${q ? 'Nothing matches that.' : 'No threads yet.'}</div>`}
-      <div class="hint">The story's setting is in the spine on every call regardless
+      <div class="hint">The tale's setting is sent on every call regardless
         &mdash; ${esc(V.story.setting || 'not set')}.</div>
       <button class="btn" data-savesetup="1" style="margin-top:16px">Start writing</button>
     </div>`;
@@ -5128,8 +5130,8 @@ function setupPanel() {
     ${rail}
     ${closedRow}
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(sceneName(ch))}${
-      tipMark('setNext', 'Setting up the next chapter')}</div>
-    ${tipCard('setNext', 'Setting up the next chapter', `<p>Nothing here is required. Leave it and
+      tipMark('setNext', 'Setting up the next scene')}</div>
+    ${tipCard('setNext', 'Setting up the next scene', `<p>Nothing here is required. Leave it and
       write.</p>`)}
 
     <label class="lbl" for="f-setup-title">Title</label>
@@ -5140,21 +5142,21 @@ function setupPanel() {
          write below fires the chapter's FIRST passage, which is the only passage this box is sent
          for. Set it in the Chapter panel afterwards and the opening it describes has already been
          written. -->
-    <label class="lbl" for="f-setup-opens">How it starts</label>
+    <label class="lbl" for="f-setup-opens">Opens with</label>
     <textarea class="field grow" id="f-setup-opens" data-setup="opens" style="min-height:62px; max-height:30vh"
       placeholder="${S.naming ? 'and where it opens…' : 'Who is there, where, and what is already under way'}"
       >${esc(form.opens ?? '')}</textarea>
     <div class="hint">${(form.opens ?? '').trim()
-      ? 'Sent for the first passage of this chapter, and then not again.'
+      ? 'Sent for the first passage of this scene, and then not again.'
       : '<strong>Not set.</strong> The first passage will open wherever the prose left off.'}</div>
 
-    <label class="lbl" for="f-setup-note">Where it ends</label>
+    <label class="lbl" for="f-setup-note">Heads toward</label>
     <textarea class="field grow" id="f-setup-note" data-setup="note" style="min-height:80px; max-height:40vh"
-      placeholder="${S.naming ? 'and saying where it goes…' : 'Where this chapter has to end up'}"
+      placeholder="${S.naming ? 'and saying where it goes…' : 'Where this scene is going, eventually'}"
       >${esc(form.note)}</textarea>
     <div class="hint">${form.note.trim()
-      ? 'Sent as the chapter&rsquo;s direction on every call &mdash; not as a thing to do now.'
-      : '<strong>Not set.</strong> Sent as the chapter&rsquo;s direction when it is.'}</div>
+      ? 'Sent on every call as where the scene is going &mdash; not as a thing to do now.'
+      : '<strong>Not set.</strong> Sent on every call as where the scene is going, once it is.'}</div>
 
     <!-- THE OPTION TO INFLUENCE. Seth: "title and premise should be together with the option to
          influence." It was one button that took whatever came back. A steer is the difference
@@ -10403,7 +10405,7 @@ document.addEventListener('click', async (e) => {
       S.confirmEnd = true;
       const lbl = t.querySelector('.lbl-txt'), was = lbl?.textContent;
       if (lbl) lbl.textContent = 'Press again';
-      toast('Press again to close this chapter — it summarises it, reads it for facts and opens the next.');
+      toast('Press again to hem this scene — it summarises it, reads it for facts and opens the next.');
       setTimeout(() => { if (S.confirmEnd) { S.confirmEnd = false; if (lbl) lbl.textContent = was; } }, 4000);
       return;
     }
@@ -10413,7 +10415,7 @@ document.addEventListener('click', async (e) => {
     // the people in it, reads it for facts, and asks which threads it finished — all on the same
     // terms: "on close rather than on a button nobody remembers". Each is wrapped server-side so a
     // chapter can still close with the model down, and the screen says which one did not run.
-    S.ritual = 'Closing, summarising, reading it…'; paint();
+    S.ritual = 'Hemming: summarising, reading it…'; paint();
     const closing = V.currentChapter;
     const r = await api.endChapter(S.storyId, {});
     if (r.error) { S.ritual = null; working(null); paint(); return toast(r.error); }
@@ -10450,9 +10452,9 @@ document.addEventListener('click', async (e) => {
     const missed = missedPasses();
     // #46. A summary that was yours is kept, not re-run, and that is said rather than left silent.
     const kept = r.keptSummary ? ' Kept your summary.' : '';
-    if (missed.length) toast(`Chapter closed, but ${missed.map((m) => m.label).join(' and ')} `
+    if (missed.length) toast(`Scene hemmed, but ${missed.map((m) => m.label).join(' and ')} `
       + `did not run — ${missed[0].why}${kept}`);
-    else if (kept) toast('Chapter closed — kept your summary.');
+    else if (kept) toast('Scene hemmed — kept your summary.');
     // THE OPENING PASSAGE IS NOT WRITTEN HERE ANY MORE — see `savesetup`. The beat rides near the
     // generation point on every call of a chapter, and writing its first passage from this line
     // wrote the one passage in the chapter that could not have it.
@@ -10465,8 +10467,8 @@ document.addEventListener('click', async (e) => {
     if (!r) return;
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint();
-    return toast(r.proposed ? `${r.proposed} proposed as finished, of ${r.eligible} this chapter names`
-                            : `Nothing finished, of ${r.eligible ?? 0} this chapter names`);
+    return toast(r.proposed ? `${r.proposed} basted to be hemmed, of ${r.eligible} this scene names`
+                            : `Nothing to hem, of ${r.eligible ?? 0} this scene names`);
   }
   // #43. A summary by hand. Saving it empty removes it, which is the one press here that loses
   // words, so it takes two.

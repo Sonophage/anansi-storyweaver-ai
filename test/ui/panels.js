@@ -50,11 +50,11 @@ const chapter = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 // with": how it starts reaches the model for the first passage only, where it ends reaches it as a
 // direction on every call. Seth: "it tries to end the chapter early if it uses it that way."
 for (const [what, re] of [['the chapter name', /Name/],
-                          ['how it starts', /How this chapter starts/],
-                          ['where it ends', /Where this chapter ends/],
-                          ['what the chapter added', /What this chapter added/],
-                          ['the summaries', /Summaries in context/], ['branches', /Branches/],
-                          ['and closing it', /End this chapter/]]) {
+                          ['how it opens', /Opens with/],
+                          ['where it heads', /Heads toward/],
+                          ['what the scene basted', /What this scene basted/],
+                          ['the summaries', /Scene summaries/], ['branches', /Branches/],
+                          ['and hemming it', /Hem this scene/]]) {
   ok(`Chapter holds ${what}`, re.test(chapter));
 }
 // AND THE OLD DEMAND IS GONE FROM THE SURFACE TOO, not just from the prompt: the wording is what
@@ -359,8 +359,8 @@ const before = (await story()).story;
 ok("the chapter panel offers both halves of the brief and a way to have them written",
    (await page.visible('[data-chapter-opens]')) && (await page.visible('[data-chapter-note]'))
    && (await page.visible('[data-chbrief]')));
-ok("  and says which is which", /How this chapter starts/.test(await page.text('#sideBody') || '')
-   && /Where this chapter ends/.test(await page.text('#sideBody') || ''));
+ok("  and says which is which", /Opens with/.test(await page.text('#sideBody') || '')
+   && /Heads toward/.test(await page.text('#sideBody') || ''));
 await page.eval("(() => { const t = document.querySelector('[data-chapter-title]');"
   + " const n = document.querySelector('[data-chapter-note]');"
   + " const o = document.querySelector('[data-chapter-opens]');"
@@ -391,7 +391,7 @@ ok("  and taking it with you", /Take it with you/.test(storyBody));
 // old single box — and that phrase left the app entirely on 2026-09-02, so the check could no
 // longer fail. Both of the chapter's boxes are named here instead.
 ok("  but no longer the chapter's",
-   !/How this chapter starts/.test(storyBody) && !/Where this chapter ends/.test(storyBody));
+   !/Opens with/.test(storyBody) && !/Heads toward/.test(storyBody));
 ok("  and no chapter inputs are left behind on it",
    await page.eval("!document.querySelector('[data-chapter-title]')"));
 
@@ -488,7 +488,7 @@ ok("  with exactly one marked as the one you are writing",
 await page.click(`#sideBody [data-chapter]`);
 await wait(900);
 ok(`  and pressing one moves the reading column to it (${await page.text('#ctxread')})`,
-   /chapter 1 of/.test((await page.text('#ctxread')) || ''));
+   /scene 1 of/.test((await page.text('#ctxread')) || ''));
 ok("  and the panel stays open, so you can pick another",
    await page.visible('#sideBody [data-chapter]'));
 // THE FOLD IT REPLACED IS GONE, not merely unused: the tray's button opens this panel now.
@@ -657,8 +657,8 @@ for (let i = 0; i < 40 && !(await page.visible('#ctxbar')); i++) await wait(250)
 ok("  the context bar is there once the manifest is", await page.visible('#ctxbar'));
 await page.click('#ctxbar');
 await wait(400);
-ok("  with which chapter of how many behind it",
-   /chapter \d+ of \d+/i.test(await page.text('#ctxread') || ''));
+ok("  with which scene of how many behind it",
+   /scene \d+ of \d+/i.test(await page.text('#ctxread') || ''));
 await page.click('#ctxbar');
 await wait(200);
 if (v.chapters.length > 1) {
@@ -1513,7 +1513,7 @@ if (btn) {
   await wait(900);
   const waiting = (await page.text('#sideBody')) || '';
   ok(`the waiting list carries the out-of-date act (${waiting.replace(/\s+/g, ' ').slice(0, 70)})`,
-     /Short to Water is out of date/.test(waiting) && /Chapter 2/.test(waiting)
+     /Short to Water is out of date/.test(waiting) && /Scene 2/.test(waiting)
      && await page.visible('[data-dismiss="act"]'));
   await page.goto(B + "/#" + aid + "/chapter");
   await wait(900);
@@ -1522,7 +1522,7 @@ if (btn) {
   const was = await arcOf();
   ok(`  its act card offers Edit (${was?.title})`, await page.visible('[data-editarc]'));
   const note = ((await page.text('[data-arcoutofdate]')) || '').replace(/\s+/g, ' ').trim();
-  ok(`  and its card says it is out of date, naming the chapter (${note})`, /Chapter 2/.test(note));
+  ok(`  and its card says it is out of date, naming the scene (${note})`, /Scene 2/.test(note));
 
   await page.click('[data-editarc]');
   await wait(300);

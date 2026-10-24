@@ -1435,7 +1435,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.match(chapter, /Witness rite/, 'the chapter queue keeps the thread proposals');
   assert.doesNotMatch(chapter, /The debt nobody has called in/,
     'and does not also show the string, which would be two places to answer one offer');
-  assert.match(chapter, /1 string proposed &mdash; they wait under Strings/,
+  assert.match(chapter, /1 string basted &mdash; they wait under Strings/,
     'it says where the string went rather than silently dropping it from the count');
   ok('a proposed string waits under Strings, and the chapter queue says so');
 
@@ -1478,7 +1478,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   click({ pkind: 'changed' });
   await new Promise((r) => setTimeout(r, 30));
   const onlyChanged = html('sideBody');
-  const landsAt = onlyChanged.indexOf('Lands in appearance');
+  const landsAt = onlyChanged.indexOf('Lands in the appearance pocket');
   const bodyAt = onlyChanged.indexOf('data-pbody');
   assert.ok(landsAt > -1 && bodyAt > -1, 'the card says where it lands and offers the body');
   assert.ok(landsAt < bodyAt, 'and says where it lands BEFORE the words that will land there');
@@ -4245,7 +4245,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   STORY.currentChapter.id = 'c-3';
   click({ panel: 'setup' });
   await new Promise((r) => setTimeout(r, 30));
-  assert.match(html('sideBody'), /closed, kept your summary/, '  and the row for the chapter that closed says it');
+  assert.match(html('sideBody'), /hemmed, kept your summary/, '  and the row for the scene that was hemmed says it');
   STORY.currentChapter.id = 'c-2';
   click({ panel: 'ritual' });
   await new Promise((r) => setTimeout(r, 30));
