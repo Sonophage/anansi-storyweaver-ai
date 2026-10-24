@@ -1698,7 +1698,7 @@ export const routes: Record<string, Handler> = {
     const found = await fromCatalogue(() => catalogueEntry(id.slice(REMOTE_PREFIX.length)));
     if (found && 'error' in found) return found;
     if (!found) return { error: `Featherless does not list "${id.slice(REMOTE_PREFIX.length)}"` };
-    // The floor (a model whose entry gives no context is under it) and the 4-unit gate: the same
+    // The floor (a model whose entry gives no context is under it) and the unit gate: the same
     // predicate the search uses, so what the search hides is what this refuses — and refused
     // BEFORE the probe, so a refusal spends none of the plan.
     const no = refusal(found);
@@ -1728,7 +1728,7 @@ export const routes: Record<string, Handler> = {
     db.addToShortlist(c.owner, id, found.context, weavingFound(found, answer, takes), found.cost, takes);
     return { models: db.shortlistOf(c.owner) };
   },
-  /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the 4-unit gate, the sort — is in
+  /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the unit gate, the sort — is in
    *  src/catalogue.ts; this only reads the query. `uncensored=0` is the one way to turn the
    *  default filter off. */
   'GET /api/catalogue': async (c: Ctx) => {

@@ -871,7 +871,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   await catalogue(Date.now() + CATALOGUE_TTL_MS + 60_000);
   assert.strictEqual(catReads.length, reads + 1, 'a day on, it is');
   assert.strictEqual(catReads.length, 2, 'and the searches above never read it themselves');
-  ok('the search filters, combines, sorts non-weaving first, holds the 16k floor and the 4-unit gate');
+  ok('the search filters, combines, sorts non-weaving first, holds the 16k floor and the unit gate');
 }
 
 // ---- 12b. the weaving guess for the big families, from the classes Featherless really sends ----
@@ -922,11 +922,12 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ];
   const rows = FAMILIES.map(([id, modelClass]) => ({ id, modelClass, context: 32768, cost: 1 }));
   const found = search(rows, { uncensored: false }, '');
-  // The 4-unit gate's detector: BIG's own row is shown at 2 units and hidden at 4.
+  // The unit gate's detector: BIG's own row is shown at 2 units and hidden at 3 and 4.
   const priced = (cost: number) => search([{ id: BIG, modelClass: 'llama33-70b', context: 32768, cost }],
     { uncensored: false }, '').models.map((m) => m.id);
   assert.deepStrictEqual(priced(2), [BIG], 'the detector: the same row at 2 units is shown');
   assert.deepStrictEqual(priced(4), [], 'GATE: at 4 units it is hidden, whoever asks');
+  assert.deepStrictEqual(priced(3), [], 'GATE: and at 3, which leaves the other writer one unit');
   const got = new Map(found.models.map((m) => [m.id, m.weaving]));
   for (const [id, modelClass, want] of FAMILIES)
     assert.strictEqual(got.get(id), want, `${id} (${modelClass}) is guessed "${want}"`);
@@ -997,7 +998,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
 
   // THE GATE, ON ADD. Refused before the probe, so a refusal spends none of the plan.
   const big = await add(BIG);
-  assert.match(String(big.r.error), /whole Featherless plan/, 'GATE: adding a 4-unit model as a writer is refused');
+  assert.match(String(big.r.error), /half the Featherless plan/, 'GATE: adding a 4-unit model as a writer is refused');
   assert.strictEqual(big.probes.length, 0, 'and no call is spent finding that out');
   assert.ok(!entry(BIG), 'and it is not stored');
   const under = await add('edge/Under-16k-heretic');
@@ -1007,13 +1008,13 @@ const mark = () => ({ fl: fl.length, local: local.length });
     'NO-CONTEXT: a model whose entry does not say what it holds is refused, even for the admin');
   assert.strictEqual(blind.probes.length, 0, 'and no call is spent finding that out');
   const admin = await add(BIG, true);
-  assert.match(String(admin.r.error), /whole Featherless plan/, 'GATE: the admin is refused a 4-unit model too');
+  assert.match(String(admin.r.error), /half the Featherless plan/, 'GATE: the admin is refused a 4-unit model too');
   assert.strictEqual(admin.probes.length, 0, 'with no call spent');
   assert.ok(!entry(BIG), 'and it is not stored');
   ok('adding probes once with weaving off, stores the label and the cost, and holds the gate');
 }
 
-// ---- 14. tags for the result rows: one batched call, cached, and never the 4-unit gate's hole ----
+// ---- 14. tags for the result rows: one batched call, cached, and never the unit gate's hole ----
 {
   const BIG_ID = `featherless:${BIG}`, STUB_ID = `featherless:${STUBBORN}`;
   const tagsOf = async (models: string[], admin = false) => {

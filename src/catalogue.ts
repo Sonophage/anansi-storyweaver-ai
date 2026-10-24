@@ -56,11 +56,12 @@ export const catalogueEntry = async (featherlessId: string) =>
  *  that does not say what it holds is under the floor too: budgeting needs the number. */
 const MIN_CONTEXT = 16_384;
 
-/** THE PLAN IS 4 UNITS, and a model that costs 4 takes all of it: while one writer uses it the
- *  other cannot write at all. Nobody may add one, the admin included (Seth, 2026-10-23, removing
- *  his own three so the background work can follow the writer's model). A row that does not say
- *  its cost is treated as the worst case — the gate fails closed. */
-const WHOLE_PLAN = 4;
+/** THE PLAN IS 4 UNITS, and every model either writer uses must leave room for the other: at most
+ *  half, 2 units. A 4-unit model took the whole plan, and a 3-unit one leaves a single unit, which
+ *  no 2-unit model fits in. Nobody may add one, the admin included (Seth, 2026-10-23, removing his
+ *  own three so the background work can follow the writer's model). A row that does not say its
+ *  cost is treated as the worst case — the gate fails closed. */
+const HALF_PLAN = 2;
 
 /** Why `row` cannot go on this writer's shortlist, or null when it can. ONE PREDICATE for the
  *  search and the add, so the search never offers what the add would refuse. */
@@ -68,9 +69,9 @@ export function refusal(row: CatalogueRow): string | null {
   if (!row.context || row.context < MIN_CONTEXT)
     return `this model holds ${row.context ? row.context.toLocaleString('en') : 'an unknown number of'}`
       + ` tokens, and Anansi needs at least ${MIN_CONTEXT.toLocaleString('en')}`;
-  if (row.cost == null || row.cost >= WHOLE_PLAN)
-    return 'this model takes the whole Featherless plan, so no other writer could write '
-      + 'while it runs';
+  if (row.cost == null || row.cost > HALF_PLAN)
+    return 'this model takes more than half the Featherless plan, so the other writer could not '
+      + 'write while it runs';
   return null;
 }
 

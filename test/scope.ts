@@ -1690,12 +1690,12 @@ async function bootServer(port: number, env: Record<string, string>) {
     'and neither is any other writer');
   ok('the catalogue search is open, and shows a 4-unit model to nobody');
 
-  // DESCRIBING A MODEL: the tags of a page of rows, and one expanded card. The same 4-unit gate,
+  // DESCRIBING A MODEL: the tags of a page of rows, and one expanded card. The same unit gate,
   // so a model the search hides cannot be found out through its description — and the hub is not
   // even asked about it.
   const WHOLE = 'featherless:someone/Whole-Plan-70B-abliterated', SMALL = 'featherless:someone/Small-heretic';
   for (const r of ['POST /api/catalogue/tags', 'GET /api/catalogue/card'])
-    assert.ok(OPEN_ROUTES.has(r), `${r} names no story, so it is open and asks the 4-unit question itself`);
+    assert.ok(OPEN_ROUTES.has(r), `${r} names no story, so it is open and asks the unit question itself`);
   const describe = (admin: boolean) => ({
     tags: async () => (await routes['POST /api/catalogue/tags']({ ...ctx(bob, { models: [WHOLE, SMALL] }), admin }) as any).tags,
     card: async () => routes['GET /api/catalogue/card']({ ...ctx(bob), query: new URLSearchParams({ model: WHOLE }), admin }) as any,
@@ -1709,7 +1709,7 @@ async function bootServer(port: number, env: Record<string, string>) {
   assert.ok(!hubAsked.some((p) => p.includes('Whole-Plan')), 'and the hub is never asked about it for anyone');
   assert.ok(hubAsked.some((p) => p.includes('Small-heretic')),
     'while it was asked about the model beside it, so the refusals above are the gate and not a dead hub');
-  ok('describing a catalogue model holds the same 4-unit gate as the search');
+  ok('describing a catalogue model holds the same unit gate as the search');
 }
 
 // ---- A NEW CARD'S DESCRIPTION LANDS IN `facts`, NOT IN THE BODY (issue #39, 2026-09-01).
