@@ -16,11 +16,37 @@ const sid = await page.eval("(async () => (await (await fetch('/api/stories')).j
 const ready = async () => { for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('#rail')")); i++) await wait(250); await wait(700); };
 let n = 0;
 
+/* THE WORDS ON SCREEN, for bench/words.ts. Every visible text node and every title, aria-label,
+ * placeholder and option label, once per surface at desk width. The prose is left out — a
+ * passage's own words are the writer's, not the app's — so `#col .block` and form values are not
+ * read. Written to text.json beside the shots. */
+const TEXT = {};
+const words = async (name) => {
+  TEXT[name] = await page.eval(`(() => {
+    const out = [];
+    const seen = (el) => el && el.checkVisibility ? el.checkVisibility() : true;
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let t; (t = w.nextNode());) {
+      const el = t.parentElement;
+      if (!el || el.closest('script,style,textarea,#col .block') || !seen(el)) continue;
+      const s = t.textContent.replace(/\\s+/g, ' ').trim();
+      if (s) out.push(s);
+    }
+    for (const el of document.querySelectorAll('[title],[aria-label],[placeholder],option')) {
+      if (el.tagName !== 'OPTION' && !seen(el)) continue;
+      for (const a of ['title', 'aria-label', 'placeholder']) if (el.getAttribute(a)) out.push(el.getAttribute(a));
+      if (el.tagName === 'OPTION') out.push(el.textContent.trim());
+    }
+    return out;
+  })()`);
+};
+
 /** Every size, and down the scroller in parts. `scroller` is the element that scrolls: the side
  *  panel's body, or the workspace page. The book's prose is shot at its resting place only. */
 const snap = async (name, scroller) => {
   for (const [tag, w, h] of SIZES) {
     await page.viewport(w, h); await wait(400);
+    if (tag === 'desk') await words(name);
     if (scroller) await page.eval(`(() => { const e = document.querySelector('${scroller}'); if (e) e.scrollTop = 0; return 1; })()`);
     await wait(150);
     await page.shot(`${OUT}/${name}--${tag}.png`, [w, h]); n++;
@@ -75,6 +101,7 @@ for (const [tag, w, h] of SIZES) {
   await page.viewport(w, h); await wait(400);
   await page.eval("(() => { const b = document.querySelector('#col .block.newest') || document.querySelector('#col .block'); b?.dispatchEvent(new MouseEvent('dblclick',{bubbles:true})); return 1; })()");
   await wait(600);
+  if (tag === 'desk') await words('s-tray');
   await page.shot(`${OUT}/s-tray--${tag}.png`, [w, h]); n++;
 }
 
@@ -82,6 +109,7 @@ for (const [tag, w, h] of SIZES) {
 await book('');
 await page.viewport(390, 844); await wait(400);
 await press('[data-railview="story"]');
+await words('s-menu');
 await page.shot(`${OUT}/s-menu--phone.png`, [390, 844]); n++;
 
 // THE WIZARD, every step. Spark and its helpers are answered in the page with a fixed skeleton,
@@ -116,5 +144,7 @@ for (const [k, label] of steps) {
   await snap(`w-create-${k}-${label.toLowerCase().replace(/[^a-z]+/g, '-')}`, '#page');
 }
 
+const { writeFileSync } = await import('node:fs');
+writeFileSync(`${OUT}/text.json`, JSON.stringify(TEXT, null, 1));
 console.log(`  ${steps.length ? 'ok  ' : 'FAIL'} ${n} screenshots in ${OUT}, ${steps.length} wizard steps`);
 console.log(steps.length ? '\n  all green' : '\n  1 RED');
