@@ -338,7 +338,12 @@ export const budgetFor = (story: any, slot: Slot, maxTokens = 900) => {
  *  whose runs start landing ON the ceiling — `finish_reason: 'length'`, which the writer is now
  *  told about, so it will be noticed rather than inferred. */
 export const capFor = (targetWords: number) =>
-  targetWords > 0 ? Math.min(Math.max(Math.round(targetWords * 1.4 * 2), 900), 2000) : 900;
+  targetWords > 0 ? Math.min(Math.max(Math.round(targetWords * 1.4 * 2), 900), MAX_TARGET_WORDS * 1.4 * 2) : 900;
+
+/** The longest passage the length slider asks for. 2,000 since 2026-10-24 (Seth, for Kimi K2.5; it
+ *  was 1,000), so the ceiling `capFor` derives tops out at 5,600 tokens. That comes out of the
+ *  book's own budget, not on top of the slot. */
+export const MAX_TARGET_WORDS = 2000;
 
 /** The shipped wording of every editable mode, rendered with its placeholders left in.
  *

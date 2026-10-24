@@ -10,6 +10,22 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-24 · Longer passages, and room for a big model to plan
+
+### Passages up to 2,000 words
+The Passage length slider now goes up to 2,000 words. It was 1,000. A longer passage leaves a
+little less room for the rest of the book in what the model reads.
+
+### A big model gets twice the room to weave
+A Featherless model that holds more of a book than this machine does, like Kimi K2.5, now gets
+10,000 tokens to plan in when the book weaves, not 5,000. Models that hold 32,768 tokens keep the
+5,000.
+
+### The admin can add a model that takes the whole plan
+The admin can add a Featherless model that takes three or all four of the plan's units again.
+While the admin writes with one, the other writer waits. Every other writer still sees only
+models that take two units or fewer.
+
 ## 2026-10-23 · Featherless when it is full, and a chapter keeps its own name
 
 ### Summaries, cards and new books use your model

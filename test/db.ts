@@ -492,14 +492,16 @@ ok('the ceiling is derived from the target, and never sits under what the model 
   assert.strictEqual(story.capFor(200), 900, 'a small target must not lower the ceiling');
   // Above the floor it tracks the target at 2x, which sits above the observed spread.
   assert.strictEqual(story.capFor(400), 1120);
-  // And it is clamped, because the slot is shared: two writers at full budget fit with ~5,700
-  // tokens of margin and oversubscribing does not queue, it returns 500 to both.
-  assert.strictEqual(story.capFor(1000), 2000, 'the outer clamp still holds');
+  // And it is clamped at the slider's own end, 2,000 words since 2026-10-24: the ceiling comes out of
+  // the book's budget, so a longer one leaves less room for the book and never oversubscribes.
+  assert.strictEqual(story.capFor(1000), 2800, 'a 1,000-word target is no longer clamped');
+  assert.strictEqual(story.capFor(2000), 5600);
+  assert.strictEqual(story.capFor(5000), 5600, 'the outer clamp still holds');
   // The property that matters more than any single number: the ceiling is never below the floor
   // and never above the clamp, for every target the slider can produce.
-  for (let w = 0; w <= 1000; w += 10) {
+  for (let w = 0; w <= story.MAX_TARGET_WORDS; w += 10) {
     const cap = story.capFor(w);
-    assert.ok(cap >= 900 && cap <= 2000, `capFor(${w}) = ${cap} escaped the bounds`);
+    assert.ok(cap >= 900 && cap <= 5600, `capFor(${w}) = ${cap} escaped the bounds`);
     // Headroom, stated as the thing the bug was: the ceiling must leave room ABOVE the target it
     // was derived from, or it is a guillotine again wearing a different number.
     assert.ok(cap > w * 1.4, `capFor(${w}) leaves no room above its own target`);

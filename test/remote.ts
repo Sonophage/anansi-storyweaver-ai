@@ -26,8 +26,8 @@ process.env.ANANSI_FEATHERLESS_BACKOFF_MS = '10,10,10';
 const REMOTE = 'llmfan46/Qwen3.6-35B-A3B-uncensored-heretic';
 const SMALL = 'someone/Tiny-Ctx-heretic';
 const NOT_LISTED = 'nobody/Not-In-The-Catalogue';
-// Takes the whole plan: refused to every writer, the admin too. Uncensored, so the default search
-// would show it to anyone without the gate.
+// Takes the whole plan: the admin alone may add it. Uncensored, so the default search would show it
+// to anyone without the gate.
 const BIG = 'mlabonne/Llama-3.3-70B-Instruct-abliterated';
 // Guessed "can switch" from its class, and plans anyway when asked not to: the probe's case.
 const STUBBORN = 'liar/Gemma-4-31B-UNCENSORED';
@@ -869,10 +869,10 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const ids = (r: any) => r.models.map((m: any) => m.id.replace('featherless:', ''));
 
   const all = await find();
-  // THE 4-UNIT GATE. Its detector is in the pure search below: the same row at 2 units is shown, so
-  // BIG is hidden by its cost and not lost for some other reason.
-  assert.ok(!ids(await find('', true)).includes(BIG), 'GATE: not even the admin is shown a 4-unit model');
-  assert.ok(!ids(all).includes(BIG), 'GATE: no writer is ever shown a 4-unit model');
+  // THE 4-UNIT GATE. The detector first: the admin's search must see BIG, or "nobody else sees it"
+  // could be a model the search lost for some other reason.
+  assert.ok(ids(await find('', true)).includes(BIG), 'the admin is shown the model that takes the whole plan');
+  assert.ok(!ids(all).includes(BIG), 'GATE: no one else is ever shown a 4-unit model');
   assert.ok(!ids(await find('q=llama&uncensored=0')).includes(BIG), 'GATE: not even by name');
   assert.ok(all.models.every((m: any) => m.id.startsWith('featherless:')),
     'every row carries the prefixed id the shortlist takes');
@@ -967,13 +967,14 @@ const mark = () => ({ fl: fl.length, local: local.length });
     ['nobody/No-Class-At-All', null, 'not tried yet'],
   ];
   const rows = FAMILIES.map(([id, modelClass]) => ({ id, modelClass, context: 32768, cost: 1 }));
-  const found = search(rows, { uncensored: false }, '');
+  const found = search(rows, { uncensored: false }, false, '');
   // The unit gate's detector: BIG's own row is shown at 2 units and hidden at 3 and 4.
-  const priced = (cost: number) => search([{ id: BIG, modelClass: 'llama33-70b', context: 32768, cost }],
-    { uncensored: false }, '').models.map((m) => m.id);
+  const priced = (cost: number, admin = false) => search([{ id: BIG, modelClass: 'llama33-70b', context: 32768, cost }],
+    { uncensored: false }, admin, '').models.map((m) => m.id);
   assert.deepStrictEqual(priced(2), [BIG], 'the detector: the same row at 2 units is shown');
   assert.deepStrictEqual(priced(4), [], 'GATE: at 4 units it is hidden, whoever asks');
   assert.deepStrictEqual(priced(3), [], 'GATE: and at 3, which leaves the other writer one unit');
+  assert.deepStrictEqual(priced(4, true), [BIG], 'the admin, who pays for the plan, is shown it at 4');
   const got = new Map(found.models.map((m) => [m.id, m.weaving]));
   for (const [id, modelClass, want] of FAMILIES)
     assert.strictEqual(got.get(id), want, `${id} (${modelClass}) is guessed "${want}"`);
@@ -985,11 +986,11 @@ const mark = () => ({ fl: fl.length, local: local.length });
     'the filter offers the untried guess as a label of its own, last');
   assert.deepStrictEqual(found.models.slice(-6).map((m) => m.weaving), Array(6).fill('not tried yet'),
     'and the untried come after every model whose weaving is known');
-  const untried = search(rows, { uncensored: false, weaving: 'not tried yet' }, '');
+  const untried = search(rows, { uncensored: false, weaving: 'not tried yet' }, false, '');
   assert.deepStrictEqual(untried.models.map((m) => m.id).sort(),
     FAMILIES.filter(([, , w]) => w === 'not tried yet').map(([id]) => id).sort(),
     'the weaving filter picks out exactly the untried');
-  const never = search(rows, { uncensored: false, weaving: "doesn't weave" }, '');
+  const never = search(rows, { uncensored: false, weaving: "doesn't weave" }, false, '');
   assert.ok(!never.models.some((m) => /Kimi-K3|MiniMax-M3|Step-3|No-Class|Magistral/.test(m.id)),
     "and none of them is filed under doesn't weave");
   ok('a family nobody has tried is labelled not tried yet, filtered and sorted as its own label');
@@ -1054,9 +1055,8 @@ const mark = () => ({ fl: fl.length, local: local.length });
     'NO-CONTEXT: a model whose entry does not say what it holds is refused, even for the admin');
   assert.strictEqual(blind.probes.length, 0, 'and no call is spent finding that out');
   const admin = await add(BIG, true);
-  assert.match(String(admin.r.error), /half the Featherless plan/, 'GATE: the admin is refused a 4-unit model too');
-  assert.strictEqual(admin.probes.length, 0, 'with no call spent');
-  assert.ok(!entry(BIG), 'and it is not stored');
+  assert.ok(!admin.r.error, admin.r.error);
+  assert.strictEqual(entry(BIG).cost, 4, 'the admin can add it, and its cost is recorded');
   ok('adding probes once with weaving off, stores the label and the cost, and holds the gate');
 }
 
@@ -1130,7 +1130,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
 
   const big = await card(`featherless:${BIG}`);
   assert.ok(big.error, 'GATE: a writer cannot read the card of a model the search hides from them');
-  assert.ok((await card(`featherless:${BIG}`, true)).error, 'GATE: and neither can the admin');
+  assert.ok(!(await card(`featherless:${BIG}`, true)).error, 'the admin can');
   assert.ok((await card('featherless:nobody/Not-In-The-Catalogue')).error,
     'a model the catalogue does not list is refused');
   assert.ok((await card('featherless:../../etc/passwd')).error, 'and so is a path that is not a repo');
@@ -1419,6 +1419,33 @@ const mark = () => ({ fl: fl.length, local: local.length });
   await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
   assert.strictEqual(chats().at(-1)!.body.max_tokens, 400, 'and its passage is sent the writer\'s 400');
   ok('a model that always weaves gets the raised cap with the switch off, in the view, a passage and Talk');
+}
+
+// ---- 22b. a model that holds more than the slot gets twice weaving's room (2026-10-24) ----
+//
+// Kimi K2.5 holds 262,144 tokens and its budget is still the 50,048 slot, so the extra room does
+// not crowd out the book. A 32k model in the same book keeps the 5,000.
+{
+  const w = db.owner('roomy-writer');
+  const HUGE = 'featherless:someone/Kimi-Like-262k';
+  db.addToShortlist(w, HUGE, 262144, 'can switch', 4, true);
+  assert.ok(!(await routes['POST /api/shortlist'](ctx(w, { model: ID }))).error);
+  const book = db.createStory(w, { title: 'Roomy' });
+  db.addPassage({ ...book, storyId: book.id, body: 'The tide went out and stayed out.' });
+  const set = (story: any) => routes['POST /api/story'](ctx(w, { id: book.id, story }));
+  const sent = async () => {
+    fl.length = 0;
+    const g = await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
+    assert.ok(!g.error, g.error);
+    return Number(chats().at(-1)!.body.max_tokens);
+  };
+  await set({ model: HUGE, weaving: true });
+  assert.strictEqual(await sent(), 10400, 'ROOMY: a weaving passage on a 262k model gets 400 plus 10,000');
+  await set({ model: ID });
+  assert.strictEqual(await sent(), 5400, 'the control: the same book on a 32k model gets 400 plus 5,000');
+  await set({ model: HUGE, weaving: false });
+  assert.strictEqual(await sent(), 400, 'and with weaving off the big model gets no room at all');
+  ok('a model that holds more than the slot gets twice the weaving room, and a 32k one does not');
 }
 
 // ---- 23. on a 32k model, weaving's room refuses where the local slot would not (#58) ----

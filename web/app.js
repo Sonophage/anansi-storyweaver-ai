@@ -3981,7 +3981,7 @@ const PANELS = {
         'How far the model will reach for a less obvious word. Prose only — structured roles run pinned at 0.2, because a loose sampler under a tight grammar writes valid JSON that says nothing.')}
       ${slider('Focus', 'top_p', g.top_p ?? 0.95, 1,
         'How much of the field it considers at all. Lower is tighter and more predictable.')}
-      ${slider('Passage length', 'target_words', g.target_words ?? 0, 1000,
+      ${slider('Passage length', 'target_words', g.target_words ?? 0, 2000,
         'Roughly how long a passage should run. Anansi aims for it and is allowed to come in under '
         + 'it — she is not cut off at it. All the way left leaves the length to her, which is how '
         + 'every book here was written until now.')}

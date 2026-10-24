@@ -471,5 +471,19 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
   ok('an overflow on a model that always weaves offers only another model');
 }
 
+// ---- THE LENGTH SLIDER'S END. 2,000 words since 2026-10-24, and the ceiling it derives follows it.
+{
+  const set = async (target_words: number) => {
+    const c = ctx({ target_words });
+    c.setGen = (g: any) => { c.gen = { ...c.gen, ...g }; };
+    return (await routes['POST /api/settings'](c) as any).gen;
+  };
+  const top = await set(2000);
+  assert.strictEqual(top.target_words, 2000, 'LENGTH: a 2,000-word target is kept');
+  assert.strictEqual(top.max_tokens, 5600, 'LENGTH: and its ceiling is 5,600 tokens');
+  assert.strictEqual((await set(9000)).target_words, 2000, 'LENGTH: past the end it is held at 2,000');
+  ok('the length slider reaches 2,000 words, and the ceiling follows it');
+}
+
 console.log(`\n${n} checks passed`);
 srv.close();

@@ -9,7 +9,7 @@ import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCH
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
-import { view, assemble, budgetFor, capFor, clean, defaultModePrompts, trimToSentence,
+import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultModePrompts, trimToSentence,
          voiceOf, anansiOf, estimate } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
@@ -160,11 +160,20 @@ const weaveNote = (c: Ctx, v: { story: any; owner?: string }) =>
  *  the Context panel's preview and the warm all read this, so the panel shows the budget the call
  *  is going to use and the warm sends the prefix the call is going to send. A second copy of this arithmetic is how those drift apart, the
  *  failure `inherit`'s note names for the mode and the directive. */
-const replyFor = (c: Ctx, v: { story: any }, role: string, cap: number) => {
+const replyFor = (c: Ctx, v: { story: any; owner?: string }, role: string, cap: number) => {
   const weaves = role in WEAVE_ROOM && bookWeaves(c, v);
-  const room = weaves ? WEAVE_ROOM[role] : 0;
+  const room = weaves ? WEAVE_ROOM[role] * (roomy(c, v) ? 2 : 1) : 0;
   return { weaves, room, maxTokens: cap + room };
 };
+
+/** Whether the book's model holds more than the writer's slot: a big remote model (Kimi K2.5 holds
+ *  262,144). Its weaving room is doubled, because its budget is the slot, not a 32k context, so the
+ *  extra room does not crowd out the book (Seth, 2026-10-24, "allow its response to be bigger").
+ *
+ *  ponytail: a flat 2x, not measured: no big model has a recorded plan yet. The trigger is the same
+ *  as WEAVE_ROOM's: a recorded `plan` near the doubled room, or a weaving call cut at its cap. */
+const roomy = (c: Ctx, v: { owner?: string; story: any }) =>
+  (heldFor(c, v, writerModel(c, v))?.context ?? 0) > c.slot.perSlot;
 
 /** The prose cap the writer's sampler holds: derived from the target length by `capFor`. */
 const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
@@ -291,11 +300,12 @@ export const OPEN_ROUTES = new Set([
   // A writer's own shortlist of remote models. Names no story; every read and write takes c.owner,
   // so another writer's list cannot be named. test/scope.ts proves it with two owners.
   'GET /api/shortlist', 'POST /api/shortlist', 'POST /api/shortlist/remove',
-  // The Featherless catalogue. Names no story and holds nothing of anyone's, and it answers every
-  // writer the same: `refusal` hides a model that takes the whole plan from all of them.
+  // The Featherless catalogue. Names no story and holds nothing of anyone's; what differs by
+  // writer is the admin question, which `refusal` asks of c.admin: only the admin sees a model over
+  // half the plan.
   'GET /api/catalogue',
   // What a catalogue model is, from Hugging Face. The same: nothing of anyone's, and the handler
-  // asks `refusal` so a model hidden from the search cannot be described either.
+  // asks `refusal` with c.admin so a model hidden from the search cannot be described either.
   'POST /api/catalogue/tags', 'GET /api/catalogue/card',
   // Names no story — it is about the FORMAT, not about a book. Open means the gate does not run, so
   // the handler asks the admin question itself; that check is the whole of its protection.
@@ -364,7 +374,7 @@ const describable = async (c: Ctx, ids: unknown[]) => {
   if ('error' in rows) return rows;
   const byId = new Map(rows.map((r) => [r.id, r]));
   return ids.map(String).filter(isRemote).map((id) => ({ id, row: byId.get(id.slice(REMOTE_PREFIX.length)) }))
-    .filter((x) => x.row && !refusal(x.row) && isRepo(x.row.id))
+    .filter((x) => x.row && !refusal(x.row, c.admin) && isRepo(x.row.id))
     .map((x) => ({ id: x.id, repo: x.row!.id }));
 };
 
@@ -1711,7 +1721,7 @@ export const routes: Record<string, Handler> = {
     // The floor (a model whose entry gives no context is under it) and the unit gate: the same
     // predicate the search uses, so what the search hides is what this refuses — and refused
     // BEFORE the probe, so a refusal spends none of the plan.
-    const no = refusal(found);
+    const no = refusal(found, c.admin);
     if (no) return { error: no };
     // THE PROBE. One tiny call with weaving off: a model that plans anyway cannot be switched off,
     // and the label the writer reads should say what it did rather than what its class suggests.
@@ -1746,7 +1756,7 @@ export const routes: Record<string, Handler> = {
     if ('error' in rows) return rows;
     const q = c.query;
     return searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
-      weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0' }, REMOTE_PREFIX);
+      weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0' }, c.admin, REMOTE_PREFIX);
   },
   /** TAGS FOR A PAGE OF RESULTS, in one call. The search answers at once without them — reading
    *  Hugging Face for a hundred rows would make every keystroke wait on it — and the browser asks
@@ -4122,7 +4132,7 @@ export const routes: Record<string, Handler> = {
         // Anything under 150 is "let her decide" rather than a very short book: the slider's whole
         // left end is the off position, so there is no band where the writer sets a number and the
         // server stores a different one.
-        clean[k] = n < 150 ? 0 : Math.min(Math.round(n / 10) * 10, 1000);
+        clean[k] = n < 150 ? 0 : Math.min(Math.round(n / 10) * 10, MAX_TARGET_WORDS);
         // DERIVED HERE AND NOWHERE ELSE. `generate` and POST /api/manifest both read
         // `gen.max_tokens` for the budget reserve, and a second copy of this arithmetic is how the
         // Context panel starts previewing a prompt the generation is not going to send —
