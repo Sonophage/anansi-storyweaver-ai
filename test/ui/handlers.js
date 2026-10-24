@@ -142,10 +142,10 @@ await wait(400);
 await page.click(`[data-hi="${target.id}"]`);
 await wait(900);
 const openBody = (await page.text('#sideBody') || '');
-ok("History opens with a Takes section and an Edits section",
-   /Takes/.test(openBody) && /Edits/.test(openBody));
-ok(`  and one take is a line, not a numbered card (${(openBody.match(/Take \d+/g) ?? []).length} numbered)`,
-   (openBody.match(/Take \d+/g) ?? []).length === 0 && /One take/.test(openBody));
+ok("Alterations opens with a Fittings section and an Altered by hand section",
+   /Fittings/.test(openBody) && /Altered by hand/.test(openBody));
+ok(`  and one fitting is a line, not a numbered card (${(openBody.match(/Fitting \d+/g) ?? []).length} numbered)`,
+   (openBody.match(/Fitting \d+/g) ?? []).length === 0 && /One fitting/.test(openBody));
 const editsBefore = await page.eval("document.querySelectorAll('[data-restore]').length");
 
 // Edit the passage in the document, with History still open beside it.
@@ -174,8 +174,8 @@ for (let i = 0; i < 30; i++) {
 const editsAfter = await page.eval("document.querySelectorAll('[data-restore]').length");
 ok(`the open panel picks up the edit without being reopened (${editsBefore} -> ${editsAfter})`,
    editsAfter > editsBefore);
-ok("  and the panel is still History, not something else",
-   /Takes/.test(await page.text('#sideBody') || ''));
+ok("  and the panel is still Alterations, not something else",
+   /Fittings/.test(await page.text('#sideBody') || ''));
 
 // ---- in-flight: the slow answer must not land on the new book
 // COUNCIL-04 #11. refreshManifest and openStory's activity fetch both assigned after their await

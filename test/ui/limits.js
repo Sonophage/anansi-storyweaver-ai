@@ -58,9 +58,9 @@ ok("the Context panel shows the overflow", /omitted|ceiling|over|refus|drop|no r
 // "406 / -242"; clamping it at zero then gave "Context Infinity%" and "406 / 1", because the
 // divide-by-zero fallback lied. Zero is a state, and the surface has to say so.
 const head = (await page.text('#bar') || '');
-ok(`no nonsense percentage in the header (${JSON.stringify(head.replace(/\s+/g,' ').match(/(No room|Context [^ ]+)/)?.[0] ?? '')})`,
+ok(`no nonsense percentage in the header (${JSON.stringify(head.replace(/\s+/g,' ').match(/(No space|\d+% full)/)?.[0] ?? '')})`,
    !/-\d+%|Infinity|NaN/.test(head));
-ok("  it says there is no room instead", /No room/.test(head));
+ok("  it says there is no space instead", /No space/.test(head));
 ok("  and the panel explains why, not a meter against nothing",
    /no room for a prompt/i.test(side) && !/\/ 1\b/.test(side));
 

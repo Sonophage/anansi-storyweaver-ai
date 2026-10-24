@@ -297,24 +297,24 @@ const LOCKED_NONE = 'Nobody — it may write anyone';
  *  and held, named and released, and nobody named. `esc` is applied by the caller's template. */
 const lockoutHint = (name, on) => name && on
   ? `No dialogue, no action, no gesture, and nothing about what ${esc(name)} feels or knows. It
-     writes the world's answer and stops where they would act.`
+     writes what happens around them and stops where they would act.`
   : name
-  ? `Held back is OFF, so the model may write ${esc(name)} like anyone else.`
+  ? `Hands off is OFF, so the model may write ${esc(name)} like anyone else.`
   : `Name someone and the model will not write their dialogue, their actions or their inner
      state — it writes what happens around them instead. Usually the one you play.`;
 
 /** The Hold-them-back switch, on both screens. `attr` is the autosave hook the screen uses —
  *  `data-story` saves straight to the book, `data-sp` rides the wizard's skeleton until Accept. */
-const holdBack = (name, on, attr) => `${tipCard('holdBack', 'Hold them back', `<p>Turn this off for
+const holdBack = (name, on, attr) => `${tipCard('holdBack', 'Hands off', `<p>Turn this off for
     a scene where you want the model to write ${esc(name)} after all. The name stays, so turning it
     back on is one press rather than picking them again.</p>`)}
   <label style="display:flex; align-items:center; gap:10px;
     margin:10px 0 2px; font-size:13px; color:var(--ink)">
     <input type="checkbox" ${attr}="lockoutOn" ${on ? 'checked' : ''}>
-    Hold them back${tipMark('holdBack', 'Hold them back')}</label>`;
+    Hands off${tipMark('holdBack', 'Hands off')}</label>`;
 
 /** Why the two are separate columns, said on both screens because it is the question both raise. */
-const LOCKED_ASIDE = `A separate setting from <em>You are</em> on purpose: you may hand yourself a
+const LOCKED_ASIDE = `A separate setting from <em>You play</em> on purpose: you may hand yourself a
   different character for a scene without also handing over the one you were keeping.`;
 
 const POV = ['first person, present tense', 'first person, past tense',
@@ -748,13 +748,14 @@ function drawRail() {
   const tail = storyMenu && V?.story?.is_world
     // A world book has no chapters to list and nothing to write in. What it has is its lore, and
     // the rail says so rather than showing an empty Chapters heading.
-    ? `<div class="hint" style="padding:22px 12px 10px; margin:0">A world book. Its lore is here to
-         be read and edited, and to start books from &mdash; there is nothing to write in it.</div>`
+    ? `<div class="hint" style="padding:22px 12px 10px; margin:0">A bolt: threads that tales are cut
+         from. Its lore is here to be read and edited, and to cut tales from &mdash; there is nothing
+         to write in it.</div>`
     : storyMenu
     // The rail IS the menu, and the menu is excepted — see tipCard. Its rows were never uppercased;
     // this heading was the only thing in here that was.
     ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.2em;
-         color:var(--dim)">Chapters</div>
+         color:var(--dim)">Scenes</div>
        ${V.chapters.map((c) => `<button data-chapter="${c.id}"${
          c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis;
@@ -767,7 +768,7 @@ function drawRail() {
 
   $('rail').innerHTML = `
     <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
-      <button data-home="1" aria-label="Anansi — back to my stories"
+      <button data-home="1" aria-label="Anansi — back to the rack"
         style="display:flex; align-items:center; gap:10px; padding:0; text-align:left">
         <!-- Issue #6 — the logo carried a background plate on every theme.
              web/icon.svg paints a rect filled #0A0A0C behind the web and strokes it in #D9B26A.
@@ -847,8 +848,8 @@ function drawRail() {
               ${modelFacts(m) ? `<span style="font-size:11px; color:var(--dim)">${esc(modelFacts(m))}</span>` : ''}</span>
           </button>`).join('')}
       <div class="hint" style="margin:6px 0 0">A press opens what is known about it — what it
-        is for, how fast it has written here, how much context each writer gets — and the switch
-        is on that panel. Yours, not the box's: a story that names its own model still wins.</div>
+        is for, how fast it has written here, how much each writer can send it — and the switch
+        is on that panel. Yours, not the box's: a tale with its own model still uses that one.</div>
       ${/* Only when the server has a Featherless key. Without one there is nothing to add from. */
         S.remote ? `<button data-findmodel="1" style="display:flex; align-items:center; gap:9px; padding:8px 10px;
         margin-top:6px; border-radius:var(--r); border:1px solid var(--line); width:100%;
@@ -986,7 +987,7 @@ function drawBar() {
          If that path ever goes, this button has to come back: test/ui/phone.js guards the hole,
          and the hole it guards is ZERO doors. -->
     <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
-      ${inStory ? `<button data-railview="story" aria-label="This story's menu"
+      ${inStory ? `<button data-railview="story" aria-label="This tale's menu"
         style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">`
         : `<button data-railview="workspace" aria-label="Menu"
         style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">`}
@@ -1002,13 +1003,13 @@ function drawBar() {
         // A refusal stays in the header. "No room" is not a reading, it is the app saying it
         // cannot write — that has to be visible without pressing anything.
         ? `<button class="pill deskonly" data-panel="context"
-            style="border-color:var(--bad); color:var(--bad)">No room</button>` : ''}
+            style="border-color:var(--bad); color:var(--bad)">No space</button>` : ''}
       ${(() => {
         const h = horizon();
         return h ? `<button class="pill deskonly" data-panel="context"
           style="border-color:rgba(217,178,106,.42); color:var(--gold-dim)"
-          title="Their summaries no longer reach the model. Chapter → Acts collapses them into one."
-          >${h.chapters} ${h.chapters === 1 ? 'chapter' : 'chapters'} not sent</button>` : '';
+          title="Their summaries no longer reach the model. This scene → Panels rolls them into one."
+          >${h.chapters} ${h.chapters === 1 ? 'scene' : 'scenes'} not sent</button>` : '';
       })()}
       <!-- NO INLINE COLOUR. The "pill" class is already chrome-dim, and its aria-pressed rule
            paints the glyph in "on-gold" over a gold ground. An inline gold colour beat that rule
@@ -1025,7 +1026,7 @@ function drawBar() {
       <button class="pill" data-appearance="1" aria-label="How the app looks" aria-pressed="${S.appearance}"
         style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
 `
-      : `<button class="pill" data-open="new">New story</button>
+      : `<button class="pill" data-open="new">Cut a new tale</button>
          ${LIB.length ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            text-transform:uppercase; color:var(--on-gold); background:var(--gold); padding:9px 18px;
            border-radius:var(--r); font-weight:500; white-space:nowrap">Resume writing</button>` : ''}`}
@@ -1120,7 +1121,7 @@ function drawAppearance() {
         <div style="display:flex; gap:5px">${[['90', 'S'], ['100', 'M'], ['110', 'L'], ['125', 'XL']].map(([k, l]) => `
           <button class="chip" data-scalepick="${k}" aria-pressed="${(look.scale ?? '100') === k}"
             style="flex:1; text-align:center; padding:9px 0; letter-spacing:.08em; font-size:11.5px">${l}</button>`).join('')}</div>
-        <span class="hint" style="margin:0">The rail, the panels and the buttons. Leaves the prose alone.</span>
+        <span class="hint" style="margin:0">The menu, the drawers and the buttons. Leaves the prose alone.</span>
         <!-- PLAN-07 ask 2. It was in a "This device" footer under every tab, so a setting that is
              not about appearance at all sat below the themes, the fonts and the sizes alike. It is
              chrome behaviour, which is what this tab is, and it is the only control in it that
@@ -1152,7 +1153,7 @@ function drawAppearance() {
   el.innerHTML = `
     <div class="sheet-head" style="display:flex; align-items:center; gap:10px">
       <span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim)">${
-        inStory ? 'This book' : 'Every book'}</span>
+        inStory ? 'This tale' : 'Every tale'}</span>
       <button data-appearance="0" style="margin-left:auto; color:var(--faint); font-size:12px" aria-label="Close">✕</button>
     </div>
     <div style="display:flex; gap:6px">${tabs.map(([k, l]) => `
@@ -1165,11 +1166,11 @@ function drawAppearance() {
     ${inStory ? `<div style="display:flex; flex-direction:column; gap:6px; padding-top:11px;
       border-top:1px solid var(--line)">
       <span class="hint" style="margin:0">${ownLook
-        ? 'This book has a look of its own.'
-        : 'This book follows your default. Changing anything above gives it one.'}</span>
+        ? 'This tale has a look of its own.'
+        : 'This tale wears your usual look. Changing anything above gives it its own.'}</span>
       <div style="display:flex; gap:6px">
-        <button class="btn ghost" data-lookmine="1" style="flex:1; font-size:12px">Make this my default</button>
-        ${ownLook ? '<button class="btn ghost" data-lookfollow="1" style="flex:1; font-size:12px">Follow my default</button>' : ''}
+        <button class="btn ghost" data-lookmine="1" style="flex:1; font-size:12px">Make this my usual look</button>
+        ${ownLook ? '<button class="btn ghost" data-lookfollow="1" style="flex:1; font-size:12px">Wear my usual look</button>' : ''}
       </div></div>` : ''}
 `;
 }
@@ -1215,16 +1216,16 @@ function passageHTML(p, newest, opening) {
          AND NOT THE WORD FOR THE LAST PASSAGE EITHER: test/app.ts counts that word across the
          whole reading view to prove only one paragraph animates, and a comment carrying it reads
          as a second one. -->
-    <button data-re="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">↻</span><span class="lbl-txt">Regenerate</span></button>
+    <button data-re="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">↻</span><span class="lbl-txt">Reweave</span></button>
     <!-- "Remember this." The writer's own recall: the model has forgotten something that happened,
          so you point at the passage it happened in. It goes to Anansi as an INSTRUCTION rather than
          as prose to continue or a line somebody said, comes back as facts rather than as sentences
          (F36), and lands in the queue with the chapter it came from. -->
     <button class="wr" data-memo="${p.id}" ${S.memoing === p.id ? 'disabled' : ''}><span class="serif"
       style="color:var(--m, var(--gold))">✦</span><span class="lbl-txt">${
-      S.memoing === p.id ? 'Asking&hellip;' : 'Remember this'}</span></button>
-    <button class="wr" data-ed="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">✎</span><span class="lbl-txt">Edit</span></button>
-    <button class="wr" data-hi="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">⌂</span><span class="lbl-txt">History</span></button>
+      S.memoing === p.id ? 'Asking&hellip;' : 'Make a thread of this'}</span></button>
+    <button class="wr" data-ed="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">✎</span><span class="lbl-txt">Alter</span></button>
+    <button class="wr" data-hi="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">⌂</span><span class="lbl-txt">Alterations</span></button>
     <!-- Branching was BUILT and unreachable: "Branch from this passage" sat at the bottom of the
          History panel, below the edits list, three steps in and under the fold. Seth reported it as
          a missing feature. It is here now, where you already are when you are thinking about this
@@ -1235,7 +1236,7 @@ function passageHTML(p, newest, opening) {
          them but a title. It opens the Chapters panel now, which has room to say what each chapter
          is: its opening sentence, its length and what the model is sent for it. -->
     <button data-panel="chapters" class="readonly"><span class="serif" style="color:var(--m, var(--gold))">§</span><span
-      class="lbl-txt">Skip to chapter</span></button>
+      class="lbl-txt">Skip to a scene</span></button>
     <!-- END THIS CHAPTER, WHERE THE PROSE IS. Seth, 2026-08-30: "end chapter needs a button up
          top ... or better lets add it to the double click on text." It lived in the Chapter panel
          only — two navigations from the page you are writing on, which is the one place you are
@@ -1249,15 +1250,15 @@ function passageHTML(p, newest, opening) {
          delete below has used since it was fired on one press with no undo. -->
     ${p.chapterId === V.currentChapter?.id ? `<button class="wr" data-endchapter="ask"><span class="serif"
       style="color:var(--m, var(--gold))">§</span><span class="lbl-txt">${
-      S.ritual ? esc(S.ritual) : 'End this chapter'}</span></button>` : ''}
+      S.ritual ? esc(S.ritual) : 'Hem this scene'}</span></button>` : ''}
     <button class="wr" data-del="${p.id}" style="color:var(--bad)"><span class="serif">✕</span><span class="lbl-txt">${
-      v.length > 1 ? `Delete take ${at}` : 'Delete'}</span></button>
+      v.length > 1 ? `Delete fitting ${at}` : 'Delete'}</span></button>
     <!-- Deleting a rerolled passage removed the take on screen and promoted the next one, so the
          block stayed put holding different words — four presses to remove a passage rerolled three
          times, each one looking like it had failed. Only shown when there IS more than one take;
          with one, Delete above already is all of them. -->
     ${v.length > 1 ? `<button class="wr" data-delall="${p.id}" style="color:var(--bad)"><span class="serif">⌫</span><span
-      class="lbl-txt">Delete all ${v.length} takes</span></button>` : ''}
+      class="lbl-txt">Delete all ${v.length} fittings</span></button>` : ''}
     <!-- CUT THE BOOK BACK TO HERE. Seth, 2026-08-30: "a way to delete anything after a specific
          answer ... delete after deletes all prose below." Every passage past this one, every take
          of each, across chapters, on this branch only.
@@ -1294,16 +1295,16 @@ function passageHTML(p, newest, opening) {
       <span style="width:5px; height:5px; border-radius:50%; flex:0 0 auto; margin-top:6px;
         background:${unseen ? 'var(--warn)' : 'var(--bad)'}"></span>
       <span${unseen ? ' style="color:var(--warn)"' : ''}>${unseen
-        ? `Never sent · ${esc(e?.title ?? 'canon')} contradicts this, and the model was not shown it`
-        : `Contradiction · ${esc(e?.title ?? 'canon')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>
+        ? `Never sent · ${esc(e?.title ?? 'a thread')} knots with this, and the model was not shown it`
+        : `Knot · ${esc(e?.title ?? 'a thread')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>
       <div class="flagacts">
         <!-- Issue #9, and only on a contradiction the model was actually SHOWN. A never-sent flag
              is fixed with a trigger word or always-on, not with a rewrite: asking the model to
              correct prose against canon it was never given is asking it to guess, and the line
              above already says whose fault it is. -->
-        ${unseen ? '' : `<button data-repair="${f.passageId}">Let Anansi correct it</button>`}
-        <button data-dropflag="${f.id}">Dismiss this one</button>
-        ${f.entryId ? `<button data-mute="${f.entryId}">Ignore ${esc(e?.title ?? 'it')} in this chapter</button>` : ''}
+        ${unseen ? '' : `<button data-repair="${f.passageId}">Mend</button>`}
+        <button data-dropflag="${f.id}">Clear this knot</button>
+        ${f.entryId ? `<button data-mute="${f.entryId}">Ignore ${esc(e?.title ?? 'it')} in this scene</button>` : ''}
       </div>`;
   }).join('');
   // #14. The press that made it, down the margin. Null on everything written before 2026-08-29 —
@@ -1324,7 +1325,7 @@ function passageHTML(p, newest, opening) {
   // always been — this is the same action given a door you do not have to open.
   const carry = newest ? `<div class="carry${m}">
     <button data-re="${p.id}" ${S.busy ? 'disabled' : ''}><span class="serif"
-      style="color:var(--m, var(--gold))">↻</span> Regenerate</button>
+      style="color:var(--m, var(--gold))">↻</span> Reweave</button>
     <button data-continue="1" ${S.busy ? 'disabled' : ''}
       title="Carry on with no prompt">Continue &rsaquo;</button></div>` : '';
 
@@ -1362,14 +1363,14 @@ function passageHTML(p, newest, opening) {
    *
    * NO BACKTICKS IN THE COMMENT ABOVE OR ANYWHERE IN HERE: one ends the template literal. */
   const rr = S.reroll?.id === p.id ? `<div class="rerollbox">
-    <div class="lbl" style="letter-spacing:.1em; margin:0 0 6px">Re-roll from this instruction</div>
-    <textarea class="field" data-rerollbox="1" rows="2" aria-label="The instruction to re-roll from"
+    <div class="lbl" style="letter-spacing:.1em; margin:0 0 6px">Reweave from this instruction</div>
+    <textarea class="field" data-rerollbox="1" rows="2" aria-label="The instruction to reweave from"
       style="margin:0">${esc(S.reroll.text ?? '')}</textarea>
-    <div class="hint" style="margin:6px 0 9px">Change it and the new take is written from what you
-      change it to. Leave it and you get another take on the same instruction. The passage you have
-      now is kept either way, in History.</div>
+    <div class="hint" style="margin:6px 0 9px">Change it and the new fitting is woven from what you
+      change it to. Leave it and you get another fitting of the same instruction. The passage you have
+      now is kept either way, in Alterations.</div>
     <div style="display:flex; gap:8px">
-      <button class="btn" data-rerollgo="${esc(p.id)}" style="flex:1">Re-roll</button>
+      <button class="btn" data-rerollgo="${esc(p.id)}" style="flex:1">Reweave</button>
       <button class="btn ghost" data-rerollx="1" style="width:110px">Cancel</button>
     </div></div>` : '';
   /* WHAT ARRIVED WHILE YOU WERE AWAY, bugs.md #9. `claimed === false` is every take until the next
@@ -1454,14 +1455,15 @@ function drawDoc() {
     col.innerHTML = `<div style="max-width:620px; margin:0 auto; padding:48px 0;
       display:flex; flex-direction:column; gap:14px">
       <div class="serif" style="font-size:28px; line-height:1.1; color:var(--ink-bright)">${esc(V.story.title)}</div>
-      <div style="font-size:14px; line-height:1.7; color:var(--mute)">A world book. It holds lore and
-        nothing else &mdash; no chapters, no prose, nothing to write in. ${cards
-          ? `Its ${cards} ${cards === 1 ? 'card is' : 'cards are'} in Threads, on the left.`
-          : 'Put its first card in from Threads, on the left.'}</div>
-      <div class="hint" style="margin:0">Start a book set here from the Threads page, beside this
-        book's name. The new book READS these cards rather than copying them, so editing one here
-        changes it in every book set in this world &mdash; and a book can still disagree by writing
-        its own card with the same name.</div>
+      <div style="font-size:14px; line-height:1.7; color:var(--mute)">A bolt: a bolt of cloth that
+        tales are cut from. It holds threads and nothing else &mdash; no scenes, no prose, nothing to
+        write in. ${cards
+          ? `Its ${cards} ${cards === 1 ? 'thread is' : 'threads are'} in Threads, on the left.`
+          : 'Put its first thread in from Threads, on the left.'}</div>
+      <div class="hint" style="margin:0">Cut a tale from it on the Threads page, beside this bolt's
+        name. The new tale READS these threads rather than copying them, so changing one here
+        changes it in every tale cut from this bolt &mdash; and a tale can still disagree by writing
+        its own thread with the same name.</div>
     </div>`;
     return;
   }
@@ -1492,7 +1494,7 @@ function drawDoc() {
     </div>
     ${list.map((p, i) => passageHTML(p, isLastChapter && i === list.length - 1, i === 0)).join('')
       || `<div class="narr" style="opacity:.6">${
-        V.chapters.length > 1 ? 'Nothing in this chapter yet.' : 'Nothing written yet. The composer is below.'}</div>`}
+        V.chapters.length > 1 ? 'Nothing in this scene yet.' : 'Nothing written yet. The composer is below.'}</div>`}
     </section>`;
 
   /* ISSUE #37 · READING MODE SHOWS THE WHOLE BOOK. Seth, 2026-09-01.
@@ -1593,8 +1595,8 @@ async function nameChapter(chapterId) {
   // near the generation point on every call of this chapter — so a silent blank is the one thing
   // worse than no proposal at all.
   toast(r.noteMissing && !live.note.trim()
-    ? 'Anansi named the chapter but did not say what it has to do. Write the beat yourself, or '
-      + 'press again — it is the line that steers every call in this chapter.'
+    ? 'Anansi named the scene but did not say where it heads. Write that yourself, or '
+      + 'press again — it is the line that steers every call in this scene.'
     : 'Anansi suggests. Both boxes are yours to change, and nothing is saved until you press Save.');
 }
 
@@ -1632,9 +1634,9 @@ async function chapterBrief() {
   if (t && numbered(t.value, ch.index)) t.value = r.title;
   else if (t) kept.push('the name');
   if (blank(o) && r.opens) o.value = r.opens;
-  else if (o && r.opens) kept.push('how it starts');
+  else if (o && r.opens) kept.push('Opens with');
   if (blank(n) && r.note) n.value = r.note;
-  else if (n && r.note) kept.push('where it ends');
+  else if (n && r.note) kept.push('Heads toward');
   toast(kept.length
     ? `Anansi suggests. What you had typed is untouched (${kept.join(', ')}); empty boxes are filled. `
       + 'Nothing is saved until you press Save.'
@@ -1700,8 +1702,8 @@ function weaveFitRow(where = 'dock') {
       <div class="hint">${esc(f.message)}</div>
       <div class="weavefitgo">${f.overflows ? ''
         : '<button class="btn ghost" data-weaveanyway="1">Write anyway</button>'}
-        ${f.alwaysWeaves ? '<button class="btn ghost" data-weavemodel="1">Use another model for this book</button>'
-          : '<button class="btn ghost" data-weaveoff="1">Turn weaving off for this book</button>'}</div>
+        ${f.alwaysWeaves ? '<button class="btn ghost" data-weavemodel="1">Use another model for this tale</button>'
+          : '<button class="btn ghost" data-weaveoff="1">Turn spinning off for this tale</button>'}</div>
     </div>`;
 }
 
@@ -1765,7 +1767,7 @@ function drawDock() {
            Seth then: "right now its awkwardly placed". Beside the dial it is neither: the dial says
            Speaking As, this says who, and nothing else is on that side of the row. -->
       ${asWhom ? `<select id="asWhom" aria-label="${
-        S.mode === 'act' ? 'Who you are acting as' : 'Who you are speaking as'}">
+        S.mode === 'act' ? 'The character you act as' : 'The character you speak as'}">
         <option value=""${S.speaker ? '' : ' selected'}>${esc(me)}</option>
         ${cast.filter((e) => e.title !== me).map((e) => `<option value="${esc(e.title)}"${
           e.title === S.speaker ? ' selected' : ''}>${esc(e.title)}</option>`).join('')}
@@ -1786,10 +1788,10 @@ function drawDock() {
       ${V.story.lockedCharacter ? `<button data-holdback="${V.story.lockoutOn === false ? '1' : '0'}"
         aria-pressed="${V.story.lockoutOn !== false}"
         title="${V.story.lockoutOn === false
-          ? `The model may write ${esc(V.story.lockedCharacter)}. Press to hold them back.`
-          : `${esc(V.story.lockedCharacter)} is yours — the model will not write them. Press to let it.`}"
+          ? `The model may write ${esc(V.story.lockedCharacter)}. Press for hands off.`
+          : `Hands off ${esc(V.story.lockedCharacter)} — the model will not write them. Press to let it.`}"
         style="flex:0 0 auto; margin-left:auto;
-        color:${V.story.lockoutOn === false ? 'var(--faint)' : 'var(--gold)'}">Hold back</button>` : ''}
+        color:${V.story.lockoutOn === false ? 'var(--faint)' : 'var(--gold)'}">Hands off</button>` : ''}
       <!-- THE TWO DOORS, ALSO A DIAL. Seth, 2026-09-02: "threads and +threads should be its own
            drop down that will mimic the style of this as well. we can chage the names sinve theyll
            be hidden to view threads and add threads."
@@ -6104,12 +6106,12 @@ function historyPanel() {
     <button class="btn ghost" data-backentry="1" style="margin-bottom:14px">&lsaquo; Back</button>
 
     <div class="lbl" style="letter-spacing:.1em; margin-top:0">${takes.length > 1
-      ? `${takes.length} takes` : 'Takes'}</div>
+      ? `${takes.length} fittings` : 'Fittings'}</div>
     ${takes.length > 1 ? takes.map((t, i) => `<div class="card" style="margin-bottom:9px;
       border-color:${t.selected ? 'rgba(217,178,106,.34)' : 'var(--chip)'};
       opacity:${!t.selected && t.rejected ? '.62' : '1'}">
       <div style="display:flex; align-items:center; gap:9px">
-        <span class="kind">Take ${i + 1}${t.selected ? ' · in the story' : t.rejected ? ' · passed over' : ''}</span>
+        <span class="kind">Fitting ${i + 1}${t.selected ? ' · in the tale' : t.rejected ? ' · passed over' : ''}</span>
         <span style="margin-left:auto; font-size:11px; color:var(--faint)">${
           t.author === 'human' ? 'yours' : 'Anansi'}${t.created_at ? ` · ${ago(t.created_at)}` : ''}</span></div>
       <div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(t.body ?? '')}</div>
@@ -6125,9 +6127,9 @@ function historyPanel() {
           <span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase;
             color:var(--label); opacity:.7; align-self:center">Written against</span>
           ${names.map((nm) => `<span class="tag">${esc(nm)}</span>`).join('')
-            || `<span class="tag">${t.canon.length} entries since removed</span>`}</div>`;
+            || `<span class="tag">${t.canon.length} ${t.canon.length === 1 ? 'thread' : 'threads'} since removed</span>`}</div>`;
       })()}
-      ${t.selected ? '' : `<button class="btn ghost" data-usetake="${t.id}" style="margin-top:8px">Put this one in the story</button>`}
+      ${t.selected ? '' : `<button class="btn ghost" data-usetake="${t.id}" style="margin-top:8px">Put this one in the tale</button>`}
       ${/* THE SEED THAT MADE IT. Null on anything written before 2026-09-03 and on anything a
             writer typed, so the row is drawn only where there is one — a blank field labelled
             "seed" on every old take would read as something broken. */
@@ -6137,21 +6139,21 @@ function historyPanel() {
               seed, so the press would promise a roll it cannot deliver. The seed stays shown. */
           t.remote ? '' : `<button class="btn ghost" data-reseed="${esc(String(pid))}:${esc(String(t.seed))}"
           style="width:auto; padding:0 14px; height:32px; font-size:11.5px; margin-left:auto"
-          >Roll it again on this seed</button>`}</div>`}
+          >Reweave on this seed</button>`}</div>`}
     </div>`).join('')
-      : '<div class="hint">One take. Regenerate on a passage keeps the old one and both appear here.</div>'}
+      : '<div class="hint">One fitting. Reweave a passage and the old fitting is kept; both appear here.</div>'}
 
-    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Edits${
-      tipMark('hisEdits', 'Edits')}</div>
-    ${tipCard('hisEdits', 'Edits', `<p>Text that was replaced by hand. Restoring keeps the current
+    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Altered by hand${
+      tipMark('hisEdits', 'Altered by hand')}</div>
+    ${tipCard('hisEdits', 'Altered by hand', `<p>Text you replaced by hand. Restoring keeps the current
       version in the list too, so nothing is lost.</p>`)}
     ${rows.map((r) => `<div class="card" style="margin-bottom:9px">
       <div class="kind">${r.replaced_at ? ago(r.replaced_at) : ''}</div>
       <div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(r.body ?? '')}</div>
       <button class="btn ghost" data-restore="${r.id}" style="margin-top:8px">Restore this version</button>
-    </div>`).join('') || '<div class="hint">No edits &mdash; this passage has not been changed by hand.</div>'}
+    </div>`).join('') || '<div class="hint">Not altered &mdash; this passage has not been changed by hand.</div>'}
 
-    ${pid ? `${tipCard('hisBranch', 'Branching from this passage', `<p>A branch copies the book up
+    ${pid ? `${tipCard('hisBranch', 'Branching from this passage', `<p>A branch copies the tale up
       to here and leaves the original untouched.</p>`)}
       <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
         <button class="btn ghost" data-fork="${pid}" style="flex:1">Branch from this passage</button>

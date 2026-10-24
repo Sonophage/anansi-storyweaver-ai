@@ -71,7 +71,7 @@ ok("  with the scrim behind it, taking taps",
 // Icons only was a consequence of the tray being a floating strip. A sheet has the room, and four
 // unlabelled glyphs one of which is Delete is not a menu.
 ok("  and the actions are named, not four glyphs",
-   /Regenerate/.test(await page.text('.block[aria-expanded="true"] .acts') || ''));
+   /Reweave/.test(await page.text('.block[aria-expanded="true"] .acts') || ''));
 
 // A tap on the scrim shuts it. The scrim serves the rail too, so this is also the check that the
 // tray gets it first — closing the rail instead would leave the sheet up over the content.
@@ -98,7 +98,7 @@ await page.click('.block[aria-expanded="true"] [data-hi]');
 await wait(900);
 ok("an action that repaints takes the backdrop down with the tray",
    (await trayBox()) === null && (await page.eval("document.documentElement.dataset.tray")) === '0');
-ok("  and it did open History", /History/.test(await page.text('#sideHead') || ''));
+ok("  and it did open Alterations", /Alterations/.test(await page.text('#sideHead') || ''));
 await page.click('[data-panel=""]');
 await wait(400);
 

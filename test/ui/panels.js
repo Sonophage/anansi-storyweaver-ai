@@ -108,7 +108,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   // immediately left the top bar with no context reading and turned section 7 red, two sections
   // later, for something this block did. Poll the thing itself rather than sleeping at it.
   for (let i = 0; i < 40; i++) {
-    if (/Context \d+%|No room/.test(await page.text('#bar') || '')) break;
+    if (/\d+% full|No space/.test(await page.text('#bar') || '')) break;
     await wait(250);
   }
 }

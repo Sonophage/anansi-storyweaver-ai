@@ -929,7 +929,7 @@ assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you 
     'a line spoken as someone else names them on the chip');
 }
 ok('every passage carries a chip saying where it came from, above the prose');
-assert.match(html('col'), /Contradiction · Envoy Sereth/, 'a violation must surface on its passage');
+assert.match(html('col'), /Knot · Envoy Sereth/, 'a violation must surface on its passage');
 // ISSUE #9 · THE REPAIR IS A PRESS, AND ONLY ON THE FAULT A REWRITE CAN FIX.
 //
 // Two different faults wear the same red line, and the flag row already says which is which. A
@@ -1380,7 +1380,7 @@ ok('what came off collapses to one row per reason, with a count');
 
 // A long book stops reaching part of itself and the app knew without saying. The bar says it now,
 // so a writer who never opens the Context panel still finds out.
-assert.match(html('bar'), /10 chapters not sent/,
+assert.match(html('bar'), /10 scenes not sent/,
   'the bar names how many chapters the model can no longer read (1 plus the arc\'s nine)');
 assert.match(html('sideBody'), /Chapters 1&ndash;11 are past the horizon/,
   'and the panel names which — the range, not the block count');
@@ -2503,7 +2503,7 @@ ok('a weaving book says Weaving with a running count from the press until the fi
     assert.ok(row(), `a refusal draws the row on the composer: ${html('dockCol').slice(0, 200)}`);
     assert.ok(row().includes('4 oldest passages still in view'), 'saying what would drop out');
     assert.match(row(), /data-weaveanyway[^>]*>\s*Write anyway\s*</, 'offering to write anyway');
-    assert.match(row(), /data-weaveoff[^>]*>\s*Turn weaving off for this book\s*</, 'and to turn weaving off');
+    assert.match(row(), /data-weaveoff[^>]*>\s*Turn spinning off for this tale\s*</, 'and to turn weaving off');
     assert.doesNotMatch(row().replace(/<!--[\s\S]*?-->/g, ''), /\b(think|thinking|reasoning|planning)\b/i,
       'in the writer\'s word, weaving');
     assert.ok(!POSTED.some((p: any) => p.url === '/api/accept'), 'and nothing was kept');
@@ -2594,7 +2594,7 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
     assert.ok(row(), 'ALWAYS-ROW: a refusal on a model that always weaves draws the row');
     assert.doesNotMatch(row(), /data-weaveoff/, 'ALWAYS-ROW: with no Turn weaving off, which cannot work for it');
     assert.match(row(), /data-weaveanyway[^>]*>\s*Write anyway\s*</, 'ALWAYS-ROW: Write anyway');
-    assert.match(row(), /data-weavemodel[^>]*>\s*Use another model for this book\s*</, 'ALWAYS-ROW: and Use another model for this book');
+    assert.match(row(), /data-weavemodel[^>]*>\s*Use another model for this tale\s*</, 'ALWAYS-ROW: and Use another model for this book');
 
     // Use another model: the Storyteller opens on the book's model picker, nothing is saved or sent.
     stubRefuse = null; POSTED.length = 0;
