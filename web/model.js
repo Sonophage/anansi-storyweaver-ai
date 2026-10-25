@@ -237,18 +237,29 @@ export const modelOptions = (models, pinned) => {
     .map((o) => ({ ...o, selected: o.value === (pinned ?? '') }));
 };
 
-/** HOW A MODEL SPINS, in the writer's word. The catalogue and the shortlist store "weaves" (the
- *  server's values, kept in the database and sent back as the filter), and the screen says Spinning,
- *  which is the glossary's word for the unseen plan. Only the shown words change; the value stays. */
-export const spinWord = (w) => ({ "doesn't weave": "doesn't spin", 'can switch': 'can switch spinning',
-  'always weaves': 'always spins' })[w] ?? w;
+// A title that is only the scene's number, in any of the forms Anansi has stored: empty, "Scene 3",
+// "Chapter 3", or "Chapter Three" (new tales were created with "Chapter One" until 2026-10-24).
+const NUMBER_WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+  'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+export const numbered = (t, n) => {
+  const v = String(t ?? '').trim().toLowerCase();
+  return !v || v === `chapter ${n}` || v === `scene ${n}` || (!!NUMBER_WORDS[n] && v === `chapter ${NUMBER_WORDS[n]}`);
+};
+export const sceneName = (c) => (c && !numbered(c.title, c.index) ? c.title.trim() : `Scene ${c?.index ?? ''}`);
+
+
+/** HOW A MODEL PLANS, in the writer's words: "never plans", "can plan", "always plans" (Seth,
+ *  2026-10-24). The catalogue and the shortlist store "weaves" (the server's values, kept in the
+ *  database and sent back as the filter). Only the shown words change; the value stays. */
+export const spinWord = (w) => ({ "doesn't weave": 'never plans', 'can switch': 'can plan',
+  'always weaves': 'always plans' })[w] ?? w;
 
 export const modelName = (id) => {
   if (!id) return { name: 'no model', detail: '', id: '', bits: [], size: '' };
   const alias = /^(write|rp|agentic)-(n?t)-([a-z0-9]+)-([a-z0-9]+)$/.exec(id);
   if (alias) {
     const [, role, think, family, tail] = alias;
-    const bits = [think === 't' ? 'spins' : "doesn't spin", tail === 'h' ? 'uncensored' : tail];
+    const bits = [think === 't' ? 'plans' : 'never plans', tail === 'h' ? 'uncensored' : tail];
     return { id, name: `${ROLE[role]} \u00b7 ${FAMILY[family] ?? family}`,
              detail: bits.join(' \u00b7 '), bits, size: '' };
   }
@@ -275,7 +286,7 @@ export const modelName = (id) => {
       // Huihui-ThinkingCap's is UNTESTED on its architecture. Silence here means "nothing to
       // watch"; the word means "watch this one".
       const bits = [PURPOSE[role]];
-      if (think === 'T') bits.push('spins');
+      if (think === 'T') bits.push('plans');
       // Never "censored" for the other case. See the note above CODE.
       bits.push(heretic ? 'uncensored' : 'trained open');
       if (tail.includes('NN')) bits.push('novel tier');

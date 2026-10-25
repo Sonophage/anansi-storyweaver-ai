@@ -1028,7 +1028,7 @@ export function createStory(o: string, s: any) {
     s.status ?? 'in_progress', t, t);
   q('INSERT INTO branches (id,story_id,name,is_primary,created_at) VALUES (?,?,?,1,?)').run(b, id, 'main', t);
   q('INSERT INTO chapters (id,story_id,branch_id,idx,title,status,created_at) VALUES (?,?,?,1,?,?,?)')
-    .run(c, id, b, s.chapterTitle ?? 'Chapter One', 'open', t);
+    .run(c, id, b, s.chapterTitle ?? 'Scene 1', 'open', t);
   return { id, branchId: b, chapterId: c };
 }
 
@@ -2633,7 +2633,7 @@ export function endChapter(storyId: string, branchId: string, nextTitle?: string
   try {
     if (cur) q("UPDATE chapters SET status='closed', summary_covers_through=? WHERE id=?").run(maxOrd, cur.id);
     q('INSERT INTO chapters (id,story_id,branch_id,idx,title,status,created_at) VALUES (?,?,?,?,?,?,?)')
-      .run(id, storyId, branchId, idx, nextTitle ?? `Chapter ${idx}`, 'open', now());
+      .run(id, storyId, branchId, idx, nextTitle ?? `Scene ${idx}`, 'open', now());
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(storyId);

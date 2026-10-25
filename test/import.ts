@@ -129,7 +129,7 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.strictEqual(inc.passages.length, 3, 'the opening prompt plus both actions');
   const r = imp.absorb(owner, inc);
   assert.strictEqual(db.chapters(r.storyId)[0].authors_note, 'Keep it tense.', "the author's note lands on the chapter");
-  assert.strictEqual(db.chapters(r.storyId)[0].title, 'Chapter One', 'and does not blank the chapter title');
+  assert.strictEqual(db.chapters(r.storyId)[0].title, 'Scene 1', 'and does not blank the scene title');
   ok('AI Dungeon: memory, world info, keys, actions and register');
 }
 

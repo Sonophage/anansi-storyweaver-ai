@@ -438,7 +438,7 @@ export function absorb(owner: string, inc: Incoming) {
   // than passed as undefined — binding undefined would blank the chapter's name.
   if (inc.story.chapterAuthorsNote)
     db.updateChapter(story.id, story.chapterId,
-      { title: 'Chapter One', authorsNote: clip(inc.story.chapterAuthorsNote, 500) });
+      { title: 'Scene 1', authorsNote: clip(inc.story.chapterAuthorsNote, 500) });
   return { storyId: story.id, source: inc.source, entries, passages, notes: inc.notes };
 }
 

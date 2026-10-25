@@ -46,7 +46,7 @@ ids = await hits();
 ok(`free text narrows it (${ids.length})`, ids.length === 1 && ids[0].includes("gpt-oss"));
 const row = await page.eval("document.querySelector('#findhits [title]')?.parentElement?.textContent ?? ''");
 ok("a row says its unit cost, its size and whether it spins",
-  /1 unit/.test(row) && /32,768 tokens/.test(row) && /always spins/.test(row));
+  /1 unit/.test(row) && /32,768 tokens/.test(row) && /always plans/.test(row));
 ok("and never says thinking", !/think/i.test(await page.eval("document.getElementById('sideBody').textContent")));
 await search("");
 await page.click('[data-finduncensored]');
@@ -55,7 +55,7 @@ ok("turning uncensored-only off shows a stock model", (await hits()).some((i) =>
 ids = await hits();
 const untried = await page.eval("document.querySelector('#findhits [title$=\"Step-3.5-Flash\"]')?.parentElement?.textContent ?? ''");
 ok(`a family Anansi has not met says not tried yet, last (${JSON.stringify(untried.trim().slice(-40))})`,
-  /not tried yet/.test(untried) && !/doesn't spin/.test(untried) && ids.at(-1).includes("Step-3.5-Flash"));
+  /not tried yet/.test(untried) && !/never plans/.test(untried) && ids.at(-1).includes("Step-3.5-Flash"));
 ok("and the weaving filter offers it", await page.eval(`[...document.querySelectorAll('[data-findweave] option')]
   .some((o) => o.value === 'not tried yet')`));
 await page.pick('[data-findweave]', 'always weaves');

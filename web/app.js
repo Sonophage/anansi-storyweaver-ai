@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
+import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -573,8 +573,6 @@ function toast(msg) {
  *  and the importer writes "Chapter One"), and the code keeps that word: it is stored data, and the
  *  model is sent the title. The screen says Scene. So a title that is only the stored number reads
  *  as "Scene N", and `numbered` answers "is this the placeholder, not a name?" for either word. */
-const numbered = (t, n) => { const v = String(t ?? '').trim(); return !v || v === `Chapter ${n}` || v === `Scene ${n}`; };
-const sceneName = (c) => (c && !numbered(c.title, c.index) ? c.title.trim() : `Scene ${c?.index ?? ''}`);
 
 /** WHY AN ACT IS OUT OF DATE (#47), naming the first chapter under it that changed. One sentence
  *  for the act's card and the waiting list, so the two cannot say it differently. */
@@ -9922,7 +9920,7 @@ document.addEventListener('click', async (e) => {
     loadModels(); drawSide();
     const got = S.shortlist.find((m) => m.id === d.addshort);
     return toast(`${modelName(d.addshort).name} is on your shortlist${got?.weaving ? ` — it ${
-      got.weaving === 'can switch' ? 'can switch spinning off' : spinWord(got.weaving)}` : ''}.`);
+      got.weaving === 'can switch' ? 'can plan, or not' : spinWord(got.weaving)}` : ''}.`);
   }
   if (d.dropshort) {
     const r = await api.dropShortlist(d.dropshort);

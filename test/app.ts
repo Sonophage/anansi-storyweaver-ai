@@ -553,12 +553,18 @@ assert.match(html('rail'), /Rack/);
 assert.match(html('rail'), /Write \u00b7 Qwen3\.6/, 'the rail names the model in words');
 assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one hover away');
 {
-  const { modelName } = await import('../web/model.js');
+  const { modelName, sceneName } = await import('../web/model.js');
+  // A scene titled only by its number reads "Scene N", in every form Anansi has stored one; a
+  // writer's own title is left as it is.
+  for (const title of ['', 'Chapter 3', 'Scene 3', 'Chapter Three', 'chapter three'])
+    assert.strictEqual(sceneName({ index: 3, title }), 'Scene 3', `SCENE-NAME: "${title}" reads as Scene 3`);
+  assert.strictEqual(sceneName({ index: 3, title: 'Chapter One' }), 'Chapter One', 'SCENE-NAME: a number that is not its own is a title');
+  assert.strictEqual(sceneName({ index: 3, title: 'The Bell' }), 'The Bell', "SCENE-NAME: the writer's title stays");
   // Weaving on this model means 900 tokens of plan and no prose at all — three runs of four. A
   // label that drops it is a label that hides the one setting that decides whether prose arrives.
   // The id's code says T or NT; the label says it in the writer's word (#49).
-  assert.match(modelName('write-nt-qwen36-h').detail, /doesn't spin/, "MODEL-LABEL: nt reads as doesn't spin");
-  assert.match(modelName('agentic-t-qwen38-h').detail, /(?<!n't )spins/, 'MODEL-LABEL: t must read as spins');
+  assert.match(modelName('write-nt-qwen36-h').detail, /never plans/, 'MODEL-LABEL: nt reads as never plans');
+  assert.match(modelName('agentic-t-qwen38-h').detail, /(?<!never )plans/, 'MODEL-LABEL: t must read as plans');
   assert.doesNotMatch(modelName('write-nt-qwen36-h').detail + modelName('agentic-t-qwen38-h').detail, /think/i,
     'MODEL-LABEL: and neither says thinking');
   // Two of the router's presets are the same repo at different quants, so the name alone cannot
@@ -590,7 +596,7 @@ assert.match(html('rail'), /title="write-nt-qwen36-h"/, 'and keeps the id, one h
   // transport pins enable_thinking:false on every call and not thinking is the normal case. A `T`
   // model is the other thing entirely — thinking left on returned no prose at all on three runs of
   // four — so silence means "nothing to watch" and the word means "watch this one".
-  assert.ok(modelName('GLM-4.7-Flash-RPTH-30B').bits.includes('spins'),
+  assert.ok(modelName('GLM-4.7-Flash-RPTH-30B').bits.includes('plans'),
     'MODEL-LABEL: a T model must say it spins on every surface that shows the badges');
   assert.doesNotMatch(q.detail, /weav|think/,
     'and an NT model says nothing about it rather than saying the boring half out loud');

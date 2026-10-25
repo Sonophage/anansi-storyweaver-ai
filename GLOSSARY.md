@@ -183,7 +183,8 @@ _In code_: `/api/chapter/end`
 **Spinning**:
 The model planning, unseen, before it writes a passage, a Talk reply or an invention. A tale's
 switch (off unless the writer turns it on), and what a model can do (it doesn't spin, it can
-switch spinning on and off, or it always spins). The plan is never shown.
+switch spinning on and off, or it always spins). The plan is never shown. A model's own label
+says this in plain words: "never plans", "can plan", "always plans" (Seth, 2026-10-24).
 _Avoid_: weaving, thinking, reasoning, planning, chain of thought
 _In code_: `weaving`, `enable_thinking`
 
