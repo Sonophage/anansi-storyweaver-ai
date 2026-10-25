@@ -1396,7 +1396,7 @@ assert.match(html('bar'), /10 scenes not sent/,
   'the bar names how many chapters the model can no longer read (1 plus the arc\'s nine)');
 assert.match(html('sideBody'), /Scenes 1&ndash;11 are past the horizon/,
   'and the panel names which — the range, not the block count');
-assert.match(html('sideBody'), /Chapters<\/strong> gathers/, 'and what to do about it');
+assert.match(html('sideBody'), /Summaries<\/strong> gathers/, 'and what to do about it (the Summaries tab, where chapters are gathered)');
 ok('a book past its horizon says so on the bar, not only in a dimmed row');
 
 // Two kinds of offer, two places to answer them. A promise Anansi noticed belongs beside the

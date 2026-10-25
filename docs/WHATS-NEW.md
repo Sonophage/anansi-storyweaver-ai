@@ -12,6 +12,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-25 · Doors you can see
 
+### Old words, new words
+If you wrote in Anansi before, here is where your old words went. Story is now Tale, and your
+stories are on the Rack. A chapter you wrote in is a Scene; a Chapter is now a run of scenes
+gathered under one summary. Regenerate is Reweave, and each try is a Version. Edit is Alter, and
+History is Alterations. Remember this is Make a thread of this. End this chapter is Hem this scene.
+A card is a Thread, and a room in it is a Pocket. Waiting is the Workbench, where a proposal is
+Basted until you Sew it in or Reject it. A contradiction is a Knot. Context is What she reads. The
+Web is Prompts to take elsewhere. Create a story is New tale. Speaking as is You play, and the
+held-back character is Hands off. A paid string is Tied off, a dropped one Let go. Archived is
+Folded. Back to the default is Reset.
+
 ### One tap on a passage shows what you can do with it
 On a phone or a tablet, tap a passage to see Reweave, Alter, Make a thread and the rest. A line
 under the newest passage says so. A double tap still works.
@@ -42,6 +53,11 @@ is still there.
 ### The keyboard
 Esc closes a passage's actions and the menu. Tab no longer walks through the menu or a drawer
 while they are closed. The menu's rows wrap instead of cutting off their names.
+
+### Fixed after a second look
+On a phone, the top bar no longer runs off the screen on the menu's pages. Start blank no longer
+waits for ever on your threads. A scene that is already hemmed no longer offers Hem this scene.
+When you alter a passage on a small screen, Save and Cancel scroll into view.
 
 ### Small fixes
 Best day on What you have written is the day you wrote, by your own clock, not the next day. All

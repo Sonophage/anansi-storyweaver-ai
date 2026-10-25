@@ -33,6 +33,27 @@ ok("  and pressing it opens the menu", await railOpen());
 await page.goto(B + "/");
 await wait(600);
 
+// ---- every menu page's header fits a phone. The second review (2026-10-25) measured the bar at
+// 446px on a 390px screen on every page but the rack: Carry on writing pushed the titles to "Threa…".
+const over = [];
+for (const nav of ['canon', 'prefs', 'forge', 'create', 'import', 'news']) {
+  await page.eval(`(() => { document.querySelector('[data-nav="${nav}"]').click(); return 1; })()`);
+  await wait(500);
+  const o = await page.eval("(() => { const b = document.getElementById('bar'); return b.scrollWidth - b.clientWidth; })()");
+  if (o > 0) over.push(`${nav} +${o}px`);
+}
+ok(`every menu page's header fits on a phone (${JSON.stringify(over)})`, over.length === 0);
+
+// ---- Start blank reads the threads it offers. It said "Reading your threads…" for ever.
+await page.eval("(() => { document.querySelector('[data-nav=\"create\"]').click(); return 1; })()");
+await wait(500);
+await page.eval("(() => { document.querySelector('[data-blank]').click(); return 1; })()");
+await wait(2000);
+ok("Start blank does not wait for ever on the threads",
+   !(await page.eval("document.getElementById('page').textContent.includes('Reading your threads')")));
+await page.goto(B + "/");
+await wait(600);
+
 // ---- in a tale
 await page.click("#page [data-open]");
 await wait(1400);

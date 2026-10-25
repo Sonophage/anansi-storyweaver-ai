@@ -856,9 +856,9 @@ function drawRail() {
                 overflow:hidden; text-overflow:ellipsis">${esc(modelName(m.id).bits.join(' \u00b7 '))}</span>` : ''}
               ${modelFacts(m) ? `<span style="font-size:11px; color:var(--dim)">${esc(modelFacts(m))}</span>` : ''}</span>
           </button>`).join('')}
-      <div class="hint" style="margin:6px 0 0">A press opens what is known about it — what it
-        is for, how fast it has written here, how much each writer can send it — and the switch
-        is on that panel. Yours, not the box's: a tale with its own model still uses that one.</div>
+      ${S.models?.length ? `<div class="hint" style="margin:6px 0 0">Press a model to see what it is for
+        and how fast it writes here, and to write with it. This is your usual model; a tale with its
+        own model still uses that one.</div>` : ''}
       ${/* Only when the server has a Featherless key. Without one there is nothing to add from. */
         S.remote ? `<button data-findmodel="1" style="display:flex; align-items:center; gap:9px; padding:8px 10px;
         margin-top:6px; border-radius:var(--r); border:1px solid var(--line); width:100%;
@@ -1031,7 +1031,7 @@ function drawBar() {
         const h = horizon();
         return h ? `<button class="pill deskonly" data-panel="context"
           style="border-color:rgba(217,178,106,.42); color:var(--gold-dim)"
-          title="Their summaries no longer reach the model. This scene → Chapters gathers them into a chapter."
+          title="Their summaries no longer reach the model. This scene → Summaries gathers them into a chapter."
           >${h.chapters} ${h.chapters === 1 ? 'scene' : 'scenes'} not sent</button>` : '';
       })()}
       <!-- NO INLINE COLOUR. The "pill" class is already chrome-dim, and its aria-pressed rule
@@ -1057,7 +1057,9 @@ function drawBar() {
          ${/* ONE DOOR, NOT TWO. On the rack the hero band already says Carry on writing, for the
               same tale, so this one is drawn only where the band is not: on every other page, and
               on a rack with no live tale to put in the band. Same words as the band. */
-           LIB.length && !(S.wpage === 'stories' && heroOf()) ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
+           // Desk only, and not on New tale: on a phone it pushed the header to 446px of 390 and cut
+           // every page's title (usability check, 2026-10-25). The rack's band carries it there.
+           LIB.length && S.wpage !== 'create' && !(S.wpage === 'stories' && heroOf()) ? `<button class="deskonly" data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            text-transform:uppercase; color:var(--on-gold); background:var(--gold); padding:9px 18px;
            border-radius:var(--r); font-weight:500; white-space:nowrap">Carry on writing</button>` : ''}`}
       <!-- HER WEB, AND IT OPENS HER. Seth: "make the icon a full web and make it go to anansi.
@@ -1280,7 +1282,7 @@ function passageHTML(p, newest, opening) {
          "ask" rather than "1": the panel's copy sits under a paragraph explaining what closing
          does, and this one sits next to Delete behind a double tap. Same press-again guard the
          delete below has used since it was fired on one press with no undo. -->
-    ${p.chapterId === V.currentChapter?.id ? `<button class="wr" data-endchapter="ask"><span class="serif"
+    ${p.chapterId === V.currentChapter?.id && V.currentChapter?.status !== 'closed' ? `<button class="wr" data-endchapter="ask"><span class="serif"
       style="color:var(--m, var(--gold))">§</span><span class="lbl-txt">${
       S.ritual ? esc(S.ritual) : 'Hem this scene'}</span></button>` : ''}
     <button class="wr" data-del="${p.id}" style="color:var(--bad)"><span class="serif">✕</span><span class="lbl-txt">${
@@ -2701,7 +2703,7 @@ const PANELS = {
       body: actChanged(a.chapter, a.why, a.chapterTitle) });
     if (h) off.push({ kind: 'horizon', ref: String(h.to), fix: toChapters,
       title: `${h.chapters} scene${h.chapters === 1 ? '' : 's'} no longer reach the model`,
-      body: `Scenes ${h.from} to ${h.to}. Their summaries do not fit any more — This scene, then `
+      body: `Scenes ${h.from} to ${h.to}. Their summaries do not fit any more. On This scene, the Summaries tab `
           + 'Chapters, gathers a run of them into a chapter.' });
 
     if (!rows.length && !off.length) {
@@ -2795,7 +2797,7 @@ const PANELS = {
             <span style="font-size:13px; color:var(--ink)">Scenes ${h.from}&ndash;${h.to} are past the horizon${helpMark('horizon')}</span>
             ${tipCard('horizon', HELP.horizon.title, `${helpText('horizon')}<p>Their summaries no
               longer reach the model, so it cannot draw on them or stay consistent with them.
-              <strong>This scene &rarr; Chapters</strong> gathers a run of them into a chapter, whose
+              <strong>This scene &rarr; Summaries</strong> gathers a run of them into a chapter, whose
               chapter summary does fit.</p>`)}</span></div>`;
       })()}
       ${(() => {
@@ -6490,7 +6492,12 @@ function entryCard(e, pill = false) {
  *  press Create, so a full repaint on every pick would throw away everything typed so far — the
  *  same trap the ledger's own search box is written around. */
 function seedList() {
-  if (LEDGER === null) return '<div class="hint" style="margin:0">Reading your threads&hellip;</div>';
+  // Ask for it, as the Threads page does: this said "Reading your threads…" for ever on Start blank
+  // (usability check, 2026-10-25), because nothing on this page had asked.
+  if (LEDGER === null) {
+    if (!S.ledgerBusy) { S.ledgerBusy = true; loadLedger().finally(() => { S.ledgerBusy = false; }); }
+    return '<div class="hint" style="margin:0">Reading your threads&hellip;</div>';
+  }
   // #28. BOTH STARTS USE IT. It was written for the blank form and the spark wizard needed the same
   // thing — Seth: "i should be abel to ... pull from already existing lore if i want to pull that
   // information." Only one of the two is ever non-null, so which object holds the picks is the only
@@ -7467,7 +7474,8 @@ async function loadLedger() {
   LEDGER = r.error ? [] : (r.entries ?? []);
   // drawBar too: the header's line under "Threads" counts the ledger, and said "reading…" until
   // something else repainted the header (usability check, 2026-10-24).
-  if (S.wpage === 'canon') { drawPage(); drawBar(); }
+  // And New tale, whose Start blank form offers the threads to start from.
+  if (S.wpage === 'canon' || S.wpage === 'create') { drawPage(); drawBar(); }
 }
 
 async function loadStats() {
@@ -9969,6 +9977,8 @@ document.addEventListener('click', async (e) => {
     el.insertAdjacentHTML('afterend', `<div class="altbar" style="display:flex; gap:8px; margin:10px 0 4px">
       <button class="btn" data-altsave="${esc(d.ed)}" style="width:auto; padding:0 18px">Save</button>
       <button class="btn ghost" data-altcancel="${esc(d.ed)}" style="width:auto; padding:0 18px">Cancel</button></div>`);
+    // Into view: on the Titan's square the bar landed under the composer, off screen.
+    el.parentElement?.querySelector('.altbar')?.scrollIntoView({ block: 'nearest' });
     toast('Altering. Save or Cancel under the passage.');
     return;
   }
