@@ -31,7 +31,7 @@ ok(`a result says where it is (${JSON.stringify((where || '').slice(0, 40))})`, 
 // 3. the panel's own claim must be true: prose, entries and summaries
 const kinds = await page.eval("[...new Set([...document.querySelectorAll('[data-hit] .kind')].map(e => e.textContent.trim().toLowerCase()))].sort().join(',')");
 console.log("  kinds for 'key': " + kinds);
-ok("results cover entries as well as prose", kinds.includes("entry"));
+ok("results cover threads as well as prose", kinds.includes("thread"));
 
 // Summaries need a term that is actually in one — asserting "key" hits a summary demanded
 // something the fixture cannot satisfy, which is a bad test, not a bug. 'debt' was the second
@@ -123,7 +123,7 @@ if (mine !== '') {
   // would show nothing at all beside a toast asking for words there is no box for.
   ok("  and it opens the FORM so it gets finished, not the face",
      await page.eval("!!document.querySelector('[data-f=\"keys\"]')"));
-  ok("  and says what is still needed", /trigger words/i.test(await page.text('#toast') || ''));
+  ok("  and says what is still needed", /wake words/i.test(await page.text('#toast') || ''));
 } else { ok("a result in this story offers Add to threads", false); }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

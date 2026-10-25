@@ -1166,7 +1166,7 @@ await page.click('[data-nav="prefs"]');
 for (let i = 0; i < 60 && !/What you have written/.test(await page.text('#page') || ''); i++) await wait(250);
 const prefs = (await page.text('#page') || '').replace(/\s+/g, ' ');
 ok("Preferences reports what you have written", /What you have written/.test(prefs));
-for (const label of ['Words', 'Passages', 'Stories', 'Threads', 'Takes not chosen', 'Calls to the model'])
+for (const label of ['Words', 'Passages', 'Tales', 'Threads', 'Fittings not chosen', 'Calls to the model'])
   ok(`  ${label}`, new RegExp(label).test(prefs));
 ok(`  and splits passages between you and Anansi (${JSON.stringify((prefs.match(/Passages[^A-Z]{0,40}/) ?? [""])[0].trim())})`,
    /yours/.test(prefs) && /Anansi/.test(prefs));
@@ -1299,7 +1299,7 @@ ok(`  named for the character it dresses`,
   ok(`the form offers one add tray with a pill per room (${tray.pills})`,
      tray.pill === true && tray.pills === 8);
   ok(`  shut when the form opens, and it says what it is ("${tray.says}")`,
-     tray.open === false && /add to this card/i.test(tray.says));
+     tray.open === false && /add to this thread/i.test(tray.says));
   // Falsify by defaulting S.newRoom to a slot: the box appears with nothing pressed and this reds.
   const box = () => page.eval(`document.querySelectorAll('[data-of="name"]').length`);
   ok(`  and nothing is selected, so there is no box yet (${await box()})`, (await box()) === 0);

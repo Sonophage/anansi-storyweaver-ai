@@ -43,13 +43,13 @@ console.log("  @key: " + JSON.stringify(m.items));
 ok("typing letters filters the list", m.open && !!m.items && m.items.length > 0);
 ok("  and it finds this book's thread by name", !!m.items && m.items.some((t) => /Silver Key/i.test(t)));
 ok("  labelled with what it is and where it lives",
-   !!m.items && m.items.some((t) => /thread/i.test(t) && /this book/i.test(t)));
+   !!m.items && m.items.some((t) => /thread/i.test(t) && /this tale/i.test(t)));
 
 // ---- chapters are summonable too
 await type("remind me about @chapter");
 m = await menu();
 console.log("  @chapter: " + JSON.stringify(m.items));
-ok("chapters are on the list", m.open && !!m.items && m.items.some((t) => /chapter/i.test(t)));
+ok("chapters are on the list", m.open && !!m.items && m.items.some((t) => /scene/i.test(t)));
 
 // ---- a name that matches nothing closes it rather than showing an empty box
 await type("@zzzzznothing");
@@ -308,18 +308,18 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
   // so a leak shows up here as "your shelf" or "another book".
   ok("  and every row on it comes from this book",
      !!narrow.items && narrow.items.length > 0
-       && narrow.items.every((t) => /this book/i.test(t)));
+       && narrow.items.every((t) => /this tale/i.test(t)));
   ok("  with the @@ hint on it, or nobody would find the wide search",
-     await page.eval("(() => (document.getElementById('atlist')?.textContent ?? '').includes('to search every book'))()"));
+     await page.eval("(() => (document.getElementById('atlist')?.textContent ?? '').includes('to search every tale'))()"));
 
   await type("tell me about @@");
   const wide = await menu();
   console.log("  @@: " + JSON.stringify(wide.items));
   ok("@@ opens the menu too", wide.open === true);
   ok("  and reaches past this book",
-     !!wide.items && wide.items.some((t) => /your shelf|another book/i.test(t)));
+     !!wide.items && wide.items.some((t) => /your rack|another tale/i.test(t)));
   ok("  and the hint is gone once you are already wide",
-     !(await page.eval("(() => (document.getElementById('atlist')?.textContent ?? '').includes('to search every book'))()")));
+     !(await page.eval("(() => (document.getElementById('atlist')?.textContent ?? '').includes('to search every tale'))()")));
 
   // Accepting from the wide list must eat BOTH @s, not leave one behind.
   await type("tell me about @@sil");
