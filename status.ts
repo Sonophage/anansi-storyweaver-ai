@@ -95,6 +95,31 @@ if (lib && code) {
     const rows = count(`select count(*) n from ${src};`);
     row(`search index ${src}`, idx === '' ? 'no such index' : Number(idx) > 0 ? `built (${rows} rows indexed)` : `EMPTY — search returns nothing for ${rows} rows`);
   }
+
+  /* THE RECORDED CHECKS, and whether they are writing anything. The canon check wrote 0 rows over
+   * 627 generations for 52 days (#69): it had stopped running on the save path, and a check that
+   * never runs leaves the same empty table as one that finds nothing. So each one is printed beside
+   * the calls that should have fed it, for the last seven days, and named SILENT when there were
+   * more than 20 calls and no rows.
+   *   canon check:   a flag (`violations`) is written only when a landed take contradicts canon,
+   *                  so the calls are prose generations. Zero can be a clean week; past 20 it is
+   *                  far more likely a check that is not running.
+   *   repair record: every repair (`role = 'repair'`) that gets an answer writes `mend` onto its
+   *                  own row (#9), so the calls are repairs.
+   * ponytail: one window and one threshold for both, chosen by hand. The ceiling is a book that
+   * writes cleanly for 20 takes in a row; the trigger to revisit is a SILENT line that turns out to
+   * be a clean week. */
+  const WEEK = Date.now() - 7 * 86_400_000;
+  const heard = (label: string, rows: string, calls: string, noun: string, of: string) => {
+    if (rows === '' || calls === '') { row(label, 'could not read'); return; }
+    const [r, c] = [Number(rows), Number(calls)];
+    row(label, c > 20 && r === 0 ? `SILENT — 0 ${noun}s against ${c} ${of} calls in 7 days`
+      : `${r} ${noun}${r === 1 ? '' : 's'} · ${c} ${of} call${c === 1 ? '' : 's'} in 7 days`);
+  };
+  heard('canon check', count(`select count(*) n from violations where created_at > ${WEEK};`),
+    count(`select count(*) n from generations where role = 'prose' and created_at > ${WEEK};`), 'flag', 'prose');
+  heard('repair record', count(`select count(*) n from generations where role = 'repair' and mend is not null and created_at > ${WEEK};`),
+    count(`select count(*) n from generations where role = 'repair' and created_at > ${WEEK};`), 'record', 'repair');
   lib.close();
 }
 
