@@ -2142,7 +2142,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   // THREE since 2026-08-31, when a world book joined the ledger fixture so the hero-banner
   // assertions at the foot of this file have a world book to open. The number is the count of
   // books with cards in them, so adding one to the fixture is meant to change it.
-  assert.match(page, /All 3 books/, 'and the press says how many books that is');
+  assert.match(page, /All 3 tales/, 'and the press says how many books that is');
 
   click({ lookall: '1' });
   const shelf = html('page');
@@ -3438,7 +3438,7 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
   click({ entry: 'e-took' });
   await new Promise((r) => setTimeout(r, 30));
   const took = html('sideBody');
-  assert.match(took, /This book's own copy, taken from The Ash Cycle/,
+  assert.match(took, /This tale's own copy, taken from The Ash Cycle/,
     'the face says it is a copy and where from — otherwise it is indistinguishable from a card '
     + 'born here and the connection it still holds is invisible');
   assert.match(took, /data-sendup="e-took"/, 'this version can go up and follow again');
@@ -3904,7 +3904,7 @@ ok('a voice can be saved to the library, pulled back into any book, and the defa
     click({ home: '1' });
     await new Promise((r) => setTimeout(r, 60));
     const cold = html('page');
-    assert.match(cold, /Nothing on the shelf yet/, 'an empty shelf is the idea box, not a heading');
+    assert.match(cold, /Nothing on the rack yet/, 'an empty shelf is the idea box, not a heading');
     assert.match(cold, /id="idea"/, 'and the box is on it, rather than a button that goes to find one');
     // The same id and the same action the create page uses, so there is one spark path and not two.
     assert.match(cold, /data-spark="1"/, 'the gold press sparks from here directly');
@@ -3919,7 +3919,7 @@ ok('a voice can be saved to the library, pulled back into any book, and the defa
     click({ home: '1' });
     await new Promise((r) => setTimeout(r, 60));
     const warm = html('page');
-    assert.match(warm, /Nothing on the shelf yet/, 'still the idea box');
+    assert.match(warm, /Nothing on the rack yet/, 'still the idea box');
     assert.doesNotMatch(warm, /The model is asleep/,
       'and it does not claim a loaded model is asleep');
     assert.doesNotMatch(warm, /Wake the model first/,
@@ -3970,7 +3970,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // #books, not #page: opening a group repaints only that element.
   const opened = html('books');
   assert.match(opened, /class="lbanner"/, 'the world book gets a banner too');
-  assert.match(opened, /World book/, 'tagged as what it is, not as Writing');
+  assert.match(opened, /Bolt/, 'tagged as what it is, not as Writing');
   assert.match(opened, /Lore only/, 'and it says there is nothing written in it');
 
   /* ---- AND THE BOX AT THE TOP SEARCHES THE SAME WORDS THE STORY'S OWN LIST DOES (2026-09-11).

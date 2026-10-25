@@ -155,7 +155,7 @@ ok(`the skeleton arrives as steps, not one scroll (${stepNames.length} step cont
 // THE ORDER ITSELF, asserted. It is the thing #40 changed and the thing a later reorder would
 // change again by accident — the array in app.js is now the only place it lives.
 ok(`  in order: ${stepNames.join(' -> ')}`,
-   JSON.stringify(stepNames) === JSON.stringify(['The book', 'The threads', 'A second look',
+   JSON.stringify(stepNames) === JSON.stringify(['The tale', 'The threads', 'Try it on',
      'You', 'The first scene', 'The opening', 'Begin']));
 // AND THE IDEA SCREEN IS GONE, which is the ask. Asserted as an absence so putting it back is a red.
 ok('  the idea is no longer a screen of its own', !stepNames.includes('Your idea'));
@@ -172,7 +172,7 @@ ok("  and the book's own fields are on that same step, not one further in",
 ok("  and Accept is already on the first step, not held back to the last",
    (await page.eval("!!document.querySelector('[data-accept-spark]')")) === true);
 
-await go("The book");
+await go("The tale");
 await wait(700);
 ok("  step 2 is the book, and the voice is on it rather than five steps later",
    (await page.eval("!!document.querySelector('[data-sp=\"title\"]')")) === true
@@ -198,7 +198,7 @@ ok("  and the scaffold call brought back no cast at all", (await page.eval("wind
   // mechanical rewrite of this file turned it into clicking one step twice, which never unmounts the
   // box and would have passed with the once-only flag deleted.
   await go("The threads");
-  await go("The book");
+  await go("The tale");
   await wait(400);
   ok("  and does not ask again on every visit, though the box it would fill is still empty",
      (await page.eval("window.__style")) === 1);
@@ -242,12 +242,12 @@ ok("  and the step is empty because that call could not reach the model",
    (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 0);
 // ONCE, EVEN AFTER A FAILURE. `castTried` and not `entries.length`: paging back and forth must not
 // re-ask on a router that does not queue.
-await go("The book");
+await go("The tale");
 await go("The threads");
 await wait(500);
 ok("  and does not ask again on the next visit, though it came back with nothing",
    (await page.eval("window.__cast")) === 1);
-await go("The book");
+await go("The tale");
 await wait(400);
 ok("  an edit survives leaving the step and coming back",
    (await page.eval("document.querySelector('[data-sp=\"title\"]')?.value")) === 'The Drowned Ledger');
@@ -415,7 +415,7 @@ ok("  and once there is one, step 4 becomes a pick over it",
 
   // RE-ROLLING THE SKELETON LEAVES THE CAST WHERE IT IS. It was written against the book, and a
   // writer asking for another premise has not asked to lose the people in it.
-  await go("The book");
+  await go("The tale");
   await wait(300);
   await page.click('[data-spreroll="1"]');
   await wait(700);
@@ -428,7 +428,7 @@ ok("  and once there is one, step 4 becomes a pick over it",
 
   // The re-roll replaced the title, which is what it says it does. Put back the one the assertions
   // at the end of this file are about.
-  await go("The book");
+  await go("The tale");
   await wait(300);
   await page.eval(`(() => { const t = document.querySelector('[data-sp="title"]');
     t.value = 'The Drowned Ledger'; return 1; })()`);
@@ -436,7 +436,7 @@ ok("  and once there is one, step 4 becomes a pick over it",
 
 // #21 §3 · STEP 5 · A SECOND LOOK, and it fires from a BUTTON. A model call nobody asked for is
 // what made "what changed" slow, and #24 is the whole argument against it.
-await go("A second look");
+await go("Try it on");
 await wait(400);
 ok("  step 5 asks nothing until it is asked", (await page.eval("window.__review")) === 0);
 await page.click('[data-spreview="1"]');
@@ -449,14 +449,14 @@ await page.click('[data-spapply="0"]');
 await wait(400);
 ok("  taking one applies it and takes it off the list",
    (await page.eval("document.querySelectorAll('[data-spapply]').length")) === 0);
-await go("The book");
+await go("The tale");
 await wait(400);
 ok("  and the field it replaced carries the new words",
    (await page.eval("document.querySelector('[data-sp=\"title\"]')?.value")) === 'The Tide Clerk');
 // Put the title back for the assertions at the end.
 await page.eval(`(() => { const t = document.querySelector('[data-sp="title"]');
   t.value = 'The Drowned Ledger'; return 1; })()`);
-await go("A second look");
+await go("Try it on");
 await wait(400);
 await page.click('[data-spaddone="0"]');
 await wait(400);

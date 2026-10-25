@@ -72,7 +72,7 @@ await page.click('[data-cardtab="more"]');
 await wait(300);
 await page.click('[data-fieldhistory="1"]');
 await wait(700);
-ok("field history opens", await page.eval("document.body.innerHTML.includes('Field history')"));
+ok("earlier versions open", await page.eval("document.body.innerHTML.includes('Earlier versions')"));
 const revs = await page.eval("document.querySelectorAll('[data-revertfield]').length");
 console.log("  field revisions listed: " + revs);
 if (revs) {

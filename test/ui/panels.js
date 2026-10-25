@@ -1203,7 +1203,7 @@ for (let i = 0; i < 40; i++) {
   await wait(300);
 }
 const made = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s => s.title === 'A Blank Beginning'))()");
-ok("Create the story makes it with what you typed", !!made);
+ok("Cut the tale makes it with what you typed", !!made);
 ok(`  keeping the genre (${JSON.stringify(made?.genre ?? '')})`, /fantasy/.test(made?.genre ?? ''));
 ok("  and opens it", await page.eval("!!document.getElementById('input')"));
 
