@@ -1418,7 +1418,8 @@ async function bootServer(port: number, env: Record<string, string>) {
 
 {
   const PORT = 5187;
-  const { srv, url } = await bootServer(PORT, {});
+  // A model address where nothing listens, so ✦'s control below can never reach the real router.
+  const { srv, url } = await bootServer(PORT, { ANANSI_LLAMA: 'http://127.0.0.1:9' });
   const post = (path: string, body: unknown) => fetch(url + path, { method: 'POST',
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   try {
@@ -1473,6 +1474,15 @@ async function bootServer(port: number, env: Record<string, string>) {
     // Delete-after's first press (#46), asking about alice's passage as bob.
     const peek = await fetch(url + `/api/after?story=${aStory.id}&id=${aPassage}`);
     assert.strictEqual(peek.status, 404, "delete-after's first press must refuse another writer's story id");
+
+    // ✦ (#71), aimed at alice's book as bob. Her book would be read into the prompt, so the gate
+    // has to refuse before anything is sent to a model. The control is bob's own book, which the
+    // gate lets through: a 404 for both would be a route that is not there, not a gate.
+    const ideaForeign = await post('/api/idea', { storyId: aStory.id });
+    assert.strictEqual(ideaForeign.status, 404, "✦ must refuse another writer's story id");
+    const ideaOwn = await post('/api/idea', { storyId: bStory.id });
+    // Past the gate it meets a model that is not there, which is any answer but the gate's 404.
+    assert.notStrictEqual(ideaOwn.status, 404, `✦ on his own book passes the gate (${ideaOwn.status}; the 404 above is the gate)`);
 
     // A gated route naming no story at all: the gate cannot resolve an owner, so it fails closed.
     const nameless = await post('/api/write', { body: 'no story named' });

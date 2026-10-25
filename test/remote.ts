@@ -817,7 +817,8 @@ const mark = () => ({ fl: fl.length, local: local.length });
   // EVERY MODEL CALL IN routes.ts NAMES ITS MODEL, except the canon check's two. A background call
   // added later with no model would quietly go local; this is the line that notices.
   const routesSrc = (await import('node:fs')).readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
-  const calls = [...routesSrc.matchAll(/await (?:chat|structuredRetry)\(([A-Z_]+)[\s\S]*?\);/g)];
+  // `structured` too since ✦ (#71), the one route that calls it without the retry.
+  const calls = [...routesSrc.matchAll(/await (?:chat|structuredRetry|structured)\(([A-Z_]+)[\s\S]*?\);/g)];
   const unnamed = calls.filter((x) => !/\bmodel:/.test(x[0])).map((x) => x[1]).sort();
   assert.deepStrictEqual(unnamed, ['CHECK', 'NUMBERS'], 'NAMED: only the canon check passes no model');
   assert.ok(calls.length >= 20, `NAMED: and the scan saw the calls (${calls.length})`);
@@ -832,6 +833,16 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(talked[0].body.response_format?.json_schema?.strict, true,
     'with its schema, strict');
   assert.strictEqual(since(t).local.length, 0, 'and not to the local router');
+
+  // ✦ (#71) is the writer's own ask too, so it follows the writer's model the same way, and the
+  // remote call carries the weaving switch off.
+  const i = mark();
+  await routes['POST /api/idea'](ctx(me, { storyId: story.id }));
+  const ideaed = since(i).fl;
+  assert.ok(ideaed.length === 1 && ideaed[0].body.model === REMOTE,
+    `IDEA-REMOTE: ✦ goes to the remote model the writer chose, once (${ideaed.length} calls)`);
+  assert.strictEqual(since(i).local.length, 0, 'IDEA-REMOTE: and not to the local router');
+  assert.strictEqual(ideaed[0].body.response_format?.json_schema?.strict, true, 'IDEA-REMOTE: with its schema, strict');
 
   // The one door. Every writer-facing call resolves its model through `writerModel`, which is the
   // only place the shortlist is asked; a second `modelFor(` would be a call that can skip it.

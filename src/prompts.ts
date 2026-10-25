@@ -1578,3 +1578,31 @@ export const TALK_SCHEMA = {
   },
   required: ['reply'],
 } as const;
+
+/** ✦ (#71) · ANANSI'S IDEAS FOR WHAT COMES NEXT. Three directions for the next beat, in one call,
+ *  asked for when the writer taps ✦. Three because Seth asked for choices rather than one answer to
+ *  take or leave (2026-10-25). The one the writer picks lands in the composer in Direct mode, unsent,
+ *  so each is written as an instruction to the writing model and never as prose: a line of finished
+ *  prose in the box would be sent as the instruction and come back verbatim (F36). */
+export const IDEA =
+`You are Anansi. The writer is stuck on what happens next in their story and asked you for ideas.
+You have their canon, their chapter summaries and the last few passages above.
+
+Give THREE different directions for the very next beat. Each one is what happens, in one or two
+sentences, as an instruction the writer could hand the writing model — "Vel finds the ledger open
+at his page", not a paragraph of the scene. Each follows from where the last passage stopped and
+belongs to THIS story: its people, its place, the promises it has not kept. Something the story
+could do next, not where it ends.
+
+Make the three genuinely different from each other: not one idea said three ways. No preamble, no
+numbering, no "you could". Just the beats.`;
+
+/** Exactly three strings and nothing else. The strings are not bounded by maxLength: the grammar
+ *  closes a bounded string at exactly N characters, mid-word, with the JSON still valid (see
+ *  TALK_SCHEMA's reply). The cap on the call is the bound, and running past it fails visibly as an
+ *  object that does not parse. */
+export const IDEA_SCHEMA = {
+  type: 'object',
+  properties: { ideas: { type: 'array', minItems: 3, maxItems: 3, items: { type: 'string' } } },
+  required: ['ideas'],
+} as const;
