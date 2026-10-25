@@ -118,9 +118,11 @@ ok(`  and the glyph wears the fill's own ink, not a grey (${pair.big?.color})`,
 // BOTH ARE DRAWN MARKS NOW, from web/model.js's own set, rather than characters scavenged out of
 // Unicode. The maximize wears what Threads used to wear and Send wears what Preferences did, and
 // the menu took new ones — so the check is that each button holds an svg, not which glyph it is.
+// innerText, not textContent: since 2026-10-24 the button carries its word (Send) beside the mark,
+// shown on a desk and a tablet and hidden on a phone, which is where this runs.
 const svgs = await page.eval("(() => ({ send: !!document.querySelector('#send svg'),"
   + " big: !!document.querySelector('#inputRow [data-bigin] svg'),"
-  + " chars: (document.querySelector('#send')?.textContent || '').trim().length }))()");
+  + " chars: (document.querySelector('#send')?.innerText || '').trim().length }))()");
 console.log("  icons: " + JSON.stringify(svgs));
 ok("both buttons carry a drawn mark, not a text glyph", svgs.send && svgs.big && svgs.chars === 0);
 ok(`  and still big enough to read (${pair.big?.size}px)`, (pair.big?.size ?? 0) >= 16);
@@ -420,6 +422,29 @@ await wait(400);
   await page.eval("(() => { document.querySelector('[data-bigin]')?.click(); return 1; })()");
   await wait(300);
   ok("  ⤢ still closes it", !(await big()));
+}
+
+// ---- THE WORDS BESIDE THE ICONS (2026-10-24). On a desk the header's Read and Look and the
+// composer's Full screen and Send show their word; on a phone (everything above) they do not, and
+// the composer's own row says You play beside the name only where there is room. Falsify by
+// dropping the min-width rule for .btnword in app.html: the desk half goes red.
+{
+  const words = () => page.eval(`(() => {
+    const shown = (sel) => { const e = document.querySelector(sel); return !!e && e.checkVisibility(); };
+    return { read: shown('[data-readmode] .btnword'), look: shown('[data-appearance="1"] .btnword'),
+      big: shown('[data-bigin] .btnword'), send: shown('#send .btnword'), play: shown('.playlbl') }; })()`);
+  const phone = await words();
+  ok(`on a phone the icon buttons show no word (${JSON.stringify(phone)})`,
+     !phone.read && !phone.look && !phone.big && !phone.send && !phone.play);
+  await page.viewport(1440, 900);
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
+  const desk = await words();
+  ok(`on a desk each one shows its word (${JSON.stringify(desk)})`,
+     desk.read && desk.look && desk.big && desk.send && desk.play);
+  ok("  and the words are the ones the glossary review asked for",
+     /Read/.test(await page.text('[data-readmode]') || '') && /Look/.test(await page.text('[data-appearance="1"]') || '')
+     && /Send/.test(await page.text('#send') || '') && /Full screen/.test(await page.text('[data-bigin]') || ''));
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

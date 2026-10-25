@@ -1022,15 +1022,22 @@ function drawBar() {
       <button class="pill" data-readmode="${S.reading ? '0' : '1'}" aria-pressed="${S.reading}"
         aria-label="${S.reading ? 'Leave reading mode' : 'Reading mode'}"
         title="${S.reading ? 'Leave reading mode' : 'Read without the composer, and without the prose taking taps'}"
-        style="display:flex; align-items:center; padding:6px 11px"
-        >${mark('book', 17)}</button>
+        style="display:flex; align-items:center; gap:7px; padding:6px 11px"
+        >${mark('book', 17)}<span class="btnword">Read</span></button>
+      <!-- THE WORD BESIDE THE GLYPH, on a desk and a tablet. Two icon-only buttons in the header
+           were read as decoration in a user review on 2026-10-24; the glyph stays, the word says
+           what it does, and on a phone the word goes (.btnword) and the aria-label carries it. -->
       <button class="pill" data-appearance="1" aria-label="How the app looks" aria-pressed="${S.appearance}"
-        style="font-family:'Instrument Serif',serif; font-size:15px; line-height:1; padding:7px 13px">Aa</button>
+        style="display:flex; align-items:center; gap:7px; line-height:1; padding:7px 13px"
+        ><span style="font-family:'Instrument Serif',serif; font-size:15px">Aa</span><span class="btnword">Look</span></button>
 `
       : `<button class="pill" data-open="new">New tale</button>
-         ${LIB.length ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
+         ${/* ONE DOOR, NOT TWO. On the rack the hero band already says Carry on writing, for the
+              same tale, so this one is drawn only where the band is not: on every other page, and
+              on a rack with no live tale to put in the band. Same words as the band. */
+           LIB.length && !(S.wpage === 'stories' && heroOf()) ? `<button data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            text-transform:uppercase; color:var(--on-gold); background:var(--gold); padding:9px 18px;
-           border-radius:var(--r); font-weight:500; white-space:nowrap">Resume writing</button>` : ''}`}
+           border-radius:var(--r); font-weight:500; white-space:nowrap">Carry on writing</button>` : ''}`}
       <!-- HER WEB, AND IT OPENS HER. Seth: "make the icon a full web and make it go to anansi.
            this can remove the anansi text link from the input field." Asking her something is a
            thing you do while writing, which is the argument that took Anansi off the nav row in
@@ -1831,7 +1838,7 @@ function drawDock() {
       <button data-bigin="1" aria-pressed="${S.bigInput}" title="${S.bigInput
         ? 'Back to the page' : 'Write in a full screen, and still read what you wrote'}"
         aria-label="${S.bigInput ? 'Close the full-screen composer' : 'Open the full-screen composer'}"
-        >${mark('expand', 18)}</button>
+        >${mark('expand', 18)}<span class="btnword">${S.bigInput ? 'Back' : 'Full screen'}</span></button>
       <div id="inputWrap">
         <div id="inputMirror" aria-hidden="true"></div>
         <textarea id="input" rows="1" aria-label="What happens next"
@@ -1858,10 +1865,10 @@ function drawDock() {
       ${weavingAt('dock') ? `<span id="weaving" class="weaving tnum" aria-live="polite">${weaveWords('dock')}</span>` : ''}
       ${S.busy && !veilUp()
         ? `<button id="send" data-stop="1" aria-label="Stop writing"
-             title="Stop">${mark('send', 18)}</button>`
+             title="Stop">${mark('send', 18)}<span class="btnword">Stop</span></button>`
         : `<button id="send" data-send="1" aria-label="Send" ${S.busy ? 'disabled' : ''}
              title="${S.busy ? 'Anansi is writing — Stop is on the veil' : 'Send'}"
-             >${mark('send', 18)}</button>`}
+             >${mark('send', 18)}<span class="btnword">Send</span></button>`}
     </div>`;
   const ta = $('input');
   // Fit to the text and let CSS clamp it. The cap used to be written twice — `140` here and
@@ -6406,6 +6413,12 @@ function drawPage() {
   $('page').innerHTML = (WPAGES[S.wpage] ?? WPAGES.stories)();
 }
 
+/** THE TALE THE RACK'S HERO BAND IS ABOUT: the newest live tale, never a world or a folded one.
+ *  WPAGES.stories draws the band from `live[0]`, which is this; the header reads it to know whether
+ *  the band is showing. */
+const heroOf = () => shelfOrder((LIB ?? []).filter((s) => !s.is_world))
+  .find((s) => s?.status !== 'archived') ?? null;
+
 const STATUS = { in_progress: 'Writing', draft: 'Draft', finished: 'Done', archived: 'Folded' };
 // A world wears its own word instead of 'Writing': it holds no prose and never will.
 const WORLD_TAG = 'World';
@@ -6764,6 +6777,8 @@ const WPAGES = {
     const ordered = shelfOrder(LIB.filter((s) => !s.is_world));
     const live = ordered.filter((s) => s?.status !== 'archived');
     const shelved = ordered.filter((s) => s?.status === 'archived');
+    // heroOf() is this same rule for the header, which hides its own Carry on writing while the
+    // band shows one. Change one and change the other.
     // The hero comes from the LIVE books. A shelf with nothing but archived books has no hero at
     // all rather than promoting one — putting a book away is the act that means stop showing me
     // this, and the hero slot is the loudest place on the screen.

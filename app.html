@@ -1299,11 +1299,18 @@ html[data-work="ai"]       #frame { --work:var(--gold); }
    below was being written and never applied. Seth: "the expand button however is still very very
    small. The icon at least is very very small." The inline sizing is gone; this owns it. */
 #inputRow button[data-bigin] { padding:0; }
+/* A WORD BESIDE THE GLYPH, at desk and tablet width (2026-10-24): an icon-only button said nothing
+   to a new writer. The two composer buttons widen to hold it; on a phone the word goes and they
+   keep the 38x56 shape above, with the aria-label carrying the word. */
+.btnword { font-size:11px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
 /* "You play" beside the name in the composer row (2026-10-24), hidden on a phone where the row
    has no room; the select's aria-label carries it there. */
 .playlbl { flex:0 0 auto; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
   color:var(--label); white-space:nowrap; margin-right:-4px; }
-@media (max-width:719px) { .playlbl { display:none; } }
+@media (min-width:720px) {
+  #send, #inputRow button[data-bigin] { width:auto; padding:0 12px; gap:7px; }
+  #inputRow button[data-bigin] { padding:0 12px; } }
+@media (max-width:719px) { .btnword, .playlbl { display:none; } }
 
 
 /* --- side panel -------------------------------------------------------- */
