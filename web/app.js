@@ -1046,8 +1046,8 @@ function drawBar() {
            lost with it, which was the objection: the logo at the far left of this bar is the way
            in on every screen now. Same glyph size and padding as Reading mode beside it. -->
       ${inStory ? `<button data-panel="anansi" class="pill phoneonly" aria-label="Ask Anansi"
-        style="display:flex; align-items:center; padding:6px 11px; color:var(--chrome-dim)"
-        >${mark('webfull', 17)}</button>` : ''}
+        style="display:flex; align-items:center; gap:7px; padding:6px 11px; color:var(--chrome-dim)"
+        >${mark('webfull', 17)}<span class="btnword">Ask</span></button>` : ''}
     </div>`;
   // The title, and the line under it that names the chapter. Both are leaf spans holding nothing
   // but text, which is what decode() needs — it writes textContent.

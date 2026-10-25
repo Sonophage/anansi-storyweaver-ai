@@ -424,7 +424,7 @@ await wait(400);
   ok("  ⤢ still closes it", !(await big()));
 }
 
-// ---- THE WORDS BESIDE THE ICONS (2026-10-24). On a desk the header's Read and Look and the
+// ---- THE WORDS BESIDE THE ICONS (2026-10-24). On a desk the header's Read, Look and Ask and the
 // composer's Full screen and Send show their word; on a phone (everything above) they do not, and
 // the composer's own row says You play beside the name only where there is room. Falsify by
 // dropping the min-width rule for .btnword in app.html: the desk half goes red.
@@ -432,16 +432,17 @@ await wait(400);
   const words = () => page.eval(`(() => {
     const shown = (sel) => { const e = document.querySelector(sel); return !!e && e.checkVisibility(); };
     return { read: shown('[data-readmode] .btnword'), look: shown('[data-appearance="1"] .btnword'),
+      ask: shown('#bar [data-panel="anansi"] .btnword'),
       big: shown('[data-bigin] .btnword'), send: shown('#send .btnword'), play: shown('.playlbl') }; })()`);
   const phone = await words();
   ok(`on a phone the icon buttons show no word (${JSON.stringify(phone)})`,
-     !phone.read && !phone.look && !phone.big && !phone.send && !phone.play);
+     !phone.read && !phone.look && !phone.ask && !phone.big && !phone.send && !phone.play);
   await page.viewport(1440, 900);
   await page.goto(B + "/#" + sid);
   for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
   const desk = await words();
   ok(`on a desk each one shows its word (${JSON.stringify(desk)})`,
-     desk.read && desk.look && desk.big && desk.send && desk.play);
+     desk.read && desk.look && desk.ask && desk.big && desk.send && desk.play);
   ok("  and the words are the ones the glossary review asked for",
      /Read/.test(await page.text('[data-readmode]') || '') && /Look/.test(await page.text('[data-appearance="1"]') || '')
      && /Send/.test(await page.text('#send') || '') && /Full screen/.test(await page.text('[data-bigin]') || ''));

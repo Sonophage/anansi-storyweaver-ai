@@ -22,8 +22,8 @@ Back to the house cut is Reset. Spinning is Plans first. A stale summary is out 
 screen says what that means: an out-of-date scene summary is not sent until it is written again,
 and an out-of-date chapter summary is still sent. The composer says Speak and Act, and You play
 beside the name, the same words as the tale's settings. The rack has one Carry on writing button
-instead of two. Read, Look, Send, Stop and Full screen now show their names beside their icons on
-a desk or a tablet. New tips say what a world, a chapter, a version, the rack and the Workbench
+instead of two. Read, Look, Ask, Send, Stop and Full screen now show their names beside their
+icons on a desk or a tablet. New tips say what a world, a chapter, a version, the rack and the Workbench
 are.
 
 ### Anansi's own words, everywhere
