@@ -8,6 +8,12 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
+// #71. Once a passage has landed the composer is folded behind the three buttons; the handle
+// over them opens it, which is what a writer does before typing their own line.
+const openDock = async () => {
+  for (let i = 0; i < 40 && !(await page.eval("!!document.getElementById('dock')")); i++) await wait(100);
+  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#nextbar .grab');
+};
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 // A second book, made BEFORE the app loads so the client's library contains it from the first paint.
 // Made later and navigated to by hash, the app does not know the id, lands on the workspace, and
@@ -31,6 +37,7 @@ const modeBlock = (mode, speaker, directive) => page.eval(
   + " return r.manifest.blocks.find(b => b.kind === 'MODE')?.text ?? ''; })()");
 
 await page.goto(B + "/#" + sid);
+await openDock();
 
 // ---- 1. the four modes, on one dial, and what kind of thing each one is
 // ONE SELECT, NOT FOUR BUTTONS, since 2026-09-02. Asserted through the dial's own options rather
@@ -44,7 +51,8 @@ for (const k of ['speak', 'act', 'direct', 'narrate'])
 // Continue left the mode row on 2026-08-27 for the end of the page. Asserted from both sides:
 // gone from here, present there — one without the other passes while it is in both places.
 ok("Continue is off the mode row", !(await page.eval("!!document.querySelector('#modes [data-continue]')")));
-ok("  and on the last passage instead", await page.visible('#col .block:last-of-type ~ .carry, #col .carry [data-continue]'));
+// #71: at the foot of the screen now, on the bar of three buttons.
+ok("  and on the bar at the foot of the screen instead", await page.visible('#nextbar [data-continue]'));
 ok("New scene is gone from the bar", !/New scene/.test(await page.text('#modes') || ''));
 // Continue sends with nothing typed, so it is an action. A mode you can select but never type
 // into is the shape that made "Continue" need an empty box pressed twice.
@@ -72,6 +80,7 @@ ok("  and #takeRow is not rendered at all", await page.eval("!document.getElemen
 // ---- 4. switching mode must not eat the line. Seventh instance of this bug.
 await page.mode('direct');
 await page.eval("(() => { document.getElementById('input').value = ''; return 1; })()");
+await openDock();
 await page.type('#input', 'She puts the key on the table.');
 await page.mode('speak');
 await wait(400);

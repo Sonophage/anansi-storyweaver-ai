@@ -116,7 +116,7 @@ ok("  and the composer is usable again", await page.eval("!document.getElementBy
 // the last row has a different id, and the variants live on that one. Following the id was the
 // wrong assertion; following the tail of the document is the right one.
 const v0 = ((await story()).passages.at(-1)?.variants ?? []).length;
-await page.click('#col .carry [data-re]');
+await page.click('#nextbar [data-re]');
 console.log("  regenerating…");
 for (let i = 0; i < 60; i++) {
   if (((await story()).passages.at(-1)?.variants ?? []).length > v0) break;
@@ -174,7 +174,7 @@ ok(`  and EACH take records the canon its own prompt carried (${against} of ${ta
 // appeared to, because you reopen the panel to look at an edit and do not reopen it to
 // regenerate. Do not close the panel anywhere in here.
 const takesOpen = ((await page.text('#sideBody') || '').match(/Take \d+/g) ?? []).length;
-await page.click('#col .carry [data-re]');
+await page.click('#nextbar [data-re]');
 console.log("  regenerating with History open…");
 // THE PANEL CANNOT PICK ANYTHING UP UNTIL THE VEIL GOES. Since 2026-09-02 the repaint is deferred
 // to the dismissal — that is the point of it, so the reading column is not rebuilt while the

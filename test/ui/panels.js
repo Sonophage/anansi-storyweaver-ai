@@ -6,6 +6,12 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
+// #71. Once a passage has landed the composer is folded behind the three buttons; the handle
+// over them opens it, which is what a writer does before typing their own line.
+const openDock = async () => {
+  for (let i = 0; i < 40 && !(await page.eval("!!document.getElementById('dock')")); i++) await wait(100);
+  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#nextbar .grab');
+};
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 const story = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid + "')).json())()");
 const rail = () => page.eval("[...document.querySelectorAll('#rail [data-nav]')].map(b => b.dataset.nav).join(',')");
@@ -789,6 +795,7 @@ if (await page.visible('[data-setup="title"]')) {
 // tray is the ONLY way to scan the chapter for facts, to have Anansi write a card, or to hang an
 // outfit on somebody, so a door that vanished would take three features with it.
 await page.goto(B + "/#" + sid);
+await openDock();
 for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
 // THE DOOR IS AN OPTION ON THE THREADS DIAL since 2026-09-02, so what is visible is the dial and
 // what carries the action is the option inside it. Both asserted: a dial with no such option is the

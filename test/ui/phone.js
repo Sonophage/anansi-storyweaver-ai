@@ -8,6 +8,12 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (m, cond) => { console.log(`  ${cond ? "ok  " : "FAIL"} ${m}${cond ? "" : "   <-- broken"}`); if (!cond) red++; };
+// #71. Once a passage has landed the composer is folded behind the three buttons; the handle
+// over them opens it, which is what a writer does before typing their own line.
+const openDock = async () => {
+  for (let i = 0; i < 40 && !(await page.eval("!!document.getElementById('dock')")); i++) await wait(100);
+  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#nextbar .grab');
+};
 
 await page.mobile();
 await page.goto(B + "/");
@@ -149,6 +155,7 @@ ok("  and the same button gives the composer back",
 // layout and from the tab order but NOT from the DOM — the textarea and its value are still sitting
 // there. So this asserts the guarantee a writer cares about and nothing about the mechanism, and
 // the day the composer is genuinely unmounted it will stop being green for free.
+await openDock();
 await page.type("#dock textarea", "half a sentence that must survive");
 await wait(200);
 await page.click("[data-readmode]");

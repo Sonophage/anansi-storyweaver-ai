@@ -10,6 +10,26 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-25 · Three buttons at the bottom
+
+### Reweave, Continue and Anansi's ideas
+Once a passage has landed, the bottom of the screen is three buttons: ↻ Reweave, a big Continue,
+and ✦. Tap Continue and Anansi writes the next passage straight away, and everything you had at
+the bottom before (how you are writing, threads, the box and Send) comes up so you can steer the
+one after. While she writes, Continue is Stop. When the passage lands, the bottom folds back to
+the three buttons. To write your own line first, tap the short line above the buttons, or just
+start typing on a keyboard.
+
+### Hold Continue to talk to Anansi
+Hold Continue and the same box and Send go to Talk instead, and her answer appears in the Talk
+drawer. Back to writing turns the box back. You can also pick Talk to Anansi on the How you are
+writing menu, or press Alt+T on a keyboard.
+
+### Ideas for what comes next
+Tap ✦ and Anansi offers three ideas for what could happen next, from your tale's own model. Tap
+one and it goes in the box as a Direct instruction, for you to change or send. Nothing is asked
+of her until you tap.
+
 ## 2026-10-25 · Doors you can see
 
 ### Anansi writes into the page

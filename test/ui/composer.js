@@ -5,10 +5,17 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
+// #71. Once a passage has landed the composer is folded behind the three buttons; the handle
+// over them opens it, which is what a writer does before typing their own line.
+const openDock = async () => {
+  for (let i = 0; i < 40 && !(await page.eval("!!document.getElementById('dock')")); i++) await wait(100);
+  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#nextbar .grab');
+};
 
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 await page.mobile();
 await page.goto(B + "/#" + sid);
+await openDock();
 for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
 
 // ---- THE COMPOSER ROW STAYS ON ONE LINE (2026-08-28). Three buttons sit right of the four modes
@@ -38,7 +45,11 @@ for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
      && /Add Threads/.test(row.labels));
   ok("  with the four modes on a dial of their own", !!row && /Speak/.test(row.labels)
      && /Narrate/.test(row.labels));
-  ok("  with Anansi no longer among them", !!row && !/Anansi/.test(row.labels));
+  // #71 put Talk to Anansi on the mode dial, as the way into Talk that is not a long press. That is
+  // an option of the dial, not her door back on the row: no control of the row but the dial names her.
+  ok("  with Anansi no longer among them", !!row && await page.eval(`[...document.querySelectorAll('#modes > *')]
+     .filter((x) => !x.matches('[data-modesel]')).every((x) => !/Anansi/.test(x.textContent))`)
+     && !(await page.eval("!!document.querySelector('#modes [data-panel=\"anansi\"]')")));
 }
 
 // ---- #3. "The send button and the expand input button are too small."
@@ -439,6 +450,7 @@ await wait(400);
      !phone.read && !phone.look && !phone.ask && !phone.big && !phone.send && !phone.play);
   await page.viewport(1440, 900);
   await page.goto(B + "/#" + sid);
+  await openDock();
   for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
   const desk = await words();
   ok(`on a desk each one shows its word (${JSON.stringify(desk)})`,
