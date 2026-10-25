@@ -170,8 +170,8 @@ const BOOK_EXAMPLE = `{
 export const FORGE: ForgePrompt[] = [
   {
     key: 'book',
-    title: 'A whole book, in one command',
-    what: 'Story and cast together. Paste it on Create a story and the wizard opens with everything filled.',
+    title: 'A whole tale, in one command',
+    what: 'Tale and cast together. Paste it on Cut a new tale and the wizard opens with everything filled.',
     prompt:
 `You are building a WHOLE BOOK for a long-form fiction app called Anansi: the story itself and the
 cast that lives in it, in one answer.
@@ -252,7 +252,7 @@ ${BOOK_EXAMPLE}`,
   {
     key: 'character',
     title: 'A character',
-    what: 'Comes back as JSON you paste into + Thread. Arrives with its rooms filled.',
+    what: 'Comes back as JSON you paste into + Thread. Arrives with its pockets filled.',
     prompt:
 `You are writing a CHARACTER CARD for a long-form fiction app called Anansi.
 
@@ -267,7 +267,7 @@ ${SHAPE('character', CHARACTER_EXAMPLE)}`,
   {
     key: 'location',
     title: 'A place',
-    what: 'Same JSON, as a place. Anansi files places, factions and history under one kind.',
+    what: 'Same JSON, as a place. Anansi files places, factions and their pasts under one kind.',
     prompt:
 `You are writing a PLACE CARD for a long-form fiction app called Anansi.
 
@@ -314,7 +314,7 @@ RULES:
   },
   {
     key: 'voice',
-    title: 'The voice of the weave',
+    title: 'The voice',
     what: 'Plain text for the voice box. This is the field that decides register.',
     prompt:
 `You are writing the VOICE for a book in a long-form fiction app called Anansi.

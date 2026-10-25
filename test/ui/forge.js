@@ -21,7 +21,7 @@ await page.click('[data-nav="forge"]');
 await wait(800);
 const page1 = (await page.text('#page') || '');
 ok("  and opens on the six prompts",
-   ['A whole book', 'A character', 'A place', 'A premise', 'The voice', 'A cover image']
+   ['A whole tale', 'A character', 'A place', 'A premise', 'The voice', 'A cover image']
      .every((t) => page1.includes(t)));
 ok("  each with a copy button",
    (await page.eval("document.querySelectorAll('[data-forgecopy]').length")) === 6);
@@ -95,7 +95,7 @@ if (after) {
 // The toast says what happened, including what did not come through.
 const toast = (await page.text('#toast') || '').trim();
 ok(`  and the toast says what landed (${JSON.stringify(toast.slice(0, 70))})`,
-   /thread/.test(toast) && /room/.test(toast));
+   /thread/.test(toast) && /pocket/.test(toast));
 
 // ---- 3. what it refuses, from the surface ----
 await page.goto(B + "/#" + sid + "/threads");

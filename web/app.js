@@ -4120,12 +4120,12 @@ const PANELS = {
         if (r.worse) parts.push(`${r.worse} made it worse`);
         if (r.refused) parts.push(`${r.refused} refused as a rewrite`);
         if (r.unchecked) parts.push(`${r.unchecked} unverified`);
-        return `<div class="row"><span style="color:var(--ink)">Corrections</span>
+        return `<div class="row"><span style="color:var(--ink)">Mends</span>
           <span class="tnum" style="margin-left:auto; color:var(--faint)">${esc(parts.join(' · '))}</span></div>
           <div class="hint" style="margin-top:0">Counted over the ${r.asked} ${
-            r.asked === 1 ? 'take' : 'takes'} you asked to correct, not over every call — that is the
-            only denominator the number means anything against. ${r.found} contradictions went in and
-            ${r.mended} came out fixed.</div>`;
+            r.asked === 1 ? 'fitting' : 'fittings'} you asked to mend, not over every call — that is the
+            only denominator the number means anything against. ${r.found} knots went in and
+            ${r.mended} came out mended.</div>`;
       })()}
       </div>`;
   },
@@ -6495,7 +6495,7 @@ function storyCard(s, i, hero) {
             s.updated_at ? touchedAgo(s.updated_at) : ''}</span></span>
         ${cardLine(s)}
         <span style="display:flex; align-items:center; gap:9px; margin-top:11px; font-size:11px; color:var(--faint)">
-          <span>${s.chapters ?? 0} ${s.chapters === 1 ? 'chapter' : 'chapters'}</span>
+          <span>${s.chapters ?? 0} ${s.chapters === 1 ? 'scene' : 'scenes'}</span>
           <span style="opacity:.5">·</span><span>${(s.words ?? 0).toLocaleString()} words</span></span>`}</span>
   </button>`;
 }
@@ -6553,7 +6553,7 @@ function resumeBand(s) {
         <!-- Silence, not a guess. The percentage arrives from its own fetch a moment after the
              page paints, and never arrives at all when the router is asleep or the request fails.
              An empty right-hand side is honest; a 0% is not. -->
-        ${pct === null ? '' : `<span class="kind" style="color:var(--label)">context ${pct}%</span>`}
+        ${pct === null ? '' : `<span class="kind" style="color:var(--label)">${pct}% full</span>`}
       </span>
       <!-- ONE node, moved rather than duplicated. On a phone this sits over the bottom of the
            cover, which is what the design draws and what buys back the height the stacked layout
@@ -11203,7 +11203,7 @@ document.addEventListener('click', async (e) => {
     const e = V?.entries.find((x) => x.id === d.cardsave);
     // A filename off the card's own title, so a folder of these is readable. Anything a filesystem
     // would argue with becomes a dash rather than being dropped: two cards must not collide.
-    const name = String(e?.title ?? 'card').trim().replace(/[^\w. -]+/g, '-').slice(0, 60) || 'card';
+    const name = String(e?.title ?? 'thread').trim().replace(/[^\w. -]+/g, '-').slice(0, 60) || 'thread';
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url; a.download = `${name}.json`;
@@ -11224,8 +11224,8 @@ document.addEventListener('click', async (e) => {
     if (made.length === 1) S.entryId = made[0].id;
     paint(); refreshManifest();
     return toast(made.length === 1
-      ? `${made[0].title} is written back${made[0].rooms ? `, with ${plural(made[0].rooms, 'room', 'rooms')}` : ''}.`
-      : `${plural(made.length, 'card', 'cards')} read.`);
+      ? `${made[0].title} is written back${made[0].rooms ? `, with ${plural(made[0].rooms, 'pocket', 'pockets')}` : ''}.`
+      : `${plural(made.length, 'thread', 'threads')} read.`);
   }
   if (d.pastethread) {
     const box = document.querySelector('[data-pastebox]');
@@ -11241,7 +11241,7 @@ document.addEventListener('click', async (e) => {
     if (made.length === 1) { S.cardView = 'read'; S.panel = 'entry'; }
     paint(); refreshManifest();
     toast(`${plural(made.length, 'thread', 'threads')} woven in${
-      rooms ? `, with ${plural(rooms, 'room', 'rooms')}` : ''}.${
+      rooms ? `, with ${plural(rooms, 'pocket', 'pockets')}` : ''}.${
       (r.notes ?? []).length ? ` ${r.notes[0]}` : ''}`);
     return;
   }
