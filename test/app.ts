@@ -106,7 +106,7 @@ const stored = new Map<string, string>();
 (globalThis as any).cancelAnimationFrame = () => {};
 (globalThis as any).window = { addEventListener() {} };
 (globalThis as any).location = { hash: '', pathname: '/' };
-(globalThis as any).history = { replaceState() {} };
+(globalThis as any).history = { replaceState() {}, pushState() {}, back() {}, state: null };
 // #17. The draw path keeps the bytes it fetched, so picking one costs no second request. Object
 // URLs are the browser's, not node's — a counter is enough to tell one blob from another and to
 // prove the revoke happens.

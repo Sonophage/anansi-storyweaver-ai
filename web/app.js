@@ -7258,12 +7258,38 @@ const WPAGES = {
 };
 
 // ---------- actions ----------
+/** The address follows the screen, and going DEEPER is a history entry of its own.
+ *
+ *  It was replaceState every time, so a drawer never had an entry and the phone's Back button left
+ *  the tale — the usability check of 2026-10-24 found it on every drawer. Now: rack → tale and
+ *  tale → drawer push; drawer → drawer replaces, so Back is one press out of a drawer however many
+ *  were opened in it; and shutting a drawer that pushed its own entry steps back over it instead
+ *  of writing a second copy of the tale's address, which would be a Back press that does nothing.
+ *
+ *  `under` is the address the entry was pushed over. Stepping back is only done when that is
+ *  exactly where we want to be — otherwise the hashchange it fires would route somewhere else.
+ *
+ *  Called from paint(), so every path that changes the place or the panel lands here; a dozen of
+ *  them never called it, which is how Esc came to leave a drawer's name in the address. `ROUTED`
+ *  keeps it quiet until the first route: the boot paints before it, and would wipe a deep link;
+ *  `ROUTING` does the same while a route is still fetching the tale it names. */
+let ROUTED = false;
+let BACKING = false;
+let ROUTING = 0;
+const depth = (h) => (h ? h.split('/').length : 0);
 function syncHash() {
   const want = S.place === 'story' && S.storyId ? `#${S.storyId}${S.panel ? `/${S.panel}` : ''}` : '';
-  if (location.hash !== want) history.replaceState(null, '', want || location.pathname);
+  if (!ROUTED || ROUTING || BACKING || location.hash === want) return;
+  const from = depth(location.hash), to = depth(want);
+  if (to > from) history.pushState({ under: location.hash }, '', want);
+  else if (to < from && history.state?.under === want) { BACKING = true; history.back(); }
+  else history.replaceState(history.state, '', want || location.pathname);
 }
+// popstate comes before the hashchange that routes, on every step through history.
+window.addEventListener('popstate', () => { BACKING = false; });
 
 function paint() {
+  syncHash();
   applyLook();
   // THE LIGHT AT THE TOP, wherever you are. Drawn from paint rather than from a draw function of
   // its own because it is about the whole app rather than about any one surface — and it must be
@@ -12154,9 +12180,27 @@ function readHash() {
 
 async function route() {
   const { id, panel } = readHash();
+  ROUTED = true;
+  // A tale this page has not heard of may be one made since it loaded — on another device, or by
+  // a test through the API. Ask once before treating the address as wrong: the workspace branch
+  // below now WRITES the address, and would wipe a good link.
+  if (id && !LIB.some((s) => s.id === id)) { ROUTING++; try { await loadLibrary(); } finally { ROUTING--; } }
   if (id && LIB.some((s) => s.id === id)) {
-    if (panel) S.panel = panel;   // readHash has already mapped any retired name
-    if (S.storyId === id) { paint(); } else { await openStory(id); }
+    // In the same tale the address is the whole truth about the drawer, so an address with none
+    // shuts it: that is Back out of a drawer. A world book has no page under its threads.
+    // `S.place` as well as the id: leaving a tale keeps `S.storyId`, and a link back into it from
+    // the rack has to open the tale, not repaint the rack with the tale's id on the address.
+    if (S.place === 'story' && S.storyId === id) {
+      S.panel = panel ?? (V?.story?.is_world ? 'threads' : null);
+      paint();
+    } else {
+      if (panel) S.panel = panel;   // readHash has already mapped any retired name
+      // The address is AHEAD of the screen until the tale arrives. A paint in between — the boot
+      // paints, the live channel paints — would write the old screen back over the new address.
+      ROUTING++;
+      try { await openStory(id); } finally { ROUTING--; }
+      syncHash();
+    }
   } else { S.place = 'workspace'; S.storyId = null; V = null; paint(); }
 }
 

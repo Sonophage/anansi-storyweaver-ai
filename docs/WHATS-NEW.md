@@ -10,6 +10,13 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-25 · Back goes where you expect
+
+### The phone's Back button closes a drawer
+Back used to leave the tale when a drawer was open. Now Back closes the drawer and you stay in the
+tale. From the tale, Back goes to the rack. Esc and a tap outside a drawer also close it for good:
+a reload no longer opens it again.
+
 ## 2026-10-24 · Longer passages, and room for a big model to plan
 
 ### Plainer words after two reviews
