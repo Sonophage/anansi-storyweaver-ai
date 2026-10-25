@@ -48,10 +48,11 @@ ok("  and carrying the app's own card register",
 // ---- 2. a forged thread, pasted into + Thread ----
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 await page.goto(B + "/#" + sid + "/threads");
-// SCOPED TO #sideBody: the composer's threads dial carries a data-newlore OPTION since 2026-09-02,
+// SCOPED TO #sideHead: the composer's threads dial carries a data-newlore OPTION since 2026-09-02,
 // and an option has no box — so the unscoped selector found that one and waited on it for ever.
-for (let i = 0; i < 40 && !(await page.visible('#sideBody [data-newlore="1"]')); i++) await wait(250);
-await page.click('#sideBody [data-newlore="1"]');
+// The list's door is the + in the drawer's header since the v2 redesign (2026-10-25).
+for (let i = 0; i < 40 && !(await page.visible('#sideHead [data-newlore="1"]')); i++) await wait(250);
+await page.click('#sideHead [data-newlore="1"]');
 await wait(400);
 await page.click('[data-lorekind="character"]');
 await wait(400);
@@ -99,10 +100,11 @@ ok(`  and the toast says what landed (${JSON.stringify(toast.slice(0, 70))})`,
 
 // ---- 3. what it refuses, from the surface ----
 await page.goto(B + "/#" + sid + "/threads");
-// SCOPED TO #sideBody: the composer's threads dial carries a data-newlore OPTION since 2026-09-02,
+// SCOPED TO #sideHead: the composer's threads dial carries a data-newlore OPTION since 2026-09-02,
 // and an option has no box — so the unscoped selector found that one and waited on it for ever.
-for (let i = 0; i < 40 && !(await page.visible('#sideBody [data-newlore="1"]')); i++) await wait(250);
-await page.click('#sideBody [data-newlore="1"]');
+// The list's door is the + in the drawer's header since the v2 redesign (2026-10-25).
+for (let i = 0; i < 40 && !(await page.visible('#sideHead [data-newlore="1"]')); i++) await wait(250);
+await page.click('#sideHead [data-newlore="1"]');
 await wait(400);
 await page.click('[data-lorekind="character"]');
 await wait(400);

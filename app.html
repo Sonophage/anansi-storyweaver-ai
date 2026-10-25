@@ -1431,6 +1431,34 @@ textarea.field { resize:vertical; min-height:70px; }
   line-height:1.15; color:var(--ink-bright); }
 .card.plate .tag.alwayson { border:1px solid rgba(217,178,106,.4); color:var(--gold);
   white-space:nowrap; }
+/* THE TALE'S THREADS LIST (v2 redesign, 2026-10-25). Seth: "the threads screen is a lot of
+   information and needs to be simpler". A short card: name, two lines, an eye, and tags only when
+   there is something to say. No 150px floor, which was there for the cross-book grid's pictures;
+   the right padding is the room the eye is laid into (it is a sibling, see threadPlate). margin:0
+   for the same name collision as above: the chapter hero's `.plate` adds 18px under it. */
+.card.plate.thplate { min-height:0; margin:0; padding:14px 60px 14px 18px; gap:6px; text-align:left; width:100%; }
+.thplate .thtext { font-size:13px; line-height:1.5; color:var(--mute); }
+.thplate .thtags { display:flex; flex-wrap:wrap; gap:5px; margin-top:3px; }
+.theye { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:44px; height:44px;
+  display:flex; align-items:center; justify-content:center; border-radius:var(--r-pill);
+  color:var(--faint); }
+.theye[data-lit="1"] { color:var(--gold); }
+/* SEARCH AND THE TWO FILTERS, ONE ROW. The chips are 38px to the eye in a 50px box; the ::before
+   takes each one to 44px for the finger without making the row taller. */
+.thfind { display:flex; align-items:center; gap:5px; padding:5px 5px 5px 12px; border:1px solid var(--chip);
+  border-radius:var(--r); background:var(--field); }
+.thfind:focus-within { border-color:var(--edge-lit); }
+.thfindmark { display:flex; color:var(--faint); }
+.thfind input { flex:1 1 auto; min-width:0; height:38px; background:transparent; border:0; outline:none;
+  color:var(--ink); font:inherit; font-size:14px; }
+.thfind .chip { position:relative; flex:0 0 auto; height:38px; padding:0 11px; white-space:nowrap;
+  border-radius:var(--r-pill); cursor:pointer; }
+.thfind .chip::before { content:''; position:absolute; inset:-4px -2px; }
+/* The header's +: 44px to the finger, a 34px ring to the eye, and no taller header for it. */
+.headadd { width:44px; height:44px; margin:-8px -6px -8px 0; display:flex; align-items:center;
+  justify-content:center; color:var(--gold); flex:0 0 auto; }
+.headadd > span { width:34px; height:34px; border:1px solid var(--chip); border-radius:var(--r-pill);
+  display:flex; align-items:center; justify-content:center; }
 /* THE HANDOFF'S PICKED STATE IS NOT HERE, and that is deliberate rather than an omission. Nothing
    sets `aria-pressed` on a plate: the only place a thread is picked is the cross-book seed picker,
    and that is `data-seedpick`, a different renderer with its own chosen treatment. A rule written

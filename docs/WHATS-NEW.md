@@ -12,6 +12,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-25 · Doors you can see
 
+### A shorter Threads list
+The Threads drawer shows more of your tale at once. The title says how many threads there are,
+and the + beside Close adds one. Search, Sent now and All sit in one row. Each kind says how many
+threads it holds. A thread shows its name and two lines of what it says, with a tag if it has
+pockets. The mark on each thread says how it reaches Anansi: an open eye is always on, an eye
+with a speech mark is on a word and woken now, and a shut eye is on a word and asleep. Tap the
+mark to switch a thread between always on and on a word. Sent now and the marks change as soon as you tap. Outfits are
+still under the character who wears them, and "nothing" now takes the outfit off again.
+
 ### A Featherless tale that plans first keeps its length
 When a tale on a Featherless model has Plans first on, the plan now counts toward the passage's
 length limit, as it does on this machine's model. Before, the plan was free, and a passage could

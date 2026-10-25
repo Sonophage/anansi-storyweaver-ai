@@ -2017,14 +2017,24 @@ function drawSide() {
   // A shut drawer stays in the page at width 0; inert keeps Tab out of it, as for the menu.
   side.inert = side.hidden;
   if (side.hidden) return;
+  // THE THREADS LIST CARRIES ITS COUNT AND ITS + UP HERE (v2 redesign, 2026-10-25). The + was a
+  // full-width "+ Thread, or read the scene" button above the list, and on the Titan's 360x360 it
+  // and the filters took the whole screen before the first thread. The + opens the same tray with
+  // the same data-newlore press. Only on the LIST: an open thread and the tray each have their own
+  // Back, and a + over the tray would be a second door to the screen you are already on.
+  const thList = S.panel === 'threads' && !S.entryId && !S.lore && !!V?.entries;
   $('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
+    ${/* Outside the heading span, for the reason given for the mark below. */
+      thList ? `<span data-thcount class="tnum" style="font-size:14px; color:var(--faint)">${V.entries.length}</span>` : ''}
     ${/* OUTSIDE the heading span, and deliberately: decode() writes textContent on that span, so a
           button inside it is destroyed on the next repaint. Its body goes at the top of #sideBody
           instead, because the span is nowrap and would clip it. */
       PANEL_HELP[S.panel] ? helpMark(PANEL_HELP[S.panel]) : ''}
     <span style="flex:1"></span>
+    ${thList ? `<button data-newlore="1" class="headadd" aria-label="Add a thread, or read the scene"
+      title="Add a thread, or read the scene"><span>${mark('create', 16)}</span></button>` : ''}
     <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
   $('sideBody').innerHTML = (PANEL_HELP[S.panel] ? helpBody(PANEL_HELP[S.panel]) : '')
@@ -3050,10 +3060,10 @@ const PANELS = {
                     ['item', 'Items', 'item'], ['rule', 'Rules', 'rule']];
     const shown = groups.filter(([k]) => V.entries.some((e) => e.entryType === k));
     // ADD AT THE TOP, THE BOOK UNDERNEATH. Seth, 2026-08-28: "move the add to the top and the list
-    // of whats in the book to the bottom." The list grows without limit and the four Add buttons do
-    // not, so the doors were the one thing on this panel that got harder to reach the more you
-    // wrote — twenty threads in and every new one costs a scroll to the bottom. Reading the list is
-    // a scroll you meant to make; reaching Add was not.
+    // of whats in the book to the bottom." The list grows without limit and the Add door does not,
+    // so it must never be the thing you scroll to. Since the v2 redesign (2026-10-25) the door is
+    // the + in the drawer's header (drawSide), which is above the list and stays put while it
+    // scrolls.
     return `<div style="display:flex; flex-direction:column; gap:9px">
       <!-- ONE DOOR, NOT FIVE. Seth, 2026-09-02: "the buttons can all go away and we can just keep
            the add thread since all the information for adding something and what type is there.
@@ -3063,31 +3073,43 @@ const PANELS = {
            were four presses of data-newentry, and the tray's first step is the same four kinds
            followed by the same action — plus the rooms, Anansi writing one, a forged card pasted
            in, and reading the chapter for facts, none of which the four buttons could reach. The
-           panel above the list was five doors to one flow.
-           NO "Add" LABEL EITHER: it was the heading over the four, and one button that says what
-           it does needs nothing over it. -->
-      <button class="btn ghost" data-newlore="1" style="margin-top:0">+ Thread, or read the scene</button>
-      <!-- WHAT IS IN CONTEXT, WITHOUT LEAVING THE LIST. Seth, 2026-09-01: "have a currently in
+           one door is the header's + now; it is the same data-newlore press.
+
+           WHAT IS IN CONTEXT, WITHOUT LEAVING THE LIST. Seth, 2026-09-01: "have a currently in
            context view that just filters what is in context and a fast way to switch from always
            on to triggered right now its three levels deep."
            A FILTER RATHER THAN TWO SECTIONS, which was the other half of the same message. Sections
            would split every one of the four kind groups in two and a card would move under you the
-           moment you flipped its chip; the filter leaves the grouping alone.
+           moment you flipped its switch; the filter leaves the grouping alone.
            The filter cannot see a triggered card that is about to fire on a keyword — that needs
            prose this panel is not given — so the hint under it says what the filter can and cannot
-           know rather than letting the count read as the whole truth. -->
+           know rather than letting the count read as the whole truth.
+
+           FINDING ONE BY NAME. Seth, 2026-09-11: "in the story under all threads can i get a search
+           bar there?" A book of 227 threads is four headings and a very long scroll, and the only
+           way to reach one was to remember which kind it was filed under.
+           IT REDRAWS ITS OWN LIST AND NOTHING ELSE, the same rule the cross-book box and the seed
+           box already follow: this panel holds free text that Save commits, and a full repaint on
+           a keystroke throws away whatever is half-typed above.
+
+           ONE ROW FOR BOTH (v2 redesign, 2026-10-25). The search box and the two filters were three
+           full-width rows, and with the door above them the Titan's 360x360 showed no thread at all
+           until you scrolled. They answer one question together — which threads am I looking at —
+           so they share one box. -->
       ${(() => {
         const pin = pinModes();
         const n = V.entries.filter((e) => inContext(e, pin)).length;
-        return `<div style="display:flex; gap:6px; margin-top:12px">
+        return `<div class="thfind">
+          <span class="thfindmark">${mark('search', 17)}</span>
+          <input id="thq" type="search" aria-label="Search this tale's threads"
+            value="${esc(S.threadQ)}" placeholder="Search">
           ${/* In context first. Seth, 2026-09-03: "flip the order of all and in context so in
                context is the first thing that you see." It is the question the panel is open to
                answer; All is the wider view you fall back to. The default is untouched — All is
                still the filter in force, this is which chip the eye lands on. */
             [['1', 'Sent now', n], ['0', 'All', V.entries.length]].map(([v, l, c]) =>
             `<button class="chip" data-onlyin="${v}" aria-pressed="${(S.onlyIn ? '1' : '0') === v}"
-              style="flex:1; text-align:center; cursor:pointer">${l} <span
-              class="tnum" style="color:var(--faint)">${c}</span></button>`).join('')}
+              >${l} <span class="tnum" style="color:var(--faint)">${c}</span></button>`).join('')}
         </div>
         ${S.onlyIn ? `<div style="display:flex; justify-content:flex-end">${
             tipMark('thInContext', 'What Sent now can see')}</div>
@@ -3100,15 +3122,6 @@ const PANELS = {
             : `<p>Always-on threads, plus anything brought into this scene &mdash; nothing has been
               measured yet, so an on-a-word thread cannot be counted until it has.</p>`)}` : ''}`;
       })()}
-      <!-- FINDING ONE BY NAME. Seth, 2026-09-11: "in the story under all threads can i get a search
-           bar there?" A book of 227 threads is four headings and a very long scroll, and the only
-           way to reach one was to remember which kind it was filed under.
-           IT REDRAWS ITS OWN LIST AND NOTHING ELSE, the same rule the cross-book box and the seed
-           box already follow: this panel holds free text that Save commits, and a full repaint on
-           a keystroke throws away whatever is half-typed above. -->
-      <input class="field" id="thq" aria-label="Search this tale's threads"
-        value="${esc(S.threadQ)}" placeholder="Search these threads&hellip;"
-        style="margin:10px 0 0">
       <div id="thlist" style="display:flex; flex-direction:column; gap:9px">${threadRows()}</div>
       ${shown.length ? '' : '<div class="hint" style="margin:0">Nothing written down yet. A thread is a fact the model is told and never allowed to contradict.</div>'}
       ${shown.length && S.onlyIn && !S.threadQ.trim() && !V.entries.some((e) => inContext(e, pinModes()))
@@ -6434,47 +6447,22 @@ function threadText(e) {
 }
 
 function threadRows() {
-  const groups = [['character', 'Characters'], ['lore', 'Lore'], ['item', 'Items'], ['rule', 'Rules']];
   const q = S.threadQ.trim().toLowerCase();
   const pin = pinModes();
   const mani = manifestNow();
   const hit = (e) => !q || threadText(e).includes(q);
-  const out = groups.map(([k, label]) => {
+  // EACH KIND CARRIES ITS COUNT (v2 redesign, 2026-10-25), and it is the count of what is SHOWN,
+  // after Sent now and the search. "Characters · 2" under a search for "aldis" is the answer to the
+  // question you just asked; the book's own totals are the All chip and the header.
+  const out = KINDS.map((k) => {
     const rows = (V.entries ?? []).filter((e) => e.entryType === k
       && (!S.onlyIn || inContext(e, pin, mani)) && hit(e));
     if (!rows.length) return '';
     return `
-        <div class="lbl" style="letter-spacing:.1em; margin-top:6px">${label}</div>
-        ${rows.map((e) => entryCard(e)
-          + `<div style="display:flex; flex-wrap:wrap; gap:5px; margin:-4px 0 10px 2px">
-            <!-- THE CHIP IS THE SWITCH NOW. It read "Always on" / "Triggered" inside the card and
-                 said nothing you could press, so changing it was open the card, press Edit, find
-                 the row — three levels for a two-state flip. It cannot live INSIDE the card: the
-                 card is itself a button carrying data-entry, and a button inside a button is not
-                 valid HTML — the outer one swallows it. Out here it sits in the row the outfit
-                 chips already use, directly under the card it belongs to.
-                 NO aria-pressed, deliberately: the LABEL carries the state, and "pressed" on a
-                 two-way switch does not say which way. -->
-            <button data-flipact="${esc(e.id)}" class="tag" style="cursor:pointer; ${
-              (e.activation ?? 'always_on') === 'always_on'
-                ? 'border-color:rgba(217,178,106,.35); color:var(--gold)' : 'color:var(--dim)'}"
-              title="${(e.activation ?? 'always_on') === 'always_on'
-                ? 'Anansi reads it every time. Press to have her read it only on its wake words.'
-                : 'Sent only when one of its wake words appears. Press to send it on every call.'}"
-              >${(e.activation ?? 'always_on') === 'always_on' ? 'Always on' : 'On a word'}</button>
-            <!-- WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's
-                 name either way, so there was no non-visual way to tell which one is on. The full
-                 control lower down says it in words ("Worn — take it off"); this chip cannot, so it
-                 says it in aria. Read off the SAME o.active the style reads, deliberately: the
-                 lore chips once had aria-pressed keyed to a different field from their colour and
-                 sat permanently false under a lit button. -->
-            ${(e.outfits ?? []).map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
-              aria-pressed="${!!o.active}"
-              style="cursor:pointer; ${o.active
-                ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${esc(o.name)}</button>`).join('')}
-            ${(e.outfits ?? []).some((o) => o.active)
-              ? `<button data-wear="${e.id}:" class="tag" style="cursor:pointer; color:var(--dim)">nothing</button>` : ''}
-          </div>`).join('')}`;
+        <div class="lbl" data-kindhead="${k}" style="letter-spacing:.1em; margin-top:6px">${
+          KIND_PLURAL[k]} &middot; <span class="tnum">${rows.length}</span></div>
+        <div data-kindrows="${k}" style="display:flex; flex-direction:column; gap:9px">${
+          rows.map((e) => threadPlate(e, inContext(e, pin, mani))).join('')}</div>`;
   }).join('');
   // A SEARCH THAT FINDS NOTHING HAS TO SAY SO. An empty list under a box you have just typed into
   // reads as the panel having broken, and the two reasons it can be empty need different answers.
@@ -6482,6 +6470,79 @@ function threadRows() {
   if (q) return `<div class="hint" style="margin:8px 0 0">No thread here matches
     &ldquo;${esc(S.threadQ.trim())}&rdquo;${S.onlyIn ? ' among the ones sent now' : ''}.</div>`;
   return '';
+}
+
+/** One thread in its tale's Threads list (v2 redesign, 2026-10-25): its name, two lines of its
+ *  text, one mark, and a tag only for what a writer needs at a glance — how many pockets it has,
+ *  where it came from, that it is retired.
+ *
+ *  THE MARK HAS THREE LOOKS FOR TWO SETTINGS (Seth, 2026-10-25). An open eye is always on. On a
+ *  word is an eye with a speech mark for its pupil when it is sent now — a wake word woke it, or
+ *  it is brought into this scene — and a shut eye when it is asleep. Each look is one named mark
+ *  in web/model.js, so swapping a picture is one SVG and touches nothing here. Lit or dim is read
+ *  off the same `inContext` the Sent now filter uses, so the mark and the filter cannot disagree:
+ *  Sent now is the open eyes and the woken ones. So no "On a word" tag either: the mark says it.
+ *  AND THE MARK IS THE SWITCH, always on and on a word, one tap each way. Seth, 2026-09-01, asked
+ *  for "a fast way to switch from always on to triggered", and the list had it as a chip under
+ *  every card; the redesign keeps one mark per card, so the tap moved onto it. Its label names the
+ *  state and what a tap does, because a picture cannot say what happens next.
+ *
+ *  THE MARK CANNOT GO INSIDE THE CARD: the card is itself a button carrying data-entry, and a
+ *  button inside a button is not valid HTML — the outer one swallows it. So it sits beside the card
+ *  in a wrapper and is laid over the card's right edge, which the card leaves free with its padding.
+ *
+ *  A POCKET HERE IS EVERY NAMED PART BUT FACTS. Facts is the thread's own text (the pockets plan
+ *  turns it into Always true), and in the live library 473 of about 480 threads have one — so
+ *  counting it would put "1 pocket" on nearly every card, which is a tag that says nothing. */
+function threadPlate(e, lit) {
+  const on = (e.activation ?? 'always_on') === 'always_on';
+  const pockets = (e.addons ?? []).filter((a) => a.slot !== 'facts').length;
+  const pic = threadPic(e);
+  // THE BRACKET COMES OFF ON THE LIST. "[Aldis Fen: 34, ex-Watch sergeant…]" is the form the model
+  // is sent, and its first words repeat the name the card shows in large type above it. Only when
+  // the name in the bracket IS this thread's name: anything else is the writer's own text.
+  let text = threadPreview(e);
+  const br = text.match(/^\[\s*([^:\]]+):\s*([\s\S]*?)\]?\s*$/);
+  if (br && br[1].trim().toLowerCase() === String(e.title ?? '').trim().toLowerCase() && br[2].trim()) {
+    text = br[2].trim();
+    text = text[0].toUpperCase() + text.slice(1);
+  }
+  const tags = [
+    pockets ? `<span class="tag">${pockets} ${pockets === 1 ? 'pocket' : 'pockets'}</span>` : '',
+    e.sharedFrom ? `<span class="tag" style="color:var(--faint)">from ${esc(e.sharedFrom)}</span>` : '',
+    e.retiredAtChapter != null ? `<span class="tag" style="color:var(--warn)">retired, scene ${
+      esc(String(e.retiredAtChapter))}</span>` : '',
+  ].join('');
+  const look = on ? 'eye' : lit ? 'eyeheard' : 'eyeshut';
+  const now = on ? (lit ? 'Always on, sent now' : 'Always on, kept out of this call')
+    : (lit ? 'On a word, sent now' : 'On a word, asleep: no wake word in this scene');
+  const label = `${now}. ${on ? 'Tap to send it only on a wake word.' : 'Tap to send it on every call.'}`;
+  return `<div class="throw">
+    <div style="position:relative">
+      <button class="card plate thplate" data-entry="${e.id}">
+        ${pic ? `<img src="${pic}" alt="" loading="lazy" style="width:100%; height:104px;
+          object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 4px">` : ''}
+        <span class="platename">${esc(e.title)}</span>
+        ${text ? `<span class="clamp2 thtext">${esc(text)}</span>` : ''}
+        ${tags ? `<span class="thtags">${tags}</span>` : ''}</button>
+      <button class="theye" data-flipact="${esc(e.id)}" data-look="${look}" data-lit="${lit ? 1 : 0}"
+        aria-label="${label}" title="${label}">${mark(look, 22)}</button>
+    </div>
+    ${/* WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's name either
+          way, so there was no non-visual way to tell which one is on. The full control in the
+          thread's form says it in words ("Worn — take it off"); this chip cannot, so it says it in
+          aria. Read off the SAME o.active the style reads, deliberately: the lore chips once had
+          aria-pressed keyed to a different field from their colour and sat permanently false under
+          a lit button. Outside the card for the same reason as the eye. */
+      (e.outfits ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:5px; margin:6px 0 2px 2px">
+      ${e.outfits.map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
+        aria-pressed="${!!o.active}"
+        style="cursor:pointer; ${o.active
+          ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${esc(o.name)}</button>`).join('')}
+      ${e.outfits.some((o) => o.active)
+        ? `<button data-wear="${e.id}:" class="tag" style="cursor:pointer; color:var(--dim)">nothing</button>` : ''}
+    </div>` : ''}
+  </div>`;
 }
 
 /** The manifest, and null unless it is THIS book's. Every reader goes through here rather than
@@ -6501,7 +6562,7 @@ function inContext(e, pin, mani = manifestNow()) {
     : e.activation === 'always_on' ? true : pin.get(e.id) === 'force_in';
 }
 
-/** A card on a grid: name, how it fires, and the first few lines of what it says.
+/** What a thread's card shows of it: the first few lines of what it says.
  *
  *  THE PREVIEW IS NOT `e.body` ANY MORE, and it cannot be. The 2026-08-29 migration moved every
  *  card's body into its `facts` room — the half chapter end cannot rewrite — so `body` is now empty
@@ -6510,21 +6571,25 @@ function inContext(e, pin, mani = manifestNow()) {
  *  room at all. THE LAST FALLBACK IS NOT BELT AND BRACES: a room is created switched off, so a card
  *  whose only room is a new one has nothing active to show and would draw the same blank line this
  *  exists to remove — test/ui/panels.js seeds exactly that case. `GET /api/ledger` has sent
- *  `addons` since #22's blocker was cleared, so none of this costs a request. */
-/** THE PLATE, at both ends. The 2026-09-02 handoff: one treatment for the story panel's list and
- *  the cross-book Threads page, which read as different kinds of thing and are not.
- *
- *  `pill` is the one difference between the two call sites and it is a real one. On the story panel
- *  every card carries a PRESSABLE `data-flipact` chip under it — the one-press always-on/triggered
- *  switch — so a second, unpressable "Always on" inside the card would be the same fact twice, one
- *  of which does nothing. The cross-book page has no such chip, so there the pill is the only thing
- *  saying how a thread fires, and the handoff is right that it needs one. */
-function entryCard(e, pill = false) {
+ *  `addons` since #22's blocker was cleared, so none of this costs a request.
+ *  ONE FUNCTION for both cards that show it, the cross-book page's and the tale's list. */
+function threadPreview(e) {
   const rooms = e.addons ?? [];
-  const preview = (e.body ?? '').trim()
+  return (e.body ?? '').trim()
     || rooms.find((a) => a.slot === 'facts')?.body?.trim()
     || rooms.find((a) => a.active)?.body?.trim()
     || rooms[0]?.body?.trim() || '';
+}
+
+/** THE PLATE on the cross-book Threads page. The 2026-09-02 handoff gave it and the tale's list one
+ *  treatment, because they read as different kinds of thing and are not; the tale's list has its
+ *  own shorter card since the v2 redesign (`threadPlate`), on the same `.card.plate` look.
+ *
+ *  `pill` says how a thread fires. On the tale's list the eye is the pressable switch, so a second,
+ *  unpressable "Always on" there would be the same fact twice, one of which does nothing. The
+ *  cross-book page has no switch, so there the pill is the only thing saying how a thread fires. */
+function entryCard(e, pill = false) {
+  const preview = threadPreview(e);
   // AT THE TOP, and full width rather than a thumbnail beside the name. A card with a face on it is
   // found by the face; shrinking it to a 40px square beside the title makes it decoration.
   const pic = threadPic(e);
@@ -8250,6 +8315,15 @@ async function refreshManifest() {
   MANIFIT = r.manifest ? (r.weaveFit ?? null) : null;
   drawBar(); drawMeter();
   if (S.panel === 'context') drawSide();
+  // THE THREADS LIST READS THIS TOO: its marks light by it and Sent now counts by it. It was drawn
+  // before the answer landed and never again, so a tap on a mark showed the old Sent now until the
+  // next repaint. The list and the count only, not the panel: a repaint would take the caret out
+  // of the search box above them (the same rule the search box's own redraw follows).
+  if (S.panel === 'threads' && $('thlist')) {
+    $('thlist').innerHTML = threadRows();
+    const n = $('sideBody').querySelector('[data-onlyin="1"] .tnum');
+    if (n) n.textContent = String(V.entries.filter((e) => inContext(e, pinModes())).length);
+  }
 }
 
 /** Clearing the value leaves the inline height behind, so a box grown by a long directive stayed
@@ -9601,7 +9675,11 @@ document.addEventListener('click', async (e) => {
     // "entryId:outfitId", with an empty outfit id meaning take it all off. One attribute rather
     // than two, because the pair only ever travels together.
     const [entryId, outfitId] = String(d.wear).split(':');
-    const worn = V.entries.find((x) => x.id === entryId)?.outfits?.find((o) => o.id === outfitId);
+    // An empty id is the "nothing" chip, and it means the one worn now. It looked up an outfit with
+    // an empty id, found none, and sent an empty id to take off, so the chip did nothing at all
+    // (found by test/ui/threadlist.js, 2026-10-25).
+    const worn = V.entries.find((x) => x.id === entryId)?.outfits
+      ?.find((o) => (outfitId ? o.id === outfitId : o.active));
     // Clicking the one already worn takes it off, so the chips are a toggle rather than a trap.
     // Exclusivity is the database's, not the screen's: `setAddonActive` clears the siblings in
     // the same transaction, which is what `wearOutfit` did and generalises to every one-at-a-time

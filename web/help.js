@@ -19,6 +19,9 @@ export const HELP = {
       or off. A retired thread is one the tale is done with: it stops reaching the model.</p>
       <p><strong>Always on</strong> reaches every call. <strong>On a word</strong> arrives only when
       one of its wake words appears in what you are writing.</p>
+      <p>On the list, the mark on a thread says which: an open eye is always on, an eye with a
+      speech mark is on a word and woken now, a shut eye is on a word and asleep. Tap it to switch
+      between always on and on a word.</p>
       <p>A character lying is not a fact.</p>`,
   },
   strings: {

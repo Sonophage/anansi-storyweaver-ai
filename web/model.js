@@ -650,6 +650,19 @@ export const MARK = {
   teller:   'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 10V3M10 10H17M10 10V17M10 10H3',
   anansi:   'M10 3.6A6.4 6.4 0 1 1 10 16.4L5.6 17.4 6.6 13.6A6.4 6.4 0 0 1 10 3.6M7.4 10h5.2',
   stories:  'M6.5 5.2A2.9 2.9 0 1 1 6.5 11A2.9 2.9 0 1 1 6.5 5.2M13.5 5.2A2.9 2.9 0 1 1 13.5 11A2.9 2.9 0 1 1 13.5 5.2M10 11.6A2.9 2.9 0 1 1 10 17.4A2.9 2.9 0 1 1 10 11.6',
+  // A THREAD'S MARK in the Threads list (v2 redesign, 2026-10-25): an open eye for always on, a shut
+  // one with three lashes for on a word and asleep, and `eyeheard` below for on a word and woken. The shut eye is the same lower lid, so the two
+  // read as one eye opening and closing and not as two unrelated marks.
+  eye:      'M2.6 10C4.8 6.6 7.2 5.2 10 5.2S15.2 6.6 17.4 10C15.2 13.4 12.8 14.8 10 14.8S4.8 13.4 2.6 10'
+          + 'M10 8A2 2 0 1 1 10 12A2 2 0 1 1 10 8',
+  eyeshut:  'M2.6 9C4.8 11.6 7.2 12.8 10 12.8S15.2 11.6 17.4 9'
+          + 'M5.4 11.4 4.3 13.2M10 12.8V15M14.6 11.4 15.7 13.2',
+  // ON A WORD AND WOKEN: the open eye with a speech mark for its pupil, because the thread heard
+  // its word (Seth, 2026-10-25). The same outline as `eye`, so the three read as one eye, and the
+  // quote is two dots with tails, big enough to stay a quote at the card's 22px on the Titan.
+  eyeheard: 'M2.6 10C4.8 6.6 7.2 5.2 10 5.2S15.2 6.6 17.4 10C15.2 13.4 12.8 14.8 10 14.8S4.8 13.4 2.6 10'
+          + 'M8.6 10.5A0.75 0.75 0 1 1 8.6 12A0.75 0.75 0 1 1 8.6 10.5M7.9 11.2C7.8 9.8 8.4 8.8 9.4 8.3'
+          + 'M11.6 10.5A0.75 0.75 0 1 1 11.6 12A0.75 0.75 0 1 1 11.6 10.5M10.9 11.2C10.8 9.8 11.4 8.8 12.4 8.3',
   // A plus, not an X: the X read as Close on the menu (second usability check, 2026-10-25).
   create:   'M10 3.5v13M3.5 10h13',
   import:   'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 3.6V11M10 11 7.3 8.3M10 11 12.7 8.3',
