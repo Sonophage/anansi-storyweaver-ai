@@ -423,7 +423,7 @@ const WTITLES = {
     return ['Threads', LEDGER === null ? 'reading…'
       : `${n} ${n === 1 ? 'thread' : 'threads'} across ${books} ${books === 1 ? 'tale' : 'tales'}`];
   },
-  import: () => ['Import', 'Character cards, Anansi exports, AI Dungeon'],
+  import: () => ['Import', 'A character card, an Anansi export, AI Dungeon'],
   prefs: () => ['What you have written', 'words, passages, fittings not chosen'],
   news: () => ['What changed', 'what is new in Anansi'],
   bug: () => ['Report an issue', 'sent without your writing'],
@@ -1803,7 +1803,7 @@ function drawDock() {
            current story. button next to anansi near the input should be + threads. add threads."
            The main nav is the wide list across every book; these two are this book's list and this
            book's writing-down tray, and they are one control now rather than two. -->
-      <select class="dial" data-threadsel aria-label="Threads in this story"
+      <select class="dial" data-threadsel aria-label="Threads in this tale"
         style="flex:0 0 auto; ${V.story.lockedCharacter ? '' : 'margin-left:auto'}">
         <!-- HIDDEN, not absent. Seth, 2026-09-02: "in the drop down threads can be removed sinve it
              goes nowhere" — it is the closed control's LABEL, not a destination, and an entry in the
@@ -2749,7 +2749,7 @@ const PANELS = {
     // ritual's extraction step on its own — "scan what we have" — without ending the chapter.
     if (S.lore) {
       const KIND_LABEL = { character: 'a character', lore: 'a place or a fact',
-                           item: 'an object', rule: 'a rule of this world', outfit: 'an outfit' };
+                           item: 'an object', rule: 'a rule of this tale', outfit: 'an outfit' };
       // Outfits are NOT in KINDS and must not be: KINDS is the entry TYPE, and this same list
       // draws the type buttons in the entry editor, where "outfit" is not a thing an entry can be.
       // An outfit hangs off a character rather than standing beside one — which is also why this
@@ -2834,9 +2834,9 @@ const PANELS = {
           tipMark('thWeb', 'Looking one up online')}</div>
         ${tipCard('thWeb', 'Looking one up online', `<p>Every fact comes from what the search
           found, and a gap is left as a gap rather than filled in &mdash; written from inside its
-          own story, not as an encyclopedia article about it.</p>
+          own fiction, not as an encyclopedia article about it.</p>
           <p>It looks for the pockets as well as the thread, and both arrive together, basted:
-          weaving it in under This scene writes the pockets the search could fill. Nothing is in the
+          weave it in under This scene and the pockets the search could fill are written too. Nothing is in the
           tale until you weave it in, and the pages it read ride along. Your own SearXNG does the
           searching.</p>`)}
         <input class="field" data-webwho aria-label="What to look up"
@@ -3700,7 +3700,7 @@ const PANELS = {
                    thing on a phone. The search still happens and still reaches her; the writer just
                    is not handed the bibliography. -->
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
-                border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} basted &mdash; waiting under This scene</button>` : ''}
+                border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} basted &mdash; under This scene</button>` : ''}
               ${turn.meta ? `<div style="font-size:11px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
             </div>`).join('')
           : (() => {
@@ -3880,7 +3880,7 @@ const PANELS = {
     // threads" could quietly put one in a different story.
     return `<div style="display:flex; flex-direction:column">
       <input class="field" id="q" aria-label="Search the prose" value="${esc(S.query)}" placeholder="Search ${
-        S.searchAll ? 'every story' : esc(V?.story.title ?? 'this story')}">
+        S.searchAll ? 'every tale' : esc(V?.story.title ?? 'this tale')}">
       <label style="display:flex; align-items:center; gap:8px; margin:10px 0 4px; font-size:12px; color:var(--mute)">
         <input type="checkbox" id="searchAll" ${S.searchAll ? 'checked' : ''}>
         Look in my other tales too</label>
@@ -4252,7 +4252,7 @@ function searchHits() {
       data-hitkind="${esc(r.kind ?? 'Prose')}" style="display:flex; flex-direction:column; gap:5px;
       width:100%; text-align:left">
       <span style="display:flex; align-items:center; gap:10px; width:100%">
-        <span class="kind" style="font-size:11px">${esc(r.kind ?? 'Prose')}</span>
+        <span class="kind" style="font-size:11px">${esc(r.kind === 'Entry' ? 'Thread' : r.kind ?? 'Prose')}</span>
         <span style="margin-left:auto; font-size:11px; color:var(--dim)">${esc(r.where ?? '')}</span></span>
       <span style="font-size:13.5px; line-height:1.5; color:var(--ink)">${esc((r.body ?? '').slice(0, 260))}</span></button>
     ${r.kind === 'Entry' ? '' : `<button data-tolore="${i}" style="align-self:flex-start; font-size:11px;
@@ -4792,7 +4792,7 @@ function sparkReview() {
           [`${cast.length} ${cast.length === 1 ? 'thread' : 'threads'}`,
            cast.length ? 'in the tale, always on' : 'no threads yet'],
           [s.persona ? esc(s.persona) : 'Nobody', 'the one you play'],
-          [s.lockedCharacter ? esc(s.lockedCharacter) : 'Nobody', 'hands off: the model never writes them'],
+          [s.lockedCharacter ? esc(s.lockedCharacter) : 'Nobody', 'hands off: the model leaves them to you'],
           [S.spark.autoOpen === false ? 'You write it' : 'Anansi writes it', 'the first passage']]
          .map(([what, why]) => `<div class="row"><span style="color:var(--ink)">${what}</span>
            <span style="margin-left:auto; color:var(--faint); font-size:11.5px">${why}</span></div>`).join('')}`;
@@ -5614,7 +5614,7 @@ function cardFace(e, slots) {
       return `${on}${off ? `<div class="lbl" style="letter-spacing:.1em; margin-top:26px;
           border-top:1px solid var(--line); padding-top:16px; color:var(--faint)">Not turned on</div>
         <div class="hint" style="margin:0 0 4px">Written down, and not reaching the model &mdash;
-          either switched off, or waiting on a wake word that has not appeared.</div>${off}` : ''}`;
+          either switched off, or until one of its wake words appears.</div>${off}` : ''}`;
     })()}
     ${shown.length ? '' : '<div class="hint" style="margin-top:18px">No pockets filled in yet. Alter the thread to write one, or have Anansi.</div>'}
     <button class="btn ghost" data-cardview="form" style="margin-top:20px">Alter this thread</button>
@@ -5893,7 +5893,7 @@ function entryEditor() {
       return `${on}${off ? `<div class="lbl" style="letter-spacing:.1em; margin-top:26px;
           border-top:1px solid var(--line); padding-top:16px; color:var(--faint)">Not turned on</div>
         <div class="hint" style="margin:0 0 4px">Written down, and not reaching the model &mdash;
-          either switched off, or waiting on a wake word that has not appeared.</div>${off}` : ''}`;
+          either switched off, or until one of its wake words appears.</div>${off}` : ''}`;
     })()}
 
     <!-- THE WARDROBE IS A ROOM, and sits with the others rather than under the notes. Seth:
@@ -6730,7 +6730,7 @@ const WPAGES = {
              through the handler. Only one of the two screens is ever mounted. -->
         <div class="sparkline">
           <textarea id="idea" class="field serif" rows="1" aria-label="The idea to spark a tale from"
-            placeholder="A clerk finds his own name in a ledger of debts owed to a harbour&hellip;"
+            placeholder="A clerk finds his own name on a list of debts owed to a harbour&hellip;"
             ></textarea>
           <button class="btn" data-spark="1" style="width:auto; padding:0 22px; height:42px"
             >Spark it</button>
@@ -6880,7 +6880,7 @@ const WPAGES = {
     return `<div class="split">
       <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; max-width:640px">
         <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">Hand her one thread</div>
-        <div style="font-size:14px; line-height:1.65; color:var(--mute)">Spark takes an idea and returns a skeleton.
+        <div style="font-size:14px; line-height:1.65; color:var(--mute)">Spark turns an idea into a skeleton.
           Every field stays editable, and the cast comes back as threads you keep or reject.</div>
         <textarea id="idea" class="field serif" aria-label="The idea to spark a tale from"
           placeholder="Six houses have one winter to sign a peace none of them wants…"
@@ -7000,7 +7000,7 @@ const WPAGES = {
 
   import() {
     const I = S.imp, P = I.preview;
-    const KINDS_IN = [['❐', 'Character card', 'V1, V2 and V3 cards, PNG or JSON'],
+    const KINDS_IN = [['❐', 'Character card', 'Versions 1, 2 and 3, as PNG or JSON'],
       ['❋', 'Anansi export', 'A tale that left as a standalone .db'],
       ['↧', 'AI Dungeon', 'Its Story Cards, or an adventure exported as markdown']];
 
@@ -7205,10 +7205,10 @@ const WPAGES = {
             ${bestDay.d ? row('Best day', n(bestDay.w), esc(bestDay.d)) : ''}
             <div class="lbl" style="letter-spacing:.1em; margin-top:22px">What it is made of</div>
             ${row('Passages', n(t.passages), `${n(t.yours)} yours · ${n(t.anansi)} Anansi`)}
-            ${row('Stories', n(t.stories), `${n(t.chapters)} chapters`)}
+            ${row('Tales', n(t.stories), `${n(t.chapters)} scenes`)}
             ${row('Threads', n(t.entries), kinds || 'characters, lore, items, rules')}
-            ${row('Takes not chosen', n(t.unchosen),
-              takes ? `${per}% of the ${n(takes)} written` : 'kept, and not in the story')}
+            ${row('Fittings not chosen', n(t.unchosen),
+              takes ? `${per}% of the ${n(takes)} written` : 'kept, and not in the tale')}
             <div class="lbl" style="letter-spacing:.1em; margin-top:22px">What it cost</div>
             ${row('Calls to the model', n(t.calls), t.failed ? `${n(t.failed)} failed` : 'none failed')}
             ${t.medianSeconds == null ? '' : row('A call, in the middle', `${t.medianSeconds}s`,
@@ -7219,13 +7219,13 @@ const WPAGES = {
         })()}
       </div>
       ${SRV.admin ? `<div class="aside">
-        <div class="lbl" style="letter-spacing:.1em">Slot</div>
-        <div class="row"><span style="color:var(--ink)">Context per writer</span>
+        <div class="lbl" style="letter-spacing:.1em">Reading space</div>
+        <div class="row"><span style="color:var(--ink)">Tokens per writer</span>
           <span class="tnum" style="margin-left:auto; color:var(--faint)">${slot ? slot.toLocaleString() : '—'}</span></div>
-        <div class="row"><span style="color:var(--ink)">Canon cap</span>
+        <div class="row"><span style="color:var(--ink)">Threads cap</span>
           <span class="tnum" style="margin-left:auto; color:var(--faint)">45%</span></div>
-        <div class="hint">${global && slots ? `${global.toLocaleString()} across ${slots} slots. The pool is
-          shared, so two writers at full budget must both fit.` : ''}</div>
+        <div class="hint">${global && slots ? `${global.toLocaleString()} shared ${slots} ways. The pool is
+          shared, so two writers using all of their space must both fit.` : ''}</div>
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">This machine</div>
         <div class="row"><span style="color:var(--ink)">Snapshots</span>
           <span style="margin-left:auto; color:var(--faint)">12 kept · every 30 min</span></div>
@@ -7738,7 +7738,7 @@ function veilReadable() {
   const row = g.querySelector('.veilcarry');
   if (row) {
     row.innerHTML = `${pid ? `<button data-veilgo="${pid}"><span class="serif"
-      style="color:var(--m, var(--gold))">\u21bb</span> Regenerate</button>` : ''}
+      style="color:var(--m, var(--gold))">\u21bb</span> Reweave</button>` : ''}
       <button data-veilgo="continue">Continue &rsaquo;</button>`;
   }
 }
@@ -8146,8 +8146,8 @@ async function invented(r, kind, dir, search) {
     return toast('Written, not saved — read it, then press Add.');
   }
   V = await api.story(S.storyId, V.currentChapter.id); paint();
-  return toast(r.duplicate ? `The ledger already says that about ${r.title}.`
-                           : `${r.title} proposed — waiting under Chapter.`);
+  return toast(r.duplicate ? `The threads already say that about ${r.title}.`
+                           : `${r.title} basted — under This scene.`);
 }
 
 /** The question already on the Talk window as yours, asked. Its own function since #56, so a
@@ -8171,7 +8171,7 @@ async function talk(said, mentions, anyway = false) {
   S.talk.searchable = r.searchable ?? S.talk.searchable;
   S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
     sources: r.sources ?? [], proposed: r.proposed ?? 0,
-    meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens of context` }];
+    meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens read` }];
   S.talk.draft = r.directive || null;
   // A thread that landed is a proposal, and the queue lives under Chapter.
   if (r.proposed) V = await api.story(S.storyId);
@@ -8212,8 +8212,8 @@ function takeToast(r) {
   // The contradiction half of this used to live here too, reporting what the blocking repair in
   // `generate` had done. That repair is gone (2026-08-31): the check runs detached on accept now
   // and files a flag, so there is nothing to say at this moment and nothing to interrupt for.
-  return r?.cut ? 'This take ran to the ceiling and was cut short, then trimmed back to its '
-    + 'last finished sentence. Re-roll it, or raise Passage length.' : null;
+  return r?.cut ? 'This fitting ran to the ceiling and was cut short, then trimmed back to its '
+    + 'last whole sentence. Reweave it, or raise Passage length.' : null;
 }
 
 /** Mark the newest passage so it fades in once, and only once. The flag is cleared on a timer
@@ -8265,7 +8265,7 @@ function pinTo(id) {
 /** Re-roll the last passage, keeping the old take as a variant. */
 async function regenerateLast() {
   const last = V?.passages.filter((p) => !p.isBreak).at(-1);
-  if (!last) return toast('Nothing to regenerate yet.');
+  if (!last) return toast('Nothing to reweave yet.');
   await regenerateInto(last.id);
 }
 
@@ -8296,7 +8296,7 @@ async function regenerateInto(id, steer, seed, again = null) {
     // tray's copy of the same button may be inside a tray nobody has opened.
     document.querySelector(`.carry [data-re="${id}"]`) ?? document.querySelector(`[data-re="${id}"]`),
     `reroll:${id}`,
-    'That passage is yours. Press Regenerate again to write a take over it — your words stay behind ‹ ›.'
+    'That passage is yours. Press Reweave again to weave a fitting over it — your words stay behind ‹ ›.'
   )) return;
   weaveStart();
   S.busy = true; drawDock(); drawBar(); working('reroll');
@@ -8349,8 +8349,8 @@ async function regenerateInto(id, steer, seed, again = null) {
   // #9 first: a take that still contradicts the canon outranks a note about which instruction it
   // re-ran. Both are toasts and only one is read.
   const say = takeToast(r) ?? (r.reusedDirective
-    ? `New take on your instruction: ${String(r.reusedDirective).slice(0, 90)}`
-    : 'New take kept. Both are in History, with the canon each was written against.');
+    ? `New fitting of your instruction: ${String(r.reusedDirective).slice(0, 90)}`
+    : 'New fitting kept. Both are in Alterations, with the threads each was written against.');
   const land = () => {
     paint(); refreshManifest(); refreshHistory(); toast(say);
     const now = V?.passages?.filter((p) => !p.isBreak).at(-1);
@@ -8824,7 +8824,7 @@ async function writeCast(quiet = false) {
   if (S.spark.casting || S.spark.recasting !== null || S.spark.styling) return;
   harvestSpark();
   if (!(S.spark.kinds ?? []).length) {
-    if (!quiet) toast('Pick what this book needs first.');
+    if (!quiet) toast('Pick what this tale needs first.');
     return;
   }
   /* #40, 2026-09-01 · WHAT IS TICKED SURVIVES. Seth: "the writer can state what they need after
@@ -8859,7 +8859,7 @@ async function writeCast(quiet = false) {
   paint();
   if (!quiet) toast(keptNames.length
     ? `${fresh.length} more, beside the ${keptNames.length} you kept.`
-    : `${S.spark.entries.length} proposed. Nothing is written until you accept.`);
+    : `${S.spark.entries.length} offered. Nothing is written until you cut the tale.`);
 }
 
 // ---------- one delegated listener ----------
@@ -8906,7 +8906,7 @@ document.addEventListener('click', async (e) => {
     const r = await api.dismiss(S.storyId, d.dismiss, d.ref ?? '');
     if (r.error) return toast(r.error);
     V = r; paint();
-    return toast('Put away. It comes back if it changes.');
+    return toast('Set aside. It comes back if it changes.');
   }
   if (d.memo) {
     if (S.memoing) return;
@@ -8920,8 +8920,8 @@ document.addEventListener('click', async (e) => {
     // not work — the same reason extraction's count is reported rather than swallowed.
     S.panel = 'chapter'; syncHash(); paint();
     return toast(r.proposed
-      ? `"${r.title}" is waiting in the chapter queue, from scene ${r.chapter}. Nothing is canon yet.`
-      : r.note ?? 'already proposed');
+      ? `"${r.title}" is basted under This scene, from scene ${r.chapter}. Nothing is in the tale yet.`
+      : r.note ?? 'already basted');
   }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
   // Two doors, one rail. `data-railview` says WHICH menu you asked for: the menu button asks for
@@ -8980,15 +8980,15 @@ document.addEventListener('click', async (e) => {
       fromChapter: Number(get('fromChapter')) || null, owedBy: Number(get('owedBy')) || null });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint();
-    return toast('Tied. It is yours until you put it in play.');
+    return toast('Added. It is yours alone until you summon it.');
   }
   if (d.summon) {
     const x = (V.strings ?? []).find((s2) => s2.id === d.summon);
     const r = await api.saveString(S.storyId, { ...x, summoned: !x?.summoned });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
-    return toast(x?.summoned ? 'Put away. The model stops being told about it.'
-                             : 'In play. It reaches the prompt from the next call.');
+    return toast(x?.summoned ? 'Dismissed. The model stops being told about it.'
+                             : 'Summoned. The model is told about it from the next call.');
   }
   if (d.stringstatus) {
     const [id, status] = String(d.stringstatus).split(':');
@@ -9000,7 +9000,7 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
   }
   if (d.delstring) {
-    if (!armed(t, 'string:' + d.delstring, 'Press again to drop this open promise.')) return;
+    if (!armed(t, 'string:' + d.delstring, 'Press again to delete this open string.')) return;
     const r = await api.delString(S.storyId, d.delstring);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
@@ -9020,14 +9020,14 @@ document.addEventListener('click', async (e) => {
     S.busy = false; working(null);
     if (r.error) { paint(); return toast(r.error); }
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
-    return toast(`Chapters ${from}–${to} are one act now.`);
+    return toast(`Scenes ${from}–${to} are one panel now.`);
   }
   if (d.delarc) {
-    if (!armed(t, 'arc:' + d.delarc, 'Press again to remove this act. Its chapters keep their own summaries.')) return;
+    if (!armed(t, 'arc:' + d.delarc, 'Press again to remove this panel. Its scenes keep their own summaries.')) return;
     const r = await api.delArc(S.storyId, d.delarc);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
-    return toast('The act is gone; those chapters send their own summaries again.');
+    return toast('The panel is gone; those scenes send their own summaries again.');
   }
 
   // AN ACT, EDITED IN PLACE (#44). The draft lives in `S.editArc`, kept by the `input` listener, so
@@ -9042,7 +9042,7 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     S.editArc = null;
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
-    return toast('The act is saved. It is what the model is sent for those chapters.');
+    return toast('The panel is saved. It is what the model is sent for those scenes.');
   }
 
   if (d.editprompt) { S.promptOpen = S.promptOpen === d.editprompt ? null : d.editprompt; paint(); return; }
@@ -9056,7 +9056,7 @@ document.addEventListener('click', async (e) => {
     S.prompts = { defaults: r.defaults ?? {}, yours: r.yours ?? {} };
     if (r.reset) S.promptOpen = null;
     paint(); refreshManifest();
-    return toast(r.reset ? `${key} is back to the shipped wording.` : `${key} is yours now.`);
+    return toast(r.reset ? `${key} is back to the house cut.` : `${key} is yours now.`);
   }
 
   if (d.invent) {
@@ -9161,7 +9161,7 @@ document.addEventListener('click', async (e) => {
     const name = document.querySelector(`[data-an="${d.saveaddon}"]`)?.value.trim();
     const body = document.querySelector(`[data-ab="${d.saveaddon}"]`)?.value.trim();
     const keys = document.querySelector(`[data-ak="${d.saveaddon}"]`)?.value ?? '';
-    if (!name || !body) return toast('A room needs a name and something in it.');
+    if (!name || !body) return toast('A pocket needs a name and something in it.');
     // The slot comes off the row that is already there rather than out of the form: it is not
     // editable and a card cannot move a room to another slot, so sending it would be sending a
     // value the writer never chose.
@@ -9173,7 +9173,7 @@ document.addEventListener('click', async (e) => {
     paint(); refreshManifest(); toast('Saved.'); return;
   }
   if (d.deladdon) {
-    if (!armed(t, 'addon:' + d.deladdon, 'Press again to remove this room.')) return;
+    if (!armed(t, 'addon:' + d.deladdon, 'Press again to remove this pocket.')) return;
     const r = await api.delAddon(S.storyId, d.deladdon);
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
@@ -9200,7 +9200,7 @@ document.addEventListener('click', async (e) => {
     // The tray stays open on top of the list, so nothing on screen moves when this works. It said
     // nothing at all before, which from in here is indistinguishable from a press that missed.
     paint(); refreshManifest();
-    toast(slot === 'outfit' ? 'Added, unworn.' : `Added. Switch it on from the card.`); return;
+    toast(slot === 'outfit' ? 'Added, unworn.' : `Added. Switch it on from the thread.`); return;
   }
   if (d.saveoutfit) {
     const name = document.querySelector(`[data-ofn="${d.saveoutfit}"]`)?.value.trim();
@@ -9259,13 +9259,13 @@ document.addEventListener('click', async (e) => {
   if (d.loreread) {
     // The ritual's third step, reachable without ending the chapter — "scan what we have".
     working('reroll');
-    toast('Reading this chapter for facts…');
+    toast('Reading this scene for facts…');
     const x = await api.extract(S.storyId, V.currentChapter.id);
     working(null);
     if (x.error) return toast(x.error);
     V = await api.story(S.storyId);
     S.lore = null; S.panel = 'chapter'; syncHash(); paint();
-    toast(`${x.added ?? 0} proposed as threads — nothing accepted yet.`);
+    toast(`${x.added ?? 0} basted as threads — nothing woven in yet.`);
     return;
   }
   if (d.nav) {
@@ -9305,20 +9305,20 @@ document.addEventListener('click', async (e) => {
     const r = await api.shareStory(S.storyId, login, !!d.unshare);
     if (r.error) return toast(r.error);
     V = r; await loadLibrary(); paint();
-    return toast(d.unshare ? `${login} is out of this book.` : `${login} writes here now.`);
+    return toast(d.unshare ? `${login} is out of this tale.` : `${login} writes here now.`);
   }
   if (d.lookmine) {
     Object.assign(MYLOOK, look); cacheMine(); drawAppearance();
     const r = await api.saveLook({ look: MYLOOK });
     if (r.error) return toast(r.error);
-    return toast('Saved as your default for every book.');
+    return toast('Saved as your usual look, for every tale.');
   }
   // And back. Null is the value that means follow, so this is a write rather than a delete.
   if (d.lookfollow) {
     const r = await api.saveLook({ storyId: S.storyId, look: null });
     if (r.error) return toast(r.error);
     V = r; resolveLook(null); drawAppearance(); paint();
-    return toast('This book follows your default again.');
+    return toast('This tale wears your usual look again.');
   }
   // The attribute is written here rather than in applyLook: reading mode is not part of the look
   // and does not belong in the bag that gets persisted.
@@ -9415,7 +9415,7 @@ document.addEventListener('click', async (e) => {
     // The panel may be showing the very passage that just went.
     if (S.historyOf?.id === id) { S.historyOf = null; S.panel = 'context'; }
     V = await api.story(S.storyId); paint(); refreshHistory();
-    if (every) toast(`${r.deleted ?? 0} take${r.deleted === 1 ? '' : 's'} gone. The passage is out of the book.`);
+    if (every) toast(`${r.deleted ?? 0} fitting${r.deleted === 1 ? '' : 's'} gone. The passage is out of the tale.`);
     return; }
   if (d.vp || d.vn) { const p = V.passages.find((x) => x.id === (d.vp || d.vn)); const v = p?.variants ?? [];
     const at = v.findIndex((x) => x.selected); const next = v[at + (d.vn ? 1 : -1)];
@@ -9447,23 +9447,23 @@ document.addEventListener('click', async (e) => {
       () => api.repair({ storyId: S.storyId, passageId: d.repair }));
     if (!r) return;
     if (r.error) return toast(r.error);
-    if (r.nothing) return toast('Nothing to correct — the canon and the prose agree.');
+    if (r.nothing) return toast('Nothing to mend — the threads and the prose agree.');
     V = r.view ?? await api.story(S.storyId, V.currentChapter.id);
     paint();
     // A detector that could not answer says nothing either way, and the flags are left standing.
     // Reporting "fixed" here off an unparseable reply is one line from telling the writer their
     // prose is clean on no evidence at all.
     return toast(r.unchecked
-      ? 'Rewritten, but the checker could not read the result, so nothing is claimed — the flags '
+      ? 'Mended, but the knot check could not read the result, so nothing is claimed — the knots '
         + 'below are the ones it went in with, carried over.'
       : r.unfixed === 0
-      ? `Corrected. ${r.found === 1 ? 'The contradiction is' : `All ${r.found} are`} gone, and the `
-        + 'take before it is in History.'
+      ? `Mended. ${r.found === 1 ? 'The knot is' : `All ${r.found} are`} gone, and the `
+        + 'fitting before it is in Alterations.'
       : r.mended > 0
-      ? `${r.mended} of ${r.found} corrected. ${r.unfixed === 1 ? 'One still contradicts'
-          : `${r.unfixed} still contradict`} canon — the flags below are what survived.`
-      : 'The repair changed nothing that mattered: it still contradicts canon. The take before it '
-        + 'is in History.');
+      ? `${r.mended} of ${r.found} mended. ${r.unfixed === 1 ? 'One knot is'
+          : `${r.unfixed} knots are`} still there — the ones below are what survived.`
+      : 'The mend changed nothing that mattered: it still contradicts a thread. The fitting before '
+        + 'it is in Alterations.');
   }
   if (d.dropflag) {
     const r = await api.dismissFlag(S.storyId, d.dropflag);
@@ -9482,7 +9482,7 @@ document.addEventListener('click', async (e) => {
   if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
   if (d.mute) {
     V = await api.mute(S.storyId, V.currentChapter.id, d.mute, false); paint();
-    return toast('Quiet for this chapter. Lift it in Waiting.');
+    return toast('Ignored for this scene. Watch it again on the Workbench.');
   }
   if (d.unmute) {
     V = await api.mute(S.storyId, V.currentChapter.id, d.unmute, true); paint();
@@ -9496,11 +9496,11 @@ document.addEventListener('click', async (e) => {
   // chapter you are in.
   if (d.retire) {
     V = await api.retire(S.storyId, d.retire, (V.currentChapter?.index ?? 0) + 1); paint();
-    return toast('Finished. Lift it in Waiting.');
+    return toast('Hemmed. Bring it back on the Workbench.');
   }
   if (d.unretire) {
     V = await api.retire(S.storyId, d.unretire, null); paint();
-    return toast('Back in the book.');
+    return toast('Back in the tale.');
   }
 
   if (d.link) {
@@ -9510,7 +9510,7 @@ document.addEventListener('click', async (e) => {
     const r = await api.link(S.storyId, S.entryId, child, conf);
     if (r.error) return toast(r.error);
     V = r; paint();
-    return toast('Connected. It arrives when this one does.');
+    return toast('Stitched together. It arrives when this one does.');
   }
   if (d.unlink) {
     if (!armed(t, 'edge:' + d.unlink, 'Press again to disconnect these two.')) return;
@@ -9519,7 +9519,7 @@ document.addEventListener('click', async (e) => {
   if (d.dupbook) {
     // ONE PRESS, no arming. Every other two-press control here destroys something; this only ever
     // adds a book, and the undo for it is the delete that is already on this panel.
-    toast('Copying the whole book\u2026');
+    toast('Copying the whole tale\u2026');
     const r = await api.duplicateStory(S.storyId, `${V.story.title} \u2014 a copy`);
     if (r.error) return toast(r.error);
     LIB = r.stories ?? LIB;
@@ -9539,7 +9539,7 @@ document.addEventListener('click', async (e) => {
     // Straight into it, because a new book you cannot see is indistinguishable from a press that
     // did nothing — and the toast is gone in three seconds.
     await openStory(r.into);
-    return toast(`${r.cards} thread${r.cards === 1 ? '' : 's'} in a new book.`);
+    return toast(`${r.cards} thread${r.cards === 1 ? '' : 's'} in a new tale.`);
   }
 
   // Every card opens on its face. Carrying the last card's view over means pressing a thread to
@@ -9563,13 +9563,13 @@ document.addEventListener('click', async (e) => {
     paint(); return; }
   if (d.copyentry) {
     const into = document.querySelector('[data-cf="into"]')?.value;
-    if (!into) return toast('Pick a book to copy it into.');
+    if (!into) return toast('Pick a tale to copy it into.');
     const r = await api.copyEntry(S.storyId, into, S.entryId);
     if (r.error) return toast(r.error);
     // No repaint: nothing in THIS book changed, and rebuilding the panel under someone who is
     // mid-edit in a field is how the seventh instance of the repaint bug got written.
-    return toast(`Copied into ${LIB.find((s2) => s2.id === into)?.title ?? 'the other book'}. `
-      + 'Nothing here changed, and the two are not linked.');
+    return toast(`Copied into ${LIB.find((s2) => s2.id === into)?.title ?? 'the other tale'}. `
+      + 'Nothing here changed, and the two are not shared.');
   }
   if (d.backentry) { S.entryId = null; S.historyOf = null; S.newRoom = null;
     if (S.panel === 'entry' || S.panel === 'history') S.panel = 'threads';
@@ -9611,7 +9611,7 @@ document.addEventListener('click', async (e) => {
     // trigger-words field in front of you to notice you have nothing to fire on. The card screen
     // says it in bold; out here it has to be said out loud or the thread goes dark silently.
     if (patch.activation === 'triggered' && !(e.keys ?? []).length) {
-      toast(`${e.title} is triggered with no trigger words — it cannot reach the model. Open it to add some.`);
+      toast(`${e.title} is on a word with no wake words — it cannot reach the model. Open it to add some.`);
     }
     return;
   }
@@ -9632,7 +9632,7 @@ document.addEventListener('click', async (e) => {
       allowNoKeys: true });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest();
-    return toast(`Saved in ${e.sharedFrom}. Every book following it sees this.`);
+    return toast(`Saved in ${e.sharedFrom}. Every tale following it sees this.`);
   }
   if (d.takeover) {
     const r = await api.takeover({ storyId: S.storyId, entryId: d.takeover });
@@ -9645,11 +9645,11 @@ document.addEventListener('click', async (e) => {
   }
   if (d.dropfollow) {
     if (!armed(t, 'dropfollow:' + d.dropfollow,
-      'Press again to take it out of this book. It stays where it lives.')) return;
+      'Press again to take it out of this tale. It stays where it lives.')) return;
     const r = await api.dropfollowed({ storyId: S.storyId, entryId: d.dropfollow });
     if (r.error) return toast(r.error);
     S.entryId = null; V = r; paint(); refreshManifest();
-    return toast('Out of this book. Untouched where it lives, and you can bring it back.');
+    return toast('Out of this tale. Untouched where it lives, and you can bring it back.');
   }
   if (d.handback || d.sendup) {
     const mine = !!d.sendup;
@@ -9658,14 +9658,14 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     S.entryId = r.origin ?? null; V = r; paint(); refreshManifest();
     return toast(mine
-      ? 'Sent up and following again. Every book following that one has this wording now.'
-      : 'Following again. This copy is gone and the shared card is back.');
+      ? 'Sent up and following again. Every tale following it has this wording now.'
+      : 'Following again. This copy is gone and the shared thread is back.');
   }
   if (d.bringback) {
     const r = await api.relink({ storyId: S.storyId, entryId: d.bringback, keep: 'theirs' });
     if (r.error) return toast(r.error);
     V = r; paint(); refreshManifest();
-    return toast('Back in this book.');
+    return toast('Back in this tale.');
   }
   if (d.saveentry) {
     const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
@@ -9701,23 +9701,23 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     V = r.deleted !== undefined ? r : await api.story(S.storyId);
     paint(); refreshManifest();
-    return toast(r.deleted ? `${r.deleted} gone. The book ends here now.` : 'Nothing was below it.');
+    return toast(r.deleted ? `${r.deleted} gone. The tale ends here now.` : 'Nothing was below it.');
   }
   if (d.delchapter) {
-    if (!armed(t, 'chapter:' + d.delchapter, 'Press again to delete this chapter and everything in it.')) return;
+    if (!armed(t, 'chapter:' + d.delchapter, 'Press again to delete this scene and everything in it.')) return;
     const r = await api.delChapter(S.storyId, d.delchapter);
     if (r.error) return toast(r.error);
     // The panel was reporting on the chapter that just went, so it cannot stay pointed at it.
     S.ritualOf = null; S.panel = 'context';
     V = await api.story(S.storyId); paint(); refreshManifest();
-    return toast('Chapter deleted. The numbers after it are unchanged.');
+    return toast('Scene deleted. The numbers after it are unchanged.');
   }
 
   if (d.delentry) {
     // COUNCIL 08 §1. The most destructive press on the card and the only one in this file that
     // had no guard, sitting directly under Field history — the button you press when you want
     // something BACK. Two presses apart, opposite outcomes, one of them permanent.
-    if (!armed(t, 'entry:' + S.entryId, 'Press again to delete this card for good.')) return;
+    if (!armed(t, 'entry:' + S.entryId, 'Press again to delete this thread for good.')) return;
     const r = await api.delEntry(S.storyId, S.entryId);
     if (r.error) return toast(r.error);
     S.entryId = null; if (S.panel === 'entry') S.panel = 'threads';
@@ -9761,7 +9761,7 @@ document.addEventListener('click', async (e) => {
     V = r.passages ? r : await api.story(S.storyId);
     S.historyOf = { ...S.historyOf, id: d.usetake };
     paint(); await refreshHistory();
-    toast('That take is in the story now.'); return;
+    toast('That fitting is in the tale now.'); return;
   }
   if (d.restore) {
     const r = await api.revert({ storyId: S.storyId, passageId: S.historyOf?.id, revisionId: d.restore });
@@ -9824,7 +9824,7 @@ document.addEventListener('click', async (e) => {
     // would show nothing at all, next to a toast asking for words there is no box for. The face is
     // for reading a card that has something to read.
     S.entryId = made?.id ?? null; S.cardView = 'form'; S.panel = 'threads'; syncHash(); paint();
-    toast('Woven in. Give it trigger words so it fires.');
+    toast('Woven in. Give it wake words so it wakes.');
     return;
   }
 
@@ -9971,7 +9971,7 @@ document.addEventListener('click', async (e) => {
   if (d.addstate) {
     const get = (f) => document.querySelector(`[data-st="${f}"]`)?.value;
     const from = Number(get('fromChapter'));
-    if (!from || !String(get('body') ?? '').trim()) return toast('A chapter number and a body, at least.');
+    if (!from || !String(get('body') ?? '').trim()) return toast('A scene number and a body, at least.');
     const r = await api.saveState(S.storyId, S.entryId,
       { fromChapter: from, body: get('body'), beforeMode: get('beforeMode'), label: get('label') || null });
     if (r.error) return toast(r.error);
@@ -9981,7 +9981,7 @@ document.addEventListener('click', async (e) => {
     if (!d.savestate) return toast('That change has no id to save.');
     const get = (a) => document.querySelector(`[data-${a}="${d.savestate}"]`)?.value;
     const from = Number(get('stf'));
-    if (!from || !String(get('stb') ?? '').trim()) return toast('A chapter number and a body, at least.');
+    if (!from || !String(get('stb') ?? '').trim()) return toast('A scene number and a body, at least.');
     const r = await api.saveState(S.storyId, S.entryId, { id: d.savestate, fromChapter: from,
       body: get('stb'), beforeMode: get('stm'), label: get('stl') || null });
     if (r.error) return toast(r.error);
@@ -10269,7 +10269,7 @@ document.addEventListener('click', async (e) => {
     S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
                   voice: r.voice ?? S.prompts.voice, anansi: r.anansi ?? S.prompts.anansi };
     drawSide();
-    return toast(r.reset ? 'Back to the shipped voice.' : 'That is your default now.');
+    return toast(r.reset ? 'Back to the house cut.' : 'That is your voice now.');
   }
   // HOW SHE TALKS. Same bargain as the box above and the same blank-is-reset, but it is copied
   // into nothing: the chat reads it live on every call, so a change is in force on the next
@@ -10281,7 +10281,7 @@ document.addEventListener('click', async (e) => {
     S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
                   voice: r.voice ?? S.prompts.voice, anansi: r.anansi ?? S.prompts.anansi };
     drawSide();
-    return toast(r.reset ? 'Back to her shipped voice.' : 'That is how she talks now.');
+    return toast(r.reset ? 'Back to her house cut.' : 'That is how she talks now.');
   }
   if (d.restyle) {
     if (S.styling) return;
@@ -10307,7 +10307,7 @@ document.addEventListener('click', async (e) => {
     const seen = r.read < r.mentioned ? ` Read the ${r.read} most recent of ${r.mentioned} that name it.`
       : ` All ${r.mentioned} passage${r.mentioned === 1 ? '' : 's'} that name it.`;
     return toast(r.added
-      ? `${r.added} proposed for ${r.title}.${seen} Nothing is written until you accept it.`
+      ? `${r.added} basted for ${r.title}.${seen} Nothing is in the tale until you weave it in.`
       : `Nothing new about ${r.title}.${seen}`);
   }
   if (d.delcover) {
@@ -10315,14 +10315,14 @@ document.addEventListener('click', async (e) => {
     const r = await api.delCover(S.storyId);
     if (r.error) return toast(r.error);
     V = r; await loadLibrary(); paint();
-    toast('Cover removed. The card goes back to its gradient.');
+    toast('Cover removed. The tale goes back to its gradient.');
     return;
   }
   if (d.archive) {
     const r = await api.saveStory(S.storyId, { status: d.archive });
     if (r.error) return toast(r.error);
     V = r; await loadLibrary(); paint();
-    toast(d.archive === 'archived' ? 'Archived. It sits at the end of the shelf.' : 'Back on the shelf.');
+    toast(d.archive === 'archived' ? 'Folded away. It hangs at the end of the rack.' : 'Back on the rack.');
     return;
   }
   if (d.delstory) {
@@ -10511,7 +10511,7 @@ document.addEventListener('click', async (e) => {
     if (S.ritualKept === ch) S.ritualKept = null;
     V = await api.story(S.storyId); paint(); return; }
   if (d.extract) {
-    const r = await whileWorking(t, 'Reading the chapter…', () => api.extract(S.storyId, V.currentChapter.id));
+    const r = await whileWorking(t, 'Reading the scene…', () => api.extract(S.storyId, V.currentChapter.id));
     if (!r) return;
     if (r.error) return toast(r.error); V = await api.story(S.storyId); paint();
     toast(`${r.added ?? 0} proposed.`); return; }
@@ -10523,7 +10523,7 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId); paint();
     // `remembered: 0` is a real answer and not a failure: nobody in the chapter changed, or the
     // cast is empty. Saying "0 proposed" beats a silence that reads as a button that did nothing.
-    return toast(`${r.remembered ?? 0} proposed — nothing accepted yet.`);
+    return toast(`${r.remembered ?? 0} basted — nothing woven in yet.`);
   }
   if (d.decide) {
     // The route branches on `accept`, not on a verb. Sending `decision: 'accept'` left
@@ -10552,8 +10552,8 @@ document.addEventListener('click', async (e) => {
       ...(yes && edited != null ? { body: edited } : {}) });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest();
-    toast(d.decide !== 'accept' ? 'Dropped.'
-      : was?.entryType === 'string' ? 'Tied. It is yours until you put it in play.' : 'Woven in.');
+    toast(d.decide !== 'accept' ? 'Rejected.'
+      : was?.entryType === 'string' ? 'Woven in. It is yours alone until you summon it.' : 'Woven in.');
     return;
   }
   if (d.pkind) { S.propKind = d.pkind; paint(); return; }
@@ -10629,7 +10629,7 @@ document.addEventListener('click', async (e) => {
     S.sparkStep = 1;
     if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
     paint();
-    toast('The skeleton. The cast is step three, once you say what this book needs.');
+    toast('The skeleton. The cast is the next step, once you say what this tale needs.');
     return;
   }
   // #21 §2 · THE TWO STAGES THE WRITER DRIVES.
@@ -10716,7 +10716,7 @@ document.addEventListener('click', async (e) => {
     S.spark.review = { changes: r.changes ?? [], entries: r.entries ?? [] };
     paint();
     return toast(S.spark.review.changes.length || S.spark.review.entries.length
-      ? 'Read back. Nothing is applied until you press it.'
+      ? 'She tried it on. Nothing is applied until you press it.'
       : 'She would not change anything.');
   }
   // ONE PRESS, ONE CHANGE, AND IT LEAVES THE LIST. A suggestion still on screen after it has been
@@ -10728,7 +10728,7 @@ document.addEventListener('click', async (e) => {
     S.spark.story[ch.field] = ch.value;
     S.spark.review.changes = S.spark.review.changes.filter((_, i) => i !== Number(d.spapply));
     paint();
-    return toast(`${ch.field} replaced. It is still yours to edit.`);
+    return toast(`${ch.field} replaced. It is still yours to alter.`);
   }
   if (d.spaddone !== undefined) {
     harvestSpark();
@@ -10743,7 +10743,7 @@ document.addEventListener('click', async (e) => {
     if (S.spark.sparking || S.spark.casting || S.spark.recasting !== null || S.spark.styling) return;
     harvestSpark();
     const idea = S.spark.idea;
-    if (!idea) return toast('There is no idea to ask again from.');
+    if (!idea) return toast('There is no idea to reweave from.');
     S.spark.sparking = true; paint();
     const r = await withRing(() => api.spark(idea));
     S.spark.sparking = false;
@@ -10831,7 +10831,7 @@ document.addEventListener('click', async (e) => {
     if (!v) return toast('Still reading your voice.');
     S.spark.story.writingStyle = d.spvoice === 'mine' ? (v.inUse ?? v.shipped) : v.shipped;
     paint();
-    toast(d.spvoice === 'mine' ? 'Your voice.' : 'The shipped voice.');
+    toast(d.spvoice === 'mine' ? 'Your voice.' : 'The house cut.');
     return;
   }
   /** THE WORST OF THE TWO, because what it repeats is not a model call but a WRITE. Unguarded, a
@@ -10918,7 +10918,7 @@ document.addEventListener('click', async (e) => {
     let followed = null;
     if (S.spark.follow) {
       const fr = await api.saveStory(r.id, { loreFrom: S.spark.follow });
-      if (!fr?.error) followed = (LIB ?? []).find((b) => b.id === S.spark.follow)?.title ?? 'that book';
+      if (!fr?.error) followed = (LIB ?? []).find((b) => b.id === S.spark.follow)?.title ?? 'that bolt';
     }
 
     const wantOpen = S.spark.autoOpen !== false;
@@ -10982,8 +10982,8 @@ document.addEventListener('click', async (e) => {
     S.spark.entries = [...S.spark.entries, ...cards];
     paint();
     const rooms = cards.reduce((k, c) => k + Object.keys(c.rooms ?? {}).length, 0);
-    return toast(`${plural(cards.length, 'card', 'cards')} added to the cast${
-      rooms ? `, with ${plural(rooms, 'room', 'rooms')}` : ''}. Nothing is written until you accept.`);
+    return toast(`${plural(cards.length, 'thread', 'threads')} added to the cast${
+      rooms ? `, with ${plural(rooms, 'pocket', 'pockets')}` : ''}. Nothing is written until you cut the tale.`);
   }
   /** #30 · A WHOLE BOOK, PASTED BEFORE THE WIZARD OPENS. It FILLS the wizard rather than creating
    *  anything: every other thing a model writes in this app is read before it is kept, and a book
@@ -11043,19 +11043,19 @@ document.addEventListener('click', async (e) => {
     LEDGER = null; syncHash();
     await loadLibrary();
     paint();
-    return toast(on ? 'Showing the demo library. Your own books are untouched.' : 'Back in your own library.');
+    return toast(on ? 'Showing the demo rack. Your own tales are untouched.' : 'Back on your own rack.');
   }
   // One button, both states: `data-fromhere` carries the book id to open and '' to shut.
   if (d.fromhere !== undefined) { S.fromBook = d.fromhere || null; drawPage(); return; }
   if (d.startfrom) {
     const name = $(`from-${d.startfrom}`)?.value?.trim();
-    if (!name) return toast('Name the book first.');
+    if (!name) return toast('Name the tale first.');
     const r = await api.bookFrom(d.startfrom, name);
     if (r.error) return toast(r.error);
     S.fromBook = null;
     LIB = (await api.library()).stories ?? LIB;
     await openStory(r.id);
-    return toast('It follows those threads. Their cards are already in its prompt.');
+    return toast('It follows those threads. They already reach the model with it.');
   }
   if (d.pastebook) {
     const box = document.querySelector('[data-bookpaste]');
@@ -11067,7 +11067,7 @@ document.addEventListener('click', async (e) => {
     catch (e) { return toast(`That is not JSON — ${e.message}`); }
     const st = j?.story ?? j;
     if (!st || typeof st !== 'object' || !String(st.premise ?? '').trim())
-      return toast('That has no story with a premise in it.');
+      return toast('That has no tale with a premise in it.');
     const { cards } = readForgedCards(JSON.stringify(j?.entries ?? []));
     S.spark = {
       story: {
@@ -11094,8 +11094,8 @@ document.addEventListener('click', async (e) => {
     if (S.prompts === null) loadPrompts();
     paint();
     const rooms = cards.reduce((k, c) => k + Object.keys(c.rooms ?? {}).length, 0);
-    return toast(`${esc(st.title || 'The book')} and ${plural(cards.length, 'card', 'cards')}${
-      rooms ? ` with ${plural(rooms, 'room', 'rooms')}` : ''} — read it, then accept.`);
+    return toast(`${esc(st.title || 'The tale')} and ${plural(cards.length, 'thread', 'threads')}${
+      rooms ? ` with ${plural(rooms, 'pocket', 'pockets')}` : ''} — read it, then cut it.`);
   }
   if (d.forgeopen) { S.forgeOpen = S.forgeOpen === d.forgeopen ? null : d.forgeopen; drawPage(); return; }
   if (d.forgecopy) {
@@ -11167,8 +11167,8 @@ document.addEventListener('click', async (e) => {
     S.panel = 'chapter'; S.propKind = 'all';
     syncHash(); paint(); refreshManifest();
     return toast(failed.length
-      ? `${plural(made, 'thread', 'threads')} proposed. ${failed.length} came back with nothing usable: ${failed.slice(0, 3).join(', ')}.`
-      : `${plural(made, 'thread', 'threads')} proposed — accept them under Chapter.`);
+      ? `${plural(made, 'thread', 'threads')} basted. ${failed.length} came back with nothing usable: ${failed.slice(0, 3).join(', ')}.`
+      : `${plural(made, 'thread', 'threads')} basted — weave them in under This scene.`);
   }
   if (d.fromweb) {
     if (S.webPulling) return;
@@ -11184,13 +11184,13 @@ document.addEventListener('click', async (e) => {
     S.lore = null; S.panel = 'chapter'; S.propKind = 'all';
     syncHash(); paint(); refreshManifest();
     return toast(r.duplicate
-      ? `The ledger already says that about ${r.title}.`
-      : `${r.title} is proposed, from ${plural((r.sources ?? []).length, 'page', 'pages')} — accept it under Chapter.`);
+      ? `The threads already say that about ${r.title}.`
+      : `${r.title} is basted, from ${plural((r.sources ?? []).length, 'page', 'pages')} — weave it in under This scene.`);
   }
   if (d.cardcopy) {
     const text = document.getElementById('f-card-json')?.value ?? '';
     if (!text) return toast('Nothing to copy.');
-    try { await navigator.clipboard.writeText(text); toast('The card is on your clipboard.'); }
+    try { await navigator.clipboard.writeText(text); toast('The thread is on your clipboard.'); }
     catch { toast('Could not reach the clipboard — select the box and copy by hand.'); }
     return;
   }
@@ -11398,7 +11398,7 @@ async function drawOne(prompt) {
   const seed = Math.floor(Math.random() * 1e9);
   try {
     const r = await fetch(drawnUrl(prompt, seed));
-    if (!r.ok) throw new Error(r.status === 429 ? 'the queue was busy' : `HTTP ${r.status}`);
+    if (!r.ok) throw new Error(r.status === 429 ? 'the line was busy' : `HTTP ${r.status}`);
     S.drawn.shots.push({ seed, obj: URL.createObjectURL(await r.blob()), err: null });
   } catch (e) {
     S.drawn.shots.push({ seed, obj: null, err: e?.message ?? 'no answer' });
@@ -11433,7 +11433,7 @@ const revokeShots = () => {
  *  40 rows from pinterest and the rest from four other places. */
 const SITE_HELP = `Add <strong>site:pinterest.com</strong> — or artstation.com, unsplash.com, any
   host — to look on one site alone. <strong>!goi</strong> or <strong>!bii</strong> at the front asks
-  Google or Bing images only. Icons are dropped: they cannot become a picture.`;
+  Google or Bing images only. Icons are left out: they cannot become a picture.`;
 
 /** APPEND THE NEXT BATCH, deduplicated on the image URL.
  *
@@ -11478,7 +11478,7 @@ function entryPicture(e) {
       </div>
     </div>` : `<div style="display:flex; gap:7px; align-items:center">
       <button class="btn ghost" data-picfind="${esc(e.id)}" style="width:auto; padding:8px 14px;
-        font-size:11.5px">Find one on the web</button>
+        font-size:11.5px">Find one online</button>
       <label class="btn ghost" style="width:auto; padding:8px 14px; font-size:11.5px; cursor:pointer;
         margin:0">Choose a file<input type="file" accept="image/*" data-picfile="${esc(e.id)}"
         style="display:none"></label>
@@ -11522,7 +11522,7 @@ function entryPicture(e) {
  */
 function coverFinder() {
   const f = S.found;
-  if (!f) return `<button class="btn ghost" data-findcover="open" style="margin-top:7px">Find one on the web</button>`;
+  if (!f) return `<button class="btn ghost" data-findcover="open" style="margin-top:7px">Find one online</button>`;
   const rows = f.rows ?? [];
   return `<div class="card" style="gap:8px; margin-top:7px">
     <div class="lbl" style="letter-spacing:.1em; margin:0">What to look for</div>
@@ -11537,7 +11537,7 @@ function coverFinder() {
       tipMark('findWhere', 'Where these words go')}</div>
     ${tipCard('findWhere', 'Where these words go', `<p>These words go to your own search endpoint,
       and the picture comes back through Anansi rather than from this browser. Nothing about the
-      book is sent &mdash; not the premise, not a word of the prose.</p>`)}
+      tale is sent &mdash; not the premise, not a word of the prose.</p>`)}
     <div class="hint" style="margin:0">${SITE_HELP}</div>
     ${rows.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px">
       ${rows.map((r) => `<button data-takeweb="${esc(r.img)}" title="${esc(r.title)}"
@@ -11575,7 +11575,7 @@ function drawTray() {
     ${tipCard('drawWhere', 'Where these words go', `<p>These words go to <code>pollinations.ai</code>,
       from this browser rather than through Anansi. It is the only thing in the app that leaves the
       machine besides the model on your own box, so read this before you press it.</p>
-      <p>Nothing else about the book is sent &mdash; not the premise, not a word of the prose.</p>`)}
+      <p>Nothing else about the tale is sent &mdash; not the premise, not a word of the prose.</p>`)}
     <div style="display:flex; gap:7px">
       <button class="btn ghost" data-drawcover="go" style="flex:1" ${S.drawn.busy ? 'disabled' : ''}>${
         S.drawn.busy ? 'Drawing&hellip;' : shots.length ? 'Draw another' : 'Draw one'}</button>
@@ -11698,7 +11698,7 @@ document.addEventListener('change', (e) => {
   if (e.target.id === 'searchAll') {
     S.searchAll = e.target.checked;
     const q = $('q');
-    if (q) q.placeholder = `Search ${S.searchAll ? 'every story' : (V?.story.title ?? 'this story')}`;
+    if (q) q.placeholder = `Search ${S.searchAll ? 'every tale' : (V?.story.title ?? 'this tale')}`;
     if (S.query.trim()) api.search(S.query, S.searchAll ? undefined : S.storyId)
       .then((r) => { HITS = r.error ? [] : (r.results ?? []); if ($('hits')) $('hits').innerHTML = searchHits(); });
     return;
@@ -11716,7 +11716,7 @@ document.addEventListener('change', (e) => {
       V = await api.story(S.storyId);
       paint(); refreshManifest();
       // #61. `r.toast` is the server saying the move turned this book's weaving off.
-      const moved = model ? `This story is written by ${model} now.` : 'Back to the default model.';
+      const moved = model ? `This tale's model is ${model} now.` : 'Back to your model.';
       toast(r.toast ? `${moved} ${r.toast}` : moved);
     });
     return;
@@ -11895,16 +11895,16 @@ function atFind(q, wide = false) {
     seen.add(key); out.push({ label, kind, where, id });
   };
   const hit = (x) => !q || String(x ?? '').toLowerCase().includes(q);
-  for (const e of V?.entries ?? []) if (hit(e.title)) add(e.title, 'thread', 'this book', e.id);
+  for (const e of V?.entries ?? []) if (hit(e.title)) add(e.title, 'thread', 'this tale', e.id);
   for (const c of V?.chapters ?? []) {
     const t = (c.title || '').trim();
     if (hit(t) || hit(`scene ${c.index}`) || hit(`chapter ${c.index}`))
       add(sceneName(c), 'chapter', 'this tale', c.id);
   }
   if (wide) {
-    for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your shelf', b.id);
+    for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your rack', b.id);
     for (const e of LEDGER ?? []) if (e.story !== S.storyId && hit(e.title))
-      add(e.title, 'thread', e.storyTitle || 'another book', e.id);
+      add(e.title, 'thread', e.storyTitle || 'another tale', e.id);
   }
   return out;
 }
@@ -11916,7 +11916,7 @@ function atDraw() {
   // THE SECOND @ HAS TO BE DISCOVERABLE. A shortcut nobody is told about is a shortcut nobody uses,
   // and this one replaced behaviour that used to be the default.
   const foot = AT.wide ? '' : `<div class="hint" style="margin:6px 10px 2px; font-size:11px">
-    <b>@@</b> to search every book</div>`;
+    <b>@@</b> to search every tale</div>`;
   l.innerHTML = foot + AT.items.map((it, i) => `
     <button data-atpick="${i}" aria-selected="${i === AT.sel}" style="display:flex; align-items:baseline;
       gap:8px; width:100%; text-align:left; padding:8px 10px; border-radius:var(--r);
@@ -11924,7 +11924,7 @@ function atDraw() {
       color:${i === AT.sel ? 'var(--gold-lit)' : 'var(--ink)'}; font-size:13px">
       <span>${esc(it.label)}</span>
       <span style="margin-left:auto; font-size:11px; letter-spacing:.08em;
-        text-transform:uppercase; color:var(--faint)">${esc(it.kind)} \u00b7 ${esc(it.where)}</span>
+        text-transform:uppercase; color:var(--faint)">${esc(({ chapter: 'scene', book: 'tale' })[it.kind] ?? it.kind)} \u00b7 ${esc(it.where)}</span>
     </button>`).join('');
 }
 

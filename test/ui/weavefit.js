@@ -55,7 +55,7 @@ ok(`  your line is on the page and the model wrote nothing (${refused.human}, ${
 // The veil takes a moment to leave, and while it does it still covers the composer.
 await until("!document.getElementById('ghost')", 20);
 await page.click("#weavefit [data-weaveanyway]");
-ok("write anyway weaves", await until(`/^Weaving/.test(document.querySelector('#ghost .veilweave')?.textContent ?? '')`, 40, 100));
+ok("write anyway spins", await until(`/^Spinning/.test(document.querySelector('#ghost .veilweave')?.textContent ?? '')`, 40, 100));
 ok("  and the row is gone", await page.eval("!document.getElementById('weavefit')"));
 ok("  the prose arrives", await until(`(document.querySelector('#ghost .veiltext')?.textContent ?? '').length > 0`, 60, 200));
 await until("!document.getElementById('send')?.disabled", 40);

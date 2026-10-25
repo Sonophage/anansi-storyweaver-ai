@@ -2433,7 +2433,7 @@ ok('a book whose model cannot be asked to weave, or always weaves, says so in th
     await new Promise((r) => setTimeout(r, 60));
     const said = String(nodes.get('toast').textContent);
     assert.match(said, /Weaving is off for this book now \(fixture\)\./, `MOVE-TOAST: the writer is told weaving went off: ${said}`);
-    assert.match(said, /written by/, 'MOVE-TOAST: beside the model it picked');
+    assert.match(said, /This tale's model is/, 'MOVE-TOAST: beside the model it picked');
     delete (STORY as any).toast;
     changeIn({ dataset: { storymodel: '1' }, value: 'Qwen3.6-WNTH-35B-A3B-NN' });
     await new Promise((r) => setTimeout(r, 60));
@@ -3143,7 +3143,7 @@ ok('the model panel in a book names what writes it, reads a lent pin\'s limit an
     refuseNth = DRAWN.length + 1;
     click({ drawcover: 'go' }); await until(4);
     const mixed = html('sideBody');
-    assert.match(mixed, /did not arrive &mdash; the queue was busy/, 'a 429 says so in its own square');
+    assert.match(mixed, /did not arrive &mdash; the line was busy/, 'a 429 says so in its own square');
     assert.strictEqual([...mixed.matchAll(/data-usecover="/g)].length, 3,
       'and the three that did arrive are still pressable');
   } finally { doc.querySelector = wasQS; refuseNth = 0; }

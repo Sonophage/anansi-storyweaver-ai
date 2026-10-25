@@ -1590,7 +1590,7 @@ await wait(900);
 {
   const body = (await page.text('#sideBody')) || '';
   ok("Strings is a panel of its own", /A new string/i.test(body) && /Owed|Nothing owed/i.test(body));
-  ok("  and what a string IS is still one press away", /promise the story has made and not paid/i.test(body));
+  ok("  and what a string IS is still one press away", /promise the tale has made and not kept/i.test(body));
 }
 await page.eval(`(() => {
   document.querySelector('[data-st2="title"]').value = 'The letter he has not opened';
@@ -1673,8 +1673,8 @@ await page.goto(B + "/#" + sid3 + "/anansi");
 await wait(1000);
 const asks = await page.eval("[...document.querySelectorAll('[data-askfill]')].map(b => b.dataset.askfill)");
 ok(`Anansi opens with things to ask it (${asks.length})`, asks.length >= 3);
-ok("  one of which is what the story has not paid off",
-   asks.some((a) => /not paid off/i.test(a)));
+ok("  one of which is what the tale has not tied off",
+   asks.some((a) => /not tied off/i.test(a)));
 // The openings are about THIS story, not a generic list.
 const cast = (await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid3 + "')).json();"
   + " return (v.entries || []).filter(e => e.entryType === 'character').map(e => e.title); })()"));
