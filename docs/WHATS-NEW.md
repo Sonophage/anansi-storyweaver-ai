@@ -34,6 +34,11 @@ writer how much a model can read in words and how fast it writes, and has a butt
 model. Settings say "Anansi reads it every time she writes" instead of "sent on every call".
 Pocket names start with a capital.
 
+### The Workbench offers the fix
+An out-of-date scene summary on the Workbench has a button that writes it again, and scenes that no
+longer reach the model have a button to the place where you gather them into a chapter. "Not now"
+is still there.
+
 ### The keyboard
 Esc closes a passage's actions and the menu. Tab no longer walks through the menu or a drawer
 while they are closed. The menu's rows wrap instead of cutting off their names.

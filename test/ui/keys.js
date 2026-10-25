@@ -49,4 +49,25 @@ await wait(700);
 ok("on New tale the header offers no second New tale",
    (await page.eval("document.querySelectorAll('#bar [data-open=\"new\"]').length")) === 0);
 
+// ---- the Workbench offers the fix, not only "Not now"
+await page.viewport(1280, 900);
+const made = JSON.parse(await page.eval(`(async () => {
+  const post = (u, b) => fetch(u, { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(b) }).then((r) => r.json());
+  const r = await post('/api/stories', { title:'Upkeep', genre:'test', premise:'x', pov:'third past' });
+  const id = r.storyId ?? r.id ?? (r.stories && r.stories.at(-1).id);
+  await post('/api/write', { storyId:id, body:'The bell rang once and nobody came down for it.' });
+  const v0 = await (await fetch('/api/story?story=' + id)).json();
+  const first = v0.currentChapter.id;
+  await post('/api/summary', { storyId:id, chapterId:first, summary:'The bell rings once.' });
+  await post('/api/chapter/end', { storyId:id, summarise:false, remember:false, extract:false, retire:false });
+  await post('/api/write', { storyId:id, body:'Morning, and the square was empty.' });
+  const p = v0.passages.find((x) => x.chapterId === first && !x.isBreak);
+  await post('/api/passage', { storyId:id, id:p.id, body:'The bell rang twice and somebody came down.' });
+  return JSON.stringify({ id, first }); })()`));
+await page.goto(B + "/#" + made.id + "/waiting");
+await wait(1200);
+ok("an out-of-date summary on the Workbench has a button that writes it again",
+   await page.eval(`!!document.querySelector('#sideBody [data-summarize="${made.first}"]')`));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

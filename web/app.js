@@ -493,7 +493,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
   'editsum', 'savesum', 'cancelsum',
-  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'choosemodel', 'altsave', 'altcancel', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'choosemodel', 'altsave', 'altcancel', 'sumtab', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -2686,16 +2686,20 @@ const PANELS = {
     // The two that are COMPUTED rather than stored, and so can be waved away. The ref carries the
     // state that made each worth saying, so this is "not for this", never "never again".
     const off = [];
+    // EACH WITH ITS WAY TO FIX IT. The only button here was "Not now", so the Workbench named a
+    // job and offered no way to do it (usability check, 2026-10-24).
     for (const c of (w.stale ?? [])) off.push({ kind: 'stale', ref: c.ref,
+      fix: `<button class="btn ghost" data-summarize="${esc(c.id)}" style="align-self:flex-start; width:auto; padding:0 16px; margin-top:4px">Write the summary again</button>`,
       title: `${sceneName(c)}: its summary is out of date`,
       body: 'Its prose changed after the summary was written. An out-of-date scene summary is not '
           + 'sent until it is written again.' });
     // #47. An act still reaches the model when it is out of date, so this says what to read, not
     // what was dropped. The ref carries what its chapters say now: a later change brings it back.
-    for (const a of (w.acts ?? [])) off.push({ kind: 'act', ref: a.ref,
+    const toChapters = `<button class="btn ghost" data-sumtab="1" style="align-self:flex-start; width:auto; padding:0 16px; margin-top:4px">Open Chapters</button>`;
+    for (const a of (w.acts ?? [])) off.push({ kind: 'act', ref: a.ref, fix: toChapters,
       title: `${a.title || `Scenes ${a.fromChapter}–${a.toChapter}`} is out of date`,
       body: actChanged(a.chapter, a.why, a.chapterTitle) });
-    if (h) off.push({ kind: 'horizon', ref: String(h.to),
+    if (h) off.push({ kind: 'horizon', ref: String(h.to), fix: toChapters,
       title: `${h.chapters} scene${h.chapters === 1 ? '' : 's'} no longer reach the model`,
       body: `Scenes ${h.from} to ${h.to}. Their summaries do not fit any more — This scene, then `
           + 'Chapters, gathers a run of them into a chapter.' });
@@ -2716,6 +2720,7 @@ const PANELS = {
       ${off.map((d) => `<div class="card" style="margin-bottom:9px; gap:5px">
         <div class="kind">${esc(d.title)}</div>
         <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(d.body)}</div>
+        ${d.fix ?? ''}
         <button data-dismiss="${d.kind}" data-ref="${esc(d.ref)}"
           style="align-self:flex-start; font-size:11.5px; color:var(--faint); margin-top:3px"
           >Not now &mdash; ask me again if it changes</button></div>`).join('')}`;
@@ -9300,6 +9305,8 @@ document.addEventListener('click', async (e) => {
    * out rather than folded into the branch above because the two keep different state and press
    * different attributes; sharing them would save four lines and cost a reader the ability to
    * grep for either one. */
+  // The Workbench's way to where chapters are gathered: This scene, on its Summaries tab.
+  if (d.sumtab) { S.panel = 'chapter'; S.chapTab = 'summaries'; paint(); return; }
   if (d.chaptab) {
     S.chapTab = d.chaptab;
     const box = t.closest?.('[data-tab]');
