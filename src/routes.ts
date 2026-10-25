@@ -4070,7 +4070,8 @@ export const routes: Record<string, Handler> = {
   'GET /api/search':    (c) => ({ results: db.search(c.owner, c.query.get('q') ?? '',
     c.query.get('story') || undefined).map((x: any) => ({
     kind: x.kind, id: x.id, storyId: x.story_id, story: x.story_title,
-    where: `${x.story_title} · ${x.loc}`, body: x.body,
+    // The SQL says "ch N" (src/search.ts); the screen says scene, so the label is turned here.
+    where: `${x.story_title} · ${String(x.loc).replace(/^ch (\d+)$/, 'scene $1')}`, body: x.body,
   })) }),
   /** Theme, font, prose size and UI scale.
    *
