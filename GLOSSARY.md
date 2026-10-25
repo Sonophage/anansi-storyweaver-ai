@@ -70,6 +70,14 @@ and taken off; other pockets are on or off.
 _Avoid_: room, rooms, slot, addon
 _In code_: addon, slot
 
+**Always true / As it stands**:
+The two texts of a thread besides its pockets. Always true is the writer's own text and Anansi
+never changes it. As it stands is where the thread is now; Anansi bastes changes to it at hemming
+and the writer sews them in. Both reach the model every time the thread is sent. (Decided
+2026-10-24; the screens and the data still have one body and a facts pocket.)
+_Avoid_: facts pocket (for Always true), body (for As it stands)
+_In code_: the `facts` addon (Always true), `entries.body` (As it stands)
+
 **Always on / On a word**:
 When a thread reaches the model: every time, or when one of its wake words appears.
 _Avoid_: triggered, on a keyword, activation
