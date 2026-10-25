@@ -759,8 +759,9 @@ function drawRail() {
          color:var(--dim)">Scenes</div>
        ${V.chapters.map((c) => `<button data-chapter="${c.id}"${
          c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
-         border-radius:var(--r); white-space:nowrap; overflow:hidden; width:100%; text-overflow:ellipsis;
-         color:${c.id === V.currentChapter.id ? 'var(--gold-lit)' : 'var(--faint)'}"><span class="txt">${
+         border-radius:var(--r); width:100%;
+         color:${c.id === V.currentChapter.id ? 'var(--gold-lit)' : 'var(--faint)'}"><span class="txt"
+         style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${
          esc(sceneName(c))}</span></button>`).join('')}`
     // NO "Open" LIST HERE, only the demo switch. It reprinted the first four books in a rail whose first row is already
     // My stories (Rack, now), which is the same door with a complete list behind it. Seth, 2026-08-31: "the
@@ -999,11 +1000,13 @@ function drawBar() {
       : `<button data-railview="workspace" class="pill hdoor" aria-label="Menu"
       style="display:flex; align-items:center; gap:7px; padding:7px 12px"
       ><span aria-hidden="true" style="font-size:15px; line-height:1">&#9776;</span><span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase">Menu</span></button>`}
-    <div style="flex:1 1 auto; min-width:60px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
+    <!-- No overflow:hidden on the title or its column: it would clip the title's 44px touch area.
+         The ellipsis lives on the spans inside, which is where the text is. -->
+    <div style="flex:1 1 auto; min-width:60px; display:flex; flex-direction:column; gap:3px">
       ${inStory ? `<button data-railview="story" aria-label="This tale's menu"
-        style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">`
+        style="display:block; text-align:left; padding:0; max-width:100%">`
         : `<button data-railview="workspace" aria-label="Menu"
-        style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">`}
+        style="display:block; text-align:left; padding:0; max-width:100%">`}
       <span class="serif" style="font-size:23px; line-height:1; color:var(--chrome-ink);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block">${esc(title)}</span>
       </button>
@@ -2748,7 +2751,9 @@ const PANELS = {
         }
         return [...out].map(([key, { n, tokens }]) => {
           const [kind, reason] = key.split('\u0000');
-          return `<div class="row" style="opacity:.55">
+          // pointer-events:none: the opacity puts this row above the 44px touch area of the button
+          // over it, and a row you cannot press should not take that press.
+          return `<div class="row" style="opacity:.55; pointer-events:none">
             <span style="width:8px; height:8px; border-radius:var(--r-tight); flex:0 0 auto; background:var(--edge-lit)"></span>
             <span style="color:var(--mute)">${esc((BLOCK_ORIGIN[kind] ?? [kind])[0])}${
               n > 1 ? ` <span style="color:var(--faint)">&times;&thinsp;${n}</span>` : ''}</span>

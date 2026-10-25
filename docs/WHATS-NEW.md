@@ -16,6 +16,11 @@ Everything below this line was written by that model call, before it was removed
 On a phone or a tablet, tap a passage to see Reweave, Alter, Make a thread and the rest. A line
 under the newest passage says so. A double tap still works.
 
+### Easier to hit with a finger
+On a phone or a tablet every button now takes a press from a finger's width around it, even where
+it looks small: Close, the ✕ on a list, the little ? marks, the tabs on the Look sheet. The mode and
+threads switches above the box are taller to the finger and look the same.
+
 ### A Menu button, and a way back to the rack
 The rack has a Menu button. Inside a tale, "‹ Anansi" at the top left takes you back to the rack,
 and ⋯ at the top right opens the tale's menu. The tale's name still opens it too.

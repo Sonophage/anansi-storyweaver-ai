@@ -136,6 +136,27 @@ body {
   -webkit-font-smoothing:antialiased; overflow:hidden;
 }
 button { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-align:left; }
+/* 44PX TO THE FINGER, WHATEVER IT LOOKS LIKE. Seth's rule for v2: about 32px to the eye, 44px to the
+   finger. The usability check of 2026-10-24 measured Close at 39x14 and a Remove at 10x15. So on a
+   touch screen every control gets an invisible ::after that reaches at least 22px either side of its
+   middle, and draws nothing; a control already that big gets an ::after of its own size. Percentages
+   on top/bottom are of the control's height and on left/right of its width, which is what makes
+   min(0px, 50% - 22px) the right edge for any size.
+
+   :where() so the rule has no weight: anything that already places a control — absolute, fixed,
+   sticky — keeps its place, and only a control left static becomes the anchor for its ::after.
+   Two controls closer than 44px share the gap between them; the one later in the page wins it.
+   test/ui/targets.js measures this by asking where a finger 21px off each control would land.
+   ponytail: a control with overflow:hidden clips its own ::after, so it gets padding instead,
+   case by case. If many need that, wrap the label in a span and move the clip onto the span. */
+@media (pointer:coarse) {
+  :where(button, a[href], summary, [role=button], label) { position:relative; }
+  :where(button, a[href], summary, [role=button], label)::after {
+    content:''; position:absolute;
+    top:min(0px, calc(50% - 22px)); bottom:min(0px, calc(50% - 22px));
+    left:min(0px, calc(50% - 22px)); right:min(0px, calc(50% - 22px));
+  }
+}
 input, textarea { font:inherit; color:inherit; }
 :focus-visible { outline:2px solid var(--gold); outline-offset:2px; border-radius:var(--r-tight); }
 /* ── motion ──────────────────────────────────────────────────────────────────────────────────
@@ -621,6 +642,8 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
      anything scrolls into it. */
   #appearance .sheet-head + div { margin-top:6px; }
 }
+/* The tabs' 44px reaches 7px above them, and the sticky head sits on top of anything it overlaps. */
+@media (max-width:1099px) and (pointer:coarse) { #appearance .sheet-head + div { margin-top:14px; } }
 /* CHECKBOXES, DRAWN — Seth, 2026-09-02: "all checkboxes should be styled and auto save so i dont
    have to hit save everytime." There were nine in the app and not one line of CSS for them, so
    every one was the platform's own control: a white box with a blue tick, on nineteen themes that
@@ -788,7 +811,7 @@ html[data-reading="1"] .from { display:none; }
 /* Regenerate and Continue, under the last passage. Not in the ⋯ tray and not in the chrome:
    both mean "the end of the page", so they are drawn at the end of the page. Reading mode hides
    them with the rest of the controls — see the data-reading rule at the top. */
-.carry { display:flex; gap:8px; padding:14px 0 2px; }
+.carry { display:flex; flex-wrap:wrap; gap:8px; padding:14px 0 2px; }
 /* `--chip`, NOT `--edge`. Seth, 2026-09-01: "continue is missing a border i believe" — and measured
    in a browser, it was not missing: both carry buttons computed to `1px solid rgb(39,39,41)`, which
    is `--edge` (#23211D) on a #0C0C0E page. Regenerate reads as a control anyway because of its gold
@@ -804,7 +827,8 @@ html[data-reading="1"] .from { display:none; }
 html[data-reading="1"] .carry { display:none !important; }
 /* The door to a passage's actions, said once, under the newest passage. Touch only: on a mouse,
    hover already shows them. */
-.taphint { display:none; align-self:center; margin-left:4px; font-size:12px; color:var(--faint); }
+/* Its own line, under the two buttons: beside them it pushed Continue onto two lines at 390px. */
+.taphint { display:none; flex-basis:100%; margin-top:2px; font-size:12px; color:var(--faint); }
 @media (hover:none) { .taphint { display:inline; } }
 @keyframes found {
   0%, 60% { background:rgba(217,178,106,.14); box-shadow:0 0 0 8px rgba(217,178,106,.14); }
@@ -1073,6 +1097,18 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
 #modes select[data-modesel] { border-color:color-mix(in srgb, var(--dial, var(--chip)) 42%, transparent); }
 #modes select.dial:hover, #modes button[data-holdback]:hover { border-color:rgba(217,178,106,.42); }
 #modes select[data-modesel]:hover { border-color:var(--dial, rgba(217,178,106,.42)); }
+/* 44PX TO THE FINGER FOR THE DIALS. A select cannot carry the ::after the other controls use, so on a
+   touch screen the box itself is 44px and the pill you see is drawn 6px inside it: a transparent
+   border, the background clipped to the padding, and the edge as an inset shadow in the same colour
+   the border had. 32px to the eye, as before. Hover is off here: on a touch screen it sticks. */
+@media (pointer:coarse) {
+  #modes select.dial, #asWhom { height:44px; padding-block:0; line-height:32px; border:6px solid transparent;
+    background-clip:padding-box; }
+  #modes select.dial { box-shadow:inset 0 0 0 1px var(--chip); }
+  #modes select[data-modesel] { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--dial, var(--chip)) 42%, transparent); }
+  #modes select.dial:hover, #modes select[data-modesel]:hover { border-color:transparent; }
+  select.field { min-height:44px; }
+}
 /* HOLD BACK IS A BUTTON SHAPE NOW — Seth, 2026-09-02: "this should be shaped as a button so it
    doesnt get lost dimmed when not in use." It was a bare label at 42% opacity beside two pills, so
    the one control on the row that is a SWITCH was the one that looked like nothing. The pill is
