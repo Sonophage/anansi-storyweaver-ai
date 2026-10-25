@@ -374,8 +374,9 @@ for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/");
   }
   ok(`  a way into the menu on ${where} (${doors})`, doors >= 1);
   const own = await page.eval("document.querySelectorAll('#bar [data-railview=\"story\"]').length");
+  // Two in a story since 2026-10-25: the title, and the ⋯ that R1 added so the door can be seen.
   ok(`  and the story's own menu door is there only in a story (${own})`,
-     own === (where === "a story" ? 1 : 0));
+     where === "a story" ? own === 2 : own === 0);
   ok(`  and no hamburger left on ${where}`, (await page.eval("!!document.getElementById('burger')")) === false);
 }
 

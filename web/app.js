@@ -986,8 +986,20 @@ function drawBar() {
          opens the story menu, and the word Anansi at the top of THAT menu opens the main one.
          Outside a story the header name opens the main menu directly, one tap.
          If that path ever goes, this button has to come back: test/ui/phone.js guards the hole,
-         and the hole it guards is ZERO doors. -->
-    <div style="flex:1 1 auto; min-width:100px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
+         and the hole it guards is ZERO doors.
+         The word came back on 2026-10-25 as a door you can see, below: Seth chose R1. -->
+    <!-- THE WAY OUT, IN WORDS. The usability check of 2026-10-24 scored the menu 2 of 5 on a Titan:
+         the only door was the title, and nothing said it was one. Seth chose the R1 design on
+         2026-10-25: "‹ Anansi" at the left goes back to the rack, a ⋯ at the right opens this
+         tale's menu, and on the rack a labelled Menu button opens the main one. The title still
+         opens the menu too; these are the doors you can see. -->
+    ${inStory ? `<button data-home="1" class="hdoor" aria-label="Back to the rack"
+      style="font-family:'Instrument Serif',serif; font-size:19px; color:var(--chrome-ink); white-space:nowrap"
+      >&lsaquo; Anansi</button>`
+      : `<button data-railview="workspace" class="pill hdoor" aria-label="Menu"
+      style="display:flex; align-items:center; gap:7px; padding:7px 12px"
+      ><span aria-hidden="true" style="font-size:15px; line-height:1">&#9776;</span><span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase">Menu</span></button>`}
+    <div style="flex:1 1 auto; min-width:60px; display:flex; flex-direction:column; gap:3px; overflow:hidden">
       ${inStory ? `<button data-railview="story" aria-label="This tale's menu"
         style="display:block; text-align:left; padding:0; max-width:100%; overflow:hidden">`
         : `<button data-railview="workspace" aria-label="Menu"
@@ -1047,7 +1059,9 @@ function drawBar() {
            in on every screen now. Same glyph size and padding as Reading mode beside it. -->
       ${inStory ? `<button data-panel="anansi" class="pill phoneonly" aria-label="Ask Anansi"
         style="display:flex; align-items:center; gap:7px; padding:6px 11px; color:var(--chrome-dim)"
-        >${mark('webfull', 17)}<span class="btnword">Ask</span></button>` : ''}
+        >${mark('webfull', 17)}<span class="btnword">Ask</span></button>
+      <button data-railview="story" class="pill" aria-label="This tale's menu"
+        style="display:flex; align-items:center; padding:6px 11px; font-size:15px; line-height:1">⋯</button>` : ''}
     </div>`;
   // The title, and the line under it that names the chapter. Both are leaf spans holding nothing
   // but text, which is what decode() needs — it writes textContent.
@@ -1335,7 +1349,8 @@ function passageHTML(p, newest, opening) {
     <button data-re="${p.id}" ${S.busy ? 'disabled' : ''}><span class="serif"
       style="color:var(--m, var(--gold))">↻</span> Reweave</button>
     <button data-continue="1" ${S.busy ? 'disabled' : ''}
-      title="Carry on with no prompt">Continue &rsaquo;</button></div>` : '';
+      title="Carry on with no prompt">Continue &rsaquo;</button>
+    <span class="taphint">Tap a passage for its actions</span></div>` : '';
 
   /* WHERE THIS PASSAGE CAME FROM, said in words. Seth, 2026-09-01: "could we also add a chip at the
    * top that says where it came from", in the same breath as making the margin rules thicker — the
@@ -8481,7 +8496,8 @@ function openTray(blk) {
 
 /** A double click, and on a phone a double tap, opens the paragraph's tray.
  *
- *  A second way in rather than a replacement: the ⋯ handle is what must always work, and F34
+ *  On a touch screen one tap opens it now (below), and this stays for the writers who learned it.
+ *  Originally a second way in beside a ⋯ handle that is gone since 2026-08-27, and F34
  *  measured how little finger movement it takes to lose a tap on this surface, so nothing here
  *  gets to depend on the delegated `click` firing. `dblclick` is its own native event and arrives
  *  on its own account.
@@ -8489,7 +8505,7 @@ function openTray(blk) {
  *  ponytail: measured on emulated touch only — `page.mobile()` plus real touch pairs, where the
  *  browser does synthesise dblclick from two taps. A real Android that still has double-tap-to-zoom
  *  may swallow the second tap as a zoom gesture instead, and nothing here can tell. Ceiling: the
- *  ⋯ handle is the guaranteed way in and this is the shortcut. If it turns out not to fire on a
+ *  one-tap door is the guaranteed way in on touch, and this is the shortcut. If it turns out not to fire on a
  *  real device the upgrade is a tap-count recogniser on pointerup — which is F34's fix and wants
  *  agreeing first, because the guard that swallows the native click is what makes Delete run twice.
  *
@@ -8519,6 +8535,35 @@ document.addEventListener('dblclick', (e) => {
   if (!blk || e.target.closest('.acts')) return;
   openTray(blk);
 });
+
+/** ONE TAP OPENS A PASSAGE'S ACTIONS, on a touch screen. Seth chose this from the R1 design on
+ *  2026-10-25, over bringing the ⋯ back: the usability check of 2026-10-24 found the double tap was
+ *  the only door and nothing hinted at it, so the tray scored 2 of 5. The hint is now under the
+ *  newest passage, and the double tap still works (see TRAY_AT below).
+ *
+ *  Touch only. On a mouse a click in prose is how you put the caret or start a selection, and
+ *  hover already shows the actions there. Not on a press of anything inside the block, not while
+ *  the passage is being altered, and not when the tap ended a selection. */
+let TRAY_AT = 0;
+const touchOnly = () => matchMedia('(hover:none)').matches;
+document.addEventListener('click', (e) => {
+  if (!touchOnly()) return;
+  const blk = e.target.closest?.('#col .block');
+  if (!blk || e.target.closest('.acts, button, a, input, select, textarea, [contenteditable], .flag, .rerollbox')) return;
+  if (globalThis.getSelection?.()?.isCollapsed === false) return;
+  openTray(blk);
+  TRAY_AT = Date.now();
+});
+/** THE SECOND TAP OF A DOUBLE TAP. A writer who learned the double tap still uses it, and with one
+ *  tap opening the tray the second lands on what is now on top: the scrim, which would shut it, or
+ *  the sheet in the middle of the screen, where it would press Reweave or the first half of Delete.
+ *  So for a moment after a tap opens it, the tray takes no presses at all. Capture phase, so it runs
+ *  before the delegated action handler. */
+const TRAY_SETTLE = 450;
+document.addEventListener('click', (e) => {
+  if (Date.now() - TRAY_AT >= TRAY_SETTLE) return;
+  if (e.target.closest?.('#scrim, .block[aria-expanded="true"] .acts')) { e.stopPropagation(); e.preventDefault(); }
+}, true);
 
 // ---------- the tap that the browser threw away ----------
 //

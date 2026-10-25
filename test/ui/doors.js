@@ -1,0 +1,119 @@
+// The doors a new writer can see: the menu, the way back to the rack, and a passage's actions.
+//
+//   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/doors.js
+//
+// The usability check of 2026-10-24 found the menu reachable only through the header title and a
+// passage's actions only through a double tap, with nothing on screen saying either. Seth chose the
+// R1 design on 2026-10-25: a labelled Menu on the rack, "‹ Anansi" and a ⋯ in a tale, and one tap
+// on a passage for its actions. Asserted on a phone, by touch, and then on a Titan's square.
+const B = "http://127.0.0.1:5179";
+let red = 0;
+const ok = (m, cond) => { console.log(`  ${cond ? "ok  " : "FAIL"} ${m}${cond ? "" : "   <-- broken"}`); if (!cond) red++; };
+
+await page.mobile();
+await page.goto(B + "/");
+await wait(900);
+
+const seen = (sel) => page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
+  if (!e) return null; const r = e.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && r.right <= innerWidth + 1 && r.left >= -1
+    ? e.textContent.replace(/\\s+/g, ' ').trim() : null; })()`);
+const railOpen = () => page.eval("document.documentElement.dataset.uiRail === 'open'");
+// The backdrop's own listener, pressed directly. page.click presses the CENTRE of an element, and
+// the centre of the scrim is the middle of the sheet that sits on it — that pressed a button.
+const backdrop = () => page.eval("(() => { document.getElementById('scrim').click(); return 1; })()");
+const tray = () => page.eval("!!document.querySelector('.block[aria-expanded=\"true\"]')");
+
+// ---- the rack
+const menu = await seen('#bar .hdoor[data-railview="workspace"]');
+ok(`the rack shows a Menu button with its word on it (${JSON.stringify(menu)})`, /Menu/.test(menu ?? ''));
+await page.click('#bar .hdoor[data-railview="workspace"]');
+await wait(500);
+ok("  and pressing it opens the menu", await railOpen());
+await page.goto(B + "/");
+await wait(600);
+
+// ---- in a tale
+await page.click("#page [data-open]");
+await wait(1400);
+const home = await seen('#bar [data-home]');
+ok(`a tale shows the way back to the rack (${JSON.stringify(home)})`, /Anansi/.test(home ?? ''));
+const more = await seen('#bar .pill[data-railview="story"]');
+ok(`  and a ⋯ for the tale's menu (${JSON.stringify(more)})`, more === '⋯');
+await page.click('#bar .pill[data-railview="story"]');
+await wait(500);
+ok("  and the ⋯ opens the menu", await railOpen());
+await page.eval("(() => { document.getElementById('scrim').click(); return 1; })()");
+await wait(500);
+
+// ---- one tap on a passage
+const hint = await seen('#col .taphint');
+ok(`the newest passage says how to reach its actions (${JSON.stringify(hint)})`, /Tap a passage/.test(hint ?? ''));
+ok("no tray is open to begin with", !(await tray()));
+await page.click("#col .block.newest .narr, #col .block.newest .said");
+await wait(500);
+ok("one tap on a passage opens its actions", await tray());
+await backdrop();
+await wait(500);
+ok("  and a tap on the backdrop shuts them", !(await tray()));
+
+// The habit the old door taught. The second tap lands on the scrim or on the sheet, and neither
+// may shut the tray or press a button in it: Delete is a two-press, and Reweave writes.
+const before = await page.eval("document.querySelectorAll('#col .block').length");
+await page.dbl("#col .block.newest .narr, #col .block.newest .said");
+await wait(700);
+ok("a double tap still leaves the actions open", await tray());
+ok("  and pressed nothing on the sheet",
+   (await page.eval("document.querySelectorAll('#col .block').length")) === before
+   && !(await page.eval("document.documentElement.dataset.rerollsheet === '1'"))
+   // A two-press button wears an outline between its presses (armDelete), so an outline is the
+   // first half of a deletion having happened.
+   && !(await page.eval("[...document.querySelectorAll('.acts button')].some((b) => !!b.style.outline)")));
+await wait(300);
+await backdrop();
+await wait(500);
+
+// The guard itself, pinned: a press on the sheet straight after the tap that opened it. Where the
+// second tap of a double tap lands depends on the passage's place on screen, so the double tap
+// above cannot prove the guard on its own — it passed with the guard removed.
+await backdrop();
+await wait(600);
+// A dispatched click rather than page.click: the driver's press takes longer than the guard lasts.
+// It goes through the same capture listener a finger's click does.
+await page.click("#col .block.newest .narr, #col .block.newest .said");
+await page.eval("(() => { document.querySelector('.block[aria-expanded=\"true\"] .acts [data-memo]').click(); return 1; })()");
+await wait(400);
+const pressed = { open: await tray(), asked: await page.eval("!!document.querySelector('.acts [data-memo]')?.disabled") };
+ok(`a press on the sheet in the same moment it opened does nothing (${JSON.stringify(pressed)})`,
+   pressed.open && !pressed.asked);
+await backdrop();
+await wait(500);
+
+// A tap on something INSIDE the passage is that thing's, not the tray's.
+const chip = await page.eval("!!document.querySelector('#col .block .flag')");
+if (chip) {
+  await page.click('#col .block .flag');
+  await wait(400);
+  ok("a tap on a flag in a passage opens the flag, not the tray", !(await tray()));
+} else ok("(no flag in the fixture to tap: the exclusion is untested here)", true);
+
+// ---- back to the rack
+await page.click('#bar [data-home]');
+await wait(900);
+ok("‹ Anansi goes back to the rack",
+   !!(await seen('#bar .hdoor[data-railview="workspace"]')) && (await page.eval("location.hash")) === "");
+
+// ---- the Titan's square, 360 by 360: every door on screen, and the header not wider than it
+await page.viewport(360, 360);
+await page.click("#page [data-open]");
+await wait(1400);
+const fit = await page.eval("(() => { const b = document.getElementById('bar');"
+  + " return { over: b.scrollWidth - b.clientWidth, doors: [...b.querySelectorAll('button')]"
+  + " .filter((x) => x.getBoundingClientRect().width > 0)"
+  + " .filter((x) => x.getBoundingClientRect().right > innerWidth + 1).map((x) => x.getAttribute('aria-label') || x.textContent.trim()) }; })()");
+ok(`on a 360px square the header fits (${fit.over}px over, off screen: ${JSON.stringify(fit.doors)})`,
+   fit.over <= 0 && fit.doors.length === 0);
+ok("  with the way back and the ⋯ both on it",
+   !!(await seen('#bar [data-home]')) && (await seen('#bar .pill[data-railview="story"]')) === '⋯');
+
+console.log(red ? `\n  ${red} RED` : "\n  all green");

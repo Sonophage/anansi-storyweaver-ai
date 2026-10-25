@@ -10,7 +10,15 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
-## 2026-10-25 · Back goes where you expect
+## 2026-10-25 · Doors you can see
+
+### One tap on a passage shows what you can do with it
+On a phone or a tablet, tap a passage to see Reweave, Alter, Make a thread and the rest. A line
+under the newest passage says so. A double tap still works.
+
+### A Menu button, and a way back to the rack
+The rack has a Menu button. Inside a tale, "‹ Anansi" at the top left takes you back to the rack,
+and ⋯ at the top right opens the tale's menu. The tale's name still opens it too.
 
 ### The phone's Back button closes a drawer
 Back used to leave the tale when a drawer was open. Now Back closes the drawer and you stay in the

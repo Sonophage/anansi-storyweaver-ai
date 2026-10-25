@@ -554,6 +554,8 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
 .lbanner .fade { position:absolute; inset:0;
   background:linear-gradient(180deg, rgba(10,9,12,.15) 0%, rgba(10,9,12,.82) 100%); }
 .lbanner > .txt { position:relative; display:flex; flex-direction:column; gap:4px; min-width:0; }
+/* The header's doors out (drawBar): they keep their size and the title gives way. */
+.hdoor { flex:0 0 auto; }
 .pill[aria-pressed="true"] { background:var(--gold); border-color:var(--gold); color:var(--on-gold); }
 .deskonly { display:block; }
 @media (max-width:719px) { .deskonly { display:none; } }
@@ -800,6 +802,10 @@ html[data-reading="1"] .from { display:none; }
 .carry button:hover:not(:disabled) { border-color:var(--edge-lit); color:var(--ink); }
 .carry button:disabled { opacity:.45; }
 html[data-reading="1"] .carry { display:none !important; }
+/* The door to a passage's actions, said once, under the newest passage. Touch only: on a mouse,
+   hover already shows them. */
+.taphint { display:none; align-self:center; margin-left:4px; font-size:12px; color:var(--faint); }
+@media (hover:none) { .taphint { display:inline; } }
 @keyframes found {
   0%, 60% { background:rgba(217,178,106,.14); box-shadow:0 0 0 8px rgba(217,178,106,.14); }
   100%    { background:transparent; box-shadow:0 0 0 8px transparent; }
