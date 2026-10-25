@@ -85,6 +85,8 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
     return { id: c.dataset.entry, name: c.querySelector('.platename')?.textContent ?? '',
       lines: t ? getComputedStyle(t).webkitLineClamp : null, text: t?.textContent?.trim() ?? '',
       kindLine: !!c.querySelector('.kind'), eyes: eye.length, lit: eye[0]?.dataset.lit ?? null,
+      look: eye[0]?.dataset.look ?? null,
+      label: eye[0]?.getAttribute('aria-label') ?? '',
       eyeBox: er ? [Math.round(er.width), Math.round(er.height)] : null,
       eyeInside: er ? er.left >= r.left && er.right <= r.right + 0.5 : false,
       tags: [...c.querySelectorAll('.tag')].map((x) => x.textContent.trim()), h: Math.round(r.height) };
@@ -100,7 +102,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   const aldis = cards.find((c) => c.name === 'Aldis Fen');
   ok(`  and the bracket and the repeated name come off the text (${aldis && aldis.text.slice(0, 30)})`,
      !!aldis && /^34, ex-Watch/.test(aldis.text) && !/[[\]]/.test(aldis.text));
-  ok(`  each with exactly one eye, 44px to the finger, inside the card (${JSON.stringify(cards.map((c) => c.eyeBox))})`,
+  ok(`  each with exactly one mark, 44px to the finger, inside the card (${JSON.stringify(cards.map((c) => c.eyeBox))})`,
      cards.every((c) => c.eyes === 1 && c.eyeBox[0] >= 44 && c.eyeBox[1] >= 44 && c.eyeInside));
   const pockets = cards.map((c) => {
     const e = v.entries.find((x) => x.id === c.id), p = pocketsOf(e);
@@ -109,12 +111,20 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   ok(`  a pockets tag only when there are pockets (${JSON.stringify(pockets)})`,
      pockets.some((x) => x.p > 0) && pockets.every((x) => x.p > 0
        ? x.tag?.toLowerCase() === `${x.p} ${x.p === 1 ? 'pocket' : 'pockets'}` : x.tag === null));
-  ok("  and an on-a-word thread says so, an always-on one carries no tag for it",
+  // THREE LOOKS FOR TWO SETTINGS, and no tag saying it twice: an open eye is always on, an eye with
+  // a speech mark is on a word and sent now, a shut eye is on a word and asleep. Asserted on the
+  // look's NAME (which mark in web/model.js it draws) and on the label, not on the glyph's strokes,
+  // so redrawing a mark does not break this.
+  const lookOf = (act, lit) => act === 'always_on' ? 'eye' : lit === '1' ? 'eyeheard' : 'eyeshut';
+  ok(`  and the mark is drawn for its setting and whether it is sent now, with no tag for either (${
+       cards.map((c) => c.name + ':' + c.look).join(', ')})`,
      cards.every((c) => {
        const e = v.entries.find((x) => x.id === c.id);
-       const says = c.tags.some((t) => /^on a word$/i.test(t));
-       return e.activation === 'triggered' ? says : !says && !c.tags.some((t) => /always on/i.test(t));
+       return c.look === lookOf(e.activation, c.lit)
+         && !c.tags.some((t) => /on a word|always on/i.test(t));
      }));
+  ok("  and its label names the state and what a tap does",
+     cards.every((c) => /^(Always on|On a word)[^.]*\. Tap to /.test(c.label)));
   const plain = cards.filter((c) => !c.tags.length);
   ok(`  and a card with nothing to tag is short (${plain.map((c) => c.h).join(',')}px)`,
      plain.length > 0 && plain.every((c) => c.h <= 132));
@@ -148,19 +158,38 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   ok("  and says so when nothing matches", /No thread here matches/.test(await page.text('#thlist') || ''));
   await typeQ('');
 
-  // ---- The eye is the always-on / on-a-word switch, one press each way
-  const key = v.entries.find((e) => e.entryType === 'item' && e.activation === 'triggered');
-  await page.click(`#thlist [data-flipact="${key.id}"]`);
-  await wait(800);
-  const flipped = (await story(sid)).entries.find((e) => e.id === key.id).activation;
-  const tagGone = !(await page.eval(`[...document.querySelector('#thlist .card.plate[data-entry="${key.id}"]').querySelectorAll('.tag')].some(t => /on a word/i.test(t.textContent))`));
-  ok(`pressing the eye on an on-a-word thread makes it always on (${flipped})`, flipped === 'always_on' && tagGone);
-  await page.click(`#thlist [data-flipact="${key.id}"]`);
-  await wait(800);
-  ok("  and pressing it again puts it back on a word",
-     (await story(sid)).entries.find((e) => e.id === key.id).activation === 'triggered');
-  ok("  and the eye says what a press will do",
-     /wake word|every call|always/i.test(await page.eval(`document.querySelector('#thlist [data-flipact="${key.id}"]')?.getAttribute('aria-label') ?? ''`)));
+  // ---- The mark is the switch: always on and on a word, one tap each way
+  const rule = v.entries.find((e) => e.title === 'Vantic law');
+  const actNow = async () => (await story(sid)).entries.find((e) => e.id === rule.id).activation;
+  const tap = async () => { await page.click(`#thlist [data-flipact="${rule.id}"]`); await wait(800); return actNow(); };
+  const sentNow = () => page.eval("Number(document.querySelector('#sideBody [data-onlyin=\"1\"]').textContent.match(/\\d+/)[0])");
+  const markOf = (id) => page.eval(`JSON.stringify((() => { const b = document.querySelector('#thlist [data-flipact="${id}"]');
+    return { lit: b.dataset.lit, look: b.dataset.look, label: b.getAttribute('aria-label') }; })())`).then(JSON.parse);
+  const sent0 = await sentNow();
+  const steps = [await actNow(), await tap()];
+  const asleep = await markOf(rule.id);
+  const sent1 = await sentNow();
+  // Vantic law has no wake words, so on a word it is asleep: a shut eye, dim, out of Sent now.
+  ok(`  and on a word with nothing waking it is a shut eye, dim, saying a tap sends it every call (${JSON.stringify(asleep)})`,
+     asleep.lit === '0' && asleep.look === 'eyeshut' && /^On a word, asleep.*every call/.test(asleep.label));
+  // Brought into this scene, the same thread is an @, lit. A pin rather than a wake word, because
+  // whether a word woke it is the manifest's answer and the manifest needs the model's tokenizer,
+  // which a test server may not have; it lands in the same `inContext` either way. A thread with
+  // no wake words cannot be woken by the real router either, so nothing else can light it first.
+  await page.eval(`(async () => { await fetch('/api/pin', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ storyId: '${sid}', chapterId: '${v.currentChapter.id}', entryId: '${rule.id}', mode: 'force_in' }) }); return 1; })()`);
+  await page.goto(B + "/#" + sid + "/threads");
+  for (let i = 0; i < 40 && !(await page.visible('#thq')); i++) await wait(250);
+  const woken = await markOf(rule.id);
+  ok(`  and brought into the scene it is a lit eye with a speech mark (${JSON.stringify(woken)})`,
+     woken.lit === '1' && woken.look === 'eyeheard' && /^On a word, sent now/.test(woken.label));
+  const sentW = await sentNow();
+  steps.push(await tap());
+  const sent2 = await sentNow();
+  ok(`tapping the mark goes always on, on a word, always on (${steps.join(' > ')})`,
+     steps.join() === 'always_on,triggered,always_on');
+  ok(`  and Sent now counts the open eyes and the woken ones (${sent0} > ${sent1} > ${sentW} > ${sent2})`,
+     sent1 === sent0 - 1 && sentW === sent0 && sent2 === sent0);
 
   // ---- Outfits are still worn from the list
   const marek = v.entries.find((e) => e.title === 'Marek Vale');

@@ -16,9 +16,10 @@ Everything below this line was written by that model call, before it was removed
 The Threads drawer shows more of your tale at once. The title says how many threads there are,
 and the + beside Close adds one. Search, Sent now and All sit in one row. Each kind says how many
 threads it holds. A thread shows its name and two lines of what it says, with a tag if it has
-pockets or waits on a word. The eye on each thread is open when Anansi reads it now. Tap the eye
-to switch a thread between always on and on a word. Outfits are still under the character who
-wears them, and "nothing" now takes the outfit off again.
+pockets. The mark on each thread says how it reaches Anansi: an open eye is always on, an eye
+with a speech mark is on a word and woken now, and a shut eye is on a word and asleep. Tap the
+mark to switch a thread between always on and on a word. Sent now and the marks change as soon as you tap. Outfits are
+still under the character who wears them, and "nothing" now takes the outfit off again.
 
 ### Anansi writes into the page
 While Anansi writes, her words now appear in the page under the last passage, and Stop stays on

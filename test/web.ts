@@ -1132,6 +1132,13 @@ ok('the delegation refuses html and body outright');
   assert.deepStrictEqual([...(model as any).KINDS].sort(), [...engineKinds].sort(),
     "web/model.js KINDS and context.ts's Entry.entryType disagree — the editor would offer a type "
     + 'the engine does not know, or hide one it does');
+  // THE THREADS LIST'S THREE LOOKS ARE MARKS THAT EXIST. `mark()` draws a plain ring for a name it
+  // does not know, so a look renamed on one side only would show a circle on every card and pass
+  // every check that reads the look's name. Read off the one line that picks the look.
+  const looks = [...(read('web/app.js').match(/const look = on \? [^;]+;/)?.[0] ?? '').matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+  assert.strictEqual(looks.length, 3, `parsed ${looks.length} looks out of threadPlate; it has 3`);
+  assert.deepStrictEqual(looks.filter((k) => !((model as any).MARK ?? {})[k]), [],
+    'a look in threadPlate names a mark web/model.js does not have, and would draw as a plain ring');
   assert.deepStrictEqual([...schemaKinds].sort(), [...engineKinds].sort(),
     'EXTRACT_SCHEMA\'s enum and the engine disagree. The grammar decides what the model CAN say, '
     + 'so a type only in the schema arrives and renders as nothing; one only in the engine can '

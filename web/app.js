@@ -6473,19 +6473,23 @@ function threadRows() {
 }
 
 /** One thread in its tale's Threads list (v2 redesign, 2026-10-25): its name, two lines of its
- *  text, one eye, and a tag only for what a writer needs at a glance — how many pockets it has,
- *  that it waits on a word, where it came from, that it is retired.
+ *  text, one mark, and a tag only for what a writer needs at a glance — how many pockets it has,
+ *  where it came from, that it is retired.
  *
- *  THE EYE SAYS WHETHER THE MODEL READS IT NOW, read off the same `inContext` the Sent now filter
- *  uses, so the eye and the filter cannot disagree. AND THE EYE IS THE SWITCH. Seth, 2026-09-01,
- *  asked for "a fast way to switch from always on to triggered", and the list had it as a chip
- *  under every card; the redesign keeps one mark per card, so the one press moved onto the eye.
- *  Its label says which way a press goes, because the picture alone shows "read now", which is not
- *  the same fact: an on-a-word thread woken by a word has an open eye too.
+ *  THE MARK HAS THREE LOOKS FOR TWO SETTINGS (Seth, 2026-10-25). An open eye is always on. On a
+ *  word is an eye with a speech mark for its pupil when it is sent now — a wake word woke it, or
+ *  it is brought into this scene — and a shut eye when it is asleep. Each look is one named mark
+ *  in web/model.js, so swapping a picture is one SVG and touches nothing here. Lit or dim is read
+ *  off the same `inContext` the Sent now filter uses, so the mark and the filter cannot disagree:
+ *  Sent now is the open eyes and the woken ones. So no "On a word" tag either: the mark says it.
+ *  AND THE MARK IS THE SWITCH, always on and on a word, one tap each way. Seth, 2026-09-01, asked
+ *  for "a fast way to switch from always on to triggered", and the list had it as a chip under
+ *  every card; the redesign keeps one mark per card, so the tap moved onto it. Its label names the
+ *  state and what a tap does, because a picture cannot say what happens next.
  *
- *  THE EYE CANNOT GO INSIDE THE CARD: the card is itself a button carrying data-entry, and a button
- *  inside a button is not valid HTML — the outer one swallows it. So it sits beside the card in a
- *  wrapper and is laid over the card's right edge, which the card leaves free with its padding.
+ *  THE MARK CANNOT GO INSIDE THE CARD: the card is itself a button carrying data-entry, and a
+ *  button inside a button is not valid HTML — the outer one swallows it. So it sits beside the card
+ *  in a wrapper and is laid over the card's right edge, which the card leaves free with its padding.
  *
  *  A POCKET HERE IS EVERY NAMED PART BUT FACTS. Facts is the thread's own text (the pockets plan
  *  turns it into Always true), and in the live library 473 of about 480 threads have one — so
@@ -6505,14 +6509,14 @@ function threadPlate(e, lit) {
   }
   const tags = [
     pockets ? `<span class="tag">${pockets} ${pockets === 1 ? 'pocket' : 'pockets'}</span>` : '',
-    on ? '' : '<span class="tag">On a word</span>',
     e.sharedFrom ? `<span class="tag" style="color:var(--faint)">from ${esc(e.sharedFrom)}</span>` : '',
     e.retiredAtChapter != null ? `<span class="tag" style="color:var(--warn)">retired, scene ${
       esc(String(e.retiredAtChapter))}</span>` : '',
   ].join('');
-  const now = lit ? 'Sent now' : on ? 'Not sent now' : 'Not sent now, waiting for a wake word';
-  const press = on ? 'Always on. Press to send it only on a wake word.'
-    : 'On a word. Press to send it on every call.';
+  const look = on ? 'eye' : lit ? 'eyeheard' : 'eyeshut';
+  const now = on ? (lit ? 'Always on, sent now' : 'Always on, kept out of this call')
+    : (lit ? 'On a word, sent now' : 'On a word, asleep: no wake word in this scene');
+  const label = `${now}. ${on ? 'Tap to send it only on a wake word.' : 'Tap to send it on every call.'}`;
   return `<div class="throw">
     <div style="position:relative">
       <button class="card plate thplate" data-entry="${e.id}">
@@ -6521,8 +6525,8 @@ function threadPlate(e, lit) {
         <span class="platename">${esc(e.title)}</span>
         ${text ? `<span class="clamp2 thtext">${esc(text)}</span>` : ''}
         ${tags ? `<span class="thtags">${tags}</span>` : ''}</button>
-      <button class="theye" data-flipact="${esc(e.id)}" data-lit="${lit ? 1 : 0}"
-        aria-label="${now}. ${press}" title="${now}. ${press}">${mark(lit ? 'eye' : 'eyeshut', 22)}</button>
+      <button class="theye" data-flipact="${esc(e.id)}" data-look="${look}" data-lit="${lit ? 1 : 0}"
+        aria-label="${label}" title="${label}">${mark(look, 22)}</button>
     </div>
     ${/* WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's name either
           way, so there was no non-visual way to tell which one is on. The full control in the
@@ -8311,6 +8315,15 @@ async function refreshManifest() {
   MANIFIT = r.manifest ? (r.weaveFit ?? null) : null;
   drawBar(); drawMeter();
   if (S.panel === 'context') drawSide();
+  // THE THREADS LIST READS THIS TOO: its marks light by it and Sent now counts by it. It was drawn
+  // before the answer landed and never again, so a tap on a mark showed the old Sent now until the
+  // next repaint. The list and the count only, not the panel: a repaint would take the caret out
+  // of the search box above them (the same rule the search box's own redraw follows).
+  if (S.panel === 'threads' && $('thlist')) {
+    $('thlist').innerHTML = threadRows();
+    const n = $('sideBody').querySelector('[data-onlyin="1"] .tnum');
+    if (n) n.textContent = String(V.entries.filter((e) => inContext(e, pinModes())).length);
+  }
 }
 
 /** Clearing the value leaves the inline height behind, so a box grown by a long directive stayed
