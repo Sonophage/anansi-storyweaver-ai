@@ -27,3 +27,8 @@ imports/
 # Seth's own running list of things to fix. His file, not the repo's — it was swept in by a
 # `git add -A` on 2026-08-31 and taken back out the same day.
 bugs.md
+
+# Book exports and agent worktrees. Both sit in the checkout untracked; the worktrees hold full
+# copies of the tree, so every repo-wide grep that honours this file returned each hit ~20 times.
+exports/
+.claude/worktrees/
