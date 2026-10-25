@@ -4,7 +4,7 @@ A local-first app for writing long-form fiction with a model. These are the word
 of a tale that the writer and the model share, and the only words the screens use for them.
 
 Anansi is a spider and a tailor of stories. Both trades work in thread. **Spider words are for
-making** new prose (weave, spin). **Tailor words are for handling what is made** (baste, alter,
+making** new prose (weave, reweave). **Tailor words are for handling what is made** (baste, alter,
 mend, hem). Things keep plain or already-themed names. A word a new writer would not guess
 carries its plain meaning in its tip the first time it appears.
 
@@ -19,26 +19,26 @@ What a writer writes: one story, made of scenes. Anansi is "she", and the tales 
 _Avoid_: story, stories, book, books
 _In code_: story
 
-**Bolt**:
-A collection of threads that tales draw on, holding no prose of its own: a bolt of cloth many
-garments are cut from. A tale can be cut from a bolt and follow it.
-_Avoid_: world book, world bible, world
+**World**:
+A collection of threads that tales draw on, holding no prose of its own. A tale can be cut from a
+world and follow it.
+_Avoid_: world book, world bible, bolt
 _In code_: a story with `is_world`; a tale follows one through `lore_from`
 
 **Rack**:
-Where a writer's tales and bolts hang: the first screen.
+Where a writer's tales and worlds hang: the first screen.
 _Avoid_: shelf, my stories, library, workspace
 _In code_: workspace, shelf
 
 **Scene**:
 One section of a tale. A tale is written one scene at a time, and a scene is hemmed when it is
-done.
-_Avoid_: chapter, chapters
+done. Scenes are gathered into chapters.
 _In code_: chapter
 
-**Panel**:
-A run of consecutive scenes whose summaries are rolled into one, which stands in for them.
-_Avoid_: acts, an act, arc, roll-up, roll up
+**Chapter**:
+A run of consecutive scenes, whose summaries are rolled into one chapter summary that stands in
+for them. A long tale reads as chapters of scenes, the way a novel does.
+_Avoid_: panel, acts, an act, arc, roll-up, roll up
 _In code_: arc
 
 **Passage**:
@@ -46,10 +46,9 @@ One piece of prose in a scene, written by the writer or by Anansi.
 _Avoid_: block
 _In code_: passage
 
-**Fitting**:
-One version of a passage. Reweaving makes a new fitting; one fitting is in the tale and the rest
-are kept.
-_Avoid_: takes, a take, re-roll
+**Version**:
+One version of a passage. Reweaving makes a new version; one is in the tale and the rest are kept.
+_Avoid_: fitting, takes, a take, re-roll
 _In code_: take, generation
 
 **Opens with / Heads toward**:
@@ -86,9 +85,10 @@ Two threads linked so that one brings the other with it.
 _Avoid_: connected, brings in with it, linked
 _In code_: `entry_edges`
 
-**Hemmed**:
-A thread the tale is done with. It stops reaching the model; it can be brought back.
-_Avoid_: finished, retired
+**Retired**:
+A thread the tale is done with. It stops reaching the model; it can be brought back. ("Hemmed" is
+only for scenes.)
+_Avoid_: finished, hemmed (for a thread)
 _In code_: `retired_at_chapter`
 
 **String**:
@@ -102,15 +102,15 @@ Put a string in front of the model / take it away again.
 _Avoid_: in play, put it away, put it in play
 _In code_: `summoned`
 
-**Tied off / Snipped**:
+**Tied off / Let go**:
 A string the tale kept / a string it abandoned.
-_Avoid_: paid, paid off, let it go, dropped
+_Avoid_: paid, paid off, snipped, dropped
 _In code_: `status` = `paid` / `dropped`
 
 **Scene summary**:
 A short record of what happened in one scene, which stands in for that scene's prose once the
 tale has moved past it. It is either **yours** or **Anansi's**, by who last wrote it.
-_Avoid_: chapter summary, synopsis, recap
+_Avoid_: synopsis, recap
 _In code_: `chapters.summary`
 
 **Yours / Anansi's**:
@@ -118,27 +118,24 @@ Who wrote a passage or a summary: the writer by hand, or the model. Fixing any p
 summary by hand makes it yours.
 _Avoid_: human-written, model-written, manual, generated
 
-**Stale**:
-A scene summary whose scene has changed since it was written. A stale summary does not reach the
-model until it is written again.
-_Avoid_: outdated, invalid
-
 **Out of date**:
-A panel whose scenes have changed since it was written. Unlike a stale summary, it still reaches
-the model, with a warning to the writer.
-_Avoid_: stale
+A summary whose scenes have changed since it was written. An out-of-date scene summary is not sent
+until it is written again; an out-of-date chapter summary is still sent, with a warning. The
+screen says which, in those words.
+_Avoid_: stale, outdated, invalid
 
 ## Anansi's suggestions and the workbench
 
 **Basted**:
 What Anansi suggests, tacked in loosely until the writer decides: a new thread, a change to one, a
-string, a thread to hem. Nothing basted is in the tale.
+string, a thread to retire. Nothing basted is in the tale.
 _Avoid_: proposal, proposed, suggestion, noticed, queue
 _In code_: proposal
 
-**Weave it in / Reject**:
-Keep something basted / refuse it. The message after keeping says "Woven in."
-_Avoid_: accept, add beside it, tie it, drop, dismiss, throw it back
+**Sew it in / Reject**:
+Keep something basted / refuse it. The message after keeping says "Sewn in." Weave is only for
+making prose.
+_Avoid_: accept, weave it in, woven in, add beside it, tie it, drop, dismiss, throw it back
 _In code_: `decide` accept / reject
 
 **Knot**:
@@ -153,20 +150,20 @@ _Avoid_: let Anansi correct it, listen again
 _In code_: `/api/mend`, muted
 
 **Workbench**:
-Where everything that wants the writer collects: basted things, unkept strings, knots, stale
-summaries.
+Where everything that wants the writer collects: basted things, unkept strings, knots,
+out-of-date summaries.
 _Avoid_: waiting, chapter queue, inbox
 _In code_: the `waiting` panel
 
 ## Writing
 
 **Reweave**:
-Ask for a new fitting of a passage.
+Ask for a new version of a passage.
 _Avoid_: regenerate, re-roll, roll it again, write another, ask again
 _In code_: reroll, regenerate
 
 **Alter / Alterations**:
-Edit a passage by hand / the list of a passage's fittings and edits.
+Edit a passage by hand / the list of a passage's versions and edits.
 _Avoid_: edit, edits, history
 _In code_: edit, history
 
@@ -180,17 +177,16 @@ End the scene: Anansi summarises it, bastes what it found, and the next scene op
 _Avoid_: end this chapter, close the chapter, ritual
 _In code_: `/api/chapter/end`
 
-**Spinning**:
+**Plans first**:
 The model planning, unseen, before it writes a passage, a Talk reply or an invention. A tale's
-switch (off unless the writer turns it on), and what a model can do (it doesn't spin, it can
-switch spinning on and off, or it always spins). The plan is never shown. A model's own label
-says this in plain words: "never plans", "can plan", "always plans" (Seth, 2026-10-24).
-_Avoid_: weaving, thinking, reasoning, planning, chain of thought
+switch (off unless the writer turns it on), and what a model can do: it "never plans", "can plan"
+or "always plans". The plan is never shown.
+_Avoid_: spinning, weaving, thinking, reasoning, chain of thought
 _In code_: `weaving`, `enable_thinking`
 
 **You play**:
-The character the writer speaks as. The field reads "You play"; "You are" is the old label.
-_Avoid_: who you are, persona
+The character the writer speaks as. Every screen says "You play", the composer included.
+_Avoid_: who you are, speaking as, persona
 _In code_: persona
 
 **Hands off**:
@@ -203,21 +199,22 @@ How a tale's narration sounds, written as instructions / the voice every new tal
 _Avoid_: voice of the weave, how this book is written
 _In code_: `writing_style`, `voiceOf`
 
-**Measurements**:
-What the model reads for the next passage, and how much of it fits.
-_Avoid_: context, the prompt, manifest, budget
+**What she reads**:
+What the model reads for the next passage, and how much of it fits, named in the writer's words.
+The raw block names and tokens show only under Show detail.
+_Avoid_: measurements, context, the prompt, manifest, budget
 _In code_: manifest, context
 
-**Pattern book**:
+**Prompts to take elsewhere**:
 Prompts to hand another model, whose answers come back into Anansi.
-_Avoid_: the web, the forge
+_Avoid_: pattern book, the web, the forge
 _In code_: forge
 
 ## Starting and keeping tales
 
-**Cut a new tale**:
-Start a tale, by spark (from an idea) or blank.
-_Avoid_: create a story, new story, start it yourself, forge the whole thing
+**New tale**:
+Start a tale, by spark (from an idea), blank, or import.
+_Avoid_: cut a new tale, create a story, new story, start it yourself, forge the whole thing
 _In code_: spark, blank
 
 **Try it on**:
@@ -230,13 +227,13 @@ Put a tale at the end of the rack / a tale put there.
 _Avoid_: archive, archived, put away, shelve
 _In code_: `status` = `archived`
 
-**Back to the house cut**:
-Reset an edited prompt or voice to the one Anansi ships with.
-_Avoid_: default, shipped, back to the shipped
+**Reset**:
+Put an edited prompt or voice back to the one Anansi ships with.
+_Avoid_: back to the house cut, default, shipped, back to the shipped
 _In code_: the shipped prompt
 
 **Drawers**:
-The side drawers of the app, each called by its own name (Workbench, Threads, Measurements).
+The side drawers of the app, each called by its own name (Workbench, Threads, What she reads).
 _Avoid_: panel, panels
 _In code_: panel
 
