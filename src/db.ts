@@ -13,8 +13,9 @@ import * as live from './live.ts';
 // The search slice: schema, triggers, index backfill, query grammar and SQL shape.
 import { SCHEMA as SEARCH_SCHEMA, ensureIndexes, ftsQuery, searchSQL, searchArgs } from './search.ts';
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdirSync, readdirSync, unlinkSync, statSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { mkdirSync, readdirSync, unlinkSync, statSync, realpathSync } from 'node:fs';
+import { join, dirname, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 // The slot names live in one module because `entries.field_editors` keys provenance by them and
 // the partial unique index below names them as a literal. Three copies of one list is the drift
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
@@ -34,6 +35,23 @@ import { isRemote } from './llama.ts';
 // wanted for memory recall (PLAN-02 P5). Neither is true, and a trigger that looks overdue every
 // time it is read teaches the next reader to skim past all of them.
 export const FILE = process.env.ANANSI_DB ?? new URL('../anansi.db', import.meta.url).pathname;
+/* A TEST NEVER OPENS THE DEFAULT LIBRARY BY FORGETTING. Six times a test, a bench or status opened
+ * the live library read-write because one call site did not set ANANSI_DB, and each fix guarded
+ * that one site; this is the floor under all of them. The process is named by its entry script:
+ * anything under `test/`, a `bench/` script in its `check` mode, and `status.ts`. The live server
+ * (`serve.ts`, run by anansi.service with no ANANSI_DB) and a bench run by hand, whose point is the
+ * live library, are not refused. Naming the file in ANANSI_DB, the default path included, is always
+ * allowed. `test/db.ts` runs every case against a copy of src/ under a scratch root.
+ * ponytail: the entry script is the whole rule, so a test helper run from outside `test/` is not
+ * covered; widen it (or add a marker env var) if one ever is. */
+if (process.env.ANANSI_DB === undefined) {
+  let entry = process.argv[1] ?? '';
+  try { entry = realpathSync(entry); } catch {}
+  const at = relative(fileURLToPath(new URL('..', import.meta.url)), entry);
+  if (at.startsWith('test/') || (at.startsWith('bench/') && process.argv[2] === 'check') || at === 'status.ts')
+    throw new Error(`${at} would open the default library ${FILE}. Set ANANSI_DB to a scratch file `
+      + '(or to that path, if it really is meant).');
+}
 export const db = new DatabaseSync(FILE);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 // A second process on the same file gets SQLITE_BUSY immediately without this; bench scripts

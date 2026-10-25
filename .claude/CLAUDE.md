@@ -38,7 +38,8 @@ unit suites **and all nineteen `check` modes under `bench/`**, in parallel, in a
 (`suites` in `test/all.ts` is the list).
 Each bench entry is spawned with its own `ANANSI_DB`: most of them touch no database,
 `bench/rooms.ts` opens one, and without that guard it would open the live library read-write and
-migrate it mid-run. `bench/weave-json.ts` opens a scratch one of its own, whatever `ANANSI_DB` says.
+migrate it mid-run. Under it, `src/db.ts` refuses the default library to any `test/` script, any
+`bench/` script in `check` mode, and `status.ts`, when `ANANSI_DB` is unset. `bench/weave-json.ts` opens a scratch one of its own, whatever `ANANSI_DB` says.
 
 The browser harness is separate and slower: `bash test/ui/run.sh`.
 

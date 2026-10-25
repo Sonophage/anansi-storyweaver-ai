@@ -4,8 +4,9 @@
 // database and run destructive tests against the actual book.
 process.env.ANANSI_DB = '/tmp/anansi-test.db';
 import assert from 'node:assert';
-import { unlinkSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { unlinkSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rmSync, existsSync, mkdtempSync, cpSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-test.db' + f); } catch {} }
 const db = await import('../src/db.ts');
 const slots = await import('../src/slots.ts');
@@ -468,7 +469,8 @@ ok('the reserve scales with the budget and with the reply length', () => {
  *
  * The retry that fixes it is `slotNow`, checked in `test/engine.ts`. THIS is the half that says why
  * anybody should care, and it is here rather than there because `budgetFor` lives in `story.ts`,
- * which imports `db.ts` — a suite with no ANANSI_DB set that imports it opens the live library.
+ * which imports `db.ts` — a suite with no ANANSI_DB set that imports it reaches for the live
+ * library (db.ts refuses it that now; the check is at the end of this file).
  *
  * Both numbers are written out rather than derived, so a change to the formula has to come and
  * change them by hand and see what it is doing to a book. */
@@ -3139,6 +3141,46 @@ ok('a branch keeps what each act was built from, so out of date works on the for
   assert.deepStrictEqual(outOn(b.id), { chapter: 2, why: 'changed' }, 'from then on the check is live');
   assert.strictEqual(db.backfillActPrints(), 0, 'and a second run writes nothing');
   db.delStory(b.id);
+});
+
+/* A TEST THAT FORGETS ANANSI_DB IS REFUSED THE DEFAULT LIBRARY, in db.ts, where every opener passes.
+ *
+ * Six times a test, a bench or status opened the live library because one call site did not set
+ * ANANSI_DB, and each fix guarded that one site. The guard is in the shared opener now. This runs
+ * a COPY of src/ under a scratch root, so the default file it could open is that root's, never the
+ * real one: a broken guard here opens a scratch file, not a book. */
+ok('a test, a bench check or status with no ANANSI_DB is refused the default library', () => {
+  const root = mkdtempSync('/tmp/anansi-guard-');
+  try {
+    cpSync(new URL('../src', import.meta.url).pathname, join(root, 'src'), { recursive: true });
+    const probe = `const db = await import('${root}/src/db.ts'); console.log('opened ' + db.FILE);`;
+    for (const d of ['test', 'bench']) mkdirSync(join(root, d));
+    for (const f of ['test/probe.ts', 'bench/probe.ts', 'status.ts', 'serve.ts']) writeFileSync(join(root, f), probe);
+    const env = { ...process.env };
+    delete env.ANANSI_DB;
+    const run = (file: string, ...args: string[]) => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', join(root, file), ...args],
+        { env, encoding: 'utf8' });
+      return { code: r.status, out: r.stdout + r.stderr };
+    };
+    const live = join(root, 'anansi.db');
+    for (const [file, ...args] of [['test/probe.ts'], ['bench/probe.ts', 'check'], ['status.ts']]) {
+      const r = run(file, ...args);
+      assert.notStrictEqual(r.code, 0, `GUARD-REFUSES: ${file} ${args.join(' ')} opened the default library: ${r.out.slice(0, 200)}`);
+      assert.match(r.out, /ANANSI_DB/, `and ${file} is told to set ANANSI_DB`);
+      assert.ok(!existsSync(live), `and no default file was made by ${file}`);
+    }
+    // The live server and a bench report are what the default file is FOR: both still open it.
+    for (const [file, ...args] of [['serve.ts'], ['bench/probe.ts', 'report']]) {
+      const r = run(file, ...args);
+      assert.strictEqual(r.code, 0, `GUARD-ALLOWS: ${file} ${args.join(' ')} was refused: ${r.out.slice(0, 300)}`);
+      assert.match(r.out, new RegExp(`opened ${live}`), `and ${file} opened the default file`);
+      rmSync(live, { force: true }); rmSync(live + '-wal', { force: true }); rmSync(live + '-shm', { force: true });
+    }
+    // Set explicitly, a test opens what it names, the default path included.
+    env.ANANSI_DB = join(root, 'named.db');
+    assert.strictEqual(run('test/probe.ts').code, 0, 'GUARD-NAMED: a test that names its library opens it');
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 console.log(`\n${n} checks passed`);

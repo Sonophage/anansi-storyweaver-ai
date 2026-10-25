@@ -52,7 +52,8 @@ const started = Date.now();
  * "it is a second writer on the book, so do not describe it as harmless."
  *
  * So the guard is on the SPAWN and not on the one file that needs it today. A check added next
- * month that opens a database is covered without anybody remembering this. */
+ * month that opens a database is covered without anybody remembering this. Under it is a floor in
+ * `src/db.ts`: a `check` run with no ANANSI_DB is refused the default library outright. */
 const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean }>((done) => {
   const bench = s.startsWith('../bench/');
   /* AND NO SUITE EVER REACHES THE REAL FEATHERLESS. This machine has a real key at the default path,
