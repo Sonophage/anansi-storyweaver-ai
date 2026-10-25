@@ -8,11 +8,11 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (m, cond) => { console.log(`  ${cond ? "ok  " : "FAIL"} ${m}${cond ? "" : "   <-- broken"}`); if (!cond) red++; };
-// #71. Once a passage has landed the composer is folded behind the three buttons; the handle
-// over them opens it, which is what a writer does before typing their own line.
+// #71. Once a passage has landed the composer is folded behind the three buttons; the quill in
+// the middle opens it, which is what a writer does before typing their own line.
 const openDock = async () => {
   for (let i = 0; i < 40 && !(await page.eval("!!document.getElementById('dock')")); i++) await wait(100);
-  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#nextbar .grab');
+  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#quill');
 };
 
 await page.mobile();
@@ -369,7 +369,7 @@ for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/");
   // pass with the main menu missing and the story menu present twice.
   // THE RULE IS "YOU CAN REACH THE MAIN MENU FROM HERE", not "the header has a button". Seth,
   // 2026-08-29, took the word Anansi out of the header: on the shelf the header name still opens
-  // the main menu in one tap, and INSIDE A STORY it is deliberately two — the story's name opens
+  // the main menu in one tap, and INSIDE A STORY it is deliberately two — the ⋯ (the story's name until #71 round two) opens
   // the story menu, and the Anansi word at the top of that menu opens the main one. Counting header
   // doors called that zero and it is not; the path is walked instead, which is the thing that would
   // actually be broken if this regressed.
@@ -381,9 +381,10 @@ for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/");
   }
   ok(`  a way into the menu on ${where} (${doors})`, doors >= 1);
   const own = await page.eval("document.querySelectorAll('#bar [data-railview=\"story\"]').length");
-  // Two in a story since 2026-10-25: the title, and the ⋯ that R1 added so the door can be seen.
+  // Two in a story from 2026-10-25 (the title and R1's ⋯), and one since #71's second round: the
+  // title opens the tale's Threads now and the ⋯ is the menu's door.
   ok(`  and the story's own menu door is there only in a story (${own})`,
-     where === "a story" ? own === 2 : own === 0);
+     where === "a story" ? own === 1 : own === 0);
   ok(`  and no hamburger left on ${where}`, (await page.eval("!!document.getElementById('burger')")) === false);
 }
 

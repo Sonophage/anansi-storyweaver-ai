@@ -846,7 +846,16 @@ html[data-reading="1"] .carry { display:none !important; }
 /* The door to a passage's actions, said once, under the newest passage. Touch only: on a mouse,
    hover already shows them. */
 /* Its own line, under the two buttons: beside them it pushed Continue onto two lines at 390px. */
-.taphint { display:none; flex-basis:100%; margin-top:2px; font-size:12px; color:var(--faint); }
+/* #71, round two: beside the bulb on one line now, so it takes the rest of the line rather than all of
+   it, and sits on the bulb's middle. */
+.taphint { display:none; flex:1 1 0; min-width:0; align-self:center; font-size:12px; color:var(--faint); }
+.carry { align-items:center; }
+.carry .bulb { width:44px; height:44px; margin-left:-12px; border:0; padding:0; color:var(--gold-dim);
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+.carry .bulb:hover:not(:disabled), .carry .bulb[aria-expanded="true"] { color:var(--gold); }
+.carry .bulb:disabled { opacity:.45; }
+.carry .bulb[aria-busy="true"] { animation:breathe 1.6s var(--ease) infinite; }
+.carry #ideas { flex-basis:100%; }
 @media (hover:none) { .taphint { display:inline; } }
 @keyframes found {
   0%, 60% { background:rgba(217,178,106,.14); box-shadow:0 0 0 8px rgba(217,178,106,.14); }
@@ -1277,33 +1286,40 @@ html[data-work="ai"]       #frame { --work:var(--gold); }
 #inputRow .weaving { align-self:center; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
   color:var(--mute); white-space:nowrap; }
 #inputRow .weaving:empty { display:none; }
-/* #71 · THE THREE BUTTONS. Once a passage has landed the bottom of the screen is Reweave, Continue
-   and ✦, and the composer is behind Continue: FOLDED hides it, and TALKING hides the mode and
-   threads row while the box and Send go to Talk. Hidden, never removed, so a draft survives. */
+/* #71 · THE THREE BUTTONS. Once a passage has landed the bottom of the screen is ↻, the quill and
+   ✦, marks only (round two), and the box is behind the quill: FOLDED hides it, and TALKING hides
+   the mode row while the box and Send go to Talk. Hidden, never removed, so a draft survives. */
 #dock.folded #modes, #dock.folded #inputRow, #dock.folded #atlistInput, #dock.folded #talkhead,
 #dock.talking #modes { display:none; }
 #nextbar { position:relative; display:flex; flex-direction:column; gap:8px; padding:4px 0 2px; }
-/* The handle: a short line on the bar's top edge, with a 44px press around it that reaches a little
-   over the prose above. A sheet grabber, the gesture a phone already teaches. */
-#nextbar .grab { position:absolute; left:50%; top:-26px; transform:translateX(-50%); width:88px; height:44px;
-  display:flex; align-items:center; justify-content:center; z-index:2; }
-#nextbar .grab i { width:40px; height:4px; border-radius:2px; background:var(--chip);
-  transition:background var(--t-fast) var(--ease); }
-#nextbar .grab:hover i, #nextbar .grab:focus-visible i { background:var(--gold-dim); }
-#dock:not(.folded) #nextbar { padding-top:0; }
-#nextrow { display:flex; align-items:stretch; gap:10px; }
-#nextrow > button { min-width:44px; min-height:44px; border:1px solid var(--chip); border-radius:var(--r);
-  color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:19px;
-  /* NO SELECTION AND NO CALLOUT ON A LONG PRESS: holding Continue is a gesture here, and on an
-     iPhone a hold on text selects it and opens the callout menu over the button. */
-  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
+/* ONE STATE OR THE OTHER (Seth, 2026-10-25): with the box up the bar is hidden, and with the bar
+   showing the box is folded. */
+#dock:not(.folded) #nextbar { display:none; }
+/* ⌄, the way to fold the box with a finger, on the box's top edge: a 44px press, half of it over
+   the prose, like a sheet's handle. Only drawn when there is a bar to fold back to. */
+#fold { position:absolute; top:-24px; left:50%; transform:translateX(-50%); width:56px; height:44px;
+  display:flex; align-items:center; justify-content:center; z-index:2; color:var(--gold-dim);
+  font-size:22px; line-height:1; }
+#fold:hover, #fold:focus-visible { color:var(--gold); }
+#dock.folded #fold, #dock.big #fold { display:none; }
+#nextrow { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+#nextrow button { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
+/* ↻ and ✦, either side: squares in the outline every pressable thing here wears. */
+#nextrow > button { width:52px; height:52px; border:1px solid var(--chip); border-radius:var(--r);
+  color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:21px; flex:0 0 auto; }
 #nextrow > button:disabled { opacity:.45; }
 #nextrow > button:hover:not(:disabled) { border-color:var(--edge-lit); }
-#nextrow #cont { flex:1; flex-direction:column; gap:1px; background:var(--gold); border-color:var(--gold);
-  color:var(--on-gold); font-size:12.5px; letter-spacing:.14em; text-transform:uppercase; }
 #nextrow #cont.stopping { background:var(--edge-lit); border-color:var(--edge-lit); color:var(--ink-bright);
-  animation:breathe 1.6s var(--ease) infinite; }
-#nextrow .holdhint { font-size:11px; letter-spacing:.06em; text-transform:none; opacity:.72; }
+  font-size:11px; letter-spacing:.12em; text-transform:uppercase; animation:breathe 1.6s var(--ease) infinite; }
+/* THE QUILL, in its circle, in the middle, with the hold hint under it. */
+#nextrow .quillcell { display:flex; flex-direction:column; align-items:center; gap:4px; }
+/* NO SELECTION AND NO CALLOUT ON A LONG PRESS: holding the quill is a gesture here, and on an
+   iPhone a hold selects and opens the callout menu over the button. */
+#nextrow .quillcell > button { width:60px; height:60px; border-radius:50%; background:var(--gold);
+  color:var(--on-gold); display:flex; align-items:center; justify-content:center;
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
+#nextrow .quillcell > button[aria-expanded="true"] { background:none; border:1px solid var(--gold); color:var(--gold); }
+#nextrow .holdhint { font-size:11px; letter-spacing:.06em; color:var(--faint); white-space:nowrap; }
 #ideas { display:flex; flex-direction:column; gap:6px; }
 #ideas .idea { text-align:left; min-height:44px; padding:9px 13px; border:1px solid var(--chip);
   border-radius:var(--r); font-size:13px; line-height:1.45; color:var(--ink); }

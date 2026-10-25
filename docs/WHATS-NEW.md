@@ -10,6 +10,30 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-25 · The quill
+
+### Three marks at the bottom
+The three buttons at the bottom are marks now, with no words: ↻ Reweave, a quill in a circle, and
+✦. Tap the quill and the box comes up, with everything around it, and nothing is written. While
+the box is up the three buttons go away. To put the box away without sending, tap the small ⌄ on
+its top edge, press Esc, or tap the page above it; what you typed stays in it. Hold the quill to
+talk to Anansi, as you held Continue before; with the box up, Talk to Anansi is on the How you are
+writing menu. ✦ is Continue now: Anansi writes the next passage, with no box needed, and while
+she writes ✦ is Stop.
+
+### Send with nothing in the box
+With the box up, Send makes Anansi write. Leave the box empty and she just carries on. While she
+writes, Send is the Stop, and there is only one Stop on screen.
+
+### Ideas under the last passage
+Anansi's three ideas for what comes next are behind a small bulb under the last passage now, beside
+"Tap a passage for its actions". Tap it, pick one, and it goes in the box for you to change or send.
+
+### The title opens your threads
+Tap your tale's title at the top to open its Threads. The ⋯ at the top right opens the tale's menu,
+as it did. The Threads menu above the box is gone: the title opens the list, and the + at the top
+of the list adds a thread.
+
 ## 2026-10-25 · Three buttons at the bottom
 
 ### Reweave, Continue and Anansi's ideas

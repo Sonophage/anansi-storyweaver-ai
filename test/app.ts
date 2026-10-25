@@ -920,12 +920,15 @@ assert.match(html('col'), /class="[^"]*\bspeak\b[^"]*"/, 'quoted prose is a spee
   // asserted in both places: gone from under the passage, there on the bar, naming the LAST passage.
   const carry = html('col').match(/<div class="carry">[\s\S]*?<\/div>/)?.[0] ?? '';
   assert.doesNotMatch(carry, /data-re=|data-continue/, 'Reweave and Continue are no longer under the passage');
-  const bar = html('dockCol').match(/<div id="nextrow">[\s\S]*?<\/div><\/div>/)?.[0] ?? '';
+  // Round two: the bulb for Anansi's ideas is where the tap hint is, under the last passage.
+  assert.match(carry, /class="bulb" data-idea="1"/, 'the bulb for Anansi\'s ideas is under the last passage');
+  const bar = html('dockCol').match(/<div id="nextbar">[\s\S]*$/)?.[0] ?? '';
   assert.match(bar, /data-re="p-5"/, 'the bar\'s Reweave must name the LAST passage, not the first');
-  assert.match(bar, /data-continue="1"/, 'and Continue must be there beside it');
-  assert.match(bar, /data-idea="1"/, 'and ✦ beside that');
+  assert.match(bar, /data-dockopen="1"/, 'the quill that opens the box is beside it');
+  assert.match(bar, /data-continue="1"/, 'and ✦, Continue, beside that');
+  assert.doesNotMatch(bar, /data-idea/, 'and the ideas are no longer on the bar');
 }
-ok('Reweave, Continue and ✦ sit on the bar at the foot of the screen, once');
+ok('↻, the quill and ✦ sit on the bar at the foot of the screen, and the bulb under the last passage');
 assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you block');
 
 /* ---- WHERE EACH PASSAGE CAME FROM, said in words as well as in a colour.
@@ -1055,7 +1058,8 @@ assert.match(html('dockCol'), /class="playlbl"[^>]*>You play</, 'the name beside
 // TITLE CASE ON EVERY LABEL, all four and both doors — Seth, 2026-09-02: "all the labels should be
 // Camel Cased for uniformity." A lower-case option beside three capitalised ones is the state this
 // catches, and it is the state the dial shipped in for an hour.
-for (const l of ['Speak', 'Act', 'Direct', 'Narrate', 'Threads', 'View Threads', 'Add Threads'])
+// (The two thread doors left the rail in #71's second round; see below.)
+for (const l of ['Speak', 'Act', 'Direct', 'Narrate'])
   assert.match(html('dockCol'), new RegExp(`>${l}<`), `${l} must be Title Case on the rail`);
 // AND DIRECT AND NARRATE KEEP THE TABLE'S OWN LABELS, which is what says the dial spells the two
 // out rather than the MODES table doing it — the same table names the chip over a passage, and
@@ -1114,31 +1118,18 @@ assert.match(html('dockCol'), /id="asWhom"/, 'and Speak brings it back');
   assert.ok(!/id="asRow"/.test(css), 'the #asRow strip is out of the document');
   assert.ok(!/#asRow/.test(css), 'and its rules went with it');
 }
-// The two thread doors are ONE dial too — Seth, 2026-09-02: "threads and +threads should be its own
-// drop down that will mimic the style of this as well ... to view threads and add threads."
-// THE OPTIONS CARRY THE SAME `data-` THE BUTTONS DID, which is the whole reason the two doors still
-// work: the delegated listener matches the attribute wherever it is. Asserted on the attributes and
-// not on the words, because the words are what changed and the attributes are what must not.
-const modeRow = html('dockCol').match(/<div id="modes">[\s\S]*?<\/div>/)?.[0] ?? '';
+// THE THREADS DIAL LEFT THE RAIL in #71's second round (Seth, 2026-10-25): the tale's title in the
+// header opens this tale's Threads, and Add is the plus at the top of that list. Asserted both ways,
+// gone from here and there in the header, because only the pair fails when it is in both or neither.
+const modeRow = html('dockCol').match(/<div id="modes">[\s\S]*?<div id="inputRow">/)?.[0] ?? '';
 assert.ok(modeRow, 'the mode row must exist');
-const threads = modeRow.match(/<select class="dial" data-threadsel[\s\S]*?<\/select>/)?.[0] ?? '';
-assert.ok(threads, 'the rail must carry the threads dial');
-// THE LABEL IS HIDDEN FROM THE MENU AND STILL THE BUTTON'S TEXT — Seth, 2026-09-02: "in the drop
-// down threads can be removed sinve it goes nowhere." Both halves asserted: it must not appear as a
-// row you can pick, and it must still be there to fall back to, or the closed control ends up
-// reading "Add Threads" as though that were a state.
-assert.match(threads, /<option value="" selected disabled hidden>Threads</,
-  'whose closed label is Threads, hidden from the open menu because picking it does nothing');
-assert.match(threads, /data-goblock="threads:"/, 'View Threads opens this book\'s list');
-assert.match(threads, /data-newlore="1"/, 'and Add Threads opens the write-it-down tray');
-assert.ok(modeRow.indexOf('data-modesel') < modeRow.indexOf('data-threadsel'),
-  'the mode dial comes before the thread doors');
-assert.match(threads, /margin-left:auto/,
-  'and the gap that separates them is on the threads dial, or they are not right-aligned');
-// (The two assertions that used to follow — "Anansi is last" — were measuring the sentence
-//  `data-panel="anansi" still opens it` inside a comment in this row, not any markup. Anansi came
-//  off the row on 2026-08-28 and they could not have failed since.)
-ok('the composer offers one mode dial, one threads dial, and the name beside the dial');
+assert.doesNotMatch(modeRow, /data-threadsel|data-goblock="threads:"|data-newlore/,
+  'the threads dial is gone from above the box');
+assert.match(html('bar'), /<button data-goblock="threads:" aria-label="This tale's threads"/,
+  'and the tale\'s title in the header opens this tale\'s threads');
+assert.match(html('bar'), /data-railview="story" class="pill" aria-label="This tale's menu"/,
+  'while the ⋯ still opens the tale\'s menu');
+ok('the composer offers one mode dial and the name beside it, and the title opens the threads');
 
 assert.match(html('bar'), /Chapter|The Envoy/, 'the header names the book');
 // The percentage LEFT the header on 2026-08-27 — Seth wanted one bar across the window and the
