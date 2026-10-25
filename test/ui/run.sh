@@ -88,7 +88,7 @@ fresh() {
 # EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
 # green for a scenario nobody asked about — twice, per the old handoff notes.
 scenarios=${*:-}
-[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder marks fallback weave weavefit reroll back doors targets down"
+[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder marks fallback weave weavefit reroll back doors targets down alter keys"
 # `cover` and `entrypic` are excluded too, and for a second reason: they need ANANSI_SEARCH pointing
 # at a working endpoint AND the open web. Run them by name, with that variable set on the test server.
 # `model`, `ritual` and `veil` are excluded from the default set: every step waits on a real

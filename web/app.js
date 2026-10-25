@@ -493,7 +493,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
   'editsum', 'savesum', 'cancelsum',
-  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'choosemodel', 'altsave', 'altcancel', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -1053,7 +1053,7 @@ function drawBar() {
         style="display:flex; align-items:center; gap:7px; line-height:1; padding:7px 13px"
         ><span style="font-family:'Instrument Serif',serif; font-size:15px">Aa</span><span class="btnword">Look</span></button>
 `
-      : `<button class="pill" data-open="new">New tale</button>
+      : `${S.wpage === 'create' ? '' : '<button class="pill" data-open="new">New tale</button>'}
          ${/* ONE DOOR, NOT TWO. On the rack the hero band already says Carry on writing, for the
               same tale, so this one is drawn only where the band is not: on every other page, and
               on a rack with no live tale to put in the band. Same words as the band. */
@@ -1988,6 +1988,8 @@ function drawSide() {
   // footer that opens it is on screen outside a story too. Every other panel reads V. Find a model
   // is the same kind of panel, opened from the same footer.
   side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'model' && S.panel !== 'findmodel');
+  // A shut drawer stays in the page at width 0; inert keeps Tab out of it, as for the menu.
+  side.inert = side.hidden;
   if (side.hidden) return;
   $('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
@@ -2341,6 +2343,33 @@ function loadShortlist() {
   });
 }
 
+/** WHY A BLOCK IS IN THE PROMPT, OR IS NOT, in the writer's words. The builder's reasons are
+ *  written for the code ('anchor', 'always_on', 'mode:speak', 'retired at chapter 3') and the What she
+ *  reads page showed them as they were (usability check, 2026-10-24). A wake word stays as it is:
+ *  it is the writer's own word. Anything not listed passes through, so a new reason shows rather
+ *  than vanishing. */
+const WHY = { always_on: 'always on', pinned: 'brought in by you', pov: 'point of view', anchor: 'always sent',
+  keyword: 'a wake word', summary: 'scene summary', 'tail prose': 'the last passages',
+  'recent prose': 'recent passages', 'pulled back': 'brought back', 'pinned in': 'brought in by you',
+  'pinned out of this chapter': 'kept out of this scene', 'point of view': 'point of view' };
+function whyWords(b) {
+  const r = String(b.reason ?? '');
+  const fired = (b.firedBy ?? []).filter((w) => w !== 'sticky');
+  if (fired.length && b.reason === 'keyword') return fired.map((w) => `“${w}”`).join(', ');
+  if (fired.length && WHY[fired[0]]) return WHY[fired[0]];
+  if (/^sticky /.test(r)) return 'still in the scene';
+  if (/^mode:/.test(r)) {
+    const [k, own] = r.slice(5).split(' · ');
+    const label = MODES.find(([m]) => m === k)?.[1] ?? k;
+    return `the ${label} mode${own ? ', yours' : ''}`;
+  }
+  const retired = r.match(/^retired at chapter (\d+)/);
+  if (retired) return `retired at scene ${retired[1]}`;
+  const inherited = r.match(/^inherited [\d.]+ from (.*)$/);
+  if (inherited) return `stitched to ${inherited[1]}`;
+  return WHY[r] ?? r;
+}
+
 /** The shortlist half of the Find a model panel. */
 function findMine() {
   const mine = S.shortlist ?? [];
@@ -2456,14 +2485,18 @@ const PANELS = {
           : m.status === 'loaded' ? '<span class="tag" style="color:var(--good)">loaded</span>' : ''}</div>
       <!-- The id is what the router answers to and what ANANSI_MODEL takes, so it is on the panel
            in full rather than one hover away: this is the screen you are on when you need it. -->
-      <div style="font-size:11px; color:var(--dim); margin:3px 0 12px; word-break:break-all">
-        <code>${esc(id)}</code></div>
+      ${SRV.admin ? `<div style="font-size:11px; color:var(--dim); margin:3px 0 12px; word-break:break-all">
+        <code>${esc(id)}</code></div>` : '<div style="height:12px"></div>'}
 
       ${d.bits?.length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px">${
         [...d.bits, d.size].filter(Boolean).map((b) => `<span class="tag">${esc(b)}</span>`).join('')}</div>` : ''}
 
       ${remote
         ? `<div style="margin-bottom:6px">${remoteAbout(S.hub.cards[id])}</div>`
+        // THE NOTES ARE THE ADMIN'S. They are test notes from the machine's own side-by-side runs
+        // (quants, ablations, constraint counts), and a writer read them as noise: the model page
+        // scored 1 of 5 in the usability check of 2026-10-24. The tags above say what it is for.
+        : !SRV.admin ? ''
         : BLURB[d.name]
         ? `<div style="font-size:13px; line-height:1.55; color:var(--mute); margin-bottom:6px">${
             esc(BLURB[d.name])}</div>`
@@ -2471,11 +2504,15 @@ const PANELS = {
             above is decoded from its name; what is below is measured.</div>`}
 
       ${remote
-        ? `${fact('Reading space, per writer', m.perSlot ? `${m.perSlot.toLocaleString()} tokens` : '',
-            m.ctxSize ? `Featherless holds ${m.ctxSize.toLocaleString()} for this model; a writer gets the smaller of that and their share here` : '')}
+        ? `${SRV.admin ? fact('Reading space, per writer', m.perSlot ? `${m.perSlot.toLocaleString()} tokens` : '',
+            m.ctxSize ? `Featherless holds ${m.ctxSize.toLocaleString()} for this model; a writer gets the smaller of that and their share here` : '')
+            : fact('How much it can read at once',
+              m.perSlot ? `about ${(Math.round(m.perSlot * 0.75 / 1000) * 1000).toLocaleString()} words` : '', '')}
            ${fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of the shared plan` : '',
             m.cost ? 'counted against the plan both writers share, on Featherless, while it writes'
               : 'Featherless did not say what this model costs')}`
+        : !SRV.admin ? fact('How much it can read at once',
+            perSlot ? `about ${(Math.round(perSlot * 0.75 / 1000) * 1000).toLocaleString()} words` : '', '')
         : fact('Reading space, per writer',
         perSlot ? `${perSlot.toLocaleString()} tokens` : '',
         live
@@ -2484,7 +2521,10 @@ const PANELS = {
           ? `${m.ctxSize.toLocaleString()} shared ${m.parallel} ${m.parallel === 1 ? 'way' : 'ways'} in the router's preset file`
           : "the router's preset file does not mention this one")}
 
-      ${fact('Speed, measured here',
+      ${!SRV.admin ? fact('How fast it writes here',
+        m.tps ? `about ${Math.max(1, Math.round(m.tps * 0.75))} words a second` : '',
+        m.tps ? '' : 'nothing has been written with it here yet')
+      : fact('Speed, measured here',
         m.tps ? `${m.tps} tok/s` : '',
         m.tps
           ? `median of ${m.runs} ${m.runs === 1 ? 'call' : 'calls'} on this machine${m.runs < 5 ? ', which is too few to lean on' : ''}`
@@ -2497,8 +2537,11 @@ const PANELS = {
 
       <div style="margin-top:16px">
         ${writing
-          ? `<div class="hint" style="margin:0">This is the one writing.${remote ? '' : ` Switching to another
-              releases it.`}</div>`
+          // AND THE WAY TO ANOTHER ONE. The page about the model that is writing had no way to change
+          // it — the usability check of 2026-10-24 found the switch only in the menu's list.
+          ? `<div class="hint" style="margin:0 0 10px">This is the one writing.${remote ? '' : ` Switching to another
+              releases it.`}</div>
+             <button class="btn ghost" data-choosemodel="1">Choose another model</button>`
           // A remote model with no key on the server cannot be picked, so nothing offers it.
           : remote && !S.remote
           ? `<div class="hint" style="margin:0">Featherless isn't set up on this server.</div>`
@@ -2758,17 +2801,17 @@ const PANELS = {
         const prose = (agg.PROSE ?? 0) + (agg.TAIL ?? 0);
         const pct = Math.round(MANI.totals.used / budget * 100);
         if (!prose) return '';
-        return `${tipCard('ctxCompact', 'Compacting now', `<p>Summarises the open scene, so its
-            prose stops being sent line by line. Prose is ${prose.toLocaleString()} of the
-            ${MANI.totals.used.toLocaleString()} tokens here${pct >= 70
+        return `${tipCard('ctxCompact', 'Summarise this scene now', `<p>Summarises the open scene,
+            so Anansi reads a few lines about it instead of every passage. The passages are
+            ${Math.round(prose / MANI.totals.used * 100)}% of what she reads here${pct >= 70
               ? ' &mdash; and you are at ' + pct + '% full.' : '.'}</p>`)}
           <div style="display:flex; align-items:center; gap:2px; margin:10px 0 8px">
-            <button class="btn ghost" data-summarize="1" style="flex:1">Compact now</button>
-            ${tipMark('ctxCompact', 'Compacting now')}</div>`;
+            <button class="btn ghost" data-summarize="1" style="flex:1">Summarise this scene now</button>
+            ${tipMark('ctxCompact', 'Summarise this scene now')}</div>`;
       })()}
       ${Object.entries(agg).map(([k, v]) => {
         const rows = inc.filter((b) => b.kind === k);
-        const why = rows.map((b) => b.firedBy?.join(', ') || b.reason).filter(Boolean)[0] ?? '';
+        const why = rows.map(whyWords).filter(Boolean)[0] ?? '';
         // Every block came from something editable. This is the way back to it, under the name it
         // has when you get there. Canon goes straight to the entry when there is only one to open
         // and to the list when there are several — the first of nine was an arbitrary place to land.
@@ -2800,7 +2843,7 @@ const PANELS = {
             <span style="width:8px; height:8px; border-radius:var(--r-tight); flex:0 0 auto; background:var(--edge-lit)"></span>
             <span style="color:var(--mute)">${esc((BLOCK_ORIGIN[kind] ?? [kind])[0])}${
               n > 1 ? ` <span style="color:var(--faint)">&times;&thinsp;${n}</span>` : ''}</span>
-            <span style="color:var(--bad); font-size:11.5px">${esc(reason)}</span>
+            <span style="color:var(--bad); font-size:11.5px">${esc(whyWords({ reason }))}</span>
             <span class="tnum" style="margin-left:auto; color:var(--faint)">${tokens.toLocaleString()}</span></div>`;
         }).join('');
       })()}
@@ -3844,7 +3887,7 @@ const PANELS = {
         <div style="display:flex; align-items:center; gap:8px">
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
             t.searchable === false ? 'var(--faint)' : 'var(--mute)'}"
-            title="${t.searchable === false ? 'Web search is not set up on this server' : 'Look it up online first'}">
+            title="${t.searchable === false ? 'Searching the web is not switched on here' : 'Look it up online first'}">
             <input type="checkbox" data-websearch="1" ${t.search ? 'checked' : ''}
               ${t.searchable === false ? 'disabled' : ''}> Search before responding
           </label>
@@ -3853,7 +3896,7 @@ const PANELS = {
             style="margin-left:auto; width:auto; padding:0 22px; height:38px">${t.busy ? '&hellip;' : 'Ask'}</button>
         </div>
         ${t.searchable === false
-          ? `<div class="hint" style="margin:0">Web search is not set up on this server.</div>`
+          ? `<div class="hint" style="margin:0">Searching the web is not switched on here.</div>`
           : ''}
       </div>
     </div>`;
@@ -4649,7 +4692,7 @@ function sparkReview() {
        ${rerollField('title')}
        ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag on the rack.')}
        ${rerollField('genre')}
-       ${area('premise', 'Premise', s.premise, 'It is sent on every call.', 110)}
+       ${area('premise', 'Premise', s.premise, 'Anansi reads it every time she writes.', 110)}
        ${rerollField('premise')}
        ${forgeCopy('premise', 'Copy the premise pattern')}
        ${reroll('Reweave from your idea')}
@@ -5203,7 +5246,7 @@ function setupPanel() {
       <div class="lbl" style="letter-spacing:.2em; margin-top:14px; opacity:.8">Where, and what</div>
       ${places.length ? places.map((e) => row(e, 'place')).join('')
         : `<div class="hint" style="margin:0">${q ? 'Nothing matches that.' : 'No threads yet.'}</div>`}
-      <div class="hint">The tale's setting is sent on every call regardless
+      <div class="hint">Anansi reads the tale's setting every time regardless
         &mdash; ${esc(V.story.setting || 'not set')}.</div>
       <button class="btn" data-savesetup="1" style="margin-top:16px">Start writing</button>
     </div>`;
@@ -5261,7 +5304,7 @@ function setupPanel() {
          offering — Save and write is the way OUT of the ritual, not the way through it. One accent
          per screen, so Save and write gives it up rather than competing. -->
     <button class="btn" data-setupstep="more" style="margin-top:20px">Next &mdash; anyone new${
-      fresh.length ? ` (${fresh.length})` : ''}</button>
+      fresh.length ? ` &middot; ${fresh.length} basted` : ''}</button>
     <button class="btn ghost" data-savesetup="1" style="margin-top:8px">Save and write</button>
     ${skip}
   </div>`;
@@ -5369,6 +5412,8 @@ const SLOT_HINT = {
   consequences:  ['[What breaking it costs]', '[the Watch cuts off a hand, or calls in the debt]'],
 };
 const slotLabel = (slot) => String(slot).replace(/_/g, ' ');
+/** A pocket's name as a heading or a chip: capitalised, not the raw key (usability check). */
+const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).toUpperCase() + l.slice(1); };
 /*  openMine: whether the fields start unfolded. In the + Thread tray they do NOT — you land there
  *  having chosen nothing, and Seth's "right now it looks like alot to fill out" is about exactly
  *  that first sight. In the card's add tray you arrive having opened a fold and pressed a pill, so
@@ -5409,7 +5454,7 @@ function inventTray(kind, label, placeholder, value = '') {
     <div style="display:flex; align-items:center; gap:9px">
       <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
         searchable ? 'var(--mute)' : 'var(--faint)'}"
-        title="${searchable ? 'Look it up online before writing it' : 'Web search is not set up on this server'}">
+        title="${searchable ? 'Look it up online before writing it' : 'Searching the web is not switched on here'}">
         <!-- SAME WORDING AND SAME REMEMBERED PREFERENCE as the ask box's. Seth, 2026-09-01: "the
              checkmark should say search before responding" and "have it so that anansi can search
              just in general in case we need it for the other modules." One preference, honoured
@@ -5740,7 +5785,7 @@ function roomSection(e, sl, live = null, anchor = true) {
   if (!mine.length) return '';
   return `
     <div ${anchor ? `data-slotat="${esc(sl.name)}"` : ''} class="lbl" style="letter-spacing:.1em; margin-top:20px">${
-      esc(slotLabel(sl.name))}${sl.exclusive ? ' <span style="opacity:.5">(one at a time)</span>' : ''}</div>
+      esc(pocketTitle(sl.name))}${sl.exclusive ? ' <span style="opacity:.5">(one at a time)</span>' : ''}</div>
     ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${
       a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
       <div style="display:flex; align-items:center; gap:9px">
@@ -5792,7 +5837,7 @@ function addTray(e, slots) {
           font-size:11.5px; padding:8px 4px; border-radius:var(--r);
           border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
           background:${on ? 'rgba(217,178,106,.12)' : 'transparent'};
-          color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(slotLabel(sl.name))}</button>`;
+          color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(pocketTitle(sl.name))}</button>`;
       }).join('')}
     </div>
     ${S.newRoom ? `<div class="card" style="gap:7px; margin-top:10px">${roomForm(null, e, S.newRoom, true)}</div>`
@@ -5935,7 +5980,7 @@ function entryEditor() {
       tipMark('cardKeys', 'Wake words')}</label>
     ${tipCard('cardKeys', 'Wake words', `<p>${e.activation === 'always_on'
       ? 'The words that bring an on-a-word thread to the model. Not used while this is always-on — '
-        + 'it is sent on every call either way. Write them anyway: they are what would wake it the '
+        + 'Anansi reads it every time either way. Write them anyway: they are what would wake it the '
         + 'moment you switch it to On a word, and this is the only place you can see what was '
         + 'basted for it.'
       : (e.keys ?? []).length
@@ -6740,9 +6785,9 @@ const WPAGES = {
     if (!FORGE.length) return `<div class="hint">${esc(S.forgeError ?? 'No prompts here yet.')}</div>`;
     return `<div style="display:flex; flex-direction:column; gap:14px; max-width:760px">
       <div class="hint" style="margin:0">Patterns to hand to any model you like, then bring the
-        answer back. The two thread patterns come back as JSON that <strong>+ Thread</strong> reads
-        directly, pockets and all; the other three come back as text you paste into the fields
-        yourself. The pockets named below are read from this database, so they cannot drift.</div>
+        answer back. What the thread patterns give back goes straight into <strong>+ Thread</strong>,
+        pockets and all; what the others give back you paste into the fields yourself. The pockets
+        named below are the ones this app uses today.</div>
       ${FORGE.map((f) => {
         const open = S.forgeOpen === f.key;
         return `<div class="card" style="gap:0; padding:0; overflow:hidden">
@@ -6908,7 +6953,7 @@ const WPAGES = {
           you will miss.</div>
         ${f('title', 'Title')}
         ${f('genre', 'Genre', 'Comma separated. Each one becomes its own tag on the rack.')}
-        ${area('premise', 'Premise', 'One or two sentences. It is sent on every call.',
+        ${area('premise', 'Premise', 'One or two sentences. Anansi reads it every time she writes.',
                'A broke ex-sergeant owes a moneylender more than he can pay…')}
         ${f('setting', 'Setting', 'Where it happens. Lore written later can replace this.')}
         <label class="lbl" for="f-bf-pov">Point of view</label>
@@ -7077,7 +7122,7 @@ const WPAGES = {
               ${chip(!S.ledgerSlot)}">Any pocket</button>
             ${(V.slots[S.ledgerKind] ?? []).map((sl) => `<button data-lslot="${esc(sl.name)}"
               style="font-size:11.5px; padding:6px 13px; border-radius:var(--r-pill);
-              ${chip(S.ledgerSlot === sl.name)}">${esc(sl.name.replace(/_/g, ' '))}</button>`).join('')}
+              ${chip(S.ledgerSlot === sl.name)}">${esc(pocketTitle(sl.name))}</button>`).join('')}
           </div>` : ''}
         <div id="books" style="display:flex; flex-direction:column; gap:16px">${ledgerBooks()}</div>
       </div>
@@ -7310,7 +7355,7 @@ const WPAGES = {
               'half were faster, half slower')}
             ${row('Time spent generating', t.minutes >= 60
               ? `${Math.floor(t.minutes / 60)}h ${t.minutes % 60}m` : `${t.minutes}m`)}
-            ${t.tokensOut ? row('Words the model wrote', n(t.tokensOut), 'counted as tokens') : ''}`;
+            ${t.tokensOut && SRV.admin ? row('Tokens the model wrote', n(t.tokensOut), 'what the machine counts') : ''}`;
         })()}
       </div>
       ${SRV.admin ? `<div class="aside">
@@ -7369,6 +7414,10 @@ function paint() {
   const owed = $('owed');
   if (owed) owed.hidden = !owedAnywhere();
   root.dataset.uiRail = S.rail ? 'open' : 'closed';
+  // A menu slid off the screen is still in the page, and Tab walked its twelve controls before
+  // reaching anything you could see (usability check, Titan keyboard). inert takes it out of the
+  // tab order and away from the pointer until it is open.
+  const rail = $('rail'); if (rail) rail.inert = overlay() && !S.rail;
   drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide();
   // A WORLD BOOK HAS NO WRITING SURFACE. It is a collection of lore and nothing else — Seth,
   // 2026-08-31: "the world book should be a collection of lore. no entries no chapters just lore.
@@ -9052,6 +9101,11 @@ document.addEventListener('click', async (e) => {
   }
   // The chapter list inside a passage's tray. Toggled per passage rather than globally, so opening
   // it on one passage and then another does not leave two open.
+  if (d.choosemodel) {
+    S.panel = null; S.rail = true; S.modelMenu = true;
+    if (S.models === null) loadModels();
+    paint(); return;
+  }
   if (d.modelmenu) {
     S.modelMenu = !S.modelMenu;
     // The list is fetched lazily everywhere else too — opening the menu is the first moment
@@ -9898,12 +9952,22 @@ document.addEventListener('click', async (e) => {
     // between block children.
     if (el.dataset.raw !== undefined && el.querySelector('p')) el.textContent = el.dataset.raw;
     el.setAttribute('contenteditable', 'plaintext-only');
+    // THE CARET AT THE END, NOT THE WHOLE PASSAGE SELECTED. Selected, one keystroke replaced the
+    // passage; and "click away to save" was the only way out, with no Save and no Cancel. The
+    // usability check of 2026-10-24 called Alter dangerous for both. The bar under the passage is
+    // the way out now, Esc cancels, and a click away still saves as it always did.
     el.focus();
-    const r = document.createRange(); r.selectNodeContents(el);
+    const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
-    toast('Editing. Click away to save.');
+    el.insertAdjacentHTML('afterend', `<div class="altbar" style="display:flex; gap:8px; margin:10px 0 4px">
+      <button class="btn" data-altsave="${esc(d.ed)}" style="width:auto; padding:0 18px">Save</button>
+      <button class="btn ghost" data-altcancel="${esc(d.ed)}" style="width:auto; padding:0 18px">Cancel</button></div>`);
+    toast('Altering. Save or Cancel under the passage.');
     return;
   }
+  // Save is the blur: the press takes the caret out of the passage, and blur saves. Nothing left.
+  if (d.altsave) return;
+  if (d.altcancel) return;
 
   // --- history
   if (d.hi) {
@@ -11480,6 +11544,10 @@ $('scrim').addEventListener('click', () => {
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.reroll) { S.reroll = null; drawDoc(); syncTray(); return; }
+  // Esc shuts what is on top: a passage's actions, then the menu over the page. Neither listened
+  // for it, so on the Titan's keyboard the only way out was a tap (usability check, 2026-10-24).
+  if (e.key === 'Escape' && root.dataset.tray === '1') { openTray(null); return; }
+  if (e.key === 'Escape' && S.rail && overlay()) { S.rail = false; paint(); return; }
   if (e.key === 'Escape' && S.bigInput) { S.bigInput = false; drawDock(); $('input')?.focus(); return; }
   if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); } }
 });
@@ -12255,12 +12323,28 @@ document.addEventListener('input', (e) => {
     }, 220);
   }
 });
+/** CANCEL HAS TO WIN THE RACE WITH BLUR. Pressing Cancel takes the caret out of the passage, and
+ *  blur is what saves — so the press is caught on pointerdown, which comes first, and blur reads it. */
+let ALTER_CANCEL = null;
+document.addEventListener('pointerdown', (e) => {
+  const c = e.target.closest?.('[data-altcancel]');
+  if (c) ALTER_CANCEL = c.dataset.altcancel;
+}, true);
+document.addEventListener('keydown', (e) => {
+  const id = e.target?.dataset?.edit;
+  if (!id || !e.target.hasAttribute?.('contenteditable')) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ALTER_CANCEL = id; e.target.blur(); }
+  else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.target.blur(); }
+}, true);
 document.addEventListener('blur', async (e) => {
   const id = e.target?.dataset?.edit;
   if (!id || id === 'pending') return;
   // Shut the door behind you. Left open, the next tap anywhere in that paragraph starts editing
   // again with no Edit pressed, which is the bug this half fixes.
   e.target.removeAttribute('contenteditable');
+  e.target.parentElement?.querySelector('.altbar')?.remove();
+  if (ALTER_CANCEL === id) { ALTER_CANCEL = null; drawDoc(); toast('Nothing changed.'); return; }
+  ALTER_CANCEL = null;
   const body = e.target.textContent;
   const p = V?.passages.find((x) => x.id === id);
   if (!p || p.body === body) return;

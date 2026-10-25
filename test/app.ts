@@ -330,6 +330,9 @@ let shelfOverride: any = null;
 // Whether the canned model list says the server holds a Featherless key. Off, as it was before the
 // field existed; a check that needs it on sets it and reads the list again.
 let modelsRemote = false;
+// Whether the library answer says this writer is the admin. Off: the fixture's writer is not. The
+// model panel checks flip it to see the admin's view beside the writer's.
+let libAdmin = false;
 // Issue #32. What `POST /api/chapter/end` says about its own four passes, for the one test that
 // closes a chapter. Undefined means it says nothing, which is both the all-ran case and the case
 // of an older server.
@@ -532,7 +535,8 @@ let stubTalk: any = null, stubInvent: any = null;
     : url.startsWith('/api/invent') ? (stubInvent ?? { title: 'The Rust Choir', duplicate: false })
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
-  return { ok: true, json: async () => body };
+  return { ok: true, json: async () => (libAdmin && url.startsWith('/api/stories') && body
+    ? { ...body, admin: true } : body) };
 };
 
 await import('../web/app.js');
@@ -2200,6 +2204,25 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   const side = () => (globalThis as any).document.getElementById('side');
   click({ modelinfo: 'Qwen3.6-WNTH-35B-A3B-NN' });
   // The panel can be the first thing on screen, so it asks the router itself; that is a fetch.
+  for (let i = 0; i < 20 && !/words a second/.test(html('sideBody')); i++) await new Promise((r) => setTimeout(r, 25));
+
+  // THE WRITER'S VIEW FIRST. The usability check of 2026-10-24 scored this page 1 of 5: tokens,
+  // tok/s, the raw id, the router's preset file and the bakeoff notes. A writer who is not the admin
+  // gets words and a speed in words; the machine's details are the admin's, asserted below.
+  const mine = html('sideBody').replace(/<!--[\s\S]*?-->/g, '');
+  assert.match(mine, /about 38,000 words/, 'WRITER-MODEL: how much it reads, in words');
+  assert.match(mine, /about 44 words a second/, 'WRITER-MODEL: how fast, in words');
+  // On screen, so the tags come off first: the switch carries the id in its attribute, and should.
+  assert.doesNotMatch(mine.replace(/<[^>]*>/g, ' '), /tokens|tok\/s|preset file|Qwen3\.6-WNTH-35B-A3B-NN|bakeoff|twelve times/,
+    'WRITER-MODEL: and none of the machine talk');
+  assert.match(mine, /data-pickmodel="Qwen3\.6-WNTH-35B-A3B-NN"/, 'WRITER-MODEL: with the switch');
+  click({ modelinfo: 'write-nt-qwen36-h' });
+  assert.match(html('sideBody'), /data-choosemodel=/,
+    'WRITER-MODEL: and the page about the model that writes has a way to choose another');
+
+  libAdmin = true; click({ home: 1 });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ modelinfo: 'Qwen3.6-WNTH-35B-A3B-NN' });
   for (let i = 0; i < 20 && !/tok\/s/.test(html('sideBody')); i++) await new Promise((r) => setTimeout(r, 25));
 
   assert.strictEqual(side().hidden, false, 'the model panel opens with no story open');
@@ -2283,6 +2306,8 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   click({ dropshort: 'featherless:Other/Unused-12B' });
   await new Promise((r) => setTimeout(r, 40));
 }
+libAdmin = false; click({ home: 1 });
+await new Promise((r) => setTimeout(r, 40));
 ok('the model panel reads the router, the preset file, this database and the id, and names each');
 
 // THE SAME DECODE ON EVERY SURFACE THAT NAMES A MODEL. Seth, 2026-08-29: "we need the uncensored
@@ -2990,7 +3015,8 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   click({ dropshort: 'featherless:Other/Unused-12B' });
   await new Promise((r) => setTimeout(r, 40));
   const lent = await panelFor(LENT);
-  assert.match(lent, /Featherless holds 32,768/, 'LENT-PANEL: the limit, from the pin row the book carries');
+  // In words for a writer since 2026-10-25 (32,768 tokens); the admin sees "Featherless holds".
+  assert.match(lent, /about 25,000 words/, 'LENT-PANEL: the limit, from the pin row the book carries');
   assert.match(lent, /2 units of the shared plan/, 'LENT-PANEL: and the cost the owner\'s shortlist holds');
   assert.doesNotMatch(lent, /did not say/, 'LENT-PANEL: never "Featherless did not say", which is false');
   assert.match(lent, /writing now/, 'WRITING-NOW: the model that writes the open book is the one writing');

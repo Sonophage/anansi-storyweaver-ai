@@ -22,6 +22,22 @@ the menu is no longer lit, and the line under it says "not answering". Hemming a
 model down still closes it, but the screen no longer calls it hemmed in green: it says which parts
 did not run, and each has its own button to run it again.
 
+### Alter is safer
+Alter puts the cursor at the end of the passage instead of selecting all of it, so one key can no
+longer replace the whole passage. Save and Cancel sit under the passage while you alter it, and Esc
+cancels.
+
+### Plainer words
+What she reads says why each thing is there in plain words: always on, a wake word, the Speak
+mode, retired at scene 3. "Compact now" is "Summarise this scene now". The model page tells a
+writer how much a model can read in words and how fast it writes, and has a button to choose another
+model. Settings say "Anansi reads it every time she writes" instead of "sent on every call".
+Pocket names start with a capital.
+
+### The keyboard
+Esc closes a passage's actions and the menu. Tab no longer walks through the menu or a drawer
+while they are closed. The menu's rows wrap instead of cutting off their names.
+
 ### Small fixes
 Best day on What you have written is the day you wrote, by your own clock, not the next day. All
 threads stops saying "reading…" once it has read them. A link straight to Find a model now loads

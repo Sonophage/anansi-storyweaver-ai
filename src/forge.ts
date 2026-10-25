@@ -171,7 +171,7 @@ export const FORGE: ForgePrompt[] = [
   {
     key: 'book',
     title: 'A whole tale, in one command',
-    what: 'Tale and cast together. Paste it on Cut a new tale and the wizard opens with everything filled.',
+    what: 'Tale and cast together. Paste it on New tale and the wizard opens with everything filled.',
     prompt:
 `You are building a WHOLE BOOK for a long-form fiction app called Anansi: the story itself and the
 cast that lives in it, in one answer.

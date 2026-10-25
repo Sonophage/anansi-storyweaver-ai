@@ -462,6 +462,9 @@ button:not(:disabled):active { transform:translateY(.5px); }
 html[data-ui-rail="closed"] #rail { width:76px; }
 #rail .txt { opacity:1; transition:opacity var(--t-fast) var(--ease); white-space:nowrap; overflow:hidden; }
 html[data-ui-rail="closed"] #rail .txt { opacity:0; }
+/* An open menu's row wraps rather than cutting its name: "Prompts to take elsewhere" lost its last
+   word at the desk's 248px (usability check, 2026-10-24). Closed, the names are hidden anyway. */
+html[data-ui-rail="open"] #rail [data-nav] .txt { white-space:normal; line-height:1.3; }
 
 #scrim {
   position:absolute; inset:0; z-index:20; background:rgba(5,5,7,.6); backdrop-filter:blur(3px);
