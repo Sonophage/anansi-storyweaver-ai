@@ -88,13 +88,16 @@ for (const t of ['proposed', 'summaries', 'branches']) { await book('/chapter');
 // A card as read, then its editor and the editor's tabs, from Marek Vale: test/ui/seed.ts gives him
 // a pocket, an outfit and a change over time, so the Pockets and Over time tabs are not empty.
 const MAREK = `[data-entry="${await (async () => { await book('/threads'); return page.eval(
-  "[...document.querySelectorAll('[data-entry]')].find((x) => x.textContent.includes('Marek'))?.dataset.entry ?? ''"); })()}"]`;
+  "[...document.querySelectorAll('[data-entry]')].find((x) => x.querySelector('.platename')?.textContent === 'Marek Vale')?.dataset.entry ?? ''"); })()}"]`;
 await book('/threads'); await press(MAREK); await snap('s-entry-read', '#sideBody');
 for (const t of ['card', 'rooms', 'time', 'more']) {
   await book('/threads');
   await press(MAREK);
   await press('[data-cardview="form"]');
   if (t !== 'card') await press(`[data-cardtab="${t}"]`);
+  // Over time is a fold, shut by default: open it, or the tab shows only its heading.
+  if (t === 'time' && !(await page.eval("!!document.querySelector('[data-fold=\"states\"]')?.parentElement?.open")))
+    await press('[data-fold="states"]');
   await snap(`s-entry-${t}`, '#sideBody');
 }
 
