@@ -54,6 +54,13 @@ is still there.
 Esc closes a passage's actions and the menu. Tab no longer walks through the menu or a drawer
 while they are closed. The menu's rows wrap instead of cutting off their names.
 
+### Plain words for the numbers
+The band under the title says "room 40% used" and "3 scenes out of reach" instead of "40% full"
+and "scenes not sent". What she reads says how much of her room the next passage uses, and
+"roughly" when the model is not answering. Surprise and Focus say steady, balanced or adventurous,
+and wide, medium or narrow, instead of numbers. The model list says how many words a model reads
+and writes a second. Find a model searches tags across every model, not only the ones on screen.
+
 ### Back, and finding models
 Back now closes the Look sheet, the full-screen box and Reading mode, the same as a drawer, instead
 of leaving the tale. Find a model can filter by how many units of the plan a model takes, and by

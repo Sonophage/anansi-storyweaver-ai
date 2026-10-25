@@ -24,7 +24,8 @@ ok("  and Esc shuts them", (await page.eval("document.documentElement.dataset.tr
 await page.goto(B + "/#" + sid + "/context");
 await wait(1200);
 const text = await page.eval("document.getElementById('sideBody')?.textContent ?? ''");
-const machine = ['always_on', 'anchor', 'mode:', 'retired at chapter', 'pinned out of this chapter', 'tail prose', 'Compact now']
+const machine = ['always_on', 'anchor', 'mode:', 'retired at chapter', 'pinned out of this chapter', 'tail prose', 'Compact now',
+  'past the horizon', '(est.)', 'Measured for the next call', 'covers to']
   .filter((w) => text.includes(w));
 ok(`What she reads uses no builder words (${JSON.stringify(machine)})`, text.length > 200 && machine.length === 0);
 

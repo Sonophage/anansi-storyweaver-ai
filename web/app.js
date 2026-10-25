@@ -550,6 +550,10 @@ const READOUT = {
   // back as a different one.
   target_words: (n) => (Number(n) < 150 ? 'let her decide' : `~${n} words`),
   coverOpacity: (n) => `${n}%`,
+  // Words, not the sampler's numbers (second usability check, 2026-10-25). The bands are the
+  // writer's sense of the slider, not a measurement.
+  temperature: (n) => (Number(n) < 0.5 ? 'steady' : Number(n) < 0.9 ? 'balanced' : Number(n) < 1.2 ? 'adventurous' : 'wild'),
+  top_p: (n) => (Number(n) >= 0.95 ? 'wide' : Number(n) >= 0.8 ? 'medium' : 'narrow'),
 };
 
 let toastT = null, searchT = null, foundT = null;
@@ -854,7 +858,7 @@ function drawRail() {
                 color:${m.id === SRV.model ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
               ${modelName(m.id).bits.length ? `<span style="font-size:11px; color:var(--gold-dim);
                 overflow:hidden; text-overflow:ellipsis">${esc(modelName(m.id).bits.join(' \u00b7 '))}</span>` : ''}
-              ${modelFacts(m) ? `<span style="font-size:11px; color:var(--dim)">${esc(modelFacts(m))}</span>` : ''}</span>
+              ${modelFacts(m, !SRV.admin) ? `<span style="font-size:11px; color:var(--dim)">${esc(modelFacts(m, !SRV.admin))}</span>` : ''}</span>
           </button>`).join('')}
       ${S.models?.length ? `<div class="hint" style="margin:6px 0 0">Press a model to see what it is for
         and how fast it writes here, and to write with it. This is your usual model; a tale with its
@@ -958,9 +962,9 @@ function drawMeter() {
     <span>scene ${at + 1} of ${V.chapters.length}</span>
     <span class="tnum">${words.toLocaleString()} words</span>
     <span class="tnum" style="color:${(pct == null || pct >= 100) ? 'var(--bad)' : 'var(--gold-dim)'}">${
-      pct == null ? (noRoom ? 'no space' : 'size unknown') : `${pct}% full`}</span>
+      pct == null ? (noRoom ? 'no space' : 'size unknown') : `room ${pct}% used`}</span>
     ${h ? `<span style="color:var(--gold-dim)">${h.chapters} ${
-      h.chapters === 1 ? 'scene' : 'scenes'} not sent</span>` : ''}
+      h.chapters === 1 ? 'scene' : 'scenes'} out of reach</span>` : ''}
     <button data-panel="context" style="margin-left:auto">what is in it &rsaquo;</button>`;
 }
 
@@ -1032,8 +1036,8 @@ function drawBar() {
         const h = horizon();
         return h ? `<button class="pill deskonly" data-panel="context"
           style="border-color:rgba(217,178,106,.42); color:var(--gold-dim)"
-          title="Their summaries no longer reach the model. This scene → Summaries gathers them into a chapter."
-          >${h.chapters} ${h.chapters === 1 ? 'scene' : 'scenes'} not sent</button>` : '';
+          title="Anansi no longer reads their summaries. This scene → Summaries gathers them into a chapter."
+          >${h.chapters} ${h.chapters === 1 ? 'scene' : 'scenes'} out of reach</button>` : '';
       })()}
       <!-- NO INLINE COLOUR. The "pill" class is already chrome-dim, and its aria-pressed rule
            paints the glyph in "on-gold" over a gold ground. An inline gold colour beat that rule
@@ -2394,21 +2398,17 @@ function findHits() {
   const f = S.find;
   if (f.error) return `<div class="hint" style="margin:0; color:var(--warn)">${esc(f.error)}</div>`;
   if (f.hits === null) return '<div class="hint" style="margin:0">Reading the catalogue&hellip;</div>';
-  if (!f.hits.length) return '<div class="hint" style="margin:0">Nothing matches.</div>';
   const have = new Set((S.shortlist ?? []).map((m) => m.id));
-  // THE TAG FILTER RUNS HERE, on the rows this search brought back, because tags come from Hugging
-  // Face a page at a time and the catalogue has none.
-  // ponytail: tag search covers the shown rows only (100 at most, and only once their tags have
-  // arrived). Ceiling: a tag carried only by models past the first 100 is not found. Upgrade: a
-  // server-side tag index over the cached Hugging Face reads.
-  const tag = f.tag.trim().toLowerCase();
-  const rows = tag ? f.hits.filter((m) => (S.hub.tags[m.id] ?? []).some((t) => t.toLowerCase().includes(tag))) : f.hits;
-  const waiting = tag && f.hits.some((m) => !(m.id in S.hub.tags));
-  const head = tag ? `<div class="hint" style="margin:0 0 6px">${rows.length} of the ${f.hits.length} shown
-      ${rows.length === 1 ? 'is' : 'are'} tagged “${esc(f.tag.trim())}”${waiting ? ' so far; tags are still arriving' : ''}.
+  // THE TAG IS SEARCHED ON THE SERVER, over every model this search could show (the tag index in
+  // src/catalogue.ts). While it is still reading tags it says how far it has got, and findSearch
+  // asks again.
+  const ix = f.tagIndex;
+  const head = f.tag.trim() ? `<div class="hint" style="margin:0 0 6px">${f.total}
+      ${f.total === 1 ? 'model is' : 'models are'} tagged “${esc(f.tag.trim())}”${ix && ix.read < ix.of
+        ? ` so far &mdash; tags read for ${ix.read} of ${ix.of}` : ''}.
       <button data-findtag="" style="text-decoration:underline; color:var(--mute)">Clear</button></div>` : '';
-  if (tag && !rows.length) return head;
-  return head + rows.map((m) => foundRow(m, have.has(m.id)
+  if (!f.hits.length) return head || '<div class="hint" style="margin:0">Nothing matches.</div>';
+  return head + f.hits.map((m) => foundRow(m, have.has(m.id)
     ? '<span style="font-size:11px; color:var(--faint)">on your shortlist</span>'
     : `<button class="btn" data-addshort="${esc(m.id)}" style="flex:0 0 auto; width:auto; font-size:11.5px; padding:5px 12px"
         ><span class="lbl-txt">Add</span></button>`)).join('')
@@ -2421,8 +2421,14 @@ function findHits() {
  *  answer, which brings the size choices with it. */
 async function findSearch(whole = false) {
   const f = S.find, seq = ++f.seq;
-  const r = await api.catalogue({ q: f.q, size: f.size, weaving: f.weaving, cost: f.cost, uncensored: f.uncensored ? '1' : '0' });
+  const r = await api.catalogue({ q: f.q, size: f.size, weaving: f.weaving, cost: f.cost, tag: f.tag.trim(),
+    uncensored: f.uncensored ? '1' : '0' });
   if (seq !== f.seq) return;
+  f.tagIndex = r.tagIndex ?? null;
+  // Still reading tags: ask again in a moment, unless something newer has been asked meanwhile.
+  clearTimeout(f.again);
+  if (f.tagIndex && f.tagIndex.read < f.tagIndex.of && S.panel === 'findmodel')
+    f.again = setTimeout(() => { if (seq === f.seq && S.panel === 'findmodel') findSearch(); }, 2000);
   f.error = r.error ?? null;
   f.hits = r.error ? [] : (r.models ?? []); f.total = r.total ?? 0;
   if (r.sizes) f.sizes = r.sizes;
@@ -2811,11 +2817,13 @@ const PANELS = {
     return `<div style="display:flex; flex-direction:column; gap:2px">
       ${ctxTabs()}
       <div style="display:flex; align-items:baseline; gap:10px; font-size:12.5px; color:var(--mute)">
-        <span>Measured for the next call</span>
+        <!-- In the writer's words since the second usability check (2026-10-25): a share of her
+             room, not "387 / 6,245 (est.)". The counts stay in the tooltip for whoever wants them. -->
+        <span>What she will read next time</span>
         <span class="tnum" style="margin-left:auto; color:var(--faint)" data-exact="${MANI_EXACT ? 1 : 0}"
-          title="${MANI_EXACT ? 'Counted by the model\u2019s own tokenizer'
-            : 'Estimated \u2014 the model is not answering, so this is characters divided by a constant'}"
-          >${MANI.totals.used.toLocaleString()} / ${budget.toLocaleString()}${MANI_EXACT ? '' : ' (est.)'}</span></div>
+          title="${MANI.totals.used.toLocaleString()} of ${budget.toLocaleString()} tokens${MANI_EXACT ? ', counted by the model'
+            : ', estimated because the model is not answering'}"
+          >${Math.round(MANI.totals.used / budget * 100)}% of her room${MANI_EXACT ? '' : ', roughly'}</span></div>
       <div class="meter">${Object.entries(agg).map(([k, v]) =>
         `<i style="width:${(v * scale / budget * 100).toFixed(2)}%; background:${BLOCK_COLOR[k] ?? 'var(--ink-ghost)'}"></i>`).join('')}</div>
       ${MANIFIT ? `<div style="display:flex; align-items:flex-start; gap:10px; padding:10px 0">
@@ -2829,7 +2837,7 @@ const PANELS = {
         return `<div style="display:flex; align-items:flex-start; gap:10px; padding:10px 0">
           <span style="width:8px; height:8px; border-radius:50%; background:var(--gold-dim); margin-top:5px; flex:0 0 auto"></span>
           <span style="flex:1; display:flex; flex-direction:column; gap:4px">
-            <span style="font-size:13px; color:var(--ink)">Scenes ${h.from}&ndash;${h.to} are past the horizon${helpMark('horizon')}</span>
+            <span style="font-size:13px; color:var(--ink)">Scenes ${h.from}&ndash;${h.to} are out of her reach${helpMark('horizon')}</span>
             ${tipCard('horizon', HELP.horizon.title, `${helpText('horizon')}<p>Their summaries no
               longer reach the model, so it cannot draw on them or stay consistent with them.
               <strong>This scene &rarr; Summaries</strong> gathers a run of them into a chapter, whose
@@ -3735,8 +3743,8 @@ const PANELS = {
             c.summaryAuthor === 'human' ? 'yours' : 'Anansi&rsquo;s'}</span>` : ''}
           ${/* The word count is on every card, and while the card is being edited it is the editor's
                 live one instead, so the card never shows two counts that disagree. */''}
-          ${c.summary ? `<span style="margin-left:auto; font-size:11px; color:var(--faint)">covers to ${
-            c.coversThrough ?? '—'}${editing ? '' : ` &middot; ${plural(wordsIn(c.summary), 'word', 'words')}`}</span>` : ''}</div>
+          ${c.summary ? `<span style="margin-left:auto; font-size:11px; color:var(--faint)">${
+            c.coversThrough ? `up to passage ${c.coversThrough}` : ''}${editing ? '' : `${c.coversThrough ? ' &middot; ' : ''}${plural(wordsIn(c.summary), 'word', 'words')}`}</span>` : ''}</div>
         ${editing ? `<textarea data-sumtext="${c.id}" data-wordcap="${SUMMARY_WORDS}" rows="6"
             aria-label="Summary of ${esc(sceneName(c))}"
             style="width:100%; font-size:12.5px; line-height:1.5">${esc(S.editSum.text)}</textarea>
@@ -4151,11 +4159,11 @@ const PANELS = {
         <input type="checkbox" data-story="weaving" ${V.story.weaving ? 'checked' : ''}>
         Plans first${tipMark('weaving', 'Plans first')}</label>`}
 
-      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Sampling</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:22px">How she picks words</div>
       ${slider('Surprise', 'temperature', g.temperature ?? 0.85, 2,
-        'How far the model will reach for a less obvious word. Prose only — structured roles always run at 0.2, because a loose sampler under a tight grammar writes valid JSON that says nothing.')}
+        'How far Anansi reaches for a less obvious word. Only for prose: her notes and suggestions always stay steady.')}
       ${slider('Focus', 'top_p', g.top_p ?? 0.95, 1,
-        'How much of the field it considers at all. Lower is tighter and more predictable.')}
+        'How many words she considers at all. Lower is tighter and more predictable.')}
       ${slider('Passage length', 'target_words', g.target_words ?? 0, 2000,
         'Roughly how long a passage should run. Anansi aims for it and is allowed to come in under '
         + 'it — she is not cut off at it. All the way left leaves the length to her, which is how '
@@ -5334,8 +5342,8 @@ function setupPanel() {
       placeholder="${S.naming ? 'and saying where it goes…' : 'Where this scene is going, eventually'}"
       >${esc(form.note)}</textarea>
     <div class="hint">${form.note.trim()
-      ? 'Sent on every call as where the scene is going &mdash; not as a thing to do now.'
-      : '<strong>Not set.</strong> Sent on every call as where the scene is going, once it is.'}</div>
+      ? 'Anansi reads it every time she writes, as where the scene is going &mdash; not as a thing to do now.'
+      : '<strong>Not set.</strong> Once it is, Anansi reads it every time she writes, as where the scene is going.'}</div>
 
     <!-- THE OPTION TO INFLUENCE. Seth: "title and premise should be together with the option to
          influence." It was one button that took whatever came back. A steer is the difference
@@ -6434,7 +6442,7 @@ function threadRows() {
               (e.activation ?? 'always_on') === 'always_on'
                 ? 'border-color:rgba(217,178,106,.35); color:var(--gold)' : 'color:var(--dim)'}"
               title="${(e.activation ?? 'always_on') === 'always_on'
-                ? 'Sent on every call. Press to send it only on its wake words.'
+                ? 'Anansi reads it every time. Press to have her read it only on its wake words.'
                 : 'Sent only when one of its wake words appears. Press to send it on every call.'}"
               >${(e.activation ?? 'always_on') === 'always_on' ? 'Always on' : 'On a word'}</button>
             <!-- WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's
@@ -6740,7 +6748,7 @@ function resumeBand(s) {
         <!-- Silence, not a guess. The percentage arrives from its own fetch a moment after the
              page paints, and never arrives at all when the router is asleep or the request fails.
              An empty right-hand side is honest; a 0% is not. -->
-        ${pct === null ? '' : `<span class="kind" style="color:var(--label)">${pct}% full</span>`}
+        ${pct === null ? '' : `<span class="kind" style="color:var(--label)">room ${pct}% used</span>`}
       </span>
       <!-- ONE node, moved rather than duplicated. On a phone this sits over the bottom of the
            cover, which is what the design draws and what buys back the height the stacked layout
@@ -9043,7 +9051,12 @@ document.addEventListener('input', (e) => {
 // #51. The Find a model box. Searches a moment after the typing stops, and redraws only the results.
 let findTimer = null;
 document.addEventListener('input', (e) => {
-  if (e.target?.id === 'findtag') { S.find.tag = e.target.value; findRedraw(); return; }
+  if (e.target?.id === 'findtag') {
+    S.find.tag = e.target.value;
+    clearTimeout(findTimer);
+    findTimer = setTimeout(() => findSearch(), 250);
+    return;
+  }
   if (e.target?.id !== 'findq') return;
   S.find.q = e.target.value;
   clearTimeout(findTimer);
@@ -9391,7 +9404,7 @@ document.addEventListener('click', async (e) => {
     // A tag on the model page leads to Find a model, which is where the others are listed.
     if (S.panel !== 'findmodel') { S.panel = 'findmodel'; if (overlay()) S.rail = false; paint(); return; }
     if ($('findtag')) $('findtag').value = d.findtag;
-    findRedraw(); return;
+    findSearch(); return;
   }
   if (d.sumtab) { S.panel = 'chapter'; S.chapTab = 'summaries'; paint(); return; }
   if (d.chaptab) {
@@ -9783,7 +9796,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.hwkb) { setHwkb(!hwkb); drawAppearance(); return toast(hwkb
-    ? 'The caret comes back to the box on this device.' : 'The caret stays where you put it.'); }
+    ? 'Your cursor goes back to the writing box on this device.' : 'Your cursor stays where you put it.'); }
   if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
   if (d.mute) {
     V = await api.mute(S.storyId, V.currentChapter.id, d.mute, false); paint();

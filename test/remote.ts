@@ -929,6 +929,31 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('the search filters, combines, sorts non-weaving first, holds the 16k floor and the unit gate');
 }
 
+// ---- 12a. the tag index: a tag search over every model the search could show ----
+// Seth, 2026-10-25: "add the server tag index". The first answer reads what it has and starts
+// reading the rest; asked again, it has them all.
+{
+  const find = async (query: string) => {
+    const r = await routes['GET /api/catalogue'](ctx(me, {}, query));
+    assert.ok(!r.error, r.error);
+    return r;
+  };
+  const ids = (r: any) => r.models.map((m: any) => m.id.replace('featherless:', ''));
+  const first = await find('tag=roleplay');
+  assert.ok(first.tagIndex && first.tagIndex.of > 0, `TAG-INDEX: the answer says how far it has read (${JSON.stringify(first.tagIndex)})`);
+  assert.ok(!('unread' in first), 'TAG-INDEX: and the list of what is still to read stays on the server');
+  let r = first;
+  for (let i = 0; i < 60 && r.tagIndex.read < r.tagIndex.of; i++) { await new Promise((ok) => setTimeout(ok, 50)); r = await find('tag=roleplay'); }
+  assert.strictEqual(r.tagIndex.read, r.tagIndex.of, `TAG-INDEX: asked again, every candidate's tags are read (${JSON.stringify(r.tagIndex)})`);
+  assert.deepStrictEqual(ids(r).sort(), [STUBBORN, REMOTE].sort(),
+    'TAG-INDEX: the models carrying the tag, and only them');
+  assert.deepStrictEqual(ids(await find('tag=role')).sort(), [STUBBORN, REMOTE].sort(), 'TAG-INDEX: part of a tag matches');
+  const adv = ids(await find('tag=adventure'));
+  assert.ok(adv.includes(PLANS_INLINE) && !adv.includes(REMOTE), `TAG-INDEX: another tag, other models (${JSON.stringify(adv)})`);
+  assert.ok(!('tagIndex' in await find('')), 'TAG-INDEX: a search with no tag says nothing about the index');
+  ok('a tag search reads every candidate\'s tags in the background and then answers over all of them');
+}
+
 // ---- 12b. the weaving guess for the big families, from the classes Featherless really sends ----
 {
   // Every class string here is copied from the live catalogue (read 2026-10-22), with a real id

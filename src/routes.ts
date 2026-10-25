@@ -2,7 +2,7 @@
 import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
-  hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES } from './catalogue.ts';
+  hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
@@ -1314,7 +1314,7 @@ async function summarise(c: Ctx, storyId: string, chapterId?: string, replace = 
   if (ch.summary && ch.summaryAuthor === 'human' && !replace)
     return { error: 'kept your summary', kept: true, chapterId: ch.id };
   const cover = db.summaryCover(ch.id);
-  if (!cover) return { error: 'nothing to summarise' };
+  if (!cover) return { error: 'This scene has no passages yet, so there is nothing to summarise.' };
   // 280 rather than 400: 180 words is about 240 tokens, and the old headroom was room to pad in.
   const r = await chat(SUMMARY(180), cover.passages.map((p: any) => p.body).join('\n\n'),
     { model: backgroundModel(c, v), temperature: 0.2, max_tokens: 280,
@@ -1757,9 +1757,12 @@ export const routes: Record<string, Handler> = {
     const rows = await fromCatalogue(catalogue);
     if ('error' in rows) return rows;
     const q = c.query;
-    return searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
+    const { unread, ...found } = searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
       weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0',
-      cost: q.get('cost') ?? '' }, c.admin, REMOTE_PREFIX);
+      cost: q.get('cost') ?? '', tag: q.get('tag') ?? '' }, c.admin, REMOTE_PREFIX, tagsKnown);
+    // The tags a tag search could not answer for yet are read in the background; the page asks again.
+    if (unread?.length) indexTags(unread);
+    return found;
   },
   /** TAGS FOR A PAGE OF RESULTS, in one call. The search answers at once without them — reading
    *  Hugging Face for a hundred rows would make every keystroke wait on it — and the browser asks

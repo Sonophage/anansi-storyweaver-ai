@@ -831,8 +831,15 @@ export const pinIsDead = (pin, models) => !!pin && Array.isArray(models) && mode
 export const withPin = (models, pin) =>
   !pin || !Array.isArray(models) || models.some((m) => m?.id === pin.id) ? models : [...models, pin];
 
-export function modelFacts(m) {
+/** `plain` is the writer's version: words instead of tokens (about three words to four tokens), and
+ *  no sample count. The admin keeps the machine's numbers. */
+export function modelFacts(m, plain = false) {
   const bits = [];
+  if (plain) {
+    if (m?.perSlot) bits.push(`reads ~${Math.round(m.perSlot * 0.75 / 1000)}k words`);
+    if (m?.tps) bits.push(`~${Math.max(1, Math.round(m.tps * 0.75))} words a second`);
+    return bits.join(' · ');
+  }
   if (m?.perSlot) bits.push(`${Math.round(m.perSlot / 1000)}k each`);
   if (m?.tps) bits.push(`${m.tps} tok/s${m.runs < 5 ? ` (${m.runs})` : ''}`);
   return bits.join(' · ');

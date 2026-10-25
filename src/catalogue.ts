@@ -154,7 +154,7 @@ const sizeClass = (modelClass: string | null): string | null =>
 
 export type Found = { id: string; cost: number | null; context: number; weaving: Weaving;
   size: string | null };
-type Query = { text?: string; size?: string; weaving?: string; uncensored?: boolean; cost?: string };
+type Query = { text?: string; size?: string; weaving?: string; uncensored?: boolean; cost?: string; tag?: string };
 
 /** RESULTS ARE CAPPED. 778 uncensored models is a list nobody reads; a search narrows it.
  *  ponytail: a fixed cap with no paging. Ceiling: past the first 100 a writer must type more.
@@ -164,18 +164,30 @@ export const RESULT_CAP = 100;
 
 /** THE SEARCH, pure: rows in, rows out. `prefix` is handed in so the ids that leave here are the
  *  ones the shortlist takes, without this file deciding what a remote id looks like. */
-export function search(rows: CatalogueRow[], q: Query, admin: boolean, prefix: string) {
+/** `tagsOf` answers a repo's tags from the tag index, or undefined for one not read yet; it is
+ *  handed in so this stays pure. With a `tag` in the query the answer says how much of the search
+ *  the index has read (`tagIndex`), and which repos it still has to read (`unread`, for the route). */
+export function search(rows: CatalogueRow[], q: Query, admin: boolean, prefix: string,
+  tagsOf: (repo: string) => string[] | undefined = () => undefined) {
   const open = rows.filter((r) => !refusal(r, admin));
   const text = (q.text ?? '').trim().toLowerCase();
-  const found: Found[] = open
+  const tag = (q.tag ?? '').trim().toLowerCase();
+  const candidates = open
     .filter((r) => q.uncensored === false || isUncensored(r.id))
     .filter((r) => !text || r.id.toLowerCase().includes(text))
-    .map((r) => ({ id: prefix + r.id, cost: r.cost, context: r.context as number,
+    .map((r) => ({ repo: r.id, id: prefix + r.id, cost: r.cost, context: r.context as number,
       weaving: weavingGuess(r), size: sizeClass(r.modelClass) }))
     .filter((r) => !q.size || r.size === q.size.toLowerCase())
     .filter((r) => !q.weaving || r.weaving === q.weaving)
     // Units, exactly: a 1-unit model is one both writers can run at once on the shared plan.
-    .filter((r) => !q.cost || r.cost === Number(q.cost))
+    .filter((r) => !q.cost || r.cost === Number(q.cost));
+  // TAGS, over every candidate and not only a page of them: a part of a tag matches ("role" finds
+  // roleplay). A candidate whose tags are not read yet is left out and counted, so the answer can
+  // say how far the index has got.
+  const unread = tag ? candidates.filter((r) => tagsOf(r.repo) === undefined).map((r) => r.repo) : [];
+  const found: Found[] = candidates
+    .filter((r) => !tag || (tagsOf(r.repo) ?? []).some((t) => t.toLowerCase().includes(tag)))
+    .map(({ repo, ...r }) => r)
     .sort((a, b) => WEAVING.indexOf(a.weaving) - WEAVING.indexOf(b.weaving)
       || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   // The size choices come from what this writer could be shown at all, not from this search —
@@ -185,7 +197,8 @@ export function search(rows: CatalogueRow[], q: Query, admin: boolean, prefix: s
   // The unit choices likewise, from what this writer could be shown at all.
   const costs = [...new Set(open.map((r) => r.cost).filter((c): c is number => c != null))].sort((a, b) => a - b);
   // The weaving words go to the browser too, so the filter offers exactly the labels used here.
-  return { models: found.slice(0, RESULT_CAP), total: found.length, sizes, costs, weavings: WEAVING };
+  return { models: found.slice(0, RESULT_CAP), total: found.length, sizes, costs, weavings: WEAVING,
+    ...(tag ? { tagIndex: { read: candidates.length - unread.length, of: candidates.length }, unread } : {}) };
 }
 
 /* ---------- what a model is, from Hugging Face: tags, base model, the card's first paragraph ----------
@@ -273,6 +286,39 @@ async function hubInfo(repo: string): Promise<HubInfo> {
   const info = { tags: hubTags(d), base: baseOf(d) };
   infoCache.set(repo, { at: now, info });
   return info;
+}
+
+/** THE TAG INDEX. Seth, 2026-10-25: "add the server tag index". A tag search covers every model the
+ *  search could show, not only the page that was drawn, so the tags of all of them are read — in
+ *  the background, a few at a time, from the same day-long cache the rows use. A search asks again
+ *  while it reads, and the answer says how far it has got.
+ *
+ *  A repo the hub could not be reached for is held as "no tags" for ten minutes, not a day, so an
+ *  outage does not leave a hole in the index until tomorrow and does not keep it reading for ever.
+ *  ponytail: in memory, like the caches it reads from; a restart reads the tags again. Ceiling:
+ *  with uncensored-only off the candidates are the whole catalogue (about 22,000), which is hours of
+ *  reads. Upgrade: keep the index in the database. */
+export const tagsKnown = (repo: string): string[] | undefined => {
+  const hit = infoCache.get(repo);
+  return hit && Date.now() - hit.at < CATALOGUE_TTL_MS ? hit.info.tags : undefined;
+};
+const INDEX_AT_ONCE = 4;
+const indexQueue: string[] = [];
+const indexing = new Set<string>();
+let indexWorkers = 0;
+export function indexTags(repos: string[]) {
+  for (const r of repos) if (isRepo(r) && !indexing.has(r) && tagsKnown(r) === undefined) { indexing.add(r); indexQueue.push(r); }
+  while (indexWorkers < INDEX_AT_ONCE && indexQueue.length) {
+    indexWorkers++;
+    (async () => {
+      for (let r = indexQueue.shift(); r !== undefined; r = indexQueue.shift()) {
+        try { await hubInfo(r); }
+        catch { infoCache.set(r, { at: Date.now() - CATALOGUE_TTL_MS + 10 * 60_000, info: { tags: [], base: [] } }); }
+        finally { indexing.delete(r); }
+      }
+      indexWorkers--;
+    })();
+  }
 }
 
 /** HOW MANY HUB READS RUN AT ONCE for a page of result rows. A cold page of 100 rows is about

@@ -1149,7 +1149,7 @@ ok('the header names the book, and carries no reading of its own');
   assert.ok(!/width:/.test(html('ctxbar')),
     'the bar no longer fills to a percentage; the context number lives in the reading');
   assert.ok(!nodes.get('ctxbar').hidden, 'and it is shown while a story is open');
-  assert.ok(!/\d+ words|\d+% full/.test(html('bar')),
+  assert.ok(!/\d+ words|\d+% (full|used)/.test(html('bar')),
     'and the header carries neither the word count nor the percentage any more');
 
   // ALWAYS OPEN, with no press at all — Seth, 2026-09-02: "have this always visible." It used to be
@@ -1159,7 +1159,7 @@ ok('the header names the book, and carries no reading of its own');
   assert.ok(!nodes.get('ctxread').hidden, 'the reading is open with nothing pressed');
   assert.match(read, /scene 2 of 2/, 'which says which scene you are on');
   assert.match(read, /words/, 'and how many words are in it');
-  assert.match(read, new RegExp(`${pct}% full`), 'and how full the measurements are');
+  assert.match(read, new RegExp(`room ${pct}% used`), 'and how much of her room is used, in those words');
   assert.match(read, /data-panel="context"/, 'with the way through to the blocks behind it');
 
   // NO ROOM IS NOT NO BAR. A budget of zero — llama-server unreachable so the slot is unknown, or
@@ -1309,7 +1309,9 @@ ok('the bar counts chapters, and the reading is always open');
 }
 ok('the story panel is four groups behind four chips, and switching cannot lose what you typed');
 
-assert.match(html('sideBody'), /21,401 \/ 46,146/,
+// In words on screen since 2026-10-25 ("46% of her room"); the counts are kept in its tooltip.
+assert.match(html('sideBody'), />46% of her room</);
+assert.match(html('sideBody'), /21,401 of 46,146 tokens, counted by the model/,
   'the inspector shows the TOKENIZER\'s count, not the estimate — /api/manifest already paid for '
   + 'a /tokenize round trip and returned it, and PLAN-06 2a and 2d are both errors in the number '
   + 'it replaces (measured together at 1.28x).');
@@ -1344,16 +1346,17 @@ assert.match(html('sideBody'), /stale summary/, 'an omitted block must say why')
   await new Promise((r) => setTimeout(r, 40));
   click({ panel: 'context' });
   const asleep = html('sideBody');
-  assert.match(asleep, /27,401 \/ 46,146/,
+  assert.match(asleep, /27,401 of 46,146 tokens, estimated/,
     'with no tokenizer answer the estimate is what there is, and it is shown');
-  assert.match(asleep, /\(est\.\)/,
+  // "roughly" in words since 2026-10-25, where it said "(est.)".
+  assert.match(asleep, /of her room, roughly/,
     'and it is MARKED. An estimate that looks like a measurement is the surface telling the '
     + 'writer something it does not know, and 2a is exactly how wrong it can be.');
   (MANIFEST as any).exact = realExact;
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
   click({ panel: 'context' });
-  assert.ok(!/\(est\.\)/.test(html('sideBody')),
+  assert.ok(!/of her room, roughly/.test(html('sideBody')),
     'and the mark goes when the tokenizer answers again — a label that never clears is noise');
 }
 ok('an estimate is labelled as one, and the label clears when the tokenizer answers');
@@ -1392,9 +1395,9 @@ ok('what came off collapses to one row per reason, with a count');
 
 // A long book stops reaching part of itself and the app knew without saying. The bar says it now,
 // so a writer who never opens the Context panel still finds out.
-assert.match(html('bar'), /10 scenes not sent/,
+assert.match(html('bar'), /10 scenes out of reach/,
   'the bar names how many chapters the model can no longer read (1 plus the arc\'s nine)');
-assert.match(html('sideBody'), /Scenes 1&ndash;11 are past the horizon/,
+assert.match(html('sideBody'), /Scenes 1&ndash;11 are out of her reach/,
   'and the panel names which — the range, not the block count');
 assert.match(html('sideBody'), /Summaries<\/strong> gathers/, 'and what to do about it (the Summaries tab, where chapters are gathered)');
 ok('a book past its horizon says so on the bar, not only in a dimmed row');
@@ -2405,7 +2408,7 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   // The switch sits after the book's model and before the sampler: everything about what writes
   // this book in one place.
   const at = (re: RegExp) => teller.search(re);
-  assert.ok(at(/data-storymodel/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/>Sampling</),
+  assert.ok(at(/data-storymodel/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/>How she picks words</),
     'between the book\'s model and the sampler');
 
   STORY.story.weaving = true;
@@ -2447,7 +2450,7 @@ ok('the Storyteller has a Weaving switch where the thinking note was, and it sav
       const said = t.match(/<div[^>]*id="weavenote"[^>]*>([\s\S]*?)<\/div>/)?.[1]?.trim() ?? '';
       assert.strictEqual(said, note, 'WEAVE-NOTE: the panel shows the server\'s sentence, and no copy of its own');
       const at = (re: RegExp) => t.search(re);
-      assert.ok(at(/data-storymodel/) < at(/id="weavenote"/) && at(/id="weavenote"/) < at(/>Sampling</),
+      assert.ok(at(/data-storymodel/) < at(/id="weavenote"/) && at(/id="weavenote"/) < at(/>How she picks words</),
         'where the switch would be');
     }
   } finally { (STORY as any).weaveNote = was; }
@@ -2671,9 +2674,9 @@ ok('a refusal on a model that always weaves offers Write anyway and another mode
     delete (MANIFEST as any).weaveFit;
     click({ open: 's-1' });
     await new Promise((r) => setTimeout(r, 40));
-    if (!html('sideBody').includes('Measured for the next call')) click({ panel: 'context' });
+    if (!html('sideBody').includes('What she will read next time')) click({ panel: 'context' });
     await new Promise((r) => setTimeout(r, 40));
-    assert.ok(html('sideBody').includes('Measured for the next call'), 'precondition: the Context panel is open');
+    assert.ok(html('sideBody').includes('What she will read next time'), 'precondition: the Context panel is open');
     assert.ok(!html('sideBody').includes('still in view'), 'and says nothing when weaving fits');
   } finally { delete (MANIFEST as any).weaveFit; }
 }
