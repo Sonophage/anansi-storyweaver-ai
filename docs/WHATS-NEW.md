@@ -12,6 +12,20 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-24 · Longer passages, and room for a big model to plan
 
+### Plainer words after two reviews
+Some of the new words were hard to guess, so they changed again. A run of scenes gathered under
+one summary is a chapter, and its summary is a chapter summary. A bolt is a world. A fitting is a
+version. A thread the tale is done with is retired; hemmed is only for scenes now. A string the
+tale abandons is let go. You sew a basted thing in, and the message says "Sewn in." Measurements
+is What she reads, the Pattern book is Prompts to take elsewhere, Cut a new tale is New tale, and
+Back to the house cut is Reset. Spinning is Plans first. A stale summary is out of date, and the
+screen says what that means: an out-of-date scene summary is not sent until it is written again,
+and an out-of-date chapter summary is still sent. The composer says Speak and Act, and You play
+beside the name, the same words as the tale's settings. The rack has one Carry on writing button
+instead of two. Read, Look, Send, Stop and Full screen now show their names beside their icons on
+a desk or a tablet. New tips say what a world, a chapter, a version, the rack and the Workbench
+are.
+
 ### Anansi's own words, everywhere
 Anansi is a spider and a tailor, and the screens now speak her trade. A story is a tale, and your
 tales hang on the rack. A chapter is a scene; when a scene is done you hem it, and a run

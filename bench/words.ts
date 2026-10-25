@@ -36,8 +36,9 @@ export function terms(md: string): Term[] {
   return out;
 }
 
-/** Phrases that contain an avoided word and are right anyway: names of formats from elsewhere. */
-const ALLOW = ['character card'];
+/** Phrases that contain an avoided word and are right anyway: names of formats from elsewhere.
+ *  Story Cards are AI Dungeon's, named on the Import page as that app names them. */
+const ALLOW = ['character card', 'Story Cards'];
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const word = (s: string) => new RegExp(`(?<![\\p{L}\\p{N}])${esc(s)}(?![\\p{L}\\p{N}])`, 'giu');
