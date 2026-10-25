@@ -214,8 +214,9 @@ await ok('an unreachable llama-server says what to do, not "fetch failed"', asyn
   // Port 1 is privileged and nothing listens on it: a refused connection, not a timeout.
   await assert.rejects(() => reach('http://127.0.0.1:1/v1/models', {}), (e: any) => {
     assert.doesNotMatch(e.message, /^fetch failed$/, 'the bare Node message must not reach a toast');
-    assert.match(e.message, /cannot reach llama-server/);
-    assert.match(e.message, /Preferences/, 'and it must name the screen that can fix it');
+    assert.match(e.message, /not answering/);
+    // The writer's words since 2026-10-25: no server name, no address, no page that is gone.
+    assert.doesNotMatch(e.message, /llama|127\.0\.0\.1|Preferences/, 'and no machine talk on a writer screen');
     return true;
   });
 });

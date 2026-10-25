@@ -55,6 +55,10 @@ fresh() {
   # A FAKE LOCAL ROUTER, for a scenario whose first line also names `fake-router`. Every other
   # scenario reads the real router, as it always has.
   local llama="${ANANSI_LLAMA:-http://127.0.0.1:8080}"
+  # A scenario about the model being DOWN points at a port where nothing listens.
+  if head -1 "test/ui/$1.js" 2>/dev/null | grep -q '^// needs: .*\bdead-model\b'; then
+    llama="http://127.0.0.1:9"
+  fi
   if head -1 "test/ui/$1.js" 2>/dev/null | grep -q '^// needs: .*\bfake-router\b'; then
     fake router rt; RTPID=$FAKEPID
     llama="http://127.0.0.1:$FAKEPORT"
@@ -84,7 +88,7 @@ fresh() {
 # EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
 # green for a scenario nobody asked about — twice, per the old handoff notes.
 scenarios=${*:-}
-[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder marks fallback weave weavefit reroll back doors targets"
+[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder marks fallback weave weavefit reroll back doors targets down"
 # `cover` and `entrypic` are excluded too, and for a second reason: they need ANANSI_SEARCH pointing
 # at a working endpoint AND the open web. Run them by name, with that variable set on the test server.
 # `model`, `ritual` and `veil` are excluded from the default set: every step waits on a real

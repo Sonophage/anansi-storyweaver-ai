@@ -3549,7 +3549,9 @@ export const modelSpeeds = () => {
  * crediting yourself with all of it would make the one honest number on the page a lie. Counting it
  * properly means counting by PASSAGE AUTHOR rather than by book, which is a different query and a
  * different page — the shelf is where a shared book shows up. */
-export function writerStats(o: string) {
+/** `tzo` is the page's getTimezoneOffset(): minutes, positive WEST of UTC. Days are grouped on the
+ *  writer's clock with it, so an evening's writing is not filed under tomorrow. */
+export function writerStats(o: string, tzo = 0) {
   const one = (sql: string, ...a: any[]) => (q(sql).get(o, ...a) as any) ?? {};
   const words = one(`SELECT COALESCE(SUM(LENGTH(p.body) - LENGTH(REPLACE(p.body,' ','')) + 1), 0) AS n
                        FROM passages p JOIN stories s ON s.id = p.story_id
@@ -3566,11 +3568,11 @@ export function writerStats(o: string) {
   // WORDS PER DAY AS WELL AS PASSAGES. "Have I written this week" is a words question — a day
   // holding one 900-word passage and a day holding six one-liners are the same bar otherwise, which
   // is a chart that answers the wrong thing.
-  const days = q(`SELECT DATE(p.created_at/1000,'unixepoch') AS d, COUNT(*) AS n,
+  const days = q(`SELECT DATE(p.created_at/1000 - ? * 60,'unixepoch') AS d, COUNT(*) AS n,
                          COALESCE(SUM(LENGTH(p.body) - LENGTH(REPLACE(p.body,' ','')) + 1), 0) AS w
                     FROM passages p JOIN stories s ON s.id = p.story_id
                    WHERE s.owner_id = ? AND p.selected = 1 AND p.is_break = 0
-                   GROUP BY d ORDER BY d DESC LIMIT 30`).all(o) as any[];
+                   GROUP BY d ORDER BY d DESC LIMIT 30`).all(tzo, o) as any[];
   // The ledger by kind. One row per kind rather than four counting statements, and the same LIVE
   // filter the `entries` total uses — a tombstone is not a card, and the two counts disagreeing on
   // that would be a shelf that adds up to more than itself.

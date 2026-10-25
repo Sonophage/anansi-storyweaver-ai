@@ -62,7 +62,7 @@ if (prose) {
   await wait(1400);
   const err = (await page.text('#toast') || '').trim();
   ok(`clicking a prose hit does not error (${JSON.stringify(err.slice(0, 44))})`,
-     !/no such story|no such tale|cannot reach|another branch/i.test(err));
+     !/no such story|no such tale|cannot reach|not answering|another branch/i.test(err));
   ok("  and a story is open", await page.eval("!!document.getElementById('input')"));
   ok("  and exactly that passage is marked",
      (await page.eval("document.querySelectorAll('.block.found').length")) === 1);

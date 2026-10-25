@@ -746,6 +746,13 @@ function drawRail() {
   // What the strip at the foot names. `SRV.model` alone changes meaning whenever the list is read
   // again, so the strip reads `writingNow`.
   const writing = writingNow();
+  // THE DOT SAYS WHAT THE ROUTER SAID. Before the list is read, a local model is marked awake while
+  // the writer has a slot, which is what this dot said before it had a row (#53). Once the list is
+  // read, a model that is not on it is not awake: the dot was green with the router down
+  // (usability check, 2026-10-24), because the fallback still answered for a list that had come
+  // back empty.
+  const localStatus = modelsHere()?.find((m) => m.id === writing)?.status
+    ?? (S.models === null && SRV.slot ? 'loaded' : 'unloaded');
   const tail = storyMenu && V?.story?.is_world
     // A world book has no chapters to list and nothing to write in. What it has is its lore, and
     // the rail says so rather than showing an empty Chapters heading.
@@ -808,8 +815,7 @@ function drawRail() {
            marked awake while the router answers, which is what this dot said before it had a row.
            In a book, the model named is the one that WRITES it, resolved by the server with its
            pin, remote pins included; on the shelf, the writer's default. -->
-      ${runsMark(writing, modelsHere()?.find((m) => m.id === writing)?.status
-        ?? (SRV.slot ? 'loaded' : 'unloaded'))}
+      ${runsMark(writing, localStatus)}
       <span class="txt" style="display:flex; flex-direction:column; gap:2px; min-width:0">
         <span style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
           title="${esc(writing || '')}">${esc(modelName(writing).name)}</span>
@@ -822,7 +828,8 @@ function drawRail() {
         ${modelName(writing).bits.length ? `<span style="font-size:11px; color:var(--gold-dim);
           overflow:hidden; text-overflow:ellipsis">${esc(modelName(writing).bits.join(' \u00b7 '))}</span>` : ''}
         <span style="font-size:11px; color:var(--dim)">${whereRuns(writing).remote ? 'on Featherless'
-          : SRV.slot ? 'on this machine' : 'on this machine, asleep'}</span>
+          : S.modelsDown ? 'on this machine, not answering'
+          : localStatus === 'loaded' ? 'on this machine' : 'on this machine, asleep'}</span>
       </span></button>
     ${S.modelMenu ? `<div class="scroll" style="max-height:46vh; border-top:1px solid var(--line);
       padding:8px 12px 12px; display:flex; flex-direction:column; gap:2px">
@@ -1589,9 +1596,9 @@ function draftFor(chapterId) {
  *  Into `S.setup` rather than into the DOM, because the panel renders from state — ticking a
  *  character repaints it, and an answer written straight into the inputs would be thrown away by
  *  the next repaint, which is the same fault the composer's draft taught seven times. */
-async function nameChapter(chapterId) {
+async function nameChapter(chapterId, auto = false) {
   if (S.naming) return;
-  S.naming = true; drawSide();
+  S.naming = true; S.nameError = null; drawSide();
   // THE WRITER'S STEER, if there is one. Seth: "title and premise should be together with the
   // option to influence." Read off S rather than the DOM for the reason the two boxes are: this
   // runs across a repaint and the field it came from has been rebuilt by the time it returns.
@@ -1602,7 +1609,15 @@ async function nameChapter(chapterId) {
   // the title box, and the next read of it threw on `.trim()` — the panel stopped rendering at
   // all. Found by the stub DOM answering this route with {}, which is exactly what a route that
   // half-fails does.
-  if (r.error || !r.title) { drawSide(); return toast(r.error || 'nothing usable came back'); }
+  // ASKED ON ITS OWN, IT FAILS QUIETLY. The panel asks as it opens, which is straight after a hem;
+  // with the model down that toast landed on top of the hem's own report and read as the hem
+  // failing (usability check, 2026-10-24). So the reason sits under the button that asks again,
+  // and a toast is kept for the press.
+  if (r.error || !r.title) {
+    const why = r.error || 'nothing usable came back';
+    if (auto) { S.nameError = { chapterId, why }; drawSide(); return; }
+    drawSide(); return toast(why);
+  }
   // Whatever is already typed WINS. This fires on its own when both boxes are empty, and a writer
   // who started typing in the seconds it took is a writer whose words must not be replaced.
   const ch = V?.chapters.find((c) => c.id === chapterId);
@@ -2163,8 +2178,18 @@ function ritualPanel() {
       ${tipMark('ritEnd', 'Hem this scene')}</div>`}
 
     <div style="margin-top:20px">
-    ${line(closed ? '--good' : '--chip', closed ? 'Hemmed, and the next one opened' : 'Not hemmed yet',
-      closed ? '' : 'Nothing below has run.')}
+    ${(() => {
+      // NOT GREEN WHEN SOMETHING DID NOT RUN. A hem with the model down still closes the scene —
+      // each pass is wrapped so it can — and this line was green beside a red report of the passes
+      // that failed, which read as two answers (usability check, 2026-10-24). The scene IS closed,
+      // so the words say that; the colour says it is not finished.
+      const missed = closed && S.ritualPassesOf === ch.id ? missedPasses().length : 0;
+      return line(!closed ? '--chip' : missed ? '--warn' : '--good',
+        !closed ? 'Not hemmed yet' : missed
+          ? `Closed, and the next one opened — but ${missed === 1 ? 'one pass' : `${missed} passes`} did not run`
+          : 'Hemmed, and the next one opened',
+        !closed ? 'Nothing below has run.' : missed ? 'Run each again from its own line below when the model is back.' : '');
+    })()}
 
     ${line(summary ? '--good' : closed ? '--warn' : '--chip',
       // #46. "Kept" is what the close reported it did, so before a close, or after one that did not
@@ -2299,6 +2324,21 @@ function foundRow(m, act) {
 function findRedraw() {
   if ($('findhits')) $('findhits').innerHTML = findHits();
   if ($('findmine')) $('findmine').innerHTML = findMine();
+}
+
+/** The writer's shortlist, read fresh. Called by the press that opens Find a model, and by the
+ *  panel itself when it is drawn with nothing read yet: a link to `#<tale>/findmodel` opens the
+ *  panel without that press, and it said "Reading your shortlist…" for ever (usability check,
+ *  2026-10-24). */
+let SHORTLISTING = false;
+function loadShortlist() {
+  SHORTLISTING = true;
+  api.shortlist().then((r) => {
+    SHORTLISTING = false;
+    S.shortlist = r.error ? [] : (r.models ?? []);
+    if (S.panel === 'findmodel') drawSide();
+    loadTags(S.shortlist.map((m) => m.id));
+  });
 }
 
 /** The shortlist half of the Find a model panel. */
@@ -2478,6 +2518,9 @@ const PANELS = {
    *  draws what comes back. Typing redraws only the results, so the box keeps its caret. */
   findmodel() {
     const f = S.find;
+    // Opened by a link rather than the press: start what the press would have started.
+    if (S.shortlist === null && !SHORTLISTING) loadShortlist();
+    if (f.hits === null && !f.seq) findSearch(true);
     const opt =(v, l, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
     return `<div style="display:flex; flex-direction:column; gap:14px">
       <div style="display:flex; flex-direction:column; gap:6px">
@@ -5013,7 +5056,7 @@ function setupPanel() {
   const placeholder = numbered(form.title, ch.index);
   if (!S.naming && !NAMED.has(ch.id) && placeholder && !form.note.trim()) {
     NAMED.add(ch.id);
-    nameChapter(ch.id);
+    nameChapter(ch.id, true);
   }
 
   /* WHERE THE PANEL OPENS. Seth, 2026-09-01: *"the new cards landed in step 1 of the new chapter
@@ -5072,13 +5115,17 @@ function setupPanel() {
   // at the top of setup and the reason has not changed — the report is one press away rather than
   // the thing you land on. Re-ordering the panel nearly lost it: step one is SKIPPED when the close
   // proposed nothing, and the report would then have had no door anywhere in the ritual.
+  // NOT GREEN WHEN A PASS DID NOT RUN: the same rule as the report's own first line.
+  const missedHere = justClosed && S.ritualPassesOf === justClosed.id ? missedPasses().length : 0;
   const closedRow = justClosed && justClosed.id !== ch.id ? `<button data-panel="ritual" style="display:flex;
     align-items:center; gap:9px; width:100%; padding:9px 11px; margin-bottom:15px; text-align:left;
     border-radius:var(--r); border:1px solid var(--chip); background:transparent">
-    <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--good)"></span>
+    <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(${missedHere ? '--warn' : '--good'})"></span>
     <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
-      text-overflow:ellipsis; white-space:nowrap">${esc(sceneName(justClosed))} hemmed${
-      justClosed.summary ? (S.ritualKept === justClosed.id ? ', kept your summary' : ', summarised') : ''}${queue.length ? ` &middot; ${queue.length} on the workbench` : ''}</span>
+      text-overflow:ellipsis; white-space:nowrap">${esc(sceneName(justClosed))} ${missedHere
+        ? `closed &middot; ${missedHere === 1 ? 'one pass' : `${missedHere} passes`} did not run`
+        : `hemmed${justClosed.summary ? (S.ritualKept === justClosed.id ? ', kept your summary' : ', summarised') : ''}`}${
+        queue.length ? ` &middot; ${queue.length} on the workbench` : ''}</span>
     <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
       color:var(--label); opacity:.7">what it found</span></button>` : '';
 
@@ -5205,6 +5252,8 @@ function setupPanel() {
     <button class="btn ghost" data-name="${ch.id}" ${S.naming ? 'disabled' : ''} style="margin-top:7px">${
       S.naming ? 'Asking&hellip;' : (!placeholder || form.note.trim())
         ? 'Have Anansi suggest another' : 'Have Anansi name it'}</button>
+    ${S.nameError?.chapterId === ch.id && !S.naming ? `<div class="hint" style="margin:6px 0 0">Anansi could
+      not suggest a name: ${esc(S.nameError.why)}</div>` : ''}
 
     <!-- ANYONE NEW IS THE ACCENTED PRESS AND IT COMES FIRST, at Seth's direction 2026-09-01: "make
          the anyone new button the accented one and move it to the top above save and write." The
@@ -7198,13 +7247,16 @@ const WPAGES = {
            * passages, so a chart off it stands Monday next to the Friday three weeks before and
            * reads as an unbroken run — and a library whose passages share one date drew nothing at
            * all under the old `days.length > 1`. The day you did not write is the information.
-           * UTC both sides: the rows group by `unixepoch` and `toISOString()` is UTC, so the keys
-           * line up. Local time would drop or double a day at the boundary. */
+           * THE WRITER'S CLOCK both sides: the server groups by the offset `api.stats` sends, and
+           * the keys here shift by the same offset before `toISOString()`. It was UTC both sides,
+           * which agreed with itself and filed an evening's writing west of Greenwich under
+           * tomorrow — the usability check of 2026-10-24 saw "Best day" name a day not yet come. */
           const frame = (() => {
             const by = new Map(days.map((d) => [d.d, d]));
             const out = [];
             for (let i = 29; i >= 0; i--) {
-              const key = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+              const key = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 - i * 86400000)
+                .toISOString().slice(0, 10);
               const r = by.get(key);
               out.push({ d: key, n: r?.n ?? 0, w: Number(r?.w ?? 0) });
             }
@@ -7359,7 +7411,9 @@ async function loadForge() {
 async function loadLedger() {
   const r = await api.ledger();
   LEDGER = r.error ? [] : (r.entries ?? []);
-  if (S.wpage === 'canon') drawPage();
+  // drawBar too: the header's line under "Threads" counts the ledger, and said "reading…" until
+  // something else repainted the header (usability check, 2026-10-24).
+  if (S.wpage === 'canon') { drawPage(); drawBar(); }
 }
 
 async function loadStats() {
@@ -7371,6 +7425,8 @@ async function loadStats() {
 async function loadModels() {
   const r = await api.models();
   S.models = r.error ? [] : (r.models ?? []);
+  // The router did not answer at all, which the rail says in words rather than as "asleep".
+  S.modelsDown = !!r.error;
   S.allow = r.allow ?? [];
   // Whether the server holds a Featherless key: a yes or a no, never the key itself.
   S.remote = r.remote === true;
@@ -7380,6 +7436,8 @@ async function loadModels() {
   if (S.wpage === 'prefs' || S.wpage === 'stories') drawPage();
   // The model panel is not gated on a story: it is about the box, and it opens on the shelf too.
   if (S.panel === 'model' || (S.place === 'story' && S.panel === 'teller')) drawSide();
+  // The rail's model dot reads this list; it was left showing its before-the-answer guess.
+  drawRail();
   loadStats();
 }
 
@@ -9993,11 +10051,7 @@ document.addEventListener('click', async (e) => {
     S.panel = 'findmodel'; S.modelMenu = false;
     if (overlay()) S.rail = false;
     syncHash(); paint();
-    api.shortlist().then((r) => {
-      S.shortlist = r.error ? [] : (r.models ?? []);
-      if (S.panel === 'findmodel') drawSide();
-      loadTags(S.shortlist.map((m) => m.id));
-    });
+    loadShortlist();
     findSearch(true);
     return;
   }
@@ -10533,6 +10587,7 @@ document.addEventListener('click', async (e) => {
     // Kept for the report to draw, and said once here, because a writer who closed a chapter and
     // got no facts needs to know it was the model and not the chapter.
     S.ritualPasses = r.passes ?? null;
+    S.ritualPassesOf = closing.id;
     S.ritualKept = r.keptSummary ? closing.id : null;
     V = await api.story(S.storyId);
     // The panel stays on the chapter that just closed and recomputes its whole report from `V`.
@@ -10559,7 +10614,7 @@ document.addEventListener('click', async (e) => {
     const missed = missedPasses();
     // #46. A summary that was yours is kept, not re-run, and that is said rather than left silent.
     const kept = r.keptSummary ? ' Kept your summary.' : '';
-    if (missed.length) toast(`Scene hemmed, but ${missed.map((m) => m.label).join(' and ')} `
+    if (missed.length) toast(`Scene closed, but ${missed.map((m) => m.label).join(' and ')} `
       + `did not run — ${missed[0].why}${kept}`);
     else if (kept) toast('Scene hemmed — kept your summary.');
     // THE OPENING PASSAGE IS NOT WRITTEN HERE ANY MORE — see `savesetup`. The beat rides near the

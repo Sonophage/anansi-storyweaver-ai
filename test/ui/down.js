@@ -1,0 +1,70 @@
+// needs: dead-model
+// What the screens say when the model does not answer, and three pages that waited for ever.
+//
+//   bash test/ui/run.sh down
+//
+// From the usability check of 2026-10-24, run against a server with no model: the menu's model dot
+// was green, a hem with the model down showed a red report beside a green "Hemmed", a link to Find a
+// model said "Reading your shortlist…" for ever, and All threads kept "reading…" under its title.
+const B = "http://127.0.0.1:5179";
+let red = 0;
+const ok = (m, cond) => { console.log(`  ${cond ? "ok  " : "FAIL"} ${m}${cond ? "" : "   <-- broken"}`); if (!cond) red++; };
+const until = async (expr, n = 40, ms = 250) => {
+  for (let i = 0; i < n; i++) { if (await page.eval(expr)) return true; await wait(ms); }
+  return false;
+};
+
+await page.goto(B + "/");
+await wait(900);
+
+// ---- the model dot
+await page.click('#bar [data-railview="workspace"]');
+await wait(400);
+ok("the model list has been asked for", await until("!document.querySelector('#rail [data-modelmenu]') ? false : true"));
+await wait(1500);
+const dot = await page.eval("(() => { const b = document.querySelector('#rail [data-modelmenu]');"
+  + " return { awake: b?.querySelector('[data-runs]')?.dataset.awake, text: b?.textContent.replace(/\\s+/g, ' ').trim() }; })()");
+ok(`with the model down the dot is not lit (${JSON.stringify(dot)})`, dot.awake === '0');
+ok("  and the words say it is not answering", /not answering/.test(dot.text ?? ''));
+
+// ---- All threads
+await page.goto(B + "/");
+await wait(600);
+await page.eval("(() => { document.querySelector('[data-nav=\"canon\"]').click(); return 1; })()");
+await until("document.querySelectorAll('#page [data-entry]').length > 0");
+await wait(300);
+const sub = await page.eval("document.querySelector('#bar .up')?.textContent ?? ''");
+ok(`All threads says how many once it has read them (${JSON.stringify(sub)})`, /\d+ threads? across/.test(sub));
+
+// ---- Find a model, by its link
+const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find((s) => s.title === 'The Silver Key').id)()");
+await page.goto(B + "/#" + sid + "/findmodel");
+const read = await until("!!document.getElementById('findmine') && !/Reading your shortlist/.test(document.getElementById('findmine').textContent)");
+ok(`a link to Find a model reads the shortlist (${JSON.stringify(await page.eval("document.getElementById('findmine')?.textContent.trim().slice(0, 60) ?? null"))})`, read);
+
+// ---- a hem with the model down
+await page.goto(B + "/#" + sid + "/ritual");
+await until("!!document.querySelector('#sideBody [data-endchapter]')");
+const before = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).currentChapter.id)()");
+await page.eval("(() => { document.querySelector('#sideBody [data-endchapter]').click(); return 1; })()");
+await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).currentChapter.id !== ${JSON.stringify(before)})()`, 60);
+await wait(800);
+const toast = await page.eval("document.getElementById('toast')?.textContent ?? ''");
+ok(`the hem says the scene closed and what did not run (${JSON.stringify(toast.slice(0, 90))})`,
+   /closed, but .* did not run/.test(toast) && !/hemmed/i.test(toast));
+// The row at the top of the next scene's screen that names the scene just closed. It was a green
+// dot and "hemmed" beside a red report of what did not run.
+await page.eval("(() => { const b = [...document.querySelectorAll('#sideBody [data-setupstep]')].find((x) => /The next scene/.test(x.textContent)); if (b) b.click(); return !!b; })()");
+await wait(700);
+const row = await page.eval("(() => { const r = document.querySelector('#sideBody button[data-panel=\"ritual\"]');"
+  + " return r ? { text: r.textContent.replace(/\\s+/g, ' ').trim(), dot: r.querySelector('span').getAttribute('style') } : null; })()");
+ok(`the row for the closed scene does not say hemmed in green (${JSON.stringify(row?.text)})`,
+   !!row && /did not run/.test(row.text) && !/hemmed/.test(row.text) && !/--good/.test(row.dot));
+await page.click('#sideBody button[data-panel="ritual"]');
+await wait(700);
+const first = await page.eval("(() => { const d = [...document.querySelectorAll('#sideBody span')].find((x) => /next one opened/.test(x.textContent));"
+  + " return d ? { text: d.textContent.trim(), dot: d.previousElementSibling?.getAttribute('style') ?? '' } : null; })()");
+ok(`  and the report's first line says the same (${JSON.stringify(first?.text)})`,
+   !!first && /did not run/.test(first.text) && !/--good/.test(first.dot));
+
+console.log(red ? `\n  ${red} RED` : "\n  all green");

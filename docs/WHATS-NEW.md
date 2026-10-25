@@ -16,6 +16,17 @@ Everything below this line was written by that model call, before it was removed
 On a phone or a tablet, tap a passage to see Reweave, Alter, Make a thread and the rest. A line
 under the newest passage says so. A double tap still works.
 
+### Plainer when the model is not answering
+When the model on this machine does not answer, the message says so in plain words. The dot in
+the menu is no longer lit, and the line under it says "not answering". Hemming a scene with the
+model down still closes it, but the screen no longer calls it hemmed in green: it says which parts
+did not run, and each has its own button to run it again.
+
+### Small fixes
+Best day on What you have written is the day you wrote, by your own clock, not the next day. All
+threads stops saying "reading…" once it has read them. A link straight to Find a model now loads
+your shortlist.
+
 ### Easier to hit with a finger
 On a phone or a tablet every button now takes a press from a finger's width around it, even where
 it looks small: Close, the ✕ on a list, the little ? marks, the tabs on the Look sheet. The mode and

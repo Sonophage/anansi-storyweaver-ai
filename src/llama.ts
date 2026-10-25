@@ -171,12 +171,18 @@ export async function reach(url: string, init: RequestInit): Promise<Response> {
   catch (e: any) {
     // AbortSignal.timeout fires TimeoutError; a caller cancelling fires AbortError. Neither
     // means the server is missing, and saying so would send someone to restart a running one.
-    if (e?.name === 'TimeoutError')
-      throw new Error(`llama-server at ${HOST} did not answer in time. A model that was asleep can `
-        + 'take a minute to load — try again, or check Preferences.');
+    // IN THE WRITER'S WORDS. These reach a toast on a writer's screen, and they named a server, an
+    // address and a Preferences page that no longer exists (usability check, 2026-10-24). The
+    // address goes to the log, where the person who looks after the machine reads it.
+    if (e?.name === 'TimeoutError') {
+      console.error(`llama-server at ${HOST} did not answer in time (${url})`);
+      throw new Error('The model on this machine did not answer in time. If it was asleep it can '
+        + 'take a minute to wake — try again.');
+    }
     if (e?.name === 'AbortError') throw new Error('the call was cancelled');
-    throw new Error(`cannot reach llama-server at ${HOST}. It is not running, or it is still `
-      + 'starting. Preferences → Restart it.');
+    console.error(`cannot reach llama-server at ${HOST} (${url}): ${e?.message ?? e}`);
+    throw new Error('The model on this machine is not answering. It may still be starting — try '
+      + 'again in a minute. If it keeps happening, the machine needs looking at.');
   }
 }
 

@@ -1194,6 +1194,23 @@ ok('a rejected take is marked, kept, and still steppable', () => {
 // Every number on the dashboard was already in the database. This asserts they COUNT the right
 // rows — words over selected passages only, so takes you did not choose are not credited as
 // writing you did, and breaks are not counted as prose.
+// THE WRITER'S DAY, NOT GREENWICH'S. The usability check of 2026-10-24 found "Best day" naming
+// tomorrow: rows were grouped by UTC date, so an evening's writing west of Greenwich landed on the
+// next day. The page sends its offset (getTimezoneOffset: minutes, positive west of UTC).
+ok("writer stats group days by the writer's own clock", () => {
+  const o = db.owner('stats-tz');
+  const st = db.createStory(o, { title: 'Late' });
+  const p = db.addPassage({ ...st, storyId: st.id, body: 'written late at night', author: 'human' });
+  // 02:00 UTC on the 2nd is 21:00 on the 1st at UTC-5.
+  db.db.prepare('UPDATE passages SET created_at = ? WHERE id = ?').run(Date.UTC(2026, 0, 2, 2, 0), p);
+  assert.deepStrictEqual(db.writerStats(o, 300).days.map((d: any) => d.d), ['2026-01-01'],
+    'five hours west, it was the evening of the 1st');
+  assert.deepStrictEqual(db.writerStats(o).days.map((d: any) => d.d), ['2026-01-02'],
+    'with no offset given, the day is UTC as before');
+  assert.deepStrictEqual(db.writerStats(o, -600).days.map((d: any) => d.d), ['2026-01-02'],
+    'ten hours east, still the 2nd (12:00)');
+});
+
 ok('writer stats count the right rows', () => {
   const o = db.owner('stats-writer');
   const st = db.createStory(o, { title: 'Counted' });

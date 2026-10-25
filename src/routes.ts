@@ -1653,7 +1653,9 @@ export const routes: Record<string, Handler> = {
   },
 
   // Names no story on purpose: it spans them. Owner-scoped in SQL, like search and the ledger.
-  'GET /api/stats': (c: Ctx) => db.writerStats(c.owner),
+  // The page's clock offset in minutes, clamped to the offsets that exist (UTC-12 to UTC+14).
+  'GET /api/stats': (c: Ctx) => db.writerStats(c.owner,
+    Math.max(-840, Math.min(720, Math.trunc(Number(c.query.get('tzo')) || 0)))),
 
   /** Report a bug, from inside the thing that has the bug.
    *

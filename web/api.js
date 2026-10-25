@@ -241,7 +241,7 @@ export const api = {
   // #24. No refresh: docs/WHATS-NEW.md is the answer, so there is nothing to regenerate.
   whatsnew:     ()                => j('/api/whatsnew'),
   models:       ()               => j('/api/models'),
-  stats:        ()               => j('/api/stats'),
+  stats:        ()               => j('/api/stats?tzo=' + new Date().getTimezoneOffset()),
   talk:         (storyId, o)     => j('/api/talk', 'POST', { storyId, ...o }),
   bug:          (o)              => j('/api/bug', 'POST', o),
   setModel:     (model, storyId) => j('/api/model', 'POST', { model, storyId }),
