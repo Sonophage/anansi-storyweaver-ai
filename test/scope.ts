@@ -1244,12 +1244,17 @@ async function assertPortFree(port: number) {
     + `5187, 5188, 5189, 5190, 5194, 5195 and 5196 while it runs.`);
 }
 
+/* EVERY SERVER THIS SUITE SPAWNS GETS THIS, and both spawns below read it from here so they cannot
+ * drift apart. A scratch library, the other writer, a router unit that does not exist, and a model
+ * host on a port that refuses at once: `src/llama.ts` defaults to the live router on :8080. */
+const SERVER_ENV = { ANANSI_DB: '/tmp/anansi-scope.db', ANANSI_USER: 'bob',
+                     ANANSI_LLAMA: 'http://127.0.0.1:9', ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service' };
+
 async function bootServer(port: number, env: Record<string, string>) {
   await assertPortFree(port);
   const srv = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], {
     cwd: new URL('..', import.meta.url).pathname,
-    env: { ...process.env, ANANSI_PORT: String(port), ANANSI_DB: '/tmp/anansi-scope.db',
-           ANANSI_USER: 'bob', ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service', ...env },
+    env: { ...process.env, ANANSI_PORT: String(port), ...SERVER_ENV, ...env },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   let cry = '';
@@ -1492,6 +1497,15 @@ async function bootServer(port: number, env: Record<string, string>) {
     assert.strictEqual(stale.gen.temperature, 0.7, 'and the rest of the same post still lands');
 
     ok('the dispatcher itself fails closed — a real server, as the other writer');
+
+    /* THESE SERVERS NEVER REACH THE REAL MODEL. `src/llama.ts` defaults to the live router on
+     * :8080, and a suite that leaves ANANSI_LLAMA unset talks to it — during a GPU measurement
+     * that is a second caller on the slots being measured. `/api/models` asks the router for its
+     * list, so an answer with any local model in it is an answer from a real router. */
+    const listed = await (await fetch(url + '/api/models')).json();
+    assert.ok(listed.error, `a scope server reached a model router: ${JSON.stringify(listed).slice(0, 200)}`);
+    assert.ok(!listed.models.some((m: any) => m.source === 'local'), 'and lists no model from one');
+    ok('a scope server cannot reach the real model router');
   } finally { srv.kill(); }
 }
 
@@ -1601,8 +1615,7 @@ async function bootServer(port: number, env: Record<string, string>) {
   const exitOf = (env: Record<string, string>) => new Promise<number>((done) => {
     const srv = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], {
       cwd: new URL('..', import.meta.url).pathname,
-      env: { ...process.env, ANANSI_PORT: '5196', ANANSI_DB: '/tmp/anansi-scope.db',
-             ANANSI_USER: 'bob', ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service', ...env },
+      env: { ...process.env, ANANSI_PORT: '5196', ...SERVER_ENV, ...env },
       stdio: 'ignore',
     });
     // If it is still up after a second it never refused, which is the failure this asserts.
