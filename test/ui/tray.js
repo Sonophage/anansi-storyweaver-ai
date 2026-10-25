@@ -185,14 +185,14 @@ for (const [label, on, off] of [
     body: JSON.stringify({ storyId: '${sid}', mode: 'narrate',
       body: 'She set the key down on the sill and did not look at it again.' }) }); })()`);
   await page.goto(B + "/#" + sid);
-  for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('#col .carry [data-re]')")); i++) await wait(250);
+  for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('#nextbar [data-re]')")); i++) await wait(250);
   const before = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).passages.length)()`);
   const mine = await page.eval(`(async () => {
     const r = await (await fetch('/api/story?story=${sid}')).json();
     const last = r.passages.filter(p => !p.isBreak).at(-1);
     return last && last.author === 'human' ? last.id : null; })()`);
   ok(`the writer's own passage is the one at the end (${mine})`, !!mine);
-  await page.eval("(() => { document.querySelector('#col .carry [data-re]').click(); return 1; })()");
+  await page.eval("(() => { document.querySelector('#nextbar [data-re]').click(); return 1; })()");
   await wait(700);
   ok("  one press does not start a generation over it",
      !(await page.eval("!!document.getElementById('ghost')")));

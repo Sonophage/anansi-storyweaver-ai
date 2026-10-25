@@ -1,11 +1,11 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
+import { count, chat, structured, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -519,6 +519,11 @@ const promptsPayload = (owner: string) => {
 // every call rather than only at story creation. Imported below; the comment above still holds.
 
 const TALK_TOKENS = 2400;
+
+/** ✦ (#71). Three ideas of one or two sentences, about forty tokens each, plus the JSON around them.
+ *  300 is twice that and still small: the call runs on the book's own model, which may be a remote
+ *  one, and the writers share four Featherless units. */
+const IDEA_TOKENS = 300;
 
 /** One ledger entry, and it is a jumping-off point rather than a line. 700 was sized for the old
  *  prompt, which asked for a body under forty words; then sixty to a hundred and twenty; and from
@@ -3137,6 +3142,39 @@ export const routes: Record<string, Handler> = {
              proposed, sources: sources.map((x) => ({ title: x.title, url: x.url })),
              seconds: +((Date.now() - t0) / 1000).toFixed(1),
              tokens: manifest.totals.used, searchable: searchConfigured() };
+  },
+
+  /** ✦ (#71) · ANANSI'S IDEAS FOR WHAT COMES NEXT, three in one call, asked for when the writer taps
+   *  ✦ and at no other time. It writes nothing: the writer picks one, and it goes into the composer
+   *  in Direct mode, unsent.
+   *
+   *  The writer's own ask, so it follows the book's model like Talk (ADR 0001), through the same
+   *  `weaveAssemble` and `replyFor` Talk and Invent use. It is not on WEAVE_ROOM, so it is sent with
+   *  weaving off in every book and gets no room on top of its cap.
+   *
+   *  ponytail: one call and no retry. `structuredRetry` would double the cap on a cut answer, and a
+   *  small cap is the point of this call. Ceiling: a cut answer is an error and the writer taps
+   *  ✦ again. Revisit if the generation log shows `idea` rows failing as cut more than now and then. */
+  'POST /api/idea': async (c: Ctx) => {
+    const v = viewOf(c, c.body.storyId);
+    // The same six passages Talk reads. The next beat follows from the last few, not from forty.
+    const { reply, manifest, prompt } = weaveAssemble(c, v, 'idea', IDEA_TOKENS, (cap) =>
+      assemble({ ...v, passages: v.passages.slice(-6) }, slotFor(c, v, writerModel(c, v)), 'talk',
+        `The passages at the end of the material above are scene ${v.currentChapter.index}. `
+          + 'What happens next?', undefined, cap, undefined));
+    if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
+    const using = writerModel(c, v);
+    const t0 = Date.now();
+    const r = await structured(IDEA, prompt.slice(SYSTEM.length), IDEA_SCHEMA,
+      { model: using, temperature: 0.9, max_tokens: reply.maxTokens,
+        chat_template_kwargs: { enable_thinking: reply.weaves } });
+    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'idea',
+      params: wove(reply, r), manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
+    const ideas = (Array.isArray((r.data as any)?.ideas) ? (r.data as any).ideas : [])
+      .map((x: unknown) => String(x ?? '').trim()).filter(Boolean).slice(0, 3);
+    if (!ideas.length) return { error: r.data ? 'Anansi had no ideas this time. Tap ✦ again.'
+      : `Anansi's ideas did not come back whole (${r.error ?? 'nothing usable'}). Tap ✦ again.` };
+    return { ideas };
   },
 
   /** Have Anansi write one — an outfit, a place, a character, an item, a rule.

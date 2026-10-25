@@ -140,6 +140,21 @@ const page = {
     }
     await wait(260);
   },
+  /** A press held down for `ms` before it lifts: a long press on a touch surface, a held button with
+   *  a mouse. For #71's hold-to-talk on Continue. Settles like `click` afterwards. */
+  async hold(sel: string, ms = 800) {
+    const box = await page.box(sel);
+    if (touch) {
+      await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x, y: box.y }] });
+      await wait(ms);
+      await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 });
+      await wait(ms);
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 });
+    }
+    await wait(220);
+  },
   /** Become a phone: a phone-sized viewport AND a touch screen with no mouse.
    *
    *  Both halves matter and the second is the one that was missing. Every mobile bug reported so far
@@ -282,7 +297,14 @@ const page = {
 const [url, script] = process.argv.slice(2);
 try {
   await page.goto(url);
-  const run = new Function('page', 'wait', `return (async () => { ${await import('node:fs').then((f) => f.readFileSync(script, 'utf8'))} })()`);
+  // THE SCENARIOS NAME 5179, the default port, in a constant of their own. Run on another port
+  // (`ANANSI_UI_PORT`, for a second worktree) they would drive whatever server sits on 5179 — another
+  // checkout's test server, mutating its database — so the address is pointed at the one this run
+  // was given. Found 2026-10-25 with another worktree's server on 5179.
+  const origin = new URL(url).origin;
+  const text = (await import('node:fs').then((f) => f.readFileSync(script, 'utf8')))
+    .replaceAll('http://127.0.0.1:5179', origin);
+  const run = new Function('page', 'wait', `return (async () => { ${text} })()`);
   await run(page, wait);
 } finally {
   ws.close();

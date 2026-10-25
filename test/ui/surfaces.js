@@ -257,12 +257,13 @@ ok("7. Discard and Keep are gone", !dock.includes('DISCARD') && !/\bKeep\b/.test
 // Both sides asserted: gone from the chrome, present on the last passage. Only the pair fails
 // when it is added in one place and not removed from the other.
 ok("   Regenerate is off the chrome", await page.eval("!document.querySelector('#bar [data-reroll]')"));
-ok("   and on the last passage, with Continue", await page.eval(
-  "(() => { const c = document.querySelector('#col .carry');"
+// #71. They moved down again, to the three buttons at the foot of the screen, with ✦ beside them.
+ok("   and on the bar at the foot of the screen, with Continue", await page.eval(
+  "(() => { const c = document.getElementById('nextbar');"
   + " return !!c && !!c.querySelector('[data-re]') && !!c.querySelector('[data-continue]'); })()"));
-// One carry row, on the LAST passage only — one per passage is a page of buttons.
-ok("   and there is exactly one of it", await page.eval(
-  "document.querySelectorAll('#col .carry').length === 1"));
+// One of it, and none under the passages — one per passage is a page of buttons.
+ok("   and there is exactly one of it, and none in the page", await page.eval(
+  "document.querySelectorAll('[data-continue]').length === 1 && !document.querySelector('#col .carry [data-re]')"));
 
 // ---- 8. every theme has to be readable, in the chrome as well as the document. Until the raw
 // hexes came out of web/app.js the panel and the rail could not be themed at all — 162 of them,

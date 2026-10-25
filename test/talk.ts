@@ -24,6 +24,10 @@ const PREMISE = ('Aldis owes the moneylender more than he can pay. ').repeat(5).
 const VOICE = ('Short sentences, and the weather does the feeling. ').repeat(14).trim();
 // A chapter's beat, at the length its prompt asks for: three to six sentences of instruction.
 const NOTE = ('By the end the debt has to be called in. ').repeat(4).trim();
+// ✦ (#71). Three short directions for the next beat.
+const IDEAS = ['Vel finds the moneylender\'s ledger open on the stair, at his page.',
+  'The lower tiers go dark, and someone below calls her by her old name.',
+  'Aldis comes up the stair with the money, and it is not enough.'];
 
 let calls: any[] = [];
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
@@ -97,10 +101,13 @@ const srv = createServer((req, res) => {
                        keys: ['mourning', 'grey'] }
       : props.keys ? { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]',
                                   keys: ['choir', 'rust'] }
+      // ✦ (#71). Its own one-field schema, so the shape alone tells it apart.
+      : props.ideas ? { ideas: IDEAS }
       : { reply: LONG };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ choices: [{ message: { content: cut
-        ? JSON.stringify(answer).slice(0, 900)      // truncated mid-object, unparseable
+        // truncated mid-object, unparseable. Short of its close for an answer under 900 (✦'s idea).
+        ? JSON.stringify(answer).slice(0, Math.min(900, JSON.stringify(answer).length - 2))
         : JSON.stringify(answer) } }],
       usage: { prompt_tokens: 400, completion_tokens: 900 } }));
   });
@@ -932,6 +939,50 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.match(wire(), new RegExp(`Chapter 1[^\\n]*:\\n${FRESH}`),
     'a named chapter with a current summary still sends it');
   ok('a chapter named in a question sends a current summary, and says a stale one is stale');
+}
+
+// ---- ✦ (#71). Anansi's three ideas for what comes next: one small call, weaving off, writing nothing.
+//
+// The writers share four Featherless units, so the call is the smallest that does the job: the
+// book's own model, no plan, a small cap, no retry, and nothing on the page until the writer sends.
+{
+  const req = (storyId: string) => ({ body: { storyId }, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const before = db.passagesOf(story.id).length;
+  calls = [];
+  const r: any = await routes['POST /api/idea'](req(story.id));
+  assert.ok(!r.error, r.error);
+  assert.deepStrictEqual(r.ideas, IDEAS, 'IDEA-THREE: three ideas come back, as the words the model gave');
+  assert.strictEqual(calls[0].response_format?.json_schema?.schema?.properties?.ideas?.minItems, 3,
+    'IDEA-THREE: and the schema asks for exactly three');
+  assert.strictEqual(calls.length, 1, `IDEA-ONE: one call to the model, not ${calls.length}`);
+  assert.strictEqual(calls[0].chat_template_kwargs?.enable_thinking, false, 'IDEA-NOPLAN: weaving off');
+  assert.ok(Number(calls[0].max_tokens) <= 300, `IDEA-SMALL: a small cap, not ${calls[0].max_tokens}`);
+  assert.strictEqual(calls[0].model, 'Qwen3.6-WNTH-35B-A3B-NN', "IDEA-MODEL: the book's model writes it");
+  assert.match(String(calls[0].messages[1].content), /The lower tiers still pulse/,
+    'IDEA-READS: the ideas are asked from the book, its recent passages included');
+  assert.strictEqual(db.passagesOf(story.id).length, before, 'IDEA-WRITES-NOTHING: no passage is added');
+
+  // A BOOK THAT WEAVES still gets no plan for this. It is not on WEAVE_ROOM, so `replyFor` gives
+  // it no room, and a plan inside a 300-token cap is a reply with nothing in it (F5).
+  db.updateStory(story.id, { weaving: true });
+  calls = [];
+  const w: any = await routes['POST /api/idea'](req(story.id));
+  db.updateStory(story.id, { weaving: false });
+  assert.ok(!w.error, w.error);
+  assert.strictEqual(calls[0].chat_template_kwargs?.enable_thinking, false,
+    'IDEA-NOPLAN-WEAVING: a weaving book still asks for the idea with weaving off');
+  assert.ok(Number(calls[0].max_tokens) <= 300, `IDEA-SMALL-WEAVING: and no room is added (${calls[0].max_tokens})`);
+
+  // A CUT ANSWER IS NOT ASKED AGAIN. A retry would double the cap (structuredRetry), and the cap is
+  // the point of this call; the writer taps again instead.
+  breakFirst = true; calls = [];
+  const cut: any = await routes['POST /api/idea'](req(story.id));
+  breakFirst = false;
+  assert.strictEqual(calls.length, 1, `IDEA-NORETRY: a cut answer is not retried (${calls.length} calls)`);
+  assert.ok(cut.error, 'IDEA-CUT: and it says so, rather than handing back no ideas');
+  ok('✦ asks the book\'s model for three ideas in one call, weaving off, on a small cap, and writes nothing');
 }
 
 srv.close();

@@ -43,10 +43,10 @@ const fresh = async (model) => {
 const reroll = async (how, during) => {
   fs.writeFileSync(SCRIPT, JSON.stringify(how ? [how] : []));
   await page.goto(B + "/#" + sid);
-  await until("!!document.querySelector('#col .carry [data-re]')");
+  await until("!!document.querySelector('#nextbar [data-re]')");
   const before = (await story()).passages;
   const textBefore = await page.eval("document.getElementById('col').textContent");
-  await page.eval("(() => { document.querySelector('#col .carry [data-re]').click(); return 1; })()");
+  await page.eval("(() => { document.querySelector('#nextbar [data-re]').click(); return 1; })()");
   await wait(300);
   if (during) await during();
   // The take is held on the veil until the writer leaves it; a failed one takes the veil down.

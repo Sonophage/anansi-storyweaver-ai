@@ -915,12 +915,17 @@ assert.match(html('col'), /class="[^"]*\bspeak\b[^"]*"/, 'quoted prose is a spee
 
   const carries = html('col').match(/class="carry"/g) ?? [];
   assert.strictEqual(carries.length, 1,
-    `Regenerate and Continue belong to the last passage only — found ${carries.length} rows`);
+    `the line under the last passage belongs to the last passage only — found ${carries.length} rows`);
+  // #71. Reweave and Continue moved down to the three buttons at the foot of the screen, and are
+  // asserted in both places: gone from under the passage, there on the bar, naming the LAST passage.
   const carry = html('col').match(/<div class="carry">[\s\S]*?<\/div>/)?.[0] ?? '';
-  assert.match(carry, /data-re="p-5"/, 'and Regenerate must name the LAST passage, not the first');
-  assert.match(carry, /data-continue="1"/, 'and Continue must be there beside it');
+  assert.doesNotMatch(carry, /data-re=|data-continue/, 'Reweave and Continue are no longer under the passage');
+  const bar = html('dockCol').match(/<div id="nextrow">[\s\S]*?<\/div><\/div>/)?.[0] ?? '';
+  assert.match(bar, /data-re="p-5"/, 'the bar\'s Reweave must name the LAST passage, not the first');
+  assert.match(bar, /data-continue="1"/, 'and Continue must be there beside it');
+  assert.match(bar, /data-idea="1"/, 'and ✦ beside that');
 }
-ok('Regenerate and Continue sit under the last passage, once');
+ok('Reweave, Continue and ✦ sit on the bar at the foot of the screen, once');
 assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you block');
 
 /* ---- WHERE EACH PASSAGE CAME FROM, said in words as well as in a colour.
@@ -1021,8 +1026,9 @@ ok('the composer sends when the model is idle');
 // at the end of the page, and both halves of that are asserted — that it is gone from here, and
 // that it is there — because only the pair can fail when it is put back in one place and not
 // removed from the other.
-assert.doesNotMatch(html('dockCol'), /data-continue/,
-  'Continue is no longer a chip in the mode row — it belongs to the last passage');
+// #71. It is back at the bottom, on the bar of three buttons, and still not in the mode row.
+assert.doesNotMatch(html('dockCol').match(/<div id="modes">[\s\S]*?<div id="inputRow">/)?.[0] ?? 'no modes row',
+  /data-continue/, 'Continue is not a chip in the mode row');
 assert.doesNotMatch(html('dockCol'), /data-mode="continue"/, 'and it was never a selectable mode');
 // The hint names the thing you type and puts the persona in it — Seth, 2026-09-02: "the help hints
 // in the input box should be rewritten so they make sense". It read "Say it as Ilva Marren", which

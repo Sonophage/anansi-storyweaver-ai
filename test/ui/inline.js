@@ -40,7 +40,7 @@ ok(`  and it was written (${before} -> ${await models()})`, (await models()) ===
 ok("  with no tap needed to see it", await until("!document.querySelector('#send[data-stop]')", 40));
 
 // ---- a re-roll of the last passage: the new version writes where the old one was
-await page.eval("(() => { document.querySelector('.carry [data-re]').click(); return 1; })()");
+await page.eval("(() => { document.querySelector('#nextbar [data-re]').click(); return 1; })()");
 ok("a re-roll writes inline too", await until("!!document.querySelector('#col > #ghost.inlive')"));
 ok("  and the version it replaces steps aside while it does",
    (await page.eval("document.querySelectorAll('#col .block.rerolling-out').length")) === 1);

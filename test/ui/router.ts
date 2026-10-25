@@ -35,6 +35,13 @@ const srv = createServer((req, res) => {
     if (path === '/models/unload') return json({ success: true });
     if (path === '/slots') return json([]);
     const body = raw ? JSON.parse(raw) : {};
+    // ✦ (#71) asks for three ideas under a schema, and gets three the scenario can tell apart.
+    if (!body.stream && body.response_format?.json_schema?.schema?.properties?.ideas)
+      return json({ choices: [{ message: { content: JSON.stringify({ ideas: [
+        'The first fake idea: the door opens on its own.',
+        'The second fake idea: someone is already inside.',
+        'The third fake idea: the key will not turn back.'] }) }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 30 } });
     if (!body.stream) return json({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 10, completion_tokens: 1 } });
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
