@@ -2020,7 +2020,18 @@ export const keysOf = (k: unknown, cap = Infinity): string[] => {
     .slice(0, cap);
 };
 
+/** The two ways a thread reaches the model. `entries.activation` is TEXT with no CHECK, so this
+ *  list is the only thing that says so — see the floor at the top of `upsertEntry`. */
+export const ACTIVATIONS = ['always_on', 'triggered'] as const;
+
 export function upsertEntry(storyId: string, o: string, e: any) {
+  // THE ONE FLOOR FOR AN ACTIVATION (Seth, 2026-10-25: refuse anything else). The column stored
+  // whatever it was handed — test/db.ts wrote 'keyed' for weeks, which the engine read as on a word
+  // and the screen as neither. Every write of a thread crosses this function: the app's save, the
+  // copy to another tale, both importers, the paste, the wizard, accept. So the refusal is here and
+  // nowhere else. Left out (undefined or null) is the default below, which is how a partial edit
+  // has always worked. Refused is null, the same answer as any other write that did not happen.
+  if (e.activation != null && !(ACTIVATIONS as readonly unknown[]).includes(e.activation)) return null;
   const t = now();
   // Defaults once, before either branch. The update path previously had none, so a partial
   // edit bound undefined and threw at the driver instead of failing usefully.
@@ -3484,7 +3495,7 @@ export function addProposal(storyId: string, p: any) {
         // A slot this proposal aims at, or null for the card's own body. Validated here rather
         // than at each caller, so a model inventing "Motivation" cannot reach the column.
         ALL_SLOTS.includes(String(p.field ?? '')) ? String(p.field) : null,
-        p.activation === 'triggered' || p.activation === 'always_on' ? p.activation : null,
+        (ACTIVATIONS as readonly unknown[]).includes(p.activation) ? p.activation : null,
         p.target ?? null,
         hash,
         // Only http(s), and only what was handed in: a proposal's provenance must not become a

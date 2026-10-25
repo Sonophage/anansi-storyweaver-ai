@@ -425,6 +425,9 @@ export function absorb(owner: string, inc: Incoming) {
   for (const e of inc.entries.slice(0, MAX_ENTRIES)) {
     if (!clip(e.body)) continue;
     const id = db.upsertEntry(story.id, owner, { ...e, body: clip(e.body), lastEditor: 'human' });
+    // Refused by the floor in `upsertEntry` (an activation that is not one of its two words), and
+    // said in the import's own notes rather than counted as written.
+    if (!id) { inc.notes.push(`"${e.title}" was not imported: its activation is not always on or on a word.`); continue; }
     plant(story.id, id, e.outfits);
     entries++;
   }
@@ -459,6 +462,7 @@ export function merge(owner: string, storyId: string, inc: Incoming) {
     if (!clip(e.body)) continue;
     const hit = byTitle.get(String(e.title ?? '').toLowerCase());
     const id = db.upsertEntry(storyId, owner, { ...e, id: hit ?? '', body: clip(e.body), lastEditor: 'human' });
+    if (!id) { inc.notes.push(`"${e.title}" was not imported: its activation is not always on or on a word.`); continue; }
     plant(storyId, id, e.outfits);
     if (hit) updated++; else entries++;
   }

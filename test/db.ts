@@ -9,6 +9,8 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-test.db' + f); } catch {} }
 const db = await import('../src/db.ts');
+// A second handle on the same file, for writing a row the way an old one was written: past the floor.
+const { DatabaseSync: RawDb } = await import('node:sqlite');
 const slots = await import('../src/slots.ts');
 const prompts = await import('../src/prompts.ts');
 
@@ -157,6 +159,35 @@ ok('entries upsert by row existence, not by whether an id was passed', () => {
   db.upsertEntry(s.id, o, { id: 'e-fixed', title: 'A2', body: '[A]', keys: ['a'] });
   assert.strictEqual(db.entriesOf(s.id).length, 1);
   assert.strictEqual((db.entriesOf(s.id)[0] as any).title, 'A2');
+});
+// ---- AN ACTIVATION IS ONE OF TWO WORDS, refused otherwise (2026-10-25). The column is TEXT with
+// no CHECK, so for its whole life it stored whatever it was handed: this file wrote 'keyed' twice,
+// and the engine read that as on a word, the screen as neither. The floor is `upsertEntry`, the
+// one function every write of a thread crosses, so the copy and the importers are asserted
+// THROUGH it here rather than given guards of their own.
+ok('an activation that is not always_on or triggered is refused, by every path that writes one', () => {
+  const s3 = db.createStory(o, { title: 'Activations', premise: 'p' }) as any;
+  const s4 = db.createStory(o, { title: 'Elsewhere', premise: 'p' }) as any;
+  const count = (sid: string) => db.entriesOf(sid).length;
+  assert.strictEqual(db.upsertEntry(s3.id, o, { title: 'Keyed', body: '[Keyed]', activation: 'keyed', keys: ['k'] }), null,
+    'a word that is not one of the two is refused');
+  assert.strictEqual(count(s3.id), 0, 'and nothing is written');
+  for (const ok2 of ['always_on', 'triggered', undefined, null])
+    assert.ok(db.upsertEntry(s3.id, o, { title: `T ${ok2}`, body: '[T]', activation: ok2, keys: ['t'] }),
+      `${ok2} is written (left out means the default)`);
+  // An update that names a bad word leaves the row as it was.
+  const id = db.upsertEntry(s3.id, o, { title: 'Kept', body: '[Kept]', activation: 'triggered', keys: ['kept'] })!;
+  assert.strictEqual(db.upsertEntry(s3.id, o, { id, title: 'Kept', body: '[Kept]', activation: 'off' }), null);
+  assert.strictEqual((db.entriesOf(s3.id) as any[]).find((e) => e.id === id).activation, 'triggered',
+    'and a refused update changes nothing');
+  // The copy crosses the same floor: a row that holds a bad word (written past the floor, as old
+  // rows were) is refused on its way into another tale rather than carried there.
+  const raw = new RawDb(db.FILE);
+  raw.prepare("UPDATE entries SET activation = 'sometimes' WHERE id = ?").run(id);
+  raw.close();
+  assert.strictEqual(db.copyEntry(s3.id, s4.id, o, id), null, 'a copy of a bad row is refused');
+  assert.strictEqual(count(s4.id), 0, 'and lands nothing in the other tale');
+  db.delStory(s3.id); db.delStory(s4.id);
 });
 // ---- DELETING A CHAPTER, AND DELETING EVERYTHING BELOW A PASSAGE. Seth, 2026-08-30: "we also
 // need a delete chapter and a way to delete anything after a specific answer", "deletion is
@@ -2684,7 +2715,7 @@ ok('a book copies whole, and the copy shares nothing with the original', () => {
 
   // The ledger: two cards, a room, a connection, a pin, a state, a retirement, a string, an arc.
   const courier = db.upsertEntry(src.id, me, { title: 'Ferran', body: 'Carries what cannot wait.',
-    activation: 'keyed', keys: ['Ferran'] })!;
+    activation: 'triggered', keys: ['Ferran'] })!;
   const road = db.upsertEntry(src.id, me, { title: 'The Salt Road', body: 'Nine days of white.',
     activation: 'always_on' })!;
   // The two columns nothing in the app writes — see the header. Driven here so the comparison
@@ -2795,7 +2826,7 @@ ok('a book copies whole, and the copy shares nothing with the original', () => {
   // ---- 3. AND NOTHING JOINS THEM. This is the ask, and it is the thing a branch cannot give.
   const ferran = (story: string) => (db.entriesOf(story) as any[]).find((e) => e.title === 'Ferran');
   db.upsertEntry(copy.id, me, { id: ferran(copy.id).id, title: 'Ferran',
-    body: 'Carries nothing any more.', activation: 'keyed', keys: ['Ferran'] });
+    body: 'Carries nothing any more.', activation: 'triggered', keys: ['Ferran'] });
   assert.match(ferran(src.id).body, /cannot wait/,
     'editing a thread in the copy must not reach the original — on a branch it would have');
   assert.match(ferran(copy.id).body, /nothing any more/, 'and the edit landed where it was made');
