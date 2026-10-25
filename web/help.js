@@ -13,20 +13,23 @@
 export const HELP = {
   threads: {
     title: 'Threads',
-    body: `<p>What the model is told is true. A thread is a fact that stays true: who someone is,
-      what a place is, a rule the tale runs on.</p>
+    body: `<p>A thread is a fact that stays true. A string is a promise the tale has to keep.</p>
+      <p>Threads are what the model is told is true: who someone is, what a place is, a rule the
+      tale runs on. A pocket is a named part of a thread, such as an outfit, that you switch on
+      or off. A retired thread is one the tale is done with: it stops reaching the model.</p>
       <p><strong>Always on</strong> reaches every call. <strong>On a word</strong> arrives only when
       one of its wake words appears in what you are writing.</p>
       <p>A character lying is not a fact.</p>`,
   },
   strings: {
     title: 'Strings',
-    body: `<p>A promise the tale has made and not kept: something set up that must pay off later.</p>
+    body: `<p>A thread is a fact that stays true. A string is a promise the tale has to keep:
+      something set up that must pay off later.</p>
       <p>What makes it a string rather than a thread is that it is unresolved.
       <em>Aldis owns a letter</em> is a thread. <em>Aldis has not opened the letter</em> is a string.</p>
       <p>A string is yours alone until you summon it. Summoned, the model is told what is owed
       &mdash; and told not to resolve it yet. A string the tale keeps is tied off; one it abandons
-      is snipped.</p>`,
+      is let go.</p>`,
   },
   states: {
     title: 'Threads over time',
@@ -69,19 +72,21 @@ export const HELP = {
     body: `<p>A long tale does not fit, and pretending otherwise is how a model forgets scene
       three.</p>
       <p>Scenes are summarised as they are hemmed. When the space runs out the oldest summaries stop
-      being sent, and the bar says how many. A <strong>panel</strong> rolls a run of scenes into
-      one summary, which is how the early tale keeps reaching the model at scene forty.</p>`,
+      being sent, and the bar says how many. A <strong>chapter</strong> is a run of scenes gathered
+      together: its one chapter summary is sent in place of theirs, which is how the early tale
+      keeps reaching the model at scene forty.</p>`,
   },
   context: {
-    title: 'Measurements',
-    body: `<p>What actually reached the model on the last call, in order, and what came off.</p>
+    title: 'What she reads',
+    body: `<p>What the model reads for the next passage, in order, and what was left out.</p>
       <p>The percentage is of the space one writer has, not of the tale. A row that was left out says why.</p>`,
   },
   anansi: {
     title: 'Anansi',
     body: `<p>She has kept every thread of the tale and can be asked about it. She answers from the
       threads, the scene summaries and the recent passages, and she names what she drew on.</p>
-      <p>She bastes and never writes. A thread she offers waits under This scene until you weave it
-      in; a directive she writes lands in the composer unsent.</p>`,
+      <p>She bastes and never writes. Basted means suggested and not yet in the tale: a thread she
+      offers waits on the Workbench until you sew it in; a directive she writes lands in the
+      composer unsent.</p>`,
   },
 };

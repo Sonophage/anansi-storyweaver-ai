@@ -787,7 +787,7 @@ ok('a stale summary is excluded and says why', () => {
   const m = buildContext(i, count);
   const e = m.blocks.find((b) => b.kind === 'EARLIER')!;
   assert.strictEqual(e.state, 'omitted', 'a stale summary must not reach the prompt');
-  assert.match(e.reason, /stale/);
+  assert.match(e.reason, /out of date/, 'and the reason the writer reads says out of date');
   assert.ok(!render(m).includes('Aldis borrows'), 'and must not survive into the rendered prompt');
 });
 

@@ -1509,7 +1509,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.match(always.weaveFit.message, /32,768 tokens/, 'and names the model\'s limit');
   // Turning weaving off cannot help a model that always weaves, so it is never offered.
   assert.strictEqual(always.weaveFit.alwaysWeaves, true, 'ALWAYS-WEAVES: the refusal says the model always weaves');
-  assert.doesNotMatch(always.weaveFit.message, /turn spinning off/i, 'ALWAYS-WEAVES: and never offers to turn weaving off');
+  assert.doesNotMatch(always.weaveFit.message, /turn Plans first off/i, 'ALWAYS-WEAVES: and never offers to turn weaving off');
   assert.match(always.weaveFit.message, /use another model for this tale, or write anyway/i,
     'ALWAYS-WEAVES: it offers another model, or writing anyway');
   assert.strictEqual(remote.weaveFit.alwaysWeaves, false, 'the control: a book weaving by its switch is not marked so');
@@ -1547,13 +1547,13 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const moved = await set({ model: HARB });
   assert.strictEqual(moved.story.weaving, false, 'MOVE-CLEARS: the book\'s weaving is turned off');
   assert.strictEqual(db.getStory(book.id)?.weaving, 0, 'MOVE-CLEARS: and stored off');
-  assert.match(String(moved.toast), /spinning is off/i, `MOVE-CLEARS: and the writer is told: ${moved.toast}`);
-  assert.doesNotMatch(String(moved.toast), /think|reason|plan/i, 'in the writer\'s words');
+  assert.match(String(moved.toast), /Plans first is off/i, `MOVE-CLEARS: and the writer is told: ${moved.toast}`);
+  assert.doesNotMatch(String(moved.toast), /think|reason|spin|weav/i, 'in the writer\'s words');
   const stay = await set({ model: HARB });
   assert.strictEqual(stay.toast, undefined, 'MOVE-CLEARS: a save that clears nothing says nothing');
   const v = await routes['GET /api/story'](ctx(w, {}, `story=${book.id}`));
   assert.strictEqual(v.model, HARB, 'the detector: the book is written by the refusing model');
-  assert.match(String(v.weaveNote), /can't be asked to spin/, 'NO-SWITCH: the view says this book\'s model cannot be asked to weave');
+  assert.match(String(v.weaveNote), /can't be asked to plan first/, 'NO-SWITCH: the view says this book\'s model cannot be asked to weave');
   assert.strictEqual(v.weaves, false, 'NO-SWITCH: so a book switched to it does not weave');
 
   // Writing: a streamed passage, a waited-for one, and Talk. Each is one call, without the field.
@@ -1586,11 +1586,11 @@ const mark = () => ({ fl: fl.length, local: local.length });
   await set({ weaving: false });
   await set({ model: HARB });
   await assert.rejects(set({ weaving: true }), (e: any) => e.code === 400
-    && /can't be asked to spin/.test(e.message) && !/think|reason|plan/i.test(e.message),
+    && /can't be asked to plan first/.test(e.message) && !/think|reason|spin|weav/i.test(e.message),
     'NO-SWITCH: weaving cannot be turned on for a book whose model cannot take the switch');
   assert.strictEqual(db.getStory(book.id)?.weaving, 0, 'and the switch stays off');
   await assert.rejects(routes['POST /api/story'](ctx(w, { id: book.id, story: { model: HARB, weaving: true } })),
-    /can't be asked to spin/, 'nor in the same save that picks the model');
+    /can't be asked to plan first/, 'nor in the same save that picks the model');
   ok('a model whose template refuses the switch is added, writes without the field, and cannot weave');
 }
 
@@ -1620,7 +1620,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(v.model, Y, 'the detector: the book is written by the model');
   assert.strictEqual(db.takesSwitch(Y), false, 'the detector: the call path sends it no switch');
   assert.strictEqual(v.weaves, false, 'ONE-READER: so the book does not weave, by the same fact the call reads');
-  assert.match(String(v.weaveNote), /can't be asked to spin/, 'ONE-READER: and the Storyteller says it cannot');
+  assert.match(String(v.weaveNote), /can't be asked to plan first/, 'ONE-READER: and the Storyteller says it cannot');
 
   // A model that refuses the switch AND always plans: it weaves, the count shows, and the Storyteller
   // says it always weaves rather than that it cannot.
@@ -1630,7 +1630,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   db.updateStory(forced.id, { model: Z });
   const fv = await routes['GET /api/story'](ctx(a, {}, `story=${forced.id}`));
   assert.strictEqual(fv.weaves, true, 'ALWAYS-NO-SWITCH: a model that always plans weaves');
-  assert.strictEqual(fv.weaveNote, 'This model always weaves.', 'ALWAYS-NO-SWITCH: and the Storyteller says so');
+  assert.strictEqual(fv.weaveNote, 'This model always plans first.', 'ALWAYS-NO-SWITCH: and the Storyteller says so');
   // Moving a weaving book onto it: the book still weaves, so nothing says weaving went off, and the
   // switch is left as the writer set it for the next model.
   const W = 'featherless:someone/Takes-Switch-24B';
@@ -1652,7 +1652,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const lv = await routes['GET /api/story'](ctx(a, {}, `story=${labelled.id}`));
   assert.strictEqual(lv.model, L, 'the detector: the book is written by the model');
   assert.strictEqual(lv.weaves, true, 'LABEL-LATEST: the latest add says the model always weaves, so the book weaves');
-  assert.strictEqual(lv.weaveNote, 'This model always weaves.', 'LABEL-LATEST: and the Storyteller says so');
+  assert.strictEqual(lv.weaveNote, 'This model always plans first.', 'LABEL-LATEST: and the Storyteller says so');
   // And back: the latest add is the owner's own again, so the model can switch and this book's
   // switch, off, decides.
   await tick(); db.addToShortlist(a, L, 32768, 'can switch', 1, true);

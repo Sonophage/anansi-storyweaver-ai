@@ -9,7 +9,7 @@
 // an instruction. That difference is the one people get wrong, so the placeholders say it.
 /* THE HINT SAYS WHAT GOES IN THE BOX. Seth, 2026-09-02: "the help hints in the input box should be
  * rewritten so they make sense". Two of them did not: "Say it as Wren Halloway" is the dial's job
- * now that the dial reads Speaking As and her name is beside it, and "What Wren Halloway do" was
+ * now that the dial reads Speak and her name is beside it, and "What Wren Halloway do" was
  * ungrammatical for every value the field has ever held except the word `you` — the name is third
  * person and the verb was written for the second. Each one is a phrase for the thing you type,
  * and the two that take a name have a form for the name and a form for yourself. */
@@ -350,8 +350,8 @@ export const BLURB = {
   'Artemis 1.1': 'The same Gemma 4 base, decensored by roleplay finetune rather than by ablation '
     + '— it is on the box so that the method is the only variable between the two. Best '
     + 'register match in the 2026-08-27 bakeoff.',
-  'GLM 4.7 Flash': 'A model that spins, and honours enable_thinking:false, the switch that stops it, verified on this box '
-    + '2026-08-26. Left spinning, it returned 3,741 characters of plan and empty prose to a '
+  'GLM 4.7 Flash': 'A model that plans first, and honours enable_thinking:false, the switch that stops it, verified on this box '
+    + '2026-08-26. Left planning, it returned 3,741 characters of plan and empty prose to a '
     + 'two-sentence ask. Anansi sends the switch on every call.',
   'Ornith 1.0': 'The same architecture and quant as Qwen3.6, abliterated rather than finetuned, '
     + 'carried as the controlled test where ablation is the only variable. Ablation removes '
@@ -368,7 +368,7 @@ export const BLURB = {
   'Qwen3.8': 'A HauhauCS uncensored finetune rather than an ablation. 27.8B dense, so every '
     + 'parameter moves per token: 12.7 tok/s measured against Qwen3.6’s 51.9. It earns its '
     + 'place on vision and on a newer base, never on throughput.',
-  'Huihui ThinkingCap': 'An abliterated Qwen3.6 27B with speculative decoding. It spins in the '
+  'Huihui ThinkingCap': 'An abliterated Qwen3.6 27B with speculative decoding. It plans in the '
     + 'open, and enable_thinking:false is UNTESTED on this architecture — which for prose '
     + 'is the difference between a passage and nothing at all.',
 };

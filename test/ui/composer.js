@@ -36,7 +36,7 @@ for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
   ok(`  and both thread doors are on one dial beside the modes (${row && row.labels})`,
      !!row && /Threads/.test(row.labels) && /View Threads/.test(row.labels)
      && /Add Threads/.test(row.labels));
-  ok("  with the four modes on a dial of their own", !!row && /Speaking As/.test(row.labels)
+  ok("  with the four modes on a dial of their own", !!row && /Speak/.test(row.labels)
      && /Narrate/.test(row.labels));
   ok("  with Anansi no longer among them", !!row && !/Anansi/.test(row.labels));
 }

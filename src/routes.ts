@@ -145,13 +145,13 @@ const canWeave = (c: Ctx, v: { story: any; owner?: string }) => db.takesSwitch(w
 
 /** What the writer is told when this book's model cannot take the switch: in the Storyteller, where
  *  the switch would be, and when weaving is turned on for such a book anyway. */
-const CANNOT_WEAVE = "This tale's model can't be asked to spin, so spinning can't be turned on for "
-  + 'this tale. Pick a model that can, and turn it on then.';
+const CANNOT_WEAVE = "This tale's model can't be asked to plan first, so Plans first can't be turned on "
+  + 'for this tale. Pick a model that can, and turn it on then.';
 
 /** What the Storyteller shows in place of the Weaving switch, or null when the switch is drawn. A
  *  model that always weaves says so first, because it does weave, whether or not it takes the switch. */
 const weaveNote = (c: Ctx, v: { story: any; owner?: string }) =>
-  alwaysWeaves(c, v) ? 'This model always weaves.' : canWeave(c, v) ? null : CANNOT_WEAVE;
+  alwaysWeaves(c, v) ? 'This model always plans first.' : canWeave(c, v) ? null : CANNOT_WEAVE;
 
 /** A CALL'S REPLY CAP, AND WHETHER IT WEAVES, decided here and nowhere else.
  *
@@ -190,9 +190,9 @@ const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
  *  the way on it names is another model for the book, the button the client draws in its place. */
 export const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }, tokens: number,
                       limit: number | null, always = false) => {
-  const room = `Spinning sets aside ${tokens.toLocaleString('en')} tokens for Anansi to spin in`;
+  const room = `Plans first sets aside ${tokens.toLocaleString('en')} tokens for Anansi to plan in`;
   const own = limit != null && `${limit.toLocaleString('en')} tokens, this tale's model's own limit`;
-  const off = always ? 'Use another model for this tale' : 'Turn spinning off for this tale';
+  const off = always ? 'Use another model for this tale' : 'Turn Plans first off for this tale';
   if (fit.overflows) return `${room}, and what this tale sends would not fit beside them${
     own ? ` in the ${own}` : ''}. ${off} to write.`;
   const of = (kind: string) => fit.drops.filter((b) => b.kind === kind);
@@ -1289,7 +1289,7 @@ async function retire(c: Ctx, storyId: string, chapterId?: string) {
     if (db.addProposal(v.id, {
       kind: 'retire', entryType: 'retire', entry_id: who.id, chapterId: ch.id, title: who.title,
       body: String(f.quote ?? '').trim() || 'done with by this scene',
-      delta: `Hemmed: stops reaching the model from scene ${at}`,
+      delta: `Retired: stops reaching the model from scene ${at}`,
       keys: [String(at)],
     })) proposed++;
   }
@@ -1951,7 +1951,7 @@ export const routes: Record<string, Handler> = {
     // PREVENT, one book further out. Refused by name rather than explained afterwards.
     const needs = db.followersOf(String(c.body.id ?? ''));
     if (needs.length) return { error: `${needs.map((x: any) => x.title).join(' and ')} `
-      + `${needs.length === 1 ? 'follows' : 'follow'} this bolt's threads. Point ${
+      + `${needs.length === 1 ? 'follows' : 'follow'} this world's threads. Point ${
         needs.length === 1 ? 'it' : 'them'} somewhere else first, and it can go.` };
     db.delStory(c.body.id, c.owner);
     return { ok: true, moved };
@@ -2196,7 +2196,7 @@ export const routes: Record<string, Handler> = {
   /** A world book. Just the cards: no prose is ever written in it, and it stays off the shelf. */
   'POST /api/world': (c: Ctx) => {
     const title = String(c.body.title ?? '').trim();
-    if (!title) return { error: 'a bolt needs a name' };
+    if (!title) return { error: 'a world needs a name' };
     const made = db.createWorld(c.owner, { title, premise: c.body.premise ?? '' });
     return { id: made.id };
   },
@@ -2247,7 +2247,7 @@ export const routes: Record<string, Handler> = {
       && !alwaysWeaves(c, after);
     db.updateStory(c.body.id, cleared ? { ...c.body.story, weaving: false } : c.body.story);
     return { ...viewOf(c, c.body.id),
-      ...(cleared ? { toast: "Spinning is off for this tale now: its new model can't be asked to spin." } : {}) };
+      ...(cleared ? { toast: "Plans first is off for this tale now: its new model can't be asked to plan first." } : {}) };
   },
   'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c, c.body.storyId); },
 
@@ -2939,7 +2939,7 @@ export const routes: Record<string, Handler> = {
   'POST /api/entry/relink': (c) => {
     const r = db.relinkEntry(String(c.body.storyId), c.owner, String(c.body.entryId ?? ''),
       c.body.keep === 'mine' ? 'mine' : 'theirs');
-    if (!r) return { error: 'that thread has no bolt to go back to — the original is gone, so this '
+    if (!r) return { error: 'that thread has no world to go back to — the original is gone, so this '
       + 'copy is the only one left' };
     return { ...r, ...viewOf(c, c.body.storyId) };
   },
@@ -3990,15 +3990,15 @@ export const routes: Record<string, Handler> = {
     const v = viewOf(c, c.body.storyId);
     const from = Number(c.body.from), to = Number(c.body.to);
     const run = v.chapters.filter((ch) => ch.index >= from && ch.index <= to && summaryReaches(ch));
-    if (run.length < 2) return { error: 'two summarised scenes are needed to roll into a panel' };
+    if (run.length < 2) return { error: 'two summarised scenes are needed to gather into a chapter' };
     const already = (v.arcs ?? []).some((a: any) => a.fromChapter <= to && a.toChapter >= from);
-    if (already) return { error: 'those scenes are already inside a panel' };
+    if (already) return { error: 'those scenes are already inside a chapter' };
     const text = run.map((ch) => `Chapter ${ch.index} — ${ch.title}: ${ch.summary}`).join('\n\n');
     const r = await chat(ARC(from, to, 220), text,
       { model: backgroundModel(c, v), temperature: 0.2, max_tokens: 500,
         chat_template_kwargs: { enable_thinking: false } });
     const summary = clean(r.prose);
-    if (!summary) return { error: 'the panel came back with nothing usable' };
+    if (!summary) return { error: 'the chapter summary came back with nothing usable' };
     db.addArc(v.id, { branchId: v.branchId, fromChapter: from, toChapter: to,
       title: `${run[0].title} to ${run.at(-1)!.title}`, summary });
     return { summary, ...viewOf(c, v.id) };
@@ -4008,10 +4008,10 @@ export const routes: Record<string, Handler> = {
    *  heading with nothing under it. An empty title is no title, and the card shows the chapters. */
   'POST /api/arc': (c) => {
     const summary = String(c.body.summary ?? '').trim();
-    if (!summary) return { error: 'A panel cannot be empty. To remove it, press ✕ on it.' };
+    if (!summary) return { error: 'A chapter summary cannot be empty. To remove the chapter, press ✕ on it.' };
     const title = String(c.body.title ?? '').trim() || null;
     if (!db.updateArc(c.body.storyId, String(c.body.id ?? ''), title, summary))
-      return { error: 'that panel is not in this tale' };
+      return { error: 'that chapter is not in this tale' };
     return viewOf(c, c.body.storyId);
   },
   'DELETE /api/arc': (c) => { db.delArc(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },

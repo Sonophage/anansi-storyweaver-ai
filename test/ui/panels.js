@@ -34,7 +34,7 @@ ok("  and Trajectory, What the chapter added and Branches are no longer rows of 
 // ---- 2. every row opens a panel with content in it. A nav row pointing at a panel that no
 // longer exists renders an empty tray, which is exactly what a rename gets wrong.
 for (const [k, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['threads', 'Threads'],
-                          ['context', 'Measurements'], ['search', 'Prose search'], ['teller', 'Storyteller']]) {
+                          ['context', 'What she reads'], ['search', 'Prose search'], ['teller', 'Storyteller']]) {
   await page.click(`[data-nav="${k}"]`);
   await wait(500);
   const body = (await page.text('#sideBody') || '').replace(/\s+/g, ' ').trim();
@@ -246,11 +246,11 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await page.click('[data-chaptab="summaries"]');
   await wait(300);
   const card = () => page.eval(`document.querySelector('[data-sumcard="${made.first}"]')?.textContent ?? ''`);
-  ok('the older card says its summary is stale', /Stale/.test(await card()));
+  ok('the older card says its summary is out of date', /Out of date/.test(await card()));
   // THE NOTE, NOT THE CARD. The card's own Summarise again and Edit buttons match both words, so
   // reading the whole card passed with the old "until it is re-run" note in place.
   const note0 = await page.eval(`[...document.querySelectorAll('[data-sumcard="${made.first}"] .hint')]
-    .map((h) => h.textContent).find((t) => /Stale/.test(t)) ?? ''`);
+    .map((h) => h.textContent).find((t) => /Out of date/.test(t)) ?? ''`);
   ok(`  and that summarising it again or editing it brings it back (${note0})`,
      /summari[sz]ed? again/i.test(note0) && /alter/i.test(note0));
   const btn = await page.eval(`document.querySelector('[data-sumcard="${made.first}"] [data-summarize]')?.textContent.trim() ?? null`);
@@ -274,13 +274,13 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   ok(`  and asks first (${JSON.stringify(said)})`,
      said === "Press again — this replaces your summary with Anansi's.");
   await pressAgain();
-  for (let i = 0; i < 20 && /Stale/.test(await card()); i++) await wait(250);
+  for (let i = 0; i < 20 && /Out of date/.test(await card()); i++) await wait(250);
   const asked = await page.eval('window.__sumAsked ?? null');
   const replace = await page.eval('window.__sumReplace ?? null');
   await page.eval('(() => { if (window.__realFetch) window.fetch = window.__realFetch; return 1; })()');
   ok(`the second press sends that card's chapter (${asked === made.first ? 'its own' : asked})`, asked === made.first);
   ok(`  and asks to replace yours (${replace})`, replace === true);
-  ok('  and the stale note goes', !/Stale/.test(await card()) && /rings twice/.test(await card()));
+  ok('  and the out-of-date note goes', !/Out of date/.test(await card()) && /rings twice/.test(await card()));
 }
 
 // ---- 3b4. Anansi's summary still re-runs on ONE press (#46): the guard is for yours only. The
@@ -625,7 +625,7 @@ ok(`  and so is the reading — the header names the book (${JSON.stringify(bar.
 // The label became "This chapter" on 2026-09-02 — Chapter and Chapters differed by one letter on a
 // rail read at 11px. The KEYS did not move, which is the whole reason these three old links still
 // land: what a retired name maps onto is a key, not a word.
-for (const [old, now] of [['inspector', 'Measurements'], ['cast', 'Threads'],
+for (const [old, now] of [['inspector', 'What she reads'], ['cast', 'Threads'],
                           ['traj', 'This scene'], ['queue', 'This scene'],
                           ['branches', 'This scene']]) {
   await page.goto(B + "/#" + sid + "/" + old);
@@ -1166,7 +1166,7 @@ await page.click('[data-nav="prefs"]');
 for (let i = 0; i < 60 && !/What you have written/.test(await page.text('#page') || ''); i++) await wait(250);
 const prefs = (await page.text('#page') || '').replace(/\s+/g, ' ');
 ok("Preferences reports what you have written", /What you have written/.test(prefs));
-for (const label of ['Words', 'Passages', 'Tales', 'Threads', 'Fittings not chosen', 'Calls to the model'])
+for (const label of ['Words', 'Passages', 'Tales', 'Threads', 'Versions not chosen', 'Calls to the model'])
   ok(`  ${label}`, new RegExp(label).test(prefs));
 ok(`  and splits passages between you and Anansi (${JSON.stringify((prefs.match(/Passages[^A-Z]{0,40}/) ?? [""])[0].trim())})`,
    /yours/.test(prefs) && /Anansi/.test(prefs));
@@ -1203,7 +1203,7 @@ for (let i = 0; i < 40; i++) {
   await wait(300);
 }
 const made = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s => s.title === 'A Blank Beginning'))()");
-ok("Cut the tale makes it with what you typed", !!made);
+ok("Start the tale makes it with what you typed", !!made);
 ok(`  keeping the genre (${JSON.stringify(made?.genre ?? '')})`, /fantasy/.test(made?.genre ?? ''));
 ok("  and opens it", await page.eval("!!document.getElementById('input')"));
 
@@ -1480,7 +1480,7 @@ if (pick) {
 await page.goto(B + "/#" + sid3 + "/chapter");
 await wait(900);
 const acts = (await page.text('#sideBody') || '');
-ok("the Chapter panel has a Panels section", /Panels/.test(acts));
+ok("the This scene drawer has a Chapters section", /Chapters/.test(acts));
 ok("  and says why one is wanted", /at scene 120|do not fit/i.test(acts));
 // The seed story has no summaries, so the honest state is "there is nothing to roll up yet"
 // rather than a button that would fail.
@@ -1590,7 +1590,7 @@ await wait(900);
 {
   const body = (await page.text('#sideBody')) || '';
   ok("Strings is a panel of its own", /A new string/i.test(body) && /Owed|Nothing owed/i.test(body));
-  ok("  and what a string IS is still one press away", /promise the tale has made and not kept/i.test(body));
+  ok("  and what a string IS is still one press away", /promise the tale has to keep/i.test(body));
 }
 await page.eval(`(() => {
   document.querySelector('[data-st2="title"]').value = 'The letter he has not opened';
@@ -1689,7 +1689,7 @@ await wait(500);
 ok("  tapping one fills the box",
    (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
 ok("  and does not send it — no answer, nothing waiting",
-   !/Asking…|Spinning…/.test(await page.text('#sideBody') || ''));
+   !/Asking…|Planning…/.test(await page.text('#sideBody') || ''));
 await wait(1200);
 ok("  and it is still there a moment later, not eaten by a repaint",
    (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);

@@ -28,7 +28,7 @@ const send = async (text) => {
     i.value = ${JSON.stringify(text)}; return 1; })()`);
   await page.eval("(() => { document.getElementById('send').click(); return 1; })()");
 };
-const COUNT = /^Spinning\u2026 \d+s$/;
+const COUNT = /^Planning\u2026 \d+s$/;
 
 // ---- 1. the switch, where the note was
 await page.goto(B + "/#" + sid + "/teller");
@@ -47,7 +47,7 @@ ok("and the switch stays on after the panel redraws",
 await page.goto(B + "/#" + sid);
 await until("!!document.getElementById('send')");
 await send("She reaches the door.");
-ok("the veil goes up saying Spinning", await until(`(document.querySelector('#ghost .veilweave')?.textContent ?? '').startsWith('Spinning')`, 40, 100));
+ok("the veil goes up saying Planning", await until(`(document.querySelector('#ghost .veilweave')?.textContent ?? '').startsWith('Planning')`, 40, 100));
 let w = await words();
 ok(`  with a count (${w.veil})`, COUNT.test(w.veil ?? "") && w.shown);
 ok("  and no prose yet", w.prose === "");
@@ -61,7 +61,7 @@ for (let i = 0; i < 40; i++) {
 ok(`the count runs while it weaves (${[...counts].join(", ")})`, counts.size >= 2);
 ok("the prose arrives", await until(`(document.querySelector('#ghost .veiltext')?.textContent ?? '').length > 0`, 40, 200));
 w = await words();
-ok(`  and Spinning is gone from the veil once it does (${JSON.stringify(w.veil)})`, w.veil === "" && !w.shown);
+ok(`  and Planning is gone from the veil once it does (${JSON.stringify(w.veil)})`, w.veil === "" && !w.shown);
 await page.eval("(() => { document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); return 1; })()");
 await until("!document.getElementById('ghost')");
 await until("!document.getElementById('send')?.disabled", 40);
@@ -69,7 +69,7 @@ await until("!document.getElementById('send')?.disabled", 40);
 // ---- 3. Stop, in the middle of the weaving
 const before = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).passages.filter((p) => p.author === 'model').length)()`);
 await send("He does not answer.");
-ok("a second passage starts weaving", await until(`/^Spinning/.test(document.querySelector('#ghost .veilweave')?.textContent ?? '')`, 40, 100));
+ok("a second passage starts weaving", await until(`/^Planning/.test(document.querySelector('#ghost .veilweave')?.textContent ?? '')`, 40, 100));
 await wait(600);
 await page.click("#ghost .veilstop");
 ok("Stop takes the veil down while it weaves", await until("!document.getElementById('ghost') || document.getElementById('ghost').classList.contains('leaving')", 20));
@@ -82,10 +82,10 @@ ok(`  and the model wrote nothing (${before} → ${after} of its passages)`, aft
 
 // ---- 4. the composer, for a writer who leaves the veil while it weaves
 await send("The lamp goes out.");
-await until(`/^Spinning/.test(document.querySelector('#ghost .veilweave')?.textContent ?? '')`, 40, 100);
+await until(`/^Planning/.test(document.querySelector('#ghost .veilweave')?.textContent ?? '')`, 40, 100);
 await page.eval("(() => { document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); return 1; })()");
 ok("leaving the veil shows the count beside the composer",
-  await until(`/^Spinning\u2026 \\d+s$/.test(document.getElementById('weaving')?.textContent ?? '')`, 20, 100));
+  await until(`/^Planning\u2026 \\d+s$/.test(document.getElementById('weaving')?.textContent ?? '')`, 20, 100));
 ok("  where Stop is, too", await page.eval("!!document.querySelector('#send[data-stop]')"));
 ok("  and it goes at the first word", await until(`!(document.getElementById('weaving')?.textContent)`, 40, 250));
 await until("!document.getElementById('send')?.disabled", 40);

@@ -1149,7 +1149,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // is known to exist here, so the shared check fails only on stale.
     if (!summaryReaches(c)) {
       blocks.push({ kind: 'EARLIER', id: c.id, text: '', tokens: 0,
-        state: 'omitted', reason: 'summary stale — covered prose changed' });
+        state: 'omitted', reason: 'summary out of date — not sent until it is written again' });
       continue;
     }
     add('EARLIER', c.id, `Ch${c.index} ${c.title}: ${c.summary}`, 'summary');

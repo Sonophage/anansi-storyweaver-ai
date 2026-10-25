@@ -52,7 +52,7 @@ await until(`!!document.querySelector('[data-edit="${shown}"]')`);
 await page.dbl(`[data-edit="${shown}"]`);
 await wait(400);
 await page.click(`[data-hi="${shown}"]`);
-ok("Alterations shows both fittings", await until(`/2 fittings/.test(document.querySelector('#sideBody')?.textContent ?? '')`));
+ok("Alterations shows both versions", await until(`/2 versions/.test(document.querySelector('#sideBody')?.textContent ?? '')`));
 const seen = await page.eval(`(() => {
   const side = document.querySelector('#sideBody');
   return { seeds: [...side.querySelectorAll('.kind')].filter((k) => /^seed /.test(k.textContent)).length,

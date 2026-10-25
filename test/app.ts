@@ -739,7 +739,7 @@ for (const id of ['rail', 'bar', 'col', 'dockCol', 'sideBody']) {
 }
 ok('the story surface renders with no undefined fields');
 
-assert.match(html('rail'), /Measurements/, 'the rail must switch to the story nav');
+assert.match(html('rail'), /What she reads/, 'the rail must switch to the story nav');
 assert.match(html('rail'), /The Envoy/, 'and list chapters by title');
 assert.ok(!/>Rack</.test(html('rail')), 'and drop the workspace nav');
 ok('the rail swaps navigation when a story opens');
@@ -754,7 +754,7 @@ assert.match(html('rail'), /Rack/,
 assert.ok(!/list chapters|Chapters/.test(html('rail')),
   'and the chapter list goes with it — it named a book you are no longer looking at');
 click({ railview: 'story' });
-assert.match(html('rail'), /Measurements/, "the story's name must bring its own menu back");
+assert.match(html('rail'), /What she reads/, "the story's name must bring its own menu back");
 assert.match(html('rail'), /Anansi<\/span>/, 'which is where Anansi lives');
 ok('the menu and the story name are two doors onto one rail');
 
@@ -978,10 +978,10 @@ assert.match(html('col'), /Envoy Sereth<\/div>\s*<div class="said"[^>]*data-edit
   'a human line spoken as another character is labelled with that character');
 ok('prose renders as narration, speech, the writer\'s own line, and a flag');
 
-// The four modes are options on one dial since 2026-09-02, and two of them are worded as the
-// phrase the name beside them completes. The dial block further down asserts all four by value;
-// this pair is the two whose LABEL is the thing that changed.
-for (const label of ['Speaking As', 'Acting As', 'Direct', 'Narrate']) {
+// The four modes are options on one dial since 2026-09-02. They read Speaking As and Acting As
+// until 2026-10-24, when "You play" became the one phrase for who you speak as; the dial now
+// carries the MODES labels and the name beside it is labelled You play.
+for (const label of ['Speak', 'Act', 'Direct', 'Narrate']) {
   assert.match(html('dockCol'), new RegExp(`>${label}<`), `the composer must offer ${label}`);
 }
 // SEND STAYS SEND. It carried two jobs for as long as Stop had nowhere else to be. Stop lives on
@@ -1020,14 +1020,16 @@ for (const k of ['speak', 'act', 'direct', 'narrate'])
 assert.doesNotMatch(html('dockCol'), /data-mode="/,
   'and the four mode buttons are gone — one control, not five');
 assert.match(dial(), /value="speak"[^>]*selected/, 'the mode being drawn is the one selected');
-// SPEAKING AS, ACTING AS. Seth, same message: the two modes that take a name say so, because the
-// name sits directly beside the dial and the two read as one phrase.
-assert.match(dial(), /Speaking As/, 'Speak reads "Speaking As" on the dial');
-assert.match(dial(), /Acting As/, 'and Act reads "Acting As"');
+// SPEAK, ACT, AND YOU PLAY (2026-10-24). The two modes that take a name keep their own labels, the
+// old "Speaking As" and "Acting As" are gone, and the name beside the dial says You play.
+assert.match(dial(), />Speak</, 'Speak reads "Speak" on the dial');
+assert.match(dial(), />Act</, 'and Act reads "Act"');
+assert.doesNotMatch(html('dockCol'), /Speaking As|Acting As/, 'and neither old label is left');
+assert.match(html('dockCol'), /class="playlbl"[^>]*>You play</, 'the name beside the dial is labelled You play');
 // TITLE CASE ON EVERY LABEL, all four and both doors — Seth, 2026-09-02: "all the labels should be
 // Camel Cased for uniformity." A lower-case option beside three capitalised ones is the state this
 // catches, and it is the state the dial shipped in for an hour.
-for (const l of ['Speaking As', 'Acting As', 'Direct', 'Narrate', 'Threads', 'View Threads', 'Add Threads'])
+for (const l of ['Speak', 'Act', 'Direct', 'Narrate', 'Threads', 'View Threads', 'Add Threads'])
   assert.match(html('dockCol'), new RegExp(`>${l}<`), `${l} must be Title Case on the rail`);
 // AND DIRECT AND NARRATE KEEP THE TABLE'S OWN LABELS, which is what says the dial spells the two
 // out rather than the MODES table doing it — the same table names the chip over a passage, and
@@ -1390,7 +1392,7 @@ assert.match(html('bar'), /10 scenes not sent/,
   'the bar names how many chapters the model can no longer read (1 plus the arc\'s nine)');
 assert.match(html('sideBody'), /Scenes 1&ndash;11 are past the horizon/,
   'and the panel names which — the range, not the block count');
-assert.match(html('sideBody'), /Panels<\/strong> rolls/, 'and what to do about it');
+assert.match(html('sideBody'), /Chapters<\/strong> gathers/, 'and what to do about it');
 ok('a book past its horizon says so on the bar, not only in a dimmed row');
 
 // Two kinds of offer, two places to answer them. A promise Anansi noticed belongs beside the
@@ -2364,7 +2366,7 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   const box = teller.match(/<input type="checkbox" data-story="weaving"[^>]*>/)?.[0];
   assert.ok(box, 'the panel has a weaving switch, saved as a story field');
   assert.doesNotMatch(box!, /checked/, 'off, for a book that does not weave');
-  assert.match(teller, /Spinning/, 'named Spinning');
+  assert.match(teller, /Plans first/, 'named Plans first');
   // The tip is the trade in one sentence: slower, and it takes room from the book.
   const tip = teller.match(/id="tip-weaving"[\s\S]*?<\/p>/)?.[0] ?? '';
   assert.match(tip, /slower/i, `the tip says it is slower: ${tip}`);
@@ -2414,7 +2416,7 @@ ok('the Storyteller has a Weaving switch where the thinking note was, and it sav
     return visible(html('sideBody'));
   };
   try {
-    for (const note of ['The fixture model cannot be asked to weave.', 'This model always weaves.']) {
+    for (const note of ['The fixture model cannot be asked to weave.', 'This model always plans first.']) {
       const t = await teller(note);
       assert.doesNotMatch(t, /data-story="weaving"/, `WEAVE-NOTE: no switch is offered: ${note}`);
       const said = t.match(/<div[^>]*id="weavenote"[^>]*>([\s\S]*?)<\/div>/)?.[1]?.trim() ?? '';
@@ -2462,7 +2464,7 @@ ok('a book moved to a model that cannot take the switch says its weaving went of
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' });
     await new Promise((r) => setTimeout(r, 30));
-    assert.doesNotMatch(html('dockCol'), /Spinning/, 'a book that does not spin never says Spinning');
+    assert.doesNotMatch(html('dockCol'), /Planning/, 'a book that does not plan never says Planning');
     open(); await new Promise((r) => setTimeout(r, 60));
 
     (STORY as any).weaves = true;
@@ -2471,10 +2473,10 @@ ok('a book moved to a model that cannot take the switch says its weaving went of
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' });
     await new Promise((r) => setTimeout(r, 30));
-    assert.match(html('dockCol'), /Spinning/, 'the composer says Spinning while it waits');
-    assert.match(html('dockCol'), /id="weaving"[^>]*>Spinning… 0s</, 'with the seconds, from nought');
+    assert.match(html('dockCol'), /Planning/, 'the composer says Planning while it waits');
+    assert.match(html('dockCol'), /id="weaving"[^>]*>Planning… 0s</, 'with the seconds, from nought');
     await new Promise((r) => setTimeout(r, 1100));
-    assert.match(String(nodes.get('weaving')?.textContent), /^Spinning… 1s$/, 'and the count runs');
+    assert.match(String(nodes.get('weaving')?.textContent), /^Planning… 1s$/, 'and the count runs');
     // The first word, with the call still open behind it: the count ends at the word, not at the end.
     let end!: () => void;
     endGate = new Promise<void>((r) => { end = r; });
@@ -2490,8 +2492,8 @@ ok('a weaving book says Weaving with a running count from the press until the fi
 // row on the composer: the sentence and two buttons, where the writer's hand already is. Each button
 // sends the same press again — Write anyway with the override, Turn weaving off after the switch.
 {
-  const MSG = 'Spinning sets aside 5,000 tokens for Anansi to spin in, and in this tale that would leave '
-    + 'out the 4 oldest passages still in view. Turn spinning off for this tale, or write anyway and leave them out.';
+  const MSG = 'Plans first sets aside 5,000 tokens for Anansi to plan in, and in this tale that would leave '
+    + 'out the 4 oldest passages still in view. Turn Plans first off for this tale, or write anyway and leave them out.';
   const refusal = (overflows = false) => ({ error: MSG, manifest: MANIFEST.manifest,
     weaveFit: { overflows, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] } });
   const gens = () => POSTED.filter((p: any) => String(p.url).startsWith('/api/generate'));
@@ -2509,7 +2511,7 @@ ok('a weaving book says Weaving with a running count from the press until the fi
     assert.ok(row(), `a refusal draws the row on the composer: ${html('dockCol').slice(0, 200)}`);
     assert.ok(row().includes('4 oldest passages still in view'), 'saying what would drop out');
     assert.match(row(), /data-weaveanyway[^>]*>\s*Write anyway\s*</, 'offering to write anyway');
-    assert.match(row(), /data-weaveoff[^>]*>\s*Turn spinning off for this tale\s*</, 'and to turn weaving off');
+    assert.match(row(), /data-weaveoff[^>]*>\s*Turn Plans first off for this tale\s*</, 'and to turn weaving off');
     assert.doesNotMatch(row().replace(/<!--[\s\S]*?-->/g, ''), /\b(think|thinking|reasoning|planning)\b/i,
       'in the writer\'s word, weaving');
     assert.ok(!POSTED.some((p: any) => p.url === '/api/accept'), 'and nothing was kept');
@@ -2583,7 +2585,7 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
 // what such a model does, so the row never offers it: Write anyway (when the prompt still fits) and
 // Use another model for this book, which opens the book's model picker in the Storyteller.
 {
-  const MSG = 'Spinning sets aside 5,000 tokens for Anansi to spin in, and in this tale that would leave '
+  const MSG = 'Plans first sets aside 5,000 tokens for Anansi to plan in, and in this tale that would leave '
     + 'out the 4 oldest passages still in view. Use another model for this tale, or write anyway and leave them out.';
   const refusal = (overflows = false) => ({ error: MSG, manifest: MANIFEST.manifest,
     weaveFit: { overflows, alwaysWeaves: true, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] } });
@@ -2632,8 +2634,8 @@ ok('a refusal on a model that always weaves offers Write anyway and another mode
 // Write anyway sends, and it carries the same refusal the press would get — so the panel and the
 // press never disagree about whether this passage can be written as things stand.
 {
-  const MSG = 'Spinning sets aside 5,000 tokens for Anansi to spin in, and in this tale that would leave '
-    + 'out the oldest passage still in view. Turn spinning off for this tale, or write anyway and leave them out.';
+  const MSG = 'Plans first sets aside 5,000 tokens for Anansi to plan in, and in this tale that would leave '
+    + 'out the oldest passage still in view. Turn Plans first off for this tale, or write anyway and leave them out.';
   try {
     (MANIFEST as any).weaveFit = { overflows: false, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] };
     click({ open: 's-1' });
@@ -2655,8 +2657,8 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
 // #56 with #57. TALK AND INVENT ARE REFUSED THE SAME WAY, and get the same two ways on, drawn where
 // the press was made: in the Talk panel above the ask box, and in the tray that wrote the thread.
 {
-  const MSG = 'Spinning sets aside 5,000 tokens for Anansi to spin in, and in this tale that would leave '
-    + 'out the 2 oldest passages still in view. Turn spinning off for this tale, or write anyway and leave them out.';
+  const MSG = 'Plans first sets aside 5,000 tokens for Anansi to plan in, and in this tale that would leave '
+    + 'out the 2 oldest passages still in view. Turn Plans first off for this tale, or write anyway and leave them out.';
   const refusal = { error: MSG, manifest: MANIFEST.manifest,
     weaveFit: { overflows: false, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] } };
   const talks = () => POSTED.filter((p: any) => p.url === '/api/talk');
@@ -2759,13 +2761,13 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     (document as any).getElementById('askBox').value = 'What is this story about?';
     click({ ask: '1' });
     await new Promise((r) => setTimeout(r, 30));
-    assert.match(html('sideBody'), /id="talkweaving"[^>]*>Spinning… 0s</, 'TALK-COUNT: a weaving Talk call says Weaving with the seconds');
+    assert.match(html('sideBody'), /id="talkweaving"[^>]*>Planning… 0s</, 'TALK-COUNT: a weaving Talk call says Weaving with the seconds');
     assert.doesNotMatch(html('dockCol'), /id="weaving"/, 'TALK-COUNT: and the composer, which made no press, shows no count');
     await new Promise((r) => setTimeout(r, 1100));
-    assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Spinning… 1s', 'TALK-COUNT: and the count runs');
+    assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Planning… 1s', 'TALK-COUNT: and the count runs');
     open({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
     await new Promise((r) => setTimeout(r, 60));
-    assert.doesNotMatch(html('sideBody'), /Spinning…/, 'TALK-COUNT: the answer ends it');
+    assert.doesNotMatch(html('sideBody'), /Planning…/, 'TALK-COUNT: the answer ends it');
     assert.doesNotMatch(html('sideBody'), /Thinking/, 'and never Thinking');
   } finally { stubTalk = null; (STORY as any).weaves = weaving; }
 }
@@ -2794,8 +2796,8 @@ ok('the Talk panel counts the seconds while a weaving call waits, and says Askin
   };
   try {
     const woven = await pressed(true);
-    assert.strictEqual(woven.busy, 'Spinning… 0s', 'INVENT-COUNT: a weaving invention says Weaving with the seconds');
-    assert.strictEqual(woven.later, 'Spinning… 1s', 'INVENT-COUNT: and the count runs');
+    assert.strictEqual(woven.busy, 'Planning… 0s', 'INVENT-COUNT: a weaving invention says Weaving with the seconds');
+    assert.strictEqual(woven.later, 'Planning… 1s', 'INVENT-COUNT: and the count runs');
     assert.strictEqual(woven.after, 'Invent', 'INVENT-COUNT: and the button comes back when it answers');
     const plain = await pressed(false);
     assert.strictEqual(plain.busy, 'Writing…', 'the control: an invention that does not weave says Writing');
@@ -2825,7 +2827,7 @@ ok('an invention that weaves counts the seconds on its button, and one that does
     click({ ask: '1' });
     // Seconds as numbers, and rising rather than exact: Talk's count starts a turn after its press,
     // so an exact second is a race with this suite's own load.
-    const secs = (id: string) => Number(/^Spinning… (\d+)s$/.exec(String(nodes.get(id)?.textContent))?.[1] ?? NaN);
+    const secs = (id: string) => Number(/^Planning… (\d+)s$/.exec(String(nodes.get(id)?.textContent))?.[1] ?? NaN);
     await new Promise((r) => setTimeout(r, 1100));
     assert.ok(secs('weaving') >= 1, `TWO-COUNTS: a Talk press leaves the weaving passage's count running (${nodes.get('weaving')?.textContent})`);
     const talkAt = secs('talkweaving');
@@ -2853,7 +2855,7 @@ ok('a passage and a Talk call that weave at once each keep their own count');
     const t: any = { dataset: { invent: 'lore' }, querySelector: () => null, disabled: false, textContent: 'Invent',
       style: {}, closest: () => null };
     const press = () => (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => t } }));
-    const secs = () => Number(/^Spinning… (\d+)s$/.exec(String(t.textContent))?.[1] ?? NaN);
+    const secs = () => Number(/^Planning… (\d+)s$/.exec(String(t.textContent))?.[1] ?? NaN);
     press();
     await new Promise((r) => setTimeout(r, 1050));
     const first = secs();
@@ -3310,7 +3312,7 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   click({ entry: 'e-done' });
   await new Promise((r) => setTimeout(r, 30));
   const done = html('sideBody');
-  assert.match(done, /Hemmed at scene 2/, 'the face marks a hemmed thread');
+  assert.match(done, /Retired at scene 2/, 'the face marks a retired thread');
   assert.doesNotMatch(done, /data-unretire=/, 'and offers no control — that is what the form is for');
   assert.doesNotMatch(done, /data-retire=/, 'in either direction');
 
@@ -3321,7 +3323,7 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   // test/web.ts asserts that one for the same reason: a wrong press is otherwise invisible AND
   // permanent.
   assert.match(form, /data-unretire="e-done"/, 'the form brings it back');
-  assert.match(form, /Hemmed at scene 2/, 'and says what it is bringing back from');
+  assert.match(form, /Retired at scene 2/, 'and says what it is bringing back from');
 
   click({ entry: 'e-1' });
   click({ cardview: 'form' });
@@ -3976,7 +3978,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // #books, not #page: opening a group repaints only that element.
   const opened = html('books');
   assert.match(opened, /class="lbanner"/, 'the world book gets a banner too');
-  assert.match(opened, /Bolt/, 'tagged as what it is, not as Writing');
+  assert.match(opened, />World</, 'tagged as what it is, not as Writing');
   assert.match(opened, /Lore only/, 'and it says there is nothing written in it');
 
   /* ---- AND THE BOX AT THE TOP SEARCHES THE SAME WORDS THE STORY'S OWN LIST DOES (2026-09-11).

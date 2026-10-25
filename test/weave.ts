@@ -348,10 +348,10 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
     const refused = await go(big.id, slot);
     assert.ok(refused.error, `${name}: the weaving room would push part of the book out, so it refuses`);
     assert.strictEqual(calls.filter((x) => x.kind === kind).length, 0, `${name}: and nothing reached the model`);
-    assert.match(refused.error, /spin/i, `${name}: the message says spinning is the reason: ${refused.error}`);
+    assert.match(refused.error, /plan/i, `${name}: the message says Plans first is the reason: ${refused.error}`);
     assert.match(refused.error, new RegExp(`sets aside ${ROOM[kind].toLocaleString('en')} tokens`),
       `${name}: it gives the room its own role sets aside: ${refused.error}`);
-    assert.match(refused.error, /turn spinning off/i, `${name}: it offers turning weaving off`);
+    assert.match(refused.error, /turn Plans first off/i, `${name}: it offers turning weaving off`);
     assert.match(refused.error, /anyway/i, `${name}: and going ahead anyway`);
     assert.match(refused.error, /passage/, `${name}: it names what would drop out: ${refused.error}`);
     assert.ok(refused.weaveFit?.drops?.length > 0, `${name}: and lists it: ${JSON.stringify(refused.weaveFit)}`);
@@ -374,7 +374,7 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
   // overflows where the plain one does not. That is the same refusal, not an overflow error.
   assert.ok(!(await talk(same.id, 7000)).error, 'the 7,000 slot holds Talk without weaving');
   const over = await talk(big.id, 7000);
-  assert.match(over.error ?? '', /turn spinning off/i, `an overflow the weaving room causes is the refusal: ${over.error}`);
+  assert.match(over.error ?? '', /turn Plans first off/i, `an overflow the weaving room causes is the refusal: ${over.error}`);
   assert.ok(over.weaveFit, 'and says so in its shape');
   assert.doesNotMatch(over.error, /anyway/i, 'and does not offer an anyway that would only overflow');
   // A slot too small for the book even without weaving is the error it always was.
@@ -409,8 +409,8 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
   assert.ok(named.length >= 2 && refused.weaveFit.drops.every((b: any) => b.kind === 'PROSE'),
     `here it is prose that drops: ${JSON.stringify(refused.weaveFit)}`);
   assert.match(refused.error, new RegExp(`the ${named.length} oldest passages`), `the refusal names what drops: ${refused.error}`);
-  assert.match(refused.error, /spin/i, 'in the word the writer knows');
-  assert.doesNotMatch(refused.error, /think|reason|plan/i, 'and never the words the app does not use');
+  assert.match(refused.error, /Plans first/, 'in the word the writer knows');
+  assert.doesNotMatch(refused.error, /think|reason|spin|weav/i, 'and never the words the app does not use');
 
   // The Context panel says the same before the press: its preview is the weaving assembly, and it
   // carries the refusal the call gives.
@@ -467,7 +467,7 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
   assert.match(over, /Use another model for this tale to write\.$/, `ALWAYS-OVERFLOW: another model is the one way on: ${over}`);
   assert.doesNotMatch(over, /turn weaving off|write anyway/i, 'ALWAYS-OVERFLOW: and nothing else is offered');
   const plainOver = weaveRefusal({ entries: [] }, { overflows: true, drops: [] } as any, 5000, null);
-  assert.match(plainOver, /Turn spinning off for this tale to write\.$/, 'the control: a switched book still offers the switch');
+  assert.match(plainOver, /Turn Plans first off for this tale to write\.$/, 'the control: a switched book still offers the switch');
   ok('an overflow on a model that always weaves offers only another model');
 }
 

@@ -142,10 +142,10 @@ await wait(400);
 await page.click(`[data-hi="${target.id}"]`);
 await wait(900);
 const openBody = (await page.text('#sideBody') || '');
-ok("Alterations opens with a Fittings section and an Altered by hand section",
-   /Fittings/.test(openBody) && /Altered by hand/.test(openBody));
-ok(`  and one fitting is a line, not a numbered card (${(openBody.match(/Fitting \d+/g) ?? []).length} numbered)`,
-   (openBody.match(/Fitting \d+/g) ?? []).length === 0 && /One fitting/.test(openBody));
+ok("Alterations opens with a Versions section and an Altered by hand section",
+   /Versions/.test(openBody) && /Altered by hand/.test(openBody));
+ok(`  and one version is a line, not a numbered card (${(openBody.match(/Version \d+/g) ?? []).length} numbered)`,
+   (openBody.match(/Version \d+/g) ?? []).length === 0 && /One version/.test(openBody));
 const editsBefore = await page.eval("document.querySelectorAll('[data-restore]').length");
 
 // Edit the passage in the document, with History still open beside it.
@@ -175,7 +175,7 @@ const editsAfter = await page.eval("document.querySelectorAll('[data-restore]').
 ok(`the open panel picks up the edit without being reopened (${editsBefore} -> ${editsAfter})`,
    editsAfter > editsBefore);
 ok("  and the panel is still Alterations, not something else",
-   /Fittings/.test(await page.text('#sideBody') || ''));
+   /Versions/.test(await page.text('#sideBody') || ''));
 
 // ---- in-flight: the slow answer must not land on the new book
 // COUNCIL-04 #11. refreshManifest and openStory's activity fetch both assigned after their await
@@ -296,7 +296,7 @@ ok("  and the panel is still Alterations, not something else",
        // The same durable clause surfaces.js probes for, and for the same reason: this asserted the
        // absence of "prose engine", which stopped meaning anything the moment SYSTEM stopped saying
        // it — a negative that is trivially true tests nothing.
-       /could not be taken/.test(failed) && !/Output prose only/.test(failed));
+       /could not be worked out/.test(failed) && !/Output prose only/.test(failed));
     await page.eval("(() => { window.fetch = window.__realFetch; return 1; })()");
   }
 }
