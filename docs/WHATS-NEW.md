@@ -12,6 +12,19 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-24 · Longer passages, and room for a big model to plan
 
+### Anansi's own words, everywhere
+Anansi is a spider and a tailor, and the screens now speak her trade. A story is a tale, and your
+tales hang on the rack. A chapter is a scene; when a scene is done you hem it, and a run
+of scenes rolled into one summary is a panel. A world book is a bolt: threads that tales are
+cut from. Every fact is a thread, its sections are pockets, and the words that bring it in
+are its wake words. What Anansi suggests is basted until you weave it in; a line that
+contradicts a thread is a knot, and Mend asks her to fix it. Reweave makes a new
+fitting of a passage, Alter changes it by hand, and Alterations keeps them all. Her
+unseen planning is Spinning, the character the model leaves alone is Hands off, what the
+model reads is Measurements, the prompts for other models are the Pattern book, and the
+Waiting list is the Workbench. Nothing you wrote changed, and nothing the model is told changed:
+only the words on the buttons. A scene still named "Chapter 4" from before shows as "Scene 4".
+
 ### Plainer words, and the machine's numbers only for the admin
 Notes written for the person who runs the machine are gone from the screens both writers see: the
 search, What changed, Report an issue, web search and the model menu now say what they do in plain

@@ -158,8 +158,8 @@ await page.click(`[data-hi="${cur.id}"]`);
 await wait(1200);
 const hist = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 const takes = (hist.match(/Take \d+/g) ?? []).length;
-ok(`History shows the takes, not just the edits (${takes})`, /Take 1/.test(hist) && /Take 2/.test(hist));
-ok("  and says which one is in the story", /in the story/.test(hist));
+ok(`History shows the takes, not just the edits (${takes})`, /Fitting 1/.test(hist) && /Fitting 2/.test(hist));
+ok("  and says which one is in the tale", /in the tale/.test(hist));
 ok("  and offers to swap to the other", await page.visible('[data-usetake]'));
 // Each take records the canon its own prompt carried. The manifest was already logged per
 // generation, with passage_id NULL — nothing tied a take to the prompt behind it.
@@ -361,7 +361,7 @@ for (let i = 0; i < 60; i++) {
 const libAfter = (await lib()).length;
 const pageText = (await page.text('#page') || '');
 ok(`spark produces something to look at (library ${libBefore} -> ${libAfter})`,
-   libAfter > libBefore || /Accept|Start writing|Title/.test(pageText));
+   libAfter > libBefore || /Cut it|Start writing|Title/.test(pageText));
 ok("  and the skeleton's fields are shown, not em-dashes", !/—\s*—\s*—/.test(pageText));
 
 // ---- 7. start blank moved out. It never called the model — it was one click and a count — and

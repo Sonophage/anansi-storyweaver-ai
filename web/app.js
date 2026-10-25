@@ -351,6 +351,8 @@ const SNAV = [
    * chapter you are writing in — its name, its brief, what it proposed, how it will be summarised —
    * so "This chapter" is what it has always been about and the label was the thing being coy.
    * Chapters keeps the plain word: a list of the chapters is what anyone would call Chapters.
+   * On 2026-10-24 the screens moved to the writer's words and the two rows became "This scene" and
+   * "Scenes"; the argument is unchanged, only the noun moved.
    *
    * NOT "Contents", which was the first idea and is the printed-book word for exactly this list.
    * It sits four rows above CONTEXT on this rail. Con-text and Con-tents at 11px is a worse
@@ -386,7 +388,8 @@ const WNAV = [
   // reads THIS array, and a page it cannot find is reported as having no door.
   //
   // "The Web", in the case the other rows use. Seth, 2026-08-31: "the case in the menu needs to
-  // match the other menu items so it should be name The Web."
+  // match the other menu items so it should be name The Web." Renamed "Pattern book" on 2026-10-24,
+  // in the same case, with the rest of the writer's words.
   ['forge', 'threads', 'Pattern book'],
 ];
 /** The rail as this account sees it. Everything in WNAV, for everyone: The Web was admin-only from
@@ -429,7 +432,7 @@ const WTITLES = {
   bug: () => ['Report an issue', 'sent without your writing'],
   // "The Web", to match the menu row. Renamed there on 2026-08-31 and missed here, so the row
   // said one thing and the page it opened said another. Seth: "the web, on the menu it says the
-  // web on tha page it does not."
+  // web on tha page it does not." Both say "Pattern book" since 2026-10-24, renamed together.
   forge: () => ['Pattern book', 'prompts to hand another model, so what it writes lands whole'],
 };
 
@@ -762,7 +765,7 @@ function drawRail() {
          color:${c.id === V.currentChapter.id ? 'var(--gold-lit)' : 'var(--faint)'}"><span class="txt">${
          esc(sceneName(c))}</span></button>`).join('')}`
     // NO "Open" LIST HERE, only the demo switch. It reprinted the first four books in a rail whose first row is already
-    // My stories, which is the same door with a complete list behind it. Seth, 2026-08-31: "the
+    // My stories (Rack, now), which is the same door with a complete list behind it. Seth, 2026-08-31: "the
     // open option in the main menu that should be removed."
     : demoRow;
 
@@ -1217,7 +1220,7 @@ function passageHTML(p, newest, opening) {
          whole reading view to prove only one paragraph animates, and a comment carrying it reads
          as a second one. -->
     <button data-re="${p.id}"><span class="serif" style="color:var(--m, var(--gold))">↻</span><span class="lbl-txt">Reweave</span></button>
-    <!-- "Remember this." The writer's own recall: the model has forgotten something that happened,
+    <!-- "Make a thread of this" (it was "Remember this"). The writer's own recall: the model has forgotten something that happened,
          so you point at the passage it happened in. It goes to Anansi as an INSTRUCTION rather than
          as prose to continue or a line somebody said, comes back as facts rather than as sentences
          (F36), and lands in the queue with the chapter it came from. -->
@@ -3109,7 +3112,7 @@ const PANELS = {
       <!-- WHICH WORLD OR IP THIS BOOK BELONGS TO — Seth, 2026-09-02: "Is there a way in the story
            under the world tab I could add what world or ip it belongs to? And have it hold some
            info about the world that way".
-           IT IS NOT "Part of a world" FURTHER DOWN, and both can be set: that one follows another
+           IT IS NOT "Cut from a bolt" FURTHER DOWN, and both can be set: that one follows another
            BOOK's threads, live, and is the right tool when the world has a ledger of its own. This
            is the light one — a name and a paragraph — for saying "this is Warhammer 40,000" without
            building a second book to say it.
@@ -3501,7 +3504,7 @@ const PANELS = {
 
       <!-- ISSUE #31, filed as "there is no way to delete a chapter". There was one, and it is the
            same button as below — but its ONLY door was the chapter's own screen, which you reach by
-           pressing "End this chapter". Nobody hunting for delete presses the button that closes one,
+           pressing "End this chapter" (Hem this scene, now). Nobody hunting for delete presses the button that closes one,
            so the feature read as missing. Seth, 2026-09-01: "31 in the chapter panel."
 
            The same data-delchapter, so there is one handler, one confirm and one warning about the
@@ -4272,8 +4275,8 @@ function searchHits() {
  *
  *  The fields are harvested into S.spark on every move, because a step that is not rendered is not
  *  in the DOM — the single-scroll version could read every value at accept time and this cannot. */
-/** #21 §3 · THE ORDER SETH ASKED FOR, and both paths use it: "Start it yourself" is the SAME
- *  wizard, and the only difference is whether each step arrives pre-filled by the model.
+/** #21 §3 · THE ORDER SETH ASKED FOR, and both paths use it: "Start it yourself" (Cut a blank tale,
+ *  now) is the SAME wizard, and the only difference is whether each step arrives pre-filled by the model.
  *  checks.md: "one just circumvents the ai assistence but its still there every step of the way."
  *
  *  What it replaced was five steps that put the cast third and the voice last, and asked for the

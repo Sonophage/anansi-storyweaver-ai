@@ -214,7 +214,7 @@ const PURPOSE = { RP: 'Roleplay', W: 'Write', A: 'Agentic' };
 /** The options for a story's model select, in order.
  *
  *  A story pinned to a model the router no longer offers used to produce NO selected option — the
- *  browser then falls back to showing the first one, which is "Default", while the hint underneath
+ *  browser then falls back to showing the first one, which is "Default" ("Your model" now), while the hint underneath
  *  still says the story is pinned. The two disagreed on screen, and worse, choosing Default fired
  *  no `change` event, because from the browser's side the value had not changed. So the pin could
  *  not be cleared from the one control that exists to clear it.

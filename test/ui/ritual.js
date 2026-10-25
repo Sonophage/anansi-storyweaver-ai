@@ -111,10 +111,10 @@ const facts = v.proposals.filter((p) => p.chapterId === closing.id
   && !['state', 'string', 'retire'].includes(p.entryType));
 if (facts.length) {
   ok(`  and what extraction proposed is on screen (${facts.length})`,
-     new RegExp("Read for facts — " + facts.length + " proposed").test(again));
+     new RegExp("Read for facts — " + facts.length + " basted").test(again));
 } else {
   ok("  and a chapter that proposed nothing says so, rather than showing a bare heading",
-     /No new threads came out of this chapter/.test(again));
+     /No new threads came out of this scene/.test(again));
 }
 // The finished-thread step, in the guard-proof form: the model may legitimately find nothing, so
 // assert the invariant that holds at ZERO and then branch with an else, or the check stops running
@@ -127,10 +127,10 @@ if (rets.length) {
   // not proposed a retirement on this fixture — the guarded-assertion fault this repo has now found
   // five times, in the file whose own comments warn about it twice.
   ok(`  ${rets.length} finished thread(s) proposed, and the count is on screen`,
-     new RegExp(`${rets.length} thread${rets.length === 1 ? '' : 's'} proposed as finished`).test(again));
+     new RegExp(`${rets.length} thread${rets.length === 1 ? '' : 's'} basted to be hemmed`).test(again));
 } else {
   ok("  nothing was proposed as finished, and the screen says so in words",
-     /Nothing was proposed as finished/i.test(again));
+     /No thread was basted to be hemmed/i.test(again));
 }
 // COUNCIL 07, SEAT 4: the cards were rendered here AND on Waiting, which made the report the fifth
 // panel answering "does anything want me" — the exact thing Waiting was built to end. The count
@@ -138,7 +138,7 @@ if (rets.length) {
 const owed = (await story()).proposals.filter((p) => p.chapterId === closing.id).length;
 if (owed) {
   ok(`  and the ${owed} proposal(s) are decided on Waiting rather than a second time here`,
-     (await page.visible('[data-panel="waiting"]')) && new RegExp(`Decide the ${owed} proposal`).test(again));
+     (await page.visible('[data-panel="waiting"]')) && new RegExp(`Decide the ${owed} basted thing`).test(again));
 } else {
   ok("  and a chapter that proposed nothing offers no queue to decide",
      !(await page.visible('[data-panel="waiting"]')));
@@ -153,7 +153,7 @@ for (let i = 0; i < 40 && !(await page.visible('[data-savesetup="1"]')); i++) aw
 ok("the setup panel is reachable on its own hash too", await page.visible('[data-savesetup="1"]'));
 const head = (await page.text('#sideHead') || '');
 ok(`  and it is titled for the next chapter (${JSON.stringify(head.replace(/\s+/g,' ').trim().slice(0,28))})`,
-   /next chapter/i.test(head));
+   /next scene/i.test(head));
 const body = (await page.text('#sideBody') || '');
 
 // The new chapter names itself. It fires from the panel's own render the moment both boxes are
@@ -289,7 +289,7 @@ ok("  and the beat reaches DIRECTIVE",
    /handing the key over/.test(await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
      + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'direct'})})).json();"
      + " return r.prompt; })()")));
-ok("  and it leaves you on the document", !/next chapter/i.test(await page.text('#sideHead') || ''));
+ok("  and it leaves you on the document", !/next scene/i.test(await page.text('#sideHead') || ''));
 
 // ---- ANANSI OPENS THE NEW CHAPTER, which she had stopped doing after the first one.
 // `openingPassage` guarded on whether the BOOK held prose rather than whether this CHAPTER did —
