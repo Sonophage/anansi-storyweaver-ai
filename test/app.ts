@@ -2484,8 +2484,8 @@ ok('a weaving book says Weaving with a running count from the press until the fi
 // row on the composer: the sentence and two buttons, where the writer's hand already is. Each button
 // sends the same press again — Write anyway with the override, Turn weaving off after the switch.
 {
-  const MSG = 'Weaving sets aside 5,000 tokens for Anansi to weave in, and in this book that would leave '
-    + 'out the 4 oldest passages still in view. Turn weaving off for this book, or write anyway and let them drop out.';
+  const MSG = 'Spinning sets aside 5,000 tokens for Anansi to spin in, and in this tale that would leave '
+    + 'out the 4 oldest passages still in view. Turn spinning off for this tale, or write anyway and leave them out.';
   const refusal = (overflows = false) => ({ error: MSG, manifest: MANIFEST.manifest,
     weaveFit: { overflows, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] } });
   const gens = () => POSTED.filter((p: any) => String(p.url).startsWith('/api/generate'));
@@ -2577,8 +2577,8 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
 // what such a model does, so the row never offers it: Write anyway (when the prompt still fits) and
 // Use another model for this book, which opens the book's model picker in the Storyteller.
 {
-  const MSG = 'Weaving sets aside 5,000 tokens for Anansi to weave in, and in this book that would leave '
-    + 'out the 4 oldest passages still in view. Use another model for this book, or write anyway and let them drop out.';
+  const MSG = 'Spinning sets aside 5,000 tokens for Anansi to spin in, and in this tale that would leave '
+    + 'out the 4 oldest passages still in view. Use another model for this tale, or write anyway and leave them out.';
   const refusal = (overflows = false) => ({ error: MSG, manifest: MANIFEST.manifest,
     weaveFit: { overflows, alwaysWeaves: true, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] } });
   const row = () => html('dockCol').match(/<div id="weavefit"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '';
@@ -2626,8 +2626,8 @@ ok('a refusal on a model that always weaves offers Write anyway and another mode
 // Write anyway sends, and it carries the same refusal the press would get — so the panel and the
 // press never disagree about whether this passage can be written as things stand.
 {
-  const MSG = 'Weaving sets aside 5,000 tokens for Anansi to weave in, and in this book that would leave '
-    + 'out the oldest passage still in view. Turn weaving off for this book, or write anyway and let them drop out.';
+  const MSG = 'Spinning sets aside 5,000 tokens for Anansi to spin in, and in this tale that would leave '
+    + 'out the oldest passage still in view. Turn spinning off for this tale, or write anyway and leave them out.';
   try {
     (MANIFEST as any).weaveFit = { overflows: false, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] };
     click({ open: 's-1' });
@@ -2649,8 +2649,8 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
 // #56 with #57. TALK AND INVENT ARE REFUSED THE SAME WAY, and get the same two ways on, drawn where
 // the press was made: in the Talk panel above the ask box, and in the tray that wrote the thread.
 {
-  const MSG = 'Weaving sets aside 5,000 tokens for Anansi to weave in, and in this book that would leave '
-    + 'out the 2 oldest passages still in view. Turn weaving off for this book, or write anyway and let them drop out.';
+  const MSG = 'Spinning sets aside 5,000 tokens for Anansi to spin in, and in this tale that would leave '
+    + 'out the 2 oldest passages still in view. Turn spinning off for this tale, or write anyway and leave them out.';
   const refusal = { error: MSG, manifest: MANIFEST.manifest,
     weaveFit: { overflows: false, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] } };
   const talks = () => POSTED.filter((p: any) => p.url === '/api/talk');

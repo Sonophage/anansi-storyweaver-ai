@@ -1215,7 +1215,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const r = await routes['POST /api/shortlist/remove'](ctx(writer, { model: ID }));
   assert.deepStrictEqual(r.models, [], 'the model is off the shortlist');
   assert.ok(r.toast, 'FALLBACK: the remove says what moved');
-  assert.match(r.toast, /your default/i, 'FALLBACK: the toast names the writer default');
+  assert.match(r.toast, /your model/i, 'FALLBACK: the toast names the writer\'s own model');
   assert.ok(r.toast.includes('North Light') && r.toast.includes('South Light'),
     'FALLBACK: and each book that was pinned to it');
   assert.ok(!r.toast.includes('Unpinned') && !r.toast.includes('Next Door'),
@@ -1488,7 +1488,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
     `REMOTE-LIMIT: weaving on the 32k model would drop part of the book (${JSON.stringify(remote.weaveFit)})`);
   assert.ok(remote.weaveFit.drops.some((d: any) => d.kind === 'PROSE'), 'and what drops is the oldest prose');
   assert.match(remote.weaveFit.message, /32,768 tokens/, 'REMOTE-LIMIT: the message gives the model\'s own limit');
-  assert.match(remote.weaveFit.message, /this book's model/i, 'REMOTE-LIMIT: and says it is the model\'s, not the book\'s');
+  assert.match(remote.weaveFit.message, /this tale's model/i, 'REMOTE-LIMIT: and says it is the model\'s, not the book\'s');
   fl.length = 0;
   const g = await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
   assert.strictEqual(g.error, remote.weaveFit.message, 'the press is refused with the same words');
@@ -1499,7 +1499,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   await set({ model: null });
   const tight = await preview(32768);
   assert.ok(tight.weaveFit, 'the detector: a local slot of 32,768 refuses this book too');
-  assert.doesNotMatch(tight.weaveFit.message, /this book's model/i,
+  assert.doesNotMatch(tight.weaveFit.message, /this tale's model/i,
     'REMOTE-LIMIT: a local refusal does not name a model\'s limit, because the slot is the writer\'s');
 
   // A model that always weaves, with the switch off, is refused the same way.
@@ -1509,8 +1509,8 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.match(always.weaveFit.message, /32,768 tokens/, 'and names the model\'s limit');
   // Turning weaving off cannot help a model that always weaves, so it is never offered.
   assert.strictEqual(always.weaveFit.alwaysWeaves, true, 'ALWAYS-WEAVES: the refusal says the model always weaves');
-  assert.doesNotMatch(always.weaveFit.message, /turn weaving off/i, 'ALWAYS-WEAVES: and never offers to turn weaving off');
-  assert.match(always.weaveFit.message, /use another model for this book, or write anyway/i,
+  assert.doesNotMatch(always.weaveFit.message, /turn spinning off/i, 'ALWAYS-WEAVES: and never offers to turn weaving off');
+  assert.match(always.weaveFit.message, /use another model for this tale, or write anyway/i,
     'ALWAYS-WEAVES: it offers another model, or writing anyway');
   assert.strictEqual(remote.weaveFit.alwaysWeaves, false, 'the control: a book weaving by its switch is not marked so');
   ok('a 32k model refuses weaving where the local slot would not, and the refusal names the model\'s limit');
@@ -1547,13 +1547,13 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const moved = await set({ model: HARB });
   assert.strictEqual(moved.story.weaving, false, 'MOVE-CLEARS: the book\'s weaving is turned off');
   assert.strictEqual(db.getStory(book.id)?.weaving, 0, 'MOVE-CLEARS: and stored off');
-  assert.match(String(moved.toast), /weaving is off/i, `MOVE-CLEARS: and the writer is told: ${moved.toast}`);
+  assert.match(String(moved.toast), /spinning is off/i, `MOVE-CLEARS: and the writer is told: ${moved.toast}`);
   assert.doesNotMatch(String(moved.toast), /think|reason|plan/i, 'in the writer\'s words');
   const stay = await set({ model: HARB });
   assert.strictEqual(stay.toast, undefined, 'MOVE-CLEARS: a save that clears nothing says nothing');
   const v = await routes['GET /api/story'](ctx(w, {}, `story=${book.id}`));
   assert.strictEqual(v.model, HARB, 'the detector: the book is written by the refusing model');
-  assert.match(String(v.weaveNote), /can't be asked to weave/, 'NO-SWITCH: the view says this book\'s model cannot be asked to weave');
+  assert.match(String(v.weaveNote), /can't be asked to spin/, 'NO-SWITCH: the view says this book\'s model cannot be asked to weave');
   assert.strictEqual(v.weaves, false, 'NO-SWITCH: so a book switched to it does not weave');
 
   // Writing: a streamed passage, a waited-for one, and Talk. Each is one call, without the field.
@@ -1586,11 +1586,11 @@ const mark = () => ({ fl: fl.length, local: local.length });
   await set({ weaving: false });
   await set({ model: HARB });
   await assert.rejects(set({ weaving: true }), (e: any) => e.code === 400
-    && /can't be asked to weave/.test(e.message) && !/think|reason|plan/i.test(e.message),
+    && /can't be asked to spin/.test(e.message) && !/think|reason|plan/i.test(e.message),
     'NO-SWITCH: weaving cannot be turned on for a book whose model cannot take the switch');
   assert.strictEqual(db.getStory(book.id)?.weaving, 0, 'and the switch stays off');
   await assert.rejects(routes['POST /api/story'](ctx(w, { id: book.id, story: { model: HARB, weaving: true } })),
-    /can't be asked to weave/, 'nor in the same save that picks the model');
+    /can't be asked to spin/, 'nor in the same save that picks the model');
   ok('a model whose template refuses the switch is added, writes without the field, and cannot weave');
 }
 
@@ -1620,7 +1620,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(v.model, Y, 'the detector: the book is written by the model');
   assert.strictEqual(db.takesSwitch(Y), false, 'the detector: the call path sends it no switch');
   assert.strictEqual(v.weaves, false, 'ONE-READER: so the book does not weave, by the same fact the call reads');
-  assert.match(String(v.weaveNote), /can't be asked to weave/, 'ONE-READER: and the Storyteller says it cannot');
+  assert.match(String(v.weaveNote), /can't be asked to spin/, 'ONE-READER: and the Storyteller says it cannot');
 
   // A model that refuses the switch AND always plans: it weaves, the count shows, and the Storyteller
   // says it always weaves rather than that it cannot.

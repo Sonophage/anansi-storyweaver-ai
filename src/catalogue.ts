@@ -70,7 +70,7 @@ export function refusal(row: CatalogueRow, admin: boolean): string | null {
     return `this model holds ${row.context ? row.context.toLocaleString('en') : 'an unknown number of'}`
       + ` tokens, and Anansi needs at least ${MIN_CONTEXT.toLocaleString('en')}`;
   if (!admin && (row.cost == null || row.cost > HALF_PLAN))
-    return 'this model takes more than half the Featherless plan, so the other writer could not '
+    return 'this model uses more than half the Featherless plan, so the other writer could not '
       + 'write while it runs';
   return null;
 }

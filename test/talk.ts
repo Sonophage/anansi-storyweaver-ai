@@ -225,7 +225,7 @@ const spoken: any = await invent({ kind: 'voice', entryId: vel.id, direction: 's
 assert.ok(!spoken.error, spoken.error);
 assert.strictEqual(spoken.addon.slot, 'voice', 'a voice is invented the same way a coat is');
 const nowhere: any = await invent({ kind: 'voice', direction: 'no card named' });
-assert.match(String(nowhere.error), /needs a card to belong to/,
+assert.match(String(nowhere.error), /needs a thread to belong to/,
   'an addon with no card is refused — the model cannot write a voice for nobody');
 ok('every slot invents the way an outfit does, and an addon comes back with its own keys');
 

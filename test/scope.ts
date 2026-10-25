@@ -926,7 +926,7 @@ ok('a story cannot be deleted by someone who does not own it');
   // And the route above the query, which is where the 404 comes from. It must not confirm the
   // book exists, either — "not yours" and "no such story" are the same answer to a stranger.
   await assert.rejects(async () => routes['POST /api/look'](
-    lookCtx(alice, { storyId: bStory.id, look: { theme: 'ALICE WAS HERE' } })), /no such story/,
+    lookCtx(alice, { storyId: bStory.id, look: { theme: 'ALICE WAS HERE' } })), /no such tale/,
     'the open look route let alice name a story that is not hers');
 
   // The whitelist. These four values are written onto <html> as `data-ui-*` attributes, and
@@ -1972,7 +1972,7 @@ async function bootServer(port: number, env: Record<string, string>) {
   // named — so the refusal has to come from the scope on the write.
   const bEntry = db.upsertEntry(bStory.id, bob, { title: 'Bob thread', body: '[his]' })!;
   assert.throws(() => routes['POST /api/entry/image'](ctxI(alice,
-    { storyId: aStory.id, id: bEntry, dataUrl: jpeg })), /not in this book/,
+    { storyId: aStory.id, id: bEntry, dataUrl: jpeg })), /not in this tale/,
     "a thread from another book cannot be given a picture through one you own");
   assert.strictEqual(db.entryImageAt(bStory.id, bEntry), null, 'and nothing was written for it');
 

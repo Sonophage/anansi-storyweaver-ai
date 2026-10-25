@@ -97,7 +97,7 @@ const MAX_COVER = 1_000_000;
 const need = <T,>(v: T, msg: string): NonNullable<T> => {
   if (!v) throw Object.assign(new Error(msg), { code: 404 }); return v as NonNullable<T>; };
 /** A book's view as the background work reads it: no writer, so no model resolved for one. */
-const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such story');
+const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such tale');
 /** THE ROLES THAT WEAVE, AND THE ROOM EACH IS GIVEN, the only list of them. A call whose role is not
  *  here is sent weaving off whatever its book says: summaries, the canon check, memory and
  *  extraction are background work, and F23 measured a structured call that planned first
@@ -145,8 +145,8 @@ const canWeave = (c: Ctx, v: { story: any; owner?: string }) => db.takesSwitch(w
 
 /** What the writer is told when this book's model cannot take the switch: in the Storyteller, where
  *  the switch would be, and when weaving is turned on for such a book anyway. */
-const CANNOT_WEAVE = "This book's model can't be asked to weave, so weaving can't be turned on for "
-  + 'this book. Pick a model that can, and turn it on then.';
+const CANNOT_WEAVE = "This tale's model can't be asked to spin, so spinning can't be turned on for "
+  + 'this tale. Pick a model that can, and turn it on then.';
 
 /** What the Storyteller shows in place of the Weaving switch, or null when the switch is drawn. A
  *  model that always weaves says so first, because it does weave, whether or not it takes the switch. */
@@ -190,10 +190,10 @@ const proseCap = (c: Ctx) => Number(c.gen.max_tokens) || 900;
  *  the way on it names is another model for the book, the button the client draws in its place. */
 export const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }, tokens: number,
                       limit: number | null, always = false) => {
-  const room = `Weaving sets aside ${tokens.toLocaleString('en')} tokens for Anansi to weave in`;
-  const own = limit != null && `${limit.toLocaleString('en')} tokens, this book's model's own limit`;
-  const off = always ? 'Use another model for this book' : 'Turn weaving off for this book';
-  if (fit.overflows) return `${room}, and this book's prompt would not fit beside them${
+  const room = `Spinning sets aside ${tokens.toLocaleString('en')} tokens for Anansi to spin in`;
+  const own = limit != null && `${limit.toLocaleString('en')} tokens, this tale's model's own limit`;
+  const off = always ? 'Use another model for this tale' : 'Turn spinning off for this tale';
+  if (fit.overflows) return `${room}, and what this tale sends would not fit beside them${
     own ? ` in the ${own}` : ''}. ${off} to write.`;
   const of = (kind: string) => fit.drops.filter((b) => b.kind === kind);
   const and = (xs: string[]) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
@@ -205,7 +205,7 @@ export const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }
     const act = actSpan(b.id);
     return n + (act ? act.to - act.from + 1 : 1);
   }, 0);
-  if (chapters) parts.push(chapters === 1 ? 'the summary of an earlier chapter' : `the summaries of ${chapters} earlier chapters`);
+  if (chapters) parts.push(chapters === 1 ? 'the summary of an earlier scene' : `the summaries of ${chapters} earlier scenes`);
   const threads = fit.drops.filter((b) => b.kind.startsWith('CANON'))
     .map((b) => v.entries?.find((e: any) => e.id === b.id)?.title ?? 'a thread');
   if (threads.length) parts.push(threads.length === 1 ? `the thread ${threads[0]}`
@@ -213,9 +213,9 @@ export const weaveRefusal = (v: any, fit: { drops: Block[]; overflows: boolean }
   // Nothing else is evicted today (the engine's ceilings touch only those three); named by count
   // rather than dropped, so a fourth kind can never make this sentence claim less than it costs.
   const other = fit.drops.length - prose - of('EARLIER').length - threads.length;
-  if (other > 0) parts.push(other === 1 ? 'one more part of the book' : `${other} more parts of the book`);
-  return `${room}, and ${own ? `in the ${own}, ` : 'in this book '}that would leave out ${and(parts)}. `
-    + `${off}, or write anyway and let them drop out.`;
+  if (other > 0) parts.push(other === 1 ? 'one more part of the tale' : `${other} more parts of the tale`);
+  return `${room}, and ${own ? `in the ${own}, ` : 'in this tale '}that would leave out ${and(parts)}. `
+    + `${off}, or write anyway and leave them out.`;
 };
 
 /** #56 · A CALL'S PROMPT, ASSEMBLED AT THE CAP IT WILL BE SENT WITH, AND WHETHER WEAVING FITS IT.
@@ -873,8 +873,8 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     manifest.totals.used = exact;
     if (exact > manifest.totals.budget) {
       const first = manifest.blocks.find((b) => b.state === 'included');
-      return { manifest, error: `${exact} tokens against a budget of ${manifest.totals.budget}. ` +
-        `The server would drop ${first?.kind}/${first?.id} from the head first.` };
+      return { manifest, error: `${exact} tokens against a space of ${manifest.totals.budget}. ` +
+        `The server would leave out ${first?.kind}/${first?.id} from the head first.` };
     }
   } catch { /* model asleep — let the call fail with its own error */ }
   // Rounded to a tenth of a millisecond. `tokenize` is the /tokenize round trip and is the only one
@@ -1080,12 +1080,12 @@ async function remember(c: Ctx, storyId: string, chapterId: string) {
       if (db.addProposal(storyId, field ? {
         kind: 'changed', entry_id: who.id, chapterId: ch.id,
         title: who.title, body: piece.body.trim(), entryType: 'character', field, target: offer,
-        delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this chapter',
+        delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this scene',
         keys: [],
       } : {
         kind: 'memory', entry_id: who.id, chapterId: ch.id,
         title: who.title, body: piece.body.trim(), entryType: 'state',
-        delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this chapter',
+        delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this scene',
         keys: [String(ch.index + 1)],
       })) remembered++;
     }
@@ -1110,10 +1110,10 @@ async function extract(c: Ctx, storyId: string, chapterId?: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
-  if (!ps.length) return { error: 'nothing to read in this chapter' };
+  if (!ps.length) return { error: 'nothing to read in this scene' };
   const existing = db.entriesOf(v.id);
   const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
-  if (!text.trim()) return { error: 'this chapter is all dialogue — nothing the narrator committed' };
+  if (!text.trim()) return { error: 'this scene is all dialogue — nothing the narrator committed' };
   const r = await structuredRetry(EXTRACT, text, EXTRACT_SCHEMA, { model: backgroundModel(c, v) });
   if (!r.data?.entries) return { error: r.error ?? 'extraction returned nothing usable' };
   let added = 0;
@@ -1178,7 +1178,7 @@ async function extractStory(c: Ctx, storyId: string, entryId: string) {
     .filter((h: any) => h.text.trim() && fires(probe as any, h.text).length > 0);
 
   if (!hits.length) {
-    return { error: `the narration never names ${title} — a card the narrator does not commit to `
+    return { error: `the narration never names ${title} — a thread the narrator does not commit to `
       + 'has nothing for this pass to find', mentioned: 0, read: 0 };
   }
 
@@ -1288,8 +1288,8 @@ async function retire(c: Ctx, storyId: string, chapterId?: string) {
     if (quote.length < 15 || !prose.includes(quote)) { unevidenced++; continue; }
     if (db.addProposal(v.id, {
       kind: 'retire', entryType: 'retire', entry_id: who.id, chapterId: ch.id, title: who.title,
-      body: String(f.quote ?? '').trim() || 'finished by this chapter',
-      delta: `Stops reaching the model from chapter ${at}`,
+      body: String(f.quote ?? '').trim() || 'done with by this scene',
+      delta: `Hemmed: stops reaching the model from scene ${at}`,
       keys: [String(at)],
     })) proposed++;
   }
@@ -1348,7 +1348,7 @@ export function classify(existing: any[], p: any) {
     return words(p.title).some((w) => ew.has(w));
   });
 
-  if (!hit) return { kind: 'new', entry_id: null, delta: 'New entry' };
+  if (!hit) return { kind: 'new', entry_id: null, delta: 'New thread' };
   if (hit.body.trim() === p.body.trim()) return null;   // nothing to say
   // A conflict is specifically a proposal against a BODY a human wrote. If you renamed the
   // entry but never touched its body, the body is still the model's to update.
@@ -1356,7 +1356,7 @@ export function classify(existing: any[], p: any) {
   const kind = bodyEditor === 'human' ? 'conflict' : 'changed';
   return { kind, entry_id: hit.id,
     delta: kind === 'conflict'
-      ? `Would overwrite a body you pinned: "${hit.body.slice(0, 70)}…"`
+      ? `Would overwrite a body you wrote: "${hit.body.slice(0, 70)}…"`
       : `Was: "${hit.body.slice(0, 70)}…"` };
 }
 
@@ -1482,7 +1482,7 @@ function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, 
   const here = slotsFor(kind).map((sl) => sl.name);
   for (const [slot, val] of Object.entries(rooms ?? {})) {
     if (!here.includes(slot)) {
-      notes.push(`"${label}" offered a "${slot}" — a ${kind} has no such room, so it was left out.`);
+      notes.push(`"${label}" offered a "${slot}" — a ${kind} has no such pocket, so it was left out.`);
       continue;
     }
     const o: any = (val && typeof val === 'object') ? val : { body: String(val ?? '') };
@@ -1794,11 +1794,11 @@ export const routes: Record<string, Handler> = {
     const books = db.unpinModel(c.owner, id);
     const wasDefault = c.defaultModel === id;
     if (wasDefault) c.setDefaultModel(null);
-    const named = [...(wasDefault ? ['your default'] : []), ...books.map((t) => `“${t}”`)];
+    const named = [...(wasDefault ? ['your model'] : []), ...books.map((t) => `“${t}”`)];
     const list = new Intl.ListFormat('en-GB').format(named);
     return { models: db.shortlistOf(c.owner),
       ...(named.length ? { toast: `${list[0].toUpperCase()}${list.slice(1)} ${
-        named.length === 1 ? 'goes' : 'go'} back to the local default.` } : {}) };
+        named.length === 1 ? 'goes' : 'go'} back to the local model.` } : {}) };
   },
   // Releasing the models and bringing them back. GATED — not on the OPEN list — because it stops
   // a service both tenants share. The action is checked against a fixed list here as well as in
@@ -1945,13 +1945,13 @@ export const routes: Record<string, Handler> = {
     let moved: { cards: number; edges: number } | null = null;
     if (into) {
       moved = ledgerInto(c, String(c.body.id ?? ''), into);
-      if (!moved) return { error: 'those threads cannot go to that book, so nothing was deleted' };
+      if (!moved) return { error: 'those threads cannot go to that tale, so nothing was deleted' };
     }
     // A DELETE THAT EMPTIES SOMEBODY ELSE'S LEDGER IS THE SAME LOSS THIS ROUTE JUST LEARNED TO
     // PREVENT, one book further out. Refused by name rather than explained afterwards.
     const needs = db.followersOf(String(c.body.id ?? ''));
     if (needs.length) return { error: `${needs.map((x: any) => x.title).join(' and ')} `
-      + `${needs.length === 1 ? 'follows' : 'follow'} this book's threads. Point ${
+      + `${needs.length === 1 ? 'follows' : 'follow'} this bolt's threads. Point ${
         needs.length === 1 ? 'it' : 'them'} somewhere else first, and it can go.` };
     db.delStory(c.body.id, c.owner);
     return { ok: true, moved };
@@ -1977,13 +1977,13 @@ export const routes: Record<string, Handler> = {
   'POST /api/story/duplicate': (c) => {
     const made = db.duplicateStory(c.owner, String(c.body.storyId ?? ''),
       String(c.body.title ?? '').trim());
-    if (!made) return { error: 'that book cannot be copied' };
+    if (!made) return { error: 'that tale cannot be copied' };
     return { ...made, stories: db.listStories(c.owner) };
   },
 
   'POST /api/threads/copy': (c) => {
     const moved = ledgerInto(c, String(c.body.storyId ?? ''), String(c.body.into ?? 'new'));
-    if (!moved) return { error: 'those threads cannot go to that book' };
+    if (!moved) return { error: 'those threads cannot go to that tale' };
     return { ...moved, stories: db.listStories(c.owner) };
   },
 
@@ -2149,7 +2149,7 @@ export const routes: Record<string, Handler> = {
   'POST /api/spark/review': async (c) => {
     const st = c.body.story ?? {};
     const cast = Array.isArray(c.body.entries) ? c.body.entries : [];
-    if (!String(st.premise ?? '').trim()) return { error: 'there is no premise to read back' };
+    if (!String(st.premise ?? '').trim()) return { error: 'there is no premise to try on' };
     const APPLIABLE = ['title', 'premise', 'setting'];
     const body = [
       `Title: ${st.title ?? ''}`,
@@ -2196,7 +2196,7 @@ export const routes: Record<string, Handler> = {
   /** A world book. Just the cards: no prose is ever written in it, and it stays off the shelf. */
   'POST /api/world': (c: Ctx) => {
     const title = String(c.body.title ?? '').trim();
-    if (!title) return { error: 'a world book needs a name' };
+    if (!title) return { error: 'a bolt needs a name' };
     const made = db.createWorld(c.owner, { title, premise: c.body.premise ?? '' });
     return { id: made.id };
   },
@@ -2209,9 +2209,9 @@ export const routes: Record<string, Handler> = {
    *  already checked it is yours before this handler runs. */
   'POST /api/story/from': (c: Ctx) => {
     const title = String(c.body.title ?? '').trim();
-    if (!title) return { error: 'the new book needs a name' };
+    if (!title) return { error: 'the new tale needs a name' };
     const made = db.storyFollowing(c.owner, String(c.body.storyId), title);
-    if (!made) return { error: 'that is not a book you own' };
+    if (!made) return { error: 'that is not a tale you own' };
     return { id: made.id };
   },
 
@@ -2247,7 +2247,7 @@ export const routes: Record<string, Handler> = {
       && !alwaysWeaves(c, after);
     db.updateStory(c.body.id, cleared ? { ...c.body.story, weaving: false } : c.body.story);
     return { ...viewOf(c, c.body.id),
-      ...(cleared ? { toast: "Weaving is off for this book now: its new model can't be asked to weave." } : {}) };
+      ...(cleared ? { toast: "Spinning is off for this tale now: its new model can't be asked to spin." } : {}) };
   },
   'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c, c.body.storyId); },
 
@@ -2357,7 +2357,7 @@ export const routes: Record<string, Handler> = {
     try { u = new URL(raw); } catch { return { error: 'that is not a URL' }; }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return { error: 'only http and https' };
     if (u.username || u.password) return { error: 'no credentials in an image URL' };
-    if (isPrivateHost(u.hostname)) return { error: 'that address is not on the web' };
+    if (isPrivateHost(u.hostname)) return { error: 'that address is not online' };
     let r: Response;
     try {
       r = await fetch(u, { redirect: 'error', signal: AbortSignal.timeout(15_000),
@@ -2430,7 +2430,7 @@ export const routes: Record<string, Handler> = {
       ? { proposed: 1, title: String(r.data.title).trim(), chapter: ch.index,
           proposals: db.proposalsOf(v.id) }
       : { proposed: 0, title: String(r.data.title).trim(), chapter: ch.index,
-          note: 'already proposed — it is in the queue', proposals: db.proposalsOf(v.id) };
+          note: 'already basted — it is under This scene', proposals: db.proposalsOf(v.id) };
   },
 
   'POST /api/chapter/propose': async (c: Ctx) => {
@@ -2688,7 +2688,7 @@ export const routes: Record<string, Handler> = {
    */
   'POST /api/writers': (c) => {
     const st = db.getStory(c.body.storyId);
-    if (!st || st.owner_id !== c.owner) return { error: 'only the owner can share a book' };
+    if (!st || st.owner_id !== c.owner) return { error: 'only the owner can share a tale' };
     const mate = (c.mates?.() ?? []).find((m: any) => m.login === c.body.login);
     if (!mate) return { error: 'no such writer here' };
     if (c.body.remove) db.dropWriter(st.id, mate.id);
@@ -2782,7 +2782,7 @@ export const routes: Record<string, Handler> = {
     const passageId = String(c.body.passageId ?? '');
     const passage = v.passages.find((p: any) => p.id === passageId);
     if (!passage) return { error: 'no such passage' };
-    if (passage.isBreak) return { error: 'a chapter break has nothing to repair' };
+    if (passage.isBreak) return { error: 'a scene break has nothing to mend' };
 
     // The canon this passage was actually shown, as of its own ordinal — the same rebuild `check`
     // does, and for the same reason: checking a passage against canon it never saw blames the
@@ -2792,10 +2792,10 @@ export const routes: Record<string, Handler> = {
     const mutes = db.mutedIn(storyId, chapter.id);
     const facts = factsFor(v, asOf.manifest, chapter.index, true)
       .filter((f: any) => !f.id || !mutes.has(f.id));
-    if (!facts.length) return { error: 'no canon reached this passage, so there is nothing to check it against' };
+    if (!facts.length) return { error: 'no thread reached this passage, so there is nothing to check it against' };
 
     const before = await contradictionsIn(facts, passage.body).catch(() => null);
-    if (!before || before.error) return { error: 'the checker could not answer, so nothing was changed' };
+    if (!before || before.error) return { error: 'the knot check could not answer, so nothing was changed' };
     if (!before.found.length) return { found: 0, mended: 0, unfixed: 0, nothing: true };
 
     const broken = before.found.map((x: any) =>
@@ -2930,7 +2930,7 @@ export const routes: Record<string, Handler> = {
    *  check the SOURCE book's owner as well, which the gate cannot see. */
   'POST /api/entry/unlink': (c) => {
     const made = db.unlinkEntry(String(c.body.storyId), c.owner, String(c.body.entryId ?? ''));
-    if (!made) return { error: 'that card is not one this book follows, or this book has already '
+    if (!made) return { error: 'that thread is not one this tale follows, or this tale has already '
       + 'made its own decision about it' };
     return { entryId: made, ...viewOf(c, c.body.storyId) };
   },
@@ -2939,14 +2939,14 @@ export const routes: Record<string, Handler> = {
   'POST /api/entry/relink': (c) => {
     const r = db.relinkEntry(String(c.body.storyId), c.owner, String(c.body.entryId ?? ''),
       c.body.keep === 'mine' ? 'mine' : 'theirs');
-    if (!r) return { error: 'that card has no book to go back to — the original is gone, so this '
+    if (!r) return { error: 'that thread has no bolt to go back to — the original is gone, so this '
       + 'copy is the only one left' };
     return { ...r, ...viewOf(c, c.body.storyId) };
   },
   /** Remove it from this book without touching the book it lives in. */
   'POST /api/entry/drop': (c) => {
     const made = db.dropFollowed(String(c.body.storyId), c.owner, String(c.body.entryId ?? ''));
-    if (!made) return { error: 'that card is not one this book follows, or this book has already '
+    if (!made) return { error: 'that thread is not one this tale follows, or this tale has already '
       + 'made its own decision about it' };
     return { dropped: made, ...viewOf(c, c.body.storyId) };
   },
@@ -2955,10 +2955,10 @@ export const routes: Record<string, Handler> = {
     const from = String(c.body.storyId ?? '');
     const into = String(c.body.into ?? '');
     const entryId = String(c.body.entryId ?? '');
-    if (!into || !entryId) return { error: 'name the entry and the book it is going to' };
-    if (into === from) return { error: 'that card is already in this book' };
+    if (!into || !entryId) return { error: 'name the thread and the tale it is going to' };
+    if (into === from) return { error: 'that thread is already in this tale' };
     const made = db.copyEntry(from, into, c.owner, entryId);
-    if (!made) return { error: 'no such card in that book' };
+    if (!made) return { error: 'no such thread in that tale' };
     return { copied: made, into, ...viewOf(c, into) };
   },
 
@@ -3159,7 +3159,7 @@ export const routes: Record<string, Handler> = {
     // draft for the form rather than going to the queue — and the writer still presses Save, which
     // is the line this route has never crossed.
     const who = (isAddon || c.body.entryId) ? v.entries.find((e: any) => e.id === c.body.entryId) : null;
-    if (isAddon && !who) return { error: `a ${kind.replace(/_/g, ' ')} needs a card to belong to` };
+    if (isAddon && !who) return { error: `a ${kind.replace(/_/g, ' ')} needs a thread to belong to` };
     const refill = !isAddon && !!who;
 
     let sources: { title: string; url: string; text: string }[] = [];
@@ -3209,7 +3209,7 @@ export const routes: Record<string, Handler> = {
                seconds: +((Date.now() - t0) / 1000).toFixed(1) };
 
     if (!String(r.data.title ?? '').trim() || !String(r.data.body ?? '').trim())
-      return { error: 'Anansi wrote an entry with no name or no body' };
+      return { error: 'Anansi wrote a thread with no name or no body' };
     // Straight back into the open form, unsaved and unproposed. `classify` below is for cards that
     // do not exist yet; running it here would refuse the answer as a duplicate of the very card
     // being rewritten, which is the one thing it is guaranteed to look like.
@@ -3218,7 +3218,7 @@ export const routes: Record<string, Handler> = {
                        keys: Array.isArray(r.data.keys) ? r.data.keys : [] },
                seconds: +((Date.now() - t0) / 1000).toFixed(1) };
     const cls = classify(db.entriesOf(v.id), r.data);
-    if (!cls) return { error: `the ledger already says exactly that about ${r.data.title}` };
+    if (!cls) return { error: `the threads already say exactly that about ${r.data.title}` };
     const ok = db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id,
       title: String(r.data.title).trim(), body: String(r.data.body).trim(),
       entryType: kind, keys: r.data.keys ?? [] });
@@ -3237,7 +3237,7 @@ export const routes: Record<string, Handler> = {
   // surface gets a message instead of a 500.
   'POST /api/addon':    (c) => {
     const id = db.upsertAddon(c.body.storyId, c.body.entryId ?? null, c.body.addon ?? {});
-    if (!id) return { error: 'that is not a room this kind of card has, or not a card in this book' };
+    if (!id) return { error: 'that is not a pocket this kind of thread has, or not a thread in this tale' };
     return { addonId: id, ...viewOf(c, c.body.storyId) };
   },
   // Two ways a room reaches the model and this is the writer's half: `active` is pinning it on,
@@ -3285,7 +3285,7 @@ export const routes: Record<string, Handler> = {
     // The hatch: whatever was typed for this pull, else the book's own world.
     const world = (String(c.body.world ?? '').trim() || String((v.story as any).world ?? '').trim())
       .slice(0, 120);
-    if (!world) return { error: 'name a world, or set one on this book first' };
+    if (!world) return { error: 'name a universe, or set one on this tale first' };
     if (!searchConfigured()) return { error: 'web search is not configured on this server — set ANANSI_SEARCH' };
     // Eight is the ceiling the schema enforces too. More than that is a screen nobody reads, and
     // every extra name is a model call the writer has to decide about.
@@ -3477,11 +3477,11 @@ export const routes: Record<string, Handler> = {
      * accepted by accident, and not before. */
     const title = String(r.data.title ?? '').trim();
     if (!title) {
-      return { error: `the results for ${JSON.stringify(subject)} did not say enough to make a card`,
+      return { error: `the results for ${JSON.stringify(subject)} did not say enough to make a thread`,
                sources: sources.map((x) => x.url) };
     }
     const cls = classify(db.entriesOf(v.id), r.data);
-    if (!cls) return { error: `the ledger already says exactly that about ${title}` };
+    if (!cls) return { error: `the threads already say exactly that about ${title}` };
     /* THE ROOMS RIDE WITH THE CARD, and are written when it is accepted rather than now. A room
      * belongs to an entry and this entry does not exist yet, so they cannot be proposed
      * separately — accepting a room proposal needs a card to hang it on. Kept on the row as JSON
@@ -3553,13 +3553,13 @@ export const routes: Record<string, Handler> = {
 
     const list = Array.isArray(j) ? j : [j];
     if (!list.length) return { error: 'that is an empty list' };
-    if (list.length > 40) return { error: `that is ${list.length} cards — 40 at a time is the ceiling` };
+    if (list.length > 40) return { error: `that is ${list.length} threads — 40 at a time is the ceiling` };
 
     const notes: string[] = [];
     const made: { id: string; title: string; rooms: number }[] = [];
     for (const [i, raw] of list.entries()) {
-      const where = list.length > 1 ? ` (card ${i + 1})` : '';
-      if (!raw || typeof raw !== 'object') { notes.push(`Skipped something that is not a card${where}.`); continue; }
+      const where = list.length > 1 ? ` (thread ${i + 1})` : '';
+      if (!raw || typeof raw !== 'object') { notes.push(`Skipped something that is not a thread${where}.`); continue; }
       const kind = String(raw.kind ?? raw.entryType ?? 'character').trim();
       if (!SLOTS[kind as keyof typeof SLOTS]) {
         notes.push(`Skipped "${String(raw.title ?? 'untitled')}"${where}: there is nothing called a "${kind}".`);
@@ -3594,7 +3594,7 @@ export const routes: Record<string, Handler> = {
       notes.push(...w.notes);
       made.push({ id, title, rooms: w.made });
     }
-    if (!made.length) return { error: notes[0] ?? 'nothing in that paste was a card' };
+    if (!made.length) return { error: notes[0] ?? 'nothing in that paste was a thread' };
     return { made, notes, ...viewOf(c, c.body.storyId) };
   },
 
@@ -3610,7 +3610,7 @@ export const routes: Record<string, Handler> = {
   'POST /api/link': (c) => {
     const id = db.linkEntries(c.body.storyId, c.body.parentId, c.body.childId,
       { confidence: c.body.confidence });
-    if (!id) return { error: 'those two cannot be connected that way, or already are' };
+    if (!id) return { error: 'those two cannot be stitched together that way, or already are' };
     return viewOf(c, c.body.storyId);
   },
   'DELETE /api/link': (c) => { db.unlinkEntries(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
@@ -3622,8 +3622,8 @@ export const routes: Record<string, Handler> = {
   // the entry save would quietly mark the card human-edited. Retiring is not editing.
   'POST /api/retire': (c) => {
     const at = c.body.atChapter == null ? null : Number(c.body.atChapter);
-    if (at != null && !(Number.isInteger(at) && at > 0)) return { error: 'that is not a chapter' };
-    if (!db.setRetired(c.body.storyId, c.body.id, at)) return { error: 'no such card in this book' };
+    if (at != null && !(Number.isInteger(at) && at > 0)) return { error: 'that is not a scene' };
+    if (!db.setRetired(c.body.storyId, c.body.id, at)) return { error: 'no such thread in this tale' };
     return viewOf(c, c.body.storyId);
   },
   // The way back when the router was down at chapter end — the exact case `POST /api/remember`
@@ -3637,7 +3637,7 @@ export const routes: Record<string, Handler> = {
   /** Per-chapter override. `mode` null clears it. */
   'POST /api/pin':     (c) => {
     const ok = db.setPin(c.body.storyId, c.body.chapterId, c.body.entryId, c.body.mode ?? null);
-    return { ...viewOf(c, c.body.storyId), ...(ok ? {} : { error: 'that chapter or entry is not in this story' }) };
+    return { ...viewOf(c, c.body.storyId), ...(ok ? {} : { error: 'that scene or thread is not in this tale' }) };
   },
   'DELETE /api/state': (c) => { db.delState(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
@@ -3739,7 +3739,7 @@ export const routes: Record<string, Handler> = {
     if (!(buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff))
       throw Object.assign(new Error('that is not a JPEG'), { code: 400 });
     if (!db.setEntryImage(c.body.storyId, String(c.body.id ?? ''), buf))
-      throw Object.assign(new Error('that thread is not in this book'), { code: 404 });
+      throw Object.assign(new Error('that thread is not in this tale'), { code: 404 });
     return viewOf(c, c.body.storyId);
   },
   'DELETE /api/entry/image': (c: Ctx) => {
@@ -3960,7 +3960,7 @@ export const routes: Record<string, Handler> = {
    *  An empty `field` is the card's own body, the same as `none` from the model. */
   'POST /api/proposal/where': (c) => {
     const p = db.proposal(c.body.storyId, c.body.id);
-    if (!p) return { error: 'no such proposal' };
+    if (!p) return { error: 'nothing basted by that name' };
     const v = viewOf(c, c.body.storyId);
     const onto = p.entry_id ? (v.entries as any[]).find((x) => x.id === p.entry_id) : null;
     const asked = String(c.body.field ?? '');
@@ -3990,15 +3990,15 @@ export const routes: Record<string, Handler> = {
     const v = viewOf(c, c.body.storyId);
     const from = Number(c.body.from), to = Number(c.body.to);
     const run = v.chapters.filter((ch) => ch.index >= from && ch.index <= to && summaryReaches(ch));
-    if (run.length < 2) return { error: 'need at least two summarised chapters to roll up' };
+    if (run.length < 2) return { error: 'two summarised scenes are needed to roll into a panel' };
     const already = (v.arcs ?? []).some((a: any) => a.fromChapter <= to && a.toChapter >= from);
-    if (already) return { error: 'those chapters are already inside an arc' };
+    if (already) return { error: 'those scenes are already inside a panel' };
     const text = run.map((ch) => `Chapter ${ch.index} — ${ch.title}: ${ch.summary}`).join('\n\n');
     const r = await chat(ARC(from, to, 220), text,
       { model: backgroundModel(c, v), temperature: 0.2, max_tokens: 500,
         chat_template_kwargs: { enable_thinking: false } });
     const summary = clean(r.prose);
-    if (!summary) return { error: 'the roll-up returned nothing usable' };
+    if (!summary) return { error: 'the panel came back with nothing usable' };
     db.addArc(v.id, { branchId: v.branchId, fromChapter: from, toChapter: to,
       title: `${run[0].title} to ${run.at(-1)!.title}`, summary });
     return { summary, ...viewOf(c, v.id) };
@@ -4008,10 +4008,10 @@ export const routes: Record<string, Handler> = {
    *  heading with nothing under it. An empty title is no title, and the card shows the chapters. */
   'POST /api/arc': (c) => {
     const summary = String(c.body.summary ?? '').trim();
-    if (!summary) return { error: 'An act cannot be empty. To remove it, press ✕ on its card.' };
+    if (!summary) return { error: 'A panel cannot be empty. To remove it, press ✕ on it.' };
     const title = String(c.body.title ?? '').trim() || null;
     if (!db.updateArc(c.body.storyId, String(c.body.id ?? ''), title, summary))
-      return { error: 'that act is not in this book' };
+      return { error: 'that panel is not in this tale' };
     return viewOf(c, c.body.storyId);
   },
   'DELETE /api/arc': (c) => { db.delArc(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
@@ -4100,7 +4100,7 @@ export const routes: Record<string, Handler> = {
       // too. Asked in the same words and answered with the same 404 — "no such story" rather than
       // "not yours", because which books exist is not a question a stranger gets an answer to.
       if (!db.ownsStory(c.body.storyId, c.owner))
-        throw Object.assign(new Error('no such story'), { code: 404 });
+        throw Object.assign(new Error('no such tale'), { code: 404 });
       db.setStoryLook(c.body.storyId, c.owner, look);
       return viewOf(c, c.body.storyId);
     }
