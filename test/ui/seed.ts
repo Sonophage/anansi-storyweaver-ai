@@ -26,7 +26,7 @@ if (db.listStories(me).some((s: any) => s.title === input.story.title)) {
 // over its chapters one and two would replace their summaries in every prompt the other scenarios
 // read. Chapter three is current, so the act covers the two chapters behind it.
 {
-  const acts = db.createStory(me, { title: 'A Book In Acts', premise: 'For editing an act.' });
+  const acts = db.createStory(me, { title: 'A Tale In Chapters', premise: 'For editing a chapter.' });
   db.endChapter(acts.id, acts.branchId);
   db.endChapter(acts.id, acts.branchId);
   // #47. The act is built from these two summaries, then chapter two is summarised again, so the act
@@ -66,10 +66,28 @@ for (const [i, p] of input.passages.entries()) {
 // The engine fixture titles its entries by id ('e-aldis'), because nothing below the prompt
 // reads a title. The UI does: the "You are" dropdown is filled from the cast by name. So the
 // name is taken from the front of the body, which is where the fixture actually puts it.
+const ids: Record<string, string> = {};
 for (const e of input.entries) {
   const name = (e.body.match(/^\[([^:\]]+)[:\]]/) ?? [, e.title])[1].trim();
-  db.upsertEntry(made.id, me, { title: name, body: e.body, entryType: e.entryType,
+  ids[name] = db.upsertEntry(made.id, me, { title: name, body: e.body, entryType: e.entryType,
     activation: e.activation, keys: e.keys, lastEditor: 'human' });
+}
+// MAREK HAS POCKETS AND A CHANGE OVER TIME, so the Pockets and Over time tabs of a thread have
+// something on them in the screenshots (test/ui/shots.js opens Marek for those). Marek and not
+// Aldis: handlers.js adds Aldis's first outfit and first state and counts exactly one of each.
+// NONE OF IT REACHES A PROMPT, so no other scenario reads a different prompt: the pocket is
+// written and left off, the outfit is not worn, and the state opens at scene 4, after the
+// current scene 3, hidden until then.
+const marek = ids['Marek Vale'];
+const pocket = db.upsertAddon(made.id, marek, { slot: 'relationships', name: 'Aldis',
+  body: 'Marek likes Aldis, which is why he lent to him, and why he will not forgive him.' });
+const outfit = db.upsertOutfit(made.id, marek, { name: 'The grey coat',
+  body: 'A long grey coat, dry at the hem whatever the weather.' });
+const later = db.upsertState(made.id, marek, { fromChapter: 4, label: 'After the bell',
+  body: '[Marek Vale: moneylender, courteous, and for the first time seen outside in the rain]' });
+if (!marek || !pocket || !outfit || !later) {
+  console.error(`  seed: Marek's pocket, outfit or state was refused (${marek} ${pocket} ${outfit} ${later})`);
+  process.exit(1);
 }
 // ONE PROPOSAL, PLANTED. `handlers.js` tests Accept by firing a real /api/extract and working
 // whatever the model proposed — so on a run where the model was busy, loading, or simply proposed
@@ -86,4 +104,4 @@ db.addProposal(made.id, { kind: 'new', chapterId, title: 'The Vantic Rain',
 
 console.log(`  seeded ${input.story.title}: ${input.chapters.length} chapters, `
   + `${input.passages.length} passages, ${input.entries.length} entries, persona Aldis Fen, `
-  + `1 planted proposal, and A Book In Acts with one act`);
+  + `1 planted proposal, a pocket, an outfit and a later state on Marek Vale, and A Tale In Chapters with one act`);

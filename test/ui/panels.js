@@ -1496,7 +1496,7 @@ if (btn) {
 // The seed's second book carries one act over chapters one and two, because writing one takes a roll-up
 // and a roll-up takes the model. Every check reads what the writer sees or what the server now holds.
 {
-  const aid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='A Book In Acts')?.id ?? null)()");
+  const aid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='A Tale In Chapters')?.id ?? null)()");
   const arcOf = () => page.eval("(async () => (await (await fetch('/api/story?story=" + aid + "')).json()).arcs[0])()");
   const typeIn = (sel, text) => page.eval(`(() => { const t = document.querySelector(${JSON.stringify(sel)});
     if (!t) return 0; t.value = ${JSON.stringify(text)}; t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);

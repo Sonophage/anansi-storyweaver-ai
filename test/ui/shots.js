@@ -85,11 +85,14 @@ for (const p of ['search', 'waiting', 'story', 'chapter', 'chapters', 'threads',
 for (const t of ['book', 'world', 'keep']) { await book('/story'); await press(`[data-storytab="${t}"]`); await snap(`s-story-${t}`, '#sideBody'); }
 for (const t of ['proposed', 'summaries', 'branches']) { await book('/chapter'); await press(`[data-chaptab="${t}"]`); await snap(`s-chapter-${t}`, '#sideBody'); }
 
-// A card as read, then its editor and the editor's tabs, from the first thread.
-await book('/threads'); await press('[data-entry]'); await snap('s-entry-read', '#sideBody');
+// A card as read, then its editor and the editor's tabs, from Marek Vale: test/ui/seed.ts gives him
+// a pocket, an outfit and a change over time, so the Pockets and Over time tabs are not empty.
+const MAREK = `[data-entry="${await (async () => { await book('/threads'); return page.eval(
+  "[...document.querySelectorAll('[data-entry]')].find((x) => x.textContent.includes('Marek'))?.dataset.entry ?? ''"); })()}"]`;
+await book('/threads'); await press(MAREK); await snap('s-entry-read', '#sideBody');
 for (const t of ['card', 'rooms', 'time', 'more']) {
   await book('/threads');
-  await press('[data-entry]');
+  await press(MAREK);
   await press('[data-cardview="form"]');
   if (t !== 'card') await press(`[data-cardtab="${t}"]`);
   await snap(`s-entry-${t}`, '#sideBody');
