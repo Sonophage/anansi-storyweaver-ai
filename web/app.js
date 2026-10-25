@@ -223,7 +223,7 @@ const S = {
   modelMenu: false,     // the model list, open under the rail's footer
   // #51. Find a model: the search over the Featherless catalogue, and this writer's shortlist.
   // `hits` is null until the first answer lands; `seq` drops an answer a later search overtook.
-  find: { q: '', size: '', weaving: '', uncensored: true, hits: null, total: 0, sizes: [], weavings: [],
+  find: { q: '', size: '', weaving: '', cost: '', tag: '', uncensored: true, hits: null, total: 0, sizes: [], costs: [], weavings: [],
           error: null, seq: 0, open: null },
   shortlist: null,
   remote: false,        // #54. Whether the server has a Featherless key, from /api/models
@@ -493,7 +493,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
   'editsum', 'savesum', 'cancelsum',
-  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'choosemodel', 'altsave', 'altcancel', 'sumtab', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'choosemodel', 'altsave', 'altcancel', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -965,6 +965,7 @@ function drawMeter() {
 }
 
 function drawBar() {
+  syncLayers();
   const inStory = S.place === 'story' && V;
   const pct = contextPct();
   const noRoom = !!MANI && MANI.totals.budget <= 0;
@@ -1095,8 +1096,10 @@ function drawBar() {
 function emptyModels() {
   const allow = S.allow ?? [];
   if (!allow.length) {
-    return `<div class="hint" style="margin:0">The local model did not answer. It has to be
-      restarted on the machine Anansi runs on.</div>`;
+    // AND A WAY ON, where there is one. The list empty was a dead end (second usability check).
+    return `<div class="hint" style="margin:0">The model on this machine is not answering. It has to
+      be restarted on the machine Anansi runs on.</div>${S.remote ? `<button class="btn ghost"
+      data-findmodel="1" style="margin-top:8px">Find a model on Featherless</button>` : ''}`;
   }
   return `<div class="hint" style="margin:0; color:var(--warn)">The router answered, and your
     allowlist matched none of it. <code>ANANSI_MODELS</code> is
@@ -1751,6 +1754,7 @@ function weaveFitRow(where = 'dock') {
 }
 
 function drawDock() {
+  syncLayers();
   if (!(S.place === 'story' && V)) { $('dock').hidden = true; DOCK_FOR = null; return; }
   $('dock').hidden = false;
   $('dock').classList.toggle('big', !!S.bigInput);
@@ -2260,8 +2264,11 @@ function ritualPanel() {
 }
 
 /** A remote model's Hugging Face tags, as small lowercase chips. */
+// Each tag is a press: it shows the other models in this search that carry it (Seth, 2026-10-25:
+// "the option to click a tag and find others like it").
 const hubTagChips = (tags) => `<span class="hubtags" style="display:flex; gap:4px; flex-wrap:wrap">${
-  tags.map((t) => `<span class="tag" style="text-transform:none; letter-spacing:0; padding:1px 6px">${esc(t)}</span>`).join('')}</span>`;
+  tags.map((t) => `<span class="tag" role="button" data-findtag="${esc(t)}" aria-label="Models tagged ${esc(t)}"
+    style="text-transform:none; letter-spacing:0; padding:1px 6px; cursor:pointer">${esc(t)}</span>`).join('')}</span>`;
 
 /** #52 \u00b7 WHAT A REMOTE MODEL IS, from its Hugging Face card: the model it was made from, the card's
  *  first paragraph, and its tags. ONE RENDERER for the expanded Find a model row and the model info
@@ -2389,7 +2396,19 @@ function findHits() {
   if (f.hits === null) return '<div class="hint" style="margin:0">Reading the catalogue&hellip;</div>';
   if (!f.hits.length) return '<div class="hint" style="margin:0">Nothing matches.</div>';
   const have = new Set((S.shortlist ?? []).map((m) => m.id));
-  return f.hits.map((m) => foundRow(m, have.has(m.id)
+  // THE TAG FILTER RUNS HERE, on the rows this search brought back, because tags come from Hugging
+  // Face a page at a time and the catalogue has none.
+  // ponytail: tag search covers the shown rows only (100 at most, and only once their tags have
+  // arrived). Ceiling: a tag carried only by models past the first 100 is not found. Upgrade: a
+  // server-side tag index over the cached Hugging Face reads.
+  const tag = f.tag.trim().toLowerCase();
+  const rows = tag ? f.hits.filter((m) => (S.hub.tags[m.id] ?? []).some((t) => t.toLowerCase().includes(tag))) : f.hits;
+  const waiting = tag && f.hits.some((m) => !(m.id in S.hub.tags));
+  const head = tag ? `<div class="hint" style="margin:0 0 6px">${rows.length} of the ${f.hits.length} shown
+      ${rows.length === 1 ? 'is' : 'are'} tagged “${esc(f.tag.trim())}”${waiting ? ' so far; tags are still arriving' : ''}.
+      <button data-findtag="" style="text-decoration:underline; color:var(--mute)">Clear</button></div>` : '';
+  if (tag && !rows.length) return head;
+  return head + rows.map((m) => foundRow(m, have.has(m.id)
     ? '<span style="font-size:11px; color:var(--faint)">on your shortlist</span>'
     : `<button class="btn" data-addshort="${esc(m.id)}" style="flex:0 0 auto; width:auto; font-size:11.5px; padding:5px 12px"
         ><span class="lbl-txt">Add</span></button>`)).join('')
@@ -2402,11 +2421,12 @@ function findHits() {
  *  answer, which brings the size choices with it. */
 async function findSearch(whole = false) {
   const f = S.find, seq = ++f.seq;
-  const r = await api.catalogue({ q: f.q, size: f.size, weaving: f.weaving, uncensored: f.uncensored ? '1' : '0' });
+  const r = await api.catalogue({ q: f.q, size: f.size, weaving: f.weaving, cost: f.cost, uncensored: f.uncensored ? '1' : '0' });
   if (seq !== f.seq) return;
   f.error = r.error ?? null;
   f.hits = r.error ? [] : (r.models ?? []); f.total = r.total ?? 0;
   if (r.sizes) f.sizes = r.sizes;
+  if (r.costs) f.costs = r.costs;
   if (r.weavings) f.weavings = r.weavings;
   if (S.panel !== 'findmodel') return;
   if (whole || !$('findhits')) drawSide(); else findRedraw();
@@ -2581,7 +2601,13 @@ const PANELS = {
             f.sizes.map((z) => opt(z, z.toUpperCase(), z === f.size)).join('')}</select>
           <select class="field" data-findweave="1" aria-label="Plans first" style="flex:1; width:auto">${opt('', 'Plans first: any', !f.weaving)}${
             f.weavings.map((w) => opt(w, spinWord(w), w === f.weaving)).join('')}</select>
+          <!-- Seth, 2026-10-25: "a filter for how many units it takes". -->
+          <select class="field" data-findcost="1" aria-label="Units of the plan" style="flex:1; width:auto">${opt('', 'Any units', !f.cost)}${
+            f.costs.map((c) => opt(String(c), `${c} ${c === 1 ? 'unit' : 'units'}`, String(c) === f.cost)).join('')}</select>
         </div>
+        <!-- And by tag: typed here, or a press on any tag in the list below. -->
+        <input class="field" id="findtag" type="search" aria-label="Tag" value="${esc(f.tag)}"
+          placeholder="A tag, such as roleplay" autocomplete="off" style="width:100%">
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--mute)">
           <input type="checkbox" data-finduncensored="1"${f.uncensored ? ' checked' : ''}>
           Uncensored only</label>
@@ -2697,6 +2723,15 @@ const PANELS = {
           + 'sent until it is written again.' });
     // #47. An act still reaches the model when it is out of date, so this says what to read, not
     // what was dropped. The ref carries what its chapters say now: a later change brings it back.
+    // A HEMMED SCENE WITH NO SUMMARY. A hem with the model down closes the scene and writes none,
+    // and after a reload nothing said so anywhere but This scene → Summaries (second usability
+    // check, 2026-10-25). Worked out here from the tale itself, so there is nothing to wave away:
+    // writing the summary is what clears it.
+    for (const c of (V.chapters ?? []).filter((x) => x.status === 'closed' && !(x.summary ?? '').trim()
+      && (V.passages ?? []).some((p) => p.chapterId === x.id && !p.isBreak)))
+      off.push({ kind: 'nosum', title: `${sceneName(c)} has no summary`,
+        body: 'It was hemmed without one, so Anansi reads none of it once the tale has moved on.',
+        fix: `<button class="btn ghost" data-summarize="${esc(c.id)}" style="align-self:flex-start; width:auto; padding:0 16px; margin-top:4px">Write the summary</button>` });
     const toChapters = `<button class="btn ghost" data-sumtab="1" style="align-self:flex-start; width:auto; padding:0 16px; margin-top:4px">Open Chapters</button>`;
     for (const a of (w.acts ?? [])) off.push({ kind: 'act', ref: a.ref, fix: toChapters,
       title: `${a.title || `Scenes ${a.fromChapter}–${a.toChapter}`} is out of date`,
@@ -2723,9 +2758,9 @@ const PANELS = {
         <div class="kind">${esc(d.title)}</div>
         <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(d.body)}</div>
         ${d.fix ?? ''}
-        <button data-dismiss="${d.kind}" data-ref="${esc(d.ref)}"
+        ${d.kind === 'nosum' ? '' : `<button data-dismiss="${d.kind}" data-ref="${esc(d.ref)}"
           style="align-self:flex-start; font-size:11.5px; color:var(--faint); margin-top:3px"
-          >Not now &mdash; ask me again if it changes</button></div>`).join('')}`;
+          >Not now &mdash; ask me again if it changes</button>`}</div>`).join('')}`;
   },
   setup: setupPanel,
   history: historyPanel,
@@ -3732,6 +3767,9 @@ const PANELS = {
 
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Chapters${
         tipMark('chActs', 'Chapters')}</div>
+      <!-- Said, not only behind the ?: "Chapters" was the scene list before v2, and a long-time
+           writer read it that way (second usability check, 2026-10-25). -->
+      <div class="hint" style="margin:2px 0 10px">A chapter is a run of scenes under one summary.</div>
       ${tipCard('chActs', 'Chapters', `<p>A chapter is a run of scenes gathered together, and its
         chapter summary is sent in place of theirs. A scene summary is about 220 tokens and they
         never stop arriving &mdash; at scene 120 they do not fit, and the oldest silently stop being
@@ -4639,6 +4677,9 @@ function sparkReview() {
     </select>${hint ? `<div class="hint">${hint}</div>` : ''}`;
 
   const cast = sparkCast();
+  // You play and Hands off are people. The cast list offered a place ("Gull Rock") as someone to
+  // play (second usability check, 2026-10-25).
+  const people = cast.filter((e) => (e.entryType ?? 'character') === 'character');
   // #40. What the writer has ticked and unticked on the threads step. `keep === false` is an
   // explicit untick; anything else is kept, which is what a freshly proposed thread arrives as.
   const kept = (S.spark.entries ?? []).filter((e) => e.keep !== false).length;
@@ -4732,14 +4773,14 @@ function sparkReview() {
     // `?` explainers are the panel's too — the wizard is where a writer meets these words FIRST and
     // it was the screen with no explanation of them.
     ? `${cast.length
-        ? pickOne('persona', `You play${helpMark('persona')}`, cast.map((e) => e.title), s.persona,
+        ? pickOne('persona', `You play${helpMark('persona')}`, people.map((e) => e.title), s.persona,
             PERSONA_NONE, PERSONA_HINT, helpBody('persona'))
         : row('persona', 'You play', s.persona,
             'The character you speak as in Speak mode. You set no cast, so name them here or '
             + 'leave it empty.')}
        ${cast.length
         ? pickOne('lockedCharacter', `Hands off${helpMark('locked')}`,
-            cast.map((e) => e.title), s.lockedCharacter, LOCKED_NONE,
+            people.map((e) => e.title), s.lockedCharacter, LOCKED_NONE,
             `${lockoutHint(s.lockedCharacter, s.lockoutOn !== false)} ${LOCKED_ASIDE}`,
             helpBody('locked'))
         : row('lockedCharacter', 'Hands off', s.lockedCharacter,
@@ -4934,8 +4975,12 @@ function sparkReview() {
         ? `<button class="btn" data-sparkstep="${step + 1}" style="flex:1">Next</button>`
         : ''}
     </div>
-    <button class="btn${step < STEPS.length ? ' ghost' : ''}" data-accept-spark="1"
-      style="margin-top:8px">Start writing</button>
+    <!-- Before the last step it is a small link that says it skips the rest: as a full button
+         under Next it read as the next step, and skipped the remaining ones without a word. -->
+    ${step < STEPS.length
+      ? `<button data-accept-spark="1" style="margin-top:10px; align-self:flex-start; font-size:12px;
+          color:var(--faint); text-decoration:underline">Skip the other steps and start writing</button>`
+      : '<button class="btn" data-accept-spark="1" style="margin-top:8px">Start writing</button>'}
     <button class="btn ghost" data-drop-spark="1" style="margin-top:8px">Discard it</button>
     <div class="hint">Nothing has been written yet. Starting it creates the tale and its threads.</div>`;
 }
@@ -7410,12 +7455,37 @@ function syncHash() {
   const want = S.place === 'story' && S.storyId ? `#${S.storyId}${S.panel ? `/${S.panel}` : ''}` : '';
   if (!ROUTED || ROUTING || BACKING || location.hash === want) return;
   const from = depth(location.hash), to = depth(want);
-  if (to > from) history.pushState({ under: location.hash }, '', want);
+  // The layer rides along, so a drawer opened over Reading mode does not end it on Back.
+  if (to > from) history.pushState({ under: location.hash, layer: layerNow() }, '', want);
   else if (to < from && history.state?.under === want) { BACKING = true; history.back(); }
   else history.replaceState(history.state, '', want || location.pathname);
 }
 // popstate comes before the hashchange that routes, on every step through history.
-window.addEventListener('popstate', () => { BACKING = false; });
+window.addEventListener('popstate', () => { BACKING = false; closeLayersBack(); });
+
+/** THE THREE THINGS THAT COVER A TALE WITHOUT BEING A DRAWER get a history entry too: the Look
+ *  sheet, the full-screen composer and Reading mode. They are not in the address, so Back went
+ *  past them and left the tale (second usability check, 2026-10-25). Each is a `layer` on an entry
+ *  pushed at the same address; shutting one by its own control steps back over that entry, and
+ *  Back shuts it. Called from drawBar and drawDock, which every change to the three goes through.
+ *  ponytail: one layer at a time, the topmost. Two open at once (Look over the big composer) share
+ *  one entry, so Back shuts both. Give each its own entry if anyone opens them together. */
+const layerNow = () => (S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
+function syncLayers() {
+  const want = layerNow(), have = history.state?.layer ?? null;
+  if (!ROUTED || BACKING || want === have) return;
+  if (want && !have) history.pushState({ layer: want }, '', location.href);
+  // Step back only over an entry that is nothing but this layer. One a drawer pushed is the
+  // drawer's too, and stepping back over it would shut the drawer.
+  else if (!want && !('under' in history.state)) { BACKING = true; history.back(); }
+  else history.replaceState({ ...history.state, layer: want }, '', location.href);
+}
+function closeLayersBack() {
+  const l = history.state?.layer ?? null;
+  if (S.appearance && l !== 'look') { S.appearance = false; drawAppearance(); drawBar(); }
+  if (S.bigInput && l !== 'big' && l !== 'look') { S.bigInput = false; drawDock(); syncTray(); }
+  if (S.reading && !l) { S.reading = false; root.dataset.reading = '0'; drawBar(); drawDoc(); }
+}
 
 function paint() {
   syncHash();
@@ -8973,6 +9043,7 @@ document.addEventListener('input', (e) => {
 // #51. The Find a model box. Searches a moment after the typing stops, and redraws only the results.
 let findTimer = null;
 document.addEventListener('input', (e) => {
+  if (e.target?.id === 'findtag') { S.find.tag = e.target.value; findRedraw(); return; }
   if (e.target?.id !== 'findq') return;
   S.find.q = e.target.value;
   clearTimeout(findTimer);
@@ -8983,6 +9054,7 @@ document.addEventListener('change', (e) => {
   if (!d) return;
   if (d.findsize !== undefined) S.find.size = e.target.value;
   else if (d.findweave !== undefined) S.find.weaving = e.target.value;
+  else if (d.findcost !== undefined) S.find.cost = e.target.value;
   else if (d.finduncensored !== undefined) S.find.uncensored = e.target.checked;
   else return;
   findSearch();
@@ -9314,6 +9386,13 @@ document.addEventListener('click', async (e) => {
    * different attributes; sharing them would save four lines and cost a reader the ability to
    * grep for either one. */
   // The Workbench's way to where chapters are gathered: This scene, on its Summaries tab.
+  if (d.findtag !== undefined) {
+    S.find.tag = d.findtag;
+    // A tag on the model page leads to Find a model, which is where the others are listed.
+    if (S.panel !== 'findmodel') { S.panel = 'findmodel'; if (overlay()) S.rail = false; paint(); return; }
+    if ($('findtag')) $('findtag').value = d.findtag;
+    findRedraw(); return;
+  }
   if (d.sumtab) { S.panel = 'chapter'; S.chapTab = 'summaries'; paint(); return; }
   if (d.chaptab) {
     S.chapTab = d.chaptab;
@@ -9979,7 +10058,6 @@ document.addEventListener('click', async (e) => {
       <button class="btn ghost" data-altcancel="${esc(d.ed)}" style="width:auto; padding:0 18px">Cancel</button></div>`);
     // Into view: on the Titan's square the bar landed under the composer, off screen.
     el.parentElement?.querySelector('.altbar')?.scrollIntoView({ block: 'nearest' });
-    toast('Altering. Save or Cancel under the passage.');
     return;
   }
   // Save is the blur: the press takes the caret out of the passage, and blur saves. Nothing left.
@@ -10699,8 +10777,9 @@ document.addEventListener('click', async (e) => {
     const missed = missedPasses();
     // #46. A summary that was yours is kept, not re-run, and that is said rather than left silent.
     const kept = r.keptSummary ? ' Kept your summary.' : '';
-    if (missed.length) toast(`Scene closed, but ${missed.map((m) => m.label).join(' and ')} `
-      + `did not run — ${missed[0].why}${kept}`);
+    // SHORT. It covered the next scene's form, and joined two messages into one (second check).
+    // Which passes and why are on the report, one row each.
+    if (missed.length) toast(`Scene closed, but ${missed.length === 1 ? 'one part' : `${missed.length} parts`} did not run. The row at the top says which.${kept}`);
     else if (kept) toast('Scene hemmed — kept your summary.');
     // THE OPENING PASSAGE IS NOT WRITTEN HERE ANY MORE — see `savesetup`. The beat rides near the
     // generation point on every call of a chapter, and writing its first passage from this line
@@ -11030,6 +11109,11 @@ document.addEventListener('click', async (e) => {
     const was = STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEPS.length) - 1][0];
     S.sparkStep = Number(d.sparkstep);
     paint();
+    // AT THE TOP OF THE STEP. A reviewer saw step 2 open at its own bottom on a phone (second
+    // usability check, 2026-10-25). NOT REPRODUCED here: in the driver every step already opens at
+    // the top, so this is a guard with no test that can fail without it. If it happens again,
+    // record which element was scrolled before adding more.
+    $('page')?.scrollTo?.(0, 0); document.scrollingElement?.scrollTo?.(0, 0);
     /* #40 · THE THREADS SUGGEST THEMSELVES. Seth, 2026-09-01: "having them suggested is good and
      * then the writer can state what they need after choosing what stays or goes."
      *

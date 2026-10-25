@@ -75,6 +75,35 @@ ok("every result row shows its Hugging Face tags",
 console.log(`      (${(await rowsAndTags()).join(' rows, ')} with tags)`);
 ok("a row's tags are the author's own words", /roleplay/.test(await page.eval(
   `document.querySelector('[data-findmore="${QWEN}"] .hubtags')?.textContent ?? ''`)));
+
+// ---- 3c. units and tags. Seth, 2026-10-25: "a filter for how many units it takes and a tag search
+// of any listed tags or the option to click a tag and find others like it."
+const all = (await hits()).length;
+await page.pick('[data-findcost]', '1');
+await wait(700);
+const ones = await page.eval(`[...document.querySelectorAll('#findhits [data-findmore]')].map((b) => b.textContent)`);
+ok(`the units filter narrows to 1-unit models (${ones.length} of ${all})`,
+   ones.length > 0 && ones.length < all && ones.every((t) => /\b1 unit\b/.test(t)));
+await page.pick('[data-findcost]', '');
+await wait(700);
+await until(`[...document.querySelectorAll('#findhits [data-findmore]')].every((b) => b.querySelector('.hubtags'))`);
+// A press on a tag: the other rows carrying it, and only them.
+await page.eval(`(() => { document.querySelector('[data-findmore="${QWEN}"] [data-findtag="roleplay"]').click(); return 1; })()`);
+await wait(300);
+const tagged = await page.eval(`[...document.querySelectorAll('#findhits [data-findmore]')].map((b) => b.dataset.findmore)`);
+ok(`a press on a tag shows the models that carry it (${JSON.stringify(tagged)})`,
+   tagged.some((id) => id.includes('Qwen3.6')) && tagged.length < all
+   && !tagged.some((id) => id.includes('Mistral-Small')));
+ok("  and puts the tag in the tag box", (await page.eval("document.getElementById('findtag')?.value")) === 'roleplay');
+// Typed: the same filter, from the box.
+await page.eval("(() => { const t = document.getElementById('findtag'); t.value = 'adventure'; t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()");
+await wait(300);
+const typed = await page.eval(`[...document.querySelectorAll('#findhits [data-findmore]')].map((b) => b.dataset.findmore)`);
+ok(`a typed tag filters the rows (${JSON.stringify(typed)})`, typed.some((id) => id.includes('Mistral-Small')) && !typed.some((id) => id.includes('Qwen3.6')));
+await page.eval("(() => { document.querySelector('#findhits [data-findtag=\"\"]').click(); return 1; })()");
+await wait(300);
+ok("  and Clear brings every row back", (await hits()).length === all);
+
 const about = (scope) => page.eval(`document.querySelector('${scope} .remoteabout')?.innerText ?? ''`);
 await page.click(`[data-findmore="${QWEN}"]`);
 ok("expanding a row reads its card", await until(`/abliterated finetune/.test(document.querySelector('#findhits .remoteabout')?.innerText ?? '')`));

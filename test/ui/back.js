@@ -66,4 +66,54 @@ await wait(1400);
 const reload = await state();
 ok(`  so a reload does not open it again (${JSON.stringify(reload)})`, reload.tale && !reload.drawer);
 
+// ---- the three that cover a tale without being drawers: Look, the full-screen composer, Reading.
+// Back went past them and left the tale (second usability check, 2026-10-25).
+const layer = (sel, open) => page.eval(`(() => { ${open}; return 1; })()`);
+const covers = [
+  ['the Look sheet', "document.querySelector('#bar [data-appearance]').click()", "!document.getElementById('appearance').hidden"],
+  ['the full-screen composer', "document.querySelector('[data-bigin]').click()", "document.getElementById('dock').classList.contains('big')"],
+  ['Reading mode', "document.querySelector('#bar [data-readmode]').click()", "document.documentElement.dataset.reading === '1'"],
+];
+for (const [name, open, isOpen] of covers) {
+  await page.goto(B + "/");
+  await wait(600);
+  await page.click("#page [data-open]");
+  await wait(1400);
+  await layer(name, open);
+  await wait(600);
+  const up = await page.eval(isOpen);
+  await page.eval("(() => { history.back(); return 1; })()");
+  await wait(900);
+  const s1 = await state();
+  ok(`Back shuts ${name} and stays in the tale (${up}, ${JSON.stringify(s1)})`, up && s1.tale && !(await page.eval(isOpen)));
+}
+// A drawer opened over Reading mode: Back shuts the drawer and keeps Reading mode.
+await page.goto(B + "/");
+await wait(600);
+await page.click("#page [data-open]");
+await wait(1400);
+await layer('read', "document.querySelector('#bar [data-readmode]').click()");
+await wait(500);
+await page.eval("(() => { document.querySelector('[data-panel=\"anansi\"]').click(); return 1; })()");
+await wait(600);
+await page.eval("(() => { history.back(); return 1; })()");
+await wait(900);
+const s3 = await state();
+ok(`over Reading mode, Back shuts the drawer and keeps reading (${JSON.stringify(s3)})`,
+   s3.tale && !s3.drawer && (await page.eval("document.documentElement.dataset.reading === '1'")));
+
+// Shut by its own control, then Back: no dead entry, straight to the rack.
+await page.goto(B + "/");
+await wait(600);
+await page.click("#page [data-open]");
+await wait(1400);
+await layer('look', "document.querySelector('#bar [data-appearance]').click()");
+await wait(500);
+await layer('look', "document.querySelector('#appearance [data-appearance=\"0\"]').click()");
+await wait(700);
+await page.eval("(() => { history.back(); return 1; })()");
+await wait(1100);
+const s2 = await state();
+ok(`the Look sheet shut by its ✕ leaves no dead Back press (${JSON.stringify(s2)})`, !s2.tale && s2.hash === "");
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

@@ -54,6 +54,19 @@ is still there.
 Esc closes a passage's actions and the menu. Tab no longer walks through the menu or a drawer
 while they are closed. The menu's rows wrap instead of cutting off their names.
 
+### Back, and finding models
+Back now closes the Look sheet, the full-screen box and Reading mode, the same as a drawer, instead
+of leaving the tale. Find a model can filter by how many units of the plan a model takes, and by
+tag: type one, or press any tag on a model to see the others that carry it.
+
+### Smaller fixes
+The steps of New tale open at the top, and "Start writing" before the last step is a small link
+that says it skips the rest. You play and Hands off offer people only. New tale in the menu has a
+plus instead of an X. Chapters says what a chapter is. A scene hemmed without a summary is listed
+on the Workbench with a button to write it, and the message after such a hem is short. Alter no
+longer puts a message over the words you are changing. When the model is not answering and
+Featherless is set up, the model list offers Find a model.
+
 ### Branch asks twice, and small screens keep the writing
 Branch now asks for a second press, like Delete, and then says where the later passages went. On a
 short screen such as the Titan, the band of numbers under the title is hidden, and the row with

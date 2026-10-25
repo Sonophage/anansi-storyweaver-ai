@@ -154,7 +154,7 @@ const sizeClass = (modelClass: string | null): string | null =>
 
 export type Found = { id: string; cost: number | null; context: number; weaving: Weaving;
   size: string | null };
-type Query = { text?: string; size?: string; weaving?: string; uncensored?: boolean };
+type Query = { text?: string; size?: string; weaving?: string; uncensored?: boolean; cost?: string };
 
 /** RESULTS ARE CAPPED. 778 uncensored models is a list nobody reads; a search narrows it.
  *  ponytail: a fixed cap with no paging. Ceiling: past the first 100 a writer must type more.
@@ -174,14 +174,18 @@ export function search(rows: CatalogueRow[], q: Query, admin: boolean, prefix: s
       weaving: weavingGuess(r), size: sizeClass(r.modelClass) }))
     .filter((r) => !q.size || r.size === q.size.toLowerCase())
     .filter((r) => !q.weaving || r.weaving === q.weaving)
+    // Units, exactly: a 1-unit model is one both writers can run at once on the shared plan.
+    .filter((r) => !q.cost || r.cost === Number(q.cost))
     .sort((a, b) => WEAVING.indexOf(a.weaving) - WEAVING.indexOf(b.weaving)
       || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   // The size choices come from what this writer could be shown at all, not from this search —
   // a menu that shrinks as you filter hides the way back.
   const sizes = [...new Set(open.map((r) => sizeClass(r.modelClass)).filter(Boolean) as string[])]
     .sort((a, b) => parseFloat(a) - parseFloat(b));
+  // The unit choices likewise, from what this writer could be shown at all.
+  const costs = [...new Set(open.map((r) => r.cost).filter((c): c is number => c != null))].sort((a, b) => a - b);
   // The weaving words go to the browser too, so the filter offers exactly the labels used here.
-  return { models: found.slice(0, RESULT_CAP), total: found.length, sizes, weavings: WEAVING };
+  return { models: found.slice(0, RESULT_CAP), total: found.length, sizes, costs, weavings: WEAVING };
 }
 
 /* ---------- what a model is, from Hugging Face: tags, base model, the card's first paragraph ----------

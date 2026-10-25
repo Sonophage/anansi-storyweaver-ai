@@ -67,4 +67,12 @@ const first = await page.eval("(() => { const d = [...document.querySelectorAll(
 ok(`  and the report's first line says the same (${JSON.stringify(first?.text)})`,
    !!first && /did not run/.test(first.text) && !/--good/.test(first.dot));
 
+// After a reload, the scene hemmed with no summary is on the Workbench with its button. It was
+// reachable only from This scene → Summaries (second usability check, 2026-10-25).
+await page.goto(B + "/#" + sid + "/waiting");
+await wait(1200);
+ok("the Workbench lists the hemmed scene that has no summary, with a button to write it",
+   await page.eval(`!!document.querySelector('#sideBody [data-summarize=${JSON.stringify(before)}]')`)
+   && /has no summary/.test(await page.eval("document.getElementById('sideBody').textContent")));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

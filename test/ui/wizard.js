@@ -171,6 +171,10 @@ ok("  and the book's own fields are on that same step, not one further in",
 // would turn one press into eight.
 ok("  and Accept is already on the first step, not held back to the last",
    (await page.eval("!!document.querySelector('[data-accept-spark]')")) === true);
+// Before the last step it is a small link that says it skips the rest (second usability check,
+// 2026-10-25): as a full button under Next it read as the next step.
+ok("  as a small link that says it skips the other steps",
+   /Skip the other steps/.test(await page.eval("document.querySelector('[data-accept-spark]')?.textContent ?? ''")));
 
 await go("The tale");
 await wait(700);

@@ -1758,7 +1758,8 @@ export const routes: Record<string, Handler> = {
     if ('error' in rows) return rows;
     const q = c.query;
     return searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
-      weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0' }, c.admin, REMOTE_PREFIX);
+      weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0',
+      cost: q.get('cost') ?? '' }, c.admin, REMOTE_PREFIX);
   },
   /** TAGS FOR A PAGE OF RESULTS, in one call. The search answers at once without them — reading
    *  Hugging Face for a hundred rows would make every keystroke wait on it — and the browser asks

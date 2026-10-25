@@ -908,6 +908,15 @@ const mark = () => ({ fl: fl.length, local: local.length });
     'the weaving words the filter offers are the ones the rows use, in sort order');
   assert.ok(all.sizes.includes('35b') && all.sizes.includes('24b'),
     'the size choices come from the catalogue itself');
+  // UNITS. Seth, 2026-10-25: "a filter for how many units it takes". Exact: a 1-unit model is one
+  // both writers can run at once on the shared plan, which is the question being asked.
+  const costOf = (r: any, id: string) => r.models.find((m: any) => m.id.replace('featherless:', '') === id)?.cost;
+  const two = await find('cost=2');
+  assert.ok(ids(two).length > 0 && ids(two).every((id: string) => costOf(all, id) === 2),
+    `the units filter keeps only models of that cost (${ids(two).length})`);
+  assert.ok(ids(all).some((id: string) => costOf(all, id) !== 2), 'and the unfiltered search had others');
+  assert.ok(Array.isArray(all.costs) && all.costs.includes(2) && all.costs.every((c: number) => c <= 2),
+    `the unit choices come from what this writer can be shown (${JSON.stringify(all.costs)})`);
 
   // A DAY'S CACHE. Every search above was served without a fresh read; a day later, one is made.
   const { catalogue, CATALOGUE_TTL_MS } = await import('../src/catalogue.ts');
