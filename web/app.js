@@ -361,7 +361,7 @@ const SNAV = [
    * THE KEYS DO NOT MOVE. `chapter` and `chapters` are what the hash carries, what PANEL_WAS maps
    * three retired names onto, and what every bookmark holds — a renamed key is a broken deep link
    * for no gain, which the note on `prefs` in WNAV already says. */
-  ['story', 'story', 'Tale'], ['chapter', 'chapter', 'This scene'],
+  ['story', 'story', 'Tale'], ['chapter', 'scene', 'This scene'],
   ['chapters', 'chapter', 'Scenes'],
   ['threads', 'threads', 'Threads'], ['strings', 'strings', 'Strings'],
   ['context', 'context', 'What she reads'],
@@ -1003,12 +1003,13 @@ function drawBar() {
          The word came back on 2026-10-25 as a door you can see, below: Seth chose R1. -->
     <!-- THE WAY OUT, IN WORDS. The usability check of 2026-10-24 scored the menu 2 of 5 on a Titan:
          the only door was the title, and nothing said it was one. Seth chose the R1 design on
-         2026-10-25: "‹ Anansi" at the left goes back to the rack, a ⋯ at the right opens this
+         2026-10-25: a ‹ back button at the left goes back to the rack (the word Anansi came off it the
+         same day: "just make it the back button that matches the other buttons"), a ⋯ at the right opens this
          tale's menu, and on the rack a labelled Menu button opens the main one. The title still
          opens the menu too; these are the doors you can see. -->
-    ${inStory ? `<button data-home="1" class="hdoor" aria-label="Back to the rack"
-      style="font-family:'Instrument Serif',serif; font-size:19px; color:var(--chrome-ink); white-space:nowrap"
-      >&lsaquo; Anansi</button>`
+    ${inStory ? `<button data-home="1" class="pill hdoor" aria-label="Back to the rack"
+      style="display:flex; align-items:center; padding:6px 11px; font-size:17px; line-height:1"
+      >&lsaquo;</button>`
       : `<button data-railview="workspace" class="pill hdoor" aria-label="Menu"
       style="display:flex; align-items:center; gap:7px; padding:7px 12px"
       ><span aria-hidden="true" style="font-size:15px; line-height:1">&#9776;</span></button>`}
@@ -5915,7 +5916,8 @@ function addTray(e, slots) {
  *
  *  The head stays ABOVE the tabs — name, kind, how it fires, the room jump chips — so the thing you
  *  are editing never leaves the screen. */
-const CARD_TABS = [['card', 'The thread'], ['rooms', 'Pockets'], ['time', 'Over time'], ['more', 'More']];
+// Over time beside The thread, Seth 2026-10-25: "for threads, move over time next to the thread".
+const CARD_TABS = [['card', 'The thread'], ['time', 'Over time'], ['rooms', 'Pockets'], ['more', 'More']];
 
 /** Which tab a room's heading lives in. `facts` is pinned above Info because of what it IS, and
  *  `outfit` is the wardrobe — both are in their tabs for reasons older than the tabs, so this map

@@ -4,7 +4,7 @@
 //
 // The usability check of 2026-10-24 found the menu reachable only through the header title and a
 // passage's actions only through a double tap, with nothing on screen saying either. Seth chose the
-// R1 design on 2026-10-25: a labelled Menu on the rack, "‹ Anansi" and a ⋯ in a tale, and one tap
+// R1 design on 2026-10-25: a menu button on the rack, a ‹ back pill and a ⋯ in a tale, and one tap
 // on a passage for its actions. Asserted on a phone, by touch, and then on a Titan's square.
 const B = "http://127.0.0.1:5179";
 let red = 0;
@@ -61,7 +61,9 @@ await wait(600);
 await page.click("#page [data-open]");
 await wait(1400);
 const home = await seen('#bar [data-home]');
-ok(`a tale shows the way back to the rack (${JSON.stringify(home)})`, /Anansi/.test(home ?? ''));
+// A ‹ pill like the others since 2026-10-25 ("just make it the back button that matches the other buttons").
+ok(`a tale shows the way back to the rack, a ‹ pill like the others (${JSON.stringify(home)})`,
+   home === '‹' && (await page.eval("document.querySelector('#bar [data-home]').classList.contains('pill')")));
 const more = await seen('#bar .pill[data-railview="story"]');
 ok(`  and a ⋯ for the tale's menu (${JSON.stringify(more)})`, more === '⋯');
 await page.click('#bar .pill[data-railview="story"]');
@@ -124,7 +126,7 @@ if (chip) {
 // ---- back to the rack
 await page.click('#bar [data-home]');
 await wait(900);
-ok("‹ Anansi goes back to the rack",
+ok("‹ goes back to the rack",
    !!(await seen('#bar .hdoor[data-railview="workspace"]')) && (await page.eval("location.hash")) === "");
 
 // ---- the Titan's square, 360 by 360: every door on screen, and the header not wider than it

@@ -632,6 +632,9 @@ export const MARK = {
           + 'M10 3.6A6.4 6.4 0 1 1 10 16.4A6.4 6.4 0 1 1 10 3.6',
   story:    'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3',
   chapter:  'M3 10A7 7 0 0 1 17 10M10 10V3.2',
+  // This scene: the Scenes glyph flipped top to bottom, so the two rows that shared one icon can be
+  // told apart. Seth 2026-10-25: "flip the icon for this scene vertically in the menu".
+  scene:    'M3 10A7 7 0 0 0 17 10M10 10V16.8',
   // THREADS AND PREFS MOVED TO THE COMPOSER, 2026-08-28, and the menu took new ones. Seth: "allow
   // the maximize icon to be the threads icon and the send icon to be the preferences icon. then
   // change those out in the menu since we'll be using it here." The strands and the dial are now

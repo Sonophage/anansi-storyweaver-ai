@@ -67,7 +67,8 @@ of leaving the tale. Find a model can filter by how many units of the plan a mod
 tag: type one, or press any tag on a model to see the others that carry it.
 
 ### Smaller fixes
-The steps of New tale open at the top, and "Start writing" before the last step is a small link
+In a tale, the way back to the rack is a ‹ button like the others. On a thread, Over time sits next
+to The thread. The This scene icon in the menu is turned the other way up. The steps of New tale open at the top, and "Start writing" before the last step is a small link
 that says it skips the rest. You play and Hands off offer people only. New tale in the menu has a
 plus instead of an X. Chapters says what a chapter is. A scene hemmed without a summary is listed
 on the Workbench with a button to write it, and the message after such a hem is short. Alter no
@@ -96,7 +97,7 @@ it looks small: Close, the ✕ on a list, the little ? marks, the tabs on the Lo
 threads switches above the box are taller to the finger and look the same.
 
 ### A Menu button, and a way back to the rack
-The rack has a Menu button. Inside a tale, "‹ Anansi" at the top left takes you back to the rack,
+The rack has a Menu button. Inside a tale, the ‹ button at the top left takes you back to the rack,
 and ⋯ at the top right opens the tale's menu. The tale's name still opens it too.
 
 ### The phone's Back button closes a drawer
