@@ -957,8 +957,14 @@ if (anyEntry) {
   ok("  (a card opens on its face, not its form)",
      (await page.eval("!!document.querySelector('[data-cardview]')")) === true
      && (await page.eval("!!document.querySelector('[data-f=\"title\"]')")) === false);
-  // THE BAR'S GEOMETRY, MEASURED. Seth, 2026-09-01: "theres a space above it and the threads and
-  // close section can we remove the padding and make the background full width of the panel."
+  await page.click('[data-cardview="form"]');
+  await wait(400);
+  ok("  and Edit this card opens the form", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
+  // THE BAR'S GEOMETRY, MEASURED — ON THE FORM since the v2 Read screen (2026-10-25), which has
+  // no bar: its Back is the drawer header's "‹ Threads" and Alter is under ⋯ (test/ui/threadread.js).
+  // The form keeps the Read / Alter / Save / Back bar until Alter is redesigned, and this holds it.
+  // Seth, 2026-09-01: "theres a space above it and the threads and close section can we remove the
+  // padding and make the background full width of the panel."
   // Nothing readable from the source can see this: the first attempt set a negative margin on the
   // bar, the computed style read it back as applied, and sticky clamped the bar inside its wrapper
   // so it sat at exactly the same place it had before. A fix that reads as applied and is not is
@@ -969,11 +975,8 @@ if (anyEntry) {
     return { gap: Math.round(r.top - document.getElementById('sideHead').getBoundingClientRect().bottom),
              inset: Math.round(r.left - body.left), width: Math.round(r.width - body.width) };
   })()`);
-  ok(`  and its Read / Edit / Back bar is flush under the head and full width (${JSON.stringify(barBox)})`,
+  ok(`  and the form's Read / Alter / Back bar is flush under the head and full width (${JSON.stringify(barBox)})`,
      barBox != null && barBox.gap === 0 && barBox.inset === 0 && barBox.width === 0);
-  await page.click('[data-cardview="form"]');
-  await wait(400);
-  ok("  and Edit this card opens the form", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
 
   // THE FORM IS TABBED, 2026-09-02 handoff. VISIBLE, not merely present: a hidden pane keeps all
   // of its markup, so `querySelector` finds every field on every tab and a presence check would

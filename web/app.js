@@ -222,6 +222,7 @@ const S = {
   // The Threads list, filtered to what actually reaches the model in this chapter. Session-only:
   // a filter that survives a reload is a list that looks empty for a reason nobody can see.
   onlyIn: false,
+  readMenu: false,          // the Read screen's ⋯ is open
   // Which tab of the thread editor is showing. Session-only and reset when a different card opens:
   // landing in Rooms because that is where you were on the last thread is the app deciding what you
   // came here for.
@@ -547,6 +548,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The Threads list: filter to what is in context, and flip one card between always-on and
   // triggered without opening it.
   'onlyin', 'flipact', 'cardtab', 'storytab', 'chaptab', 'tip',
+  // One thread, read: its ⋯ menu, and the rows under it that open the form at a section.
+  'readmenu', 'readgo',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -2185,7 +2188,20 @@ function drawSide() {
   // the same data-newlore press. Only on the LIST: an open thread and the tray each have their own
   // Back, and a + over the tray would be a second door to the screen you are already on.
   const thList = S.panel === 'threads' && !S.entryId && !S.lore && !!V?.entries;
-  $('sideHead').innerHTML = `
+  // AND ONE THREAD, READ (v2 redesign, 2026-10-25): "‹ Threads" back to the list on the left, the
+  // rarer actions under ⋯ on the right. Close stays, because shutting the drawer from a thread is a
+  // press the drawer always had. The form keeps its own bar until Alter is redesigned.
+  const thRead = isReading();
+  if (thRead) {
+    const e = V.entries.find((x) => x.id === S.entryId);
+    $('sideHead').innerHTML = `
+    <button data-backentry="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
+      class="serif">Threads</span></button>
+    <span style="flex:1"></span>
+    ${e && !e.sharedFrom ? `<button data-readmenu="1" class="headmore" aria-expanded="${!!S.readMenu}"
+      aria-label="More for this thread" title="More for this thread"><span aria-hidden="true">&middot;&middot;&middot;</span></button>` : ''}
+    <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
+  } else $('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
     ${/* Outside the heading span, for the reason given for the mark below. */
@@ -2199,10 +2215,17 @@ function drawSide() {
       title="Add a thread, or read the scene"><span>${mark('create', 16)}</span></button>` : ''}
     <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
-  $('sideBody').innerHTML = (PANEL_HELP[S.panel] ? helpBody(PANEL_HELP[S.panel]) : '')
+  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead ? helpBody(PANEL_HELP[S.panel]) : '')
     + (PANELS[S.panel] ?? (() => ''))();
   // After the markup, because a textarea has no scrollHeight until it is in the document.
   growFields($('sideBody'));
+}
+
+/** ONE THREAD OPEN ON ITS READ SCREEN — from the Threads list, or on its own from a passage. The
+ *  form (Alter) is not this, and keeps its own bar. */
+function isReading() {
+  return (S.panel === 'threads' || S.panel === 'entry') && !!S.entryId
+    && S.cardView !== 'form' && !!V?.entries?.some((x) => x.id === S.entryId);
 }
 
 /** One proposal, with the two decisions it carries. Lifted out of the Chapter panel on
@@ -5791,7 +5814,8 @@ function roomCard(name, body, keys, on, sw, kind, id) {
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
       <span style="flex:1; font-size:14.5px; color:var(--ink-bright)">${esc(name)}</span>
       ${sw}</div>
-    <div class="kind">${esc(kind.replace(/_/g, ' '))}</div>
+    ${/* NO SLOT NAME UNDER THE POCKET'S OWN (v2 redesign): the heading over it already says it, and
+          the same word twice in capitals was the clutter the Read screen is shedding. */ ''}
     <button data-editroom="${esc(id)}" style="text-align:left; width:100%; font-size:12.5px;
       line-height:1.45; color:var(--mute); cursor:pointer">${esc(body)}</button>
     ${keys.length ? `<div style="display:flex; flex-wrap:wrap; gap:4px">${
@@ -5922,13 +5946,32 @@ function cardFace(e, slots) {
   // did. So the room draws through the ordinary path and the second block is gone.
   const rooms = e.addons ?? [];
   const shown = slots.filter((sl) => rooms.some((a) => a.slot === sl.name));
-  return `<div style="display:flex; flex-direction:column">
-    ${cardBar('face')}
+  // THE READ SCREEN (v2 redesign, 2026-10-25). The Read / Alter / Back bar is gone from here: Back
+  // is the header's "‹ Threads", and Alter is the first row under the header's ⋯ — and the thread's
+  // own text, which opens the form when pressed, as a pocket's text already did. ONE ROW OF TAGS:
+  // the kind, how it reaches Anansi (the list's own mark, and the same switch), and how many pockets.
+  const lit = inContext(e, pinModes());
+  const m = reachMark(e, lit);
+  const pockets = rooms.filter((a) => a.slot !== 'facts').length;
+  return `<div class="readface" style="display:flex; flex-direction:column">
+    ${S.readMenu ? readMenu(e) : ''}
     <!-- ABOVE THE NAME, at Seth's direction: "if a card has an image move it to the top". A picture
          is the fastest way to recognise a card and it was two screens down, under the rooms. -->
     ${threadPic(e) ? `<img src="${threadPic(e)}" alt="" style="width:100%; max-height:280px;
       object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 11px">` : ''}
-    ${cardHead(e, shown)}
+    <h2 class="readname">${esc(e.title || 'Untitled')}</h2>
+    <!-- THE JUMP CHIPS ARE ONE TAG NOW. The head carried one chip per filled slot, the same size and
+         weight as the kind, which is the row of look-alike chips the redesign is taking away. The
+         pockets tag jumps to the first of them; every pocket is on this one page under its own
+         heading, so the rest are a scroll away rather than a press. -->
+    <div class="readtags">
+      <span class="tag">${esc(e.entryType)}</span>
+      <button class="tag readreach" data-flipact="${esc(e.id)}" data-look="${m.look}"
+        data-lit="${lit ? 1 : 0}" aria-label="${m.label}" title="${m.label}"
+        >${mark(m.look, 15)}<span>${m.word}</span></button>
+      ${pockets ? `<button class="tag" data-goslot="${esc(shown.find((sl) => sl.name !== 'facts')?.name ?? '')}"
+        >${pockets} ${pockets === 1 ? 'pocket' : 'pockets'}</button>` : ''}
+    </div>
     <!-- #22 §8. A MARKER HERE, THE CONTROLS IN THE FORM. Seth: "once you click on a card the
          marked as finished should only show in the edit version." Reading a card should say what
          is true of it; changing what is true of it is what the form is for. The way back is not
@@ -5964,7 +6007,8 @@ function cardFace(e, slots) {
         the shared thread. Pockets written here stay here &mdash; send the whole thread across
         instead if they matter.</p>`)}
     </div>` : ''}
-    <div class="hint" style="margin-top:0">${esc(e.body || 'Nothing written down yet.')}</div>
+    <button class="readbody" data-cardview="form" aria-label="Alter what ${esc(e.title)} says">${
+      esc(unbracket(e.body, e.title) || 'Nothing written down yet.')}</button>
     <!-- #22 §6. WHAT IS ON, THEN WHAT IS NOT. Seth: "after the name comes the body, after the body
          comes what ever is turned on. all turned off option or non activated option live under a
          second section under all the activated ones." The card used to interleave them under one
@@ -5982,8 +6026,9 @@ function cardFace(e, slots) {
           style="letter-spacing:.1em; margin-top:18px">${esc(sl.name.replace(/_/g, ' '))}${
           sl.exclusive ? '' : ' <span style="opacity:.5">(several)</span>'}</div>
         ${mine.map((a) => roomCard(a.name, a.body, a.keys ?? [], a.active,
-          `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag" style="cursor:pointer; ${
+          `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" style="cursor:pointer; ${
             a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
+            aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to turn it off' : 'off. Tap to turn it on'}"
             >${a.active ? 'On' : 'Off'}</button>`, sl.name, a.id)).join('')}`;
       }).join('');
       const on = group(true), off = group(false);
@@ -5992,8 +6037,40 @@ function cardFace(e, slots) {
         <div class="hint" style="margin:0 0 4px">Written down, and not reaching the model &mdash;
           either switched off, or until one of its wake words appears.</div>${off}` : ''}`;
     })()}
-    ${shown.length ? '' : '<div class="hint" style="margin-top:18px">No pockets filled in yet. Alter the thread to write one, or have Anansi.</div>'}
-    <button class="btn ghost" data-cardview="form" style="margin-top:20px">Alter this thread</button>
+    ${shown.length ? '' : '<div class="hint" style="margin-top:18px">No pockets filled in yet. Add one, or have Anansi fill some in.</div>'}
+    <!-- ADDING ONE IS THE FORM'S POCKETS TAB, which holds the add tray and Anansi filling them. -->
+    <button class="btn ghost" data-readgo="rooms" style="margin-top:18px">+ Add a pocket</button>
+  </div>`;
+}
+
+/** THE RARER ACTIONS, UNDER THE HEADER'S ⋯ (v2 redesign, 2026-10-25). Seth: the threads screen "is
+ *  a lot of information and needs to be simpler ... without losing functionality". Each row is a
+ *  door the thread already had: most of them lived at the foot of the form's More tab, a scroll and
+ *  two presses away, and nothing on the Read screen said they existed. The rows that ACT do it here
+ *  (read the tale, retire, delete — delete still asks twice); the rows that need typing open the
+ *  form on the tab that holds them, with that section unfolded (`data-readgo`).
+ *  It is not hidden markup: it is drawn only while open, so a press on "Alter" in a test or by a
+ *  screen reader cannot land on a menu nobody can see. */
+function readMenu(e) {
+  // EACH ROW'S ACTION IS WRITTEN OUT, not passed in: test/web.ts reads this file for buttons with no
+  // action, and cannot see one through an interpolated attribute string.
+  const say = (label, note = '') => `${label}${note ? `<span class="readnote">${note}</span>` : ''}`;
+  const edges = (V.edges ?? []).filter((x) => x.parentId === e.id).length;
+  const states = (e.states ?? []).length;
+  return `<div class="readmenu" role="menu" aria-label="More for ${esc(e.title)}">
+    <button data-cardview="form" class="readrow">${say('Alter this thread')}</button>
+    <button data-readgo="time" class="readrow">${say('Over time', states ? `${states}` : '')}</button>
+    <button data-readgo="edges" class="readrow">${say('Stitched together', edges ? `${edges}` : '')}</button>
+    <button data-readgo="copy" class="readrow">${say('Copy to another tale')}</button>
+    <button data-readgo="history" class="readrow">${say('Earlier versions')}</button>
+    <button data-readgo="json" class="readrow">${say('This thread as JSON')}</button>
+    <button data-scanstory="${esc(e.id)}" class="readrow" ${S.scanning ? 'disabled' : ''}>${
+      say(S.scanning === e.id ? 'Reading the tale&hellip;' : 'Read the whole tale for this thread')}</button>
+    ${e.retiredAtChapter == null
+      ? `<button data-retire="${esc(e.id)}" class="readrow">${say('Retire this thread')}</button>`
+      : `<button data-unretire="${esc(e.id)}" class="readrow">${
+        say('Bring it back', `retired at scene ${esc(String(e.retiredAtChapter))}`)}</button>`}
+    <button data-delentry="1" class="readrow" style="color:var(--bad)">${say('Delete this thread')}</button>
   </div>`;
 }
 
@@ -6656,29 +6733,41 @@ function threadRows() {
  *  A POCKET HERE IS EVERY NAMED PART BUT FACTS. Facts is the thread's own text (the pockets plan
  *  turns it into Always true), and in the live library 473 of about 480 threads have one — so
  *  counting it would put "1 pocket" on nearly every card, which is a tag that says nothing. */
-function threadPlate(e, lit) {
+/** HOW A THREAD REACHES THE MODEL, AS ONE MARK: the list's card and the Read screen's tag row draw
+ *  the same three looks from the same two facts, so the two screens cannot disagree. `lit` is
+ *  `inContext` — sent now — and the label names the state and what a tap does (the tap is the
+ *  `data-flipact` switch on both). */
+function reachMark(e, lit) {
   const on = (e.activation ?? 'always_on') === 'always_on';
+  const look = on ? 'eye' : lit ? 'eyeheard' : 'eyeshut';
+  const now = on ? (lit ? 'Always on, sent now' : 'Always on, kept out of this call')
+    : (lit ? 'On a word, sent now' : 'On a word, asleep: no wake word in this scene');
+  const label = `${now}. ${on ? 'Tap to send it only on a wake word.' : 'Tap to send it on every call.'}`;
+  return { on, look, label, word: on ? 'Always on' : 'On a word' };
+}
+
+/** THE BRACKET COMES OFF WHERE A WRITER READS IT. "[Aldis Fen: 34, ex-Watch sergeant…]" is the
+ *  form the model is sent, and its first words repeat the name the screen already shows in large
+ *  type above it. Only when the name in the bracket IS this thread's name: anything else is the
+ *  writer's own text. Display only; what is stored and sent is untouched. */
+function unbracket(text, title) {
+  const br = String(text ?? '').match(/^\[\s*([^:\]]+):\s*([\s\S]*?)\]?\s*$/);
+  if (!br || br[1].trim().toLowerCase() !== String(title ?? '').trim().toLowerCase() || !br[2].trim()) return String(text ?? '');
+  const t = br[2].trim();
+  return t[0].toUpperCase() + t.slice(1);
+}
+
+function threadPlate(e, lit) {
   const pockets = (e.addons ?? []).filter((a) => a.slot !== 'facts').length;
   const pic = threadPic(e);
-  // THE BRACKET COMES OFF ON THE LIST. "[Aldis Fen: 34, ex-Watch sergeant…]" is the form the model
-  // is sent, and its first words repeat the name the card shows in large type above it. Only when
-  // the name in the bracket IS this thread's name: anything else is the writer's own text.
-  let text = threadPreview(e);
-  const br = text.match(/^\[\s*([^:\]]+):\s*([\s\S]*?)\]?\s*$/);
-  if (br && br[1].trim().toLowerCase() === String(e.title ?? '').trim().toLowerCase() && br[2].trim()) {
-    text = br[2].trim();
-    text = text[0].toUpperCase() + text.slice(1);
-  }
+  const text = unbracket(threadPreview(e), e.title);
   const tags = [
     pockets ? `<span class="tag">${pockets} ${pockets === 1 ? 'pocket' : 'pockets'}</span>` : '',
     e.sharedFrom ? `<span class="tag" style="color:var(--faint)">from ${esc(e.sharedFrom)}</span>` : '',
     e.retiredAtChapter != null ? `<span class="tag" style="color:var(--warn)">retired, scene ${
       esc(String(e.retiredAtChapter))}</span>` : '',
   ].join('');
-  const look = on ? 'eye' : lit ? 'eyeheard' : 'eyeshut';
-  const now = on ? (lit ? 'Always on, sent now' : 'Always on, kept out of this call')
-    : (lit ? 'On a word, sent now' : 'On a word, asleep: no wake word in this scene');
-  const label = `${now}. ${on ? 'Tap to send it only on a wake word.' : 'Tap to send it on every call.'}`;
+  const { look, label } = reachMark(e, lit);
   return `<div class="throw">
     <div style="position:relative">
       <button class="card plate thplate" data-entry="${e.id}">
@@ -7709,11 +7798,42 @@ function syncHash() {
   const from = depth(location.hash), to = depth(want);
   // The layer rides along, so a drawer opened over Reading mode does not end it on Back.
   if (to > from) history.pushState({ under: location.hash, layer: layerNow() }, '', want);
-  else if (to < from && history.state?.under === want) { BACKING = true; history.back(); }
+  // A thread open in the drawer is one or two entries ABOVE the drawer's own (`syncThread`), at
+  // the same address. Shutting the drawer steps back over all of them, or Back would land on the
+  // thread's entry and open the drawer again.
+  else if (to < from && history.state?.under === want) { BACKING = true; history.go(-1 - (history.state.thread ?? 0)); }
   else history.replaceState(history.state, '', want || location.pathname);
 }
 // popstate comes before the hashchange that routes, on every step through history.
-window.addEventListener('popstate', () => { BACKING = false; closeLayersBack(); });
+window.addEventListener('popstate', () => { BACKING = false; closeLayersBack(); closeThreadBack(); });
+
+/** A THREAD OPEN IN THE THREADS DRAWER IS A STEP OF ITS OWN, AND ITS ⋯ IS ANOTHER (v2 redesign,
+ *  2026-10-25). Back from a thread went past the list and shut the drawer, because opening one
+ *  changed nothing in the address. So each step pushes an entry at the same address, numbered in
+ *  `history.state.thread` (1 for the thread, 2 for its ⋯ open), copying the drawer's own state so
+ *  `under` still says what the drawer sits over. Back closes the top one; a press that closes them
+ *  steps back over what it closed, so no dead Back press is left behind.
+ *  ponytail: only inside the Threads drawer. A thread opened on its own from a passage is the whole
+ *  drawer already, and its ⋯ shares the drawer's entry, so Back there shuts both. Give it a step
+ *  of its own if anyone opens the ⋯ from a passage often enough to notice. */
+const threadDepth = () => (S.place === 'story' && S.panel === 'threads' && S.entryId
+  ? (S.readMenu && isReading() ? 2 : 1) : 0);
+function syncThread() {
+  if (!ROUTED || ROUTING || BACKING || S.panel !== 'threads') return;
+  const want = threadDepth(), have = history.state?.thread ?? 0;
+  for (let n = have + 1; n <= want; n++) history.pushState({ ...history.state, thread: n }, '', location.href);
+  if (want < have) { BACKING = true; history.go(want - have); }
+}
+function closeThreadBack() {
+  if (S.panel !== 'threads') return;
+  const at = history.state?.thread ?? 0;
+  if (at >= threadDepth()) return;
+  if (at < 2) S.readMenu = false;
+  if (at < 1) { S.entryId = null; S.cardView = null; }
+  // drawSide and not paint: a Back that leaves the drawer altogether lands here before the
+  // hashchange that shuts it, and paint's syncHash would push the drawer straight back.
+  drawSide();
+}
 
 /** THE THREE THINGS THAT COVER A TALE WITHOUT BEING A DRAWER get a history entry too: the Look
  *  sheet, the full-screen composer and Reading mode. They are not in the address, so Back went
@@ -7741,6 +7861,7 @@ function closeLayersBack() {
 
 function paint() {
   syncHash();
+  syncThread();
   applyLook();
   // THE LIGHT AT THE TOP, wherever you are. Drawn from paint rather than from a draw function of
   // its own because it is about the whole app rather than about any one surface — and it must be
@@ -9701,7 +9822,28 @@ document.addEventListener('click', async (e) => {
   }
 
   // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
-  if (d.cardview) { S.cardView = d.cardview === 'form' ? 'form' : null; paint(); return; }
+  if (d.cardview) { S.cardView = d.cardview === 'form' ? 'form' : null; S.readMenu = false; paint(); return; }
+  // THE READ SCREEN'S ⋯ (v2 redesign). Open and shut by the same press, by Back and by Esc.
+  if (d.readmenu) { S.readMenu = !S.readMenu; paint(); return; }
+  // A ROW UNDER ⋯ THAT NEEDS TYPING opens the form on the tab that holds it, with its section
+  // unfolded and on screen. Earlier versions are fetched on the way, which is what the form's own
+  // button does; everything else is already in the view.
+  if (d.readgo) {
+    const to = { time: ['time', 'states', '[data-fold="states"]'], edges: ['more', 'edges', '[data-fold="edges"]'],
+      copy: ['more', 'copy', '[data-fold="copy"]'], history: ['more', null, '[data-fieldhistory]'],
+      json: ['more', null, '#f-card-json'], rooms: ['rooms', null, null] }[d.readgo];
+    if (!to) return;
+    if (d.readgo === 'history' && !S.fieldHistory) {
+      const r = await api.history({ story: S.storyId, entry: S.entryId });
+      if (r.error) return toast(r.error);
+      S.fieldHistory = r.entry ?? [];
+    }
+    S.readMenu = false; S.cardView = 'form'; S.cardTab = to[0];
+    if (to[1]) S.folds = { ...S.folds, [to[1]]: true };
+    paint();
+    if (to[2]) document.querySelector(to[2])?.scrollIntoView({ block: 'start' });
+    return;
+  }
   if (d.cardtab) { S.cardTab = d.cardtab; paint(); return; }
   /* WHICH GROUP OF THE STORY PANEL IS SHOWING, and it does NOT repaint. Every box in that panel is
    * free text waiting on Save, so a redraw here would throw away a half-written premise — the same
@@ -10190,7 +10332,7 @@ document.addEventListener('click', async (e) => {
   // Every card opens on its face. Carrying the last card's view over means pressing a thread to
   // READ it and landing in a form of empty boxes, which is the thing the face exists to avoid.
   if (d.entry) { if (S.entryId !== d.entry) S.cardTab = 'card';
-    S.entryId = d.entry; S.fieldHistory = null; S.cardView = null; S.newRoom = null;
+    S.entryId = d.entry; S.fieldHistory = null; S.cardView = null; S.newRoom = null; S.readMenu = false;
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     // The cross-book page lists threads from every story and the editor beside it reads from the
     // OPEN one, so pressing a thread in a book you had not opened set S.entryId and then rendered
@@ -10205,7 +10347,11 @@ document.addEventListener('click', async (e) => {
         V = r; S.storyId = owner.story;
       }
     }
-    paint(); return; }
+    paint();
+    // A thread opens at its top. The drawer keeps one scroll for every screen in it, so a thread
+    // pressed far down the list opened part way down itself, its name off the top.
+    if ($('sideBody')) $('sideBody').scrollTop = 0;
+    return; }
   if (d.copyentry) {
     const into = document.querySelector('[data-cf="into"]')?.value;
     if (!into) return toast('Pick a tale to copy it into.');
@@ -10216,7 +10362,7 @@ document.addEventListener('click', async (e) => {
     return toast(`Copied into ${LIB.find((s2) => s2.id === into)?.title ?? 'the other tale'}. `
       + 'Nothing here changed, and the two are not shared.');
   }
-  if (d.backentry) { S.entryId = null; S.historyOf = null; S.newRoom = null;
+  if (d.backentry) { S.entryId = null; S.historyOf = null; S.newRoom = null; S.readMenu = false;
     if (S.panel === 'entry' || S.panel === 'history') S.panel = 'threads';
     paint(); return; }
   if (d.newentry) {
@@ -11992,6 +12138,10 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && root.dataset.tray === '1') { openTray(null); return; }
   if (e.key === 'Escape' && S.rail && overlay()) { S.rail = false; paint(); return; }
   if (e.key === 'Escape' && S.bigInput) { S.bigInput = false; drawDock(); $('input')?.focus(); return; }
+  // A THREAD'S ⋯, THEN THE THREAD, THEN THE DRAWER: one layer per Esc, the same order as Back.
+  if (e.key === 'Escape' && S.readMenu && isReading()) { S.readMenu = false; paint(); return; }
+  if (e.key === 'Escape' && S.panel === 'threads' && S.entryId && overlay()) {
+    S.entryId = null; S.cardView = null; S.readMenu = false; paint(); return; }
   if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); } }
 });
 /* #71 · HOLD CONTINUE TO TALK. A press that stays down HOLD_MS without moving turns the composer to
