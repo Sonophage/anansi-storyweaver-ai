@@ -12,6 +12,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-25 · Doors you can see
 
+### A Featherless tale that plans first keeps its length
+When a tale on a Featherless model has Plans first on, the plan now counts toward the passage's
+length limit, as it does on this machine's model. Before, the plan was free, and a passage could
+run to several times the length you asked for before Anansi stopped it.
+
 ### Anansi writes into the page
 While Anansi writes, her words now appear in the page under the last passage, and Stop stays on
 the box where you type. The full-screen blur is gone. It is kept, so it can come back if you miss it.

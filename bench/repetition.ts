@@ -254,8 +254,9 @@ if (CHECK) {
 console.log(`\n  repetition — "${BOOK}", ${RUNS} run(s) per arm, arms ${ARMS.map((a) => a ?? 'none').join(' / ')}, `
   + 'one call at a time, from a scratch copy of the library.\n');
 
-// THE CHUNK CHECK, first and once per model. The cap in the writer's stream counts content chunks
-// as tokens; this is what says whether Featherless sends one token a chunk. A short prompt, which
+// THE CHUNK CHECK, first and once per model. The cap in the writer's stream counts chunks, prose
+// and plan alike, as tokens; this is what says whether Featherless sends one token a chunk. This
+// call does not weave, so every chunk it counts is prose. A short prompt, which
 // Featherless honoured to the token on 2026-10-22, and a small cap, so the stream ends on its own
 // and its `usage` arrives.
 for (const m of MODELS) {

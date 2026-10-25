@@ -374,18 +374,22 @@ export async function readSSE(res: Response, onDelta: (d: string) => void, cap =
       // #62 · PAST THE CAP, THE STREAM IS OVER, and it ends the way the server ending it at the cap
       // would have: `length`, which `generate` already trims to the last sentence and flags as cut.
       // Cancelling the body closes the connection, so the far end stops writing too. Counted in
-      // content chunks, one per token as a streaming server sends them: the stream carries no
-      // running token count, and `usage` arrives only at the end, too late to stop anything. A
-      // server that packs several tokens into one chunk is stopped later than the cap, never
-      // sooner, so a take that ends on its own under the cap is never cut by this.
-      if (d.content && ++chunks > cap) {
+      // chunks, one per token as a streaming server sends them: the stream carries no running
+      // token count, and `usage` arrives only at the end, too late to stop anything. A server that
+      // packs several tokens into one chunk is stopped later than the cap, never sooner, so a take
+      // that ends on its own under the cap is never cut by this.
+      //
+      // THE PLAN'S CHUNKS COUNT TOO, as a server counts the plan against `max_tokens` (F5). A
+      // weaving call's cap already carries the plan's room, added once in `replyFor`; counting the
+      // prose alone made the plan free and gave the prose that room on top of its own cap.
+      // The plan, under either name: llama-server says `reasoning_content`, Featherless `reasoning`.
+      const plan = d.reasoning_content ?? d.reasoning;
+      if ((d.content || plan) && ++chunks > cap) {
         out.finish = 'length';
         await reader.cancel().catch(() => {});
         return { ...out, prose: out.prose.trim() };
       }
       if (d.content) { out.prose += d.content; onDelta(d.content); }
-      // The plan, under either name: llama-server says `reasoning_content`, Featherless `reasoning`.
-      const plan = d.reasoning_content ?? d.reasoning;
       if (plan) out.reasoning += plan;
       // Both ride on the final chunk, and only when stream_options asked for usage.
       if (o.usage) out.usage = o.usage;
