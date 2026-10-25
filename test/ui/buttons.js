@@ -46,9 +46,10 @@ const before = await page.eval("(async () => (await (await fetch('/api/story?sto
 // is there. just make sure that any functionality that these buttons may have carry over."
 // This is that carry-over, driven: open the one door, pick the kind, press New character. The same
 // data-newentry the four buttons carried is what the tray presses at the end of it.
-// SCOPED TO #sideBody: the composer's threads dial has a data-newlore OPTION, and an option has no
-// box for the driver to press.
-await page.click('#sideBody [data-newlore]');
+// SCOPED TO #sideHead: the composer's threads dial has a data-newlore OPTION, and an option has no
+// box for the driver to press. The list's door is the + in the drawer's header since the v2
+// redesign (2026-10-25).
+await page.click('#sideHead [data-newlore]');
 await wait(400);
 await page.click('[data-lorekind="character"]');
 await wait(400);

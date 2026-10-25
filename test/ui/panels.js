@@ -408,7 +408,7 @@ ok(`  and every kind this story has is shown (${[...kinds].join(',')})`,
 // they were beside opens on the same four kinds and ends in the same data-newentry press, which is
 // what "any functionality that these buttons may have carry over" means. Asserted on the tray's
 // kind chips, because those are what the four buttons became.
-await page.click('#sideBody [data-newlore]');
+await page.click('#sideHead [data-newlore]');
 await wait(500);
 ok("  with a way to add each kind",
    (await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b => b.dataset.lorekind).sort().join(',')"))
@@ -530,9 +530,9 @@ ok("  while a panel named in the hash still opens", (await page.text('#sideBody'
 // database between scenarios and not within one, so a section that mutates the shared fixture is
 // testing a different card for everything after it. Making one is cheaper than putting one back.
 await page.goto(B + "/#" + sid + "/threads");
-for (let i = 0; i < 40 && !(await page.visible('#sideBody [data-newlore]')); i++) await wait(250);
+for (let i = 0; i < 40 && !(await page.visible('#sideHead [data-newlore]')); i++) await wait(250);
 const cardsBefore = (await story()).entries.length;
-await page.click('#sideBody [data-newlore]');
+await page.click('#sideHead [data-newlore]');
 await wait(500);
 await page.click('[data-lorekind="character"]');
 await wait(500);
@@ -808,26 +808,28 @@ await page.pick('[data-threadsel]', 'view');
 await wait(700);
 const list = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 // `Add` was the heading over four New-* buttons until 2026-09-02, when the four came off — Seth:
-// "the buttons can all go away and we can just keep the add thread". The tray's own door is what
-// the panel opens with now, and it says what it does.
+// "the buttons can all go away and we can just keep the add thread". Since the v2 redesign
+// (2026-10-25) that one door is the + in the drawer's header, labelled for what it does.
 ok("  pressing it opens the list of everything written down",
-   /Characters/.test(list) && /Thread/.test(list));
+   /Characters/.test(list) && /add a thread/i.test(await page.eval(
+     "document.querySelector('#sideHead [data-newlore]')?.getAttribute('aria-label') ?? ''")));
 // ORDER, not just presence. Seth: "move the add to the top and the list of whats in the book to the
-// bottom." The list grows without limit and the four Add buttons do not, so asserting only that
-// both are on the panel is an assertion that was already true before the change and stays true if
-// they swap back.
-// THE DOOR IS ABOVE THE BOOK, not buried under it — Seth, 2026-08-28: "move the add to the top and
-// the list of whats in the book to the bottom." It was the word "Add" over four New-* buttons until
-// 2026-09-02, when the four came off and the tray's own door took their place at the top. The
-// PROPERTY is unchanged and it is what this asserts: the way in comes before the list.
-ok("  with the way in above the book, not buried under it",
-   list.indexOf('Thread') >= 0 && list.indexOf('Thread') < list.indexOf('Characters'));
+// bottom." The list grows without limit and the door does not, so asserting only that both are on
+// the panel is an assertion that was already true before the change and stays true if they swap
+// back.
+// THE DOOR IS ABOVE THE BOOK, not buried under it — Seth, 2026-08-28. It was the word "Add" over
+// four New-* buttons until 2026-09-02, then one door at the top of the list, and since 2026-10-25
+// the header's +. The PROPERTY is unchanged and it is what this asserts, in pixels now that the two
+// are in different boxes: the way in comes before the list.
+ok("  with the way in above the book, not buried under it", await page.eval(`(() => {
+  const d = document.querySelector('#sideHead [data-newlore]'), k = document.querySelector('#sideBody [data-kindhead]');
+  return !!d && !!k && d.getBoundingClientRect().bottom <= k.getBoundingClientRect().top; })()`));
 ok("  not the tray", !/Write it down/.test(list));
-// SCOPED TO #sideBody, because the composer's threads dial carries a data-newlore OPTION and an
+// SCOPED TO #sideHead, because the composer's threads dial carries a data-newlore OPTION and an
 // option has no box — `visible` reads the first match in the document, which was that one.
-ok("  and the tray has its own door from in here", await page.visible('#sideBody [data-newlore]'));
+ok("  and the tray has its own door from in here", await page.visible('#sideHead [data-newlore]'));
 
-await page.click('#sideBody [data-newlore="1"]');
+await page.click('#sideHead [data-newlore="1"]');
 await wait(700);
 const lore = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 ok("  it opens a tray with both ways in", /Write it down/.test(lore) && /read the scene/i.test(lore));
@@ -923,13 +925,16 @@ ok("  and the tray closes again", !/Write it down/.test(await page.text('#sideBo
       pill: !!c.querySelector('.alwayson'),
       chip: !!document.querySelector('#sideBody [data-flipact]') }); })()`);
   const p = plate ? JSON.parse(plate) : null;
+  // NO 150px FLOOR on the tale's list since the v2 redesign (2026-10-25): its cards are short, and
+  // the floor stays on the cross-book grid, where pictures set the rhythm. test/ui/threadlist.js
+  // holds the rest of the short card's shape.
   ok(`  threads are drawn as plates (${plate})`,
-     p != null && p.spine === '3px' && p.minH === '150px' && p.name === '22px');
-  // The pill is the one difference between the two surfaces and it is deliberate: here the
-  // activation chip below the card is PRESSABLE, so a second unpressable copy inside it would be
-  // the same fact twice, one of which does nothing. On the cross-book page there is no chip and the
+     p != null && p.spine === '3px' && p.minH === '0px' && p.name === '22px');
+  // The pill is the one difference between the two surfaces and it is deliberate: here the eye
+  // beside the card is the PRESSABLE switch, so a second unpressable copy inside it would be the
+  // same fact twice, one of which does nothing. On the cross-book page there is no switch and the
   // pill is the only thing saying how a thread fires.
-  ok('  with the pressable switch below rather than a second pill inside',
+  ok('  with the pressable switch beside it rather than a second pill inside',
      p != null && p.pill === false && p.chip === true);
 }
 
@@ -1863,7 +1868,7 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   await page.pick('[data-threadsel]', 'view');
   await wait(700);
   const shown = await page.eval(
-    `(document.querySelector('[data-entry="${made}"] .clamp3')?.textContent ?? '').trim()`);
+    `(document.querySelector('[data-entry="${made}"] .clamp2')?.textContent ?? '').trim()`);
   ok(`  and the grid prints its facts rather than a blank line ("${shown.slice(0, 34)}")`,
      /lamplighter/.test(shown));
 }
