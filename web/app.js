@@ -88,6 +88,19 @@ const overlay = () => matchMedia('(max-width:1099px)').matches;
  */
 const WEBSEARCH = 'anansi.websearch';
 
+/** THE WRITING VEIL IS RETIRED, AND KEPT. Seth, 2026-10-25: "lets get rid of that transition and
+ *  just do it inline. its pretty eye candy but lets retire it in a way where i can bring it back
+ *  if no one likes the change."
+ *
+ *  Off, a passage streams into the page under the last one and Stop stays on the composer. On, the
+ *  full-screen veil comes back exactly as it was: every line of it is still here and still tested
+ *  (test/ui/weave.js and the others switch it on). To bring it back for everyone, set VEIL_DEFAULT
+ *  to true; for one device, set localStorage `anansi.veil` to '1' (or '0' to opt out) and reload. */
+const VEIL_KEY = 'anansi.veil';
+const VEIL_DEFAULT = false;
+let WRITING_VEIL = VEIL_DEFAULT;
+try { const v = localStorage.getItem(VEIL_KEY); if (v === '1' || v === '0') WRITING_VEIL = v === '1'; } catch { /* no storage */ }
+
 const HW = 'anansi.hwkb';
 let hwkb = false;
 try { hwkb = localStorage.getItem(HW) === '1'; } catch { /* no storage */ }
@@ -1590,6 +1603,8 @@ function drawDoc() {
   // The column was just rebuilt, so no tray survived it. The scrim has to know, or a repaint
   // while one was open leaves the backdrop up over a page with nothing modal on it.
   syncTray();
+  // And the passage being written inline goes back at the end of it, mid-word if need be.
+  if (INLINE && !INLINE.isConnected) col.appendChild(INLINE);
 }
 
 /** THE SETUP DRAFT FOR ONE CHAPTER, or null. Issue #66: the draft carried no chapter, and the
@@ -7802,6 +7817,21 @@ function ghost() {
   if (DRAIN != null) cancelAnimationFrame(DRAIN); DRAIN = null;
   VEIL_DONE = false; VEIL_LAND = null;
 
+  // INLINE: the passage writes itself into the page, under the last one. Same id and the same
+  // `.veiltext`, so the streaming below is the veil's own, word for word; none of the full-screen
+  // rules apply because they are all scoped to `#ghost.veil`.
+  if (!WRITING_VEIL) {
+    const col = $('col'); if (!col) return;
+    const g = document.createElement('div');
+    g.id = 'ghost'; g.className = 'block inlive';
+    g.innerHTML = `<div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
+      <div class="narr"><div class="veiltext" aria-live="polite"></div></div>`;
+    col.appendChild(g);
+    INLINE = g;
+    followLive();
+    return;
+  }
+
   const g = document.createElement('div');
   g.id = 'ghost'; g.className = 'veil';
   // innerHTML is safe here and only here: every character of it is written below, and the one place
@@ -7848,6 +7878,14 @@ function ghost() {
  *  token and never raised it if the model errored before then. The veil still goes up on the press;
  *  on success it holds, and on an abort or an error it comes down. */
 let PEND = '', DRAIN = null, VEIL_DONE = false, LAST_TICK = 0, TIP = [], SEEN = 0;
+/** The inline passage being written (INLINE), kept by reference: a repaint rebuilds #col and would drop it,
+ *  so drawDoc puts it back. Null when nothing is being written inline. */
+let INLINE = null;
+/** Keep the newest words in view while they arrive, unless the writer has scrolled up to read. */
+function followLive() {
+  const r = $('read');
+  if (r && r.scrollHeight - r.scrollTop - r.clientHeight < 160) r.scrollTop = r.scrollHeight;
+}
 
 /** #55. "WEAVING…" AND THE SECONDS, from the press until the first word of prose.
  *
@@ -7927,7 +7965,8 @@ const veilText = () => document.getElementById('ghost')?.querySelector('.veiltex
  *  Stop reappears 620ms after the gesture that asked for it. */
 const veilUp = () => {
   const g = document.getElementById('ghost');
-  return !!g && !g.classList?.contains('leaving');
+  // The full-screen veil only. An inline passage covers nothing, so Stop stays on the composer.
+  return !!g && !!g.classList?.contains('veil') && !g.classList?.contains('leaving');
 };
 
 function liveDelta(d) {
@@ -7958,6 +7997,7 @@ function drainVeil(now) {
       SEEN += cut;
       PEND = PEND.slice(cut);
       el.append(span);
+      if (!WRITING_VEIL) followLive();
       /* THE FRAME GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
        * soon as something starts streaming." The ring says something is happening, and once words
        * are appearing the words say it better than a border can. So the ring belongs to the WAIT:
@@ -7984,6 +8024,14 @@ function drainVeil(now) {
 function veilReadable() {
   const g = document.getElementById('ghost');
   if (!g) return;
+  // INLINE: nothing to read it in and nothing to dismiss. The finished passage takes the place of
+  // the one being written, at once.
+  if (!g.classList.contains('veil')) {
+    const land = VEIL_LAND; VEIL_LAND = null;
+    g.remove(); INLINE = null;
+    land?.();
+    return;
+  }
   g.classList.add('done');
   for (const sp of TIP) sp.classList.remove('tip');
   TIP = [];
@@ -8054,7 +8102,7 @@ function dismissVeil(ch) {
  *  and the delegated action handler two thousand lines down already owns everything else. */
 document.addEventListener('click', (e) => {
   const g = document.getElementById('ghost');
-  if (!g || g.classList?.contains('leaving')) return;
+  if (!g || !g.classList?.contains('veil') || g.classList?.contains('leaving')) return;
   // `closest` from the target, not `contains` from the veil: `test/app.ts` drives this file against
   // a hand-built DOM that has no `Element.contains`, and every other handler here already asks the
   // target where it is rather than asking an ancestor what it holds.
@@ -8076,7 +8124,7 @@ document.addEventListener('click', (e) => {
 // ever does.
 document.addEventListener('keydown', (e) => {
   const g = document.getElementById('ghost');
-  if (!g || g.classList.contains('leaving')) return;
+  if (!g || !g.classList.contains('veil') || g.classList.contains('leaving')) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (document.activeElement?.closest('#ghost')) return;
   if (e.key === 'Escape') { e.preventDefault(); return dismissVeil(''); }
@@ -8106,7 +8154,7 @@ document.addEventListener('keydown', (e) => {
 //  load would attach to nothing and then be thrown away on the next repaint anyway. `input` bubbles.
 document.addEventListener('input', (e) => {
   if (e.target?.id !== 'input') return;
-  if (document.getElementById('ghost')) dismissVeil('');
+  if (veilUp()) dismissVeil('');
 });
 
 
@@ -8118,7 +8166,11 @@ document.addEventListener('input', (e) => {
  *  never fires, and the veil would stay on the screen for ever. */
 const unghost = () => {
   const g = document.getElementById('ghost');
+  // An inline passage has no fade, so it just goes — and the passage a re-roll hid comes back.
+  if (!g && INLINE) { INLINE = null; }
+  for (const b of document.querySelectorAll('.block.rerolling-out')) b.classList.remove('rerolling-out');
   if (!g || g.classList.contains('leaving')) return;
+  if (!g.classList.contains('veil')) { g.remove(); INLINE = null; return; }
   if (still()) return g.remove();
   // STRAIGHT TO THE FADE. There used to be a 1,220ms resolve here — the middle column of a six-by-
   // eleven grid spelling ANANSI while the rest went out from under it. The grid is gone (Seth,
@@ -8579,7 +8631,12 @@ async function regenerateInto(id, steer, seed, again = null) {
   // TOKEN arrived — and never raise it at all if the model errored before then, which is
   // precisely the cold-start blank page the veil exists to cover. Raised on the press now, the
   // way `generate()` has always done it.
-  if (atEnd) ghost();
+  if (atEnd) {
+    ghost();
+    // Inline, the new version writes in where the old one was: the old one steps aside until it
+    // lands, or comes back if the re-roll is stopped.
+    if (!WRITING_VEIL) document.querySelector(`#col [data-edit="${id}"]`)?.closest('.block')?.classList.add('rerolling-out');
+  }
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode: S.mode, regenerateOf: id, chapterId: V.currentChapter.id,
     // #38. An edited instruction rides as `directive` and `mode: 'direct'` — that pair is what the

@@ -30,6 +30,10 @@ const send = async (text) => {
 };
 const COUNT = /^Planning\u2026 \d+s$/;
 
+// THE VEIL, SWITCHED ON. It was retired for inline writing on 2026-10-25 and kept behind a switch
+// so it can come back; this scenario is about it, so it keeps it on and keeps it tested.
+await page.eval("(() => { localStorage.setItem('anansi.veil', '1'); return 1; })()");
+
 // ---- 1. the switch, where the note was
 await page.goto(B + "/#" + sid + "/teller");
 ok("the Storyteller draws the weaving switch", await until("!!document.querySelector('[data-story=\"weaving\"]')"));

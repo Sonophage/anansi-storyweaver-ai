@@ -218,6 +218,12 @@ input, textarea { font:inherit; color:inherit; }
    Centring a block that GROWS moves everything already on screen: each new line lifted the whole
    passage by half a line, so the sentence you were reading crept upwards the entire time the model
    was writing. The words arriving is the only motion this surface should have. */
+/* The passage being written, inline (WRITING_VEIL off): a block like the others, its words arriving
+   in ink. The veil's styles below are all scoped to #ghost.veil and do not reach it. */
+#ghost.inlive .veiltext { white-space:pre-wrap; }
+#ghost.inlive .veilweave { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-dim); }
+#ghost.inlive .veilweave:empty { display:none; }
+.block.rerolling-out { display:none; }
 #ghost.veil { position:absolute; inset:0; z-index:50; display:flex; align-items:flex-start;
   justify-content:center;
   /* THE TINT ARRIVES WITH THE VEIL, 2026-09-02 handoff. It was removed on 2026-08-28 — 62%, then

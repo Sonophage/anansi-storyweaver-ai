@@ -65,6 +65,9 @@ const send = async (text) => {
 };
 
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories[0].id)()");
+// THE VEIL, SWITCHED ON. Writing went inline on 2026-10-25 and the veil was kept behind
+// `anansi.veil` so it can come back; this scenario tests it, so it keeps it on.
+await page.eval("(() => { localStorage.setItem('anansi.veil', '1'); return 1; })()");
 await page.goto(B + "/#" + sid);
 for (let i = 0; i < 40; i++) { if (await page.eval("!!document.querySelector('#rail [data-nav]')")) break; await wait(250); }
 // #55. WEAVING STAYS OFF HERE. Every timing below is a real generation's, and a weaving one plans

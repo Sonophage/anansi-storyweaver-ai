@@ -19,6 +19,9 @@ const ready = async (sel, n = 40) => {
 
 // ---- 1. the composer: a take is kept as it arrives
 // Continue is the mode with no prompt, so it is the one that needs no setup.
+// THE VEIL, SWITCHED ON. Writing went inline on 2026-10-25 and the veil was kept behind
+// `anansi.veil` so it can come back; this scenario tests it, so it keeps it on.
+await page.eval("(() => { localStorage.setItem('anansi.veil', '1'); return 1; })()");
 await page.goto(B + "/#" + sid);
 const n0 = (await story()).passages.length;
 await ready('[data-continue="1"]');

@@ -12,6 +12,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-25 · Doors you can see
 
+### Anansi writes into the page
+While Anansi writes, her words now appear in the page under the last passage, and Stop stays on
+the box where you type. The full-screen blur is gone. It is kept, so it can come back if you miss it.
+
 ### Old words, new words
 If you wrote in Anansi before, here is where your old words went. Story is now Tale, and your
 stories are on the Rack. A chapter you wrote in is a Scene; a Chapter is now a run of scenes

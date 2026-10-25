@@ -84,7 +84,16 @@ const listeners: Record<string, Function[]> = {};
   getElementById: (id: string) => nodes.get(id) ?? el(id),
   // Not registered in `nodes`: a created element is not findable by id until something appends it,
   // and nothing here models a tree. It only has to be safe to build, fill and throw away.
-  createElement: (tag: string) => ({ ...el('__made__' + Math.random()), tagName: String(tag).toUpperCase() }),
+  // A made element's classList reads and writes its className, because the writing surface asks
+  // which it is: `#ghost.veil` is the full-screen veil and `#ghost.inlive` the inline passage.
+  createElement: (tag: string) => {
+    const o: any = { ...el('__made__' + Math.random()), tagName: String(tag).toUpperCase(), className: '' };
+    const has = () => String(o.className).split(/\s+/).filter(Boolean);
+    o.classList = { contains: (c: string) => has().includes(c),
+      add: (c: string) => { if (!has().includes(c)) o.className = [...has(), c].join(' '); },
+      remove: (c: string) => { o.className = has().filter((x) => x !== c).join(' '); }, toggle() {} };
+    return o;
+  },
   createTextNode: (t: string) => ({ textContent: t }),
   querySelector: () => null,
   querySelectorAll: () => [],
@@ -539,6 +548,13 @@ let stubTalk: any = null, stubInvent: any = null;
     ? { ...body, admin: true } : body) };
 };
 
+// THE VEIL, SWITCHED ON. Writing went inline on 2026-10-25 and the full-screen veil was kept behind
+// `anansi.veil` so it can come back. Everything below about the veil tests that kept code, so the
+// switch is on for this file; the inline default is tested in a browser, in test/ui/inline.js.
+stored.set('anansi.veil', '1');
+// This harness answers every id with a node, so `#ghost` always exists here and is the veil: the
+// writing code tells the veil from the inline passage by its class.
+(document as any).getElementById('ghost').classList.contains = (c: string) => c === 'veil';
 await import('../web/app.js');
 await new Promise((r) => setTimeout(r, 30));   // let the boot IIFE settle
 
