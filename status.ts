@@ -36,7 +36,7 @@ console.log('\n  ANANSI — derived status, nothing transcribed\n');
 row('commit', sh('git log -1 --format="%h  %cd  %s" --date=short') || '(not a git tree)');
 row('working tree', sh('git status --porcelain | wc -l') === '0' ? 'clean' : `${sh('git status --porcelain | wc -l')} files modified`);
 row('routes', n(`grep -oE "'(GET|POST|PUT|DELETE|PATCH) /[^']*'" src/routes.ts | sort -u | wc -l`));
-row('debt markers', n('grep -rn "ponytail:" src web bench test *.ts *.html | wc -l'));
+row('debt markers', n('grep -arn "ponytail:" src web bench test *.ts *.html | wc -l'));
 row('findings', n("grep -c '^## F' docs/findings/P0-FINDINGS.md"));
 row('source lines', n('cat src/*.ts serve.ts run.ts | wc -l') + ' src, '
   + n('cat web/*.js app.html | wc -l') + ' web, '
