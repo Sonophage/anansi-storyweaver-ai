@@ -54,6 +54,12 @@ is still there.
 Esc closes a passage's actions and the menu. Tab no longer walks through the menu or a drawer
 while they are closed. The menu's rows wrap instead of cutting off their names.
 
+### Branch asks twice, and small screens keep the writing
+Branch now asks for a second press, like Delete, and then says where the later passages went. On a
+short screen such as the Titan, the band of numbers under the title is hidden, and the row with
+Speak and Threads shows only while you are typing, so more of the tale fits. The menu button on the
+rack is the ☰ on its own.
+
 ### Fixed after a second look
 On a phone, the top bar no longer runs off the screen on the menu's pages. Start blank no longer
 waits for ever on your threads. A scene that is already hemmed no longer offers Hem this scene.

@@ -579,6 +579,13 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   background:linear-gradient(180deg, rgba(10,9,12,.15) 0%, rgba(10,9,12,.82) 100%); }
 .lbanner > .txt { position:relative; display:flex; flex-direction:column; gap:4px; min-width:0; }
 /* The header's doors out (drawBar): they keep their size and the title gives way. */
+/* A SHORT SCREEN KEEPS THE PROSE. On the Titan's 360px square the stats band and the mode row left
+   about three lines to read (usability check, 2026-10-25). Seth chose: hide the band, and show the
+   mode row only while you are in the composer. */
+@media (max-height:500px) {
+  #ctxread { display:none !important; }
+  #dock:not(:focus-within):not(.big) #modes { display:none; }
+}
 .hdoor { flex:0 0 auto; }
 .pill[aria-pressed="true"] { background:var(--gold); border-color:var(--gold); color:var(--on-gold); }
 .deskonly { display:block; }

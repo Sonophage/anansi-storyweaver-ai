@@ -25,8 +25,11 @@ const backdrop = () => page.eval("(() => { document.getElementById('scrim').clic
 const tray = () => page.eval("!!document.querySelector('.block[aria-expanded=\"true\"]')");
 
 // ---- the rack
+// The ☰ alone since 2026-10-25 (Seth: "Remove the word menu, keep it as a menu"); its name is
+// for a screen reader.
 const menu = await seen('#bar .hdoor[data-railview="workspace"]');
-ok(`the rack shows a Menu button with its word on it (${JSON.stringify(menu)})`, /Menu/.test(menu ?? ''));
+ok(`the rack shows the menu button, ☰ with no word (${JSON.stringify(menu)})`, menu === '☰'
+   && (await page.eval("document.querySelector('#bar .hdoor[data-railview=\"workspace\"]').getAttribute('aria-label')")) === 'Menu');
 await page.click('#bar .hdoor[data-railview="workspace"]');
 await wait(500);
 ok("  and pressing it opens the menu", await railOpen());
@@ -136,5 +139,12 @@ ok(`on a 360px square the header fits (${fit.over}px over, off screen: ${JSON.st
    fit.over <= 0 && fit.doors.length === 0);
 ok("  with the way back and the ⋯ both on it",
    !!(await seen('#bar [data-home]')) && (await seen('#bar .pill[data-railview="story"]')) === '⋯');
+// A short screen keeps the prose: no stats band, and the mode row only while you are writing.
+const shown = (id) => page.eval(`(() => { const e = document.getElementById('${id}'); return !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().height > 0; })()`);
+ok("on the square the stats band is hidden", !(await shown('ctxread')));
+ok("  and so is the mode row while you are reading", !(await shown('modes')));
+await page.click('#input');
+await wait(400);
+ok("  and the mode row comes back when you tap into the box", await shown('modes'));
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

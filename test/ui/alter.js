@@ -56,4 +56,17 @@ await wait(1200);
 const after = await body();
 ok(`Save saves (${JSON.stringify((after ?? '').slice(-40))})`, (after ?? '').includes('SAVED WORDS'));
 
+// ---- Branch asks twice. One tap in the middle of the sheet used to branch, and the passages after it
+// left the page.
+const branches = () => page.eval(`(async () => ((await (await fetch('/api/story?story=${sid}')).json()).branches ?? []).length)()`);
+const b0 = await branches();
+await page.dbl(`[data-edit="${pid}"]`);
+await page.click(`.block[aria-expanded="true"] [data-fork="${pid}"]`);
+await wait(500);
+ok(`one press on Branch makes no branch (${b0} -> ${await branches()})`, (await branches()) === b0);
+ok("  and asks for a second press", /Press Branch again/.test((await page.eval("document.getElementById('toast')?.textContent ?? ''"))));
+await page.click(`.block[aria-expanded="true"] [data-fork="${pid}"]`);
+await wait(900);
+ok(`  and the second press makes it (${await branches()})`, (await branches()) === b0 + 1);
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

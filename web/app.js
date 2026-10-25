@@ -1006,7 +1006,7 @@ function drawBar() {
       >&lsaquo; Anansi</button>`
       : `<button data-railview="workspace" class="pill hdoor" aria-label="Menu"
       style="display:flex; align-items:center; gap:7px; padding:7px 12px"
-      ><span aria-hidden="true" style="font-size:15px; line-height:1">&#9776;</span><span style="font-size:11px; letter-spacing:.1em; text-transform:uppercase">Menu</span></button>`}
+      ><span aria-hidden="true" style="font-size:15px; line-height:1">&#9776;</span></button>`}
     <!-- No overflow:hidden on the title or its column: it would clip the title's 44px touch area.
          The ellipsis lives on the spans inside, which is where the text is. -->
     <div style="flex:1 1 auto; min-width:60px; display:flex; flex-direction:column; gap:3px">
@@ -9247,7 +9247,7 @@ document.addEventListener('click', async (e) => {
     return toast(`Scenes ${from}–${to} are one chapter now.`);
   }
   if (d.delarc) {
-    if (!armed(t, 'arc:' + d.delarc, 'Press again to remove this panel. Its scenes keep their own summaries.')) return;
+    if (!armed(t, 'arc:' + d.delarc, 'Press again to remove this chapter. Its scenes keep their own summaries.')) return;
     const r = await api.delArc(S.storyId, d.delarc);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
@@ -10008,10 +10008,14 @@ document.addEventListener('click', async (e) => {
     paint(); toast('Restored.'); return;
   }
   if (d.fork) {
+    // TWO PRESSES, like Delete. One tap in the middle of the sheet made a branch and the passages
+    // after this one left the page — a reviewer did it by accident (usability check, 2026-10-25).
+    // Seth: "Add confirm."
+    if (!armed(t, `fork:${d.fork}`, 'Press Branch again. The passages after this one stay on the branch you are on now.')) return;
     const r = await api.fork(S.storyId, d.fork, `from ${new Date().toLocaleDateString()}`);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); S.panel = 'chapter'; S.historyOf = null;
-    paint(); toast('Branched. You are on the new branch.'); return;
+    paint(); toast('Branched. The passages after it are on your old branch: This scene → Branches.'); return;
   }
 
   // --- a search hit belongs to a story, which may not be the open one
