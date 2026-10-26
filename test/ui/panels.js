@@ -410,8 +410,8 @@ ok("Threads groups the cards by kind", /Characters/.test(threads));
 const kinds = new Set((await story()).entries.map((e) => e.entryType));
 ok(`  and every kind this story has is shown (${[...kinds].join(',')})`,
    [...kinds].every((k) => new RegExp({ character: 'Characters', lore: 'Lore', item: 'Items', rule: 'Rules' }[k]).test(threads)));
-// ONE DOOR TO ALL FOUR KINDS. The four New-* buttons came off this panel on 2026-09-02; the tray
-// they were beside opens on the same four kinds and ends in the same data-newentry press, which is
+// ONE DOOR TO ALL FOUR KINDS. The four New-* buttons came off this panel on 2026-09-02; New thread
+// offers the same four kinds and ends in one Write it press, which is
 // what "any functionality that these buttons may have carry over" means. Asserted on the tray's
 // kind chips, because those are what the four buttons became.
 await page.click('#sideHead [data-newlore]');
@@ -421,7 +421,7 @@ ok("  with a way to add each kind",
      === 'character,item,lore,rule');
 ok("  and the four buttons that used to say so are gone",
    !(await page.eval("!!document.querySelector('#sideBody [data-newentry]')")));
-await page.click('#sideBody [data-newlore]');
+await page.click('#sideHead [data-newlore]');
 await wait(400);
 
 // ---- 6b. THE STORY PANEL IS FOUR GROUPS, AND SWITCHING CANNOT LOSE WHAT YOU TYPED (2026-09-02).
@@ -542,7 +542,7 @@ await page.click('#sideHead [data-newlore]');
 await wait(500);
 await page.click('[data-lorekind="character"]');
 await wait(500);
-await page.click('[data-newentry="character"]');
+await page.click('[data-newthread="character"]');
 await wait(1200);
 const mine = await page.eval("(() => document.querySelector('[data-f=\"title\"]') ? 1 : 0)()");
 ok("a card can be made to test on, so the fixture is left alone", mine === 1);
@@ -823,7 +823,7 @@ ok("  pressing it opens the list of everything written down",
 ok("  with the way in above the book, not buried under it", await page.eval(`(() => {
   const d = document.querySelector('#sideHead [data-newlore]'), k = document.querySelector('#sideBody [data-kindhead]');
   return !!d && !!k && d.getBoundingClientRect().bottom <= k.getBoundingClientRect().top; })()`));
-ok("  not the tray", !/Write it down/.test(list));
+ok("  not New thread", !(await page.eval("!!document.getElementById('newname')")));
 // SCOPED TO #sideHead, because the composer's threads dial carries a data-newlore OPTION and an
 // option has no box — `visible` reads the first match in the document, which was that one.
 ok("  and the tray has its own door from in here", await page.visible('#sideHead [data-newlore]'));
@@ -831,83 +831,35 @@ ok("  and the tray has its own door from in here", await page.visible('#sideHead
 await page.click('#sideHead [data-newlore="1"]');
 await wait(700);
 const lore = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
-ok("  it opens a tray with both ways in", /Write it down/.test(lore) && /read the scene/i.test(lore));
-// #27. EVERY ROOM joins the four card kinds, not just the outfit. They are NOT kinds — KINDS is the
-// entry TYPE and draws the editor's type buttons, where a room is not a thing an entry can be — so
-// this asserts the tray's list, which is deliberately longer than that one. Compared against the
-// server's own slot list rather than a list typed here, or the two drift and the check still passes.
+ok("  it opens New thread with every way in", /New thread/.test(lore) && /read the scene/i.test(lore)
+   && /look it up online/i.test(lore) && /write one for me/i.test(lore));
+// NEW THREAD (v2 redesign, 2026-10-25). The four kinds are a choice, Character lit; no pocket is
+// offered here any more — a pocket is added from its thread, on the Pockets tab.
 {
   const offered = await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind).sort()");
-  const slots = await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
-    + " return [...new Set(Object.values(v.slots || {}).flat().map(x => x.name))].sort(); })()");
-  const want = [...new Set(['character', 'item', 'lore', 'rule', ...slots])].sort();
-  console.log("  tray offers first: " + offered.join(','));
-  // TWO STEPS since 2026-08-29. The four kinds first — fourteen chips at once was every room of
-  // every kind in one row, most of them meaningless for what you were about to write.
-  ok("  offering the four kinds and no rooms yet",
-     offered.join(',') === 'character,item,lore,rule');
+  ok(`  offering the four kinds (${offered.join(',')})`, offered.join(',') === 'character,item,lore,rule');
+  ok("    with Character lit", (await page.eval("document.querySelector('[data-lorekind=\"character\"]').getAttribute('aria-pressed')")) === 'true');
   await page.click('[data-lorekind="character"]');
   await wait(400);
-  const rooms = await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind)");
-  const want2 = (await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
-    + " return (v.slots.character || []).map(x => x.name); })()"));
-  ok("    then that kind's own rooms, from the server's list and not a copy here",
-     want2.every((r) => rooms.includes(r)));
-  ok("    and none belonging to another kind",
-     !rooms.includes('who_is_here') && !rooms.includes('scope') && !rooms.includes('provenance'));
-  // A way back UP, or picking the wrong kind means closing the tray and starting again.
-  await page.click('[data-lorekind="__kinds"]');
-  await wait(400);
-  ok("    with Back stepping out to the kinds rather than closing the tray",
-     (await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind).sort().join(',')"))
-       === 'character,item,lore,rule');
+  ok("    and pressing one offers no pockets", (await page.eval("[...document.querySelectorAll('[data-lorekind]')].length")) === 4);
 }
+await page.eval("(() => { document.getElementById('newname').value = 'a rival cartographer'; return 1; })()");
 await page.click('[data-lorekind="item"]');
 await wait(400);
-ok("  and picking a kind changes what New would make",
-   /New an object/.test(await page.text('#sideBody') || ''));
+ok("  picking a kind keeps what is typed in the box",
+   (await page.eval("document.getElementById('newname').value")) === 'a rival cartographer');
+ok("  and Write it makes that kind", (await page.eval("document.querySelector('[data-newthread]')?.dataset.newthread")) === 'item');
 ok("  scanning the chapter is offered without ending it", await page.visible('[data-loreread]'));
 ok("  and Anansi can write one, for the kind you picked",
    (await page.eval("document.querySelector('[data-invent]')?.dataset.invent")) === 'item');
-ok("  with a line of direction and the search switch",
-   await page.visible('[data-invdir]') && await page.visible('[data-invsearch]'));
+ok("  steered by the one box, with the search switch",
+   (await page.eval("document.getElementById('newname').hasAttribute('data-invdir')")) && await page.visible('[data-invsearch]'));
 
-// ---- 11b. AN OUTFIT HANGS OFF SOMEBODY, so the tray asks whose before it asks anything else.
-// Seth: "a new costume and have it attached to a character from that screen would be phenomenal."
-// The block above left the tray on the KIND row, and Item was chosen after it — so step back up
-// and into Character before reaching for a room only a character has.
-await page.click('[data-lorekind="__kinds"]');
-await wait(300);
-await page.click('[data-lorekind="character"]');
-await wait(400);
-await page.click('[data-lorekind="outfit"]');
-await wait(500);
-ok("picking Outfit asks whose it is", await page.visible('[data-loreowner]'));
-ok("  and the picker is filled from this story's cast",
-   (await page.eval("document.querySelectorAll('[data-loreowner] option').length")) > 0);
-ok("  Anansi is offered first", (await page.eval("document.querySelector('[data-invent]')?.dataset.invent")) === 'outfit');
-// FOLDED, and asserted as folded rather than as present. Seth: "right now it looks like alot to
-// fill out" — the fields existing is not the complaint, the fields being the first thing you see
-// is. `open` is the whole difference and it is the only thing this can check.
-const fold = await page.eval(`(() => { const d = document.querySelector('.outfitmine');
-  if (!d) return null; return { open: d.open,
-    name: !!d.querySelector('[data-of="name"]'), body: !!d.querySelector('[data-of="body"]'),
-    hint: (d.querySelector('[data-of="body"]')?.placeholder || '') }; })()`);
-console.log("  outfit fold: " + JSON.stringify(fold));
-ok("  the three fields are behind a fold, not in front of you", !!fold && fold.open === false);
-ok("  and they are in there", !!fold && fold.name && fold.body);
-// Bracketed, because the bodies are: `[wearing: ...]` is the shape actually written, and a
-// bracketed hint reads as a slot to replace rather than as text that is already there.
-ok(`  with a bracketed placeholder to replace (${fold && fold.hint.slice(0, 24)})`,
-   !!fold && /^\[/.test(fold.hint) && /\]$/.test(fold.hint));
-
-// THROUGH THE TALE'S TITLE now: with the tray on a KIND the panel's own Back button is
-// data-lorekind="__kinds", and the door that closed the tray from here was the composer's Add
-// Threads until #71's second round took the dial away. The title is the door to the LIST, and it
-// clears the tray on the way (goblock threads:).
+// THROUGH THE TALE'S TITLE: the title is the door to the LIST, and it clears New thread on the way
+// (goblock threads:).
 await page.click('#bar [data-goblock="threads:"]');
 await wait(400);
-ok("  and the tray closes again", !/Write it down/.test(await page.text('#sideBody') || ''));
+ok("  and New thread closes again", !(await page.eval("!!document.getElementById('newname')")));
 
 // With an entry open, threads() returns the editor before it looks at S.lore — so the tray's own
 // door is not on screen and the composer's is the way back. That door clears the open entry as

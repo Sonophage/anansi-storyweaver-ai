@@ -863,7 +863,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     ['theme', 'look.theme'],
     ['ctxview', 'S.ctxView'],
     ['setupkind', 'kind'],
-    ['lorekind', 'S.lore.kind'],
+    ['lorekind', 'kind'],
     ['spkind', 'on'],
     // The outfit chips under a character on the Threads list. Worn is a BORDER COLOUR and the label
     // is the coat's name either way, so aria is the only place the state can live.

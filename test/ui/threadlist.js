@@ -212,11 +212,11 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   for (let i = 0; i < 40 && !(await page.visible('#thq')); i++) await wait(250);
   await page.click('#sideHead [data-newlore]');
   await wait(600);
-  ok("the + opens the tray with every way in",
-     /Write it down/.test(await page.text('#sideBody') || '') && /read the scene/i.test(await page.text('#sideBody') || ''));
+  ok("the + opens New thread with every way in",
+     /New thread/.test(await page.text('#sideBody') || '') && /read the scene/i.test(await page.text('#sideBody') || ''));
   ok("  and the + and the count leave the header while it is open",
-     await page.eval("!document.querySelector('#sideHead [data-newlore], #sideHead [data-thcount]')"));
-  await page.click('#sideBody [data-newlore]');
+     await page.eval("!document.querySelector('#sideHead .headadd, #sideHead [data-thcount]')"));
+  await page.click('#sideHead [data-newlore]');
   await wait(600);
   ok("  and its Back comes back to the list", await page.visible('#thq'));
   ok("every tale's threads is still a door from the list", await page.visible('#sideBody [data-leave="canon"]'));
