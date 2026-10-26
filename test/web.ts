@@ -1327,4 +1327,22 @@ ok('the delegation refuses html and body outright');
   ok('no comment defers its meaning to a document — the code reads without opening one');
 }
 
+/** THE STYLESHEET'S BRACES BALANCE. 2026-10-25: a stray `}` left after an edit ended the
+ *  stylesheet's next rule early, so `#inputRow` lost its flex and the full-screen composer's box
+ *  stayed one line tall; browsers drop what they cannot parse and say nothing. Comments are taken
+ *  out first, and a depth that goes below zero is named by its line. */
+{
+  const html = read('app.html');
+  const at = html.indexOf('<style>'), css = html.slice(at, html.indexOf('</style>', at));
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+  let depth = 0; const wrong: string[] = [];
+  bare.split('\n').forEach((line, i) => {
+    for (const ch of line) { if (ch === '{') depth++; else if (ch === '}') depth--;
+      if (depth < 0) { wrong.push(`app.html <style> line ${i + 1}: a } with nothing open`); depth = 0; } }
+  });
+  if (depth !== 0) wrong.push(`app.html <style>: ${depth} { never closed`);
+  assert.deepStrictEqual(wrong, [], 'the stylesheet\'s braces must balance, or the rules after the break are lost');
+  ok('the stylesheet\'s braces balance');
+}
+
 console.log(`\n${n} checks passed`);

@@ -150,41 +150,42 @@ if (cast) {
      (await page.eval("document.getElementById('input')?.value")) === '');
 } else { ok("the cast offers someone other than you", false); }
 
-// ---- 8. THE GENERATING RING DOES NOT MOVE THE COMPOSER (2026-09-02).
-// This was a 2px bar above the composer, and the property under test was that it did not shove the
-// dock: as a row sibling at width:100% it pushed the composer off the right edge for the whole
-// 20-40s call. Seth replaced it with a gradient ring around the window — "remove the line above the
-// input box ... and put a gradient box around the screen that shifts" — so the same property is
-// asserted against the thing that replaced it, and the ring has an easier time of it: it is
-// position:fixed and cannot take part in the dock's layout at all. Which is worth PROVING rather
-// than assuming, because that is exactly what the bar's author assumed.
+// ---- 8. THE GLOW WHILE SHE THINKS, ON THE BOX OR THE QUILL, AND IT DOES NOT MOVE THE COMPOSER.
+// It was a 2px bar above the composer that shoved the dock, then a ring round the window
+// (2026-09-02), and since 2026-10-25 a glow on the box, or on the middle quill button when the box
+// is folded (Seth: "it's just the center button that glows"). Same property as ever: the composer
+// does not move while it is up.
 const dockBox = () => page.eval("(() => { const d = document.getElementById('dockCol').getBoundingClientRect();"
   + " return [Math.round(d.left), Math.round(d.right), Math.round(d.width)]; })()");
+const glowOn = (id) => page.eval(`(() => { const e = document.getElementById('${id}');
+  return !!e && getComputedStyle(e).animationName === 'thinkglow'; })()`);
 const quiet = await dockBox();
 await page.eval("(() => { document.documentElement.dataset.work = 'speak'; return 1; })()");
 await wait(250);
 const busy = await dockBox();
-ok(`the composer stays put while the ring runs (${quiet} -> ${busy})`, String(quiet) === String(busy));
-const ring = await page.eval(`(() => { const f = document.getElementById('frame');
-  const cs = getComputedStyle(f); const r = f.getBoundingClientRect();
-  return JSON.stringify({ shown: cs.opacity !== '0', fixed: cs.position === 'fixed',
-    full: Math.round(r.width) === innerWidth && Math.round(r.height) === innerHeight,
-    moving: cs.animationName !== 'none',
-    clicks: cs.pointerEvents === 'none' }); })()`).then(JSON.parse);
-console.log("  ring: " + JSON.stringify(ring));
-ok("  and the ring is up, framing the whole window", ring.shown && ring.fixed && ring.full);
-ok("  travelling, so it says something is happening", ring.moving);
-// It covers the screen, so a press anywhere would land on it if it took presses at all.
-ok("  and it swallows no presses", ring.clicks);
-// The line it replaced is gone from the document, not merely hidden: an element nothing writes to
-// is one the next reader has to work out is dead.
+ok(`the composer stays put while it glows (${quiet} -> ${busy})`, String(quiet) === String(busy));
+const folded = await page.eval("document.getElementById('dock').classList.contains('folded')");
+ok(`  the ${folded ? 'quill' : 'box'} glows while she thinks`, await glowOn(folded ? 'quill' : 'inputWrap'));
+ok("  and the ring round the window is gone from the page", await page.eval("!document.getElementById('frame')"));
+// And the other state: folded if it was open, open if it was folded. Both are what a writer sees.
+const flip = await page.eval(`(() => { const b = document.getElementById(${JSON.stringify(folded ? 'quill' : 'fold')});
+  if (!b) return 0; b.click(); return 1; })()`);
+if (flip) {
+  await wait(400);
+  const now = await page.eval("document.getElementById('dock').classList.contains('folded')");
+  ok(`  folded ${now}: the ${now ? 'quill' : 'box'} glows instead`,
+     now !== folded && await glowOn(now ? 'quill' : 'inputWrap') && !(await glowOn(now ? 'inputWrap' : 'quill')));
+  // Put it back as it was: the checks after this one read the box in the state they found it.
+  await page.eval(`(() => { document.getElementById(${JSON.stringify(now ? 'quill' : 'fold')})?.click(); return 1; })()`);
+  await wait(400);
+}
 ok("  and the old bar is gone entirely", await page.eval("!document.getElementById('working')"));
-await page.eval("(() => { delete document.documentElement.dataset.work; return 1; })()");
-// LONGER THAN --t-slow (.32s), or this reads a value mid-transition: the first version waited
-// 200ms and got 0.34, which is the fade working rather than the ring staying.
-await wait(700);
-const gone = await page.eval("getComputedStyle(document.getElementById('frame')).opacity");
-ok(`  and it goes when the call ends (opacity ${gone})`, gone === '0');
+await page.eval("(() => { document.documentElement.dataset.streaming = '1'; return 1; })()");
+await wait(100);
+ok("  the glow goes at the first word", !(await glowOn(folded ? 'quill' : 'inputWrap')));
+await page.eval("(() => { delete document.documentElement.dataset.work; delete document.documentElement.dataset.streaming; return 1; })()");
+await wait(200);
+ok("  and stays gone when the call ends", !(await glowOn('inputWrap')) && !(await glowOn('quill')));
 
 // ---- 9. the five modes, in the writer's own words
 // Global to the writer, a full replace, and empty is the reset. The thing that matters is that it

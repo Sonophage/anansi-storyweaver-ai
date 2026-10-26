@@ -221,6 +221,10 @@ input, textarea { font:inherit; color:inherit; }
 /* The passage being written, inline (WRITING_VEIL off): a block like the others, its words arriving
    in ink. The veil's styles below are all scoped to #ghost.veil and do not reach it. */
 #ghost.inlive .veiltext { white-space:pre-wrap; }
+/* Each word fades up as it scrambles in (scrambleIn). The glyphs paint in the prose's own ink. */
+@keyframes wordin { from { opacity:0; } to { opacity:1; } }
+#ghost.inlive .veiltext .w { animation:wordin .3s var(--ease) both; }
+#ghost .veiltext .w.decoding::after { color:var(--ink); }
 #ghost.inlive .veilweave { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-dim); }
 #ghost.inlive .veilweave:empty { display:none; }
 .block.rerolling-out { display:none; }
@@ -336,10 +340,8 @@ input, textarea { font:inherit; color:inherit; }
   text-transform:uppercase; white-space:nowrap; }
 #ghost.veil .veilcarry button:hover { border-color:var(--gold); background:rgba(217,178,106,.1); }
 /* THE BAR ABOVE STOP IS GONE — Seth, 2026-09-02: "remove the inner line that serves as the
-   transition". It was added an hour earlier to say that something was happening; the ring around
-   the window says it now, and two things saying it is one of them being noise. The ring is also
-   the better place for it: it survives the veil being dismissed, and this did not. */
-}
+   transition". It was added an hour earlier to say that something was happening; the glow on the
+   box or the quill says it now, and two things saying it is one of them being noise. */
 @keyframes veilin { from { opacity:0; } to { opacity:1; } }
 @keyframes veilout { from { opacity:1; } to { opacity:0; } }
 /* `veilbreathe` went with `.head`, the status line it pulsed. PLAN-07 bug 3 is recorded in the
@@ -1008,7 +1010,7 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 /* --- composer ---------------------------------------------------------- */
 /* Column, not row. The dock was a row until the 2px working bar had to sit above the composer, and
    at width:100% that sibling pushed the whole composer off the right edge for the length of every
-   call. The bar is gone — the generating ring frames the window instead, see #frame — and the
+   call. The bar is gone — the box or the quill glows instead (thinkglow) — and the
    column stays: #dockCol and the mode rail are stacked, which is what it is for. */
 /* THE CONTEXT BAR. Full width, three pixels, directly under the header — not a number to read,
    because the number is in the reading a press opens and the blocks behind it are one more press
@@ -1222,24 +1224,6 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
 #modes button[data-continue]:hover:not(:disabled) { border-color:rgba(217,178,106,.42); color:var(--gold-lit); }
 #modes button[data-continue]:disabled { opacity:.45; }
 
-/* Something is happening. A generation is 20-40 seconds against a local model, and a composer
-   that simply goes quiet reads as a hung page — which is what it was reported as. The bar under
-   the document animates for the whole call, and its colour says WHICH action is running, because
-   the five do different things and the wait is long enough to forget which you pressed. */
-/* THE FRAME, which replaced the 2px line above the composer — Seth, 2026-09-02: "remove the line
-   above the input box when waiting for aa stream and put a gradient box around the screen that
-   shifts in the ghost transition."
-   A RING, NOT A PANEL: two masks composited so only the padding box paints, which is the one way to
-   put a gradient on a border with no second element and no border-image. `pointer-events:none` and
-   nothing focusable, so it cannot take a press meant for the page under it.
-   IT SAYS WHICH PRESS IS RUNNING, in that press's own colour, and those colours are the `--m-*-ink`
-   tokens the margin rules and the mode dial use. The strip it replaces had SIX HARD-CODED HEXES for
-   the same job — a second definition of every mode's colour, which is the drift this file keeps
-   recording. Continue takes the ink's own accent and a re-roll takes the gold, because neither is
-   one of the four presses.
-   IT OUTLIVES THE VEIL. The veil can be dismissed mid-write and the generation carries on, and
-   until now the only thing that said so was the composer's Stop. `working()` is called at both ends
-   of every call, so the frame is up for exactly as long as the model is writing. */
 #owed { position:fixed; top:0; left:0; right:0; height:3px; z-index:61; pointer-events:none;
   background:linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold-lit) 50%,
     var(--gold) 70%, transparent);
@@ -1249,33 +1233,30 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
 @keyframes owedbreathe { 0%, 100% { opacity:.45; } 50% { opacity:1; } }
 /* The statement without the pulse, for the same reason the ring drops its travel. */
 @media (prefers-reduced-motion: reduce) { #owed { animation:none; opacity:.8; } }
-#frame { position:fixed; inset:0; z-index:60; pointer-events:none; padding:2px; opacity:0;
-  transition:opacity var(--t-slow) var(--ease-out);
-  background:linear-gradient(115deg, transparent 26%, var(--work, var(--gold)) 44%,
-    var(--work, var(--gold)) 56%, transparent 74%) 0 0 / 320% 100% no-repeat;
-  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor;
-  mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite:exclude; }
-/* UP FOR THE WAIT AND NOT FOR THE WRITING. `data-streaming` lands on the first word, so the ring
-   covers the one stretch with nothing to look at — the cold prefill, which F24 measured at 7.3s —
-   and gets out of the way the moment the prose starts arriving. */
-html[data-work]:not([data-streaming]) #frame { opacity:1; animation:framedrift 3.6s linear infinite; }
-@keyframes framedrift { from { background-position:0 0; } to { background-position:320% 0; } }
-html[data-work="speak"]    #frame { --work:var(--m-speak-ink); }
-html[data-work="act"]      #frame { --work:var(--m-act-ink); }
-html[data-work="direct"]   #frame { --work:var(--m-direct-ink); }
-html[data-work="narrate"]  #frame { --work:var(--m-narrate-ink); }
-html[data-work="continue"] #frame { --work:var(--m-continue); }
-html[data-work="coop"]     #frame { --work:var(--m-coop); }
-html[data-work="reroll"]   #frame { --work:var(--gold); }
+/* THE GLOW WHERE YOU PRESSED, NOT A RING ROUND THE WINDOW. Seth, 2026-10-25: "The input box should
+   glow as the ai is thinking", and with the box folded away, "it's just the center button that
+   glows". Up for the wait and not for the writing, as the ring was: `data-streaming` lands on the
+   first word. The colour is the press's (--work, set on the root below). It replaced a moving ring
+   round the whole window (2026-09-02 to 2026-10-25). */
+@keyframes thinkglow { 0%, 100% { box-shadow:0 0 0 1px var(--work, var(--gold)), 0 0 10px 0 var(--work, var(--gold)); }
+  50% { box-shadow:0 0 0 1px var(--work, var(--gold)), 0 0 24px 4px var(--work, var(--gold)); } }
+html[data-work]:not([data-streaming]) #dock:not(.folded) #inputWrap,
+html[data-work]:not([data-streaming]) #dock.folded #quill { animation:thinkglow 1.8s var(--ease) infinite; }
+html[data-work="speak"]    { --work:var(--m-speak-ink); }
+html[data-work="act"]      { --work:var(--m-act-ink); }
+html[data-work="direct"]   { --work:var(--m-direct-ink); }
+html[data-work="narrate"]  { --work:var(--m-narrate-ink); }
+html[data-work="continue"] { --work:var(--m-continue); }
+html[data-work="coop"]     { --work:var(--m-coop); }
+html[data-work="reroll"]   { --work:var(--gold); }
 /* Everything else the model does — a card, a thread off the web, the chapter-end passes, the
    wizard. No press owns these, so they wear the accent rather than a mode colour. */
-html[data-work="ai"]       #frame { --work:var(--gold); }
-/* Reduced motion keeps the statement and drops the travel: the ring is simply there, evenly. */
+html[data-work="ai"]       { --work:var(--gold); }
+/* Reduced motion keeps the glow and drops the pulse. */
 @media (prefers-reduced-motion: reduce) {
-  html[data-work]:not([data-streaming]) #frame { animation:none;
-    background:linear-gradient(115deg, var(--work, var(--gold)), var(--work, var(--gold))); }
+  html[data-work]:not([data-streaming]) #dock:not(.folded) #inputWrap,
+  html[data-work]:not([data-streaming]) #dock.folded #quill {
+    animation:none; box-shadow:0 0 0 1px var(--work, var(--gold)), 0 0 16px 2px var(--work, var(--gold)); }
 }
 /* NO RULE UNDER THE COMPOSER — Seth, 2026-09-02: "remove the bottom accented line". It was a gold
    1px underline the full width of the row, with a parchment override beside it for the one theme
@@ -1644,16 +1625,27 @@ textarea.field { resize:vertical; min-height:70px; }
    against the BLOCK rather than the window, and its z-index is capped inside it — so the block gets
    the same two clauses while this is open. Third round of that bug; second feature to need the fix.
    The scrim rises under it on `html[data-rerollsheet]`, so a press outside is Cancel. */
-.rerollbox {
-  margin:14px 0 4px; padding:12px 14px; border-radius:var(--r);
-  border:1px solid rgba(217,178,106,.32); background:var(--sheet);
-}
-.rerollbox textarea { min-height:52px; }
+.rerollbox { display:none; }
+/* THE FULL-SCREEN BOX, as #dock.big draws it: the same blur and wash, the box flexed to the
+   window, Cancel and Reweave flanking it the way Back and Send flank the composer's. */
 .block.rerolling .rerollbox {
-  position:fixed; left:50%; top:50%; transform:translate(-50%, -50%); z-index:32; margin:0;
-  width:min(460px, calc(100vw - 44px)); max-height:80vh; overflow-y:auto;
-  padding:18px 20px; box-shadow:0 40px 90px rgba(0,0,0,.7);
+  position:fixed; inset:0; z-index:41; margin:0; display:flex; flex-direction:column; gap:14px;
+  padding:calc(18px + env(safe-area-inset-top, 0px)) 18px 18px; box-sizing:border-box;
+  background:color-mix(in srgb, var(--doc-bg) 30%, transparent);
+  backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95);
 }
+.rerollbox .rwhead { width:100%; max-width:var(--col); margin:0 auto; display:flex; flex-direction:column; gap:8px; }
+.rerollbox .rwquote { font-size:17px; font-style:italic; color:var(--narr); line-height:1.45; }
+.rerollbox .rwrow { flex:1; min-height:0; width:100%; max-width:var(--col); margin:0 auto;
+  display:flex; align-items:stretch; gap:12px; }
+.rerollbox .rwrow textarea { flex:1; min-height:0; height:auto; margin:0; resize:none;
+  font-family:'Instrument Serif', var(--serif, serif); font-size:20px; line-height:1.5; }
+.rerollbox .rwside { width:38px; border-radius:var(--r); display:flex; align-items:center;
+  justify-content:center; flex:0 0 auto; border:1px solid var(--chip); color:var(--ink); }
+.rerollbox .rwgo { background:var(--gold); color:var(--on-gold); border-color:transparent; }
+.rerollbox .rwside .btnword { display:none; }
+@media (min-width:720px) { .rerollbox .rwside { width:auto; padding:0 14px; gap:7px; }
+  .rerollbox .rwside .btnword { display:inline; } }
 html[data-rerollsheet="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
 
 .savebar {
@@ -2102,9 +2094,6 @@ body[data-dev] #devbar {
   </aside>
 </div>
 
-<!-- The generating ring. Fixed to the window and outside every panel, because it frames the
-     SCREEN rather than any surface on it — see #frame in the stylesheet. -->
-<div id="frame" aria-hidden="true"></div>
 <!-- SOMETHING WANTS YOU. A band of the accent along the top edge, over everything, so it is on
      screen wherever you are — the rail's Waiting row says the same thing but only while the rail is
      open. Not a toast and not a count: it is a light, and pressing Waiting is what answers it. -->

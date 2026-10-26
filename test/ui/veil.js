@@ -40,12 +40,13 @@ const veil = () => page.eval(`(() => {
     carry: (() => { const row = g.querySelector('.veilcarry');
       if (!row || getComputedStyle(row).display === 'none') return 0;
       return row.querySelectorAll('button[data-veilgo]').length; })(),
-    // THE RING AROUND THE WINDOW, which belongs to the WAIT: up from the press, gone on the first
-    // word. It is on the root and outside the veil, so it is read from there.
-    ring: (() => { const f = document.getElementById('frame');
+    // THE GLOW, which belongs to the WAIT: up from the press, gone on the first word. On the box,
+    // or on the quill when the box is folded (2026-10-25; it was a ring round the window). Named
+    // `ring` still so the assertions below read as they did.
+    ring: (() => { const folded = document.getElementById('dock')?.classList.contains('folded');
+      const f = document.getElementById(folded ? 'quill' : 'inputWrap');
       if (!f) return 'MISSING';
-      const cs = getComputedStyle(f);
-      return cs.opacity === '0' ? 'gone' : (cs.animationName !== 'none' ? 'moving' : 'still'); })(),
+      return getComputedStyle(f).animationName === 'thinkglow' ? 'moving' : 'gone'; })(),
     streaming: document.documentElement.dataset.streaming === '1',
     dark: getComputedStyle(g).backgroundColor,
     meter: fill ? parseFloat(fill.style.height) || 0 : -1,

@@ -39,6 +39,40 @@ ok("when it is done it becomes a passage like the others",
 ok(`  and it was written (${before} -> ${await models()})`, (await models()) === before + 1);
 ok("  with no tap needed to see it", await until("!document.querySelector('#send[data-stop]')", 40));
 
+// ---- where the page sits, and how the words arrive (Seth, 2026-10-25)
+// At the first word the page moves ONCE so the end of the passage before sits 72px under the top
+// (the seam), and then it stays still while she writes below the fold. Each word scrambles in.
+// Watched from inside the page, because the moments are shorter than a round trip from here.
+await page.eval(`(() => { const read = document.getElementById('read');
+  // Instantly: #read scrolls smoothly, and a page still gliding to the bottom when the press lands
+  // is not a reader sitting at the bottom.
+  read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
+  window.__w = { tops: [], scrambled: 0, words: 0, seam: null };
+  new MutationObserver((ms) => { for (const m of ms) {
+    if (m.type === 'attributes' && m.target.classList?.contains('decoding')) window.__w.scrambled++;
+    for (const n of m.addedNodes ?? []) if (n.classList?.contains?.('w')) {
+      window.__w.words++; window.__w.tops.push(Math.round(read.scrollTop));
+      if (window.__w.words === 1) requestAnimationFrame(() => { const g = document.getElementById('ghost');
+        const p = [...document.querySelectorAll('#col .block')].filter((b) => b !== g && b.offsetParent !== null
+          && (b.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING)).at(-1);
+        if (p) window.__w.seam = Math.round(p.getBoundingClientRect().bottom - read.getBoundingClientRect().top); }); } } })
+    .observe(document.getElementById('col'), { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  return 1; })()`);
+await send("He looks back once.");
+await until("!document.getElementById('ghost')", 120);
+await wait(300);
+const w = await page.eval("JSON.stringify(window.__w)").then(JSON.parse);
+console.log("  arrival: " + JSON.stringify(w));
+ok(`the words scramble in (${w.scrambled} of ${w.words} words)`, w.words > 0 && w.scrambled >= w.words);
+// The last word lands in the same frame as the finished passage, which takes the room held open
+// below the seam away; the fixture's passage is five words, shorter than a screen, so the page
+// settles then. A real passage is longer than the screen and does not.
+const writing = w.tops.slice(0, -1);
+ok(`  the page does not follow them down while she writes (scroll positions ${JSON.stringify([...new Set(writing)])})`,
+   writing.length > 0 && new Set(writing).size === 1);
+ok(`  and at the first word the passage before sits at the seam, 72px under the top (${w.seam})`,
+   w.seam !== null && Math.abs(w.seam - 72) <= 8);
+
 // ---- a re-roll of the last passage: the new version writes where the old one was
 await page.eval("(() => { document.querySelector('#nextbar [data-re]').click(); return 1; })()");
 ok("a re-roll writes inline too", await until("!!document.querySelector('#col > #ghost.inlive')"));

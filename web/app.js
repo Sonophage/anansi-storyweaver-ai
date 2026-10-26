@@ -665,8 +665,9 @@ function armed(t, key, ask) {
  *  `disabled` is what stops the second press; the dataset flag is for a click arriving another way.
  *  Restoring in `finally` can write to a node paint() has already thrown away, which is harmless
  *  and is why it is not guarded. */
-/** THE RING, WHENEVER THE MODEL IS WORKING. Seth, 2026-09-03: "whenever something is happening
- *  with the ai, that border that glows should be present." It was up for the composer's presses and
+/** THE GLOW, WHENEVER THE MODEL IS WORKING. Seth, 2026-09-03: "whenever something is happening
+ *  with the ai, that border that glows should be present." The border was a ring round the window
+ *  until 2026-10-25 and is the box's or the quill's glow now (app.html, thinkglow). It was up for the composer's presses and
  *  for a re-roll, and down for everything else the model does — writing a card, pulling a thread off
  *  the web, the four chapter-end passes, naming a chapter, the wizard. Those are the LONG ones.
  *
@@ -1435,16 +1436,26 @@ function passageHTML(p, newest, opening) {
    * so a repaint cannot lose it — the same rule the composer and the search boxes follow.
    *
    * NO BACKTICKS IN THE COMMENT ABOVE OR ANYWHERE IN HERE: one ends the template literal. */
-  const rr = S.reroll?.id === p.id ? `<div class="rerollbox">
-    <div class="lbl" style="letter-spacing:.1em; margin:0 0 6px">Reweave from this instruction</div>
-    <textarea class="field" data-rerollbox="1" rows="2" aria-label="The instruction to reweave from"
-      style="margin:0">${esc(S.reroll.text ?? '')}</textarea>
-    <div class="hint" style="margin:6px 0 9px">Change it and the new version is woven from what you
-      change it to. Leave it and you get another version of the same instruction. The passage you have
-      now is kept either way, in Alterations.</div>
-    <div style="display:flex; gap:8px">
-      <button class="btn" data-rerollgo="${esc(p.id)}" style="flex:1">Reweave</button>
-      <button class="btn ghost" data-rerollx="1" style="width:110px">Cancel</button>
+  /* THE FULL-SCREEN BOX (Seth, 2026-10-25: "the regenerate screen should match the maximized edit
+   * screen"). The full-screen composer's shape: Cancel where its Back is, Reweave where Send is,
+   * the instruction in the big box between them, and the passage's first line quoted above so you
+   * can see which one you are redoing. Esc, Back and the scrim all close it without reweaving. */
+  const firstLine = String(p.body ?? '').split('\n').map((l) => l.trim()).find(Boolean) ?? '';
+  const rr = S.reroll?.id === p.id ? `<div class="rerollbox" role="dialog" aria-label="Reweave this passage">
+    <div class="rwhead">
+      <div class="lbl" style="letter-spacing:.1em; margin:0">Reweave from this instruction</div>
+      <div class="rwquote serif">${esc(firstLine.length > 140 ? firstLine.slice(0, 139) + '\u2026' : firstLine)}</div>
+      <div class="hint" style="margin:0">Change it and the new version is woven from what you change
+        it to. Leave it and you get another version of the same instruction. The passage you have now
+        is kept either way, in Alterations.</div>
+    </div>
+    <div class="rwrow">
+      <button data-rerollx="1" class="rwside" aria-label="Cancel, and keep the passage as it is"
+        >${mark('expand', 18)}<span class="btnword">Cancel</span></button>
+      <textarea class="field" data-rerollbox="1" aria-label="The instruction to reweave from"
+        >${esc(S.reroll.text ?? '')}</textarea>
+      <button data-rerollgo="${esc(p.id)}" class="rwside rwgo" aria-label="Reweave"
+        >${mark('send', 18)}<span class="btnword">Reweave</span></button>
     </div></div>` : '';
   /* WHAT ARRIVED WHILE YOU WERE AWAY, bugs.md #9. `claimed === false` is every take until the next
    * thing is written; WATCHED removes the ones this page saw appear, so what is left is a passage
@@ -1622,6 +1633,8 @@ function drawDoc() {
   syncTray();
   // And the passage being written inline goes back at the end of it, mid-word if need be.
   if (INLINE && !INLINE.isConnected) col.appendChild(INLINE);
+  // Reweave's full-screen box opens and shuts through here, and it is a Back step (layerNow).
+  syncLayers();
 }
 
 /** THE SETUP DRAFT FOR ONE CHAPTER, or null. Issue #66: the draft carried no chapter, and the
@@ -7782,7 +7795,7 @@ function closeThreadBack() {
  *  Back shuts it. Called from drawBar and drawDock, which every change to the three goes through.
  *  ponytail: one layer at a time, the topmost. Two open at once (Look over the big composer) share
  *  one entry, so Back shuts both. Give each its own entry if anyone opens them together. */
-const layerNow = () => (S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
+const layerNow = () => (S.reroll ? 'reweave' : S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
 function syncLayers() {
   const want = layerNow(), have = history.state?.layer ?? null;
   if (!ROUTED || BACKING || want === have) return;
@@ -7794,6 +7807,8 @@ function syncLayers() {
 }
 function closeLayersBack() {
   const l = history.state?.layer ?? null;
+  // The full-screen Reweave box (2026-10-25) is a layer like the full-screen composer: Back closes it.
+  if (S.reroll && l !== 'reweave') { S.reroll = null; drawDoc(); syncTray(); }
   if (S.appearance && l !== 'look') { S.appearance = false; drawAppearance(); drawBar(); }
   if (S.bigInput && l !== 'big' && l !== 'look') { S.bigInput = false; drawDock(); syncTray(); }
   if (S.reading && !l) { S.reading = false; root.dataset.reading = '0'; drawBar(); drawDoc(); }
@@ -8018,6 +8033,30 @@ async function openStory(id) {
 // text changes, and that is this function. STREAMING prose decodes at its frontier only — see
 // frontier() in model.js, which is where the glyphs are. Scrambling a live 300-word passage whole
 // would be unreadable, and the bureau only ever put this on short headers.
+/** ONE WORD, SCRAMBLING IN. Seth, 2026-10-25: "use the same scramble transition to fade in the
+ *  text." The titles' decode, at word size and quicker: the letters turn for about a fifth of a
+ *  second and settle left to right while the word fades up (`.w` in app.html). Only the newest
+ *  word: the words behind it never move. The real word is in the text the whole time; the glyphs
+ *  are painted over it from an attribute, as decode does, so a screen reader and a copy read the
+ *  word and not the noise. Nothing under reduced motion, where the word simply appears. */
+function scrambleIn(span) {
+  const target = span?.textContent ?? '';
+  if (!target.trim() || still() || typeof requestAnimationFrame !== 'function') return;
+  const len = target.length, total = 12;
+  let frame = 0;
+  span.classList.add('decoding');
+  const tick = () => {
+    if (!span.isConnected) return;
+    const revealed = Math.floor((++frame / total) * len);
+    let out = '';
+    for (let i = 0; i < len; i++) out += /\s/.test(target[i]) ? target[i] : i < revealed ? target[i] : glyph();
+    span.dataset.glyphs = out;
+    if (frame < total) requestAnimationFrame(tick);
+    else { span.classList.remove('decoding'); delete span.dataset.glyphs; }
+  };
+  requestAnimationFrame(tick);
+}
+
 /** Titles already on screen, by slot, so a repaint that says the same thing does not re-run the
  *  animation. Every panel repaint replaces the element, so the memory cannot live on it. */
 const DECODED = {};
@@ -8116,6 +8155,11 @@ function ghost() {
       <div class="narr"><div class="veiltext" aria-live="polite"></div></div>`;
     col.appendChild(g);
     INLINE = g;
+    // At the bottom when she starts, the page will move once, at her first word; scrolled up to
+    // read something else, it stays where you are. Measured before followLive brings the empty
+    // block into view, or every press would count as "at the bottom".
+    const r = $('read');
+    INLINE_ANCHOR = !r || r.scrollHeight - r.scrollTop - r.clientHeight < 160;
     followLive();
     return;
   }
@@ -8169,10 +8213,42 @@ let PEND = '', DRAIN = null, VEIL_DONE = false, LAST_TICK = 0, TIP = [], SEEN = 
 /** The inline passage being written (INLINE), kept by reference: a repaint rebuilds #col and would drop it,
  *  so drawDoc puts it back. Null when nothing is being written inline. */
 let INLINE = null;
-/** Keep the newest words in view while they arrive, unless the writer has scrolled up to read. */
+/** Whether the page moves at the first word of an inline passage (see anchorLive). */
+let INLINE_ANCHOR = false;
+/** THE FIRST WORD MOVES THE PAGE ONCE, AND NOTHING AFTER IT DOES. Seth, 2026-10-25: the text
+ *  "should stay at the top of the line to allow the user to scroll down. As more text comes in it
+ *  can write below the fold." It used to follow the newest word down (followLive on every word),
+ *  which dragged the page under the reader's eye for the whole passage.
+ *
+ *  THE SEAM, NOT THE NEW PASSAGE'S TOP. The end of the passage before it sits 72px under the top of
+ *  the screen and the new prose starts under it — the rule Seth set on 2026-09-01 for a passage
+ *  that has landed ("shoot back to the end of the last entry"), and pinTo's PEEK. The block before
+ *  the ghost is the seam; a re-roll's own old take is hidden while it writes and is skipped. */
+function anchorLive() {
+  const read = $('read'), g = INLINE;
+  if (!INLINE_ANCHOR || !read || !g) return;
+  INLINE_ANCHOR = false;
+  // The last block drawn before the ghost, in document order: the blocks sit inside a chapter's
+  // own element, so the ghost's siblings are not them.
+  const prev = [...document.querySelectorAll('#col .block')]
+    .filter((b) => b !== g && b.offsetParent !== null
+      && (b.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING)).at(-1);
+  const PEEK = 72;
+  // ROOM BELOW THE SEAM. At the first word the passage is one word tall, and a page cannot scroll
+  // past its own end, so the seam could never reach the top. The block being written holds a
+  // screen's height open until it lands; the real passage replaces it then.
+  g.style.minHeight = `${Math.max(0, read.clientHeight - PEEK)}px`;
+  const edge = prev ? prev.getBoundingClientRect().bottom - PEEK : g.getBoundingClientRect().top - 12;
+  // 'instant', not 'auto': #read has scroll-behavior:smooth, which 'auto' would honour, and a page
+  // still gliding while the words arrive is the motion this removes.
+  read.scrollTo({ top: read.scrollTop + edge - read.getBoundingClientRect().top, behavior: 'instant' });
+}
+/** Keep the newest words in view while they arrive, unless the writer has scrolled up to read.
+ *  Only for the empty block at the press now, so the wait has something to show; the words do not
+ *  call it (anchorLive). */
 function followLive() {
   const r = $('read');
-  if (r && r.scrollHeight - r.scrollTop - r.clientHeight < 160) r.scrollTop = r.scrollHeight;
+  if (r && r.scrollHeight - r.scrollTop - r.clientHeight < 160) r.scrollTo({ top: r.scrollHeight, behavior: 'instant' });
 }
 
 /** #55. "WEAVING…" AND THE SECONDS, from the press until the first word of prose.
@@ -8285,10 +8361,11 @@ function drainVeil(now) {
       SEEN += cut;
       PEND = PEND.slice(cut);
       el.append(span);
-      if (!WRITING_VEIL) followLive();
-      /* THE FRAME GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
-       * soon as something starts streaming." The ring says something is happening, and once words
-       * are appearing the words say it better than a border can. So the ring belongs to the WAIT:
+      scrambleIn(span);
+      if (!WRITING_VEIL && SEEN === cut) anchorLive();
+      /* THE GLOW GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
+       * soon as something starts streaming." The glow says something is happening, and once words
+       * are appearing the words say it better than a border can. So the glow belongs to the WAIT:
        * up from the press, gone at the first word, and `working(null)` clears both at the end.
        * On the root beside `data-work` rather than as a third state of it, because the colour and
        * the phase are two facts and the CSS reads them together. */
@@ -8469,17 +8546,16 @@ const unghost = () => {
   g.addEventListener('animationend', () => g.remove(), { once: true });
 };
 
-/** WHICH PRESS IS RUNNING, said on the root so the frame around the window can wear its colour.
+/** WHICH PRESS IS RUNNING, said on the root so the glow on the box or the quill can wear its colour.
  *
  *  This drove a 2px strip above the composer until 2026-09-02 — Seth: "remove the line above the
  *  input box when waiting for aa stream and put a gradient box around the screen that shifts". The
  *  twenty call sites are unchanged and so is the contract: a kind while a call is in flight, null
  *  when it ends. What reads it moved from an element to `html[data-work]`, which is one attribute
- *  rather than a node the dock has to make room for — and the ring is visible after the veil has
- *  been dismissed, which the strip behind the veil was not.
+ *  rather than a node the dock has to make room for.
  *
- *  ON THE ROOT AND NOT ON #frame: the frame is one element and the attribute is a state of the
- *  APP, the same shape `data-tray` and `data-reading` already use. */
+ *  ON THE ROOT: the attribute is a state of the APP, the same shape `data-tray` and
+ *  `data-reading` already use. */
 function working(kind) {
   if (kind) root.dataset.work = kind;
   else delete root.dataset.work;

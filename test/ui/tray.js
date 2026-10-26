@@ -130,42 +130,48 @@ for (const [label, on, off] of [
   ok(`the fixture has a directed passage to re-roll (${target})`, !!target);
   await page.eval(`(() => { document.querySelector('[data-re="${target}"]').click(); return 1; })()`);
   await wait(600);
+  // THE FULL-SCREEN BOX since 2026-10-25 (Seth: "the regenerate screen should match the maximized
+  // edit screen"): it covers the window, Cancel where the composer's Back is, Reweave where Send is.
   const sheet = await page.eval(`(() => {
     const box = document.querySelector('.rerollbox'); if (!box) return null;
     const r = box.getBoundingClientRect(); const cs = getComputedStyle(box);
     const blk = box.closest('.block'); const bs = getComputedStyle(blk);
-    const scrim = getComputedStyle(document.getElementById('scrim'));
-    const hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + 20));
+    const ta = box.querySelector('[data-rerollbox]').getBoundingClientRect();
+    const x = box.querySelector('[data-rerollx]').getBoundingClientRect();
+    const go = box.querySelector('[data-rerollgo]').getBoundingClientRect();
+    const body = blk.querySelector('.ptext, .said, p')?.textContent ?? blk.textContent;
+    const hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
     return JSON.stringify({ position: cs.position,
-      offX: Math.abs(r.left + r.width / 2 - innerWidth / 2),
-      offY: Math.abs(r.top + r.height / 2 - innerHeight / 2),
+      full: Math.round(r.width) === innerWidth && Math.round(r.height) === innerHeight,
+      quote: box.querySelector('.rwquote')?.textContent.trim() ?? '',
+      instruction: box.querySelector('[data-rerollbox]').value,
+      order: x.right <= ta.left && ta.right <= go.left,
+      tall: Math.round(ta.height) > innerHeight / 3,
       rebases: [bs.transform, bs.filter, bs.maskImage || bs.webkitMaskImage, bs.animationName]
         .filter((v) => !(v === 'none' || v === 'auto' || v === 'normal' || !v)),
-      scrimShown: scrim.opacity !== '0' && scrim.pointerEvents !== 'none',
       onTop: !!hit && !!hit.closest('.rerollbox') }); })()`).then((x) => (x ? JSON.parse(x) : null));
-  console.log("  re-roll sheet: " + JSON.stringify(sheet));
-  ok("  it opens as a centred sheet, not inline in the paragraph",
-     !!sheet && sheet.position === 'fixed');
-  ok(`  centred on the WINDOW (off by ${sheet && sheet.offX}, ${sheet && sheet.offY})`,
-     !!sheet && sheet.offX <= 2 && sheet.offY <= 2);
-  // The whole reason it cannot be centred naively: a block that re-bases a fixed child centres the
-  // sheet on the PARAGRAPH and caps its z-index under the scrim.
+  console.log("  reweave box: " + JSON.stringify(sheet));
+  ok("  it opens full screen, like the full-screen composer", !!sheet && sheet.position === 'fixed' && sheet.full);
+  ok(`  with the passage's first line quoted above the box (${JSON.stringify(sheet && sheet.quote.slice(0, 50))})`,
+     !!sheet && sheet.quote.length > 10);
+  ok("  and the instruction in the big box", !!sheet && sheet.instruction.length > 0 && sheet.tall);
+  ok("  Cancel on the left, Reweave on the right, as Back and Send", !!sheet && sheet.order);
   ok(`  with nothing on its block re-basing it (${JSON.stringify(sheet && sheet.rebases)})`,
      !!sheet && sheet.rebases.length === 0);
-  ok("  the scrim is up under it, so a press outside is Cancel", !!sheet && sheet.scrimShown);
-  ok("  and the sheet is what a press at its top actually hits", !!sheet && sheet.onTop);
-  // And the backdrop cancels rather than re-rolling: a press on nothing in particular is not a
-  // press on Re-roll, which would spend a generation.
-  // TWO CHECKS, NOT `page.click('#scrim')`. That presses an element's CENTRE, and the scrim covers
-  // the window — so its centre is the middle of the screen, which is exactly where the sheet is.
-  // The press landed on the sheet and the check went red for the wrong reason. So: the corner of
-  // the screen really is the scrim, and the scrim's own press really does cancel.
-  ok("  the corner of the screen is the backdrop, not the sheet", await page.eval(
-    "document.elementFromPoint(20, 20)?.id === 'scrim'"));
-  await page.eval("(() => { document.getElementById('scrim').click(); return 1; })()");
-  await wait(500);
-  ok("  and a press on it closes the sheet without re-rolling",
-     !(await page.eval("!!document.querySelector('.rerollbox')")));
+  ok("  and it is what a press in the middle of the screen hits", !!sheet && sheet.onTop);
+  const takes = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).passages.length)()`);
+  // BACK CLOSES IT without reweaving: it is a layer, like the full-screen composer.
+  await page.eval("(() => { history.back(); return 1; })()");
+  await wait(600);
+  ok("  Back closes it", !(await page.eval("!!document.querySelector('.block.rerolling .rerollbox')")));
+  ok("  without reweaving", (await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).passages.length)()`)) === takes);
+  ok("  and the tale is still open", await page.eval("!!document.querySelector('#col .block')"));
+  // And Esc, the same.
+  await page.eval(`(() => { document.querySelector('[data-re="${target}"]').click(); return 1; })()`);
+  await wait(600);
+  await page.key('Escape', 27); await wait(400);
+  ok("  and so does Esc",
+     !(await page.eval("!!document.querySelector('.block.rerolling .rerollbox')")));
 }
 /* REGENERATE OVER YOUR OWN PARAGRAPH ASKS FIRST. 2026-09-18. The button is drawn on the last
  * passage and in every tray whatever wrote it, so in a book the writer narrates themselves the
