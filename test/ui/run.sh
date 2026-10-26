@@ -94,6 +94,21 @@ scenarios=${*:-}
 # `model`, `ritual` and `veil` are excluded from the default set: every step waits on a real
 # generation, so they run in minutes. Ask for one by name: test/ui/run.sh veil
 fail=0
+# A BOUND ON EVERY SCENARIO. A driver waits on the page with no limit of its own, so one hang held
+# a whole run: `back` hung for 24 minutes on 2026-10-25 before somebody killed it by hand, and the
+# summary could not have said which one it was. A scenario over its bound is killed, recorded as
+# dead with its name, and the run goes on to the next.
+#
+# The bounds are sized from the `at` stamps in the results file, not guessed. Most scenarios take
+# 10–100 s; `panels` takes 250–330 s, so it gets the long bound with the scenarios that wait on real
+# generations (a cold model loads for minutes first). ANANSI_UI_TIMEOUT and ANANSI_UI_SLOW_TIMEOUT
+# override the two, in seconds.
+bound() {
+  case "$1" in
+    panels|veil|model|ritual) echo "${ANANSI_UI_SLOW_TIMEOUT:-1200}" ;;
+    *) echo "${ANANSI_UI_TIMEOUT:-300}" ;;
+  esac
+}
 # WHAT THIS RUN SAW, written down. Until 2026-08-28 the results of this harness existed only in the
 # terminal at the moment you ran it, and it is run by hand — so `buttons` and `handlers` sat dead
 # for weeks and nothing in the repo could say so, while the last line still read "all scenarios
@@ -107,9 +122,23 @@ RESULTS=${ANANSI_UI_RESULTS:-/tmp/anansi-ui-results-$(printf %s "$(pwd -P)" | sh
 rows=""
 for s in $scenarios; do
   fresh "$s"
-  out=$(ANANSI_UI_FL_KEY="$UI_FL_KEY" node --experimental-strip-types bench/drive.ts "http://127.0.0.1:$PORT/" "test/ui/$s.js" 2>&1)
+  t0=$SECONDS lim=$(bound "$s")
+  # --foreground: the TERM goes to the driver alone, and the driver closes chromium and removes its
+  # profile. Without it timeout signals the whole group, and the driver died before its TERM handler
+  # ran: four killed runs out of four left a profile in /tmp, 2026-10-25. Why the group signal
+  # does that is not known; a TERM sent to the group by hand let the handler run. -k: a driver that
+  # ignores the TERM is KILLed 10 s later.
+  out=$(ANANSI_UI_FL_KEY="$UI_FL_KEY" timeout --foreground -k 10 "$lim" node --experimental-strip-types bench/drive.ts "http://127.0.0.1:$PORT/" "test/ui/$s.js" 2>&1)
+  rc=$?
   ok=$(printf '%s' "$out" | grep -c '^  ok')
   red=$(printf '%s' "$out" | grep -c 'RED \|FAIL')
+  # 124 is timeout's TERM, 137 its KILL. Either way the scenario never reached its verdict.
+  if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+    printf '  %-10s DIED (timeout) after %s s, %s ok — killed at its bound\n' "$s" "$lim" "$ok"
+    printf '%s\n' "$out" | tail -6 | sed 's/^/       /'
+    rows="$rows{\"name\":\"$s\",\"ok\":$ok,\"red\":$red,\"died\":true,\"timeout\":true,\"at\":$(date +%s)},"
+    fail=$((fail+1)); continue
+  fi
   # Every scenario ends by printing its own verdict. If that line is missing the scenario did
   # not finish — it threw partway, and the assertions it did reach are not the whole story.
   # Counting only ok and RED made a scenario that died at assertion 8 of 25 report "8 ok, 0 red",
@@ -130,7 +159,7 @@ for s in $scenarios; do
     fail=$((fail+1)); continue
   fi
   rows="$rows{\"name\":\"$s\",\"ok\":$ok,\"red\":$red,\"died\":false,\"at\":$(date +%s)},"
-  printf '  %-10s %2s ok, %s red\n' "$s" "$ok" "$red"
+  printf '  %-10s %2s ok, %s red  (%s s)\n' "$s" "$ok" "$red" $((SECONDS-t0))
   if [ "$red" -gt 0 ]; then fail=$((fail+red)); printf '%s\n' "$out" | grep -E 'RED |FAIL' | sed 's/^/       /'; fi
 done
 # MERGED, NOT OVERWRITTEN. `run.sh panels` must not erase what the other seventeen last reported,
@@ -145,4 +174,7 @@ node -e '
 
 echo ""
 [ "$fail" -eq 0 ] && echo "  all scenarios green" || echo "  $fail red"
+# The run's own length, so how long a full run takes is measured rather than guessed. It outlasts
+# a 600 s foreground shell cap; run it in the background.
+echo "  $(wc -w <<<"$scenarios") scenario(s) in $((SECONDS/60))m $((SECONDS%60))s"
 exit $((fail > 0))

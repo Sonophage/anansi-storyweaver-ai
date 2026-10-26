@@ -294,19 +294,8 @@ const page = {
   text: (sel: string) => page.eval(`document.querySelector(${JSON.stringify(sel)})?.textContent ?? null`),
 };
 
-const [url, script] = process.argv.slice(2);
-try {
-  await page.goto(url);
-  // THE SCENARIOS NAME 5179, the default port, in a constant of their own. Run on another port
-  // (`ANANSI_UI_PORT`, for a second worktree) they would drive whatever server sits on 5179 — another
-  // checkout's test server, mutating its database — so the address is pointed at the one this run
-  // was given. Found 2026-10-25 with another worktree's server on 5179.
-  const origin = new URL(url).origin;
-  const text = (await import('node:fs').then((f) => f.readFileSync(script, 'utf8')))
-    .replaceAll('http://127.0.0.1:5179', origin);
-  const run = new Function('page', 'wait', `return (async () => { ${text} })()`);
-  await run(page, wait);
-} finally {
+// The cleanup, as one function: the `finally` below runs it, and so does a TERM.
+async function close() {
   ws.close();
   // And take the profile with it. Without this every driver run left ~15 MB in a `mkdtemp`
   // directory nobody ever looked at: 949 of them had built up between 2026-08-25 and 2026-08-27,
@@ -323,4 +312,24 @@ try {
     chrome.kill();
   });
   rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 120 });
+}
+// A KILL FROM `timeout` skips the `finally`. test/ui/run.sh bounds every scenario, and each one it
+// killed left its profile behind, measured 2026-10-25: two scenarios killed, two directories left.
+// 143 is the shell's code for a TERM; timeout reports its own 124 to run.sh either way.
+process.once('SIGTERM', () => { void close().then(() => process.exit(143)); });
+
+const [url, script] = process.argv.slice(2);
+try {
+  await page.goto(url);
+  // THE SCENARIOS NAME 5179, the default port, in a constant of their own. Run on another port
+  // (`ANANSI_UI_PORT`, for a second worktree) they would drive whatever server sits on 5179 — another
+  // checkout's test server, mutating its database — so the address is pointed at the one this run
+  // was given. Found 2026-10-25 with another worktree's server on 5179.
+  const origin = new URL(url).origin;
+  const text = (await import('node:fs').then((f) => f.readFileSync(script, 'utf8')))
+    .replaceAll('http://127.0.0.1:5179', origin);
+  const run = new Function('page', 'wait', `return (async () => { ${text} })()`);
+  await run(page, wait);
+} finally {
+  await close();
 }
