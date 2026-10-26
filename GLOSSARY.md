@@ -4,7 +4,7 @@ A local-first app for writing long-form fiction with a model. These are the word
 of a tale that the writer and the model share, and the only words the screens use for them.
 
 Anansi is a spider and a tailor of stories. Both trades work in thread. **Spider words are for
-making** new prose (weave, reweave). **Tailor words are for handling what is made** (baste, alter,
+making** new prose (weave, reweave). **Tailor words are for handling what is made** (chalk, alter,
 mend, hem). Things keep plain or already-themed names. A word a new writer would not guess
 carries its plain meaning in its tip the first time it appears.
 
@@ -60,23 +60,45 @@ _In code_: `opens_with`, `authors_note`
 ## What the tale remembers
 
 **Thread**:
-A fact about the tale that stays true until it is changed: a character, lore, an item or a rule.
+Something the tale remembers: a character, a place, lore or an item. Each tale also has one
+thread about itself. (Rules moved into the tale's thread on 2026-10-26; not built.)
 _Avoid_: card, cards, entry, entries, canon, ledger, ledger entry
 _In code_: entry
 
 **Pocket**:
-A named section inside a thread, switched on or off: an outfit, a fact sheet. Outfits are worn
-and taken off; other pockets are on or off.
+A named instruction inside a thread on how to write one part of it: how they talk, what they
+wear, what a place feels like. Switched on or off; outfits are worn and taken off. A pocket tells
+the model how to use a thing, never words to repeat. (Decided 2026-10-26; today's pockets are
+still descriptions.)
 _Avoid_: room, rooms, slot, addon
 _In code_: addon, slot
 
-**Always true / As it stands**:
-The two texts of a thread besides its pockets. Always true is the writer's own text and Anansi
-never changes it. As it stands is where the thread is now; Anansi bastes changes to it at hemming
-and the writer sews them in. Both reach the model every time the thread is sent. (Decided
-2026-10-24; the screens and the data still have one body and a facts pocket.)
-_Avoid_: facts pocket (for Always true), body (for As it stands)
-_In code_: the `facts` addon (Always true), `entries.body` (As it stands)
+**The tale's thread**:
+The one thread about the tale itself. Its Always true is the premise and setting; its pockets are
+the text the writer gives the model for the whole tale: Voice first, then the tale's rules, then
+the writer's own. Spice, the cast choices and the model stay settings. It has no Over time.
+(Decided 2026-10-26; not built.)
+_Avoid_: story card, tale instructions, author's note
+
+**Rule**:
+A pocket of the tale's thread: a law the tale obeys, sent always or on its wake words.
+_Avoid_: rule thread, constraint
+
+**Always true**:
+Who or what a thread is, which does not change through the tale. Anansi may write it only when
+the thread is first made, or when the writer asks her to tidy the thread; otherwise only the writer
+changes it. (Decided 2026-10-26; the screens
+still say Facts.)
+_Avoid_: facts, facts pocket, the core
+_In code_: the `facts` addon
+
+**Over time**:
+A thread's dated record, scene by scene. Each entry is the whole of where the thread stands from
+that scene on, with a short label for what changed; an outfit put on and a retirement are entries
+too. The model reads Always true and the entry in force at the scene being written. Anansi chalks
+each change at hemming; the writer sews it in. (Decided 2026-10-26; the screens still have Info.)
+_Avoid_: info, information, body, as it stands, state, states, history (for a thread)
+_In code_: `entries.body`, `entry_states`
 
 **Always on / On a word**:
 When a thread reaches the model: every time, or when one of its wake words appears.
@@ -134,14 +156,14 @@ _Avoid_: stale, outdated, invalid
 
 ## Anansi's suggestions and the workbench
 
-**Basted**:
-What Anansi suggests, tacked in loosely until the writer decides: a new thread, a change to one, a
-string, a thread to retire. Nothing basted is in the tale.
-_Avoid_: proposal, proposed, suggestion, noticed, queue
+**Chalked**:
+What Anansi suggests, marked in chalk until the writer decides: a new thread, a change to one, a
+string, a thread to retire. Nothing chalked is in the tale. (Renamed 2026-10-26.)
+_Avoid_: basted, baste, proposal, proposed, suggestion, noticed, queue
 _In code_: proposal
 
 **Sew it in / Reject**:
-Keep something basted / refuse it. The message after keeping says "Sewn in." Weave is only for
+Keep something chalked / refuse it. The message after keeping says "Sewn in." Weave is only for
 making prose.
 _Avoid_: accept, weave it in, woven in, add beside it, tie it, drop, dismiss, throw it back
 _In code_: `decide` accept / reject
@@ -155,10 +177,10 @@ _In code_: violation, the canon check
 Ask Anansi to rewrite the passage so the knot is gone / leave the knot for this scene. "Watch
 again" undoes Ignore.
 _Avoid_: let Anansi correct it, listen again
-_In code_: `/api/mend`, muted
+_In code_: `/api/repair`, muted
 
 **Workbench**:
-Where everything that wants the writer collects: basted things, unkept strings, knots,
+Where everything that wants the writer collects: chalked things, unkept strings, knots,
 out-of-date summaries.
 _Avoid_: waiting, chapter queue, inbox
 _In code_: the `waiting` panel
@@ -176,12 +198,12 @@ _Avoid_: edit, edits, history
 _In code_: edit, history
 
 **Make a thread of this**:
-Turn a passage into a basted thread.
+Turn a passage into a chalked thread.
 _Avoid_: remember this
 _In code_: `/api/memo`
 
 **Hem this scene**:
-End the scene: Anansi summarises it, bastes what it found, and the next scene opens.
+End the scene: Anansi summarises it, chalks what it found, and the next scene opens.
 _Avoid_: end this chapter, close the chapter, ritual
 _In code_: `/api/chapter/end`
 
