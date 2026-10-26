@@ -116,6 +116,11 @@ if (lib && code) {
     row(label, c > 20 && r === 0 ? `SILENT — 0 ${noun}s against ${c} ${of} calls in 7 days`
       : `${r} ${noun}${r === 1 ? '' : 's'} · ${c} ${of} call${c === 1 ? '' : 's'} in 7 days`);
   };
+  // #76. Whether an update has written its report, and when it backed up first.
+  const ul = count(`select count(*) n from update_lines;`);
+  row('update report', ul === '' ? 'no such table (the server has not migrated this file)'
+    : `${ul} line${ul === '1' ? '' : 's'} in ${((t) => `${t} tale${t === '1' ? '' : 's'}`)(count(`select count(distinct story_id) n from update_lines;`))}`
+      + (Number(ul) ? `, backup ${count(`select max(backup) n from update_lines;`).split('/').pop()}` : ''));
   heard('canon check', count(`select count(*) n from violations where created_at > ${WEEK};`),
     count(`select count(*) n from generations where role = 'prose' and created_at > ${WEEK};`), 'flag', 'prose');
   heard('repair record', count(`select count(*) n from generations where role = 'repair' and mend is not null and created_at > ${WEEK};`),

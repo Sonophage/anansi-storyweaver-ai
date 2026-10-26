@@ -2768,15 +2768,18 @@ const PANELS = {
     if (!u.length) return `<div class="hint" style="margin:0">Nothing has moved in this tale. When an
       update to Anansi moves something in it, this page says what moved, and where to.</div>`;
     const last = u.find((x) => x.backup);
-    const file = last ? String(last.backup).split('/').pop() : null;
-    const recent = last && Date.now() - last.at < 7 * 864e5;
-    return `${last ? `<div class="hint" style="margin:0 0 14px">The backup was taken ${esc(new Date(last.at)
+    const file = last?.backup.split('/').pop();
+    // The first week, as the page promises it: the pre-update copy is kept past that (it is never
+    // pruned), but an update a week old has a week of writing on top of it to lose.
+    const WEEK = 7 * 24 * 3600 * 1000;
+    const recent = last && Date.now() - last.backupAt < WEEK;
+    return `${last ? `<div class="hint" style="margin:0 0 14px">The backup was taken ${esc(new Date(last.backupAt)
         .toLocaleString())}, before anything was moved.${recent ? ` To put the library back as it was,
         the admin restores <code>${esc(file)}</code> from the backups folder. That puts back every
         tale, and anything written since is lost.` : ''}</div>` : ''}
       ${u.map((x) => `<div class="row" style="align-items:flex-start; gap:10px">
         <span style="flex:1; color:var(--ink); line-height:1.5">${esc(x.line)}</span>
-        ${x.entryId && x.entryTitle ? `<button data-entry="${esc(x.entryId)}" class="tag" style="cursor:pointer"
+        ${x.entryTitle ? `<button data-entry="${esc(x.entryId)}" class="tag" style="cursor:pointer"
           >${esc(x.entryTitle)}</button>` : ''}</div>`).join('')}`;
   },
   /** The chapter that just ENDED, as a report. Closing lands on `setup` now rather than here —

@@ -3272,6 +3272,7 @@ ok('a test, a bench check or status with no ANANSI_DB is refused the default lib
 // #76. THE UPDATE REPORT. A migration that rewrites a writer's text backs up first, once, and says per
 // tale what it moved; the tale's view carries the lines, so the report is behind the same ownership
 // gate as the book. Lines come back newest first, each naming the thread it was about.
+const storyMod = await import('../src/story.ts');
 ok('the update report: one backup before the first rewrite, and lines per tale, newest first', () => {
   const t = db.createStory(o, { title: 'Report', premise: 'p' });
   const other = db.createStory(o, { title: 'Other', premise: 'p' });
@@ -3289,6 +3290,20 @@ ok('the update report: one backup before the first rewrite, and lines per tale, 
   assert.strictEqual(lines[1].entryId, e.id, 'REPORT-THREAD: a line names its thread');
   assert.strictEqual(lines[1].entryTitle, 'Halsey', '  by its title too');
   assert.strictEqual(lines[0].backup, first.file, 'REPORT-NAMES-BACKUP: each line says which backup came before it');
+  assert.strictEqual(lines[0].backupAt, first.at, 'REPORT-BACKUP-TIME: and when that backup was taken, not when the line was');
+  // KEPT FOR THE WEEK THE PAGE PROMISES. The rotating backups keep twelve and the server takes one
+  // every half hour, so a pre-update copy in their name was pruned in about six hours. Twelve more
+  // rotating backups must leave it where it is.
+  const dir = join(first.file, '..');
+  for (let i = 0; i < 13; i++) db.backup(dir, 12);
+  assert.ok(existsSync(first.file), 'REPORT-BACKUP-KEPT: the rotating backups do not prune the pre-update copy');
+  // AND READING IT WRITES NOTHING: another connection would see data_version move on a commit.
+  const raw = new RawDb('/tmp/anansi-test.db');
+  const v0 = (raw.prepare('PRAGMA data_version').get() as any).data_version;
+  db.updatesOf(t.id); storyMod.view(t.id);
+  assert.strictEqual((raw.prepare('PRAGMA data_version').get() as any).data_version, v0,
+    'REPORT-READ-ONLY: opening the report changes nothing in the library');
+  raw.close();
   assert.deepStrictEqual(db.updatesOf(other.id), [], 'REPORT-PER-TALE: another tale sees none of it');
   rmSync(first.file, { force: true });
 });

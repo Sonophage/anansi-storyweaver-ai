@@ -29,7 +29,7 @@ ok("a tale with a line shows it", await until("/His Facts moved into Always true
 ok("  with the thread it was about, as a link", await page.eval("!!document.querySelector('#sideBody [data-entry=\"e-report-aldis\"]')"));
 const text = await body();
 ok(`  when the backup was taken (${JSON.stringify(text.match(/backup[^\n]*/i)?.[0] ?? null)})`, /backup was taken/i.test(text));
-ok("  and, inside the first week, how to put the library back", /put the library back/i.test(text) && /anansi-.*\.db/.test(text));
+ok("  and, inside the first week, how to put the library back", /put the library back/i.test(text) && /pre-update-.*\.db/.test(text));
 await page.eval("(() => { document.querySelector('#sideBody [data-entry=\"e-report-aldis\"]')?.click(); return 1; })()");
 ok("the link opens the thread", await until("document.getElementById('sideBody')?.innerText.includes('Aldis Fen') && !document.getElementById('sideHead')?.innerText.includes('What the update moved')", 20));
 

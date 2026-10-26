@@ -102,14 +102,23 @@ export function repairStrandedChapters(): { storyId: string; idx: number }[] {
 // Migrations. `CREATE TABLE IF NOT EXISTS` cannot alter an existing table or replace an index,
 // so anything that changes shape has to be stated here and be safe to run twice. Without this
 // a fresh clone and a live database drift apart silently.
-/** #76. ONE BACKUP BEFORE A MIGRATION REWRITES A WRITER'S TEXT, at most once per boot. The column
- *  drops below already took one before their first drop; this is that same backup, named, so a
- *  rewrite can take it too and the update report can say which file it was. It THROWS when the
- *  backup fails: a rewrite of somebody's novel with no way back is not a step to take anyway.
- *  Above `migrate()` because it runs at load, before anything declared further down exists. */
+/** #76. ONE BACKUP BEFORE A MIGRATION REWRITES A WRITER'S TEXT, at most once per boot, shared with
+ *  the column drops below. It THROWS when the backup fails, so a rewrite can refuse to run with no
+ *  way back; the drops catch it on purpose, because a dropped column loses no writing.
+ *
+ *  NOT IN THE ROTATING SET. `backup()` keeps the newest twelve `anansi-*` files and the server takes
+ *  one every half hour, so a pre-update copy under that name was gone in six hours while the update
+ *  report promised it for a week. `pre-update-*` is a name `backup()` never prunes, like every
+ *  `pre-*` copy taken by hand. Above `migrate()` because it runs at load. */
 let REWRITE: { file: string; at: number } | null = null;
 export function beforeRewrite() {
-  if (!REWRITE) REWRITE = { file: backup().file, at: Date.now() };
+  if (!REWRITE) {
+    const dir = join(dirname(FILE), 'backups');
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `pre-update-${new Date().toISOString().replace(/[:.]/g, '-')}.db`);
+    snapshot(file);
+    REWRITE = { file, at: Date.now() };
+  }
   return REWRITE;
 }
 
@@ -132,10 +141,9 @@ function migrate() {
    *
    *  Backs up ONCE before the first real drop, and only then: this rewrites a table in the file
    *  somebody's novel is in, and the boot snapshot in `serve.ts` does not run until after this. */
-  let backedUp = false;
   const drop = (table: string, col: string, why: string) => {
     if (!has(table, col)) return;
-    if (!backedUp) { backedUp = true; try { beforeRewrite(); } catch { /* keep going; the drop is safe */ } }
+    try { beforeRewrite(); } catch { /* keep going; the drop is safe */ }
     try { db.exec(`ALTER TABLE ${table} DROP COLUMN ${col}`); console.log(`  dropped ${table}.${col} — ${why}`); }
     // A refusal is not a reason to stop opening the database. SQLite refuses a column an index,
     // view or trigger names; neither of these is named by one, checked in sqlite_master.
@@ -426,7 +434,7 @@ function migrate() {
   try {
     if ((db.prepare("SELECT count(*) AS c FROM sqlite_master WHERE type='table' AND name='release_notes'")
            .get() as any).c) {
-      if (!backedUp) { backedUp = true; try { beforeRewrite(); } catch { /* the drop is safe either way */ } }
+      try { beforeRewrite(); } catch { /* the drop is safe either way */ }
       db.exec('DROP TABLE release_notes');
       console.log('  dropped release_notes — #24: what changed is docs/WHATS-NEW.md now');
     }
@@ -462,7 +470,7 @@ function migrate() {
     // reach it, and dropping would take it with us — say so and leave the table alone.
     if (left) console.log(`  keeping outfits: ${left} row(s) never made it into addons`);
     else {
-      if (!backedUp) { backedUp = true; try { beforeRewrite(); } catch { /* keep going; the drop is safe */ } }
+      try { beforeRewrite(); } catch { /* keep going; the drop is safe */ }
       try { db.exec('DROP TABLE outfits'); console.log('  dropped table outfits — the wardrobe is an addon'); }
       catch (e: any) { console.log(`  could NOT drop outfits: ${e?.message}`); }
     }
@@ -622,7 +630,7 @@ CREATE INDEX IF NOT EXISTS entry_rev_e ON entry_revisions(entry_id, replaced_at)
 CREATE TABLE IF NOT EXISTS update_lines (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   entry_id TEXT REFERENCES entries(id) ON DELETE SET NULL,
-  line TEXT NOT NULL, backup TEXT, at INTEGER NOT NULL);
+  line TEXT NOT NULL, backup TEXT, backup_at INTEGER, at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS update_lines_s ON update_lines(story_id, at);
 
 CREATE TABLE IF NOT EXISTS strings (
@@ -2837,16 +2845,15 @@ export function revertEntryField(storyId: string, entryId: string, revisionId: s
 // ---- backup ----
 /** #76. A line on a tale's update report: what moved, and the thread it was about. */
 export function noteUpdate(storyId: string, line: string, entryId: string | null = null) {
-  q('INSERT INTO update_lines (id, story_id, entry_id, line, backup, at) VALUES (?,?,?,?,?,?)')
-    .run(uid('ul-'), storyId, entryId, line, REWRITE?.file ?? null, Date.now());
+  q('INSERT INTO update_lines (id, story_id, entry_id, line, backup, backup_at, at) VALUES (?,?,?,?,?,?,?)')
+    .run(uid('ul-'), storyId, entryId, line, REWRITE?.file ?? null, REWRITE?.at ?? null, now());
 }
 
 /** The tale's update report, newest first. Same-millisecond lines keep their order by rowid. */
 export function updatesOf(storyId: string) {
-  return (q(`SELECT u.line, u.entry_id, u.backup, u.at, e.title AS entry_title FROM update_lines u
-      LEFT JOIN entries e ON e.id = u.entry_id WHERE u.story_id = ? ORDER BY u.at DESC, u.rowid DESC`)
-    .all(storyId) as any[]).map((r) => ({ line: r.line, entryId: r.entry_id, entryTitle: r.entry_title ?? null,
-      backup: r.backup, at: r.at }));
+  return q(`SELECT u.line, u.entry_id AS entryId, e.title AS entryTitle, u.backup, u.backup_at AS backupAt, u.at
+      FROM update_lines u LEFT JOIN entries e ON e.id = u.entry_id
+      WHERE u.story_id = ? ORDER BY u.at DESC, u.rowid DESC`).all(storyId) as any[];
 }
 
 /** A consistent copy of the whole database at one path.

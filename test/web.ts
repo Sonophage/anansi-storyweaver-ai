@@ -558,7 +558,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
                     // #51. Its door is the last row of the same list, and its handler names it.
                     findmodel: /<button data-findmodel="1"[\s\S]*S\.panel = 'findmodel'/,
                     // #76. A button in Tale → Keep.
-                    updates: /<button class="btn ghost" data-panel="updates"/ };
+                    updates: /<button[^>]* data-panel="updates"/ };
   for (const [name, opens] of Object.entries(byClick)) {
     assert.ok(opens.test(js), `the ${name} panel is not in the rail, so something must set S.panel to it`);
   }
