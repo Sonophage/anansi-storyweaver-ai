@@ -84,13 +84,13 @@ ok(`  and leaves the rail as it was (${railWas})`,
 
 await page.dbl('#col .block .narr, #col .block .said');   // the ⋯ handle is gone; double tap opens the tray
 await page.click('[data-ed="' + pid + '"]');
-ok("Edit focuses the passage text", await page.eval("document.activeElement?.dataset?.edit === '" + pid + "'"));
+ok("Edit opens the full-screen box on the passage's text", await page.eval("document.activeElement?.matches?.('[data-editbox]') && !!document.querySelector('.block.altering')"));
 
 // The tray is a centred sheet over the content now, so Edit shuts it on its way to the cursor —
 // leaving it up would hide the paragraph it just put the caret in. So it is reopened for History,
 // after leaving the edit: a double tap inside a passage being edited selects a word and opens
 // nothing (Seth, 2026-10-26).
-await page.eval("(() => { document.activeElement?.blur(); return 1; })()");
+await page.eval("(() => { document.querySelector('[data-editx]')?.click(); return 1; })()");
 await wait(300);
 await page.dbl('#col .block .narr, #col .block .said');   // the ⋯ handle is gone; double tap opens the tray
 await page.click('[data-hi="' + pid + '"]');

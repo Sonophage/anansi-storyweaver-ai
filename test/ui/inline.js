@@ -74,14 +74,29 @@ await wait(300);
 const w = await page.eval("JSON.stringify(window.__w)").then(JSON.parse);
 console.log("  arrival: " + JSON.stringify(w));
 ok(`the words come up out of a blur (${w.blurred} of the ${w.live} on the page)`, w.live > 0 && w.blurred === w.live);
-// The last word lands in the same frame as the finished passage, which takes the room held open
-// below the seam away; the fixture's passage is five words, shorter than a screen, so the page
-// settles then. A real passage is longer than the screen and does not.
+// NOTHING MOVES while she writes; the last word is recorded in the frame the passage lands in, when
+// the composer folds and the five-word fixture passage cannot fill the room it leaves.
 const writing = w.tops.slice(0, -1);
 ok(`  the page does not follow them down while she writes (scroll positions ${JSON.stringify([...new Set(writing)])})`,
    writing.length > 0 && new Set(writing).size === 1);
-ok(`  and at the first word the passage before sits at the seam, 72px under the top (${w.seam})`,
-   w.seam !== null && Math.abs(w.seam - 72) <= 8);
+ok(`  and at the first word the passage before is in view (${w.seam})`, w.seam !== null && w.seam >= 0);
+
+// AND A READER WHO SCROLLED UP STAYS PUT WHEN IT LANDS (Seth, 2026-10-26: "a weird transition after
+// the text is finished that takes me back to the top or the bottom of the screen"). The repaint at
+// landing used to send a reader near the bottom to the bottom, and pin the seam for the rest.
+await page.eval(`(() => { const read = document.getElementById('read');
+  read.scrollTo({ top: read.scrollHeight, behavior: 'instant' }); window.__up = null;
+  new MutationObserver((ms, obs) => { for (const m of ms) for (const n of m.addedNodes ?? []) if (n.classList?.contains?.('w')) {
+    obs.disconnect(); read.scrollTo({ top: Math.max(0, read.scrollTop - 150), behavior: 'instant' });
+    window.__up = Math.round(read.scrollTop); return; } })
+    .observe(document.getElementById('col'), { subtree: true, childList: true });
+  return 1; })()`);
+await send("She does not turn round.");
+await until("!document.getElementById('ghost')", 120);
+await wait(400);
+const up = await page.eval("JSON.stringify({ up: window.__up, now: Math.round(document.getElementById('read').scrollTop) })").then(JSON.parse);
+ok(`  a reader scrolled up while she wrote is left where they were when it lands (${up.up} -> ${up.now})`,
+   up.up !== null && Math.abs(up.now - up.up) <= 2);
 
 // ---- a re-roll of the last passage: the new version writes where the old one was
 await page.eval("(() => { document.querySelector('#nextbar [data-re]').click(); return 1; })()");

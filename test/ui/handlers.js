@@ -168,8 +168,10 @@ await wait(350);
 await page.eval("(() => { const blk = document.querySelector('[data-edit=\"" + target.id + "\"]')"
   + ".closest('.block'); blk.querySelector('button[data-ed]')?.click(); return 1; })()");
 await wait(350);
-await page.eval("(() => { const e = document.querySelector('[data-edit=\"" + target.id + "\"]');"
-  + " e.focus(); e.textContent = 'EDITED WHILE HISTORY WAS OPEN.'; e.blur(); return 1; })()");
+// The full-screen Alter box since 2026-10-26: its text, then Save.
+await page.eval("(() => { const b = document.querySelector('[data-editbox]');"
+  + " b.value = 'EDITED WHILE HISTORY WAS OPEN.'; b.dispatchEvent(new Event('input', { bubbles: true }));"
+  + " document.querySelector('[data-editsave]').click(); return 1; })()");
 for (let i = 0; i < 30; i++) {
   if ((await page.eval("document.querySelectorAll('[data-restore]').length")) > editsBefore) break;
   await wait(300);

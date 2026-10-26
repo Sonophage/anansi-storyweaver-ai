@@ -183,9 +183,13 @@ const trayUp = await page.eval("document.querySelectorAll('.acts button[data-ed]
 ok(`a double tap opens the tray with Edit in it (${trayUp} found)`, trayUp > 0);
 await page.click(".acts button[data-ed]");
 await wait(500);
-const afterEdit = await page.eval(
-  "document.querySelectorAll('#col [data-edit][contenteditable]').length");
-ok(`pressing Edit makes exactly one passage editable (${afterEdit})`, afterEdit === 1);
+// Edit opens the full-screen Alter box (2026-10-26), and the passage itself stays as it is.
+const afterEdit = await page.eval("JSON.stringify({ box: document.querySelectorAll('.block.altering [data-editbox]').length,"
+  + " editable: document.querySelectorAll('#col [data-edit][contenteditable]').length })").then(JSON.parse);
+ok(`pressing Edit opens one Alter box and makes no passage editable in place (${JSON.stringify(afterEdit)})`,
+   afterEdit.box === 1 && afterEdit.editable === 0);
+await page.eval("(() => { document.querySelector('[data-editx]')?.click(); return 1; })()");
+await wait(300);
 
 // And the browser must not treat a scroll-up as a page refresh.
 ok("the reading pane keeps the pull-to-refresh gesture to itself",

@@ -214,6 +214,8 @@ const S = {
   // Issue #38. The passage whose re-roll instruction is open for editing, and the text in it.
   // Null means no editor is open, which is every press on an undirected passage.
   reroll: null,
+  // The passage open in the full-screen Alter box, and what is typed in it: { id, text, was }.
+  passEdit: null,
   // #40. Which skeleton field is being re-rolled right now, or null. One at a time: the router does
   // not queue and a second concurrent call kills both with HTTP 500.
   spField: null,
@@ -519,7 +521,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
   'editsum', 'savesum', 'cancelsum',
-  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'choosemodel', 'altsave', 'altcancel', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'choosemodel', 'editsave', 'editx', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -1443,7 +1445,7 @@ function passageHTML(p, newest, opening) {
     + (newest ? ' newest' : '') + (opening && !spoken && !mine ? ' opening' : '')
     // Holding the re-roll sheet. The class is what stops this block being the containing block for
     // it — see the note on `.rerollbox` in the stylesheet, and the longer one above the acts tray.
-    + (S.reroll?.id === p.id ? ' rerolling' : '');
+    + (S.reroll?.id === p.id ? ' rerolling' : '') + (S.passEdit?.id === p.id ? ' altering' : '');
   /* ISSUE #38. THE INSTRUCTION THIS PASSAGE WAS WRITTEN FROM, OPEN FOR EDITING.
    *
    * Under the passage rather than in the tray: the tray is a strip of verbs and this is a sentence
@@ -1485,7 +1487,37 @@ function passageHTML(p, newest, opening) {
    * must read as claimed rather than marking the whole book. */
   const away = p.claimed === false && !WATCHED.has(p.id) && !mine
     ? `<div class="cameback">written while you were away &mdash; carry on and it is yours</div>` : '';
-  return `<div class="${cls}">${from}${body}${away}${acts}${flagged}${rr}</div>${carry}`;
+  /* ALTER IS THE FULL-SCREEN BOX TOO (Seth, 2026-10-26: "The edit screen should be the same
+   * maximized input screen"). It edited the paragraph in place, with Save and Cancel under it;
+   * now it is Reweave's full-screen box with the passage's own text in it, Cancel on the left and
+   * Save on the right. The page under it does not move. */
+  const pe = S.passEdit?.id === p.id ? `<div class="rerollbox" role="dialog" aria-label="Alter this passage">
+    <div class="rwhead"><div class="lbl" style="letter-spacing:.1em; margin:0">Alter this passage</div></div>
+    <div class="rwrow">
+      <button data-editx="1" class="rwside" aria-label="Cancel, and keep the passage as it is"
+        >${mark('expand', 18)}<span class="btnword">Cancel</span></button>
+      <textarea class="field" data-editbox="1" aria-label="The passage">${esc(S.passEdit.text)}</textarea>
+      <button data-editsave="${esc(p.id)}" class="rwside rwgo" aria-label="Save"
+        >${mark('send', 18)}<span class="btnword">Save</span></button>
+    </div></div>` : '';
+  return `<div class="${cls}">${from}${body}${away}${acts}${flagged}${rr}${pe}</div>${carry}`;
+}
+
+// What is typed in the Alter box survives a repaint: drawDoc draws the box from S.passEdit.
+document.addEventListener('input', (e) => {
+  if (S.passEdit && e.target?.matches?.('[data-editbox]')) S.passEdit.text = e.target.value;
+});
+/** Where the page should stay through the next repaint, or null (see drawDoc). */
+let HOLD_SCROLL = null;
+/** CANCEL ON THE ALTER BOX. Straight out when nothing changed; with a change, the app's two-press
+ *  rule, so a slip of the thumb cannot throw away a paragraph. Esc and Back come through here too. */
+function closePassEdit(t = null) {
+  const pe = S.passEdit; if (!pe) return;
+  const now = document.querySelector('[data-editbox]')?.value ?? pe.text;
+  if (now !== pe.was && !armed(t, `passedit:${pe.id}`,
+    'You have changes that are not saved. Press Cancel again to throw them away, or Save.')) return false;
+  S.passEdit = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc();
+  return true;
 }
 
 function drawDoc() {
@@ -1636,7 +1668,13 @@ function drawDoc() {
    * the bottom is right for that. Both are excluded by comparing what was drawn last time. */
   const newestId = (V.passages ?? []).filter((p) => !p.isBreak).at(-1)?.id ?? null;
   const grew = DREW && DREW.chapter === ch.id && newestId && newestId !== DREW.newest;
-  if (tip && !(grew && pinTo(DREW.newest))) read.scrollTop = read.scrollHeight;
+  /* AND A PAGE THE WRITER WAS ALREADY READING STAYS WHERE IT WAS. Seth, 2026-10-26: "a weird
+   * transition after the text is finished that takes me back to the top or the bottom", and
+   * editing "takes me to the bottom rather than just staying". A passage written inline has been in
+   * view the whole time it was written, and an Alter or Reweave box closes over the place it was
+   * opened from: those set HOLD_SCROLL, and this repaint puts the page back exactly there. */
+  if (HOLD_SCROLL != null) { read.scrollTop = HOLD_SCROLL; HOLD_SCROLL = null; }
+  else if (tip && !(grew && pinTo(DREW.newest))) read.scrollTop = read.scrollHeight;
   DREW = { chapter: ch.id, newest: newestId };
 
   // THE RUNNING HEAD IS GONE, 2026-08-27. It opened on scroll, moved the prose down to make room
@@ -7815,7 +7853,7 @@ function closeThreadBack() {
  *  Back shuts it. Called from drawBar and drawDock, which every change to the three goes through.
  *  ponytail: one layer at a time, the topmost. Two open at once (Look over the big composer) share
  *  one entry, so Back shuts both. Give each its own entry if anyone opens them together. */
-const layerNow = () => (S.reroll ? 'reweave' : S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
+const layerNow = () => (S.passEdit ? 'alter' : S.reroll ? 'reweave' : S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
 function syncLayers() {
   const want = layerNow(), have = history.state?.layer ?? null;
   if (!ROUTED || BACKING || want === have) return;
@@ -7829,6 +7867,15 @@ function closeLayersBack() {
   const l = history.state?.layer ?? null;
   // The full-screen Reweave box (2026-10-25) is a layer like the full-screen composer: Back closes it.
   if (S.reroll && l !== 'reweave') { S.reroll = null; drawDoc(); syncTray(); }
+  // Back from the Alter box follows Cancel's rule: with changes, the step is put back and asked.
+  if (S.passEdit && l !== 'alter') {
+    const now = document.querySelector('[data-editbox]')?.value ?? S.passEdit.text;
+    if (now !== S.passEdit.was && !(S.backArmed && Date.now() - S.backArmed < 6000)) {
+      S.backArmed = Date.now();
+      history.pushState({ ...history.state, layer: 'alter' }, '', location.href);
+      toast('You have changes that are not saved. Press Back again to throw them away, or Save.');
+    } else { S.backArmed = 0; S.passEdit = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); }
+  }
   if (S.appearance && l !== 'look') { S.appearance = false; drawAppearance(); drawBar(); }
   if (S.bigInput && l !== 'big' && l !== 'look') { S.bigInput = false; drawDock(); syncTray(); }
   if (S.reading && !l) { S.reading = false; root.dataset.reading = '0'; drawBar(); drawDoc(); }
@@ -8230,10 +8277,9 @@ function anchorLive() {
     .filter((b) => b !== g && b.offsetParent !== null
       && (b.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING)).at(-1);
   const PEEK = 72;
-  // ROOM BELOW THE SEAM. At the first word the passage is one word tall, and a page cannot scroll
-  // past its own end, so the seam could never reach the top. The block being written holds a
-  // screen's height open until it lands; the real passage replaces it then.
-  g.style.minHeight = `${Math.max(0, read.clientHeight - PEEK)}px`;
+  // NO ROOM HELD OPEN BELOW IT. A screen's height was held open under the first word so the seam
+  // could reach the top, and taking it away when the passage landed jumped the page (Seth,
+  // 2026-10-26). The page goes as far toward the seam as its prose allows, and stays.
   const edge = prev ? prev.getBoundingClientRect().bottom - PEEK : g.getBoundingClientRect().top - 12;
   // 'instant', not 'auto': #read has scroll-behavior:smooth, which 'auto' would honour, and a page
   // still gliding while the words arrive is the motion this removes.
@@ -8388,6 +8434,8 @@ function veilReadable() {
   // the one being written, at once.
   if (!g.classList.contains('veil')) {
     const land = VEIL_LAND; VEIL_LAND = null;
+    // The page stays where the writer was reading it while it was written (HOLD_SCROLL, drawDoc).
+    HOLD_SCROLL = $('read')?.scrollTop ?? null;
     g.remove(); INLINE = null;
     land?.();
     return;
@@ -8774,7 +8822,10 @@ async function generate(mode = S.mode, again = null) {
   // motion, a writer who already typed — it runs immediately and this is the old behaviour.
   const land = () => {
     arrive(); foldDock();
-    paint(); pinToSeam(); refreshManifest(); refreshHistory();
+    // Written inline, it was in view the whole time: the page stays where the reader left it
+    // (HOLD_SCROLL), and the seam pin is only for a passage that arrives all at once.
+    const held = HOLD_SCROLL != null;
+    paint(); if (!held) pinToSeam(); refreshManifest(); refreshHistory();
     if (said) toast(said);
   };
   if (document.getElementById('ghost')) { VEIL_LAND = land; veilFinish(); } else land();
@@ -9191,9 +9242,10 @@ document.addEventListener('dblclick', (e) => {
   }
   const blk = e.target.closest('#col .block');
   if (!blk || e.target.closest('.acts')) return;
-  // NOT WHILE THE PASSAGE IS BEING EDITED (Seth, 2026-10-26: "once in the edit window a double tap
-  // shouldn't bring back the menu"). There a double tap selects a word, which is all it should do.
-  if (blk.querySelector('[contenteditable]:not([contenteditable="false"]), .altbar')) return;
+  // NOT IN THE ALTER OR REWEAVE BOX (Seth, 2026-10-26: "once in the edit window a double tap
+  // shouldn't bring back the menu"). They sit inside the passage's block, and there a double tap
+  // selects a word, which is all it should do.
+  if (e.target.closest('.rerollbox')) return;
   openTray(blk);
 });
 
@@ -9211,8 +9263,6 @@ document.addEventListener('click', (e) => {
   if (!touchOnly()) return;
   const blk = e.target.closest?.('#col .block');
   if (!blk || e.target.closest('.acts, button, a, input, select, textarea, [contenteditable], .flag, .rerollbox')) return;
-  // Nor a tap anywhere else on a passage being edited: the edit is what that block is doing.
-  if (blk.querySelector('[contenteditable]:not([contenteditable="false"]), .altbar')) return;
   if (globalThis.getSelection?.()?.isCollapsed === false) return;
   openTray(blk);
   TRAY_AT = Date.now();
@@ -10231,7 +10281,7 @@ document.addEventListener('click', async (e) => {
     await regenerateInto(id, steer);
     return;
   }
-  if (d.rerollx) { S.reroll = null; drawDoc(); syncTray(); return; }
+  if (d.rerollx) { S.reroll = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); syncTray(); return; }
   if (d.reroll !== undefined) { await regenerateLast(); return; }
   // In Talk (#71) the same Send asks Anansi instead of writing.
   // #71, round two: an empty box sends as Continue, so Send makes Anansi write whatever is in it.
@@ -10581,40 +10631,34 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId); paint(); refreshManifest(); return;
   }
 
-  // --- edit: the passage is already contenteditable and saves on blur. This puts the caret in it.
+  // --- alter: the full-screen box with the passage's own text in it (see `pe` in the passage).
   if (d.ed) {
-    // Shut the tray first. It is a sheet over the middle of the content now, so leaving it up
-    // hides the very paragraph the cursor was just put in. Every other action in the tray either
-    // repaints — which shuts it through drawDoc — or is Delete, which is waiting for a second press.
+    const p = (V.passages ?? []).find((x) => x.id === d.ed);
+    if (!p) return;
+    // The tray goes first: it is a sheet over the middle of the screen.
     openTray(null);
-    const el = document.querySelector(`[data-edit="${d.ed}"]`);
-    if (!el) return;
-    // Editable HERE and nowhere else. Every passage used to carry contenteditable all the time, so
-    // on a phone a tap in the prose put a caret in it and raised the keyboard — you were editing
-    // without having asked to, which is what Seth reported. Edit is the only door in now, and blur
-    // shuts it again.
-    // Hand back the RAW text to edit. What is on screen is paragraphs, and editing those directly
-    // would save a passage with every paragraph break removed, because textContent puts nothing
-    // between block children.
-    if (el.dataset.raw !== undefined && el.querySelector('p')) el.textContent = el.dataset.raw;
-    el.setAttribute('contenteditable', 'plaintext-only');
-    // THE CARET AT THE END, NOT THE WHOLE PASSAGE SELECTED. Selected, one keystroke replaced the
-    // passage; and "click away to save" was the only way out, with no Save and no Cancel. The
-    // usability check of 2026-10-24 called Alter dangerous for both. The bar under the passage is
-    // the way out now, Esc cancels, and a click away still saves as it always did.
-    el.focus();
-    const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
-    el.insertAdjacentHTML('afterend', `<div class="altbar" style="display:flex; gap:8px; margin:10px 0 4px">
-      <button class="btn" data-altsave="${esc(d.ed)}" style="width:auto; padding:0 18px">Save</button>
-      <button class="btn ghost" data-altcancel="${esc(d.ed)}" style="width:auto; padding:0 18px">Cancel</button></div>`);
-    // Into view: on the Titan's square the bar landed under the composer, off screen.
-    el.parentElement?.querySelector('.altbar')?.scrollIntoView({ block: 'nearest' });
+    S.passEdit = { id: p.id, text: p.body, was: p.body };
+    drawDoc();
+    const box = document.querySelector('[data-editbox]');
+    // The caret at the end, not the passage selected: one keystroke replaced the whole passage
+    // when it opened selected (usability check, 2026-10-24).
+    if (box) { box.focus({ preventScroll: true }); box.setSelectionRange(box.value.length, box.value.length); }
     return;
   }
-  // Save is the blur: the press takes the caret out of the passage, and blur saves. Nothing left.
-  if (d.altsave) return;
-  if (d.altcancel) return;
+  if (d.editx) return closePassEdit(t);
+  if (d.editsave) {
+    const pe = S.passEdit; if (!pe) return;
+    const text = document.querySelector('[data-editbox]')?.value ?? pe.text;
+    if (text === pe.was) { S.passEdit = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); return; }
+    const r = await whileWorking(t, 'Saving\u2026', () => api.editPassage(S.storyId, pe.id, text));
+    if (!r) return;
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId, V.currentChapter.id);
+    S.passEdit = null;
+    HOLD_SCROLL = $('read')?.scrollTop ?? null;
+    paint(); refreshHistory();
+    return;
+  }
 
   // --- history
   if (d.hi) {
@@ -12173,7 +12217,8 @@ $('scrim').addEventListener('click', () => {
 });
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && S.reroll) { S.reroll = null; drawDoc(); syncTray(); return; }
+  if (e.key === 'Escape' && S.passEdit) { closePassEdit(); return; }
+  if (e.key === 'Escape' && S.reroll) { S.reroll = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); syncTray(); return; }
   // Esc shuts what is on top: a passage's actions, then the menu over the page. Neither listened
   // for it, so on the Titan's keyboard the only way out was a tap (usability check, 2026-10-24).
   if (e.key === 'Escape' && root.dataset.tray === '1') { openTray(null); return; }
@@ -12907,12 +12952,6 @@ document.addEventListener('mousedown', (e) => {
 const keepFieldInView = () => {
   const el = document.activeElement;
   if (!el) return;
-  // A PASSAGE BEING EDITED keeps its Save and Cancel above the keyboard, not only the caret
-  // (Seth, 2026-10-26: "check how the bar and edit bars sit with a virtual keyboard on iphone").
-  if (el.isContentEditable && el.closest?.('#col .block')) {
-    (el.parentElement?.querySelector('.altbar') ?? el).scrollIntoView({ block: 'nearest', behavior: 'instant' });
-    return;
-  }
   if (!el.closest?.('#sideBody') || !el.matches('input, textarea')) return;
   el.scrollIntoView({ block: 'nearest', behavior: 'instant' });
 };
@@ -13085,36 +13124,6 @@ document.addEventListener('input', (e) => {
     }, 220);
   }
 });
-/** CANCEL HAS TO WIN THE RACE WITH BLUR. Pressing Cancel takes the caret out of the passage, and
- *  blur is what saves — so the press is caught on pointerdown, which comes first, and blur reads it. */
-let ALTER_CANCEL = null;
-document.addEventListener('pointerdown', (e) => {
-  const c = e.target.closest?.('[data-altcancel]');
-  if (c) ALTER_CANCEL = c.dataset.altcancel;
-}, true);
-document.addEventListener('keydown', (e) => {
-  const id = e.target?.dataset?.edit;
-  if (!id || !e.target.hasAttribute?.('contenteditable')) return;
-  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ALTER_CANCEL = id; e.target.blur(); }
-  else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.target.blur(); }
-}, true);
-document.addEventListener('blur', async (e) => {
-  const id = e.target?.dataset?.edit;
-  if (!id || id === 'pending') return;
-  // Shut the door behind you. Left open, the next tap anywhere in that paragraph starts editing
-  // again with no Edit pressed, which is the bug this half fixes.
-  e.target.removeAttribute('contenteditable');
-  e.target.parentElement?.querySelector('.altbar')?.remove();
-  if (ALTER_CANCEL === id) { ALTER_CANCEL = null; drawDoc(); toast('Nothing changed.'); return; }
-  ALTER_CANCEL = null;
-  const body = e.target.textContent;
-  const p = V?.passages.find((x) => x.id === id);
-  if (!p || p.body === body) return;
-  const r = await api.editPassage(S.storyId, id, body);
-  if (r.error) return toast(r.error);
-  V = await api.story(S.storyId);
-  refreshHistory();
-}, true);
 matchMedia('(max-width:1099px)').addEventListener('change', () => { S.rail = !overlay(); paint(); });
 
 // ---------- boot ----------

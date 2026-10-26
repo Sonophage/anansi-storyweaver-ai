@@ -910,7 +910,7 @@ html[data-reading="1"] .carry { display:none !important; }
    against nothing. The guard for the CLASS is in test/ui/tray.js, which asserts an open block's
    computed style has none of the seven. Add the clause when the check goes red, with the
    falsification that earns it. */
-#col .block:is([aria-expanded="true"], .rerolling) {
+#col .block:is([aria-expanded="true"], .rerolling, .altering) {
   animation:none;
   -webkit-mask-image:none; mask-image:none;
 }
@@ -1638,7 +1638,7 @@ textarea.field { resize:vertical; min-height:70px; }
 .rerollbox { display:none; }
 /* THE FULL-SCREEN BOX, as #dock.big draws it: the same blur and wash, the box flexed to the
    window, Cancel and Reweave flanking it the way Back and Send flank the composer's. */
-.block.rerolling .rerollbox {
+.block:is(.rerolling, .altering) .rerollbox {
   position:fixed; inset:0 0 auto 0; height:var(--kbh, 100%); z-index:41; margin:0; display:flex; flex-direction:column; gap:14px;
   padding:calc(18px + env(safe-area-inset-top, 0px)) 18px 18px; box-sizing:border-box;
   background:color-mix(in srgb, var(--doc-bg) 30%, transparent);

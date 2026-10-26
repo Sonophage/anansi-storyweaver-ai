@@ -10,16 +10,21 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
-## 2026-10-26 · Editing a passage on a phone
+## 2026-10-26 · Altering a passage, full screen
 
-### A double tap while editing selects a word
-While you are editing a passage, a double tap selects a word and nothing else. It no longer
-brings back the passage's actions.
+### Alter opens the full-screen box
+Alter on a passage now opens the same full-screen box you write in, with the passage's text in
+it: Cancel on the left, Save on the right. Cancel, Esc and Back close it; if you changed
+something, they ask first. A double tap in it selects a word and nothing else. When it closes,
+the page is where you left it.
+
+### The page stays still when a passage lands
+When Anansi finishes writing, the page no longer jumps to the top or the bottom. It stays where
+you were reading.
 
 ### The keyboard on an iPhone
 With the keyboard up on an iPhone, the page now stops at the top of the keyboard: the header
-stays where it is, and the box, the bar and a passage's Save and Cancel sit just above the keyboard
-instead of under it.
+stays where it is, and the box and the bar sit just above the keyboard instead of under it.
 ## 2026-10-26 · Deleting a branch, and the scenes behind you
 
 ### Delete a branch
