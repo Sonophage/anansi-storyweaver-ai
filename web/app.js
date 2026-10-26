@@ -1123,7 +1123,7 @@ function drawBar() {
             Talk drawer; that is a row on the menu now (SNAV), and Talk is still the quill's hold. */ ''}
       ${inStory ? `<button data-railview="story" class="pill" aria-label="This tale's menu" title="This tale's menu"
         style="display:flex; align-items:center; gap:7px; padding:6px 11px; color:var(--chrome-dim)"
-        >${mark('webfull', 17)}</button>` : ''}
+        >${mark('webfull', 17)}<span class="btnword">Menu</span></button>` : ''}
     </div>`;
   // The title, and the line under it that names the chapter. Both are leaf spans holding nothing
   // but text, which is what decode() needs — it writes textContent.

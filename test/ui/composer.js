@@ -434,7 +434,8 @@ await wait(400);
   ok("  ⤢ still closes it", !(await big()));
 }
 
-// ---- THE WORDS BESIDE THE ICONS (2026-10-24). On a desk the header's Read, Look and Ask and the
+// ---- THE WORDS BESIDE THE ICONS (2026-10-24). On a desk the header's Read, Look and Menu (her web,
+// which was Ask until 2026-10-26) and the
 // composer's Full screen and Send show their word; on a phone (everything above) they do not, and
 // the composer's own row says You play beside the name only where there is room. Falsify by
 // dropping the min-width rule for .btnword in app.html: the desk half goes red.
@@ -442,7 +443,7 @@ await wait(400);
   const words = () => page.eval(`(() => {
     const shown = (sel) => { const e = document.querySelector(sel); return !!e && e.checkVisibility(); };
     return { read: shown('[data-readmode] .btnword'), look: shown('[data-appearance="1"] .btnword'),
-      ask: shown('#bar [data-panel="anansi"] .btnword'),
+      ask: shown('#bar [data-railview="story"] .btnword'),
       big: shown('[data-bigin] .btnword'), send: shown('#send .btnword'), play: shown('.playlbl') }; })()`);
   const phone = await words();
   ok(`on a phone the icon buttons show no word (${JSON.stringify(phone)})`,
