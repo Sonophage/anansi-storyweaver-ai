@@ -109,8 +109,9 @@ await wait(400);
 await page.click('[data-lorekind="character"]');
 await wait(400);
 const beforeN = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).entries.length)()`);
-// A model's preamble on a line of its own, as it arrives: the second line makes it a paste, not a name.
-await page.eval("(() => { document.getElementById('newname').value = 'Certainly! Here is your character:\\n'; return 1; })()");
+// A model's answer with no JSON in it, two lines of prose: the second line makes it a paste, not a
+// name, and the reader refuses it.
+await page.eval("(() => { document.getElementById('newname').value = 'Certainly! Here is your character:\\nHe is a harbour-master.'; return 1; })()");
 await page.click('[data-newthread]');
 await wait(1200);
 const afterN = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).entries.length)()`);
