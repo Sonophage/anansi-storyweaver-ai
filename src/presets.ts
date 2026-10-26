@@ -10,7 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 
-export interface Preset { id: string; ctxSize?: number; parallel?: number; perSlot?: number }
+interface Preset { id: string; ctxSize?: number; parallel?: number; perSlot?: number }
 
 /** `[*]` IS DEFAULTS, NOT A MODEL. It carries `parallel = 4` and `ctx-size = 32768` for every
  *  stanza that does not override them, which is most of them — so a parser that skipped it would

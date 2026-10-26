@@ -620,17 +620,6 @@ async function contradictionsIn(facts: { id: string; body: string }[], text: str
   return { found };
 }
 
-/** The canon this call was actually shown, as facts. Both the check and the repair judge a
- *  passage against what reached ITS prompt, never against the whole ledger — a triggered entry
- *  that never fired is not something the model was told. */
-/** The canon a passage is judged against.
- *
- *  `all: true` takes the WHOLE ledger and marks each fact with whether it reached the prompt;
- *  otherwise only the facts that did. The difference is the difference between the two callers.
- *  The repair judges the model against what it was TOLD — asking it to honour canon it never saw
- *  is asking it to guess — while the check judges the PASSAGE, and a fact the engine failed to
- *  send is still a fact the book now contradicts.
- */
 /** WHICH ROOM A PROPOSAL WOULD STAND IN FOR, or `said` when there is nothing to offer.
  *
  *  Seth, 2026-08-29: "rooms the ai should not over write but offer to add the room, overwrite it.
@@ -743,6 +732,17 @@ export function withoutEcho(body: string, card: string) {
   return kept.join(' ').trim();
 }
 
+/** The canon this call was actually shown, as facts. Both the check and the repair judge a
+ *  passage against what reached ITS prompt, never against the whole ledger — a triggered entry
+ *  that never fired is not something the model was told. */
+/** The canon a passage is judged against.
+ *
+ *  `all: true` takes the WHOLE ledger and marks each fact with whether it reached the prompt;
+ *  otherwise only the facts that did. The difference is the difference between the two callers.
+ *  The repair judges the model against what it was TOLD — asking it to honour canon it never saw
+ *  is asking it to guess — while the check judges the PASSAGE, and a fact the engine failed to
+ *  send is still a fact the book now contradicts.
+ */
 const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
   const reached = new Set(manifest.blocks
     .filter((b: any) => b.kind.startsWith('CANON') && b.state === 'included').map((b: any) => b.id));
@@ -999,9 +999,6 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   }
 }
 
-/** Summaries bound the context without the budget engine: old chapters collapse, the
- *  recent tail stays whole. The hash is over the covered prose, so a later edit makes the
- *  summary detectably stale rather than quietly wrong. */
 /** What the chapter just closed did to the people in it, as proposals.
  *
  *  Proposals, not writes: a memory that edits canon behind you is a memory you cannot audit, and the
@@ -1304,6 +1301,9 @@ async function retire(c: Ctx, storyId: string, chapterId?: string) {
   return { proposed, eligible: cands.length, unevidenced, chapter: ch.index };
 }
 
+/** Summaries bound the context without the budget engine: old chapters collapse, the
+ *  recent tail stays whole. The hash is over the covered prose, so a later edit makes the
+ *  summary detectably stale rather than quietly wrong. */
 /** YOURS IS NOT WRITTEN OVER ON ONE PRESS (#46). A summary the writer saved by hand is refused
  *  here unless the call asks to `replace` it, and the refusal comes before the model is asked.
  *
@@ -1953,8 +1953,6 @@ export const routes: Record<string, Handler> = {
     return { ok: true, moved };
   },
 
-  /** Idea in, skeleton out. Creates nothing: the writer edits every field first, and the
-   *  characters arrive as proposed entries rather than as canon. */
   /** Start a book from this one's threads, or top up another with them. Nothing is deleted and
    *  nothing is moved — a card is copied, whole, and both books keep their own from then on. For
    *  a LINK rather than a copy, a book follows another's ledger instead; these are two different
@@ -1983,6 +1981,8 @@ export const routes: Record<string, Handler> = {
     return { ...moved, stories: db.listStories(c.owner) };
   },
 
+  /** Idea in, skeleton out. Creates nothing: the writer edits every field first, and the
+   *  characters arrive as proposed entries rather than as canon. */
   /** #21 §2 · STAGE ONE: THE BOOK, WITHOUT ITS CAST.
    *
    *  It used to be one 3,400-token object holding both, and `SPARK_SCHEMA` REQUIRED two characters
@@ -2247,36 +2247,6 @@ export const routes: Record<string, Handler> = {
   },
   'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c, c.body.storyId); },
 
-  /** What the chapter about to be written should be called, and what it has to do.
-   *
-   *  PROPOSES, writes nothing. The setup panel fills its two fields with this and the writer edits
-   *  them before saving, which is the rule the spark and the ledger queue already follow — the last
-   *  item from round four's list, and the one Seth marked "ready to build, no decision needed".
-   *
-   *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
-   *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
-  /** "Remember this." A passage the writer points at, turned into a thread.
-   *
-   *  PROPOSES, like everything else that reaches the ledger — it lands in the queue the writer
-   *  already works every chapter, carrying the chapter it came from, and nothing is canon until it
-   *  is accepted. Seth: "do it as a queue with a message appended saying remember this".
-   *
-   *  Narration only, like `extract` and `remember`: what is being asked is what HAPPENED, and a
-   *  character lying in a passage did not make it true.
-   *
-   *  The one thing this must not do is put the prose in the ledger as it stands. See MEMO, and F36.
-   */
-  /** What changed, in the writer's words.
-   *
-   *  Written by Anansi from the commit log, and CACHED ON THE COMMIT it was written from — so it
-   *  updates itself on every commit without a hook, a build step or anything to keep in step, and
-   *  costs one model call per commit rather than one per visit. A checkout that has not moved
-   *  cannot produce different notes on two readings, which is the property that makes this a
-   *  record rather than a re-roll.
-   *
-   *  Returns what it has even when the model is down: the notes for an older commit are still
-   *  true about everything up to it, and are better than an empty page.
-   */
   /** WHAT CHANGED, READ FROM A FILE. #24, and Seth on 2026-08-29: "lets just have it show case
    *  from one file we serve that we update after each commit and we remove the need for a local
    *  model to do it."
@@ -2300,8 +2270,6 @@ export const routes: Record<string, Handler> = {
     return { notes: all[0], all };
   },
 
-  /** Waved away. Not "never tell me again" — the ref carries the state that made it worth saying,
-   *  so editing the chapter or writing past the horizon brings it back. */
   /** LOOK FOR A PICTURE. Seth, 2026-09-01: "can the image search be added to the covers and the
    *  threads?"
    *
@@ -2386,6 +2354,8 @@ export const routes: Record<string, Handler> = {
    *  only call this can reach is the caller's own. That is why it is on the open list. */
   'POST /api/stop': (c: Ctx) => ({ stopped: c.stopLive?.() ?? false }),
 
+  /** Waved away. Not "never tell me again" — the ref carries the state that made it worth saying,
+   *  so editing the chapter or writing past the horizon brings it back. */
   'POST /api/dismiss': (c: Ctx) => {
     const kind = String(c.body.kind ?? '');
     if (!['stale', 'horizon', 'act'].includes(kind))
@@ -2394,6 +2364,17 @@ export const routes: Record<string, Handler> = {
     return viewOf(c, c.body.storyId);
   },
 
+  /** "Remember this." A passage the writer points at, turned into a thread.
+   *
+   *  PROPOSES, like everything else that reaches the ledger — it lands in the queue the writer
+   *  already works every chapter, carrying the chapter it came from, and nothing is canon until it
+   *  is accepted. Seth: "do it as a queue with a message appended saying remember this".
+   *
+   *  Narration only, like `extract` and `remember`: what is being asked is what HAPPENED, and a
+   *  character lying in a passage did not make it true.
+   *
+   *  The one thing this must not do is put the prose in the ledger as it stands. See MEMO, and F36.
+   */
   'POST /api/memo': async (c: Ctx) => {
     const v = viewOf(c, c.body.storyId);
     const p = v.passages.find((x: any) => x.id === c.body.passageId);
@@ -2429,6 +2410,14 @@ export const routes: Record<string, Handler> = {
           note: 'already basted — it is under This scene', proposals: db.proposalsOf(v.id) };
   },
 
+  /** What the chapter about to be written should be called, and what it has to do.
+   *
+   *  PROPOSES, writes nothing. The setup panel fills its two fields with this and the writer edits
+   *  them before saving, which is the rule the spark and the ledger queue already follow — the last
+   *  item from round four's list, and the one Seth marked "ready to build, no decision needed".
+   *
+   *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
+   *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
   'POST /api/chapter/propose': async (c: Ctx) => {
     const v = viewOf(c, c.body.storyId);
     const ch = v.chapters.find((x: any) => x.id === c.body.chapterId) ?? v.currentChapter;
@@ -2910,17 +2899,6 @@ export const routes: Record<string, Handler> = {
   },
   'DELETE /api/entry': (c) => { db.delEntry(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
-  /** The same card in another book. Exported to, or imported from — one operation, and which one it
-   *  is depends only on which book the writer is standing in.
-   *
-   *  TWO stories are named and the gate resolves ONE. `storyId` is the source, because that is what
-   *  every other story-scoped route means by it and what storyIdOf reads first, so the gate covers
-   *  the source; `into` is checked by db.copyEntry, which refuses unless BOTH belong to the caller.
-   *  Nothing here trusts the client about either.
-   *
-   *  Nothing in the source story changes, so the source view is not returned — the destination's is,
-   *  which is what a caller standing in the destination would want and costs the other caller
-   *  nothing, since it does not repaint. */
   /** ISSUE #36 · A FOLLOWED CARD, PER CARD. Three presses, one mechanism: a local row that carries
    *  the origin it came from. See the migration note in `src/db.ts` for the three states and why
    *  there is no mirroring.
@@ -2950,6 +2928,17 @@ export const routes: Record<string, Handler> = {
     return { dropped: made, ...viewOf(c, c.body.storyId) };
   },
 
+  /** The same card in another book. Exported to, or imported from — one operation, and which one it
+   *  is depends only on which book the writer is standing in.
+   *
+   *  TWO stories are named and the gate resolves ONE. `storyId` is the source, because that is what
+   *  every other story-scoped route means by it and what storyIdOf reads first, so the gate covers
+   *  the source; `into` is checked by db.copyEntry, which refuses unless BOTH belong to the caller.
+   *  Nothing here trusts the client about either.
+   *
+   *  Nothing in the source story changes, so the source view is not returned — the destination's is,
+   *  which is what a caller standing in the destination would want and costs the other caller
+   *  nothing, since it does not repaint. */
   'POST /api/entry/copy': (c) => {
     const from = String(c.body.storyId ?? '');
     const into = String(c.body.into ?? '');
@@ -3737,19 +3726,6 @@ export const routes: Record<string, Handler> = {
     return { __raw: { type: 'text/markdown', filename: `${safe}.md`, body: md } };
   },
 
-  /** The cover. In the database rather than on disk: the nightly backup is one file, and a path
-   *  on disk would leave every cover out of it.
-   *
-   *  The bytes arrive as a data URL inside the ordinary JSON body — the browser has already made
-   *  one with `canvas.toDataURL`, so multipart parsing would be a parser written to undo work that
-   *  was already done. Downscaling happens in the browser too, which is why the ceiling here is
-   *  1MB and not MAX_UPLOAD: nothing legitimate reaching this route is a camera original.
-   *
-   *  ponytail: the cover survives the export that matters and no other. `POST /api/export`
-   *  snapshots the whole database and deletes the other stories, so ON DELETE CASCADE leaves this
-   *  one's cover in the file — a book leaves and comes back with its face. The markdown and JSON
-   *  exports carry the set_at and not the bytes, because both are for reading elsewhere. Base64 it
-   *  into the JSON if that export ever has to be a full round trip. */
   /** A PICTURE ON A THREAD. Seth, 2026-09-01: "lets add an optional image field."
    *
    *  The same three routes the cover has, validated the same way and for the same reason: the
@@ -3788,6 +3764,19 @@ export const routes: Record<string, Handler> = {
       headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } } };
   },
 
+  /** The cover. In the database rather than on disk: the nightly backup is one file, and a path
+   *  on disk would leave every cover out of it.
+   *
+   *  The bytes arrive as a data URL inside the ordinary JSON body — the browser has already made
+   *  one with `canvas.toDataURL`, so multipart parsing would be a parser written to undo work that
+   *  was already done. Downscaling happens in the browser too, which is why the ceiling here is
+   *  1MB and not MAX_UPLOAD: nothing legitimate reaching this route is a camera original.
+   *
+   *  ponytail: the cover survives the export that matters and no other. `POST /api/export`
+   *  snapshots the whole database and deletes the other stories, so ON DELETE CASCADE leaves this
+   *  one's cover in the file — a book leaves and comes back with its face. The markdown and JSON
+   *  exports carry the set_at and not the bytes, because both are for reading elsewhere. Base64 it
+   *  into the JSON if that export ever has to be a full round trip. */
   'POST /api/cover': (c: Ctx) => {
     const url = String(c.body.dataUrl ?? '');
     // Validated at the boundary, not trusted from the surface: the prefix is a claim, the magic

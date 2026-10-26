@@ -24,7 +24,7 @@
 import { readFileSync } from 'node:fs';
 
 export interface Entry { title: string; body: string }
-export interface Release { headline: string; at: number | null; entries: Entry[] }
+interface Release { headline: string; at: number | null; entries: Entry[] }
 
 /** `## <ISO date> · <headline>` — the date is optional and the separator may be a middot or a dash,
  *  because this file is written by hand and a heading that loses its notes to punctuation is a trap

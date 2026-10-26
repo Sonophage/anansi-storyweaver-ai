@@ -133,7 +133,7 @@ const LOCATION_EXAMPLE = `{
   }
 }`;
 
-export interface ForgePrompt { key: string; title: string; what: string; prompt: string }
+interface ForgePrompt { key: string; title: string; what: string; prompt: string }
 
 const BOOK_EXAMPLE = `{
   "story": {

@@ -4,7 +4,7 @@
 import { ORDER, CAPS, CANON_KINDS, CANON_CAP_FRAC, EARLIER_CEILING_FRAC, PROSE_CEILING_FRAC } from './blocks.ts';
 import type { Block, Kind } from './blocks.ts';
 
-export interface EntryState {
+interface EntryState {
   fromChapter: number;             // the chapter this state opens at
   body: string;
   beforeMode?: 'hide' | 'hint';    // what happens ahead of it opening
@@ -28,7 +28,7 @@ export interface Entry {
 }
 /** A room of a card: an appearance, a relationship, a voice. What an outfit already was,
  *  generalised — see `src/slots.ts`. Several of the plural slots can be live at once. */
-export interface Addon {
+interface Addon {
   id: string; slot: string; name: string; body: string;
   keys: string[];
   active?: boolean;                // the writer pinned it on

@@ -95,7 +95,7 @@ END;
 
 /** Which index is built from which table, and which column decides whether the source has content
  *  worth indexing. One list, so the schema above and the backfill below cannot disagree. */
-export const INDEXES = [
+const INDEXES = [
   { fts: 'fts_passages', src: 'passages', col: 'body' },
   { fts: 'fts_entries', src: 'entries', col: 'title' },
   { fts: 'fts_chapters', src: 'chapters', col: 'summary' },

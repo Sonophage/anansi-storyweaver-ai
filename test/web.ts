@@ -737,14 +737,6 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   }
 
   const DEFERRED: Record<string, string> = {
-    // PLAN-08 Phase 3, 2026-08-28. The engine reads addons and the routes write them; the editor
-    // that would call these is the next slice and is what Seth asked for in the same sitting —
-    // the card's face, the anchors per slot, and Anansi filling any of them. Deferred with a date
-    // rather than wired to a half-drawn screen. If this entry is still here in a week, the guard
-    // was right and the surface was never built.
-    saveAddon: 'PLAN-08: the addon editor is the next slice (2026-08-28)',
-    addonOn:   'PLAN-08: the addon editor is the next slice (2026-08-28)',
-    delAddon:  'PLAN-08: the addon editor is the next slice (2026-08-28)',
     // Issue #34, 2026-08-31. Seth: "Name a worl and it's button should be removed from threads."
     // The strip that made a world book is off the Threads page and nothing replaced it, at his
     // call — PARKED, not deleted, so that bringing it back is one function rather than a route, a

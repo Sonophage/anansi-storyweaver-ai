@@ -1112,7 +1112,6 @@ export const delEntryImage = (storyId: string, entryId: string) => {
   q('DELETE FROM entry_images WHERE entry_id = ? AND story_id = ?').run(entryId, storyId);
 };
 
-/** The writer's default look, or null. */
 /** How many books, ANY writer's, are pinned to this model. `modelFor` puts the story ahead of the
  *  writer's default, so a book naming a model is a book that will load it on its next call —
  *  releasing it out from under one is a cold load somebody did not ask for. */
@@ -1147,6 +1146,7 @@ export const unmute = (storyId: string, kind: string, ref: string) =>
 // (`notesFor`, `newestNoted`, `allNotes` and `setNotes` lived here. Removed 2026-08-29 with #24 —
 // see the note where the table was declared.)
 
+/** The writer's default look, or null. */
 export const lookOf = (ownerId: string): any => {
   const r = q('SELECT look FROM writer_look WHERE owner_id = ?').get(ownerId) as any;
   try { return r ? JSON.parse(r.look) : null; } catch { return null; }
@@ -1374,21 +1374,6 @@ export const roomsOf = (ownerId: string) => q(`
   WHERE ${MINE()} AND a.entry_id IS NOT NULL ORDER BY a.slot, a.created_at`).all(ownerId, ownerId) as any[];
 export const branchesOf = (id: string) => q('SELECT * FROM branches WHERE story_id = ? ORDER BY created_at').all(id) as any[];
 
-/** Append a passage to the END OF ITS CHAPTER, not the end of the book.
- *
- *  Ordinals are per branch and were assigned from MAX(ordinal) over the whole branch. Writing into
- *  any chapter but the last therefore placed the new passage after every later chapter, and the
- *  document and the prompt then disagreed about the order of the book: `drawDoc` groups by chapter
- *  and showed it inside chapter one, while `passagesOf` orders by ordinal and the model read it
- *  after chapter two. Regeneration inherited the same fault, since `upTo` filters on ordinal.
- *
- *  Focusing an earlier chapter has always made it the chapter you write into — that is deliberate,
- *  it is how you revise chapter three with chapter three's context — so this was reachable before
- *  the document was paged. Paging made it one click away.
- *
- *  The shift is two statements because `passages_sel` is UNIQUE(branch_id, ordinal) WHERE selected
- *  and is not deferrable: incrementing in place collides with the row above. Everything after the
- *  insertion point moves out to a range nothing occupies, then comes back one higher. */
 /** The five presses, and the only values `passages.mode` may hold. An unknown one is stored as
  *  null rather than kept: the page turns this into a class name, and a column that accepts anything
  *  the client sends is a column that decides what CSS runs.
@@ -1405,6 +1390,21 @@ export const branchesOf = (id: string) => q('SELECT * FROM branches WHERE story_
  *  accents out of app.html and asks this column for each; that is what caught it. */
 const MODES = ['speak', 'act', 'direct', 'narrate', 'continue', 'coop'];
 
+/** Append a passage to the END OF ITS CHAPTER, not the end of the book.
+ *
+ *  Ordinals are per branch and were assigned from MAX(ordinal) over the whole branch. Writing into
+ *  any chapter but the last therefore placed the new passage after every later chapter, and the
+ *  document and the prompt then disagreed about the order of the book: `drawDoc` groups by chapter
+ *  and showed it inside chapter one, while `passagesOf` orders by ordinal and the model read it
+ *  after chapter two. Regeneration inherited the same fault, since `upTo` filters on ordinal.
+ *
+ *  Focusing an earlier chapter has always made it the chapter you write into — that is deliberate,
+ *  it is how you revise chapter three with chapter three's context — so this was reachable before
+ *  the document was paged. Paging made it one click away.
+ *
+ *  The shift is two statements because `passages_sel` is UNIQUE(branch_id, ordinal) WHERE selected
+ *  and is not deferrable: incrementing in place collides with the row above. Everything after the
+ *  insertion point moves out to a range nothing occupies, then comes back one higher. */
 export function addPassage(p: any) {
   const id = uid('p-');
   const slot = q('SELECT MAX(slot_key) AS s FROM passages WHERE branch_id = ?').get(p.branchId) as any;
@@ -1527,7 +1527,7 @@ export const setSummary = (chapterId: string, summary: string, through: number, 
 
 /** THE ONE WAY A SUMMARY IS REMOVED: the text and everything that describes it go together, so a
  *  removed summary cannot leave an author or a fingerprint behind for the next one to inherit. */
-export const clearSummary = (storyId: string, chapterId: string) =>
+const clearSummary = (storyId: string, chapterId: string) =>
   q(`UPDATE chapters SET summary = NULL, summary_covers_through = NULL, summary_hash = NULL,
        summary_author = NULL WHERE id = ? AND story_id = ?`).run(chapterId, storyId);
 
@@ -2019,7 +2019,7 @@ export const keysOf = (k: unknown, cap = Infinity): string[] => {
 
 /** The two ways a thread reaches the model. `entries.activation` is TEXT with no CHECK, so this
  *  list is the only thing that says so — see the floor at the top of `upsertEntry`. */
-export const ACTIVATIONS = ['always_on', 'triggered'] as const;
+const ACTIVATIONS = ['always_on', 'triggered'] as const;
 
 export function upsertEntry(storyId: string, o: string, e: any) {
   // THE ONE FLOOR FOR AN ACTIVATION (Seth, 2026-10-25: refuse anything else). The column stored
@@ -2860,14 +2860,6 @@ export function backup(dir = join(dirname(FILE), 'backups'), keep = 12) {
   return { file: out, bytes: statSync(out).size, pruned: old.length };
 }
 
-/** One story as a standalone database, safe to hand to someone else.
- *
- *  Copies the whole file and then deletes everything that is not this story, rather than
- *  listing the fourteen tables to copy. The schema's own ON DELETE CASCADE does the pruning,
- *  so a table added later is handled without touching this function — and the three history
- *  tables carry no story_id, so a hand-written list would have been the thing that silently
- *  leaked them. Stories go before users: stories.owner_id has no CASCADE, so deleting the
- *  other users first would fail the constraint. */
 /** The whole box, one row per writer who has a book, biggest first.
  *
  *  The boot banner said `library 7 stories` off `listStories(owner(DESK))`, which is the DESK
@@ -2897,6 +2889,14 @@ export const allStoriesForExport = (): { id: string; ownerId: string; title: str
  *  `2026-09-06T02-07-49-434Z` — an ISO string with `:` and `.` replaced by `-`. */
 const STAMPED = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.db$/;
 
+/** One story as a standalone database, safe to hand to someone else.
+ *
+ *  Copies the whole file and then deletes everything that is not this story, rather than
+ *  listing the fourteen tables to copy. The schema's own ON DELETE CASCADE does the pruning,
+ *  so a table added later is handled without touching this function — and the three history
+ *  tables carry no story_id, so a hand-written list would have been the thing that silently
+ *  leaked them. Stories go before users: stories.owner_id has no CASCADE, so deleting the
+ *  other users first would fail the constraint. */
 export function exportStory(storyId: string, ownerId: string, dir = join(dirname(FILE), 'exports'),
                             keep = 0) {
   if (!ownsStory(storyId, ownerId)) throw new Error('no such story');
@@ -3440,9 +3440,6 @@ export const delState = (storyId: string, id: string) => q(
   .run(id, storyId);
 
 // ---- extraction proposals ----
-/** Nothing here is canon. Screen 28: "1 new · 2 changed · 1 conflict · nothing is canon yet."
- *  A conflict is specifically a model proposal against a body a human pinned — the arbitration
- *  rule keys on provenance, so those never auto-apply and never bulk-accept. */
 /** WHERE ACCEPTING THIS PROPOSAL WOULD WRITE. One definition, because two things need it and they
  *  must never disagree: the dedupe below, and the accept path in `src/routes.ts`, whose branches
  *  are in exactly this order.
@@ -3497,6 +3494,9 @@ export function addProposal(storyId: string, p: any) {
     return true;
   } catch { return false; }   // unique index: already proposed, not an error
 }
+/** Nothing here is canon. Screen 28: "1 new · 2 changed · 1 conflict · nothing is canon yet."
+ *  A conflict is specifically a model proposal against a body a human pinned — the arbitration
+ *  rule keys on provenance, so those never auto-apply and never bulk-accept. */
 export const proposalsOf = (storyId: string) => q(
   "SELECT * FROM proposals WHERE story_id = ? AND status = 'open' ORDER BY created_at").all(storyId) as any[];
 export const proposal = (storyId: string, id: string) =>
@@ -3557,8 +3557,6 @@ export const modelSpeeds = () => {
   return out;
 };
 
-/** What the model has actually been doing. PLAN-02 §7.2's budget-engine trigger is stated in
- *  terms of prefill time and prefix churn, and neither is knowable until something reads this. */
 /** What this writer has actually done. Every number here was already in the database — the
  *  dashboard needed counting, not new bookkeeping. Words are counted in SQL over selected
  *  passages only, so unchosen takes are not credited as writing you did. */
@@ -3629,6 +3627,8 @@ export function writerStats(o: string, tzo = 0) {
   };
 }
 
+/** What the model has actually been doing. PLAN-02 §7.2's budget-engine trigger is stated in
+ *  terms of prefill time and prefix churn, and neither is knowable until something reads this. */
 export const recentGenerations = (storyId: string, limit = 40) => q(
   `SELECT id, role, model, prompt_tokens, completion_tokens, latency_ms, timings, error, created_at,
           mend
