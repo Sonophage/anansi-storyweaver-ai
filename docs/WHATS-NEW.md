@@ -37,6 +37,10 @@ everything back. Until an update moves something, it says that nothing has moved
 
 ## 2026-10-26 · The bar after you send
 
+### The planning count is on the bar
+In a tale that weaves, the "Planning… 12s" count now shows above the quill on the three buttons
+while Anansi plans, since Send folds the box it used to sit beside.
+
 ### Send folds the box
 When you press Send, the box folds away and the three buttons come back at once. While Anansi
 writes, Stop is the button on the right, faded like the one on the left. What you typed waits in

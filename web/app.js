@@ -1921,6 +1921,10 @@ function nextBar(last) {
       <div class="quillcell">
         ${/* ABOVE the circle (Seth, 2026-10-25): a thumb on the circle covers what is under it. */ ''}
         ${hint ? `<small class="holdhint">${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
+        ${/* #55 ON THE BAR TOO (Seth, 2026-10-26: "show the planning count on the bar"). Send folds the
+              box, which hid the count beside it; with the box folded it sits here, where the hold hint
+              sits when she is not writing. One #weaving at a time: drawDock leaves the other out. */
+          weavingAt('dock') && !open ? `<small id="weaving" class="weaving holdhint tnum" aria-live="polite">${weaveWords('dock')}</small>` : ''}
         <button id="quill" data-dockopen="1" aria-expanded="${open}"
           aria-label="${open ? 'Fold the box away. Hold to talk to Anansi' : 'Open the box, to write it yourself. Hold to talk to Anansi'}"
           title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${mark('quill', 24)}</button>
@@ -2161,7 +2165,8 @@ function drawDock() {
            phone the word is hidden, and without it the button showed Send's mark unchanged. -->
       <!-- #55. WHILE A WEAVING BOOK'S PASSAGE IS BEING WOVEN, the count, here and on the veil. Only
            drawn while it runs; weaveStop empties it, and the next draw leaves it out. -->
-      ${weavingAt('dock') ? `<span id="weaving" class="weaving tnum" aria-live="polite">${weaveWords('dock')}</span>` : ''}
+      ${weavingAt('dock') && !folded
+        ? `<span id="weaving" class="weaving tnum" aria-live="polite">${weaveWords('dock')}</span>` : ''}
       ${S.busy && !veilUp()
         ? `<button id="send" data-stop="1" class="stopping" aria-label="Stop writing"
              title="Stop">${mark('send', 18)}<span class="btnword">Stop</span></button>`
