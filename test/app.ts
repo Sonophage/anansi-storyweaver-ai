@@ -2211,7 +2211,8 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   // Asserted on which chip is SELECTED, not on which chips are drawn. `voice` is not among a
   // rule's rooms either way, so a check for its absence here passes whether or not the filter was
   // actually cleared — it would be testing the chip list and reporting on the state.
-  const picked = (h: string) => (h.match(/data-lslot="([^"]*)"[^>]*gold-lit/) ?? [])[1];
+  // ADR 0004: a picked chip is bright ink and a rule, not gold.
+  const picked = (h: string) => (h.match(/data-lslot="([^"]*)"[^>]*border:1px solid var\(--ink-bright\)/) ?? [])[1];
   click({ lslot: 'voice' });
   assert.strictEqual(picked(html('page')), 'voice', 'the room chip takes the selection');
   click({ lkind: 'rule' });
@@ -3409,10 +3410,11 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
     .filter((m) => /aria-current="page"/.test(m[2])).map((m) => m[1]);
   assert.strictEqual(current.length, 1,
     `exactly one rail row is current and ${current.length} claim to be`);
-  // AND IT IS THE LIT ONE. This is the pairing: the gold background and the aria have to name the
-  // same row, or the attribute is decoration that happens to be present.
+  // AND IT IS THE LIT ONE. This is the pairing: the rule beside it and the aria have to name the
+  // same row, or the attribute is decoration that happens to be present. (ADR 0004: the row you
+  // are on is bright ink with a rule, not a gold background.)
   const lit = [...rail.matchAll(/data-nav="([a-z]+)"([^>]*?)>/g)]
-    .filter((m) => /rgba\(217,178,106,\.08\)/.test(m[2])).map((m) => m[1]);
+    .filter((m) => /border-left:2px solid var\(--ink-bright\)/.test(m[2])).map((m) => m[1]);
   assert.deepStrictEqual(current, lit, 'the row that reads as current must be the row that is lit');
 
   // THE CHAPTER LIST: same rule, and the fixture has more than one chapter so it can fail.
@@ -4901,8 +4903,10 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // the same mistake a slice made in the tipCard check. `</button>` is where the row ends.
   const waitRow = html('rail').match(/data-nav="waiting"[\s\S]*?<\/button>/)?.[0] ?? '';
   assert.ok(waitRow, 'the Waiting row is drawn at all');
-  assert.match(waitRow, /class="txt"[^>]*var\(--gold\)/,
-    'and it wears the accent, in a book that owes something');
+  // ADR 0004: a notice, so --warn and not gold (Seth asked for the accent on 2026-09-03; the gold
+  // grill moved it, because gold means press here).
+  assert.match(waitRow, /class="txt"[^>]*var\(--warn\)/,
+    'and it wears the warning colour, in a book that owes something');
 
   // AND OFF WHEN NOTHING IS OWED. Emptied on the SHELF the light actually reads, and reloaded
   // through the app rather than by writing its state — asserting against a copy the app never

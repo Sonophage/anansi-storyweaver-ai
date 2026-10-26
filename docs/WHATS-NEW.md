@@ -10,6 +10,14 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · Gold means press here
+
+### One gold button on a screen
+Gold now means one thing: the button to press. Each screen has one filled gold button for its main
+action. The row you are on in a menu, the mode you have chosen, a picked chip and a tag are bright
+ink instead. Labels are their own quiet colour. The light at the top when something is waiting, and
+the Workbench row with something on it, are the warning colour, because they are notices.
+
 ## 2026-10-26 · The tale's own thread
 
 ### The tale is the first thread

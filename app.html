@@ -227,7 +227,7 @@ input, textarea { font:inherit; color:inherit; }
    text cinematically fade in from a blur when the ai writes." It scrambled in for a day before
    that (2026-10-25). */
 #ghost.inlive .veiltext .w { animation:inkin .75s var(--ease) both; }
-#ghost.inlive .veilweave { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-dim); }
+#ghost.inlive .veilweave { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--label); }
 #ghost.inlive .veilweave:empty { display:none; }
 .block.rerolling-out { display:none; }
 #ghost.veil { position:absolute; inset:0; z-index:50; display:flex; align-items:flex-start;
@@ -600,7 +600,7 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   #dock:not(:has(#inputRow:focus-within, #modes:focus-within)):not(.big) #modes { display:none; }
 }
 .hdoor { flex:0 0 auto; }
-.pill[aria-pressed="true"] { background:var(--gold); border-color:var(--gold); color:var(--on-gold); }
+.pill[aria-pressed="true"] { background:transparent; border-color:var(--ink-bright); color:var(--ink-bright); }
 .deskonly { display:block; }
 @media (max-width:719px) { .deskonly { display:none; } }
 .phoneonly { display:none; }
@@ -693,7 +693,7 @@ input[type="checkbox"]:disabled { opacity:.4; cursor:default; }
 input[type="checkbox"]:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
 
 .chip { padding:9px 12px; border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:13px; }
-.chip[aria-pressed="true"] { border-color:rgba(217,178,106,.5); background:rgba(217,178,106,.08); color:var(--ink); }
+.chip[aria-pressed="true"] { border-color:var(--ink-bright); background:transparent; color:var(--ink-bright); }
 
 /* --- reading column ---------------------------------------------------- */
 #read { position:relative; flex:1; min-height:0; display:flex; justify-content:center; padding:40px 0 0; }
@@ -1225,7 +1225,8 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
    shove it alone to the far edge with a hole beside it. Below the wrap point they simply follow. */
 @media (max-width:560px) { #modes button[data-newlore] { margin-left:0 !important; } }
 #modes button { flex:0 0 auto; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--label); padding-bottom:5px; border-bottom:1px solid transparent; white-space:nowrap; }
-#modes button[aria-pressed="true"] { color:var(--gold-lit); border-bottom-color:var(--gold); }
+/* ADR 0004: the mode you are on is bright ink and a rule; gold is for the press. */
+#modes button[aria-pressed="true"] { color:var(--ink-bright); border-bottom-color:var(--ink-bright); }
 /* Continue is an action, not a mode — it sends on the press. Given the same underline as the four
    selectable modes it read as a fifth thing you pick, which is the one thing it is not. */
 #modes button[data-continue] { border:1px solid var(--chip); border-radius:var(--r-pill); padding:5px 13px;
@@ -1233,10 +1234,11 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
 #modes button[data-continue]:hover:not(:disabled) { border-color:rgba(217,178,106,.42); color:var(--gold-lit); }
 #modes button[data-continue]:disabled { opacity:.45; }
 
+/* ADR 0004: the waiting glow is a notice, not a press, so it is --warn and not gold. */
 #owed { position:fixed; top:0; left:0; right:0; height:3px; z-index:61; pointer-events:none;
-  background:linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold-lit) 50%,
-    var(--gold) 70%, transparent);
-  box-shadow:0 0 18px 2px var(--gold-dim), 0 0 42px 6px var(--gold-dim);
+  background:linear-gradient(90deg, transparent, var(--warn) 30%, var(--warn) 50%,
+    var(--warn) 70%, transparent);
+  box-shadow:0 0 18px 2px color-mix(in srgb, var(--warn) 45%, transparent), 0 0 42px 6px color-mix(in srgb, var(--warn) 30%, transparent);
   animation:owedbreathe 3.2s var(--ease) infinite; }
 #owed[hidden] { display:none; }
 @keyframes owedbreathe { 0%, 100% { opacity:.45; } 50% { opacity:1; } }
@@ -1326,9 +1328,9 @@ html[data-work="ai"]       { --work:var(--gold); }
   border-radius:var(--r); font-size:13px; line-height:1.45; color:var(--ink); }
 #ideas .idea:hover { border-color:rgba(217,178,106,.42); }
 #talkhead { display:flex; align-items:center; gap:10px; font-size:11px; letter-spacing:.1em;
-  text-transform:uppercase; color:var(--gold-dim); }
+  text-transform:uppercase; color:var(--label); }
 #talkhead span { display:flex; align-items:center; gap:7px; }
-#talkhead button { margin-left:auto; min-height:44px; padding:0 4px; color:var(--gold); font-size:11px;
+#talkhead button { margin-left:auto; min-height:44px; padding:0 4px; color:var(--ink-bright); font-size:11px;
   letter-spacing:.1em; text-transform:uppercase; }
 /* #56. When weaving does not fit: the server's sentence, then its two ways on side by side, above
    the mode row. Ghost buttons, the re-roll box's pair in shape: neither is the safe default. */
@@ -1485,7 +1487,7 @@ textarea.field { resize:vertical; min-height:70px; }
   height:auto; overflow:visible; }
 .card.plate .platename { font-family:'Instrument Serif', var(--serif, serif); font-size:22px;
   line-height:1.15; color:var(--ink-bright); }
-.card.plate .tag.alwayson { border:1px solid rgba(217,178,106,.4); color:var(--gold);
+.card.plate .tag.alwayson { border:1px solid var(--edge-lit); color:var(--ink-bright);
   white-space:nowrap; }
 /* THE TALE'S THREADS LIST (v2 redesign, 2026-10-25). Seth: "the threads screen is a lot of
    information and needs to be simpler". A short card: name, two lines, an eye, and tags only when
@@ -1498,7 +1500,7 @@ textarea.field { resize:vertical; min-height:70px; }
 .theye { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:44px; height:44px;
   display:flex; align-items:center; justify-content:center; border-radius:var(--r-pill);
   color:var(--faint); }
-.theye[data-lit="1"] { color:var(--gold); }
+.theye[data-lit="1"] { color:var(--ink-bright); }
 /* SEARCH AND THE TWO FILTERS, ONE ROW. The chips are 38px to the eye in a 50px box; the ::before
    takes each one to 44px for the finger without making the row taller. */
 .thfind { display:flex; align-items:center; gap:5px; padding:5px 5px 5px 12px; border:1px solid var(--chip);
@@ -1514,21 +1516,21 @@ textarea.field { resize:vertical; min-height:70px; }
    of tags, the thread's own text in the reading face, and the rarer actions in a menu under ⋯.
    Every control is 44px to the finger through the touch-screen ::after every button already has
    (the 44PX rule near the top of this sheet). */
-.headback { height:44px; margin:-8px 0; display:flex; align-items:center; color:var(--gold);
+.headback { height:44px; margin:-8px 0; display:flex; align-items:center; color:var(--ink-bright);
   font-size:12px; letter-spacing:.14em; text-transform:uppercase; flex:0 0 auto; }
 .headback .serif { font-family:inherit; }
 .headmore { width:44px; height:44px; margin:-8px -6px -8px 0; display:flex; align-items:center;
   justify-content:center; color:var(--mute); flex:0 0 auto; }
 .headmore > span { width:34px; height:34px; border:1px solid var(--chip); border-radius:var(--r-pill);
   display:flex; align-items:center; justify-content:center; font-size:15px; letter-spacing:.05em; }
-.headmore[aria-expanded="true"] > span { border-color:rgba(217,178,106,.45); color:var(--gold); }
+.headmore[aria-expanded="true"] > span { border-color:var(--edge-lit); color:var(--ink-bright); }
 .readname { margin:2px 0 10px; font-family:'Instrument Serif', var(--serif, serif); font-weight:400;
   font-size:30px; line-height:1.1; color:var(--ink-bright); }
 .readtags { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; }
 .readtags .tag { display:inline-flex; align-items:center; gap:6px; min-height:30px;
   padding:0 11px; }
 .readtags button.tag { cursor:pointer; }
-.readtags .readreach[data-lit="1"] { border-color:rgba(217,178,106,.45); color:var(--gold); }
+.readtags .readreach[data-lit="1"] { border-color:var(--edge-lit); color:var(--ink-bright); }
 .readbody { display:block; width:100%; padding:0; margin:0 0 6px; text-align:left; cursor:pointer;
   font-family:var(--serif, serif); font-size:17px; line-height:1.65; color:var(--ink); }
 .readmenu { display:flex; flex-direction:column; margin:0 0 16px; border:1px solid var(--edge);
@@ -1590,7 +1592,7 @@ textarea.field { resize:vertical; min-height:70px; }
 .clamp { display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden; }
 [aria-expanded="true"] > .clamp { -webkit-line-clamp:unset; }
 .tag { font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:2px 8px; border-radius:var(--r-pill); border:1px solid var(--chip); color:var(--dim); white-space:nowrap; }
-.kind { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-dim); }
+.kind { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--label); }
 .row { display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:12.5px; }
 /* A BUTTON IS NOT A LABEL. Seth, 2026-09-03, wanted the label treatment everywhere; a button is
    where that stops. `.lbl`, `.kind`, `.tag` and `.up` name things in two or three words and read
@@ -1627,7 +1629,7 @@ textarea.field { resize:vertical; min-height:70px; }
    a question. The prose is already in the book and everything you might do to it is on its tray. */
 .cameback {
   margin:8px 0 0; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
-  color:var(--gold-dim);
+  color:var(--label);
 }
 
 /* CENTRED ON THE SCREEN, NOT UNDER THE PARAGRAPH — Seth, 2026-09-02: "this should be as a toast

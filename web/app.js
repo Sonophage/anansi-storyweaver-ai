@@ -29,7 +29,7 @@ const tipOn = (k) => !!S.tips?.[k];
 const tipMark = (k, what) => `<button data-tip="${k}" aria-expanded="${tipOn(k)}"
   aria-controls="tip-${k}" aria-label="What ${esc(what)} is"
   style="display:inline-flex; vertical-align:-2px; margin-left:6px; padding:1px; flex:0 0 auto;
-    color:${tipOn(k) ? 'var(--gold)' : 'var(--faint)'}">${mark('web', 13)}</button>`;
+    color:${tipOn(k) ? 'var(--ink-bright)' : 'var(--faint)'}">${mark('web', 13)}</button>`;
 /** The card it opens. `body` is HTML: the webs are written as paragraphs, and the sentences that
  *  moved in here carry their own emphasis and dashes. A caller holding plain text wraps it. */
 const tipCard = (k, title, body) => `<div class="tipcard" id="tip-${k}"${tipOn(k) ? '' : ' hidden'}>
@@ -38,7 +38,7 @@ const tipCard = (k, title, body) => `<div class="tipcard" id="tip-${k}"${tipOn(k
           explain a control is prose, and its title is the first line of that prose — set in capitals
           it reads as another label shouting at you from inside the thing you opened to get away
           from the shouting. */ ''}
-    <div style="font-size:11px; letter-spacing:.08em; color:var(--gold-dim)">${esc(title)}</div>${body}</div>`;
+    <div style="font-size:11px; letter-spacing:.08em; color:var(--label)">${esc(title)}</div>${body}</div>`;
 
 /* The webs, drawn by the two above. They keep their own names because the SLUG has to stay
  * greppable: test/app.ts reads the helpMark and helpBody calls out of this source and asserts
@@ -773,14 +773,15 @@ function drawRail() {
     // `aria-pressed`: these are places you go, one of which you are on, rather than switches.
     return `<button data-nav="${k}"${on ? ' aria-current="page"' : ''} style="display:flex; align-items:center; gap:13px; padding:11px 12px;
       border-radius:var(--r); margin-bottom:3px; white-space:nowrap; overflow:hidden; width:100%;
-      background:${on ? 'rgba(217,178,106,.08)' : 'transparent'};
-      border:1px solid ${on ? 'rgba(217,178,106,.22)' : 'transparent'}">
+      background:transparent; border:1px solid transparent;
+      ${/* ADR 0004: the row you are on is bright ink with a rule beside it, not gold. */ ''}
+      border-left:2px solid ${on ? 'var(--ink-bright)' : 'transparent'}">
       <span style="width:19px; height:19px; display:flex; align-items:center; justify-content:center;
-        flex:0 0 auto; color:${on ? 'var(--gold)' : 'var(--faint)'}">${mark(g)}</span>
+        flex:0 0 auto; color:${on ? 'var(--ink-bright)' : 'var(--faint)'}">${mark(g)}</span>
       <span class="txt" style="font-size:14px; color:${
-        k === 'waiting' && owedHere() ? 'var(--gold)' : on ? 'var(--ink-bright)' : 'var(--mute)'
+        k === 'waiting' && owedHere() ? 'var(--warn)' : on ? 'var(--ink-bright)' : 'var(--mute)'
       }">${esc(l)}</span>${k === 'waiting' && owedHere()
-        ? `<span class="tnum" style="margin-left:auto; font-size:11px; color:var(--gold-dim)">${owedHere()}</span>` : ''}</button>`;
+        ? `<span class="tnum" style="margin-left:auto; font-size:11px; color:var(--warn)">${owedHere()}</span>` : ''}</button>`;
   };
   // "Anansi's web" used to sit here as the way out of a story. It went on 2026-08-27: the menu
   // button in the bar opens the workspace menu from anywhere, which is the same one press, and two
@@ -812,7 +813,7 @@ function drawRail() {
        ${V.chapters.map((c) => `<button data-chapter="${c.id}"${
          c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); width:100%;
-         color:${c.id === V.currentChapter.id ? 'var(--gold-lit)' : 'var(--faint)'}"><span class="txt"
+         color:${c.id === V.currentChapter.id ? 'var(--ink-bright)' : 'var(--faint)'}"><span class="txt"
          style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${
          esc(sceneName(c))}</span></button>`).join('')}`
     // NO "Open" LIST HERE, only the demo switch. It reprinted the first four books in a rail whose first row is already
@@ -896,7 +897,7 @@ function drawRail() {
             ${runsMark(m.id, m.status)}
             <span class="txt" style="min-width:0; display:flex; flex-direction:column; gap:1px">
               <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
-                color:${m.id === SRV.model ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
+                color:${m.id === SRV.model ? 'var(--ink-bright)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
               ${modelName(m.id).bits.length ? `<span style="font-size:11px; color:var(--gold-dim);
                 overflow:hidden; text-overflow:ellipsis">${esc(modelName(m.id).bits.join(' \u00b7 '))}</span>` : ''}
               ${modelFacts(m, !SRV.admin) ? `<span style="font-size:11px; color:var(--dim)">${esc(modelFacts(m, !SRV.admin))}</span>` : ''}</span>
@@ -1201,7 +1202,7 @@ function drawAppearance() {
   const body = tab === 'theme'
     ? `<div style="display:flex; flex-direction:column; gap:7px">${themes.map(([k, t]) => `
         <button data-theme="${k}" aria-pressed="${k === look.theme}" style="display:flex; align-items:center; gap:11px; padding:8px 10px;
-          border-radius:var(--r); border:1px solid ${look.theme === k ? 'var(--gold)' : 'var(--chip)'}; width:100%">
+          border-radius:var(--r); border:1px solid ${look.theme === k ? 'var(--ink-bright)' : 'var(--chip)'}; width:100%">
           ${swatch(t)}
           <span style="font-size:13px; color:${look.theme === k ? 'var(--ink)' : 'var(--mute)'}">${esc(t.label)}</span>
         </button>`).join('')}</div>`
@@ -1230,9 +1231,9 @@ function drawAppearance() {
           border-top:1px solid var(--line)">
           <button data-hwkb="1" aria-pressed="${hwkb}" style="display:flex; align-items:center; gap:10px;
             text-align:left; padding:9px 11px; border-radius:var(--r);
-            border:1px solid ${hwkb ? 'var(--gold)' : 'var(--chip)'};
+            border:1px solid ${hwkb ? 'var(--ink-bright)' : 'var(--chip)'};
             background:${hwkb ? 'rgba(217,178,106,.10)' : 'transparent'}">
-            <span style="font-size:12.5px; color:${hwkb ? 'var(--gold-lit)' : 'var(--mute)'}">Hardware keyboard</span>
+            <span style="font-size:12.5px; color:${hwkb ? 'var(--ink-bright)' : 'var(--mute)'}">Hardware keyboard</span>
             <span style="margin-left:auto; font-size:11px; color:var(--faint)">${hwkb ? 'on' : 'off'}</span>
           </button>
           <span class="hint" style="margin:0">Stops the layout resizing for a keyboard that is not
@@ -1258,9 +1259,9 @@ function drawAppearance() {
     <div style="display:flex; gap:6px">${tabs.map(([k, l]) => `
       <button data-looktab="${k}" aria-pressed="${tab === k}" style="flex:1; text-align:center;
         padding:7px 0; font-size:11.5px; border-radius:var(--r);
-        border:1px solid ${tab === k ? 'var(--gold)' : 'var(--chip)'};
+        border:1px solid ${tab === k ? 'var(--ink-bright)' : 'var(--chip)'};
         background:${tab === k ? 'rgba(217,178,106,.10)' : 'transparent'};
-        color:${tab === k ? 'var(--gold-lit)' : 'var(--mute)'}">${l}</button>`).join('')}</div>
+        color:${tab === k ? 'var(--ink-bright)' : 'var(--mute)'}">${l}</button>`).join('')}</div>
     ${body}
     ${inStory ? `<div style="display:flex; flex-direction:column; gap:6px; padding-top:11px;
       border-top:1px solid var(--line)">
@@ -2130,7 +2131,7 @@ function drawDock() {
           ? `The model may write ${esc(V.story.lockedCharacter)}. Press for hands off.`
           : `Hands off ${esc(V.story.lockedCharacter)} — the model will not write them. Press to let it.`}"
         style="flex:0 0 auto; margin-left:auto;
-        color:${V.story.lockoutOn === false ? 'var(--faint)' : 'var(--gold)'}">Hands off</button>` : ''}
+        color:${V.story.lockoutOn === false ? 'var(--faint)' : 'var(--ink-bright)'}">Hands off</button>` : ''}
       <!-- ANANSI CAME OFF THIS ROW. Her web in the header is the way to her now, and it is a
            better one: the row was three doors deep and the seventh control was already being
            fought onto one line at 390px. The PANEL is unchanged and data-panel="anansi" still
@@ -2290,9 +2291,9 @@ function drawSide() {
     <button data-newlore="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
       class="serif">Threads</span></button>
     <span style="flex:1"></span>
-    <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
+    <button data-panel="" style="color:var(--mute); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   else if (thRead) $('sideHead').innerHTML = `${threadBar('read')}
-    <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
+    <button data-panel="" style="color:var(--mute); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   else $('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
@@ -2305,7 +2306,7 @@ function drawSide() {
     <span style="flex:1"></span>
     ${thList ? `<button data-newlore="1" class="headadd" aria-label="Add a thread, or read the scene"
       title="Add a thread, or read the scene"><span>${mark('create', 16)}</span></button>` : ''}
-    <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
+    <button data-panel="" style="color:var(--mute); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
   $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
     ? helpBody(PANEL_HELP[S.panel]) : '')
@@ -2550,7 +2551,7 @@ function proposalCard(p) {
   return `<div class="card" style="gap:8px">
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
             <span style="font-size:14.5px; color:var(--ink-bright)">${esc(p.title)}</span>
-            ${room ? `<span class="tag" style="border-color:rgba(217,178,106,.35); color:var(--gold)"
+            ${room ? `<span class="tag" style="border-color:var(--edge-lit); color:var(--ink-bright)"
               >${esc(room)}</span>` : ''}
             <span class="up" style="margin-left:auto; font-size:11px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
           ${where ? `<div style="font-size:11px; line-height:1.45; color:var(--faint)">${where}</div>` : ''}
@@ -2581,7 +2582,7 @@ function proposalCard(p) {
               style="margin:0; width:56px; padding:4px 6px; font-size:11.5px"></label>` : ''}
           <div style="display:flex; gap:7px">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
-              border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">${
+              border-radius:var(--r); border:1px solid var(--ink-bright); color:var(--ink-bright); font-size:11.5px; font-weight:500">${
                 p.field && p.target ? 'Sew in beside it' : 'Sew it in'}</button>
             ${p.field && p.target ? `<button data-decide="replace" data-id="${p.id}"
               style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
@@ -3013,7 +3014,7 @@ const PANELS = {
     return `<div style="display:flex; flex-direction:column">
       <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
         <span class="serif" style="font-size:19px; color:var(--ink-bright)">${esc(d.name)}</span>
-        ${writing ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">writing now</span>'
+        ${writing ? '<span class="tag" style="border-color:var(--edge-lit); color:var(--ink-bright)">writing now</span>'
           : remote ? '<span class="tag">on Featherless</span>'
           : m.status === 'unloaded' ? '<span class="tag">asleep</span>'
           : m.status === 'loaded' ? '<span class="tag" style="color:var(--good)">loaded</span>' : ''}</div>
@@ -3388,8 +3389,8 @@ const PANELS = {
     // repaints the drawer and a repaint empties a box drawn from nothing.
     if (S.lore) {
       const kind = S.lore.kind ?? 'character';
-      const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-        background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
+      const chip = (on) => `border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
+        background:transparent; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}`;
       const searchable = V?.searchable !== false;
       // The inside of one of Anansi's cards. The buttons are written out below, so each one's
       // data- name is a literal that test/web.ts can match to its handler.
@@ -3979,7 +3980,7 @@ const PANELS = {
           ${here ? 'border-color:var(--gold-dim)' : ''}">
           <div style="display:flex; align-items:baseline; gap:9px">
             <span class="platename" style="font-size:16px">${esc(sceneName(c))}</span>
-            ${here ? '<span class="tag" style="border-color:rgba(217,178,106,.35); color:var(--gold)">writing</span>' : ''}
+            ${here ? '<span class="tag" style="border-color:var(--edge-lit); color:var(--ink-bright)">writing</span>' : ''}
             <span class="tnum" style="margin-left:auto; font-size:11px; color:var(--faint)"
               >${c.index}</span></div>
           ${first ? `<div class="clamp2" style="font-family:var(--serif,serif); font-style:italic;
@@ -4011,8 +4012,8 @@ const PANELS = {
                     ['changed', 'Changed'], ['retire', 'To hem']];
     const nOf = (k) => k === 'all' ? ps.length : ps.filter((p) => KINDOF(p) === k).length;
     const shown = S.propKind === 'all' ? ps : ps.filter((p) => KINDOF(p) === S.propKind);
-    const pchip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-      background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
+    const pchip = (on) => `border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
+      background:transparent; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}`;
     const tab = S.chapTab ?? 'this';
     return `<div style="display:flex; flex-direction:column" data-tab="${tab}">
       <!-- Issue #33. This sat under the two fields, which is four screens up from the bottom of
@@ -4208,7 +4209,7 @@ const PANELS = {
           <span style="margin-left:auto; font-size:11px; color:var(--faint)">scenes ${a.fromChapter}&ndash;${a.toChapter}${
             editing ? '' : ` &middot; ${plural(wordsIn(a.summary), 'word', 'words')}`}</span>
           <button data-delarc="${a.id}" style="color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
-        ${a.outOfDate ? `<div data-arcoutofdate style="font-size:11.5px; line-height:1.5; color:var(--gold)">Out of date.
+        ${a.outOfDate ? `<div data-arcoutofdate style="font-size:11.5px; line-height:1.5; color:var(--warn)">Out of date.
           ${esc(actChanged(a.outOfDate.chapter, a.outOfDate.why, a.outOfDate.title))}</div>` : ''}
         ${editing ? `
           <input class="field" data-arctitle aria-label="The chapter's title" value="${esc(S.editArc.title)}"
@@ -4295,7 +4296,7 @@ const PANELS = {
                    thing on a phone. The search still happens and still reaches her; the writer just
                    is not handed the bibliography. -->
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
-                border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
+                border-color:var(--edge-lit); color:var(--ink-bright)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
               ${turn.meta ? `<div style="font-size:11px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
             </div>`).join('')
           : (() => {
@@ -4398,7 +4399,7 @@ const PANELS = {
         x.summoned ? 'rgba(217,178,106,.42)' : late ? 'var(--bad)' : 'var(--chip)'}">
         <div style="display:flex; align-items:baseline; gap:9px">
           <span class="kind">${esc(x.title)}</span>
-          ${x.summoned ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">summoned</span>' : ''}
+          ${x.summoned ? '<span class="tag" style="border-color:var(--edge-lit); color:var(--ink-bright)">summoned</span>' : ''}
           <span style="margin-left:auto; font-size:11px; color:${late ? 'var(--bad)' : 'var(--faint)'}">${
             x.status !== 'open' ? esc(x.status === 'paid' ? 'tied off' : x.status === 'dropped' ? 'let go' : x.status)
             : late ? `owed by ${x.owedBy}, and it is scene ${here}`
@@ -4495,7 +4496,7 @@ const PANELS = {
         <div style="display:flex; justify-content:space-between; font-size:11px; letter-spacing:.1em;
           text-transform:uppercase; color:var(--dim)">
           <span>${label}${hint ? tipMark(`gen-${key}`, label) : ''}</span>
-          <span class="tnum" style="color:var(--gold-dim)">${fmt ? fmt(value) : value}</span></div>
+          <span class="tnum" style="color:var(--label)">${fmt ? fmt(value) : value}</span></div>
         ${hint ? tipCard(`gen-${key}`, label, `<p>${hint}</p>`) : ''}
         <input type="range" data-gen="${key}" aria-label="${esc(label)}"
           min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
@@ -4661,7 +4662,7 @@ const PANELS = {
               border-color:${mine ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
             <button data-editprompt="${k}" style="display:flex; align-items:center; gap:9px; width:100%; text-align:left">
               <span class="kind">${k[0].toUpperCase() + k.slice(1)}</span>
-              ${mine ? '<span class="tag" style="border-color:rgba(217,178,106,.4); color:var(--gold)">yours</span>' : ''}
+              ${mine ? '<span class="tag" style="border-color:var(--edge-lit); color:var(--ink-bright)">yours</span>' : ''}
               ${open ? tipMark(`prompt-${k}`, `The ${k} instruction`) : ''}
               <span style="margin-left:auto; color:var(--faint); font-size:12px">${open ? '\u2212' : '+'}</span>
             </button>
@@ -5251,7 +5252,7 @@ function sparkReview() {
            // so. A screen reader had no way to know which kinds were on, and a check had to read the
            // inline background colour to find out.
            return `<button data-spkind="${k}" aria-pressed="${on}" style="font-size:11.5px; padding:7px 14px;
-             border-radius:var(--r-pill); border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+             border-radius:var(--r-pill); border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
              background:${on ? 'rgba(217,178,106,.12)' : 'transparent'};
              color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(KIND_PLURAL[k] ?? k)}</button>`;
          }).join('')}
@@ -5397,7 +5398,7 @@ function sparkReview() {
 
   return `<div style="display:flex; gap:5px; margin-bottom:14px">${STEPS.map(([, t], i) => `
       <button data-sparkstep="${i + 1}" aria-pressed="${step === i + 1}" style="flex:1; height:5px;
-        border-radius:99px; background:${i + 1 <= step ? 'var(--gold)' : 'var(--chip)'}"
+        border-radius:99px; background:${i + 1 <= step ? 'var(--ink-bright)' : 'var(--chip)'}"
         aria-label="${esc(t)}"></button>`).join('')}</div>
     <div class="lbl" style="letter-spacing:.1em; margin:0">${step} of ${STEPS.length} &middot; ${esc(STEPS[step - 1][1])}</div>
     <div class="hint" style="margin:2px 0 12px">${esc(STEPS[step - 1][2])}</div>
@@ -5458,7 +5459,7 @@ const SUMMARY_WORDS = 180, ACT_WORDS = 220;
 const wordLine = (text, cap) => {
   const n = wordsIn(text);
   return `<div class="hint" data-words style="margin:0"><span class="tnum" data-wordcount>${
-    plural(n, 'word', 'words')}</span> <span data-wordwarn style="color:var(--gold)" ${n > cap ? '' : 'hidden'}
+    plural(n, 'word', 'words')}</span> <span data-wordwarn style="color:var(--warn)" ${n > cap ? '' : 'hidden'}
     >&middot; past ${cap}, so it costs more space on every call. It still saves.</span></div>`;
 };
 const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next scene'], ['more', 'Anyone new']];
@@ -5515,7 +5516,7 @@ function setupPanel() {
     gap:10px; width:100%; padding:9px 11px; border-radius:var(--r); margin-bottom:5px; text-align:left;
     border:1px solid ${on(e) ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
     background:${on(e) ? 'rgba(217,178,106,.10)' : 'transparent'}">
-    <span style="width:14px; flex:0 0 auto; color:${on(e) ? 'var(--gold)' : 'var(--faint)'}">${on(e) ? '✓' : '·'}</span>
+    <span style="width:14px; flex:0 0 auto; color:${on(e) ? 'var(--ink-bright)' : 'var(--faint)'}">${on(e) ? '✓' : '·'}</span>
     <span style="flex:1; min-width:0; font-size:13px; color:${on(e) ? 'var(--ink)' : 'var(--mute)'};
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(e.title)}</span>
     <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
@@ -5633,7 +5634,7 @@ function setupPanel() {
         text-transform:uppercase;
         border:1px solid ${here ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
         background:${here ? 'rgba(217,178,106,.10)' : 'transparent'};
-        color:${dead ? 'var(--ink-ghost)' : here ? 'var(--gold-lit)' : 'var(--mute)'};
+        color:${dead ? 'var(--ink-ghost)' : here ? 'var(--ink-bright)' : 'var(--mute)'};
         opacity:${dead ? '.5' : '1'}">${i + 1} &middot; ${esc(l)}${
         owed ? ` <span style="color:var(--gold)">${owed}</span>` : ''}</button>`;
     }).join('')}</div>`;
@@ -5706,7 +5707,7 @@ function setupPanel() {
         style="flex:1; text-align:center; font-size:11px; padding:8px 0; border-radius:var(--r);
         border:1px solid ${k === kind ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
         background:${k === kind ? 'rgba(217,178,106,.10)' : 'transparent'};
-        color:${k === kind ? 'var(--gold-lit)' : 'var(--mute)'}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+        color:${k === kind ? 'var(--ink-bright)' : 'var(--mute)'}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
       <!-- THE BEAT IS THE STEER, prefilled rather than described. Seth asked for "the option of
            adding new cards based on that premise", and a box that says "based on the premise" while
            being empty is a box the writer has to retype the premise into. It is editable, because
@@ -5859,7 +5860,7 @@ function ctxTabs() {
   const t = (k, l) => `<button data-ctxview="${k}" aria-pressed="${k === S.ctxView}" style="flex:1; text-align:center; font-size:11.5px;
     padding:8px 0; border-radius:var(--r); border:1px solid ${S.ctxView === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
     background:${S.ctxView === k ? 'rgba(217,178,106,.12)' : 'transparent'};
-    color:${S.ctxView === k ? 'var(--gold-lit)' : 'var(--mute)'}">${l}</button>`;
+    color:${S.ctxView === k ? 'var(--ink-bright)' : 'var(--mute)'}">${l}</button>`;
   return `<div style="display:flex; gap:6px; margin-bottom:14px">${t('blocks', 'What goes in')}${t('prompt', 'Exactly as sent')}</div>`;
 }
 
@@ -6226,7 +6227,7 @@ function cardFace(e, slots) {
           sl.exclusive ? '' : ' <span style="opacity:.5">(several)</span>'}</div>
         ${mine.map((a) => roomCard(a.name, a.body, a.keys ?? [], a.active,
           `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" style="cursor:pointer; ${
-            a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : 'color:var(--dim)'}"
+            a.active ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : 'color:var(--dim)'}"
             aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to turn it off' : 'off. Tap to turn it on'}"
             >${a.active ? 'On' : 'Off'}</button>`, sl.name, a.id)).join('')}`;
       }).join('');
@@ -6345,7 +6346,7 @@ function roomSection(e, sl, live = null, anchor = true) {
         placeholder="[wake words, comma separated]" style="margin:0; font-size:12px">
       <div style="display:flex; gap:7px">
         <button class="btn ghost" data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" style="flex:1; ${
-          a.active ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${
+          a.active ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : ''}">${
           a.active ? 'On — take it off' : 'Turn it on'}</button>
         <button class="btn ghost" data-saveaddon="${esc(a.id)}"
           style="flex:0 0 auto; width:auto; padding:12px 20px">Save</button></div>
@@ -6380,7 +6381,7 @@ function addTray(e, slots) {
         const on = S.newRoom === sl.name;
         return `<button data-newroom="${esc(sl.name)}" style="flex:1 1 30%; text-align:center;
           font-size:11.5px; padding:8px 4px; border-radius:var(--r);
-          border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+          border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
           background:${on ? 'rgba(217,178,106,.12)' : 'transparent'};
           color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(pocketTitle(sl.name))}</button>`;
       }).join('')}
@@ -6414,7 +6415,7 @@ function cardTabs(tab) {
     `<button data-cardtab="${k}" aria-pressed="${tab === k}" style="flex:1; text-align:center;
       font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding:10px 2px; white-space:nowrap;
       border-radius:var(--r); ${tab === k
-        ? 'border:1px solid rgba(217,178,106,.42); background:rgba(217,178,106,.12); color:var(--gold-lit)'
+        ? 'border:1px solid var(--ink-bright); background:transparent; color:var(--ink-bright)'
         : 'border:1px solid var(--chip); color:var(--mute)'}">${label}</button>`).join('')}</div>`;
 }
 
@@ -6508,8 +6509,8 @@ function entryEditor() {
   // at the top is how an empty one gets filled, so the jump chips have to agree or half of them
   // would point at headings that are no longer drawn.
   const shown = slots.filter((sl) => (e.addons ?? []).some((a) => a.slot === sl.name));
-  const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-    background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
+  const chip = (on) => `border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
+    background:transparent; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}`;
   const tab = S.cardTab ?? 'card';
   // THE ALTER SCREEN (v2 redesign, 2026-10-25). Cancel and Save are the drawer's header now
   // (drawSide), so the Read / Alter / Save / Back bar and the head above the tabs are gone; the
@@ -6656,7 +6657,7 @@ function entryEditor() {
         style="margin:0; min-height:52px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(o.body)}</textarea>
       <div style="display:flex; gap:7px">
         <button class="btn ghost" data-wear="${e.id}:${o.id}" style="flex:1; ${o.active
-          ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${
+          ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : ''}">${
           o.active ? 'Worn — take it off' : 'Wear this'}</button>
         <!-- width:auto MATTERS. ".btn" is width:100% by design, which as a flex item is a base
              size of the WHOLE ROW, and "flex:0 0 auto" then refuses to shrink it: Save took the
@@ -7123,7 +7124,7 @@ function threadPlate(e, lit) {
       ${e.outfits.map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
         aria-pressed="${!!o.active}"
         style="cursor:pointer; ${o.active
-          ? 'border-color:rgba(217,178,106,.45); color:var(--gold)' : ''}">${esc(o.name)}</button>`).join('')}
+          ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : ''}">${esc(o.name)}</button>`).join('')}
       ${e.outfits.some((o) => o.active)
         ? `<button data-wear="${e.id}:" class="tag" style="cursor:pointer; color:var(--dim)">nothing</button>` : ''}
     </div>` : ''}
@@ -7239,9 +7240,9 @@ function seedList() {
       // Chosen is a border and a background and nothing in the label, so it says so.
       return `<button data-seedpick="${esc(e.id)}" aria-pressed="${on}" style="display:flex; align-items:baseline; gap:9px;
         text-align:left; width:100%; padding:8px 10px; border-radius:var(--r);
-        border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-        background:${on ? 'rgba(217,178,106,.10)' : 'transparent'}">
-        <span style="color:${on ? 'var(--gold-lit)' : 'var(--ink)'}; font-size:13px">${esc(e.title)}</span>
+        border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
+        background:transparent; border-left:2px solid ${on ? 'var(--ink-bright)' : 'transparent'}">
+        <span style="color:${on ? 'var(--ink-bright)' : 'var(--ink)'}; font-size:13px">${esc(e.title)}</span>
         <span class="tag" style="opacity:.7">${esc(e.entryType)}</span>
         <span style="margin-left:auto; font-size:11px; color:var(--faint)">${esc(e.storyTitle)}</span>
       </button>`;
@@ -7328,7 +7329,7 @@ function storyCard(s, i, hero) {
       <span class="fade"></span>
       <span style="position:absolute; top:12px; left:14px; display:flex; gap:5px; flex-wrap:wrap;
         max-width:70%">${tags.map((t) => `<span class="tag" style="background:rgba(10,9,12,.6);
-        ${gold ? 'border-color:rgba(217,178,106,.35); color:var(--gold)' : ''}">${esc(t)}</span>`).join('')}</span>
+        ${gold ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : ''}">${esc(t)}</span>`).join('')}</span>
       ${hero ? '<span class="tag" style="position:absolute; top:12px; right:14px; background:rgba(10,9,12,.6)">Last written</span>' : ''}
       <!-- #18 §5. A BOOK PINNED TO A MODEL THE ROUTER NO LONGER SERVES IS BROKEN AND SAYS SO HERE.
            The preset list was renamed on 2026-08-27 and the old ids answer 400, and modelOptions
@@ -7462,7 +7463,7 @@ const WPAGES = {
         return `<div class="card" style="gap:0; padding:0; overflow:hidden">
           <button data-forgeopen="${esc(f.key)}" style="display:flex; align-items:baseline; gap:11px;
             width:100%; text-align:left; padding:13px 15px; background:transparent">
-            <span style="font-size:14.5px; color:${open ? 'var(--gold-lit)' : 'var(--ink-bright)'}">${esc(f.title)}</span>
+            <span style="font-size:14.5px; color:var(--ink-bright)">${esc(f.title)}</span>
             <span style="flex:1; min-width:0; font-size:11.5px; color:var(--faint); overflow:hidden;
               text-overflow:ellipsis; white-space:nowrap">${esc(f.what)}</span>
             <span style="flex:0 0 auto; font-size:11px; letter-spacing:.12em; color:var(--label);
@@ -7541,7 +7542,7 @@ const WPAGES = {
           <button class="btn ghost" data-blank="1">Start blank</button>
           <button class="btn ghost" data-nav="import">Import a tale or a character card</button>
           ${asleep ? `<button class="btn ghost" data-nav="prefs"
-            style="border-color:var(--gold-dim); color:var(--gold-dim)">Wake the model first</button>` : ''}
+            style="border-color:var(--warn); color:var(--warn)">Wake the model first</button>` : ''}
         </div>
         <span style="font-size:11.5px; line-height:1.6; color:var(--faint); max-width:560px">${asleep
           ? 'The model is asleep, so sparking will take a moment while it loads. Nothing here leaves the machine.'
@@ -7743,8 +7744,8 @@ const WPAGES = {
     // One map, in web/model.js — #21's wizard offers the same four and two lists would drift on
     // the first rename.
     const LKIND_LABEL = { all: 'Everything', ...KIND_PLURAL };
-    const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-      background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
+    const chip = (on) => `border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
+      background:transparent; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}`;
     return `<div class="split" style="gap:28px">
       <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px">
         <!-- Search on its OWN line and left aligned, at Seth's direction 2026-08-29. It was pushed
@@ -10014,7 +10015,7 @@ document.addEventListener('click', async (e) => {
     // S.tips on the next repaint either way, and these two lines are only what keeps it right in
     // between. Nothing here is the state.
     t.setAttribute?.('aria-expanded', String(now));
-    if (t.style) t.style.color = now ? 'var(--gold)' : 'var(--faint)';
+    if (t.style) t.style.color = now ? 'var(--ink-bright)' : 'var(--faint)';
     return;
   }
   // The chapter list inside a passage's tray. Toggled per passage rather than globally, so opening
@@ -13318,8 +13319,8 @@ function atDraw() {
   l.innerHTML = foot + AT.items.map((it, i) => `
     <button data-atpick="${i}" aria-selected="${i === AT.sel}" style="display:flex; align-items:baseline;
       gap:8px; width:100%; text-align:left; padding:8px 10px; border-radius:var(--r);
-      background:${i === AT.sel ? 'rgba(217,178,106,.10)' : 'transparent'};
-      color:${i === AT.sel ? 'var(--gold-lit)' : 'var(--ink)'}; font-size:13px">
+      background:transparent; border-left:2px solid ${i === AT.sel ? 'var(--ink-bright)' : 'transparent'};
+      color:${i === AT.sel ? 'var(--ink-bright)' : 'var(--ink)'}; font-size:13px">
       <span>${esc(it.label)}</span>
       <span style="margin-left:auto; font-size:11px; letter-spacing:.08em;
         text-transform:uppercase; color:var(--faint)">${esc(({ chapter: 'scene', book: 'tale' })[it.kind] ?? it.kind)} \u00b7 ${esc(it.where)}</span>
