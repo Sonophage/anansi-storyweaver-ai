@@ -370,10 +370,16 @@ const rooms = (e: Entry, at: number, window: string): string[] =>
  *  Nothing is lost by replacing: every state row stays in entry_states, entry_revisions logs field
  *  changes with a revert, and the surface shows the timeline. Only the PROMPT sees one.
  */
+/** #78 · THE OVER TIME ENTRY IN FORCE AT A SCENE: the latest to have opened, or undefined when none
+ *  has and the thread's own text (where it stands from scene 1) is. The one rule for it: the model
+ *  is sent through `resolveBody`, and the screens are told through the story view's `nowStateId`. */
+export const stateInForce = (e: Entry, chapter: number) =>
+  [...(e.states ?? [])].sort((a, b) => a.fromChapter - b.fromChapter).filter((s) => s.fromChapter <= chapter).at(-1);
+
 export function resolveBody(e: Entry, chapter: number): string {
   if (!e.states?.length) return e.body;
   const ordered = [...e.states].sort((a, b) => a.fromChapter - b.fromChapter);
-  const inForce = ordered.filter((s) => s.fromChapter <= chapter).at(-1);
+  const inForce = stateInForce(e, chapter);
   const hints = ordered
     .filter((s) => s.fromChapter > chapter && s.beforeMode === 'hint')
     .map((s) => s.label?.trim() || 'something here is not yet known');

@@ -95,8 +95,6 @@ for (const t of ['card', 'rooms', 'time', 'more']) {
   await press(MAREK);
   await press('[data-cardview="form"]');
   if (t !== 'card') await press(`[data-cardtab="${t}"]`);
-  // Over time is a fold, shut by default: open it, or the tab shows only its heading.
-  // #78: Over time is the tab itself now, with no fold to open.
   await snap(`s-entry-${t}`, '#sideBody');
 }
 

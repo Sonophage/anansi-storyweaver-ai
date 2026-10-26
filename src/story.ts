@@ -1,6 +1,6 @@
 // Story service. Maps database rows to the engine's plain-object Input and back.
 // The engine never sees a row; the routes never see SQL.
-import { buildContext } from './context.ts';
+import { buildContext, stateInForce } from './context.ts';
 import type { Input, Entry } from './context.ts';
 import { render, entryText, SYSTEM } from './render.ts';
 import { SLOTS } from './slots.ts';
@@ -201,6 +201,10 @@ export function view(storyId: string, focusChapterId?: string) {
       return w ? { id: w.id, title: w.title } : null; })(),
     entries: db.entriesFor(storyId).map((e: any) => ({
       ...toEntry(e, states.get(e.id) ?? []),
+      // #78. Which Over time entry is in force at the scene this view is opened at, by the rule the
+      // model is sent by, so "where it stands now" on screen cannot be a different entry.
+      nowStateId: stateInForce(toEntry(e, states.get(e.id) ?? []),
+        (chapters.find((c) => c.id === focusChapterId) ?? chapters.at(-1))?.index ?? 1)?.id ?? null,
       // Reads through `db.outfitsOf`, which is the `outfit` slot of `addons` — see the note there.
       outfits: outfits.filter((o: any) => o.entry_id === e.id)
         .map((o: any) => ({ id: o.id, name: o.name, body: o.body, active: !!o.active })),

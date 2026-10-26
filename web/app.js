@@ -5928,6 +5928,16 @@ function connections(e) {
       <button class="btn ghost" data-link="1" style="margin-top:8px">Stitch together</button>` : ''}`);
 }
 
+/** #78 · WHERE A THREAD STANDS AT THE SCENE THIS TALE IS OPEN AT: the Over time entry in force there,
+ *  or null when none has opened and the thread's own text (where it stands from scene 1) is. The
+ *  SERVER decides it (`nowStateId`, by `context.stateInForce`, the rule the model is sent by), so
+ *  this is a lookup and never a second copy of that rule. */
+const standsNow = (e) => (e.states ?? []).find((s) => s.id === e.nowStateId) ?? null;
+/** "Now" is the scene the tale is open at: the open scene, or an earlier one opened to revise it,
+ *  where "now" would mislead, so that one is named. */
+const nowWords = () => (V?.currentChapter && V.currentChapter.status !== 'open'
+  ? `Where it stands in ${sceneName(V.currentChapter)}` : 'Where it stands now');
+
 function cardFace(e, slots) {
   /* A FOLLOWED CARD. Issue #36, and what changed on 2026-09-01.
    *
@@ -6058,7 +6068,7 @@ function cardFace(e, slots) {
       // WHERE IT STANDS NOW (#78): the Over time entry in force at this scene, or the thread's own
       // text when none has opened. Info was the base text alone, which a later entry replaces.
       const st = standsNow(e);
-      return `<div class="lbl" style="letter-spacing:.1em; margin:8px 0 4px">Where it stands now${
+      return `<div class="lbl" style="letter-spacing:.1em; margin:8px 0 4px">${esc(nowWords())}${
         st ? ` <span style="opacity:.6">&middot; from scene ${esc(String(st.fromChapter))}</span>` : ''}</div>
     <button class="readbody" data-cardview="form" aria-label="Alter where ${esc(e.title)} stands now">${
       esc(unbracket(st ? st.body : e.body, e.title) || 'Nothing written down yet.')}</button>`;
@@ -6128,8 +6138,27 @@ function readMenu(e) {
   </div>`;
 }
 
+/** A SECTION BEHIND ITS OWN NAME, SHUT. Seth, 2026-08-30: "the over time and the brings in with
+ *  it and another book should be toggle and defaulted as off." Over time has been a tab of its own
+ *  since, and since #78 it is that tab's whole content, so it is no fold: the two left are these.
+ *
+ *  Both answer a question you are not usually asking. Connections are what this card drags in
+ *  behind it, and Another book is a copy into a different story — neither is why you opened a card.
+ *  The same <details> the add tray uses, so there is one folding idiom on this screen and not two.
+ *
+ *  IT REMEMBERS, and that is not a nicety. A section with a help mark in it repaints on a press of
+ *  help — so a fold with no memory would shut the section the moment you asked it what it was
+ *  for. The native toggle and the repaint agree rather than fight: the click opens the element AND
+ *  flips S.folds, and the paint that follows renders the same state back.
+ *  The help mark sits in the BODY and not in the summary for the same reason from the other side:
+ *  a press on it inside the summary toggles the fold natively too, and the repaint would then
+ *  disagree with what the DOM just did. */
+const foldSection = (name, label, body) => `<details class="fold" style="margin-top:16px"
+  ${S.folds?.[name] ? 'open' : ''}>
+  <summary data-fold="${esc(name)}" style="letter-spacing:.1em">${label}</summary>${body}</details>`;
+
 /** ONE ROOM'S EDITOR, AND NOTHING WHEN THE ROOM IS EMPTY. Split out of the form's slot loop on
- *  2026-08-30 so facts can be drawn above Info while every other slot is drawn in place — two
+ *  2026-08-30 so Always true (the `facts` slot) can be drawn above where the thread stands while every other slot is drawn in place — two
  *  copies of this markup is exactly the drift this file keeps writing comments about.
  *
  *  The body GROWS, like the card's own. Seth: "the text in edit should fit whats in there or have
@@ -6137,35 +6166,6 @@ function readMenu(e) {
  *  of a room that routinely runs to five; growFields() has been in this file since the card body
  *  had the same complaint and it walks every textarea.grow in the panel, so this is the class and
  *  a ceiling, not a second mechanism. */
-/** A SECTION BEHIND ITS OWN NAME, SHUT. Seth, 2026-08-30: "the over time and the brings in with
- *  it and another book should be toggle and defaulted as off."
- *
- *  All three answer a question you are not usually asking. Over time is the timeline, connections
- *  are what this card drags in behind it, and Another book is a copy into a different story — none
- *  of them is why you opened a card, and together they were most of the scroll under the rooms.
- *  The same <details> the add tray uses, so there is one folding idiom on this screen and not two.
- *
- *  IT REMEMBERS, and that is not a nicety. Over time carries a help mark, and pressing help
- *  repaints — so a fold with no memory would shut the section the moment you asked it what it was
- *  for. The native toggle and the repaint agree rather than fight: the click opens the element AND
- *  flips S.folds, and the paint that follows renders the same state back.
- *  The help mark sits in the BODY and not in the summary for the same reason from the other side:
- *  a press on it inside the summary toggles the fold natively too, and the repaint would then
- *  disagree with what the DOM just did. */
-/** #78 · WHERE A THREAD STANDS AT THE SCENE BEING WRITTEN: the latest Over time entry that has
- *  opened, or null when none has and the thread's own text (where it stands from scene 1) is in
- *  force. The rule `context.resolveBody` sends to the model, read here so the screen shows the
- *  text the model is sent. Hints are the model's business and are left out. */
-function standsNow(e) {
-  const at = V?.currentChapter?.index ?? 1;
-  return [...(e.states ?? [])].filter((s) => s.fromChapter <= at)
-    .sort((a, b) => a.fromChapter - b.fromChapter).at(-1) ?? null;
-}
-
-const foldSection = (name, label, body) => `<details class="fold" style="margin-top:16px"
-  ${S.folds?.[name] ? 'open' : ''}>
-  <summary data-fold="${esc(name)}" style="letter-spacing:.1em">${label}</summary>${body}</details>`;
-
 /** `live` picks one half of a slot: true for the rooms that are on, false for the ones that are
  *  not, null for both. `anchor` is which of the two headings carries the jump link — the ON one
  *  when the slot has any, or the OFF one when it does not, so every link in the head still lands
@@ -6255,7 +6255,7 @@ function addTray(e, slots) {
 }
 
 /** THE FORM IS TABBED, 2026-09-02 handoff. Every field, every write and every rule it had is still
- *  here — facts above Info, the data-slotat jump targets, the wardrobe's one-at-a-time wearing, the
+ *  here — Always true above where it stands, the data-slotat jump targets, the wardrobe's one-at-a-time wearing, the
  *  red warning on a triggered card with no trigger words. What changed is how much is on screen at
  *  once: a character with eight rooms, a wardrobe, states and a field history is a form you scroll
  *  for a while to find out what is in it.
@@ -6414,8 +6414,8 @@ function entryEditor() {
       // from scene 1 is edited as the first row of Over time. One box for each, never two.
       const st = standsNow(e);
       const mark = tipMark('cardBody', 'Where it stands now');
-      return `${st ? `<label class="lbl" for="f-card-now">Where it stands now <span style="opacity:.6">&middot; from scene ${
-        esc(String(st.fromChapter))}</span>${mark}</label>` : `<label class="lbl" for="f-card-body">Where it stands now${mark}</label>`}
+      return `${st ? `<label class="lbl" for="f-card-now">${esc(nowWords())} <span style="opacity:.6">&middot; from scene ${
+        esc(String(st.fromChapter))}</span>${mark}</label>` : `<label class="lbl" for="f-card-body">${esc(nowWords())}${mark}</label>`}
     ${tipCard('cardBody', 'Where it stands now', `<p>What the model is sent about where this thread
       is now, after Always true. Hemming a scene offers a new one when the scene changes it, dated
       by the scene, and Over time keeps every one. Bracket form keeps it short:
@@ -6423,7 +6423,9 @@ function entryEditor() {
     ${st ? `<textarea class="field grow" id="f-card-now" data-f="now" data-nowstate="${esc(st.id)}"
       style="min-height:150px; max-height:52vh">${esc(st.body ?? '')}</textarea>` : ''}`;
     })()}
-    <!-- GROWS. It was a fixed 96px box, and an invented thread's body went from 60-120 words to
+    <!-- GROWS, the box for where the thread stands from scene 1 when no later entry is in force
+         (when one is, this box is the first row of Over time). It was a fixed 96px box, and an
+         invented thread's body went from 60-120 words to
          120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
          sign there was more. Measured: 656 characters, 94px of box, 283px of content. Nothing was
          lost, it scrolled, and it read as cut off, which is what Seth reported. Capped so a very
@@ -6603,23 +6605,26 @@ function entryEditor() {
        * and the scene-1 text is edited here while a later entry is in force: one box each. */
       const now = standsNow(e);
       const rows = [...(e.states ?? [])].sort((a, b) => a.fromChapter - b.fromChapter);
+      // The card format is `[Name: trait, trait; trait]`, so a part is what lies between commas,
+      // semicolons or lines. Only what was ADDED is marked: a part dropped since the row before is
+      // not, and the row before is the one listed above, hidden or not.
       const parts = (t) => String(t ?? '').trim().replace(/^\[|\]$/g, '').replace(/^[^:;\[\]]{1,60}:\s*/, '')
-        .split(/[;\n]/).map((x) => x.trim()).filter(Boolean);
+        .split(/[;,\n]/).map((x) => x.trim()).filter(Boolean);
       const fresh = (t, before) => { const was = new Set(parts(before).map((x) => x.toLowerCase()));
         return parts(t).filter((x) => !was.has(x.toLowerCase())); };
       const newLine = (t, before) => { const n = fresh(t, before);
         return n.length ? `<div style="font-size:11.5px; line-height:1.45; color:var(--gold)">New: ${esc(n.join('; '))}</div>` : ''; };
       const readOnly = (t) => `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(unbracket(t, e.title))}</div>
-        <div class="hint" style="margin:0">Where it stands now, so it is edited on The thread.</div>`;
+        <div class="hint" style="margin:0">${esc(nowWords())}, so it is edited on The thread.</div>`;
       const first = `<div class="card" data-otrow="1" style="margin-bottom:8px; gap:7px">
-        <div class="lbl" style="letter-spacing:.1em; margin:0">From scene 1${now ? '' : ' &middot; where it stands now'}</div>
+        <div class="lbl" style="letter-spacing:.1em; margin:0">From scene 1${now ? '' : ` &middot; ${esc(nowWords().toLowerCase())}`}</div>
         ${now ? `<textarea class="field grow" id="f-card-body" data-f="body" aria-label="Where it stands from scene 1"
           style="margin:0; min-height:56px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(e.body ?? '')}</textarea>`
           : readOnly(e.body)}</div>`;
       const later = rows.map((st, k) => {
         const before = k ? rows[k - 1].body : e.body;
         const head = `<div class="lbl" style="letter-spacing:.1em; margin:0">Scene ${esc(String(st.fromChapter))}${
-          st.label ? ` &middot; ${esc(st.label)}` : ''}${now?.id === st.id ? ' &middot; where it stands now' : ''}</div>`;
+          st.label ? ` &middot; ${esc(st.label)}` : ''}${now?.id === st.id ? ` &middot; ${esc(nowWords().toLowerCase())}` : ''}</div>`;
         // THE ONE IN FORCE keeps every control but its text, which is The thread's box: its scene,
         // its hint and its label are edited here, and Save here reads the text from there.
         const mine = now?.id === st.id;
@@ -10079,7 +10084,8 @@ document.addEventListener('click', async (e) => {
   // unfolded and on screen. Earlier versions are fetched on the way, which is what the form's own
   // button does; everything else is already in the view.
   if (d.readgo) {
-    const to = { time: ['time', 'states', '[data-fold="states"]'], edges: ['more', 'edges', '[data-fold="edges"]'],
+    // Over time is its tab's whole content since #78, so it has no fold to open: the tab is enough.
+    const to = { time: ['time', null, null], edges: ['more', 'edges', '[data-fold="edges"]'],
       copy: ['more', 'copy', '[data-fold="copy"]'], history: ['more', null, '[data-fieldhistory]'],
       json: ['more', null, '#f-card-json'], rooms: ['rooms', null, null] }[d.readgo];
     if (!to) return;
@@ -10734,19 +10740,25 @@ document.addEventListener('click', async (e) => {
     // Same reason as the chips: the writer is looking at the entry. Emptying the keys box and
     // saving leaves it triggered-and-dark, which the hint below now says out loud — better than
     // silently switching it always-on and changing what every call sends without being asked.
+    // WHERE IT STANDS NOW (#78), when a later Over time entry is the one in force: that entry, saved
+    // FIRST and whole — its text from The thread's box, its scene, hint and label from its row in
+    // Over time — so a refusal leaves nothing half-saved. Then the thread itself.
+    const nowBox = document.querySelector('[data-f="now"]');
+    const st = nowBox && (e.states ?? []).find((x) => x.id === nowBox.dataset.nowstate);
+    if (st) {
+      const f = (a) => document.querySelector(`[data-${a}="${st.id}"]`);
+      if ([nowBox, f('stf'), f('stm'), f('stl')].some((el) => el && el.value !== (el.tagName === 'SELECT'
+        ? [...el.options].find((o) => o.defaultSelected)?.value : el.defaultValue))) {
+        const r2 = await api.saveState(S.storyId, e.id, { id: st.id, fromChapter: Number(f('stf')?.value) || st.fromChapter,
+          body: nowBox.value, beforeMode: f('stm')?.value ?? st.beforeMode, label: (f('stl')?.value ?? st.label) || null });
+        if (r2.error) return toast(`Not saved. ${r2.error}`);
+      }
+    }
     const r = await api.saveEntry(S.storyId, { ...e, id: e.id, title: get('title') ?? e.title,
       body: get('body') ?? e.body, notes: get('notes') ?? e.notes, keys, allowNoKeys: true });
     // REFUSED IS SAID, and the form stays as it is: what was typed is still there to fix or keep.
-    if (r.error) return toast(/not saved/i.test(r.error) ? r.error : `Not saved. ${r.error}`);
-    // WHERE IT STANDS NOW (#78), when a later Over time entry is the one in force: that entry, saved
-    // with the rest. Everything else about it is kept as it is; the box is only its text.
-    const nowBox = document.querySelector('[data-f="now"]');
-    const st = nowBox && (e.states ?? []).find((x) => x.id === nowBox.dataset.nowstate);
-    if (st && nowBox.value !== nowBox.defaultValue) {
-      const r2 = await api.saveState(S.storyId, e.id, { id: st.id, fromChapter: st.fromChapter,
-        body: nowBox.value, beforeMode: st.beforeMode, label: st.label ?? null });
-      if (r2.error) return toast(`Not saved. ${r2.error}`);
-    }
+    if (r.error) return toast(`${st ? 'Where it stands now was saved; the rest was not. ' : ''}${
+      /not saved/i.test(r.error) ? r.error : `Not saved. ${r.error}`}`);
     // SAVED GOES BACK TO READ (v2 redesign): Cancel and Save are the two ways out of the form, and
     // the thread you just wrote is the thing to look at next.
     S.cardView = null; S.keyDraft = null;
@@ -11044,7 +11056,7 @@ document.addEventListener('click', async (e) => {
   if (d.addstate) {
     const get = (f) => document.querySelector(`[data-st="${f}"]`)?.value;
     const from = Number(get('fromChapter'));
-    if (!from || !String(get('body') ?? '').trim()) return toast('A scene number and a body, at least.');
+    if (!from || !String(get('body') ?? '').trim()) return toast('A scene number and where it stands, at least.');
     const r = await api.saveState(S.storyId, S.entryId,
       { fromChapter: from, body: get('body'), beforeMode: get('beforeMode'), label: get('label') || null });
     if (r.error) return toast(r.error);
@@ -11056,7 +11068,7 @@ document.addEventListener('click', async (e) => {
     // The entry in force has its text in The thread's box (#78), not here.
     const body = get('stb') ?? get('nowstate');
     const from = Number(get('stf'));
-    if (!from || !String(body ?? '').trim()) return toast('A scene number and a body, at least.');
+    if (!from || !String(body ?? '').trim()) return toast('A scene number and where it stands, at least.');
     const r = await api.saveState(S.storyId, S.entryId, { id: d.savestate, fromChapter: from,
       body, beforeMode: get('stm'), label: get('stl') || null });
     if (r.error) return toast(r.error);

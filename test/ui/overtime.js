@@ -71,4 +71,28 @@ ok(`  scene 2 carries its label and what it changed (${JSON.stringify(time.two.s
    time.two.includes('owes the crowns') && /new:?[^\\n]*owed twelve crowns/.test(time.two));
 ok("  and no Info", !/\binfo\b/.test(time.all));
 
+// ---- Save on the header saves the in-force entry whole: its label from its row here, too
+await page.eval(`(() => { const l = document.querySelector('[data-stl="${two.id}"]'); if (!l) return 0;
+  l.value = 'owes twelve'; l.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+await page.eval("(() => { document.querySelector('#sideHead [data-saveentry]')?.click(); return 1; })()");
+await wait(1200);
+v = await view(sid);
+ok("Save keeps the in-force entry's row in step: its label is saved too",
+   v.entries.find((e) => e.id === marek.id).states.find((s) => s.id === two.id)?.label === 'owes twelve');
+
+// ---- At scene 1, before the scene 2 entry opens, he stands where he stood from scene 1
+const one = v.chapters.find((c) => c.index === 1);
+await page.eval(`(() => { document.querySelector('[data-chapter="${one.id}"]')?.click(); return 1; })()`);
+await until(`(document.querySelector('#col')?.innerText ?? '').length > 0`, 20);
+await wait(800);
+// BY A PRESS, not by the address: the scene opened is not in the address, and loading it would
+// open the tale at its newest scene again.
+await page.eval(`(() => { document.querySelector('[data-panel="threads"], [data-nav="threads"]')?.click(); return 1; })()`);
+await until(`!!document.querySelector('[data-entry="${marek.id}"]')`);
+await page.eval(`(() => { document.querySelector('[data-entry="${marek.id}"]').click(); return 1; })()`);
+await until("!!document.querySelector('#sideBody .readface')");
+const early = (await text('#sideBody .readface')).toLowerCase();
+ok(`at scene 1 it is the scene 1 text, under the scene's name (${JSON.stringify(early.slice(0, 140))})`,
+   early.includes('where it stands in') && !early.includes('owed twelve crowns') && !early.includes('from scene 2'));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

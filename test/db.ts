@@ -3401,4 +3401,26 @@ ok('Always true is one row per thread, written switched on, whoever writes it', 
   assert.strictEqual(db.updatesOf(t.id).length, lines, '  so a later boot finds nothing to switch on, and reports nothing');
 });
 
+// #78 · ONE ANSWER TO "WHERE DOES IT STAND NOW". The screen showed the Over time entry in force by a
+// rule of its own beside the one the model is sent by (`context.resolveBody`). The view carries the
+// engine's answer instead, for the scene it is opened at, and this holds the two to one.
+{
+  const { resolveBody } = await import('../src/context.ts');
+  const t = db.createStory(o, { title: 'Now', premise: 'p' }) as any;
+  db.endChapter(t.id, t.branchId); db.endChapter(t.id, t.branchId);
+  db.upsertEntry(t.id, o, { id: 'e-now', title: 'Ada', body: '[Ada: at scene one]', entryType: 'character' });
+  db.upsertState(t.id, 'e-now', { fromChapter: 2, body: '[Ada: from scene two]', label: 'two' });
+  db.upsertState(t.id, 'e-now', { fromChapter: 5, body: '[Ada: from scene five]', label: 'five' });
+  const chs = db.chapters(t.id) as any[];
+  for (const [ch, want] of [[chs[0], null], [chs[1], 'two'], [chs[2], 'two']] as const) {
+    const v: any = storyMod.view(t.id, ch.id);
+    const e = v.entries.find((x: any) => x.id === 'e-now');
+    const st = e.states.find((x: any) => x.id === e.nowStateId);
+    assert.strictEqual(st?.label ?? null, want, `NOW-AT: at scene ${ch.idx} the entry in force is ${want ?? 'the scene 1 text'}`);
+    assert.strictEqual(st ? st.body : e.body, resolveBody(e, v.currentChapter.index),
+      `NOW-IS-SENT: and it is the text the model is sent at scene ${ch.idx}`);
+  }
+  console.log('  ok  the view names the Over time entry in force at its scene, the one the model is sent');
+}
+
 console.log(`\n${n} checks passed`);
