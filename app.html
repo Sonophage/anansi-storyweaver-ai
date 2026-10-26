@@ -1842,7 +1842,9 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 .bandmeter { display:flex; gap:4px; width:150px; height:4px; }
 .bandmeter > i { flex:1; border-radius:2px; background:rgba(255,255,255,.22); }
 .bandmeter > i.done { background:#fff; }
-.resumeband > .glass { position:relative; display:flex; flex-direction:column; gap:6px; margin-top:14px;
+/* Not a control, so a press on it falls through to the picture, which opens the tale: the whole
+   hero is one door except Carry on writing. */
+.resumeband > .glass { pointer-events:none; position:relative; display:flex; flex-direction:column; gap:6px; margin-top:14px;
   padding:14px 16px; border-radius:16px; background:rgba(4,6,12,.4); border:1px solid rgba(255,255,255,.14);
   -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
 .resumeband .quote { font-style:italic; font-size:16px; line-height:1.5; color:rgba(255,255,255,.94);
