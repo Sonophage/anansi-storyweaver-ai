@@ -26,7 +26,8 @@ const flFake = createServer((req, res) => {
   res.end(req.url === '/v1/models' ? JSON.stringify({ data: [
     { id: 'someone/Small-heretic', model_class: 'qwen3_5moe-35b', context_length: 32768, concurrency_cost: 2 },
     { id: 'someone/Whole-Plan-70B-abliterated', model_class: 'llama33-70b', context_length: 32768,
-      concurrency_cost: 4 }] }) : '{}');
+      concurrency_cost: 4 },
+    { id: 'someone/Tiny-Ctx-heretic', model_class: 'llama3-8b', context_length: 4096, concurrency_cost: 1 }] }) : '{}');
 });
 await new Promise<void>((r) => flFake.listen(0, '127.0.0.1', r));
 flFake.unref();
@@ -1717,38 +1718,37 @@ async function bootServer(port: number, env: Record<string, string>) {
   assert.deepStrictEqual(await ids(alice), [], 'alice can remove her own');
   ok("a writer's shortlist is unreachable from another writer's account, through all three routes");
 
-  // THE CATALOGUE SEARCH. It holds nothing of anyone's, so the two-owner question is the admin one:
-  // the model that takes the whole plan is shown to the admin and to nobody else.
+  // THE CATALOGUE SEARCH. It holds nothing of anyone's, so the two-owner question is whether the
+  // admin and a writer who is not are shown the same models. They are since 2026-10-25, when Seth
+  // opened the models that take the whole plan to every writer; only the context floor refuses.
   assert.ok(OPEN_ROUTES.has('GET /api/catalogue'), 'the search names no story, so it is open');
   const seen = async (admin: boolean) => {
     const r: any = await routes['GET /api/catalogue']({ ...ctx(bob), admin });
     assert.ok(!r.error, r.error);
-    return r.models.map((m: any) => m.id);
+    return r.models.map((m: any) => m.id).sort();
   };
-  assert.ok((await seen(true)).includes('featherless:someone/Whole-Plan-70B-abliterated'),
-    'the admin is shown the 4-unit model');
-  assert.deepStrictEqual(await seen(false), ['featherless:someone/Small-heretic'],
-    'a writer who is not the admin is never shown it');
-  ok('the catalogue search is open, and shows a 4-unit model to the admin alone');
+  const WHOLE = 'featherless:someone/Whole-Plan-70B-abliterated', SMALL = 'featherless:someone/Small-heretic',
+    TINY = 'featherless:someone/Tiny-Ctx-heretic';
+  assert.deepStrictEqual(await seen(false), [SMALL, WHOLE].sort(),
+    'a writer who is not the admin is shown the 4-unit model, and not the one under the floor');
+  assert.deepStrictEqual(await seen(true), await seen(false), 'and the admin is shown the same');
+  ok('the catalogue search is open, and shows every writer the same models');
 
-  // DESCRIBING A MODEL: the tags of a page of rows, and one expanded card. The same unit gate,
-  // so a model the search hides cannot be found out through its description — and the hub is not
-  // even asked about it.
-  const WHOLE = 'featherless:someone/Whole-Plan-70B-abliterated', SMALL = 'featherless:someone/Small-heretic';
+  // DESCRIBING A MODEL: the tags of a page of rows, and one expanded card. The same refusal as the
+  // search, so a model the search hides cannot be found out through its description — and the hub
+  // is not even asked about it.
   for (const r of ['POST /api/catalogue/tags', 'GET /api/catalogue/card'])
-    assert.ok(OPEN_ROUTES.has(r), `${r} names no story, so it is open and asks the unit question itself`);
-  const describe = (admin: boolean) => ({
-    tags: async () => (await routes['POST /api/catalogue/tags']({ ...ctx(bob, { models: [WHOLE, SMALL] }), admin }) as any).tags,
-    card: async () => routes['GET /api/catalogue/card']({ ...ctx(bob), query: new URLSearchParams({ model: WHOLE }), admin }) as any,
-  });
+    assert.ok(OPEN_ROUTES.has(r), `${r} names no story, so it is open and asks the floor question itself`);
+  const card = (model: string) =>
+    routes['GET /api/catalogue/card']({ ...ctx(bob), query: new URLSearchParams({ model }) }) as any;
   hubAsked.length = 0;
-  assert.deepStrictEqual(Object.keys(await describe(false).tags()), [SMALL], 'a writer gets tags for what they are shown');
-  assert.ok((await describe(false).card()).error, "and cannot expand the 4-unit model's card");
-  assert.ok(!hubAsked.some((p) => p.includes('Whole-Plan')), 'and the hub is never asked about it for them');
-  assert.ok(Object.keys(await describe(true).tags()).includes(WHOLE), 'the admin gets its tags');
-  assert.ok(!(await describe(true).card()).error, 'and its card');
-  assert.ok(hubAsked.some((p) => p.includes('Whole-Plan')), 'which the hub was asked for, so the refusal above was the gate');
-  ok('describing a catalogue model holds the same unit gate as the search');
+  const tags = (await routes['POST /api/catalogue/tags'](ctx(bob, { models: [WHOLE, SMALL, TINY] })) as any).tags;
+  assert.deepStrictEqual(Object.keys(tags).sort(), [SMALL, WHOLE].sort(), 'a writer gets tags for what they are shown');
+  assert.ok((await card(TINY)).error, "and cannot expand the card of a model under the floor");
+  assert.ok(!hubAsked.some((p) => p.includes('Tiny-Ctx')), 'and the hub is never asked about it');
+  assert.ok(!(await card(WHOLE)).error, "the 4-unit model's card expands for them");
+  assert.ok(hubAsked.some((p) => p.includes('Whole-Plan')), 'which the hub was asked for, so the refusal above was the floor');
+  ok('describing a catalogue model holds the same refusal as the search');
 }
 
 // ---- A NEW CARD'S DESCRIPTION LANDS IN `facts`, NOT IN THE BODY (issue #39, 2026-09-01).

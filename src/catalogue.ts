@@ -56,22 +56,18 @@ export const catalogueEntry = async (featherlessId: string) =>
  *  that does not say what it holds is under the floor too: budgeting needs the number. */
 const MIN_CONTEXT = 16_384;
 
-/** THE PLAN IS 4 UNITS, and every model either writer uses must leave room for the other: at most
- *  half, 2 units. A 4-unit model took the whole plan, and a 3-unit one leaves a single unit, which
- *  no 2-unit model fits in. Only the admin, who pays for the plan, may choose one (Seth,
- *  2026-10-24, putting Kimi K2.5 back); while it runs, the other writer waits. For every other
- *  writer a row that does not say its cost is treated as the worst case — the gate fails closed. */
-const HALF_PLAN = 2;
-
-/** Why `row` cannot go on this writer's shortlist, or null when it can. ONE PREDICATE for the
- *  search and the add, so the search never offers what the add would refuse. */
-export function refusal(row: CatalogueRow, admin: boolean): string | null {
+/** THE PLAN IS 4 UNITS, and every writer may choose a model that takes all of them (Seth,
+ *  2026-10-25, opening them to Kia). Until then only the admin could, and every other writer was
+ *  held to half the plan so the other could always write. While a 3- or 4-unit model runs, the
+ *  other writer's call is refused with a 429: it waits through the retries in `llama.ts` and is
+ *  then told Featherless is busy. That wait is the price, and it was chosen.
+ *
+ *  Why `row` cannot go on a shortlist, or null when it can. ONE PREDICATE for the search and the
+ *  add, so the search never offers what the add would refuse. */
+export function refusal(row: CatalogueRow): string | null {
   if (!row.context || row.context < MIN_CONTEXT)
     return `this model holds ${row.context ? row.context.toLocaleString('en') : 'an unknown number of'}`
       + ` tokens, and Anansi needs at least ${MIN_CONTEXT.toLocaleString('en')}`;
-  if (!admin && (row.cost == null || row.cost > HALF_PLAN))
-    return 'this model uses more than half the Featherless plan, so the other writer could not '
-      + 'write while it runs';
   return null;
 }
 
@@ -167,9 +163,9 @@ export const RESULT_CAP = 100;
 /** `tagsOf` answers a repo's tags from the tag index, or undefined for one not read yet; it is
  *  handed in so this stays pure. With a `tag` in the query the answer says how much of the search
  *  the index has read (`tagIndex`), and which repos it still has to read (`unread`, for the route). */
-export function search(rows: CatalogueRow[], q: Query, admin: boolean, prefix: string,
+export function search(rows: CatalogueRow[], q: Query, prefix: string,
   tagsOf: (repo: string) => string[] | undefined = () => undefined) {
-  const open = rows.filter((r) => !refusal(r, admin));
+  const open = rows.filter((r) => !refusal(r));
   const text = (q.text ?? '').trim().toLowerCase();
   const tag = (q.tag ?? '').trim().toLowerCase();
   const candidates = open

@@ -26,8 +26,8 @@ process.env.ANANSI_FEATHERLESS_BACKOFF_MS = '10,10,10';
 const REMOTE = 'llmfan46/Qwen3.6-35B-A3B-uncensored-heretic';
 const SMALL = 'someone/Tiny-Ctx-heretic';
 const NOT_LISTED = 'nobody/Not-In-The-Catalogue';
-// Takes the whole plan: the admin alone may add it. Uncensored, so the default search would show it
-// to anyone without the gate.
+// Takes the whole plan. Every writer may add it since 2026-10-25; uncensored, so the default search
+// shows it.
 const BIG = 'mlabonne/Llama-3.3-70B-Instruct-abliterated';
 // Guessed "can switch" from its class, and plans anyway when asked not to: the probe's case.
 const STUBBORN = 'liar/Gemma-4-31B-UNCENSORED';
@@ -871,8 +871,8 @@ const mark = () => ({ fl: fl.length, local: local.length });
 
 // ---- 12. the search: uncensored by default, filters that combine, the floor, the sort ----
 {
-  const find = async (query = '', admin = false) => {
-    const c = ctx(me, {}, query); c.admin = admin;
+  const find = async (query = '') => {
+    const c = ctx(me, {}, query);
     const r = await routes['GET /api/catalogue'](c);
     assert.ok(!r.error, r.error);
     return r;
@@ -880,17 +880,15 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const ids = (r: any) => r.models.map((m: any) => m.id.replace('featherless:', ''));
 
   const all = await find();
-  // THE 4-UNIT GATE. The detector first: the admin's search must see BIG, or "nobody else sees it"
-  // could be a model the search lost for some other reason.
-  assert.ok(ids(await find('', true)).includes(BIG), 'the admin is shown the model that takes the whole plan');
-  assert.ok(!ids(all).includes(BIG), 'GATE: no one else is ever shown a 4-unit model');
-  assert.ok(!ids(await find('q=llama&uncensored=0')).includes(BIG), 'GATE: not even by name');
+  // NO UNIT GATE. Seth, 2026-10-25: every writer may use a model that takes the whole plan.
+  assert.ok(ids(all).includes(BIG), 'UNITS: a writer who is not the admin is shown a 4-unit model');
+  assert.ok(ids(await find('q=llama&uncensored=0')).includes(BIG), 'and finds it by name');
   assert.ok(all.models.every((m: any) => m.id.startsWith('featherless:')),
     'every row carries the prefixed id the shortlist takes');
   assert.deepStrictEqual(ids(all), [
-    PLANS_INLINE, 'edge/Exactly-16k-heretic', NO_SWITCH,
+    PLANS_INLINE, 'edge/Exactly-16k-heretic', BIG, NO_SWITCH,
     STUBBORN, REMOTE, 'huihui/gpt-oss-20b-abliterated', UNTRIED],
-    'uncensored only, under 16k and the 4-unit model gone, the ones that never weave first and the untried last');
+    'uncensored only and under 16k gone, the ones that never weave first and the untried last');
   const row = all.models.find((m: any) => m.id === ID);
   assert.deepStrictEqual([row.cost, row.context, row.weaving], [2, 32768, 'can switch'],
     'a row says its unit cost, its context and its weaving guess');
@@ -926,8 +924,9 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(ids(two).length > 0 && ids(two).every((id: string) => costOf(all, id) === 2),
     `the units filter keeps only models of that cost (${ids(two).length})`);
   assert.ok(ids(all).some((id: string) => costOf(all, id) !== 2), 'and the unfiltered search had others');
-  assert.ok(Array.isArray(all.costs) && all.costs.includes(2) && all.costs.every((c: number) => c <= 2),
-    `the unit choices come from what this writer can be shown (${JSON.stringify(all.costs)})`);
+  assert.ok(Array.isArray(all.costs) && all.costs.includes(2) && all.costs.includes(4),
+    `the unit choices come from what this writer can be shown, the whole plan included (${JSON.stringify(all.costs)})`);
+  assert.deepStrictEqual(ids(await find('cost=4')), [BIG], 'and a filter for 4 units finds the 4-unit model');
 
   // A DAY'S CACHE. Every search above was served without a fresh read; a day later, one is made.
   const { catalogue, CATALOGUE_TTL_MS } = await import('../src/catalogue.ts');
@@ -937,7 +936,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   await catalogue(Date.now() + CATALOGUE_TTL_MS + 60_000);
   assert.strictEqual(catReads.length, reads + 1, 'a day on, it is');
   assert.strictEqual(catReads.length, 2, 'and the searches above never read it themselves');
-  ok('the search filters, combines, sorts non-weaving first, holds the 16k floor and the unit gate');
+  ok('the search filters, combines, sorts non-weaving first, holds the 16k floor, and shows every unit cost');
 }
 
 // ---- 12a. the tag index: a tag search over every model the search could show ----
@@ -1012,14 +1011,12 @@ const mark = () => ({ fl: fl.length, local: local.length });
     ['nobody/No-Class-At-All', null, 'not tried yet'],
   ];
   const rows = FAMILIES.map(([id, modelClass]) => ({ id, modelClass, context: 32768, cost: 1 }));
-  const found = search(rows, { uncensored: false }, false, '');
-  // The unit gate's detector: BIG's own row is shown at 2 units and hidden at 3 and 4.
-  const priced = (cost: number, admin = false) => search([{ id: BIG, modelClass: 'llama33-70b', context: 32768, cost }],
-    { uncensored: false }, admin, '').models.map((m) => m.id);
-  assert.deepStrictEqual(priced(2), [BIG], 'the detector: the same row at 2 units is shown');
-  assert.deepStrictEqual(priced(4), [], 'GATE: at 4 units it is hidden, whoever asks');
-  assert.deepStrictEqual(priced(3), [], 'GATE: and at 3, which leaves the other writer one unit');
-  assert.deepStrictEqual(priced(4, true), [BIG], 'the admin, who pays for the plan, is shown it at 4');
+  const found = search(rows, { uncensored: false }, '');
+  // Every unit cost is shown, and an unknown one too: the floor is the only refusal.
+  const priced = (cost: number | null) => search([{ id: BIG, modelClass: 'llama33-70b', context: 32768, cost }],
+    { uncensored: false }, '').models.map((m) => m.id);
+  for (const cost of [1, 2, 3, 4, null])
+    assert.deepStrictEqual(priced(cost), [BIG], `UNITS: the row is shown at ${cost ?? 'an unknown'} units`);
   const got = new Map(found.models.map((m) => [m.id, m.weaving]));
   for (const [id, modelClass, want] of FAMILIES)
     assert.strictEqual(got.get(id), want, `${id} (${modelClass}) is guessed "${want}"`);
@@ -1031,11 +1028,11 @@ const mark = () => ({ fl: fl.length, local: local.length });
     'the filter offers the untried guess as a label of its own, last');
   assert.deepStrictEqual(found.models.slice(-6).map((m) => m.weaving), Array(6).fill('not tried yet'),
     'and the untried come after every model whose weaving is known');
-  const untried = search(rows, { uncensored: false, weaving: 'not tried yet' }, false, '');
+  const untried = search(rows, { uncensored: false, weaving: 'not tried yet' }, '');
   assert.deepStrictEqual(untried.models.map((m) => m.id).sort(),
     FAMILIES.filter(([, , w]) => w === 'not tried yet').map(([id]) => id).sort(),
     'the weaving filter picks out exactly the untried');
-  const never = search(rows, { uncensored: false, weaving: "doesn't weave" }, false, '');
+  const never = search(rows, { uncensored: false, weaving: "doesn't weave" }, '');
   assert.ok(!never.models.some((m) => /Kimi-K3|MiniMax-M3|Step-3|No-Class|Magistral/.test(m.id)),
     "and none of them is filed under doesn't weave");
   ok('a family nobody has tried is labelled not tried yet, filtered and sorted as its own label');
@@ -1044,8 +1041,8 @@ const mark = () => ({ fl: fl.length, local: local.length });
 // ---- 13. adding: one weaving-off probe, and the label and unit cost stored with the entry ----
 {
   const writer = db.owner('prober');
-  const add = async (id: string, admin = false) => {
-    const c = ctx(writer, { model: `featherless:${id}` }); c.admin = admin;
+  const add = async (id: string) => {
+    const c = ctx(writer, { model: `featherless:${id}` });
     const m = mark();
     const r = await routes['POST /api/shortlist'](c);
     return { r, probes: since(m).fl, local: since(m).local };
@@ -1088,39 +1085,35 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(listed.models.every((m: any) => m.weaving && m.cost),
     'the shortlist route hands back the label and the cost with each entry');
 
-  // THE GATE, ON ADD. Refused before the probe, so a refusal spends none of the plan.
-  const big = await add(BIG);
-  assert.match(String(big.r.error), /half the Featherless plan/, 'GATE: adding a 4-unit model as a writer is refused');
-  assert.strictEqual(big.probes.length, 0, 'and no call is spent finding that out');
-  assert.ok(!entry(BIG), 'and it is not stored');
+  // THE FLOOR, ON ADD. Refused before the probe, so a refusal spends none of the plan.
   const under = await add('edge/Under-16k-heretic');
   assert.match(String(under.r.error), /at least 16,384/, 'a model under the floor is refused by name too');
-  const blind = await add('edge/No-Context-heretic', true);
+  const blind = await add('edge/No-Context-heretic');
   assert.match(String(blind.r.error), /unknown number of tokens/,
-    'NO-CONTEXT: a model whose entry does not say what it holds is refused, even for the admin');
+    'NO-CONTEXT: a model whose entry does not say what it holds is refused');
   assert.strictEqual(blind.probes.length, 0, 'and no call is spent finding that out');
-  const admin = await add(BIG, true);
-  assert.ok(!admin.r.error, admin.r.error);
-  assert.strictEqual(entry(BIG).cost, 4, 'the admin can add it, and its cost is recorded');
-  ok('adding probes once with weaving off, stores the label and the cost, and holds the gate');
+  const big = await add(BIG);
+  assert.ok(!big.r.error, `UNITS: a writer who is not the admin can add a 4-unit model (${big.r.error})`);
+  assert.strictEqual(entry(BIG).cost, 4, 'and its cost is recorded');
+  ok('adding probes once with weaving off, stores the label and the cost, and holds the floor');
 }
 
 // ---- 14. tags for the result rows: one batched call, cached, and never the unit gate's hole ----
 {
-  const BIG_ID = `featherless:${BIG}`, STUB_ID = `featherless:${STUBBORN}`;
-  const tagsOf = async (models: string[], admin = false) => {
-    const c = ctx(me, { models }); c.admin = admin;
+  const SMALL_ID = `featherless:${SMALL}`, STUB_ID = `featherless:${STUBBORN}`;
+  const tagsOf = async (models: string[]) => {
+    const c = ctx(me, { models });
     return routes['POST /api/catalogue/tags'](c);
   };
   hubHits.length = 0;
-  const r = await tagsOf([ID, STUB_ID, BIG_ID, 'featherless:nobody/Not-In-The-Catalogue', 'not-remote']);
+  const r = await tagsOf([ID, STUB_ID, SMALL_ID, 'featherless:nobody/Not-In-The-Catalogue', 'not-remote']);
   assert.ok(!r.error, r.error);
   assert.deepStrictEqual(r.tags[ID], ['heretic', 'uncensored', 'roleplay', 'creative-writing'],
     "the author's own card tags are the ones shown, in their order");
   assert.deepStrictEqual(r.tags[STUB_ID], ['gemma4', 'abliterated', 'roleplay'],
     "with none, the hub's tags, without the machine ones (license:, region:, text-generation...)");
-  assert.ok(!(BIG_ID in r.tags), 'GATE: no tags for a model this writer is not shown');
-  assert.ok(!hubHits.some((h) => h.path.includes(BIG)), 'and the hub is not even asked about it');
+  assert.ok(!(SMALL_ID in r.tags), 'GATE: no tags for a model the search does not show (under the floor)');
+  assert.ok(!hubHits.some((h) => h.path.includes(SMALL)), 'and the hub is not even asked about it');
   assert.ok(!hubHits.some((h) => h.path.includes('Not-In-The-Catalogue')),
     'nor about a model the catalogue does not list: the server is not a proxy to any repo');
   assert.ok(hubHits.every((h) => h.auth === undefined), 'the Featherless key never goes to Hugging Face');
@@ -1141,8 +1134,8 @@ const mark = () => ({ fl: fl.length, local: local.length });
 
 // ---- 15. expand: the base model and the card's first real paragraph, banners stripped ----
 {
-  const card = async (model: string, admin = false) => {
-    const c = ctx(me, {}, `model=${encodeURIComponent(model)}`); c.admin = admin;
+  const card = async (model: string) => {
+    const c = ctx(me, {}, `model=${encodeURIComponent(model)}`);
     return routes['GET /api/catalogue/card'](c);
   };
   hubHits.length = 0;
@@ -1173,9 +1166,8 @@ const mark = () => ({ fl: fl.length, local: local.length });
   await card(ID);
   assert.strictEqual(hubHits.length, asked, 'an expanded card is served from the cache the second time');
 
-  const big = await card(`featherless:${BIG}`);
-  assert.ok(big.error, 'GATE: a writer cannot read the card of a model the search hides from them');
-  assert.ok(!(await card(`featherless:${BIG}`, true)).error, 'the admin can');
+  assert.ok((await card(`featherless:${SMALL}`)).error,
+    'GATE: a writer cannot read the card of a model the search hides (under the floor)');
   assert.ok((await card('featherless:nobody/Not-In-The-Catalogue')).error,
     'a model the catalogue does not list is refused');
   assert.ok((await card('featherless:../../etc/passwd')).error, 'and so is a path that is not a repo');
