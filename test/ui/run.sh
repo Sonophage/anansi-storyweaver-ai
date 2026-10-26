@@ -5,12 +5,55 @@
 # copy in sequence they poison each other, and the failures look like code regressions — which
 # cost real time to disbelieve once. So: reset between every scenario, always.
 #
-#   test/ui/run.sh              # all of them
+#   test/ui/run.sh              # the default list (below)
+#   test/ui/run.sh --no-gpu     # the default list without the scenarios that need the real model
+#   test/ui/run.sh --list       # print the list it would run, and run nothing
 #   test/ui/run.sh search       # just one
 #   test/ui/run.sh panels ritual # or several, unquoted
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 PORT=${ANANSI_UI_PORT:-5179}
+# THE DEFAULT LIST IS DERIVED, from every test/ui/*.js. It was typed by hand, and every new
+# scenario had to be added to it by hand: `threadlist`, `bar`, `threadread` and `threadalter` were
+# all missing from it on 2026-10-25. Every .js here is a scenario (test/web.ts counts them the same
+# way); the helpers are .ts. A new scenario joins the run when its file is created.
+#
+# Left out of the default, and run by name only:
+#   model ritual   every step waits on a real generation, so they run in minutes.
+#   cover entrypic they need ANANSI_SEARCH pointing at a working endpoint AND the open web. Run them
+#                  by name, with that variable set on the test server.
+#   shots          not a check: it writes screenshots and the words on every surface (bench/words.ts).
+NAMED_ONLY="model ritual cover entrypic shots"
+# THE SCENARIOS THAT NEED THE GPU: they talk to the real model on :8080. `--no-gpu` leaves them out,
+# for a run while the GPU is busy with something else. `veil` is in the default list, as it was in
+# the hand-typed one; `model` and `ritual` are not in it at all. Every other scenario reaches no
+# model, or reaches the fake router or a refusing port (`// needs:` on its first line, see fresh() below).
+GPU="veil model ritual"
+# EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
+# green for a scenario nobody asked about — twice, per the old handoff notes.
+nogpu=0 list=0 scenarios=""
+for a in "$@"; do
+  case "$a" in
+    --no-gpu) nogpu=1 ;;
+    --list) list=1 ;;
+    *) scenarios="$scenarios $a" ;;
+  esac
+done
+if [ -z "$scenarios" ]; then
+  for f in test/ui/*.js; do
+    s=$(basename "$f" .js)
+    case " $NAMED_ONLY " in *" $s "*) ;; *) scenarios="$scenarios $s" ;; esac
+  done
+fi
+if [ "$nogpu" = 1 ]; then
+  kept=""
+  for s in $scenarios; do case " $GPU " in *" $s "*) ;; *) kept="$kept $s" ;; esac; done
+  scenarios=$kept
+fi
+# `--list` prints the list it would run and runs nothing. It exits here, before the lock and the
+# trap below, so it waits for no other run and stops no server.
+[ "$list" = 1 ] && { echo $scenarios; exit 0; }
+
 # One run at a time. The scenarios hardcode the port, so two concurrent runs kill each other's
 # servers and every scenario after the collision reports failures that are not there — which
 # cost real time to disbelieve, twice in one sitting. A second run WAITS for the first, and says
@@ -85,14 +128,6 @@ fresh() {
   until curl -sf -o /dev/null -m 2 "http://127.0.0.1:$PORT/"; do sleep 1; n=$((n+1)); [ $n -gt 30 ] && { echo "server never came up"; cat "$WORK/serve.log"; exit 1; }; done
 }
 
-# EVERY argument, not the first. `run.sh panels ritual` silently ran `panels` alone and reported
-# green for a scenario nobody asked about — twice, per the old handoff notes.
-scenarios=${*:-}
-[ -z "$scenarios" ] && scenarios="buttons tray composer hwkb at veil surfaces handlers search restored hostile limits import modes panels phone wizard forge finder marks fallback weave weavefit reroll back doors targets down alter keys inline"
-# `cover` and `entrypic` are excluded too, and for a second reason: they need ANANSI_SEARCH pointing
-# at a working endpoint AND the open web. Run them by name, with that variable set on the test server.
-# `model`, `ritual` and `veil` are excluded from the default set: every step waits on a real
-# generation, so they run in minutes. Ask for one by name: test/ui/run.sh veil
 fail=0
 # A BOUND ON EVERY SCENARIO. A driver waits on the page with no limit of its own, so one hang held
 # a whole run: `back` hung for 24 minutes on 2026-10-25 before somebody killed it by hand, and the

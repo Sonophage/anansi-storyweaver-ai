@@ -41,7 +41,10 @@ Each bench entry is spawned with its own `ANANSI_DB`: most of them touch no data
 migrate it mid-run. Under it, `src/db.ts` refuses the default library to any `test/` script, any
 `bench/` script in `check` mode, and `status.ts`, when `ANANSI_DB` is unset. `bench/weave-json.ts` opens a scratch one of its own, whatever `ANANSI_DB` says.
 
-The browser harness is separate and slower: `bash test/ui/run.sh`.
+The browser harness is separate and slower: `bash test/ui/run.sh --no-gpu`. Run it in the
+background: a full run outlasts a 600-second foreground shell, and it prints its own time at the end.
+The list is derived from `test/ui/*.js`, so a new scenario joins it when its file is created;
+`--list` prints it. Without `--no-gpu` it also runs `veil`, which waits on the real model.
 
 **Ports.** `test/scope.ts` owns **5187–5190 and 5194–5196**; `test/ui/run.sh` takes 5179; the live
 server is 5174 **over HTTPS** — `curl http://…:5174` fails with the same `000` a dead server gives,

@@ -1,7 +1,7 @@
 // The waiting screen, driven against real generations.
 //
-// NOT IN THE DEFAULT SET, for the reason `model` and `ritual` are not: every assertion below waits
-// on the model actually writing something, so this runs in minutes and needs llama-server up.
+// IT NEEDS THE GPU: every assertion below waits on the model actually writing something, so it
+// needs llama-server up. It is in run.sh's default list; `run.sh --no-gpu` leaves it out.
 //
 //   test/ui/run.sh veil
 //
