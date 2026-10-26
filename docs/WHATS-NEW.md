@@ -10,6 +10,18 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · The tale's own thread
+
+### The tale is the first thread
+Threads now starts with the tale itself. It holds the premise and the setting (what is always
+true of the tale), the Voice, the tale's Rules, and instructions of your own for the whole tale,
+such as "keep it a slow burn" or "the narrator never names him". Your own instructions are sent
+to Anansi every time while they are switched on.
+
+### Rules live on the tale
+Rules are listed on the tale's own thread rather than as a group in Threads, and you add a new one
+from there.
+
 ## 2026-10-26 · The Workbench is a deck
 
 ### One card at a time

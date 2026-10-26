@@ -564,6 +564,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'delevent', 'makeplace',
   // #73. Tidy this thread, from its ⋯ menu. #74: the deck's yes and no, arrows, undo, Anansi edits.
   'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit',
+  // #75. The tale's own thread.
+  'taleopen', 'taleclose', 'newrule', 'addtalepocket',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -2357,6 +2359,54 @@ const pageBar = (mode) => (S.place === 'story' ? ''
  *  Right and left are buttons on the card (`data-deckright`, `data-deckleft`), each an ordinary
  *  press with its own handler; a swipe and the arrow keys only press them. One way in for all
  *  three, so a swipe cannot do anything a press does not. */
+/** #75 · THE TALE'S OWN THREAD, the first card in Threads: what the writer gives the model about the
+ *  whole tale. Its Always true is the premise and the setting; its pockets are the Voice, the tale's
+ *  Rules, and any instruction of the writer's own. Stored where each always was — the premise,
+ *  setting and Voice on the tale, a Rule as a thread of kind rule, an instruction as a pocket of the
+ *  tale — so what the model is sent, and where in the prompt, does not move. It has no Over time:
+ *  the scene summaries are the tale's record. */
+function taleThread() {
+  const st = V.story;
+  const rules = (V.entries ?? []).filter((e) => e.entryType === 'rule');
+  const pin = pinModes(), mani = manifestNow();
+  const own = V.talePockets ?? [];
+  return `<div class="taleface" style="display:flex; flex-direction:column">
+    <button data-taleclose="1" class="headback" style="align-self:flex-start">&lsaquo;&nbsp;<span class="serif">Threads</span></button>
+    <h2 class="readname">${esc(st.title || 'This tale')}</h2>
+    <div class="hint" style="margin:0 0 10px">The tale's own thread: what Anansi is told about the whole tale, every time.</div>
+    <div class="lbl" style="letter-spacing:.1em">Always true</div>
+    <label class="lbl" for="f-tale-premise" style="margin-top:4px">Premise</label>
+    <textarea class="field grow" id="f-tale-premise" data-story="premise">${esc(st.premise ?? '')}</textarea>
+    <label class="lbl" for="f-tale-setting">Setting</label>
+    <input class="field" id="f-tale-setting" data-story="setting" value="${esc(st.setting ?? '')}">
+    <div class="lbl" style="letter-spacing:.1em; margin-top:18px">Voice</div>
+    <label class="lbl" for="f-tale-voice" style="margin-top:4px">How the narration sounds, as instructions</label>
+    <textarea class="field grow" id="f-tale-voice" data-story="writingStyle">${esc(st.writingStyle ?? '')}</textarea>
+    <button class="btn" data-savestory="1" style="margin-top:10px">Save</button>
+    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Rules &middot; <span class="tnum">${rules.length}</span></div>
+    <div class="hint" style="margin:0 0 6px">The laws this tale obeys. Each is sent always, or when one of its wake words comes up.</div>
+    <div style="display:flex; flex-direction:column; gap:9px">${rules.map((e) => threadPlate(e, inContext(e, pin, mani))).join('')}</div>
+    <button class="btn ghost" data-newrule="1" style="margin-top:8px">+ Add a rule</button>
+    <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Your own</div>
+    <div class="hint" style="margin:0 0 6px">Anything else for the whole tale, as an instruction: "keep it a slow burn",
+      "the narrator never names him". Sent while it is on.</div>
+    ${own.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
+      <div style="display:flex; align-items:center; gap:9px">
+        <input class="field" data-an="${esc(a.id)}" aria-label="What to call this instruction" value="${esc(a.name)}"
+          style="margin:0; font-size:13px; color:var(--ink-bright)">
+        <button data-deladdon="${esc(a.id)}" style="flex:0 0 auto; color:var(--bad); font-size:12px" aria-label="Remove">&#10005;</button></div>
+      <textarea class="field grow" data-ab="${esc(a.id)}" aria-label="The instruction" style="margin:0; min-height:52px">${esc(a.body)}</textarea>
+      <div style="display:flex; gap:7px">
+        <button class="btn ghost" data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" style="flex:1">${a.active ? 'On — take it off' : 'Turn it on'}</button>
+        <button class="btn ghost" data-saveaddon="${esc(a.id)}" style="flex:0 0 auto; width:auto; padding:12px 20px">Save</button></div>
+    </div>`).join('')}
+    <div class="card" style="gap:7px">
+      <input class="field" data-talenew="name" aria-label="A name for the instruction" placeholder="A name: Slow burn" style="margin:0">
+      <textarea class="field grow" data-talenew="body" aria-label="The instruction" placeholder="The instruction, for the whole tale" style="margin:0; min-height:52px"></textarea>
+      <button class="btn ghost" data-addtalepocket="1">Add it, switched on</button></div>
+  </div>`;
+}
+
 function deckCards(only = null) {
   const props = (V?.proposals ?? []).filter((p) => p.entryType !== 'string' && (!only || only.has(p.id)));
   const groups = new Map();
@@ -3322,6 +3372,7 @@ const PANELS = {
   // lists them across every story, which is a different question.
   threads() {
     if (S.entryId) return entryEditor();
+    if (S.taleOpen) return taleThread();
     // NEW THREAD (v2 redesign, 2026-10-25). One box takes a name or a pasted thread; "Write it as"
     // picks the kind; Write it makes the thread and opens Alter on it. Under "Or let Anansi", three
     // cards use the same box and the same kind: write one from what you typed, look the name up
@@ -3355,7 +3406,8 @@ const PANELS = {
         <div class="hint" style="margin:6px 0 0">A thread pasted from Prompts is read in as it is.</div>
         <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Write it as</div>
         <div style="display:flex; flex-wrap:wrap; gap:8px">
-          ${KINDS.map((k) => `<button data-lorekind="${k}" aria-pressed="${kind === k}" style="flex:1 1 40%;
+          ${/* #75. A rule is added from the tale's own thread; offered here only when that is where this came from. */
+            KINDS.filter((k) => k !== 'rule' || kind === 'rule').map((k) => `<button data-lorekind="${k}" aria-pressed="${kind === k}" style="flex:1 1 40%;
             text-align:center; font-size:13px; min-height:46px; border-radius:var(--r-pill); ${chip(kind === k)}">${
               esc(pocketTitle(k))}</button>`).join('')}
         </div>
@@ -3451,6 +3503,12 @@ const PANELS = {
             : `<p>Always-on threads, plus anything brought into this scene &mdash; nothing has been
               measured yet, so an on-a-word thread cannot be counted until it has.</p>`)}` : ''}`;
       })()}
+      ${/* #75. THE TALE'S OWN THREAD, FIRST: the premise, the voice, the rules, the writer's own. */ ''}
+      <button class="card plate thplate" data-taleopen="1" style="text-align:left; width:100%">
+        <span class="platename">The tale</span>
+        <span class="clamp2 thtext">${esc(V.story.premise || 'Its premise, its voice and its rules.')}</span>
+        <span class="thtags"><span class="tag">premise &middot; voice${
+          (V.entries ?? []).some((e) => e.entryType === 'rule') ? ' &middot; rules' : ''}</span></span></button>
       <div id="thlist" style="display:flex; flex-direction:column; gap:9px">${threadRows()}</div>
       ${shown.length ? '' : '<div class="hint" style="margin:0">Nothing written down yet. A thread is a fact the model is told and never allowed to contradict.</div>'}
       ${shown.length && S.onlyIn && !S.threadQ.trim() && !V.entries.some((e) => inContext(e, pinModes()))
@@ -3578,6 +3636,8 @@ const PANELS = {
 
       </div>
       <div class="sgroup" data-group="book">
+      <!-- #75. The premise and setting are the tale's own thread's Always true too, opened from here. -->
+      <button class="btn ghost" data-taleopen="1" style="margin:0 0 12px">Open the tale's own thread</button>
       <div class="lbl" style="letter-spacing:.1em; margin-top:0">The cover${
         tipMark('sCover', 'The cover')}</div>
       ${tipCard('sCover', 'The cover', `<p>Shrunk to 900px wide in the browser and stored in the
@@ -6966,7 +7026,8 @@ function threadRows() {
   // EACH KIND CARRIES ITS COUNT (v2 redesign, 2026-10-25), and it is the count of what is SHOWN,
   // after Sent now and the search. "Characters · 2" under a search for "aldis" is the answer to the
   // question you just asked; the book's own totals are the All chip and the header.
-  const out = KINDS.map((k) => {
+  // #75. Rules are drawn on the tale's own thread, at the top, not as a group of their own.
+  const out = KINDS.filter((k) => k !== 'rule').map((k) => {
     const rows = (V.entries ?? []).filter((e) => e.entryType === k
       && (!S.onlyIn || inContext(e, pin, mani)) && hit(e));
     if (!rows.length) return '';
@@ -10295,7 +10356,10 @@ document.addEventListener('click', async (e) => {
     // value the writer never chose.
     const had = (V.entries.find((x) => x.id === S.entryId)?.addons ?? [])
       .find((a) => a.id === d.saveaddon);
-    const r = await api.saveAddon(S.storyId, S.entryId, { id: d.saveaddon, slot: had?.slot, name, body, keys });
+    // #75. Or one of the tale's own pockets, which hangs off no thread.
+    const tale = !had && (V.talePockets ?? []).some((a) => a.id === d.saveaddon);
+    const r = await api.saveAddon(S.storyId, tale ? null : S.entryId,
+      { id: d.saveaddon, slot: tale ? 'instruction' : had?.slot, name, body, keys });
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); toast('Saved.'); return;
@@ -11192,6 +11256,19 @@ document.addEventListener('click', async (e) => {
     const r = await withRing(() => api.redo(S.storyId, d.anansiedit, steer));
     if (r.error) { t.disabled = false; t.textContent = 'Anansi edits'; return toast(r.error); }
     V = r; paint(); return toast('Written again. Still chalked: nothing changes until you sew it in.');
+  }
+  // #75 · THE TALE'S OWN THREAD: open it, leave it, add a rule or an instruction of your own.
+  if (d.taleopen) { S.panel = 'threads'; S.entryId = null; S.lore = null; S.taleOpen = true; syncHash(); paint(); return; }
+  if (d.taleclose) { S.taleOpen = false; paint(); return; }
+  if (d.newrule) { S.taleOpen = false; S.entryId = null; S.lore = { kind: 'rule' }; paint(); return; }
+  if (d.addtalepocket) {
+    const name = document.querySelector('[data-talenew="name"]')?.value.trim();
+    const body = document.querySelector('[data-talenew="body"]')?.value.trim();
+    if (!name || !body) return toast('An instruction needs a name and something in it.');
+    const r = await api.saveAddon(S.storyId, null, { slot: 'instruction', name, body });
+    if (r.error) return toast(r.error);
+    if (r.addonId) await api.addonOn(S.storyId, r.addonId, true);
+    V = await api.story(S.storyId); paint(); return toast('Added, and on.');
   }
   if (d.makeplace) {
     // #80. One Lore thread made a Place, from the update report. A place has every pocket Lore had.

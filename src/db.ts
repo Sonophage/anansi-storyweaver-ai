@@ -2359,7 +2359,9 @@ export const addonsOf = (storyId: string) =>
 export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   const t = now();
   const slot = String(a.slot ?? '').trim();
-  if (!ALL_SLOTS.includes(slot)) return null;
+  // #75. THE TALE'S OWN POCKETS hang off no thread and have one slot, `instruction`, which no
+  // thread has: an instruction for telling the whole tale.
+  if (slot === 'instruction' ? !!entryId : !ALL_SLOTS.includes(slot)) return null;
   // A story-level addon has no entry; an entry-level one must point at an entry in THIS story, or
   // a row can be hung off another writer's card. Same shape as `wearOutfit`'s ownership check.
   if (entryId && !q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId)) return null;

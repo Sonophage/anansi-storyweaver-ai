@@ -1802,6 +1802,16 @@ ok('a card with no body renders its facts bare, with no empty bracket left behin
   assert.doesNotMatch(out, /\n\n\n/, 'and no gap left by the missing body');
 });
 
+// #75. THE TALE'S OWN THREAD: its pockets are instructions for the whole tale, sent with the premise
+// in the reference block at the top, where the tale's identity already is.
+ok("the tale's own pockets are sent with the premise, and an empty one sends nothing", () => {
+  const b = base();
+  const out = render(buildContext({ ...b, story: { ...b.story, pockets: ['Keep it a slow burn: nobody touches before chapter ten.', ''] } } as any, count));
+  const spine = out.indexOf(b.story.premise), mine = out.indexOf('Keep it a slow burn');
+  assert.ok(mine > spine && spine >= 0, `TALE-POCKET: sent after the premise, in the reference block (${spine} / ${mine})`);
+  assert.doesNotMatch(out, /For the whole tale:\s*\]/, 'and an empty one leaves no bracket');
+});
+
 // #79. OUTFITS AND RETIREMENT LIVE IN OVER TIME. Putting a coat on at scene 5 does not dress her in it
 // at scene 3, and a thread retired at 4 and brought back at 6 is gone at 5 and back at 7. Read off
 // the thread's dated events at the scene being written, not off a switch that only knows "now".

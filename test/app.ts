@@ -2132,8 +2132,10 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   const first = html('sideBody');
   assert.match(first, /New thread/, 'the screen is called New thread');
   assert.match(first, /id="newname"[^>]*placeholder="Name it, or paste one in"/, 'one box, for a name or a paste');
-  for (const k of ['character', 'lore', 'item', 'rule'])
+  // #80 adds Places; #75 moves Rules onto the tale's own thread, so New thread does not offer one.
+  for (const k of ['character', 'place', 'lore', 'item'])
     assert.match(first, new RegExp(`data-lorekind="${k}"`), `the kinds are offered (${k})`);
+  assert.doesNotMatch(first, /data-lorekind="rule"/, 'and a rule is added from the tale\'s own thread');
   assert.match(first, /data-lorekind="character" aria-pressed="true"/, 'Character is lit until another is chosen');
   assert.doesNotMatch(first, /data-lorekind="(facts|interiority|voice|outfit|who_is_here)"/, 'and no pocket is offered');
   assert.match(first, /data-newthread="character"/, 'Write it writes the lit kind');

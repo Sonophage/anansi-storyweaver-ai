@@ -3454,4 +3454,25 @@ ok('Always true is one row per thread, written switched on, whoever writes it', 
   console.log('  ok  wearing and retiring are dated, and what was true before the first date is kept');
 }
 
+// #75 · THE TALE'S OWN POCKETS: instructions for the whole tale, hung off no thread. Written by the
+// writer on the tale's thread, carried by the view, and sent only while switched on.
+{
+  const t = db.createStory(o, { title: 'Own pockets', premise: 'A slow book.' }) as any;
+  const id = db.upsertAddon(t.id, null, { slot: 'instruction', name: 'Slow burn', body: 'Nobody touches before scene ten.' });
+  assert.ok(id, 'TALE-POCKET-WRITE: the tale can hold a pocket of its own');
+  db.upsertEntry(t.id, o, { id: 'e-own', title: 'Ada', body: '[Ada]', entryType: 'character' });
+  assert.strictEqual(db.upsertAddon(t.id, 'e-own', { slot: 'instruction', name: 'x', body: 'y' }), null,
+    'TALE-POCKET-ONLY: and a thread cannot hold one of those');
+  const v: any = storyMod.view(t.id);
+  assert.deepStrictEqual(v.talePockets.map((a: any) => a.name), ['Slow burn'], 'TALE-POCKET-VIEW: the view carries it');
+  const sent = () => (storyMod.assemble(v, { global: 8192, slots: 1, perSlot: 8192 } as any) as any).input?.story?.pockets
+    ?? (storyMod.assemble(v, { global: 8192, slots: 1, perSlot: 8192 } as any) as any).story?.pockets;
+  assert.deepStrictEqual(sent() ?? [], [], 'TALE-POCKET-OFF: switched off, it is not sent');
+  db.setAddonActive(t.id, id!, true);
+  const v2: any = storyMod.view(t.id);
+  const out = storyMod.assemble(v2, { global: 8192, slots: 1, perSlot: 8192 } as any) as any;
+  assert.ok(JSON.stringify(out).includes('Nobody touches before scene ten.'), 'TALE-POCKET-ON: switched on, it is in what is sent');
+  console.log("  ok  the tale holds pockets of its own, sent while switched on");
+}
+
 console.log(`\n${n} checks passed`);

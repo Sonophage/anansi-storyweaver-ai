@@ -67,6 +67,8 @@ export interface Passage {
 }
 export interface Story {
   title: string; genre: string; premise: string; setting: string;
+  /** #75. The tale's own pockets, switched on: instructions for the whole tale ("keep it a slow burn"). */
+  pockets?: string[];
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
   /** The world or intellectual property the book belongs to, and what is true in it. Both ride in
    *  SPINE: the name is identity and is kept, the note is furniture and is trimmable. */
@@ -915,6 +917,10 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     { text: story.worldNote?.trim()
       ? `About ${story.world?.trim() || 'that world'}: ${story.worldNote.trim()}` : '', keep: false },
     { text: `Setting: ${story.setting}`, keep: false },
+    // #75 · THE TALE'S OWN POCKETS, with the tale's identity: instructions for telling all of it. Kept
+    // like the premise, because a rule for the whole tale that is trimmed is a rule that stops.
+    ...(story.pockets ?? []).map((t) => String(t ?? '').trim()).filter(Boolean)
+      .map((t) => ({ text: `[For the whole tale: ${t.replace(/^\[|\]$/g, '')}]`, keep: true })),
   ], CAPS.SPINE!);
 
   /** ANANSI READS THE BOOK; SHE DOES NOT WRITE IT.

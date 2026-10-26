@@ -234,6 +234,9 @@ export function view(storyId: string, focusChapterId?: string) {
         const worn = wornAt(e, at);
         return { ...e, nowStateId: stateInForce(e, at)?.id ?? null, retiredAtChapter: retiredAt(e, at) ?? undefined,
           outfits: e.outfits.map((o: any) => ({ ...o, active: o.id === worn })) }; }),
+    // #75. The tale's own pockets: instructions for the whole tale, on its thread at the top of Threads.
+    talePockets: addons.filter((a: any) => !a.entry_id && a.slot === 'instruction').map((a: any) => ({
+      id: a.id, name: a.name, body: a.body, active: !!a.active })),
     pins: pins.map((p: any) => ({ chapterId: p.chapter_id, entryId: p.entry_id, mode: p.mode })),
     // PLAN-08 Phase 3. Directed connections, parent to child. They travel with the view because
     // the engine reads them and the Threads screen draws them, and both have to agree about which
@@ -396,7 +399,9 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
   // the shipped one, and only this side of the purity line can read the writer's. `buildContext`
   // stays pure: it receives a story whose voice is already resolved.
   const withVoice = { ...v.story,
-    writingStyle: (v.story as any).writingStyle?.trim() || voiceOf((v as any).owner) };
+    writingStyle: (v.story as any).writingStyle?.trim() || voiceOf((v as any).owner),
+    // #75. The tale's own pockets that are switched on.
+    pockets: ((v as any).talePockets ?? []).filter((a: any) => a.active).map((a: any) => a.body) };
   const inp: Input = {
     story: withVoice as any, chapters: v.chapters, passages, arcs: v.arcs,
     entries: v.entries.map((e) => ({ ...e, body: entryText(e) })),
