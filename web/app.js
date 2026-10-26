@@ -1824,7 +1824,7 @@ function holdLearned() {
  *  hidden, and the box folds back with the ⌄ at its top edge, Esc, or a tap on the prose above it
  *  (`foldBox`). The first round's handle over the bar is gone. Held, it turns the box to
  *  Talk; the hold is read by the pointer listeners below the click dispatcher. The "hold to talk"
- *  hint sits under the circle. ✦ CONTINUES: Anansi writes the next passage with no box at all.
+ *  hint sits above the circle. ✦ CONTINUES: Anansi writes the next passage with no box at all.
  *
  *  ONE STOP AT A TIME. While Anansi writes, ✦ is Stop when the box is folded, because then it is the
  *  only Stop on screen. With the box up, Send at the end of the box is Stop and ✦ waits, disabled:
@@ -1841,10 +1841,11 @@ function nextBar(last) {
       <button data-re="${esc(last.id)}" ${busy ? 'disabled' : ''} aria-label="Reweave the last passage"
         title="Reweave the last passage"><span class="serif">↻</span></button>
       <div class="quillcell">
+        ${/* ABOVE the circle (Seth, 2026-10-25): a thumb on the circle covers what is under it. */ ''}
+        ${hint ? `<small class="holdhint">${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
         <button id="quill" data-dockopen="1" aria-expanded="${open}"
           aria-label="${open ? 'Fold the box away. Hold to talk to Anansi' : 'Open the box, to write it yourself. Hold to talk to Anansi'}"
           title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${mark('quill', 24)}</button>
-        ${hint ? `<small class="holdhint">${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
       </div>
       ${busy && !open
         ? `<button id="cont" data-stop="1" class="stopping" aria-label="Stop writing" title="Stop">Stop</button>`

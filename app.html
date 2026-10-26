@@ -1291,6 +1291,10 @@ html[data-work="ai"]       #frame { --work:var(--gold); }
    the mode row while the box and Send go to Talk. Hidden, never removed, so a draft survives. */
 #dock.folded #modes, #dock.folded #inputRow, #dock.folded #atlistInput, #dock.folded #talkhead,
 #dock.talking #modes { display:none; }
+/* NO GROUND UNDER THE BAR (Seth, 2026-10-25): between the three buttons a tale's picture behind
+   the page shows through. Said outright rather than left to the default, so a later rule that
+   paints the dock cannot cover it without this line saying no. The buttons keep their own fills. */
+#nextbar, #nextrow, #nextrow .quillcell { background:transparent; }
 #nextbar { position:relative; display:flex; flex-direction:column; gap:8px; padding:4px 0 2px; }
 /* ONE STATE OR THE OTHER (Seth, 2026-10-25): with the box up the bar is hidden, and with the bar
    showing the box is folded. */
@@ -1302,10 +1306,12 @@ html[data-work="ai"]       #frame { --work:var(--gold); }
   font-size:22px; line-height:1; }
 #fold:hover, #fold:focus-visible { color:var(--gold); }
 #dock.folded #fold, #dock.big #fold { display:none; }
-#nextrow { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+#nextrow { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
 #nextrow button { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
 /* ↻ and ✦, either side: squares in the outline every pressable thing here wears. */
+/* Their own fill, the page's colour a little thinned, so the gold mark reads over a pale picture. */
 #nextrow > button { width:52px; height:52px; border:1px solid var(--chip); border-radius:var(--r);
+  background:color-mix(in srgb, var(--doc-bg) 86%, transparent);
   color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:21px; flex:0 0 auto; }
 #nextrow > button:disabled { opacity:.45; }
 #nextrow > button:hover:not(:disabled) { border-color:var(--edge-lit); }
@@ -1319,7 +1325,9 @@ html[data-work="ai"]       #frame { --work:var(--gold); }
   color:var(--on-gold); display:flex; align-items:center; justify-content:center;
   -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
 #nextrow .quillcell > button[aria-expanded="true"] { background:none; border:1px solid var(--gold); color:var(--gold); }
-#nextrow .holdhint { font-size:11px; letter-spacing:.06em; color:var(--faint); white-space:nowrap; }
+/* Over a picture the hint has no ground of its own, so it carries a halo of the page's colour. */
+#nextrow .holdhint { font-size:11px; letter-spacing:.06em; color:var(--faint); white-space:nowrap;
+  text-shadow:0 0 6px var(--doc-bg), 0 0 2px var(--doc-bg); }
 #ideas { display:flex; flex-direction:column; gap:6px; }
 #ideas .idea { text-align:left; min-height:44px; padding:9px 13px; border:1px solid var(--chip);
   border-radius:var(--r); font-size:13px; line-height:1.45; color:var(--ink); }

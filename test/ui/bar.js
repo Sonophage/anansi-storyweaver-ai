@@ -68,10 +68,20 @@ ok("QUILL-MARK: the middle is a quill drawn in the marks' own hand, in a circle"
 // ---- the hold hint, under the circle, and no callout or selection on it
 ok("HINT: the quill says it can be held, the first few times",
    /hold to talk/.test(await page.eval("document.querySelector('.quillcell .holdhint')?.textContent ?? ''")));
-ok("HINT-BELOW: and the hint sits below the circle",
+// ABOVE since 2026-10-25 (Seth): a thumb on the circle covers whatever is under it.
+ok("HINT-ABOVE: and the hint sits above the circle",
    await page.eval(`(() => { const q = document.getElementById('quill'), h = document.querySelector('.quillcell .holdhint');
      if (!q || !h) return false; const a = q.getBoundingClientRect(), b = h.getBoundingClientRect();
-     return b.top >= a.bottom - 1 && Math.abs((b.left + b.right) / 2 - (a.left + a.right) / 2) < 3; })()`));
+     return b.bottom <= a.top + 1 && Math.abs((b.left + b.right) / 2 - (a.left + a.right) / 2) < 3; })()`));
+// NO GROUND UNDER THE BAR: between the buttons a tale's picture shows through, so nothing from the
+// dock down to the row paints a background. The buttons keep their own fills.
+const grounds = await page.eval(`['#dock', '#dockCol', '#nextbar', '#nextrow', '#nextrow .quillcell'].map((q) => {
+  const e = document.querySelector(q), c = e && getComputedStyle(e);
+  return c ? q + ' ' + c.backgroundColor + ' ' + c.backgroundImage : q + ' missing'; })`);
+ok(`BAR-TRANSPARENT: the bar's own background is transparent (${JSON.stringify(grounds)})`,
+   grounds.every((g) => / rgba\(0, 0, 0, 0\) none$/.test(g)));
+ok("BUTTONS-FILLED: and the three buttons keep their own fills",
+   await page.eval(`[...document.querySelectorAll('#nextrow button')].every((b) => getComputedStyle(b).backgroundColor !== 'rgba(0, 0, 0, 0)')`));
 ok("NOCALLOUT: the quill's text cannot be selected",
    (await page.eval("getComputedStyle(document.getElementById('quill')).userSelect")) === 'none');
 // Read off the page's own source: Chrome drops a property it does not know from the parsed

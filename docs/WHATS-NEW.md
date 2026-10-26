@@ -19,7 +19,8 @@ the box is up the three buttons go away. To put the box away without sending, ta
 its top edge, press Esc, or tap the page above it; what you typed stays in it. Hold the quill to
 talk to Anansi, as you held Continue before; with the box up, Talk to Anansi is on the How you are
 writing menu. ✦ is Continue now: Anansi writes the next passage, with no box needed, and while
-she writes ✦ is Stop.
+she writes ✦ is Stop. Around the three buttons the bar is see-through, so a tale's picture
+behind the page shows through it.
 
 ### Send with nothing in the box
 With the box up, Send makes Anansi write. Leave the box empty and she just carries on. While she
