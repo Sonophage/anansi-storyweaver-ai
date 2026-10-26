@@ -109,9 +109,13 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   await page.mobile(w, Math.round(h * 0.6)); await wait(600);
   const kb = await page.eval(`JSON.stringify((() => { const i = document.activeElement, r = i.getBoundingClientRect();
     const head = document.getElementById('sideHead').getBoundingClientRect();
-    return { id: i.id, top: Math.round(r.top), bottom: Math.round(r.bottom), floor: innerHeight, ceil: Math.round(head.bottom) }; })())`).then(JSON.parse);
+    const box = document.getElementById('keychips').getBoundingClientRect();
+    return { id: i.id, top: Math.round(r.top), bottom: Math.round(r.bottom), box: Math.round(box.bottom),
+      floor: innerHeight, ceil: Math.round(head.bottom) }; })())`).then(JSON.parse);
   ok(`with the keyboard up, the wake-word box is still on screen (${JSON.stringify(kb)})`,
      kb.id === 'f-card-keys' && kb.top >= kb.ceil && kb.bottom <= kb.floor);
+  // Not flush: the whole box, its border and some air above the keyboard (Seth's phone, 2026-10-25).
+  ok(`  with room under the box, not flush with the keyboard (${kb.floor - kb.box}px)`, kb.floor - kb.box >= 8);
   await page.mobile(w, h); await wait(500);
 
   if (w !== 390) continue;   // the presses below change the book; once is enough
@@ -190,6 +194,34 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   const e2 = await where();
   ok(`Esc with a change asks first, and a second Esc throws it away (${JSON.stringify(e1)} > ${JSON.stringify(e2)})`, e1.alter && e2.read);
 
+  // ---- A thread opened on its own, from a passage: Alter is a Back step there too
+  // The press is the one the passage's thread links make (data-goblock="entry:<id>"), put on the
+  // page for the test, so the drawer opens as `entry` and not as the Threads list.
+  await page.goto(B + "/#" + sid); await wait(1200);
+  const solo = async () => {
+    await page.eval(`(() => { const b = document.createElement('button'); b.dataset.goblock = 'entry:${key.id}';
+      b.id = 'soloopen'; b.textContent = 'open'; document.body.append(b); b.click(); b.remove(); return 1; })()`);
+    await wait(800);
+  };
+  await solo();
+  const s0 = await where();
+  ok(`a thread opened from a passage opens on Read, in the drawer (${JSON.stringify(s0)})`, s0.read && s0.drawer && !s0.list);
+  await alter();
+  await back();
+  const s1 = await where();
+  ok(`  Back from its Alter returns to Read, not out of the drawer (${JSON.stringify(s1)})`, s1.read && s1.drawer);
+  await alter();
+  await typeInto('#f-card-body', '[the Silver Key: from a passage, not saved]');
+  await back();
+  const s2 = await where();
+  await back();
+  const s3 = await where();
+  ok(`  Back with a change stays and says so (${JSON.stringify(s2)}), a second Back throws it away (${JSON.stringify(s3)})`,
+     s2.alter && s3.read && s3.drawer && !/from a passage/.test((await story(sid)).entries.find((e) => e.id === key.id).body));
+  await back();
+  ok("  and the next Back shuts the drawer", !(await where()).drawer);
+  await list(sid); await openThread('the Silver Key');
+
   // ---- A refused save says so, and keeps what was typed
   // The activation floor refuses any word but the two. The app never sends another, so the request
   // is changed on its way out, which is what a stale or a hand-made client would send.
@@ -254,6 +286,29 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
      /once at high/.test((await story(made.world)).entries.find((e) => e.title === 'The Tide Bell')?.body ?? ''));
   await page.click('#sideHead [data-backentry]'); await wait(600);
   ok("  and ‹ Threads goes back to that tale's list", (await where()).list);
+}
+
+// ---- The cross-book Threads page: Esc is Cancel there too, at a desk's width
+// The page draws Alter in the page rather than in a drawer, and Esc was gated on the drawer being
+// an overlay, so on a wide screen it did nothing.
+{
+  await page.mobile(1280, 800);
+  await page.goto(B + "/"); await wait(900);
+  await page.click('[data-nav="canon"]'); await wait(1200);
+  // The first thread the page shows: every book but the first starts folded.
+  const card = await page.eval(`(() => { const c = document.querySelector('.card.plate[data-entry]');
+    if (!c) return ''; c.click(); return c.dataset.entry; })()`);
+  await wait(1200);
+  await page.eval("(() => { document.querySelector('.readbody')?.click(); return 1; })()"); await wait(800);
+  const pageAlter = () => page.eval("!!document.querySelector('.pagebar [data-cancelalter]')");
+  const opened = await pageAlter();
+  await typeInto('#f-card-title', 'Esc on the page');
+  await page.key('Escape', 27); await wait(500);
+  const p1 = await pageAlter();
+  await page.key('Escape', 27); await wait(700);
+  const p2 = await pageAlter();
+  ok(`on the cross-book page at 1280px, Esc with a change asks, and a second Esc leaves Alter (opened ${opened}, ${p1} > ${p2})`,
+     !!card && opened && p1 && !p2);
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

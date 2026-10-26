@@ -6255,7 +6255,10 @@ function isAltering() { return threadOpen() && S.cardView === 'form'; }
 function alterDirty() {
   if (!isAltering()) return false;
   const e = V.entries.find((x) => x.id === S.entryId);
-  const boxes = [...document.querySelectorAll('#sideBody textarea, #sideBody input')]
+  // In the drawer, or in the page on the cross-book Threads page, which draws the same form there.
+  // Reading only the drawer made every change on that page look unsaved-free, so Cancel left at once.
+  const at = S.place === 'story' ? '#sideBody' : '#page';
+  const boxes = [...document.querySelectorAll(`${at} textarea, ${at} input`)]
     .filter((el) => (el.tagName === 'TEXTAREA' || el.type === 'text' || el.type === 'number' || !el.type)
       && !el.readOnly && !el.matches('[data-picq], [data-invdir]'));
   if (boxes.some((el) => el.value !== el.defaultValue)) return true;
@@ -7858,33 +7861,35 @@ window.addEventListener('popstate', () => { BACKING = false; closeLayersBack(); 
  *  `history.state.thread` (1 for the thread, 2 for its ⋯ open), copying the drawer's own state so
  *  `under` still says what the drawer sits over. Back closes the top one; a press that closes them
  *  steps back over what it closed, so no dead Back press is left behind.
- *  ponytail: only inside the Threads drawer. A thread opened on its own from a passage is the whole
- *  drawer already, and its ⋯ shares the drawer's entry, so Back there shuts both. Give it a step
- *  of its own if anyone opens the ⋯ from a passage often enough to notice. */
-const threadDepth = () => (S.place === 'story' && S.panel === 'threads' && S.entryId
-  ? ((S.readMenu && isReading()) || isAltering() ? 2 : 1) : 0);
+ *
+ *  A THREAD OPENED ON ITS OWN, from a passage, is the whole drawer (`entry`), so its Read screen is
+ *  the drawer's own entry and only the ⋯ or Alter above it is a step: one level lower than in the
+ *  Threads drawer. Without it, Back from Alter there shut the drawer and threw the typing away. */
+const threadTop = () => (S.panel === 'threads' ? 2 : 1);
+const threadDepth = () => (S.place === 'story' && (S.panel === 'threads' || S.panel === 'entry') && S.entryId
+  ? ((S.readMenu && isReading()) || isAltering() ? threadTop() : threadTop() - 1) : 0);
 function syncThread() {
-  if (!ROUTED || ROUTING || BACKING || S.panel !== 'threads') return;
+  if (!ROUTED || ROUTING || BACKING || (S.panel !== 'threads' && S.panel !== 'entry')) return;
   const want = threadDepth(), have = history.state?.thread ?? 0;
   for (let n = have + 1; n <= want; n++) history.pushState({ ...history.state, thread: n }, '', location.href);
   if (want < have) { BACKING = true; history.go(want - have); }
 }
 function closeThreadBack() {
-  if (S.panel !== 'threads') return;
-  const at = history.state?.thread ?? 0;
+  if (S.panel !== 'threads' && S.panel !== 'entry') return;
+  const at = history.state?.thread ?? 0, top = threadTop();
   if (at >= threadDepth()) return;
   // BACK FROM ALTER FOLLOWS CANCEL'S RULE. The browser has already stepped back by the time this
   // runs, so with changes unsaved the step is put back and the writer is told; a second Back within
   // a few seconds is the second press, and throws them away.
-  if (at < 2 && isAltering() && alterDirty() && !(S.backArmed && Date.now() - S.backArmed < 6000)) {
+  if (at < top && isAltering() && alterDirty() && !(S.backArmed && Date.now() - S.backArmed < 6000)) {
     S.backArmed = Date.now();
-    history.pushState({ ...history.state, thread: 2 }, '', location.href);
+    history.pushState({ ...history.state, thread: top }, '', location.href);
     toast('You have changes that are not saved. Press Back again to throw them away, or Save.');
     return;
   }
   S.backArmed = 0;
-  if (at < 2) { S.readMenu = false; if (S.cardView === 'form') { S.cardView = null; S.keyDraft = null; } }
-  if (at < 1) { S.entryId = null; S.cardView = null; }
+  if (at < top) { S.readMenu = false; if (S.cardView === 'form') { S.cardView = null; S.keyDraft = null; } }
+  if (at < top - 1) { S.entryId = null; S.cardView = null; }
   // drawSide and not paint: a Back that leaves the drawer altogether lands here before the
   // hashchange that shuts it, and paint's syncHash would push the drawer straight back.
   drawSide();
@@ -12222,7 +12227,8 @@ document.addEventListener('keydown', (e) => {
   // A THREAD'S ⋯, THEN THE THREAD, THEN THE DRAWER: one layer per Esc, the same order as Back.
   if (e.key === 'Escape' && S.readMenu && isReading()) { S.readMenu = false; paint(); return; }
   // Alter: Esc is Cancel, under Cancel's rule — a second Esc throws unsaved changes away.
-  if (e.key === 'Escape' && isAltering() && overlay()) {
+  // The cross-book page draws Alter in the page at any width, so it is not gated on the overlay.
+  if (e.key === 'Escape' && isAltering() && (overlay() || S.place !== 'story')) {
     if (alterDirty() && !armed(null, 'alter:' + S.entryId,
       'You have changes that are not saved. Press Esc again to throw them away, or Save.')) return;
     S.cardView = null; S.keyDraft = null; paint(); return;

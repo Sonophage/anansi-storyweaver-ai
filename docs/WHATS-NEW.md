@@ -10,6 +10,15 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-25 · A new thread in one box
+
+### Altering a thread, smaller fixes
+With the keyboard up, the box for wake words now sits a little above the keyboard instead of
+touching it. A thread you open from a passage now goes back to reading it when you press Back
+while altering it, and asks first if you changed something, the same as in the Threads list. On
+the Threads page for every tale, Esc now works as Cancel on a wide screen, and Cancel and Esc there
+ask before they throw away what you changed.
+
 ## 2026-10-25 · The quill
 
 ### Three marks at the bottom
