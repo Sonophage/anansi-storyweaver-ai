@@ -709,6 +709,15 @@ CREATE TABLE IF NOT EXISTS entry_revisions (
   field TEXT NOT NULL, previous_value TEXT, replaced_at INTEGER NOT NULL, replaced_by TEXT);
 CREATE INDEX IF NOT EXISTS entry_rev_e ON entry_revisions(entry_id, replaced_at);
 
+-- #79. THE DATED HALF OF OVER TIME THAT IS NOT TEXT: an outfit put on (wear) or taken off (unwear),
+-- and the thread retired or brought back (return), each from a scene on. The engine reads them at
+-- the scene being written (context.wornAt, context.retiredAt).
+CREATE TABLE IF NOT EXISTS entry_events (
+  id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL, addon_id TEXT, from_chapter INTEGER NOT NULL, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS entry_events_e ON entry_events(entry_id, from_chapter);
+
 -- #76. WHAT AN UPDATE MOVED, per tale, in the writer's words: one line per thing moved, naming the
 -- thread it was about, and the backup taken before the rewrite that moved it. Written only by
 -- migrations; read through the tale's view, so it sits behind the same ownership gate as the book.
@@ -2392,12 +2401,18 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
  *  screen: an exclusive slot clears its siblings on the same entry first, in a transaction, which
  *  is `wearOutfit` with `AND slot = ?` added. Doing it in two statements without the transaction is
  *  how a writer ends up with two appearances and a unique index refusing every later write. */
-export function setAddonActive(storyId: string, addonId: string, on: boolean) {
+export function setAddonActive(storyId: string, addonId: string, on: boolean, atChapter?: number) {
   const row = q('SELECT entry_id, slot FROM addons WHERE id = ? AND story_id = ?')
     .get(addonId, storyId) as any;
   if (!row) return null;
   db.exec('BEGIN');
   try {
+    // #79. AN OUTFIT PUT ON OR TAKEN OFF AT A SCENE IS DATED, from that scene on. The switch below
+    // stays what was last pressed, which is all a thread with no dated wardrobe reads.
+    if (row.slot === 'outfit' && row.entry_id && Number.isInteger(atChapter) && atChapter! > 0) {
+      firstDated(storyId, row.entry_id, ['wear', 'unwear']);
+      addEvent(storyId, row.entry_id, on ? 'wear' : 'unwear', addonId, atChapter!);
+    }
     if (on && EXCLUSIVE_SLOTS.includes(row.slot) && row.entry_id)
       q('UPDATE addons SET active = 0 WHERE entry_id = ? AND slot = ? AND story_id = ?')
         .run(row.entry_id, row.slot, storyId);
@@ -3540,11 +3555,60 @@ export function updateArc(storyId: string, id: string, title: string | null, sum
  *  arbitration keys on — so bringing a character back through the entry save would quietly mark
  *  the card human-edited and change how every later proposal about them is judged. Retiring is not
  *  editing. Its own door, one column, no revision row: the undo IS the other direction. */
-export function setRetired(storyId: string, id: string, at: number | null | undefined) {
-  const r = q('UPDATE entries SET retired_at_chapter = ? WHERE id = ? AND story_id = ?')
-    .run(at ?? null, id, storyId);
+export function setRetired(storyId: string, id: string, at: number | null | undefined, returnAt?: number) {
+  if (!q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(id, storyId)) return false;
+  // #79. DATED: retired from `at`, or brought back from `returnAt` (the scene the writer is in; the
+  // newest scene when no caller says). The column keeps where the timeline ends up — the scene of a
+  // retirement nothing later undoes, or null — which is what the lists that are not per scene read.
+  firstDated(storyId, id, ['retire', 'return']);
+  const newest = Number((q('SELECT MAX(idx) n FROM chapters WHERE story_id = ?').get(storyId) as any)?.n) || 1;
+  // A RETIREMENT STILL AHEAD of where the writer is (retired at 12, brought back at 1) is lifted
+  // where it starts: the return lands at its scene, not before it, so nothing later re-retires it.
+  const ahead = retiredNow(id, Number.MAX_SAFE_INTEGER) ?? 0;
+  addEvent(storyId, id, at != null ? 'retire' : 'return', null,
+    at ?? Math.max(returnAt && returnAt > 0 ? returnAt : newest, ahead));
+  const still = retiredNow(id, Number.MAX_SAFE_INTEGER);
+  q('UPDATE entries SET retired_at_chapter = ? WHERE id = ? AND story_id = ?').run(still, id, storyId);
+  touch(storyId);
+  return true;
+}
+
+/** #79 · A thread's dated events, by entry, for the view. */
+export const eventsForStory = (storyId: string) => {
+  const map = new Map<string, any[]>();
+  for (const r of q('SELECT * FROM entry_events WHERE story_id = ? ORDER BY created_at, rowid').all(storyId) as any[])
+    (map.get(r.entry_id) ?? map.set(r.entry_id, []).get(r.entry_id)!).push(r);
+  return map;
+};
+export const delEvent = (storyId: string, id: string) => {
+  const r = q('DELETE FROM entry_events WHERE id = ? AND story_id = ?').run(id, storyId);
   if (r.changes) touch(storyId);
   return !!r.changes;
+};
+function addEvent(storyId: string, entryId: string, kind: string, addonId: string | null, from: number) {
+  q('INSERT INTO entry_events (id, story_id, entry_id, kind, addon_id, from_chapter, created_at) VALUES (?,?,?,?,?,?,?)')
+    .run(uid('ev-'), storyId, entryId, kind, addonId, from, now());
+}
+/** THE FIRST DATED PRESS KEEPS WHAT WAS TRUE BEFORE IT. A thread with no events of these kinds reads
+ *  its switch (`active`) or its column, at every scene; the first event would otherwise unwear its
+ *  coat, or unretire it, at every scene before itself. So that state is written first, from scene 1
+ *  for the coat and from the scene it was retired at for a retirement: every earlier scene reads as
+ *  it did. One floor, here, for both writers. */
+function firstDated(storyId: string, entryId: string, kinds: string[]) {
+  if (q(`SELECT 1 FROM entry_events WHERE entry_id = ? AND kind IN (${kinds.map(() => '?').join(',')})`).get(entryId, ...kinds)) return;
+  if (kinds.includes('wear')) {
+    const worn = q("SELECT id FROM addons WHERE entry_id = ? AND story_id = ? AND slot = 'outfit' AND active = 1").get(entryId, storyId) as any;
+    if (worn) addEvent(storyId, entryId, 'wear', worn.id, 1);
+  } else {
+    const was = (q('SELECT retired_at_chapter n FROM entries WHERE id = ?').get(entryId) as any)?.n;
+    if (was != null) addEvent(storyId, entryId, 'retire', null, was);
+  }
+}
+/** The retire event still in force at a scene, by the rule `context.retiredAt` reads with. */
+function retiredNow(entryId: string, at: number): number | null {
+  const last = (q(`SELECT kind, from_chapter FROM entry_events WHERE entry_id = ? AND kind IN ('retire','return')
+    AND from_chapter <= ? ORDER BY from_chapter DESC, created_at DESC, rowid DESC LIMIT 1`).get(entryId, at)) as any;
+  return last?.kind === 'retire' ? last.from_chapter : null;
 }
 
 // ---- chapter pins ----

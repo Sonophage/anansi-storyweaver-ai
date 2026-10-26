@@ -1798,6 +1798,22 @@ ok('a card with no body renders its facts bare, with no empty bracket left behin
   assert.doesNotMatch(out, /\n\n\n/, 'and no gap left by the missing body');
 });
 
+// #79. OUTFITS AND RETIREMENT LIVE IN OVER TIME. Putting a coat on at scene 5 does not dress her in it
+// at scene 3, and a thread retired at 4 and brought back at 6 is gone at 5 and back at 7. Read off
+// the thread's dated events at the scene being written, not off a switch that only knows "now".
+ok('an outfit is worn from the scene it was put on, and a retirement lasts until it is undone', () => {
+  const at = (chapter: number) => { const b = base(); b.currentChapter = { ...b.currentChapter, index: chapter };
+    return render(buildContext({ ...b, entries: [{ id: 'e1', title: 'Vel', body: '[Vel: a ferrywoman]',
+      entryType: 'character', activation: 'always_on', keys: [],
+      addons: [{ id: 'coat', slot: 'outfit', name: 'The grey coat', body: '[grey wool, shiny cuffs]', active: true, keys: [] }],
+      events: [{ kind: 'wear', addonId: 'coat', fromChapter: 5 }, { kind: 'retire', fromChapter: 8 }, { kind: 'return', fromChapter: 10 }] }],
+    } as any, count)); };
+  assert.doesNotMatch(at(3), /grey wool/, 'WORN-NOT-YET: at scene 3 the coat put on at scene 5 is not worn, though its switch says on');
+  assert.match(at(6), /Vel wears: grey wool/, 'WORN-FROM: at scene 6 it is');
+  assert.doesNotMatch(at(9), /a ferrywoman/, 'RETIRED-BETWEEN: retired at 8, she is not sent at 9');
+  assert.match(at(11), /a ferrywoman/, 'RETURNED: brought back at 10, she is sent at 11');
+});
+
 // #77. ALWAYS TRUE FIRST, AND ALWAYS. Who the thread is reads before where it stands, and it is not
 // a pocket that can be switched off: a thread whose Always true was off on update day still sends it.
 ok('Always true reads first, above the text in force, and is sent even when its switch was off', () => {

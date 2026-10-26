@@ -560,6 +560,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'readmenu', 'readgo',
   // Alter: leave it (asking first if anything changed), and take a wake word off.
   'cancelalter', 'keyx',
+  // #79. Over time: take a dated wardrobe or retirement event out.
+  'delevent',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -6621,7 +6623,7 @@ function entryEditor() {
         ${now ? `<textarea class="field grow" id="f-card-body" data-f="body" aria-label="Where it stands from scene 1"
           style="margin:0; min-height:56px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(e.body ?? '')}</textarea>`
           : readOnly(e.body)}</div>`;
-      const later = rows.map((st, k) => {
+      const later = rows.map((st, k) => ({ from: st.fromChapter, html: (() => {
         const before = k ? rows[k - 1].body : e.body;
         const head = `<div class="lbl" style="letter-spacing:.1em; margin:0">Scene ${esc(String(st.fromChapter))}${
           st.label ? ` &middot; ${esc(st.label)}` : ''}${now?.id === st.id ? ` &middot; ${esc(nowWords().toLowerCase())}` : ''}</div>`;
@@ -6643,10 +6645,22 @@ function entryEditor() {
           value="${esc(st.label ?? '')}"
           placeholder="What changed, in a few words" style="margin:0">
         <button class="btn ghost" data-savestate="${st.id ?? ''}">Save this change</button></div>`;
-      }).join('');
+      })() }));
+      // #79. THE WARDROBE AND RETIREMENT, dated, in the same list: what was put on or taken off,
+      // and when the thread was retired or brought back, each from its scene.
+      const outfitName = (id) => (e.outfits ?? []).find((o) => o.id === id)?.name ?? 'an outfit no longer here';
+      const said = { wear: (x) => `Put on ${outfitName(x.addonId)}`, unwear: (x) => `Took off ${outfitName(x.addonId)}`,
+        retire: () => 'Retired: not sent from here on', return: () => 'Brought back' };
+      const events = (e.events ?? []).map((x) => ({ from: x.fromChapter, html: `<div class="card" data-otevent="${esc(x.id)}"
+        style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
+        <span class="lbl" style="letter-spacing:.1em; margin:0">Scene ${esc(String(x.fromChapter))}</span>
+        <span style="font-size:12.5px; color:var(--mute)">${esc((said[x.kind] ?? (() => x.kind))(x))}</span>
+        <button data-delevent="${esc(x.id)}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>` }));
+      const listed = [...later, ...events].map((r, i) => ({ ...r, i })).sort((a, b) => a.from - b.from || a.i - b.i)
+        .map((r) => r.html).join('');
       return `<div class="lbl" style="letter-spacing:.1em; margin-top:16px">Over time${helpMark('states')}</div>
         ${tipCard('states', HELP.states.title, helpText('states'))}
-        ${first}${later}
+        ${first}${listed}
     <div class="card" style="gap:7px">
       <div style="display:flex; gap:7px">
         <input class="field" data-st="fromChapter" type="number" min="1" aria-label="From scene"
@@ -10190,7 +10204,7 @@ document.addEventListener('click', async (e) => {
     // otherwise both read "off" and both write "on", and on an exclusive slot the second write is
     // the one the unique index refuses.
     const [id, on] = d.addonon.split(':');
-    const r = await api.addonOn(S.storyId, id, on === '1');
+    const r = await api.addonOn(S.storyId, id, on === '1', V.currentChapter?.index);
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); return;
@@ -10272,8 +10286,9 @@ document.addEventListener('click', async (e) => {
     // the same transaction, which is what `wearOutfit` did and generalises to every one-at-a-time
     // slot. Taking one off is the same call with `on` false.
     const r = worn?.active || !outfitId
-      ? await api.addonOn(S.storyId, worn?.id ?? outfitId, false)
-      : await api.addonOn(S.storyId, outfitId, true);
+      // #79. Dated from the scene the tale is open at, so a coat put on in scene 5 is not worn in 3.
+      ? await api.addonOn(S.storyId, worn?.id ?? outfitId, false, V.currentChapter?.index)
+      : await api.addonOn(S.storyId, outfitId, true, V.currentChapter?.index);
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); return;
@@ -10549,7 +10564,7 @@ document.addEventListener('click', async (e) => {
     return toast('Retired. Bring it back on the Workbench.');
   }
   if (d.unretire) {
-    V = await api.retire(S.storyId, d.unretire, null); paint();
+    V = await api.retire(S.storyId, d.unretire, null, V.currentChapter?.index); paint();
     return toast('Back in the tale.');
   }
 
@@ -11073,6 +11088,13 @@ document.addEventListener('click', async (e) => {
       body, beforeMode: get('stm'), label: get('stl') || null });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest(); toast('Saved.'); return;
+  }
+  if (d.delevent) {
+    // #79. A dated wardrobe or retirement event, out of Over time. Asked twice, like a change.
+    if (!armed(t, 'event:' + d.delevent, 'Press again to remove this from Over time.')) return;
+    const r = await api.delEvent(S.storyId, d.delevent);
+    if (r.error) return toast(r.error);
+    V = r; paint(); refreshManifest(); return;
   }
   if (d.delstate !== undefined) {
     if (!d.delstate) return toast('That change has no id to remove.');

@@ -3305,7 +3305,9 @@ export const routes: Record<string, Handler> = {
   // Two ways a room reaches the model and this is the writer's half: `active` is pinning it on,
   // its keys are it arriving on its own. Exclusive slots clear their siblings inside the same
   // transaction — see `setAddonActive`, and the partial unique index behind it.
-  'POST /api/addon/on': (c) => { db.setAddonActive(c.body.storyId, c.body.id, !!c.body.on);
+  // #79. An outfit put on or taken off at a scene (`atChapter`) is dated from it.
+  'POST /api/addon/on': (c) => { db.setAddonActive(c.body.storyId, c.body.id, !!c.body.on,
+    c.body.atChapter == null ? undefined : Number(c.body.atChapter));
                                  return viewOf(c, c.body.storyId); },
   'DELETE /api/addon':  (c) => { db.delAddon(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
@@ -3685,7 +3687,14 @@ export const routes: Record<string, Handler> = {
   'POST /api/retire': (c) => {
     const at = c.body.atChapter == null ? null : Number(c.body.atChapter);
     if (at != null && !(Number.isInteger(at) && at > 0)) return { error: 'that is not a scene' };
-    if (!db.setRetired(c.body.storyId, c.body.id, at)) return { error: 'no such thread in this tale' };
+    // #79. Brought back from the scene the writer is in (`returnAt`), dated.
+    const back = c.body.returnAt == null ? undefined : Number(c.body.returnAt);
+    if (!db.setRetired(c.body.storyId, c.body.id, at, back)) return { error: 'no such thread in this tale' };
+    return viewOf(c, c.body.storyId);
+  },
+  // #79. Take one dated wardrobe or retirement event out of a thread's Over time.
+  'DELETE /api/event': (c) => {
+    if (!db.delEvent(c.body.storyId, String(c.body.id ?? ''))) return { error: 'no such change in this tale' };
     return viewOf(c, c.body.storyId);
   },
   // The way back when the router was down at chapter end — the exact case `POST /api/remember`

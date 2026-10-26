@@ -17,6 +17,12 @@ A thread's Info is now Where it stands now: what the model is told about where t
 the scene you are writing. When a later scene has changed it, that later version is the one shown
 and the one you edit, with the scene it is from beside it.
 
+### What they wear, and when they were retired, by scene
+Putting an outfit on or taking it off now counts from the scene the tale is open at, and so does
+retiring a thread or bringing it back. Going back to revise scene 2 no longer dresses her in the
+coat she put on in scene 5, and a thread retired in scene 4 and brought back in scene 6 is sent
+again from there. Each of these is listed in Over time with its scene.
+
 ### Over time, from scene 1
 Over time lists every version of where a thread stands, in scene order. The first one is where it
 stands from scene 1, and each later one shows the scene it is from, a few words for what changed,

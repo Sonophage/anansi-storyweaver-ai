@@ -95,4 +95,23 @@ const early = (await text('#sideBody .readface')).toLowerCase();
 ok(`at scene 1 it is the scene 1 text, under the scene's name (${JSON.stringify(early.slice(0, 140))})`,
    early.includes('where it stands in') && !early.includes('owed twelve crowns') && !early.includes('from scene 2'));
 
+// ---- #79. The wardrobe is dated too: putting the coat on at the open scene is an Over time row
+await page.goto(B + "/#" + sid + "/threads");
+await until(`!!document.querySelector('[data-wear^="${marek.id}:"]')`);
+const coatId = v.entries.find((e) => e.id === marek.id).outfits[0]?.id;
+await page.eval(`(() => { document.querySelector('[data-wear="${marek.id}:${coatId}"]')?.click(); return 1; })()`);
+await wait(900);
+v = await view(sid);
+const worn = v.entries.find((e) => e.id === marek.id);
+ok(`putting the coat on writes a dated event from the open scene (${JSON.stringify(worn.events)})`,
+   worn.events.some((x) => x.kind === 'wear' && x.addonId === coatId && x.fromChapter === v.currentChapter.index));
+ok("  and the chip says it is worn", worn.outfits.find((o) => o.id === coatId)?.active === true);
+await page.eval(`(() => { document.querySelector('[data-entry="${marek.id}"]')?.click(); return 1; })()`);
+await until("!!document.querySelector('#sideBody .readface')");
+await page.eval("(() => { document.querySelector('#sideBody [data-cardview=\"form\"]')?.click(); return 1; })()");
+await until("!!document.querySelector('#sideBody [data-cardtab=\"time\"]')");
+await page.eval("(() => { document.querySelector('#sideBody [data-cardtab=\"time\"]')?.click(); return 1; })()");
+await wait(400);
+ok("  and Over time lists it", /put on the grey coat/i.test(await page.eval("[...document.querySelectorAll('[data-otevent]')].map((r) => r.innerText).join(' | ')")));
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

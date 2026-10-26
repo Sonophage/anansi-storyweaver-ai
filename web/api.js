@@ -220,12 +220,13 @@ export const api = {
   moveprop:     (o)              => j('/api/proposal/where', 'POST', o),
   // PLAN-08. entryId null is a story-level addon, which is where a string will live.
   saveAddon:    (storyId, entryId, addon) => j('/api/addon', 'POST', { storyId, entryId, addon }),
-  addonOn:      (storyId, id, on) => j('/api/addon/on', 'POST', { storyId, id, on }),
+  addonOn:      (storyId, id, on, atChapter) => j('/api/addon/on', 'POST', { storyId, id, on, atChapter }),
   delAddon:     (storyId, id)    => j('/api/addon', 'DELETE', { storyId, id }),
   // PLAN-08 Phase 4. A thread can be finished, and brought back: atChapter null lifts it. Its own
   // route rather than a field on saveEntry, because upsertEntry writes last_editor and that is
   // what arbitration keys on — bringing a character back is not editing their card.
-  retire:       (storyId, id, atChapter) => j('/api/retire', 'POST', { storyId, id, atChapter }),
+  retire:       (storyId, id, atChapter, returnAt) => j('/api/retire', 'POST', { storyId, id, atChapter, returnAt }),
+  delEvent:     (storyId, id) => j('/api/event', 'DELETE', { storyId, id }),
   // PLAN-08. Directed: parent pulls child, never the reverse, so both ends are named.
   link:         (storyId, parentId, childId, confidence) => j('/api/link', 'POST',
                                              { storyId, parentId, childId, confidence }),

@@ -3423,4 +3423,32 @@ ok('Always true is one row per thread, written switched on, whoever writes it', 
   console.log('  ok  the view names the Over time entry in force at its scene, the one the model is sent');
 }
 
+// #79 · WEARING AND RETIRING ARE DATED. A press at scene N writes an Over time event from N, and a
+// thread written before events existed keeps what it had at every earlier scene: its first dated
+// press first records what was already true, from scene 1 (or from the scene it was retired at).
+{
+  const ctx = await import('../src/context.ts');
+  const t = db.createStory(o, { title: 'Dated', premise: 'p' }) as any;
+  for (let i = 0; i < 5; i++) db.endChapter(t.id, t.branchId);
+  db.upsertEntry(t.id, o, { id: 'e-dated', title: 'Vel', body: '[Vel]', entryType: 'character' });
+  const coat = db.upsertAddon(t.id, 'e-dated', { slot: 'outfit', name: 'The grey coat', body: '[grey]' })!;
+  const dress = db.upsertAddon(t.id, 'e-dated', { slot: 'outfit', name: 'The red dress', body: '[red]' })!;
+  db.setAddonActive(t.id, coat, true);                     // worn the old way: no date
+  db.setRetired(t.id, 'e-dated', 3);                       // retired the old way, at scene 3
+  const view = () => (storyMod.view(t.id) as any).entries.find((e: any) => e.id === 'e-dated');
+  const before = [1, 2, 3, 4, 5, 6].map((at) => [ctx.wornAt(view(), at), ctx.retiredAt(view(), at)]);
+  db.setRetired(t.id, 'e-dated', null, 5);                 // brought back at scene 5, dated
+  db.setAddonActive(t.id, dress, true, 4);                 // the dress from scene 4, dated
+  const e = view();
+  assert.deepStrictEqual([1, 2, 3].map((at) => [ctx.wornAt(e, at), ctx.retiredAt(e, at)]), before.slice(0, 3),
+    'DATED-KEEPS: scenes before the first dated press read exactly as they did');
+  assert.strictEqual(ctx.wornAt(e, 4), dress, 'DATED-WEAR: the dress is worn from scene 4');
+  assert.strictEqual(ctx.wornAt(e, 2), coat, '  and the coat before it');
+  assert.strictEqual(ctx.retiredAt(e, 4), 3, 'DATED-RETIRE: retired at 3, still retired at 4');
+  assert.strictEqual(ctx.retiredAt(e, 6), null, '  and back from 5');
+  assert.deepStrictEqual(e.events.map((x: any) => [x.kind, x.fromChapter]),
+    [['retire', 3], ['return', 5], ['wear', 1], ['wear', 4]], 'DATED-EVENTS: the view carries every dated event');
+  console.log('  ok  wearing and retiring are dated, and what was true before the first date is kept');
+}
+
 console.log(`\n${n} checks passed`);

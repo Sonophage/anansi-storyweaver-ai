@@ -25,6 +25,9 @@ export interface Entry {
   properNouns?: boolean;           // names do not get folded — see fold()
   retiredAtChapter?: number;       // finished: a dead character, a burned building. PLAN-08
   addons?: Addon[];                // the rooms of the card — PLAN-08 Phase 2
+  /** #79. The dated half of Over time that is not text: an outfit put on or taken off, the thread
+   *  retired or brought back, each from a scene on. See `wornAt` and `retiredAt`. */
+  events?: { kind: 'wear' | 'unwear' | 'retire' | 'return'; addonId?: string | null; fromChapter: number }[];
 }
 /** A room of a card: an appearance, a relationship, a voice. What an outfit already was,
  *  generalised — see `src/slots.ts`. Several of the plural slots can be live at once. */
@@ -267,13 +270,39 @@ const live = (a: Addon, at: number) =>
  *  `fires` is the shipped matcher with the addon's keys swapped in, never a second copy of it:
  *  the fold, the proper-noun exemption and multi-word order all have to behave the same here or a
  *  relationship fires on a rule a character would not. */
+/** #79 · THE LAST OF THESE EVENTS TO HAVE HAPPENED BY A SCENE, in the order they were written within
+ *  a scene. Undefined when none has, which is different from "none were ever written". */
+const lastBy = (e: Entry, kinds: string[], at: number) =>
+  (e.events ?? []).filter((x) => kinds.includes(x.kind) && x.fromChapter <= at)
+    .map((x, i) => ({ x, i })).sort((a, b) => a.x.fromChapter - b.x.fromChapter || a.i - b.i).at(-1)?.x;
+
+/** #79 · THE OUTFIT WORN AT A SCENE: the one put on most recently by then, or null. A thread with no
+ *  wear events yet (written before they were dated) is wearing what its switch says. */
+export function wornAt(e: Entry, at: number): string | null {
+  if (!(e.events ?? []).some((x) => x.kind === 'wear' || x.kind === 'unwear'))
+    return (e.addons ?? []).find((a) => a.slot === 'outfit' && a.active)?.id ?? null;
+  const last = lastBy(e, ['wear', 'unwear'], at);
+  return last?.kind === 'wear' ? last.addonId ?? null : null;
+}
+
+/** #79 · THE SCENE A THREAD WAS RETIRED AT, IF IT STILL IS AT THIS ONE: retired and not brought back
+ *  since. A thread with no dated retirement reads its `retiredAtChapter`, as before. */
+export function retiredAt(e: Entry, at: number): number | null {
+  if (!(e.events ?? []).some((x) => x.kind === 'retire' || x.kind === 'return'))
+    return e.retiredAtChapter != null && e.retiredAtChapter <= at ? e.retiredAtChapter : null;
+  const last = lastBy(e, ['retire', 'return'], at);
+  return last?.kind === 'retire' ? last.fromChapter : null;
+}
+
 const rooms = (e: Entry, at: number, window: string): string[] =>
   (e.addons ?? [])
     // ALWAYS TRUE IS NOT A POCKET (#77, ADR 0005). It is stored as the `facts` addon and read by
     // `alwaysTrue` below, ahead of everything; every other room keeps the order the view gave it.
     .filter((a) => a.slot !== 'facts')
     .filter((a) => live(a, at))
-    .filter((a) => a.active || fires({ ...e, keys: a.keys ?? [] }, window).length)
+    // An outfit is worn by the dated wardrobe (#79, `wornAt`), not by a switch that only knows now.
+    .filter((a) => (a.slot === 'outfit' ? wornAt(e, at) === a.id : a.active)
+      || fires({ ...e, keys: a.keys ?? [] }, window).length)
     .map((a) => {
       const who = (e.title || '').trim();
       // ONE STRIP FOR EVERY WRAPPED ROOM. 43 of the live library's non-facts rooms are stored as
@@ -1007,10 +1036,11 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // costs room and contradicts the page, and the ledger's precision decays exactly as the book
     // gets long enough to need it. Recorded as an omission with a reason rather than dropped
     // silently, the same as a pin, so the manifest can still answer for it.
-    if (e.retiredAtChapter != null && e.retiredAtChapter <= currentChapter.index) {
+    const gone = retiredAt(e, currentChapter.index);
+    if (gone != null) {
       blocks.push({ kind: e.activation === 'always_on' ? 'CANON-ALWAYS' : 'CANON-TRIGGERED',
         id: e.id, text: '', tokens: 0, state: 'omitted',
-        reason: `retired at chapter ${e.retiredAtChapter}` });
+        reason: `retired at chapter ${gone}` });
       continue;
     }
     const body = bodyOf(e);
