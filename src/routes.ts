@@ -5,7 +5,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TIDY, TIDY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -13,7 +13,7 @@ import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultMode
          voiceOf, anansiOf, estimate } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
-import { resolveBody, cardText, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches,
+import { resolveBody, cardText, alwaysTrue, retiredAt, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches,
          weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
@@ -999,97 +999,87 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   }
 }
 
-/** What the chapter just closed did to the people in it, as proposals.
+/** What the scene just hemmed did to the threads it names, as chalked proposals (#73, ADR 0005).
  *
  *  Proposals, not writes: a memory that edits canon behind you is a memory you cannot audit, and the
  *  proposal table already has acceptance, rejection and subject-hash dedupe so re-running is safe.
  *
+ *  EVERY KIND THE NARRATION NAMES, by its title or its wake words (the one matcher, `fires`), and
+ *  none it does not: a thread that was only sent has not changed. Each answer is one card on the
+ *  Workbench, so everything it chalks for one thread shares a group, with the narration line it came
+ *  from: a whole Over time entry (where it stands from the next scene on), its pocket changes as
+ *  instructions, and Always true only where that is empty.
+ *
  *  `from_chapter` is the NEXT chapter, not the one that closed. The change happened during it, so it
  *  is in force from the one after — and going back to revise the closed chapter still sees the
- *  character as they were in it.
+ *  thread as it was in it.
  *
- *  Rides on the `entry_type === 'state'` convention rather than a new column, the same way an
- *  accepted string carries its chapter in `keys`. That is the established shape here for a proposal
- *  that is not an entry.
- *
- *  ponytail: one model call for every changed character at once, and the whole chapter's narration in
- *  the prompt. Fine at chapter length; a chapter long enough to overflow the slot returns the
- *  overflow error rather than a partial memory, and the fix then is per-scene rather than
- *  per-chapter. */
+ *  ponytail: one model call for every named thread at once, and the whole scene's narration in the
+ *  prompt. Whether one call per thread places changes better is the #73 measurement; and a scene long
+ *  enough to overflow the slot returns the overflow error rather than a partial memory. */
 async function remember(c: Ctx, storyId: string, chapterId: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
   if (!ps.length) return { remembered: 0 };
 
-  // Characters only: a place does not acquire a broken arm, and states on lore entries are a
-  // different feature nobody has asked for.
-  const cast = v.entries.filter((e: any) => e.entryType === 'character');
-  if (!cast.length) return { remembered: 0 };
-
   const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
-  const inForce = cast.map((e: any) => `${e.title}: ${cardText(e, ch.index)}`).join('\n\n');
+  const named = v.entries.filter((e: any) => !e.sharedFrom && !retiredAt(e, ch.index)
+    && fires({ ...e, keys: [...(e.keys ?? []), e.title] }, text).length);
+  if (!named.length) return { remembered: 0 };
+
+  const inForce = named.map((e: any) => [`${e.title} (${e.entryType})`,
+    `  Always true: ${alwaysTrue(e) || '(empty)'}`,
+    `  Where it stands now: ${resolveBody(e, ch.index).trim() || '(nothing yet)'}`,
+    `  Pockets it has: ${(e.addons ?? []).filter((a: any) => a.slot !== 'facts').map((a: any) => `${a.slot} (${a.name})`).join(', ') || 'none'}`,
+    `  Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name).filter((n) => n !== 'facts').join(', ')}`,
+  ].join('\n')).join('\n\n');
 
   const r = await structuredRetry(MEMORY, `${text}\n\n---\n\n${inForce}`, MEMORY_SCHEMA,
     { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
-  if (!r.data?.characters) return { remembered: 0, error: r.error ?? null };
+  if (!r.data?.threads) return { remembered: 0, error: r.error ?? null };
 
   const norm = (t: string) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  // THE LINE IS QUOTED OR IT IS NOTHING: a line the narration does not contain is the model's, and
+  // a card that shows it would be showing an invented sentence as the evidence.
+  const quoted = (l: string) => { const t = String(l ?? '').trim();
+    return t && norm(text).includes(norm(t)) ? t.slice(0, 240) : null; };
   let remembered = 0;
-  for (const m of r.data.characters) {
-    if (!m?.name?.trim() || !m?.body?.trim()) continue;
-    // Match on the title, exactly as classify() resolves an entry, and never invent a character
-    // here: this pass updates who exists and extraction is what adds someone.
-    const who = cast.find((e: any) => norm(e.title) === norm(m.name));
+  for (const m of r.data.threads as any[]) {
+    if (!m?.name?.trim()) continue;
+    // Match on the title, exactly as classify() resolves an entry, and never invent a thread here:
+    // this pass updates what exists and extraction is what adds something.
+    const who = named.find((e: any) => norm(e.title) === norm(m.name));
     if (!who) continue;
-    // WHERE THE CHANGE BELONGS. This pass rewrote the WHOLE description every time, which is the
-    // overwrite PLAN-08 exists to stop and the reason `facts` had to be invented: a state REPLACES
-    // the body, so everything the rewrite did not repeat was silently dropped from that chapter on.
-    //
-    // A room is edited without touching the rest of the card, so most changes go there now. `none`
-    // is still the whole-description state and still the right answer for the case it was built
-    // for — a death, a transformation, a person the chapter genuinely replaced — which is why that
-    // path is kept rather than migrated away.
-    const asked = String((m as any).field ?? 'none');
-    const declared = slotsFor('character').some((sl) => sl.name === asked) ? asked : null;
-    // ONE PROPOSAL PER ROOM. The answer may name several; each lands in its own room and leaves the
-    // others alone, which is the whole reason rooms exist. The dedupe hash is already keyed on
-    // where a proposal WRITES, so two rooms of one character do not collide with each other.
-    for (const piece of roomPieces(declared, m.body, slotsFor('character'))) {
-      // "none" IS A FIELD VALUE, NOT A CHANGE. Seen on 2026-08-29: the model answered one character
-      // with a body of the single word `none`, having put the field's vocabulary in the body. A
-      // proposal made of it is a card edit that would write the word `none` into a room.
-      if (/^none[.\s]*$/i.test(piece.body.trim())) continue;
-      const field = piece.field;
-      // WHAT THE CARD ALREADY SAYS IS NOT A CHANGE — for a ROOM. See `withoutEcho`: about one
-      // proposal in six came back as the whole card restated under a room's label, and a sentence
-      // already on the card adds nothing to a room edit either way.
-      //
-      // NOT ON THE `none` PATH, and test/memory.ts caught that on the first attempt. A state IS the
-      // whole description rewritten with the change folded in — that is the contract the state path
-      // exists for, and what it repeats from the card is the part that is still true. Stripping it
-      // there would leave a state holding only the new sentence, which then REPLACES the body from
-      // that chapter on and silently drops everything else about the character.
-      if (field) {
-        const fresh = withoutEcho(piece.body, cardText(who, ch.index));
-        if (fresh.length < 12) continue;
-        piece.body = fresh;
-      }
-      const offer = roomOffer(who, field, piece.body);
+    const grp = `hem:${ch.id}:${who.id}`, line = quoted(m.line);
+    const delta = (m.label ?? '').trim().slice(0, 60) || 'changed by this scene';
+    // WHERE IT STANDS. Whole, and not "none" (the model has put the field's vocabulary in the body
+    // before), and not the text it already has.
+    const stands = String(m.stands ?? '').trim();
+    if (stands && !/^none[.\s]*$/i.test(stands) && norm(stands) !== norm(resolveBody(who, ch.index))
+      && db.addProposal(storyId, { kind: 'memory', entry_id: who.id, chapterId: ch.id, title: who.title,
+        body: stands, entryType: 'state', delta, keys: [String(ch.index + 1)], grp, line })) remembered++;
+    // POCKETS: from the thread's own kind only, never Always true, never what it already says.
+    const kinds = slotsFor(who.entryType).map((sl) => sl.name);
+    for (const pk of (Array.isArray(m.pockets) ? m.pockets : []) as any[]) {
+      const field = String(pk?.slot ?? '');
+      let body = String(pk?.body ?? '').trim();
+      if (field === 'facts' || !kinds.includes(field) || !body || /^none[.\s]*$/i.test(body)) continue;
+      body = withoutEcho(body, cardText(who, ch.index));
+      if (body.length < 12) continue;
+      const offer = roomOffer(who, field, body);
       if (offer === 'said') continue;
-
-      if (db.addProposal(storyId, field ? {
-        kind: 'changed', entry_id: who.id, chapterId: ch.id,
-        title: who.title, body: piece.body.trim(), entryType: 'character', field, target: offer,
-        delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this scene',
-        keys: [],
-      } : {
-        kind: 'memory', entry_id: who.id, chapterId: ch.id,
-        title: who.title, body: piece.body.trim(), entryType: 'state',
-        delta: (m.label ?? '').trim().slice(0, 60) || 'changed by this scene',
-        keys: [String(ch.index + 1)],
-      })) remembered++;
+      if (db.addProposal(storyId, { kind: 'changed', entry_id: who.id, chapterId: ch.id, title: who.title,
+        body, entryType: who.entryType, field, target: offer, delta, keys: [], grp, line,
+        pocket: String(pk?.name ?? '').trim().slice(0, 60) || null })) remembered++;
     }
+    // ALWAYS TRUE, ONCE, WHILE IT IS EMPTY (#73): the one time Anansi may write it on a thread that
+    // exists. The accept route sews it in as Always true only while it is still empty.
+    const always = String(m.always ?? '').trim();
+    if (always && !alwaysTrue(who) && !/^none[.\s]*$/i.test(always)
+      && db.addProposal(storyId, { kind: 'changed', entry_id: who.id, chapterId: ch.id, title: who.title,
+        body: always, entryType: who.entryType, field: 'facts', keys: [], grp, line,
+        delta: 'who or what it is' })) remembered++;
   }
   return { remembered, chapter: ch.index };
 }
@@ -1129,9 +1119,11 @@ async function extract(c: Ctx, storyId: string, chapterId?: string) {
     // PLAN-08 Phase 4. WHICH ROOM, if the model named one and it is a room this card can have.
     const { field, target, said } = roomAsked(v.entries as any[], cls, e);
     if (said) continue;
+    // #73. A NEW THREAD'S TEXT IS WHO OR WHAT IT IS, so it is chalked as its Always true (`facts`
+    // on a proposal with no thread yet); the accept route writes it there and leaves Info empty.
     if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
-      activation: e.activation, field, target })) added++;
+      activation: e.activation, field: cls.entry_id ? field : 'facts', target })) added++;
   }
   return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
 }
@@ -3889,6 +3881,40 @@ export const routes: Record<string, Handler> = {
   'POST /api/scanstory': async (c) => extractStory(c, c.body.storyId, c.body.entryId),
   // Re-runnable: a chapter that closed with the router down gets its memory when it comes back, and
   // the subject hash stops a second run proposing the same character twice.
+  /** #73 · TIDY THIS THREAD: the writer's press, on one thread. Its Always true, where it stands and
+   *  its pockets sorted into ADR 0005's three parts, as instructions, all chalked as one card. The
+   *  one path besides a new thread's that may chalk a change to an Always true that is written: the
+   *  writer asked for exactly that, and it is still theirs to sew in or not. */
+  'POST /api/tidy': async (c: Ctx) => {
+    const v = bookOf(c.body.storyId);
+    const e = v?.entries.find((x: any) => x.id === c.body.entryId && !x.sharedFrom);
+    if (!e) return { error: 'no such thread in this tale' };
+    const at = v.currentChapter?.index ?? 1;
+    const ask = [`${e.title} (${e.entryType})`, `Always true: ${alwaysTrue(e) || '(empty)'}`,
+      `Where it stands now: ${resolveBody(e, at).trim() || '(nothing yet)'}`,
+      `Pockets: ${(e.addons ?? []).filter((a: any) => a.slot !== 'facts').map((a: any) => `${a.slot} "${a.name}": ${a.body}`).join(' | ') || 'none'}`,
+      `Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name).filter((n) => n !== 'facts').join(', ')}`].join('\n');
+    const r = await structuredRetry(TIDY, ask, TIDY_SCHEMA, { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
+    if (!r.data) return { error: r.error ?? 'the tidy returned nothing usable' };
+    const grp = `tidy:${e.id}:${Date.now()}`, chapterId = v.currentChapter?.id ?? null;
+    const base = { kind: 'tidy', entry_id: e.id, chapterId, title: e.title, entryType: e.entryType, keys: [], grp,
+      delta: 'tidied' };
+    let added = 0;
+    const always = String(r.data.always ?? '').trim();
+    if (always && always !== alwaysTrue(e) && db.addProposal(v.id, { ...base, body: always, field: 'facts' })) added++;
+    const stands = String(r.data.stands ?? '').trim();
+    if (stands && stands !== resolveBody(e, at).trim() && db.addProposal(v.id, { ...base, body: stands })) added++;
+    const kinds = slotsFor(e.entryType).map((sl) => sl.name);
+    for (const pk of (Array.isArray(r.data.pockets) ? r.data.pockets : []) as any[]) {
+      const field = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
+      if (field === 'facts' || !kinds.includes(field) || !body) continue;
+      const was = (e.addons ?? []).find((a: any) => a.slot === field
+        && String(a.name).toLowerCase() === String(pk?.replaces ?? '').trim().toLowerCase());
+      if (db.addProposal(v.id, { ...base, body, field, target: was?.id ?? null,
+        pocket: String(pk?.name ?? '').trim().slice(0, 60) || null })) added++;
+    }
+    return { added, ...viewOf(c, v.id) };
+  },
   'POST /api/remember': async (c: Ctx) => {
     const out = await remember(c, c.body.storyId, c.body.chapterId);
     return { ...out, proposals: db.proposalsOf(c.body.storyId) };
@@ -3943,8 +3969,10 @@ export const routes: Record<string, Handler> = {
         // rides in `keys`, which is the only field on a proposal with room for it.
         db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body,
           fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || null });
-      } else if (c.body.accept && target === 'room:facts') {
-        // #77 · THE LOCK: see `lockToOverTime`.
+      } else if (c.body.accept && target === 'room:facts' && p.kind !== 'tidy'
+        && alwaysTrue((bookOf(p.story_id)?.entries ?? []).find((x: any) => x.id === p.entry_id) ?? {} as any)) {
+        // #77 · THE LOCK: see `lockToOverTime`. #73: only while the thread HAS an Always true; an
+        // empty one is Anansi's to offer once, and falls through to the room write below.
         lockToOverTime(p, String(c.body.body ?? p.body));
       } else if (c.body.accept && target.startsWith('room:')) {
         // PLAN-08 Phase 4. THE ROOM, NOT THE WHOLE CARD. `proposals.field` has been written since
@@ -3960,9 +3988,11 @@ export const routes: Record<string, Handler> = {
         // makes `upsertAddon` an edit rather than an insert, and it is checked against this story
         // in there, so a target from another book resolves to nothing and mints a new room instead
         // of hijacking one.
-        const onto = c.body.replace && p.target ? String(p.target) : '';
+        // A TIDY STANDS IN for the pocket it names (#73): turning a description into an instruction
+        // is a replacement, not a second pocket beside it.
+        const onto = (c.body.replace || p.kind === 'tidy') && p.target ? String(p.target) : '';
         const id = db.upsertAddon(p.story_id, p.entry_id,
-          { id: onto, slot: p.field, name: p.title, body: c.body.body ?? p.body, keys });
+          { id: onto, slot: p.field, name: p.pocket || p.title, body: c.body.body ?? p.body, keys });
         // A ROOM WITH NO KEYS THAT NOBODY PINNED ON NEVER REACHES THE MODEL. That is the same
         // darkness `src/import.ts:127` refuses for an entry — keys or always-on, never neither —
         // and it is worse here, because the room looks filled in on the card while being invisible
@@ -3984,8 +4014,10 @@ export const routes: Record<string, Handler> = {
           const f = r?.facts && typeof r.facts === 'object' ? r.facts.body : r?.facts;
           if (r && String(f ?? '').trim()) { lockToOverTime(p, String(f)); delete r.facts; p.rooms = JSON.stringify(r); }
         }
+        // #73. A new thread chalked with its text as Always true is made with that, and no Info.
+        const asAlways = !p.entry_id && p.field === 'facts';
         const made = db.upsertEntry(p.story_id, c.owner, { id: p.entry_id || undefined, title: p.title,
-          body: c.body.body ?? p.body, entryType: p.entry_type,
+          body: asAlways ? '' : (c.body.body ?? p.body), entryType: p.entry_type,
           // PLAN-08 Phase 2. The proposal can carry an activation now, and this honours it for
           // everything except a character. A character never lands `triggered` from a MODEL's
           // answer: `bench/ledger-audit.ts` found 1 in 12 entries would go dark on a flip and 2
@@ -4002,6 +4034,7 @@ export const routes: Record<string, Handler> = {
          * paste uses, so a room that a kind cannot hold is refused in one place rather than two,
          * and it switches an unkeyed room on for the reason stated in the room branch above: a room
          * with no trigger words that nobody pinned reaches no prompt at all. */
+        if (made && asAlways) db.upsertAddon(p.story_id, made, { slot: 'facts', name: 'facts', body: String(c.body.body ?? p.body) });
         if (made && p.rooms) {
           try {
             writeRooms(p.story_id, made, p.entry_type, JSON.parse(p.rooms), p.title);

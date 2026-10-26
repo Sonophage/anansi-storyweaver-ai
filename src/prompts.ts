@@ -91,75 +91,133 @@ export const EXTRACT_SCHEMA = {
   required: ['entries'],
 } as const;
 
-/** What a chapter did to the people in it.
+/** #73 · A POCKET IS AN INSTRUCTION ON USE, NEVER TEXT TO REPEAT (ADR 0005). Halsey's voice pocket said
+ *  "voice remains thick Jersey accent even in digital text" and the narration said "the letters thick
+ *  with her accent even in digital form": a description in the prompt is a sentence for the prose.
+ *  One paragraph, in every prompt that writes a pocket, so they all ask for the same shape.
+ *  NOT MEASURED YET: owed a control run before anyone calls it a fix (the voice A/B in #73). */
+export const POCKET_FORM =
+`A pocket is an INSTRUCTION to whoever writes the next scene: how to use this part of the thread,
+never a description to copy into the prose. Write each one as directions:
+
+    voice          how their dialogue is written: sentence length, words they use and never use,
+                   how they dodge a question. "Short, clipped lines; says aye for yes. Show the
+                   accent only in what she says; the narration never names it."
+    outfit         what they have on and what of it shows in a scene, as clothes, not as who they are.
+    interiority    what they will not say out loud, and what they do instead of saying it.
+    relationships  how they act around that one person, and what stands between them.
+    appearance     the one or two things another character notices first, and when to show them.
+    atmosphere, who_is_here, what_it_does, consequences
+                   what to put on the page when this place, object or rule is in the scene.`;
+
+/** What a scene did to the threads it names (#73, ADR 0005). Every kind, not only people: a place
+ *  burns, an item breaks, a rule stops holding.
  *
- *  Seeded with the description currently in force and asked for the WHOLE of it back, because a
- *  state REPLACES the base body rather than adding to it — see resolveBody. A delta-shaped answer
- *  ("her arm is broken") would silently drop everything else about her from that chapter onward, and
- *  it would read as the model forgetting rather than as an answer being too short.
+ *  Seeded with where each thread stands now and asked for the WHOLE of it back, because an Over time
+ *  entry REPLACES the text before it — see resolveBody. A delta-shaped answer ("her arm is broken")
+ *  would silently drop her debts from that scene on, and it would read as the model forgetting.
+ *  Its pockets come back as instructions (POCKET_FORM), and Always true only where it is empty.
  *
- *  One call for every character rather than one per character: the chapter is the expensive half of
- *  the prompt and this way it is prefilled once.
+ *  One call for every thread rather than one per thread: the scene is the expensive half of the
+ *  prompt and this way it is prefilled once. Whether one per thread lands more changes in the right
+ *  place is the #73 measurement, owed before this is called settled.
  */
 export const MEMORY =
-`Below is a chapter's narration, then a list of characters with the description of each that is
-currently in force.
+`Below is a scene's narration, then the threads it names: people, places, lore, items and rules.
+Each comes with its Always true (who or what it is, which does not change), where it stands now,
+and the pockets its kind can have.
 
-For each character the chapter CHANGED, say what changed and WHERE IT BELONGS.
+For each thread the scene CHANGED, return:
 
-Most changes belong in one room of the card, and the field value names which:
+  stands   the WHOLE of where it stands now, after this scene: everything in "where it stands
+           now" that is still true, with the change folded in. It replaces that text from the next
+           scene on, so anything you leave out is lost from then on.
+  label    four words at most, for the timeline: "arm broken", "no longer trusts Vel".
+  line     the shortest phrase of the narration where the change happens, copied exactly.
+  pockets  the pockets this scene gives the thread something new for: a pocket to add to, or one
+           it did not have. Only names from its kind's list. Empty when nothing about them changed.
+  always   ONLY when its Always true is empty: who or what it is, in one bracket. Otherwise "".
 
-  appearance     how they look now
-  interiority    what they think, fear or want
-  relationships  one relationship, and only that one
-  voice          how they sound
-  facts          something permanent about them that is now established
+${POCKET_FORM}
 
-For those, the body is JUST THAT ROOM — that one thing and nothing else — and everything else
-about them stays exactly as it is.
+Who or what a thread IS goes in Always true and never in stands or a pocket; clothes go in an
+outfit pocket and never in stands.
 
-${LEDGER_REGISTER} That is the whole point: a room is edited without touching the
-rest of the card.
-
-Use "none" only when the change is to who they now ARE as a whole and no single room holds it — a
-death, a transformation, a person the chapter has genuinely replaced. THEN, and only then, rewrite
-the whole description as it now stands, keeping everything still true and folding the change into
-it, because what you return replaces what was there.
+${LEDGER_REGISTER}
 
 Rules:
-- Change means something the narration establishes: an injury, a death, a promotion, a move, a
+- Change means something the narration establishes: an injury, a death, a move, a fire, a
   relationship that turned, a thing learned or lost. Not a mood in one scene.
-- If a character was merely present, leave them out of the answer entirely.
+- If a thread was merely present, leave it out of the answer entirely.
 - Only the narration commits the story. Dialogue has been removed already; do not infer from what
   is missing.
-- Write it as canon, in the third person, present tense. No summary of the chapter's plot.
-- label is four words at most, for the timeline: "arm broken", "no longer trusts Vel".
+- Present tense, third person. No summary of the scene's plot.
 
-Return only characters that changed.`;
+Return only threads that changed.`;
 
 export const MEMORY_SCHEMA = {
   type: 'object',
   properties: {
-    characters: {
+    threads: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
-          name:  { type: 'string' },
-          body:  { type: 'string' },
-          label: { type: 'string' },
-          // WHERE THE CHANGE BELONGS. `none` is the whole-description rewrite this pass has always
-          // done; a room name is the change landing in one part of the card and leaving the rest
-          // alone. Required, so the model answers rather than letting the caller assume.
-          field: { type: 'string',
-                   enum: ['none', 'appearance', 'facts', 'interiority',
-                          'relationships', 'voice'] },
+          name:   { type: 'string' },
+          stands: { type: 'string' },
+          label:  { type: 'string' },
+          line:   { type: 'string' },
+          always: { type: 'string' },
+          // A POCKET, BY NAME FROM THE KIND'S LIST, never Always true (`facts`): the update locked
+          // that to the writer. The route still checks the name against the thread's own kind.
+          pockets: { type: 'array', items: { type: 'object', properties: {
+            slot: { type: 'string', enum: ['appearance', 'atmosphere', 'consequences', 'interiority',
+                    'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
+            name: { type: 'string' },
+            body: { type: 'string' },
+          }, required: ['slot', 'name', 'body'] } },
         },
-        required: ['name', 'body', 'label', 'field'],
+        required: ['name', 'stands', 'label', 'line', 'always', 'pockets'],
       },
     },
   },
-  required: ['characters'],
+  required: ['threads'],
+} as const;
+
+/** #73 · TIDY THIS THREAD. An old thread is often one box holding who it is, what it wears and what
+ *  has happened to it (Halsey's Info did all three), with pockets written as descriptions. This sorts
+ *  ONE thread, which the writer chose, into the three parts ADR 0005 gives it. Everything it returns
+ *  is chalked: nothing changes until the writer sews it in. */
+export const TIDY =
+`Below is one thread from a story, as it stands: its Always true, where it stands now, and its
+pockets. Sort what it says into the three parts a thread has, and change nothing else:
+
+  always   who or what it is, for the whole story: what does not change. One bracket.
+  stands   where it stands now: what has happened to it and what is at stake. One bracket.
+  pockets  one per part of how to write it, each from its kind's list, as an INSTRUCTION. For each
+           pocket it already has, say which one it replaces (its name), or "" for a new one.
+
+Keep every fact it already holds, in one of the three; drop nothing and add nothing. Where Always
+true and where it stands now disagree, keep the later and more specific, in stands.
+
+${POCKET_FORM}
+
+${LEDGER_REGISTER}`;
+
+export const TIDY_SCHEMA = {
+  type: 'object',
+  properties: {
+    always: { type: 'string' },
+    stands: { type: 'string' },
+    pockets: { type: 'array', items: { type: 'object', properties: {
+      slot: { type: 'string', enum: ['appearance', 'atmosphere', 'consequences', 'interiority',
+              'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
+      name: { type: 'string' },
+      body: { type: 'string' },
+      replaces: { type: 'string' },
+    }, required: ['slot', 'name', 'body', 'replaces'] } },
+  },
+  required: ['always', 'stands', 'pockets'],
 } as const;
 
 /** Which cards a chapter FINISHED — a dead character, a burned building, a rule that stopped
@@ -1125,6 +1183,11 @@ ${rooms.map((r) => `             ${r}`).join('\n')}
            a model needs if it reads nothing else about them: what they are, and the two or three
            things that change a scene. Each room is what the body did NOT say. If a room would only
            restate the body, leave that room empty.
+
+           facts is the one room that is not an instruction: who or what they are. Every other room
+           is written as the instruction below, from what the results say.
+
+${POCKET_FORM}
 ` : ''}    keys   Single words that would really appear in prose about them — a name, a place, a work, an
            object. Not the title again.
 
@@ -1206,7 +1269,9 @@ ${about.startsWith('outfit')
 `
     + `Forty to eighty words — not one sentence, and not a paragraph of atmosphere. Every clause `
     + `carries a fact somebody could contradict: a habit, a number, a thing they carry, a thing `
-    + `they refuse. No adjective doing the work of a fact.`
+    + `they refuse. No adjective doing the work of a fact.
+
+${POCKET_FORM}`
   : `    title  What the thing is called. A name, not a description of it.
 `
     + `    body   [Name: attribute, attribute, attribute, what it does, what it wants, what it

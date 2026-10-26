@@ -268,6 +268,8 @@ export function view(storyId: string, focusChapterId?: string) {
       // The room this would stand in for, if the writer chooses replace over add. The surface needs
       // the id to send it back and the NAME to say what it is offering to overwrite.
       target: p.target ?? null,
+      // #73. One Workbench card per group, the narration line it came from, and a pocket's name.
+      grp: p.grp ?? null, line: p.line ?? null, pocket: p.pocket ?? null,
     })),
   };
 }

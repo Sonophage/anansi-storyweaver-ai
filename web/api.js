@@ -195,6 +195,7 @@ export const api = {
   // Re-runs the character memory on a chapter that already closed. Chapter close fires this
   // itself; this is the way back when the router was down at the time.
   remember:     (storyId, chapterId) => j('/api/remember', 'POST', { storyId, chapterId }),
+  tidy:         (storyId, entryId) => j('/api/tidy', 'POST', { storyId, entryId }),
   // "Remember this." A passage the writer points at, turned into a thread and put in the queue,
   // carrying the chapter it came from. Proposes; nothing becomes canon unaccepted.
   memo:         (storyId, passageId, entryType) => j('/api/memo', 'POST', { storyId, passageId, entryType }),

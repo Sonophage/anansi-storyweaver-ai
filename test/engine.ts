@@ -1318,6 +1318,10 @@ ok('a voice room reaches the prompt as an instruction about dialogue, not as a n
   // character voice in the live library was arriving in it.
   const b = withAddons([room({ slot: 'voice', name: 'How she sounds', body: 'clipped, never swears',
     active: true })], { title: 'Aldis Fen' } as any);
+  // #73. And the narration is told to keep out of it: "the letters thick with her accent" was the
+  // narration repeating a voice pocket. Owed a control run (the #73 voice A/B) before it is a fix.
+  assert.match(b.text, /Show it only in what they say; the narration never names or describes it\.\]/,
+    'VOICE-NARRATION: the voice frame keeps the narration out of the accent');
   assert.match(b.text, /When Aldis Fen speaks, write the dialogue this way: clipped, never swears/,
     'the room has to name the character and the thing to produce, or it is a description again');
   assert.doesNotMatch(b.text, /\[voice:|\[How she sounds:/,
@@ -1330,7 +1334,7 @@ ok('  and a voice already written in the bracket form is not double-wrapped', ()
   // wrapper is the `[You: [You: …]]` defect the `facts` branch already carries a comment about.
   const b = withAddons([room({ slot: 'voice', body: '[short sentences; laughs when afraid]',
     active: true })], { title: 'Aldis Fen' } as any);
-  assert.match(b.text, /this way: short sentences; laughs when afraid\]/);
+  assert.match(b.text, /this way: short sentences; laughs when afraid\. Show it only/);
   assert.doesNotMatch(b.text, /\[\[|: \[short/, 'one set of brackets, not two');
 });
 

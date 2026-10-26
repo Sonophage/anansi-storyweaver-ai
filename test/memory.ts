@@ -16,11 +16,13 @@ const BEFORE = 'Vel is the Murmur. Grey eyes, a voice that carries. She trusts A
 const AFTER  = 'Vel is the Murmur. Grey eyes, a voice that carries. Her left arm is broken at the wrist, '
              + 'strapped and useless. She no longer trusts Aldis.';
 const SPOKEN = 'I never trusted him';       // said aloud, and therefore not canon
-const NARRATED = 'The wrist gave under the weight and she did not cry out.';
+// Names Vel: the hem reviews only threads the narration names (#73).
+const NARRATED = 'Vel felt the wrist give under the weight and did not cry out.';
 
 let asked: any = null;
 /** What the fake returns. A name that matches nobody is how the "never invent" check is driven. */
-let answer: any[] = [{ name: 'Vel', body: AFTER, label: 'arm broken, trust gone', field: 'none' }];
+let answer: any[] = [{ name: 'Vel', stands: AFTER, label: 'arm broken, trust gone',
+  line: 'the wrist give under the weight', always: '', pockets: [] }];
 /** And what the EXTRACT role returns. One fake, two roles: `remember` reads `characters` and
  *  `extract` reads `entries`, so returning both keys serves whichever one asked. */
 let found: any[] = [{ title: 'The Wrist Strap', body: 'Leather, cut from a saddle girth.',
@@ -39,6 +41,8 @@ let summed: string | null = null;
 /** How many times the fake was asked anything but /tokenize. #46 asserts a refusal happens BEFORE
  *  any model call, and only a count can see a call whose answer was thrown away. */
 let calls = 0;
+/** And what TIDY returns (#73): its three top-level keys ride on the same blob. */
+let tidied: any = {};
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -52,7 +56,7 @@ const srv = createServer((req, res) => {
     asked = { system: b.messages?.[0]?.content ?? '', user: b.messages?.[1]?.content ?? '' };
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
-    send({ choices: [{ message: { content: JSON.stringify({ characters: answer, entries: found,
+    send({ choices: [{ message: { content: JSON.stringify({ ...tidied, threads: answer, entries: found,
                                                             finished, style: styled }) } }],
            usage: { prompt_tokens: 200, completion_tokens: 60 } });
   });
@@ -96,8 +100,8 @@ const ok = (m: string, fn?: unknown) => {
     'and the spoken line does not — dialogue may lie, and only the narrator commits the story');
   // The description in force is seeded so the answer can be a restatement rather than a guess.
   assert.ok(asked.user.includes(BEFORE), "the character's current description is seeded into the ask");
-  // A place cannot acquire a broken arm.
-  assert.ok(!asked.user.includes('A stair with no landing'), 'lore entries are not offered for memory');
+  // #73. Every kind the narration NAMES is offered, and only those: the Long Stair is not named.
+  assert.ok(!asked.user.includes('A stair with no landing'), 'a thread the narration does not name is not offered');
   ok('the memory pass reads narration only, and is seeded with the description in force');
 }
 
@@ -202,14 +206,14 @@ let proposal: any;
 
 // ---- 5. never invents, and never proposes the same subject twice ----
 {
-  answer = [{ name: 'Someone Who Does Not Exist', body: 'x', label: 'y' }];
+  answer = [{ name: 'Someone Who Does Not Exist', stands: 'x', label: 'y', line: '', always: '', pockets: [] }];
   const r = await routes['POST /api/remember'](ctx({ storyId: story.id, chapterId }));
   assert.strictEqual(r.remembered, 0,
     'a name matching no character is ignored — extraction adds people, memory only updates them');
 
   // Re-proposing after acceptance is deliberate — the dedupe index covers OPEN proposals only,
   // because once a subject had been accepted it could otherwise never be proposed again.
-  answer = [{ name: 'Vel', body: AFTER, label: 'arm broken, trust gone' }];
+  answer = [{ name: 'Vel', stands: AFTER, label: 'arm broken, trust gone', line: '', always: '', pockets: [] }];
   const again = await routes['POST /api/remember'](ctx({ storyId: story.id, chapterId }));
   assert.strictEqual(again.remembered, 1, 'an accepted subject can be proposed again later');
 
@@ -263,17 +267,15 @@ let proposal: any;
              type: 'character', keys: [], activation: 'triggered', field: 'facts' }];
   const ch: any = db.chapters(story.id).at(-1);
   await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
-  const prop = db.proposalsOf(story.id).find((p: any) => p.field === 'facts');
+  // Vel's: new threads are chalked with `facts` too since #73 (their text is their Always true).
+  const prop = db.proposalsOf(story.id).find((p: any) => p.field === 'facts' && p.entry_id === vel);
   assert.ok(prop, 'a permanent fact aims at the facts room');
   assert.strictEqual(prop.target, null, 'and there is nothing there yet to replace');
   await routes['POST /api/proposal'](ctx({ storyId: story.id, id: prop.id, accept: true }));
-  // #77 · THE LOCK. Vel exists, so her Always true is the writer's: the accepted change is an Over
-  // time entry from the scene, and the facts room is not written by it.
-  assert.ok(!db.addonsOf(story.id).some((a: any) => a.slot === 'facts' && a.entry_id === vel),
-    'LOCK: accepting a chalked Always true change for a thread that exists does not write Always true');
-  const overTime: any[] = db.statesForStory(story.id).get(vel) ?? [];
-  assert.ok(overTime.some((x: any) => /Grey eyes/.test(x.body)), 'LOCK: it is an Over time entry instead');
-  for (const x of overTime) db.delState(story.id, x.id);
+  // #73 · AN EMPTY ALWAYS TRUE IS ANANSI'S TO FILL, ONCE. Vel has none, so the accepted change is
+  // her Always true. (#77's lock, for a thread whose Always true is written, is in test/scope.ts.)
+  assert.ok(db.addonsOf(story.id).some((a: any) => a.slot === 'facts' && a.entry_id === vel && /Grey eyes/.test(a.body)),
+    'FILL-EMPTY: accepting a chalked Always true for a thread with none writes it');
   // The writer writes her Always true by hand, which the lock does not touch; the blocks below use it.
   db.setAddonActive(story.id, db.upsertAddon(story.id, vel, { slot: 'facts', name: 'facts',
     body: 'Thirty-four. Born on the Long Stair. Grey eyes.' })!, true);
@@ -404,8 +406,14 @@ let proposal: any;
   const fresh = db.proposalsOf(story.id).find((p: any) => p.title === 'The Ninth Bell');
   assert.ok(fresh, 'the new thread was proposed');
   assert.strictEqual(fresh.entry_id, null, 'and it is new — no card to be a room of');
-  assert.strictEqual(fresh.field, null, 'so the room it named was dropped');
-  ok('  and a brand-new thread carries no room, because its body is the whole of it');
+  // #73. A NEW THREAD'S TEXT IS WHO OR WHAT IT IS: its Always true, not a room it named.
+  assert.strictEqual(fresh.field, 'facts', 'so the room it named was dropped, and its text is its Always true');
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: fresh.id, accept: true }));
+  const bell: any = db.entriesOf(story.id).find((e: any) => e.title === 'The Ninth Bell');
+  assert.strictEqual(bell?.body, '', 'NEW-ALWAYS: accepting it writes no Info');
+  assert.match((db.addonsOf(story.id) as any[]).find((a) => a.entry_id === bell?.id && a.slot === 'facts')?.body ?? '',
+    /rung for the drowned/, 'NEW-ALWAYS: and its text is its Always true');
+  ok('  and a brand-new thread carries no room: its text is its Always true');
 }
 
 // ---- 5. what a chapter FINISHED — PLAN-08 Phase 4 ----
@@ -544,8 +552,11 @@ let retProposal: any;
   const ch: any = db.chapters(story.id).at(-1);
   db.addPassage({ ...story, storyId: story.id, chapterId: ch.id,
     body: 'Vel would not look at the bridge, and would not say why.' });
-  answer = [{ name: 'Vel', body: 'She will not cross the bridge at night.',
-              label: 'afraid of the bridge', field: 'interiority' }];
+  // #73. A pocket change, as an instruction, and no change to where she stands. Vel was retired by
+  // the retirement checks above, and a retired thread is not reviewed at hem, so she comes back first.
+  db.setRetired(story.id, vel, null, ch.index);
+  answer = [{ name: 'Vel', stands: '', label: 'afraid of the bridge', line: 'would not look at the bridge', always: '',
+              pockets: [{ slot: 'interiority', name: 'The bridge', body: 'She will not cross the bridge at night; she finds a reason.' }] }];
   found = [];
   const before = db.statesForStory(story.id).get(vel)?.length ?? 0;
   await routes['POST /api/remember'](ctx({ storyId: story.id, chapterId: ch.id }));
@@ -564,8 +575,8 @@ let retProposal: any;
   // AND `none` STILL WRITES A STATE. That path is the one the pass was built for — a death, a
   // transformation, a person the chapter genuinely replaced — and it is kept, not migrated away.
   const ch: any = db.chapters(story.id).at(-1);
-  answer = [{ name: 'Vel', body: 'Vel is dead at the foot of the stair.', label: 'dead',
-              field: 'none' }];
+  answer = [{ name: 'Vel', stands: 'Vel is dead at the foot of the stair.', label: 'dead',
+              line: '', always: '', pockets: [] }];
   const before = db.statesForStory(story.id).get(vel)?.length ?? 0;
   await routes['POST /api/remember'](ctx({ storyId: story.id, chapterId: ch.id }));
   const st = db.proposalsOf(story.id).find((p: any) => p.entry_type === 'state' && /dead/.test(p.body));
@@ -775,6 +786,72 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.ok(['memory', 'facts', 'finished'].every((k) => k in (r.passes ?? {})),
     `  the other passes ran (${Object.keys(r.passes ?? {}).join(', ')})`);
   ok('closing a chapter keeps your summary, even stale, runs the other passes, and says so');
+}
+
+// ---- #73 · HEM REVIEWS EVERY THREAD THE SCENE NAMES, AS ONE CARD EACH ----
+{
+  const t = db.createStory(me, { title: 'Hem all kinds', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const harbour = db.upsertEntry(t.id, me, { title: 'The Harbour', body: '[The Harbour: busy, loud]', entryType: 'place', keys: ['harbour'] });
+  const key = db.upsertEntry(t.id, me, { title: 'The Key', body: '[The Key: iron]', entryType: 'item', keys: ['key'] });
+  db.upsertEntry(t.id, me, { title: 'Unnamed', body: '[Unnamed: nobody mentions it]', entryType: 'lore', keys: ['nothing'] });
+  db.setAddonActive(t.id, db.upsertAddon(t.id, key, { slot: 'facts', name: 'facts', body: '[The Key: opens the vault]' })!, true);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'The harbour burned all night. The key was in her coat when the roof came down.' });
+  answer = [
+    { name: 'The Harbour', stands: '[The Harbour: burned out, black water, nobody works it]', label: 'burned',
+      line: 'The harbour burned all night', always: '[The Harbour: the town\'s only deep water]',
+      pockets: [{ slot: 'atmosphere', name: 'After the fire', body: 'Write smoke and wet ash first; nobody raises their voice here now.' },
+                { slot: 'voice', name: 'x', body: 'A place does not have a voice pocket, so this is refused.' },
+                { slot: 'facts', name: 'x', body: 'Always true is never a pocket answer.' }] },
+    { name: 'The Key', stands: '', label: '', line: 'a line the scene never had', always: '[The Key: a second Always true]', pockets: [] },
+  ];
+  asked = null;
+  await routes['POST /api/remember'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  assert.ok(asked.user.includes('The Harbour (place)') && asked.user.includes('The Key (item)'),
+    'HEM-ALL-KINDS: every thread the narration names is offered, whatever its kind');
+  assert.ok(!asked.user.includes('nobody mentions it'), 'HEM-NAMED-ONLY: and one it does not name is not');
+  const mine = db.proposalsOf(t.id) as any[];
+  const of = (id: string) => mine.filter((p) => p.entry_id === id);
+  const h = of(harbour);
+  assert.ok(h.some((p) => p.entry_type === 'state' && /burned out/.test(p.body)), 'HEM-STANDS: a place gets a whole Over time entry');
+  assert.ok(h.some((p) => p.field === 'atmosphere' && p.pocket === 'After the fire'), 'HEM-POCKET: and its pocket, by name');
+  assert.ok(!h.some((p) => p.field === 'voice'), 'HEM-KIND: a pocket its kind cannot have is refused');
+  assert.ok(h.some((p) => p.field === 'facts'), 'HEM-ALWAYS: its empty Always true is offered');
+  assert.strictEqual(new Set(h.map((p) => p.grp)).size, 1, 'HEM-ONE-CARD: everything for one thread shares a group');
+  assert.ok(h.every((p) => p.line === 'The harbour burned all night'), 'HEM-LINE: each carries the narration line it came from');
+  const k = of(key);
+  assert.ok(!k.some((p) => p.field === 'facts'), 'HEM-ALWAYS-ONCE: a thread that has an Always true is not offered another');
+  assert.ok(k.every((p) => p.line === null), 'HEM-LINE-QUOTED: a line the narration does not contain is not kept');
+  ok('hem reviews every thread the scene names, of every kind, as one card each with its line');
+}
+
+// ---- #73 · TIDY THIS THREAD ----
+{
+  const t = db.createStory(me, { title: 'Tidy', premise: 'p' }) as any;
+  const h = db.upsertEntry(t.id, me, { title: 'Halsey', entryType: 'character',
+    body: '[Halsey: singer; from Jersey; wears black lace; invited Seth to the gallery]' });
+  db.upsertAddon(t.id, h, { slot: 'facts', name: 'facts', body: '[Halsey: 26; a secretary]' });
+  const speech = db.upsertAddon(t.id, h, { slot: 'voice', name: 'Speech', body: '[thick Jersey accent even in text]' })!;
+  tidied = { always: '[Halsey: a singer from Jersey]', stands: '[Halsey: has invited Seth to the gallery opening]',
+    pockets: [{ slot: 'voice', name: 'Speech', body: 'Short, commanding lines. Show the accent only in what she says; the narration never names it.', replaces: 'Speech' },
+              { slot: 'outfit', name: 'Black lace', body: 'Black lace under a long coat; the coat stays on in public.', replaces: '' }] };
+  const r: any = await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: h }));
+  tidied = {};
+  assert.ok(!r.error, r.error);
+  const mine = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === h);
+  assert.strictEqual(mine.length, 4, `TIDY-CHALKS: Always true, where it stands and two pockets are chalked (${mine.length})`);
+  assert.strictEqual(new Set(mine.map((p) => p.grp)).size, 1, '  as one card');
+  for (const p of mine) await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+  const rooms = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === h);
+  assert.strictEqual(rooms.find((a) => a.slot === 'facts')?.body, '[Halsey: a singer from Jersey]',
+    'TIDY-ALWAYS: sewn in, the tidy rewrites Always true, because the writer asked for it');
+  assert.match((db.entriesOf(t.id) as any[]).find((e) => e.id === h).body, /invited Seth/, 'TIDY-STANDS: and where she stands');
+  const voices = rooms.filter((a) => a.slot === 'voice');
+  assert.deepStrictEqual(voices.map((a) => a.id), [speech], 'TIDY-REPLACES: the descriptive voice is replaced, not doubled');
+  assert.match(voices[0].body, /never names it/, '  by the instruction');
+  assert.ok(rooms.some((a) => a.slot === 'outfit' && a.name === 'Black lace'), '  and a new pocket lands under its own name');
+  ok('Tidy this thread chalks one card that sorts it into its three parts, replacing old pockets');
 }
 
 srv.close();

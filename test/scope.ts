@@ -2063,14 +2063,21 @@ async function bootServer(port: number, env: Record<string, string>) {
   // so without this it would sit on the card looking filled in and be invisible to every call.
   assert.deepStrictEqual(rooms.map((a) => !!a.active), [true],
     'and it is on, or the card looks filled in and reaches the model with none of it');
-  // #77 · THE LOCK. A chalked change to Always true of a thread that ALREADY EXISTS is sewn in as an
-  // Over time entry from its scene, carrying forward where the thread stood; Always true is not touched.
+  // #77 · THE LOCK. A chalked change to Always true of a thread that ALREADY EXISTS and HAS one is sewn
+  // in as an Over time entry from its scene, carrying forward where the thread stood; Always true is
+  // not touched. (#73: an EMPTY Always true is Anansi's to fill once; checked below.)
+  db.addProposal(st.id, { chapterId: chapter, kind: 'changed', entryType: 'character', entry_id: card.id,
+    title: 'Ferrus Manus', body: '[Ferrus Manus: Primarch of the X Legion]', field: 'facts', keys: [], delta: 'who he is' });
+  const fill: any = db.proposalsOf(st.id).find((x: any) => x.field === 'facts' && x.status === 'open');
+  await routes['POST /api/proposal'](ctxI(alice, { storyId: st.id, id: fill.id, accept: true }));
+  assert.strictEqual((db.addonsOf(st.id) as any[]).find((a) => a.entry_id === card.id && a.slot === 'facts')?.body,
+    '[Ferrus Manus: Primarch of the X Legion]', 'FILL-EMPTY: an empty Always true is filled by the chalked offer');
   db.addProposal(st.id, { chapterId: chapter, kind: 'update', entryType: 'character', entry_id: card.id,
     title: 'Ferrus Manus', body: '[left-handed]', field: 'facts', keys: [], delta: 'left-handed' });
   const lock: any = db.proposalsOf(st.id).find((x: any) => x.field === 'facts' && x.status === 'open');
   await routes['POST /api/proposal'](ctxI(alice, { storyId: st.id, id: lock.id, accept: true }));
   const after = (db.addonsOf(st.id) as any[]).find((a) => a.entry_id === card.id && a.slot === 'facts');
-  assert.strictEqual(after, undefined, 'LOCK-UNTOUCHED: no Always true is written for it by a chalked change');
+  assert.strictEqual(after?.body, '[Ferrus Manus: Primarch of the X Legion]', 'LOCK-UNTOUCHED: a second chalked change does not rewrite it');
   const st8: any[] = db.statesForStory(st.id).get(card.id) ?? [];
   assert.strictEqual(st8.length, 1, 'LOCK-OVER-TIME: it is an Over time entry instead');
   assert.match(st8[0].body, /Primarch of the Iron Hands[\s\S]*left-handed/,

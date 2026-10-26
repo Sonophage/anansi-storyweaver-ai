@@ -10,6 +10,26 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · Hemming looks at every thread
+
+### Hemming reads every thread the scene names
+When you hem a scene, Anansi now looks at every thread its narration names, places, lore and items
+as well as people, and offers what changed: where each one stands now, written out whole, and any
+pocket the scene gave it something new for. Everything she offers for one thread comes together,
+with the line of the scene it came from. A thread with no Always true yet gets one offered.
+
+### Pockets are instructions
+Anansi now writes pockets as instructions for the next scene (how she talks, what she wears, what
+to show when a place is in a scene) rather than descriptions for the prose to repeat. A voice
+tells the model to show the voice only in what is said, never to describe it in the narration.
+
+### Tidy this thread
+A thread's ⋯ menu has Tidy this thread: Anansi sorts an old, mixed thread into who or what it is,
+where it stands now, and pockets written as instructions. Nothing changes until you sew it in.
+
+### A new thread starts with who it is
+A thread Anansi finds in a scene now arrives with its text as Always true.
+
 ## 2026-10-26 · Over time
 
 ### Info is now where it stands

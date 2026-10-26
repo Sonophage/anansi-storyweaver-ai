@@ -2147,9 +2147,10 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
   const enumOf = (sch: any, path: string[]) => [...path.reduce((o, k) => o[k], sch).enum].filter((x: string) => x !== 'none').sort();
   assert.deepStrictEqual(enumOf(prompts.TALK_SCHEMA, ['properties', 'entries', 'items', 'properties', 'field']),
     [...slots.ALL_SLOTS].sort(), 'the Talk schema and the module disagree about which rooms exist');
-  assert.deepStrictEqual(enumOf(prompts.MEMORY_SCHEMA, ['properties', 'characters', 'items', 'properties', 'field']),
-    slots.SLOTS.character.map((x: any) => x.name).filter((n: string) => n !== 'outfit').sort(),
-    'the memory schema and the character pockets disagree');
+  // #73: the hem pass names pockets of every kind, never Always true.
+  assert.deepStrictEqual(enumOf(prompts.MEMORY_SCHEMA, ['properties', 'threads', 'items', 'properties', 'pockets', 'items', 'properties', 'slot']),
+    slots.ALL_SLOTS.filter((n: string) => n !== 'facts').sort(),
+    'the memory schema and the pockets disagree');
   // #80. The browser's copy of the kinds is the module's, in the same order.
   assert.deepStrictEqual([...webModel.KINDS], [...slots.KINDS], 'web/model.js KINDS and slots.KINDS disagree');
   assert.deepStrictEqual(slots.FOLDED.filter((n: string) => slots.ALL_SLOTS.includes(n)), [],

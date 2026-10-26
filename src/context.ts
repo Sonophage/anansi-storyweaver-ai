@@ -338,7 +338,10 @@ const rooms = (e: Entry, at: number, window: string): string[] =>
       // NOTHING IS CLAIMED FOR IT YET. `bench/cast.ts` is the detector and its baseline is 11
       // chapters, which decides nothing — this is F37's shape applied to the one place that was
       // not using it, and it is owed a measurement before anyone calls it a fix.
-      if (a.slot === 'voice') return `[When ${who || 'they'} speaks, write the dialogue this way: ${body}]`;
+      // #73. AND THE NARRATION KEEPS OUT OF IT. "The letters thick with her accent even in digital
+      // form" was the narration saying a voice pocket back. NOT MEASURED: owed the #73 voice A/B.
+      if (a.slot === 'voice') return `[When ${who || 'they'} speaks, write the dialogue this way: ${
+        body.replace(/[.\s]+$/, '')}. Show it only in what they say; the narration never names or describes it.]`;
 
       // INTERIORITY IS THE THIRD ROOM WHOSE NAME IS NOT WHAT THE MODEL NEEDS TO BE TOLD, and its
       // own definition in `src/forge.ts` is why: "What they will not say out loud, AND WHAT THEY DO

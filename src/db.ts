@@ -268,6 +268,11 @@ function migrate() {
    * have its rooms proposed separately — accepting a room needs something to hang it on. They wait
    * here and are written in the same press that accepts the card. */
   add('proposals', 'rooms', 'TEXT');
+  // #73. What a hem chalks for one thread is one Workbench card (`grp`), carrying the narration line
+  // it came from (`line`, quoted or null), and a pocket's own name (`pocket`: "The grey coat").
+  add('proposals', 'grp', 'TEXT');
+  add('proposals', 'line', 'TEXT');
+  add('proposals', 'pocket', 'TEXT');
   /* WHICH WORLD OR INTELLECTUAL PROPERTY A BOOK BELONGS TO, and what is true in it (2026-09-02).
    * Seth: "Is there a way in the story under the world tab I could add what world or ip it belongs
    * to? And have it hold some info about the world that way".
@@ -3728,8 +3733,8 @@ export function addProposal(storyId: string, p: any) {
       .join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
-        field,activation,target,content_hash,source,rooms,created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        field,activation,target,content_hash,source,rooms,grp,line,pocket,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(uid('pp-'), storyId, p.chapterId ?? null, p.entry_id ?? null, p.title, p.body,
         p.entryType ?? 'lore', JSON.stringify(p.keys ?? []), p.kind, p.delta ?? null,
         // A slot this proposal aims at, or null for the card's own body. Validated here rather
@@ -3744,6 +3749,7 @@ export function addProposal(storyId: string, p: any) {
           ? p.source.filter((u: any) => /^https?:\/\//i.test(String(u))).join('\n') || null
           : null,
         p.rooms && typeof p.rooms === 'object' ? JSON.stringify(p.rooms) : null,
+        p.grp ?? null, p.line ?? null, p.pocket ?? null,
         now());
     return true;
   } catch { return false; }   // unique index: already proposed, not an error

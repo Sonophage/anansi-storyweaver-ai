@@ -562,6 +562,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'cancelalter', 'keyx',
   // #79. Over time: take a dated wardrobe or retirement event out. #80: make a Lore thread a place.
   'delevent', 'makeplace',
+  // #73. Tidy this thread, from its ⋯ menu.
+  'tidy',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -6140,6 +6142,9 @@ function readMenu(e) {
     <button data-readgo="json" class="readrow">${say('This thread as JSON')}</button>
     <button data-scanstory="${esc(e.id)}" class="readrow" ${S.scanning ? 'disabled' : ''}>${
       say(S.scanning === e.id ? 'Reading the tale&hellip;' : 'Read the whole tale for this thread')}</button>
+    ${/* #73. One thread sorted into Always true, where it stands and instruction pockets, chalked. */ ''}
+    <button data-tidy="${esc(e.id)}" class="readrow" ${S.tidying ? 'disabled' : ''}>${
+      say(S.tidying === e.id ? 'Tidying&hellip;' : 'Tidy this thread', 'sort it into its three parts')}</button>
     ${e.retiredAtChapter == null
       ? `<button data-retire="${esc(e.id)}" class="readrow">${say('Retire this thread')}</button>`
       : `<button data-unretire="${esc(e.id)}" class="readrow">${
@@ -11401,6 +11406,18 @@ document.addEventListener('click', async (e) => {
     const box = document.querySelector('[data-story="styleNote"]');
     if (box) box.value = r.style;
     return toast('Written. Read it, change it, then Save.');
+  }
+  if (d.tidy) {
+    // #73. Tidy this thread: Anansi's sort of it is chalked as one card, and nothing changes until
+    // it is sewn in on the Workbench.
+    if (S.tidying) return;
+    S.tidying = d.tidy; S.readMenu = false; drawSide();
+    const r = await withRing(() => api.tidy(S.storyId, d.tidy));
+    S.tidying = null;
+    if (r.error) { drawSide(); return toast(r.error); }
+    V = r; paint();
+    return toast(r.added ? `${r.added} chalked for this thread. Nothing changes until you sew it in, on the Workbench.`
+      : 'Nothing to tidy: it is in its three parts already.');
   }
   if (d.scanstory) {
     if (S.scanning) return;
