@@ -35,7 +35,7 @@ serialise();
  */
 const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'check.ts', 'memory.ts', 'report.ts', 'talk.ts', 'forge.ts', 'web.ts', 'app.ts', 'remote.ts', 'weave.ts', 'status.ts',
                 ...['order', 'contractions', 'lockout', 'quote', 'ledger-audit', 'modes', 'drift',
-                    'rooms', 'fires', 'retire', 'reroll', 'cast', 'voice', 'utilisation', 'weight',
+                    'rooms', 'fires', 'retire', 'cast', 'voice', 'utilisation', 'weight',
                     'council06', 'lockout-book', 'weave-json', 'repetition', 'lockout-cheap', 'words', 'preview'].map((b) => `../bench/${b}.ts check`)];
 const started = Date.now();
 

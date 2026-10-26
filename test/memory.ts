@@ -399,10 +399,8 @@ let proposal: any;
 // The one decision in the app that changes what the model is told for the REST OF THE BOOK, and it
 // does it to a card that goes on looking alive on the Threads screen. So the whole path is driven
 // here: what the model is shown, what is done with what it says, and what accepting writes.
-const WHERE = 'Vel comes back in the last act and the city goes with her.';
 let retProposal: any;
 {
-  db.updateStory(story.id, { direction: WHERE });
   const ch: any = db.chapters(story.id).at(-1);
   db.addPassage({ ...story, storyId: story.id, chapterId: ch.id,
     body: 'Vel went down on the stair and did not get up. "She is fine," the porter said.' });
@@ -420,16 +418,6 @@ let retProposal: any;
     'and the porter does not — a character SAYS she is fine, and dialogue does not commit the story');
   assert.ok(asked.user.includes(BEFORE) || asked.user.includes(AFTER),
     'the description in force is seeded, so the judgement is about the card the book actually has');
-  // THE DIRECTION NO LONGER REACHES THE SCAN, and the row above still carries one so this can
-  // fail. RETIRE was seeded with `stories.direction` from PLAN-08 Phase 4 until 2026-08-30, when
-  // the field came out of the app — Seth: "no ones going to use it. ive asked."
-  //
-  // That cost nothing measurable and F40 is why we can say so rather than hope it: `bench/retire.ts`
-  // ran both arms at 30 chances each, with the direction and with it blank, and they came back
-  // identical — 3 false finishes either way, across two placements of the clause. The failing shape
-  // is a PLACE the prose calls closed, and nothing the writer said about the destination moved it.
-  assert.ok(!asked.system.includes(WHERE),
-    'a destination still in the row must not reach the scan — the column is retained data now');
 
   // The denominator rides in the runtime answer, not only in the probe.
   assert.strictEqual(r.retired?.proposed, 1);

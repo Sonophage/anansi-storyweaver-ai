@@ -4,7 +4,7 @@
 import { ORDER, CAPS, CANON_KINDS, CANON_CAP_FRAC, EARLIER_CEILING_FRAC, PROSE_CEILING_FRAC } from './blocks.ts';
 import type { Block, Kind } from './blocks.ts';
 
-export interface EntryState {
+interface EntryState {
   fromChapter: number;             // the chapter this state opens at
   body: string;
   beforeMode?: 'hide' | 'hint';    // what happens ahead of it opening
@@ -28,7 +28,7 @@ export interface Entry {
 }
 /** A room of a card: an appearance, a relationship, a voice. What an outfit already was,
  *  generalised — see `src/slots.ts`. Several of the plural slots can be live at once. */
-export interface Addon {
+interface Addon {
   id: string; slot: string; name: string; body: string;
   keys: string[];
   active?: boolean;                // the writer pinned it on
@@ -101,14 +101,6 @@ export interface Input {
    *  measurement, and because F35 is the standing warning: give this model new vocabulary and it
    *  turns it into section headers, so the marker leaking into output is itself a thing to count. */
   proseAuthor?: boolean;
-  /** A take the writer rejected and is regenerating away from, if the caller chose to send it.
-   *
-   *  OFF BY DEFAULT AND THAT IS THE POINT. `db.rejectTake` has recorded rejections since it was
-   *  written and never told the model, with a marker saying the obvious next step is a prompt
-   *  change and this project measures those rather than assuming them — F20 spent 850 runs per arm
-   *  proving that restating canon does nothing. So the field exists to be an ARM: `bench/reroll.ts`
-   *  turns it on for half its runs and the two are compared. Nothing in the app sets it yet. */
-  rejected?: string;
   /** Directed connections between cards, PLAN-08 Phase 2's `entry_edges`. PARENT PULLS CHILD AND
    *  NEVER THE REVERSE: her coat arrives when she does, and she must not arrive because somebody
    *  said "coat". `confidence` is what an inherited pull is worth against a direct keyword hit —
@@ -1288,13 +1280,6 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // A written-out register replaces the level's fixed line. Five lines cannot say
     // everything, and a story that needs a sixth should not have to pick the nearest.
     { text: `[${story.spiceNote?.trim() || SPICE[story.spice]}]`, keep: true },
-    // The take the writer turned down. `keep: false` so it is the first thing shortened if
-    // DIRECTIVE runs over its cap: every other part of this block is there because something
-    // measured it, and this one is on trial.
-    { text: input.rejected?.trim()
-      ? `[The writer rejected this attempt at the next passage. Do not write it again — a `
-        + `different beat, different images, a different way in. Rejected: ${input.rejected.trim()}]`
-      : '', keep: false },
   ], CAPS.DIRECTIVE!);
 
   for (const p of tail) add('TAIL', p.id, mark(p), 'tail prose');

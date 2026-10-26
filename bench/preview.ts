@@ -63,9 +63,6 @@ export function envFor(port: string, llama: string): Record<string, string> {
     ANANSI_DB: db, ANANSI_PORT: port, ANANSI_HOST: HOST, ANANSI_CERT: CERT, ANANSI_KEY: KEY,
     ANANSI_USER: 'sonophage', ANANSI_ALLOW: 'zlovlokvi@gmail.com=sonophage',
     ANANSI_LLAMA: llama,
-    // Preferences can stop and restart the router unit. Point it at one that does not exist, with
-    // or without the fake, so a press on the phone can never take the real model down.
-    ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service',
     ANANSI_BACKUP_DIR: 'off', ANANSI_EXPORT_DIR: 'off',
     // Never the real Featherless or Hugging Face: no key, and an address that refuses.
     ANANSI_FEATHERLESS_KEY_FILE: '/nonexistent/featherless.key',
@@ -203,7 +200,6 @@ if (process.argv[2] === 'check') {
   const env = envFor('5301', 'http://127.0.0.1:9');
   process.env.ANANSI_DB = was;
   t(env.ANANSI_DB === join(tmpdir(), 'anansi-preview-5301', 'preview.db'), 'the database is the preview\'s own');
-  t(env.ANANSI_LLAMA_UNIT === 'anansi-test-nonexistent.service', 'the real router unit is out of reach');
   t(env.ANANSI_FEATHERLESS_KEY_FILE === '/nonexistent/featherless.key', 'no Featherless key');
   t(env.ANANSI_PORT === '5301', 'the port is the one asked for');
 

@@ -12,7 +12,6 @@ export const input: Input = {
     pov: 'third limited, past tense',
     writingStyle: 'clipped and wet. Short sentences. Weather does the feeling. No adverbs on dialogue tags.',
     spice: 2,
-    direction: 'Aldis gives up the key and keeps the debt.',
   },
   chapters: [
     { id: 'c1', index: 1, title: 'Short', summary: 'Aldis borrows from Marek against the key. Marek does not ask what it opens.' },

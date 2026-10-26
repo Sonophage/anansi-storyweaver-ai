@@ -30,7 +30,7 @@ const REPO = process.env.ANANSI_REPO ?? 'Sonophage/anansi-storyweaver-ai';
 export const KINDS = { bug: 'bug', feature: 'enhancement', question: 'question' } as const;
 export type Kind = keyof typeof KINDS;
 
-export interface BugContext {
+interface BugContext {
   said: string;
   kind?: Kind | null;
   who: string;                     // the account, so a second writer's report is attributable
@@ -114,7 +114,7 @@ export function compose(c: BugContext, b: Awaited<ReturnType<typeof build>>, sta
 /** The runner, injectable so a test can assert the argv without filing anything. It is not a nicety:
  *  the first version of test/report.ts passed a fake to a function that did not take one, the real
  *  gh ran, and it opened a real issue on the repo. */
-export type Exec = (cmd: string, args: string[], opts?: any) => Promise<{ stdout: string }>;
+type Exec = (cmd: string, args: string[], opts?: any) => Promise<{ stdout: string }>;
 
 export async function fileBug(c: BugContext, exec: Exec = run as any):
     Promise<{ url?: string; body: string; error?: string }> {

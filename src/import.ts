@@ -115,7 +115,7 @@ export function fromExport(file: string): Incoming {
       source: 'anansi export',
       story: { title: story.title, genre: story.genre, premise: story.premise, setting: story.setting,
         pov: story.pov, persona: story.persona, writingStyle: story.writing_style,
-        direction: story.direction, spice: story.spice,
+        spice: story.spice,
         // Whitelisted by hand, so anything not named here is lost silently on a round trip. The
         // list is now every column the writer can set: a custom register, a raised context cap and
         // a named model used to vanish on an export and re-import with nothing saying so.

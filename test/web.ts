@@ -206,16 +206,14 @@ const ok = (m: string, fn?: unknown) => {
   // #28 · "WHERE THIS IS GOING" STAYS GONE. It was on two panels and in four prompts, and it came
   // out of all of them on 2026-08-30 — Seth: "no ones going to use it. ive asked."
   //
-  // The COLUMN was kept, so the live library still holds two books that wrote in it, and that is
-  // what makes a static check worth having: the data is still there to be read back by accident.
-  // test/engine.ts asserts the prompt half from the other end — a story row carrying a destination
-  // whose SPINE does not.
+  // The column was dropped on 2026-10-25. test/engine.ts asserts the prompt half from the other
+  // end — a story carrying a destination whose SPINE does not.
   {
     const surfaces = [...js.matchAll(/data-(?:story|sp|bf)="direction"/g)].map((m) => m[0]);
     assert.deepStrictEqual(surfaces, [], 'no surface may offer the destination field again');
     assert.ok(!/'direction'/.test(read('web/model.js')),
       'and STORY_FIELDS must not list it, or the Story panel grows the box back');
-    ok('the destination field is gone from every surface, and the column is retained data');
+    ok('the destination field is gone from every surface');
   }
 
   // COUNCIL 09 §7 · NOTHING IN THE APP IS SMALLER THAN 11px. The floor was 9.5px in all-small-caps
@@ -739,14 +737,6 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   }
 
   const DEFERRED: Record<string, string> = {
-    // PLAN-08 Phase 3, 2026-08-28. The engine reads addons and the routes write them; the editor
-    // that would call these is the next slice and is what Seth asked for in the same sitting —
-    // the card's face, the anchors per slot, and Anansi filling any of them. Deferred with a date
-    // rather than wired to a half-drawn screen. If this entry is still here in a week, the guard
-    // was right and the surface was never built.
-    saveAddon: 'PLAN-08: the addon editor is the next slice (2026-08-28)',
-    addonOn:   'PLAN-08: the addon editor is the next slice (2026-08-28)',
-    delAddon:  'PLAN-08: the addon editor is the next slice (2026-08-28)',
     // Issue #34, 2026-08-31. Seth: "Name a worl and it's button should be removed from threads."
     // The strip that made a world book is off the Threads page and nothing replaced it, at his
     // call — PARKED, not deleted, so that bringing it back is one function rather than a route, a
@@ -776,12 +766,6 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     // Driven by bench/checker.ts, which is how the contradiction checker is measured. The app
     // reaches the same code through accept, not through this route.
     '/api/check': 'bench/checker.ts drives it; the app runs the checker through accept',
-    // #23 took the router controls off Preferences, which was their only door. The route stays: it
-    // is an OPERATOR action, admin-gated, and test/scope.ts proves the gate with two owners — "may
-    // I stop a service the other writer is mid-generation on" is not a question ownership can
-    // answer, and that check is worth more than the buttons were. Deleting the route would have
-    // deleted the gate test with it.
-    '/api/router': 'an operator action with no surface since #23; test/scope.ts proves its gate',
   };
   const unreachable = [...new Set(declared)].filter((path) =>
     !api.includes(`'${path}'`) && !api.includes(`\`${path}`) && !api.includes(`${path}?`)
