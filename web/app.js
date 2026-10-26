@@ -984,11 +984,17 @@ function drawMeter() {
   bar.innerHTML = V.chapters.map((c, i) =>
     `<i class="${i === at ? 'at' : ''}"></i>`).join('');
 
-  /* SHUT UNTIL ITS ⌄ IS PRESSED. It was always open from 2026-09-02 ("have this always visible")
-   * until Seth, 2026-10-26: "Have it hidden by default and toggable by a small down icon." The ⌄ is
-   * beside the scene's name under the title (drawBar); this device remembers the choice. Drawn
-   * either way, so opening it is a flip and not a fetch. */
-  read.hidden = !CTX_OPEN;
+  /* A ⌄ IN ITS PLACE UNTIL IT IS PRESSED. It was always open from 2026-09-02 ("have this always
+   * visible") until Seth, 2026-10-26: the stats "should be replaced by a down arrow that when
+   * triggered show those stats, hitting again can hide it unless you click what is in it". So the
+   * row is the arrow alone, the arrow opens the stats and shuts them again, and "what is in it"
+   * opens the drawer as it always did and leaves the stats as they are. This device remembers. */
+  read.hidden = false;
+  read.classList.toggle('shut', !CTX_OPEN);
+  const toggle = `<button data-ctxtoggle="1" class="ctxtoggle" aria-expanded="${CTX_OPEN}"
+    aria-label="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers" title="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers"
+    ><span aria-hidden="true">${CTX_OPEN ? '\u2303' : '\u2304'}</span></button>`;
+  if (!CTX_OPEN) { read.innerHTML = toggle; return; }
   read.innerHTML = `
     <span>scene ${at + 1} of ${V.chapters.length}</span>
     <span class="tnum">${words.toLocaleString()} words</span>
@@ -996,7 +1002,8 @@ function drawMeter() {
       pct == null ? (noRoom ? 'no space' : 'size unknown') : `room ${pct}% used`}</span>
     ${h ? `<span style="color:var(--gold-dim)">${h.chapters} ${
       h.chapters === 1 ? 'scene' : 'scenes'} out of reach</span>` : ''}
-    <button data-panel="context" style="margin-left:auto">what is in it &rsaquo;</button>`;
+    <button data-panel="context" style="margin-left:auto">what is in it &rsaquo;</button>
+    ${toggle}`;
 }
 
 function drawBar() {
@@ -1059,12 +1066,8 @@ function drawBar() {
       <span class="serif" style="font-size:23px; line-height:1; color:var(--chrome-ink);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block">${esc(title)}</span>
       </button>
-      ${sub ? `<span style="display:flex; align-items:center; gap:2px; min-width:0">
-        <span class="up" style="font-size:11px; color:var(--label); white-space:nowrap;
-        overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>
-        ${inStory ? `<button data-ctxtoggle="1" class="ctxtoggle" aria-expanded="${CTX_OPEN}"
-          aria-label="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers" title="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers"
-          ><span aria-hidden="true">${CTX_OPEN ? '\u2303' : '\u2304'}</span></button>` : ''}</span>` : ''}
+      ${sub ? `<span class="up" style="font-size:11px; color:var(--label); white-space:nowrap;
+        overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>` : ''}
       <!-- decoded below, after the element exists -->
     </div>
     <div style="margin-left:auto; display:flex; align-items:center; gap:10px; flex:0 0 auto">

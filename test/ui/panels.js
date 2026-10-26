@@ -33,7 +33,7 @@ console.log("  rail: " + nav);
 // it is make it it's own panel." Chapter is the one you are IN and this is all of them, so they sit
 // together and in that order.
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'search,waiting,story,chapter,chapters,threads,strings,context,teller');
+   nav === 'search,waiting,story,chapter,chapters,threads,strings,context,teller,anansi');   // Talk to Anansi joined last, 2026-10-26
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 
@@ -493,6 +493,8 @@ ok("  with exactly one marked as the one you are writing",
 // row under the header rather than by re-fetching the story.
 await page.click(`#sideBody [data-chapter]`);
 await wait(900);
+// The stats sit behind a ⌄ since 2026-10-26; open them to read them.
+if (await page.eval("!!document.querySelector('#ctxread.shut')")) { await page.click('#ctxread [data-ctxtoggle]'); await wait(300); }
 ok(`  and pressing one moves the reading column to it (${await page.text('#ctxread')})`,
    /scene 1 of/.test((await page.text('#ctxread')) || ''));
 ok("  and the panel stays open, so you can pick another",
@@ -663,6 +665,8 @@ for (let i = 0; i < 40 && !(await page.visible('#ctxbar')); i++) await wait(250)
 ok("  the context bar is there once the manifest is", await page.visible('#ctxbar'));
 await page.click('#ctxbar');
 await wait(400);
+// The stats sit behind a ⌄ since 2026-10-26; open them to read them.
+if (await page.eval("!!document.querySelector('#ctxread.shut')")) { await page.click('#ctxread [data-ctxtoggle]'); await wait(300); }
 ok("  with which scene of how many behind it",
    /scene \d+ of \d+/i.test(await page.text('#ctxread') || ''));
 await page.click('#ctxbar');

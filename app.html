@@ -1042,9 +1042,10 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 #ctxread button { color:var(--gold-dim); font-size:11px; letter-spacing:.1em;
   text-transform:uppercase; }
 @media (max-width:719px) { #ctxread { padding:8px 18px; gap:13px; } }
-/* The ⌄ beside the scene's name that opens and shuts the reading. Small to the eye, 44px to the
-   finger by its padding and negative margin, so the header does not grow for it. */
-.ctxtoggle { flex:0 0 auto; min-width:44px; min-height:44px; margin:-14px -10px -14px -6px;
+/* SHUT, THE ROW IS ITS ⌄ ALONE: a thin strip, the arrow in the middle. Small to the eye, 44px to
+   the finger by its negative margin, so the strip stays thin. Open, the arrow ends the row. */
+#ctxread.shut { justify-content:center; padding-top:0; padding-bottom:0; height:16px; }
+.ctxtoggle { flex:0 0 auto; min-width:44px; min-height:44px; margin:-14px 0;
   display:flex; align-items:center; justify-content:center; color:var(--label); font-size:13px; line-height:1; }
 
 /* NO GROUND UNDER THE DOCK. Seth: "remove the dark background. when its minimized that color

@@ -1165,20 +1165,21 @@ ok('the header names the book, and carries no reading of its own');
   assert.ok(!/\d+ words|\d+% (full|used)/.test(html('bar')),
     'and the header carries neither the word count nor the percentage any more');
 
-  // SHUT UNTIL ITS ⌄ IS PRESSED — Seth, 2026-10-26: "Have it hidden by default and toggable by a
-  // small down icon." It was always open from 2026-09-02. Drawn while shut, so the words are read.
+  // A ⌄ IN ITS PLACE UNTIL IT IS PRESSED — Seth, 2026-10-26: the stats "should be replaced by a down
+  // arrow that when triggered show those stats, hitting again can hide it". Always open before that.
   const read = html('ctxread');
-  assert.ok(nodes.get('ctxread').hidden, 'the reading is shut with nothing pressed');
-  assert.match(html('bar'), /data-ctxtoggle="1"[^>]*aria-expanded="false"/, 'and its ⌄ is in the header, saying so');
+  assert.doesNotMatch(read, /scene 2 of 2|words/, 'the reading is shut with nothing pressed');
+  assert.match(read, /data-ctxtoggle="1"[^>]*aria-expanded="false"/, 'and is a ⌄ in its place, saying so');
   click({ ctxtoggle: '1' });
-  assert.ok(!nodes.get('ctxread').hidden, 'one press on the ⌄ opens it');
-  assert.match(html('bar'), /data-ctxtoggle="1"[^>]*aria-expanded="true"/, 'and the ⌄ says it is open');
+  const opened = html('ctxread');
+  assert.match(opened, /data-ctxtoggle="1"[^>]*aria-expanded="true"/, 'one press opens it, and the arrow says so');
   click({ ctxtoggle: '1' });
-  assert.ok(nodes.get('ctxread').hidden, 'and a second shuts it');
-  assert.match(read, /scene 2 of 2/, 'which says which scene you are on');
-  assert.match(read, /words/, 'and how many words are in it');
-  assert.match(read, new RegExp(`room ${pct}% used`), 'and how much of her room is used, in those words');
-  assert.match(read, /data-panel="context"/, 'with the way through to the blocks behind it');
+  assert.doesNotMatch(html('ctxread'), /words/, 'and a second shuts it');
+  click({ ctxtoggle: '1' });   // left open: the checks below read the stats
+  assert.match(opened, /scene 2 of 2/, 'which says which scene you are on');
+  assert.match(opened, /words/, 'and how many words are in it');
+  assert.match(opened, new RegExp(`room ${pct}% used`), 'and how much of her room is used, in those words');
+  assert.match(opened, /data-panel="context"/, 'with the way through to the blocks behind it');
 
   // NO ROOM IS NOT NO BAR. A budget of zero — llama-server unreachable so the slot is unknown, or
   // a prompt that will not fit — makes the percentage null, and the first version hid the meter
@@ -1189,7 +1190,7 @@ ok('the header names the book, and carries no reading of its own');
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
   assert.ok(!nodes.get('ctxbar').hidden, 'the bar stays when there is no room — that is when it matters');
-  assert.match(html('ctxread'), /no space/, 'and the reading says so in words, with nothing pressed');
+  assert.match(html('ctxread'), /no space/, 'and the reading says so in words');
   MANIFEST.manifest.totals.budget = realBudget;
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
