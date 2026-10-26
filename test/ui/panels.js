@@ -6,11 +6,11 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
-// #71. Once a passage has landed the composer is folded behind the three buttons; the handle
-// over them opens it, which is what a writer does before typing their own line.
+// #71. Once a passage has landed the composer is folded behind the three buttons; the quill in
+// the middle opens it, which is what a writer does before typing their own line.
 const openDock = async () => {
   for (let i = 0; i < 40 && !(await page.eval("!!document.getElementById('dock')")); i++) await wait(100);
-  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#nextbar .grab');
+  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#quill');
 };
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 const story = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid + "')).json())()");
@@ -797,21 +797,13 @@ if (await page.visible('[data-setup="title"]')) {
 await page.goto(B + "/#" + sid);
 await openDock();
 for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
-// THE DOOR IS AN OPTION ON THE THREADS DIAL since 2026-09-02, so what is visible is the dial and
-// what carries the action is the option inside it. Both asserted: a dial with no such option is the
-// regression, and so is no dial at all.
-ok("the composer bar carries the door to this story's threads", await page.visible('[data-threadsel]')
-   && await page.eval("[...document.querySelectorAll('[data-threadsel] option')].some(o => o.dataset.goblock === 'threads:')"));
-// AND THE TRAY HAS ITS OWN BUTTON BESIDE IT, which is not the same door. Seth: "button next to
-// anansi near the input should be + threads. add threads." The list and the writing-down tray are
-// different jobs; for half a day the list was standing where both had to fit.
-// BOTH DOORS ARE OPTIONS ON ONE DIAL since 2026-09-02, so neither can be clicked: an <option> has
-// no box until the platform's own popup is open. The gesture is the one a person makes — choose on
-// the select — and `page.pick` is that.
-ok("  with the writing-down tray on the same dial, not behind it", await page.eval(
-  "[...document.querySelectorAll('[data-threadsel] option')].some(o => o.dataset.newlore)"));
+// THE DOOR IS THE TALE'S TITLE since #71's second round (Seth, 2026-10-25): the Threads dial came
+// off the row above the box, and the title in the header opens this tale's Threads. Add, the dial's
+// other option, is the + at the top of the list, asserted below once the list is open.
+ok("the tale's title carries the door to this story's threads", await page.visible('#bar [data-goblock="threads:"]'));
+ok("  and the row above the box no longer does", !(await page.eval("!!document.querySelector('#modes [data-threadsel], #modes [data-goblock], #modes [data-newlore]')")));
 ok("  and New scene is still not there", !/New scene/.test(await page.text('#modes') || ''));
-await page.pick('[data-threadsel]', 'view');
+await page.click('#bar [data-goblock="threads:"]');
 await wait(700);
 const list = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 // `Add` was the heading over four New-* buttons until 2026-09-02, when the four came off — Seth:
@@ -909,11 +901,11 @@ ok("  and they are in there", !!fold && fold.name && fold.body);
 ok(`  with a bracketed placeholder to replace (${fold && fold.hint.slice(0, 24)})`,
    !!fold && /^\[/.test(fold.hint) && /\]$/.test(fold.hint));
 
-// THROUGH THE COMPOSER'S DIAL, which is what this press has always been: with the tray on a KIND
-// the panel's own Back button is data-lorekind="__kinds", so the door that closes the tray from
-// here is the composer's — it was the + Threads button until 2026-09-02 and it is Add Threads on
-// the threads dial now. Same toggle, same handler.
-await page.pick('[data-threadsel]', 'add');
+// THROUGH THE TALE'S TITLE now: with the tray on a KIND the panel's own Back button is
+// data-lorekind="__kinds", and the door that closed the tray from here was the composer's Add
+// Threads until #71's second round took the dial away. The title is the door to the LIST, and it
+// clears the tray on the way (goblock threads:).
+await page.click('#bar [data-goblock="threads:"]');
 await wait(400);
 ok("  and the tray closes again", !/Write it down/.test(await page.text('#sideBody') || ''));
 
@@ -1030,7 +1022,7 @@ if (anyEntry) {
   // check reporting on the card as it was, which is the quietest kind of false red.
   await page.goto(B + "/#" + sid);
   for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
-  await page.pick('[data-threadsel]', 'view');
+  await page.click('#bar [data-goblock="threads:"]');
   await wait(700);
   await page.click(`[data-entry="${anyEntry}"]`);
   await wait(700);
@@ -1163,7 +1155,7 @@ if (anyEntry) {
      !!trays && trays.kinds.some((k) => ['character', 'lore', 'item', 'rule'].includes(k)));
   ok("  and every tray on the screen has its own direction box",
      !!trays && trays.trays > 0 && trays.ownBox === true);
-  await page.pick('[data-threadsel]', 'view');
+  await page.click('#bar [data-goblock="threads:"]');
   await wait(600);
   ok("the composer's door works with an entry already open", await page.eval("!document.querySelector('[data-f=\"title\"]')"));
   ok("  and lands on the list", /Characters/.test(await page.text('#sideBody') || ''));
@@ -1871,7 +1863,7 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   ok(`a card with an empty body and a facts room exists (${made})`, /^e-/.test(String(made)));
   await page.goto(B + "/#" + sid5);
   for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
-  await page.pick('[data-threadsel]', 'view');
+  await page.click('#bar [data-goblock="threads:"]');
   await wait(700);
   const shown = await page.eval(
     `(document.querySelector('[data-entry="${made}"] .clamp2')?.textContent ?? '').trim()`);

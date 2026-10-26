@@ -5,11 +5,11 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
-// #71. Once a passage has landed the composer is folded behind the three buttons; the handle
-// over them opens it, which is what a writer does before typing their own line.
+// #71. Once a passage has landed the composer is folded behind the three buttons; the quill in
+// the middle opens it, which is what a writer does before typing their own line.
 const openDock = async () => {
   for (let i = 0; i < 40 && !(await page.eval("!!document.getElementById('dock')")); i++) await wait(100);
-  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#nextbar .grab');
+  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#quill');
 };
 
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
@@ -36,13 +36,12 @@ for (let i = 0; i < 40 && !(await page.visible('#send')); i++) await wait(250);
   console.log("  modes row: " + JSON.stringify(row));
   ok(`the composer row is one line at phone width (${row && row.h}px of a ${row && row.tallest}px button)`,
      !!row && row.h < row.tallest * 1.6);
-  // THE ROW IS FOUR CONTROLS NOW, not seven: the mode dial, the name beside it, Hold back, and the
+  // THE ROW WAS FOUR CONTROLS, not seven (three since #71 round two, below): the mode dial, the name beside it, Hold back, and the
   // thread doors as one dial. It was four modes and three doors on 2026-08-28, then the doors went
   // to two when Anansi came off the row, and on 2026-09-02 the four became one select and the two
   // doors another. Asserted as an ABSENCE too, or "they moved" would pass with them still here.
-  ok(`  and both thread doors are on one dial beside the modes (${row && row.labels})`,
-     !!row && /Threads/.test(row.labels) && /View Threads/.test(row.labels)
-     && /Add Threads/.test(row.labels));
+  // #71 round two took the thread doors off the row: the tale's title opens its Threads now.
+  ok(`  and the thread doors are off it (${row && row.labels})`, !!row && !/Threads/.test(row.labels));
   ok("  with the four modes on a dial of their own", !!row && /Speak/.test(row.labels)
      && /Narrate/.test(row.labels));
   // #71 put Talk to Anansi on the mode dial, as the way into Talk that is not a long press. That is

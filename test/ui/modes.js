@@ -8,11 +8,11 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
-// #71. Once a passage has landed the composer is folded behind the three buttons; the handle
-// over them opens it, which is what a writer does before typing their own line.
+// #71. Once a passage has landed the composer is folded behind the three buttons; the quill in
+// the middle opens it, which is what a writer does before typing their own line.
 const openDock = async () => {
   for (let i = 0; i < 40 && !(await page.eval("!!document.getElementById('dock')")); i++) await wait(100);
-  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#nextbar .grab');
+  if (await page.eval("!!document.getElementById('dock')?.classList.contains('folded')")) await page.click('#quill');
 };
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 // A second book, made BEFORE the app loads so the client's library contains it from the first paint.
@@ -51,8 +51,10 @@ for (const k of ['speak', 'act', 'direct', 'narrate'])
 // Continue left the mode row on 2026-08-27 for the end of the page. Asserted from both sides:
 // gone from here, present there — one without the other passes while it is in both places.
 ok("Continue is off the mode row", !(await page.eval("!!document.querySelector('#modes [data-continue]')")));
-// #71: at the foot of the screen now, on the bar of three buttons.
-ok("  and on the bar at the foot of the screen instead", await page.visible('#nextbar [data-continue]'));
+// #71: at the foot of the screen now, on the bar of three buttons. The bar is hidden while the box
+// is up (round two), and this scenario has the box up, so it is asserted in the page; bar.js
+// asserts it on screen once the box folds.
+ok("  and on the bar at the foot of the screen instead", await page.eval("!!document.querySelector('#nextbar [data-continue]')"));
 ok("New scene is gone from the bar", !/New scene/.test(await page.text('#modes') || ''));
 // Continue sends with nothing typed, so it is an action. A mode you can select but never type
 // into is the shape that made "Continue" need an empty box pressed twice.

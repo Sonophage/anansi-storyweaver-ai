@@ -273,10 +273,10 @@ const S = {
   lore: null,           // the + Lore tray above the composer, when it is open
   talk: { turns: [], busy: false, search: readWebSearch(), draft: null, searchable: null },
   // #71 · THE BOTTOM OF THE WRITING SCREEN. Once a passage has landed it is three buttons, and the
-  // composer is behind the middle one: `dockOpen` is the composer shown above them, `dockTalk` is
-  // the same box and Send going to Talk, and `ideaBusy` is ✦ waiting on its answer. Session state:
-  // a reload starts folded, which is what a reload of a tale with prose in it should look like.
-  // `ideas` is ✦'s three ideas while they are on screen as choices, or null.
+  // composer is behind the middle one, the quill: `dockOpen` is the composer shown above them, `dockTalk` is
+  // the same box and Send going to Talk, and `ideaBusy` is the bulb under the last passage waiting
+  // on its answer. Session state: a reload starts folded, which is what a reload of a tale with
+  // prose in it should look like. `ideas` is the bulb's three ideas while they are on screen, or null.
   dockOpen: false, dockTalk: false, ideaBusy: false, ideas: null,
   blank: null,          // the Start blank form, when it is open
   forgeHere: false,     // the JSON paste on the create screen, which starts shut
@@ -499,8 +499,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake',
-  // #71. The handle over the three buttons, ✦, and the way out of Talk in the composer.
-  'dockgrab', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
+  // #71. The quill that opens the box, the ⌄ that folds it, the bulb, an idea picked, and the way
+  // out of Talk.
+  'dockopen', 'dockfold', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'lbook',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // A cover found on the web rather than drawn, 2026-09-01.
@@ -1022,7 +1023,7 @@ function drawBar() {
     <!-- #26, and then Seth on 2026-08-29: "remove the word anansi from the header." The mark was
          here, then the word that replaced it, and now neither. The door it was is not lost — the
          main menu is a DOUBLE tap, which is how he described it in checks.md: the story's name
-         opens the story menu, and the word Anansi at the top of THAT menu opens the main one.
+         opened the story menu (the ⋯ does now), and the word Anansi at the top of THAT menu opens the main one.
          Outside a story the header name opens the main menu directly, one tap.
          If that path ever goes, this button has to come back: test/ui/phone.js guards the hole,
          and the hole it guards is ZERO doors.
@@ -1031,8 +1032,9 @@ function drawBar() {
          the only door was the title, and nothing said it was one. Seth chose the R1 design on
          2026-10-25: a ‹ back button at the left goes back to the rack (the word Anansi came off it the
          same day: "just make it the back button that matches the other buttons"), a ⋯ at the right opens this
-         tale's menu, and on the rack a labelled Menu button opens the main one. The title still
-         opens the menu too; these are the doors you can see. -->
+         tale's menu, and on the rack a labelled Menu button opens the main one. Off a tale the
+         title still opens the menu too. In a tale it opens the tale's Threads since #71 round two,
+         and the ⋯ is the tale menu's one door. -->
     ${inStory ? `<button data-home="1" class="pill hdoor" aria-label="Back to the rack"
       style="display:flex; align-items:center; padding:6px 11px; font-size:17px; line-height:1"
       >&lsaquo;</button>`
@@ -1042,7 +1044,11 @@ function drawBar() {
     <!-- No overflow:hidden on the title or its column: it would clip the title's 44px touch area.
          The ellipsis lives on the spans inside, which is where the text is. -->
     <div style="flex:1 1 auto; min-width:60px; display:flex; flex-direction:column; gap:3px">
-      ${inStory ? `<button data-railview="story" aria-label="This tale's menu"
+      ${/* #71, round two (Seth, 2026-10-25): in a tale the title opens THIS tale's Threads. It opened
+          the tale's menu until then; the menu is the ⋯ at the right of this bar, which opened it
+          too, so nothing lost its door. */ ''}
+      ${inStory ? `<button data-goblock="threads:" aria-label="This tale's threads"
+        title="This tale's threads"
         style="display:block; text-align:left; padding:0; max-width:100%">`
         : `<button data-railview="workspace" aria-label="Menu"
         style="display:block; text-align:left; padding:0; max-width:100%">`}
@@ -1392,9 +1398,10 @@ function passageHTML(p, newest, opening) {
   // been; the last passage's is on the bar at the foot of the screen (#71).
   // #71. REWEAVE AND CONTINUE MOVED DOWN to the three buttons at the foot of the screen (see
   // nextBar). The line saying how to reach a passage's actions stays here, under the passage it is
-  // about.
-  const carry = newest ? `<div class="carry${m}">
-    <span class="taphint">Tap a passage for its actions</span></div>` : '';
+  // about, and in round two the bulb for Anansi's three ideas sits at the start of it, with the
+  // ideas themselves under both while they are on screen.
+  const carry = newest ? `<div class="carry${m}">${ideasHTML()}
+    <span class="taphint">Tap a passage for its actions</span>${ideasList()}</div>` : '';
 
   /* WHERE THIS PASSAGE CAME FROM, said in words. Seth, 2026-09-01: "could we also add a chip at the
    * top that says where it came from", in the same breath as making the margin rules thicker — the
@@ -1815,46 +1822,55 @@ function holdLearned() {
   try { localStorage.setItem(HOLD_HINT_KEY, String(HOLD_HINT_LOADS)); } catch { /* no storage */ }
 }
 
-/** #71 · THE THREE BUTTONS: Reweave, Continue and ✦, with the handle that opens the composer above
- *  them. Seth, 2026-10-25: once a passage has landed the bottom is these three, and everything else
- *  at the bottom (the mode row, the threads, the box and Send) is behind Continue.
+/** #71 · THE THREE BUTTONS, in Seth's second round (2026-10-25): [↻] [quill] [✦], marks only.
  *
- *  CONTINUE IS TWO GESTURES. A tap writes the next passage at once and opens the composer so the
- *  writer can steer the one after; a hold turns the composer to Talk. While a passage is being
- *  written it is Stop. The hold is read by the pointer listeners below the click dispatcher.
+ *  ↻ reweaves the last passage. THE QUILL in its circle opens the box and everything around it and
+ *  writes nothing. ONE STATE OR THE OTHER (Seth, 2026-10-25): with the box up this whole bar is
+ *  hidden, and the box folds back with the ⌄ at its top edge, Esc, or a tap on the prose above it
+ *  (`foldBox`). The first round's handle over the bar is gone. Held, it turns the box to
+ *  Talk; the hold is read by the pointer listeners below the click dispatcher. The "hold to talk"
+ *  hint sits above the circle. ✦ CONTINUES: Anansi writes the next passage with no box at all.
  *
- *  THE HANDLE IS THE FOURTH WAY IN, and it is not a fourth button on the row. Without it the only
- *  way to type your own line before Anansi writes would be to make her write first, which the rule
- *  "nothing at the bottom may become unreachable" does not allow. It is the bottom-sheet grabber a
- *  phone already knows, drawn as a short line on the bar's top edge with a 44px press around it.
- *  A hardware keyboard needs no handle: typing while the bar is folded opens it (see the keydown
- *  listener below). Chosen on ambiguity, the reading closest to keep everything and show less.
+ *  ONE STOP AT A TIME. While Anansi writes, ✦ is Stop when the box is folded, because then it is the
+ *  only Stop on screen. With the box up, Send at the end of the box is Stop and ✦ waits, disabled:
+ *  two Stops was the thing Seth asked to be rid of.
  *
- *  ✦'S THREE IDEAS are drawn above the row while they are on screen, one press each.
+ *  Anansi's three ideas left this bar for the bulb under the last passage (see `ideasHTML`).
  *  NO BACKTICKS IN THE HTML COMMENTS BELOW: they are inside a template literal. */
 function nextBar(last) {
   const busy = !!S.busy;
   const hint = holdHint() && !S.dockTalk && !busy;
+  const open = !!S.dockOpen;
   return `<div id="nextbar">
-    <button class="grab" data-dockgrab="1" aria-expanded="${!!S.dockOpen}"
-      aria-label="${S.dockOpen ? 'Fold the composer away' : 'Open the composer, to write it yourself'}"
-      title="${S.dockOpen ? 'Fold the composer away' : 'Write it yourself'}"><i></i></button>
-    ${S.ideas ? `<div id="ideas" role="group" aria-label="Anansi's ideas for what comes next">
-      ${S.ideas.map((x, i) => `<button class="idea" data-ideapick="${i}">${esc(x)}</button>`).join('')}
-    </div>` : ''}
     <div id="nextrow">
       <button data-re="${esc(last.id)}" ${busy ? 'disabled' : ''} aria-label="Reweave the last passage"
         title="Reweave the last passage"><span class="serif">↻</span></button>
-      ${busy
-        ? `<button id="cont" data-stop="1" class="stopping" aria-label="Stop writing">Stop</button>`
-        : `<button id="cont" data-continue="1" aria-label="Continue. Hold to talk to Anansi"
-            title="Tap to carry on. Hold to talk to Anansi"><span>Continue</span>${hint
-            ? `<small class="holdhint">${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}</button>`}
-      <button data-idea="1" ${busy || S.ideaBusy ? 'disabled' : ''} aria-busy="${!!S.ideaBusy}"
-        aria-expanded="${!!S.ideas}" aria-label="Anansi's ideas for what comes next"
-        title="Anansi's ideas for what comes next"><span class="serif">✦</span></button>
+      <div class="quillcell">
+        ${/* ABOVE the circle (Seth, 2026-10-25): a thumb on the circle covers what is under it. */ ''}
+        ${hint ? `<small class="holdhint">${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
+        <button id="quill" data-dockopen="1" aria-expanded="${open}"
+          aria-label="${open ? 'Fold the box away. Hold to talk to Anansi' : 'Open the box, to write it yourself. Hold to talk to Anansi'}"
+          title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${mark('quill', 24)}</button>
+      </div>
+      ${busy && !open
+        ? `<button id="cont" data-stop="1" class="stopping" aria-label="Stop writing" title="Stop">Stop</button>`
+        : `<button id="cont" data-continue="1" ${busy ? 'disabled' : ''} aria-label="Continue: Anansi writes the next passage"
+            title="Continue: Anansi writes the next passage"><span class="serif">✦</span></button>`}
     </div></div>`;
 }
+
+/** #71 · THE BULB AND ANANSI'S THREE IDEAS, under the last passage beside the line that says how to
+ *  reach a passage's actions (round two moved them off the bar). The bulb asks for three ideas; while
+ *  they are on screen they are drawn under it, one press each, and the one picked goes in the box. */
+function ideasHTML() {
+  return `<button class="bulb" data-idea="1" ${S.busy || S.ideaBusy ? 'disabled' : ''}
+      aria-busy="${!!S.ideaBusy}" aria-expanded="${!!S.ideas}"
+      aria-label="Anansi's ideas for what comes next" title="Anansi's ideas for what comes next"
+      >${mark('bulb', 18)}</button>`;
+}
+const ideasList = () => S.ideas ? `<div id="ideas" role="group" aria-label="Anansi's ideas for what comes next">
+    ${S.ideas.map((x, i) => `<button class="idea" data-ideapick="${i}">${esc(x)}</button>`).join('')}
+  </div>` : '';
 
 /** #71 · Fold the bottom back to the three buttons, when a passage lands. A box with words in it
  *  stays open: folding would hide a half-written steer, and the writer would not know it was there.
@@ -1865,10 +1881,21 @@ function foldDock() {
   S.dockOpen = false; S.dockTalk = false;
 }
 
+/** #71 · FOLD THE BOX BACK TO THE THREE BUTTONS, without sending: the ⌄ at its top edge, Esc, and
+ *  a tap on the prose above it all come here. The draft stays in the box, which is only hidden. */
+function foldBox() {
+  if (!S.dockOpen || !lastPassage()) return false;
+  S.dockOpen = false; S.dockTalk = false; S.bigInput = false;
+  atClose();
+  if (document.activeElement?.closest?.('#dock')) document.activeElement.blur();
+  drawDock();
+  return true;
+}
+
 /** #71 · Turn the composer to Talk: the same box and Send, going to Anansi. The mode and threads row
  *  hides, and the line above the box says where the words go and how to come back. */
 function dockTalk(on = true) {
-  S.dockTalk = on; S.ideas = null;
+  S.dockTalk = on;
   if (on) S.dockOpen = true;
   drawDock();
   $('input')?.focus({ preventScroll: true });
@@ -1889,28 +1916,29 @@ async function dockAsk() {
   return talk(said, mentions);
 }
 
-/** #71 · ✦. One call for three ideas, and nothing runs until the writer taps: the writers share four
+/** #71 · THE BULB. One call for three ideas, and nothing runs until the writer taps: the writers share four
  *  Featherless units. A second tap while they are showing puts them away. */
 async function askIdeas() {
-  if (S.ideas) { S.ideas = null; drawDock(); return; }
+  // The bulb and the ideas are under the last passage (round two), so it is the page that redraws.
+  if (S.ideas) { S.ideas = null; drawDoc(); return; }
   if (S.ideaBusy || S.busy || !V) return;
-  S.ideaBusy = true; drawDock(); working('ai');
+  S.ideaBusy = true; drawDoc(); working('ai');
   const r = await api.idea(S.storyId);
   S.ideaBusy = false; working(null);
-  if (r.error || !r.ideas?.length) { drawDock(); return toast(r.error ?? 'Anansi had no ideas this time.'); }
+  if (r.error || !r.ideas?.length) { drawDoc(); return toast(r.error ?? 'Anansi had no ideas this time.'); }
   S.ideas = r.ideas;
-  drawDock();
+  drawDoc();
   announce(`Anansi has ${r.ideas.length} ideas. Pick one to put it in the box.`);
 }
 
-/** #71 · One of ✦'s ideas, picked: into the box, in Direct, unsent, with the composer open. Direct
+/** #71 · One of the bulb's ideas, picked: into the box, in Direct, unsent, with the composer open. Direct
  *  because each idea is an instruction about what happens, the same hand-over Talk's directive
  *  makes. Added under a draft rather than over it: what the writer typed is theirs. */
 function pickIdea(i) {
   const idea = S.ideas?.[Number(i)];
   if (!idea) return;
   S.ideas = null; S.dockOpen = true; S.dockTalk = false; S.mode = 'direct';
-  drawDock(); refreshManifest();
+  drawDoc(); drawDock(); refreshManifest();
   const ta = $('input');
   if (!ta) return;
   const had = ta.value.trim();
@@ -1964,6 +1992,8 @@ function drawDock() {
   root.dataset.uiMode = S.mode;
 
   $('dockCol').innerHTML = `${weaveFitRow()}
+    ${last ? `<button id="fold" data-dockfold="1" aria-label="Fold the box away" title="Fold the box away"
+      ><span aria-hidden="true">⌄</span></button>` : ''}
     ${S.dockTalk ? `<div id="talkhead">
       <span>${mark('webfull', 15)} Talking to Anansi</span>
       <button data-dockwrite="1">Back to writing</button></div>` : ''}
@@ -2003,14 +2033,9 @@ function drawDock() {
         ${cast.filter((e) => e.title !== me).map((e) => `<option value="${esc(e.title)}"${
           e.title === S.speaker ? ' selected' : ''}>${esc(e.title)}</option>`).join('')}
       </select>` : ''}
-      <!-- THE LIST, not the form. This was "+ Thread" and opened the write-it-down tray, which is
-           BACKTICKS ARE FATAL IN HERE: this comment lives inside a template literal, so one closed
-           the string and left "+ Thread" as an expression. Syntactically fine; drawDock threw
-           "Thread is not defined" at runtime and the composer rendered as nothing at all.
-           a door to one narrow thing standing where the door to everything should be — and the
-           tray has its own button inside the list, so nothing lost a way in. Seth: "threads in the
-           composer should open to all the threads in that story ... which isnt necessary because
-           we have that on the input." -->
+      <!-- THE THREADS DIAL CAME OFF THIS ROW, #71 round two (Seth, 2026-10-25). The tale's title in
+           the header opens this tale's Threads now, and Add, which the dial's second option was, is
+           the plus at the top of that list. NO BACKTICKS IN THIS COMMENT. -->
       <!-- HOLD THEM BACK, where you are actually writing. It is a per-scene decision and it lived
            three panels deep. Seth, 2026-08-31: "allow that option to be toggleble in the input bar
            as a faded or unfaded option in the input bar beside threads so i dont have to enter all
@@ -2023,30 +2048,6 @@ function drawDock() {
           : `Hands off ${esc(V.story.lockedCharacter)} — the model will not write them. Press to let it.`}"
         style="flex:0 0 auto; margin-left:auto;
         color:${V.story.lockoutOn === false ? 'var(--faint)' : 'var(--gold)'}">Hands off</button>` : ''}
-      <!-- THE TWO DOORS, ALSO A DIAL. Seth, 2026-09-02: "threads and +threads should be its own
-           drop down that will mimic the style of this as well. we can chage the names sinve theyll
-           be hidden to view threads and add threads."
-           THE FIRST OPTION IS THE LABEL, not a destination: a select whose value is an action would
-           sit there afterwards reading as a state you had chosen. It says Threads, the two under it
-           do the two jobs, and it returns to the label the moment one of them has been taken.
-           THREE PLACES, THREE JOBS still holds — Seth, 2026-08-28: "on the menu threads is seen in
-           three places. main menu, threads for all books. composer menu, threads for only the
-           current story. button next to anansi near the input should be + threads. add threads."
-           The main nav is the wide list across every book; these two are this book's list and this
-           book's writing-down tray, and they are one control now rather than two. -->
-      <select class="dial" data-threadsel aria-label="Threads in this tale"
-        style="flex:0 0 auto; ${V.story.lockedCharacter ? '' : 'margin-left:auto'}">
-        <!-- HIDDEN, not absent. Seth, 2026-09-02: "in the drop down threads can be removed sinve it
-             goes nowhere" — it is the closed control's LABEL, not a destination, and an entry in the
-             open menu that does nothing when you pick it is a dead row. The hidden attribute takes
-             it out of the menu and leaves it as what the button reads when nothing has been chosen;
-             disabled keeps a keyboard from landing on it. Without an option to fall back to, the
-             select would sit on whichever action was taken last, reading as a state you are in.
-             NO BACKTICKS: this comment is inside a template literal and one ends the string. -->
-        <option value="" selected disabled hidden>Threads</option>
-        <option value="view" data-goblock="threads:">View Threads</option>
-        <option value="add" data-newlore="1">Add Threads</option>
-      </select>
       <!-- ANANSI CAME OFF THIS ROW. Her web in the header is the way to her now, and it is a
            better one: the row was three doors deep and the seventh control was already being
            fought onto one line at 390px. The PANEL is unchanged and data-panel="anansi" still
@@ -2082,12 +2083,14 @@ function drawDock() {
            2026-09-02, when the veil learned to be dismissed mid-write and its own Stop learned to
            hide once the words start — and between those two, a writer who left the veil early had
            NO way to stop a generation at all. The veil's Stop was the only one in the app.
-           So: while she is writing and there is no veil in front of you, this is Stop. -->
+           So: while she is writing and there is no veil in front of you, this is Stop.
+           It wears the stopping look since #71 round two made it the one Stop with the box up: on a
+           phone the word is hidden, and without it the button showed Send's mark unchanged. -->
       <!-- #55. WHILE A WEAVING BOOK'S PASSAGE IS BEING WOVEN, the count, here and on the veil. Only
            drawn while it runs; weaveStop empties it, and the next draw leaves it out. -->
       ${weavingAt('dock') ? `<span id="weaving" class="weaving tnum" aria-live="polite">${weaveWords('dock')}</span>` : ''}
       ${S.busy && !veilUp()
-        ? `<button id="send" data-stop="1" aria-label="Stop writing"
+        ? `<button id="send" data-stop="1" class="stopping" aria-label="Stop writing"
              title="Stop">${mark('send', 18)}<span class="btnword">Stop</span></button>`
         : S.dockTalk ? `<button id="send" data-send="1" aria-label="Send to Anansi" ${S.talk.busy ? 'disabled' : ''}
              title="Send to Anansi">${mark('send', 18)}<span class="btnword">Send</span></button>`
@@ -9723,20 +9726,19 @@ document.addEventListener('click', async (e) => {
     paint();
     return;
   }
-  if (d.continue) {
-    // #71. The click a hold leaves behind when the finger lifts is not a tap: the hold already
-    // turned the composer to Talk.
+  // #71, round two. ✦ CONTINUES: Anansi writes the next passage, with no box needed and none opened.
+  if (d.continue) { S.ideas = null; S.dockTalk = false; await generate('continue'); return; }
+  // #71. THE QUILL opens the box and everything around it, writing nothing. The bar it is on goes
+  // with the box up, so folding is the ⌄ at the box's top edge, Esc, or a tap on the prose.
+  if (d.dockopen) {
+    // The click a hold leaves behind when the finger lifts is not a tap: the hold already turned
+    // the box to Talk.
     if (HOLD?.fired && Date.now() - HOLD.at < 1500) { HOLD = null; return; }
-    // A TAP WRITES AT ONCE and opens the composer, so the writer can steer the passage after.
-    S.dockOpen = true; S.dockTalk = false; S.ideas = null;
-    await generate('continue'); return;
-  }
-  // #71. The handle over the three buttons opens the composer without writing, and folds it again.
-  if (d.dockgrab) {
-    S.dockOpen = !S.dockOpen; if (!S.dockOpen) S.dockTalk = false;
-    drawDock(); if (S.dockOpen) $('input')?.focus({ preventScroll: true });
+    S.dockOpen = true;
+    drawDock(); $('input')?.focus({ preventScroll: true });
     return;
   }
+  if (d.dockfold) { foldBox(); return; }
   if (d.dockwrite) { dockTalk(false); return; }
   if (d.idea) { await askIdeas(); return; }
   if (d.ideapick !== undefined) { pickIdea(d.ideapick); return; }
@@ -10253,7 +10255,13 @@ document.addEventListener('click', async (e) => {
   if (d.rerollx) { S.reroll = null; drawDoc(); syncTray(); return; }
   if (d.reroll !== undefined) { await regenerateLast(); return; }
   // In Talk (#71) the same Send asks Anansi instead of writing.
-  if (d.send) { if (S.dockTalk) return dockAsk(); await generate(); return; }   // the button's only path; ⌘↵ is the shortcut
+  // #71, round two: an empty box sends as Continue, so Send makes Anansi write whatever is in it.
+  // Not in Co-op, which never calls the model and says so when the box is empty.
+  if (d.send) {
+    if (S.dockTalk) return dockAsk();
+    if (!($('input')?.value ?? '').trim() && S.mode !== 'coop') { S.ideas = null; await generate('continue'); return; }
+    await generate(); return;
+  }   // the button's only path; ⌘↵ is the shortcut
   if (d.del || d.delall) {
     // Delete sits next to Regenerate, fired on one press and had no undo. The confirmation is done
     // in place rather than through paint(): a repaint drops the tray's aria-expanded, so on a phone
@@ -12221,9 +12229,12 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape' && S.panel === 'threads' && S.entryId && overlay()) {
     S.entryId = null; S.cardView = null; S.readMenu = false; paint(); return; }
-  if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); } }
+  // Last, Esc folds the box back to the three buttons (#71), once nothing above it is open: one Esc
+  // shuts one thing. Not while Talk or an @ list has it; their own listener takes that Esc.
+  if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); }
+    else if (!S.dockTalk && !AT) foldBox(); }
 });
-/* #71 · HOLD CONTINUE TO TALK. A press that stays down HOLD_MS without moving turns the composer to
+/* #71 · HOLD THE QUILL TO TALK. A press that stays down HOLD_MS without moving turns the composer to
  * Talk while the finger is still down, so the writer sees it work before letting go; the click
  * that follows the lift is dropped by the dispatcher (`HOLD.fired`). A press that moves is a
  * scroll or a slip, and is neither a tap nor a hold.
@@ -12232,7 +12243,7 @@ document.addEventListener('keydown', (e) => {
 const HOLD_MS = 450;
 let HOLD = null;
 document.addEventListener('pointerdown', (e) => {
-  const b = e.target.closest?.('#nextbar [data-continue]');
+  const b = e.target.closest?.('#nextbar [data-dockopen]');
   if (!b || b.disabled) return;
   clearTimeout(HOLD?.timer);
   const h = { x: e.clientX, y: e.clientY, fired: false, at: 0, timer: 0 };
@@ -12251,11 +12262,20 @@ for (const ev of ['pointerup', 'pointercancel']) {
 document.addEventListener('contextmenu', (e) => {
   if (e.target.closest?.('#nextbar')) e.preventDefault();
 });
+/* #71 · A TAP ON THE PROSE FOLDS THE BOX. With the box up the bar is hidden, and the page above it is
+ * where a writer's eye goes to read back; tapping it puts the box away so there is more of it to
+ * read. The tap still does what it does (one on a passage opens its actions). Not a tap on a
+ * control or on text being altered, which is someone working in the page, not leaving the box. */
+document.addEventListener('click', (e) => {
+  if (!S.dockOpen || !e.target.closest?.('#read')) return;
+  if (e.target.closest('button, a, input, textarea, select, [contenteditable], .acts, #ideas')) return;
+  foldBox();
+}, true);
 /* #71 · THE KEYBOARD. Alt+T turns the composer to Talk and back, from anywhere in a tale: the
  * Titan has no long press on a key. Matched on `code` as well as `key`, because Alt+T on a phone
  * keyboard can report the Alt symbol as the key. Esc leaves Talk.
  * And with the bar folded, typing opens the composer and the letter lands in it, so a hardware
- * keyboard never needs the handle. Not while a field has the caret (it is someone else's typing),
+ * keyboard never needs the quill. Not while a field has the caret (it is someone else's typing),
  * and not Space or Enter on a button, which press it. */
 document.addEventListener('keydown', (e) => {
   if (S.place !== 'story' || !V || S.reading) return;
@@ -12678,19 +12698,6 @@ document.addEventListener('change', (e) => {
     // leaves the mode as it was.
     if (e.target.value === 'talk') { dockTalk(true); return; }
     S.mode = e.target.value; drawDock(); refreshManifest();
-    return;
-  }
-  /* THE THREADS DIAL. Its two options are actions, not a state, so the select goes back to its
-   * label — otherwise "add threads" sits in the closed control afterwards reading as a mode you
-   * are in.
-   * THE OPTIONS CARRY THE SAME `data-` THE TWO BUTTONS DID, and this clicks the chosen one: the
-   * delegated listener matches `[data-goblock]` and `[data-newlore]` wherever they are, an option
-   * included, so both doors keep the one implementation they already had. A copy of what those
-   * branches do would be a second place that has to agree about which panel opens. */
-  if (e.target.dataset?.threadsel !== undefined) {
-    const pick = e.target.selectedOptions[0];
-    e.target.selectedIndex = 0;
-    if (pick?.value) pick.click();
     return;
   }
   if (e.target.id === 'asWhom') {

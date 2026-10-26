@@ -706,6 +706,19 @@ export const MARK = {
   feather:  'M4 16.8C7.6 13 11.4 8.8 16.2 3.4'
           + 'M16.2 3.4C11.6 4.2 7.8 7.6 7.2 13.4M16.2 3.4C16.2 8.2 13 11.8 7.2 13.4'
           + 'M12.2 7.6 14.8 8.2',
+  // THE QUILL, the middle of the bar at the foot of the writing screen (#71, round two): the button
+  // that opens the box to write in. A feather like the one above, cut as a pen: a longer vane with
+  // two barbs, and a split nib where the shaft ends. Its own mark and not `feather`, because
+  // `feather` already means a remote model on the menu rows and the strip, and one mark with two
+  // meanings on one screen is a mark that means neither.
+  quill:    'M5.2 14.8C8.4 11 12 7.2 16.4 3.6'
+          + 'M16.4 3.6C12.2 4 8.6 7 7.6 12.4M16.4 3.6C16.6 8 13.6 11.4 7.6 12.4'
+          + 'M11.6 6.6 13.4 7.4M10 8.6 11.8 9.6'
+          + 'M5.2 14.8 3.4 16.6M3.4 16.6 4.6 17.2M3.4 16.6 2.8 15.4',
+  // A BULB, for Anansi's ideas (#71, round two): a round glass on a neck, two rings of the base,
+  // and the filament as one short stroke. Drawn from the same arcs as `story`.
+  bulb:     'M7.4 12.6A4.6 4.6 0 1 1 12.6 12.6L12.2 14.2H7.8L7.4 12.6'
+          + 'M8.2 15.8H11.8M8.8 17.4H11.2M8.8 10.2 10 11.6 11.2 10.2',
 };
 
 /** One mark, at one weight. `size` is the box; the stroke never changes with it — that is what
