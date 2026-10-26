@@ -10,6 +10,25 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · The Workbench is a deck
+
+### One card at a time
+The Workbench now shows one card at a time: everything Anansi chalked for one thread, a knot, or a
+string. Swipe right, or press the right button, to say yes: sew it in, mend the line, or summon
+the string. Swipe left to say no: reject, ignore, or let go. The arrow keys do the same. A card you
+reject can be put back with Undo.
+
+### Edit, or have Anansi edit
+Open a part of a card to change its words yourself, or press Anansi edits, with a few words about
+what should change or none, and she writes that part again. It stays chalked until you sew it in.
+
+### Chalked
+What Anansi suggests and you have not decided is now called chalked, not basted.
+
+### Hemming shows the same deck
+The page after you hem a scene shows what it found as the same deck, and lists the threads that
+are always sent but were not in the scene, so you can check them.
+
 ## 2026-10-26 · Hemming looks at every thread
 
 ### Hemming reads every thread the scene names

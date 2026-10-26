@@ -90,7 +90,7 @@ export const HELP = {
     title: 'Anansi',
     body: `<p>She has kept every thread of the tale and can be asked about it. She answers from the
       threads, the scene summaries and the recent passages, and she names what she drew on.</p>
-      <p>She bastes and never writes. Basted means suggested and not yet in the tale: a thread she
+      <p>She chalks and never writes. Chalked means suggested and not yet in the tale: a thread she
       offers waits on the Workbench until you sew it in; a directive she writes lands in the
       composer unsent.</p>`,
   },

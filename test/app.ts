@@ -1461,7 +1461,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   click({ panel: 'strings' });
   await new Promise((r) => setTimeout(r, 30));
   const strings = html('sideBody');
-  assert.match(strings, /Basted by Anansi/, 'a proposed string waits under Strings');
+  assert.match(strings, /Chalked by Anansi/, 'a proposed string waits under Strings');
   assert.match(strings, /The debt nobody has called in/);
   assert.match(strings, /set up in scene 2/, 'with the scene it came from');
   assert.match(strings, /The letter he has not opened/, 'beside the ones already tied');
@@ -1473,7 +1473,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.match(chapter, /Witness rite/, 'the chapter queue keeps the thread proposals');
   assert.doesNotMatch(chapter, /The debt nobody has called in/,
     'and does not also show the string, which would be two places to answer one offer');
-  assert.match(chapter, /1 string basted &mdash; they wait under Strings/,
+  assert.match(chapter, /1 string chalked &mdash; they wait under Strings/,
     'it says where the string went rather than silently dropping it from the count');
   ok('a proposed string waits under Strings, and the chapter queue says so');
 
@@ -1794,7 +1794,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ];
   const w = waiting(shelf);
   assert.deepStrictEqual(w.map((x: any) => x.label),
-    ['5 threads basted', '2 strings not tied off'],
+    ['5 threads chalked', '2 strings not tied off'],
     'it counts across books, and says one thread rather than one threads');
 
   // AND FLAGS ARE NOT IN IT, on purpose, since 2026-08-31. The contradiction check moved off the
@@ -1954,7 +1954,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const page = html('page');
   const go = /<button class="btn bandgo" data-carryon="s-1"([^>]*)>([\s\S]*?)<\/button>/.exec(page);
   assert.ok(go, 'the hero has its Carry on writing');
-  assert.match(go![1], /aria-label="Carry on writing\. Waiting: 2 threads basted, 1 string not tied off"/,
+  assert.match(go![1], /aria-label="Carry on writing\. Waiting: 2 threads chalked, 1 string not tied off"/,
     'its label says what is owed, by kind, with the real count, singular as singular');
   assert.match(go![2], /class="owedot"/, 'and it carries the dot');
   assert.doesNotMatch(page, /data-owed=|data-readfrom=/, 'the chips and Read from scene one are gone from the rack');

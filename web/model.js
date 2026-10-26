@@ -102,7 +102,7 @@ export const waiting = (list, me = null) => {
     mine.length ? { key: 'turn', total: mine.length, panel: null,
       storyId: mine[0].id, storyTitle: mine[0].title,
       label: mine.length === 1 ? `your move in ${mine[0].title}` : `your move in ${mine.length} tales` } : null,
-    kind('proposed', 'thread basted', 'threads basted', 'chapter'),
+    kind('proposed', 'thread chalked', 'threads chalked', 'chapter'),
     kind('unpaid', 'string not tied off', 'strings not tied off', 'strings'),
     // NOT flags. Seth, 2026-08-31: "that flag can be opened but it can be silently ignored, it
     // doesn't have to go in the waiting menu option or the rail at all. if the writer keeps

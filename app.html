@@ -2059,6 +2059,30 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 #inputRow { position:relative; }
 
 #toast[hidden] { display:none; }
+/* #74 · THE WORKBENCH DECK. One card shows; the others are in the page and hidden. The card leans
+   the way a swipe will send it, and the bar holds its no on the left and its yes on the right. */
+.deck { display:flex; flex-direction:column; gap:8px; }
+.deckhead { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--mute); }
+.deckhead button { min-width:32px; min-height:32px; color:var(--mute); }
+.deckhead button:disabled { opacity:.35; }
+.deckcard { gap:9px; touch-action:pan-y; transition:transform .18s var(--ease); user-select:none; }
+.deckcard[hidden] { display:none; }
+.deckcard[data-lean="right"] { border-color:var(--gold); }
+.deckcard[data-lean="left"] { border-color:var(--warn); }
+.decksub { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--label, var(--faint)); }
+.decktitle { font-size:20px; color:var(--ink-bright); }
+.deckline { margin:0; padding:6px 0 6px 12px; border-left:2px solid var(--chip); font-style:italic;
+  font-size:13px; line-height:1.5; color:var(--narr); }
+.decksec { border-top:1px solid var(--line); padding-top:8px; }
+.decksec > summary { display:flex; flex-direction:column; gap:3px; cursor:pointer; list-style:none; }
+.decksec > summary::-webkit-details-marker { display:none; }
+.deckpeek { font-size:12px; color:var(--faint); }
+.decksec[open] .deckpeek { display:none; }
+.decksec .card { margin-top:8px; }
+.deckredo { display:flex; gap:7px; align-items:center; margin-top:8px; }
+.deckbar { display:flex; gap:8px; margin-top:4px; }
+.deckbar > button { flex:1; }
+@media (prefers-reduced-motion: reduce) { .deckcard { transition:none; } }
 
 /* The dev-server banner. In flow above the header rather than floating over it: a strip that
    pushes the app down is one you cannot mistake for part of the app, and nothing here overlaps

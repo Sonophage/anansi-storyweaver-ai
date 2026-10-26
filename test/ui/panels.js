@@ -58,7 +58,7 @@ const chapter = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 for (const [what, re] of [['the chapter name', /Name/],
                           ['how it opens', /Opens with/],
                           ['where it heads', /Heads toward/],
-                          ['what the scene basted', /What this scene basted/],
+                          ['what the scene chalked', /What this scene chalked/],
                           ['the summaries', /Scene summaries/], ['branches', /Branches/],
                           ['and hemming it', /Hem this scene/]]) {
   ok(`Chapter holds ${what}`, re.test(chapter));
@@ -1600,7 +1600,7 @@ ok("marking it paid takes it out of the prompt", !/has not opened/.test(await pr
 // passes on an empty queue is a check that proves nothing.
 await page.goto(B + "/#" + sid3 + "/chapter");
 await wait(700);
-ok("the Chapter queue is about facts", !/Basted by Anansi/.test(await page.text('#sideBody') || ''));
+ok("the Chapter queue is about facts", !/Chalked by Anansi/.test(await page.text('#sideBody') || ''));
 
 // ---- 18. the chapter opens with a band, and the running head runs
 // A chapter used to begin with a 10px label and go straight into the paragraph, which reads as a

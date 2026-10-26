@@ -220,6 +220,25 @@ export const TIDY_SCHEMA = {
   required: ['always', 'stands', 'pockets'],
 } as const;
 
+/** #74 · ANANSI EDITS ONE SECTION of a Workbench card, on the writer's steer or none. It keeps the
+ *  section's own form: a whole "where it stands", a pocket as an instruction, or Always true. */
+export const REDO =
+`Below is one part of a thread from a story, chalked for the writer to decide on, with the thread
+it belongs to. Write that part again, in the same form and for the same place in the thread:
+
+  where it stands   the WHOLE of where the thread stands from that scene on, not only a change
+  a pocket          an INSTRUCTION for the next scene (see below), for that one pocket only
+  Always true       who or what it is, in one bracket
+
+If the writer says what should change, do that and keep the rest. If they say nothing, write it
+again better: closer to the thread, more specific, no longer.
+
+${POCKET_FORM}
+
+${LEDGER_REGISTER}`;
+
+export const REDO_SCHEMA = { type: 'object', properties: { body: { type: 'string' } }, required: ['body'] } as const;
+
 /** Which cards a chapter FINISHED — a dead character, a burned building, a rule that stopped
  *  applying. PLAN-08 Phase 4, and Seth's own framing of it: *"at chapter end we can drop the
  *  cards. Or choose to, depending on where we're going."*

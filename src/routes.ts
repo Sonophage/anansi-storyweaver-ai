@@ -5,7 +5,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TIDY, TIDY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -4073,6 +4073,32 @@ export const routes: Record<string, Handler> = {
    *  It also means the choice survives a reload, which a flag on Accept would not.
    *
    *  An empty `field` is the card's own body, the same as `none` from the model. */
+  /** #74 · ANANSI EDITS one section of a card: its text written again, on the writer's steer, and
+   *  still chalked. The section says what it is from where it would land. */
+  'POST /api/proposal/redo': async (c) => {
+    const p = db.proposal(c.body.storyId, c.body.id);
+    if (!p || p.status !== 'open') return { error: 'that is no longer waiting on the Workbench' };
+    const v = bookOf(p.story_id);
+    const e = v?.entries.find((x: any) => x.id === p.entry_id);
+    const what = p.entry_type === 'state' ? 'where it stands' : p.field === 'facts' ? 'Always true'
+      : p.field ? `a pocket: ${p.field}${p.pocket ? ` ("${p.pocket}")` : ''}` : 'where it stands';
+    const steer = String(c.body.steer ?? '').trim().slice(0, 400);
+    const ask = [`Thread: ${p.title}${e ? ` (${e.entryType})` : ''}`,
+      e ? `Always true: ${alwaysTrue(e) || '(empty)'}` : '', e ? `Where it stands now: ${resolveBody(e, v.currentChapter?.index ?? 1)}` : '',
+      `The part to write again (${what}): ${p.body}`, steer ? `The writer says: ${steer}` : 'The writer said nothing more.']
+      .filter(Boolean).join('\n');
+    const r = await structuredRetry(REDO, ask, REDO_SCHEMA, { model: writerModel(c, v) });
+    const body = String(r.data?.body ?? '').trim();
+    if (!body) return { error: r.error ?? 'Anansi did not write it again' };
+    db.setProposalBody(p.story_id, p.id, body);
+    return viewOf(c, p.story_id);
+  },
+  /** #74 · UNDO A REJECT from the deck: the card's rejected sections back on the Workbench. */
+  'POST /api/proposal/reopen': (c) => {
+    const ids: string[] = c.body.ids ?? [c.body.id];
+    for (const id of ids) db.reopenProposal(c.body.storyId, String(id));
+    return viewOf(c, c.body.storyId);
+  },
   'POST /api/proposal/where': (c) => {
     const p = db.proposal(c.body.storyId, c.body.id);
     if (!p) return { error: 'nothing basted by that name' };

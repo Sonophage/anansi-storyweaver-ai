@@ -111,7 +111,7 @@ const facts = v.proposals.filter((p) => p.chapterId === closing.id
   && !['state', 'string', 'retire'].includes(p.entryType));
 if (facts.length) {
   ok(`  and what extraction proposed is on screen (${facts.length})`,
-     new RegExp("Read for facts — " + facts.length + " basted").test(again));
+     new RegExp("Read for threads — " + facts.length + " chalked").test(again));
 } else {
   ok("  and a chapter that proposed nothing says so, rather than showing a bare heading",
      /No new threads came out of this scene/.test(again));
@@ -127,10 +127,10 @@ if (rets.length) {
   // not proposed a retirement on this fixture — the guarded-assertion fault this repo has now found
   // five times, in the file whose own comments warn about it twice.
   ok(`  ${rets.length} finished thread(s) proposed, and the count is on screen`,
-     new RegExp(`${rets.length} thread${rets.length === 1 ? '' : 's'} basted to be retired`).test(again));
+     new RegExp(`${rets.length} thread${rets.length === 1 ? '' : 's'} chalked to be retired`).test(again));
 } else {
   ok("  nothing was proposed as finished, and the screen says so in words",
-     /No thread was basted to be retired/i.test(again));
+     /No thread was chalked to be retired/i.test(again));
 }
 // COUNCIL 07, SEAT 4: the cards were rendered here AND on Waiting, which made the report the fifth
 // panel answering "does anything want me" — the exact thing Waiting was built to end. The count
@@ -138,7 +138,7 @@ if (rets.length) {
 const owed = (await story()).proposals.filter((p) => p.chapterId === closing.id).length;
 if (owed) {
   ok(`  and the ${owed} proposal(s) are decided on Waiting rather than a second time here`,
-     (await page.visible('[data-panel="waiting"]')) && new RegExp(`Decide the ${owed} basted thing`).test(again));
+     (await page.visible('[data-panel="waiting"]')) && new RegExp(`Decide the ${owed} chalked thing`).test(again));
 } else {
   ok("  and a chapter that proposed nothing offers no queue to decide",
      !(await page.visible('[data-panel="waiting"]')));

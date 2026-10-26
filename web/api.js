@@ -217,6 +217,8 @@ export const api = {
   relink:       (o)              => j('/api/entry/relink', 'POST', o),
   dropfollowed: (o)              => j('/api/entry/drop', 'POST', o),
   decide:       (o)              => j('/api/proposal', 'POST', o),
+  redo:         (storyId, id, steer) => j('/api/proposal/redo', 'POST', { storyId, id, steer }),
+  reopen:       (storyId, ids) => j('/api/proposal/reopen', 'POST', { storyId, ids }),
   // Move a proposal before deciding it: which room, and the words that wake the card.
   moveprop:     (o)              => j('/api/proposal/where', 'POST', o),
   // PLAN-08. entryId null is a story-level addon, which is where a string will live.

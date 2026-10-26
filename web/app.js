@@ -562,8 +562,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'cancelalter', 'keyx',
   // #79. Over time: take a dated wardrobe or retirement event out. #80: make a Lore thread a place.
   'delevent', 'makeplace',
-  // #73. Tidy this thread, from its ⋯ menu.
-  'tidy',
+  // #73. Tidy this thread, from its ⋯ menu. #74: the deck's yes and no, arrows, undo, Anansi edits.
+  'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -2344,6 +2344,101 @@ function threadBar(mode) {
 const pageBar = (mode) => (S.place === 'story' ? ''
   : `<div class="savebar pagebar" style="display:flex; align-items:center; gap:12px">${threadBar(mode)}</div>`);
 
+/** #74 · THE WORKBENCH DECK (ADR 0003, spec #74): everything that wants the writer, one card at a
+ *  time. A card is one thread's chalked group (hem chalks a whole Over time entry and its pockets
+ *  together), one knot, or one open string. Swipe right, or press the right button, to say yes —
+ *  sew it in, Mend the line, summon the string; left to say no — reject, ignore, let go.
+ *
+ *  EVERY CARD IS IN THE PAGE, and only the top one shows: the others are `hidden`, so their
+ *  controls exist for a keyboard, a screen reader and the checks, and a swipe never has to wait on
+ *  a redraw to have the next card. A card's sections are the same `proposalCard` the tale has used
+ *  all along, folded, so each can be edited, sent somewhere else, or decided alone.
+ *
+ *  Right and left are buttons on the card (`data-deckright`, `data-deckleft`), each an ordinary
+ *  press with its own handler; a swipe and the arrow keys only press them. One way in for all
+ *  three, so a swipe cannot do anything a press does not. */
+function deckCards(only = null) {
+  const props = (V?.proposals ?? []).filter((p) => p.entryType !== 'string' && (!only || only.has(p.id)));
+  const groups = new Map();
+  for (const p of props) { const k = p.grp || p.id; groups.set(k, [...(groups.get(k) ?? []), p]); }
+  const what = (ps) => ps.some((p) => !p.entryId) ? 'New thread'
+    : ps.some((p) => (p.grp ?? '').startsWith('hem:')) ? 'Hemming found' : ps[0].kind === 'tidy' ? 'Tidy this thread'
+    : 'Anansi chalked';
+  const chalk = [...groups.values()].map((ps) => ({ kind: 'chalk', key: ps.map((p) => p.id).join(','),
+    title: ps[0].title, sub: what(ps), line: ps.find((p) => p.line)?.line ?? '', ps,
+    right: 'Sew it in', left: 'Reject' }));
+  const knots = (V?.violations ?? []).filter((f) => f.status !== 'dismissed').map((f) => ({ kind: 'knot', key: f.id, f,
+    title: V.entries.find((x) => x.id === f.entryId)?.title ?? 'a thread', sub: f.reached === false ? 'Never sent' : 'Knot',
+    line: f.quote ?? '', right: 'Mend', left: 'Ignore' }));
+  const strings = (V?.strings ?? []).filter((x) => x.status === 'open').map((x) => ({ kind: 'string', key: x.id, x,
+    title: x.title, sub: x.summoned ? 'String · summoned' : 'String', line: '', right: x.summoned ? 'Dismiss' : 'Summon',
+    left: 'Let go' }));
+  // ONLY THESE, for the hem page: the chalked cards of the scene just hemmed, and no knots or strings.
+  return only ? chalk : [...chalk, ...knots, ...strings];
+}
+
+function deckCard(c, i, top) {
+  const head = `<div class="decksub">${esc(c.sub)}</div>
+    <div class="serif decktitle">${esc(c.title)}</div>
+    ${c.line ? `<blockquote class="deckline">${esc(c.line)}</blockquote>` : ''}`;
+  let body = '', right = '', left = '';
+  if (c.kind === 'chalk') {
+    const ids = c.ps.map((p) => p.id).join(',');
+    const label = (p) => p.entryType === 'state' ? `Where it stands, from scene ${esc(String(p.keys?.[0] ?? ''))}`
+      : p.field === 'facts' ? 'Always true' : p.field ? `${esc(pocketTitle(p.field))}${p.pocket ? ` &middot; ${esc(p.pocket)}` : ''}`
+      : p.entryType === 'retire' ? 'Retire' : !p.entryId ? 'The thread' : 'Where it stands';
+    body = c.ps.map((p) => `<details class="decksec"${c.ps.length === 1 ? ' open' : ''}>
+      <summary><span class="lbl" style="margin:0">${label(p)}</span>
+        <span class="deckpeek">${esc(String(p.body ?? '').slice(0, 90))}${String(p.body ?? '').length > 90 ? '&hellip;' : ''}</span></summary>
+      ${proposalCard(p)}
+      <div class="deckredo">
+        <input class="field" data-aeask="${esc(p.id)}" placeholder="What should change? (or leave it empty)"
+          aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1; font-size:12px">
+        <button class="btn ghost" data-anansiedit="${esc(p.id)}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
+      </div></details>`).join('');
+    right = `<button class="btn" data-deckall="accept" data-ids="${esc(ids)}" data-deckright="1">Sew it in &rarr;</button>`;
+    left = `<button class="btn ghost" data-deckall="reject" data-ids="${esc(ids)}" data-deckleft="1">&larr; Reject</button>`;
+  } else if (c.kind === 'knot') {
+    const f = c.f;
+    body = `<details class="decksec"><summary><span class="lbl" style="margin:0">The line and the thread</span></summary>
+      ${f.reason ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(f.reason)}</div>` : ''}
+      <div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:8px">
+        <button class="btn ghost" data-goflag="${esc(f.passageId)}" style="flex:1">Show me the passage</button>
+        ${f.entryId ? `<button class="btn ghost" data-entry="${esc(f.entryId)}" style="flex:1">The thread is wrong</button>` : ''}
+        <button class="btn ghost" data-dropflag="${esc(f.id)}" style="flex:1">Clear</button></div></details>`;
+    right = f.reached === false ? '' : `<button class="btn" data-repair="${esc(f.passageId)}" data-deckright="1">Mend &rarr;</button>`;
+    left = f.entryId ? `<button class="btn ghost" data-mute="${esc(f.entryId)}" data-deckleft="1">&larr; Ignore</button>`
+      : `<button class="btn ghost" data-dropflag="${esc(f.id)}" data-deckleft="1">&larr; Clear</button>`;
+  } else {
+    const x = c.x;
+    body = `${x.body ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(x.body)}</div>` : ''}
+      <div class="hint" style="margin:4px 0 0">${x.fromChapter ? `Set up in ${esc(x.fromChapter)}.` : ''}${
+        x.owedBy ? ` Owed by ${esc(x.owedBy)}.` : ''}${x.summoned ? ' Summoned: the model is told it is owed.' : ''}</div>
+      <button class="btn ghost" data-stringstatus="${esc(x.id)}:paid" style="margin-top:8px">Tied off</button>`;
+    right = `<button class="btn" data-summon="${esc(x.id)}" data-deckright="1">${x.summoned ? 'Dismiss' : 'Summon'} &rarr;</button>`;
+    left = `<button class="btn ghost" data-stringstatus="${esc(x.id)}:dropped" data-deckleft="1">&larr; Let go</button>`;
+  }
+  return `<div class="deckcard card" data-deckcard="${i}" data-deckkind="${c.kind}"${i === top ? '' : ' hidden'}>
+    ${head}${body}<div class="deckbar">${left}${right}</div></div>`;
+}
+
+/** The deck. `only` limits it to these proposals' cards: the hem page shows what the scene left
+ *  in the same deck as the Workbench (one renderer), and whatever is not decided stays there. */
+function deckHTML(only = null) {
+  const cards = deckCards(only);
+  if (!cards.length) return '';
+  const top = Math.min(Math.max(0, S.deckAt ?? 0), cards.length - 1);
+  return `<div class="deck" data-deck>
+    <div class="deckhead"><span>${cards.length} to decide</span>
+      <span class="tnum" style="margin-left:auto">${top + 1} of ${cards.length}</span>
+      <button data-deckmove="-1" aria-label="The card before" ${top ? '' : 'disabled'}>&lsaquo;</button>
+      <button data-deckmove="1" aria-label="The next card" ${top < cards.length - 1 ? '' : 'disabled'}>&rsaquo;</button>
+      ${S.deckUndo ? `<button data-deckundo="1" class="tag" style="cursor:pointer">Undo</button>` : ''}</div>
+    <div class="hint" style="margin:0 0 8px">Swipe right to say yes, left to say no, or use the buttons. Nothing chalked is in the tale until you sew it in.</div>
+    ${cards.map((c, i) => deckCard(c, i, top)).join('')}
+  </div>`;
+}
+
 /** One proposal, with the two decisions it carries. Lifted out of the Chapter panel on
  *  2026-08-27 so Waiting can offer the same card rather than a second copy of it — this repo's
  *  own recurring failure is two renderings of one thing drifting apart, and Accept is the last
@@ -2507,9 +2602,9 @@ function ritualPanel() {
   return `<div class="lbl" style="letter-spacing:.1em">${esc(sceneName(ch))}${
       closed ? ' &middot; hemmed' : ''}</div>
     <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin:6px 0 18px">${closed
-      ? 'What hemming it found. All of it is basted: nothing is in the tale until you sew it in, on the Workbench.'
+      ? 'What hemming it found. All of it is chalked: nothing is in the tale until you sew it in, on the Workbench.'
       : `Hemming a scene summarises it, reads it for new threads, notes what it did to the people
-         in it, and asks which threads it is done with. Everything it finds is basted &mdash; tacked
+         in it, and asks which threads it is done with. Everything it finds is chalked &mdash; tacked
          on loosely &mdash; and nothing is in the tale until you sew it in.`}</div>
 
     ${closed ? '' : `${tipCard('ritEnd', 'Hem this scene', `<p>Hemming finishes the scene: it closes
@@ -2547,20 +2642,20 @@ function ritualPanel() {
         : 'Nothing changed anybody')}
 
     ${line(facts.length ? '--good' : '--chip',
-      facts.length ? `Read for threads — ${plural(facts.length, 'basted', 'basted')}`
+      facts.length ? `Read for threads — ${plural(facts.length, 'chalked', 'chalked')}`
         : 'No new threads came out of this scene')}
 
     ${line(of('retire').length ? '--warn' : '--chip',
-      of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} basted to be retired`
-        : 'No thread was basted to be retired')}
+      of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} chalked to be retired`
+        : 'No thread was chalked to be retired')}
     </div>
 
-    ${queued ? `${tipCard('ritDecide', 'Deciding what is basted', `<p>On the Workbench, beside
-      everything else this tale is owed. Nothing basted is in the tale until you sew it in.</p>`)}
+    ${queued ? `${tipCard('ritDecide', 'Deciding what is chalked', `<p>On the Workbench, beside
+      everything else this tale is owed. Nothing chalked is in the tale until you sew it in.</p>`)}
     <div style="display:flex; align-items:center; gap:2px; margin-top:8px">
       <button class="btn" data-panel="waiting" style="flex:1">Decide the ${
-        plural(queued, 'basted thing', 'basted things')}</button>
-      ${tipMark('ritDecide', 'Deciding what is basted')}</div>` : ''}
+        plural(queued, 'chalked thing', 'chalked things')}</button>
+      ${tipMark('ritDecide', 'Deciding what is chalked')}</div>` : ''}
 
     ${tipCard('ritSetup', 'Setting up the next scene', `<p>Its name, its brief, and who is in
       it.</p>`)}
@@ -2590,7 +2685,7 @@ function ritualPanel() {
     <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete${
       tipMark('ritDelete', 'Delete this scene')}</div>
     ${tipCard('ritDelete', 'Delete this scene', `<p>Its prose, its alterations, its summary and
-      anything it basted. There is no undo.</p>
+      anything it chalked. There is no undo.</p>
       <p>The scenes after it keep the numbers they have &mdash; a change over time is anchored to
       a scene number, so closing the gap would move it to a different scene.</p>`)}
     <button class="btn ghost" data-delchapter="${esc(ch.id)}"
@@ -2998,60 +3093,16 @@ const PANELS = {
     if (!w) return '<div class="hint">Nothing to show yet.</div>';
     const h = horizon();
     // EVERY DECISION IS TAKEN HERE. It listed counts and sent you elsewhere to act on them, which
-    // is four journeys to answer "does anything want me" — the thing this panel exists to end.
-    // Each list is the SAME renderer the panel it came from uses, so Accept here and Accept there
-    // are one behaviour rather than two that drift.
-    const props = V.proposals ?? [];
-    const owed = (V.strings ?? []).filter((x) => x.status === 'open');
-    const flags = (V.violations ?? []).filter((f) => f.status !== 'dismissed');
-
+    // is four journeys to answer "does anything want me" — the thing this panel exists to end. Each
+    // chalked section is the SAME `proposalCard` the tale has always used, inside the deck's cards,
+    // so Sew it in here and anywhere else are one behaviour rather than two that drift.
     const section = (title, hint, inner) => `<div class="lbl" style="letter-spacing:.1em; margin-top:18px">${
       esc(title)}</div><div class="hint" style="margin:0 0 8px">${esc(hint)}</div>${inner}`;
 
+    // #74 · THE DECK: chalked things, knots and strings, one card at a time (deckHTML).
     const rows = [];
-    if (props.length) rows.push(section(
-      `${props.length} thread${props.length === 1 ? '' : 's'} basted`,
-      'Basted means Anansi suggested it and it is not in the tale yet. Sew it in to keep it; the box is what gets written.',
-      `<div style="display:flex; flex-direction:column; gap:9px">${props.map(proposalCard).join('')}</div>`));
-
-    if (owed.length) rows.push(section(
-      `${owed.length} string${owed.length === 1 ? '' : 's'} not tied off`,
-      'Summoning one puts it in front of the model. Until then it is yours alone.',
-      owed.map((x) => `<div class="card" style="margin-bottom:8px; gap:6px">
-        <div style="display:flex; align-items:center; gap:9px">
-          <span style="font-size:14px; color:var(--ink-bright)">${esc(x.title)}</span>
-          <span class="up" style="margin-left:auto; font-size:11px; letter-spacing:.1em; color:var(--faint)">${
-            x.fromChapter ? `set up in ${x.fromChapter}` : ''}${x.owedBy ? ` · owed by ${x.owedBy}` : ''}</span></div>
-        ${x.body ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(x.body)}</div>` : ''}
-        <div style="display:flex; gap:7px">
-          <button data-summon="${x.id}" style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
-            ${x.summoned ? 'background:var(--gold); color:var(--on-gold)' : 'border:1px solid var(--chip); color:var(--mute)'};
-            font-size:11.5px">${x.summoned ? 'Summoned — dismiss it' : 'Summon it'}</button>
-          <button data-stringstatus="${x.id}:paid" style="width:96px; text-align:center; padding:8px 0;
-            border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Tied off</button>
-        </div></div>`).join('')));
-
-    if (flags.length) rows.push(section(
-      `${flags.length} knot${flags.length === 1 ? '' : 's'}`,
-      'A knot is a line of narration that contradicts a thread. Clearing one leaves the prose alone.',
-      flags.map((f) => {
-        const e = V.entries.find((x) => x.id === f.entryId);
-        const unseen = f.reached === false;
-        return `<div class="card" style="margin-bottom:8px; gap:6px;
-          border-color:${unseen ? 'rgba(217,178,106,.34)' : 'rgba(200,80,80,.34)'}">
-          <div class="kind" style="color:${unseen ? 'var(--warn)' : 'var(--bad)'}">${unseen
-            ? `never sent · ${esc(e?.title ?? 'a thread')}` : `knot · ${esc(e?.title ?? 'a thread')}`}</div>
-          ${f.reason ? `<div class="clamp" style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(f.reason)}</div>` : ''}
-          <div style="display:flex; gap:7px">
-            <button data-goflag="${f.passageId}" style="flex:1; text-align:center; padding:8px 0;
-              border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Show me the passage</button>
-            <button data-dropflag="${f.id}" style="width:96px; text-align:center; padding:8px 0;
-              border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Clear</button>
-          </div>
-          ${f.entryId ? `<button data-mute="${f.entryId}" style="text-align:left; padding:7px 0 0;
-            color:var(--faint); font-size:11px">Ignore ${esc(e?.title ?? 'this')} for the rest of this scene</button>` : ''}
-          </div>`;
-      }).join('')));
+    const deck = deckHTML();
+    if (deck) rows.push(deck);
 
     // THE WAY BACK. A mute you cannot see is deafness. Every entry quieted in this chapter is
     // listed here with the press that lifts it, so "not for now" never silently becomes "never".
@@ -3119,7 +3170,7 @@ const PANELS = {
     }
 
     return `<div class="hint" style="margin:0">The Workbench is where everything that wants you
-        collects: basted things, strings not tied off, knots and out-of-date summaries.</div>
+        collects: chalked things, strings not tied off, knots and out-of-date summaries.</div>
       ${rows.join('')}
       ${off.map((d) => `<div class="card" style="margin-bottom:9px; gap:5px">
         <div class="kind">${esc(d.title)}</div>
@@ -3312,8 +3363,8 @@ const PANELS = {
 
         <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or let Anansi${
           tipMark('thInvent', 'What Anansi writes')}</div>
-        ${tipCard('thInvent', 'What Anansi writes', `<p>Everything Anansi writes here is basted under This
-          scene. Nothing basted is in the tale until you sew it in.</p>
+        ${tipCard('thInvent', 'What Anansi writes', `<p>Everything Anansi writes here is chalked under This
+          scene. Nothing chalked is in the tale until you sew it in.</p>
           <p>Looking it up keeps to what the search found: a gap is left as a gap, and it looks for the
           pockets as well as the thread. Your own SearXNG does the searching, and the pages it read
           ride along.</p>`)}
@@ -3647,7 +3698,7 @@ const PANELS = {
         <div style="display:flex; justify-content:flex-end">${
           tipMark('sPullPace', 'Pulling the ticked ones')}</div>
         ${tipCard('sPullPace', 'Pulling the ticked ones', `<p>One at a time, about eight seconds
-          each, and each one is basted under This scene with the pages it read. Nothing is in the
+          each, and each one is chalked under This scene with the pages it read. Nothing is in the
           tale until you sew it in there.</p>`)}` : ''}
 
       ${pick('setting', `Setting${tipMark('sSetting', 'Setting')}`, lore.map((e) => e.title),
@@ -3928,7 +3979,7 @@ const PANELS = {
               writer has. Zero is drawn as nothing rather than as 0: "Summaries" is a place you can
               go, "Summaries 0" reads as a broken counter. */
           [['this', 'This scene', 0],
-           ['proposed', 'Basted', ps.length],
+           ['proposed', 'Chalked', ps.length],
            ['summaries', 'Summaries', V.chapters.filter((c) => c.summary).length],
            ['branches', 'Branches', (V.branches ?? []).length > 1 ? (V.branches ?? []).length : 0]]
           .map(([k, label, n]) => `<button class="chip" data-chaptab="${k}"
@@ -3985,7 +4036,7 @@ const PANELS = {
       <div class="lbl" style="letter-spacing:.1em; margin-top:26px; color:var(--faint)">Delete${
         tipMark('chDelete', 'Delete this scene')}</div>
       ${tipCard('chDelete', 'Delete this scene', `<p>Its prose, its alterations, its summary and
-        anything it basted. There is no undo.</p>
+        anything it chalked. There is no undo.</p>
         <p>The scenes after it keep the numbers they have &mdash; a change over time is anchored
         to a scene number, so closing the gap would move it to a different scene.</p>`)}
       <button class="btn ghost" data-delchapter="${esc(ch.id)}"
@@ -3993,8 +4044,8 @@ const PANELS = {
       </div>
 
       <div class="sgroup" data-group="proposed">
-      <div class="lbl" style="letter-spacing:.1em; margin-top:0">What this scene basted</div>
-      <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Basted is tacked on loosely: nothing here is in the tale until you sew it in.</div>
+      <div class="lbl" style="letter-spacing:.1em; margin-top:0">What this scene chalked</div>
+      <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin-bottom:9px">Chalked is marked in chalk: nothing here is in the tale until you sew it in.</div>
       <div style="display:flex; flex-direction:column; gap:9px">
       ${ps.length ? `<div style="display:flex; gap:7px; flex-wrap:wrap; margin-bottom:4px">
         ${PKINDS.filter(([k]) => nOf(k)).map(([k, l]) => `<button data-pkind="${k}"
@@ -4016,12 +4067,12 @@ const PANELS = {
                style="flex:1; margin:0">Sew in all ${shown.length}</button>${
                tipMark('chAddAll', 'Sew in all of them')}</div>` : ''}
       ${shown.map(proposalCard).join('') || `<div class="hint" style="margin:0">${
-        ps.length ? 'Nothing of that kind.' : 'Nothing basted. Hemming a scene reads it for new threads and for what it did to the people in it.'}</div>`}
+        ps.length ? 'Nothing of that kind.' : 'Nothing chalked. Hemming a scene reads it for new threads and for what it did to the people in it.'}</div>`}
       ${(V.proposals ?? []).some((p) => p.entryType === 'string')
         ? `<button class="btn ghost" data-panel="strings" style="margin-top:6px">${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length === 1 ? '' : 's'
-          } basted &mdash; they wait under Strings</button>` : ''}
+          } chalked &mdash; they wait under Strings</button>` : ''}
       <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this scene for threads</button>
       <!-- POST /api/remember was finished, tested, and reachable from nowhere until 2026-08-27.
            Closing a chapter runs it; this is the way back when the router was down at the time,
@@ -4184,7 +4235,7 @@ const PANELS = {
                    thing on a phone. The search still happens and still reaches her; the writer just
                    is not handed the bibliography. -->
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
-                border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} basted &mdash; under This scene</button>` : ''}
+                border-color:rgba(217,178,106,.4); color:var(--gold)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
               ${turn.meta ? `<div style="font-size:11px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
             </div>`).join('')
           : (() => {
@@ -4315,9 +4366,9 @@ const PANELS = {
         // spotted belongs next to the promises you already know about.
         const mine = (V.proposals ?? []).filter((p) => p.entryType === 'string');
         if (!mine.length) return '';
-        return `<div class="lbl" style="letter-spacing:.1em; margin-top:0">Basted by Anansi${
-            tipMark('strNoticed', 'Basted by Anansi')}</div>
-          ${tipCard('strNoticed', 'Basted by Anansi', `<p>Basted is tacked on loosely: none of these
+        return `<div class="lbl" style="letter-spacing:.1em; margin-top:0">Chalked by Anansi${
+            tipMark('strNoticed', 'Chalked by Anansi')}</div>
+          ${tipCard('strNoticed', 'Chalked by Anansi', `<p>Chalked is marked in chalk: none of these
             is a string of the tale until you sew it in.</p>`)}
           ${mine.map((p) => `<div class="card" style="margin-bottom:8px; gap:8px;
             border-color:rgba(217,178,106,.28)">
@@ -4341,7 +4392,7 @@ const PANELS = {
         ${done.map(row).join('')}` : ''}
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">A new string${
         tipMark('strNew', 'A new string')}</div>
-      ${tipCard('strNew', 'A new string', `<p>Anansi bastes these too &mdash; they arrive under This
+      ${tipCard('strNew', 'A new string', `<p>Anansi chalks these too &mdash; they arrive under This
         scene with everything else she offers.</p>`)}
       <input class="field" data-st2="title" aria-label="What to call the promise"
         placeholder="The letter he has not opened">
@@ -5552,7 +5603,7 @@ function setupPanel() {
     <div class="serif" style="font-size:21px; color:var(--ink-bright)">${
       esc(sceneName(justClosed))} changed ${
       plural(left.length, 'thread', 'threads')}${tipMark('setLeft', 'What the scene left')}</div>
-    ${tipCard('setLeft', 'What the scene left', `<p>All of it is basted: nothing here is in the tale
+    ${tipCard('setLeft', 'What the scene left', `<p>All of it is chalked: nothing here is in the tale
       until you sew it in, and nothing here is required &mdash; what you leave stays on the
       Workbench.</p>`)}
     <!-- Issue #32, ABOVE the queue. An empty queue is the thing being explained, so the
@@ -5562,8 +5613,20 @@ function setupPanel() {
     ${fresh.length ? `<button class="btn ghost" data-setupstep="more" style="margin-top:8px"
       >${plural(fresh.length, 'new thread', 'new threads')} as well &mdash; under Anyone new</button>` : ''}
     <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">
-      ${left.map(proposalCard).join('')
+      ${/* #74. The same deck as the Workbench, holding what this scene left. */
+        deckHTML(new Set(left.map((p) => p.id)))
         || '<div class="hint" style="margin:0">Nothing it changed about a thread you already have.</div>'}</div>
+    ${(() => {
+      // #74 · ALSO CHECK: the threads sent on every call that this scene never named. Hemming reviews
+      // only what the narration names, so these were not looked at; one press opens each.
+      const prose = (V.passages ?? []).filter((p) => p.chapterId === justClosed?.id && !p.isBreak)
+        .map((p) => String(p.body ?? '').replace(/["“][^"”]*(?:["”]|$)/g, ' ')).join(' ').toLowerCase();
+      const quiet = justClosed ? (V.entries ?? []).filter((e) => e.activation === 'always_on' && e.retiredAtChapter == null
+        && ![e.title, ...(e.keys ?? [])].some((k) => k && prose.includes(String(k).toLowerCase()))) : [];
+      return quiet.length ? `<div class="hint" style="margin:12px 0 0">Also check: ${quiet.map((e) =>
+        `<button data-entry="${esc(e.id)}" class="tag" style="cursor:pointer">${esc(e.title)}</button>`).join(' ')}
+        &mdash; sent on every call, and not named in this scene, so hemming did not look at them.</div>` : '';
+    })()}
     <button class="btn" data-setupstep="premise" style="margin-top:16px">Next &mdash; the next scene</button>
     ${skip}
   </div>`;
@@ -5577,7 +5640,7 @@ function setupPanel() {
       <div style="display:flex; justify-content:flex-end; margin-top:6px">${
         tipMark('setInvent', 'Having Anansi write one for this scene')}</div>
       ${tipCard('setInvent', 'Having Anansi write one for this scene', `<p>Anansi reads where you
-        said the scene heads and bastes a thread for it. It goes to the Workbench like everything
+        said the scene heads and chalks a thread for it. It goes to the Workbench like everything
         else she offers; nothing is in the tale until you sew it in.</p>`)}
       <div style="display:flex; gap:6px; margin-top:12px">${KINDS.map((k) => `<button data-setupkind="${k}" aria-pressed="${k === kind}"
         style="flex:1; text-align:center; font-size:11px; padding:8px 0; border-radius:var(--r);
@@ -5594,9 +5657,9 @@ function setupPanel() {
            card asked for in the tray directly above this used to appear two steps away. Both sources
            are the same thing to a writer: a thread this book does not have yet. -->
       ${fresh.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">${
-        plural(fresh.length, 'new thread', 'new threads')} basted${
-        tipMark('setFresh', 'New threads, basted')}</div>
-      ${tipCard('setFresh', 'New threads, basted', `<p>Nothing basted is in the tale until you weave
+        plural(fresh.length, 'new thread', 'new threads')} chalked${
+        tipMark('setFresh', 'New threads, chalked')}</div>
+      ${tipCard('setFresh', 'New threads, chalked', `<p>Nothing chalked is in the tale until you weave
         it in, and what you leave stays on the Workbench.</p>`)}
       ${fresh.length > 1 ? `${tipCard('setAddAll', 'Sew in all the new threads', `<p>Only the new
         ones. A change writes into a thread you already have, so those stay one at a time under What
@@ -5605,7 +5668,7 @@ function setupPanel() {
         <button class="btn ghost" data-acceptall="new" style="flex:1; margin:0"
           >Sew in all ${plural(fresh.length, 'new thread', 'new threads')}</button>
         ${tipMark('setAddAll', 'Sew in all the new threads')}</div>` : ''}
-      <div style="display:flex; flex-direction:column; gap:9px">${fresh.map(proposalCard).join('')}</div>` : ''}
+      <div style="display:flex; flex-direction:column; gap:9px">${deckHTML(new Set(fresh.map((p) => p.id)))}</div>` : ''}
       <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Who is in it${
         tipMark('setWho', 'Who is in it')}</div>
       ${tipCard('setWho', 'Who is in it', `<p>Ticked means it is sent for this scene whether or not
@@ -5678,7 +5741,7 @@ function setupPanel() {
          offering — Save and write is the way OUT of the ritual, not the way through it. One accent
          per screen, so Save and write gives it up rather than competing. -->
     <button class="btn" data-setupstep="more" style="margin-top:20px">Next &mdash; anyone new${
-      fresh.length ? ` &middot; ${fresh.length} basted` : ''}</button>
+      fresh.length ? ` &middot; ${fresh.length} chalked` : ''}</button>
     <button class="btn ghost" data-savesetup="1" style="margin-top:8px">Save and write</button>
     ${skip}
   </div>`;
@@ -6460,7 +6523,7 @@ function entryEditor() {
       ? 'The words that bring an on-a-word thread to the model. Not used while this is always-on — '
         + 'Anansi reads it every time either way. Write them anyway: they are what would wake it the '
         + 'moment you switch it to On a word, and this is the only place you can see what was '
-        + 'basted for it.'
+        + 'chalked for it.'
       : (e.keys ?? []).length
         ? 'The words that bring this thread to the model. Comma separated, up to ten. A whole word '
           + 'in recent prose or in your directive wakes it.'
@@ -6725,7 +6788,7 @@ function entryEditor() {
          prose twice. -->
     ${tipCard('cardScan', 'Reading the whole tale for this thread', `<p>Every passage whose
       NARRATION names it, most recent first. Dialogue is stripped before it is read &mdash; a
-      character saying a thing is not the tale committing to it. Everything it finds is basted;
+      character saying a thing is not the tale committing to it. Everything it finds is chalked;
       nothing is written.</p>`)}
     <div style="display:flex; align-items:center; gap:2px; margin-top:20px">
       <button class="btn ghost" data-scanstory="${esc(e.id)}" ${S.scanning ? 'disabled' : ''}
@@ -7277,7 +7340,7 @@ function resumeBand(s) {
   const words = Number(s.words) || 0;
   const meta = [genre && genre[0].toUpperCase() + genre.slice(1),
     words ? `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}` : ''].filter(Boolean).join(' · ');
-  const owed = [Number(s.proposed) ? `${s.proposed} thread${s.proposed === 1 ? '' : 's'} basted` : '',
+  const owed = [Number(s.proposed) ? `${s.proposed} thread${s.proposed === 1 ? '' : 's'} chalked` : '',
     Number(s.unpaid) ? `${s.unpaid} string${s.unpaid === 1 ? '' : 's'} not tied off` : ''].filter(Boolean);
   return `<section class="resumeband${s.cover ? ' haspic' : ''}" aria-label="Where you left off: ${esc(s.title)}">
     <!-- The ground opens the book, because pressing a book is what a cover is for. Carry on writing
@@ -9085,7 +9148,7 @@ async function invented(r, kind, dir, search) {
   }
   V = await api.story(S.storyId, V.currentChapter.id); paint();
   return toast(r.duplicate ? `The threads already say that about ${r.title}.`
-                           : `${r.title} basted — under This scene.`);
+                           : `${r.title} chalked — under This scene.`);
 }
 
 /** THE MENTIONS A QUESTION STILL NAMES, as Talk takes them: only the ones whose `@name` is still in
@@ -9925,8 +9988,8 @@ document.addEventListener('click', async (e) => {
     // not work — the same reason extraction's count is reported rather than swallowed.
     S.panel = 'chapter'; syncHash(); paint();
     return toast(r.proposed
-      ? `"${r.title}" is basted under This scene, from scene ${r.chapter}. Nothing is in the tale yet.`
-      : r.note ?? 'already basted');
+      ? `"${r.title}" is chalked under This scene, from scene ${r.chapter}. Nothing is in the tale yet.`
+      : r.note ?? 'already chalked');
   }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
   // Two doors, one rail. `data-railview` says WHICH menu you asked for: the menu button asks for
@@ -10331,7 +10394,7 @@ document.addEventListener('click', async (e) => {
     if (x.error) return toast(x.error);
     V = await api.story(S.storyId);
     S.lore = null; S.panel = 'chapter'; syncHash(); paint();
-    toast(`${x.added ?? 0} basted as threads — nothing sewn in yet.`);
+    toast(`${x.added ?? 0} chalked as threads — nothing sewn in yet.`);
     return;
   }
   if (d.nav) {
@@ -11102,6 +11165,34 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest(); toast('Saved.'); return;
   }
+  // #74 · THE DECK. A card's yes or no for every section on it, its arrows, and the undo of a no.
+  if (d.deckall) {
+    const ids = String(d.ids ?? '').split(',').filter(Boolean);
+    const yes = d.deckall === 'accept';
+    for (const id of ids) {
+      const edited = document.querySelector(`[data-pbody="${id}"]`)?.value;
+      const r = await api.decide({ storyId: S.storyId, id, accept: yes, ...(yes && edited != null ? { body: edited } : {}) });
+      if (r.error) { V = await api.story(S.storyId); paint(); return toast(r.error); }
+    }
+    S.deckUndo = yes ? null : ids;
+    V = await api.story(S.storyId); paint(); refreshManifest();
+    return toast(yes ? 'Sewn in.' : 'Rejected. Undo puts it back.');
+  }
+  if (d.deckmove) { S.deckAt = Math.max(0, (S.deckAt ?? 0) + Number(d.deckmove)); paint(); return; }
+  if (d.deckundo) {
+    if (!S.deckUndo) return;
+    const r = await api.reopen(S.storyId, S.deckUndo); S.deckUndo = null;
+    if (r.error) return toast(r.error);
+    V = r; paint(); return toast('Back on the Workbench.');
+  }
+  if (d.anansiedit) {
+    // Anansi writes one section again, on what the writer typed beside it or on nothing.
+    const steer = document.querySelector(`[data-aeask="${d.anansiedit}"]`)?.value ?? '';
+    t.disabled = true; t.textContent = 'Writing it again…';
+    const r = await withRing(() => api.redo(S.storyId, d.anansiedit, steer));
+    if (r.error) { t.disabled = false; t.textContent = 'Anansi edits'; return toast(r.error); }
+    V = r; paint(); return toast('Written again. Still chalked: nothing changes until you sew it in.');
+  }
   if (d.makeplace) {
     // #80. One Lore thread made a Place, from the update report. A place has every pocket Lore had.
     const e = V.entries.find((x) => x.id === d.makeplace); if (!e) return;
@@ -11433,7 +11524,7 @@ document.addEventListener('click', async (e) => {
     const seen = r.read < r.mentioned ? ` Read the ${r.read} most recent of ${r.mentioned} that name it.`
       : ` All ${r.mentioned} passage${r.mentioned === 1 ? '' : 's'} that name it.`;
     return toast(r.added
-      ? `${r.added} basted for ${r.title}.${seen} Nothing is in the tale until you sew it in.`
+      ? `${r.added} chalked for ${r.title}.${seen} Nothing is in the tale until you sew it in.`
       : `Nothing new about ${r.title}.${seen}`);
   }
   if (d.delcover) {
@@ -11603,7 +11694,7 @@ document.addEventListener('click', async (e) => {
     if (!r) return;
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint();
-    return toast(r.proposed ? `${r.proposed} basted to be retired, of ${r.eligible} this scene names`
+    return toast(r.proposed ? `${r.proposed} chalked to be retired, of ${r.eligible} this scene names`
                             : `Nothing to hem, of ${r.eligible ?? 0} this scene names`);
   }
   // #43. A summary by hand. Saving it empty removes it, which is the one press here that loses
@@ -11651,7 +11742,7 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId); paint();
     // `remembered: 0` is a real answer and not a failure: nobody in the chapter changed, or the
     // cast is empty. Saying "0 proposed" beats a silence that reads as a button that did nothing.
-    return toast(`${r.remembered ?? 0} basted — nothing sewn in yet.`);
+    return toast(`${r.remembered ?? 0} chalked — nothing sewn in yet.`);
   }
   if (d.decide) {
     // The route branches on `accept`, not on a verb. Sending `decision: 'accept'` left
@@ -12308,8 +12399,8 @@ document.addEventListener('click', async (e) => {
     S.panel = 'chapter'; S.propKind = 'all';
     syncHash(); paint(); refreshManifest();
     return toast(failed.length
-      ? `${plural(made, 'thread', 'threads')} basted. ${failed.length} came back with nothing usable: ${failed.slice(0, 3).join(', ')}.`
-      : `${plural(made, 'thread', 'threads')} basted — sew them in under This scene.`);
+      ? `${plural(made, 'thread', 'threads')} chalked. ${failed.length} came back with nothing usable: ${failed.slice(0, 3).join(', ')}.`
+      : `${plural(made, 'thread', 'threads')} chalked — sew them in under This scene.`);
   }
   if (d.fromweb) {
     if (S.webPulling) return;
@@ -12326,7 +12417,7 @@ document.addEventListener('click', async (e) => {
     syncHash(); paint(); refreshManifest();
     return toast(r.duplicate
       ? `The threads already say that about ${r.title}.`
-      : `${r.title} is basted, from ${plural((r.sources ?? []).length, 'page', 'pages')} — sew it in under This scene.`);
+      : `${r.title} is chalked, from ${plural((r.sources ?? []).length, 'page', 'pages')} — sew it in under This scene.`);
   }
   if (d.cardcopy) {
     const text = document.getElementById('f-card-json')?.value ?? '';
@@ -12449,6 +12540,14 @@ $('scrim').addEventListener('click', () => {
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.passEdit) { closePassEdit(); return; }
+  // #74 · THE DECK BY KEYS: right arrow is the top card's yes and left its no, as the buttons are,
+  // when the Workbench is open and nothing is being typed.
+  if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && (S.panel === 'waiting' || S.panel === 'setup')
+    && !e.target.closest?.('input, textarea, select, [contenteditable]')) {
+    const top = document.querySelector('#sideBody .deckcard:not([hidden])');
+    const b = top?.querySelector(e.key === 'ArrowRight' ? '[data-deckright]' : '[data-deckleft]');
+    if (b) { e.preventDefault(); b.click(); return; }
+  }
   if (e.key === 'Escape' && S.reroll) { S.reroll = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); syncTray(); return; }
   // Esc shuts what is on top: a passage's actions, then the menu over the page. Neither listened
   // for it, so on the Titan's keyboard the only way out was a tap (usability check, 2026-10-24).
@@ -12500,6 +12599,33 @@ for (const ev of ['pointerup', 'pointercancel']) {
 document.addEventListener('contextmenu', (e) => {
   if (e.target.closest?.('#nextbar')) e.preventDefault();
 });
+/* #74 · A SWIPE ON THE TOP CARD OF THE DECK. Past a third of the card's width it presses the card's
+ * right or left button; short of it the card goes back. Not from a field or a button, where a drag
+ * is somebody selecting text or pressing. The lean is a transform, dropped under reduced motion. */
+{
+  let drag = null;
+  document.addEventListener('pointerdown', (e) => {
+    const card = e.target.closest?.('.deckcard:not([hidden])');
+    if (!card || e.target.closest('input, textarea, select, button, summary, a')) return;
+    drag = { card, x: e.clientX, dx: 0 };
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    drag.dx = e.clientX - drag.x;
+    if (!still()) drag.card.style.transform = `translateX(${drag.dx}px) rotate(${drag.dx / 40}deg)`;
+    drag.card.dataset.lean = drag.dx > 40 ? 'right' : drag.dx < -40 ? 'left' : '';
+  });
+  const end = () => {
+    if (!drag) return;
+    const { card, dx } = drag; drag = null;
+    card.style.transform = ''; card.dataset.lean = '';
+    if (Math.abs(dx) > card.getBoundingClientRect().width / 3)
+      card.querySelector(dx > 0 ? '[data-deckright]' : '[data-deckleft]')?.click();
+  };
+  document.addEventListener('pointerup', end);
+  document.addEventListener('pointercancel', end);
+}
+
 /* #71 · A TAP ON THE PROSE FOLDS THE BOX. With the box up the bar is hidden, and the page above it is
  * where a writer's eye goes to read back; tapping it puts the box away so there is more of it to
  * read. The tap still does what it does (one on a passage opens its actions). Not a tap on a

@@ -43,6 +43,8 @@ let summed: string | null = null;
 let calls = 0;
 /** And what TIDY returns (#73): its three top-level keys ride on the same blob. */
 let tidied: any = {};
+/** And what REDO returns (#74): one section written again. */
+let redone = '';
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -56,7 +58,7 @@ const srv = createServer((req, res) => {
     asked = { system: b.messages?.[0]?.content ?? '', user: b.messages?.[1]?.content ?? '' };
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
-    send({ choices: [{ message: { content: JSON.stringify({ ...tidied, threads: answer, entries: found,
+    send({ choices: [{ message: { content: JSON.stringify({ ...tidied, body: redone, threads: answer, entries: found,
                                                             finished, style: styled }) } }],
            usage: { prompt_tokens: 200, completion_tokens: 60 } });
   });
@@ -852,6 +854,30 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.match(voices[0].body, /never names it/, '  by the instruction');
   assert.ok(rooms.some((a) => a.slot === 'outfit' && a.name === 'Black lace'), '  and a new pocket lands under its own name');
   ok('Tidy this thread chalks one card that sorts it into its three parts, replacing old pockets');
+}
+
+// ---- #74 · ANANSI EDITS ONE SECTION, AND A REJECT CAN BE UNDONE ----
+{
+  const t = db.createStory(me, { title: 'Redo', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const ilse = db.upsertEntry(t.id, me, { title: 'Ilse', body: '[Ilse: a ferrywoman]', entryType: 'character' });
+  db.addProposal(t.id, { kind: 'changed', entry_id: ilse, chapterId: ch0.id, title: 'Ilse', entryType: 'character',
+    field: 'voice', body: 'She talks a lot.', keys: [], delta: 'voice', grp: 'g1' });
+  const p: any = db.proposalsOf(t.id)[0];
+  redone = 'Long, wandering lines that stop mid-thought; she never finishes a question.';
+  asked = null;
+  await routes['POST /api/proposal/redo'](ctx({ storyId: t.id, id: p.id, steer: 'she rambles' }));
+  redone = '';
+  assert.ok(asked.user.includes('she rambles') && asked.user.includes('a pocket: voice'),
+    'REDO-ASKS: the steer and what the section is reach the model');
+  assert.strictEqual(db.proposal(t.id, p.id).body, 'Long, wandering lines that stop mid-thought; she never finishes a question.',
+    'REDO-CHALKED: the section holds the new text, still waiting');
+  assert.strictEqual(db.proposal(t.id, p.id).status, 'open', '  and nothing was sewn in');
+  await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: false }));
+  assert.strictEqual(db.proposal(t.id, p.id).status, 'rejected');
+  await routes['POST /api/proposal/reopen'](ctx({ storyId: t.id, ids: [p.id] }));
+  assert.strictEqual(db.proposal(t.id, p.id).status, 'open', 'UNDO-REJECT: a rejected section is back on the Workbench');
+  ok('Anansi edits one section on a steer, still chalked, and a reject can be undone');
 }
 
 srv.close();
